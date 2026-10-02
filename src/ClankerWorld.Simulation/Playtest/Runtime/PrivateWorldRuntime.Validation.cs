@@ -19,6 +19,7 @@ public sealed partial class PrivateWorldRuntime
         ValidateBeliefEventSources(society.Checkpoint.Beliefs ?? [], events, eventHistoryFloor);
         society.Validate();
         ValidateBusinessTrades(BusinessTrades, society.Checkpoint, map, WorldTick);
+        ValidateMedicalCare(inhabitants.Values, deceasedInhabitants.Values, society.Checkpoint);
         contentRegistry.Validate();
         worldContent.Validate();
         var expectedWorldContent = RebuildWorldContent(contentRegistry.ExportState());
@@ -359,6 +360,7 @@ public sealed partial class PrivateWorldRuntime
         ValidateBeliefEventSources(state.Society.Society.Beliefs ?? [], state.Events, state.EventHistoryFloor);
         ValidateConversationState(state, society.Checkpoint);
         ValidateBusinessTrades(state.BusinessTrades, society.Checkpoint, state.Map, society.Checkpoint.WorldTick);
+        ValidateMedicalCare(state);
         AgentKnowledgeRules.Validate(state.Knowledge, travelMap, society.Checkpoint,
             society.Checkpoint.WorldTick);
         ValidateSurvival(state);
@@ -646,7 +648,8 @@ public sealed partial class PrivateWorldRuntime
                 deceased.DeathTick != person.DeathTick || person.DeathTick < 0 || person.DeathTick > society.WorldTick ||
                 person.AgeAtDeath < 0 || person.LastPhysical.InhabitantId != person.InhabitantId ||
                 !deathMap.IsPassable(person.LastPhysical.Position) ||
-                person.LastPhysical.HungerBasisPoints is < 0 or > 10_000)
+                person.LastPhysical.HungerBasisPoints is < 0 or > 10_000 ||
+                person.LastPhysical.Equipment?.OrnamentLotId is not null)
                 throw new InvalidDataException("The deceased inhabitant archive contains an invalid final state.");
             ValidatePrivateThoughts(person.LastPhysical.RecentThoughts, person.DeathTick);
             AgentIdentityMoment.Validate(person.LastPhysical.IdentityMoments, person.DeathTick, schemaVersion);

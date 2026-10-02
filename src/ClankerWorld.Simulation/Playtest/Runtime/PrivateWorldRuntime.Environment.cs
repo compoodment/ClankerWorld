@@ -254,7 +254,13 @@ public sealed partial class PrivateWorldRuntime
                          .Where(item => item.Outcome is "waiting" or "requested").ToArray())
                 FinishIdentityMoment(id, moment.Kind, "interrupted");
             deceasedInhabitants.Add(id, new PlaytestDeceasedInhabitantState(
-                id, deathTick, society.Checkpoint.AgeAt(deceased, deathTick), inhabitants[id]));
+                id, deathTick, society.Checkpoint.AgeAt(deceased, deathTick),
+                inhabitants[id] with
+                {
+                    MedicalTreatment = null,
+                    Equipment = inhabitants[id].Equipment is { } equipment
+                        ? equipment with { OrnamentLotId = null } : null,
+                }));
             inhabitants.Remove(id);
             RemoveTownResident(id);
             checkpointSchemaVersion = StateSchemaVersion;

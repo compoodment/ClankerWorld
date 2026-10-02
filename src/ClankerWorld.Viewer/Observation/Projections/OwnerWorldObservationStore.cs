@@ -418,7 +418,9 @@ public sealed class OwnerWorldObservationStore
                 : [],
             WeatherRegionSize = WeatherRules.RegionSize,
             CalendarPace = state.WorldSystems is { } worldSystems
-                ? new ViewerCalendarPace(worldSystems.Config.TicksPerDay, worldSystems.Config.DaysPerYear)
+                ? new ViewerCalendarPace(worldSystems.Config.TicksPerDay, worldSystems.Config.DaysPerYear,
+                    worldSystems.Config.SpringDays, worldSystems.Config.SummerDays,
+                    worldSystems.Config.AutumnDays, worldSystems.Config.WinterDays)
                 : null,
             Authoring = new ViewerAuthoringState(
                 state.Society.Society.IsPaused,
@@ -830,6 +832,7 @@ public sealed class OwnerWorldObservationStore
                     { ConditionBasisPoints: > 0 },
                     inventory.Any(item => item.Kind == "tool" && item.Quantity > 0), survival.NutritionBasisPoints, survival.LastMealKind) : null,
             Equipment = EquipmentFor(state, physical),
+            MedicalCareNote = inhabitant.Status == SocietyInhabitantStatus.Active ? MedicalCareRules.Note(physical) : null,
             Lesson = physical.Lesson is { } lesson ? new ViewerLesson(
                 state.Society.Society.GetInhabitant(lesson.TeacherId).Name, lesson.Skill.ToString().ToLowerInvariant(),
                 lesson.Stage, lesson.Progress, 20) : null,
@@ -1163,12 +1166,13 @@ public sealed class OwnerWorldObservationStore
         var inventory = state.Society.Society.Inventory;
         var garment = PersonalEquipmentRules.EquippedUnit(inventory, person.InhabitantId, person.Equipment?.ClothingLotId);
         var aid = PersonalEquipmentRules.EquippedUnit(inventory, person.InhabitantId, person.Equipment?.CarryAidLotId);
+        var ornament = PersonalEquipmentRules.EquippedUnit(inventory, person.InhabitantId, person.Equipment?.OrnamentLotId);
         var repair = person.Equipment?.Repair;
         return new(PersonalEquipmentRules.CarriedQuantity(inventory, person.InhabitantId, person.Equipment),
             PersonalEquipmentRules.Capacity(inventory, person.InhabitantId, person.Equipment),
             garment?.ItemKind, garment?.ConditionBasisPoints / 100, aid?.ItemKind, aid?.ConditionBasisPoints / 100,
             inventory.Lots.FirstOrDefault(lot => lot.Id == repair?.LotId)?.ItemKind,
-            repair?.WorkDone ?? 0, PersonalEquipmentRules.RepairWorkTicks);
+            repair?.WorkDone ?? 0, PersonalEquipmentRules.RepairWorkTicks, ornament?.ItemKind);
     }
 
     private static ViewerInventoryEntry[] InventoryFor(

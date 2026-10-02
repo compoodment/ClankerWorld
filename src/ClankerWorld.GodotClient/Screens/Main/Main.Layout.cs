@@ -195,7 +195,7 @@ public partial class Main
         BuildMapFiltersPanel(content);
         var rosterBody = new VBoxContainer();
         rosterBody.AddThemeConstantOverride("separation", 6);
-        rosterSummaryLabel.Text = "Waiting for the world…";
+        rosterSummaryLabel.Text = "Waiting for the world...";
         rosterSummaryLabel.ThemeTypeVariation = "DimLabel";
         rosterSummaryLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         rosterBody.AddChild(rosterSummaryLabel);
@@ -225,6 +225,7 @@ public partial class Main
         content.AddChild(eventsPanel);
 
         var familyBody = new VBoxContainer();
+        familyBody.AddThemeConstantOverride("separation", 8);
         var familyHeading = new HBoxContainer();
         var familyTitle = new Label { Text = "Family Tree", ThemeTypeVariation = "HeadingLabel", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
         familyHeading.AddChild(familyTitle);
@@ -232,13 +233,19 @@ public partial class Main
         closeFamily.Pressed += () => familyTreePanel.Hide();
         familyHeading.AddChild(closeFamily);
         familyBody.AddChild(familyHeading);
-        familyTreeStatus.Text = "Green: parent–child   ·   Pink: partnership   ·   Click a person to inspect";
+        familyTreeStatus.Text = "No family links recorded yet. Housemates are not automatically relatives.";
+        familyTreeStatus.ThemeTypeVariation = "DimLabel";
+        familyTreeStatus.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        familyTreeStatus.CustomMinimumSize = new Vector2(280, 0);
         familyBody.AddChild(familyTreeStatus);
+        FillFamilyLegend();
+        familyBody.AddChild(familyLegend);
         familyTreeScroll.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         familyTreeScroll.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
         familyTreeScroll.AddChild(familyTreeView);
         familyBody.AddChild(familyTreeScroll);
         familyTreeView.PersonRequested += SelectFromFamilyTree;
+        familyTreeView.Portrait = AgentPortrait;
         AddPanelContents(familyTreePanel, familyBody);
         familyTreePanel.ZIndex = 85;
         familyTreePanel.Hide();
@@ -252,9 +259,7 @@ public partial class Main
         closeMemories.Pressed += () => memoriesPanel.Hide();
         memoriesHeading.AddChild(closeMemories);
         memoriesBody.AddChild(memoriesHeading);
-        ConfigureTextPanel(memoryHistory, 360);
-        memoryHistory.TooltipText = "What this agent remembers and believes, plus the maps they know. This is their view, not the full world log.";
-        memoriesBody.AddChild(memoryHistory);
+        BuildMemoryCards(memoriesBody);
         AddPanelContents(memoriesPanel, memoriesBody);
         memoriesPanel.ZIndex = 85;
         memoriesPanel.Resized += () => PlaceReaderPanel(memoriesPanel);
@@ -378,11 +383,11 @@ public partial class Main
         clockFormatChoice.Selected = displayPreferences.UseTwelveHourClock ? 1 : 0;
         clockFormatChoice.ItemSelected += SetClockFormat;
 
-        dateFormatChoice.AddItem("DD-MM-YYYY");
-        dateFormatChoice.AddItem("MM-DD-YYYY");
-        dateFormatChoice.AddItem("YYYY-MM-DD");
-        dateFormatChoice.Selected = displayPreferences.DateFormat switch { "mdy" => 1, "ymd" => 2, _ => 0 };
-        dateFormatChoice.ItemSelected += SetDateFormat;
+        foreach (var (_, label) in DateStyles)
+            dateFormatChoice.AddItem(label);
+        dateFormatChoice.Selected = DateStyleIndex(displayPreferences.DateStyle);
+        dateFormatChoice.TooltipText = "Show dates by season and day, or as numbers in the order you prefer.";
+        dateFormatChoice.ItemSelected += SetDateStyle;
         gameSettingsContent.AddChild(SettingsBox("Date and time",
             DisplaySettingRow("Time display", clockFormatChoice), DisplaySettingRow("Date display", dateFormatChoice)));
 
@@ -454,11 +459,15 @@ public partial class Main
 
     private void BuildStatusToast(Control content)
     {
-        statusLabel.Text = "Connecting…";
-        statusLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-        statusLabel.HorizontalAlignment = HorizontalAlignment.Center;
-        statusLabel.CustomMinimumSize = new Vector2(320, 0);
-        AddPanelContents(statusToast, statusLabel);
+        statusLabel.Text = "Connecting...";
+        statusLabel.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
+        var row = new HBoxContainer();
+        row.AddThemeConstantOverride("separation", 8);
+        statusIcon.StretchMode = TextureRect.StretchModeEnum.KeepCentered;
+        statusIcon.SizeFlagsVertical = Control.SizeFlags.ShrinkBegin;
+        row.AddChild(statusIcon);
+        row.AddChild(statusLabel);
+        AddPanelContents(statusToast, row);
         // Above the title backdrop and menus, so connection and pairing
         // results remain visible from Main Menu Settings.
         statusToast.ZIndex = 250;
@@ -487,6 +496,7 @@ public partial class Main
     // Skipping unchanged text also keeps the reader's scroll position.
     private void SetPanelText(RichTextLabel label, string text)
     {
+        text = GameUiText.PlainEllipses(text);
         if (label.Text == text) return;
         label.Text = text;
         FitTextPanel(label);

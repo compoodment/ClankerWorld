@@ -118,7 +118,17 @@ public sealed record OwnerWorldKnowledgeArtifact(
     long CreatedTick,
     string CreatorName,
     IReadOnlyList<OwnerWorldKnowledgeSite> Sites);
-public sealed record OwnerWorldCalendarPace(int TicksPerDay, int DaysPerYear);
+/// <summary>
+/// The world's saved calendar. Season lengths come from the same saved values
+/// the world uses for its seasons; an older host leaves them at zero.
+/// </summary>
+public sealed record OwnerWorldCalendarPace(
+    int TicksPerDay,
+    int DaysPerYear,
+    int SpringDays = 0,
+    int SummerDays = 0,
+    int AutumnDays = 0,
+    int WinterDays = 0);
 public sealed record OwnerFounderSetup(int Required, int Placed, bool Started)
 {
     public bool CanChooseTownSite { get; init; }
@@ -180,6 +190,7 @@ public sealed record OwnerWorldInhabitant(
     public OwnerWorldProject? Project { get; init; }
     public OwnerWorldSurvival? Survival { get; init; }
     public OwnerWorldEquipment? Equipment { get; init; }
+    public string? MedicalCareNote { get; init; }
     public OwnerWorldLesson? Lesson { get; init; }
     public OwnerWorldProficiency? Proficiency { get; init; }
     public IReadOnlyList<OwnerWorldSkill>? Skills { get; init; }
@@ -205,7 +216,7 @@ public sealed record OwnerWorldSurvival(int WarmthBasisPoints, int IllnessBasisP
     int NutritionBasisPoints, string? LastMealKind);
 public sealed record OwnerWorldEquipment(int CarriedQuantity, int Capacity, string? ClothingKind,
     int? ClothingConditionPercent, string? CarryAidKind, int? CarryAidConditionPercent,
-    string? RepairItemKind, int RepairWorkDone, int RepairWorkRequired);
+    string? RepairItemKind, int RepairWorkDone, int RepairWorkRequired, string? OrnamentKind = null);
 
 public sealed record OwnerWorldStockpile(string OwnerId, string Name, IReadOnlyList<OwnerWorldInventoryEntry> Items);
 public sealed record OwnerWorldLesson(string TeacherName, [property: JsonPropertyName("role")] string Skill,

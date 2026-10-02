@@ -1,12 +1,17 @@
+using System.Text.Json;
 using ClankerWorld.GodotClient.ClientState;
 using ClankerWorld.GodotClient.UI;
 using ClankerWorld.Simulation.Playtest;
+using ClankerWorld.Simulation.World;
 using ClankerWorld.Viewer.Observation;
 
 namespace ClankerWorld.Simulation.Tests;
 
 public sealed class GameUiTextTests
 {
+    private static readonly JsonSerializerOptions HostJson = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions GameJson = new() { PropertyNameCaseInsensitive = true };
+
     [Theory]
     [InlineData("future_internal_diagnostic", false)]
     [InlineData("saved_road_footprints_repaired", false)]
@@ -80,15 +85,68 @@ public sealed class GameUiTextTests
         }
     }
 
-    [Fact]
-    public void OwnerSnapshotReportsTheSavedWorldCalendarPace()
+    [Theory]
+    [InlineData(WorldStartPace.Legacy)]
+    [InlineData(WorldStartPace.DecidedPlaytest)]
+    public void OwnerSnapshotReportsTheSavedWorldCalendarPace(WorldStartPace startPace)
     {
-        using var world = new PrivateWorldRuntime("calendar-projection");
-        var saved = world.ExportState();
+        using var world = new PrivateWorldRuntime("calendar-projection", startPace: startPace);
+        var config = world.ExportState().WorldSystems!.Config;
         var pace = new OwnerWorldObservationStore(world).GetSnapshot().CalendarPace;
-        Assert.NotNull(pace);
-        Assert.Equal(saved.WorldSystems!.Config.TicksPerDay, pace.TicksPerDay);
-        Assert.Equal(saved.WorldSystems.Config.DaysPerYear, pace.DaysPerYear);
+        Assert.Equal(new ViewerCalendarPace(config.TicksPerDay, config.DaysPerYear,
+            config.SpringDays, config.SummerDays, config.AutumnDays, config.WinterDays), pace);
+
+        // The game reads the season lengths the host sends rather than keeping
+        // its own copy, so every date names the season the world is in.
+        var received = JsonSerializer.Deserialize<OwnerWorldCalendarPace>(
+            JsonSerializer.Serialize(pace, HostJson), GameJson);
+        Assert.True(GameUiText.ShowsSeasonDates(received, GameUiText.SeasonDates));
+        for (var day = 0; day < config.DaysPerYear * 2; day++)
+        {
+            var tick = (long)day * config.TicksPerDay + config.TicksPerDay / 2;
+            var calendar = WorldCalendarRules.FromTick(tick, config);
+            Assert.Equal($"{calendar.Season} {calendar.DayOfSeason + 1}, Year {day / config.DaysPerYear + 1} · 12:00",
+                GameUiText.FormatWorldClock(tick, calendarPace: received));
+        }
+    }
+
+    [Fact]
+    public void SeasonDatesAreTheDefaultAndWorkWithBothClocks()
+    {
+        var calendar = new OwnerWorldCalendarPace(360, 40, 10, 10, 10, 10);
+        // Day 22 of the year at 14:20 is the second day of Autumn.
+        const long autumnAfternoon = 21 * 360 + 215;
+        Assert.Equal("Autumn 2, Year 1 · 14:20", GameUiText.FormatWorldClock(autumnAfternoon, calendarPace: calendar));
+        Assert.Equal("Autumn 2, Year 1 · 2:20 PM", GameUiText.FormatWorldClock(autumnAfternoon,
+            useTwelveHourClock: true, calendarPace: calendar));
+        Assert.Equal("Autumn 2, Year 1 · 14:20", GameUiText.FormatWorldClock(autumnAfternoon,
+            calendarPace: calendar, dateFormat: new GameDisplayPreferences().DateStyle));
+        Assert.Equal("Spring 1, Year 1 · 12:00 AM", GameUiText.FormatWorldClock(0,
+            useTwelveHourClock: true, calendarPace: calendar));
+        Assert.Equal("Winter 10, Year 1 · 23:56", GameUiText.FormatWorldClock(14_399, calendarPace: calendar));
+        Assert.Equal("Spring 1, Year 2 · 00:00", GameUiText.FormatWorldClock(14_400, calendarPace: calendar));
+        Assert.Equal("Summer 10, Year 12 · 12:00 PM", GameUiText.FormatWorldClock(11 * 14_400 + 19 * 360 + 180,
+            useTwelveHourClock: true, calendarPace: calendar));
+
+        // Numeric orders keep both clocks, and the season date is not shown.
+        Assert.Equal("02-03-0001 · 14:20", GameUiText.FormatWorldClock(autumnAfternoon,
+            calendarPace: calendar, dateFormat: "dmy"));
+        Assert.Equal("03-02-0001 · 2:20 PM", GameUiText.FormatWorldClock(autumnAfternoon,
+            useTwelveHourClock: true, calendarPace: calendar, dateFormat: "mdy"));
+        Assert.Equal("0001-03-02 · 14:20", GameUiText.FormatWorldClock(autumnAfternoon,
+            calendarPace: calendar, dateFormat: "ymd"));
+        Assert.False(GameUiText.ShowsSeasonDates(calendar, "dmy"));
+        Assert.True(GameUiText.ShowsSeasonDates(calendar, GameUiText.SeasonDates));
+        Assert.True(GameUiText.ShowsSeasonDates(calendar, "an-unknown-style"));
+
+        // Without the world's season lengths (an older host, or lengths that
+        // do not fill the year), dates fall back to numbers instead of guessing.
+        foreach (var unknown in new[] { new OwnerWorldCalendarPace(360, 40), calendar with { WinterDays = 9 }, calendar with { SpringDays = 0, SummerDays = 20 } })
+        {
+            Assert.False(GameUiText.ShowsSeasonDates(unknown, GameUiText.SeasonDates));
+            Assert.Equal("02-03-0001 · 14:20", GameUiText.FormatWorldClock(autumnAfternoon, calendarPace: unknown));
+        }
+        Assert.False(GameUiText.ShowsSeasonDates(null, GameUiText.SeasonDates));
     }
 
     [Fact]
@@ -142,8 +200,9 @@ public sealed class GameUiTextTests
                 useTwelveHourClock: restored.UseTwelveHourClock));
             Assert.Equal((1600, 900), (restored.WindowWidth, restored.WindowHeight));
             Assert.False(restored.UsesFullscreen);
-            store.Save(restored with { DateFormat = "ymd" });
-            Assert.Equal("ymd", store.Load().DateFormat);
+            Assert.Equal(GameUiText.SeasonDates, restored.DateStyle);
+            store.Save(restored with { DateStyle = "ymd" });
+            Assert.Equal("ymd", store.Load().DateStyle);
             Assert.Equal((1600, 900), (store.Load().WindowWidth, store.Load().WindowHeight));
             Assert.False(store.Load().UsesFullscreen);
         }
@@ -161,12 +220,16 @@ public sealed class GameUiTextTests
         try
         {
             var path = Path.Combine(directory.FullName, "game-settings.json");
-            File.WriteAllText(path, "{\"UiScalePercent\":400,\"RenderWidth\":1920,\"RenderHeight\":1080,\"Theme\":\"dark\"}");
+            // The older DateFormat entry held "dmy" whether or not the player
+            // chose it, so season dates replace it rather than guessing.
+            File.WriteAllText(path, "{\"UiScalePercent\":400,\"RenderWidth\":1920,\"RenderHeight\":1080,\"Theme\":\"dark\",\"DateFormat\":\"dmy\"}");
             var store = new GameDisplayPreferencesStore(path);
             Assert.Equal("dark", store.Load().Theme);
+            Assert.Equal(GameUiText.SeasonDates, store.Load().DateStyle);
             store.Save(store.Load());
             Assert.DoesNotContain("UiScalePercent", File.ReadAllText(path), StringComparison.Ordinal);
             Assert.DoesNotContain("RenderWidth", File.ReadAllText(path), StringComparison.Ordinal);
+            Assert.DoesNotContain("DateFormat", File.ReadAllText(path), StringComparison.Ordinal);
         }
         finally
         {

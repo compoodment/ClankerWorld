@@ -115,7 +115,8 @@ public sealed partial class PrivateWorldRuntime
                 checkpoint.Households.SingleOrDefault(item => item.Id == inhabitant.HouseholdId)?.Name,
                 towns.SingleOrDefault(item => item.ResidentIds.Contains(inhabitant.Id, StringComparer.Ordinal))?.Name,
                 HousingNote(inhabitant.Id), EquipmentNote(inhabitant.Id), ContinuityNote(inhabitant.Id),
-                DepartureNote: DepartureNote(inhabitant.Id), CivicNote: CivicNote(inhabitant.Id));
+                DepartureNote: DepartureNote(inhabitant.Id), CivicNote: CivicNote(inhabitant.Id),
+                MedicalCareNote: MedicalCareNoteCore(inhabitant.Id));
             var observation = new InhabitantObservation(
                 inhabitant.Id,
                 WorldTick,
@@ -315,7 +316,12 @@ public sealed partial class PrivateWorldRuntime
         string? conversationChoiceContext = null)
     {
         var context = $"{NeedsUrgentFood(state)}:{NeedsUrgentWarmth(state)}:" +
-            string.Join('|', candidates.Select(candidate => candidate.Id).Order(StringComparer.Ordinal));
+            // Optional advance permission remains available on ordinary decisions;
+            // a healthy idle agent need not wake merely because someone walks past.
+            string.Join('|', candidates.Where(candidate =>
+                    !candidate.Id.StartsWith(MedicalAllowPrefix, StringComparison.Ordinal) ||
+                    state.Survival is { IllnessBasisPoints: >= 2_500 })
+                .Select(candidate => candidate.Id).Order(StringComparer.Ordinal));
         context += "|guardian_candidates=" + GuardianCandidateContext(candidates);
         return conversationChoiceContext is null
             ? context
@@ -450,6 +456,12 @@ public sealed partial class PrivateWorldRuntime
                     ContinueTownCivicVisit(inhabitant.Id, intention.CandidateId);
                 continue;
             }
+            if (IsOrnamentCandidate(intention.CandidateId))
+            {
+                if (intention.Provider == DecisionProviderKind.LargeLanguageModel)
+                    ContinueOrnamentWalk(inhabitant.Id, intention.CandidateId);
+                continue;
+            }
             if (!CreateCandidates(inhabitant.Id, state).Any(candidate => candidate.Id == intention.CandidateId)) continue;
             ApplyCandidate(inhabitant.Id, state, intention.CandidateId, reportIdle: false);
         }
@@ -501,6 +513,8 @@ public sealed partial class PrivateWorldRuntime
         }
 
         _ = ApplyObserverGuidanceResult(decision.InhabitantId, decision.Admission);
+        if (ApplyMedicalConsentDecision(decision) || ApplyOrnamentDecision(decision))
+            return;
         var pendingInstruction = PendingInstructionFor(decision.InhabitantId);
         var candidateId = decision.Admission.Intention.CandidateId;
         if (decision.Admission.Intention.OperativeOrderInstructionId != pendingInstruction?.InstructionId)
@@ -610,6 +624,7 @@ public sealed partial class PrivateWorldRuntime
         string candidateId,
         bool reportIdle)
     {
+        if (IsOrnamentCandidate(candidateId)) return;
         if (candidateId.StartsWith("talk:", StringComparison.Ordinal) ||
             candidateId.StartsWith("conversation_", StringComparison.Ordinal))
         {
@@ -630,6 +645,11 @@ public sealed partial class PrivateWorldRuntime
             state = inhabitants[inhabitantId];
         }
         if (PendingInstructionFor(inhabitantId) is null && ContinueFarmWork(inhabitantId)) return;
+        if (candidateId.StartsWith("medical_", StringComparison.Ordinal))
+        {
+            ApplyMedicalCandidate(inhabitantId, state, candidateId);
+            return;
+        }
         if (candidateId.StartsWith("farm:", StringComparison.Ordinal))
         {
             ApplyFieldCandidate(inhabitantId, state, candidateId);
@@ -773,6 +793,11 @@ public sealed partial class PrivateWorldRuntime
         if (candidateId.StartsWith(SupplyWorkstationPrefix, StringComparison.Ordinal))
         {
             SupplyWorkstation(inhabitantId, state, candidateId[SupplyWorkstationPrefix.Length..]);
+            return;
+        }
+        if (candidateId.StartsWith(ReturnEmptyVesselPrefix, StringComparison.Ordinal))
+        {
+            ReturnEmptyVessel(inhabitantId, state, candidateId[ReturnEmptyVesselPrefix.Length..]);
             return;
         }
         if (candidateId == "collect_water_jug")
@@ -1066,6 +1091,7 @@ public sealed partial class PrivateWorldRuntime
 
         AddSurvivalCandidates(candidates, inhabitantId, state);
         AddDependentCareCandidates(candidates, inhabitantId);
+        AddMedicalCareCandidates(candidates, inhabitantId);
         if (AdultResident(inhabitantId))
         {
             AddKnowledgeCandidates(candidates, inhabitantId, state);

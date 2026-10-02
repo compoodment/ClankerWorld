@@ -128,7 +128,17 @@ public sealed record ViewerAgentKnowledgeArtifact(
     long CreatedTick,
     string CreatorName,
     IReadOnlyList<ViewerKnowledgeSite> Sites);
-public sealed record ViewerCalendarPace(int TicksPerDay, int DaysPerYear);
+/// <summary>
+/// The world's saved calendar, including its season lengths, so the game can
+/// name the season and day of any tick the same way the world does.
+/// </summary>
+public sealed record ViewerCalendarPace(
+    int TicksPerDay,
+    int DaysPerYear,
+    int SpringDays,
+    int SummerDays,
+    int AutumnDays,
+    int WinterDays);
 
 /// <summary>
 /// An inspection projection, never an editable actor record. A founder draft
@@ -154,6 +164,7 @@ public sealed record ViewerInhabitant(
     public ViewerProject? Project { get; init; }
     public ViewerSurvival? Survival { get; init; }
     public ViewerEquipment? Equipment { get; init; }
+    public string? MedicalCareNote { get; init; }
     public ViewerLesson? Lesson { get; init; }
     public ViewerProficiency? Proficiency { get; init; }
     public IReadOnlyList<ViewerSkill> Skills { get; init; } = [];
@@ -179,7 +190,7 @@ public sealed record ViewerSurvival(int WarmthBasisPoints, int IllnessBasisPoint
     int NutritionBasisPoints, string? LastMealKind);
 public sealed record ViewerEquipment(int CarriedQuantity, int Capacity, string? ClothingKind,
     int? ClothingConditionPercent, string? CarryAidKind, int? CarryAidConditionPercent,
-    string? RepairItemKind, int RepairWorkDone, int RepairWorkRequired);
+    string? RepairItemKind, int RepairWorkDone, int RepairWorkRequired, string? OrnamentKind = null);
 
 public sealed record ViewerStockpile(string OwnerId, string Name, IReadOnlyList<ViewerInventoryEntry> Items);
 // Keep the existing observation field name so older owner clients can still display a lesson.

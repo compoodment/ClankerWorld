@@ -2,7 +2,7 @@
 title: Towns, buildings and government
 type: game-design
 status: active
-updated: 2026-10-01
+updated: 2026-10-02
 ---
 
 # Towns, buildings and government
@@ -505,7 +505,8 @@ and invented content are not silently approved. In particular:
   for its own products.
 - The accepted medical goods include **bandages and medicine**. Their cloth
   and herb/water/fuel supply chains are agreed below; detailed recovery rates
-  remain provisional.
+  remain provisional. The October 2 decision stages bandage production, storage
+  and trade now; injury causes and bandage treatment wait for the injury stage.
 - Farmhouse **1×1 or 1×2**; adjacent private Silo **1×1**; Blacksmith
   **1×2 or 2×2**; Tailor Shop **1×1 or 2×2**; Workshop **2×2**;
   Restaurant **1×2 or 2×2**; Clinic/healer's shop **1×1 or 1×2**.
@@ -1375,12 +1376,27 @@ for other activities; this is not a fixed nutrition or hunger-drain formula.
 | Clay | Dig a clay bank and carry clay. | Fired storage pots and water jugs. |
 | Pottery | House crafting; trial 2 clay + 1 wood → 1 vessel. | Reusable storage pots and water jugs, with separate item identities. |
 | Fresh water | Collect from a river or lake with a reusable jug and carry it. | Cooking, medicine-making and animal care. |
-| Gold | Extract from a gold-bearing outcrop with an iron pickaxe and carry to the Blacksmith. | Ornaments, gifts and trade goods. |
+| Gold | Extract gold ore from a gold-bearing outcrop with an iron pickaxe, carry it to the Blacksmith and refine it with fuel. Ore and refined gold remain separate goods. | Ornaments, gifts and trade goods. |
 | Diamond | Extract from a diamond-bearing outcrop with an iron pickaxe. | Trade goods or a stone set into an ornament. |
 
 The Blacksmith makes gold ornaments, optionally set with a diamond. Agents may
 keep, wear, gift or sell them. This is the agreed destination for rare materials;
 it does not select gold as a universal currency or add a diamond tool tier.
+
+An ornament remains a real owned item when worn. Wearing it changes neither
+protection nor carrying capacity, and does not change the agent's map appearance.
+Removing it leaves the same unit in carried stock. A named gift or barter moves
+actual goods to a nearby recipient through the existing inventory authority;
+foreign, reserved or promised goods remain protected. Production and shop
+exchanges use the same local-stock, receiving-space and private-access rules as
+other Blacksmith work. Ornament deterioration is not part of this stage.
+
+The ornament trial uses 2 gold ore and 1 wood to refine 1 gold in 24 work ticks;
+2 refined gold make 1 gold ornament in 24 work ticks; 1 gold ornament and
+1 diamond make 1 diamond ornament in 28 work ticks. All these quantities and
+work times remain provisional. Wearing, removing and giving an ornament are
+deliberate choices through a fresh accepted personal-model response. Jev,
+fallbacks, repeated intentions and owner orders do not make those choices.
 
 A storage pot slows spoilage for the food within its limited capacity, a trial
 8 food. A water jug holds a limited quantity of water, a trial 4 fresh water.
@@ -1442,7 +1458,7 @@ capacities, wear rates and repair effects remain provisional.
 
 | Product | Complete path |
 | --- | --- |
-| Bandage | Fiber → cloth → cut bandages at a House or Tailor Shop → carry to a patient → consume while treating an injury. |
+| Bandage | Fiber → cloth → cut bandages at a House or Tailor Shop → store, carry or trade. Injury treatment is deferred under the October 2 decision. |
 | Medicine | Gather medicinal herbs → carry to Clinic → herbs, water and fuel make medicine → administer to an ill agent. |
 | Clinic treatment | The Clinic stocks its own medicine and bandages. A patient visits or a caregiver carries supplies to them; treatment consumes the required goods. |
 | Eggs | Household chickens with reachable feed, water and care produce eggs; collect into local House/Restaurant stock, cook or sell. |
@@ -1455,12 +1471,50 @@ capacities, wear rates and repair effects remain provisional.
 | Shield and basic armor | Wood, cloth and iron at the Blacksmith → equip → protection → repair or replace. |
 | Maps, records and books | Fiber and water make paper; write actual learned knowledge, bind where needed, then carry, read, copy or sell. Cloth may supply a book cover. |
 
-Bandages treat injuries; medicine supports illness recovery. Neither instantly
-restores full health. Medicinal herbs, paper, hides and ornaments are approved
+Bandages are intended for the later injury stage; medicine supports gradual
+illness recovery. Neither is an instant full-health restoration. Medicinal
+herbs, paper, hides and ornaments are approved
 additions to the catalogue. Animals, mounts, combat and invention work retain
 their later staging; their detailed actions and balance are not settled by
 these item pipelines. See [combat](agents-and-families.md#combat) and
 [inventions](inventions-and-mods.md).
+
+#### Clinic supplies and illness care
+
+**Owner decision on October 2, 2026:** "Defer injury causes; build supplies now."
+This stage makes, stores and trades bandages, but does not create injuries or
+apply bandages to a patient. Medicine uses the existing illness system and
+supports recovery gradually. The Clinic implements this scope in the normal
+private-world path; its Windows playtest is pending, and the later injury stage
+stays tracked in [#565](https://github.com/compoodment/ClankerWorld/issues/565). See
+[current availability](../what-works.md#life-work-and-society).
+
+The first Clinic is a household-held 1×2 building. Trial construction uses
+10 wood and 4 stone. At a House or Tailor Shop, 1 cloth makes 2 bandages in
+8 work ticks. At the Clinic, 2 medicinal herbs, 1 fresh water and 1 wood make
+2 medicine in 16 work ticks. Water must arrive in an actual reusable jug;
+using its contents leaves the vessel intact. Costs, quantities, time, stock
+targets and recovery rates remain provisional.
+
+Patients may use their own medicine. An adult patient explicitly chooses a
+named caregiver through a fresh, accepted personal-model decision and may
+revoke that permission. A purchase, household membership, kinship, helper
+choice, failed model reply, repeated intention or
+owner order cannot supply that agreement; neither can Jev or a fallback choice.
+A dependent's effective, accepted caregiver relationship supplies its existing
+care authority; another relative
+or household adult does not acquire it automatically. Treatment needs the
+actual usable dose at the patient and does not give the caregiver access to
+another household's stock.
+
+An outside customer buys real Clinic goods through the ordinary local barter
+rules. Buying a dose grants possession of that dose, not treatment permission
+or private work access. Care does not reveal distant patients' unseen health,
+location or private thoughts to an agent's model. Supplies, permissions,
+consumed doses and gradual progress survive saving and reopening. Interruption
+ends the remaining effect without refunding the consumed dose, and permission
+renewed later cannot reuse it. Pausing freezes treatment time. Effect rates and
+course length remain provisional; hands-on acceptance is still pending.
 
 #### Physical trade and production safeguards
 

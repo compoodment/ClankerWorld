@@ -141,7 +141,7 @@ public partial class Main
         authoringBody.AddChild(authoringKind);
         authoringId.PlaceholderText = "ID (resource/object/draft/asset as required)";
         authoringBody.AddChild(authoringId);
-        authoringValue.PlaceholderText = "Value (terrain, kind, name, weather, digest…)";
+        authoringValue.PlaceholderText = "Value (terrain, kind, name, weather, digest...)";
         authoringBody.AddChild(authoringValue);
         authoringSecondaryValue.PlaceholderText = "Secondary value (season for set_weather_season)";
         authoringBody.AddChild(authoringSecondaryValue);

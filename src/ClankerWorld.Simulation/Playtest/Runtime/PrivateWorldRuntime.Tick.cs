@@ -421,10 +421,12 @@ public sealed partial class PrivateWorldRuntime
             StageWarehouseContent();
             StageFarmContent();
             StageBlacksmithContent();
+            StageOrnamentContent();
             StageHouseCookingContent();
             StagePotteryContent();
             StageSiloContent();
             StageTailorContent();
+            StageCareContent();
             StageBuiltInContent(BusinessContent.PackageId, HouseContent.PackageId, BusinessContent.Create, "business_content_staged");
             var readyPackages = contentRegistry.GetActivationCandidates(targetTick);
             var reservationPreview = WorldAssetReservationLedger.Restore(
@@ -501,9 +503,11 @@ public sealed partial class PrivateWorldRuntime
 
             WearEquippedClothing();
             AdvanceSettlementSurvival();
+            AdvanceMedicalTreatments();
             MaintainSettlementTrades();
             MaintainBusinessTrades();
             DrainNeeds();
+            AdvanceMedicalTreatments();
             RemoveDeadPhysicalState();
             CancelFieldWorkForUnavailableWorkers();
             AdvanceSettlementCouncil();
@@ -580,6 +584,7 @@ public sealed partial class PrivateWorldRuntime
             var waiting = deferHosted ? society.PendingHostedInhabitantIds() : new HashSet<string>(StringComparer.Ordinal);
             var orderActorsHandledThisTick = ApplyContinuingIntentions(
                 decisions.Select(item => item.InhabitantId), waiting);
+            AdvanceMedicalTreatments();
             if (deferHosted) ApplySafeRoutinesWhileWaiting(waiting, orderActorsHandledThisTick);
             AdvanceBridgeTraffic();
             SettleGuardianSearches();

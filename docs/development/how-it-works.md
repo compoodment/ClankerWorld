@@ -58,6 +58,9 @@ The current host aims for one tick per real second. New worlds save 360 ticks
 per day and a 40-day year with four ten-day seasons; lifecycle thresholds are
 3/15/45/60 days. Load can affect real-time pace. The old development calendar
 is not silently reinterpreted; the observation carries the saved clock values.
+Its calendar pace includes the saved season lengths, so the game names dates
+such as Autumn 2, Year 1 from the world's own calendar instead of a copy. With
+no season lengths, from an older host, the game shows numeric dates.
 
 Hosted requests are dispatched after a committed tick and resolved at a later
 tick boundary. The unresolved queue entry is saved; the HTTP task is not save
@@ -961,8 +964,50 @@ Store stocking also keeps each adult's best usable work tool. Optional shelf
 restocking waits behind gathering materials needed by household work.
 Rates, the eight-unit shelf target and four-unit carried loads are provisional.
 Blacksmiths can sell real refined iron for another household's tool work.
-Market stalls, tool orders, meals and care remain tracked in #564 and its
-domain issues; currency remains later work.
+Market stalls, tool orders and meals remain tracked in #564 and its domain
+issues; currency remains later work. The Clinic sells actual medicine
+and bandages through the same inventory and physical business authority.
+
+**Clinic supplies and illness care** use the normal household building,
+workstation supply, ecology and recipe paths. `clankerworld-care-v1` adds a
+1×2 Clinic costing 10 wood and 4 stone, bandage recipes at the House and Tailor
+Shop, and a medicine recipe at the Clinic. One cloth makes two bandages in
+eight base work ticks; two medicinal herbs, one fresh water and one wood make
+two medicine in sixteen. These quantities and times are provisional. Herbs
+come from reachable renewable patches. Ingredients must arrive at the actual
+workplace; medicine reserves water from a real reusable jug and leaves the
+vessel intact. Injury causes and bandage treatment remain deferred.
+
+The [#749](https://github.com/compoodment/ClankerWorld/issues/749) fix
+returns empty household pots and jugs from a workstation to the household's
+House using physical pickup and the existing delivery path. It keeps inventory
+ownership and reservations authoritative and checks carrying room, the walking
+route and destination space. As with other household deliveries, the hauling
+adult holds the vessel during the trip and delivery hands it back to the
+household. A save during the trip retains the same vessel and delivery.
+Automated checks cover the return path.
+
+Medical permission is admitted only from a fresh, accepted, non-fallback
+`LargeLanguageModel` choice by the adult patient. Jev, owner orders, failed
+replies and continuing intentions cannot grant or revoke that authority.
+Self-treatment is allowed, and a dependent's effective accepted `Caregiver`
+relationship supplies their existing authority. Treatment checks living adult
+caregivers, permission, local patient observation and actual usable medicine.
+An unrelated household's stock must be bought through ordinary barter first.
+Models receive no distant patient's hidden health or location through care.
+
+Starting medicine reserves and consumes one actual dose through the inventory
+authority. Its completed reservation binds the patient, caregiver, owner and
+start time. The provisional course lasts twenty world ticks and removes
+75 illness basis points per tick. Maintenance ends an interrupted course
+without refunding the dose, including death, permission withdrawal or loss of
+dependent-care authority. Closing the receipt's medical purpose prevents a
+spent effect from being reattached after permission is renewed. Death releases
+live reservations while preserving completed consumption receipts. Permission,
+active progress and closed receipts survive current-format save/reload; a
+paused world advances no treatment time. See [saves and replay](saves-and-replay.md).
+Automated checks cover this path; the
+[Windows playtest](../../playtest/565-clinic-care.md) is still pending.
 
 Death archives the last physical state and frozen age, then removes the active
 actor. Existing personal inventory can be frozen in estate escrow. One bounded
@@ -987,8 +1032,8 @@ saves made before this change are refused.
 
 Workstation recipes use only stock already at the building. A household
 building without its own dedicated hauling (every kind except the House,
-Farmhouse and Blacksmith, so today the Tailor Shop) is kept stocked by the
-`supply_workstation:<item>` choice. It is offered to an adult of the holding
+Farmhouse and Blacksmith, including the Tailor Shop and Clinic) is kept stocked
+by the `supply_workstation:<item>` choice. It is offered to an adult of the holding
 household while the building holds less of an input than two batches of the
 largest recipe that needs it, counting loads already on their way. The adult
 delivers what they carry, picks up the household's spare stock from its House
@@ -1236,7 +1281,21 @@ An adult carrying a usable, unreserved iron pickaxe can choose actual gold or
 diamond mining from a reachable finite outcrop. The complete eight-item trial
 load must fit. The decision stops offering more once the adult and their
 household together hold eight of that material. These goods remain carried
-physical stock; ornament making and a special rare-goods market are later work.
+physical stock.
+Ornaments extend this stock path with Blacksmith gold refining, gold
+ornaments and optional diamond setting. They reuse normal physical supply,
+reserved production and shop exchanges rather than adding a second inventory
+or market.
+
+Its worn-item record refers to one exact personally carried ornament. Wearing
+does not exempt that unit from cargo or grant protection. Collection, removal,
+gifts, sale, storage and estate handling must keep ownership, reservations and
+location consistent; automatic storage or payment must protect the selected
+unit. Viewer and client descriptions show the worn kind, without a new sprite.
+Wear, removal and gift candidates require a fresh accepted non-fallback
+LargeLanguageModel response whose exact offered target is still valid at
+admission. Jev, continuing intentions and MustDo cannot select them. Gift
+recipients come from locally observable people rather than a remote world scan.
 
 The Blacksmith makes wooden, stone and iron tools from actual inputs, refines
 iron ore into separate refined iron, and repairs one carried worn tool at a

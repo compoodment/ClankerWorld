@@ -109,18 +109,16 @@ public partial class SlotList : ScrollContainer
             });
         var text = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill, MouseFilter = MouseFilterEnum.Ignore };
         text.AddThemeConstantOverride("separation", compact ? 0 : 2);
-        text.AddChild(new Label
+        text.AddChild(new FittedLabel
         {
-            Text = title,
+            FullText = title,
             ThemeTypeVariation = compact ? string.Empty : "HeadingLabel",
-            TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis,
             MouseFilter = MouseFilterEnum.Ignore,
         });
-        text.AddChild(new Label
+        text.AddChild(new FittedLabel
         {
-            Text = detail,
+            FullText = detail,
             ThemeTypeVariation = "DimLabel",
-            TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis,
             MouseFilter = MouseFilterEnum.Ignore,
         });
         row.AddChild(text);

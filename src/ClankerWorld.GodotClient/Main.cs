@@ -73,6 +73,7 @@ public partial class Main : Control
     private readonly Button saveCognitionProviderButton = new();
     private readonly Button forgetCognitionCredentialButton = new();
     private readonly Button deleteCognitionCredentialSlotButton = new();
+    private readonly Button openModelSettingsButton = new();
     private readonly Button refreshCognitionProviderButton = new();
     private readonly PanelContainer pairingPanel = new();
     private readonly Label pairingInstructionLabel = new();
@@ -122,13 +123,9 @@ public partial class Main : Control
     private readonly Label familyTreeStatus = new();
     private readonly ItemList inhabitantList = new();
     private readonly RichTextLabel inhabitantDetails = new();
-    private readonly RichTextLabel inhabitantSocialDetails = new();
-    private readonly RichTextLabel privateThoughtHistory = new();
+    private readonly Label privateThoughtHistory = new();
     private readonly Button memoriesButton = new();
     private readonly PanelContainer memoriesPanel = new();
-    private readonly RichTextLabel memoryHistory = new();
-    private readonly RichTextLabel worldDetails = new();
-    private readonly RichTextLabel worldInfoText = new();
     private readonly RichTextLabel eventLog = new();
     private readonly PanelContainer rosterPanel = new();
     private readonly PanelContainer eventsPanel = new();

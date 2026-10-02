@@ -51,7 +51,7 @@ public partial class Main
             familyTreeView.SetPeople(snapshot.WorldId, snapshot.Inhabitants, center);
             UpdateFamilyTreeStatus();
         }
-        RenderWorldDetails(snapshot);
+        RenderTownExtras(snapshot);
         RenderModLibrary(snapshot);
         RenderEventLog();
         RenderDeveloperTools(snapshot);
@@ -422,26 +422,8 @@ public partial class Main
 
     private void RenderWorldInfo(OwnerWorldSnapshot snapshot)
     {
-        var (width, height) = MapDimensions(snapshot);
-        var localWeather = snapshot.Authoring is { } authoring
-            ? $"{Pretty(authoring.Season)} · {Pretty(WeatherAtCamera(snapshot))}"
-            : "Not reported";
         RenderTownList(snapshot);
-        worldInfoText.Text =
-            $"Date and time: {DisplayWorldClock(snapshot.WorldTick)}\n" +
-            (snapshot.CalendarPace is { } pace ? $"Year length: {pace.DaysPerYear} days\n" : "") +
-            $"Living agents: {LivingPopulation(snapshot)}\n" +
-            $"Map size: {width} × {height}\n" +
-            $"Buildings: {snapshot.PlacedBuildings.Count}\n" +
-            $"Roads: {snapshot.RoadTiles.Count} tiles\n" +
-            $"Bridges: {snapshot.Bridges.Count}\n" +
-            $"Towns: {snapshot.Towns.Count}\n" +
-            $"Resource locations: {snapshot.Resources.Count}\n" +
-            $"Season and weather here: {localWeather}" +
-            (WeatherRegionAtCamera(snapshot)?.SoilMoisture is { } moisture
-                ? $"\nSoil moisture here: {moisture}%"
-                : "") +
-            "\n\nPress F1 for keyboard and mouse controls.";
+        RenderWorldStats(snapshot);
     }
 
 }
