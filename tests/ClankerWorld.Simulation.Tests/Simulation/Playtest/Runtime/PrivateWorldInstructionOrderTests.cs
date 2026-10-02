@@ -34,7 +34,7 @@ public sealed partial class PrivateWorldRuntimeTests
     [InlineData("Eat!", true)]
     [InlineData("gathering berries", true)]
     [InlineData("go to the berry patch", true)]
-    [InlineData("are you hungry?", true)]
+    [InlineData("are you hungry?", false)]
     public void DirectOrdersAreReadAsWholeWords(string text, bool understood)
     {
         using var world = new PrivateWorldRuntime("whole-word-orders");

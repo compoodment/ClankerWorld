@@ -47,7 +47,7 @@ public sealed partial class PrivateWorldRuntime
             var text = request.Text.Trim();
             var hasPendingOrder = PendingInstructionFor(targetId) is not null;
             var parsedOrder = request.Kind == OwnerInstructionKind.MustDo ? ParseInstructionOrder(text) : null;
-            if (request.Kind == OwnerInstructionKind.MustDo && !request.Queue)
+            if (parsedOrder is not null && !request.Queue)
                 ReplacePendingOrders(targetId);
             if (parsedOrder is not null)
                 parsedOrder = parsedOrder with { Status = request.Queue && hasPendingOrder ? "queued" : "waiting" };
@@ -294,7 +294,7 @@ public sealed partial class PrivateWorldRuntime
                 item.RunEpoch,
                 item.SubmissionSequence,
                 item.Kind == OwnerInstructionKind.MustDo
-                    ? UnderstoodTaskFor(InstructionCandidate(item.Text))
+                    ? UnderstoodTaskFor(item.Order?.Action)
                     : null,
                 item.ObserverReply is null))
             .ToArray();
@@ -419,36 +419,7 @@ public sealed partial class PrivateWorldRuntime
 
     private OwnerInstructionOrder? ParseInstructionOrder(string text)
     {
-        var action = InstructionCandidate(text);
-        if (action is null) return null;
-        var words = InstructionWords(text);
-        if (!TryParseRequestedUnits(text, out var explicitUnits)) return null;
-        var requestedUnits = explicitUnits ?? 1;
-        var repeat = text.Contains("until cancelled", StringComparison.OrdinalIgnoreCase) ||
-            text.Contains("until canceled", StringComparison.OrdinalIgnoreCase) ||
-            words.Overlaps(new HashSet<string>(["repeat", "repeatedly", "keep"], StringComparer.Ordinal));
-        var targetKind = words.Contains("berry") || words.Contains("berries") ? "berries"
-            : words.Contains("fruit") ? "fruit"
-            : words.Contains("wild") && words.Contains("greens") ? "wild_greens"
-            : null;
-        var targetResourceId = map.Resources
-            .Where(resource => (resource.Kind is "food" or "fruit") && ContainsWholeResourceId(text, resource.Id))
-            .OrderByDescending(resource => resource.Id.Length)
-            .Select(resource => resource.Id)
-            .FirstOrDefault();
-        if (ContainsUnrecognizedExplicitFoodTarget(text, targetResourceId)) return null;
-        var targetPosition = ParseOrderTargetPosition(text);
-        if (targetResourceId is not null) targetPosition = null;
-        if (targetResourceId is { } exactResourceId && targetKind is { } requestedKind &&
-            map.Resources.Single(resource => resource.Id == exactResourceId) is { } exactResource &&
-            FoodKnowledgeKind(exactResource) != requestedKind) return null;
-        return new OwnerInstructionOrder(action, "queued", requestedUnits, 0,
-            action switch
-            {
-                "seek_food" => "arrivals",
-                "harvest_food" when explicitUnits is null => "harvests",
-                _ => "food_items",
-            }, repeat, explicitUnits is not null, targetKind, targetResourceId, targetPosition);
+        return PrivateWorldInstructionOrderParser.Parse(text, map.Resources, FoodKnowledgeKind);
     }
 
     private static bool ContainsWholeResourceId(string text, string resourceId) =>
