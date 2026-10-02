@@ -309,6 +309,7 @@ public partial class Main
             (["T"], "Towns"),
             (["R"], "Agents"),
             (["E"], "Event Log"),
+            (["F12"], "Developer tools"),
             (["F1"], "This list (or ?)"),
             (["Esc"], "Close a panel, or open the Pause Menu"),
         ]),
