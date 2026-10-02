@@ -277,8 +277,13 @@ matching its ID and design), refuses overlapping decks, a bridge landing on a
 building, resource or camp object, and a Road bridge whose two entrances are
 not both Road tiles. It does not need the Town or building that caused the
 bridge. Traffic evidence must be recent, within its per-agent bound, for real
-unbridged one-tile crossings, and any open wade must match where that agent
-stands. A save that fails these checks is refused with a reason and kept.
+unbridged crossings of one or two river tiles, and any open wade must match
+where that agent stands, in either water tile of a two-tile crossing. A save
+that fails these checks is refused with a reason and kept. Two-tile wading and
+its evidence use the existing fields and crossing IDs, so the schema number
+does not change. An older build refuses, and keeps, a save that places an
+agent, a map memory, an exploration path or traffic evidence in a two-tile
+river.
 
 The alpha accepts only the current private-world checkpoint schema, currently
 `PrivateWorldRuntime.StateSchemaVersion` 47. The minimum supported schema is

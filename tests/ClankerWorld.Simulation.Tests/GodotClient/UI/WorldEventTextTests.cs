@@ -8,6 +8,19 @@ public sealed class WorldEventTextTests
     private const string AgentId = "agent:00000000000000000000000000000099";
     private const string ChildId = "world:inhabitant:birth:" + FounderId + ":" + AgentId + ":1";
 
+    [Theory]
+    [InlineData(true, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(null, true, false)]
+    public void NewcomerOfferRequiresTheCurrentRuleAndAStartedWorld(bool? ruleActive, bool started, bool offered)
+    {
+        var snapshot = Snapshot() with { ContinuityRuleActive = ruleActive, FounderSetup = new(4, 4, started) };
+        Assert.Equal(offered, WorldEventText.OffersNewcomer(snapshot));
+        Assert.False(WorldEventText.OffersNewcomer(null));
+        Assert.False(WorldEventText.OffersNewcomer(snapshot with { FounderSetup = null }));
+    }
+
     [Fact]
     public void SkillEventsShowLearnerAndTeacherWithoutSplittingTheirIds()
     {
