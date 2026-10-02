@@ -93,7 +93,7 @@ public sealed partial class PrivateWorldRuntime
         if (!RiverBridgeRules.SameDecks(map.BridgeDecks, RiverBridgeRules.Decks(bridges)))
             throw new InvalidDataException("The passable bridge decks do not match the saved bridges.");
         ValidatePlantedTrees();
-        ValidateDeceasedArchive(deceasedInhabitants.Values, society.Checkpoint, map, checkpointSchemaVersion);
+        ValidateDeceasedArchive(deceasedInhabitants.Values, society.Checkpoint, map, bridges, checkpointSchemaVersion);
         AgentKnowledgeRules.Validate(knowledge, map, society.Checkpoint, WorldTick);
         ValidateHousing(inhabitants.Values, society.Checkpoint, checkpointSchemaVersion);
         ValidateDepartures(inhabitants.Values, society.Checkpoint, checkpointSchemaVersion);
@@ -381,7 +381,7 @@ public sealed partial class PrivateWorldRuntime
                 state.Society.Society.WorldTick);
             ValidatePrivateThoughts(person.RecentThoughts, state.Society.Society.WorldTick);
             AgentIdentityMoment.Validate(person.IdentityMoments, state.Society.Society.WorldTick, state.SchemaVersion);
-            ValidateExploration(person.Exploration, travelMap, state.Society.Society.WorldTick);
+            ValidateExploration(person.Exploration, travelMap, state.Bridges, state.Society.Society.WorldTick);
         }
         ValidateParenthood(state);
         ValidateContinuity(state.Continuity, state.Society.Society, state.SchemaVersion);
@@ -428,7 +428,7 @@ public sealed partial class PrivateWorldRuntime
         {
             throw new InvalidDataException("The saved private-world populations disagree.");
         }
-        ValidateDeceasedArchive(state.DeceasedInhabitants ?? [], state.Society.Society, travelMap, state.SchemaVersion);
+        ValidateDeceasedArchive(state.DeceasedInhabitants ?? [], state.Society.Society, travelMap, state.Bridges, state.SchemaVersion);
         foreach (var inhabitant in state.Inhabitants)
         {
             if (inhabitant.Project is { } project)
@@ -552,6 +552,7 @@ public sealed partial class PrivateWorldRuntime
         IEnumerable<PlaytestDeceasedInhabitantState> archive,
         SocietyCheckpoint society,
         SeededMap map,
+        IEnumerable<BridgeState> bridges,
         int schemaVersion)
     {
         var archived = archive.ToArray();
@@ -562,10 +563,13 @@ public sealed partial class PrivateWorldRuntime
             .ToDictionary(item => item.Id, StringComparer.Ordinal);
         foreach (var person in archived)
         {
+            // Later construction cannot change the final position or memories
+            // of a deceased person, or make impossible old steps valid.
+            var deathMap = MapWithBridges(map, bridges.Where(bridge => bridge.BuiltTick <= person.DeathTick));
             if (!deceasedById.TryGetValue(person.InhabitantId, out var deceased) ||
                 deceased.DeathTick != person.DeathTick || person.DeathTick < 0 || person.DeathTick > society.WorldTick ||
                 person.AgeAtDeath < 0 || person.LastPhysical.InhabitantId != person.InhabitantId ||
-                !map.IsPassable(person.LastPhysical.Position) ||
+                !deathMap.IsPassable(person.LastPhysical.Position) ||
                 person.LastPhysical.HungerBasisPoints is < 0 or > 10_000)
                 throw new InvalidDataException("The deceased inhabitant archive contains an invalid final state.");
             ValidatePrivateThoughts(person.LastPhysical.RecentThoughts, person.DeathTick);
@@ -573,7 +577,7 @@ public sealed partial class PrivateWorldRuntime
             ValidateSavedChildModelSelection(person.LastPhysical, society, schemaVersion);
             ValidateSkills(person.LastPhysical, schemaVersion, person.DeathTick,
                 society.Inhabitants.Select(item => item.Id).ToHashSet(StringComparer.Ordinal));
-            ValidateExploration(person.LastPhysical.Exploration, map, person.DeathTick);
+            ValidateExploration(person.LastPhysical.Exploration, deathMap, bridges, person.DeathTick);
             if (person.LastPhysical.Equipment is { } equipment)
                 ValidateEquipmentShape(equipment, person.DeathTick, schemaVersion);
         }
