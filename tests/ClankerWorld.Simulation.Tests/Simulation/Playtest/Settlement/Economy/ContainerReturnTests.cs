@@ -107,8 +107,10 @@ public sealed class ContainerReturnTests
             if (incoming != 0)
             {
                 var deliverer = state.Society.Society.Inhabitants.First(person => person.HouseholdId == Alpha && person.Id != actor).Id;
-                inventory = InventoryFixture.AddLot(inventory, "container-return-incoming", "wood", deliverer, 1,
-                    deliveryBuildingId: House);
+                inventory = InventoryFixture.AddLot(inventory, "container-return-incoming", "wood", Alpha, 1);
+                inventory = InventoryFixture.Transfer(inventory, "container-return-incoming-pickup", Alpha,
+                    deliverer, "container-return-incoming", 1, "household_input_picked_up",
+                    destinationDeliveryBuildingId: House);
             }
         }
         if (boundary is "remaining-contents" or "reserved-contents")
