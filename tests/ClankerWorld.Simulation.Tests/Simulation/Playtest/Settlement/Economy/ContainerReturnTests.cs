@@ -68,11 +68,11 @@ public sealed class ContainerReturnTests
 
     [Theory]
     [InlineData("foreign-adult")]
-    [InlineData("reserved-vessel")]
+    [InlineData("remaining-contents")]
     [InlineData("full-hands")]
     [InlineData("full-house")]
     [InlineData("promised-house-space")]
-    [InlineData("remaining-contents")]
+    [InlineData("reserved-contents")]
     [InlineData("broken-vessel")]
     public async Task UnavailableVesselOrPhysicalRoomDoesNotOfferOrMoveAnEmptyReturn(string boundary)
     {
@@ -81,9 +81,6 @@ public sealed class ContainerReturnTests
         var inventory = state.Society.Society.Inventory;
         if (boundary == "foreign-adult")
             actor = state.Society.Society.Inhabitants.First(person => person.HouseholdId != Alpha).Id;
-        if (boundary == "reserved-vessel")
-            inventory = InventoryFixture.Reserve(inventory, "container-return-other-work", Alpha, Vessel, 1,
-                "other_work", state.WorldTick + 1_000);
         if (boundary == "full-hands")
         {
             var person = state.Inhabitants.Single(item => item.InhabitantId == actor);
@@ -109,12 +106,13 @@ public sealed class ContainerReturnTests
                     deliveryBuildingId: House);
             }
         }
-        if (boundary == "remaining-contents")
+        if (boundary is "remaining-contents" or "reserved-contents")
         {
             inventory = InventoryFixture.AddLot(inventory, "container-return-live-water", InventoryContainerRules.FreshWater,
                 Alpha, 1, storageBuildingId: Clinic, containerLotId: Vessel);
-            inventory = InventoryFixture.Reserve(inventory, "container-return-live-water-work", Alpha,
-                "container-return-live-water", 1, "other_work", state.WorldTick + 1_000);
+            if (boundary == "reserved-contents")
+                inventory = InventoryFixture.Reserve(inventory, "container-return-live-water-work", Alpha,
+                    "container-return-live-water", 1, "other_work", state.Society.Society.WorldTick + 1_000);
         }
         if (boundary == "broken-vessel")
             inventory = InventoryFixture.WearSingleUnit(inventory, Vessel, 10_000);
@@ -128,12 +126,11 @@ public sealed class ContainerReturnTests
         var actual = world.Society.Inventory.GetLot(Vessel);
         Assert.Equal(unchanged with { LastProcessedTick = actual.LastProcessedTick }, actual);
         Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "empty_vessel_picked_up");
-        if (boundary == "reserved-vessel")
-            Assert.Equal(InventoryReservationState.Reserved, world.Society.Inventory.GetReservation("container-return-other-work").State);
-        if (boundary == "remaining-contents")
+        if (boundary is "remaining-contents" or "reserved-contents")
         {
             Assert.Equal(1, world.Society.Inventory.GetLot("container-return-live-water").Quantity);
-            Assert.Equal(InventoryReservationState.Reserved, world.Society.Inventory.GetReservation("container-return-live-water-work").State);
+            if (boundary == "reserved-contents")
+                Assert.Equal(InventoryReservationState.Reserved, world.Society.Inventory.GetReservation("container-return-live-water-work").State);
         }
         Assert.NotEmpty(PrivateWorldRuntimeCodec.Encode(world.ExportState()));
     }
@@ -227,7 +224,7 @@ public sealed class ContainerReturnTests
             kind == InventoryContainerRules.WaterJug ? InventoryContainerRules.FreshWater : "grain", Alpha, 1,
             storageBuildingId: Clinic, containerLotId: Vessel);
         inventory = InventoryFixture.Reserve(inventory, UsedReservation, Alpha, UsedContents, 1,
-            "consumed_workstation_input", state.WorldTick);
+            "consumed_workstation_input", state.Society.Society.WorldTick);
         inventory = InventoryFixture.ConsumeReservation(inventory, UsedReservation);
         var actor = Actor(state);
         var previous = state.Inhabitants.Single(person => person.InhabitantId == actor).Position;
