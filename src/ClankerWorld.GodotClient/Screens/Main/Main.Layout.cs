@@ -551,7 +551,7 @@ public partial class Main
     /// </summary>
     private void FitFloatingPanelsToContents()
     {
-        foreach (var panel in HudPanels().Append(memoriesPanel).Append(thoughtsPanel).Append(conversationPanel).Append(selectedTilePanel).Append(agentProfilePanel)
+        foreach (var panel in HudPanels().Append(memoriesPanel).Append(thoughtsPanel).Append(ordersPanel).Append(conversationPanel).Append(selectedTilePanel).Append(agentProfilePanel)
                      .Append(buildingQuickCard).Append(buildingDetailsPanel))
             panel.MinimumSizeChanged += () => panel.Size = panel.GetCombinedMinimumSize();
     }
