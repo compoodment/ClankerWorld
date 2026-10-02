@@ -213,6 +213,7 @@ public sealed class TownRuntimeTests
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
             var starterRoads = world.RoadTiles.ToHashSet();
             Assert.NotEmpty(starterRoads);
+            var starterTitles = world.TownLandTitles.ToArray();
 
             var definition = world.WorldContent.Buildings.Single(item => item.LocalId == "workshop");
             var town = Assert.Single(world.Towns);
@@ -238,6 +239,7 @@ public sealed class TownRuntimeTests
             var grownTown = Assert.Single(world.Towns);
             Assert.Contains(placed.InstanceId, grownTown.AssignedBuildingIds);
             Assert.True(grownTown.BorderTiles.Count > town.BorderTiles.Count);
+            Assert.Equal(starterTitles, world.TownLandTitles);
             // Town Roads stay inside the border, which grows around the new Road too.
             Assert.All(world.RoadTiles, road => Assert.Contains(road, grownTown.BorderTiles));
             Assert.Contains(world.ExportState().Events, item => item.Kind == "town_building_assigned");
