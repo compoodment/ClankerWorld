@@ -65,16 +65,24 @@ public sealed partial class PrivateWorldRuntime
             : Math.Min(capacity, AvailableLotQuantity(stock));
     }
 
-    private InventoryLot? UnlocatedHouseholdStock(string householdId) =>
+    /// <summary>
+    /// Loose household stock to carry to the House. With an actor and House,
+    /// only stock that actor can pick up now is returned, so a vessel load too
+    /// large to haul does not hide the stock behind it.
+    /// </summary>
+    private InventoryLot? UnlocatedHouseholdStock(string householdId, string? actor = null,
+        string? houseId = null) =>
         society.Checkpoint.Inventory.Lots
-            .Where(lot => lot.OwnerId == householdId && lot.ContainerLotId is null && lot.StorageBuildingId is null &&
-                lot.DeliveryBuildingId is null &&
+            .Where(lot => lot.OwnerId == householdId && lot.CarrierId is null && lot.ContainerLotId is null &&
+                lot.StorageBuildingId is null && lot.DeliveryBuildingId is null &&
                 (InventoryContainerRules.IsContainer(lot.ItemKind)
                     ? !HasActiveContainerReservation(society.Checkpoint.Inventory, lot.Id)
                     : AvailableLotQuantity(lot) > 0) &&
                 (!FarmFieldRules.IsFarmStock(lot.ItemKind) || FarmhouseForHousehold(householdId) is null))
             .OrderBy(lot => lot.ItemKind == "food" ? 0 : 1)
-            .ThenBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
+            .ThenBy(lot => lot.Id, StringComparer.Ordinal)
+            .FirstOrDefault(lot => actor is null || houseId is null ||
+                HouseHaulPickupQuantity(actor, lot, houseId) > 0);
 
     private void AddHouseHaulCandidate(List<CognitionCandidate> candidates,
         string actor, PlaytestInhabitantState state)
@@ -100,8 +108,7 @@ public sealed partial class PrivateWorldRuntime
                 24, house.InstanceId));
             return;
         }
-        if (FreeCarryCapacity(actor) > 0 && UnlocatedHouseholdStock(householdId) is { } stock &&
-            HouseHaulPickupQuantity(actor, stock, house.InstanceId) > 0 &&
+        if (FreeCarryCapacity(actor) > 0 && UnlocatedHouseholdStock(householdId, actor, house.InstanceId) is { } stock &&
             (IsWithinInteractionRange(state.Position, HouseholdStockPosition(stock), HouseholdStockInteractionRange(stock)) ||
              FindUnoccupiedRoute(actor, state.Position, HouseholdStockPosition(stock), HouseholdStockInteractionRange(stock)).Count > 0) &&
             FindUnoccupiedRoute(actor, HouseholdStockPosition(stock), house.Position, 0).Count > 0)
@@ -176,14 +183,16 @@ public sealed partial class PrivateWorldRuntime
             }
             var storedQuantity = Math.Min(1, AvailableLotQuantity(preparationTool));
             if (storedQuantity == 0 || StorageRoom(houseForPickup.InstanceId) == 0) return;
-            ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
-                $"house-preparation-tool:{WorldTick}:{actor}", actor, householdId, preparationTool.Id,
-                storedQuantity, "household_preparation_tool_stored", destinationStorageBuildingId: houseForPickup.InstanceId));
+            ApplyInventoryTransition(inventory => preparationTool.OwnerId == householdId
+                ? InventoryFixture.Relocate(inventory, $"house-preparation-tool:{WorldTick}:{actor}", preparationTool.Id,
+                    householdId, storedQuantity, storageBuildingId: houseForPickup.InstanceId)
+                : InventoryFixture.Transfer(inventory, $"house-preparation-tool:{WorldTick}:{actor}", actor, householdId,
+                    preparationTool.Id, storedQuantity, "household_preparation_tool_stored", destinationStorageBuildingId: houseForPickup.InstanceId));
             AppendEvent("household_preparation_tool_stored",
                 $"{actor}:{preparationTool.ItemKind}:{storedQuantity}:{houseForPickup.InstanceId}");
             return;
         }
-        if (UnlocatedHouseholdStock(householdId) is not { } stock)
+        if (UnlocatedHouseholdStock(householdId, actor, houseForPickup.InstanceId) is not { } stock)
             return;
         var source = HouseholdStockPosition(stock);
         var range = HouseholdStockInteractionRange(stock);
@@ -234,15 +243,18 @@ public sealed partial class PrivateWorldRuntime
 
     private sealed record SpareCargoMove(InventoryLot Lot, int TransferQuantity, int PhysicalQuantity);
 
-    private List<SpareCargoMove> SpareCargoForFood(string actor, int missing)
+    private List<SpareCargoMove> SpareCargoForFood(string actor, int missing, string? protectedLotId = null,
+        params string[] additionallyProtectedLotIds)
     {
         if (missing <= 0) return [];
         var equipment = inhabitants[actor].Equipment;
         var inventory = society.Checkpoint.Inventory;
         var spare = inventory.Lots
-            .Where(lot => PersonalEquipmentRules.IsCarried(lot, actor) && lot.ContainerLotId is null &&
+            .Where(lot => (lot.OwnerId == actor || lot.OwnerId == HouseholdFor(actor)) &&
+                PersonalEquipmentRules.IsCarried(lot, actor) && lot.ContainerLotId is null &&
+                lot.Id != protectedLotId && !additionallyProtectedLotIds.Contains(lot.Id, StringComparer.Ordinal) &&
                 lot.DeliveryBuildingId is null &&
-                lot.Id != equipment?.ClothingLotId && lot.Id != equipment?.CarryAidLotId &&
+                !PersonalEquipmentRules.IsSelected(equipment, lot.Id) &&
                 lot.ItemKind is not ("field_map" or "field_record") &&
                 !society.Checkpoint.Inventory.Reservations.Any(reservation => reservation.LotId == lot.Id &&
                     reservation.State is InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed or
@@ -283,24 +295,33 @@ public sealed partial class PrivateWorldRuntime
         if (!AdultResident(actor) || society.Checkpoint.GetInhabitant(actor).HouseholdId is not { } householdId)
             return;
         var cargo = SpareCargoForFood(actor, FoodRoomMissing(actor, state));
+        StoreSpareCargo(actor, state, householdId, cargo);
+    }
+
+    private bool StoreSpareCargo(string actor, PlaytestInhabitantState state, string householdId,
+        List<SpareCargoMove> cargo)
+    {
         if (cargo.Count == 0 ||
             SpareCargoDestination(actor, state, cargo.Sum(move => move.PhysicalQuantity)) is not { } destination)
-            return;
+            return false;
         if (!IsWithinInteractionRange(state.Position, destination.Position, destination.Range))
         {
             MoveToward(actor, state, destination.Position, "make_room", destination.Range);
-            return;
+            return true;
         }
         foreach (var move in cargo)
         {
             var lot = move.Lot;
             var quantity = move.TransferQuantity;
-            ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
-                $"spare-cargo:{WorldTick}:{actor}:{lot.Id}", actor, householdId, lot.Id, quantity,
-                "spare_cargo_stored", destination.StorageBuildingId,
-                destinationGroundPosition: destination.StorageBuildingId is null
-                    ? new InventoryGroundPosition(destination.Position.X, destination.Position.Y) : null));
+            ApplyInventoryTransition(inventory => lot.OwnerId == householdId
+                ? InventoryFixture.Relocate(inventory, $"spare-cargo:{WorldTick}:{actor}:{lot.Id}", lot.Id, householdId, quantity,
+                    storageBuildingId: destination.StorageBuildingId, groundPosition: destination.StorageBuildingId is null
+                        ? new InventoryGroundPosition(destination.Position.X, destination.Position.Y) : null)
+                : InventoryFixture.Transfer(inventory, $"spare-cargo:{WorldTick}:{actor}:{lot.Id}", actor, householdId, lot.Id, quantity,
+                    "spare_cargo_stored", destination.StorageBuildingId, destinationGroundPosition: destination.StorageBuildingId is null
+                        ? new InventoryGroundPosition(destination.Position.X, destination.Position.Y) : null));
             AppendEvent("spare_cargo_stored", $"{actor}:{lot.ItemKind}:{quantity}:{destination.StorageBuildingId ?? "camp"}");
         }
+        return true;
     }
 }

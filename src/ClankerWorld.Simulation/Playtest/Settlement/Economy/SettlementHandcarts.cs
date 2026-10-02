@@ -81,10 +81,12 @@ public sealed partial class PrivateWorldRuntime
     private bool CanLoadCartLot(string actor, PlaytestInhabitantState person, InventoryLot lot) =>
         lot.ContainerLotId is null && lot.DeliveryBuildingId is null &&
         !InventoryContainerRules.IsContainer(lot.ItemKind) && AvailableLotQuantity(lot) > 0 &&
-        lot.Id != person.Equipment?.ClothingLotId && lot.Id != person.Equipment?.CarryAidLotId &&
+        // Worn clothing, a carry aid, a worn ornament or an item under repair stays on the agent.
+        !PersonalEquipmentRules.IsSelected(person.Equipment, lot.Id) &&
         (lot.OwnerId == actor && (ToolProgressionRules.IsTopLevelCarriedLot(lot, actor) ||
              lot.GroundPosition == new InventoryGroundPosition(person.Position.X, person.Position.Y)) ||
-         lot.OwnerId == society.Checkpoint.GetInhabitant(actor).HouseholdId &&
+         // Household stock someone is borrowing stays the household's.
+         lot.OwnerId == society.Checkpoint.GetInhabitant(actor).HouseholdId && lot.CarrierId is null &&
              person.Position == HouseholdStockPosition(lot));
 
     private void AddHandcartCandidates(List<CognitionCandidate> candidates, string actor,
@@ -100,7 +102,7 @@ public sealed partial class PrivateWorldRuntime
             foreach (var input in craftRecipe.Inputs)
             {
                 var carried = inventory.Lots.Where(lot => ToolProgressionRules.IsTopLevelCarriedLot(lot, actor) &&
-                    lot.ItemKind == input.ResourceId).Sum(AvailableLotQuantity);
+                    lot.OwnerId == actor && lot.ItemKind == input.ResourceId).Sum(AvailableLotQuantity);
                 if (carried < input.Amount && FreeCarryCapacity(actor) > 0 && SharedItem(input.ResourceId, actor) is not null)
                     candidates.Add(new(CollectCartMaterialPrefix + input.ResourceId,
                         $"Collect nearby {input.ResourceId.Replace('_', ' ')} and carry it to build a handcart at your household Blacksmith.", 25));
@@ -182,7 +184,7 @@ public sealed partial class PrivateWorldRuntime
             if (!IsWithinInteractionRange(person.Position, source, HouseholdStockInteractionRange(stock)))
             { MoveToward(actor, person, source, "handcart_material", HouseholdStockInteractionRange(stock)); return true; }
             var carried = society.Checkpoint.Inventory.Lots.Where(lot => ToolProgressionRules.IsTopLevelCarriedLot(lot, actor) &&
-                lot.ItemKind == kind).Sum(AvailableLotQuantity);
+                lot.OwnerId == actor && lot.ItemKind == kind).Sum(AvailableLotQuantity);
             var quantity = Math.Min(input.Value.Amount - carried, Math.Min(AvailableLotQuantity(stock), FreeCarryCapacity(actor)));
             if (quantity <= 0) return true;
             ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory, $"cart-material:{WorldTick}:{actor}",
@@ -281,7 +283,7 @@ public sealed partial class PrivateWorldRuntime
                 foreach (var kind in CartRepairKinds)
                 {
                     var material = updated.Lots.Where(lot => lot.ItemKind == kind && ToolProgressionRules.IsTopLevelCarriedLot(lot, actor) &&
-                        PersonalEquipmentRules.AvailableQuantity(updated, lot) > 0).OrderBy(lot => lot.Id, StringComparer.Ordinal).First();
+                        lot.OwnerId == actor && PersonalEquipmentRules.AvailableQuantity(updated, lot) > 0).OrderBy(lot => lot.Id, StringComparer.Ordinal).First();
                     var id = $"cart-repair:{WorldTick}:{actor}:{kind}";
                     updated = InventoryFixture.Reserve(updated, id, actor, material.Id, 1, "equipment_repair", WorldTick + 1);
                     reservations.Add(id);

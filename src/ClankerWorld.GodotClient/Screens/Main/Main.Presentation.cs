@@ -8,6 +8,11 @@ namespace ClankerWorld.GodotClient;
 
 public partial class Main
 {
+    /// <summary>The widest a status message grows before it wraps onto another line.</summary>
+    private const int StatusTextWidth = 460;
+
+    private readonly TextureRect statusIcon = new();
+
     private void SetStatus(string text, bool good, StatusToastKind kind = StatusToastKind.Message)
     {
         if (string.IsNullOrWhiteSpace(text))
@@ -16,8 +21,29 @@ public partial class Main
             return;
         }
 
+        // Host failures can carry the font's mid-height ellipsis.
+        text = GameUiText.PlainEllipses(text);
         statusLabel.Text = text;
-        statusLabel.ThemeTypeVariation = good ? "GoodLabel" : "BadLabel";
+        // A tick or a warning sign says good or bad; the words stay in plain ink so they read in both themes.
+        statusLabel.ThemeTypeVariation = string.Empty;
+        statusIcon.Texture = good
+            ? PixelIcons.Texture(PixelGlyph.Check, UiTheme.Current.Good, UiTheme.Current.Good, 1)
+            : PixelIcons.Texture(PixelGlyph.Warning, UiTheme.Current.Ink, UiTheme.Current.Name == "dark" ? new Color("E8B04A") : new Color("D9822B"), 1);
+        // As wide as the message, wrapping only long ones.
+        var width = statusLabel.GetThemeFont("font").GetStringSize(text, HorizontalAlignment.Left, -1, statusLabel.GetThemeFontSize("font_size")).X;
+        var wraps = width > StatusTextWidth;
+        statusLabel.AutowrapMode = wraps ? TextServer.AutowrapMode.WordSmart : TextServer.AutowrapMode.Off;
+        statusLabel.CustomMinimumSize = new Vector2(wraps ? StatusTextWidth : 0, 0);
+        statusToast.ResetSize();
+        if (wraps)
+        {
+            // Wrapped lines are measured once the label has its width, so fit the box again next frame.
+            Callable.From(() =>
+            {
+                statusToast.ResetSize();
+                ApplyResponsiveLayout();
+            }).CallDeferred();
+        }
         statusToastKind = kind;
         statusToastShownAtMsec = (long)Time.GetTicksMsec();
         statusToast.Show();
@@ -118,7 +144,7 @@ public partial class Main
     private static string ShortMarker(string value)
     {
         var compact = value.Trim().Replace('_', ' ');
-        return compact.Length <= 6 ? compact.ToUpperInvariant() : $"{compact[..5].ToUpperInvariant()}…";
+        return compact.Length <= 6 ? compact.ToUpperInvariant() : $"{compact[..5].ToUpperInvariant()}...";
     }
 
     private static string Pretty(string value) => string.IsNullOrWhiteSpace(value)

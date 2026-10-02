@@ -254,8 +254,8 @@ public sealed class SettlementSurvivalTests
         var initial = SettlementWeatherTestFixture.WithWeather(seed.ExportState(), WeatherKind.Snow);
         using var world = PrivateWorldRuntime.Restore(initial);
         world.StageStarterContent();
-        // Exercise autonomous survival and physical tool collection separately
-        // from the finite Tailor chains in PersonalEquipmentTests.
+        // Exercise autonomous warmth recovery. Physical tool and Tailor
+        // acquisition have dedicated normal-path tests.
         for (var tick = 0; tick < 900; tick++)
         {
             await world.AdvanceOneTickAsync();
@@ -263,13 +263,6 @@ public sealed class SettlementSurvivalTests
         var state = world.ExportState();
         Assert.NotNull(state.Survival);
         Assert.Contains(state.Events, item => item.Kind == "fire_fuelled");
-        var axeCollection = Assert.Single(state.Events, item => item.Kind == "equipment_collected" &&
-            item.Detail.EndsWith(":wooden_axe", StringComparison.Ordinal));
-        var collector = axeCollection.Detail[..^":wooden_axe".Length];
-        Assert.Contains(state.Society.Society.Inhabitants, person => person.Id == collector);
-        Assert.Contains(state.Society.Society.Inventory.Lots, lot => lot.ItemKind == "wooden_axe" &&
-            lot.Quantity == 1 && lot.ConditionBasisPoints > 0 && lot.FreshnessBasisPoints > 0 &&
-            ToolProgressionRules.IsTopLevelCarriedLot(lot, collector));
         Assert.Contains(state.Events, item => item.Kind == "survival_condition_changed");
         Assert.All(new OwnerWorldObservationStore(world).GetSnapshot().Inhabitants, person => Assert.NotNull(person.Survival));
         using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)));

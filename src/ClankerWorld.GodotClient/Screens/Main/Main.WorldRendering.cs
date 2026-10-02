@@ -51,9 +51,10 @@ public partial class Main
             familyTreeView.SetPeople(snapshot.WorldId, snapshot.Inhabitants, center);
             UpdateFamilyTreeStatus();
         }
-        RenderWorldDetails(snapshot);
+        RenderTownExtras(snapshot);
         RenderModLibrary(snapshot);
         RenderEventLog();
+        RenderDeveloperTools(snapshot);
         RefreshControlAvailability();
     }
 
@@ -125,6 +126,12 @@ public partial class Main
         var mapWidth = terrainMap.Width;
         var mapHeight = terrainMap.Height;
         worldOverview.WrapsEastWest = snapshot.WrapsEastWest;
+        worldOverview.Backdrop = UiTheme.Current.Inset;
+        worldOverview.AtlasEdge = UiTheme.Current.WoodEdge;
+        worldOverview.SetMarkers(
+            snapshot.Towns.Where(town => town.BorderTiles.Count > 0).Select(town => TownMarkerTile(town, mapWidth, snapshot.WrapsEastWest)),
+            snapshot.Inhabitants.Where(person => !person.IsDraft && IsLiving(person))
+                .Select(person => new Vector2(person.Position.X + 0.5f, person.Position.Y + 0.5f)));
         if (!string.Equals(cameraWorldId, snapshot.WorldId, StringComparison.Ordinal))
         {
             cameraWorldId = snapshot.WorldId;
@@ -199,7 +206,11 @@ public partial class Main
                 (building.StoredItems is null ? "" : $"\nStored here · {stored}") +
                 (building.StorageCapacity is { } capacity ? $"\nStorage · {building.StoredQuantity} / {capacity}" : "") +
                 (building.InvitedGuests is { Count: > 0 } guests ? $"\nStorm guests · {string.Join(", ", guests)}" : "") +
-                (building.ExpansionState == "running" ? "\nExpanding storage" : "") +
+                (building.ExpansionState == "running"
+                    ? building.Tags?.Contains("house", StringComparer.Ordinal) == true
+                        ? "\nHouse expansion underway · more storage and resident places when finished"
+                        : "\nExpanding storage"
+                    : "") +
                 (building.ExpansionFailure is { } failure ? $"\nExpansion stopped · {failure}" : ""),
                 building.Width, building.Height);
         }
@@ -251,6 +262,11 @@ public partial class Main
                 actorMarker.Variant = AgentSprites.VariantFor(inhabitant.Id);
                 actorMarker.Stage = AgentSprites.StageIndex(
                     inhabitant.DecisionFactors.FirstOrDefault(factor => factor.Key == "age-band")?.Detail);
+                // Facing and frame only present what the observation says:
+                // the tile the host reports and what the agent is doing there.
+                actorMarker.ObserveTile(snapshot.WorldId, new Vector2I(inhabitant.Position.X, inhabitant.Position.Y),
+                    mapWidth, snapshot.WrapsEastWest);
+                actorMarker.Activity = AgentMarker.ActivityFor(inhabitant);
                 var actorTooltip = $"{inhabitant.DisplayName} · {Pretty(inhabitant.Lifecycle)} · " +
                     (inhabitant.PublicIntention?.Summary ?? "taking in the world");
                 var conversation = LatestConversationFor(snapshot, inhabitant.Id);
@@ -430,26 +446,8 @@ public partial class Main
 
     private void RenderWorldInfo(OwnerWorldSnapshot snapshot)
     {
-        var (width, height) = MapDimensions(snapshot);
-        var localWeather = snapshot.Authoring is { } authoring
-            ? $"{Pretty(authoring.Season)} · {Pretty(WeatherAtCamera(snapshot))}"
-            : "Not reported";
         RenderTownList(snapshot);
-        worldInfoText.Text =
-            $"Date and time: {DisplayWorldClock(snapshot.WorldTick)}\n" +
-            (snapshot.CalendarPace is { } pace ? $"Year length: {pace.DaysPerYear} days\n" : "") +
-            $"Living agents: {LivingPopulation(snapshot)}\n" +
-            $"Map size: {width} × {height}\n" +
-            $"Buildings: {snapshot.PlacedBuildings.Count}\n" +
-            $"Roads: {snapshot.RoadTiles.Count} tiles\n" +
-            $"Bridges: {snapshot.Bridges.Count}\n" +
-            $"Towns: {snapshot.Towns.Count}\n" +
-            $"Resource locations: {snapshot.Resources.Count}\n" +
-            $"Season and weather here: {localWeather}" +
-            (WeatherRegionAtCamera(snapshot)?.SoilMoisture is { } moisture
-                ? $"\nSoil moisture here: {moisture}%"
-                : "") +
-            "\n\nPress F1 for keyboard and mouse controls.";
+        RenderWorldStats(snapshot);
     }
 
 }

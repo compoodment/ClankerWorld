@@ -63,9 +63,14 @@ public sealed class AgentKnowledgeTests
             society = SocietyFixture.ProposeRelationship(society, new(relationshipId, 1,
                 SocietyRelationshipType.Partnership, parent, partner, society.WorldTick)).Checkpoint;
             society = SocietyFixture.AcceptRelationship(society, relationshipId, 1, partner).Checkpoint;
+            var caregiverHousehold = society.GetInhabitant(parent).HouseholdId!;
+            var caregivers = new[] { parent, partner }
+                .Where(id => society.GetInhabitant(id).HouseholdId == caregiverHousehold)
+                .Append(parent).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
             var birth = SocietyFixture.CommitBirth(society, new($"family:{parent}:{society.WorldTick}", 1,
-                parent, partner, "household:camp-alpha", [parent, partner], [parent, partner],
-                "food:camp-alpha", 2, society.WorldTick, ChildName: "Explorer"));
+                parent, partner, caregiverHousehold, caregivers, [parent, partner],
+                "food:camp-alpha", 2, society.WorldTick, ChildName: "Explorer",
+                PrimaryCaregiverId: parent));
             parent = Assert.IsType<string>(birth.CreatedId);
             society = birth.Checkpoint;
             // Accelerate age only, retaining the actual birth identity and family records.
@@ -282,6 +287,7 @@ public sealed class AgentKnowledgeTests
         var buyerId = state.Inhabitants[1].InhabitantId;
         var otherId = state.Inhabitants[2].InhabitantId;
         state = WithArtifact(state, sellerId, state.Inhabitants[0].Position, "field_map");
+        state = SettlementTradeTests.AtTradeMeeting(state, sellerId, buyerId);
         var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory,
             "trade-clothing-for-map", "clothing", buyerId, 2);
         state = state with

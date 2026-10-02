@@ -62,7 +62,8 @@ public partial class Main
             selected.Id,
             instructionOrderButton.ButtonPressed ? "must_do" : "suggestive",
             text,
-            current.Baseline.Snapshot.WorldId);
+            current.Baseline.Snapshot.WorldId,
+            instructionOrderButton.ButtonPressed && instructionQueueToggle.ButtonPressed);
         if (!TryBeginPendingInstruction(action, out var pending))
         {
             return;
@@ -71,16 +72,68 @@ public partial class Main
         var completed = false;
         await RunOwnerActionAsync(async () =>
         {
-            var receipt = await ownerApi.SubmitInstructionAsync(
+            await ownerApi.SubmitInstructionAsync(
                 ResolveWorldUri(), authority, deviceId, action, signer, CancellationToken.None);
             completed = true;
             instructionText.Text = string.Empty;
-            return $"queued {action.Kind} instruction {receipt.InstructionId}";
+            return InstructionSubmissionResultText(action.Kind, action.Queue);
         });
         if (completed)
         {
             CompletePendingSubmission(pending);
         }
+    }
+
+    private async Task CancelSelectedOrderAsync()
+    {
+        if (!TryGetOwner(out var authority, out var deviceId, out var signer) ||
+            observationSession.Current is not { } current)
+        {
+            SetStatus("Wait for the world to load before cancelling an order.", good: false);
+            return;
+        }
+        var order = PendingOrderToCancel(current.Baseline.Snapshot, selectedInhabitantId);
+        if (order is null)
+        {
+            SetStatus("This agent has no waiting or active order to cancel.", good: false);
+            return;
+        }
+
+        var action = new OwnerOrderCancelAction(
+            $"cancel_order_{OwnerPairingProtocol.CreateRequestId()}",
+            order.TargetInhabitantId,
+            order.InstructionId,
+            current.Baseline.Snapshot.WorldId);
+        if (!TryBeginPendingOrderCancel(action, out var pending))
+            return;
+        var completed = false;
+        await RunOwnerActionAsync(async () =>
+        {
+            var receipt = await ownerApi.CancelOrderAsync(
+                ResolveWorldUri(), authority, deviceId, action, signer, CancellationToken.None);
+            completed = true;
+            return OrderCancellationResultText(receipt);
+        });
+        if (completed)
+            CompletePendingSubmission(pending);
+    }
+
+    private static string InstructionSubmissionResultText(string kind, bool queue) => kind == "must_do"
+        ? queue ? "Order added to the queue." : "Order sent."
+        : "Suggestion sent.";
+
+    private static string OrderCancellationResultText(OwnerOrderControlReceipt receipt)
+    {
+        if (receipt.Changed)
+            return "Order cancelled.";
+
+        return receipt.Status switch
+        {
+            "cancelled" => "That order was already cancelled.",
+            "finished" => "That order had already finished.",
+            "not_understood" => "The agent could not follow that order.",
+            _ => "That order is no longer waiting or active.",
+        };
     }
 
     private async Task SubmitAuthoringAsync()
@@ -235,22 +288,45 @@ public partial class Main
     private async Task RenameSelectedAgentAsync()
     {
         if (selectedInhabitantId is not { } agentId ||
-            observationSession.Current?.Baseline.Snapshot.Inhabitants.All(person => person.Id != agentId) != false)
+            observationSession.Current?.Baseline.Snapshot is not { } snapshot ||
+            snapshot.Inhabitants.All(person => person.Id != agentId))
             return;
-        var name = renameAgentInput.Text.Trim();
+        var attempted = renameAgentInput.Text;
+        var name = attempted.Trim();
         if (name.Length is < 1 or > 48 || name.Any(char.IsControl))
         {
             SetStatus("Pick a name of 48 characters or fewer.", good: false);
             return;
         }
         if (!TryGetOwner(out var authority, out var deviceId, out var signer)) return;
+        var worldId = snapshot.WorldId;
         await RunOwnerActionAsync(async () =>
         {
-            var result = await ownerApi.RenameAgentAsync(ResolveWorldUri(), authority, deviceId,
-                new OwnerAgentRenameAction(agentId, name), signer, CancellationToken.None);
-            renamingAgentId = null;
-            renameRow.Hide();
-            return result.Changed ? $"Renamed to {result.Name}" : "Name unchanged";
+            // Hold the attempt while the host decides: a refresh in the meantime
+            // must not reset the field before a refusal can keep it there.
+            refusedAgentRename.Remember(worldId, agentId, attempted);
+            try
+            {
+                var result = await ownerApi.RenameAgentAsync(ResolveWorldUri(), authority, deviceId,
+                    new OwnerAgentRenameAction(agentId, name), signer, CancellationToken.None);
+                renamingAgentId = null;
+                refusedAgentRename.Forget();
+                renameRow.Hide();
+                return result.Changed ? $"Renamed to {result.Name}" : "Name unchanged";
+            }
+            catch (OwnerAgentNameTakenException) when (selectedInhabitantId == agentId &&
+                renamingAgentId == agentId && renameRow.Visible && renameAgentInput.Text == attempted &&
+                observationSession.Current?.Baseline.Snapshot.WorldId == worldId)
+            {
+                // The field keeps the refused name until the player changes or
+                // cancels it; refreshes still show the host's name above it.
+                throw;
+            }
+            catch
+            {
+                refusedAgentRename.Forget();
+                throw;
+            }
         });
     }
 
@@ -390,10 +466,13 @@ public partial class Main
         authoringRenewable.Disabled = actionDisabled || !paused;
         instructionSuggestButton.Disabled = actionDisabled || deceasedSelected;
         instructionOrderButton.Disabled = actionDisabled || deceasedSelected;
+        instructionQueueToggle.Disabled = actionDisabled || deceasedSelected || !instructionOrderButton.ButtonPressed;
+        instructionCancelButton.Disabled = actionDisabled || deceasedSelected;
         instructionText.Editable = !actionDisabled && !deceasedSelected;
         RenderPendingSubmission();
         retryPendingSubmissionButton.Disabled = !paired || isOwnerAction || pendingSubmission is null ||
-            pendingSubmission.Instruction is { } retainedInstruction && !retainedInstruction.CanRetryIn(snapshot?.WorldId);
+            pendingSubmission.Instruction is { } retainedInstruction && !retainedInstruction.CanRetryIn(snapshot?.WorldId) ||
+            pendingSubmission?.OrderCancel is { } retainedCancellation && !retainedCancellation.CanRetryIn(snapshot?.WorldId);
         forgetPendingSubmissionButton.Disabled = isPairingOperation || isOwnerAction || isRefreshing;
         pairingApprovalId.Editable = !actionDisabled;
         pairingApprovalCode.Editable = !actionDisabled;

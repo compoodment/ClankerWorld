@@ -39,8 +39,14 @@ public partial class Main
     private readonly PixelMeter profileIllnessMeter = new() { Kind = MeterKind.Illness, Caption = "Illness", CaptionWidth = 50 };
     private readonly Label thoughtsHeading = new() { ThemeTypeVariation = "SectionLabel" };
     private readonly VBoxContainer speakSection = new();
+    private readonly RichTextLabel instructionHistory = new();
+    private readonly ScrollContainer agentOverviewScroll = new() { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, FollowFocus = true };
+    private readonly MarginContainer agentOverviewGap = new();
+    private bool agentProfileFitQueued;
     private readonly Button instructionSuggestButton = new();
     private readonly Button instructionOrderButton = new();
+    private readonly CheckButton instructionQueueToggle = new();
+    private readonly Button instructionCancelButton = new();
     private readonly PanelContainer thoughtsInset = new() { ThemeTypeVariation = "InsetPanel" };
     private readonly Button readThoughtsButton = new();
     private readonly PanelContainer thoughtsPanel = new();
@@ -167,6 +173,7 @@ public partial class Main
         renameAgentInput.PlaceholderText = "Agent name";
         renameAgentInput.MaxLength = 48;
         renameAgentInput.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        renameAgentInput.TextChanged += _ => refusedAgentRename.Forget();
         renameAgentInput.TextSubmitted += submitted => _ = RenameSelectedAgentAsync();
         renameRow.AddChild(renameAgentInput);
         renameAgentButton.Text = "Rename";
@@ -200,7 +207,13 @@ public partial class Main
         readThoughtsButton.Pressed += OpenThoughtsReader;
         thoughtsRow.AddChild(readThoughtsButton);
         selectedAgentOverview.AddChild(thoughtsRow);
-        ConfigureTextPanel(privateThoughtHistory, 180);
+        // The newest thought in two lines; clicking it, or Read all, opens the rest.
+        privateThoughtHistory.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        privateThoughtHistory.MaxLinesVisible = 2;
+        // A long thought stops at a whole word; the body font draws every
+        // ellipsis character at mid-height, so none is added.
+        privateThoughtHistory.TextOverrunBehavior = TextServer.OverrunBehavior.TrimWord;
+        privateThoughtHistory.MouseFilter = Control.MouseFilterEnum.Stop;
         privateThoughtHistory.TooltipText = "Click to read all of their thoughts. Only you can see these; other agents don't know them unless they are told.";
         privateThoughtHistory.MouseDefaultCursorShape = Control.CursorShape.PointingHand;
         privateThoughtHistory.GuiInput += input =>
@@ -214,8 +227,7 @@ public partial class Main
         selectedAgentOverview.AddChild(thoughtsInset);
 
         selectedAgentOverview.AddChild(new Label { Text = "PEOPLE", ThemeTypeVariation = "SectionLabel" });
-        ConfigureTextPanel(inhabitantSocialDetails, 90);
-        selectedAgentOverview.AddChild(inhabitantSocialDetails);
+        BuildProfilePeople(selectedAgentOverview);
 
         var profileActions = new HBoxContainer();
         profileActions.AddThemeConstantOverride("separation", 4);
@@ -238,7 +250,10 @@ public partial class Main
 
         // Speak to them: suggest or order beside the heading, then the message.
         speakSection.AddThemeConstantOverride("separation", 4);
-        var speakHeading = new HBoxContainer();
+        // Queue and Cancel task wrap onto a second line instead of widening the Profile.
+        var speakHeading = new HFlowContainer();
+        speakHeading.AddThemeConstantOverride("h_separation", 4);
+        speakHeading.AddThemeConstantOverride("v_separation", 4);
         speakHeading.AddChild(new Label
         {
             Text = "SPEAK TO THEM",
@@ -247,6 +262,11 @@ public partial class Main
             VerticalAlignment = VerticalAlignment.Center,
         });
         var kind = new ButtonGroup();
+        // One joined switch, like the other two-way choices.
+        var speakSwitch = new PanelContainer { ThemeTypeVariation = "SegmentedPanel", SizeFlagsVertical = Control.SizeFlags.ShrinkCenter };
+        var speakSwitchRow = new HBoxContainer();
+        speakSwitchRow.AddThemeConstantOverride("separation", 0);
+        speakSwitch.AddChild(speakSwitchRow);
         foreach (var (button, text, tip) in new[]
         {
             (instructionSuggestButton, "Suggest", "They weigh it against their own plans."),
@@ -258,13 +278,27 @@ public partial class Main
             button.ToggleMode = true;
             button.ButtonGroup = kind;
             StyleCompactToggle(button);
-            speakHeading.AddChild(button);
+            speakSwitchRow.AddChild(button);
         }
+        speakHeading.AddChild(speakSwitch);
         instructionSuggestButton.ButtonPressed = true;
+        instructionOrderButton.Toggled += pressed => instructionQueueToggle.Visible = pressed;
+        instructionQueueToggle.Text = "Queue";
+        instructionQueueToggle.TooltipText = "Add this order after the current task instead of replacing it.";
+        instructionQueueToggle.Visible = false;
+        StyleCompactToggle(instructionQueueToggle);
+        speakHeading.AddChild(instructionQueueToggle);
+        instructionCancelButton.Text = "Cancel task";
+        instructionCancelButton.TooltipText = "Cancel the selected agent’s waiting or active order.";
+        StyleCompactToggle(instructionCancelButton);
+        instructionCancelButton.Pressed += () => _ = CancelSelectedOrderAsync();
+        instructionCancelButton.Hide();
+        speakHeading.AddChild(instructionCancelButton);
         speakSection.AddChild(speakHeading);
         var speakRow = new HBoxContainer();
         speakRow.AddThemeConstantOverride("separation", 4);
-        instructionText.PlaceholderText = "Say something…";
+        instructionText.PlaceholderText = "Say something...";
+        instructionText.MaxLength = 512;
         instructionText.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         instructionText.TextSubmitted += submitted => _ = SubmitInstructionAsync();
         speakRow.AddChild(instructionText);
@@ -273,11 +307,21 @@ public partial class Main
         submitInstructionButton.Pressed += () => _ = SubmitInstructionAsync();
         speakRow.AddChild(submitInstructionButton);
         speakSection.AddChild(speakRow);
+        speakSection.AddChild(new Label { Text = "YOUR MESSAGES", ThemeTypeVariation = "SectionLabel" });
+        ConfigureTextPanel(instructionHistory, 105);
+        speakSection.AddChild(instructionHistory);
         selectedAgentOverview.AddChild(speakSection);
-        body.AddChild(selectedAgentOverview);
+        // The details scroll once the Profile would pass the bottom of the screen.
+        selectedAgentOverview.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        agentOverviewGap.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        agentOverviewGap.AddChild(selectedAgentOverview);
+        agentOverviewScroll.AddChild(agentOverviewGap);
+        selectedAgentOverview.VisibilityChanged += () => agentOverviewScroll.Visible = selectedAgentOverview.Visible;
+        // Wrapped text only knows its height once laid out at its width, so measure again then.
+        selectedAgentOverview.MinimumSizeChanged += QueueAgentProfileFit;
+        body.AddChild(agentOverviewScroll);
 
-        selectedAgentModelScroll.CustomMinimumSize = new Vector2(0, 300);
-        selectedAgentModelScroll.AddChild(selectedAgentModelContent);
+        BuildAgentModelScroll();
         selectedAgentModelScroll.Hide();
         body.AddChild(selectedAgentModelScroll);
 
@@ -287,6 +331,9 @@ public partial class Main
         agentProfilePanel.ZIndex = 75;
         agentProfilePanel.Hide();
     }
+
+    /// <summary>Whether a decision came from an agent's own model rather than Jev or the built-in rules.</summary>
+    private static bool IsModelProvider(string provider) => provider is "openai" or "ollama-cloud";
 
     /// <summary>A flat, short tab-style button that sits beside a section heading.</summary>
     private static void StyleCompactToggle(Button button)
@@ -378,7 +425,7 @@ public partial class Main
             thoughtsReaderText.PushColor(DimText);
             thoughtsReaderText.AddText(clock.Time + "  ");
             thoughtsReaderText.Pop();
-            thoughtsReaderText.AddText(text);
+            thoughtsReaderText.AddText(GameUiText.PlainEllipses(text));
         }
         FitTextPanel(thoughtsReaderText);
     }
@@ -410,6 +457,10 @@ public partial class Main
         memoriesButton.Icon = PixelIcons.Themed(PixelGlyph.Book, wood, 1);
         familyTreeButton.Icon = PixelIcons.Themed(PixelGlyph.Tree, green, 1);
         modelSettingsButton.Icon = PixelIcons.Themed(PixelGlyph.Key, gold, 1);
+        // Compact toggles copy the theme's tab styles, so copy them again for the new palette.
+        foreach (var toggle in new Button[] { readThoughtsButton, instructionSuggestButton, instructionOrderButton,
+                     instructionQueueToggle, instructionCancelButton, conversationHistoryButton })
+            StyleCompactToggle(toggle);
         agentPortraitFrame.AddThemeStyleboxOverride("panel", new StyleBoxFlat
         {
             BgColor = dark ? new Color("3E5A2E") : new Color("8FB06A"),
@@ -437,7 +488,10 @@ public partial class Main
         if (agentCardSnapshot is { } snapshot)
             RenderSelectedInhabitantCard(snapshot);
         if (speak && instructionText.Editable)
+        {
             instructionText.CallDeferred(Control.MethodName.GrabFocus);
+            QueueAgentProfileFit();
+        }
     }
 
     /// <summary>
@@ -467,6 +521,7 @@ public partial class Main
 
     private void ToggleRenameRow()
     {
+        refusedAgentRename.Forget();
         renameRow.Visible = !renameRow.Visible;
         if (!renameRow.Visible) return;
         renameAgentInput.Text = selectedActorNameLabel.Text;
@@ -505,15 +560,15 @@ public partial class Main
             CloseAgentModelEditor();
             agentProfileRequested = false;
             renamingAgentId = null;
+            refusedAgentRename.Forget();
             renameRow.Hide();
             quickCardNameLabel.Text = string.Empty;
             selectedActorNameLabel.Text = string.Empty;
             selectedActorSummaryLabel.Text = string.Empty;
             selectedActorConditionLabel.Text = string.Empty;
             SetPanelText(inhabitantDetails, string.Empty);
-            SetPanelText(inhabitantSocialDetails, string.Empty);
-            SetPanelText(privateThoughtHistory, string.Empty);
-            SetPanelText(memoryHistory, string.Empty);
+            privateThoughtHistory.Text = string.Empty;
+            SetPanelText(instructionHistory, string.Empty);
             memoriesPanel.Hide();
             thoughtsPanel.Hide();
             selectedInhabitantCard.Hide();
@@ -541,7 +596,11 @@ public partial class Main
         // Name, age and one plain sentence for what they are doing, shared by both cards.
         quickCardNameLabel.Text = inhabitant.DisplayName;
         selectedActorNameLabel.Text = inhabitant.DisplayName;
-        if (renamingAgentId != inhabitant.Id || !renameAgentInput.HasFocus())
+        // A refused name stays in the open field for the player to change,
+        // while the labels above keep showing the name the host holds.
+        if (!renameRow.Visible || renamingAgentId != inhabitant.Id) refusedAgentRename.Forget();
+        if (!refusedAgentRename.Keeps(snapshot.WorldId, inhabitant.Id, renameAgentInput.Text) &&
+            (renamingAgentId != inhabitant.Id || !renameAgentInput.HasFocus()))
         {
             renameAgentInput.Text = inhabitant.DisplayName;
             renamingAgentId = inhabitant.Id;
@@ -561,8 +620,10 @@ public partial class Main
             : waitingForDecision
             ? "Deciding what to do next"
             : Sentence(GameUiText.ActivityPhrase(inhabitant.PublicIntention?.CandidateId, inhabitant.PublicIntention?.Summary));
+        // The Model line names whose model made their latest choice, such as OpenAI.
         var modelStatus = GameUiText.ModelStatus(Factor("model-status"));
-        quickCardActivityLabel.Text = isDeceased ? activity : activity + "\nModel: " + modelStatus;
+        var modelProvider = decision is { } latest && IsModelProvider(latest.Provider) ? ProviderDisplayName(latest.Provider) + " · " : string.Empty;
+        quickCardActivityLabel.Text = isDeceased ? activity : $"{activity}\nModel: {modelProvider}{modelStatus}";
         profileActivityLabel.Text = quickCardActivityLabel.Text;
 
         // How they are: bars where the host reports a value, and plain facts beside them.
@@ -591,6 +652,12 @@ public partial class Main
 
         // What they are working on, learning and who chose their action.
         var details = new List<string>();
+        if (Factor("personality") is { } personality) details.Add("Personality: " + personality);
+        if (Factor("aspiration") is { } aspiration) details.Add("Aspiration: " + aspiration);
+        details.AddRange(inhabitant.DecisionFactors.Where(factor => factor.Key == "identity-change")
+            .Select(factor => factor.Detail));
+        if (!isDeceased && !string.IsNullOrWhiteSpace(inhabitant.MedicalCareNote))
+            details.Add(inhabitant.MedicalCareNote);
         if (!isDeceased && inhabitant.Equipment is { } equipment)
         {
             details.Add($"Cargo: {equipment.CarriedQuantity}/{equipment.Capacity}" +
@@ -599,6 +666,8 @@ public partial class Main
                 details.Add($"Wearing {Pretty(garment).ToLowerInvariant()} · Condition {equipment.ClothingConditionPercent}%");
             if (equipment.CarryAidKind is { } aid)
                 details.Add($"Equipped {Pretty(aid).ToLowerInvariant()} · Condition {equipment.CarryAidConditionPercent}%");
+            if (equipment.OrnamentKind is { } ornament)
+                details.Add($"Wearing {GameUiText.ItemName(ornament).ToLowerInvariant()}");
             if (equipment.RepairItemKind is { } repairItem)
                 details.Add($"Repairing {Pretty(repairItem).ToLowerInvariant()} · {equipment.RepairWorkDone}/{equipment.RepairWorkRequired}");
         }
@@ -633,9 +702,10 @@ public partial class Main
         }
         else if (!waitingForDecision)
         {
-            details.Add(decision is null ? "No decision yet"
-                : decision.FellBack ? "The model gave no usable choice, so built-in rules chose this."
-                : $"Chosen by {ProviderDisplayName(decision.Provider)}");
+            // A choice their own model made is named on the Model line; say so when something else made it.
+            if (decision is null) details.Add("No decision yet");
+            else if (decision.FellBack) details.Add("The model gave no usable choice, so built-in rules chose this.");
+            else if (!IsModelProvider(decision.Provider)) details.Add($"{ProviderDisplayName(decision.Provider)} made their latest choice.");
         }
         SetPanelText(inhabitantDetails, string.Join("\n", details));
         inhabitantDetails.Visible = details.Count > 0;
@@ -648,18 +718,35 @@ public partial class Main
                 "Practice: each completed project earns one point in its domain, up to 30. Every 10 points adds one work per preparation step. Materials, permissions and crop growth time are unchanged.";
 
         thoughtsHeading.Text = isDeceased ? "THOUGHTS · HISTORICAL" : "THOUGHTS";
-        SetPanelText(privateThoughtHistory, inhabitant.RecentPrivateThoughts.Count == 0
+        privateThoughtHistory.Text = inhabitant.RecentPrivateThoughts.Count == 0
             ? "None recorded yet."
-            : string.Join("\n", inhabitant.RecentPrivateThoughts.Reverse()
-                .Select(thought => $"{ThoughtTime(thought.WorldTick, snapshot.WorldTick)}  {thought.Text}")));
-
-        var people = inhabitant.Relationships.Select(relationship => GameUiText.RelationshipSummary(
-                relationship.Type, relationship.State, GameUiText.PartyName(snapshot, relationship.OtherPartyId), relationship.Direction))
-            .Concat(inhabitant.SocialStanding.Select(item => $"Trusts {item.SubjectName} · {item.Trust} of 10"))
-            .Concat(inhabitant.SocialNotes)
+            : $"{ThoughtTime(inhabitant.RecentPrivateThoughts[^1].WorldTick, snapshot.WorldTick)}  {GameUiText.PlainEllipses(inhabitant.RecentPrivateThoughts[^1].Text)}";
+        // Keep the task that Cancel task targets, then the newest open messages
+        // before closed ones, within the same four-message history.
+        var pendingOrder = PendingOrderToCancel(snapshot, inhabitant.Id);
+        var recentInstructions = snapshot.Instructions
+            .Where(item => item.TargetInhabitantId == inhabitant.Id)
+            .OrderBy(item => item.InstructionId == pendingOrder?.InstructionId ? 0 : item.State == "completed" ? 2 : 1)
+            .ThenByDescending(item => item.SubmissionSequence)
+            .Take(4)
+            .OrderBy(item => item.SubmissionSequence)
+            .Select(item =>
+            {
+                var status = item.Kind == "must_do"
+                    ? InstructionOrderSummary(item)
+                    : item.ObservedTick is null ? "Suggestion waiting for their personal model" : "Suggestion heard by their personal model";
+                var reply = item.ObserverReply is null ? string.Empty : $"\nAgent reply: “{item.ObserverReply}”";
+                return $"{status}\n“You said: {item.Text}”{reply}";
+            })
             .ToArray();
-        SetPanelText(inhabitantSocialDetails, people.Length == 0 ? "No close relationships yet." : string.Join("\n", people));
-        RenderMemoryHistory(snapshot, inhabitant);
+        instructionCancelButton.Visible = !isDeceased && pendingOrder is not null;
+        instructionCancelButton.Disabled = isOwnerAction || pendingSubmission is not null || registration is null || deviceKey is null;
+        SetPanelText(instructionHistory, recentInstructions.Length == 0
+            ? "No messages yet."
+            : string.Join("\n\n", recentInstructions));
+
+        RenderProfilePeople(snapshot, inhabitant);
+        RenderMemoryCards(snapshot, inhabitant);
         RenderThoughtsReader(snapshot, inhabitant);
 
         modelSettingsButton.Disabled = isDeceased || registration is null;
@@ -676,63 +763,94 @@ public partial class Main
         PositionAgentProfile();
     }
 
-    /// <summary>What this agent remembers, believes and has mapped, newest first, for the Memories panel.</summary>
-    private void RenderMemoryHistory(OwnerWorldSnapshot snapshot, OwnerWorldInhabitant inhabitant)
+    private static OwnerWorldInstruction? PendingOrderToCancel(OwnerWorldSnapshot snapshot, string? inhabitantId) =>
+        snapshot.Instructions.Where(item => item.TargetInhabitantId == inhabitantId &&
+                item.Order is { Status: "queued" or "waiting" or "doing" or "interrupted" or "blocked" })
+            .OrderBy(item => item.SubmissionSequence).FirstOrDefault();
+
+    private static string InstructionOrderSummary(OwnerWorldInstruction instruction)
     {
-        var memoryRows = new List<(long WorldTick, int Kind, string Text)>();
-        memoryRows.AddRange(inhabitant.RecentBeliefs.Select(belief =>
+        var order = instruction.Order;
+        if (order is null)
+            return instruction.State == "completed"
+                ? instruction.ObservedTick is null ? "Order closed · not reported as heard" : "Heard by their personal model · order closed"
+                : instruction.ObservedTick is null ? "Order pending · waiting for their personal model" : "Heard by their personal model · order pending";
+
+        var task = order.Action switch
         {
-            var evidence = belief.Provenance switch
-            {
-                "firsthand" => "witnessed",
-                "hearsay" when belief.SourceAgentName is { } source => $"heard from {source}",
-                "hearsay" => "heard from someone",
-                _ => "inferred",
-            };
-            var subject = belief.AboutInhabitantId is { } subjectId
-                ? snapshot.Inhabitants.FirstOrDefault(person => person.Id == subjectId)?.DisplayName
-                : null;
-            var context = $"Belief · {evidence} · {belief.ConfidenceBasisPoints / 100}% sure" +
-                (subject is null ? "" : $" · about {subject}") +
-                (belief.IsCorrected
-                    ? $" · corrected{(belief.CorrectedTick is { } correctedTick ? $" at {DisplayWorldClock(correctedTick)}" : "")}" : "");
-            return (belief.WorldTick, 0,
-                $"{DisplayWorldClock(belief.WorldTick)} · {context}\n{belief.Statement}");
-        }));
-        memoryRows.AddRange(inhabitant.RecentMemories.Select(memory =>
-            (memory.WorldTick, 1,
-                $"{DisplayWorldClock(memory.WorldTick)} · {Pretty(memory.Visibility)} · about {memory.SubjectName}\n{memory.Summary}")));
-        memoryRows.AddRange(inhabitant.RecentKnowledgeFacts.Select(fact =>
+            "consume_food" => "Eating food",
+            "harvest_food" => "Gathering food",
+            "seek_food" => "Going to a food site",
+            _ => "Order",
+        };
+        var units = order.RepeatUntilCancelled
+            ? $" · {order.CompletedUnits} {ProgressUnitLabel(order.ProgressUnit)} so far, repeats until cancelled"
+            : order.Status is "doing" or "interrupted" or "blocked" or "finished"
+                ? $" · {Math.Min(order.CompletedUnits, order.RequestedUnits)}/{order.RequestedUnits} {ProgressUnitLabel(order.ProgressUnit)}"
+                : string.Empty;
+        var reason = order.Status == "blocked" && !string.IsNullOrWhiteSpace(order.BlockedReason)
+            ? $" · {order.BlockedReason}"
+            : order.Status == "interrupted" && !string.IsNullOrWhiteSpace(order.BlockedReason)
+                ? $" · {order.BlockedReason}"
+                : string.Empty;
+        var heard = instruction.ObservedTick is null ? string.Empty : " · Heard by their personal model";
+        var state = order.Status switch
         {
-            var acquisition = fact.Acquisition == "firsthand"
-                ? $"discovered by {fact.DiscovererName}"
-                : $"{Pretty(fact.Acquisition)} from {fact.SourceAgentName ?? "another agent"}; discovered by {fact.DiscovererName}";
-            var resources = fact.ResourceKinds.Count == 0 ? "no recorded resource site" :
-                "resources · " + string.Join(", ", fact.ResourceKinds.Select(Pretty));
-            return (fact.WorldTick, 2,
-                $"{DisplayWorldClock(fact.WorldTick)} · Map fact · {acquisition}\n" +
-                $"{Pretty(fact.Terrain)} at ({fact.X}, {fact.Y}) · {resources}");
-        }));
-        memoryRows.AddRange(inhabitant.KnowledgeArtifacts.Select(artifact =>
-        {
-            var sites = string.Join("\n", artifact.Sites.Select(site =>
-                $"  {Pretty(site.Terrain)} at ({site.X}, {site.Y})" +
-                (site.ResourceKinds.Count == 0 ? "" : " · " + string.Join(", ", site.ResourceKinds.Select(Pretty)))));
-            return (artifact.CreatedTick, 3,
-                $"{DisplayWorldClock(artifact.CreatedTick)} · {Pretty(artifact.Kind)} · {artifact.Title} · by {artifact.CreatorName}\n{sites}");
-        }));
-        SetPanelText(memoryHistory, memoryRows.Count == 0
-            ? "No saved memories, beliefs, or map records for this agent yet."
-            : string.Join("\n\n", memoryRows.OrderByDescending(item => item.WorldTick)
-                .ThenBy(item => item.Kind).Select(item => item.Text)));
+            "queued" => "Queued",
+            "waiting" => "Waiting",
+            "doing" => "Doing",
+            "interrupted" => "Interrupted",
+            "blocked" => "Blocked",
+            "finished" => "Finished",
+            "cancelled" => "Cancelled",
+            "not_understood" => "Not understood",
+            _ => "Waiting",
+        };
+        return $"{state} · {task}{units}{reason}{heard}";
     }
+
+    private static string ProgressUnitLabel(string unit) => unit switch
+    {
+        "food_items" => "food items",
+        "arrivals" => "sites reached",
+        "harvests" => "harvest batches",
+        _ => unit,
+    };
 
     /// <summary>The Profile docks on the left, just below the top bar, and fits its contents.</summary>
     private void PositionAgentProfile()
     {
         if (!agentProfilePanel.Visible) return;
+        if (selectedAgentModelScroll.Visible) FitAgentModelScroll();
         agentProfilePanel.CustomMinimumSize = new Vector2(Math.Min(AgentProfileWidth, Math.Max(1, UiSize.X - 28)), 0);
+        FitAgentOverviewScroll();
         agentProfilePanel.Size = agentProfilePanel.GetCombinedMinimumSize();
         agentProfilePanel.Position = new Vector2(14, HudTop);
+    }
+
+    private void QueueAgentProfileFit()
+    {
+        if (agentProfileFitQueued) return;
+        agentProfileFitQueued = true;
+        Callable.From(() =>
+        {
+            agentProfileFitQueued = false;
+            PositionAgentProfile();
+            // Keep the message box in view while typing, once the scroll has its new height.
+            if (instructionText.HasFocus())
+                Callable.From(() => agentOverviewScroll.EnsureControlVisible(instructionText)).CallDeferred();
+        }).CallDeferred();
+    }
+
+    /// <summary>The Profile's details take the room they need and scroll once the panel would pass the bottom of the screen.</summary>
+    private void FitAgentOverviewScroll()
+    {
+        if (!agentOverviewScroll.Visible) return;
+        var content = selectedAgentOverview.GetCombinedMinimumSize().Y;
+        var rest = agentProfilePanel.GetCombinedMinimumSize().Y - agentOverviewScroll.CustomMinimumSize.Y;
+        var room = Math.Max(120, UiSize.Y - HudTop - 14 - rest);
+        var scrolls = content > room;
+        agentOverviewGap.AddThemeConstantOverride("margin_right", scrolls ? SettingsScrollGap : 0);
+        agentOverviewScroll.CustomMinimumSize = new Vector2(0, scrolls ? room : content);
     }
 }

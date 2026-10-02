@@ -38,6 +38,10 @@ public partial class Main
     private readonly Button buildingManagementApply = new() { Text = "Change owner" };
     private readonly Button buildingRemoveButton = new() { Text = "Remove building" };
     private readonly ConfirmationDialog buildingRemoveConfirmation = new();
+    private OwnerBuildingRemovalAction? pendingBuildingRemoval;
+    private string? pendingBuildingRemovalWorldId;
+    private string? renderedBuildingManagementWorldId;
+    private string? renderedBuildingManagementId;
     private string? selectedBuildingId;
     private bool buildingDetailsRequested;
     private OwnerWorldSnapshot? buildingCardSnapshot;
@@ -97,11 +101,13 @@ public partial class Main
         buildingManagementApply.Pressed += ApplyBuildingReassignment;
         buildingManagementSection.AddChild(buildingManagementApply);
         StyleButton(buildingRemoveButton);
-        buildingRemoveButton.Pressed += () => buildingRemoveConfirmation.PopupCentered();
+        buildingRemoveButton.Pressed += ConfirmBuildingRemoval;
         buildingManagementSection.AddChild(buildingRemoveButton);
         buildingDetailsContent.AddChild(buildingManagementSection);
-        buildingRemoveConfirmation.DialogText = "Remove this building? Its Town border and existing Roads will remain. The action is saved to the world.";
+        StyleConfirmation(buildingRemoveConfirmation, "Remove this building?", "Remove building");
+        buildingRemoveConfirmation.GetOkButton().ThemeTypeVariation = "DangerButton";
         buildingRemoveConfirmation.Confirmed += RemoveSelectedBuilding;
+        buildingRemoveConfirmation.Canceled += CancelBuildingRemoval;
         uiLayer.AddChild(buildingRemoveConfirmation);
         // On a short view the facts scroll under a header that stays put.
         buildingDetailsScroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
@@ -167,6 +173,9 @@ public partial class Main
 
     private void ClearBuildingSelection()
     {
+        CancelBuildingRemoval();
+        renderedBuildingManagementWorldId = null;
+        renderedBuildingManagementId = null;
         selectedBuildingId = null;
         buildingDetailsRequested = false;
         terrainLayer.SetSelectedBuilding(null);
@@ -196,6 +205,9 @@ public partial class Main
 
     private void RenderBuildingCard(OwnerWorldSnapshot snapshot)
     {
+        if (pendingBuildingRemoval is { } pending &&
+            (pendingBuildingRemovalWorldId != snapshot.WorldId || pending.InstanceId != selectedBuildingId))
+            CancelBuildingRemoval();
         buildingCardSnapshot = snapshot;
         if (SelectedBuilding() is not { } building)
         {
@@ -254,18 +266,28 @@ public partial class Main
         var signature = jobs.Length > 0
             ? string.Join('|', JobSummary(snapshot, jobs[0])) + (jobs.Length > 1 ? "+" + (jobs.Length - 1) : "")
             : string.Join('|', inside);
-        signature += $"|{building.ExpansionState}|{building.ExpansionFailure}";
+        signature += $"|{building.ExpansionState}|{building.ExpansionFailure}|" +
+            string.Join('|', building.Trades.Select(trade => trade.OfferId + ":" + trade.Status));
         if (renderedBuildingStatus == signature) return;
         renderedBuildingStatus = signature;
         ClearChildren(buildingQuickStatus);
         if (building.ExpansionState == "running")
-            buildingQuickStatus.AddChild(new Label { Text = "Expanding storage" });
+            buildingQuickStatus.AddChild(new Label
+            {
+                Text = building.Tags?.Contains("house", StringComparer.Ordinal) == true
+                    ? "House expansion underway · more storage and resident places when finished"
+                    : "Expanding storage",
+                AutowrapMode = TextServer.AutowrapMode.WordSmart,
+            });
         else if (building.ExpansionFailure is { } failure)
             buildingQuickStatus.AddChild(new Label
             {
                 Text = failure,
                 AutowrapMode = TextServer.AutowrapMode.WordSmart,
             });
+        var openTrades = building.Trades.Count(trade => trade.Status == "open");
+        if (openTrades > 0)
+            buildingQuickStatus.AddChild(new Label { Text = $"{Plural(openTrades, "customer exchange")} waiting" });
         if (jobs.Length > 0)
         {
             buildingQuickStatus.AddChild(JobRow(snapshot, jobs[0]));
@@ -309,8 +331,31 @@ public partial class Main
         };
         if (building.StorageCapacity is { } capacity)
             facts.Add(("Storage", $"{building.StoredQuantity} / {capacity} items"));
+        if (building.Tags?.Any(tag => tag is "farmhouse" or "blacksmith" or "tailor" or "store" or "restaurant" or "clinic") == true)
+            facts.Add(("Customers", "May trade here; household stock and other uses remain private"));
+        foreach (var trade in building.Trades)
+        {
+            var terms = $"{trade.GoodsQuantity} {GameUiText.ItemName(trade.GoodsKind)} for {trade.PaymentQuantity} {GameUiText.ItemName(trade.PaymentKind)}";
+            var status = trade.Status switch
+            {
+                "open" => "waiting for both traders at the shop",
+                "settled" => "completed · purchase carried away, payment stored here",
+                _ => "cancelled · " + trade.CancellationReason,
+            };
+            facts.Add((trade.BuyerName, $"{terms} · {status}"));
+        }
+        if (building.ResidentLimit is { } residentLimit)
+        {
+            facts.Add(("Permanent residents", $"{building.PermanentResidentCount} / {residentLimit} places"));
+            if (building.HasDominantFamily)
+                facts.Add(("Family limit", "One family is most of the household · 4 places per tile"));
+            if (building.IsOvercrowded)
+                facts.Add(("Crowding", "Over the limit · nobody new can move in until there is room"));
+        }
         if (building.ExpansionState == "running")
-            facts.Add(("Expansion", "Work in progress"));
+            facts.Add(("Expansion", building.ResidentLimit is not null
+                ? "Work in progress · current resident places remain until completion"
+                : "Work in progress"));
         else if (building.ExpansionFailure is { } failure)
             facts.Add(("Expansion", failure));
         if (building.InvitedGuests is { Count: > 0 } guests)
@@ -340,7 +385,7 @@ public partial class Main
         buildingPeopleSummary.Text = inside.Length == 0 ? "Nobody inside" : $"{inside.Length} inside";
         var people = new List<string>();
         if (inside.Length > 0) people.Add("Inside: " + string.Join(", ", inside));
-        if (residents.Length > 0) people.Add($"Home of {household}: {string.Join(", ", residents)}");
+        if (residents.Length > 0) people.Add($"Permanent residents (including travelers): {string.Join(", ", residents)}");
         buildingPeopleText.Text = string.Join('\n', people);
         buildingPeopleText.Visible = people.Count > 0;
         RenderBuildingManagement(snapshot, building);
@@ -351,9 +396,15 @@ public partial class Main
         if (!TryGetOwner(out _, out _, out _))
         {
             buildingManagementSection.Hide();
+            renderedBuildingManagementWorldId = null;
+            renderedBuildingManagementId = null;
             return;
         }
 
+        var previousTarget = renderedBuildingManagementWorldId == snapshot.WorldId &&
+            renderedBuildingManagementId == building.InstanceId && buildingManagementChoice.Selected >= 0
+            ? buildingManagementChoice.GetItemMetadata(buildingManagementChoice.Selected).AsString()
+            : null;
         buildingManagementSection.Show();
         buildingManagementChoice.Clear();
         var isWarehouse = building.Tags?.Contains("warehouse", StringComparer.Ordinal) == true;
@@ -387,7 +438,16 @@ public partial class Main
             buildingManagementNote.Text = "This building has no household or Town reassignment rule.";
         }
 
-        if (buildingManagementChoice.ItemCount > 0) buildingManagementChoice.Select(0);
+        var selectedTarget = 0;
+        for (var index = 0; index < buildingManagementChoice.ItemCount; index++)
+            if (previousTarget is not null && buildingManagementChoice.GetItemMetadata(index).AsString() == previousTarget)
+            {
+                selectedTarget = index;
+                break;
+            }
+        if (buildingManagementChoice.ItemCount > 0) buildingManagementChoice.Select(selectedTarget);
+        renderedBuildingManagementWorldId = buildingManagementChoice.ItemCount > 0 ? snapshot.WorldId : null;
+        renderedBuildingManagementId = buildingManagementChoice.ItemCount > 0 ? building.InstanceId : null;
         buildingManagementChoice.Visible = buildingManagementChoice.ItemCount > 0;
         buildingManagementApply.Visible = buildingManagementChoice.ItemCount > 0;
         buildingManagementApply.Disabled = buildingManagementChoice.ItemCount == 0;
@@ -396,7 +456,7 @@ public partial class Main
 
     private async void ApplyBuildingReassignment()
     {
-        if (SelectedBuilding() is not { } building ||
+        if (SelectedBuilding() is not { } building || buildingCardSnapshot is not { } snapshot ||
             buildingManagementChoice.Selected < 0 || !TryGetOwner(out var authority, out var deviceId, out var signer))
         {
             SetStatus("Select a building and a new owner first.", good: false);
@@ -406,7 +466,8 @@ public partial class Main
         var target = buildingManagementChoice.GetItemMetadata(buildingManagementChoice.Selected).AsString();
         var isWarehouse = building.Tags?.Contains("warehouse", StringComparer.Ordinal) == true;
         var action = new OwnerBuildingReassignmentAction(building.InstanceId, building.TownId, building.HouseholdId,
-            isWarehouse ? target : null, isWarehouse || string.IsNullOrEmpty(target) ? null : target);
+            isWarehouse ? target : null, isWarehouse || string.IsNullOrEmpty(target) ? null : target,
+            WorldId: snapshot.WorldId);
         OwnerBuildingManagementResult? result = null;
         await RunOwnerActionAsync(async () =>
         {
@@ -419,9 +480,30 @@ public partial class Main
                 good: changed.Applied);
     }
 
+    private void ConfirmBuildingRemoval()
+    {
+        if (SelectedBuilding() is not { } building || buildingCardSnapshot is not { } snapshot ||
+            !TryGetOwner(out _, out _, out _)) return;
+        pendingBuildingRemoval = new(building.InstanceId, building.TownId, building.HouseholdId, snapshot.WorldId);
+        pendingBuildingRemovalWorldId = snapshot.WorldId;
+        buildingRemoveConfirmation.DialogText = $"Remove {building.DisplayName ?? "this building"}? Its Town border and existing Roads will remain. The action is saved to the world.";
+        PopupDialog(buildingRemoveConfirmation);
+    }
+
+    private void CancelBuildingRemoval()
+    {
+        pendingBuildingRemoval = null;
+        pendingBuildingRemovalWorldId = null;
+        buildingRemoveConfirmation.Hide();
+    }
+
     private async void RemoveSelectedBuilding()
     {
-        if (SelectedBuilding() is not { } building || !TryGetOwner(out var authority, out var deviceId, out var signer))
+        var action = pendingBuildingRemoval;
+        var worldId = pendingBuildingRemovalWorldId;
+        CancelBuildingRemoval();
+        if (action is null || buildingCardSnapshot?.WorldId != worldId || selectedBuildingId != action.InstanceId ||
+            !TryGetOwner(out var authority, out var deviceId, out var signer))
         {
             SetStatus("Select a building before removing it.", good: false);
             return;
@@ -431,14 +513,15 @@ public partial class Main
         await RunOwnerActionAsync(async () =>
         {
             result = await ownerApi.RemoveBuildingAsync(ResolveWorldUri(), authority, deviceId,
-                new OwnerBuildingRemovalAction(building.InstanceId, building.TownId, building.HouseholdId),
+                action,
                 signer, CancellationToken.None);
             return result.Applied ? "Building removed" : result.Failure ?? "The building could not be removed.";
         });
         if (result is not { } removed) return;
         SetStatus(removed.Applied ? "Building removed" : removed.Failure ?? "The building could not be removed.",
             good: removed.Applied);
-        if (removed.Applied) ClearBuildingSelection();
+        if (removed.Applied && buildingCardSnapshot?.WorldId == worldId && selectedBuildingId == action.InstanceId)
+            ClearBuildingSelection();
     }
 
     private void RenderBuildingFacts(List<(string Key, string Value)> facts)
@@ -494,7 +577,7 @@ public partial class Main
         return (RecipeName(job.RecipeId), percent, $"{worker} · {TimeLeft(job.CompletionTick - snapshot.WorldTick)}");
     }
 
-    /// <summary>A recipe's own words, such as "Mill grain" for <c>…/mill-grain</c>.</summary>
+    /// <summary>A recipe's own words, such as "Mill grain" for <c>.../mill-grain</c>.</summary>
     private static string RecipeName(string recipeId) =>
         Sentence(recipeId[(recipeId.LastIndexOf('/') + 1)..].Replace('-', ' ').Replace('_', ' '));
 
@@ -557,9 +640,11 @@ public partial class Main
     {
         if (!buildingDetailsPanel.Visible) return;
         buildingDetailsPanel.CustomMinimumSize = new Vector2(Math.Min(BuildingDetailsWidth, Math.Max(1, UiSize.X - 28)), 0);
-        var header = buildingDetailsHeader.GetCombinedMinimumSize().Y;
-        // Panel margins and the gap under the header.
-        var room = UiSize.Y - HudTop - 14 - header - 28;
+        // Measure the fixed header, themed frame, margins and gap together;
+        // a guessed padding total can let a long shop history run off screen.
+        var fixedHeight = buildingDetailsPanel.GetCombinedMinimumSize().Y -
+            buildingDetailsScroll.GetCombinedMinimumSize().Y;
+        var room = UiSize.Y - HudTop - 14 - fixedHeight;
         buildingDetailsScroll.CustomMinimumSize = new Vector2(0,
             Math.Max(60, Math.Min(buildingDetailsContent.GetCombinedMinimumSize().Y, room)));
         buildingDetailsPanel.Size = buildingDetailsPanel.GetCombinedMinimumSize();

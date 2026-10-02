@@ -1,8 +1,3 @@
-# Visible handcarts
-
-Prepared for [#566](https://github.com/compoodment/ClankerWorld/issues/566).
-These Windows checks are pending; automated checks do not count as playing.
-
 - On the paired world: watch an adult from the Blacksmith household collect wood, iron fittings and rope and build a cart. Inspect its tile and owner: the new cart should be visibly parked at the Blacksmith, with an owner, condition and empty cargo. ([#566](https://github.com/compoodment/ClankerWorld/issues/566))
 - On the paired world: watch the owner attach the cart, load nearby goods and pull it to another building. The cart and all goods should travel together, move more easily along Roads, and stay put when parked. ([#566](https://github.com/compoodment/ClankerWorld/issues/566))
 - On the paired world: save during a journey, reload and inspect the load. The cart should keep its owner, position, condition, cargo and attachment; continuing must use a legal route. ([#566](https://github.com/compoodment/ClankerWorld/issues/566))

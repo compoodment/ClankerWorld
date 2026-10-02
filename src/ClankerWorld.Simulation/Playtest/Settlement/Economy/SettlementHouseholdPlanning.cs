@@ -125,8 +125,8 @@ public sealed partial class PrivateWorldRuntime
     }
 
     /// <summary>
-    /// A carried project tool is kept at home until preparation materials have
-    /// room to travel. Building work can collect it again from the household.
+    /// Store a spare generic tool at home so preparation materials have room
+    /// to travel. Building work uses an available hammer or proceeds by hand.
     /// </summary>
     private InventoryLot? BuildingPreparationToolToStore(string actor, string householdId)
     {
@@ -142,6 +142,7 @@ public sealed partial class PrivateWorldRuntime
             return null;
 
         var tool = society.Checkpoint.Inventory.Lots.Where(lot =>
+                (lot.OwnerId == actor || lot.OwnerId == householdId) &&
                 PersonalEquipmentRules.IsCarried(lot, actor) && lot.DeliveryBuildingId is null &&
                 lot.ContainerLotId is null &&
                 lot.ItemKind == "tool" && AvailableLotQuantity(lot) > 0)

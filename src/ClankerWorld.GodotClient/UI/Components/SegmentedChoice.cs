@@ -62,4 +62,6 @@ public partial class SegmentedChoice : PanelContainer
     public int GetItemIndex(int id) => items.FindIndex(item => item.Id == id);
 
     public void SetItemTooltip(int index, string tooltip) => items[index].Button.TooltipText = tooltip;
+
+    public void SetItemText(int index, string text) => items[index].Button.Text = text;
 }

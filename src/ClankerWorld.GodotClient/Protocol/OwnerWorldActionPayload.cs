@@ -242,12 +242,21 @@ public static class OwnerWorldActionPayload
 
     public static string Instruction(OwnerInstructionAction action) => string.Join(
         '\n',
-        "clankerworld.owner-instruction.v2",
+        action.Queue ? "clankerworld.owner-instruction.v3" : "clankerworld.owner-instruction.v2",
         $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}",
         $"idempotency-key={EncodeRequired(action.IdempotencyKey, nameof(action.IdempotencyKey))}",
         $"target-inhabitant-id={EncodeRequired(action.TargetInhabitantId, nameof(action.TargetInhabitantId))}",
         $"kind={EncodeRequired(action.Kind, nameof(action.Kind))}",
-        $"text={EncodeRequired(action.Text, nameof(action.Text))}");
+        $"text={EncodeRequired(action.Text, nameof(action.Text))}" +
+            (action.Queue ? "\nqueue=true" : string.Empty));
+
+    public static string OrderCancel(OwnerOrderCancelAction action) => string.Join(
+        '\n',
+        "clankerworld.owner-order-cancel.v1",
+        $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}",
+        $"idempotency-key={EncodeRequired(action.IdempotencyKey, nameof(action.IdempotencyKey))}",
+        $"target-inhabitant-id={EncodeRequired(action.TargetInhabitantId, nameof(action.TargetInhabitantId))}",
+        $"order-id={EncodeRequired(action.OrderId, nameof(action.OrderId))}");
 
     public static string Authoring(OwnerAuthoringBatchAction action)
     {
@@ -377,7 +386,8 @@ public static class OwnerWorldActionPayload
         "clankerworld.owner-building-removal.v1",
         $"instance-id={EncodeRequired(action.InstanceId, nameof(action.InstanceId))}",
         $"expected-town-id={EncodeOptional(action.ExpectedTownId)}",
-        $"expected-household-id={EncodeOptional(action.ExpectedHouseholdId)}");
+        $"expected-household-id={EncodeOptional(action.ExpectedHouseholdId)}",
+        $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}");
 
     public static string BuildingReassignment(OwnerBuildingReassignmentAction action) => string.Join(
         '\n',
@@ -386,7 +396,8 @@ public static class OwnerWorldActionPayload
         $"expected-town-id={EncodeOptional(action.ExpectedTownId)}",
         $"expected-household-id={EncodeOptional(action.ExpectedHouseholdId)}",
         $"target-town-id={EncodeOptional(action.TargetTownId)}",
-        $"target-household-id={EncodeOptional(action.TargetHouseholdId)}");
+        $"target-household-id={EncodeOptional(action.TargetHouseholdId)}",
+        $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}");
 
     public static string ProductionStart(OwnerProductionStartAction action) => string.Join(
         '\n',

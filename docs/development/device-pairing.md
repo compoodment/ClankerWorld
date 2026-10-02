@@ -2,7 +2,7 @@
 title: Device pairing
 type: development-reference
 status: active
-updated: 2026-09-30
+updated: 2026-10-02
 ---
 
 # Device pairing
@@ -107,19 +107,32 @@ starts at cursor zero, so a younger world can be entered without restarting the
 client. Tick/event regression and terrain identity checks still apply within the
 new observation timeline.
 
+## Building ownership changes
+
+Building removal and reassignment payloads require the observed simulation world
+ID as well as the expected Town and household ownership. The host verifies that
+world ID under the runtime mutation gate before changing a building. A request
+formed for a previously selected world is refused without changing the active
+world or its saved checkpoint, even when both worlds use the same building IDs.
+A removal confirmation retains the world and owners shown when it opened;
+observation refreshes cannot silently authorize a different ownership change.
+
 ## Response-loss recovery
 
-Instructions and paused-authoring batches are server-idempotent, but a client
-can still lose the response after the server commits one. Before sending either
-kind of request, the Godot client may atomically retain one non-secret pending
-record. It is bound to the authority identity, device ID, public-key
-fingerprint, and canonical server origin, and preserves the exact instruction
-idempotency key or authoring batch ID.
+Instructions, order cancellations and paused-authoring batches are
+server-idempotent, but a client can still lose the response after the server
+commits one. Before sending any of these three kinds of request, the Godot
+client may atomically retain one non-secret pending record. It is bound to the
+authority identity, device ID, public-key fingerprint, and canonical server
+origin, and preserves the exact instruction or cancellation idempotency key, or
+authoring batch ID.
 
 Instructions additionally retain the observed simulation world ID (not the
-installation's pairing identity). Their signed `owner-instruction.v2` payload
-requires that ID. The host checks it under the same mutation gate as selection
-and manual loading, through the instruction's durable save. Selecting another
+installation's pairing identity). Unqueued instructions use the signed
+`clankerworld.owner-instruction.v2` payload. Queued instructions use
+`clankerworld.owner-instruction.v3`, which appends `queue=true` to the canonical
+payload. Both require the world ID. The host checks it under the same mutation
+gate as selection and manual loading, through the instruction's durable save. Selecting another
 world refuses the retry without discarding its local record; returning to the
 original world recovers the original receipt. The client disables Retry while
 another world, or no confirmed world, is observed. Authoring payloads are unchanged.
@@ -127,8 +140,17 @@ another world, or no confirmed world, is observed. Authoring payloads are unchan
 Client and host must both use this instruction payload. Older requests without
 a simulation world ID are refused rather than guessed into the current world.
 Unscoped local retry records remain on disk but cannot be sent; explicitly
-forget them after checking the original world. There is no saved-world schema
-change or old-save migration.
+forget them after checking the original world. Instruction payload compatibility
+does not migrate old saves. Saved orders and cancellation receipts use the
+current world format in [Saves and replay](saves-and-replay.md).
+
+`POST /api/v1/owner/orders/cancel` signs
+`clankerworld.owner-order-cancel.v1` with the world ID, idempotency key, target
+agent ID and exact order ID. The host binds it to the active owner device and
+world before committing, and saves the original receipt for idempotent retries.
+The retained client cancellation has the same pairing/origin/world boundaries
+as an instruction; switching worlds disables Retry until its world is selected
+again. A fresh challenge and signature are required for each retry.
 
 The user can explicitly retry that one record. The retry obtains a new one-use
 challenge and signature, then submits the same logical request so the server
@@ -145,8 +167,8 @@ credential.
 ## Current scope
 
 Every paired device has the sole `owner` scope: world observation,
-pause/resume, instruction submission, authoring-batch submission, and device
-management. There are no viewer, operator, or multiplayer roles yet. A revoked
+pause/resume, instruction submission, order cancellation, authoring-batch
+submission, and device management. There are no viewer, operator, or multiplayer roles yet. A revoked
 device immediately loses access. Authority state retains non-secret public-key
 fingerprints and device IDs; world-side control events retain a non-secret
 server-derived issuer string, never a private key or comparison code.
@@ -197,14 +219,21 @@ is a Kestrel boundary, not claimed from TestServer's Content-Length test alone.
 
 ## Bounded owner actions
 
+Starting pairing, polling its status and activating the device each have a
+15-second deadline, or the HTTP client's shorter configured timeout. The
+deadline includes reading the response body after successful headers. A stalled
+body releases the connection controls so the player can try again; caller
+cancellation also stops the request. A lost activation reply can still be
+recovered through the existing active-pairing status check.
+
 Signed actions have a 15-second deadline over the complete challenge/sign/send/read
 operation, or the HTTP client's shorter configured timeout. Load World allows up
 to 60 seconds because listing checks every saved checkpoint; leaving that screen
 still cancels the request. Cancellation covers both response bodies even after
 successful headers. Reconnect retains its shorter four-second deadline.
 A timeout does not prove that the server rejected an action;
-instructions and authoring retain their exact existing retry record until a
-receipt is accepted.
+instructions, order cancellations and authoring retain their exact retry record
+until a receipt is accepted.
 
 Pause/resume waits for the active owner action to release the client gate rather
 than being dropped as a duplicate click. Ordinary duplicate actions still do not

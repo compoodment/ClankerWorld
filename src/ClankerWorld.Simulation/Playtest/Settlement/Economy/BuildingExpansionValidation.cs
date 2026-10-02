@@ -24,24 +24,31 @@ public sealed partial class PrivateWorldRuntime
         foreach (var job in expansionJobs)
         {
             ContentPackageRules.ValidateLocalId(job.JobId);
+            if (job.State == WorldProductionJobState.Paused &&
+                (job.PausedAtTick is not { } paused || paused < job.StartedTick || paused > society.WorldTick || paused >= job.CompletionTick) ||
+                job.State != WorldProductionJobState.Paused && job.PausedAtTick is not null && job.State != WorldProductionJobState.Cancelled)
+                throw new InvalidDataException("The saved expansion pause is invalid.");
             var hasBuilding = buildings.TryGetValue(job.BuildingInstanceId, out var building);
             var definitionId = job.DefinitionId ?? building?.DefinitionId;
+            // Paused work keeps its building and footprint exactly as running work does.
+            var active = job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused;
             if (!allJobIds.Add(job.JobId) || !people.ContainsKey(job.WorkerId) ||
                 string.IsNullOrWhiteSpace(job.OwnerId) ||
-                job.State == WorldProductionJobState.Running && (!hasBuilding || job.OwnerId != (building!.HouseholdId ?? building.TownId)) ||
-                !hasBuilding && (job.State == WorldProductionJobState.Running || schemaVersion < 35 || string.IsNullOrWhiteSpace(job.DefinitionId)) ||
-                hasBuilding && job.DefinitionId is not null && job.DefinitionId != building!.DefinitionId ||
+                active && (!hasBuilding || job.OwnerId != (building!.HouseholdId ?? building.TownId)) ||
+                !hasBuilding && (active || schemaVersion < 35 || string.IsNullOrWhiteSpace(job.DefinitionId)) ||
+                active && hasBuilding &&
+                    job.DefinitionId is not null && job.DefinitionId != building!.DefinitionId ||
                 definitionId is null || !definitions.TryGetValue(definitionId, out var definition) ||
                 job.TargetFootprint is null || !BuildingStorageRules.IsSupported(definition, job.TargetFootprint) ||
                 job.ExpectedRevision != job.TargetFootprint.Revision - 1 ||
                 job.StartedTick < 0 || job.StartedTick > society.WorldTick || job.CompletionTick <= job.StartedTick ||
-                job.State is not (WorldProductionJobState.Running or WorldProductionJobState.Completed or WorldProductionJobState.Cancelled) ||
+                job.State is not (WorldProductionJobState.Running or WorldProductionJobState.Completed or WorldProductionJobState.Cancelled or WorldProductionJobState.Paused) ||
                 job.State == WorldProductionJobState.Running && job.CompletionTick <= society.WorldTick ||
                 job.InputReservationIds is null || job.InputReservationIds.Count == 0 ||
                 job.InputReservationIds.Distinct(StringComparer.Ordinal).Count() != job.InputReservationIds.Count ||
                 !map.Contains(job.TargetPosition))
                 throw new InvalidDataException("The saved building expansion is malformed.");
-            if (job.State != WorldProductionJobState.Running) continue;
+            if (job.State is not (WorldProductionJobState.Running or WorldProductionJobState.Paused)) continue;
             if (!hasBuilding || !activeBuildings.Add(job.BuildingInstanceId) || building!.Position != job.ExpectedPosition ||
                 (building.Footprint?.Revision ?? 0) != job.ExpectedRevision)
                 throw new InvalidDataException("The saved expansion no longer refers to its original building footprint.");
@@ -52,15 +59,19 @@ public sealed partial class PrivateWorldRuntime
                 targetTiles.Any(tile => !activeExpansionTiles.Add(tile)))
                 throw new InvalidDataException("The saved expansion has an invalid or competing footprint.");
             var reserved = new Dictionary<string, int>(StringComparer.Ordinal);
+            var buildingSite = new InventoryGroundPosition(building.Position.X, building.Position.Y);
             foreach (var id in job.InputReservationIds)
             {
                 var reservation = society.Inventory.Reservations.SingleOrDefault(item => item.Id == id);
                 var lot = reservation is null ? null : society.Inventory.Lots.SingleOrDefault(item => item.Id == reservation.LotId);
                 if (reservation is null || lot is null || reservation.Purpose != job.JobId ||
                     reservation.OwnerId != lot.OwnerId || lot.OwnerId != job.OwnerId && lot.OwnerId != job.WorkerId ||
-                    (lot.OwnerId == job.OwnerId ? lot.StorageBuildingId != building.InstanceId :
-                        lot.StorageBuildingId is not null || lot.DeliveryBuildingId is not null) ||
-                    reservation.State != InventoryReservationState.Reserved || reservation.ExpiryTick != job.CompletionTick)
+                    (lot.OwnerId == job.OwnerId
+                        ? lot.StorageBuildingId != building.InstanceId && lot.GroundPosition != buildingSite ||
+                            lot.DeliveryBuildingId is not null
+                        : lot.StorageBuildingId is not null || lot.DeliveryBuildingId is not null ||
+                            lot.GroundPosition is not null) ||
+                    reservation.State != InventoryReservationState.Reserved || reservation.ExpiryTick != (job.State == WorldProductionJobState.Paused ? long.MaxValue : job.CompletionTick))
                     throw new InvalidDataException("The expansion is missing its reserved materials.");
                 reserved[lot.ItemKind] = reserved.GetValueOrDefault(lot.ItemKind) + reservation.Quantity;
             }

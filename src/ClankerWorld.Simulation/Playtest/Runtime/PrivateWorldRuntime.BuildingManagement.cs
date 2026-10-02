@@ -16,11 +16,14 @@ public sealed partial class PrivateWorldRuntime
     public BuildingManagementResult RemoveBuilding(
         string instanceId,
         string? expectedTownId,
-        string? expectedHouseholdId)
+        string? expectedHouseholdId,
+        string? expectedWorldId = null)
     {
         gate.Wait();
         try
         {
+            if (expectedWorldId is not null && expectedWorldId != society.Checkpoint.WorldId)
+                return BuildingManagementResult.Rejected(instanceId, "The active world changed. Select this building again before changing it.");
             var building = worldSimulation.Buildings.SingleOrDefault(item => item.InstanceId == instanceId);
             if (building is null) return BuildingManagementResult.Rejected(instanceId, "That building is no longer placed.");
             if (building.TownId != expectedTownId || building.HouseholdId != expectedHouseholdId)
@@ -56,11 +59,14 @@ public sealed partial class PrivateWorldRuntime
         string? expectedTownId,
         string? expectedHouseholdId,
         string? targetTownId,
-        string? targetHouseholdId)
+        string? targetHouseholdId,
+        string? expectedWorldId = null)
     {
         gate.Wait();
         try
         {
+            if (expectedWorldId is not null && expectedWorldId != society.Checkpoint.WorldId)
+                return BuildingManagementResult.Rejected(instanceId, "The active world changed. Select this building again before changing it.");
             var building = worldSimulation.Buildings.SingleOrDefault(item => item.InstanceId == instanceId);
             if (building is null) return BuildingManagementResult.Rejected(instanceId, "That building is no longer placed.");
             if (building.TownId != expectedTownId || building.HouseholdId != expectedHouseholdId)
@@ -144,9 +150,12 @@ public sealed partial class PrivateWorldRuntime
                 worldContent.Buildings.Any(candidate => candidate.CanonicalId == other.DefinitionId &&
                     candidate.Tags.Contains("farmhouse", StringComparer.Ordinal))))
             return "Let active field work finish before removing or reassigning this household's last Farmhouse.";
-        if (worldSimulation.ProductionJobs.Any(job => job.BuildingInstanceId == id && job.State == WorldProductionJobState.Running) ||
-            (worldSimulation.CropBuilds ?? []).Any(job => job.BuildingInstanceId == id && job.State == WorldProductionJobState.Running) ||
-            (worldSimulation.BuildingExpansions ?? []).Any(job => job.BuildingInstanceId == id && job.State == WorldProductionJobState.Running))
+        // Work paused by a departure keeps its inputs and site, so it blocks changes like running work.
+        static bool Active(WorldProductionJobState state) =>
+            state is WorldProductionJobState.Running or WorldProductionJobState.Paused;
+        if (worldSimulation.ProductionJobs.Any(job => job.BuildingInstanceId == id && Active(job.State)) ||
+            (worldSimulation.CropBuilds ?? []).Any(job => job.BuildingInstanceId == id && Active(job.State)) ||
+            (worldSimulation.BuildingExpansions ?? []).Any(job => job.BuildingInstanceId == id && Active(job.State)))
             return "Wait for the active work at this building to finish before changing its owner or removing it.";
         if (inhabitants.Values.Any(person => person.Equipment?.Repair?.BuildingId == id))
             return "Finish or cancel the active equipment repair before changing this building's owner or removing it.";

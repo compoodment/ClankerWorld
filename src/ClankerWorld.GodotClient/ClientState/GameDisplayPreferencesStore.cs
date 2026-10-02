@@ -5,9 +5,15 @@ namespace ClankerWorld.GodotClient.ClientState;
 /// <summary>
 /// Installation-local display choices. These do not alter world time or save data.
 /// </summary>
+/// <remarks>
+/// <see cref="DateStyle"/> is "season" (Autumn 2, Year 1) or a numeric order:
+/// "dmy", "mdy" or "ymd". It replaced an older DateFormat entry that always
+/// held "dmy" whether or not the player chose it, so that entry is ignored and
+/// every installation starts with season dates.
+/// </remarks>
 public sealed record GameDisplayPreferences(
     bool UseTwelveHourClock = false,
-    string DateFormat = "dmy",
+    string DateStyle = UI.GameUiText.SeasonDates,
     int WindowWidth = 1280,
     int WindowHeight = 720,
     bool? Fullscreen = null,

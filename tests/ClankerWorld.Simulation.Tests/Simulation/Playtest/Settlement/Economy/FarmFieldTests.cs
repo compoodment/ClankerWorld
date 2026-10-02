@@ -125,6 +125,57 @@ public sealed class FarmFieldTests
         Assert.Equal(active.Fields, restored.Fields);
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData(" \t ")]
+    [InlineData("unknown-field-worker")]
+    public void SavedFieldWorkWithAnInvalidWorkerIsRefusedAsInvalidCheckpointData(string? workerId)
+    {
+        var (state, actor, _, point) = PreparedFarmer("field-invalid-worker-restore");
+        using var world = Restore(state);
+        Assert.True(world.StartFieldWork(actor, point, FarmWorkKind.Till).Accepted);
+        var active = world.ExportState();
+        var healthyBytes = PrivateWorldRuntimeCodec.Encode(active);
+        var field = Assert.Single(active.Fields!);
+        Assert.NotNull(field.Work);
+        var damaged = active with
+        {
+            Fields = [field with { Work = field.Work with { WorkerId = workerId! } }],
+        };
+
+        Assert.Throws<InvalidDataException>(() => Restore(damaged));
+
+        Assert.Equal(healthyBytes, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+        using var restored = Restore(PrivateWorldRuntimeCodec.Decode(healthyBytes));
+        Assert.Equal(active.Fields, restored.Fields);
+        Assert.Equal(healthyBytes, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData(" \t ")]
+    [InlineData("unknown-field-worker")]
+    public void EncodedFieldWorkWithAnInvalidWorkerIsRefusedAsInvalidCheckpointData(string? workerId)
+    {
+        var (state, actor, _, point) = PreparedFarmer("field-invalid-worker-codec");
+        using var world = Restore(state);
+        Assert.True(world.StartFieldWork(actor, point, FarmWorkKind.Till).Accepted);
+        var active = world.ExportState();
+        var healthyBytes = PrivateWorldRuntimeCodec.Encode(active);
+        var document = JsonNode.Parse(healthyBytes)!;
+        document["state"]!["fields"]![0]!["work"]!["workerId"] = workerId;
+        var damagedBytes = System.Text.Encoding.UTF8.GetBytes(document.ToJsonString());
+
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Decode(damagedBytes));
+
+        Assert.Equal(healthyBytes, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+        using var restored = Restore(PrivateWorldRuntimeCodec.Decode(healthyBytes));
+        Assert.Equal(active.Fields, restored.Fields);
+        Assert.Equal(healthyBytes, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+    }
+
     internal static PrivateWorldRuntimeState FeedHouseholdFromAvailableStock(PrivateWorldRuntimeState state, string household)
     {
         var inventory = state.Society.Society.Inventory;
@@ -344,6 +395,11 @@ public sealed class FarmFieldTests
         var birth = society.LifeTickAt(society.WorldTick) - years * society.Config.TicksPerLifecycleAge;
         state = state with
         {
+            Towns = state.Towns!.Select(town => town with
+            {
+                Governance = TownGovernanceRules.Advance(town.Governance!, town.Id, state.WorldSeed,
+                    town.ResidentIds.Where(id => id != actor || allowed), society.WorldTick, state.WorldSystems!.Config.TicksPerDay),
+            }).ToArray(),
             Society = state.Society with
             {
                 Society = society with
@@ -837,6 +893,33 @@ public sealed class FarmFieldTests
         Assert.Equal(1, delivering.Society.Inventory.GetLot("protected-ground-seed").Quantity);
         Assert.Equal(InventoryReservationState.Reserved, delivering.Society.Inventory.GetReservation("protected-replanting-seed").State);
         delivering.Validate();
+    }
+
+    [Fact]
+    public async Task PotatoesInAStoragePotAreNotOfferedAsPlantingStock()
+    {
+        var (state, actor, household, point) = PreparedFarmer("potted-potato-stock");
+        state = FeedHouseholdFromAvailableStock(state, household);
+        var potatoKind = FarmFieldRules.PlantingItem(FarmFieldRules.Potatoes);
+        var inventory = state.Society.Society.Inventory with
+        {
+            Lots = state.Society.Society.Inventory.Lots.Where(lot => lot.ItemKind != potatoKind).ToArray(),
+        };
+        // Contents move only with their vessel, so planting cannot take them.
+        inventory = InventoryFixture.AddLot(inventory, "potato-pot", InventoryContainerRules.StoragePot, household, 1);
+        inventory = InventoryFixture.AddLot(inventory, "potted-potatoes", potatoKind, household, 3,
+            containerLotId: "potato-pot");
+        state = WithInventory(state, inventory) with { Fields = [new(point, household, FarmFieldStage.Prepared)] };
+        var candidateId = $"farm:Plant:{point.X}:{point.Y}:{FarmFieldRules.Potatoes}";
+        var provider = new RecordingFieldChoiceProvider(actor, candidateId);
+        using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)),
+            _ => provider);
+        await Advance(world, 10);
+        Assert.Contains(provider.Requests, request => request.InhabitantId == actor);
+        Assert.DoesNotContain(provider.Requests, request => request.CandidateIds.Contains(candidateId));
+        Assert.DoesNotContain(world.Fields, field => field.Position == point && field.Crop == FarmFieldRules.Potatoes);
+        Assert.Equal("potato-pot", world.Society.Inventory.GetLot("potted-potatoes").ContainerLotId);
+        Assert.Equal(3, world.Society.Inventory.GetLot("potted-potatoes").Quantity);
     }
 
     internal static (PrivateWorldRuntimeState State, string Actor, string Household, GridPoint Point) PreparedFarmer(string seed)

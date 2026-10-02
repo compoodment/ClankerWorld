@@ -133,12 +133,13 @@ public sealed partial class PrivateWorldRuntime
         WorldStartPace startPace)
     {
         var config = WorldStartPaceRules.Society(startPace);
+        int Age(int index) => SocietyFixture.FounderArrivalAge(config, worldSeed, index);
         var founders = new[]
         {
-            SocietyFixture.CreateFounder("founder-scout", "Scout", "model:scout", config: config),
-            SocietyFixture.CreateFounder("founder-mira", "Mira", "model:mira", config: config),
-            SocietyFixture.CreateFounder("founder-rowan", "Rowan", "model:rowan", config: config),
-            SocietyFixture.CreateFounder("founder-ilya", "Ilya", "model:ilya", config: config),
+            SocietyFixture.CreateFounder("founder-scout", "Scout", "model:scout", config: config, startingAge: Age(0)),
+            SocietyFixture.CreateFounder("founder-mira", "Mira", "model:mira", config: config, startingAge: Age(1)),
+            SocietyFixture.CreateFounder("founder-rowan", "Rowan", "model:rowan", config: config, startingAge: Age(2)),
+            SocietyFixture.CreateFounder("founder-ilya", "Ilya", "model:ilya", config: config, startingAge: Age(3)),
         };
         var initialFounders = startPace == WorldStartPace.FounderSetup ? [] : founders;
         var checkpoint = SocietyFixture.CreateGenesis(
@@ -241,10 +242,25 @@ public sealed partial class PrivateWorldRuntime
             .ToHashSet(StringComparer.Ordinal);
         foreach (var id in inhabitants.Keys.Where(id => !activeIds.Contains(id)).ToArray())
         {
+            if (society.Checkpoint.Inventory.Lots.Any(lot => lot.CarrierId == id))
+            {
+                var position = inhabitants[id].Position;
+                ApplyInventoryTransition(inventory => InventoryFixture.DropCarrierGoods(inventory, id,
+                    new InventoryGroundPosition(position.X, position.Y)));
+            }
             var deceased = society.Checkpoint.GetInhabitant(id);
             var deathTick = deceased.DeathTick ?? throw new InvalidDataException("A removed inhabitant has no committed death.");
+            foreach (var moment in (inhabitants[id].IdentityMoments ?? [])
+                         .Where(item => item.Outcome is "waiting" or "requested").ToArray())
+                FinishIdentityMoment(id, moment.Kind, "interrupted");
             deceasedInhabitants.Add(id, new PlaytestDeceasedInhabitantState(
-                id, deathTick, society.Checkpoint.AgeAt(deceased, deathTick), inhabitants[id]));
+                id, deathTick, society.Checkpoint.AgeAt(deceased, deathTick),
+                inhabitants[id] with
+                {
+                    MedicalTreatment = null,
+                    Equipment = inhabitants[id].Equipment is { } equipment
+                        ? equipment with { OrnamentLotId = null } : null,
+                }));
             inhabitants.Remove(id);
             RemoveTownResident(id);
             checkpointSchemaVersion = StateSchemaVersion;

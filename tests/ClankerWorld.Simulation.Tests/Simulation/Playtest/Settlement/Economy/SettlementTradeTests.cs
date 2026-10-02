@@ -342,19 +342,40 @@ public sealed class SettlementTradeTests
         Assert.True((await restored.AdvanceOneTickAsync()).Advanced);
     }
 
-    private static PrivateWorldRuntimeState WithTradeGoods(PrivateWorldRuntimeState state, string first, string second, string foodKind = "food") => state with
+    private static PrivateWorldRuntimeState WithTradeGoods(PrivateWorldRuntimeState state, string first, string second, string foodKind = "food")
     {
-        Inhabitants = state.Inhabitants.Select(person => person with { HungerBasisPoints = 7_500 }).ToArray(),
-        Society = state.Society with
+        state = AtTradeMeeting(state, first, second);
+        return state with
         {
-            Society = state.Society.Society with
+            Inhabitants = state.Inhabitants.Select(person => person with { HungerBasisPoints = 7_500 }).ToArray(),
+            Society = state.Society with
             {
-                Inventory = InventoryFixture.AddLot(
-                    InventoryFixture.AddLot(state.Society.Society.Inventory, "trade-food", foodKind, first, 4),
-                    "trade-clothes", "clothing", second, 2),
+                Society = state.Society.Society with
+                {
+                    Inventory = InventoryFixture.AddLot(
+                        InventoryFixture.AddLot(state.Society.Society.Inventory, "trade-food", foodKind, first, 4),
+                        "trade-clothes", "clothing", second, 2),
+                },
             },
-        },
-    };
+        };
+    }
+
+    internal static PrivateWorldRuntimeState AtTradeMeeting(PrivateWorldRuntimeState state, string first, string second)
+    {
+        var meeting = state.Map.GetObject("storage").Position;
+        var positions = state.Map.Tiles.Select(tile => tile.Position).Where(point => state.Map.IsPassable(point) &&
+            state.Map.FootDistance(point, meeting) <= 1 &&
+            state.Inhabitants.All(person => person.InhabitantId == first || person.InhabitantId == second || person.Position != point))
+            .OrderBy(point => point.Y).ThenBy(point => point.X).Take(2).ToArray();
+        Assert.Equal(2, positions.Length);
+        Assert.All(positions, point => Assert.True(state.Map.IsReachableOnFoot(point, meeting)));
+        return state with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == first
+                ? person with { Position = positions[0] }
+                : person.InhabitantId == second ? person with { Position = positions[1] } : person).ToArray(),
+        };
+    }
 
     private sealed class TradeProvider(string prefix) : IDecisionProvider
     {

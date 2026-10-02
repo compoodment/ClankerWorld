@@ -1,3 +1,4 @@
 - Households can make storage pots and water jugs from clay, store food in pots to slow spoilage, and carry fresh water in reusable jugs.
 - Hungry adults can set down a spare filled vessel with all its contents to make room for food. Reserved contents stay in place, and the entire vessel load must fit the destination.
 - A full carrier can make room for food stored in the household pot. Returning jugs and spare food leave room for incoming House deliveries, and pot-storage choices require a reachable House.
+- Caregivers can feed an infant from the household pot, and a pot serves only food that can be eaten now.

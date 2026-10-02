@@ -19,7 +19,7 @@ public sealed partial class PrivateWorldRuntime
         var occupied = map.Resources.Select(item => item.Position).Concat(map.CampObjects.Select(item => item.Position))
             .Concat(roads).Concat(simulation.Buildings.SelectMany(building => WorldContentSimulationRules.Footprint(
                 content.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId), building)))
-            .Concat((simulation.BuildingExpansions ?? []).Where(job => job.State == WorldProductionJobState.Running).SelectMany(ExpansionTiles)).ToHashSet();
+            .Concat((simulation.BuildingExpansions ?? []).Where(job => job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused).SelectMany(ExpansionTiles)).ToHashSet();
         if (fields.Select(field => field.Position).Distinct().Count() != fields.Length ||
             !fields.SequenceEqual(fields.OrderBy(field => field.Position.Y).ThenBy(field => field.Position.X)) ||
             fields.Where(field => field.Work is not null).GroupBy(field => field.Work!.WorkerId).Any(group => group.Count() > 1))
@@ -38,13 +38,13 @@ public sealed partial class PrivateWorldRuntime
             if (field.Work is { } work)
             {
                 var worker = society.Inhabitants.SingleOrDefault(person => person.Id == work.WorkerId);
-                var workToolsValid = work.Kind is FarmWorkKind.Till or FarmWorkKind.Tend
+                var workToolsValid = worker is not null && (work.Kind is FarmWorkKind.Till or FarmWorkKind.Tend
                     ? ToolProgressionRules.PlanWorkForLot(society.Inventory, work.WorkerId, ToolFamily.Hoe,
                         work.HoeLotId) is not null && work.SickleLotId is null
                     : work.HoeLotId is null && (work.Kind == FarmWorkKind.Harvest
                         ? work.SickleLotId is null || ToolProgressionRules.PlanWorkForLot(society.Inventory,
                             work.WorkerId, ToolFamily.Sickle, work.SickleLotId) is not null
-                        : work.SickleLotId is null);
+                        : work.SickleLotId is null));
                 if (worker is null || worker.Status != SocietyInhabitantStatus.Active || worker.AgeBand is not (SocietyAgeBand.Adult or SocietyAgeBand.Elder) ||
                     worker.HouseholdId != field.HouseholdId || !Enum.IsDefined(work.Kind) || work.LastWorkedTick < 0 ||
                     work.LastWorkedTick > society.WorldTick || work.RemainingTicks < 1 || work.RemainingTicks > FarmFieldRules.WorkTicks(work.Kind) ||

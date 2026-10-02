@@ -5,7 +5,7 @@ using ClankerWorld.Simulation.World;
 namespace ClankerWorld.Simulation.Playtest;
 
 public sealed record PersonalEquipment(string? ClothingLotId = null, string? CarryAidLotId = null,
-    EquipmentRepairWork? Repair = null);
+    EquipmentRepairWork? Repair = null, string? OrnamentLotId = null);
 
 public sealed record EquipmentRepairWork(string LotId, string BuildingId, long StartedTick,
     int WorkDone, IReadOnlyList<string> MaterialReservationIds);
@@ -20,15 +20,20 @@ public static class PersonalEquipmentRules
 
     public static bool IsGarment(string kind) => kind is "clothing" or "padded_coat" or "rain_cloak";
     public static bool IsCarryAid(string kind) => kind is "basket" or "sack";
+    public static bool IsOrnament(string kind) => kind is "gold_ornament" or "diamond_ornament";
+    public static bool IsSelected(PersonalEquipment? equipment, string lotId) => equipment is not null &&
+        (equipment.ClothingLotId == lotId || equipment.CarryAidLotId == lotId ||
+         equipment.OrnamentLotId == lotId || equipment.Repair?.LotId == lotId);
     public static bool IsCarried(InventoryLot lot, string actor) =>
-        lot.OwnerId == actor && lot.StorageBuildingId is null && lot.GroundPosition is null && lot.ContainerLotId is null;
+        (lot.CarrierId == actor || lot.CarrierId is null && lot.OwnerId == actor) &&
+        lot.StorageBuildingId is null && lot.GroundPosition is null && lot.ContainerLotId is null;
 
     public static bool IsPhysicallyCarried(InventoryCheckpoint inventory, InventoryLot lot, string actor)
     {
         ArgumentNullException.ThrowIfNull(inventory);
         ArgumentNullException.ThrowIfNull(lot);
-        if (lot.OwnerId != actor)
-            return false;
+        // Borrowed goods count for whoever carries them; vessel contents go
+        // with their vessel.
         if (lot.ContainerLotId is not { } containerId)
             return IsCarried(lot, actor);
         var container = inventory.Lots.FirstOrDefault(candidate => candidate.Id == containerId);
@@ -43,7 +48,7 @@ public static class PersonalEquipmentRules
 
     public static InventoryLot? EquippedUnit(InventoryCheckpoint inventory, string actor, string? id) =>
         id is null ? null : inventory.Lots.FirstOrDefault(lot => lot.Id == id && lot.Quantity == 1 &&
-            IsCarried(lot, actor) && lot.DeliveryBuildingId is null);
+            lot.OwnerId == actor && IsCarried(lot, actor) && lot.DeliveryBuildingId is null);
 
     public static int Capacity(InventoryCheckpoint inventory, string actor, PersonalEquipment? equipment)
     {
@@ -70,8 +75,6 @@ public static class PersonalEquipmentRules
     private static bool IsPhysicallyCarried(Dictionary<string, InventoryLot> lotsById,
         InventoryLot lot, string actor)
     {
-        if (lot.OwnerId != actor)
-            return false;
         if (lot.ContainerLotId is not { } containerId)
             return IsCarried(lot, actor);
         return lotsById.TryGetValue(containerId, out var container) &&

@@ -32,10 +32,10 @@ public sealed partial class PrivateWorldRuntime
         if ((CarriedPlantingSeed(actor, TreeGrowthRules.OrchardSeedItem) is not null ||
              SharedItem(TreeGrowthRules.OrchardSeedItem, actor) is not null) && PlantingSite(actor, state.Position) is not null)
             candidates.Add(new CognitionCandidate("plant_orchard", "Plant an orchard seed on open ground.", 31));
-        if (!HasCarriedItem(actor, TreeGrowthRules.TreeSeedItem) &&
+        if (!HasCarriedOwnItem(actor, TreeGrowthRules.TreeSeedItem) &&
             SharedItem(TreeGrowthRules.TreeSeedItem, actor) is null)
             return;
-        if (ReplantableTree(state.Position) is { } tree)
+        if (ReplantableTree(actor, state.Position) is { } tree)
             candidates.Add(new CognitionCandidate("replant_tree",
                 "Carry a tree seed to a stump and replant it.", 32, tree.Id));
         if (PlantingSite(actor, state.Position) is not null)
@@ -43,24 +43,25 @@ public sealed partial class PrivateWorldRuntime
                 "Plant a tree seed on open ground outside the Town.", 34));
     }
 
-    private MapResource? ReplantableTree(GridPoint origin)
+    private MapResource? ReplantableTree(string actor, GridPoint origin)
     {
         var depleted = worldSystems.Ecology.Resources.Where(ecology =>
                 ecology.Quantity == 0 && !ecology.IsPlanted)
             .Select(ecology => ecology.Id).ToHashSet(StringComparer.Ordinal);
         return map.Resources
             .Where(resource => TreeGrowthRules.IsWoodTree(resource.TreeKind) && resource.IsRenewable &&
-                depleted.Contains(resource.Id) && map.IsReachableFromCampOnFoot(resource.Position))
+                depleted.Contains(resource.Id) && map.IsReachableOnFoot(origin, resource.Position))
             .OrderBy(resource => map.FootDistance(origin, resource.Position))
             .ThenBy(resource => resource.Id, StringComparer.Ordinal)
-            .FirstOrDefault();
+            .FirstOrDefault(resource => IsWithinInteractionRange(origin, resource.Position, ResourceInteractionRange) ||
+                FindUnoccupiedRoute(actor, origin, resource.Position, ResourceInteractionRange).Count > 0);
     }
 
     private void ReplantTree(string actor, PlaytestInhabitantState state)
     {
-        var tree = ReplantableTree(state.Position);
+        var tree = ReplantableTree(actor, state.Position);
         if (tree is null) return;
-        if (!HasCarriedItem(actor, TreeGrowthRules.TreeSeedItem))
+        if (!HasCarriedOwnItem(actor, TreeGrowthRules.TreeSeedItem))
         {
             CollectEquipment(actor, state, TreeGrowthRules.TreeSeedItem);
             return;
@@ -246,7 +247,7 @@ public sealed partial class PrivateWorldRuntime
                 definitions.TryGetValue(building.DefinitionId, out var definition)
                     ? WorldContentSimulationRules.Footprint(definition, building)
                     : [building.Position])
-            .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State == WorldProductionJobState.Running).SelectMany(ExpansionTiles))
+            .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused).SelectMany(ExpansionTiles))
             .ToHashSet();
         var occupied = map.CampObjects.Select(item => item.Position)
             .Concat(map.Resources.Select(item => item.Position))

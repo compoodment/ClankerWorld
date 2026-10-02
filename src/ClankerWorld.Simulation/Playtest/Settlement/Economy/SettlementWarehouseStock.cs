@@ -46,8 +46,17 @@ public sealed partial class PrivateWorldRuntime
         (TownForResident(actor) == townId || town.ResidentIds.Count == 0) &&
         WarehousesForTown(townId).Any(item => item.InstanceId == warehouse.InstanceId);
 
+    private IEnumerable<InventoryLot> AvailableWarehouseStock(string actor, string? itemKind = null) =>
+        WarehousesAccessibleTo(actor).Where(warehouse => MayCollectWarehouseStock(actor, warehouse))
+            .SelectMany(warehouse => society.Checkpoint.Inventory.Lots.Where(lot =>
+                lot.OwnerId == warehouse.TownId && lot.StorageBuildingId == warehouse.InstanceId &&
+                lot.DeliveryBuildingId is null && lot.ContainerLotId is null &&
+                (itemKind is null || lot.ItemKind == itemKind) &&
+                AvailableLotQuantity(lot) > 0))
+            .Where(lot => CanReachSharedItem(actor, lot));
+
     private InventoryLot? PersonalWarehouseSurplus(string actor) => society.Checkpoint.Inventory.Lots
-        .Where(lot => PersonalEquipmentRules.IsCarried(lot, actor) &&
+        .Where(lot => lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) &&
             lot.DeliveryBuildingId is null && WarehouseResourceKinds.Contains(lot.ItemKind) &&
             AvailableLotQuantity(lot) > WarehouseLoadQuantity)
         .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();

@@ -8,6 +8,19 @@ public sealed class WorldEventTextTests
     private const string AgentId = "agent:00000000000000000000000000000099";
     private const string ChildId = "world:inhabitant:birth:" + FounderId + ":" + AgentId + ":1";
 
+    [Theory]
+    [InlineData(true, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(null, true, false)]
+    public void NewcomerOfferRequiresTheCurrentRuleAndAStartedWorld(bool? ruleActive, bool started, bool offered)
+    {
+        var snapshot = Snapshot() with { ContinuityRuleActive = ruleActive, FounderSetup = new(4, 4, started) };
+        Assert.Equal(offered, WorldEventText.OffersNewcomer(snapshot));
+        Assert.False(WorldEventText.OffersNewcomer(null));
+        Assert.False(WorldEventText.OffersNewcomer(snapshot with { FounderSetup = null }));
+    }
+
     [Fact]
     public void SkillEventsShowLearnerAndTeacherWithoutSplittingTheirIds()
     {
@@ -133,6 +146,17 @@ public sealed class WorldEventTextTests
         Assert.Equal("Someone died.", WorldEventText.Describe(new(2, 0, "inhabitant_removed", AgentId), null));
         Assert.Equal("Someone ate.", WorldEventText.Describe(new(3, 0, "food_consumed", ""), null));
         Assert.Equal("Someone planted something new.", WorldEventText.Describe(new(4, 0, "field_planted", ""), null));
+    }
+
+    [Theory]
+    [InlineData("used:812:limit:1000", "Model calls: 812 of 1,000 used across all worlds.")]
+    [InlineData("used:8:limit:10", "Model calls: 8 of 10 used across all worlds.")]
+    [InlineData("used:8", "Model calls: 80% of the limit used across all worlds.")]
+    public void ModelCallWarningNamesTheInstallationCountAndWhereToRaiseTheLimit(string detail, string count)
+    {
+        Assert.True(GameUiText.IsPlayerFacingEvent("model_call_warning"));
+        Assert.Equal(count + " Your worlds pause at the limit; raise it in Settings → Game.",
+            WorldEventText.Describe(new(1, 0, "model_call_warning", detail), null));
     }
 
     private static OwnerWorldSnapshot Snapshot(params OwnerWorldInhabitant[] people) =>

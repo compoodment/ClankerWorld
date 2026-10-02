@@ -319,6 +319,67 @@ public sealed class HandcartRuntimeTests
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(state with { HandcartHitches = null }));
     }
 
+    [Fact]
+    public async Task ParkedCartIsPulledNotCollectedIntoItsOwnersHands()
+    {
+        using var setup = NormalPathWorld.CreateGenerated("parked-cart-not-collected", _ => new CartChooser("safe_idle"));
+        var state = setup.ExportState();
+        var smith = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == "first-town-blacksmith");
+        var actor = state.Society.Society.Inhabitants.First(person => person.HouseholdId == smith.HouseholdId).Id;
+        var parkedAt = new InventoryGroundPosition(smith.Position.X, smith.Position.Y);
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "parked-cart", "handcart", actor, 1,
+            groundPosition: parkedAt);
+        // Collecting personal goods once moved a parked cart into its owner's hands and failed the tick.
+        var chooser = new CartChooser("household_collect:parked-cart");
+        using var world = PrivateWorldRuntime.Restore(AtPosition(state, actor, smith.Position, inventory),
+            id => id == actor ? chooser : new CartChooser("safe_idle"));
+        await Until(world, () => chooser.Offered.Contains("attach_handcart:parked-cart"), 20);
+
+        Assert.DoesNotContain("household_collect:parked-cart", chooser.Offered);
+        Assert.Equal(parkedAt, world.Society.Inventory.GetLot("parked-cart").GroundPosition);
+        Assert.Equal(0, PersonalEquipmentRules.CarriedQuantity(world.Society.Inventory, actor, null));
+    }
+
+    [Fact]
+    public async Task LeavingTheHouseholdStopsAPersonalCartBuildAndKeepsItsMaterials()
+    {
+        using var setup = NormalPathWorld.CreateGenerated("leaving-cart-builder", _ => new CartChooser("safe_idle"));
+        var state = setup.ExportState();
+        var smith = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == "first-town-blacksmith");
+        var actor = state.Society.Society.Inhabitants.First(person => person.HouseholdId == smith.HouseholdId).Id;
+        var recipe = state.WorldContent!.Recipes.Single(item => item.LocalId == "handcart");
+        var inventory = state.Society.Society.Inventory;
+        inventory = InventoryFixture.AddLot(inventory, "leaver-wood", "wood", actor, 4);
+        inventory = InventoryFixture.AddLot(inventory, "leaver-fittings", "iron_fittings", actor, 2);
+        inventory = InventoryFixture.AddLot(inventory, "leaver-rope", "rope", actor, 1);
+        var chooser = new CartChooser("build:recipe:" + recipe.CanonicalId);
+        using var world = PrivateWorldRuntime.Restore(AtPosition(state, actor, smith.Position, inventory),
+            id => id == actor ? chooser : new CartChooser("safe_idle"));
+        await Until(world, () => world.WorldSimulation.ProductionJobs.Any(job => job.RecipeId == recipe.CanonicalId), 80);
+        var job = Assert.Single(world.WorldSimulation.ProductionJobs, job => job.RecipeId == recipe.CanonicalId);
+        chooser.Preferred = "safe_idle";
+
+        // Nobody else may finish a cart for its builder, so leaving stops the work
+        // instead of pausing it with the builder's materials locked forever.
+        Assert.True(world.DisplaceAdult(actor));
+
+        Assert.Equal(WorldProductionJobState.Cancelled, world.WorldSimulation.ProductionJobs.Single(item => item.JobId == job.JobId).State);
+        Assert.All(job.InputReservationIds, id =>
+            Assert.NotEqual(InventoryReservationState.Reserved, world.Society.Inventory.GetReservation(id).State));
+        foreach (var (lotId, quantity) in new[] { ("leaver-wood", 4), ("leaver-fittings", 2), ("leaver-rope", 1) })
+        {
+            var lot = world.Society.Inventory.GetLot(lotId);
+            Assert.Equal(quantity, lot.Quantity);
+            Assert.True(ToolProgressionRules.IsTopLevelCarriedLot(lot, actor) && lot.OwnerId == actor);
+        }
+        Assert.Contains(world.ExportState().Events, item => item.Kind == "recipe_cancelled" &&
+            item.Detail.StartsWith(job.JobId + ":", StringComparison.Ordinal));
+        world.Validate();
+        var saved = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), _ => new CartChooser("safe_idle"));
+        Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+    }
+
     private static PrivateWorldRuntimeState AtPosition(PrivateWorldRuntimeState state, string actor,
         GridPoint position, InventoryCheckpoint inventory) => state with
         {

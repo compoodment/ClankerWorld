@@ -2,7 +2,7 @@
 title: Releasing
 type: release-policy
 status: active
-updated: 2026-09-30
+updated: 2026-10-02
 ---
 
 # Releasing
@@ -77,16 +77,41 @@ Before publishing:
    `bash scripts/collect-changes.sh` to move the entries waiting in `changes/`
    into `CHANGELOG.md`, then move the relevant entries into a dated release
    section, leaving `Unreleased`.
-2. Run the applicable build, test, Godot-export and Windows playtest gates.
-   Check a real player path, not only isolated simulation fixtures.
+2. Run the applicable build, test and Godot-export gates. The owner also runs
+   the [Windows release smoke check](#windows-release-smoke-check) below.
+   List every remaining file in `playtest/`, except its README, in the release
+   notes as "not yet checked by hand".
 3. If compatibility changed, verify replay and rollback from a matching backup.
    Also verify migration and old-save handling when the release promises that
    older saves load.
-4. Merge the release changes through the [contribution review process](../../CONTRIBUTING.md#review-and-merge),
-   then fetch and verify the intended commit on GitHub's `origin/main`.
-5. Create and push the annotated tag, then verify that GitHub resolves it to
-   the intended commit. Publish a GitHub release when there is a distributable
-   artifact or useful release note.
+4. After merging main into the release branch for the last time, run
+   `bash scripts/collect-changes.sh` again and include those entries in the
+   dated release section. Merge the release changes through the
+   [contribution review process](../../CONTRIBUTING.md#review-and-merge).
+5. The session that prepared the release fetches main and verifies the reviewed
+   release PR's squash commit on GitHub's `origin/main`. Confirm its required
+   checks passed and that `git ls-tree --name-only <commit> changes/` lists
+   only `changes/README.md`. If it still has entries, collect them through a
+   reviewed follow-up before tagging; do not tag an uncollected commit.
+6. That preparing session creates and pushes the annotated tag for the verified
+   release commit, then verifies that GitHub resolves it to that commit.
+   Never move or delete a pushed tag. Publish a GitHub release when there is a
+   distributable artifact or useful release note.
+
+### Windows release smoke check
+
+Before each release, the owner checks the actual Windows bundle on an approved
+test device and disposable world:
+
+- Start the game.
+- Pair with the matching host.
+- Create a New World.
+- Load a saved World.
+- Save, then quit.
+
+Record the build and each result. A failed check gets a Bug issue and blocks
+the release unless the owner explicitly accepts it. This short release check
+does not claim that the remaining `playtest/` checks were performed.
 
 Add a changelog entry in `changes/` in the same commit as player-visible
 gameplay/UI, world-runtime, save-compatibility, deployment, packaging or

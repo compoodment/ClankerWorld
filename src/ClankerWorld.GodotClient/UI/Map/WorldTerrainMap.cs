@@ -154,6 +154,14 @@ public sealed class WorldTerrainMap
         : TerrainTextures.BaseColor(StyleAt(x, y));
 
     /// <summary>
+    /// Whether the world marks the tile as cactus cover: dry desert sand or
+    /// brush where cacti grow. The ground draws as desert brush, with a cactus
+    /// on some of these tiles (<see cref="CactusSprites.ForTile"/>).
+    /// </summary>
+    public bool IsCactusCoverAt(int x, int y) =>
+        x >= 0 && y >= 0 && x < Width && y < Height && VegetationAt(x, y) == 5 && StyleAt(x, y) == TerrainStyle.DesertBrush;
+
+    /// <summary>
     /// Whether the tile is in the hill band at a mountain's base: dry land
     /// below mountain height but at least 190 high, within three tiles of a
     /// mountain or peak. Hills are drawn over the ground; they walk like grass.

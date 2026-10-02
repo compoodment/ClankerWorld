@@ -10,7 +10,7 @@ public static partial class InventoryFixture
         ArgumentException.ThrowIfNullOrWhiteSpace(operationId);
         var cart = RequireHandcart(checkpoint, ownerId, cartId);
         var cargo = checkpoint.GetLot(cargoId);
-        if (cargo.OwnerId != ownerId || cargo.ContainerLotId is not null ||
+        if (cargo.OwnerId != ownerId || cargo.CarrierId is not null || cargo.ContainerLotId is not null ||
             cargo.StorageBuildingId is not null || cargo.DeliveryBuildingId is not null ||
             cargo.GroundPosition is { } ground && ground != cart.GroundPosition)
             throw new InvalidOperationException("Cart cargo must be carried by its owner or beside the cart.");

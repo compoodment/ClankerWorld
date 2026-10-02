@@ -13,14 +13,12 @@ namespace ClankerWorld.Simulation.Tests;
 /// <summary>
 /// Bridges on the normal private-world path, using generated maps. The seeds
 /// and tiles were chosen so that a Town beside a river can grow across it,
-/// and so that an agent wades a narrow river to reach food.
+/// and so that an agent wades a one-tile or a two-tile river to reach food.
 /// </summary>
 public sealed class TownBridgeRuntimeTests
 {
     private const string GrowthSeed = "town-bridge-5";
     private static readonly GridPoint GrowthTownSite = new(86, 3);
-    // The first tick creates fallen wood at (89, 5); the next tile is free
-    // and still makes the same Road cross the river at the saved bridge.
     private static readonly GridPoint GrowthBuildingSite = new(89, 6);
     private const string GrowthBridgeId = "bridge-90-3-ew-2";
     private static readonly GridPoint RunOnTownSite = new(85, 5);
@@ -60,8 +58,10 @@ public sealed class TownBridgeRuntimeTests
         Assert.Contains(state.Events, item => item.Kind == "bridge_built" &&
             item.Detail == $"road:{GrowthBridgeId}:{bridge.RouteId}");
 
-        // The water was impassable before; movement now walks the saved deck.
-        Assert.All(bridge.Span, tile => Assert.False(before.Map.IsPassable(tile)));
+        // The two-tile river could only be waded slowly before; movement now
+        // walks the saved deck at dry-ground speed.
+        Assert.All(bridge.Span, tile => Assert.Equal(SeededMap.TwoTileWadingFootCost, before.Map.FootTravelCost(tile)));
+        Assert.All(bridge.Span, tile => Assert.Equal(100, map.FootTravelCost(tile)));
         Assert.True(map.CanFootStep(bridge.Entrances[0], bridge.Span[0]));
         Assert.True(map.CanFootStep(bridge.Span[0], bridge.Span[1]));
         Assert.True(map.CanFootStep(bridge.Span[1], bridge.Entrances[1]));
@@ -78,7 +78,8 @@ public sealed class TownBridgeRuntimeTests
         Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
 
         // An agent standing on the deck, and its memory of that tile, are
-        // valid only because the saved bridge makes that water walkable.
+        // valid. Without the bridge it would be wading the two-tile river
+        // there, which is valid too; water too deep to wade is refused.
         var walker = state.Inhabitants[0].InhabitantId;
         var onDeck = state with
         {
@@ -92,7 +93,14 @@ public sealed class TownBridgeRuntimeTests
         };
         using (var standing = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(onDeck))))
             Assert.Equal(bridge.Span[1], standing.Inhabitants.Single(person => person.InhabitantId == walker).Position);
-        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(onDeck with { Bridges = [] }));
+        using (var wading = PrivateWorldRuntime.Restore(onDeck with { Bridges = [] }))
+            Assert.Equal(SeededMap.TwoTileWadingFootCost, wading.ExportState().Map.FootTravelCost(bridge.Span[1]));
+        var deepWater = map.Tiles.Select(tile => tile.Position).First(point => !map.IsLand(point) && !map.IsPassable(point));
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(onDeck with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == walker
+                ? person with { Position = deepWater } : person).ToArray(),
+        }));
 
         var snapshot = new OwnerWorldObservationStore(reloaded).GetSnapshot();
         var projected = Assert.Single(snapshot.Bridges);
@@ -294,6 +302,73 @@ public sealed class TownBridgeRuntimeTests
         Assert.Equal(100, busy.ExportState().Map.FootTravelCost(bridge.Span[0]));
     }
 
+    [Fact]
+    public async Task SlowRealWadesAcrossATwoTileRiverSurviveReloadAndBuildATwoTileTrafficBridge()
+    {
+        const string crossingId = "bridge-124-62-ew-2";
+        var start = new GridPoint(123, 62);
+        var farBank = new GridPoint(126, 62);
+        GridPoint[] water = [new(124, 62), new(125, 62)];
+        using var control = await TrafficWorldAsync(seedEvidence: false, crossingId, start);
+        Assert.All(water, tile => Assert.Equal(SeededMap.TwoTileWadingFootCost, control.ExportState().Map.FootTravelCost(tile)));
+
+        // The agent wades straight across to food on the far bank. Each water
+        // tile holds it for three ticks (a one-tile river holds it for two),
+        // and the wade stays open while it steps from one water tile to the next.
+        var ticksAt = new Dictionary<GridPoint, int>();
+        PrivateWorldRuntimeState? midstream = null;
+        for (var tick = 0; tick < 20 && control.BridgeTraffic.Completed.All(item => item.AgentId != TrafficAgentId); tick++)
+        {
+            Assert.True((await control.AdvanceOneTickAsync()).Advanced);
+            var position = control.Inhabitants.Single(item => item.InhabitantId == TrafficAgentId).Position;
+            ticksAt[position] = ticksAt.GetValueOrDefault(position) + 1;
+            if (!water.Contains(position)) continue;
+            Assert.Equal(new BridgeTrafficWade(TrafficAgentId, crossingId, start),
+                Assert.Single(control.BridgeTraffic.InProgress, item => item.AgentId == TrafficAgentId));
+            Assert.DoesNotContain(control.BridgeTraffic.Completed, item => item.AgentId == TrafficAgentId);
+            if (position == water[1]) midstream ??= control.ExportState();
+        }
+        Assert.Equal([3, 3], water.Select(tile => ticksAt.GetValueOrDefault(tile)));
+        Assert.Equal(farBank, control.Inhabitants.Single(item => item.InhabitantId == TrafficAgentId).Position);
+        Assert.Equal(crossingId, Assert.Single(control.BridgeTraffic.Completed, item => item.AgentId == TrafficAgentId).CrossingId);
+        Assert.Empty(control.Bridges);
+
+        // An open wade saved midstream survives save and load, and the
+        // reloaded world finishes the crossing exactly as the live one did.
+        Assert.NotNull(midstream);
+        var saved = PrivateWorldRuntimeCodec.Encode(midstream);
+        using var reloaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved));
+        Assert.Equal(midstream.BridgeTraffic!.InProgress, reloaded.BridgeTraffic.InProgress);
+        Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
+        while (reloaded.WorldTick < control.WorldTick)
+            Assert.True((await reloaded.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal(PrivateWorldRuntimeCodec.Encode(control.ExportState()), PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
+
+        // With five earlier crossings by the founders, this sixth wade by a
+        // second agent bridges both water tiles at once, adding no Road.
+        using var busy = await TrafficWorldAsync(seedEvidence: true, crossingId, start);
+        var roads = busy.RoadTiles;
+        for (var tick = 0; tick < 20 && busy.Bridges.Count == 0; tick++)
+            Assert.True((await busy.AdvanceOneTickAsync()).Advanced);
+        var bridge = Assert.Single(busy.Bridges);
+        Assert.Equal((crossingId, BridgeTriggers.Traffic, BridgeDesigns.PlankSpanTwo, (string?)null),
+            (bridge.Id, bridge.Trigger, bridge.Design, bridge.RouteId));
+        Assert.Equal(water, bridge.Span);
+        Assert.Equal([start, farBank], bridge.Entrances);
+        Assert.Equal(roads, busy.RoadTiles);
+        Assert.DoesNotContain(busy.BridgeTraffic.Completed, item => item.CrossingId == crossingId);
+        Assert.Contains(busy.ExportState().Events, item => item.Kind == "bridge_built" && item.Detail == $"traffic:{crossingId}");
+
+        // The bridge is walked end to end at dry-ground speed, also after a reload.
+        using var bridged = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
+            PrivateWorldRuntimeCodec.Encode(busy.ExportState())));
+        var map = bridged.ExportState().Map;
+        Assert.Equal([crossingId], bridged.Bridges.Select(item => item.Id));
+        Assert.All(water, tile => Assert.Equal(100, map.FootTravelCost(tile)));
+        Assert.Equal(3 * 100, map.FootStepCost(start, water[0]) + map.FootStepCost(water[0], water[1]) +
+            map.FootStepCost(water[1], farBank));
+    }
+
     private const string TrafficAgentId = "agent:00000000000000000000000000000099";
 
     [Fact]
@@ -345,7 +420,8 @@ public sealed class TownBridgeRuntimeTests
         world.Validate();
     }
 
-    private static async Task<PrivateWorldRuntime> TrafficWorldAsync(bool seedEvidence)
+    private static async Task<PrivateWorldRuntime> TrafficWorldAsync(bool seedEvidence,
+        string crossingId = "bridge-92-1-ns-1", GridPoint? start = null)
     {
         var geography = new GeographyOptions("traffic-bridge-0", WorldSizePreset.Small);
         using var setup = new PrivateWorldRuntime(geography.Seed, startPace: WorldStartPace.FounderSetup,
@@ -371,12 +447,13 @@ public sealed class TownBridgeRuntimeTests
         setup.StartWorld();
         Assert.True((await setup.AdvanceOneTickAsync()).Advanced);
         var map = setup.ExportState().Map;
-        Assert.True(RiverBridgeRules.TryResolve(map, "bridge-92-1-ns-1", out var crossing));
-        Assert.Equal((new GridPoint(92, 0), new GridPoint(92, 2)), (crossing!.EntranceA, crossing.EntranceB));
-        setup.AddAgent(TrafficAgentId, new GridPoint(92, 0));
+        start ??= new GridPoint(92, 0);
+        Assert.True(RiverBridgeRules.TryResolve(map, crossingId, out var crossing));
+        Assert.Contains(start.Value, crossing!.Entrances);
+        setup.AddAgent(TrafficAgentId, start.Value);
         var state = setup.ExportState();
-        // Five earlier crossings by the founders at this narrow crossing; the
-        // added agent's real wade is the sixth, by a second distinct agent.
+        // Five earlier crossings by the founders at this crossing; the added
+        // agent's real wade is the sixth, by a second distinct agent.
         BridgeTrafficCrossing[] earlier =
         [
             new(crossing.Id, "founder:00000000000000000000000000000001", 0),
