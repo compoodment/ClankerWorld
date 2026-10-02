@@ -41,8 +41,13 @@ public sealed class ContainerReturnTests
         Assert.Single(world.ExportState().Events, item => item.Kind == "empty_vessel_picked_up" &&
             item.Detail == $"{actor}:{Vessel}:{Clinic}:{House}");
         var carried = world.Society.Inventory.GetLot(Vessel);
-        Assert.Equal(original with { OwnerId = actor, StorageBuildingId = null, DeliveryBuildingId = House,
-            LastProcessedTick = carried.LastProcessedTick }, carried);
+        Assert.Equal(original with
+        {
+            OwnerId = actor,
+            StorageBuildingId = null,
+            DeliveryBuildingId = House,
+            LastProcessedTick = carried.LastProcessedTick
+        }, carried);
         Assert.Equal(1, world.Society.Inventory.Lots.Where(lot => lot.Id == Vessel || lot.ContainerLotId == Vessel)
             .Sum(lot => lot.Quantity));
 

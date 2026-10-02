@@ -76,8 +76,13 @@ public sealed class ClinicTradeCareTests
         state = PutAt(state, seller, sellerStart) with
         {
             Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == buyer
-                ? person with { Position = clinicPosition, HungerBasisPoints = 9_000,
-                    Survival = new SurvivalCondition(IllnessBasisPoints: 5_000), LastDecisionContext = null }
+                ? person with
+                {
+                    Position = clinicPosition,
+                    HungerBasisPoints = 9_000,
+                    Survival = new SurvivalCondition(IllnessBasisPoints: 5_000),
+                    LastDecisionContext = null
+                }
                 : person.InhabitantId == seller
                     ? person with { Position = sellerStart, HungerBasisPoints = 9_000, LastDecisionContext = null }
                     : person).ToArray(),

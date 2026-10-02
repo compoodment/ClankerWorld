@@ -170,8 +170,11 @@ public sealed partial class PrivateWorldRuntime
             if (remaining == 0) CloseMedicalDose(person.InhabitantId, treatment);
             inhabitants[person.InhabitantId] = person with
             {
-                Survival = survival with { IllnessBasisPoints = Math.Max(0,
-                    survival.IllnessBasisPoints - MedicalCareRules.MedicineIllnessPerTick) },
+                Survival = survival with
+                {
+                    IllnessBasisPoints = Math.Max(0,
+                    survival.IllnessBasisPoints - MedicalCareRules.MedicineIllnessPerTick)
+                },
                 MedicalTreatment = remaining == 0 ? null : treatment with
                 { LastProcessedTick = WorldTick, RemainingTicks = remaining },
             };

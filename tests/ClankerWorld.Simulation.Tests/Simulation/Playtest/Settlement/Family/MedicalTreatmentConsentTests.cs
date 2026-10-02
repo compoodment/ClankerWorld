@@ -181,8 +181,11 @@ public sealed class MedicalTreatmentConsentTests
         {
             Inhabitants = current.Inhabitants.Select(person => person.InhabitantId == patient ? person with
             {
-                MedicalTreatment = consumed with { LastProcessedTick = renew.WorldTick,
-                    RemainingTicks = checked(20 - (int)(renew.WorldTick - consumed.StartedTick)) },
+                MedicalTreatment = consumed with
+                {
+                    LastProcessedTick = renew.WorldTick,
+                    RemainingTicks = checked(20 - (int)(renew.WorldTick - consumed.StartedTick))
+                },
             } : person).ToArray(),
         };
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(forged));
@@ -489,7 +492,8 @@ public sealed class MedicalTreatmentConsentTests
             {
                 BirthTick = checkpoint.LifeClock is null ? birth : person.BirthTick,
                 BirthLifeTick = checkpoint.LifeClock is null ? null : birth,
-                AgeBand = checkpoint.Config.AgeBandAt(age), LastLifecycleYearChecked = age,
+                AgeBand = checkpoint.Config.AgeBandAt(age),
+                LastLifecycleYearChecked = age,
             } : person).ToArray(),
         };
     }
