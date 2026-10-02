@@ -97,6 +97,7 @@ public partial class Main
         "fiber_plant" => "♧",
         "reeds" => "≋",
         "stone_outcrop" => "⬟",
+        "fallen_wood" => "▰",
         "iron_outcrop" => "⬣",
         "gold_outcrop" => "◆",
         "diamond_outcrop" => "◇",

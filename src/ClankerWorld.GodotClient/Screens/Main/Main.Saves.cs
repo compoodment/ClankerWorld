@@ -27,6 +27,7 @@ public partial class Main
     private string? pendingOverwriteSaveId;
     private CancellationTokenSource? manualSaveListCancellation;
     private ManualWorldSave[] listedManualSaves = [];
+    private ManualWorldSave[] allListedManualSaves = [];
     private bool manualSaveLoadMode;
     private readonly CheckBox autosaveEnabledToggle = new();
     private readonly OptionButton autosaveIntervalChoice = new();
@@ -281,7 +282,8 @@ public partial class Main
             var saves = await (fetch?.Invoke(read.Token) ?? ownerApi.ListManualSavesAsync(ResolveWorldUri(), authority,
                 deviceId, signer, read.Token));
             if (!IsCurrentRead()) return;
-            listedManualSaves = saves.Where(save => loadMode || !save.IsAutosave).ToArray();
+            allListedManualSaves = saves;
+            listedManualSaves = OrderSavesByBranch(saves.Where(save => loadMode || !save.IsAutosave));
             RenderManualSaveList();
             if (listedManualSaves.Length == 0)
                 manualSaveStatus.Text = loadMode
@@ -308,10 +310,12 @@ public partial class Main
     private void ShowManualSavePanel(bool loadMode)
     {
         listedManualSaves = [];
+        allListedManualSaves = [];
         manualSaveList.Clear();
         manualSaveDeleteButton.Disabled = true;
         manualSaveLoadMode = loadMode;
         manualSaveHeading.Text = loadMode ? "Load Save" : "Save World";
+        manualSaveBackButton.TooltipText = loadMode ? "Back to Load World" : "Back to the Pause Menu";
         manualSaveStatus.Text = loadMode
             ? "Choose a save to load. Your current world is saved first."
             : "Save the world as it is now, or choose a save to replace.";
@@ -330,17 +334,59 @@ public partial class Main
         RefreshManualSaveAvailability();
     }
 
-    /// <summary>Each save is a card with its name, the world's date when it was made and how long ago that was.</summary>
+    /// <summary>
+    /// Each save is a card with its name, the world's date when it was made and how long ago that was.
+    /// When a world has more than one branch, every card names its branch and each branch's newest point is marked.
+    /// </summary>
     private void RenderManualSaveList()
     {
         manualSaveList.Clear();
         var icon = SlotIcon(PixelGlyph.Book);
+        var showBranches = allListedManualSaves.Select(BranchKey).Distinct(StringComparer.Ordinal).Count() > 1;
+        string? previousBranch = null;
         foreach (var save in listedManualSaves)
-            manualSaveList.AddItem(save.IsAutosave ? "Autosave" : save.Name,
-                $"{DisplayWorldClock(save.WorldTick)} · Saved {GameUiText.SavedAgo(save.CreatedUtc, DateTimeOffset.Now)}",
-                icon, save.IsAutosave ? [new SlotTag("Automatic", Note: true)] : null);
+        {
+            var detail = $"{DisplayWorldClock(save.WorldTick)} · Saved {GameUiText.SavedAgo(save.CreatedUtc, DateTimeOffset.Now)}";
+            List<SlotTag> tags = [];
+            if (showBranches)
+            {
+                tags.Add(new SlotTag(BranchLabel(save.Branch)));
+                if (IsLatestInBranch(save, allListedManualSaves)) tags.Add(new SlotTag("Latest"));
+                // The first card of each branch says where that branch began.
+                if (BranchKey(save) != previousBranch && save.Branch?.StartedFromName is { } from)
+                    detail += $" · Branched from ‘{from}’";
+            }
+            previousBranch = BranchKey(save);
+            if (save.IsAutosave) tags.Add(new SlotTag("Automatic", Note: true));
+            manualSaveList.AddItem(save.IsAutosave ? "Autosave" : save.Name, detail, icon, tags);
+        }
         manualSaveList.Placeholder = manualSaveLoadMode ? "No saves yet." : "No named saves yet.";
     }
+
+    private static string BranchKey(ManualWorldSave save) => save.Branch?.Id ?? string.Empty;
+
+    internal static string BranchLabel(SaveBranch? branch) =>
+        branch is null ? "Earlier saves" : $"Branch {branch.Number.ToString(CultureInfo.InvariantCulture)}";
+
+    /// <summary>
+    /// Saves grouped by branch: the branch with the most recent save first, and
+    /// each branch's history newest first, so its latest point leads the group.
+    /// </summary>
+    internal static ManualWorldSave[] OrderSavesByBranch(IEnumerable<ManualWorldSave> saves) =>
+        saves.GroupBy(BranchKey, StringComparer.Ordinal)
+            .OrderByDescending(branch => branch.Max(save => save.CreatedUtc))
+            .ThenBy(branch => branch.Key, StringComparer.Ordinal)
+            .SelectMany(branch => branch.OrderByDescending(save => save.BranchPosition)
+                .ThenByDescending(save => save.WorldTick)
+                .ThenByDescending(save => save.CreatedUtc)
+                .ThenBy(save => save.Id, StringComparer.Ordinal))
+            .ToArray();
+
+    /// <summary>Whether playing on from this save continues its branch rather than starting a new one.</summary>
+    internal static bool IsLatestInBranch(ManualWorldSave save, IEnumerable<ManualWorldSave> worldSaves) =>
+        save.Branch is { } branch && !worldSaves.Any(other => other.Id != save.Id &&
+            other.Branch?.Id == branch.Id &&
+            other.BranchPosition > save.BranchPosition);
 
     private async Task CreateManualSaveAsync()
     {
@@ -390,7 +436,11 @@ public partial class Main
     {
         if (!manualSaveLoadMode || manualSaveList.GetSelectedItems() is not { Length: 1 } selected ||
             selected[0] < 0 || selected[0] >= listedManualSaves.Length) return;
-        manualSaveLoadConfirmation.DialogText = $"Load \"{listedManualSaves[selected[0]].Name}\"? Your current world is saved first, and the loaded world starts paused.";
+        var save = listedManualSaves[selected[0]];
+        var branchNote = IsLatestInBranch(save, allListedManualSaves)
+            ? string.Empty
+            : " Playing on from it starts a new branch; your later saves stay as they are.";
+        manualSaveLoadConfirmation.DialogText = $"Load \"{save.Name}\"? Your current world is saved first, and the loaded world starts paused.{branchNote}";
         PopupDialog(manualSaveLoadConfirmation);
     }
 
@@ -415,6 +465,7 @@ public partial class Main
             ClearBuildingSelection();
             renderedMapSnapshot = null;
             manualSaveOverlay.Hide();
+            worldMenuOverlay.Hide();
             mainMenuOverlay.Hide();
             isInWorld = true;
             resumeWorldOnContinue = false;
