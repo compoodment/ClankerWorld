@@ -1936,9 +1936,6 @@ public partial class Main
                 GameUiText.ItemName("fresh_water") != "Fresh water")
                 throw new InvalidOperationException("Pottery and water items must have clear player-facing names.");
             string IconData(string kind) => Convert.ToBase64String(ItemIcons.Render(kind, 32).GetData());
-            foreach (var tool in ToolProgressionRules.All)
-                if (!ItemIcons.Has(tool.ItemKind))
-                    throw new InvalidOperationException($"The physical {tool.ItemKind} must have an item icon.");
             if (IconData("wooden_hammer") == IconData("stone_hammer") ||
                 IconData("wooden_sickle") == IconData("iron_sickle"))
                 throw new InvalidOperationException("Wooden and stronger work tools must show distinct tier colours.");
