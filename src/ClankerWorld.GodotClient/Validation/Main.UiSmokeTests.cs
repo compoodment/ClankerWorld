@@ -1416,6 +1416,7 @@ public partial class Main
             VerifyModelPicker();
             VerifyChildModelStatus();
             VerifyModelSetupCheckControls();
+            VerifyModelSettingsLayout();
             Render(sample with { JevEnabled = true }, []);
             if (!jevAssistanceToggle.ButtonPressed)
                 throw new InvalidOperationException("World Settings must reflect this world's saved Jev assistance choice.");
@@ -1698,16 +1699,16 @@ public partial class Main
                 UpdateTileHover(pointer);
             }
             HoverPlacementTile(2, 2);
-            if (!founderSetupHint.Text.Contains("Household: Founder's household · Town: First Town", StringComparison.Ordinal))
+            if (!founderSetupHint.Text.Contains("They would join Founder's household in First Town.", StringComparison.Ordinal))
                 throw new InvalidOperationException("Add Agent must preview the recorded household use right and Town membership: " + founderSetupHint.Text);
             HoverPlacementTile(0, 0);
-            if (!founderSetupHint.Text.Contains("Household: none · Town: First Town", StringComparison.Ordinal))
+            if (!founderSetupHint.Text.Contains("They would join First Town without a household.", StringComparison.Ordinal))
                 throw new InvalidOperationException("Town land without a household use right must not give Add Agent household membership.");
             HoverPlacementTile(3, 3);
-            if (!founderSetupHint.Text.Contains("Household: none · Town: First Town", StringComparison.Ordinal))
+            if (!founderSetupHint.Text.Contains("They would join First Town without a household.", StringComparison.Ordinal))
                 throw new InvalidOperationException("A single pending use request must not give Add Agent household membership.");
             HoverPlacementTile(3, 0);
-            if (!founderSetupHint.Text.Contains("Household: new independent household · Town: no Town", StringComparison.Ordinal))
+            if (!founderSetupHint.Text.Contains("They would start their own household, outside any Town.", StringComparison.Ordinal))
                 throw new InvalidOperationException("Unclaimed land must preview a new independent household.");
 
             PreviewAddAgentPlacement(ownedMap with { Resources = [] }, new Vector2I(1, 1));
@@ -1720,7 +1721,7 @@ public partial class Main
                 HouseholdLandUseRights = [.. ownedMap.HouseholdLandUseRights,
                     new("right:empty", "town:first", "household:two", [new(0, 0)], 0, "starter_allocation", null)],
             }, new Vector2I(0, 0));
-            if (!founderSetupHint.Text.Contains("Household: Other household · Town: First Town", StringComparison.Ordinal))
+            if (!founderSetupHint.Text.Contains("They would join Other household in First Town.", StringComparison.Ordinal))
                 throw new InvalidOperationException($"A use right on empty Town land must give Add Agent that household; preview was '{founderSetupHint.Text}'.");
             PreviewAddAgentPlacement(ownedMap with
             {
@@ -1736,7 +1737,7 @@ public partial class Main
                     [new(2, 2)], 0, "starter_allocation", null)],
                 HouseholdLandUseRequests = [],
             }, new Vector2I(2, 2));
-            if (!founderSetupHint.Text.Contains("Household: Founder's household · Town: First Town", StringComparison.Ordinal))
+            if (!founderSetupHint.Text.Contains("They would join Founder's household in First Town.", StringComparison.Ordinal))
                 throw new InvalidOperationException($"A building's owner must come before another household's use right; preview was '{founderSetupHint.Text}'.");
 
             var overlappingProperties = ownedMap with
@@ -1774,7 +1775,7 @@ public partial class Main
             founderModelPicker.Choice.GetPopup().Hide();
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             HoverPlacementTile(0, 0);
-            if (!founderSetupHint.Text.Contains("Household: none · Town: First Town", StringComparison.Ordinal))
+            if (!founderSetupHint.Text.Contains("They would join First Town without a household.", StringComparison.Ordinal))
                 throw new InvalidOperationException("Closing the model popup must resume map placement previews.");
             founderSetupPanel.Hide();
             placingAddedAgent = false;
