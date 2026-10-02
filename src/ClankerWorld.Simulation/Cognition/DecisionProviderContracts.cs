@@ -102,12 +102,13 @@ public sealed record CognitionKnowledgeFact(
 /// Actor-owned context only; absent survival data remains unknown, not invented.
 /// <paramref name="HousingNote"/> explains the actor's housing and current House capacity when known.
 /// <paramref name="ContinuityNote"/> explains the low-population continuity rule to a partner it applies to.
+/// <paramref name="DepartureNote"/> summarizes goods to collect or return and paused household work after a departure.
 /// </summary>
 public sealed record CognitionSelfContext(
     string OwnerId, string Name, string LifeStage, string Personality, string Aspiration,
     string? HouseholdId, int? WarmthBasisPoints, int? IllnessBasisPoints, string? RecentThought,
     string? HouseholdName = null, string? TownName = null, string? HousingNote = null,
-    string? EquipmentNote = null, string? ContinuityNote = null);
+    string? EquipmentNote = null, string? ContinuityNote = null, string? DepartureNote = null);
 
 /// <summary>
 /// An exact owner message addressed to this actor. The authoritative identity
@@ -244,7 +245,7 @@ public sealed record InhabitantObservation(
             self.Aspiration is null || self.Aspiration.Length > 256 ||
             self.HouseholdId?.Length > 128 || self.RecentThought?.Length > 160 ||
             self.HouseholdName?.Length > 128 || self.TownName?.Length > 128 || self.HousingNote?.Length > 256 ||
-            self.EquipmentNote?.Length > 256 || self.ContinuityNote?.Length > 256 ||
+            self.EquipmentNote?.Length > 256 || self.ContinuityNote?.Length > 256 || self.DepartureNote?.Length > 256 ||
             self.WarmthBasisPoints is < 0 or > 10_000 || self.IllnessBasisPoints is < 0 or > 10_000))
             throw new ArgumentException("Self context must be bounded and owned by the actor.", nameof(Self));
 
@@ -662,6 +663,7 @@ public sealed class JevDecisionProvider : IDecisionProvider
                 town = request.Observation.Self?.TownName,
                 housing = request.Observation.Self?.HousingNote,
                 continuity = request.Observation.Self?.ContinuityNote,
+                departure = request.Observation.Self?.DepartureNote,
                 candidates = request.Observation.Candidates.Select(candidate => new
                 {
                     id = candidate.Id,
@@ -979,6 +981,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                             housing = self.HousingNote,
                             equipment = self.EquipmentNote,
                             continuity = self.ContinuityNote,
+                            departure = self.DepartureNote,
                             warmth_basis_points = self.WarmthBasisPoints,
                             illness_basis_points = self.IllnessBasisPoints,
                             recent_thought = self.RecentThought,
