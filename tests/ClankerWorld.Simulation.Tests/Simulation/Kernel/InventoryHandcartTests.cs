@@ -31,6 +31,20 @@ public sealed class InventoryHandcartTests
     }
 
     [Fact]
+    public void CargoInAnyonesCustodyCannotBeLoaded()
+    {
+        foreach (var carrier in new[] { "owner", "borrower" })
+        {
+            var inventory = InventoryFixture.CreateGenesis([
+                new("cart", "handcart", "owner", 1, 10_000, 10_000, 0, GroundPosition: new(2, 3)),
+                new("wood", "wood", "owner", 5, 10_000, 10_000, 0, CarrierId: carrier),
+            ]);
+            Assert.Throws<InvalidOperationException>(() =>
+                InventoryFixture.LoadHandcart(inventory, "custody", "owner", "cart", "wood", 2));
+        }
+    }
+
+    [Fact]
     public void BrokenCartUnloadsSpoiledGoodsAndTransferKeepsEveryPhysicalFact()
     {
         var inventory = InventoryFixture.CreateGenesis([

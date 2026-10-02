@@ -83,7 +83,8 @@ public sealed partial class PrivateWorldRuntime
         !InventoryContainerRules.IsContainer(lot.ItemKind) && AvailableLotQuantity(lot) > 0 &&
         // Worn clothing, a carry aid, a worn ornament or an item under repair stays on the agent.
         !PersonalEquipmentRules.IsSelected(person.Equipment, lot.Id) &&
-        (lot.OwnerId == actor && (ToolProgressionRules.IsTopLevelCarriedLot(lot, actor) ||
+        // Goods in anyone's custody, even the owner's, must be put down before loading.
+        (lot.OwnerId == actor && lot.CarrierId is null && (ToolProgressionRules.IsTopLevelCarriedLot(lot, actor) ||
              lot.GroundPosition == new InventoryGroundPosition(person.Position.X, person.Position.Y)) ||
          // Household stock someone is borrowing stays the household's.
          lot.OwnerId == society.Checkpoint.GetInhabitant(actor).HouseholdId && lot.CarrierId is null &&
