@@ -658,6 +658,8 @@ the active equipment repair target are excluded from payment.
 Customers receive transaction access only. Store stocking first moves actual
 surplus into carried delivery lots, then uses ordinary household hauling to
 reach the Store. A remote House, field or Warehouse is never sale stock.
+Store stocking also keeps each adult's best usable work tool. Optional shelf
+restocking waits behind gathering materials needed by household work.
 Rates, the eight-unit shelf target and four-unit carried loads are provisional.
 Blacksmiths can sell real refined iron for another household's tool work.
 Market stalls, tool orders and meals remain tracked in #564 and its domain
@@ -965,6 +967,8 @@ lives in `TreeGrowthRules` and is provisional ([#462](https://github.com/compood
   site is the nearest reachable open tile outside every Town border, so trees
   do not block building sites. The species follows the nearest wood tree.
   `replant_tree` also uses a tree seed.
+  Replanting selects stumps reachable from the acting agent, including on
+  disconnected islands, and skips stumps with no unoccupied route into reach.
 - **Orchard trees** are `growing`, `fruiting` or `picked`. Fruit is seasonal in
   `EcologyRules`: it ripens only in the tree's recorded season (autumn for new
   worlds) and falls when that season ends. New worlds start in spring, so

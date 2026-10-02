@@ -175,7 +175,7 @@ public sealed class HouseContentTests
                 Assert.Equal("household:camp-beta", world.Society.Inventory.GetReservation(reservationId).OwnerId));
 
         var activeWithKnife = world.ExportState();
-        Assert.Equal(PrivateWorldRuntime.ToolProgressionSchemaVersion, activeWithKnife.SchemaVersion);
+        Assert.Equal(PrivateWorldRuntime.StateSchemaVersion, activeWithKnife.SchemaVersion);
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(
             activeWithKnife with { SchemaVersion = PrivateWorldRuntime.ToolProgressionSchemaVersion - 1 }, _ => new IdleProvider()));
         var saved = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(activeWithKnife));

@@ -19,11 +19,13 @@ public sealed partial class PrivateWorldRuntime
         var inventory = society.Checkpoint.Inventory;
         var room = RemainingDeliveryRoom(inventory, store.InstanceId);
         if (room == 0) return null;
+        var protectedToolIds = BestUsableToolIds(inventory, actor);
         foreach (var lot in inventory.Lots.Where(lot => IsLooseBusinessLot(lot) &&
                      BusinessRules.MaySell("store", lot.ItemKind) && lot.StorageBuildingId != store.InstanceId &&
                      (PersonalEquipmentRules.IsCarried(lot, actor) || lot.OwnerId == householdId &&
                          (lot.StorageBuildingId is null || worldSimulation.Buildings.Any(building =>
                              building.InstanceId == lot.StorageBuildingId && building.HouseholdId == householdId))) &&
+                     !protectedToolIds.Contains(lot.Id) &&
                      lot.Id != inhabitants[actor].Equipment?.ClothingLotId &&
                      lot.Id != inhabitants[actor].Equipment?.CarryAidLotId &&
                      lot.Id != inhabitants[actor].Equipment?.Repair?.LotId)
@@ -53,7 +55,7 @@ public sealed partial class PrivateWorldRuntime
         if (NextStoreLoad(actor) is { } load)
             candidates.Add(new("business_stock_store",
                 $"Carry {load.Quantity} {load.Goods.ItemKind} into the household Store before offering it for sale.",
-                28, load.Store.InstanceId));
+                38, load.Store.InstanceId));
     }
 
     private void StockStore(string actor, PlaytestInhabitantState state)

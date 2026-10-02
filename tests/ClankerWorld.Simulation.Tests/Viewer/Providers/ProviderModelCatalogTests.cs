@@ -21,8 +21,8 @@ public sealed class ProviderModelCatalogTests
         {"models":[
           {"name":"glm-5.3-flash","model":"glm-5.3-flash","modified_at":"2026-09-20T10:00:00Z"},
           {"name":"deepseek-v4-pro:0813","model":"deepseek-v4-pro:0813","modified_at":"2026-08-13T10:00:00Z"},
-          {"name":"kimi-k3:cloud","model":"kimi-k3:cloud","modified_at":"2026-08-20T10:00:00Z"},
-          {"name":"gemma4:31b","model":"gemma4:31b","modified_at":"2026-08-21T10:00:00Z"},
+          {"model":"kimi-k3:cloud","modified_at":"2026-08-20T10:00:00Z"},
+          {"name":null,"model":"gemma4:31b","modified_at":"2026-08-21T10:00:00Z"},
           {"name":"gpt-oss:120b","model":"gpt-oss:120b","modified_at":"2025-08-05T10:00:00Z"}
         ]}
         """;
@@ -159,6 +159,14 @@ public sealed class ProviderModelCatalogTests
     [Theory]
     [InlineData("[]")]
     [InlineData("{\"data\":[null]}")]
+    [InlineData("{\"data\":[{}]}")]
+    [InlineData("{\"data\":[{\"id\":7}]}")]
+    [InlineData("{\"data\":[{\"id\":\" \"}]}")]
+    [InlineData("{\"data\":[{\"id\":\"gpt-6-luna\"},{}]}")]
+    [InlineData("{\"models\":[{}]}")]
+    [InlineData("{\"models\":[{\"name\":7}]}")]
+    [InlineData("{\"models\":[{\"model\":\" \"}]}")]
+    [InlineData("{\"models\":[{\"name\":\"kimi-k3:cloud\"},{}]}")]
     [InlineData("{\"models\":[\"unexpected\"]}")]
     public async Task MalformedListShapesKeepModelsUsableAndCanBeRetried(string body)
     {
@@ -174,6 +182,24 @@ public sealed class ProviderModelCatalogTests
         broken = false;
         Assert.Null((await catalog.ListAsync(action, CancellationToken.None)).Error);
         Assert.Equal(2, handler.Requests.Count);
+    }
+
+    [Theory]
+    [InlineData("{\"data\":[]}")]
+    [InlineData("{\"models\":[]}")]
+    public async Task EmptyModelListsAreSuccessfullyCheckedAndCached(string body)
+    {
+        using var directory = new TemporaryDirectory();
+        var handler = new ListHandler(_ => (HttpStatusCode.OK, body));
+        var catalog = new ProviderModelCatalog(directory.Store(), new ClientFactory(handler));
+        var action = new OwnerProviderModelListAction("openai", ApiKey: "empty-list-secret");
+
+        var result = await catalog.ListAsync(action, CancellationToken.None);
+
+        Assert.Null(result.Error);
+        Assert.All(result.Models, item => Assert.False(item.Available));
+        _ = await catalog.ListAsync(action, CancellationToken.None);
+        Assert.Single(handler.Requests);
     }
 
     [Fact]
