@@ -92,7 +92,25 @@ public sealed class HouseholdJoinRequestTests
     public async Task AdultAddedToHouseholdMustAnswerAnAlreadyPendingRequest(bool agrees)
     {
         var provider = new ScriptedProvider();
-        using var world = NormalPathWorld.CreateGenerated("housing-review-new-adult", _ => provider);
+        using var seed = NormalPathWorld.CreateGenerated("housing-review-new-adult", _ => provider);
+        var house = seed.WorldSimulation.Buildings.Single(item => item.InstanceId == "first-town-house-a");
+        var builder = "agent:" + Guid.NewGuid().ToString("N");
+        Assert.Equal(Alpha, seed.AddAgent(builder, house.Position));
+        var state = seed.ExportState();
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory,
+            "housing-review-expansion-wood", "wood", builder, 4);
+        state = state with
+        {
+            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
+        };
+        using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)),
+            _ => provider);
+        var expansion = world.StartBuildingExpansion(builder, house.InstanceId);
+        Assert.True(expansion.Applied, expansion.Failure);
+        for (var tick = 0; tick < 20; tick++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        house = world.WorldSimulation.Buildings.Single(item => item.InstanceId == house.InstanceId);
+        Assert.Equal(1, house.Footprint!.Revision);
+
         var applicant = "agent:" + Guid.NewGuid().ToString("N");
         Assert.Null(world.AddAgent(applicant, TownTileBeside(world, "first-town-house-a")));
         provider.Choices[applicant] = "household_ask:" + Alpha;
@@ -100,12 +118,13 @@ public sealed class HouseholdJoinRequestTests
         provider.Choices[applicant] = "safe_idle";
         var originalMembers = world.Society.GetHousehold(Alpha).MemberIds.ToArray();
         provider.Choices[originalMembers[0]] = "household_admit:" + applicant;
-        provider.Choices[originalMembers[1]] = ScriptedProvider.AnythingButHousing;
+        foreach (var member in originalMembers.Skip(1))
+            provider.Choices[member] = ScriptedProvider.AnythingButHousing;
         await AdvanceUntil(world, () => Housing(world, applicant)?.Request?.Approvals.Contains(originalMembers[0], StringComparer.Ordinal) == true);
         var newAdult = "agent:" + Guid.NewGuid().ToString("N");
-        var house = world.WorldSimulation.Buildings.Single(item => item.InstanceId == "first-town-house-a");
         Assert.Equal(Alpha, world.AddAgent(newAdult, house.Position));
-        provider.Choices[originalMembers[1]] = "household_admit:" + applicant;
+        foreach (var member in originalMembers.Skip(1))
+            provider.Choices[member] = "household_admit:" + applicant;
         provider.Choices[newAdult] = ScriptedProvider.AnythingButHousing;
         await AdvanceUntil(world, () => Housing(world, applicant)?.Request is { } request &&
             originalMembers.All(member => request.Approvals.Contains(member, StringComparer.Ordinal)) &&
@@ -125,6 +144,45 @@ public sealed class HouseholdJoinRequestTests
         Assert.Equal(agrees ? Alpha : null, world.Society.GetInhabitant(applicant).HouseholdId);
         Assert.Contains(world.ExportState().Events, item => item.Kind == (agrees ? "household_joined" : "housing_request_refused"));
         world.Validate();
+    }
+
+    [Fact]
+    public async Task PendingAdmissionIsRejectedIfAnotherAdultUsesTheLastPlace()
+    {
+        var provider = new ScriptedProvider();
+        using var world = NormalPathWorld.CreateGenerated("housing-last-place-race", _ => provider);
+        var applicant = "agent:" + Guid.NewGuid().ToString("N");
+        Assert.Null(world.AddAgent(applicant, TownTileBeside(world, "first-town-house-a")));
+        provider.Choices[applicant] = "household_ask:" + Alpha;
+        await AdvanceUntil(world, () => Housing(world, applicant)?.Request is not null);
+        provider.Choices[applicant] = "safe_idle";
+
+        var originalMembers = world.Society.GetHousehold(Alpha).MemberIds.ToArray();
+        provider.Choices[originalMembers[0]] = "household_admit:" + applicant;
+        provider.Choices[originalMembers[1]] = ScriptedProvider.AnythingButHousing;
+        await AdvanceUntil(world, () => Housing(world, applicant)?.Request?.Approvals.Contains(
+            originalMembers[0], StringComparer.Ordinal) == true);
+
+        var house = world.WorldSimulation.Buildings.Single(item => item.InstanceId == "first-town-house-a");
+        var newcomer = "agent:" + Guid.NewGuid().ToString("N");
+        Assert.Equal(Alpha, world.AddAgent(newcomer, house.Position));
+        provider.Choices[newcomer] = ScriptedProvider.AnythingButHousing;
+        await AdvanceUntil(world, () => Housing(world, applicant)?.Request?.Members.Contains(
+            newcomer, StringComparer.Ordinal) == true);
+
+        provider.Choices[originalMembers[1]] = "household_admit:" + applicant;
+        provider.Choices[newcomer] = "household_admit:" + applicant;
+        await AdvanceUntil(world, () => world.ExportState().Events.Any(item =>
+            item.Kind == "housing_request_blocked_capacity" && item.Detail == $"{applicant}:{Alpha}"));
+
+        Assert.Null(world.Society.GetInhabitant(applicant).HouseholdId);
+        Assert.DoesNotContain(applicant, world.Society.GetHousehold(Alpha).MemberIds);
+        Assert.Equal(originalMembers.Concat([newcomer]).Order(StringComparer.Ordinal),
+            world.Society.GetHousehold(Alpha).MemberIds);
+        Assert.Equal(3, world.Society.Inhabitants.Count(person => person.Status == SocietyInhabitantStatus.Active &&
+            person.HouseholdId == Alpha));
+        Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "household_joined" &&
+            item.Detail == $"{applicant}:{Alpha}");
     }
 
     [Fact]
@@ -313,18 +371,189 @@ public sealed class HouseholdJoinRequestTests
         var house = world.WorldSimulation.Buildings.Single(item => item.InstanceId == "first-town-house-a");
         var agent = "agent:" + Guid.NewGuid().ToString("N");
         Assert.Equal(Alpha, world.AddAgent(agent, house.Position));
-        provider.Choices[agent] = "household_";
+        provider.Choices[agent] = "safe_idle";
         await AdvanceUntil(world, () => provider.Offered.ContainsKey(agent));
         for (var tick = 0; tick < 5; tick++)
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
 
         Assert.Equal(Alpha, world.Society.GetInhabitant(agent).HouseholdId);
-        Assert.DoesNotContain(provider.Offered[agent].Keys, id => id.StartsWith("household_", StringComparison.Ordinal));
-        Assert.Null(provider.HousingNotes[agent]);
+        Assert.DoesNotContain(provider.Offered[agent].Keys, id => id.StartsWith("household_ask:", StringComparison.Ordinal));
+        Assert.Contains("household_leave", provider.Offered[agent].Keys);
+        Assert.Contains("House: 3/3 permanent places (is full)", provider.HousingNotes[agent], StringComparison.Ordinal);
+        Assert.Contains("inside; absences still count", provider.HousingNotes[agent], StringComparison.Ordinal);
         Assert.Null(world.Inhabitants.Single(person => person.InhabitantId == agent).Housing);
         Assert.DoesNotContain(world.ExportState().Events, item => item.Kind.StartsWith("housing_", StringComparison.Ordinal));
         var visible = new OwnerWorldObservationStore(world).GetSnapshot().Inhabitants.Single(person => person.Id == agent);
         Assert.DoesNotContain(visible.DecisionFactors, factor => factor.Key == "housing");
+    }
+
+    [Fact]
+    public void AddAgentCannotUseAnotherHouseholdBuildingToExceedHousePlaces()
+    {
+        using var seed = NormalPathWorld.CreateGenerated("house-resident-place-boundary", _ => new ScriptedProvider());
+        var state = seed.ExportState();
+        var house = state.WorldSimulation!.Buildings.Single(item => item.InstanceId == "first-town-house-a");
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "resident-boundary-stone", "stone",
+            Alpha, 2, storageBuildingId: house.InstanceId);
+        state = state with
+        {
+            Society = state.Society with
+            {
+                Society = state.Society.Society with { Inventory = inventory },
+            },
+        };
+        using var world = PrivateWorldRuntime.Restore(
+            PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)), _ => new ScriptedProvider());
+        var houseDefinition = world.WorldContent.Buildings.Single(item => item.CanonicalId == house.DefinitionId);
+        var footprint = BuildingStorageRules.EffectiveDefinition(houseDefinition, house);
+        var initial = HouseResidentCapacityRules.Calculate(
+            world.Society.Inhabitants.Where(person => person.HouseholdId == Alpha), footprint.Width, footprint.Height);
+        Assert.Equal(2, initial.ResidentCount);
+        Assert.Equal(3, initial.Limit);
+
+        var first = "agent:" + Guid.NewGuid().ToString("N");
+        Assert.Equal(Alpha, world.AddAgent(first, house.Position));
+        var full = HouseResidentCapacityRules.Calculate(
+            world.Society.Inhabitants.Where(person => person.HouseholdId == Alpha), footprint.Width, footprint.Height);
+        Assert.Equal(3, full.ResidentCount);
+        Assert.Equal(3, full.Limit);
+        Assert.False(full.IsOvercrowded);
+
+        var farmhouse = world.WorldContent.Buildings.Single(item => item.LocalId == "farmhouse-1x1");
+        var otherProperty = TownTileBeside(world, house.InstanceId);
+        var placed = world.PlaceBuilding("alpha-other-property", farmhouse.CanonicalId, otherProperty, Alpha);
+        Assert.True(placed.Applied, placed.Failure);
+        var guest = world.Society.GetHousehold(Beta).MemberIds[0];
+        Assert.True(world.SetHouseGuestInvitation(world.Society.GetHousehold(Alpha).MemberIds[0],
+            house.InstanceId, guest, true).Applied);
+
+        var awayState = world.ExportState();
+        var occupiedTiles = awayState.WorldSimulation!.Buildings.SelectMany(building =>
+            WorldContentSimulationRules.Footprint(awayState.WorldContent!.Buildings.Single(definition =>
+                definition.CanonicalId == building.DefinitionId), building)).ToHashSet();
+        var householdMember = awayState.Inhabitants.Single(person => person.InhabitantId == first);
+        var awayTile = awayState.Map.Tiles.Select(tile => tile.Position).First(position =>
+            awayState.Map.IsBuildable(position) && !occupiedTiles.Contains(position) &&
+            !awayState.Inhabitants.Any(person => person.InhabitantId != householdMember.InhabitantId &&
+                person.Position == position));
+        awayState = awayState with
+        {
+            Inhabitants = awayState.Inhabitants.Select(person => person.InhabitantId == householdMember.InhabitantId
+                ? person with { Position = awayTile }
+                : person).ToArray(),
+        };
+
+        using var restored = PrivateWorldRuntime.Restore(
+            PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(awayState)),
+            _ => new ScriptedProvider());
+        var visible = new OwnerWorldObservationStore(restored).GetSnapshot().PlacedBuildings
+            .Single(item => item.InstanceId == house.InstanceId);
+        Assert.Equal(3, visible.ResidentLimit);
+        Assert.Equal(3, visible.PermanentResidentCount);
+        Assert.False(visible.HasDominantFamily);
+        Assert.False(visible.IsOvercrowded);
+        Assert.Equal(restored.Society.GetInhabitant(guest).Name, Assert.Single(visible.InvitedGuests!));
+        Assert.True(restored.Inhabitants.Count(person =>
+            restored.Society.GetInhabitant(person.InhabitantId).HouseholdId == Alpha &&
+            WorldContentSimulationRules.Footprint(restored.WorldContent.Buildings.Single(definition =>
+                definition.CanonicalId == house.DefinitionId), house).Contains(person.Position)) < visible.PermanentResidentCount,
+            "A resident who is away still takes a permanent House place.");
+
+        var beforeState = PrivateWorldRuntimeCodec.Encode(restored.ExportState());
+        var before = restored.Society.GetHousehold(Alpha).MemberIds.ToArray();
+        var rejected = Assert.Throws<InvalidOperationException>(() => restored.AddAgent(
+            "agent:" + Guid.NewGuid().ToString("N"), otherProperty));
+        Assert.Contains("no free resident place", rejected.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(before, restored.Society.GetHousehold(Alpha).MemberIds);
+        Assert.Equal(beforeState, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+        Assert.Equal(3, restored.Society.Inhabitants.Count(person => person.HouseholdId == Alpha &&
+            person.Status == SocietyInhabitantStatus.Active));
+    }
+
+    [Fact]
+    public void AddAgentOnPropertyOfAHouseholdWithoutAHouseStillJoinsIt()
+    {
+        using var seed = NormalPathWorld.CreateGenerated("house-resident-no-house", _ => new ScriptedProvider());
+        var state = seed.ExportState();
+        var house = state.WorldSimulation!.Buildings.Single(item => item.InstanceId == "first-town-house-a");
+        // Empty the House so the owner may remove it.
+        var stored = state.Society.Society.Inventory.Lots.Where(lot =>
+            lot.StorageBuildingId == house.InstanceId || lot.DeliveryBuildingId == house.InstanceId)
+            .Select(lot => lot.Id).ToHashSet(StringComparer.Ordinal);
+        var inventory = state.Society.Society.Inventory with
+        {
+            Lots = state.Society.Society.Inventory.Lots.Where(lot => !stored.Contains(lot.Id) &&
+                (lot.ContainerLotId is null || !stored.Contains(lot.ContainerLotId))).ToArray(),
+            Reservations = state.Society.Society.Inventory.Reservations
+                .Where(reservation => !stored.Contains(reservation.LotId)).ToArray(),
+        };
+        // The Farmhouse's stone comes from household stock outside the House.
+        inventory = InventoryFixture.AddLot(inventory, "no-house-farm-stone", "stone", Alpha, 2);
+        state = state with
+        {
+            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
+        };
+        using var world = PrivateWorldRuntime.Restore(
+            PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)), _ => new ScriptedProvider());
+        var farmhouse = world.WorldContent.Buildings.Single(item => item.LocalId == "farmhouse-1x1");
+        var property = TownTileBeside(world, house.InstanceId);
+        var placed = world.PlaceBuilding("alpha-farm-without-house", farmhouse.CanonicalId, property, Alpha);
+        Assert.True(placed.Applied, placed.Failure);
+        var removed = world.RemoveBuilding(house.InstanceId, house.TownId, Alpha);
+        Assert.True(removed.Applied, removed.Failure);
+
+        // With no House there are no resident places to fill, so the new agent joins as before.
+        var agent = "agent:" + Guid.NewGuid().ToString("N");
+        Assert.Equal(Alpha, world.AddAgent(agent, property));
+        Assert.Equal(Alpha, world.Society.GetInhabitant(agent).HouseholdId);
+        world.Validate();
+    }
+
+    [Fact]
+    public async Task PendingAdmissionCannotUseAFamilyBonusThatItWouldRemove()
+    {
+        var provider = new ScriptedProvider();
+        using var seed = NormalPathWorld.CreateGenerated("housing-family-bonus-boundary", _ => provider);
+        var house = seed.WorldSimulation.Buildings.Single(item => item.InstanceId == "first-town-house-a");
+        var existing = seed.Society.GetHousehold(Alpha).MemberIds.ToArray();
+        var third = "agent:" + Guid.NewGuid().ToString("N");
+        Assert.Equal(Alpha, seed.AddAgent(third, house.Position));
+        var applicant = "agent:" + Guid.NewGuid().ToString("N");
+        Assert.Null(seed.AddAgent(applicant, TownTileBeside(seed, house.InstanceId)));
+
+        seed.Pause();
+        var state = seed.ExportState();
+        var familyId = "domestic:parents:alice";
+        var societyState = state.Society with
+        {
+            Society = state.Society.Society with
+            {
+                Inhabitants = state.Society.Society.Inhabitants.Select(person =>
+                    existing.Contains(person.Id, StringComparer.Ordinal)
+                        ? person with { DomesticFamilyUnitId = familyId }
+                        : person).ToArray(),
+            },
+        };
+        state = state with { Society = societyState };
+
+        using var world = PrivateWorldRuntime.Restore(
+            PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)),
+            _ => provider);
+        var current = HouseResidentCapacityRules.Calculate(
+            world.Society.Inhabitants.Where(person => person.HouseholdId == Alpha), 1, 1);
+        Assert.Equal(3, current.ResidentCount);
+        Assert.Equal(4, current.Limit);
+        Assert.True(current.HasFreePlace);
+        provider.Choices[applicant] = "household_ask:" + Alpha;
+        world.Resume();
+        await AdvanceUntil(world, () => provider.Offered.TryGetValue(applicant, out var offered) &&
+            offered.Count > 0);
+
+        Assert.DoesNotContain("household_ask:" + Alpha, provider.Offered[applicant].Keys);
+        Assert.Contains("household_ask:" + Beta, provider.Offered[applicant].Keys);
+        Assert.Null(world.Society.GetInhabitant(applicant).HouseholdId);
+        Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "housing_request_made" &&
+            item.Detail == $"{applicant}:{Alpha}");
     }
 
     [Fact]
@@ -368,7 +597,7 @@ public sealed class HouseholdJoinRequestTests
         {
             await AdvanceUntil(unstocked, () => Housing(unstocked, agent)?.Blocker == HousingBlockers.MissingMaterials, 5);
             Assert.DoesNotContain(provider.Offered.GetValueOrDefault(agent)?.Keys.ToArray() ?? [],
-                id => id.StartsWith("household_", StringComparison.Ordinal));
+                id => id.StartsWith("household_ask:", StringComparison.Ordinal));
             Assert.Contains(unstocked.ExportState().Events, item => item.Kind == "housing_blocked" && item.Detail == $"{agent}:missing_materials");
             Assert.Contains("lacks the materials", new OwnerWorldObservationStore(unstocked).GetSnapshot().Inhabitants
                 .Single(person => person.Id == agent).DecisionFactors.Single(factor => factor.Key == "housing").Detail, StringComparison.Ordinal);

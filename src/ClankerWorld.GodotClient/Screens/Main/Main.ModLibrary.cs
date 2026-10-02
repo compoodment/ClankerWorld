@@ -28,7 +28,6 @@ public partial class Main
     private void ShowModLibrary()
     {
         settingsPanel.Hide();
-        developerScroll.Hide();
         modLibraryPanel.Show();
         if (observationSession.Current?.Baseline.Snapshot is { } snapshot)
             RenderModLibrary(snapshot);

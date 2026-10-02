@@ -142,13 +142,36 @@ public sealed partial class PrivateWorldConversationTests
         world.Pause();
         provider.EndSuspendedConversations = true;
         world.Resume();
-        for (var tick = 0; tick < 80 && world.Inhabitants.Single(person => person.InhabitantId == learner).Lesson!.Stage != "completed"; tick++)
+        var completionStartTick = world.WorldTick;
+        const int completionTickHorizon = 80;
+        const int maxCompletionAttempts = completionTickHorizon * 10;
+        var completionTimeout = System.Diagnostics.Stopwatch.StartNew();
+        long? conversationClosedAtTick = null;
+        var completionAttempts = 0;
+        for (; completionAttempts < maxCompletionAttempts && completionTimeout.Elapsed < TimeSpan.FromSeconds(15);
+             completionAttempts++)
         {
+            if (world.Conversations.Single().Status == AgentConversationStatus.Closed)
+            {
+                conversationClosedAtTick ??= world.WorldTick;
+                var lesson = world.Inhabitants.Single(person => person.InhabitantId == learner).Lesson!;
+                if (lesson.Stage == "completed" || world.WorldTick - conversationClosedAtTick >= completionTickHorizon)
+                    break;
+            }
             _ = await world.AdvanceOneTickNonBlockingAsync();
             await Task.Delay(2);
         }
-        Assert.Equal(AgentConversationStatus.Closed, world.Conversations.Single().Status);
-        Assert.Equal("completed", world.Inhabitants.Single(person => person.InhabitantId == learner).Lesson!.Stage);
+        if (world.Conversations.Single().Status == AgentConversationStatus.Closed)
+            conversationClosedAtTick ??= world.WorldTick;
+        Assert.True(world.Conversations.Single().Status == AgentConversationStatus.Closed,
+            $"Conversation did not close within {maxCompletionAttempts} attempts or 15 seconds; " +
+            $"tick={world.WorldTick}, attempts={completionAttempts}.");
+        var completedLesson = world.Inhabitants.Single(person => person.InhabitantId == learner).Lesson!;
+        Assert.True(completedLesson.Stage == "completed",
+            $"Lesson did not complete within {completionTickHorizon} committed ticks after conversation closure; " +
+            $"stage={completedLesson.Stage}, progress={completedLesson.Progress}, " +
+            $"committedTicks={(conversationClosedAtTick is { } closedAt ? world.WorldTick - closedAt : 0)}, " +
+            $"totalTicks={world.WorldTick - completionStartTick}, attempts={completionAttempts}.");
         var skill = Assert.Single(world.Inhabitants.Single(person => person.InhabitantId == learner).Skills!);
         Assert.Equal(SettlementSkillKind.Building, skill.Kind);
         Assert.Equal(teacher, skill.TeacherId);

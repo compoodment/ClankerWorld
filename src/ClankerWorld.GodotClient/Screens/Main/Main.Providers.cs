@@ -8,6 +8,9 @@ namespace ClankerWorld.GodotClient;
 
 public partial class Main
 {
+    private readonly Label usageScopeHint = new();
+    private int usageReads;
+
     private async Task RefreshProviderConfigurationAsync()
     {
         cognitionApiKeyInput.Text = string.Empty;
@@ -30,20 +33,32 @@ public partial class Main
         });
     }
 
+    /// <summary>
+    /// Reads the installation's model-call count for Game Settings without a
+    /// status message, so opening Settings from the Main Menu stays quiet.
+    /// </summary>
     private async Task RefreshUsageAsync()
     {
+        var read = ++usageReads;
+        var owner = registration;
         if (!TryGetOwner(out var authority, out var deviceId, out var signer))
         {
             usageMeterStatus.Text = "Connect this device to see model-call usage.";
             return;
         }
-        await RunOwnerActionAsync(async () =>
+        try
         {
-            usageStatus = await ownerApi.GetUsageStatusAsync(ResolveWorldUri(), authority, deviceId,
+            var status = await ownerApi.GetUsageStatusAsync(ResolveWorldUri(), authority, deviceId,
                 signer, CancellationToken.None);
+            if (read != usageReads || !ReferenceEquals(owner, registration)) return;
+            usageStatus = status;
             RenderUsageStatus();
-            return "loaded paid-call usage";
-        });
+        }
+        catch (Exception exception)
+        {
+            if (read == usageReads && ReferenceEquals(owner, registration))
+                usageMeterStatus.Text = "Could not load model calls: " + FriendlyFailure(exception);
+        }
     }
 
     private async Task ObserveUsagePauseAsync()
@@ -51,17 +66,22 @@ public partial class Main
         if (!TryGetOwner(out var authority, out var deviceId, out var signer)) return;
         try
         {
-            usageStatus = await ownerApi.GetUsageStatusAsync(ResolveWorldUri(), authority, deviceId,
+            var status = await ownerApi.GetUsageStatusAsync(ResolveWorldUri(), authority, deviceId,
                 signer, CancellationToken.None);
+            usageReads++;
+            usageStatus = status;
             RenderUsageStatus();
             if (usageStatus.LimitReached)
-                SetStatus("Paid-call limit reached. The world is paused; open World Settings to allow more calls.", good: false);
+                SetStatus(UsageLimitPausedMessage, good: false);
         }
         catch (Exception)
         {
             // A pause is authoritative even when the optional meter read is unavailable.
         }
     }
+
+    private const string UsageLimitPausedMessage =
+        "Model-call limit reached, so the world is paused. Raise the limit in Settings → Game, then resume.";
 
     private void RenderUsageStatus()
     {
@@ -80,19 +100,19 @@ public partial class Main
         }
         if (!usageAttemptLimitInput.HasFocus())
             usageAttemptLimitInput.Text = usageStatus.AttemptLimit?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
+        static string Count(long value) => value.ToString("N0", CultureInfo.InvariantCulture);
         var rows = usageStatus.Rows.OrderByDescending(row => row.Attempts)
-            .Select(row => $"{row.Provider} / {row.Model}: {row.Attempts} calls");
+            .Select(row => $"{row.Provider} / {row.Model}: {Count(row.Attempts)} calls");
         usageMeterStatus.Text = usageStatus.AttemptLimit is { } limit
-            ? $"{usageStatus.Attempts} of {limit} model calls used on this installation."
-            : $"{usageStatus.Attempts} model calls used on this installation.";
+            ? $"{Count(usageStatus.Attempts)} of {Count(limit)} calls used across all worlds."
+            : $"{Count(usageStatus.Attempts)} calls used across all worlds. No limit is set.";
         if (usageStatus.LimitReached)
-            usageMeterStatus.Text += " Time is paused. Raise the limit to allow more calls, then resume.";
+            usageMeterStatus.Text += " Time is paused. Raise the limit or allow more calls, then resume.";
         if (usageStatus.Rows.Count > 0)
             usageMeterStatus.Text += "\n" + string.Join("\n", rows);
-        usageMeterStatus.TooltipText = $"Calls started: {usageStatus.Attempts}; completed: {usageStatus.Completed}; " +
-            $"failed: {usageStatus.Failed}; interrupted: {usageStatus.Abandoned}. " +
-            $"Known input/output tokens: {usageStatus.InputTokens}/{usageStatus.OutputTokens}. " +
-            "Counts since this installation began; each retry counts as another call.";
+        usageMeterStatus.TooltipText = $"Started {Count(usageStatus.Attempts)}, completed {Count(usageStatus.Completed)}, " +
+            $"failed {Count(usageStatus.Failed)} and interrupted {Count(usageStatus.Abandoned)}; providers reported " +
+            $"{Count(usageStatus.InputTokens)} input and {Count(usageStatus.OutputTokens)} output tokens, shown for information only.";
         grantUsageCallsButton.Visible = usageStatus.LimitReached;
         RefreshControlAvailability();
     }
@@ -106,7 +126,7 @@ public partial class Main
             if (!long.TryParse(usageAttemptLimitInput.Text, NumberStyles.None, CultureInfo.InvariantCulture, out var parsed) ||
                 parsed is < 1 or > 1_000_000)
             {
-                SetStatus("Enter a number of calls from 1 to 1,000,000, or leave it blank for no cap.", good: false);
+                SetStatus("Enter a number of calls from 1 to 1,000,000, or leave it blank for no limit.", good: false);
                 return;
             }
             cap = parsed;
@@ -115,12 +135,15 @@ public partial class Main
             new OwnerUsageLimitAction(cap);
         await RunOwnerActionAsync(async () =>
         {
-            usageStatus = await ownerApi.ConfigureUsageLimitAsync(ResolveWorldUri(), authority, deviceId,
+            var status = await ownerApi.ConfigureUsageLimitAsync(ResolveWorldUri(), authority, deviceId,
                 action, signer, CancellationToken.None);
+            usageReads++;
+            usageStatus = status;
             RenderUsageStatus();
             if (grant)
-                return "Allowed 100 more paid calls. Resume the world when ready";
-            return cap is null ? "paid-call limit turned off" : $"paid-call limit set to {cap} attempts";
+                return "Allowed 100 more model calls. Resume the world when ready";
+            return cap is null ? "Model-call limit turned off"
+                : string.Create(CultureInfo.InvariantCulture, $"Model-call limit set to {cap:N0} calls");
         });
     }
 
@@ -602,17 +625,23 @@ public partial class Main
     }
 
     /// <summary>
-    /// The installation's model-call count and optional limit. It stays on the
-    /// World page when the Agent model box moves into an agent's card.
+    /// The installation's model-call count and optional limit. One count and
+    /// limit cover every world, so the box sits on the Game page and opens
+    /// from the Main Menu as well as in a world.
     /// </summary>
     private void BuildUsageLimitPanel()
     {
         var body = new VBoxContainer();
         body.AddThemeConstantOverride("separation", 6);
+        usageScopeHint.Text = "Counts every model call attempt in all your worlds, including ones that fail or are retried. " +
+            "The count never resets; the Event Log warns you once at 80% of the limit.";
+        usageScopeHint.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        usageScopeHint.ThemeTypeVariation = "DimLabel";
+        body.AddChild(usageScopeHint);
         usageMeterStatus.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         body.AddChild(usageMeterStatus);
         usageAttemptLimitInput.PlaceholderText = "No limit";
-        usageAttemptLimitInput.TooltipText = "Time pauses when this many calls have been made. Every call counts, even ones that fail or are retried. This counts calls, not money.";
+        usageAttemptLimitInput.TooltipText = "Your worlds pause when this many calls have been made; it counts calls, not money.";
         body.AddChild(DisplaySettingRow("Limit", usageAttemptLimitInput));
         var usageButtons = new HBoxContainer();
         usageButtons.AddThemeConstantOverride("separation", 6);
@@ -621,7 +650,7 @@ public partial class Main
         applyUsageLimitButton.Pressed += () => _ = ConfigureUsageAsync(grant: false);
         usageButtons.AddChild(applyUsageLimitButton);
         grantUsageCallsButton.Text = "Allow 100 more calls";
-        grantUsageCallsButton.TooltipText = "Allow 100 more paid model calls. The world stays paused until you resume it.";
+        grantUsageCallsButton.TooltipText = "Allow 100 more model calls; the world stays paused until you resume it.";
         StyleButton(grantUsageCallsButton, primary: true);
         grantUsageCallsButton.Pressed += () => _ = ConfigureUsageAsync(grant: true);
         grantUsageCallsButton.Visible = false;
@@ -664,8 +693,8 @@ public partial class Main
     {
         if (!selectedAgentModelScroll.Visible) return;
         selectedAgentModelScroll.Hide();
+        // Agent model is the World page's last box, so it returns to the end.
         cognitionSettingsPanel.Reparent(worldSettingsContent, keepGlobalTransform: false);
-        worldSettingsContent.MoveChild(cognitionSettingsPanel, usageLimitPanel.GetIndex());
         cognitionTargetChoice.Show();
         selectedAgentOverview.Show();
         cognitionApiKeyInput.Text = string.Empty;

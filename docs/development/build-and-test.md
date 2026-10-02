@@ -2,7 +2,7 @@
 title: Build and test
 type: development-reference
 status: active
-updated: 2026-10-01
+updated: 2026-10-02
 ---
 
 # Build and test
@@ -50,11 +50,51 @@ lettering, Timber, is drawn in code in `UI/Theme/TimberFont.cs`.
 | Godot scripts, scenes or UI | Run the Godot client check and relevant automated tests; inspect the affected controls in the game. |
 | Windows export or device storage | Run the Windows export check and relevant native Windows checks. Test the actual bundle on Windows when claiming player usability. |
 | Saves, events or compatibility | Include the replay and rollback checks described in [Saves and replay](saves-and-replay.md). During alpha, older saves need not keep loading, so no old-save or migration checks are needed; a save that cannot load must still be refused visibly and preserved. |
+| Workflow automation (scripts, workflows, labels and templates in `.github/`) | Run `node --test .github/scripts/*.test.js`, and add or update tests when a script's behavior changes. For `.github/labels.json`, read the pull request's Labels check output to see what it would create, rename or delete; after merging, check that the Labels run on main passed. |
 | Release | Follow the applicable [release gate](releasing.md#release-gate), including real player-path checks. |
 
 The CI configuration in [.github/workflows/ci.yml](../../.github/workflows/ci.yml)
 is the source for current automated gates. A PR needs green CI before merge;
 local checks should fit the change. List checks you could not run and why.
+
+### How CI runs
+
+The Protect main ruleset requires three checks: `verify`,
+`windows-documentation` and `windows-provider-storage`. `verify` passes only
+when every part of the Verify workflow passes:
+
+- **scope** decides whether the change touches code.
+- **checks** runs the workflow-script tests and the label list, the Godot
+  client check, `dotnet format` and the Windows export.
+- **tests (1)** to **tests (4)** split the Release test suite between them, so
+  it runs on four machines at once.
+
+A pull request that changes only documentation (Markdown files and anything
+under `docs/`) runs the workflow-script checks and the documentation tests on
+Linux and Windows, and skips the rest, including `windows-provider-storage`.
+Pushes to main always run everything. A newer push to a pull request cancels
+its older run.
+
+[.github/scripts/ci-plan.js](../../.github/scripts/ci-plan.js) decides which
+tests each job runs. Its `PinnedShards` list names the slowest test classes and
+methods for the first three jobs. A test runs in the first job whose list names
+it, and the last job runs every test no entry names, so a new or renamed test
+always runs exactly once. Tests in one class run one after another, so a slow
+class is split across jobs, and a job holding a long class keeps to four
+classes so that each starts at once on the runner's four cores.
+
+Each test job uploads its durations as a `test-timings-<job>` artifact. When
+one test job takes much longer than the others, read those timings, move
+entries between jobs, and list what each job would run:
+
+```bash
+dotnet test tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.csproj --configuration Release --logger "trx;LogFileName=timings.trx"
+dotnet test tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.csproj --configuration Release --no-build --list-tests --filter "$(node .github/scripts/ci-plan.js filter 1)"
+```
+
+The first command records each test's duration locally in
+`tests/ClankerWorld.Simulation.Tests/TestResults/timings.trx`; the second lists
+the tests job 1 would run.
 
 Hands-on checks above describe useful verification, not a blanket pre-merge
 playtest gate. Routine owner playtesting may follow merge under
@@ -98,10 +138,12 @@ dotnet restore tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests
 dotnet test tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.csproj --configuration Release --no-restore --filter FullyQualifiedName~DocumentationTests
 ```
 
-These checks cover the required pages, front matter, local links and linked
-headings. The documentation test reads each page with both LF and CRLF line
-endings, and CI also runs it on a Windows checkout. That job is separate from a
-Windows game playtest and from the native provider-storage checks.
+These checks cover front matter on pages under `docs/`, local links and linked
+headings in every Markdown file, and that each entry in `changes/` starts with
+a `- ` bullet. They do not check that any particular page exists. The
+documentation test reads each page with both LF and CRLF line endings, and CI
+also runs it on a Windows checkout. That job is separate from a Windows game
+playtest and from the native provider-storage checks.
 
 ## Windows playtests
 
@@ -109,12 +151,15 @@ The [playtest list](../../playtest/README.md) holds the merged changes that
 still need trying by hand in the Windows game. Automated checks, including the
 Windows CI jobs and a passing export, do not count as a playtest.
 
-When you record a playtest result, note the client and host commits, the
-Windows build, the date, the screen resolution and the interface size it
-picked. Say whether each check passed, failed or could not be run, with what
-you did and saw. Leave out private keys, pairing codes, agent thoughts and raw
-model replies. Link each failure to its own issue; one passing check does not
-close a report with several problems.
+When you record a playtest result, note what you know of the client and host
+commits, the Windows build, the date, the screen resolution and the interface
+size it picked; ask the owner for missing details only when a check failed. Say
+whether each check passed, failed or could not be run, with what you did and
+saw. Leave out private keys, pairing codes, agent thoughts and raw model
+replies. The agent receiving the owner's chat report updates the playtest
+checklist and records these build details in any linked Bug or Implementation
+issues, labelled `from:playtest`; do not create a separate report issue. Follow
+the [playtest results procedure](../../playtest/README.md#keeping-the-list-current).
 
 Do not deploy, change credentials or modify the active playtest save just to
 run a check; that needs the owner's separate go-ahead. Use a disposable world

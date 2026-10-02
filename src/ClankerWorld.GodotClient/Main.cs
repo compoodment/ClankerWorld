@@ -188,9 +188,6 @@ public partial class Main : Control
     private readonly ItemList pairedDeviceList = new();
     private readonly LineEdit revokeDeviceId = new();
     private readonly Button revokeDeviceButton = new();
-    private readonly Button developerToggleButton = new();
-    private readonly ScrollContainer developerScroll = new();
-    private readonly VBoxContainer developerBody = new();
 
     private OwnerDeviceKey? deviceKey;
     private OwnerDeviceRegistration? registration
@@ -214,6 +211,7 @@ public partial class Main : Control
     private OwnerPendingSubmission? pendingSubmission;
     private string? selectedInhabitantId;
     private string? renamingAgentId;
+    private readonly RefusedAgentRename refusedAgentRename = new();
     private bool isRefreshing;
     private CancellationTokenSource? refreshCancellation;
     private int successfulRefreshCount;

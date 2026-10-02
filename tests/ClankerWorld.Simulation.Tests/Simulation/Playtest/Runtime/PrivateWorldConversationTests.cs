@@ -290,7 +290,8 @@ public sealed partial class PrivateWorldConversationTests
         {
             InitiatorId, InviteeId,
         });
-        using var world = NewWorld("nearby-conversation", provider);
+        // Keep the arranged hearing positions fixed while the two parties speak.
+        using var world = NewWorld("nearby-conversation", _ => provider);
         world.StartWorld();
 
         for (var attempt = 0; attempt < 40 && world.Conversations.All(item => item.Turns.Count == 0); attempt++)
@@ -412,7 +413,7 @@ public sealed partial class PrivateWorldConversationTests
         {
             InitiatorId, InviteeId,
         });
-        using var setup = NewWorld(seed, provider);
+        using var setup = NewWorld(seed, _ => provider);
         setup.StartWorld();
         var initial = setup.ExportState();
         var society = initial.Society.Society;
@@ -448,7 +449,7 @@ public sealed partial class PrivateWorldConversationTests
             Society = initial.Society with { Society = society },
             Conversations = conversations,
             ConversationBudgets = [],
-        }, id => id is InitiatorId or InviteeId ? provider : new DeterministicDecisionProvider());
+        }, _ => provider);
         for (var attempt = 0; attempt < 50 && world.Conversations.All(item =>
                  item.Status != AgentConversationStatus.Proposed); attempt++)
         {
@@ -482,8 +483,7 @@ public sealed partial class PrivateWorldConversationTests
         var fileDirectory = Directory.CreateTempSubdirectory("clankerworld-trimmed-conversation-");
         try
         {
-            var file = new PrivateWorldStateFile(Path.Combine(fileDirectory.FullName, "world.json"), id =>
-                id is InitiatorId or InviteeId ? provider : new DeterministicDecisionProvider());
+            var file = new PrivateWorldStateFile(Path.Combine(fileDirectory.FullName, "world.json"), _ => provider);
             file.Save(world);
             using var reloaded = file.LoadOrCreate(seed);
             Assert.Equal(PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()), File.ReadAllBytes(file.Path));
@@ -518,7 +518,7 @@ public sealed partial class PrivateWorldConversationTests
             var roundTripState = reloaded.ExportState();
             var roundTripBytes = PrivateWorldRuntimeCodec.Encode(roundTripState);
             using var finalRestore = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(roundTripBytes),
-                id => id is InitiatorId or InviteeId ? provider : new DeterministicDecisionProvider());
+                _ => provider);
             var expectedAfterRestore = roundTripState with
             {
                 Conversations = roundTripState.Conversations!.Select(item => item.Id == newConversation.Id
@@ -597,6 +597,63 @@ public sealed partial class PrivateWorldConversationTests
         Assert.Equal(AgentConversationInterruption.ProviderTimedOut,
             AgentConversationFailureClassifier.Classify(timeout));
         Assert.Single(provider.TurnRequests);
+    }
+
+    [Fact]
+    public async Task ConversationTurnThatMeetsAReachedLimitUnderTheTickGatePausesAndSavesTheWorld()
+    {
+        var directory = Directory.CreateTempSubdirectory("clankerworld-conversation-limit-");
+        try
+        {
+            var usagePath = Path.Combine(directory.FullName, "usage.json");
+            var spent = new ProviderUsageStore(usagePath);
+            _ = spent.Configure(new ProviderUsageLimitAction(1));
+            spent.Finish(spent.Begin("openai", "test-model", "planning"), "completed");
+            // After a restart the meter is at its limit but has not announced it,
+            // so the first refused reservation raises LimitReached on its own thread.
+            var usage = new ProviderUsageStore(usagePath);
+            var provider = new ConversationProvider(new HashSet<string>(StringComparer.Ordinal)
+            {
+                InitiatorId, InviteeId,
+            })
+            {
+                // Like the configured provider, reserve the call before the first await.
+                BeforeSpeaking = () => usage.Finish(usage.Begin("openai", "test-model", "conversation"), "completed"),
+            };
+            using var world = NewWorld("conversation-limit-under-tick-gate", provider);
+            var statePath = Path.Combine(directory.FullName, "world.json");
+            var stateFile = new PrivateWorldStateFile(statePath, id =>
+                id is InitiatorId or InviteeId ? provider : new DeterministicDecisionProvider());
+            var log = new RecordingLogger<PrivateWorldConversationTests>();
+            var effects = new ProviderUsageWorldEffects(world, stateFile, new object(), log);
+            usage.LimitReached += effects.PauseAtLimit;
+            world.StartWorld();
+
+            // Before the fix the handler paused inline and waited for the gate
+            // this tick holds, so the tick never finished. Ticks run on another
+            // thread with a deadline, so that fails rather than hangs.
+            static Task<PrivateWorldStepResult> TickAsync(PrivateWorldRuntime runtime) =>
+                Task.Run(() => runtime.AdvanceOneTickNonBlockingAsync().AsTask()).WaitAsync(TimeSpan.FromSeconds(30));
+            for (var attempt = 0; attempt < 60 && provider.TurnRequests.Count == 0; attempt++)
+            {
+                _ = await TickAsync(world);
+                await Task.Delay(5);
+            }
+            Assert.NotEmpty(provider.TurnRequests);
+            using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            while (!log.Messages.Any(message => message.Contains(
+                       "provider_usage_limit_reached outcome=paused scope=installation", StringComparison.Ordinal)))
+                await Task.Delay(10, deadline.Token);
+
+            Assert.True(world.Society.IsPaused);
+            Assert.True(PrivateWorldRuntimeCodec.Decode(File.ReadAllBytes(statePath)).Society.Society.IsPaused);
+            Assert.False((await TickAsync(world)).Advanced);
+            Assert.Equal(1, usage.Capture().Attempts);
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
     }
 
     private static PrivateWorldRuntime NewWorld(string seed, ConversationProvider provider) =>
@@ -717,6 +774,7 @@ public sealed partial class PrivateWorldConversationTests
         public bool EndSuspendedConversations { get; set; }
         public Exception? ConversationFailure { get; init; }
         public bool BlockConversationUntilCanceled { get; init; }
+        public Action? BeforeSpeaking { get; init; }
         public TaskCompletionSource CancellationObserved { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public bool CanSpeakAs(string agentId) => assignedAgents.Contains(agentId);
@@ -773,6 +831,7 @@ public sealed partial class PrivateWorldConversationTests
             cancellationToken.ThrowIfCancellationRequested();
             request.Validate();
             TurnRequests.Add(request);
+            BeforeSpeaking?.Invoke();
             if (ConversationFailure is { } failure) throw failure;
             if (BlockConversationUntilCanceled)
                 return new ValueTask<AgentConversationTurnResponse>(WaitForCancellationAsync(cancellationToken));

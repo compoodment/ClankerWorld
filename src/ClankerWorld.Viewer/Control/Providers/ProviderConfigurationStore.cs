@@ -1479,6 +1479,7 @@ public sealed partial class ConfigurableDecisionProvider(
     }
 
     private static bool IsRoutine(InhabitantObservation observation) =>
+        observation.ObserverGuidance is not { Count: > 0 } &&
         !observation.NeedsPersonality && !observation.NeedsAspiration &&
         observation.Candidates.All(candidate => RoutineCandidateIds.Contains(candidate.Id) || candidate.Id.StartsWith("care:", StringComparison.Ordinal));
 

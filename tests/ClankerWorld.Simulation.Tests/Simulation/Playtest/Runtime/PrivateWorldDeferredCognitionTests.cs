@@ -253,7 +253,7 @@ public sealed class PrivateWorldDeferredCognitionTests
     {
         var provider = new SequencedHostedProvider(
             [new NameReply("Taken Name"), new NameReply("Retry Name")], holdSecond: true);
-        using var world = CreateNameTestWorld("rename-queued-name-retry", provider);
+        using var world = CreateNameTestWorld("rename-queued-name-retry", provider, quietOthers: true);
         Assert.True(world.RenameAgent(NameOwnerId, "Taken Name"));
         world.StartWorld();
         await world.AdvanceOneTickNonBlockingAsync();
@@ -278,7 +278,7 @@ public sealed class PrivateWorldDeferredCognitionTests
         };
         var freshProvider = new SequencedHostedProvider(new NameReply("Unexpected Retry"));
         using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(saved)),
-            id => id == NameTargetId ? freshProvider : new DeterministicDecisionProvider());
+            id => id == NameTargetId ? freshProvider : new QuietDecisionProvider());
         Assert.True(restored.RenameAgent(NameTargetId, "Player Name"));
         var queued = restored.ExportState().Society.Cognition.Queue.SingleOrDefault(entry => entry.InhabitantId == NameTargetId);
         if (otherWork) Assert.Equal(["other_work"], queued!.TriggerIds);
@@ -381,6 +381,70 @@ public sealed class PrivateWorldDeferredCognitionTests
             Assert.Single(restored.Inhabitants.Single(person => person.InhabitantId == "founder-scout").RecentThoughts!).Text);
     }
 
+    [Fact]
+    public async Task PausedObserverReplyRetriesTheSameMessageAndCannotAttachToANewerMessage()
+    {
+        const string targetId = "founder-scout";
+        var staleProvider = new HeldGuidanceReplyProvider("Stale reply must not be saved.");
+        using var world = new PrivateWorldRuntime("paused-observer-guidance", id =>
+            id == targetId ? staleProvider : new DeterministicDecisionProvider());
+        var first = world.SubmitInstruction(new OwnerInstructionRequest("observer-first", "owner:test", targetId,
+            OwnerInstructionKind.Suggestive, "Try the berries beside the river."));
+        Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+        await staleProvider.Started.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        var initialObservation = Assert.Single(staleProvider.ObservedRequests);
+        Assert.Equal(world.Society.WorldId, initialObservation.WorldId);
+        Assert.Equal(targetId, initialObservation.InhabitantId);
+        Assert.Equal(first.InstructionId, Assert.Single(initialObservation.ObserverGuidance!).InstructionId);
+
+        world.Pause();
+        var saved = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+        staleProvider.Release.TrySetResult(true);
+        await staleProvider.Returned.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        var pausedInstruction = Assert.Single(world.ExportState().Instructions!, item => item.InstructionId == first.InstructionId);
+        Assert.Null(pausedInstruction.ObservedTick);
+        Assert.Null(pausedInstruction.ObserverReply);
+        Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "hosted_decision_completed");
+
+        var replacement = new HeldGuidanceReplyProvider("Fresh reply for the first message.");
+        using var restored = PrivateWorldRuntime.Restore(saved, id =>
+            id == targetId ? replacement : new DeterministicDecisionProvider());
+        var second = restored.SubmitInstruction(new OwnerInstructionRequest("observer-second", "owner:test", targetId,
+            OwnerInstructionKind.Suggestive, "Look for a grove after you eat."));
+        restored.Resume();
+        Assert.True((await restored.AdvanceOneTickNonBlockingAsync()).Advanced);
+        await replacement.Started.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        var retryObservation = Assert.Single(replacement.ObservedRequests);
+        Assert.Equal(saved.Society.Society.WorldId, retryObservation.WorldId);
+        Assert.Equal(targetId, retryObservation.InhabitantId);
+        Assert.Equal([first.InstructionId, second.InstructionId], retryObservation.ObserverGuidance!
+            .Select(item => item.InstructionId).ToArray());
+        replacement.Release.TrySetResult(true);
+        _ = await AdvanceUntilAcceptedAsync(restored, targetId);
+
+        var final = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+        var firstSaved = Assert.Single(final.Instructions!, item => item.InstructionId == first.InstructionId);
+        var secondSaved = Assert.Single(final.Instructions!, item => item.InstructionId == second.InstructionId);
+        Assert.NotNull(firstSaved.ObservedTick);
+        Assert.Equal("Fresh reply for the first message.", firstSaved.ObserverReply);
+        Assert.Contains(first.InstructionId, final.CompletedInstructionIds ?? []);
+        Assert.NotNull(secondSaved.ObservedTick);
+        Assert.Null(secondSaved.ObserverReply);
+        Assert.Contains(second.InstructionId, final.CompletedInstructionIds ?? []);
+
+        using var roundtripped = PrivateWorldRuntime.Restore(final);
+        var projection = new OwnerWorldObservationStore(roundtripped).GetSnapshot();
+        var targetMessages = projection.Instructions.Where(item => item.TargetInhabitantId == targetId).ToArray();
+        Assert.Equal(2, targetMessages.Length);
+        Assert.Equal(first.InstructionId, targetMessages[0].InstructionId);
+        Assert.Equal(firstSaved.ObserverReply, targetMessages[0].ObserverReply);
+        Assert.Equal(second.InstructionId, targetMessages[1].InstructionId);
+        Assert.NotNull(targetMessages[1].ObservedTick);
+        Assert.Null(targetMessages[1].ObserverReply);
+        Assert.DoesNotContain(projection.Instructions, item => item.TargetInhabitantId != targetId);
+        roundtripped.Validate();
+    }
+
     private static async Task<PrivateWorldStepResult> AdvanceUntilAcceptedAsync(PrivateWorldRuntime world, string inhabitantId)
     {
         // The provider signals just before its outer task completes. Admission
@@ -398,17 +462,31 @@ public sealed class PrivateWorldDeferredCognitionTests
 
     private static PrivateWorldRuntime CreateNameTestWorld(
         string seed,
-        IDecisionProvider provider)
+        IDecisionProvider provider,
+        bool quietOthers = false)
     {
         var world = new PrivateWorldRuntime(seed, id => id == NameTargetId
                 ? provider
-                : new DeterministicDecisionProvider(),
+                : quietOthers ? new QuietDecisionProvider() : new DeterministicDecisionProvider(),
             startPace: WorldStartPace.FounderSetup);
         world.PlaceFounder(NameTargetId, new GridPoint(0, 0));
         world.PlaceFounder(NameOwnerId, new GridPoint(1, 2));
         world.PlaceFounder("founder:cccccccccccccccccccccccccccccccc", new GridPoint(2, 2));
         world.PlaceFounder("founder:dddddddddddddddddddddddddddddddd", new GridPoint(3, 2));
         return world;
+    }
+
+    private sealed class QuietDecisionProvider : IDecisionProvider
+    {
+        public DecisionProviderKind Kind => DecisionProviderKind.Deterministic;
+        public long ProviderEpoch => 1;
+        public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
+        {
+            var observation = request.Observation;
+            return ValueTask.FromResult(new CognitionDecisionResponse(request.RequestId, observation.InhabitantId, Kind, ProviderEpoch,
+                observation.RunEpoch, observation.DecisionGeneration, observation.ObservationDigest, "safe_idle", 1,
+                observation.Candidates.ToDictionary(candidate => candidate.Id, candidate => candidate.Id == "safe_idle" ? 1d : 0d, StringComparer.Ordinal)));
+        }
     }
 
     private sealed record NameReply(
@@ -558,6 +636,37 @@ public sealed class PrivateWorldDeferredCognitionTests
                 request.Observation.RunEpoch, request.Observation.DecisionGeneration,
                 request.Observation.ObservationDigest, selected.Id, 1d, probabilities,
                 PrivateThought: privateThought, ChosenName: chosenName);
+        }
+    }
+
+    private sealed class HeldGuidanceReplyProvider(string replyText) : IDecisionProvider
+    {
+        public TaskCompletionSource<bool> Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<bool> Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<bool> Returned { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public ConcurrentQueue<InhabitantObservation> ObservedRequests { get; } = new();
+        public DecisionProviderKind Kind => DecisionProviderKind.LargeLanguageModel;
+        public long ProviderEpoch => 1;
+
+        public async ValueTask<CognitionDecisionResponse> DecideAsync(
+            CognitionDecisionRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            ObservedRequests.Enqueue(request.Observation);
+            Started.TrySetResult(true);
+            await Release.Task;
+            var observation = request.Observation;
+            var selected = observation.Candidates.Single(item => item.Id == "safe_idle");
+            var probabilities = observation.Candidates.ToDictionary(item => item.Id,
+                item => item.Id == selected.Id ? 1d : 0d, StringComparer.Ordinal);
+            var firstMessage = observation.ObserverGuidance?.FirstOrDefault(message => message.ReplyAllowed);
+            var response = new CognitionDecisionResponse(
+                request.RequestId, observation.InhabitantId, Kind, ProviderEpoch,
+                observation.RunEpoch, observation.DecisionGeneration, observation.ObservationDigest,
+                selected.Id, 1d, probabilities,
+                ObserverReplies: firstMessage is null ? [] : [new(firstMessage.InstructionId, replyText)]);
+            Returned.TrySetResult(true);
+            return response;
         }
     }
 }

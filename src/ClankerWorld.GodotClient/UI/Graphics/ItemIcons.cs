@@ -1340,11 +1340,38 @@ public static class ItemIcons
         ]),
     };
 
+    /// <summary>
+    /// Simulation item kinds shown with an approved icon kept under the art
+    /// review's name: the storage pot is the approved clay pot, and fresh
+    /// water carried in a jug is the approved water.
+    /// </summary>
+    private static readonly Dictionary<string, string> DrawnAs = new(StringComparer.Ordinal)
+    {
+        ["storage_pot"] = "clay_pot",
+        ["fresh_water"] = "water",
+        ["gold_ore"] = "gold",
+        ["stone_hammer"] = "hammer",
+        ["iron_sickle"] = "sickle",
+        ["iron_knife"] = "knife",
+        ["padded_coat"] = "cold_clothing",
+        ["rain_cloak"] = "wet_clothing",
+    };
+
+    static ItemIcons()
+    {
+        // Named wooden tools keep the approved silhouettes and handle colours,
+        // with the approved wooden head palette distinguishing their tier.
+        Icons["wooden_hammer"] = Icons["hammer"] with { Palette = Handle + " " + Cord + " " + WoodHead };
+        Icons["wooden_sickle"] = Icons["sickle"] with { Palette = Handle + " " + WoodHead + " wE6C77B k6E4E31" };
+    }
+
+    private static string Drawing(string kind) => DrawnAs.GetValueOrDefault(kind, kind);
+
     /// <summary>The item kinds that have their own icon.</summary>
     public static IReadOnlyCollection<string> Kinds => Icons.Keys.Where(kind => kind != Fallback).ToArray();
 
     /// <summary>Whether this kind has its own icon rather than the crate.</summary>
-    public static bool Has(string kind) => kind != Fallback && Icons.ContainsKey(kind);
+    public static bool Has(string kind) => kind != Fallback && Icons.ContainsKey(Drawing(kind));
 
     public static ImageTexture Texture(string kind, int size)
     {
@@ -1361,7 +1388,7 @@ public static class ItemIcons
     /// </summary>
     public static Image Render(string kind, int size)
     {
-        var art = OutlinedArt(Icons.ContainsKey(kind) ? kind : Fallback);
+        var art = OutlinedArt(Icons.ContainsKey(Drawing(kind)) ? Drawing(kind) : Fallback);
         var scale = Math.Max(1, size / Grid);
         var offset = (size - Grid * scale) / 2;
         var image = Image.CreateEmpty(size, size, false, Image.Format.Rgba8);
