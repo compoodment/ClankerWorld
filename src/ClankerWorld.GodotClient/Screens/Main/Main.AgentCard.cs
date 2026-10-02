@@ -716,7 +716,7 @@ public partial class Main
         thoughtsHeading.Text = isDeceased ? "THOUGHTS · HISTORICAL" : "THOUGHTS";
         privateThoughtHistory.Text = inhabitant.RecentPrivateThoughts.Count == 0
             ? "None recorded yet."
-            : $"{ThoughtTime(inhabitant.RecentPrivateThoughts[^1].WorldTick, snapshot.WorldTick)}  {inhabitant.RecentPrivateThoughts[^1].Text}";
+            : $"{ThoughtTime(inhabitant.RecentPrivateThoughts[^1].WorldTick, snapshot.WorldTick)}  {GameUiText.PlainEllipses(inhabitant.RecentPrivateThoughts[^1].Text)}";
         // Keep the task that Cancel task targets, then the newest open messages
         // before closed ones, within the same four-message history.
         var pendingOrder = PendingOrderToCancel(snapshot, inhabitant.Id);

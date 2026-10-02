@@ -543,7 +543,8 @@ public partial class Main
             lines.Add($"{proposal.Yes} yes / {proposal.No} no · {proposal.RequiredYes} yes needed" +
                 (proposal.Status == "pending" ? " · closes " + DisplayWorldClock(proposal.DeadlineTick) : ""));
         }
-        return string.Join("\n", lines);
+        // Proposals are written by agents' models, which may use the font's mid-height ellipsis.
+        return GameUiText.PlainEllipses(string.Join("\n", lines));
     }
 
     private static string CivicElectionName(string kind) => kind switch

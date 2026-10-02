@@ -60,4 +60,61 @@ public partial class Main
         if (found.Count > 0)
             throw new InvalidOperationException($"Text must spell an ellipsis as three full stops {when}: {string.Join(" / ", found.Take(5))}.");
     }
+
+    /// <summary>
+    /// Agents' own words reach the drawn panels as their models wrote them:
+    /// the Profile's newest thought and People notes, memory cards, World
+    /// Info's council proposals, project blockers and social notes, and the
+    /// Event Log rows. Each spells an ellipsis as three full stops.
+    /// </summary>
+    private void VerifyAgentTextEllipses()
+    {
+        if (renderedMapSnapshot is not { } shown)
+            throw new InvalidOperationException("The agent text check needs a world on screen.");
+        var ellipsis = GameUiText.Ellipsis;
+        var ash = PanelSmokeAgent("ellipsis-ash", "Ash", new OwnerWorldPosition(1, 1)) with
+        {
+            RecentPrivateThoughts = [new OwnerWorldPrivateThought(1, $"Maybe{ellipsis} I should rest.")],
+            RecentMemories = [new OwnerWorldAgentMemory(1, "ellipsis-ash", "Ash", $"The river was{ellipsis} cold.", "private")],
+            SocialNotes = [$"Talked with Rowan{ellipsis} briefly."],
+            Project = new OwnerWorldProject("Kiln", "building", 1, 10, $"Waiting for clay{ellipsis}", 0),
+        };
+        var snapshot = shown with { Inhabitants = [ash] };
+        var council = new OwnerTownGovernance("assembly", "none", ["Ash"], null, 0, [],
+            [new OwnerCivicProposal("ellipsis-proposal", "law", $"Share the harvest{ellipsis}", "passed", 1, 0, 1, 0)], null);
+        var selected = selectedInhabitantId;
+        // An Event Log row looks its event up for the icon; use an id no real event has.
+        const long EventId = -2026;
+        knownEvents[EventId] = new OwnerWorldEvent(EventId, 1, "inhabitant_spoke", ash.Id, null);
+        try
+        {
+            selectedInhabitantId = ash.Id;
+            RenderSelectedInhabitantCard(snapshot);
+            RenderTownExtras(snapshot);
+            RenderEventRows([(EventId, false, "08:00", $"Ash said{ellipsis} hello")], false);
+            var texts = new Dictionary<string, string>
+            {
+                ["thought"] = privateThoughtHistory.Text,
+                ["memory"] = MemoryCardsText(),
+                ["People"] = ProfilePeopleText(),
+                ["Town details"] = PageText(townExtras),
+                ["Event Log"] = string.Join("\n", eventRows.FindChildren("*", nameof(Label), recursive: true, owned: false).OfType<Label>().Select(label => label.Text)),
+                ["council"] = TownCivicText(shown.Towns.Count > 0 ? shown.Towns[0] with { Governance = council } :
+                    new OwnerWorldTown("town:ellipsis", "Ellipsis", "founded", 0, [], [], []) { Governance = council }, 0),
+            };
+            var wrong = texts.Where(pair => pair.Value.Contains(ellipsis, StringComparison.Ordinal) || !pair.Value.Contains("...", StringComparison.Ordinal))
+                .Select(pair => $"{pair.Key}: {pair.Value.ReplaceLineEndings(" / ")}").ToArray();
+            if (wrong.Length > 0)
+                throw new InvalidOperationException($"Agents' words must spell an ellipsis as three full stops on every panel: {string.Join(" | ", wrong)}");
+        }
+        finally
+        {
+            knownEvents.Remove(EventId);
+            selectedInhabitantId = selected;
+            RenderSelectedInhabitantCard(shown);
+            RenderTownExtras(shown);
+            renderedEventLog = null;
+            RenderEventLog();
+        }
+    }
 }
