@@ -521,6 +521,9 @@ public sealed record ManualWorldSave(string Id, string Name, DateTimeOffset Crea
 /// <summary>One version of a world's history; saves from before branches have none.</summary>
 public sealed record SaveBranch(string Id, int Number, string? StartedFromId = null,
     string? StartedFromName = null, long? StartedFromTick = null);
+/// <summary>Where the running world continues on the save timeline: the save it was last
+/// loaded from or saved as, that save's branch, and whether the next save starts a new branch.</summary>
+public sealed record SaveTimelinePosition(string? ContinuedFromId, string? BranchId, bool StartsNewBranch);
 public sealed record ManualSaveLoadReceipt(string LoadedId, string BackupId, long WorldTick);
 public sealed record ManualSaveOverwriteReceipt(ManualWorldSave Saved, string BackupId);
 public sealed record OwnerAutosaveConfigurationAction(bool Enabled, int IntervalMinutes, int RotationCount);

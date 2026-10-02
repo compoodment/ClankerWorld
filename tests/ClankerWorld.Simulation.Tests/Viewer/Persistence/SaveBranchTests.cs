@@ -120,6 +120,27 @@ public sealed class SaveBranchTests : IDisposable
     }
 
     [Fact]
+    public async Task TheCurrentPositionSaysWhereTheNextSaveGoes()
+    {
+        Assert.Equal(new SaveTimelinePosition(null, null, true), store.CurrentPosition(WorldId));
+        var flood = store.Create("Before the flood", runtime, []);
+        Assert.Equal(new SaveTimelinePosition(flood.Id, flood.Branch?.Id, false), store.CurrentPosition(WorldId));
+        await PlayAsync();
+        var harvest = store.Create("Big harvest", runtime, []);
+
+        Load(flood);
+        Assert.Equal(new SaveTimelinePosition(flood.Id, flood.Branch?.Id, true), store.CurrentPosition(WorldId));
+        await PlayAsync();
+        var winter = store.Create("Hungry winter", runtime, []);
+        Assert.NotEqual(flood.Branch, winter.Branch);
+        Assert.Equal(new SaveTimelinePosition(winter.Id, winter.Branch?.Id, false), store.CurrentPosition(WorldId));
+
+        Load(harvest);
+        Assert.Equal(new SaveTimelinePosition(harvest.Id, harvest.Branch?.Id, false), store.CurrentPosition(WorldId));
+        Assert.Equal(harvest.Branch, store.Create("Later", runtime, []).Branch);
+    }
+
+    [Fact]
     public async Task BrowsingSavesWithoutPlayingNeedsNoCopyAndStartsNoBranch()
     {
         var flood = store.Create("Before the flood", runtime, []);

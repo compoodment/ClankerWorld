@@ -562,6 +562,12 @@ public sealed partial class ViewerHttpTests
                 var branched = await savedAfterLoad.Content.ReadFromJsonAsync<ManualWorldSave>();
                 Assert.Equal(2, branched?.Branch?.Number);
                 Assert.Equal(saveId, branched?.Branch?.StartedFromId);
+                var timelineAction = new OwnerControlAction("save-timeline");
+                using var timeline = await SendSignedAsync(host, client, key, device.DeviceId,
+                    "/api/v1/owner/saves/timeline", timelineAction, OwnerHttpBinding.EmptyPayload("save-timeline"));
+                Assert.Equal(HttpStatusCode.OK, timeline.StatusCode);
+                Assert.Equal(new SaveTimelinePosition(branched?.Id, branched?.Branch?.Id, false),
+                    await timeline.Content.ReadFromJsonAsync<SaveTimelinePosition>());
                 Assert.Contains(providers.CaptureRuntimeConfiguration().Assignments ?? [],
                     item => item.InhabitantId == "founder:checkpoint" && item.CredentialSlotId == slotId);
                 var statusAction = new OwnerControlAction("autosave-status");

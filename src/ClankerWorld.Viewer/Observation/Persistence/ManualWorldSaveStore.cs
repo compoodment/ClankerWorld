@@ -25,6 +25,12 @@ public sealed record SaveBranch(string Id, int Number, string? StartedFromId = n
 public sealed record SaveTimelineRestorePoint(string WorldId, byte[]? Bytes);
 
 /// <summary>
+/// Where the running world's history continues: the save it was last loaded from
+/// or saved as, that save's branch, and whether the next save starts a new branch.
+/// </summary>
+public sealed record SaveTimelinePosition(string? ContinuedFromId, string? BranchId, bool StartsNewBranch);
+
+/// <summary>
 /// Owner-only named checkpoints for the currently active world. Opaque IDs,
 /// atomic writes, and private files keep names out of paths and credentials
 /// out of world saves. History segments remain alongside the active save.
@@ -268,6 +274,21 @@ public sealed class ManualWorldSaveStore
         }
     }
 
+    /// <summary>
+    /// Where the running world continues, for the Load Save timeline. Reading it
+    /// changes nothing; the next save makes the same branch choice it reports.
+    /// </summary>
+    public SaveTimelinePosition CurrentPosition(string worldId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(worldId);
+        lock (gate)
+        {
+            var timeline = ReadTimeline(worldId);
+            return new SaveTimelinePosition(timeline?.ContinuedFromId, timeline?.Branch?.Id,
+                ContinuingBranch(timeline, List(worldId)) is null);
+        }
+    }
+
     private static bool SameAutosaveChoices(WorldAutosaveSettings? left, WorldAutosaveSettings? right) =>
         left is null || right is null
             ? left is null && right is null
@@ -276,11 +297,7 @@ public sealed class ManualWorldSaveStore
 
     private SaveBranch ResolveBranch(Timeline? timeline, IReadOnlyList<ManualWorldSave> worldSaves)
     {
-        // Positions order snapshots even when the world tick stays unchanged or
-        // an intermediate checkpoint has been deleted. Recovery copies retain
-        // the original position and do not themselves advance the history.
-        if (timeline?.Branch is { } current && !worldSaves.Any(save => save.Branch?.Id == current.Id &&
-                save.BranchPosition > timeline.ContinuedFromBranchPosition))
+        if (ContinuingBranch(timeline, worldSaves) is { } current)
             return current;
         var number = Math.Max(timeline?.LastBranchNumber ?? 0,
             worldSaves.Select(save => save.Branch?.Number ?? 0).DefaultIfEmpty(0).Max()) + 1;
@@ -292,6 +309,16 @@ public sealed class ManualWorldSaveStore
             ManualWorldSaveTelemetry.BranchStarted(logger, number, from);
         return started;
     }
+
+    // The running world's branch, when nothing later has been saved on it.
+    private static SaveBranch? ContinuingBranch(Timeline? timeline, IReadOnlyList<ManualWorldSave> worldSaves) =>
+        // Positions order snapshots even when the world tick stays unchanged or
+        // an intermediate checkpoint has been deleted. Recovery copies retain
+        // the original position and do not themselves advance the history.
+        timeline?.Branch is { } current && !worldSaves.Any(save => save.Branch?.Id == current.Id &&
+            save.BranchPosition > timeline.ContinuedFromBranchPosition)
+            ? current
+            : null;
 
     private static long NextBranchPosition(SaveBranch branch, Timeline? timeline) =>
         branch.Id == timeline?.Branch?.Id ? checked(timeline.ContinuedFromBranchPosition + 1) : 1;

@@ -37,6 +37,7 @@ public static class OwnerPairingEndpoints
     public const string OwnerSaveCreate = "/api/v1/owner/saves/create";
     public const string OwnerSaveOverwrite = "/api/v1/owner/saves/overwrite";
     public const string OwnerSaveLoad = "/api/v1/owner/saves/load";
+    public const string OwnerSaveTimeline = "/api/v1/owner/saves/timeline";
     public const string OwnerWorldList = "/api/v1/owner/worlds/list";
     public const string OwnerWorldCreate = "/api/v1/owner/worlds/create";
     public const string OwnerWorldPreview = "/api/v1/owner/worlds/preview";
