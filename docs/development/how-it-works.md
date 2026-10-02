@@ -2,7 +2,7 @@
 title: How the game works
 type: architecture
 status: active
-updated: 2026-10-03
+updated: 2026-10-02
 ---
 
 # How the game works

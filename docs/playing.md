@@ -2,7 +2,7 @@
 title: Playing the current game
 type: player-guide
 status: active
-updated: 2026-10-03
+updated: 2026-10-02
 ---
 
 # Playing the current game
