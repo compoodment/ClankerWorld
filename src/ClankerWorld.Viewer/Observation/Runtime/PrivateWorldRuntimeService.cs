@@ -44,6 +44,10 @@ public sealed partial class PrivateWorldRuntimeService(
         Message = "hosted_decision tick={WorldTick} inhabitant={InhabitantId} outcome={Outcome}")]
     private static partial void LogHostedDecision(ILogger logger, long worldTick, string inhabitantId, string outcome);
 
+    [LoggerMessage(EventId = 2288, Level = LogLevel.Information,
+        Message = "agent_identity_changed tick={WorldTick} inhabitant={InhabitantId}")]
+    private static partial void LogIdentityChanged(ILogger logger, long worldTick, string inhabitantId);
+
     [LoggerMessage(EventId = 2255, Level = LogLevel.Information,
         Message = "estate_will tick={WorldTick} estate={EstateId} deceased={DeceasedId} outcome={Outcome} reason={Reason}")]
     private static partial void LogEstateWill(ILogger logger, long worldTick, string estateId, string deceasedId, string outcome, string reason);
@@ -294,6 +298,11 @@ public sealed partial class PrivateWorldRuntimeService(
                 }
                 var projects = runtime.Inhabitants.Where(person => person.Project is not null)
                     .ToDictionary(person => person.InhabitantId, person => person.Project!, StringComparer.Ordinal);
+                foreach (var worldEvent in result.Events.Where(item => item.Kind == "agent_identity_revised"))
+                {
+                    var actor = EventActor(worldEvent.Detail);
+                    if (actor is not null) LogIdentityChanged(logger, worldEvent.WorldTick, actor);
+                }
                 foreach (var worldEvent in result.Events.Where(item => item.Kind.StartsWith("town_", StringComparison.Ordinal) ||
                              item.Kind is "bridge_built" or "traffic_bridge_not_built"))
                     LogTownEvent(worldEvent);
@@ -371,6 +380,7 @@ public sealed partial class PrivateWorldRuntimeService(
                 foreach (var worldEvent in result.Events.Where(item => item.Kind is "partnership_proposed" or "partnership_accepted" or
                              "partnership_refused" or "partnership_ended" or "partnership_expired" or
                              "parenthood_requested" or "parenthood_preparing" or "parenthood_cancelled" or "parenthood_completed" or
+                             "parenthood_postponed" or "continuity_rule_on" or "continuity_rule_off" or "continuity_plan_proceeded" or
                              "child_born" or "child_cared_for" or "guardian_needed" or "guardian_assigned" or
                              "primary_caregiver_assigned" or "caregiver_proposed" or "caregiver_assigned" or
                              "caregiver_accepted" or "caregiver_refused" or "caregiver_proposal_expired" or "caregiver_ended" or
@@ -380,7 +390,9 @@ public sealed partial class PrivateWorldRuntimeService(
                 }
                 foreach (var worldEvent in result.Events.Where(item => item.Kind is "housing_request_made" or
                              "housing_answer_recorded" or "household_joined" or "housing_request_refused" or
-                             "housing_request_expired" or "housing_request_cancelled" or "housing_blocked"))
+                             "housing_request_expired" or "housing_request_cancelled" or "housing_blocked" or
+                             "household_left" or "household_founded" or "personal_goods_collected" or "personal_goods_stored" or
+                             "borrowed_goods_returned" or "replacement_care_accepted" or "household_work_resumed"))
                 {
                     LogSettlementHousing(logger, result.WorldTick, worldEvent.Kind);
                 }
@@ -524,6 +536,31 @@ public sealed partial class PrivateWorldRuntimeService(
     private void LogTownEvent(PlaytestWorldEvent worldEvent)
     {
         if (logger is null) return;
+        var civicKind = worldEvent.Kind switch
+        {
+            "town_civic_council" => TownCivicTransitionKind.CouncilChanged,
+            "town_civic_election" => TownCivicTransitionKind.ElectionOpened,
+            "town_civic_runoff" => TownCivicTransitionKind.RunoffOpened,
+            "town_civic_proposal" => TownCivicTransitionKind.ProposalOpened,
+            "town_civic_result" => TownCivicTransitionKind.DecisionRecorded,
+            "town_civic_cancelled" => TownCivicTransitionKind.ElectionCancelled,
+            _ => (TownCivicTransitionKind?)null,
+        };
+        if (civicKind is { } civicTransition)
+        {
+            var fields = worldEvent.Detail.Split('|', 3);
+            var civicTown = fields.Length == 3 ? runtime.Towns.FirstOrDefault(t => t.Id == fields[0]) : null;
+            if (civicTown?.Governance is { } governance)
+            {
+                var proposal = governance.Proposals.FirstOrDefault(p => p.Id == fields[1]);
+                var election = governance.Election?.Id == fields[1] ? governance.Election :
+                    governance.ElectionHistory.FirstOrDefault(e => e.Id == fields[1]);
+                TownTelemetry.Civic(logger, worldEvent.WorldTick, civicTown.Id, civicTransition,
+                    governance.Form == "representative", governance.Members.Count, proposal?.Status ?? election?.Stage ?? "none",
+                    proposal?.Votes.Count(v => v.Yes) ?? 0, proposal?.Votes.Count(v => !v.Yes) ?? 0, election?.Ballots.Count ?? 0);
+            }
+            return;
+        }
         if (worldEvent.Kind == "town_layout_site_rejected")
         {
             var fields = worldEvent.Detail.Split('|', StringSplitOptions.None);

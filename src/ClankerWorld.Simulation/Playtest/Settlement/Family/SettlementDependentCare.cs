@@ -1,117 +1,22 @@
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Society;
-using System.Text;
 
 namespace ClankerWorld.Simulation.Playtest;
 
 public sealed partial class PrivateWorldRuntime
 {
-    private static readonly HashSet<string> GenericGuardianInstructionWords = new(StringComparer.Ordinal)
-    {
-        "accept", "accepted", "accepting", "care", "caregiver", "child", "children", "dependent", "dependents",
-        "guardian", "guardianship", "infant", "infants", "orphan", "orphans", "primary", "please", "take",
-        "in", "of", "for", "to", "the", "a", "an", "this", "that", "one", "whoever", "any", "someone", "and",
-        "help", "raise", "responsibility", "become", "be", "should", "must", "can", "could", "would", "your", "their",
-        "our", "my", "household", "home", "family", "into",
-    };
-
     private long GuardianStageTicks => Math.Max(1, worldSystems.Config.TicksPerDay);
 
     private bool NeedsCaregiver(string child) => inhabitants.ContainsKey(child) &&
         society.Checkpoint.GetInhabitant(child).AgeBand is SocietyAgeBand.Infant or SocietyAgeBand.Child or SocietyAgeBand.Adolescent &&
         !SocietyFixture.HasActivePrimaryCaregiver(society.Checkpoint, child);
-    private bool CanAcceptGuardian(string adult, string child, bool ordered = false) => AdultResident(adult) &&
+    private bool CanAcceptGuardian(string adult, string child) => AdultResident(adult) &&
         ReadyForBriefInteraction(adult) &&
-        NeedsCaregiver(child) && (ordered || inhabitants[child].GuardianSearch is { } search &&
+        NeedsCaregiver(child) && inhabitants[child].GuardianSearch is { } search &&
             search.OfferedAdultIds.Contains(adult, StringComparer.Ordinal) &&
-            GuardianAdultsForStage(child, search.Stage).Contains(adult, StringComparer.Ordinal));
+            GuardianAdultsForStage(child, search.Stage).Contains(adult, StringComparer.Ordinal);
 
-    private string? GuardianTargetForInstruction(string text)
-    {
-        var pending = inhabitants.Keys.Where(NeedsCaregiver).Order(StringComparer.Ordinal).ToArray();
-        const string directIdPrefix = "guardian_accept:";
-        var normalized = text.Trim();
-        if (normalized.StartsWith(directIdPrefix, StringComparison.OrdinalIgnoreCase))
-        {
-            var requestedId = normalized[directIdPrefix.Length..];
-            return pending.SingleOrDefault(id => string.Equals(id, requestedId, StringComparison.Ordinal));
-        }
-
-        var matches = pending.Where(child =>
-        {
-            var name = society.Checkpoint.GetInhabitant(child).Name;
-            return ContainsWholeGuardianTarget(text, name, isIdentifier: false) ||
-                ContainsWholeGuardianTarget(text, child, isIdentifier: true);
-        }).ToArray();
-        if (matches.Length > 1)
-            return null;
-
-        if (matches.Length == 1)
-        {
-            var child = matches[0];
-            var name = society.Checkpoint.GetInhabitant(child).Name;
-            var remainder = RemoveWholeGuardianTarget(text, name, isIdentifier: false);
-            remainder = RemoveWholeGuardianTarget(remainder, child, isIdentifier: true);
-            return InstructionWords(remainder).All(GenericGuardianInstructionWords.Contains) ? child : null;
-        }
-
-        // A generic request may mean the only dependent needing a guardian.
-        // Any other word is treated as an explicit target, even when that
-        // target is unknown, so "care for Bob" cannot silently select Alice.
-        return pending.Length == 1 && InstructionWords(text).All(GenericGuardianInstructionWords.Contains)
-            ? pending[0]
-            : null;
-    }
-
-    private static bool ContainsWholeGuardianTarget(string text, string target, bool isIdentifier)
-    {
-        if (string.IsNullOrWhiteSpace(target))
-            return false;
-
-        var start = 0;
-        while ((start = text.IndexOf(target, start, StringComparison.OrdinalIgnoreCase)) >= 0)
-        {
-            var end = start + target.Length;
-            var beforeIsPart = start > 0 && GuardianTargetCharacter(text[start - 1], isIdentifier);
-            var afterIsPart = end < text.Length && GuardianTargetCharacter(text[end], isIdentifier);
-            if (!beforeIsPart && !afterIsPart)
-                return true;
-            start = end;
-        }
-
-        return false;
-    }
-
-    private static string RemoveWholeGuardianTarget(string text, string target, bool isIdentifier)
-    {
-        if (string.IsNullOrWhiteSpace(target))
-            return text;
-
-        var result = new StringBuilder(text.Length);
-        var copiedThrough = 0;
-        var searchFrom = 0;
-        while ((searchFrom = text.IndexOf(target, searchFrom, StringComparison.OrdinalIgnoreCase)) >= 0)
-        {
-            var end = searchFrom + target.Length;
-            var beforeIsPart = searchFrom > 0 && GuardianTargetCharacter(text[searchFrom - 1], isIdentifier);
-            var afterIsPart = end < text.Length && GuardianTargetCharacter(text[end], isIdentifier);
-            if (!beforeIsPart && !afterIsPart)
-            {
-                result.Append(text, copiedThrough, searchFrom - copiedThrough);
-                result.Append(' ', target.Length);
-                copiedThrough = end;
-            }
-            searchFrom = end;
-        }
-
-        result.Append(text, copiedThrough, text.Length - copiedThrough);
-        return result.ToString();
-    }
-
-    private static bool GuardianTargetCharacter(char value, bool isIdentifier) =>
-        char.IsLetterOrDigit(value) || value == '_' || value == '-' || isIdentifier && value == ':' ||
-        !isIdentifier && value is '\'' or '’';
     private bool EligibleCaregiver(string adult, string child) => AdultResident(adult) && NeedsCaregiver(child) &&
         society.Checkpoint.GetInhabitant(adult).HouseholdId is { } household &&
         society.Checkpoint.GetInhabitant(child).HouseholdId == household;
@@ -147,17 +52,6 @@ public sealed partial class PrivateWorldRuntime
         (CareProposals().Any(edge => edge.TargetId == actor) ||
          inhabitants.Keys.Any(child => CanOfferCare(actor, child) || CanAssumePrimaryCare(actor, child) ||
              CanAcceptGuardian(actor, child)));
-
-    private void AddOrderedGuardianCandidate(List<CognitionCandidate> candidates, string actor, string? instructionText)
-    {
-        if (instructionText is null || InstructionCandidate(instructionText) != "guardian_accept" ||
-            !AdultResident(actor) || !ReadyForBriefInteraction(actor) ||
-            GuardianTargetForInstruction(instructionText) is not { } child ||
-            !NeedsCaregiver(child) || candidates.Any(candidate => candidate.Id == "guardian_accept:" + child))
-            return;
-        candidates.Add(new("guardian_accept:" + child,
-            $"Accept primary care of {society.Checkpoint.GetInhabitant(child).Name}. They can move into your household only if your House has room and you share their Town.", 3));
-    }
 
     private void MaintainDependentCare()
     {
@@ -354,10 +248,7 @@ public sealed partial class PrivateWorldRuntime
         {
             if (inhabitants.ContainsKey(target) && NeedsCaregiver(target))
             {
-                var instruction = PendingInstructionFor(actor);
-                var ordered = instruction is { Kind: OwnerInstructionKind.MustDo or OwnerInstructionKind.Suggestive } &&
-                    InstructionCandidate(instruction.Text) == "guardian_accept" && GuardianTargetForInstruction(instruction.Text) == target;
-                AcceptGuardian(actor, target, CanAcceptGuardian(actor, target, ordered));
+                AcceptGuardian(actor, target, CanAcceptGuardian(actor, target));
                 return;
             }
             var edge = CareProposals().FirstOrDefault(edge => edge.Id == target && edge.TargetId == actor);

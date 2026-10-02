@@ -239,14 +239,19 @@ Any move between Towns still follows the admission rules in issue
   while that adult continues care. Parentage is unchanged. The overcrowding
   timer still cannot expel a child alone or remove their only caregiver.
 
-Adult departure, personal ownership, limited collection access, the food
-allowance and solo formation are implementation work in
-[#593](https://github.com/compoodment/ClankerWorld/issues/593).
-The agreed response to losing a dependent's last active primary caregiver is
-described in [Agents and families](agents-and-families.md#dependent-care-after-loss-of-the-last-active-primary-caregiver).
+Adult departure, personal ownership, limited physical collection, the once-only
+food allowance, care-group moves and solo formation are implemented through
+[#593](https://github.com/compoodment/ClankerWorld/issues/593). Overcrowding
+notice and relocation selection remain separate work in
+[#599](https://github.com/compoodment/ClankerWorld/issues/599). The agreed
+response to losing a dependent's last active primary caregiver is described in
+[Agents and families](agents-and-families.md#dependent-care-after-loss-of-the-last-active-primary-caregiver).
 Cross-Town moves after accepted care still follow Town admission rules in
-[#602](https://github.com/compoodment/ClankerWorld/issues/602). Wills and
-inheritance remain separate choices.
+[#602](https://github.com/compoodment/ClankerWorld/issues/602). Wills are agreed
+in [Agents and
+families](agents-and-families.md#starting-agents-families-and-life-stages);
+other guardianship cases remain separate choices in [Agents and
+families](agents-and-families.md#still-to-decide).
 
 ### House resident capacity and relocation
 
@@ -513,8 +518,12 @@ and invented content are not silently approved. In particular:
   **7×4** plaza in the October 1 art review: 7×5 was "a bit too big for the
   eight stalls", and 5×4 lost the open column on each side that it needed.
   The stalls stand in two back-to-back rows of four, each facing an aisle,
-  with a path from the hall's door down the middle. Town Hall is
-  **3×4**. These are building/plot footprints, not interior rooms.
+  with a path from the hall's door down the middle. **Agreed on
+  October 1, 2026:** the Town owns the stalls. A new Market comes with a
+  starter set; when sellers need more, the Town builds them on the plaza as
+  Town building projects, using Town materials. The size of the starter set
+  stays provisional. Town Hall is **3×4**. These are building/plot
+  footprints, not interior rooms.
 - Port is **2×4**, rotatable to all four cardinal directions. One tile of its
   four-tile length rests on land; three extend over water. Keep clear docking
   space along both long sides of that three-tile water section. **Agreed after
@@ -597,13 +606,31 @@ building. The generator should not preselect a fixed lifetime building count.
 
 The **Town holds formal title** to land it claims; households hold inspectable
 **use rights** for homes, farms and businesses rather than household land title.
-The Town border alone does not silently take over another claim or transfer a
-building, its stock or a household's private goods. Physical occupation or
-model text cannot rewrite these records. The first Town begins with a council,
-not an assumed mayor. Residents can later approve creating an elected mayor
-through the protected government-change process. Its creation, term and
-elections are agreed in [The mayor's office and elections](#the-mayors-office-and-elections);
+A plot is a connected group of land tiles and can include empty land. The Town
+border alone does not silently take over another claim or transfer a building,
+its stock or a household's private goods. Physical occupation or model text
+cannot rewrite these records. The first Town begins with a council, not an
+assumed mayor. Residents can later approve creating an elected mayor through
+the protected government-change process. Its creation, term and elections are
+agreed in [The mayor's office and elections](#the-mayors-office-and-elections);
 [Land hearings and rulings](#land-hearings-and-rulings) settles adjudication.
+
+**Current implementation, not yet confirmed by computment:** the first
+accepted Town layout records title to the connected land inside its initial
+border, and later border growth makes room for the Town without adding title.
+That follows answer 19A, that a boundary change does not by itself change
+title ([Borders, abandoned Towns and salvage](#borders-abandoned-towns-and-salvage)).
+Starter household use rights cover only the footprints of the buildings
+assigned to each household; the shared Warehouse remains Town property.
+Add Agent treats a recorded use right as household property and Town title
+like a Town border; a single pending request gives no household. A household
+building's current owner comes before another household's undisputed use right
+on its footprint, so reassigning a building does not block placement there. A
+field does not, and disputed land is always refused. Whether title grows with
+the Town, how much land comes with a starter use right, and whether reassigning
+a building should move its starter use right remain open. Because new grants
+use existing Town-owned land, the first answer decides where later households
+can receive use rights.
 
 Competing requests are visible as **pending disputes**. While one is pending,
 conflicting formal rights transfers pause; residents are not evicted, goods
@@ -620,7 +647,10 @@ agreement without mayor approval for every transfer. The elected mayor makes
 the final decision on disputes and what happens when an agreed period ends.
 These rules do not imply automatic confiscation or unilateral household
 transfers. Evidence, hearings, outcomes and conflicts of interest follow the
-agreed [case procedure](#land-hearings-and-rulings).
+agreed [case procedure](#land-hearings-and-rulings). Disputed land is striped
+on the map, and inspecting a tile lists each household's claim. Approval,
+consent, transfer and case actions are not built yet
+([what works today](../what-works.md)).
 
 ### How Roads and bridges appear
 
@@ -1345,7 +1375,8 @@ and make either vessel at a household House.
 | Wooden hoe | Wood; prepares and tends fields. |
 | Iron hoe | Wood and iron; performs field work faster. |
 | Hammer | Wood and stone; helps construction and repairs. |
-| Sickle | Wood and iron; speeds crop harvesting. |
+| Wooden sickle | Wood; speeds crop harvesting. |
+| Iron sickle | Wood and iron; harvests faster than the wooden sickle. |
 | Knife | Iron; speeds food preparation and suitable crafting work. |
 
 Tools wear through use. The Blacksmith repairs worn tools with some of their
@@ -1422,6 +1453,9 @@ carry remaining goods away.
 it until they leave. The Town does not assign stalls. Leaving frees the stall
 for another seller; goods keep their recorded owner and must be
 carried away or transferred through an actual trade.
+
+**Owner answer on October 1, 2026:** the Town owns the stalls that sellers
+borrow. The Town adds stalls when sellers need them, using Town materials.
 
 Initial trade uses barter offers naming exact goods and quantities. Both sides
 bring their goods to the transaction. The buyer receives purchased goods

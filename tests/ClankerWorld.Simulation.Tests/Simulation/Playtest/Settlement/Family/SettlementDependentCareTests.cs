@@ -246,6 +246,7 @@ public sealed partial class SettlementParenthoodTests
                 ResidentIds = activeIds,
             }).ToArray(),
         };
+        state = WithAdultCouncils(state);
 
         var guardianProvider = new ParentProvider("safe_idle");
         using var world = PrivateWorldRuntime.Restore(state, actor => actor == relative
@@ -299,42 +300,25 @@ public sealed partial class SettlementParenthoodTests
     }
 
     [Fact]
-    public async Task GuardianOrderRejectsAnExtraTargetAndAcceptsTheExactChildId()
+    public async Task ADirectGuardianOrderIsNotUnderstoodAndAppointsNobody()
     {
+        // Ordering an adult to take a child in waits for #587's order catalogue;
+        // the strict order parser closes it without appointing anyone.
         var state = await OrphanState(olderChild: true);
         var child = state.Society.Society.Births.Single().ChildId;
         var childName = state.Society.Society.GetInhabitant(child).Name;
-        var acceptingAdult = state.Society.Society.Inhabitants.First(person => person.Status == SocietyInhabitantStatus.Active &&
+        var adult = state.Society.Society.Inhabitants.First(person => person.Status == SocietyInhabitantStatus.Active &&
             person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder && person.Id != child).Id;
         using var world = PrivateWorldRuntime.Restore(state, _ => new ParentProvider("safe_idle"));
 
-        var mismatched = world.SubmitInstruction(new OwnerInstructionRequest("guardian-mismatch", "owner:test",
-            acceptingAdult, OwnerInstructionKind.MustDo, $"guardian for {childName} and SomeoneElse"));
-        Assert.Contains(mismatched.InstructionId, world.ExportState().CompletedInstructionIds ?? []);
+        var order = world.SubmitInstruction(new OwnerInstructionRequest("guardian-order", "owner:test",
+            adult, OwnerInstructionKind.MustDo, $"Become guardian for {childName}"));
+        for (var tick = 0; tick < 20; tick++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+
+        Assert.Contains(order.InstructionId, world.ExportState().CompletedInstructionIds ?? []);
         Assert.DoesNotContain(world.Society.Relationships, edge => edge.Type == SocietyRelationshipType.Caregiver &&
             edge.TargetId == child && edge.State == SocietyRelationshipState.Accepted);
-
-        var wrongCaseId = child.ToUpperInvariant();
-        Assert.NotEqual(child, wrongCaseId);
-        var wrongCase = world.SubmitInstruction(new OwnerInstructionRequest("guardian-wrong-case-id", "owner:test",
-            acceptingAdult, OwnerInstructionKind.MustDo, $"guardian_accept:{wrongCaseId}"));
-        for (var tick = 0; tick < 40 && !(world.ExportState().CompletedInstructionIds ?? []).Contains(wrongCase.InstructionId); tick++)
-            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-        Assert.Contains(wrongCase.InstructionId, world.ExportState().CompletedInstructionIds ?? []);
-        Assert.DoesNotContain(world.Society.Relationships, edge => edge.Type == SocietyRelationshipType.Caregiver &&
-            edge.TargetId == child && edge.State == SocietyRelationshipState.Accepted);
-
-        var exact = world.SubmitInstruction(new OwnerInstructionRequest("guardian-exact-id", "owner:test",
-            acceptingAdult, OwnerInstructionKind.MustDo, $"guardian_accept:{child}"));
-        for (var tick = 0; tick < 40 && !world.Society.Relationships.Any(edge => edge.Type == SocietyRelationshipType.Caregiver &&
-                 edge.TargetId == child && edge.State == SocietyRelationshipState.Accepted); tick++)
-            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-
-        var accepted = Assert.Single(world.Society.Relationships, edge => edge.Type == SocietyRelationshipType.Caregiver &&
-            edge.TargetId == child && edge.State == SocietyRelationshipState.Accepted);
-        Assert.Equal(acceptingAdult, accepted.ProposerId);
-        Assert.Contains(exact.InstructionId, world.ExportState().CompletedInstructionIds ?? []);
-        Assert.Contains(world.ExportState().Events, item => item.Kind == "instruction_applied" && item.Detail.StartsWith(exact.InstructionId + ":guardian_accept:", StringComparison.Ordinal));
+        Assert.Null(world.Society.GetInhabitant(child).PrimaryCaregiverId);
     }
 
     [Fact]

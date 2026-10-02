@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Content;
 using ClankerWorld.Simulation.Harness;
@@ -14,7 +15,11 @@ public sealed record BuildingExpansionJob(
     BuildingFootprintRevision TargetFootprint, long StartedTick, long CompletionTick,
     WorldProductionJobState State, IReadOnlyList<string> InputReservationIds,
     string? Failure = null,
-    string? DefinitionId = null);
+    string? DefinitionId = null)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public long? PausedAtTick { get; init; }
+}
 
 public static class BuildingStorageRules
 {
@@ -31,7 +36,8 @@ public static class BuildingStorageRules
             width, height, definition.Capacity, definition.BuildCosts, definition.Tags);
 
     public static int? Capacity(BuildingDefinition definition, PlacedBuilding building) =>
-        definition.Tags.Any(tag => tag is "house" or "warehouse")
+        definition.Tags.Contains("farmhouse", StringComparer.Ordinal) ? FarmFieldRules.FarmStorageCapacity :
+        definition.Tags.Any(tag => tag is "house" or "warehouse" or "blacksmith" or "tailor" or "store" or "restaurant" or "clinic")
             ? UnitsPerTile * (building.Footprint?.Width ?? definition.Width) *
                 (building.Footprint?.Height ?? definition.Height) : null;
 
@@ -65,11 +71,12 @@ public sealed partial class PrivateWorldRuntime
         var building = worldSimulation.Buildings.Single(item => item.InstanceId == buildingId);
         var definition = worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
         return BuildingStorageRules.Capacity(definition, building) is { } capacity
-            ? Math.Max(0, capacity - StoredQuantity(buildingId) - ReservedStorageGrowth(buildingId)) : int.MaxValue;
+            ? Math.Max(0, capacity - StoredQuantity(buildingId) - ReservedStorageGrowth(buildingId) -
+                ReservedBusinessStorageSpace(buildingId)) : int.MaxValue;
     }
 
     private int ReservedStorageGrowth(string buildingId) => worldSimulation.ProductionJobs
-        .Where(job => job.BuildingInstanceId == buildingId && job.State == WorldProductionJobState.Running)
+        .Where(job => job.BuildingInstanceId == buildingId && (job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused))
         .Sum(job =>
         {
             var recipe = worldContent.Recipes.Single(item => item.CanonicalId == job.RecipeId);
@@ -89,7 +96,7 @@ public sealed partial class PrivateWorldRuntime
         var owner = ExpansionOwner(building);
         var site = ExpansionGroundPosition(building);
         return society.Checkpoint.Inventory.Lots.Where(lot =>
-            PersonalEquipmentRules.IsCarried(lot, actor) && lot.DeliveryBuildingId is null ||
+            lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) && lot.DeliveryBuildingId is null ||
             lot.OwnerId == owner && lot.StorageBuildingId == building.InstanceId ||
             lot.OwnerId == owner && lot.GroundPosition == site);
     }
@@ -231,7 +238,7 @@ public sealed partial class PrivateWorldRuntime
         }
         else return false;
         if ((worldSimulation.BuildingExpansions ?? []).Any(job => job.BuildingInstanceId == building.InstanceId &&
-                job.State == WorldProductionJobState.Running))
+                (job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused)))
         {
             failure = "An expansion is already in progress for this building.";
             return false;
@@ -273,7 +280,7 @@ public sealed partial class PrivateWorldRuntime
         var original = WorldContentSimulationRules.Footprint(definition, building);
         if (!original.All(tiles.Contains) || tiles.Any(RoadAndBridgeTiles().Contains) ||
             fields.Any(field => tiles.Contains(field.Position)) ||
-            (worldSimulation.BuildingExpansions ?? []).Where(job => job.State == WorldProductionJobState.Running &&
+            (worldSimulation.BuildingExpansions ?? []).Where(job => (job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused) &&
                 job.JobId != ownJobId).Any(job => ExpansionTiles(job).Any(tiles.Contains))) return false;
         var town = towns.SingleOrDefault(item => item.Id == building.TownId);
         if (town is not null && (!TownBorderRules.IsWithinOrAdjacent(town, position, target.Width, target.Height) ||

@@ -46,6 +46,15 @@ public sealed partial class SettlementParenthoodTests
             "orphan-birth-food", 4, society.WorldTick, ChildName: "Orphan", PrimaryCaregiverId: parents[0]));
         var child = Assert.IsType<string>(orphanBirth.CreatedId);
         society = orphanBirth.Checkpoint;
+        // A grandparent is asked first wherever they live, so the same adult is offered in every scenario.
+        var grandparent = new SocietyRelationship("relocation-grandparent", 1,
+            SocietyRelationshipType.BiologicalParentage, adult, parents[0],
+            SocietyRelationshipState.Accepted, SocietyConsentState.ProtectedLifecycle,
+            society.WorldTick, society.WorldTick, "family");
+        society = society with
+        {
+            Relationships = society.Relationships.Append(grandparent).OrderBy(edge => edge.Id, StringComparer.Ordinal).ToArray(),
+        };
         var addedChildren = new List<(string Id, GridPoint HousePosition)> { (child, originHouse.Position) };
         var destinationChildCount = scenario == "full" ? 2 : 1;
         for (var index = 0; index < destinationChildCount; index++)
@@ -130,7 +139,7 @@ public sealed partial class SettlementParenthoodTests
                 }).ToArray(),
             };
         }
-        state = SettlementWeatherTestFixture.WithWeather(state, WeatherKind.Clear);
+        state = SettlementWeatherTestFixture.WithWeather(WithAdultCouncils(state), WeatherKind.Clear);
         var proposedResidents = society.GetHousehold(destinationHousehold).MemberIds.Select(society.GetInhabitant)
             .Append(society.GetInhabitant(child) with { DomesticFamilyUnitId = society.GetInhabitant(adult).DomesticFamilyUnitId });
         var capacity = HouseResidentCapacityRules.Calculate(proposedResidents, 1, 1);
@@ -141,8 +150,6 @@ public sealed partial class SettlementParenthoodTests
         var provider = new ParentProvider("guardian_accept:");
         using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)),
             actor => actor == adult ? provider : new ParentProvider("safe_idle"));
-        world.SubmitInstruction(new("relocation-consent:" + scenario, "owner", adult, OwnerInstructionKind.MustDo,
-            "Become guardian for Orphan"));
         var beforeAcceptance = PrivateWorldRuntimeCodec.Encode(world.ExportState());
         var ticks = 0;
         while (ticks < 40 && world.Society.GetInhabitant(child).PrimaryCaregiverId != adult)
@@ -174,4 +181,16 @@ public sealed partial class SettlementParenthoodTests
         for (var tick = 0; tick < ticks; tick++) Assert.True((await replay.AdvanceOneTickAsync()).Advanced);
         Assert.Equal(encoded, PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
     }
+
+    /// <summary>Gives each Town the all-adult Council its current adult residents require.</summary>
+    private static PrivateWorldRuntimeState WithAdultCouncils(PrivateWorldRuntimeState state) => state with
+    {
+        Towns = state.Towns!.Select(town => town with
+        {
+            Governance = TownGovernanceState.Create(town.ResidentIds.Where(id =>
+                state.Society.Society.Inhabitants.Any(person => person.Id == id &&
+                    person.Status == SocietyInhabitantStatus.Active &&
+                    person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder))),
+        }).ToArray(),
+    };
 }

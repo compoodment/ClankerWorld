@@ -51,12 +51,15 @@ everything that is available in the current build. See [what works today](../wha
   aspirations and initial identity. Agents start with no skills; an agent first
   gains a skill by finishing that kind of work. The player can add adults freely.
 - An agent chooses its personality and aspiration **once, at its first
-  decision**. **Leaning toward (provisional; the moments and the cap are tuned
-  in playtests):** it can change them later only at moments the game names: a
+  decision**. **Agreed, with provisional timing and limits for playtesting:**
+  it can change them later only at moments the game names: a
   midlife point (around day 30 of a life of up to 60 world days), becoming a
   parent, losing a partner or a parent, and becoming an elder. Revisions are
-  capped per life. The game decides when one of these moments comes; the agent
-  decides what changes.
+  capped at one opportunity for each kind of moment, up to five extra requests
+  per life. The game decides when one of these moments comes; the agent decides
+  what changes. It may keep either or both current choices. A missing, invalid
+  or interrupted reply leaves the current identity alone and is not retried
+  automatically. A name change is separate from these opportunities.
 - **Two agents in one world cannot share an exact full name.** If a model
   chooses a name that is already taken, the game asks that agent once more,
   which costs one extra request that counts toward model usage. If that also
@@ -191,7 +194,6 @@ everything that is available in the current build. See [what works today](../wha
   becomes visibly overcrowded instead. The caregiver and birth home are saved
   with the plan and birth record. Other pregnancy timing and detailed childcare
   rules remain open.
-
 - **The first continuity rule, agreed on October 1
   ([#654](https://github.com/compoodment/ClankerWorld/issues/654)):** the rule
   is on while the world has **fewer than eight living agents who are not
@@ -399,17 +401,27 @@ another sprite family at first.
 - Fully generated languages/dialects are **deferred**, not planned now, due to
   uncertain gameplay value and token cost.
 - **How a model sees its needs, agreed on October 1
-  ([#646](https://github.com/compoodment/ClankerWorld/issues/646)):** a request
-  describes each need in words, not exact numbers, and always shows the whole
-  scale from worst to best, so the model cannot misread how serious a word is.
-  For example: "Fullness: hungry (starving, hungry, fine, full; starving is
-  worst, full is best)". The words follow the agreed comfort and urgency
-  levels. The exact words and cut-offs are still provisional, for example:
-  fullness **full** at 70% or more, **fine** at 40–69%, **hungry** at 20–39%
-  and **starving** below 20%; warmth **warm** at 60% or more, **chilly** at
-  35–59% and **freezing** below 35%. Illness uses the same kind of scale; its
-  words are set when it is built. Compare the words against
-  today's numbers in a controlled comparison before they become the default.
+  ([#646](https://github.com/compoodment/ClankerWorld/issues/646)) and settled
+  on October 2 ([#672](https://github.com/compoodment/ClankerWorld/issues/672)):**
+  models keep seeing exact numbers. The owner chose this after a comparison
+  with real models ([need wording comparison](../development/need-wording-comparison.md)):
+  describing needs in words did no worse than numbers with GPT 6 Luna but
+  clearly worse with GLM 5.3 Flash. The words stay built but switched off, and
+  no further comparison is planned. Switched on, a request describes each need
+  in words and always shows the whole scale from worst to best, so the model
+  cannot misread how serious a word is, for example "Fullness: hungry
+  (starving, hungry, fine, full; starving is worst, full is best)". The words
+  follow the agreed comfort and urgency levels, and the exact words and
+  cut-offs stay provisional: fullness **full** at 70% or more, **fine** at
+  40–69%, **hungry** at 20–39% and **starving** below 20%; warmth **warm** at
+  60% or more, **chilly** at 35–59% and **freezing** below 35%; illness, the
+  owner's answer of October 1 on #672, **very ill, ill, unwell, well**,
+  changing at 25%, 50% and 75% illness, where illness already slows an agent's
+  work and travel.
+- **Jev sees all three needs, the owner's answer of October 1 on
+  [#672](https://github.com/compoodment/ClankerWorld/issues/672):** Jev's
+  routine requests describe fullness, warmth and illness the same way as the
+  personal model's requests, not fullness alone.
 
 ### Still to decide
 
@@ -455,6 +467,11 @@ still needs its own actions and balancing. The approved
 shields and basic armor wood/cloth/iron crafting paths at the Blacksmith, with
 equipping, wear, repair and replacement. Computment's agreement here was
 qualified (“if I get what you mean”).
+
+**Parked on October 1, 2026
+([#568](https://github.com/compoodment/ClankerWorld/issues/568)):** crafting,
+equipping and repairing combat gear waits until combat itself is designed. The
+pipelines above stay agreed but are not built before then.
 
 ### Still to decide
 

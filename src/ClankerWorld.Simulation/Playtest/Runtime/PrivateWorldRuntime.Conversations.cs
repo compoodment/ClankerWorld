@@ -584,7 +584,19 @@ public sealed partial class PrivateWorldRuntime
                 continue;
             }
             var cancellation = new CancellationTokenSource();
-            var task = RunConversationProviderAsync(provider, request, cancellation.Token);
+            // The provider runs on this gate-holding thread until its first
+            // await, which comes after it reserves a paid model call.
+            var outerInvocation = providerInvocationUnderGate;
+            providerInvocationUnderGate = this;
+            Task<ConversationTurnOutcome> task;
+            try
+            {
+                task = RunConversationProviderAsync(provider, request, cancellation.Token);
+            }
+            finally
+            {
+                providerInvocationUnderGate = outerInvocation;
+            }
             conversations[conversations.FindIndex(item => item.Id == started.Id)] = started;
             pendingConversationTurns.Add(started.Id, new PendingConversationTurn(
                 request, task, cancellation, providerEpoch));
@@ -658,10 +670,11 @@ public sealed partial class PrivateWorldRuntime
     private void CancelPendingConversationTurn(
         string conversationId,
         AgentConversationInterruption interruption,
-        bool suspendCurrent = true)
+        bool suspendCurrent = true,
+        bool underRuntimeGate = true)
     {
         if (!pendingConversationTurns.Remove(conversationId, out var pending)) return;
-        pending.Cancellation.Cancel();
+        CancelProviderCall(pending.Cancellation, underRuntimeGate);
         _ = pending.Task.ContinueWith(_ => pending.Cancellation.Dispose(), TaskScheduler.Default);
         if (suspendCurrent && conversations.FirstOrDefault(item => item.Id == conversationId) is
             { Status: AgentConversationStatus.AwaitingSpeaker } current &&

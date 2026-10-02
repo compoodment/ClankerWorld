@@ -204,8 +204,12 @@ public sealed class AbandonedWarehouseConsumerTests
             state = state with
             {
                 Towns = state.Towns!.Select(town => town.Id == QuietTown
-                    ? town with { ResidentIds = [returning] }
-                    : town with { ResidentIds = town.ResidentIds.Where(id => id != returning).ToArray() }).ToArray(),
+                    ? town with { ResidentIds = [returning], Governance = TownGovernanceState.Create([returning]) }
+                    : town with
+                    {
+                        ResidentIds = town.ResidentIds.Where(id => id != returning).ToArray(),
+                        Governance = TownGovernanceState.Create(town.ResidentIds.Where(id => id != returning))
+                    }).ToArray(),
             };
         }
         else if (change == "occupied")
@@ -240,7 +244,7 @@ public sealed class AbandonedWarehouseConsumerTests
         var firstTown = state.Towns!.Single(item => item.Id == TownBorderRules.FirstTownId);
         var border = state.Map.Tiles.Select(tile => tile.Position)
             .First(point => state.Map.IsLand(point) && !firstTown.BorderTiles.Contains(point));
-        var quiet = new TownRuntimeState(QuietTown, "Quiet Yard", "founded", state.Society.Society.WorldTick, [], [], [border]);
+        var quiet = new TownRuntimeState(QuietTown, "Quiet Yard", "founded", state.Society.Society.WorldTick, [], [], [border], Governance: TownGovernanceState.Create([]));
         var inventory = state.Society.Society.Inventory;
         var removed = inventory.Lots.Where(lot => lot.StorageBuildingId == warehouse.InstanceId ||
                 lot.OwnerId == household && (lot.ItemKind == kind || PersonalEquipmentRules.IsGarment(lot.ItemKind) ||
@@ -283,7 +287,7 @@ public sealed class AbandonedWarehouseConsumerTests
 
     private static List<CognitionCandidate> Candidates(PrivateWorldRuntime world, string actor) =>
         (List<CognitionCandidate>)typeof(PrivateWorldRuntime).GetMethod("CreateCandidates", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .Invoke(world, [actor, world.ExportState().Inhabitants.Single(item => item.InhabitantId == actor)])!;
+            .Invoke(world, [actor, world.ExportState().Inhabitants.Single(item => item.InhabitantId == actor), true])!;
 
     private static void Choose(PrivateWorldRuntime world, string actor, string choice) =>
         typeof(PrivateWorldRuntime).GetMethod("ApplyCandidate", BindingFlags.Instance | BindingFlags.NonPublic)!

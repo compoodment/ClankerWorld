@@ -373,9 +373,17 @@ public sealed partial class SettlementParenthoodTests
             Society = state.Society with { Society = society },
             Inhabitants = state.Inhabitants.Where(person => person.InhabitantId != primary).ToArray(),
             DeceasedInhabitants = [.. state.DeceasedInhabitants ?? [], deceased],
-            Towns = state.Towns!.Select(town => town with
+            Towns = state.Towns!.Select(town =>
             {
-                ResidentIds = town.ResidentIds.Where(id => id != primary).ToArray(),
+                var residents = town.ResidentIds.Where(id => id != primary).ToArray();
+                var adults = residents.Where(id => society.GetInhabitant(id).Status == SocietyInhabitantStatus.Active &&
+                    society.GetInhabitant(id).AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder);
+                return town with
+                {
+                    ResidentIds = residents,
+                    Governance = TownGovernanceRules.Advance(town.Governance!, town.Id, state.WorldSeed, adults,
+                        society.WorldTick, state.WorldSystems!.Config.TicksPerDay),
+                };
             }).ToArray(),
         };
         Assert.Null(society.GetInhabitant(childId).PrimaryCaregiverId);
@@ -402,13 +410,48 @@ public sealed partial class SettlementParenthoodTests
     [InlineData("safe_idle")]
     public async Task RefusalOrSilenceNeverCreatesAChild(string response)
     {
-        var state = await PreparedState();
+        // Ordinary refusal applies once eight non-elders live and the continuity rule is off.
+        var state = WithEightNonElders(await PreparedState());
         var first = state.Inhabitants[0].InhabitantId;
         using var world = PrivateWorldRuntime.Restore(state, actor => new ParentProvider(actor == first ? "parent_propose:" : response));
         for (var tick = 0; tick < 125; tick++) await world.AdvanceOneTickAsync();
         Assert.Empty(world.Society.Births);
         Assert.Equal("cancelled", world.Inhabitants.Single(person => person.InhabitantId == first).Parenthood!.Stage);
-        Assert.Equal(4, world.Inhabitants.Count);
+        Assert.Equal(8, world.Inhabitants.Count);
+        Assert.False(world.ExportState().Continuity!.Active);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task FirstCousinsButNotAuntsOrUnclesCanPlanAChild(bool cousins)
+    {
+        var state = await PreparedState();
+        var first = state.Inhabitants[0].InhabitantId;
+        var second = state.Inhabitants[1].InhabitantId;
+        var third = state.Inhabitants[2].InhabitantId;
+        var fourth = state.Inhabitants[3].InhabitantId;
+        if (cousins)
+        {
+            (state, var grandparent) = FamilyTreeFixture.WithDeadAncestor(state, "grandparent");
+            state = FamilyTreeFixture.WithRelationships(state, SocietyRelationshipType.BiologicalParentage,
+                (grandparent, third), (grandparent, fourth), (third, first), (fourth, second));
+        }
+        else
+        {
+            state = FamilyTreeFixture.WithRelationships(state, SocietyRelationshipType.BiologicalParentage,
+                (fourth, first), (fourth, third), (third, second));
+        }
+        using var world = PrivateWorldRuntime.Restore(state, actor => new ParentProvider(actor == first ? "parent_propose:" : "parent_accept:"));
+        await world.AdvanceOneTickAsync();
+        if (cousins)
+        {
+            Assert.Equal("requested", world.Inhabitants.Single(person => person.InhabitantId == first).Parenthood!.Stage);
+        }
+        else
+        {
+            Assert.All(world.Inhabitants, person => Assert.Null(person.Parenthood));
+        }
     }
 
     [Fact]
@@ -444,7 +487,8 @@ public sealed partial class SettlementParenthoodTests
     [Fact]
     public async Task EitherParentCanWithdrawDuringPreparation()
     {
-        var state = await PreparedState();
+        // Withdrawal is ordinary refusal, so it needs the continuity rule to be off.
+        var state = WithEightNonElders(await PreparedState());
         var first = state.Inhabitants[0].InhabitantId;
         using var world = PrivateWorldRuntime.Restore(state, actor => new ParentProvider(actor == first ? "parent_propose:" : "parent_accept:"));
         await world.AdvanceOneTickAsync();
