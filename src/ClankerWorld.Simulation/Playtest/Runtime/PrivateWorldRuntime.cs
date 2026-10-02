@@ -271,7 +271,8 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         PrivateWorldRuntimeState state,
         Func<string, IDecisionProvider>? providerFactory,
         int maxCognitionDispatchPerCycle,
-        bool trustedPreparedState)
+        bool trustedPreparedState,
+        bool applyLoadTransitions = true)
     {
         if (!trustedPreparedState) ValidateStateForCodec(state);
         var runtime = new PrivateWorldRuntime(
@@ -388,8 +389,11 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         runtime.nextEventId = runtime.events.Count == 0 ? checked(runtime.eventHistoryFloor + 1) : checked(runtime.events[^1].EventId + 1);
         if (!trustedPreparedState)
         {
-            runtime.SuspendRestoredConversations();
-            runtime.RepairSavedRoadFootprints();
+            if (applyLoadTransitions)
+            {
+                runtime.SuspendRestoredConversations();
+                runtime.RepairSavedRoadFootprints();
+            }
             runtime.Validate();
         }
         return runtime;
@@ -424,7 +428,8 @@ public sealed partial class PrivateWorldRuntime : IDisposable
                 var persisted = persist(proposed.CaptureState());
                 if (persisted.HistoryArchiveHead != proposed.historyArchiveHead)
                 {
-                    using var compacted = Restore(persisted, providerFactory, maxCognitionDispatchPerCycle);
+                    using var compacted = RestoreCore(persisted, providerFactory, maxCognitionDispatchPerCycle,
+                        trustedPreparedState: false, applyLoadTransitions: false);
                     CommitPreparedTick(compacted);
                 }
                 else CommitPreparedTick(proposed);
@@ -433,7 +438,10 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             var saved = persist(CaptureState());
             if (saved.HistoryArchiveHead != historyArchiveHead)
             {
-                using var compacted = Restore(saved, providerFactory, maxCognitionDispatchPerCycle);
+                // Compaction still validates the persisted state, but it is not
+                // a load: live conversations and pending turn identities survive.
+                using var compacted = RestoreCore(saved, providerFactory, maxCognitionDispatchPerCycle,
+                    trustedPreparedState: false, applyLoadTransitions: false);
                 CommitPreparedTick(compacted);
             }
         }
