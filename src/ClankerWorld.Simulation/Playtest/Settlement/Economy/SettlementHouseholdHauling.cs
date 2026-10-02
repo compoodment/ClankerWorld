@@ -254,7 +254,7 @@ public sealed partial class PrivateWorldRuntime
                 PersonalEquipmentRules.IsCarried(lot, actor) && lot.ContainerLotId is null &&
                 lot.Id != protectedLotId && !additionallyProtectedLotIds.Contains(lot.Id, StringComparer.Ordinal) &&
                 lot.DeliveryBuildingId is null &&
-                lot.Id != equipment?.ClothingLotId && lot.Id != equipment?.CarryAidLotId &&
+                !PersonalEquipmentRules.IsSelected(equipment, lot.Id) &&
                 lot.ItemKind is not ("field_map" or "field_record") &&
                 !society.Checkpoint.Inventory.Reservations.Any(reservation => reservation.LotId == lot.Id &&
                     reservation.State is InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed or

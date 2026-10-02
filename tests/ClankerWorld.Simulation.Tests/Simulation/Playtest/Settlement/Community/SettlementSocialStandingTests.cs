@@ -79,6 +79,7 @@ public sealed class SettlementSocialStandingTests
             var state = seed.ExportState();
             var first = state.Inhabitants[0].InhabitantId;
             var second = state.Inhabitants[1].InhabitantId;
+            state = SettlementTradeTests.AtTradeMeeting(state, first, second);
             state = state with
             {
                 Inhabitants = state.Inhabitants.Select(person => person with
