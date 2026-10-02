@@ -2098,6 +2098,23 @@ public partial class Main
                     !resourceVisual.TooltipText.Contains(expectedName, StringComparison.Ordinal))
                     throw new InvalidOperationException($"The {expectedName} natural object must draw as a distinct inspectable map site.");
             }
+            var fallenWood = new OwnerWorldResource("sample-fallen-wood", "wood", new(3, 3), false,
+                "available", 3, 3, NaturalObjectKind: "fallen_wood");
+            var fallenWoodMap = sample with { Resources = [sampleResource, fallenWood] };
+            RenderMap(fallenWoodMap);
+            if (terrainLayer.NaturalObjectNameAt(3, 3) != "Fallen wood" ||
+                terrainLayer.NaturalObjectStageAt(3, 3) != "available" ||
+                !mapObjectVisuals["resource:sample-fallen-wood"].TooltipText.Contains("Fallen wood", StringComparison.Ordinal))
+                throw new InvalidOperationException("Loose fallen wood must have a named, available natural site after an observation refresh.");
+            selectedTile = new Vector2I(3, 3);
+            RenderTileInspection(fallenWoodMap);
+            if (!selectedTileText.Text.Contains("Fallen wood · 3 available", StringComparison.Ordinal))
+                throw new InvalidOperationException("Selecting loose fallen wood must show its name and remaining stock.");
+            ClearTileSelection();
+            RenderMap(fallenWoodMap with { Resources = [sampleResource, fallenWood with { Quantity = 0, State = "depleted" }] });
+            if (terrainLayer.NaturalObjectNameAt(3, 3) != "Fallen wood" ||
+                terrainLayer.NaturalObjectStageAt(3, 3) != "depleted")
+                throw new InvalidOperationException("Exhausted loose wood must keep its site name and show its depleted stage.");
             var sampleOrchard = new OwnerWorldResource("sample-orchard", "fruit", new(2, 1), true,
                 "available", 1, 1, 1, 3, "spring", "orchard", TreeStage: "fruiting");
             RenderMap(sample with { Resources = [sampleResource, sampleTree, sampleOrchard] });
@@ -2846,6 +2863,21 @@ public partial class Main
             if (currentTileSize > 9 || worldOverview.VisibleTiles.Size.X < oldVisibleWidth * 1.3f ||
                 terrainLayer.VisibleTileCount > 40_000)
                 throw new InvalidOperationException($"Overview zoom must widen bounded terrain coverage: tile={currentTileSize}, width={oldVisibleWidth}->{worldOverview.VisibleTiles.Size.X}, tiles={terrainLayer.VisibleTileCount}.");
+            var overviewWood = fallenWood with { Position = new(84, 64) };
+            var overviewWoodMap = largeMap with { Resources = [overviewWood] };
+            RenderMap(overviewWoodMap);
+            for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (terrainLayer.TileSize >= WorldTerrainLayer.SpriteTileMinimum ||
+                terrainLayer.OverviewNaturalObjectDrawCount != 1 ||
+                terrainLayer.NaturalObjectNameAt(84, 64) != "Fallen wood" ||
+                terrainLayer.NaturalObjectStageAt(84, 64) != "available" ||
+                !mapObjectVisuals["resource:sample-fallen-wood"].TooltipText.Contains("Fallen wood", StringComparison.Ordinal))
+                throw new InvalidOperationException("Available loose wood must remain drawn and inspectable below sprite zoom.");
+            RenderMap(largeMap);
+            for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (terrainLayer.OverviewNaturalObjectDrawCount != 0 ||
+                mapObjectVisuals.ContainsKey("resource:sample-fallen-wood"))
+                throw new InvalidOperationException("Removing loose wood in the next observation must clear its overview drawing and marker.");
             var wideVisibleWidth = worldOverview.VisibleTiles.Size.X;
             var wideTileCount = terrainLayer.VisibleTileCount;
             var widePan = System.Diagnostics.Stopwatch.StartNew();
