@@ -59,8 +59,8 @@ public static class RoadRoutePlanner
     public const int BesideRoadCost = 60;
 
     /// <summary>
-    /// A new crossing is costed per water tile like wading a narrow river
-    /// today, so an existing bridge is cheaper than building a new one.
+    /// A new crossing is costed per water tile like wading a one-tile river,
+    /// so an existing bridge is cheaper than building a new one.
     /// </summary>
     public const int ProspectiveWaterTileCost = 200;
 
