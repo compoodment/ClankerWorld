@@ -604,6 +604,10 @@ public partial class Main
 
         // What they are working on, learning and who chose their action.
         var details = new List<string>();
+        if (Factor("personality") is { } personality) details.Add("Personality: " + personality);
+        if (Factor("aspiration") is { } aspiration) details.Add("Aspiration: " + aspiration);
+        details.AddRange(inhabitant.DecisionFactors.Where(factor => factor.Key == "identity-change")
+            .Select(factor => factor.Detail));
         if (!isDeceased && !string.IsNullOrWhiteSpace(inhabitant.MedicalCareNote))
             details.Add(inhabitant.MedicalCareNote);
         if (!isDeceased && inhabitant.Equipment is { } equipment)
