@@ -1376,7 +1376,9 @@ public static partial class SocietyFixture
                         DeathTick = deathTick,
                         DeathCause = cause,
                     }
-                    : item)
+                    : item.PrimaryCaregiverId == inhabitant.Id
+                        ? item with { PrimaryCaregiverId = null }
+                        : item)
                 .OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(),
             Relationships = relationships,
             Estates = checkpoint.Estates.Append(new SocietyEstate(

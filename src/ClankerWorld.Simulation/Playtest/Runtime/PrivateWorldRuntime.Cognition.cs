@@ -177,6 +177,11 @@ public sealed partial class PrivateWorldRuntime
             return true;
         }
 
+        if (HasNewGuardianCandidate(inhabitants[inhabitantId].LastDecisionContext, candidates))
+        {
+            return true;
+        }
+
         if (CanContinueEquipmentRepair(inhabitantId) || CanContinueLesson(inhabitantId) || CanContinueProject(inhabitants[inhabitantId]))
         {
             return false;
@@ -228,9 +233,40 @@ public sealed partial class PrivateWorldRuntime
     {
         var context = $"{NeedsUrgentFood(state)}:{NeedsUrgentWarmth(state)}:" +
             string.Join('|', candidates.Select(candidate => candidate.Id).Order(StringComparer.Ordinal));
+        context += "|guardian_candidates=" + GuardianCandidateContext(candidates);
         return conversationChoiceContext is null
             ? context
             : $"{context}|conversation_choice={ConversationChoiceContextDigest(conversationChoiceContext)}";
+    }
+
+    private static string GuardianCandidateContext(IEnumerable<CognitionCandidate> candidates)
+    {
+        var ids = candidates.Where(candidate => candidate.Id.StartsWith("guardian_accept:", StringComparison.Ordinal))
+            .Select(candidate => Convert.ToBase64String(Encoding.UTF8.GetBytes(candidate.Id))
+                .TrimEnd('=').Replace('+', '-').Replace('/', '_'))
+            .Order(StringComparer.Ordinal).ToArray();
+        return string.Join(',', ids);
+    }
+
+    private static bool HasNewGuardianCandidate(string? lastDecisionContext, IEnumerable<CognitionCandidate> candidates)
+    {
+        var previouslyOffered = GuardianCandidateContextFromLastDecision(lastDecisionContext);
+        return candidates.Where(candidate => candidate.Id.StartsWith("guardian_accept:", StringComparison.Ordinal))
+            .Select(candidate => Convert.ToBase64String(Encoding.UTF8.GetBytes(candidate.Id))
+                .TrimEnd('=').Replace('+', '-').Replace('/', '_'))
+            .Any(candidate => !previouslyOffered.Contains(candidate));
+    }
+
+    private static HashSet<string> GuardianCandidateContextFromLastDecision(string? context)
+    {
+        const string marker = "|guardian_candidates=";
+        if (context is null) return new(StringComparer.Ordinal);
+        var start = context.IndexOf(marker, StringComparison.Ordinal);
+        if (start < 0) return new(StringComparer.Ordinal);
+        start += marker.Length;
+        var end = context.IndexOf('|', start);
+        var encodedIds = end < 0 ? context[start..] : context[start..end];
+        return encodedIds.Split(',', StringSplitOptions.RemoveEmptyEntries).ToHashSet(StringComparer.Ordinal);
     }
 
     private static bool HasPromptedConversationChoice(string? lastDecisionContext, string conversationChoiceContext) =>

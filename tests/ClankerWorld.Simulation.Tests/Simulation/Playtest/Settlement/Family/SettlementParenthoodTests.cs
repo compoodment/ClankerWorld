@@ -335,18 +335,18 @@ public sealed partial class SettlementParenthoodTests
                 ResidentIds = town.ResidentIds.Where(id => id != primary).ToArray(),
             }).ToArray(),
         };
-        Assert.Equal(primary, society.GetInhabitant(childId).PrimaryCaregiverId);
+        Assert.Null(society.GetInhabitant(childId).PrimaryCaregiverId);
         var replacementUnit = society.GetInhabitant(secondary).DomesticFamilyUnitId;
         Assert.NotEqual(replacementUnit, society.GetInhabitant(childId).DomesticFamilyUnitId);
 
-        var caregiverProvider = new ParentProvider("guardian_primary:");
+        var caregiverProvider = new ParentProvider("guardian_accept:");
         using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)),
             actor => actor == secondary ? caregiverProvider : new ParentProvider("safe_idle"));
         for (var tick = 0; tick < 40 && world.Society.GetInhabitant(childId).PrimaryCaregiverId != secondary; tick++)
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
 
         Assert.Contains(caregiverProvider.SeenCandidates,
-            candidate => candidate.Id == "guardian_primary:" + childId);
+            candidate => candidate.Id == "guardian_accept:" + childId);
         Assert.Equal(secondary, world.Society.GetInhabitant(childId).PrimaryCaregiverId);
         Assert.Equal(replacementUnit, world.Society.GetInhabitant(childId).DomesticFamilyUnitId);
         Assert.Equal(primary, Assert.Single(world.Society.Births).PrimaryCaregiverId);
@@ -516,18 +516,21 @@ public sealed partial class SettlementParenthoodTests
         };
     }
 
-    private sealed class ParentProvider(string prefix) : IDecisionProvider
+    private sealed class ParentProvider(string prefix, Action<CognitionDecisionRequest>? inspect = null) : IDecisionProvider
     {
         public int Calls { get; private set; }
         public List<CognitionCandidate> SeenCandidates { get; } = [];
+        public List<string> SelectedCandidateIds { get; } = [];
         public DecisionProviderKind Kind => DecisionProviderKind.Deterministic;
         public long ProviderEpoch => 0;
         public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
         {
             Calls++;
+            inspect?.Invoke(request);
             SeenCandidates.AddRange(request.Observation.Candidates);
             var candidate = request.Observation.Candidates.FirstOrDefault(item => item.Id.StartsWith(prefix, StringComparison.Ordinal))
                 ?? request.Observation.Candidates.Single(item => item.Id == "safe_idle");
+            SelectedCandidateIds.Add(candidate.Id);
             return new DeterministicDecisionProvider().DecideAsync(request with
             {
                 Observation = request.Observation with { Candidates = [candidate] },

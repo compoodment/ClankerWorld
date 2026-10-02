@@ -1,11 +1,21 @@
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Society;
+using System.Text;
 
 namespace ClankerWorld.Simulation.Playtest;
 
 public sealed partial class PrivateWorldRuntime
 {
+    private static readonly HashSet<string> GenericGuardianInstructionWords = new(StringComparer.Ordinal)
+    {
+        "accept", "accepted", "accepting", "care", "caregiver", "child", "children", "dependent", "dependents",
+        "guardian", "guardianship", "infant", "infants", "orphan", "orphans", "primary", "please", "take",
+        "in", "of", "for", "to", "the", "a", "an", "this", "that", "one", "whoever", "any", "someone", "and",
+        "help", "raise", "responsibility", "become", "be", "should", "must", "can", "could", "would", "your", "their",
+        "our", "my", "household", "home", "family", "into",
+    };
+
     private long GuardianStageTicks => Math.Max(1, worldSystems.Config.TicksPerDay);
 
     private bool NeedsCaregiver(string child) => inhabitants.ContainsKey(child) &&
@@ -21,14 +31,90 @@ public sealed partial class PrivateWorldRuntime
     private string? GuardianTargetForInstruction(string text)
     {
         var pending = inhabitants.Keys.Where(NeedsCaregiver).Order(StringComparer.Ordinal).ToArray();
+        const string directIdPrefix = "guardian_accept:";
+        var normalized = text.Trim();
+        if (normalized.StartsWith(directIdPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            var requestedId = normalized[directIdPrefix.Length..];
+            return pending.Contains(requestedId, StringComparer.OrdinalIgnoreCase)
+                ? pending.SingleOrDefault(id => string.Equals(id, requestedId, StringComparison.OrdinalIgnoreCase))
+                : null;
+        }
+
         var matches = pending.Where(child =>
         {
             var name = society.Checkpoint.GetInhabitant(child).Name;
-            return text.Contains(name, StringComparison.OrdinalIgnoreCase) ||
-                text.Contains(child, StringComparison.OrdinalIgnoreCase);
+            return ContainsWholeGuardianTarget(text, name, isIdentifier: false) ||
+                ContainsWholeGuardianTarget(text, child, isIdentifier: true);
         }).ToArray();
-        return matches.Length == 1 ? matches[0] : matches.Length == 0 && pending.Length == 1 ? pending[0] : null;
+        if (matches.Length > 1)
+            return null;
+
+        if (matches.Length == 1)
+        {
+            var child = matches[0];
+            var name = society.Checkpoint.GetInhabitant(child).Name;
+            var remainder = RemoveWholeGuardianTarget(text, name, isIdentifier: false);
+            remainder = RemoveWholeGuardianTarget(remainder, child, isIdentifier: true);
+            return InstructionWords(remainder).All(GenericGuardianInstructionWords.Contains) ? child : null;
+        }
+
+        // A generic request may mean the only dependent needing a guardian.
+        // Any other word is treated as an explicit target, even when that
+        // target is unknown, so "care for Bob" cannot silently select Alice.
+        return pending.Length == 1 && InstructionWords(text).All(GenericGuardianInstructionWords.Contains)
+            ? pending[0]
+            : null;
     }
+
+    private static bool ContainsWholeGuardianTarget(string text, string target, bool isIdentifier)
+    {
+        if (string.IsNullOrWhiteSpace(target))
+            return false;
+
+        var start = 0;
+        while ((start = text.IndexOf(target, start, StringComparison.OrdinalIgnoreCase)) >= 0)
+        {
+            var end = start + target.Length;
+            var beforeIsPart = start > 0 && GuardianTargetCharacter(text[start - 1], isIdentifier);
+            var afterIsPart = end < text.Length && GuardianTargetCharacter(text[end], isIdentifier);
+            if (!beforeIsPart && !afterIsPart)
+                return true;
+            start = end;
+        }
+
+        return false;
+    }
+
+    private static string RemoveWholeGuardianTarget(string text, string target, bool isIdentifier)
+    {
+        if (string.IsNullOrWhiteSpace(target))
+            return text;
+
+        var result = new StringBuilder(text.Length);
+        var copiedThrough = 0;
+        var searchFrom = 0;
+        while ((searchFrom = text.IndexOf(target, searchFrom, StringComparison.OrdinalIgnoreCase)) >= 0)
+        {
+            var end = searchFrom + target.Length;
+            var beforeIsPart = searchFrom > 0 && GuardianTargetCharacter(text[searchFrom - 1], isIdentifier);
+            var afterIsPart = end < text.Length && GuardianTargetCharacter(text[end], isIdentifier);
+            if (!beforeIsPart && !afterIsPart)
+            {
+                result.Append(text, copiedThrough, searchFrom - copiedThrough);
+                result.Append(' ', target.Length);
+                copiedThrough = end;
+            }
+            searchFrom = end;
+        }
+
+        result.Append(text, copiedThrough, text.Length - copiedThrough);
+        return result.ToString();
+    }
+
+    private static bool GuardianTargetCharacter(char value, bool isIdentifier) =>
+        char.IsLetterOrDigit(value) || value == '_' || value == '-' || isIdentifier && value == ':' ||
+        !isIdentifier && value is '\'' or '’';
 
     private bool EligibleCaregiver(string adult, string child) => AdultResident(adult) && NeedsCaregiver(child) &&
         society.Checkpoint.GetInhabitant(adult).HouseholdId is { } household &&
@@ -153,36 +239,50 @@ public sealed partial class PrivateWorldRuntime
 
     private string[] GuardianAdultsForStage(string child, string stage)
     {
-        var allRelatives = LivingAdultRelatives(child).ToHashSet(StringComparer.Ordinal);
-        var householdId = society.Checkpoint.GetInhabitant(child).HouseholdId;
-        var householdAdults = householdId is null ? [] : society.Checkpoint.Inhabitants.Where(person => person.Status == SocietyInhabitantStatus.Active &&
+        return GuardianAdultsForStage(society.Checkpoint, towns, child, stage);
+    }
+
+    private static string[] GuardianAdultsForStage(
+        SocietyCheckpoint checkpoint,
+        IReadOnlyList<TownRuntimeState> towns,
+        string child,
+        string stage)
+    {
+        var relatives = LivingAdultRelatives(checkpoint, child).ToHashSet(StringComparer.Ordinal);
+        var householdId = checkpoint.GetInhabitant(child).HouseholdId;
+        var householdAdults = householdId is null ? [] : checkpoint.Inhabitants.Where(person => person.Status == SocietyInhabitantStatus.Active &&
                 person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder &&
                 person.HouseholdId == householdId)
             .Select(person => person.Id).Order(StringComparer.Ordinal).ToArray();
         return stage switch
         {
-            "relatives" => allRelatives.Order(StringComparer.Ordinal).ToArray(),
-            "household" => householdAdults.Where(id => !allRelatives.Contains(id)).ToArray(),
-            "town" => TownAdultsFor(child).Where(id => !allRelatives.Contains(id) &&
+            "relatives" => relatives.Order(StringComparer.Ordinal).ToArray(),
+            "household" => householdAdults.Where(id => !relatives.Contains(id)).ToArray(),
+            "town" => TownAdultsFor(checkpoint, towns, child).Where(id => !relatives.Contains(id) &&
                 !householdAdults.Contains(id, StringComparer.Ordinal)).ToArray(),
             _ => throw new InvalidDataException("The saved guardian search stage is invalid."),
         };
     }
 
-    private string[] TownAdultsFor(string child)
+    private string[] TownAdultsFor(string child) => TownAdultsFor(society.Checkpoint, towns, child);
+
+    private static string[] TownAdultsFor(SocietyCheckpoint checkpoint, IReadOnlyList<TownRuntimeState> towns, string child)
     {
-        if (TownForResident(child) is not { } townId)
+        var townId = towns.SingleOrDefault(item => item.ResidentIds.Contains(child, StringComparer.Ordinal))?.Id;
+        if (townId is null)
             return [];
-        return towns.First(town => town.Id == townId).ResidentIds
-            .Where(id => id != child && society.Checkpoint.Inhabitants.Any(person => person.Id == id &&
+        return towns.Single(town => town.Id == townId).ResidentIds
+            .Where(id => id != child && checkpoint.Inhabitants.Any(person => person.Id == id &&
                 person.Status == SocietyInhabitantStatus.Active &&
                 person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder))
             .Order(StringComparer.Ordinal).ToArray();
     }
 
-    private string[] LivingAdultRelatives(string child)
+    private string[] LivingAdultRelatives(string child) => LivingAdultRelatives(society.Checkpoint, child);
+
+    private static string[] LivingAdultRelatives(SocietyCheckpoint checkpoint, string child)
     {
-        var parentage = society.Checkpoint.Relationships.Where(edge =>
+        var parentage = checkpoint.Relationships.Where(edge =>
                 edge.Type == SocietyRelationshipType.BiologicalParentage &&
                 edge.State is not (SocietyRelationshipState.Proposed or SocietyRelationshipState.Rejected))
             .ToArray();
@@ -195,7 +295,7 @@ public sealed partial class PrivateWorldRuntime
         var auntsAndUncles = parentage.Where(edge => grandparents.Contains(edge.ProposerId))
             .Select(edge => edge.TargetId).Where(id => !parents.Contains(id));
         return parents.Concat(grandparents).Concat(adultSiblings).Concat(auntsAndUncles)
-            .Where(id => id != child && society.Checkpoint.Inhabitants.Any(person => person.Id == id &&
+            .Where(id => id != child && checkpoint.Inhabitants.Any(person => person.Id == id &&
                 person.Status == SocietyInhabitantStatus.Active &&
                 person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder))
             .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
@@ -224,6 +324,8 @@ public sealed partial class PrivateWorldRuntime
         }
         foreach (var child in inhabitants.Keys.Order(StringComparer.Ordinal).Where(child => CanAcceptGuardian(actor, child)))
         {
+            if (candidates.Any(candidate => candidate.Id == "guardian_accept:" + child))
+                continue;
             candidates.Add(new("guardian_accept:" + child,
                 $"Accept primary care of {society.Checkpoint.GetInhabitant(child).Name}. They can move into your household only if your House has room and you share their Town.", 3));
         }
@@ -318,8 +420,10 @@ public sealed partial class PrivateWorldRuntime
     {
         if (!authorized || !AdultResident(adult) || !NeedsCaregiver(child)) return;
         var adultHousehold = society.Checkpoint.GetInhabitant(adult).HouseholdId;
+        var adultTown = TownForResident(adult);
+        var childTown = TownForResident(child);
         var destination = adultHousehold is not null && adultHousehold != society.Checkpoint.GetInhabitant(child).HouseholdId &&
-            TownForResident(adult) == TownForResident(child) &&
+            adultTown is not null && adultTown == childTown &&
             CanFitGuardianHousehold(adultHousehold, adult, child)
             ? adultHousehold : null;
         var result = society.Apply(checkpoint => SocietyFixture.AcceptDependentGuardianship(
@@ -335,6 +439,7 @@ public sealed partial class PrivateWorldRuntime
     private static void ValidateDependentCare(
         IEnumerable<PlaytestInhabitantState> physical,
         SocietyCheckpoint checkpoint,
+        IReadOnlyList<TownRuntimeState> towns,
         int schemaVersion)
     {
         var people = checkpoint.Inhabitants.ToDictionary(person => person.Id, StringComparer.Ordinal);
@@ -352,7 +457,9 @@ public sealed partial class PrivateWorldRuntime
                 search.OfferedAdultIds.Any(id => string.IsNullOrWhiteSpace(id) || !people.TryGetValue(id, out var adult) ||
                     adult.Status != SocietyInhabitantStatus.Active || adult.AgeBand is not (SocietyAgeBand.Adult or SocietyAgeBand.Elder)) ||
                 search.OfferedAdultIds.Distinct(StringComparer.Ordinal).Count() != search.OfferedAdultIds.Count ||
-                !search.OfferedAdultIds.SequenceEqual(search.OfferedAdultIds.Order(StringComparer.Ordinal)))
+                !search.OfferedAdultIds.SequenceEqual(search.OfferedAdultIds.Order(StringComparer.Ordinal)) ||
+                !search.OfferedAdultIds.SequenceEqual(GuardianAdultsForStage(checkpoint, towns, child.Id, search.Stage), StringComparer.Ordinal) ||
+                search.Stage != "town" && search.OfferedAdultIds.Count == 0)
                 throw new InvalidDataException("The saved dependent guardian search is invalid.");
         }
     }

@@ -79,7 +79,7 @@ public sealed partial class PrivateWorldRuntime
         ValidateDeceasedArchive(deceasedInhabitants.Values, society.Checkpoint, map, checkpointSchemaVersion);
         AgentKnowledgeRules.Validate(knowledge, map, society.Checkpoint, WorldTick);
         ValidateHousing(inhabitants.Values, society.Checkpoint, checkpointSchemaVersion);
-        ValidateDependentCare(inhabitants.Values, society.Checkpoint, checkpointSchemaVersion);
+        ValidateDependentCare(inhabitants.Values, society.Checkpoint, towns, checkpointSchemaVersion);
         ValidateEquipment(inhabitants.Values, society.Checkpoint, worldSimulation, worldContent, checkpointSchemaVersion);
 
         foreach (var inhabitant in inhabitants.Values)
@@ -295,7 +295,7 @@ public sealed partial class PrivateWorldRuntime
         ValidateCouncil(state);
         ValidateLessons(state);
         ValidateHousing(state.Inhabitants, state.Society.Society, state.SchemaVersion);
-        ValidateDependentCare(state.Inhabitants, state.Society.Society, state.SchemaVersion);
+        ValidateDependentCare(state.Inhabitants, state.Society.Society, state.Towns ?? [], state.SchemaVersion);
         ValidateEquipment(state.Inhabitants, state.Society.Society, state.WorldSimulation, state.WorldContent, state.SchemaVersion);
         foreach (var person in state.Inhabitants)
         {

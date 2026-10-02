@@ -98,7 +98,8 @@ public static partial class SocietyFixture
         ArgumentException.ThrowIfNullOrWhiteSpace(childId);
         var child = checkpoint.GetInhabitant(childId);
         if (child.PrimaryCaregiverId is not { } primaryCaregiverId ||
-            !checkpoint.Inhabitants.Any(person => person.Id == primaryCaregiverId && IsAdult(person)))
+            !checkpoint.Inhabitants.Any(person => person.Id == primaryCaregiverId &&
+                person.Status == SocietyInhabitantStatus.Active && IsAdult(person)))
             return false;
         return checkpoint.Relationships.Any(edge => edge.Type == SocietyRelationshipType.Caregiver &&
             edge.State == SocietyRelationshipState.Accepted && edge.ProposerId == primaryCaregiverId && edge.TargetId == childId);

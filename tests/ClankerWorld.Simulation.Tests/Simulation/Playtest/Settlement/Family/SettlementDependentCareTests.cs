@@ -1,6 +1,7 @@
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Society;
+using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Viewer.Observation;
 
 namespace ClankerWorld.Simulation.Tests;
@@ -66,24 +67,78 @@ public sealed partial class SettlementParenthoodTests
         for (var tick = 0; tick < 1; tick++)
             await world.AdvanceOneTickAsync();
         var pending = world.ExportState();
-        Assert.Equal("town", Assert.Single(pending.Inhabitants, person => person.InhabitantId == child).GuardianSearch!.Stage);
+        var initialSearch = Assert.Single(pending.Inhabitants, person => person.InhabitantId == child).GuardianSearch!;
+        Assert.Equal("household", initialSearch.Stage);
+        Assert.NotEmpty(initialSearch.OfferedAdultIds);
         Assert.Single(pending.Events, item => item.Kind == "guardian_needed" && item.Detail == child);
         Assert.Contains("Needs a guardian. No adult has accepted care yet; nearby adults may still feed them.",
             new OwnerWorldObservationStore(world).GetSnapshot().Inhabitants.Single(person => person.Id == child).SocialNotes);
         world.Pause();
         var saved = PrivateWorldRuntimeCodec.Encode(world.ExportState());
-        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved),
-            actor => new ParentProvider(actor == child ? "safe_idle" : "guardian_accept:"));
-        Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+        using var pendingReload = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), _ => new ParentProvider("safe_idle"));
+        Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(pendingReload.ExportState()));
+
+        var acceptingAdult = initialSearch.OfferedAdultIds[0];
+        var acceptingProvider = new ParentProvider("guardian_accept:");
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)),
+            actor => actor == acceptingAdult ? acceptingProvider : new ParentProvider("safe_idle"));
         restored.Resume();
-        for (var tick = 0; tick < 20 && !restored.Society.Relationships.Any(edge => edge.Type == SocietyRelationshipType.Caregiver &&
+        var stageTicks = restored.ExportState().WorldSystems!.Config.TicksPerDay;
+        for (var tick = 0; tick < stageTicks && !restored.Society.Relationships.Any(edge => edge.Type == SocietyRelationshipType.Caregiver &&
                  edge.TargetId == child && edge.State == SocietyRelationshipState.Accepted); tick++)
             await restored.AdvanceOneTickAsync();
         var accepted = Assert.Single(restored.Society.Relationships, edge => edge.Type == SocietyRelationshipType.Caregiver &&
             edge.TargetId == child && edge.State == SocietyRelationshipState.Accepted);
+        Assert.Equal(acceptingAdult, accepted.ProposerId);
+        Assert.Contains(acceptingProvider.SeenCandidates, candidate => candidate.Id == "guardian_accept:" + child);
+        Assert.True(accepted.EffectiveTick - state.Society.Society.WorldTick < stageTicks,
+            "A newly opened household offer must be decided before its one-day stage expires.");
         Assert.Equal(SocietyConsentState.Accepted, accepted.Consent);
         Assert.Equal([accepted.ProposerId], accepted.AcceptedBy);
         Assert.Null(Assert.Single(restored.ExportState().Inhabitants, person => person.InhabitantId == child).GuardianSearch);
+        Assert.Single(restored.ExportState().Events, item => item.Kind == "guardian_needed" && item.Detail == child);
+        Assert.Single(restored.ExportState().Events, item => item.Kind == "guardian_assigned" && item.Detail == child);
+
+        using var waiting = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), _ => new ParentProvider("safe_idle"));
+        waiting.Resume();
+        var waitingStageTicks = waiting.ExportState().WorldSystems!.Config.TicksPerDay;
+        for (var tick = 0; tick < waitingStageTicks; tick++) await waiting.AdvanceOneTickAsync();
+        var townPending = waiting.ExportState();
+        Assert.Equal("town", Assert.Single(townPending.Inhabitants, person => person.InhabitantId == child).GuardianSearch!.Stage);
+        Assert.Single(townPending.Events, item => item.Kind == "guardian_needed" && item.Detail == child);
+        waiting.Pause();
+        var townSave = PrivateWorldRuntimeCodec.Encode(waiting.ExportState());
+        using var townRestored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(townSave), _ => new ParentProvider("safe_idle"));
+        Assert.Equal(townSave, PrivateWorldRuntimeCodec.Encode(townRestored.ExportState()));
+    }
+
+    [Fact]
+    public async Task GuardianOrderRejectsAnExtraTargetAndAcceptsTheExactChildId()
+    {
+        var state = await OrphanState(olderChild: true);
+        var child = state.Society.Society.Births.Single().ChildId;
+        var childName = state.Society.Society.GetInhabitant(child).Name;
+        var acceptingAdult = state.Society.Society.Inhabitants.First(person => person.Status == SocietyInhabitantStatus.Active &&
+            person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder && person.Id != child).Id;
+        using var world = PrivateWorldRuntime.Restore(state, _ => new ParentProvider("safe_idle"));
+
+        var mismatched = world.SubmitInstruction(new OwnerInstructionRequest("guardian-mismatch", "owner:test",
+            acceptingAdult, OwnerInstructionKind.MustDo, $"guardian for {childName} and SomeoneElse"));
+        Assert.Contains(mismatched.InstructionId, world.ExportState().CompletedInstructionIds ?? []);
+        Assert.DoesNotContain(world.Society.Relationships, edge => edge.Type == SocietyRelationshipType.Caregiver &&
+            edge.TargetId == child && edge.State == SocietyRelationshipState.Accepted);
+
+        var exact = world.SubmitInstruction(new OwnerInstructionRequest("guardian-exact-id", "owner:test",
+            acceptingAdult, OwnerInstructionKind.MustDo, $"guardian_accept:{child}"));
+        for (var tick = 0; tick < 40 && !world.Society.Relationships.Any(edge => edge.Type == SocietyRelationshipType.Caregiver &&
+                 edge.TargetId == child && edge.State == SocietyRelationshipState.Accepted); tick++)
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+
+        var accepted = Assert.Single(world.Society.Relationships, edge => edge.Type == SocietyRelationshipType.Caregiver &&
+            edge.TargetId == child && edge.State == SocietyRelationshipState.Accepted);
+        Assert.Equal(acceptingAdult, accepted.ProposerId);
+        Assert.Contains(exact.InstructionId, world.ExportState().CompletedInstructionIds ?? []);
+        Assert.Contains(world.ExportState().Events, item => item.Kind == "instruction_applied" && item.Detail.StartsWith(exact.InstructionId + ":guardian_accept:", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -131,12 +186,12 @@ public sealed partial class SettlementParenthoodTests
         var adultId = state.Inhabitants.First(person => person.InhabitantId != childId).InhabitantId;
         using var proposing = PrivateWorldRuntime.Restore(state, actor =>
             new ParentProvider(actor == adultId ? "guardian_accept:" : "safe_idle"));
-        for (var tick = 0; tick < 40 && !proposing.Society.Relationships.Any(edge => edge.Type == SocietyRelationshipType.Caregiver &&
-                 edge.TargetId == childId && edge.State == SocietyRelationshipState.Accepted); tick++)
+        for (var tick = 0; tick < 40 && proposing.Society.GetInhabitant(childId).PrimaryCaregiverId != adultId; tick++)
             await proposing.AdvanceOneTickAsync();
 
+        Assert.Equal(adultId, proposing.Society.GetInhabitant(childId).PrimaryCaregiverId);
         var accepted = Assert.Single(proposing.Society.Relationships, edge => edge.Type == SocietyRelationshipType.Caregiver &&
-            edge.TargetId == childId && edge.State == SocietyRelationshipState.Accepted);
+            edge.ProposerId == adultId && edge.TargetId == childId && edge.State == SocietyRelationshipState.Accepted);
         var stateToTend = proposing.ExportState();
         var child = stateToTend.Inhabitants.Single(person => person.InhabitantId == childId);
         var caregiverTile = stateToTend.Map.FootNeighbors(child.Position).First(point => stateToTend.Map.IsPassable(point) &&
@@ -150,7 +205,7 @@ public sealed partial class SettlementParenthoodTests
                 var id when id == accepted.ProposerId => person with
                 {
                     Position = caregiverTile,
-                    HungerBasisPoints = 9_000,
+                    HungerBasisPoints = 4_500,
                     Survival = new SurvivalCondition(10_000, 0),
                     Project = null,
                     LastDecisionContext = null,
@@ -159,15 +214,13 @@ public sealed partial class SettlementParenthoodTests
                 var id when id == childId => person with
                 {
                     HungerBasisPoints = 9_000,
-                    Survival = new SurvivalCondition(9_000, initialIllness),
+                    Survival = new SurvivalCondition(9_000, 0),
                     Project = null,
                     LastDecisionContext = null,
                 },
                 _ => person,
             }).ToArray(),
         };
-        var shelter = proposing.WorldContent.Buildings.Single(item => item.LocalId == "shelter");
-        var worldTick = stateToTend.Society.Society.WorldTick;
         using var society = SocietyWorldRuntime.Restore(stateToTend.Society);
         foreach (var resident in society.Checkpoint.Inhabitants.Where(person => person.Status == SocietyInhabitantStatus.Active &&
                      person.Id != accepted.ProposerId && person.Id != childId).ToArray())
@@ -176,6 +229,9 @@ public sealed partial class SettlementParenthoodTests
                 SocietyDeathCause.Accident, checkpoint.WorldTick));
         }
         var societyState = society.ExportState();
+        Assert.Equal(accepted.ProposerId, societyState.Society.GetInhabitant(childId).PrimaryCaregiverId);
+        Assert.True(SocietyFixture.HasActivePrimaryCaregiver(societyState.Society, childId),
+            $"Expected the retained guardian {accepted.ProposerId} to remain active after removing unrelated residents.");
         var projectInventory = societyState.Society.Inventory with
         {
             Lots = societyState.Society.Inventory.Lots.Where(lot => lot.ItemKind != "tool").ToArray(),
@@ -196,26 +252,59 @@ public sealed partial class SettlementParenthoodTests
         {
             Inhabitants = stateToTend.Inhabitants
                 .Select(person => person.InhabitantId == accepted.ProposerId
-                ? person with
-                {
-                    Project = new("build:building:" + shelter.CanonicalId, shelter.DisplayName, worldTick,
-                        "working", LastTransitionTick: worldTick),
-                    LastDecisionContext = null,
-                }
+                ? person with { Project = null }
                 : person).ToArray(),
         };
-        var careProvider = new ParentProvider("guardian_tend:");
-        using var working = PrivateWorldRuntime.Restore(stateWithProject, actor =>
+        Assert.Null(stateWithProject.Inhabitants.Single(person => person.InhabitantId == childId).GuardianSearch);
+
+        var projectProvider = new ParentProvider("build:building:");
+        using (var projectWorld = PrivateWorldRuntime.Restore(stateWithProject, actor =>
+                   actor == accepted.ProposerId ? projectProvider : new ParentProvider("safe_idle")))
+        {
+            for (var tick = 0; tick < 5 && projectWorld.Inhabitants.Single(person => person.InhabitantId == accepted.ProposerId).Project is null; tick++)
+                Assert.True((await projectWorld.AdvanceOneTickAsync()).Advanced);
+
+            var selectedProject = Assert.IsType<SettlementProject>(
+                projectWorld.Inhabitants.Single(person => person.InhabitantId == accepted.ProposerId).Project);
+            Assert.StartsWith("build:building:", selectedProject.CandidateId, StringComparison.Ordinal);
+            Assert.Contains(projectProvider.SeenCandidates, candidate => candidate.Id == selectedProject.CandidateId);
+            Assert.Equal(selectedProject.CandidateId,
+                Assert.Single(projectWorld.ExportState().Society.Cognition.Runtimes, item => item.InhabitantId == accepted.ProposerId)
+                    .CurrentIntention?.CandidateId);
+            projectWorld.Pause();
+            stateWithProject = projectWorld.ExportState();
+        }
+
+        stateWithProject = stateWithProject with
+        {
+            Inhabitants = stateWithProject.Inhabitants.Select(person => person.InhabitantId == childId
+                ? person with { Survival = new SurvivalCondition(9_000, initialIllness) }
+                : person).ToArray(),
+        };
+        var careProvider = new ParentProvider("care:");
+        using var working = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(stateWithProject)), actor =>
             actor == accepted.ProposerId ? careProvider : new ParentProvider("safe_idle"));
+        working.Resume();
+        Assert.True(SocietyFixture.HasActivePrimaryCaregiver(working.Society, childId),
+            "The continuing-project scenario must start with an active accepted guardian.");
 
         Assert.True((await working.AdvanceOneTickAsync()).Advanced);
+        Assert.True(SocietyFixture.HasActivePrimaryCaregiver(working.Society, childId),
+            "Advancing the unrelated project must not clear its dependent's active guardian.");
 
         var progressed = working.Inhabitants.Single(person => person.InhabitantId == accepted.ProposerId).Project!;
-        Assert.True(progressed.Stage is "travelling" or "working",
+        Assert.True(progressed.Stage is "acquiring" or "gathering" or "delivering" or "travelling" or "working" or "waiting" or "blocked",
             $"Expected the existing project to continue, but it is {progressed.Stage}.");
-        Assert.True(careProvider.Calls == 0,
-            "An ill-dependent care candidate should remain optional and should not force a choice reconsideration.");
+        Assert.Contains($"care:{childId}", careProvider.SelectedCandidateIds);
+        Assert.DoesNotContain($"guardian_tend:{childId}", careProvider.SelectedCandidateIds);
+        Assert.Contains(working.ExportState().Events, item => item.Kind == "child_cared_for" && item.Detail == childId);
 
+        stateToTend = stateToTend with
+        {
+            Inhabitants = stateToTend.Inhabitants.Select(person => person.InhabitantId == childId
+                ? person with { Survival = new SurvivalCondition(9_000, initialIllness) }
+                : person).ToArray(),
+        };
         var caregiverProvider = new ParentProvider("guardian_tend:");
         using var tending = PrivateWorldRuntime.Restore(stateToTend, actor =>
             actor == accepted.ProposerId ? caregiverProvider : new ParentProvider("safe_idle"));
