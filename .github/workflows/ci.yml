@@ -9,8 +9,41 @@ on:
 permissions:
   contents: read
 
+# A newer push to a pull request stops its older run, so runners go to the current head.
+concurrency:
+  group: verify-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# The Protect main ruleset requires verify, windows-documentation and windows-provider-storage.
+# verify passes only when scope, checks and every test shard pass. A pull request that changes
+# only documentation (Markdown files and docs/) runs the documentation tests and skips the rest.
 jobs:
-  verify:
+  scope:
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.plan.outputs.code }}
+      shards: ${{ steps.plan.outputs.shards }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+      - name: Decide what this change needs
+        id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          # A pull request's checkout merges it into its base, so the first parent is the base.
+          # --no-renames lists a file moved from code to Markdown under both names.
+          if [ "$EVENT" = pull_request ]; then
+            git diff --no-renames --name-only HEAD^1 HEAD > "$RUNNER_TEMP/changed.txt"
+          else
+            : > "$RUNNER_TEMP/changed.txt"
+          fi
+          node .github/scripts/ci-plan.js scope < "$RUNNER_TEMP/changed.txt" | tee -a "$GITHUB_OUTPUT"
+          node .github/scripts/ci-plan.js matrix | tee -a "$GITHUB_OUTPUT"
+
+  checks:
+    needs: scope
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -23,22 +56,71 @@ jobs:
           global-json-file: global.json
       - run: dotnet restore --locked-mode
       - name: Verify Godot client project
+        if: needs.scope.outputs.code == 'true'
         run: bash scripts/verify-godot-client.sh
-      - run: dotnet format --verify-no-changes --no-restore
-      - run: dotnet test --configuration Release --no-restore
+      - if: needs.scope.outputs.code == 'true'
+        run: dotnet format --verify-no-changes --no-restore
+      - name: Verify documentation (documentation-only change)
+        if: needs.scope.outputs.code != 'true'
+        run: dotnet test tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.csproj --configuration Release --no-restore --filter FullyQualifiedName~DocumentationTests
       - name: Restore pinned Godot export downloads
+        if: needs.scope.outputs.code == 'true'
         uses: actions/cache@v4
         with:
           path: ~/.cache/clankerworld-godot
           key: godot-4.7.2-mono-linux-x64-export-templates-v1
       - name: Verify Windows 11 x64 Godot release export
+        if: needs.scope.outputs.code == 'true'
         run: bash scripts/verify-godot-windows-export.sh
       - name: Upload Windows 11 x64 Godot release export
+        if: needs.scope.outputs.code == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: clankerworld-windows-11-x64
           path: export/windows-x64
           if-no-files-found: error
+
+  # The test suite split across parallel jobs; .github/scripts/ci-plan.js decides which tests
+  # each job runs, and every test runs in exactly one of them.
+  tests:
+    needs: scope
+    if: needs.scope.outputs.code == 'true'
+    name: tests (${{ matrix.shard }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.scope.outputs.shards) }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+      - name: Restore locked test dependencies
+        run: dotnet restore tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.csproj --locked-mode
+      - name: Run test shard ${{ matrix.shard }}
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: |
+          filter="$(node .github/scripts/ci-plan.js filter "$SHARD")"
+          dotnet test tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.csproj --configuration Release --no-restore --filter "$filter"
+
+  verify:
+    needs: [scope, checks, tests]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every part of Verify to pass
+        env:
+          CODE: ${{ needs.scope.outputs.code }}
+          SCOPE: ${{ needs.scope.result }}
+          CHECKS: ${{ needs.checks.result }}
+          TESTS: ${{ needs.tests.result }}
+        run: |
+          echo "scope: $SCOPE, checks: $CHECKS, tests: $TESTS, code changed: $CODE"
+          test "$SCOPE" = success
+          test "$CHECKS" = success
+          if [ "$CODE" = true ]; then test "$TESTS" = success; else test "$TESTS" = skipped; fi
 
   windows-documentation:
     runs-on: windows-latest
@@ -52,7 +134,10 @@ jobs:
       - name: Verify documentation with LF and CRLF checkout text
         run: dotnet test tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.csproj --configuration Release --no-restore --filter FullyQualifiedName~DocumentationTests
 
+  # Skipped for a documentation-only pull request; GitHub counts a skipped required job as passed.
   windows-provider-storage:
+    needs: scope
+    if: needs.scope.outputs.code == 'true'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
