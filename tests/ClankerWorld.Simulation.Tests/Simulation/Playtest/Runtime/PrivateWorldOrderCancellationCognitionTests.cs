@@ -59,10 +59,14 @@ public sealed partial class PrivateWorldRuntimeTests
 
             provider.Release.TrySetResult(true);
             await provider.Returned.Task.WaitAsync(TimeSpan.FromSeconds(3));
-            for (var tick = 0; tick < 8; tick++)
+            // The fresh ordinary request starts on a background task, so a slow runner
+            // may need a few more ticks; the agent must stay put on every one of them.
+            for (var tick = 0; tick < 8 || tick < 60 &&
+                     !provider.Requests.Any(request => request.OperativeOrderInstructionId is null); tick++)
             {
                 Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
                 Assert.Equal(position, CancellationActorPosition(world.ExportState()));
+                if (tick >= 8) await Task.Delay(10);
             }
 
             Assert.Single(provider.Requests, request => request.OperativeOrderInstructionId == order.InstructionId);

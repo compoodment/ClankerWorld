@@ -1,7 +1,3 @@
-# Joining a household with its agreement
-
-Merged on 1 October from [#464](https://github.com/compoodment/ClankerWorld/issues/464).
-
 - Choose a Town site, Start World, then use Add Agent on a House. The new adult joins that household at once, their card shows the household, and no one is asked anything. ([#464](https://github.com/compoodment/ClankerWorld/issues/464))
 - Use Add Agent on empty Town land next to a House. The adult joins the Town only. Their card says they have no home because they belong to no household, and the Event Log says so once. They do not take food from that House. ([#464](https://github.com/compoodment/ClankerWorld/issues/464))
 - Let that adult run. The Event Log says they asked a household for a place to live. Each adult of that household gets the request on their card. When every adult agrees, the Event Log says the newcomer now lives with that household, and their card shows the household. ([#464](https://github.com/compoodment/ClankerWorld/issues/464))

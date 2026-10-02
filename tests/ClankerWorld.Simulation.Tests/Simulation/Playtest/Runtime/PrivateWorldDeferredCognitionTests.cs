@@ -156,13 +156,15 @@ public sealed class PrivateWorldDeferredCognitionTests
         Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
         _ = await AdvanceUntilAcceptedAsync(world, NameTargetId);
         _ = await AdvanceUntilAcceptedAsync(world, NameTargetId);
-        Assert.Equal(2, provider.CallCount);
+        // How many ticks a hosted reply takes depends on the runner, so an ordinary
+        // re-evaluation may also start; only the two naming requests may ask for a name.
+        Assert.Equal(2, provider.ObservedRequests.Count(request => request.NeedsName || request.IsNameRetry));
         Assert.Equal(placeholder, world.Society.GetInhabitant(NameTargetId).Name);
         Assert.False(world.Society.GetInhabitant(NameTargetId).NeedsName);
         Assert.Contains(world.ExportState().Events,
             item => item.Kind == "agent_name_retry_exhausted" && item.Detail == NameTargetId);
 
-        var namingRequests = provider.ObservedRequests.ToArray();
+        var namingRequests = provider.ObservedRequests.Where(request => request.NeedsName || request.IsNameRetry).ToArray();
         Assert.Collection(namingRequests,
             first =>
             {
@@ -177,6 +179,7 @@ public sealed class PrivateWorldDeferredCognitionTests
         Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
         // Ordinary personal decisions can follow exhaustion when the world
         // context changes; neither may reopen the completed naming attempt.
+        Assert.Equal(2, provider.ObservedRequests.Count(request => request.NeedsName || request.IsNameRetry));
         Assert.Equal(namingRequests, provider.ObservedRequests.Where(request => request.NeedsName || request.IsNameRetry).ToArray());
         Assert.Equal(placeholder, world.Society.GetInhabitant(NameTargetId).Name);
         Assert.False(world.Society.GetInhabitant(NameTargetId).NeedsName);

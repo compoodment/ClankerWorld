@@ -65,6 +65,8 @@ public static class WorldEventText
             "continuity_rule_off" => "The continuity rule is off because eight or more people who are not elders are alive. " +
                 "Couples may decide against having a child again.",
             "caregiver_assigned" => "A child has a new caregiver.",
+            "guardian_needed" => "Needs a guardian. No adult has accepted care yet.",
+            "guardian_assigned" => "An adult accepted care for a child.",
             "council_policy_adopted" => "The Town adopted a new policy.",
             "settlement_trade_completed" => "A trade was completed.",
             "business_trade_offered" => "A customer offered an exchange at a shop; the goods are set aside while both traders meet there.",

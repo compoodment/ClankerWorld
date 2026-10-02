@@ -117,6 +117,19 @@ after infancy. Living and deceased profiles validate the descriptor against its
 recorded birth and schema. While provider storage is being recovered, the Model
 panel keeps showing the selected provider and model with a setup message.
 
+Schema 50 saves an unresolved dependent-guardian search, including its current
+relative, household or Town stage, start tick and offered adults. Each stage
+keeps the earlier groups, and the offers are brought up to date at the end of
+every tick, so a save always matches the households it was made with. Acceptance is
+an explicit adult action that changes the saved current primary caregiver.
+Household membership changes in that same action only when a completed House
+in the child's Town has room; otherwise it stays unchanged. The original birth
+record and Town membership stay unchanged. Loading validates the stage, times,
+and adult references. Replaying
+from a pending request reaches the same acceptance opportunities and preserves
+the single guardian-needed event. Older alpha saves without this state are
+refused; no migration is added.
+
 The private catalog archives each world's checkpoint. It saves the active world
 before a paused switch and keeps world IDs, names, seed and settings separate.
 Creation/selection require signed owner requests and leave the selection paused.
@@ -324,7 +337,7 @@ blocked-return behavior. These checks use existing timestamps and add no saved
 fields, schema change or migration.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 49. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 50. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
@@ -338,8 +351,9 @@ model heard them and any short reply, tool-lot links for saved field and
 recipe work, per-agent life-moment identity opportunities with their outcomes,
 connected Town-title plots, household use rights and pending use requests,
 physical shop exchanges beside their exact inventory offers,
-the continuity rule's state with each eligible couple's deadline, and food-order
-targets, progress, retry state and cancellation receipts.
+the continuity rule's state with each eligible couple's deadline, food-order
+targets, progress, retry state and cancellation receipts, and staged
+guardian-search records with their offered adults.
 Land records are checked against the saved map, Towns, households and one
 another before load. These fields retain their current validation and roundtrip
 behavior.
@@ -364,8 +378,8 @@ and caregiver records, schema 41 for owner-message delivery, schema 42 for
 selected tools on saved field and recipe work, schema 43 for life-moment
 identity, schema 44 for Town land records, schema 45 for physical shop
 exchanges, schema 46 for continuity, schema 47 for household departures and
-physical custody, schema 48 for Town councils and schema 49 for food-order
-progress and cancellations record when those fields or behaviors were
+physical custody, schema 48 for Town councils, schema 49 for food-order
+progress and cancellations and schema 50 for guardian searches record when those fields or behaviors were
 introduced; they do not allow an earlier checkpoint schema past the
 current alpha cutoff.
 
@@ -403,6 +417,7 @@ current alpha cutoff.
 | Schema 47 | Household departure records, once-only physical food allowances, care groups and personal collection rights; optional carrier IDs keep custody separate from property. Production jobs capture their owner at start. Paused private work preserves its original inputs and pause time for a remaining member to resume. Older alpha checkpoints are refused and preserved. |
 | Schema 48 | Independent Town councils, personal candidacy agreements, proposal windows and final votes, current and archived elections, recorded runoff draws, notices and actor-owned read/relay receipts. Founded Towns require valid governance. Earlier alpha checkpoints are refused and preserved; no civic state is inferred or migrated. |
 | Schema 49 | Recognized food orders keep their target, requested and completed units, retry state and status, plus cancellation receipts tied to the exact world, actor and order. Progress records the physical effect that earned it, so an unrelated action or a stale order cannot advance a replacement task. Earlier alpha checkpoints are refused and preserved; no order migration is added. |
+| Schema 50 | Staged dependent-guardian searches with their current stage, timing and offered adults, so consent remains ordered and replayable. Older builds refuse the checkpoint rather than infer or discard a search. |
 
 Other compatibility fields remain separate for simulation, envelopes, content,
 assets, generator and network contracts. Change the field whose semantics
