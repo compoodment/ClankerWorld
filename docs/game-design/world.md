@@ -164,7 +164,8 @@ Provider cost is unknown until agent call rates, token use, model choices, and
 population are measured. Representative tests can measure this before the
 entire game is complete; nominal calendar speed alone does not determine
 model spend. The usage meter and optional stop are accepted, and how they
-count is agreed above; their warning level and wording still need playtesting.
+count is agreed above; the 80% warning level may be tuned, and its wording
+still needs playtesting.
 
 ## Maps, plants and weather
 
@@ -274,8 +275,9 @@ count is agreed above; their warning level and wording still need playtesting.
   Roads exist and influence travel and building placement. **Mountain and peak
   tiles cannot hold construction**—including buildings, farms and roads.
   Agents may cross **mountain** tiles, but more slowly; **peak** tiles are
-  impassable. **Agreed on October 1:** crossing a mountain tile costs twice as
-  much as grass.
+  impassable. **Agreed on October 1
+  ([#628](https://github.com/compoodment/ClankerWorld/issues/628)):** crossing
+  a mountain tile costs twice as much as grass.
 - In the intended finished game, agents can **move diagonally** on the 2D tile
   map, and roads can also run diagonally. The playable foot route finder now
   supports diagonal steps at 141% of cardinal entry cost and requires both

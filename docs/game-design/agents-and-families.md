@@ -266,8 +266,8 @@ Personal ownership is separate from storage or carrying location under the
 [agreed household goods rules](towns.md#household-goods-and-departure).
 What a will may do, including heirs, children and final words, is agreed
 above. For inheritance, still open: the exact final-model-turn contract;
-conflicts between a will and agent-made law; debts; and other guardianship
-cases. Clanker's
+conflicts between a will and agent-made law; debts; no-household cases without
+a valid will; and other guardianship cases. Clanker's
 proposed safety rule is to freeze the estate at death, validate the model's
 instructions against real ownership/law, and apply the household default if
 the model is unavailable or gives no valid instruction. Computment said this
@@ -370,10 +370,11 @@ another sprite family at first.
   scale from worst to best, so the model cannot misread how serious a word is.
   For example: "Fullness: hungry (starving, hungry, fine, full; starving is
   worst, full is best)". The words follow the agreed comfort and urgency
-  levels: fullness is **full** at 70% or more, **fine** at 40–69%, **hungry**
-  at 20–39% and **starving** below 20%; warmth is **warm** at 60% or more,
-  **chilly** at 35–59% and **freezing** below 35%. Illness uses the same kind
-  of scale; its words are set when it is built. Compare the words against
+  levels. The exact words and cut-offs are still provisional, for example:
+  fullness **full** at 70% or more, **fine** at 40–69%, **hungry** at 20–39%
+  and **starving** below 20%; warmth **warm** at 60% or more, **chilly** at
+  35–59% and **freezing** below 35%. Illness uses the same kind of scale; its
+  words are set when it is built. Compare the words against
   today's numbers in a controlled comparison before they become the default.
 
 ### Still to decide
