@@ -16,6 +16,7 @@ namespace ClankerWorld.Viewer.Observation;
 public sealed class OwnerWorldObservationStore
 {
     private const int AgentKnowledgeArtifactLimit = 8;
+    private const int RecentClosedInstructionLimitPerAgent = 6;
     private static readonly string[] OwnerServerCapabilities =
     [
         "snapshot.read.v1",
@@ -213,6 +214,8 @@ public sealed class OwnerWorldObservationStore
         var physicalById = state.Inhabitants.ToDictionary(item => item.InhabitantId, StringComparer.Ordinal);
         var deceasedById = (state.DeceasedInhabitants ?? []).ToDictionary(item => item.InhabitantId, StringComparer.Ordinal);
         var resourceStates = state.Resources.ToDictionary(item => item.ResourceId, item => item.State, StringComparer.Ordinal);
+        var completedInstructionIds = (state.CompletedInstructionIds ?? []).ToHashSet(StringComparer.Ordinal);
+        var visibleInstructions = ProjectPrivateInstructions(state, completedInstructionIds);
         var first = activeInhabitants.FirstOrDefault();
         ViewerActor? actor = null;
         if (first is not null)
@@ -378,18 +381,19 @@ public sealed class OwnerWorldObservationStore
                 campWeather.ToString().ToLowerInvariant(),
                 state.WorldSystems?.Climate.Season.ToString().ToLowerInvariant() ?? "spring",
                 []),
-            Instructions = (state.Instructions ?? [])
-                .Where(instruction => !(state.CompletedInstructionIds ?? []).Contains(instruction.InstructionId, StringComparer.Ordinal))
-                .OrderBy(instruction => instruction.SubmissionSequence)
+            Instructions = visibleInstructions
                 .Select(instruction => new ViewerInstruction(
                     instruction.InstructionId,
                     instruction.TargetInhabitantId,
                     ToWireValue(instruction.Kind),
                     instruction.Text,
-                    ToWireValue(instruction.State),
+                    completedInstructionIds.Contains(instruction.InstructionId)
+                        ? "completed" : ToWireValue(instruction.State),
                     instruction.SubmittedTick,
                     instruction.RunEpoch,
-                    instruction.SubmissionSequence))
+                    instruction.SubmissionSequence,
+                    instruction.ObservedTick,
+                    instruction.ObserverReply))
                 .ToArray(),
             Cognition = ToCognition(state),
             ContentPackages = state.Content?.Packages
@@ -453,15 +457,26 @@ public sealed class OwnerWorldObservationStore
                 : null,
             PlacedBuildings = state.WorldSimulation?.Buildings
                 .OrderBy(item => item.InstanceId, StringComparer.Ordinal)
-                .Select(item => new ViewerPlacedBuilding(
+                .Select(item =>
+                {
+                    var definition = buildingDefinitions?.GetValueOrDefault(item.DefinitionId);
+                    var width = item.Footprint?.Width ?? definition?.Width ?? 1;
+                    var height = item.Footprint?.Height ?? definition?.Height ?? 1;
+                    var residentCapacity = item.HouseholdId is { } residentHousehold &&
+                        definition?.Tags.Contains("house", StringComparer.Ordinal) == true
+                            ? HouseResidentCapacityRules.Calculate(
+                                state.Society.Society.Inhabitants.Where(person => person.HouseholdId == residentHousehold),
+                                width, height)
+                            : null;
+                    return new ViewerPlacedBuilding(
                     item.InstanceId,
                     item.DefinitionId,
                     ToPosition(item.Position),
                     item.PlacedTick,
-                    buildingDefinitions?.GetValueOrDefault(item.DefinitionId)?.DisplayName,
-                    buildingDefinitions?.GetValueOrDefault(item.DefinitionId)?.Tags,
-                    item.Footprint?.Width ?? buildingDefinitions?.GetValueOrDefault(item.DefinitionId)?.Width ?? 1,
-                    item.Footprint?.Height ?? buildingDefinitions?.GetValueOrDefault(item.DefinitionId)?.Height ?? 1,
+                    definition?.DisplayName,
+                    definition?.Tags,
+                    width,
+                    height,
                     item.TownId,
                     item.HouseholdId,
                     item.HouseholdId is { } householdId
@@ -477,7 +492,15 @@ public sealed class OwnerWorldObservationStore
                     (state.WorldSimulation.GuestInvitations ?? []).Where(invitation => invitation.HouseInstanceId == item.InstanceId && invitation.Active)
                         .Select(invitation => state.Society.Society.Inhabitants.Single(person => person.Id == invitation.GuestId).Name).ToArray(),
                     (state.WorldSimulation.BuildingExpansions ?? []).LastOrDefault(job => job.BuildingInstanceId == item.InstanceId)?.State.ToString().ToLowerInvariant(),
-                    (state.WorldSimulation.BuildingExpansions ?? []).LastOrDefault(job => job.BuildingInstanceId == item.InstanceId)?.Failure))
+                    (state.WorldSimulation.BuildingExpansions ?? []).LastOrDefault(job => job.BuildingInstanceId == item.InstanceId)?.Failure,
+                    residentCapacity?.Limit,
+                    residentCapacity?.ResidentCount ?? 0,
+                    residentCapacity?.HasDominantFamily ?? false,
+                    residentCapacity?.IsOvercrowded ?? false)
+                    {
+                        AllowsHouseholdOwner = definition?.Tags.Any(HouseholdBuildingKinds.IsKindTag) == true,
+                    };
+                })
                 .ToArray() ?? [],
             ProductionJobs = jobs
                 .OrderBy(item => item.JobId, StringComparer.Ordinal)
@@ -492,6 +515,27 @@ public sealed class OwnerWorldObservationStore
                 .ToArray(),
         };
     }
+
+    // Every open message stays visible. Closed messages are bounded to each
+    // agent's newest few, whether or not a personal model heard them: an order
+    // the game could not act on, or one done by local rules, still belongs on
+    // the card. Newest means latest submitted, the order the card reads them in.
+    private static OwnerQueuedInstruction[] ProjectPrivateInstructions(
+        PrivateWorldRuntimeState state,
+        HashSet<string> completedInstructionIds) =>
+        (state.Instructions ?? [])
+            .GroupBy(instruction => instruction.TargetInhabitantId, StringComparer.Ordinal)
+            .SelectMany(group =>
+            {
+                var pending = group.Where(instruction => !completedInstructionIds.Contains(instruction.InstructionId));
+                var recentClosed = group
+                    .Where(instruction => completedInstructionIds.Contains(instruction.InstructionId))
+                    .OrderByDescending(instruction => instruction.SubmissionSequence)
+                    .Take(RecentClosedInstructionLimitPerAgent);
+                return pending.Concat(recentClosed);
+            })
+            .OrderBy(instruction => instruction.SubmissionSequence)
+            .ToArray();
 
     private static string ConversationStatus(AgentConversationStatus status) => status switch
     {
@@ -755,6 +799,7 @@ public sealed class OwnerWorldObservationStore
             HousingBlockers.NoAuthorizedHome => "No home. The household holds no House yet and can plan one.",
             HousingBlockers.MissingMaterials => "No home. The household holds no House and lacks the materials to build one.",
             HousingBlockers.NoLegalSite => "No home. The household has the materials for a House but no legal site to build it.",
+            HousingBlockers.Overcrowded => "Housing need. The House has more residents than places; nobody is moved out.",
             _ => null,
         };
     }

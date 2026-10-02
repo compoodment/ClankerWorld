@@ -15,15 +15,16 @@ public sealed record SettlementHousingRequest(string HouseholdId, long Requested
 /// <summary>A household that refused or did not answer, so it is not asked again for a while.</summary>
 public sealed record SettlementHousingRefusal(string HouseholdId, long Tick);
 
-/// <summary>Housing state of an adult who has no House their household holds.</summary>
+/// <summary>Housing status for an adult applicant or a resident with an unmet housing need.</summary>
 public sealed record SettlementHousing(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementHousingRequest? Request = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SettlementHousingRefusal>? Refusals = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Blocker = null);
 
 /// <summary>
-/// Why an adult has no home. These codes are saved and shown to the owner and
-/// to the agent's own model; see <see cref="PrivateWorldRuntime.HousingBlocker"/>.
+/// Why a resident has no authorized home or their household is overcrowded.
+/// These codes are saved and shown to the owner and to the agent's own model;
+/// see <see cref="PrivateWorldRuntime.HousingBlocker"/>.
 /// </summary>
 public static class HousingBlockers
 {
@@ -32,9 +33,10 @@ public static class HousingBlockers
     public const string NoLegalSite = "no_legal_site";
     public const string MissingMaterials = "missing_materials";
     public const string AwaitingAnswer = "awaiting_answer";
+    public const string Overcrowded = "overcrowded";
 
     public static readonly IReadOnlyList<string> All =
-        [NoHousehold, NoAuthorizedHome, NoLegalSite, MissingMaterials, AwaitingAnswer];
+        [NoHousehold, NoAuthorizedHome, NoLegalSite, MissingMaterials, AwaitingAnswer, Overcrowded];
 }
 
 /// <summary>
@@ -63,6 +65,23 @@ public sealed partial class PrivateWorldRuntime
     private bool HasHome(string actor) =>
         society.Checkpoint.GetInhabitant(actor).HouseholdId is { } householdId && HouseForHousehold(householdId) is not null;
 
+    private HouseResidentCapacityRules.Capacity? HouseResidentCapacity(string householdId,
+        SocietyInhabitant? proposedResident = null)
+    {
+        if (HouseForHousehold(householdId) is not { } house)
+            return null;
+        var definition = worldContent.Buildings.Single(item => item.CanonicalId == house.DefinitionId);
+        var effective = BuildingStorageRules.EffectiveDefinition(definition, house);
+        var residents = society.Checkpoint.Inhabitants.Where(person =>
+            person.HouseholdId == householdId && person.Status == SocietyInhabitantStatus.Active);
+        if (proposedResident is not null && !residents.Any(person => person.Id == proposedResident.Id))
+            residents = residents.Append(proposedResident with { HouseholdId = householdId });
+        return HouseResidentCapacityRules.Calculate(residents, effective.Width, effective.Height);
+    }
+
+    private bool CanFitHouseResident(string householdId, SocietyInhabitant proposedResident) =>
+        HouseResidentCapacity(householdId, proposedResident) is { IsOvercrowded: false };
+
     /// <summary>
     /// Households this adult may ask now: they hold a House in the adult's
     /// Town, have an adult who can answer, and did not refuse recently. Only
@@ -80,6 +99,7 @@ public sealed partial class PrivateWorldRuntime
         foreach (var household in society.Checkpoint.Households.OrderBy(item => item.Id, StringComparer.Ordinal))
         {
             if (HouseForHousehold(household.Id) is not { } house || house.TownId != town ||
+                !CanFitHouseResident(household.Id, society.Checkpoint.GetInhabitant(actor)) ||
                 HouseholdAdults(household.Id).Length == 0 ||
                 housing?.Refusals?.Any(refusal => refusal.HouseholdId == household.Id &&
                     WorldTick - refusal.Tick < HousingRefusalCooldownTicks) == true)
@@ -205,6 +225,11 @@ public sealed partial class PrivateWorldRuntime
         {
             EndHousingRequest(actor, request, "housing_request_refused", remember: true);
         }
+        else if (living.All(id => request.Approvals.Contains(id, StringComparer.Ordinal)) &&
+            !CanFitHouseResident(request.HouseholdId, society.Checkpoint.GetInhabitant(actor)))
+        {
+            EndHousingRequest(actor, request, "housing_request_blocked_capacity", remember: true);
+        }
         else if (living.All(id => request.Approvals.Contains(id, StringComparer.Ordinal)))
         {
             society.Apply(checkpoint => SocietyFixture.JoinHousehold(checkpoint, actor, request.HouseholdId));
@@ -247,19 +272,26 @@ public sealed partial class PrivateWorldRuntime
     }
 
     /// <summary>
-    /// The real reason an adult has no home, or null when their household
-    /// holds a House. The agreement path comes first: an adult with no
-    /// household is told so and may ask a household; only a household can
-    /// plan a House, and then materials and a legal site are checked.
+    /// The resident's current housing need, or null when their household has
+    /// an authorized home within its completed capacity. Only adults can make
+    /// admission requests or receive construction choices.
     /// </summary>
     private string? HousingBlocker(string actor)
     {
-        if (!AdultResident(actor) || HasHome(actor))
+        if (!inhabitants.TryGetValue(actor, out var physical))
             return null;
-        if (inhabitants[actor].Housing?.Request is not null)
+        var person = society.Checkpoint.GetInhabitant(actor);
+        if (person.Status != SocietyInhabitantStatus.Active)
+            return null;
+        if (person.HouseholdId is { } currentHousehold && HouseForHousehold(currentHousehold) is not null)
+            return HouseResidentCapacity(currentHousehold) is { IsOvercrowded: true }
+                ? HousingBlockers.Overcrowded
+                : null;
+        var adult = AdultResident(actor);
+        if (adult && physical.Housing?.Request is not null)
             return HousingBlockers.AwaitingAnswer;
-        if (society.Checkpoint.GetInhabitant(actor).HouseholdId is not { } householdId)
-            return HousingBlockers.NoHousehold;
+        if (person.HouseholdId is not { } householdId)
+            return adult ? HousingBlockers.NoHousehold : HousingBlockers.NoAuthorizedHome;
         if (HouseholdBuildingProjectInProgress(householdId, "house", actor))
             return HousingBlockers.NoAuthorizedHome;
         var house = PlannableHouseholdBuildings(householdId, actor)
@@ -276,6 +308,29 @@ public sealed partial class PrivateWorldRuntime
     /// <summary>What the agent's own model is told about its housing; null when it has a home.</summary>
     private string? HousingNote(string actor)
     {
+        var person = society.Checkpoint.GetInhabitant(actor);
+        if (person.HouseholdId is { } householdId && HouseForHousehold(householdId) is { } house &&
+            HouseResidentCapacity(householdId) is { } capacity)
+        {
+            var definition = worldContent.Buildings.Single(item => item.CanonicalId == house.DefinitionId);
+            var footprint = WorldContentSimulationRules.Footprint(definition, house).ToHashSet();
+            var inside = inhabitants.Values.Count(physical =>
+                society.Checkpoint.GetInhabitant(physical.InhabitantId).Status == SocietyInhabitantStatus.Active &&
+                footprint.Contains(physical.Position));
+            var state = capacity.IsOvercrowded ? "overcrowded" :
+                capacity.HasFreePlace ? "has room" : "is full";
+            var family = capacity.HasDominantFamily
+                ? "; majority-family limit applies"
+                : string.Empty;
+            var expansion = (worldSimulation.BuildingExpansions ?? []).Any(job =>
+                job.BuildingInstanceId == house.InstanceId && job.State == WorldProductionJobState.Running)
+                ? "; expansion adds places when complete" : string.Empty;
+            var need = capacity.IsOvercrowded
+                ? "; need: no automatic moves"
+                : string.Empty;
+            return $"House: {capacity.ResidentCount}/{capacity.Limit} permanent places ({state}); " +
+                $"{inside} inside; absences still count{family}{expansion}{need}";
+        }
         if (inhabitants[actor].Housing is not { Blocker: { } blocker } housing)
             return null;
         return blocker switch
@@ -290,6 +345,8 @@ public sealed partial class PrivateWorldRuntime
                 "You have no home. Your household holds no House and lacks the materials to build one.",
             HousingBlockers.NoLegalSite =>
                 "You have no home. Your household has the materials for a House but no legal site to build it.",
+            HousingBlockers.Overcrowded =>
+                "Your household's House is over its completed resident capacity. This is a housing need; no one is moved automatically.",
             _ => null,
         };
     }
@@ -313,6 +370,13 @@ public sealed partial class PrivateWorldRuntime
                     !households.Contains(refusal.HouseholdId) || refusal.Tick < 0 || refusal.Tick > society.WorldTick) ||
                     refusals.Select(refusal => refusal.HouseholdId).Distinct(StringComparer.Ordinal).Count() != refusals.Count))
                 throw new InvalidDataException("The saved housing state is invalid.");
+            var hasAdultAdmissionState = housing.Request is not null || housing.Refusals is { Count: > 0 };
+            var isAdultResident = people.TryGetValue(person.InhabitantId, out var societyPerson) &&
+                societyPerson.Status == SocietyInhabitantStatus.Active &&
+                societyPerson.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder;
+            if (hasAdultAdmissionState && !isAdultResident ||
+                housing.Blocker == HousingBlockers.AwaitingAnswer && housing.Request is null)
+                throw new InvalidDataException("Saved household admission state is only valid for an adult applicant.");
             if (housing.Request is not { } request)
                 continue;
             var answers = request.Approvals is null || request.Rejections is null ? null : request.Approvals.Concat(request.Rejections).ToArray();

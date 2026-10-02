@@ -120,6 +120,8 @@ public partial class Main
             var titleSize = quitGameConfirmation.GetThemeFontSize("title_font_size");
             if (!Mathf.IsEqualApprox(quitGameConfirmation.ContentScaleFactor, factor) ||
                 !Mathf.IsEqualApprox(deletionConfirmation.ContentScaleFactor, factor) ||
+                !Mathf.IsEqualApprox(buildingRemoveConfirmation.ContentScaleFactor, factor) ||
+                buildingRemoveConfirmation.OkButtonText != "Remove building" ||
                 deletionConfirmation.GetThemeFontSize("title_font_size") != UiFonts.Heading * factor ||
                 DialogSize(FitDialog(quitGameConfirmation)) != FitDialog(quitGameConfirmation) * factor || titleSize != UiFonts.Heading * factor ||
                 quitGameConfirmation.GetThemeConstant("title_height") != 30 * factor ||
@@ -1032,6 +1034,7 @@ public partial class Main
                 await VerifyAutosaveSettingsOwnershipAsync();
                 await VerifyUiScaleAt1440pAsync(displayWindow);
                 await VerifyManualSaveListOwnershipAsync();
+                VerifySaveBranchList();
                 windowSizeChoice.Select(1);
                 SetWindowSize(1);
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
@@ -1581,29 +1584,103 @@ public partial class Main
                                 if (foam.GetPixel(column, row).A > 0 && land.GetPixel(column, row).A > 0)
                                     throw new InvalidOperationException($"{atlasSize}px foam must lie along the land's edge, not on it.");
                     }
+            // A tile's pixels packed as RGBA, row by row, for exact comparisons.
+            static uint[] Packed(Image tile)
+            {
+                var data = tile.GetData();
+                var pixels = new uint[data.Length / 4];
+                for (var index = 0; index < pixels.Length; index++)
+                    pixels[index] = (uint)data[index * 4] << 24 | (uint)data[index * 4 + 1] << 16 | (uint)data[index * 4 + 2] << 8 | data[index * 4 + 3];
+                return pixels;
+            }
+            // Pixels that differ between line `lineA` of one tile and line `lineB` of another.
+            static int Mismatches(uint[] a, int lineA, uint[] b, int lineB, int size, bool columns)
+            {
+                var count = 0;
+                for (var along = 0; along < size; along++)
+                    if (columns ? a[along * size + lineA] != b[along * size + lineB] : a[lineA * size + along] != b[lineB * size + along])
+                        count++;
+                return count;
+            }
+            // Lone pixels: one colour set alone among eight neighbours of another single colour.
+            static int LonePixels(uint[] pixels, int size)
+            {
+                var lone = 0;
+                for (var y = 0; y < size; y++)
+                    for (var x = 0; x < size; x++)
+                    {
+                        var around = pixels[y * size + (x + 1) % size];
+                        var alone = around != pixels[y * size + x];
+                        for (var dy = -1; dy <= 1 && alone; dy++)
+                            for (var dx = -1; dx <= 1 && alone; dx++)
+                                alone = (dx == 0 && dy == 0) || pixels[(y + dy + size) % size * size + (x + dx + size) % size] == around;
+                        if (alone) lone++;
+                    }
+                return lone;
+            }
             foreach (var atlasSize in new[] { 16, 32 })
                 foreach (var style in Enum.GetValues<TerrainStyle>())
                 {
                     var baseColor = TerrainTextures.BaseColor(style);
-                    var first = TerrainTextures.Tile(style, 0, atlasSize);
-                    var second = TerrainTextures.Tile(style, 1, atlasSize);
-                    foreach (var texture in new[] { first, second })
-                    {
-                        var detail = 0;
-                        for (var ty = 0; ty < atlasSize; ty++)
-                            for (var tx = 0; tx < atlasSize; tx++)
-                                if (!texture.GetPixel(tx, ty).IsEqualApprox(baseColor)) detail++;
-                        // Calm ground: a few pixel clusters, never per-pixel grain.
-                        // Mountains and peaks are drawn as relief shapes instead.
-                        var detailLimit = style is TerrainStyle.Mountain or TerrainStyle.Peak ? 0.4f : 0.12f;
-                        if (detail > atlasSize * atlasSize * detailLimit)
-                            throw new InvalidOperationException($"{style} {atlasSize}px texture is too busy: {detail} detail pixels.");
-                        for (var edge = 0; edge < atlasSize; edge++)
-                            if (!texture.GetPixel(edge, 0).IsEqualApprox(baseColor) || !texture.GetPixel(0, edge).IsEqualApprox(baseColor))
-                                throw new InvalidOperationException($"{style} {atlasSize}px details must stay off tile edges so neighbors join without seams.");
-                    }
-                    if (style != TerrainStyle.Unknown && first.GetData().SequenceEqual(second.GetData()))
+                    Image[] tiles = [TerrainTextures.Tile(style, 0, atlasSize), TerrainTextures.Tile(style, 1, atlasSize)];
+                    if (style != TerrainStyle.Unknown && tiles[0].GetData().SequenceEqual(tiles[1].GetData()))
                         throw new InvalidOperationException($"{style} needs two distinct texture variants.");
+                    if (style is TerrainStyle.Mountain or TerrainStyle.Peak)
+                    {
+                        // Mountains and peaks are relief shapes kept inside their
+                        // tile, so mountain tiles meet on plain ground without seams.
+                        foreach (var texture in tiles)
+                        {
+                            var relief = 0;
+                            for (var ty = 0; ty < atlasSize; ty++)
+                                for (var tx = 0; tx < atlasSize; tx++)
+                                    if (!texture.GetPixel(tx, ty).IsEqualApprox(baseColor)) relief++;
+                            if (relief > atlasSize * atlasSize * 0.4f)
+                                throw new InvalidOperationException($"{style} {atlasSize}px texture is too busy: {relief} relief pixels.");
+                            for (var edge = 0; edge < atlasSize; edge++)
+                                if (!texture.GetPixel(edge, 0).IsEqualApprox(baseColor) || !texture.GetPixel(0, edge).IsEqualApprox(baseColor))
+                                    throw new InvalidOperationException($"{style} {atlasSize}px relief must stay off tile edges so neighbors join without seams.");
+                        }
+                        continue;
+                    }
+                    // Calm ground: soft patches and a few small motifs that keep
+                    // the overview colour on average, never per-pixel grain.
+                    var pixels = tiles.Select(Packed).ToArray();
+                    foreach (var tile in pixels)
+                    {
+                        var (red, green, blue) = (0f, 0f, 0f);
+                        foreach (var pixel in tile)
+                        {
+                            red += (pixel >> 24) / 255f;
+                            green += (pixel >> 16 & 0xFF) / 255f;
+                            blue += (pixel >> 8 & 0xFF) / 255f;
+                        }
+                        var count = tile.Length;
+                        if (Math.Abs(red / count - baseColor.R) > 0.04f || Math.Abs(green / count - baseColor.G) > 0.04f ||
+                            Math.Abs(blue / count - baseColor.B) > 0.04f)
+                            throw new InvalidOperationException($"{style} {atlasSize}px ground must average within 4% of its overview colour.");
+                        var lone = LonePixels(tile, atlasSize);
+                        if (lone > atlasSize / 4)
+                            throw new InvalidOperationException($"{style} {atlasSize}px ground is grainy: {lone} lone pixels.");
+                    }
+                    // Seamless: patches may run across an edge only if they carry
+                    // on at the opposite edge, so where any two tiles meet, in
+                    // either variant, the join is no rougher than a line inside one.
+                    var last = atlasSize - 1;
+                    var roughestColumn = 0;
+                    var roughestRow = 0;
+                    foreach (var tile in pixels)
+                        for (var line = 0; line < last; line++)
+                        {
+                            roughestColumn = Math.Max(roughestColumn, Mismatches(tile, line, tile, line + 1, atlasSize, columns: true));
+                            roughestRow = Math.Max(roughestRow, Mismatches(tile, line, tile, line + 1, atlasSize, columns: false));
+                        }
+                    // A tile's east edge against its neighbour's west edge, and its south edge against the neighbour's north edge.
+                    foreach (var tile in pixels)
+                        foreach (var neighbour in pixels)
+                            if (Mismatches(tile, last, neighbour, 0, atlasSize, columns: true) > roughestColumn ||
+                                Mismatches(tile, last, neighbour, 0, atlasSize, columns: false) > roughestRow)
+                                throw new InvalidOperationException($"{style} {atlasSize}px ground must join its neighbours without a seam.");
                 }
             foreach (var atlasSize in new[] { 16, 32 })
                 foreach (var style in new[] { TerrainStyle.Ocean, TerrainStyle.Lake, TerrainStyle.River, TerrainStyle.ShallowWater })
@@ -1753,6 +1830,27 @@ public partial class Main
             for (byte kind = 1; kind <= 11; kind++)
                 if (NatureSprites.ForNaturalObject(kind, 0) is null)
                     throw new InvalidOperationException($"Natural object {kind} has no sprite.");
+            // Farm fields: every crop and growth state draws its overlay over the
+            // tilled soil at both sizes, and the host's names pick the right art.
+            foreach (var atlasSize in new[] { 16, 32 })
+                foreach (var crop in Enum.GetValues<FieldCrop>())
+                    foreach (var growth in Enum.GetValues<FieldGrowth>())
+                    {
+                        var overlay = FieldSprites.Overlay(crop, growth, atlasSize);
+                        var drawn = 0;
+                        for (var oy = 0; oy < overlay.GetHeight(); oy++)
+                            for (var ox = 0; ox < overlay.GetWidth(); ox++)
+                                if (overlay.GetPixel(ox, oy).A > 0.05f) drawn++;
+                        if (overlay.GetWidth() != atlasSize || overlay.GetHeight() != atlasSize || drawn == 0 ||
+                            FieldSprites.Texture(crop, growth, atlasSize).GetWidth() != atlasSize)
+                            throw new InvalidOperationException($"The {crop} field must draw its {growth} overlay at {atlasSize}px.");
+                    }
+            if (FieldSprites.CropFor("grain") != FieldCrop.Grain || FieldSprites.CropFor("potatoes") != FieldCrop.Potato ||
+                FieldSprites.CropFor("cultivated_greens") != FieldCrop.Greens || FieldSprites.CropFor(null) != FieldCrop.Grain ||
+                FieldSprites.GrowthFor("preparing") != FieldGrowth.Prepared || FieldSprites.GrowthFor("prepared") != FieldGrowth.Prepared ||
+                FieldSprites.GrowthFor("planted") != FieldGrowth.Seeded || FieldSprites.GrowthFor("growing") != FieldGrowth.Sprout ||
+                FieldSprites.GrowthFor("ready") != FieldGrowth.Mature || FieldSprites.GrowthFor("harvested") != FieldGrowth.Harvested)
+                throw new InvalidOperationException("Field crops and stages must pick the matching field art.");
             var buildingData = new HashSet<string>(StringComparer.Ordinal);
             foreach (var tilePixels in new[] { 16, 32 })
                 foreach (var kind in Enum.GetValues<BuildingKind>())
@@ -1827,6 +1925,15 @@ public partial class Main
             if (ItemIcons.Has("never-an-item") || Convert.ToBase64String(ItemIcons.Render("never-an-item", 32).GetData()) !=
                     Convert.ToBase64String(ItemIcons.Render("crate", 32).GetData()) || !ItemIcons.Has("wood"))
                 throw new InvalidOperationException("An item without its own icon must show the crate.");
+            if (GameUiText.ItemName("storage_pot") != "Storage pot" ||
+                GameUiText.ItemName("water_jug") != "Water jug" ||
+                GameUiText.ItemName("fresh_water") != "Fresh water")
+                throw new InvalidOperationException("Pottery and water items must have clear player-facing names.");
+            string IconData(string kind) => Convert.ToBase64String(ItemIcons.Render(kind, 32).GetData());
+            if (!ItemIcons.Has("storage_pot") || !ItemIcons.Has("fresh_water") ||
+                IconData("storage_pot") != IconData("clay_pot") || IconData("fresh_water") != IconData("water") ||
+                IconData("storage_pot") == IconData("water_jug"))
+                throw new InvalidOperationException("The storage pot and fresh water must show their approved, distinct icons.");
             if (BuildingSprites.KindFor(["shelter"]) != BuildingKind.Shelter ||
                 BuildingSprites.KindFor(["house", "shelter"]) != BuildingKind.House ||
                 BuildingSprites.KindFor(["cooking", "warmth"]) != BuildingKind.Hearth ||
@@ -2046,6 +2153,43 @@ public partial class Main
                 !selectedActorConditionLabel.Text.Contains("Clothed", StringComparison.Ordinal) || profileDietMeter.Percent != 74 ||
                 !mapCanvas.GetGlobalRect().Grow(1).Encloses(agentProfilePanel.GetGlobalRect()))
                 throw new InvalidOperationException($"The Profile must replace the quick card, dock on the left below the top bar and offer a way back: {agentProfilePanel.GetGlobalRect()}.");
+            var messageSnapshot = occupied with
+            {
+                Instructions =
+                [
+                    new OwnerWorldInstruction("message-suggestion", founder.Id, "suggestive",
+                        "Try the riverbank berries.", "completed", 0, 0, 1, 1, "I will look there."),
+                    new OwnerWorldInstruction("message-other-agent", "agent:other", "suggestive",
+                        "Private message for someone else.", "pending", 0, 0, 2),
+                ],
+            };
+            RenderSelectedInhabitantCard(messageSnapshot);
+            var renderedMessages = instructionHistory.GetParsedText();
+            if (!renderedMessages.Contains("Try the riverbank berries.", StringComparison.Ordinal) ||
+                !renderedMessages.Contains("Suggestion heard by their personal model", StringComparison.Ordinal) ||
+                !renderedMessages.Contains("Agent reply: “I will look there.”", StringComparison.Ordinal) ||
+                renderedMessages.Contains("Private message for someone else", StringComparison.Ordinal) ||
+                privateThoughtHistory.GetParsedText().Contains("I will look there.", StringComparison.Ordinal) ||
+                instructionText.MaxLength != 512)
+                throw new InvalidOperationException("The Profile must show only this agent's original observer messages and keep a short reply separate from private thoughts.");
+            // The server keeps closed messages that no personal model heard, such as orders the game
+            // could not act on. They must show as closed without hiding an older order that is still open.
+            RenderSelectedInhabitantCard(occupied with
+            {
+                Instructions =
+                [
+                    new OwnerWorldInstruction("message-open-order", founder.Id, "must_do",
+                        "Eat the berries you carry.", "queued", 0, 0, 1),
+                    .. Enumerable.Range(1, 4).Select(index => new OwnerWorldInstruction($"message-closed-order-{index}",
+                        founder.Id, "must_do", $"Build house number {index}.", "completed", 0, 0, 1 + index)),
+                ],
+            });
+            renderedMessages = instructionHistory.GetParsedText();
+            if (!renderedMessages.Contains("Order pending · waiting for their personal model\n“You said: Eat the berries you carry.”", StringComparison.Ordinal) ||
+                !renderedMessages.Contains("Order closed · not reported as heard\n“You said: Build house number 4.”", StringComparison.Ordinal) ||
+                !renderedMessages.Contains("Build house number 2.", StringComparison.Ordinal) ||
+                renderedMessages.Contains("Build house number 1.", StringComparison.Ordinal))
+                throw new InvalidOperationException($"The Profile must list closed unheard orders as closed and keep an open order in view: {renderedMessages}");
             // Read all, or clicking the Profile's thoughts, opens the reader beside the Profile.
             var suggestDisabled = instructionSuggestButton.Disabled;
             var orderDisabled = instructionOrderButton.Disabled;
@@ -2171,6 +2315,9 @@ public partial class Main
                 throw new InvalidOperationException("Removed agent marker was retained.");
             if (mapObjectVisuals.ContainsKey("resource:wood")) throw new InvalidOperationException("Removed resource marker was retained.");
             if (mapObjectVisuals.ContainsKey("building:test-hall")) throw new InvalidOperationException("Removed building marker was retained.");
+            await VerifyAgentPosesAsync(sample, founder);
+            await VerifyMountainReliefAsync();
+            await VerifyDesertAndSnowArtAsync();
             var crowded = sample with
             {
                 WorldId = "ui-marker-bounds",
@@ -3082,7 +3229,8 @@ public partial class Main
                 longDialog.X != DialogTextWidth + (int)dialogMargins.X || deletionConfirmation.GetLabel().GetLineCount() < 2 ||
                 longDialog.Y <= shortDialog.Y)
                 throw new InvalidOperationException($"Confirmations must fit their message: short {shortDialog}, long {longDialog}.");
-            GD.Print("UI checks passed: startup Main Menu and settings, compact in-world pause menu and read-only Mod Library, confirmed quit, World Info Towns page, resource hover, square tile hover and agent priority, bounded marker hitboxes at zoom, building footprints, camera-bounded large terrain and regional weather, zoom, middle-drag, WASD, overview navigation, Event Log jumps without pop-ups, keyboard shortcuts and the F1 controls list, private thoughts, memories, deceased inspection and family tree.");
+            await VerifyRefusedAgentRenameAsync();
+            GD.Print("UI checks passed: startup Main Menu and settings, compact in-world pause menu and read-only Mod Library, confirmed quit, World Info Towns page, resource hover, square tile hover and agent priority, agent facings, walk steps and activity frames, bounded marker hitboxes at zoom, building footprints, mountain relief chunks drawn off the main thread, soft snow edges and desert cacti, camera-bounded large terrain and regional weather, zoom, middle-drag, WASD, overview navigation, Event Log jumps without pop-ups, keyboard shortcuts and the F1 controls list, private thoughts, memories, deceased inspection, family tree and refused agent renames.");
             GetTree().Quit();
         }
         catch (Exception exception)

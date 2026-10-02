@@ -1,0 +1,1 @@
+- A malformed provider model list now shows a retryable check error instead of disabling models for ten minutes.
