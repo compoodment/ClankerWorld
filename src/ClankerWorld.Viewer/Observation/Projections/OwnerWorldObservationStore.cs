@@ -493,9 +493,10 @@ public sealed class OwnerWorldObservationStore
                     residentCapacity?.ResidentCount ?? 0,
                     residentCapacity?.HasDominantFamily ?? false,
                     residentCapacity?.IsOvercrowded ?? false)
-                {
-                    AllowsHouseholdOwner = buildingDefinitions?.GetValueOrDefault(item.DefinitionId)?.Tags
+                    {
+                        AllowsHouseholdOwner = buildingDefinitions?.GetValueOrDefault(item.DefinitionId)?.Tags
                         .Any(HouseholdBuildingKinds.IsKindTag) == true,
+                    };
                 })
                 .ToArray() ?? [],
             ProductionJobs = jobs

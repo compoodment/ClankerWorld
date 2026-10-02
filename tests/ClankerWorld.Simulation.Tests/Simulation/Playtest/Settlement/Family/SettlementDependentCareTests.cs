@@ -71,6 +71,14 @@ public sealed partial class SettlementParenthoodTests
         Assert.Equal("household", initialSearch.Stage);
         Assert.NotEmpty(initialSearch.OfferedAdultIds);
         Assert.Single(pending.Events, item => item.Kind == "guardian_needed" && item.Detail == child);
+        var wrongStage = pending with
+        {
+            Inhabitants = pending.Inhabitants.Select(person => person.InhabitantId == child
+                ? person with { GuardianSearch = initialSearch with { Stage = "town" } }
+                : person).ToArray(),
+        };
+        var invalidSearch = Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(wrongStage, _ => new ParentProvider("safe_idle")));
+        Assert.Contains("guardian search", invalidSearch.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Needs a guardian. No adult has accepted care yet; nearby adults may still feed them.",
             new OwnerWorldObservationStore(world).GetSnapshot().Inhabitants.Single(person => person.Id == child).SocialNotes);
         world.Pause();
@@ -125,6 +133,16 @@ public sealed partial class SettlementParenthoodTests
         var mismatched = world.SubmitInstruction(new OwnerInstructionRequest("guardian-mismatch", "owner:test",
             acceptingAdult, OwnerInstructionKind.MustDo, $"guardian for {childName} and SomeoneElse"));
         Assert.Contains(mismatched.InstructionId, world.ExportState().CompletedInstructionIds ?? []);
+        Assert.DoesNotContain(world.Society.Relationships, edge => edge.Type == SocietyRelationshipType.Caregiver &&
+            edge.TargetId == child && edge.State == SocietyRelationshipState.Accepted);
+
+        var wrongCaseId = child.ToUpperInvariant();
+        Assert.NotEqual(child, wrongCaseId);
+        var wrongCase = world.SubmitInstruction(new OwnerInstructionRequest("guardian-wrong-case-id", "owner:test",
+            acceptingAdult, OwnerInstructionKind.MustDo, $"guardian_accept:{wrongCaseId}"));
+        for (var tick = 0; tick < 40 && !(world.ExportState().CompletedInstructionIds ?? []).Contains(wrongCase.InstructionId); tick++)
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.Contains(wrongCase.InstructionId, world.ExportState().CompletedInstructionIds ?? []);
         Assert.DoesNotContain(world.Society.Relationships, edge => edge.Type == SocietyRelationshipType.Caregiver &&
             edge.TargetId == child && edge.State == SocietyRelationshipState.Accepted);
 
@@ -368,13 +386,26 @@ public sealed partial class SettlementParenthoodTests
                     }
                 }
             };
-            using var world = PrivateWorldRuntime.Restore(state, _ => new ParentProvider("guardian_accept:"));
+            var childId = state.Society.Society.Births.Single().ChildId;
+            var adultId = state.Society.Society.Inhabitants.First(person => person.Status == SocietyInhabitantStatus.Active &&
+                person.Id != childId && person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder).Id;
+            var guardianProvider = new ParentProvider("guardian_accept:");
+            using var world = PrivateWorldRuntime.Restore(state, _ => guardianProvider);
+            var instruction = world.SubmitInstruction(new OwnerInstructionRequest("care-telemetry-guardian", "owner:test",
+                adultId, OwnerInstructionKind.MustDo, $"guardian_accept:{childId}"));
             var presence = new OwnerClientPresenceLease(TimeSpan.FromMinutes(1));
             presence.RecordAuthenticatedReconnect("owner");
             var logger = new RecordingLogger<PrivateWorldRuntimeService>();
             using var service = new PrivateWorldRuntimeService(world, new PrivateWorldStateFile(Path.Combine(directory.FullName, "world.json")), presence, logger);
             for (var tick = 0; tick < 40 && !logger.Messages.Any(message => message.Contains("event=guardian_assigned", StringComparison.Ordinal)); tick++)
                 Assert.True(await service.TryAdvanceOnceAsync());
+            Assert.Contains(guardianProvider.SeenCandidates, candidate => candidate.Id == "guardian_accept:" + childId);
+            Assert.Contains(guardianProvider.SelectedCandidateIds, candidate => candidate == "guardian_accept:" + childId);
+            Assert.Contains(instruction.InstructionId, world.ExportState().CompletedInstructionIds ?? []);
+            Assert.Contains(world.Society.Relationships, edge => edge.Type == SocietyRelationshipType.Caregiver &&
+                edge.TargetId == childId && edge.State == SocietyRelationshipState.Accepted);
+            Assert.Contains(logger.Messages, message => message.Contains("settlement_family", StringComparison.Ordinal) &&
+                message.Contains("event=guardian_needed", StringComparison.Ordinal));
             Assert.Contains(logger.Messages, message => message.Contains("settlement_family", StringComparison.Ordinal) &&
                 message.Contains("event=guardian_assigned", StringComparison.Ordinal));
             Assert.DoesNotContain(logger.Messages, message => message.Contains("private-care-secret", StringComparison.Ordinal));

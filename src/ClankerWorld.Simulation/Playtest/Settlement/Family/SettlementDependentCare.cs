@@ -36,9 +36,7 @@ public sealed partial class PrivateWorldRuntime
         if (normalized.StartsWith(directIdPrefix, StringComparison.OrdinalIgnoreCase))
         {
             var requestedId = normalized[directIdPrefix.Length..];
-            return pending.Contains(requestedId, StringComparer.OrdinalIgnoreCase)
-                ? pending.SingleOrDefault(id => string.Equals(id, requestedId, StringComparison.OrdinalIgnoreCase))
-                : null;
+            return pending.SingleOrDefault(id => string.Equals(id, requestedId, StringComparison.Ordinal));
         }
 
         var matches = pending.Where(child =>
@@ -446,7 +444,7 @@ public sealed partial class PrivateWorldRuntime
         foreach (var state in physical)
         {
             if (state.GuardianSearch is not { } search) continue;
-            if (schemaVersion < 39 || !people.TryGetValue(state.InhabitantId, out var child) ||
+            if (schemaVersion < 40 || !people.TryGetValue(state.InhabitantId, out var child) ||
                 child.Status != SocietyInhabitantStatus.Active ||
                 child.AgeBand is not (SocietyAgeBand.Infant or SocietyAgeBand.Child or SocietyAgeBand.Adolescent) ||
                 SocietyFixture.HasActivePrimaryCaregiver(checkpoint, child.Id) ||
@@ -468,7 +466,7 @@ public sealed partial class PrivateWorldRuntime
         HouseResidentCapacity(householdId, society.Checkpoint.GetInhabitant(child) with
         {
             DomesticFamilyUnitId = society.Checkpoint.GetInhabitant(adult).DomesticFamilyUnitId,
-        }) is { HasFreePlace: true };
+        }) is { IsOvercrowded: false };
 
     private bool CanTendToIllDependent(string adult, string dependent) => AdultResident(adult) &&
         IllDependentsNeedingCare(adult).Contains(dependent, StringComparer.Ordinal);

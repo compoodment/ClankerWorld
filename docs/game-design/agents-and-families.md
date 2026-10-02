@@ -2,7 +2,7 @@
 title: Agents, families and social life
 type: game-design
 status: active
-updated: 2026-10-01
+updated: 2026-10-02
 ---
 
 # Agents, families and social life
@@ -149,6 +149,9 @@ everything that is available in the current build. See [what works today](../wha
   becomes visibly overcrowded instead. The caregiver and birth home are saved
   with the plan and birth record. Other pregnancy timing and detailed childcare
   rules remain open.
+
+### Dependent care after loss of the last active primary caregiver
+
 - The birth record keeps the caregiver chosen for that birth as history. The
   child's current primary caregiver remains that person while they are active.
   A second accepted caregiver does not take over or change the child's domestic
@@ -162,11 +165,11 @@ everything that is available in the current build. See [what works today](../wha
   the current primary caregiver. A child moves to that adult's household only
   when its completed House has a free resident place and both belong to the
   same Town; Town membership and birth parentage remain unchanged. A cross-Town
-  acceptance records care but leaves the child's household in place until Town
-  admission rules allow a move. Until acceptance, the child stays where they
-  are, nearby adults may still feed them, and the player can see and order care
-  for the unmet guardian need. The one-day interval for each group is
-  provisional.
+  acceptance records care but leaves the child's household in place until
+  Town admission rules in [issue #602](https://github.com/compoodment/ClankerWorld/issues/602)
+  allow a move. Until acceptance, the child stays where they are, nearby adults
+  may still feed them, and the player can see and order care for the unmet
+  guardian need. The one-day interval for each group is provisional.
 
 ### Agreed starter Town and remaining choices
 
