@@ -71,6 +71,8 @@ public static class GameUiText
     {
         Pairing.OwnerAgentNameTakenException =>
             "that full name belongs to another agent. Choose a different name",
+        Pairing.OwnerWorldGenerationException =>
+            "there is no room for a first Town with these settings. Choose another seed or change the terrain settings",
         Pairing.OwnerActionCompatibilityException =>
             "this client and world server need matching updates before making this change. Update both; your device pairing can stay as it is",
         System.Net.Http.HttpRequestException { StatusCode: { } code } => code switch

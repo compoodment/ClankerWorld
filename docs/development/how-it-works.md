@@ -1359,14 +1359,14 @@ failed map. Older previews that omit the list remain readable. An all-failed
 HTTP refusal carries a recognized generation code which the client maps to a
 fixed, useful message instead of displaying arbitrary server error text.
 Create reruns the bounded selector, checks those signed identities, and builds
-the world from its selected map. It refuses a
-changed preview or an unaccepted miss. The selected attempt is saved in
+the world from its selected map. It refuses a changed preview or an unaccepted
+miss. The selected attempt is saved in
 `GeographyOptions` with the visibility algorithm version and in the map
 manifest; restore regenerates that attempt strictly without searching again.
 The transient reports do not change signed creation or saved map authority.
-Unsupported Balanced Small/Medium visibility versions are refused rather than replayed with
-different terrain rules. Small and Medium remain the only playable sizes; no
-continent-count control is exposed for them. Existing saved water settings are
+Unsupported Balanced Small/Medium visibility versions are refused rather than
+replayed with different terrain rules. Small and Medium remain the only playable
+sizes; no continent-count control is exposed for them. Existing saved water settings are
 not rewritten.
 
 ## Skills and practical lessons

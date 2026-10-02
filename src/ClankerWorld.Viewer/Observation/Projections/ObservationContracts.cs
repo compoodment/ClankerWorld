@@ -33,6 +33,7 @@ public sealed record ViewerWorldPreview(ViewerPackedTerrain Terrain, ViewerPosit
     public string? MapLayersDigest { get; init; }
     public GeographyCandidateReport? Coverage { get; init; }
     public IReadOnlyList<GeographyCandidateReport> Candidates { get; init; } = [];
+    public IReadOnlyList<GeographyCandidateFailure> FailedCandidates { get; init; } = [];
 }
 
 public sealed record ViewerMapObject(string Id, string Kind, ViewerPosition Position);

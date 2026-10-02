@@ -493,7 +493,9 @@ public sealed record OwnerWorldPreview(OwnerWorldPackedTerrain Terrain, OwnerWor
     public string? MapLayersDigest { get; init; }
     public OwnerWorldCandidateReport? Coverage { get; init; }
     public IReadOnlyList<OwnerWorldCandidateReport> Candidates { get; init; } = [];
+    public IReadOnlyList<OwnerWorldCandidateFailure> FailedCandidates { get; init; } = [];
 }
+public sealed record OwnerWorldCandidateFailure(int Attempt, string Reason);
 public sealed record OwnerWorldCandidateReport(int Attempt, int DryLandTiles, int ForestTiles,
     int MountainTiles, double ForestPercent, double MountainPercent, int ForestRegionCount,
     int LargestForestRegion, int MountainRegionCount, int LargestMountainRegion,
