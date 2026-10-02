@@ -662,7 +662,6 @@ public static partial class InventoryFixture
             eventKind: "inventory_relocated", detail: $"{moveId}:{ownerId}:{lotId}:{quantity}");
     }
 
-    /// <summary>Unavailable carriers set down all custody at their last real position; ownership and reservations stay intact.</summary>
     /// <summary>Paused shared work keeps its exact committed inputs instead of losing them at the former worker's deadline.</summary>
     public static InventoryCheckpoint HoldReservations(InventoryCheckpoint checkpoint, IReadOnlyList<string> reservationIds) =>
         SetReservationDeadline(checkpoint, reservationIds, long.MaxValue);
@@ -681,6 +680,7 @@ public static partial class InventoryFixture
         return Commit(checkpoint, reservations: reservations, eventKind: "work_reservation_deadline_changed", detail: $"{deadline}:{string.Join(',', reservationIds)}");
     }
 
+    /// <summary>Unavailable carriers set down all custody at their last real position; ownership and reservations stay intact.</summary>
     public static InventoryCheckpoint DropCarrierGoods(InventoryCheckpoint checkpoint, string carrierId, InventoryGroundPosition position)
     {
         ValidateCheckpoint(checkpoint);
