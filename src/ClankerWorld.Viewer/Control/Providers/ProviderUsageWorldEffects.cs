@@ -10,10 +10,10 @@ namespace ClankerWorld.Viewer.Control;
 /// whole world while a load or world switch is under way.
 /// </summary>
 /// <remarks>
-/// A conversation turn starts its provider call, which reserves the model call,
-/// on the thread that holds the tick's runtime gate. That gate is not
-/// reentrant, so on that thread the work moves to another task that waits for
-/// the world. Anywhere else it runs at once, as before, so a hosted decision's
+/// Conversation startup and synchronous provider cancellation callbacks can
+/// reserve or finish model calls on the thread holding the runtime gate. That
+/// gate is not reentrant, so on that thread the work moves to another task that
+/// waits for the world. Anywhere else it runs at once, so a hosted decision's
 /// late reply cannot be admitted ahead of the pause.
 /// </remarks>
 public sealed class ProviderUsageWorldEffects(
@@ -32,7 +32,7 @@ public sealed class ProviderUsageWorldEffects(
 
     private void Apply(Func<TimeSpan, bool> work)
     {
-        var wait = runtime.IsStartingProviderCallOnThisThread ? TimeSpan.Zero : Timeout.InfiniteTimeSpan;
+        var wait = runtime.IsInvokingProviderUnderGateOnThisThread ? TimeSpan.Zero : Timeout.InfiniteTimeSpan;
         if (!work(wait)) _ = Task.Run(() => work(Timeout.InfiniteTimeSpan));
     }
 

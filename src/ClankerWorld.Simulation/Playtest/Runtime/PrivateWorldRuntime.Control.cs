@@ -178,17 +178,30 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
-    // Set while this thread starts a conversation provider call under the
-    // runtime gate: the provider runs here until its first await and may
-    // reserve a model call, whose handlers must not wait for the gate.
-    [ThreadStatic] private static PrivateWorldRuntime? providerStartUnderGate;
+    // Provider startup and synchronous cancellation completions can reserve or
+    // finish a model call on the thread holding this nonreentrant runtime gate.
+    [ThreadStatic] private static PrivateWorldRuntime? providerInvocationUnderGate;
 
     /// <summary>
-    /// True while this thread holds the runtime gate to start a provider call.
-    /// The gate is not reentrant, so code reached from that call must not wait
-    /// for this runtime.
+    /// True while this thread invokes a provider or its cancellation callbacks
+    /// under the runtime gate. Code reached from those callbacks must not wait
+    /// for this nonreentrant gate.
     /// </summary>
-    public bool IsStartingProviderCallOnThisThread => ReferenceEquals(providerStartUnderGate, this);
+    public bool IsInvokingProviderUnderGateOnThisThread => ReferenceEquals(providerInvocationUnderGate, this);
+
+    private void CancelProviderCall(CancellationTokenSource cancellation, bool underRuntimeGate)
+    {
+        var outerInvocation = providerInvocationUnderGate;
+        if (underRuntimeGate) providerInvocationUnderGate = this;
+        try
+        {
+            cancellation.Cancel();
+        }
+        finally
+        {
+            providerInvocationUnderGate = outerInvocation;
+        }
+    }
 
     public void Pause()
     {
@@ -206,11 +219,11 @@ public sealed partial class PrivateWorldRuntime
     /// <summary>
     /// Pauses like <see cref="Pause"/>, but returns false without pausing if
     /// the runtime stays busy for <paramref name="wait"/> or this thread is
-    /// starting a provider call under the runtime gate.
+    /// invoking a provider or its cancellation callbacks under the runtime gate.
     /// </summary>
     public bool TryPause(TimeSpan wait)
     {
-        if (IsStartingProviderCallOnThisThread || !gate.Wait(wait)) return false;
+        if (IsInvokingProviderUnderGateOnThisThread || !gate.Wait(wait)) return false;
         try
         {
             PauseCore();
@@ -243,14 +256,14 @@ public sealed partial class PrivateWorldRuntime
     /// Event Log. The count and limit stay in installation accounting; the
     /// event only records what the player was told, like a pause. Returns
     /// false, recording nothing, when the runtime stays busy for
-    /// <paramref name="wait"/> or this thread is starting a provider call
-    /// under the runtime gate.
+    /// <paramref name="wait"/> or this thread invokes a provider or its
+    /// cancellation callbacks under the runtime gate.
     /// </summary>
     public bool TryRecordModelCallWarning(long attempts, long attemptLimit, TimeSpan wait)
     {
         if (attemptLimit < 1 || attempts < 1 || attempts > attemptLimit)
             throw new ArgumentOutOfRangeException(nameof(attempts), "A model-call warning needs a used count within a positive limit.");
-        if (IsStartingProviderCallOnThisThread || !gate.Wait(wait)) return false;
+        if (IsInvokingProviderUnderGateOnThisThread || !gate.Wait(wait)) return false;
         try
         {
             AppendEvent("model_call_warning", FormattableString.Invariant($"used:{attempts}:limit:{attemptLimit}"));

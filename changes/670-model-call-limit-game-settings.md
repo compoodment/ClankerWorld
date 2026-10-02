@@ -1,3 +1,3 @@
 - The model-call limit moved from World Settings to Game Settings, where the Main Menu can open it too, and says that one count covers every world and every call attempt.
 - The Event Log warns once when model calls reach 80% of the limit, before the limit pauses the world.
-- Reaching the model-call limit while an agent is starting a conversation turn now pauses and saves the world instead of leaving it stuck.
+- Reaching the model-call limit while starting a conversation turn or canceling a provider call now pauses and saves the world instead of leaving it stuck.

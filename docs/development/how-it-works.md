@@ -403,25 +403,32 @@ Deterministic choices consume no attempt. Reaching the cap persists a pause;
 changing allowance and resuming are separate owner actions.
 
 The reservation that brings the total to 80% of the cap, rounded up
-(`ProviderUsageStore.WarningMark`), raises `WarningReached` once. No extra state
-is saved: totals only grow, one per reservation, so a host restart, a world
-switch or an older world save cannot cross the same mark again, and a changed
-cap sets a new mark that only later reservations can cross. In private-world
-mode the host then appends a player-facing `model_call_warning` event
-(`used:<count>:limit:<cap>`) to the active world and saves it. The world save
-records only that the player was told; the count and cap stay in the usage
-file, and no checkpoint schema changed. Telemetry logs `provider_usage_warning`
-with its outcome.
+(`ProviderUsageStore.WarningMark`), raises `WarningReached` once at that
+installation-wide crossing. No additional durable warning marker is saved:
+totals only grow, one per reservation, and a changed cap sets a new mark that
+only later reservations can cross. In private-world mode the host acquires the
+world mutation gate, then appends a player-facing `model_call_warning` event
+(`used:<count>:limit:<cap>`) to the world active at that time. A concurrent world
+switch can change which world receives it.
+
+A successful save keeps the warning event with that world. A failed save leaves
+the event in memory for the next successful world save and logs
+`event_log_unsaved`. A restart or loading an older save restores its checkpoint,
+which may predate the warning; the installation counter never rewinds and does
+not reissue past crossings. The count and cap stay in the usage file, and no
+checkpoint schema changed. Telemetry logs `provider_usage_warning` with its
+outcome.
 
 `ProviderUsageWorldEffects` applies both the cap's pause and the warning, each
-under the world mutation gate and followed by a save. A conversation turn
-starts its provider call, which reserves before its first await, on the
-thread that holds the tick's runtime gate. That gate is not reentrant, so the
-runtime marks the thread (`IsStartingProviderCallOnThisThread`), and on it the
-pause or warning moves to another task that waits for the world. Elsewhere it
+under the world mutation gate and followed by a save. Starting a conversation
+call reserves before the provider's first await; canceling a provider call can
+also invoke accounting callbacks synchronously. Both can happen on the thread
+holding the runtime gate. That gate is not reentrant, so the runtime marks
+provider startup and cancellation under it
+(`IsInvokingProviderUnderGateOnThisThread`). On that thread the pause or warning
+moves to another task that waits for the world. Outside the runtime gate it
 runs at once, so a hosted decision's late reply cannot be admitted before the
-pause. `provider_usage_limit_reached` logs `paused`, `paused_unsaved` or
-`failed`.
+pause. `provider_usage_limit_reached` logs `paused`, `paused_unsaved` or `failed`.
 
 Unreadable or inconsistent accounting leaves the host reachable with paid work
 blocked. Preserve the damaged file; changing the cap cannot bypass it. Writes

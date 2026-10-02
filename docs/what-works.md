@@ -138,9 +138,10 @@ installation's model-call count and its optional limit. One count and limit
 cover every world and every call attempt, including failed, retried and
 abandoned ones. The count never resets by itself, and loading an older save
 does not lower it. Provider-reported tokens appear only as information. When
-a call brings the count to 80% of the limit, the open world's Event Log gets
-one warning; a changed limit sets a new 80% mark that only later calls can
-cross. Reaching the limit pauses
+a call brings the count to 80% of the limit, the host adds one Event Log warning.
+It belongs to the world active when the host records it; switching worlds while
+it waits can change which world receives it. A changed limit sets a new 80%
+mark that only later calls can cross. Reaching the limit pauses
 the world until the limit is raised or more calls are allowed and the world is
 resumed. Per-world limits and cost estimates are not offered. The Windows
 check is in [the playtest list](../playtest/670-model-call-limit-game-settings.md).
