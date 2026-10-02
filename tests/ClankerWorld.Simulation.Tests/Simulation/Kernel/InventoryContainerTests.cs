@@ -1,5 +1,6 @@
 using System.Text;
 using ClankerWorld.Simulation.Kernel;
+using ClankerWorld.Simulation.Playtest;
 
 namespace ClankerWorld.Simulation.Tests;
 
@@ -51,6 +52,49 @@ public sealed class InventoryContainerTests
         Assert.Equal(5, moved.Lots.Where(lot => lot.ItemKind == "berries").Sum(lot => lot.Quantity));
         Assert.Equal(InventoryDigest.State(moved), InventoryDigest.State(
             InventoryCheckpointCodec.Decode(InventoryCheckpointCodec.Encode(moved))));
+    }
+
+    [Fact]
+    public void BorrowedVesselMovesWithItsContentsAndCountsTowardItsCarriersLoad()
+    {
+        var inventory = InventoryFixture.CreateGenesis(
+        [
+            new InventoryLot("pot", InventoryContainerRules.StoragePot, "household:a", 1, 10_000, 10_000, 0,
+                StorageBuildingId: "house"),
+            new InventoryLot("berries", "berries", "household:a", 2, 10_000, 10_000, 0,
+                StorageBuildingId: "house", ContainerLotId: "pot"),
+        ]);
+
+        Assert.Throws<InvalidOperationException>(() => InventoryFixture.Relocate(
+            inventory, "peel", "berries", "household:a", 1, carrierId: "alpha"));
+        var carried = InventoryFixture.Relocate(inventory, "borrow", "pot", "household:a", 1, carrierId: "alpha");
+
+        Assert.All(carried.Lots, lot =>
+        {
+            Assert.Equal("household:a", lot.OwnerId);
+            Assert.Equal("alpha", lot.CarrierId);
+            Assert.Null(lot.StorageBuildingId);
+        });
+        Assert.Equal(3, PersonalEquipmentRules.CarriedQuantity(carried, "alpha", null));
+
+        // Goods taken out stay with the vessel's carrier until they are stored.
+        var taken = InventoryFixture.TakeFromContainer(carried, "take", "household:a", "household:a", "pot", "berries", 1);
+        Assert.Equal("alpha", taken.Lots.Single(lot => lot.ItemKind == "berries" && lot.ContainerLotId is null).CarrierId);
+        Assert.Equal(3, PersonalEquipmentRules.CarriedQuantity(taken, "alpha", null));
+
+        var returned = InventoryFixture.Relocate(carried, "return", "pot", "household:a", 1, storageBuildingId: "house");
+        Assert.All(returned.Lots, lot =>
+        {
+            Assert.Null(lot.CarrierId);
+            Assert.Equal("house", lot.StorageBuildingId);
+        });
+
+        Assert.Throws<InvalidDataException>(() => InventoryFixture.CreateGenesis(
+        [
+            new InventoryLot("pot", InventoryContainerRules.StoragePot, "household:a", 1, 10_000, 10_000, 0,
+                CarrierId: "alpha"),
+            new InventoryLot("berries", "berries", "household:a", 2, 10_000, 10_000, 0, ContainerLotId: "pot"),
+        ]));
     }
 
     [Fact]

@@ -1004,6 +1004,10 @@ public sealed class BuildingExpansionTests
         Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
         Assert.Equal(WorldProductionJobState.Paused, Assert.Single(restored.WorldSimulation.BuildingExpansions!).State);
         Assert.False(restored.StartBuildingExpansion(remaining, house.InstanceId).Applied);
+        // Paused work keeps its building, so the owner cannot remove or reassign it either.
+        var removal = restored.RemoveBuilding(house.InstanceId, house.TownId, house.HouseholdId);
+        Assert.False(removal.Applied);
+        Assert.Contains(house.InstanceId, restored.WorldSimulation.Buildings.Select(item => item.InstanceId));
         var damaged = restored.ExportState();
         damaged = damaged with
         {

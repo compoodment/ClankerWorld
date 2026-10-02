@@ -242,8 +242,8 @@ The agreed [House resident limits and expansion](game-design/towns.md#house-resi
 are implemented by [#598](https://github.com/compoodment/ClankerWorld/issues/598).
 Relocation for existing overcrowding remains in
 [#599](https://github.com/compoodment/ClankerWorld/issues/599).
-Until solo formation works, an adult nobody takes in relies on clothing and
-natural storm cover. This is a basic
+Until a household formed alone builds its House, its adult relies on clothing
+and natural storm cover. This is a basic
 version: it has not been checked by hand in the Windows game yet. New Shelters,
 Storehouses,
 Cooking fires and Stone hearths are retired; standing ones in old saves remain.

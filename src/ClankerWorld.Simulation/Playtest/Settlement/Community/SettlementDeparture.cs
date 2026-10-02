@@ -45,8 +45,9 @@ public sealed partial class PrivateWorldRuntime
         var allowance = 0;
         // Ownership changes now, location does not. Collection remains a separate physical action.
         var nextInventory = society.Checkpoint.Inventory;
+        // Food sealed in a storage pot stays with the household; the allowance takes loose portions.
         foreach (var lot in nextInventory.Lots.Where(lot => lot.OwnerId == householdId && lot.CarrierId is null &&
-                     IsEdibleFood(lot.ItemKind)).OrderBy(lot => lot.Id, StringComparer.Ordinal).ToArray())
+                     lot.ContainerLotId is null && IsEdibleFood(lot.ItemKind)).OrderBy(lot => lot.Id, StringComparer.Ordinal).ToArray())
         {
             var available = PersonalEquipmentRules.AvailableQuantity(nextInventory, lot);
             var quantity = Math.Min(2 - allowance, available);
@@ -100,7 +101,7 @@ public sealed partial class PrivateWorldRuntime
             ApplyInventoryTransition(inventory => InventoryFixture.HoldReservations(inventory, heldReservations));
         // A carried delivery is borrowed household stock, never a personal windfall on leaving.
         foreach (var lot in society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == actor &&
-                     lot.DeliveryBuildingId is { } delivery && worldSimulation.Buildings.Any(building =>
+                     lot.ContainerLotId is null && lot.DeliveryBuildingId is { } delivery && worldSimulation.Buildings.Any(building =>
                          building.InstanceId == delivery && building.HouseholdId == householdId)).ToArray())
         {
             ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
@@ -121,14 +122,15 @@ public sealed partial class PrivateWorldRuntime
 
     private IEnumerable<InventoryLot> PersonalGoodsAwaitingCollection(string actor) => society.Checkpoint.Inventory.Lots.Where(lot =>
         lot.OwnerId == actor && !PersonalEquipmentRules.IsCarried(lot, actor) && lot.CarrierId is null &&
-        lot.DeliveryBuildingId is null && PhysicalUnreservedQuantity(lot) > 0 &&
+        lot.DeliveryBuildingId is null && lot.ContainerLotId is null && PhysicalUnreservedQuantity(lot) > 0 &&
+        !(InventoryContainerRules.IsContainer(lot.ItemKind) && HasActiveContainerReservation(society.Checkpoint.Inventory, lot.Id)) &&
         (lot.GroundPosition is not null || lot.StorageBuildingId is { } storageId &&
             worldSimulation.Buildings.Any(building => building.InstanceId == storageId && building.HouseholdId is { } home &&
                 (society.Checkpoint.GetInhabitant(actor).HouseholdId == home ||
                  inhabitants[actor].Departures?.Any(departure => departure.HouseholdId == home) == true))));
 
     private IEnumerable<InventoryLot> BorrowedGoods(string actor) => society.Checkpoint.Inventory.Lots.Where(lot =>
-        lot.OwnerId != actor && lot.CarrierId == actor && lot.Quantity > 0);
+        lot.OwnerId != actor && lot.CarrierId == actor && lot.ContainerLotId is null && lot.Quantity > 0);
 
     private IEnumerable<(string Id, string BuildingId, string Worker, long Completion, long PausedAt, IReadOnlyList<string> Reservations)> PausedHouseholdWork(string actor)
     {
@@ -156,12 +158,26 @@ public sealed partial class PrivateWorldRuntime
         });
     }
 
+    /// <summary>
+    /// A knife-assisted recipe resumes only with a knife the resuming member
+    /// carries: the departed worker's own knife, or this member's best one.
+    /// </summary>
+    private bool TryResumeKnife(string actor, string jobId, out string? knifeId)
+    {
+        knifeId = worldSimulation.ProductionJobs.SingleOrDefault(item => item.JobId == jobId)?.ToolLotId;
+        if (knifeId is null) return true;
+        var inventory = society.Checkpoint.Inventory;
+        if (ToolProgressionRules.PlanWorkForLot(inventory, actor, ToolFamily.Knife, knifeId) is not null) return true;
+        knifeId = ToolProgressionRules.BestUsableTool(inventory, actor, ToolFamily.Knife)?.Id;
+        return knifeId is not null;
+    }
+
     private void ResumePausedHouseholdWork(string actor, string jobId)
     {
         var matches = PausedHouseholdWork(actor).Where(job => job.Id == jobId).ToArray();
         if (matches.Length != 1) return;
         var job = matches[0];
-        if (!CanResumeHeldInputs(actor, job.BuildingId, job.Reservations)) return;
+        if (!CanResumeHeldInputs(actor, job.BuildingId, job.Reservations) || !TryResumeKnife(actor, jobId, out var knifeId)) return;
         var building = worldSimulation.Buildings.Single(item => item.InstanceId == job.BuildingId);
         if (inhabitants[actor].Position != building.Position)
         {
@@ -175,7 +191,7 @@ public sealed partial class PrivateWorldRuntime
         worldSimulation = worldSimulation with
         {
             ProductionJobs = worldSimulation.ProductionJobs.Select(item => item.JobId == jobId
-                ? item with { WorkerId = actor, State = WorldProductionJobState.Running, CompletionTick = deadline, PausedAtTick = null } : item).ToArray(),
+                ? item with { WorkerId = actor, State = WorldProductionJobState.Running, CompletionTick = deadline, PausedAtTick = null, ToolLotId = knifeId } : item).ToArray(),
             BuildingExpansions = worldSimulation.BuildingExpansions?.Select(item => item.JobId == jobId
                 ? item with { WorkerId = actor, State = WorldProductionJobState.Running, CompletionTick = deadline, PausedAtTick = null } : item).ToArray(),
         };
@@ -222,7 +238,7 @@ public sealed partial class PrivateWorldRuntime
     {
         if (!AdultResident(actor) || !ReadyForBriefInteraction(actor)) return;
         foreach (var job in PausedHouseholdWork(actor))
-            if (CanResumeHeldInputs(actor, job.BuildingId, job.Reservations))
+            if (CanResumeHeldInputs(actor, job.BuildingId, job.Reservations) && TryResumeKnife(actor, job.Id, out _))
                 candidates.Add(new("household_resume_work:" + job.Id,
                     "Go to your household's building and take over its paused work using the same committed materials.", 17, job.BuildingId));
         if (society.Checkpoint.GetInhabitant(actor).HouseholdId is not null)
@@ -241,7 +257,7 @@ public sealed partial class PrivateWorldRuntime
             StorageRoom(house.InstanceId) > 0)
         {
             foreach (var lot in society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == actor &&
-                         PersonalEquipmentRules.IsCarried(lot, actor) && lot.DeliveryBuildingId is null &&
+                         PersonalEquipmentRules.IsCarried(lot, actor) && lot.DeliveryBuildingId is null && lot.ContainerLotId is null &&
                          lot.Id != inhabitants[actor].Equipment?.ClothingLotId && lot.Id != inhabitants[actor].Equipment?.CarryAidLotId &&
                          !IsEdibleFood(lot.ItemKind) && PhysicalUnreservedQuantity(lot) > 0).OrderBy(lot => lot.Id, StringComparer.Ordinal))
                 candidates.Add(new("household_store_personal:" + lot.Id, $"Store your own {lot.ItemKind.Replace('_', ' ')} in your House while keeping personal ownership.", 95));
@@ -290,7 +306,7 @@ public sealed partial class PrivateWorldRuntime
         if (lot is null) return;
         if (collect && !PersonalGoodsAwaitingCollection(actor).Any(item => item.Id == lotId)) return;
         if (returnBorrowed && !BorrowedGoods(actor).Any(item => item.Id == lotId)) return;
-        if (store && (lot.OwnerId != actor || !PersonalEquipmentRules.IsCarried(lot, actor))) return;
+        if (store && (lot.OwnerId != actor || lot.ContainerLotId is not null || !PersonalEquipmentRules.IsCarried(lot, actor))) return;
         var house = collect ? null : HouseForHousehold(returnBorrowed ? lot.OwnerId : HouseholdFor(actor));
         if (!collect && house is null) return;
         var destination = collect ? HouseholdStockPosition(lot) : house!.Position;
@@ -301,7 +317,12 @@ public sealed partial class PrivateWorldRuntime
             MoveToward(actor, inhabitants[actor], destination, "personal_goods", range);
             return;
         }
-        var quantity = Math.Min(PhysicalUnreservedQuantity(lot), collect ? FreeCarryCapacity(actor) : StorageRoom(house!.InstanceId));
+        var room = collect ? FreeCarryCapacity(actor) : StorageRoom(house!.InstanceId);
+        // A vessel moves with its contents, so it needs room for all of them.
+        var quantity = InventoryContainerRules.IsContainer(lot.ItemKind)
+            ? HasActiveContainerReservation(society.Checkpoint.Inventory, lot.Id) ||
+                room < ContainerFamilyQuantity(society.Checkpoint.Inventory, lot.Id) ? 0 : 1
+            : Math.Min(PhysicalUnreservedQuantity(lot), room);
         if (quantity <= 0) return;
         ApplyInventoryTransition(inventory => InventoryFixture.Relocate(inventory,
             $"personal:{actor}:{WorldTick}:{lot.Id}", lot.Id, lot.OwnerId, quantity,
@@ -338,8 +359,9 @@ public sealed partial class PrivateWorldRuntime
         var borrowed = BorrowedGoods(actor).Sum(lot => lot.Quantity);
         var children = MovingCareGroup(actor).Count(id => id != actor);
         var paused = PausedHouseholdWork(actor).ToArray();
-        var blocked = paused.Count(job => !CanResumeHeldInputs(actor, job.BuildingId, job.Reservations));
-        return $"Personal collection: {goods} units; borrowed returns: {borrowed} units. Paused household work: {paused.Length}; {blocked} blocked by unavailable or privately held inputs. " +
+        var blocked = paused.Count(job => !CanResumeHeldInputs(actor, job.BuildingId, job.Reservations) ||
+            !TryResumeKnife(actor, job.Id, out _));
+        return $"Personal collection: {goods} units; borrowed returns: {borrowed} units. Paused household work: {paused.Length}; {blocked} blocked by unavailable or privately held inputs or a missing knife. " +
             (children > 0 ? $"Primary care: {children} dependents move with you unless care is explicitly accepted." : "No dependent care group.");
     }
 

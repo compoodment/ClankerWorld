@@ -28,8 +28,8 @@ public static class PersonalEquipmentRules
     {
         ArgumentNullException.ThrowIfNull(inventory);
         ArgumentNullException.ThrowIfNull(lot);
-        if (lot.OwnerId != actor)
-            return false;
+        // Borrowed goods count for whoever carries them; vessel contents go
+        // with their vessel.
         if (lot.ContainerLotId is not { } containerId)
             return IsCarried(lot, actor);
         var container = inventory.Lots.FirstOrDefault(candidate => candidate.Id == containerId);
@@ -71,8 +71,6 @@ public static class PersonalEquipmentRules
     private static bool IsPhysicallyCarried(Dictionary<string, InventoryLot> lotsById,
         InventoryLot lot, string actor)
     {
-        if (lot.OwnerId != actor)
-            return false;
         if (lot.ContainerLotId is not { } containerId)
             return IsCarried(lot, actor);
         return lotsById.TryGetValue(containerId, out var container) &&

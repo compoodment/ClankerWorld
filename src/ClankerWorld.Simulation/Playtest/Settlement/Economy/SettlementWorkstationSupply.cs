@@ -55,7 +55,7 @@ public sealed partial class PrivateWorldRuntime
                 var inventory = society.Checkpoint.Inventory;
                 var deliveryRoom = WorkstationDeliveryRoom(inventory, building.InstanceId);
                 var carried = inventory.Lots
-                    .Where(lot => PersonalEquipmentRules.IsCarried(lot, actor) && lot.ItemKind == input.Key &&
+                    .Where(lot => lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) && lot.ItemKind == input.Key &&
                         AvailableLotQuantity(lot) > 0)
                     .Select(lot => lot.ContainerLotId is { } containerId
                         ? inventory.GetLot(containerId) : lot)

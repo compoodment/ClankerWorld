@@ -32,7 +32,7 @@ public sealed partial class PrivateWorldRuntime
         if ((CarriedPlantingSeed(actor, TreeGrowthRules.OrchardSeedItem) is not null ||
              SharedItem(TreeGrowthRules.OrchardSeedItem, actor) is not null) && PlantingSite(actor, state.Position) is not null)
             candidates.Add(new CognitionCandidate("plant_orchard", "Plant an orchard seed on open ground.", 31));
-        if (!HasCarriedItem(actor, TreeGrowthRules.TreeSeedItem) &&
+        if (!HasCarriedOwnItem(actor, TreeGrowthRules.TreeSeedItem) &&
             SharedItem(TreeGrowthRules.TreeSeedItem, actor) is null)
             return;
         if (ReplantableTree(actor, state.Position) is { } tree)
@@ -61,7 +61,7 @@ public sealed partial class PrivateWorldRuntime
     {
         var tree = ReplantableTree(actor, state.Position);
         if (tree is null) return;
-        if (!HasCarriedItem(actor, TreeGrowthRules.TreeSeedItem))
+        if (!HasCarriedOwnItem(actor, TreeGrowthRules.TreeSeedItem))
         {
             CollectEquipment(actor, state, TreeGrowthRules.TreeSeedItem);
             return;

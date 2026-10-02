@@ -310,7 +310,8 @@ assignments, schema 39 for reusable containers, schema 40 for domestic family
 and caregiver records, schema 41 for owner-message delivery, schema 42 for
 selected tools on saved field and recipe work, schema 43 for life-moment
 identity, schema 44 for Town land records, schema 45 for physical shop
-exchanges and schema 46 for continuity, record when those fields or behaviors
+exchanges, schema 46 for continuity and schema 47 for household departures and
+physical custody, record when those fields or behaviors
 were introduced; they do not allow an earlier checkpoint schema past the
 current alpha cutoff.
 

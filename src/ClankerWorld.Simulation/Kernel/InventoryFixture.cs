@@ -420,6 +420,7 @@ public static partial class InventoryFixture
             var moved = members.Select(lot => lot with
             {
                 OwnerId = recipientId,
+                CarrierId = null,
                 StorageBuildingId = destinationStorageBuildingId,
                 DeliveryBuildingId = destinationDeliveryBuildingId,
                 GroundPosition = lot.Id == source.Id ? destinationGroundPosition : null,
@@ -556,6 +557,10 @@ public static partial class InventoryFixture
         if (destinationStorageBuildingId is not null && destinationDeliveryBuildingId is not null)
             throw new InvalidOperationException("A lot cannot be stored and assigned to a delivery at once.");
 
+        // Taken goods stay with whoever carries the vessel unless they go
+        // into storage, a delivery or the carrier's own hands.
+        var takenCarrier = destinationStorageBuildingId is null && destinationDeliveryBuildingId is null &&
+            source.CarrierId != recipientId ? source.CarrierId : null;
         InventoryLot[] lots;
         if (quantity == source.Quantity)
         {
@@ -563,6 +568,7 @@ public static partial class InventoryFixture
                     ? lot with
                     {
                         OwnerId = recipientId,
+                        CarrierId = takenCarrier,
                         ContainerLotId = null,
                         StorageBuildingId = destinationStorageBuildingId,
                         DeliveryBuildingId = destinationDeliveryBuildingId,
@@ -583,6 +589,7 @@ public static partial class InventoryFixture
                 {
                     Id = splitId,
                     OwnerId = recipientId,
+                    CarrierId = takenCarrier,
                     Quantity = quantity,
                     ProvenanceLotId = source.Id,
                     ContainerLotId = null,
@@ -609,6 +616,28 @@ public static partial class InventoryFixture
         if (source.OwnerId != ownerId || quantity <= 0 || quantity > source.Quantity ||
             checkpoint.Lots.Any(lot => lot.Id == movedId))
             throw new InvalidOperationException("The exact owned physical quantity is unavailable.");
+        if (source.ContainerLotId is not null)
+            throw new InvalidOperationException("Container contents require an explicit physical take before they can move.");
+        if (InventoryContainerRules.IsContainer(source.ItemKind))
+        {
+            // A vessel and its contents move together and keep their owner.
+            if (quantity != 1 || source.Quantity != 1)
+                throw new InvalidOperationException("A reusable vessel must move as one indivisible container.");
+            var members = checkpoint.Lots.Where(lot => lot.Id == source.Id || lot.ContainerLotId == source.Id).ToArray();
+            EnsureNoActiveReservations(checkpoint, members.Select(lot => lot.Id));
+            var family = members.Select(lot => lot with
+            {
+                CarrierId = carrierId,
+                StorageBuildingId = storageBuildingId,
+                GroundPosition = lot.Id == source.Id ? groundPosition : null,
+                DeliveryBuildingId = null,
+            }).ToDictionary(lot => lot.Id, StringComparer.Ordinal);
+            var relocated = checkpoint.Lots.Select(lot => family.GetValueOrDefault(lot.Id) ?? lot)
+                .OrderBy(lot => lot.Id, StringComparer.Ordinal).ToArray();
+            ValidateLots(relocated);
+            return Commit(checkpoint, lots: relocated,
+                eventKind: "inventory_relocated", detail: $"{moveId}:{ownerId}:{lotId}:{quantity}");
+        }
         EnsureUnreservedQuantity(checkpoint, source, quantity);
         var moved = source with
         {
@@ -976,7 +1005,7 @@ public static partial class InventoryFixture
         if (!InventoryContainerRules.IsContainer(container.ItemKind) || container.Quantity != 1 ||
             container.ContainerLotId is not null || container.OwnerId != ownerId || content.OwnerId != ownerId ||
             container.StorageBuildingId != content.StorageBuildingId ||
-            container.DeliveryBuildingId != content.DeliveryBuildingId ||
+            container.DeliveryBuildingId != content.DeliveryBuildingId || container.CarrierId != content.CarrierId ||
             (content.ContainerLotId == container.Id
                 ? content.GroundPosition is not null
                 : container.GroundPosition != content.GroundPosition))
@@ -1005,7 +1034,8 @@ public static partial class InventoryFixture
                 !InventoryContainerRules.IsContainer(container.ItemKind) || container.ContainerLotId is not null ||
                 !InventoryContainerRules.Allows(container.ItemKind, lot.ItemKind) ||
                 container.OwnerId != lot.OwnerId || container.StorageBuildingId != lot.StorageBuildingId ||
-                container.DeliveryBuildingId != lot.DeliveryBuildingId || lot.GroundPosition is not null)
+                container.DeliveryBuildingId != lot.DeliveryBuildingId || container.CarrierId != lot.CarrierId ||
+                lot.GroundPosition is not null)
                 throw new InvalidDataException($"Inventory lot '{lot.Id}' has an invalid container relationship.");
         }
 

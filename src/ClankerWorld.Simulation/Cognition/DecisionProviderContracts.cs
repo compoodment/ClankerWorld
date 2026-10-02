@@ -101,6 +101,7 @@ public sealed record CognitionKnowledgeFact(
 /// Actor-owned context only; absent survival data remains unknown, not invented.
 /// <paramref name="HousingNote"/> explains the actor's housing and current House capacity when known.
 /// <paramref name="ContinuityNote"/> explains the low-population continuity rule to a partner it applies to.
+/// <paramref name="DepartureNote"/> summarizes goods to collect or return and paused household work after a departure.
 /// </summary>
 public sealed record CognitionSelfContext(
     string OwnerId, string Name, string LifeStage, string Personality, string Aspiration,

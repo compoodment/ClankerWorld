@@ -317,6 +317,58 @@ public sealed class HouseholdDepartureTests
     }
 
     [Fact]
+    public async Task DepartureLeavesPotFoodSealedAndCollectsAnOwnPotWithItsContents()
+    {
+        var provider = new Choices();
+        using var initial = NormalPathWorld.CreateGenerated("departure-pots", _ => provider);
+        initial.Pause();
+        var actor = initial.Society.GetHousehold(Alpha).MemberIds[0];
+        var house = initial.WorldSimulation.Buildings.Single(building => building.InstanceId == "first-town-house-a");
+        var state = initial.ExportState();
+        var inventory = state.Society.Society.Inventory;
+        // Only food sealed in a pot remains, so the allowance must leave it alone.
+        inventory = inventory with
+        {
+            Lots = inventory.Lots.Where(lot => lot.OwnerId != actor && !(lot.OwnerId == Alpha &&
+                lot.ItemKind is "food" or "fruit" or "berries" or "wild_greens" or "cultivated_greens")).ToArray(),
+        };
+        inventory = InventoryFixture.AddLot(inventory, "household-pot", InventoryContainerRules.StoragePot, Alpha, 1,
+            storageBuildingId: house.InstanceId);
+        inventory = InventoryFixture.AddLot(inventory, "household-pot-berries", "berries", Alpha, 3,
+            storageBuildingId: house.InstanceId, containerLotId: "household-pot");
+        inventory = InventoryFixture.AddLot(inventory, "own-pot", InventoryContainerRules.StoragePot, actor, 1,
+            storageBuildingId: house.InstanceId);
+        inventory = InventoryFixture.AddLot(inventory, "own-pot-berries", "berries", actor, 2,
+            storageBuildingId: house.InstanceId, containerLotId: "own-pot");
+        state = WithInventory(state, inventory) with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with { Equipment = null, Position = house.Position, LastDecisionContext = null }
+                : person).ToArray(),
+        };
+        using var world = PrivateWorldRuntime.Restore(state, _ => provider);
+
+        Assert.True(world.DisplaceAdult(actor));
+        Assert.Equal(0, Assert.Single(world.Inhabitants.Single(person => person.InhabitantId == actor).Departures!).AllowancePortions);
+        var sealedFood = world.Society.Inventory.GetLot("household-pot-berries");
+        Assert.Equal((Alpha, "household-pot", 3), (sealedFood.OwnerId, sealedFood.ContainerLotId, sealedFood.Quantity));
+
+        provider.Wanted[actor] = "household_collect:own-pot";
+        world.Resume();
+        await AdvanceUntil(world, () => PersonalEquipmentRules.IsCarried(world.Society.Inventory.GetLot("own-pot"), actor));
+        // The pot is offered whole; its contents are never collected on their own.
+        Assert.DoesNotContain("household_collect:own-pot-berries", provider.Offered[actor]);
+        var carriedBerries = world.Society.Inventory.GetLot("own-pot-berries");
+        Assert.Equal(("own-pot", (string?)null), (carriedBerries.ContainerLotId, carriedBerries.StorageBuildingId));
+        Assert.Equal(world.Society.Inventory.GetLot("own-pot").CarrierId, carriedBerries.CarrierId);
+        Assert.Equal(3, PersonalEquipmentRules.CarriedQuantity(world.Society.Inventory, actor, null));
+        world.Pause();
+        var saved = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), _ => provider);
+        Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+    }
+
+    [Fact]
     public async Task LeavingRevokesPrivateWorkAccessButPreservesOldHouseholdJobsAndReservations()
     {
         var provider = new Choices();
