@@ -702,12 +702,17 @@ loses it when it stops being eligible or the rule turns off. Until the
 deadline, `parent_postpone:{owner}` replaces both `parent_decline` and
 `parent_cancel`, and moves the plan to the inactive `postponed` stage; refusal
 candidates are neither offered nor applied. A couple held by the rule may
-propose while caring for an older child. At the deadline the server moves a
-requested plan to `preparing`, or starts a new plan in `preparing` owned by the
-partner who last asked (else the first by ID), and appends
-`continuity_plan_proceeded`. A plan past its deadline does not expire: it
-waits for the usual food, shelter and readiness checks. The rule only reads
-accepted partnerships and never proposes or accepts one.
+propose while caring for an older child. At the deadline the server moves an
+existing plan to `preparing`, or creates a new plan for the partner who last
+asked (else the first by ID), and appends `continuity_plan_proceeded`.
+A new plan records that parent
+as its primary caregiver and their current household as its intended home.
+Resuming an accepted or postponed plan preserves its original initiating
+parent, request tick, selected caregiver and intended home. Birth still follows
+the caregiver's current household, including after a move or when its House
+is full. A plan past its deadline does not expire: it waits for the usual food,
+shelter and readiness checks. The rule only reads accepted partnerships and
+never proposes or accepts one.
 
 Each partner's self context carries a `continuity` note saying the rule and
 the hours left; a single agent's stays empty. Loading checks the flag and

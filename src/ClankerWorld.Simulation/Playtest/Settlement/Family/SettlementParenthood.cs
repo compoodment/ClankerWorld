@@ -386,7 +386,7 @@ public sealed partial class PrivateWorldRuntime
             if (!known.Contains(plan.PartnerId) || plan.PartnerId == person.InhabitantId ||
                 plan.Stage is not ("requested" or "preparing" or "completed" or "cancelled" or "postponed") || plan.RequestedTick < 0 ||
                 plan.LastTransitionTick < plan.RequestedTick || plan.LastTransitionTick > state.Society.Society.WorldTick ||
-                (ActiveParenthood(plan) || plan.Stage == "completed") &&
+                (ActiveParenthood(plan) || plan.Stage is "completed" or "postponed") &&
                     (plan.PrimaryCaregiverId is not { } caregiverId ||
                      caregiverId != person.InhabitantId && caregiverId != plan.PartnerId ||
                      plan.IntendedHouseholdId is not { } homeId ||
@@ -398,7 +398,7 @@ public sealed partial class PrivateWorldRuntime
                         birth.PrimaryCaregiverId == plan.PrimaryCaregiverId &&
                         birth.HouseholdId == birthHomeId)) ||
                 plan.Stage != "completed" && (plan.ChildId is not null || plan.BirthHouseholdId is not null) ||
-                ActiveParenthood(plan) && state.Society.Society.Births.Any(birth =>
+                (ActiveParenthood(plan) || plan.Stage == "postponed") && state.Society.Society.Births.Any(birth =>
                     birth.RequestId == $"family:{person.InhabitantId}:{plan.RequestedTick}") ||
                 ActiveParenthood(plan) && (!participants.Add(person.InhabitantId) || !participants.Add(plan.PartnerId)))
             {
