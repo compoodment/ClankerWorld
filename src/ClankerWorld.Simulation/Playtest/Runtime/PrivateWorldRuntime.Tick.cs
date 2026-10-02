@@ -302,6 +302,7 @@ public sealed partial class PrivateWorldRuntime
         conversations = proposed.conversations;
         conversationBudgets = proposed.conversationBudgets;
         businessTrades = proposed.businessTrades;
+        toolMakingRequests = proposed.toolMakingRequests;
         roadBridgeDecks = proposed.roadBridgeDecks;
         nextInstructionSequence = proposed.nextInstructionSequence;
     }
@@ -468,6 +469,7 @@ public sealed partial class PrivateWorldRuntime
             AdvanceMedicalTreatments();
             MaintainSettlementTrades();
             MaintainBusinessTrades();
+            MaintainToolMakingRequests();
             DrainNeeds();
             AdvanceMedicalTreatments();
             RemoveDeadPhysicalState();
@@ -539,6 +541,7 @@ public sealed partial class PrivateWorldRuntime
             AdvanceMedicalTreatments();
             if (deferHosted) ApplySafeRoutinesWhileWaiting(waiting);
             AdvanceBridgeTraffic();
+            MaintainToolMakingRequests();
 
             AppendEvent("tick_advanced", targetTick.ToString(System.Globalization.CultureInfo.InvariantCulture));
             var newEvents = events.Skip(startingEvent).ToArray();

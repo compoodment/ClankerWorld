@@ -36,7 +36,8 @@ public sealed record WorldProductionJob(
     long CompletionTick,
     WorldProductionJobState State,
     IReadOnlyList<string> InputReservationIds,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ToolLotId = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ToolLotId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ToolMakingRequestId = null);
 
 public sealed record WorldContentSimulationState(
     IReadOnlyList<PlacedBuilding> Buildings,

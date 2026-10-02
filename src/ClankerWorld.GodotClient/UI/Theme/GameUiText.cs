@@ -45,6 +45,19 @@ public static class GameUiText
         return quantity.Length == 0 ? title : title + " " + quantity;
     }
 
+    public static string ToolMakingRequestStatus(string status) => status switch
+    {
+        "requested" => "Asked the household · no payment taken",
+        "accepted" => "Household accepted · making from its own supplies",
+        "ready" => "Tool ready · payment still to be agreed",
+        "offered" => "Exchange offered · both traders must meet here",
+        "fulfilled" => "Purchased through the agreed exchange",
+        "refused" => "Household refused · nothing taken",
+        "withdrawn" => "Request withdrawn · goods remain household property",
+        "interrupted" => "Request stopped · goods keep their owners",
+        _ => "Status unavailable",
+    };
+
     public static string ItemName(string kind) => kind switch
     {
         "storage_pot" => "Storage pot",
@@ -251,6 +264,18 @@ public static class GameUiText
     /// </summary>
     public static string ActivityPhrase(string? candidateId, string? summary)
     {
+        if (candidateId?.StartsWith("tool_request_", StringComparison.Ordinal) == true)
+            return candidateId.Split(':', 2)[0] switch
+            {
+                "tool_request_place" => "asking the Blacksmith to make a tool",
+                "tool_request_visit" => "visiting the Blacksmith to discuss a tool",
+                "tool_request_accept" => "agreeing to make a tool",
+                "tool_request_refuse" => "turning down a tool request",
+                "tool_request_withdraw" => "withdrawing a tool request",
+                "tool_request_collect" => "discussing payment for a finished tool",
+                "tool_request_work" => "working on a requested tool",
+                _ => "considering a tool request",
+            };
         if (candidateId?.StartsWith("wear_ornament:", StringComparison.Ordinal) == true) return "putting on an ornament";
         if (candidateId == "remove_ornament") return "taking off an ornament";
         if (candidateId?.StartsWith("gift_ornament:", StringComparison.Ordinal) == true) return "giving an ornament";

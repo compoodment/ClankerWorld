@@ -88,7 +88,7 @@ public sealed partial class PrivateWorldRuntime
                 physical.RecentThoughts is { Count: > 0 } thoughts ? thoughts[^1].Text : null,
                 checkpoint.Households.SingleOrDefault(item => item.Id == inhabitant.HouseholdId)?.Name,
                 towns.SingleOrDefault(item => item.ResidentIds.Contains(inhabitant.Id, StringComparer.Ordinal))?.Name,
-                HousingNote(inhabitant.Id), EquipmentNote(inhabitant.Id), MedicalCareNoteCore(inhabitant.Id));
+                HousingNote(inhabitant.Id), EquipmentNote(inhabitant.Id), MedicalCareNoteCore(inhabitant.Id), ToolMakingRequestNoteCore(inhabitant.Id));
             var observation = new InhabitantObservation(
                 inhabitant.Id,
                 WorldTick,
@@ -368,7 +368,8 @@ public sealed partial class PrivateWorldRuntime
 
         var carriedFoodBefore = society.Checkpoint.Inventory.Lots.Where(lot =>
             lot.OwnerId == decision.InhabitantId && IsEdibleFood(lot.ItemKind)).Sum(lot => (long)lot.Quantity);
-        ApplyCandidate(decision.InhabitantId, state, candidateId, reportIdle: true);
+        if (!ApplyToolMakingRequestDecision(decision))
+            ApplyCandidate(decision.InhabitantId, state, candidateId, reportIdle: true);
         var forcedApplied = forcedCandidate == candidateId && (candidateId switch
         {
             "seek_food" => inhabitants[decision.InhabitantId].Position != state.Position,
@@ -448,6 +449,11 @@ public sealed partial class PrivateWorldRuntime
         bool reportIdle)
     {
         if (IsOrnamentCandidate(candidateId)) return;
+        if (candidateId.StartsWith(ToolRequestPrefix, StringComparison.Ordinal))
+        {
+            ApplyToolMakingRequestCandidate(inhabitantId, state, candidateId, reportIdle);
+            return;
+        }
         if (candidateId.StartsWith("talk:", StringComparison.Ordinal) ||
             candidateId.StartsWith("conversation_", StringComparison.Ordinal))
         {
@@ -912,6 +918,7 @@ public sealed partial class PrivateWorldRuntime
             AddParenthoodCandidates(candidates, inhabitantId);
             AddUrgentFoodPotCandidate(candidates, inhabitantId, state);
             AddBusinessCandidates(candidates, inhabitantId);
+            AddToolMakingRequestCandidates(candidates, inhabitantId);
         }
         if (!NeedsUrgentWarmth(state) && ChildResident(inhabitantId))
         {
@@ -971,7 +978,7 @@ public sealed partial class PrivateWorldRuntime
                 worldContent.Buildings.Any(definition => definition.CanonicalId == workstationId &&
                     definition.Tags.Any(IsHouseholdBuildingTag));
             var recipeOwner = ProductionOwnerFor(null, inhabitant.Id);
-            if (!NeedsRecipeOutput(recipe, recipeOwner) || AnotherAgentWaitsForWorkSite(inhabitant.Id, recipe) ||
+            if (!NeedsRecipeOutput(recipe, recipeOwner, inhabitant.Id) || AnotherAgentWaitsForWorkSite(inhabitant.Id, recipe) ||
                 !CanAcquireProjectInputs(recipe.Inputs, recipeOwner, inhabitant.Id) ||
                 !TryFindRecipeSite(recipe, out var siteId, out var position, inhabitant.Id) ||
                 householdWorkstation &&

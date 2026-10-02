@@ -288,7 +288,7 @@ unbridged one-tile crossings, and any open wade must match where that agent
 stands. A save that fails these checks is refused with a reason and kept.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 45 in the ornament draft. The minimum
+`PrivateWorldRuntime.StateSchemaVersion` 48 in the tool-making draft, provisionally above its ornament parent (47) and Clinic ancestor (46). The minimum
 supported schema is the same value, so older alpha checkpoints are refused
 with a reason and left unchanged; no private-world migration runs. The current
 schema also includes
@@ -347,6 +347,25 @@ allow an earlier checkpoint schema past the current alpha cutoff.
 | Schema 42 | A selected carried tool for unfinished field work or a knife-assisted recipe. Work and its exact tool lot survive reload; each field action and recipe completion wears its selected tool when that action commits. Earlier alpha checkpoints cannot contain these links. |
 | Schema 43 | Physical shop exchange records bind exact inventory barter offers to the shop, selling household, customer, position and proposal time, with the completing seller or cancellation reason. Reservations, purchase carrying, on-site payment and Store delivery lots retain their physical inventory locations. Earlier alpha checkpoints are refused and preserved; no shop-state migration is added. |
 | Schema 44, provisional Clinic draft | Named medical permissions and active consumed-dose progress bind to actual completed inventory receipts. Terminal treatment closes its receipt without refund or resurrection; death retains completed consumption history and archived profiles cannot carry active treatment. Earlier alpha saves are refused and preserved without migration. |
+
+
+### Tool-making draft format
+
+The tool-making draft targets private-world schema **48**, provisionally above
+the Clinic (46) and ornament (47) stack. Version numbers remain provisional
+until merge. The parent updates supply their own earlier schema entries; this
+draft adds no migration or older-save reader.
+
+Saved tool requests keep their requester, selling household, actual Blacksmith,
+existing recipe, status, worker and real production/offer links. Active and
+terminal lists remain bounded; selected production plans retain the exact
+request identity. Loading checks these links against the canonical production
+and barter records, including real completed output. A request is neither an
+inventory lot nor payment authority. Reload must preserve in-progress work and
+offer status without double production, duplicate payment or new ownership.
+Earlier alpha checkpoints are refused and left unchanged. Current-format
+integrity and byte-exact roundtrip remain required; execution is still pending
+for this outside preparation.
 
 Other compatibility fields remain separate for simulation, envelopes, content,
 assets, generator and network contracts. Change the field whose semantics

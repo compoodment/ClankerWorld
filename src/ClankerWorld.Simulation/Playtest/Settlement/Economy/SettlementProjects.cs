@@ -17,7 +17,8 @@ public sealed record SettlementProject(
     string? Blocker = null,
     string? JobId = null,
     long LastTransitionTick = 0,
-    bool RequiresFreshChoice = false);
+    bool RequiresFreshChoice = false,
+    string? ToolMakingRequestId = null);
 
 public sealed partial class PrivateWorldRuntime
 {
@@ -450,7 +451,7 @@ public sealed partial class PrivateWorldRuntime
         return false;
     }
 
-    private void BeginProject(string inhabitantId, PlaytestInhabitantState state, string candidateId)
+    private void BeginProject(string inhabitantId, PlaytestInhabitantState state, string candidateId, string? toolMakingRequestId = null)
     {
         if (!TownConstructionCandidateIds.TryParse(candidateId, out var selected))
             return;
@@ -516,7 +517,7 @@ public sealed partial class PrivateWorldRuntime
             : worldContent.Recipes.FirstOrDefault(item => item.CanonicalId == definitionId)?.DisplayName;
         if (label is null)
             return;
-        state = state with { Project = new SettlementProject(candidateId, label, WorldTick, "acquiring", LastTransitionTick: WorldTick) };
+        state = state with { Project = new SettlementProject(candidateId, label, WorldTick, "acquiring", LastTransitionTick: WorldTick, ToolMakingRequestId: toolMakingRequestId) };
         inhabitants[inhabitantId] = state;
         checkpointSchemaVersion = StateSchemaVersion;
         AppendEvent("project_chosen", $"{inhabitantId}:{candidateId}");
@@ -698,7 +699,7 @@ public sealed partial class PrivateWorldRuntime
         else if (recipe is not null)
         {
             var job = worldSimulation.ProductionJobs.Concat(worldSimulation.CropBuilds ?? [])
-                .FirstOrDefault(item => item.WorkerId == inhabitantId && item.StartedTick == WorldTick && item.RecipeId == definitionId);
+                .FirstOrDefault(item => item.WorkerId == inhabitantId && item.StartedTick == WorldTick && item.RecipeId == definitionId && (project.ToolMakingRequestId is null || item.ToolMakingRequestId == project.ToolMakingRequestId));
             if (job is not null)
             {
                 SetProject(inhabitantId, project with { Stage = "waiting", JobId = job.JobId, Blocker = null });

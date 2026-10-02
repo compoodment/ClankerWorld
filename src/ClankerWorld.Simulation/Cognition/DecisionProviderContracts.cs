@@ -105,7 +105,7 @@ public sealed record CognitionSelfContext(
     string OwnerId, string Name, string LifeStage, string Personality, string Aspiration,
     string? HouseholdId, int? WarmthBasisPoints, int? IllnessBasisPoints, string? RecentThought,
     string? HouseholdName = null, string? TownName = null, string? HousingNote = null,
-    string? EquipmentNote = null, string? MedicalCareNote = null);
+    string? EquipmentNote = null, string? MedicalCareNote = null, string? ToolMakingRequestNote = null);
 
 /// <summary>
 /// An exact owner message addressed to this actor. The authoritative identity
@@ -233,7 +233,7 @@ public sealed record InhabitantObservation(
             self.Aspiration is null || self.Aspiration.Length > 256 ||
             self.HouseholdId?.Length > 128 || self.RecentThought?.Length > 160 ||
             self.HouseholdName?.Length > 128 || self.TownName?.Length > 128 || self.HousingNote?.Length > 256 ||
-            self.EquipmentNote?.Length > 256 || self.MedicalCareNote?.Length > 256 ||
+            self.EquipmentNote?.Length > 256 || self.MedicalCareNote?.Length > 256 || self.ToolMakingRequestNote?.Length > 256 ||
             self.WarmthBasisPoints is < 0 or > 10_000 || self.IllnessBasisPoints is < 0 or > 10_000))
             throw new ArgumentException("Self context must be bounded and owned by the actor.", nameof(Self));
 
@@ -642,6 +642,7 @@ public sealed class JevDecisionProvider : IDecisionProvider
                 town = request.Observation.Self?.TownName,
                 housing = request.Observation.Self?.HousingNote,
                 medical_care = request.Observation.Self?.MedicalCareNote,
+                tool_making_request = request.Observation.Self?.ToolMakingRequestNote,
                 candidates = request.Observation.Candidates.Select(candidate => new
                 {
                     id = candidate.Id,
@@ -929,6 +930,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                             housing = self.HousingNote,
                             equipment = self.EquipmentNote,
                             medical_care = self.MedicalCareNote,
+                            tool_making_request = self.ToolMakingRequestNote,
                             warmth_basis_points = self.WarmthBasisPoints,
                             illness_basis_points = self.IllnessBasisPoints,
                             recent_thought = self.RecentThought,

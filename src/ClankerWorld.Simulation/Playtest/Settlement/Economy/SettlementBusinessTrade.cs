@@ -114,7 +114,7 @@ public sealed partial class PrivateWorldRuntime
             .Select(family => ToolProgressionRules.BestUsableTool(inventory, actor, family)?.Id)
             .OfType<string>().ToHashSet(StringComparer.Ordinal);
 
-    private BusinessQuote? BusinessOpportunity(string buyer, PlacedBuilding building)
+    private BusinessQuote? BusinessOpportunity(string buyer, PlacedBuilding building, string? exactGoodsLotId = null, bool requestedGoods = false)
     {
         var inventory = society.Checkpoint.Inventory;
         if (!AdultResident(buyer) || NeedsUrgentWarmth(inhabitants[buyer]) ||
@@ -131,7 +131,7 @@ public sealed partial class PrivateWorldRuntime
         foreach (var goods in inventory.Lots.Where(lot => lot.OwnerId == seller &&
                      lot.StorageBuildingId == building.InstanceId && IsLooseBusinessLot(lot) &&
                      AvailableLotQuantity(lot) > 0 && BusinessRules.MaySell(kind, lot.ItemKind) &&
-                     BusinessBuyerWants(buyer, lot)).OrderBy(lot => lot.Id, StringComparer.Ordinal))
+                     (exactGoodsLotId is null || lot.Id == exactGoodsLotId) && (requestedGoods || BusinessBuyerWants(buyer, lot))).OrderBy(lot => lot.Id, StringComparer.Ordinal))
         {
             foreach (var payment in inventory.Lots.Where(lot => PersonalEquipmentRules.IsCarried(lot, buyer) &&
                     IsLooseBusinessLot(lot) && lot.ItemKind != goods.ItemKind && AvailableLotQuantity(lot) > 0 &&
@@ -185,16 +185,7 @@ public sealed partial class PrivateWorldRuntime
         {
             var building = worldSimulation.Buildings.SingleOrDefault(item => item.InstanceId == candidate[14..]);
             if (building is null || BusinessOpportunity(actor, building) is not { } choice) return;
-            var id = $"{BusinessTradePrefix}{WorldTick}:{actor}:{building.InstanceId}";
-            // Quotes name exact actual quantities; future goods are never reserved.
-            ApplyInventoryTransition(inventory => InventoryFixture.AcceptDirectBarterOffer(
-                InventoryFixture.CreateDirectBarterOffer(inventory, new(id, 1,
-                    building.HouseholdId!, actor, choice.Goods.Id, choice.GoodsQuantity,
-                    choice.Payment.Id, choice.PaymentQuantity, WorldTick + 120)),
-                id, 1, actor));
-            businessTrades.Add(new(id, building.InstanceId, building.HouseholdId!, actor, building.Position, WorldTick,
-                choice.Goods.ItemKind, choice.Payment.ItemKind));
-            AppendEvent("business_trade_offered", actor + ":" + id);
+            _ = OpenBusinessQuote(actor, building, choice);
             return;
         }
         var cancel = candidate.StartsWith("business_cancel:", StringComparison.Ordinal);
@@ -233,6 +224,21 @@ public sealed partial class PrivateWorldRuntime
         });
         ReplaceBusinessTrade(trade with { SellerActorId = actor });
         AppendEvent("business_trade_completed", actor + ":" + offer.Id);
+    }
+
+    private string OpenBusinessQuote(string actor, PlacedBuilding building, BusinessQuote choice)
+    {
+        var id = $"{BusinessTradePrefix}{WorldTick}:{actor}:{building.InstanceId}";
+        // Quotes name exact actual quantities; future goods are never reserved.
+        ApplyInventoryTransition(inventory => InventoryFixture.AcceptDirectBarterOffer(
+            InventoryFixture.CreateDirectBarterOffer(inventory, new(id, 1,
+                building.HouseholdId!, actor, choice.Goods.Id, choice.GoodsQuantity,
+                choice.Payment.Id, choice.PaymentQuantity, WorldTick + 120)),
+            id, 1, actor));
+        businessTrades.Add(new(id, building.InstanceId, building.HouseholdId!, actor, building.Position, WorldTick,
+            choice.Goods.ItemKind, choice.Payment.ItemKind));
+        AppendEvent("business_trade_offered", actor + ":" + id);
+        return id;
     }
 
     private string? BusinessTradeFailure(BusinessTradeState trade, DirectBarterOffer offer)

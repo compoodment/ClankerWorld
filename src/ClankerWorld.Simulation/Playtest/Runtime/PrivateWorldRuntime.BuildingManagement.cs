@@ -140,6 +140,8 @@ public sealed partial class PrivateWorldRuntime
     private string? BuildingMutationBlocker(PlacedBuilding building)
     {
         var id = building.InstanceId;
+        if (toolMakingRequests.Any(request => request.BuildingInstanceId == id && !ToolMakingRequestRules.IsTerminal(request.Status)))
+            return "Finish, refuse or withdraw the active tool request before changing this Blacksmith's owner or removing it.";
         if (society.Checkpoint.Inventory.Lots.Any(lot =>
                 lot.StorageBuildingId == id || lot.DeliveryBuildingId == id))
             return "Empty this building and wait for all deliveries before changing its owner or removing it.";

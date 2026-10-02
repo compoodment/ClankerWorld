@@ -496,6 +496,15 @@ and invented content are not silently approved. In particular:
   sells flour and the Tailor Shop sells cloth. The Blacksmith already sells
   tools directly and takes tool-making requests—no separate Store is required
   for its own products.
+  A tool-making request asks that household to use its own materials and normal
+  Blacksmith work. Placing or accepting the request takes no payment and grants
+  no claim to unfinished goods. Once a real tool is finished, its owner may
+  quote an ordinary barter exchange; both sides still choose whether to trade
+  and bring their goods to the shop. The request does not lock a price, reserve
+  future property or grant private-stock access. Missing ingredients and full
+  workplace storage remain visible blockers. A withdrawn request leaves work,
+  materials and finished goods with their existing owners. Market stalls and
+  shared Town construction follow their separate accepted rules.
 - The accepted medical goods include **bandages and medicine**. Their cloth
   and herb/water/fuel supply chains are agreed below; detailed recovery rates
   remain provisional. The October 2 decision stages bandage production, storage
