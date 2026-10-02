@@ -119,6 +119,31 @@ public sealed class FarmContentTests
         Assert.Contains(new OwnerWorldObservationStore(delivered).GetSnapshot().PlacedBuildings
             .Single(item => item.InstanceId == housePlaced.InstanceId).StoredItems!,
             item => item.Kind == "flour" && item.Quantity == 1);
+
+        // The farm haul collects only loose stock, so it never carries the
+        // House's flour back to the Farmhouse for the flour haul to repeat.
+        // Other loose farm stock is removed so it cannot occupy the farmer.
+        var settledState = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(delivered.ExportState()));
+        var settledInventory = settledState.Society.Society.Inventory with
+        {
+            Lots = settledState.Society.Society.Inventory.Lots.Where(lot => !(lot.OwnerId == "household:camp-alpha" &&
+                lot.StorageBuildingId is null && lot.DeliveryBuildingId is null && lot.ContainerLotId is null &&
+                FarmFieldRules.IsFarmStock(lot.ItemKind))).ToArray(),
+        };
+        settledState = settledState with
+        {
+            Society = settledState.Society with
+            {
+                Society = settledState.Society.Society with { Inventory = settledInventory },
+            },
+        };
+        using var settled = PrivateWorldRuntime.Restore(settledState,
+            id => new CandidateProvider(id == alpha ? "haul_farm_grain" : "safe_idle"));
+        for (var tick = 0; tick < 30; tick++)
+            Assert.True((await settled.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal(housePlaced.InstanceId, settled.Society.Inventory.GetLot(carriedFlour.Id).StorageBuildingId);
+        Assert.DoesNotContain(settled.ExportState().Events, item => item.Kind == "farm_grain_picked_up" &&
+            item.Detail.Contains(":" + carriedFlour.Id + ":", StringComparison.Ordinal));
     }
 
     [Fact]

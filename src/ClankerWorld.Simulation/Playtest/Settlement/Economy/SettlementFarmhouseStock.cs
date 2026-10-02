@@ -33,31 +33,41 @@ public sealed partial class PrivateWorldRuntime
         return choices.FirstOrDefault(building => building is not null && FarmStorageFree(building.InstanceId) > 0);
     }
 
-    private FarmStockChoice? FarmGrainForDelivery(string householdId)
+    /// <summary>
+    /// Loose household farm stock, or a loose vessel holding it, whose load
+    /// the actor can carry to farm storage. Stock already stored in a House,
+    /// Farmhouse or Silo stays where it is, so this haul never undoes the
+    /// flour haul or moves stock between farm buildings.
+    /// </summary>
+    private FarmStockChoice? FarmGrainForDelivery(string householdId, string actor)
     {
         var inventory = society.Checkpoint.Inventory;
         foreach (var carrier in inventory.Lots.Where(lot => lot.OwnerId == householdId &&
-                     lot.ContainerLotId is null && lot.DeliveryBuildingId is null)
+                     lot.ContainerLotId is null && lot.StorageBuildingId is null && lot.DeliveryBuildingId is null)
                      .OrderBy(lot => lot.GroundPosition is not null ? 0 : 1)
                      .ThenBy(lot => lot.Id, StringComparer.Ordinal))
         {
             if (FarmFieldRules.IsFarmStock(carrier.ItemKind) && AvailableLotQuantity(carrier) > 0 &&
-                FarmStorageFor(householdId, carrier.ItemKind) is { } destination &&
-                carrier.StorageBuildingId != destination.InstanceId)
+                CanHaulToFarmStorage(new FarmStockChoice(carrier, carrier)))
                 return new FarmStockChoice(carrier, carrier);
 
             if (!InventoryContainerRules.IsContainer(carrier.ItemKind) ||
                 HasActiveContainerReservation(inventory, carrier.Id))
                 continue;
-            var resource = inventory.Lots.Where(lot => lot.ContainerLotId == carrier.Id &&
-                    FarmFieldRules.IsFarmStock(lot.ItemKind) && AvailableLotQuantity(lot) > 0 &&
-                    FarmStorageFor(householdId, lot.ItemKind) is { } destination &&
-                    carrier.StorageBuildingId != destination.InstanceId)
-                .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
-            if (resource is not null)
-                return new FarmStockChoice(carrier, resource);
+            // An oversized vessel that cannot be hauled does not hide later stock.
+            var choice = inventory.Lots.Where(lot => lot.ContainerLotId == carrier.Id &&
+                    FarmFieldRules.IsFarmStock(lot.ItemKind) && AvailableLotQuantity(lot) > 0)
+                .OrderBy(lot => lot.Id, StringComparer.Ordinal)
+                .Select(resource => new FarmStockChoice(carrier, resource))
+                .FirstOrDefault(CanHaulToFarmStorage);
+            if (choice is not null)
+                return choice;
         }
         return null;
+
+        bool CanHaulToFarmStorage(FarmStockChoice choice) =>
+            FarmStorageFor(householdId, choice.Resource.ItemKind) is { } destination &&
+            PlanFarmStockHaul(actor, destination.InstanceId, choice) is not null;
     }
 
     private FarmStockChoice? FarmFlourForHouse(string householdId, string farmhouseId) =>
@@ -138,7 +148,7 @@ public sealed partial class PrivateWorldRuntime
         var householdId = society.Checkpoint.GetInhabitant(actor).HouseholdId;
         if (!AdultResident(actor) || householdId is null || CarriedHouseDelivery(actor) is not null ||
             FarmhouseForHousehold(householdId) is null ||
-            FarmGrainForDelivery(householdId) is not { } grain ||
+            FarmGrainForDelivery(householdId, actor) is not { } grain ||
             FarmStorageFor(householdId, grain.Resource.ItemKind) is not { } farmhouse ||
             PlanFarmStockHaul(actor, farmhouse.InstanceId, grain) is null)
             return;
@@ -157,7 +167,7 @@ public sealed partial class PrivateWorldRuntime
         var householdId = society.Checkpoint.GetInhabitant(actor).HouseholdId;
         if (!AdultResident(actor) || householdId is null || CarriedHouseDelivery(actor) is not null ||
             FarmhouseForHousehold(householdId) is null ||
-            FarmGrainForDelivery(householdId) is not { } grain ||
+            FarmGrainForDelivery(householdId, actor) is not { } grain ||
             FarmStorageFor(householdId, grain.Resource.ItemKind) is not { } farmhouse)
             return;
         var source = HouseholdStockPosition(grain.Carrier);

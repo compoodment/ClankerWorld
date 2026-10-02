@@ -633,14 +633,16 @@ public sealed record OwnerBuildingPlacementAction(
 public sealed record OwnerBuildingRemovalAction(
     string InstanceId,
     string? ExpectedTownId,
-    string? ExpectedHouseholdId);
+    string? ExpectedHouseholdId,
+    string WorldId);
 
 public sealed record OwnerBuildingReassignmentAction(
     string InstanceId,
     string? ExpectedTownId,
     string? ExpectedHouseholdId,
     string? TargetTownId,
-    string? TargetHouseholdId);
+    string? TargetHouseholdId,
+    string WorldId);
 
 public sealed record OwnerProductionStartAction(
     string RecipeId,

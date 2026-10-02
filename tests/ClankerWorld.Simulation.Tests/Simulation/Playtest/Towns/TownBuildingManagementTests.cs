@@ -3,6 +3,7 @@ using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.World;
+using ClankerWorld.Viewer.Observation;
 
 namespace ClankerWorld.Simulation.Tests;
 
@@ -325,6 +326,133 @@ public sealed class TownBuildingManagementTests
         using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), _ => new IdleProvider());
         Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
         Assert.Equal(originalBorders[quietTown.Id], Assert.Single(restored.Towns, item => item.Id == quietTown.Id).BorderTiles);
+    }
+
+    [Fact]
+    public void ReusingARemovedBuildingIdKeepsItsOriginalCompletedExpansionAndProductionHistory()
+    {
+        var state = StartedState("review-expansion-history-reused-id");
+        var house = state.WorldSimulation!.Buildings.Single(item => item.InstanceId == "first-town-house-b");
+        state = WithoutBuildingStock(state, house.InstanceId);
+        var worker = state.Society.Society.Inhabitants.First(item => item.HouseholdId == house.HouseholdId).Id;
+        var expansion = new BuildingExpansionJob("historic-expansion", house.InstanceId, worker,
+            house.HouseholdId!, 0, house.Position, house.Position, new(1, 2, 1),
+            0, 1, WorldProductionJobState.Completed, ["historic-reservation"]);
+        var recipe = state.WorldContent!.Recipes.First(item => !item.IsCrop);
+        var production = new WorldProductionJob("historic-production", recipe.CanonicalId,
+            house.InstanceId, worker, 0, 1, WorldProductionJobState.Completed, []);
+        var replacement = state.WorldContent.Buildings.Single(item => item.LocalId == "tailor-shop-1x1");
+        var inventory = state.Society.Society.Inventory;
+        foreach (var cost in replacement.BuildCosts)
+            inventory = InventoryFixture.AddLot(inventory, "replacement-cost-" + cost.ResourceId,
+                cost.ResourceId, house.HouseholdId!, cost.Amount);
+        state = state with
+        {
+            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
+            WorldSimulation = state.WorldSimulation! with
+            {
+                BuildingExpansions = [expansion],
+                ProductionJobs = [production],
+            },
+        };
+        using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
+            PrivateWorldRuntimeCodec.Encode(state)), _ => new IdleProvider());
+        var removal = world.RemoveBuilding(house.InstanceId, house.TownId, house.HouseholdId);
+        Assert.True(removal.Applied, removal.Failure);
+        _ = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        var expansionHistory = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(world.WorldSimulation.BuildingExpansions);
+        var productionHistory = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(world.WorldSimulation.ProductionJobs);
+
+        BuildingPlacementResult? placement = null;
+        foreach (var position in state.Map.Tiles.Select(tile => tile.Position).Where(state.Map.IsBuildable))
+        {
+            placement = world.PlaceBuilding(house.InstanceId, replacement.CanonicalId, position, house.HouseholdId);
+            if (placement.Applied) break;
+        }
+        Assert.NotNull(placement);
+        Assert.True(placement.Applied, placement.Failure);
+        Assert.Equal(replacement.CanonicalId, world.WorldSimulation.Buildings.Single(item => item.InstanceId == house.InstanceId).DefinitionId);
+        Assert.NotEqual(house.DefinitionId, replacement.CanonicalId);
+
+        var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes), _ => new IdleProvider());
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+        Assert.Equal(house.DefinitionId, Assert.Single(restored.WorldSimulation.BuildingExpansions!).DefinitionId);
+        Assert.Equal(expansionHistory, System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(restored.WorldSimulation.BuildingExpansions));
+        Assert.Equal(productionHistory, System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(restored.WorldSimulation.ProductionJobs));
+        Assert.Contains(restored.WorldSimulation.ProductionJobs, job => job.JobId == production.JobId &&
+            job.BuildingInstanceId == house.InstanceId && job.State == WorldProductionJobState.Completed);
+        restored.Validate();
+    }
+
+    [Fact]
+    public void RollingBackARemovedBuildingsExpansionDefinitionIsRefusedBeforeAnyStateChanges()
+    {
+        var state = StartedState("review-expansion-history-package-rollback");
+        var warehouse = state.WorldSimulation!.Buildings.Single(item => item.InstanceId == "first-town-warehouse");
+        state = WithoutBuildingStock(state, warehouse.InstanceId);
+        var worker = state.Towns!.Single(item => item.Id == warehouse.TownId).ResidentIds[0];
+        var expansion = new BuildingExpansionJob("historic-expansion", warehouse.InstanceId, worker,
+            warehouse.TownId!, 0, warehouse.Position, warehouse.Position, new(2, 3, 1),
+            0, 1, WorldProductionJobState.Completed, ["historic-reservation"]);
+        state = state with { WorldSimulation = state.WorldSimulation! with { BuildingExpansions = [expansion] } };
+        using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
+            PrivateWorldRuntimeCodec.Encode(state)), _ => new IdleProvider());
+        var removal = world.RemoveBuilding(warehouse.InstanceId, warehouse.TownId, warehouse.HouseholdId);
+        Assert.True(removal.Applied, removal.Failure);
+        var before = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        var beforePackage = world.ExportState().Content!.Packages.Single(item => item.Manifest.PackageId == WarehouseContent.PackageId);
+        var beforeContent = ClankerWorld.Simulation.Content.DeclarativeWorldContentCodec.Encode(world.WorldContent);
+        var beforeInventory = world.Society.Inventory;
+
+        Assert.Throws<InvalidOperationException>(() => world.RollbackContent(WarehouseContent.PackageId, "withdraw content"));
+
+        Assert.Equal(before, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+        Assert.Equal(beforePackage, world.ExportState().Content!.Packages.Single(item => item.Manifest.PackageId == WarehouseContent.PackageId));
+        Assert.Equal(ClankerWorld.Simulation.Content.ContentPackageLifecycle.Active,
+            world.ExportState().Content!.Packages.Single(item => item.Manifest.PackageId == WarehouseContent.PackageId).Lifecycle);
+        Assert.Equal(beforeContent, ClankerWorld.Simulation.Content.DeclarativeWorldContentCodec.Encode(world.WorldContent));
+        Assert.Same(beforeInventory, world.Society.Inventory);
+        Assert.Contains(world.WorldContent.Buildings, item => item.CanonicalId == warehouse.DefinitionId);
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(before), _ => new IdleProvider());
+        Assert.Equal(before, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+        restored.Validate();
+    }
+
+    [Fact]
+    public void DuplicateFirstTownIsRefusedAsDamagedDataAndItsFileIsPreserved()
+    {
+        var state = StartedState("review-duplicate-first-town");
+        var town = Assert.Single(state.Towns!);
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(state with { Towns = [town, town] }));
+        var document = System.Text.Json.Nodes.JsonNode.Parse(PrivateWorldRuntimeCodec.Encode(state))!;
+        var towns = document["state"]!["towns"]!.AsArray();
+        towns.Add(towns[0]!.DeepClone());
+        var damaged = System.Text.Encoding.UTF8.GetBytes(document.ToJsonString());
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Decode(damaged));
+        var directory = Directory.CreateTempSubdirectory("duplicate-town-");
+        try
+        {
+            var path = Path.Combine(directory.FullName, "runtime.json");
+            File.WriteAllBytes(path, damaged);
+            var file = new PrivateWorldStateFile(path);
+            Assert.Throws<InvalidDataException>(() => file.LoadOrCreate(state.WorldSeed));
+            Assert.Equal(damaged, File.ReadAllBytes(path));
+        }
+        finally { directory.Delete(recursive: true); }
+    }
+
+    private static PrivateWorldRuntimeState WithoutBuildingStock(PrivateWorldRuntimeState state, string buildingId)
+    {
+        var removedLotIds = state.Society.Society.Inventory.Lots.Where(lot =>
+            lot.StorageBuildingId == buildingId || lot.DeliveryBuildingId == buildingId)
+            .Select(lot => lot.Id).ToHashSet(StringComparer.Ordinal);
+        var inventory = state.Society.Society.Inventory with
+        {
+            Lots = state.Society.Society.Inventory.Lots.Where(lot => !removedLotIds.Contains(lot.Id)).ToArray(),
+            Reservations = state.Society.Society.Inventory.Reservations.Where(item => !removedLotIds.Contains(item.LotId)).ToArray(),
+        };
+        return state with { Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } } };
     }
 
     private static PrivateWorldRuntimeState StartedState(string seed)

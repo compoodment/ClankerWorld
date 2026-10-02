@@ -16,11 +16,14 @@ public sealed partial class PrivateWorldRuntime
     public BuildingManagementResult RemoveBuilding(
         string instanceId,
         string? expectedTownId,
-        string? expectedHouseholdId)
+        string? expectedHouseholdId,
+        string? expectedWorldId = null)
     {
         gate.Wait();
         try
         {
+            if (expectedWorldId is not null && expectedWorldId != society.Checkpoint.WorldId)
+                return BuildingManagementResult.Rejected(instanceId, "The active world changed. Select this building again before changing it.");
             var building = worldSimulation.Buildings.SingleOrDefault(item => item.InstanceId == instanceId);
             if (building is null) return BuildingManagementResult.Rejected(instanceId, "That building is no longer placed.");
             if (building.TownId != expectedTownId || building.HouseholdId != expectedHouseholdId)
@@ -56,11 +59,14 @@ public sealed partial class PrivateWorldRuntime
         string? expectedTownId,
         string? expectedHouseholdId,
         string? targetTownId,
-        string? targetHouseholdId)
+        string? targetHouseholdId,
+        string? expectedWorldId = null)
     {
         gate.Wait();
         try
         {
+            if (expectedWorldId is not null && expectedWorldId != society.Checkpoint.WorldId)
+                return BuildingManagementResult.Rejected(instanceId, "The active world changed. Select this building again before changing it.");
             var building = worldSimulation.Buildings.SingleOrDefault(item => item.InstanceId == instanceId);
             if (building is null) return BuildingManagementResult.Rejected(instanceId, "That building is no longer placed.");
             if (building.TownId != expectedTownId || building.HouseholdId != expectedHouseholdId)

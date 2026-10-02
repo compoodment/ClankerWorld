@@ -45,14 +45,22 @@ public sealed partial class PrivateWorldRuntime
             GatherProjectMaterial(actor, state, itemKind, source);
     }
 
-    private bool CanGatherFromSource(string actor, string itemKind, MapResource source)
+    private bool CanGatherFromSource(string actor, string itemKind, MapResource source,
+        Dictionary<(ToolFamily Family, int Tier), ToolDefinition?> reachableToolCache)
     {
         var inventory = society.Checkpoint.Inventory;
         var quantity = worldSystems.Ecology.GetResource(source.Id).Quantity;
         if (ToolProgressionRules.PlanGather(itemKind, source, inventory, actor, quantity) is not null)
             return true;
         var required = ToolProgressionRules.RequiredToolForGathering(itemKind, source);
-        return required is null || FindReachableSharedGatheringTool(actor, required) is not null;
+        if (required is null) return true;
+        var key = (required.Family, required.Tier);
+        if (!reachableToolCache.TryGetValue(key, out var available))
+        {
+            available = FindReachableSharedGatheringTool(actor, required);
+            reachableToolCache.Add(key, available);
+        }
+        return available is not null;
     }
 
     private int AvailableGatherQuantity(string actor, string itemKind, MapResource source,

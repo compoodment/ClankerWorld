@@ -124,9 +124,11 @@ public sealed partial class PrivateWorldRuntime
         PlaytestInhabitantState person, string householdId, PlacedBuilding house)
     {
         var inventory = society.Checkpoint.Inventory;
-        if (person.HungerBasisPoints < 7_000 &&
+        // Like collecting other household food, a serving follows the Town's
+        // food policy, and only food that can be eaten now is offered.
+        if (person.HungerBasisPoints < 7_000 && MayCollectSharedFood(actor) &&
             !inventory.Lots.Any(lot => PersonalEquipmentRules.IsCarried(lot, actor) && lot.ContainerLotId is null &&
-                lot.DeliveryBuildingId is null && InventoryContainerRules.IsFood(lot.ItemKind) &&
+                lot.DeliveryBuildingId is null && IsEdibleFood(lot.ItemKind) &&
                 AvailableLotQuantity(lot) > 0) &&
             FreeCarryCapacity(actor) > 0 &&
             FindFoodInPot(householdId, house.InstanceId) is { } storedFood &&
@@ -338,7 +340,7 @@ public sealed partial class PrivateWorldRuntime
                 !HasActiveContainerReservation(inventory, lot.Id))
             .OrderBy(lot => lot.Id, StringComparer.Ordinal)
             .Select(pot => inventory.Lots.Where(lot => lot.ContainerLotId == pot.Id &&
-                    InventoryContainerRules.IsFood(lot.ItemKind) && lot.ConditionBasisPoints > 0 &&
+                    IsEdibleFood(lot.ItemKind) && lot.ConditionBasisPoints > 0 &&
                     lot.FreshnessBasisPoints > 0 && AvailableLotQuantity(lot) > 0)
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal)
                 .Select(food => new PotFoodChoice(pot, food)).FirstOrDefault())

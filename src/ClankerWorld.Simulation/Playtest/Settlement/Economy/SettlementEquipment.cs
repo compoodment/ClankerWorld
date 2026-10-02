@@ -54,7 +54,8 @@ public sealed partial class PrivateWorldRuntime
     private IEnumerable<InventoryLot> PrivateEquipmentSources(string actor) => society.Checkpoint.Inventory.Lots
         .Where(lot => AvailableLotQuantity(lot) > 0 && lot.DeliveryBuildingId is null &&
             (PersonalEquipmentRules.IsCarried(lot, actor) || lot.OwnerId == HouseholdFor(actor) &&
-                CanReachSharedItem(actor, lot)));
+                CanReachSharedItem(actor, lot)))
+        .Concat(AvailableWarehouseStock(actor)).DistinctBy(lot => lot.Id);
 
     private InventoryLot? BetterGarment(string actor)
     {

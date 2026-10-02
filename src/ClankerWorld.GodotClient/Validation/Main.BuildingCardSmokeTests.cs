@@ -1,3 +1,4 @@
+using ClankerWorld.GodotClient.Pairing;
 using ClankerWorld.GodotClient.UI;
 using Godot;
 
@@ -133,5 +134,105 @@ public partial class Main
         if (fruitSlot.TooltipText != "Fruit × 3" || fruitSlot.CustomMinimumSize.Y <= fruitSlot.CustomMinimumSize.X - 8)
             throw new InvalidOperationException("A named item slot must leave room for its name and say what it holds.");
         fruitSlot.Free();
+        VerifyBuildingManagementRefresh(baseMap);
+    }
+
+    private void VerifyBuildingManagementRefresh(OwnerWorldSnapshot baseMap)
+    {
+        var previousRegistration = registration;
+        var previousKey = deviceKey;
+        var previousInvalid = registeredEndpointInvalid;
+        var previousCi = System.Environment.GetEnvironmentVariable("CI");
+        System.Environment.SetEnvironmentVariable("CI", "true");
+        using var signer = OwnerDeviceKey.CreateEphemeralForContinuousIntegration();
+        try
+        {
+            registration = new(new OwnerAuthorityIdentity("building-smoke", baseMap.WorldId),
+                "building-smoke-device", signer.PublicKeyFingerprint, "http://127.0.0.1/");
+            deviceKey = signer;
+            registeredEndpointInvalid = false;
+            var workshop = new OwnerWorldPlacedBuilding("choice-workshop", "test/workshop", new(1, 1), 0,
+                "Workshop", ["workshop"], TownId: "town:first", HouseholdId: "household:one")
+            { AllowsHouseholdOwner = true };
+            var second = workshop with { InstanceId = "second-workshop", Position = new(2, 1) };
+            var map = baseMap with
+            {
+                PlacedBuildings = [workshop, second],
+                Stockpiles = [new("household:one", "Current", []), new("household:two", "Alpha", []),
+                    new("household:three", "Beta", [])],
+                ProductionJobs = [],
+            };
+            ClearBuildingSelection();
+            RenderMap(map);
+            SelectBuilding(workshop.InstanceId);
+            OpenBuildingDetails();
+            if (!buildingManagementSection.Visible || buildingManagementChoice.ItemCount != 3)
+                throw new InvalidOperationException("A paired owner must receive the host's household choices and the unowned option.");
+            buildingManagementChoice.Select(1);
+            RenderBuildingCard(map with { WorldTick = map.WorldTick + 1 });
+            if (ChosenOwner() != "household:three")
+                throw new InvalidOperationException("An observation refresh must preserve the owner's chosen household.");
+            var reordered = map with
+            {
+                Stockpiles = [new("household:one", "Current", []), new("household:two", "Zed", []),
+                    new("household:three", "Aaron", [])],
+            };
+            RenderBuildingCard(reordered);
+            if (ChosenOwner() != "household:three" || buildingManagementChoice.Selected != 0)
+                throw new InvalidOperationException("Owner choices must survive reordered display names by household ID.");
+            buildingManagementChoice.Select(2);
+            RenderBuildingCard(map);
+            if (ChosenOwner() != string.Empty)
+                throw new InvalidOperationException("The explicit no-household choice must survive a refresh.");
+            SelectBuilding(second.InstanceId);
+            if (ChosenOwner() != "household:two")
+                throw new InvalidOperationException("Choosing another building must reset its owner choice.");
+            buildingManagementChoice.Select(1);
+            RenderBuildingCard(map with { Stockpiles = map.Stockpiles.Where(item => item.OwnerId != "household:three").ToArray() });
+            if (ChosenOwner() != "household:two")
+                throw new InvalidOperationException("A removed owner choice must fall back to a current host-provided option.");
+            RenderBuildingCard(map with
+            {
+                PlacedBuildings = [second with { Tags = ["house"], HouseholdId = null }],
+                Stockpiles = [],
+            });
+            if (buildingManagementChoice.ItemCount != 0 || buildingManagementApply.Visible)
+                throw new InvalidOperationException("A building without current owner options must not offer reassignment.");
+            RenderBuildingCard(map);
+            if (ChosenOwner() != "household:two")
+                throw new InvalidOperationException("Returning owner options must start with a current choice.");
+
+            buildingRemoveButton.EmitSignal(BaseButton.SignalName.Pressed);
+            RenderBuildingCard(map with
+            {
+                PlacedBuildings = [workshop, second with { HouseholdId = "household:three" }],
+            });
+            if (!buildingRemoveConfirmation.Visible || pendingBuildingRemoval is not
+                { InstanceId: "second-workshop", ExpectedTownId: "town:first", ExpectedHouseholdId: "household:one" } || pendingBuildingRemoval.WorldId != map.WorldId)
+                throw new InvalidOperationException("Removal must retain the owner record originally confirmed so the host can reject a stale change.");
+            buildingRemoveConfirmation.EmitSignal(ConfirmationDialog.SignalName.Canceled);
+            if (pendingBuildingRemoval is not null || pendingBuildingRemovalWorldId is not null)
+                throw new InvalidOperationException("Canceling removal must clear its retained action.");
+            buildingRemoveButton.EmitSignal(BaseButton.SignalName.Pressed);
+            RenderBuildingCard(map with { WorldId = "different-building-world" });
+            if (pendingBuildingRemoval is not null || buildingRemoveConfirmation.Visible || ChosenOwner() != "household:two")
+                throw new InvalidOperationException("A world change must cancel removal and reset its owner choice.");
+            RenderBuildingCard(map);
+            buildingRemoveButton.EmitSignal(BaseButton.SignalName.Pressed);
+            RenderBuildingCard(map with { PlacedBuildings = [workshop] });
+            if (pendingBuildingRemoval is not null || selectedBuildingId is not null || buildingRemoveConfirmation.Visible)
+                throw new InvalidOperationException("A disappeared building must cancel its removal confirmation.");
+        }
+        finally
+        {
+            ClearBuildingSelection();
+            registration = previousRegistration;
+            deviceKey = previousKey;
+            registeredEndpointInvalid = previousInvalid;
+            System.Environment.SetEnvironmentVariable("CI", previousCi);
+        }
+
+        string? ChosenOwner() => buildingManagementChoice.Selected < 0 ? null :
+            buildingManagementChoice.GetItemMetadata(buildingManagementChoice.Selected).AsString();
     }
 }

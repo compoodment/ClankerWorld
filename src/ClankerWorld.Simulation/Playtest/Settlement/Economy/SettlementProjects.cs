@@ -913,16 +913,22 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
-    private MapResource? MaterialSource(string itemKind, string actor) => map.Resources
+    private MapResource? MaterialSource(string itemKind, string actor)
+    {
+        // A source scan observes one inventory snapshot. Reuse tool availability
+        // during that scan; gathering rechecks the actual tool and capacity.
+        var reachableToolCache = new Dictionary<(ToolFamily Family, int Tier), ToolDefinition?>();
+        return map.Resources
         .Where(resource =>
             (resource.Kind == itemKind || (itemKind == "wood" && resource.Kind == "construction")) &&
             resources.GetValueOrDefault(resource.Id) == ResourceState.Available &&
-            CanGatherFromSource(actor, itemKind, resource) &&
+            CanGatherFromSource(actor, itemKind, resource, reachableToolCache) &&
             map.IsReachableOnFoot(inhabitants[actor].Position, resource.Position))
         .OrderBy(resource => map.FootDistance(inhabitants[actor].Position, resource.Position))
         .ThenBy(resource => resource.Id, StringComparer.Ordinal)
             .FirstOrDefault(resource => IsWithinInteractionRange(inhabitants[actor].Position, resource.Position, ResourceInteractionRange) ||
             FindUnoccupiedRoute(actor, inhabitants[actor].Position, resource.Position, ResourceInteractionRange).Count > 0);
+    }
 
     private bool CanAcquireProjectInputs(IReadOnlyList<ContentQuantity> inputs, string? ownerId = null,
         string? residentId = null)

@@ -122,12 +122,7 @@ public sealed partial class PrivateWorldRuntime
         lot.OwnerId == HouseholdFor(actor) && lot.ContainerLotId is null && lot.ItemKind == kind && AvailableLotQuantity(lot) > 0 &&
         (lot.StorageBuildingId is null || society.Checkpoint.GetInhabitant(actor).HouseholdId == lot.OwnerId) &&
         CanReachSharedItem(actor, lot)) ??
-        WarehousesAccessibleTo(actor).Where(warehouse => MayCollectWarehouseStock(actor, warehouse))
-            .SelectMany(warehouse => society.Checkpoint.Inventory.Lots.Where(lot =>
-                lot.ItemKind == kind && lot.ContainerLotId is null && kind != "food" &&
-                lot.DeliveryBuildingId is null && lot.GroundPosition is null && AvailableLotQuantity(lot) > 0 &&
-                lot.OwnerId == warehouse.TownId && warehouse.InstanceId == lot.StorageBuildingId))
-            .FirstOrDefault(lot => CanReachSharedItem(actor, lot));
+        (kind == "food" ? null : AvailableWarehouseStock(actor, kind).FirstOrDefault());
 
     private bool CanReachSharedItem(string actor, InventoryLot lot) =>
         FindUnoccupiedRoute(actor, inhabitants[actor].Position, HouseholdStockPosition(lot),

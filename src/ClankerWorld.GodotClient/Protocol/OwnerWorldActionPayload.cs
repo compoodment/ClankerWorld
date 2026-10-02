@@ -377,7 +377,8 @@ public static class OwnerWorldActionPayload
         "clankerworld.owner-building-removal.v1",
         $"instance-id={EncodeRequired(action.InstanceId, nameof(action.InstanceId))}",
         $"expected-town-id={EncodeOptional(action.ExpectedTownId)}",
-        $"expected-household-id={EncodeOptional(action.ExpectedHouseholdId)}");
+        $"expected-household-id={EncodeOptional(action.ExpectedHouseholdId)}",
+        $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}");
 
     public static string BuildingReassignment(OwnerBuildingReassignmentAction action) => string.Join(
         '\n',
@@ -386,7 +387,8 @@ public static class OwnerWorldActionPayload
         $"expected-town-id={EncodeOptional(action.ExpectedTownId)}",
         $"expected-household-id={EncodeOptional(action.ExpectedHouseholdId)}",
         $"target-town-id={EncodeOptional(action.TargetTownId)}",
-        $"target-household-id={EncodeOptional(action.TargetHouseholdId)}");
+        $"target-household-id={EncodeOptional(action.TargetHouseholdId)}",
+        $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}");
 
     public static string ProductionStart(OwnerProductionStartAction action) => string.Join(
         '\n',
