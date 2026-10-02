@@ -9,6 +9,15 @@ public sealed class WorldEventTextTests
     private const string ChildId = "world:inhabitant:birth:" + FounderId + ":" + AgentId + ":1";
 
     [Theory]
+    [InlineData("{")]
+    [InlineData("null")]
+    [InlineData("{}")]
+    public void IncompleteDeveloperEditDetailsHaveASafeDescription(string detail)
+    {
+        Assert.Equal("Developer edit.", WorldEventText.Describe(new(1, 0, "developer_edit", detail), null));
+    }
+
+    [Theory]
     [InlineData("set_need", "fullness", 62, "Aster's fullness set to 62%")]
     [InlineData("give_goods", "wood", 2, "Aster received 2 wood")]
     [InlineData("remove_goods", "wood", 1, "removed 1 wood from Aster")]

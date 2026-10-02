@@ -13,7 +13,8 @@ public static class WorldEventText
         try
         {
             var edit = JsonSerializer.Deserialize<OwnerDeveloperEditAction>(detail);
-            if (edit is null) return "Developer edit.";
+            if (edit is null || string.IsNullOrWhiteSpace(edit.AgentId) || string.IsNullOrWhiteSpace(edit.Operation) ||
+                string.IsNullOrWhiteSpace(edit.Value)) return "Developer edit.";
             var name = Name(snapshot, edit.AgentId);
             var value = GameUiText.HumanizeIdentifier(edit.Value).ToLowerInvariant();
             var change = edit.Operation switch
