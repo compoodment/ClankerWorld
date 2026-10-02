@@ -117,7 +117,7 @@ public partial class Main
     private static string ShortMarker(string value)
     {
         var compact = value.Trim().Replace('_', ' ');
-        return compact.Length <= 6 ? compact.ToUpperInvariant() : $"{compact[..5].ToUpperInvariant()}…";
+        return compact.Length <= 6 ? compact.ToUpperInvariant() : $"{compact[..5].ToUpperInvariant()}...";
     }
 
     private static string Pretty(string value) => string.IsNullOrWhiteSpace(value)

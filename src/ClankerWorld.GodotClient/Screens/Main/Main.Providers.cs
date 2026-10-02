@@ -67,7 +67,7 @@ public partial class Main
     {
         if (usageStatus is null)
         {
-            usageMeterStatus.Text = "Loading model calls…";
+            usageMeterStatus.Text = "Loading model calls...";
             return;
         }
         if (usageStatus.AccountingError is not null)
@@ -341,7 +341,7 @@ public partial class Main
             cognitionCredentialChoice.AddItem(slot.Label);
             cognitionCredentialChoice.SetItemMetadata(cognitionCredentialChoice.ItemCount - 1, slot.Id);
         }
-        cognitionCredentialChoice.AddItem("Add another API key…");
+        cognitionCredentialChoice.AddItem("Add another API key...");
         cognitionCredentialChoice.SetItemMetadata(cognitionCredentialChoice.ItemCount - 1, "new");
         var assignedSlot = SelectedAssignment()?.Provider == provider ? SelectedAssignment()?.CredentialSlotId : null;
         for (var index = 0; index < cognitionCredentialChoice.ItemCount; index++)
@@ -389,7 +389,7 @@ public partial class Main
             ? "Key saved on host"
             : "No saved key";
         cognitionConfigurationStatus.Text = providerConfiguration is null
-            ? "Loading…"
+            ? "Loading..."
             : SelectedTargetWasBornHere()
             ? SelectedChildModelStatus()
             : $"Routine: {ProviderDisplayName(providerConfiguration.RoutineProvider)} · Planning: {ProviderDisplayName(providerConfiguration.PlanningProvider)}";

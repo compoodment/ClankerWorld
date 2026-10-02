@@ -78,7 +78,7 @@ public partial class Main
         StyleButton(pauseButton);
         pauseButton.Pressed += () => _ = TogglePauseAsync();
         hudTime.AddChild(pauseButton);
-        clockLabel.Text = "Connecting…";
+        clockLabel.Text = "Connecting...";
         clockLabel.ThemeTypeVariation = "HeadingLabel";
         clockLabel.VerticalAlignment = VerticalAlignment.Center;
         hudTime.AddChild(clockLabel);

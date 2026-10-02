@@ -599,8 +599,8 @@ public partial class Main
         worldDeleteButton.Disabled = true;
         if (worldListRequest.IsLoading)
         {
-            worldMenuStatus.Text = "Checking saved worlds… This can take a moment. You can go back while you wait.";
-            worldSelectionList.Placeholder = "Checking saved worlds…";
+            worldMenuStatus.Text = "Checking saved worlds... This can take a moment. You can go back while you wait.";
+            worldSelectionList.Placeholder = "Checking saved worlds...";
         }
         else if (worldListRequest.Failure is { } failure)
         {
@@ -766,7 +766,7 @@ public partial class Main
         worldAcceptUnmetTargets.Hide();
         worldCreateButton.Disabled = true;
         worldPreview.Hide();
-        worldPreviewStatus.Text = "Updating the preview…";
+        worldPreviewStatus.Text = "Updating the preview...";
         if (refresh && worldMenuOverlay.Visible && worldMenuColumns.Visible)
             _ = RefreshWorldPreviewAfterChangeAsync(revision);
     }
@@ -797,7 +797,7 @@ public partial class Main
         worldCreateButton.Disabled = true;
         worldAcceptUnmetTargets.ButtonPressed = false;
         worldAcceptUnmetTargets.Hide();
-        worldPreviewStatus.Text = "Generating map preview…";
+        worldPreviewStatus.Text = "Generating map preview...";
         try
         {
             var result = await ownerApi.PreviewWorldAsync(ResolveWorldUri(), authority,
@@ -910,7 +910,7 @@ public partial class Main
         };
         await RunWorldMenuActionAsync(async () =>
         {
-            worldMenuStatus.Text = "Generating world…";
+            worldMenuStatus.Text = "Generating world...";
             try
             {
                 await ownerApi.SetPausedAsync(ResolveWorldUri(), authority, deviceId, true,
@@ -939,7 +939,7 @@ public partial class Main
         var server = ResolveWorldUri();
         await RunWorldMenuActionAsync(async () =>
         {
-            worldMenuStatus.Text = "Opening world…";
+            worldMenuStatus.Text = "Opening world...";
             try
             {
                 await ownerApi.SetPausedAsync(server, authority, deviceId, true,

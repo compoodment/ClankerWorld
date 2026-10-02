@@ -51,7 +51,7 @@ that version mismatch. You can still reconnect to the existing world.
    provider. Then pick the model from the game's short list for that
    provider, newest at the top. Models your key can't use are greyed out; if
    it can't use the model shown, the picker asks you to choose another.
-   **Type a model name…** covers any other model. The agents start in two
+   **Type a model name...** covers any other model. The agents start in two
    households, not two forced couples or biological families.
 5. Press **Start World** when all four are ready. Placing the fourth agent does
    not start time automatically. Before starting, placements can be moved or

@@ -185,7 +185,7 @@ public partial class Main
         BuildMapFiltersPanel(content);
         var rosterBody = new VBoxContainer();
         rosterBody.AddThemeConstantOverride("separation", 6);
-        rosterSummaryLabel.Text = "Waiting for the world…";
+        rosterSummaryLabel.Text = "Waiting for the world...";
         rosterSummaryLabel.ThemeTypeVariation = "DimLabel";
         rosterSummaryLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         rosterBody.AddChild(rosterSummaryLabel);
@@ -499,7 +499,7 @@ public partial class Main
         authoringBody.AddChild(authoringKind);
         authoringId.PlaceholderText = "ID (resource/object/draft/asset as required)";
         authoringBody.AddChild(authoringId);
-        authoringValue.PlaceholderText = "Value (terrain, kind, name, weather, digest…)";
+        authoringValue.PlaceholderText = "Value (terrain, kind, name, weather, digest...)";
         authoringBody.AddChild(authoringValue);
         authoringSecondaryValue.PlaceholderText = "Secondary value (season for set_weather_season)";
         authoringBody.AddChild(authoringSecondaryValue);
@@ -565,7 +565,7 @@ public partial class Main
 
     private void BuildStatusToast(Control content)
     {
-        statusLabel.Text = "Connecting…";
+        statusLabel.Text = "Connecting...";
         statusLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         statusLabel.HorizontalAlignment = HorizontalAlignment.Center;
         statusLabel.CustomMinimumSize = new Vector2(320, 0);
@@ -598,6 +598,7 @@ public partial class Main
     // Skipping unchanged text also keeps the reader's scroll position.
     private void SetPanelText(RichTextLabel label, string text)
     {
+        text = GameUiText.PlainEllipses(text);
         if (label.Text == text) return;
         label.Text = text;
         FitTextPanel(label);

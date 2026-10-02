@@ -45,6 +45,16 @@ public static class GameUiText
         return quantity.Length == 0 ? title : title + " " + quantity;
     }
 
+    /// <summary>
+    /// Text from an agent's model or the host with each ellipsis character
+    /// (U+2026) spelled as three full stops. The body font draws that character
+    /// at mid-height, as Chinese text does, so game text never uses it.
+    /// </summary>
+    public static string PlainEllipses(string text) => text.Replace(Ellipsis, "...", StringComparison.Ordinal);
+
+    /// <summary>The ellipsis character, written as an escape so searches for it find only mistakes.</summary>
+    public const string Ellipsis = "\u2026";
+
     public static string ItemName(string kind) => kind switch
     {
         "storage_pot" => "Storage pot",

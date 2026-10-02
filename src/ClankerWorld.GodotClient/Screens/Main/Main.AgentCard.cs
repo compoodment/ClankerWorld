@@ -264,7 +264,7 @@ public partial class Main
         speakSection.AddChild(speakHeading);
         var speakRow = new HBoxContainer();
         speakRow.AddThemeConstantOverride("separation", 4);
-        instructionText.PlaceholderText = "Say something…";
+        instructionText.PlaceholderText = "Say something...";
         instructionText.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         instructionText.TextSubmitted += submitted => _ = SubmitInstructionAsync();
         speakRow.AddChild(instructionText);
@@ -378,7 +378,7 @@ public partial class Main
             thoughtsReaderText.PushColor(DimText);
             thoughtsReaderText.AddText(clock.Time + "  ");
             thoughtsReaderText.Pop();
-            thoughtsReaderText.AddText(text);
+            thoughtsReaderText.AddText(GameUiText.PlainEllipses(text));
         }
         FitTextPanel(thoughtsReaderText);
     }

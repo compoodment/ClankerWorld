@@ -206,7 +206,7 @@ public partial class Main
             RefreshControlAvailability();
             try
             {
-                SetStatus("Sending…", good: true);
+                SetStatus("Sending...", good: true);
                 var detail = await action();
                 SetStatus(detail, good: true);
                 await RefreshAsync();
