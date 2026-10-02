@@ -338,7 +338,7 @@ public sealed partial class PrivateWorldRuntime
         AppendEvent("food_taken_from_pot", $"{actor}:{choice.Pot.Id}:{choice.Food.Id}:{quantity}");
     }
 
-    private PotFoodChoice? FindFoodInPot(string householdId, string houseId)
+    private PotFoodChoice? FindFoodInPot(string householdId, string houseId, string? requiredItemKind = null)
     {
         var inventory = society.Checkpoint.Inventory;
         return inventory.Lots.Where(lot => lot.OwnerId == householdId &&
@@ -347,6 +347,7 @@ public sealed partial class PrivateWorldRuntime
                 !HasActiveContainerReservation(inventory, lot.Id))
             .OrderBy(lot => lot.Id, StringComparer.Ordinal)
             .Select(pot => inventory.Lots.Where(lot => lot.ContainerLotId == pot.Id &&
+                    (requiredItemKind is null || lot.ItemKind == requiredItemKind) &&
                     IsEdibleFood(lot.ItemKind) && lot.ConditionBasisPoints > 0 &&
                     lot.FreshnessBasisPoints > 0 && AvailableLotQuantity(lot) > 0)
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal)

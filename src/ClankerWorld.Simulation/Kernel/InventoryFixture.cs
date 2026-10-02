@@ -558,7 +558,7 @@ public static partial class InventoryFixture
         EnsureUsableContainer(container);
         if (source.ContainerLotId != container.Id)
             throw new InvalidOperationException("The requested lot is not stored in this vessel.");
-        EnsureOwnerAndAvailableQuantity(checkpoint, source, ownerId, quantity);
+        EnsureOwnerAndAvailablePhysicalQuantity(checkpoint, source, ownerId, quantity);
         EnsureContainerOwnerAndLocation(container, source, ownerId);
         EnsureNoActiveReservations(checkpoint,
             checkpoint.Lots.Where(lot => lot.Id == container.Id || lot.ContainerLotId == container.Id).Select(lot => lot.Id));

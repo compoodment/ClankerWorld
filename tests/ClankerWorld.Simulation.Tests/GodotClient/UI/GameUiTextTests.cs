@@ -14,6 +14,7 @@ public sealed class GameUiTextTests
     [InlineData("tree_planting_refused", false)]
     [InlineData("instruction_applied", false)]
     [InlineData("housing_blocked", true)]
+    [InlineData("household_delivery_recovered", true)]
     [InlineData("housing_answer_recorded", false)]
     [InlineData("housing_request_cancelled", false)]
     public void EventLogSelectsKnownPlayerEventsInsteadOfPublishingUnknownDiagnostics(string kind, bool visible)

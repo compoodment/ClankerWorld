@@ -904,7 +904,8 @@ public sealed class PotteryContentTests
         var house = setup.WorldSimulation.Buildings.Single(building => building.InstanceId == "first-town-house-a");
         var actor = state.Society.Society.Inhabitants.First(person => person.HouseholdId == householdId &&
             person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder).Id;
-        // The jug and its four water make five units, more than one haul load.
+        // The jug and its four water make five units, more than the actor's
+        // four remaining spaces. Loose wood still fits without splitting it.
         var inventory = state.Society.Society.Inventory with
         {
             Lots = state.Society.Society.Inventory.Lots.Where(lot => lot.OwnerId != actor &&
@@ -914,6 +915,10 @@ public sealed class PotteryContentTests
         inventory = InventoryFixture.AddLot(inventory, "oversized-loose-water", InventoryContainerRules.FreshWater,
             householdId, InventoryContainerRules.WaterJugCapacity, containerLotId: jugId);
         inventory = InventoryFixture.AddLot(inventory, "z-loose-wood", "wood", householdId, 2);
+        inventory = InventoryFixture.AddLot(inventory, "protected-loose-haul-cargo", "stone", actor, 4);
+        inventory = InventoryFixture.Reserve(inventory, "protected-loose-haul-reservation", actor,
+            "protected-loose-haul-cargo", 4, "haul_capacity_control", inventory.WorldTick + 100);
+        Assert.Equal(4, PersonalEquipmentRules.CarriedQuantity(inventory, actor, null));
         state = SetActorCondition(state with
         {
             Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
@@ -934,6 +939,8 @@ public sealed class PotteryContentTests
         Assert.Equal(householdId, world.Society.Inventory.GetLot(jugId).OwnerId);
         Assert.Equal(InventoryContainerRules.WaterJugCapacity, world.Society.Inventory.Lots
             .Where(lot => lot.ContainerLotId == jugId).Sum(lot => lot.Quantity));
+        Assert.Equal(4, world.Society.Inventory.GetLot("protected-loose-haul-cargo").Quantity);
+        Assert.Equal(InventoryReservationState.Reserved, world.Society.Inventory.GetReservation("protected-loose-haul-reservation").State);
         world.Validate();
     }
 
