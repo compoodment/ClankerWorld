@@ -129,7 +129,8 @@ public sealed partial class PrivateWorldRuntime
                      AvailableLotQuantity(lot) > 0 && BusinessRules.MaySell(kind, lot.ItemKind) &&
                      BusinessBuyerWants(buyer, lot)).OrderBy(lot => lot.Id, StringComparer.Ordinal))
         {
-            foreach (var payment in inventory.Lots.Where(lot => PersonalEquipmentRules.IsCarried(lot, buyer) &&
+            // Payment comes from the buyer's own goods, never borrowed household ones.
+            foreach (var payment in inventory.Lots.Where(lot => lot.OwnerId == buyer && PersonalEquipmentRules.IsCarried(lot, buyer) &&
                     IsLooseBusinessLot(lot) && lot.ItemKind != goods.ItemKind && AvailableLotQuantity(lot) > 0 &&
                     !protectedToolIds.Contains(lot.Id) &&
                     !BusinessBuyerWants(buyer, lot) && BusinessPaymentUseful(building, lot) &&

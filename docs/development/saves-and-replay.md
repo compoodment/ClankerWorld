@@ -74,7 +74,7 @@ the saved clock. Current-format roundtrips keep the flag and deadlines, and a
 replay from a postponed plan reaches the same plan and checkpoint. Older
 schemas are refused. No migration is added.
 
-Private-world schema 47 adds independent saved Town governance. It records the
+Private-world schema 48 adds independent saved Town governance. It records the
 current council and fallback cause, term/retry schedules, personal full-term or
 remainder-term candidacy agreements, proposal identity/windows/final votes,
 current election and settled history, ballot revisions, runoff eligibility,
@@ -220,6 +220,8 @@ Store delivery lots survive save/reload without granting customer access to
 private stock. Earlier alpha saves need not load; no shop-state migration is
 provided.
 
+Private-world schema 47 records household departures, their original household, care group and once-only food allocation, plus optional physical inventory custody separate from ownership. Personal House storage retains the personal owner even after membership ends. Reload preserves collection rights, borrowed carried goods, the care group and unfinished housing task without awarding another allowance. Paused private jobs retain the original owners, exact input reservations and pause time. Their reserved workstation or expansion footprint stays occupied; a remaining authorized member can resume at the physical site with the same materials and remaining duration. Unavailable materials cancel the preserved job and release its remaining commitments. Invalid custody, departure records and unavailable carriers are refused. Older alpha checkpoints are refused and preserved; no migration is added.
+
 Checkpoint decoding enforces declared non-null members and required constructor
 fields before runtime validation. A missing society, cognition or inventory
 object is invalid data, not an unexpected null-reference fault. No saved list
@@ -298,7 +300,7 @@ agent, a map memory, an exploration path or traffic evidence in a two-tile
 river.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 47. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 48. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
@@ -327,8 +329,9 @@ assignments, schema 39 for reusable containers, schema 40 for domestic family
 and caregiver records, schema 41 for owner-message delivery, schema 42 for
 selected tools on saved field and recipe work, schema 43 for life-moment
 identity, schema 44 for Town land records, schema 45 for physical shop
-exchanges, schema 46 for continuity and schema 47 for Town councils, record
-when those fields or behaviors were introduced; they do not allow an earlier checkpoint schema past the
+exchanges, schema 46 for continuity and schema 47 for household departures and
+physical custody, and schema 48 for Town councils, record when those fields or
+behaviors were introduced; they do not allow an earlier checkpoint schema past the
 current alpha cutoff.
 
 | Compatibility change | Meaning |
@@ -362,7 +365,8 @@ current alpha cutoff.
 | Schema 44 | Connected Town-title plots from the accepted first-Town layout, starter household use rights on assigned building footprints, and pending land-use requests. Later border growth does not create title. Invalid or incomplete land records are refused; earlier alpha checkpoints are not migrated. |
 | Schema 45 | Physical shop exchange records bind exact inventory barter offers to the shop, selling household, customer, position and proposal time, with the completing seller or cancellation reason. Reservations, purchase carrying, on-site payment and Store delivery lots retain their physical inventory locations. Earlier alpha checkpoints are refused and preserved; no shop-state migration is added. |
 | Schema 46 | The continuity rule's saved on/off state and each eligible couple's "not yet" deadline, plus the `postponed` parenthood stage. A missing or inconsistent rule state is refused. Earlier schemas cannot carry it. |
-| Schema 47 | Independent Town councils, personal candidacy agreements, proposal windows and final votes, current and archived elections, recorded runoff draws, notices and actor-owned read/relay receipts. Founded Towns require valid governance. Earlier alpha checkpoints are refused and preserved; no civic state is inferred or migrated. |
+| Schema 47 | Household departure records, once-only physical food allowances, care groups and personal collection rights; optional carrier IDs keep custody separate from property. Production jobs capture their owner at start. Paused private work preserves its original inputs and pause time for a remaining member to resume. Older alpha checkpoints are refused and preserved. |
+| Schema 48 | Independent Town councils, personal candidacy agreements, proposal windows and final votes, current and archived elections, recorded runoff draws, notices and actor-owned read/relay receipts. Founded Towns require valid governance. Earlier alpha checkpoints are refused and preserved; no civic state is inferred or migrated. |
 
 Other compatibility fields remain separate for simulation, envelopes, content,
 assets, generator and network contracts. Change the field whose semantics

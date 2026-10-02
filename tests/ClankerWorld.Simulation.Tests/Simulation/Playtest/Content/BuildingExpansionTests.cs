@@ -946,6 +946,92 @@ public sealed class BuildingExpansionTests
         Assert.Equal(house.Position, world.Inhabitants.Single(person => person.InhabitantId == actor).Position);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DepartingWorkerPausesExpansionAndKeepsItsFootprintAndMaterialsAcrossReload(bool damageMaterials)
+    {
+        using var world = PreparedWorld("first-town-house-a", out var actor, out var house);
+        Assert.True(world.StartBuildingExpansion(actor, house.InstanceId).Applied);
+        var original = Assert.Single(world.WorldSimulation.BuildingExpansions!);
+        Assert.All(original.InputReservationIds, id => Assert.Equal(original.CompletionTick,
+            world.Society.Inventory.GetReservation(id).ExpiryTick));
+        Assert.True(world.DisplaceAdult(actor));
+        var paused = Assert.Single(world.WorldSimulation.BuildingExpansions!);
+        Assert.Equal(WorldProductionJobState.Paused, paused.State);
+        Assert.Equal(original.OwnerId, paused.OwnerId);
+        var remaining = world.Society.GetHousehold(house.HouseholdId!).MemberIds.Single();
+        Assert.False(world.StartBuildingExpansion(remaining, house.InstanceId).Applied);
+        if (damageMaterials)
+        {
+            var damagedInputs = world.ExportState();
+            var heldLots = paused.InputReservationIds.Select(id => world.Society.Inventory.GetReservation(id).LotId).ToHashSet(StringComparer.Ordinal);
+            damagedInputs = damagedInputs with
+            {
+                Society = damagedInputs.Society with
+                {
+                    Society = damagedInputs.Society.Society with
+                    {
+                        Inventory = damagedInputs.Society.Society.Inventory with
+                        {
+                            Lots = damagedInputs.Society.Society.Inventory.Lots.Select(lot => heldLots.Contains(lot.Id)
+                                ? lot with { ConditionBasisPoints = 0 } : lot).ToArray(),
+                        },
+                    },
+                },
+            };
+            using var invalidated = PrivateWorldRuntime.Restore(damagedInputs, _ => new IdleProvider());
+            Assert.True((await invalidated.AdvanceOneTickAsync()).Advanced);
+            Assert.Equal(WorldProductionJobState.Cancelled, invalidated.WorldSimulation.BuildingExpansions!.Single().State);
+            Assert.All(paused.InputReservationIds, id => Assert.Equal(InventoryReservationState.Released, invalidated.Society.Inventory.GetReservation(id).State));
+            Assert.All(heldLots, id => Assert.Equal(house.HouseholdId, invalidated.Society.Inventory.GetLot(id).OwnerId));
+            var recovery = PrivateWorldRuntimeCodec.Encode(invalidated.ExportState());
+            using var recovered = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(recovery));
+            Assert.Equal(recovery, PrivateWorldRuntimeCodec.Encode(recovered.ExportState()));
+            return;
+        }
+        for (var tick = 0; tick < 25; tick++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.Null(world.WorldSimulation.Buildings.Single(item => item.InstanceId == house.InstanceId).Footprint);
+        Assert.All(paused.InputReservationIds, id =>
+        {
+            var reservation = world.Society.Inventory.GetReservation(id);
+            Assert.Equal(InventoryReservationState.Reserved, reservation.State);
+            Assert.Equal(long.MaxValue, reservation.ExpiryTick);
+            Assert.Equal(house.HouseholdId, reservation.OwnerId);
+        });
+        var saved = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), _ => new IdleProvider());
+        Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+        Assert.Equal(WorldProductionJobState.Paused, Assert.Single(restored.WorldSimulation.BuildingExpansions!).State);
+        Assert.False(restored.StartBuildingExpansion(remaining, house.InstanceId).Applied);
+        // Paused work keeps its building, so the owner cannot remove or reassign it either.
+        var removal = restored.RemoveBuilding(house.InstanceId, house.TownId, house.HouseholdId);
+        Assert.False(removal.Applied);
+        Assert.Contains(house.InstanceId, restored.WorldSimulation.Buildings.Select(item => item.InstanceId));
+        var damaged = restored.ExportState();
+        damaged = damaged with
+        {
+            WorldSimulation = damaged.WorldSimulation! with
+            {
+                BuildingExpansions = [paused, paused with { JobId = paused.JobId + "-duplicate" }],
+            },
+        };
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(damaged));
+        var atWorkSite = PrivateWorldRuntimeCodec.Decode(saved);
+        atWorkSite = atWorkSite with
+        {
+            Inhabitants = atWorkSite.Inhabitants.Select(person => person.InhabitantId == remaining
+                ? person with { Position = house.Position, LastDecisionContext = null } : person).ToArray(),
+        };
+        using var resuming = PrivateWorldRuntime.Restore(atWorkSite,
+            id => new IdleProvider(id == remaining ? "household_resume_work:" + paused.JobId : "safe_idle"));
+        for (var tick = 0; tick < 80 && resuming.WorldSimulation.Buildings.Single(item => item.InstanceId == house.InstanceId).Footprint is null; tick++)
+            Assert.True((await resuming.AdvanceOneTickAsync()).Advanced);
+        Assert.NotNull(resuming.WorldSimulation.Buildings.Single(item => item.InstanceId == house.InstanceId).Footprint);
+        Assert.Equal(house.HouseholdId, resuming.WorldSimulation.Buildings.Single(item => item.InstanceId == house.InstanceId).HouseholdId);
+        Assert.Equal(WorldProductionJobState.Completed, resuming.WorldSimulation.BuildingExpansions!.Single().State);
+    }
+
     private static PrivateWorldRuntime PreparedWorld(string buildingId, out string actor, out PlacedBuilding building,
         int householdWood = 52)
     {

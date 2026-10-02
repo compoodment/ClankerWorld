@@ -91,7 +91,8 @@ public sealed partial class PrivateWorldRuntime
                 physical.RecentThoughts is { Count: > 0 } thoughts ? thoughts[^1].Text : null,
                 checkpoint.Households.SingleOrDefault(item => item.Id == inhabitant.HouseholdId)?.Name,
                 towns.SingleOrDefault(item => item.ResidentIds.Contains(inhabitant.Id, StringComparer.Ordinal))?.Name,
-                HousingNote(inhabitant.Id), EquipmentNote(inhabitant.Id), ContinuityNote(inhabitant.Id), CivicNote(inhabitant.Id));
+                HousingNote(inhabitant.Id), EquipmentNote(inhabitant.Id), ContinuityNote(inhabitant.Id),
+                DepartureNote: DepartureNote(inhabitant.Id), CivicNote: CivicNote(inhabitant.Id));
             var observation = new InhabitantObservation(
                 inhabitant.Id,
                 WorldTick,

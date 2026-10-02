@@ -1443,6 +1443,7 @@ public static partial class SocietyFixture
                     nextLots.AddRange(family.Select(member => member with
                     {
                         OwnerId = "settlement:communal",
+                        CarrierId = null,
                         StorageBuildingId = null,
                         DeliveryBuildingId = null,
                     }));
@@ -1482,6 +1483,7 @@ public static partial class SocietyFixture
                     {
                         Id = preserveIdentity ? lot.Id : $"{lot.Id}#estate:{estate.Id}:{beneficiaries[index]}",
                         OwnerId = beneficiaries[index],
+                        CarrierId = null,
                         Quantity = quantity,
                         ProvenanceLotId = preserveIdentity ? lot.ProvenanceLotId : lot.Id,
                         StorageBuildingId = null,
@@ -1527,7 +1529,7 @@ public static partial class SocietyFixture
                      (offer.FirstPartyId == ownerId || offer.SecondPartyId == ownerId)).ToArray())
             inventory = InventoryFixture.CancelDirectBarterOffer(inventory, offer.Id, offer.Revision, ownerId);
         var lots = inventory.Lots.Select(lot => lot.OwnerId == ownerId
-                ? lot with { OwnerId = estateId, StorageBuildingId = null, DeliveryBuildingId = null }
+                ? lot with { OwnerId = estateId, CarrierId = null, StorageBuildingId = null, DeliveryBuildingId = null }
                 : lot)
             .OrderBy(item => item.Id, StringComparer.Ordinal).ToArray();
         var reservations = inventory.Reservations.Select(reservation => reservation.OwnerId == ownerId

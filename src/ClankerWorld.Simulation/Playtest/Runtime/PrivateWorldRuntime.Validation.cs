@@ -39,14 +39,26 @@ public sealed partial class PrivateWorldRuntime
         var inventoryReservationIds = society.Checkpoint.Inventory.Reservations
             .Select(item => item.Id)
             .ToHashSet(StringComparer.Ordinal);
+        var productionOwners = society.Checkpoint.Households.Select(home => home.Id)
+            .Concat(society.Checkpoint.Inhabitants.Select(person => person.Id)).ToHashSet(StringComparer.Ordinal);
+        if (worldSimulation.ProductionJobs.Any(job => job.OwnerId is { } owner &&
+                (!productionOwners.Contains(owner) || job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused && worldSimulation.Buildings.Single(building =>
+                    building.InstanceId == job.BuildingInstanceId).HouseholdId is { } home && owner != home && owner != job.WorkerId)))
+            throw new InvalidDataException("A production job has an unknown owner or differs from its private building's owner.");
         foreach (var job in worldSimulation.ProductionJobs
                      .Concat(worldSimulation.CropBuilds ?? [])
-                     .Where(item => item.State == WorldProductionJobState.Running))
+                     .Where(item => item.State is WorldProductionJobState.Running or WorldProductionJobState.Paused))
         {
+            if (job.OwnerId is null)
+                throw new InvalidDataException("An active production job has no recorded owner.");
             if (job.InputReservationIds.Any(id => !inventoryReservationIds.Contains(id)))
             {
                 throw new InvalidDataException($"Production job '{job.JobId}' has a missing inventory reservation.");
             }
+            if (job.OwnerId is { } owner && job.InputReservationIds.Any(id =>
+                    society.Checkpoint.Inventory.GetReservation(id) is { State: InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed } reservation &&
+                    reservation.OwnerId != owner))
+                throw new InvalidDataException("A production job differs from its committed materials' owner.");
         }
         WorldSystemsRules.Validate(worldSystems);
         if (worldSystems.WorldTick != WorldTick ||
@@ -84,6 +96,7 @@ public sealed partial class PrivateWorldRuntime
         ValidateDeceasedArchive(deceasedInhabitants.Values, society.Checkpoint, map, checkpointSchemaVersion);
         AgentKnowledgeRules.Validate(knowledge, map, society.Checkpoint, WorldTick);
         ValidateHousing(inhabitants.Values, society.Checkpoint, checkpointSchemaVersion);
+        ValidateDepartures(inhabitants.Values, society.Checkpoint, checkpointSchemaVersion);
         ValidateEquipment(inhabitants.Values, society.Checkpoint, worldSimulation, worldContent, checkpointSchemaVersion);
         ValidateContinuity(continuity, society.Checkpoint, checkpointSchemaVersion);
 
@@ -234,6 +247,9 @@ public sealed partial class PrivateWorldRuntime
         var people = inhabitants.ToDictionary(item => item.Id, StringComparer.Ordinal);
         foreach (var lot in inventory.Lots)
         {
+            if (lot.CarrierId is { } carrierId && (!people.TryGetValue(carrierId, out var custodian) ||
+                custodian.Status != SocietyInhabitantStatus.Active))
+                throw new InvalidDataException("Inventory physical custody references an unavailable person.");
             if (lot.GroundPosition is { } ground && (!map.Contains(new(ground.X, ground.Y)) ||
                 lot.StorageBuildingId is not null || lot.DeliveryBuildingId is not null))
                 throw new InvalidDataException($"Inventory lot '{lot.Id}' has an invalid ground location.");
@@ -242,6 +258,7 @@ public sealed partial class PrivateWorldRuntime
                 if (!buildings.TryGetValue(storageId, out var storage) ||
                     !definitions.TryGetValue(storage.DefinitionId, out var definition) ||
                     !(storage.HouseholdId == lot.OwnerId && definition.Tags.Any(IsHouseholdBuildingTag) ||
+                      people.ContainsKey(lot.OwnerId) && storage.HouseholdId is not null && definition.Tags.Contains("house", StringComparer.Ordinal) ||
                       storage.TownId == lot.OwnerId && storage.HouseholdId is null && !WarehouseFoodKinds.Contains(lot.ItemKind) &&
                       definition.Tags.Contains("warehouse", StringComparer.Ordinal)))
                     throw new InvalidDataException($"Inventory lot '{lot.Id}' has an invalid building storage location.");
@@ -344,6 +361,7 @@ public sealed partial class PrivateWorldRuntime
             TownGovernanceValidation.Validate(town, society.Checkpoint, state.WorldSystems!.Config.TicksPerDay);
         ValidateLessons(state);
         ValidateHousing(state.Inhabitants, state.Society.Society, state.SchemaVersion);
+        ValidateDepartures(state.Inhabitants, state.Society.Society, state.SchemaVersion);
         ValidateEquipment(state.Inhabitants, state.Society.Society, state.WorldSimulation, state.WorldContent, state.SchemaVersion);
         foreach (var person in state.Inhabitants)
         {
