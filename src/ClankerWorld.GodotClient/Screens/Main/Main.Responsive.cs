@@ -61,6 +61,7 @@ public partial class Main
         PlaceHudPanels();
         PositionSelectedTilePanel();
         PositionFamilyTreePanel(viewport, hudTop);
+        FitHudLists();
         foreach (var reader in new[] { memoriesPanel, thoughtsPanel, conversationPanel })
         {
             reader.CustomMinimumSize = new Vector2(Math.Clamp(viewport.X - 28, 320, ReaderWidth), 0);
