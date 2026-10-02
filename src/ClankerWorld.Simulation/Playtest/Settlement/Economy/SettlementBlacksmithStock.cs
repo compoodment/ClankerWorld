@@ -15,7 +15,9 @@ public sealed partial class PrivateWorldRuntime
 
     private void AddCraftToolCandidates(List<CognitionCandidate> candidates, string actor)
     {
-        if (!AdultResident(actor) || FreeCarryCapacity(actor) <= 0) return;
+        if (!AdultResident(actor)) return;
+        AddToolRepairCandidates(candidates, actor);
+        if (FreeCarryCapacity(actor) <= 0) return;
         var inventory = society.Checkpoint.Inventory;
         var pendingHarvest = HouseholdFor(actor) is { } householdId &&
             BlacksmithForHousehold(householdId) is { } smith &&
@@ -67,7 +69,6 @@ public sealed partial class PrivateWorldRuntime
             candidates.Add(new CognitionCandidate(candidateId,
                 $"Collect an accessible {bestShared.ItemKind.Replace('_', ' ')} for work.", 18));
         }
-        AddToolRepairCandidates(candidates, actor);
     }
 
     private PlacedBuilding? BlacksmithForHousehold(string householdId) =>
