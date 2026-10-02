@@ -190,7 +190,14 @@ public sealed record SocietyInhabitant(
     long? DeathTick = null,
     SocietyDeathCause? DeathCause = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] long? BirthLifeTick = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool NeedsName = false);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool NeedsName = false)
+{
+    /// <summary>The explicit domestic group used for House resident priority, separate from ancestry.</summary>
+    public string? DomesticFamilyUnitId { get; init; }
+
+    /// <summary>The current primary caregiver for a dependent; birth records preserve the original caregiver separately.</summary>
+    public string? PrimaryCaregiverId { get; init; }
+}
 
 public sealed record SocietyHousehold(
     string Id,
@@ -307,7 +314,8 @@ public sealed record SocietyBirthRequest(
     long RequestedTick,
     NewbornProviderPolicy ProviderPolicy = NewbornProviderPolicy.Hybrid,
     string? RequestedProviderBindingId = null,
-    string? ChildName = null);
+    string? ChildName = null,
+    string? PrimaryCaregiverId = null);
 
 public sealed record SocietyEstate(
     string Id,
@@ -326,7 +334,10 @@ public sealed record SocietyBirthRecord(
     string RequestId,
     string ChildId,
     int Revision,
-    long CommittedTick);
+    long CommittedTick,
+    string PrimaryCaregiverId,
+    string HouseholdId,
+    string DomesticFamilyUnitId);
 
 public sealed record SocietyEvent(
     long EventId,

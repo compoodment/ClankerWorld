@@ -260,7 +260,11 @@ public sealed record OwnerWorldPlacedBuilding(
     int FootprintRevision = 0,
     IReadOnlyList<string>? InvitedGuests = null,
     string? ExpansionState = null,
-    string? ExpansionFailure = null)
+    string? ExpansionFailure = null,
+    int? ResidentLimit = null,
+    int PermanentResidentCount = 0,
+    bool HasDominantFamily = false,
+    bool IsOvercrowded = false)
 {
     public bool AllowsHouseholdOwner { get; init; }
 }
@@ -440,7 +444,11 @@ public sealed record OwnerWorldCandidateReport(int Attempt, int DryLandTiles, in
     }
 }
 public sealed record ManualWorldSave(string Id, string Name, DateTimeOffset CreatedUtc, long WorldTick,
-    bool IsAutosave = false);
+    bool IsAutosave = false, SaveBranch? Branch = null, string? ContinuedFromId = null,
+    DateTimeOffset? ContinuedFromCreatedUtc = null, long BranchPosition = 0);
+/// <summary>One version of a world's history; saves from before branches have none.</summary>
+public sealed record SaveBranch(string Id, int Number, string? StartedFromId = null,
+    string? StartedFromName = null, long? StartedFromTick = null);
 public sealed record ManualSaveLoadReceipt(string LoadedId, string BackupId, long WorldTick);
 public sealed record ManualSaveOverwriteReceipt(ManualWorldSave Saved, string BackupId);
 public sealed record OwnerAutosaveConfigurationAction(bool Enabled, int IntervalMinutes, int RotationCount);
