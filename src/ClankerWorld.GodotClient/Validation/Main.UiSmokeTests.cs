@@ -2196,6 +2196,13 @@ public partial class Main
                 GameUiText.ItemName("water_jug") != "Water jug" ||
                 GameUiText.ItemName("fresh_water") != "Fresh water")
                 throw new InvalidOperationException("Pottery and water items must have clear player-facing names.");
+            foreach (var (kind, name) in new[]
+                     {
+                         ("paper", "Paper"), ("field_record", "Field record"),
+                         ("field_map", "Field map"), ("book", "Book"),
+                     })
+                if (!ItemIcons.Has(kind) || GameUiText.ItemName(kind) != name)
+                    throw new InvalidOperationException("Physical written goods must use their approved icons and readable names.");
             string IconData(string kind) => Convert.ToBase64String(ItemIcons.Render(kind, 32).GetData());
             if (IconData("wooden_hammer") == IconData("stone_hammer") ||
                 IconData("wooden_sickle") == IconData("iron_sickle"))
@@ -3348,6 +3355,18 @@ public partial class Main
                 inhabitantList.GetItemText(2) != "Deceased" || inhabitantList.IsItemSelectable(2) ||
                 !inhabitantList.GetItemText(3).StartsWith("Mira", StringComparison.Ordinal))
                 throw new InvalidOperationException("The roster must list the living with their activity and hunger before the deceased.");
+            RenderInhabitantList(rosterMap with
+            {
+                Inhabitants = [rosterMap.Inhabitants[0] with
+                {
+                    PublicIntention = new OwnerWorldPublicIntention("knowledge_copy:knowledge-artifact-000001",
+                        "knowledge_copy:knowledge-artifact-000001", "deterministic", 1),
+                }],
+            });
+            if (!RosterCardText(0).Contains("Copying a written work", StringComparison.Ordinal) ||
+                RosterCardText(0).Contains("knowledge-artifact", StringComparison.Ordinal))
+                throw new InvalidOperationException("The Agents list must describe copying written knowledge without showing internal artifact identifiers.");
+            RenderInhabitantList(rosterMap);
             RenderWorldHud(rosterMap);
             if (!agentsWarning.Visible || inhabitantsButton.Text != "2" ||
                 !inhabitantsButton.TooltipText.Contains("hungry: Rowan", StringComparison.Ordinal))

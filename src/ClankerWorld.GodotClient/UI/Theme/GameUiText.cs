@@ -312,6 +312,8 @@ public static class GameUiText
     /// </summary>
     public static string ActivityPhrase(string? candidateId, string? summary)
     {
+        if (candidateId is not null && KnowledgeActionPhrase(candidateId, inProgress: true) is { } knowledgeActivity)
+            return knowledgeActivity;
         if (candidateId?.StartsWith("wear_ornament:", StringComparison.Ordinal) == true) return "putting on an ornament";
         if (candidateId == "remove_ornament") return "taking off an ornament";
         if (candidateId?.StartsWith("gift_ornament:", StringComparison.Ordinal) == true) return "giving an ornament";
@@ -333,6 +335,8 @@ public static class GameUiText
         }
 
         var normalized = value.Trim();
+        if (KnowledgeActionPhrase(normalized, inProgress: false) is { } knowledgeAction)
+            return knowledgeAction;
         if (normalized.StartsWith("return_empty_vessel:", StringComparison.Ordinal)) return "bring an empty vessel home";
         if (normalized.StartsWith("guardian_tend:", StringComparison.Ordinal)) return "look after someone who is ill";
         if (normalized.StartsWith("care:", StringComparison.Ordinal)) return "look after a child";
@@ -435,4 +439,19 @@ public static class GameUiText
         var phrase = string.Join(' ', words.Select(word => word.ToLowerInvariant()));
         return char.ToUpperInvariant(phrase[0]) + phrase[1..];
     }
+
+    private static string? KnowledgeActionPhrase(string candidateId, bool inProgress) => candidateId switch
+    {
+        "knowledge_write:field_record" => inProgress ? "writing a field record" : "write a field record",
+        "knowledge_write:field_map" => inProgress ? "drawing a field map" : "draw a field map",
+        "knowledge_write:book" => inProgress ? "writing a book" : "write a book",
+        "knowledge_continue" => inProgress ? "continuing written work" : "continue written work",
+        _ when candidateId.StartsWith("knowledge_copy:", StringComparison.Ordinal) =>
+            inProgress ? "copying a written work" : "copy a written work",
+        _ when candidateId.StartsWith("knowledge_read:", StringComparison.Ordinal) =>
+            inProgress ? "reading a written work" : "read a written work",
+        _ when candidateId.StartsWith("knowledge_share:", StringComparison.Ordinal) =>
+            inProgress ? "sharing written knowledge" : "share written knowledge",
+        _ => null,
+    };
 }
