@@ -58,7 +58,7 @@ public sealed partial class ViewerHttpTests
                     var catalog = host.Services.GetRequiredService<WorldCatalogStore>();
                     var entry = catalog.Add("Delete", other.ExportState());
                     File.WriteAllText(metadataPath, "{");
-                    Assert.Throws<JsonException>(() => catalog.Delete(entry.Id, other.Society.WorldId, saves.DeleteWorldSnapshots));
+                    Assert.ThrowsAny<JsonException>(() => catalog.Delete(entry.Id, other.Society.WorldId, saves.DeleteWorldSnapshots));
                     Assert.DoesNotContain(catalog.Capture().Worlds, world => world.Id == entry.Id);
                     damagedPath = metadataPath;
                 }

@@ -5,6 +5,47 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class CognitionRuntimeTests
 {
     [Fact]
+    public void ObserverReplyIsAdmittedOnlyForTheExactRequestedMessageAndWorld()
+    {
+        var runtime = new CognitionRuntime("actor-scout", new FixedProvider(DecisionProviderKind.LargeLanguageModel, 4));
+        var message = new CognitionObserverGuidance("private-instruction-0000000001", "owner:test", "actor-scout",
+            "suggestive", "Try the shore berries.", 4, 0, 1, null, true);
+        var observation = CreateObservation() with
+        {
+            WorldId = "world-guidance-runtime-test",
+            ObserverGuidance = [message],
+        };
+        var request = runtime.IssueRequest(observation);
+        var response = ResponseFor(request, DecisionProviderKind.LargeLanguageModel, 4, "safe_idle", 1) with
+        {
+            ObserverReplies = [new CognitionObserverReply(message.InstructionId, "I will try.")],
+        };
+
+        var accepted = runtime.ApplyResponse(response);
+
+        Assert.True(accepted.Accepted);
+        var observed = Assert.IsType<CognitionObserverGuidanceResult>(accepted.ObserverGuidance);
+        Assert.Equal("world-guidance-runtime-test", observed.WorldId);
+        Assert.Equal("actor-scout", observed.InhabitantId);
+        Assert.Equal(request.RequestId, observed.RequestId);
+        Assert.Equal(observation.DecisionGeneration, observed.DecisionGeneration);
+        Assert.Equal(observation.ObservationDigest, observed.ObservationDigest);
+        Assert.Equal(message, Assert.Single(observed.Messages));
+        Assert.Equal(new CognitionObserverReply(message.InstructionId, "I will try."), Assert.Single(observed.Replies));
+
+        var retryRuntime = new CognitionRuntime("actor-scout", new FixedProvider(DecisionProviderKind.LargeLanguageModel, 4));
+        var retryRequest = retryRuntime.IssueRequest(observation with { DecisionGeneration = 1 });
+        var wrongId = retryRuntime.ApplyResponse(ResponseFor(retryRequest,
+            DecisionProviderKind.LargeLanguageModel, 4, "safe_idle", 1) with
+        {
+            ObserverReplies = [new CognitionObserverReply("private-instruction-newer", "I will try.")],
+        });
+        Assert.False(wrongId.Accepted);
+        Assert.Equal("observer_reply_not_requested", wrongId.Outcome);
+        Assert.Null(wrongId.ObserverGuidance);
+    }
+
+    [Fact]
     public void StaleObservationDigestIsRejectedWithoutChangingTheCurrentIntention()
     {
         var runtime = new CognitionRuntime("actor-scout", new FixedProvider(DecisionProviderKind.Jev, 0));

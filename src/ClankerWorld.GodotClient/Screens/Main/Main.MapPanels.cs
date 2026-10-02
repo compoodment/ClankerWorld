@@ -43,40 +43,68 @@ public partial class Main
     }
 
     /// <summary>A 16-pixel patch of grass showing what a filter draws on the map.</summary>
-    private static ImageTexture FilterSwatch(bool border)
+    /// <summary>What a map filter draws, for the picture beside it.</summary>
+    private enum FilterLook { Border, Property, Title, Use, Dispute }
+
+    /// <summary>A patch of map with a filter's overlay drawn on it the way the map draws it.</summary>
+    private static ImageTexture FilterSwatch(FilterLook look)
     {
         var image = Image.CreateEmpty(18, 18, false, Image.Format.Rgba8);
         image.Fill(UiTheme.Current.WoodEdge);
         image.FillRect(new Rect2I(1, 1, 16, 16), MapGrass);
-        if (border)
+        void Tint(Color color) => image.FillRect(new Rect2I(4, 4, 12, 12), MapGrass.Lerp(color, 0.35f));
+        void Edge(Color color)
         {
-            // A dashed corner of a Town border.
-            for (var i = 0; i < 12; i++)
-            {
-                if (i % 4 == 3) continue;
-                image.FillRect(new Rect2I(4 + i, 5, 1, 2), new Color("F6EBCF"));
-                image.FillRect(new Rect2I(4, 5 + i, 2, 1), new Color("F6EBCF"));
-            }
+            image.FillRect(new Rect2I(4, 4, 12, 2), color);
+            image.FillRect(new Rect2I(4, 4, 2, 12), color);
         }
-        else
+        switch (look)
         {
-            // A small roof with a household's warm tint around it.
-            image.FillRect(new Rect2I(3, 4, 12, 11), new Color("E9B95A"));
-            image.FillRect(new Rect2I(5, 6, 8, 7), new Color("B8573A"));
-            image.FillRect(new Rect2I(5, 6, 8, 2), new Color("D9744E"));
-            image.FillRect(new Rect2I(8, 11, 2, 2), new Color("4A2F1C"));
+            case FilterLook.Border:
+                // A dashed corner of a Town border.
+                for (var i = 0; i < 12; i++)
+                {
+                    if (i % 4 == 3) continue;
+                    image.FillRect(new Rect2I(4 + i, 5, 1, 2), new Color("F6EBCF"));
+                    image.FillRect(new Rect2I(4, 5 + i, 2, 1), new Color("F6EBCF"));
+                }
+                break;
+            case FilterLook.Property:
+                // A small roof inside a household's tinted, outlined tile.
+                Tint(HouseholdTeal);
+                Edge(HouseholdTeal);
+                image.FillRect(new Rect2I(7, 8, 7, 6), new Color("B8573A"));
+                image.FillRect(new Rect2I(7, 8, 7, 2), new Color("D9744E"));
+                image.FillRect(new Rect2I(10, 12, 2, 2), new Color("4A2F1C"));
+                break;
+            case FilterLook.Title:
+                Tint(new Color("659BC1"));
+                Edge(new Color("A7D0EE"));
+                break;
+            case FilterLook.Use:
+                Tint(new Color("9D89DF"));
+                Edge(new Color("9D89DF"));
+                break;
+            case FilterLook.Dispute:
+                Tint(new Color("A54545"));
+                for (var y = 4; y < 16; y += 4) image.FillRect(new Rect2I(4, y, 12, 2), new Color("C95A55"));
+                Edge(new Color("F08B83"));
+                break;
         }
         return ImageTexture.CreateFromImage(image);
     }
 
+    /// <summary>The map's colour for the first household's property.</summary>
+    private static readonly Color HouseholdTeal = new("4DC7B9");
+
     /// <summary>One filter: what it shows, a line saying how, and its switch on the right.</summary>
-    private static HBoxContainer FilterRow(CheckButton toggle, bool border, string title, string detail)
+    private static HBoxContainer FilterRow(CheckButton toggle, FilterLook look, string title, string detail)
     {
         var row = new HBoxContainer();
         row.AddThemeConstantOverride("separation", 10);
         row.AddChild(new TextureRect
         {
-            Texture = FilterSwatch(border),
+            Texture = FilterSwatch(look),
             StretchMode = TextureRect.StretchModeEnum.KeepCentered,
             TextureFilter = CanvasItem.TextureFilterEnum.Nearest,
             SizeFlagsVertical = Control.SizeFlags.ShrinkCenter,

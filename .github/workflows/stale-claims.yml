@@ -1,13 +1,13 @@
 name: Release stale claims
 
-# Every hour, release issue claims (status:in-progress) with nothing pushed for
-# 4 hours and review claims (status:reviewing) with nothing pushed for 2 hours,
-# so the labels show what is really being worked on. See CONTRIBUTING.md,
-# "Claim an issue" and "Review and merge".
+# Every 30 minutes, release issue claims (status:in-progress) and review claims
+# (status:reviewing) with nothing pushed for 1.5 hours, so the labels show what
+# is really being worked on. See CONTRIBUTING.md, "Claim an issue" and
+# "Review and merge".
 # It reads GitHub data only and runs main's copy of the script.
 on:
   schedule:
-    - cron: '17 * * * *'
+    - cron: '17,47 * * * *'
   workflow_dispatch:
     inputs:
       dry_run:

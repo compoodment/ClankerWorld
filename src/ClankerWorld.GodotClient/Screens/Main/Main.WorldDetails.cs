@@ -21,7 +21,7 @@ public partial class Main
         {
             lines.Add(new(TownStyle.Name, stockpile.Name));
             lines.Add(new(TownStyle.Detail, stockpile.Items.Count == 0 ? "empty" :
-                string.Join(" · ", stockpile.Items.Select(item => $"{Pretty(item.Kind)} {item.Quantity}"))));
+                string.Join(" · ", stockpile.Items.Select(item => $"{GameUiText.ItemName(item.Kind)} {item.Quantity}"))));
         }
         lines.Add(new(TownStyle.Heading, "Projects"));
         var workers = snapshot.Inhabitants.Where(person => person.Project is not null).ToArray();

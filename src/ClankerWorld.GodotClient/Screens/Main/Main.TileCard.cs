@@ -172,7 +172,7 @@ public partial class Main
                 worker is null ? HouseholdName(field.HouseholdId) : $"{worker} working");
         }
         foreach (var stock in snapshot.GroundStocks.Where(item => item.Position.X == tile.X && item.Position.Y == tile.Y))
-            AddTileThing(ItemIcons.Texture(stock.Kind, 16), $"{stock.Quantity} {Pretty(stock.Kind).ToLowerInvariant()}", "on the ground · " + HouseholdName(stock.OwnerId));
+            AddTileThing(ItemIcons.Texture(stock.Kind, 16), $"{stock.Quantity} {GameUiText.ItemName(stock.Kind).ToLowerInvariant()}", "on the ground · " + HouseholdName(stock.OwnerId));
         foreach (var item in snapshot.Objects.Where(item => item.Position.X == tile.X && item.Position.Y == tile.Y))
             AddTileThing(null, Pretty(item.Kind), string.Empty);
         if (snapshot.RoadTiles.Any(point => point.X == tile.X && point.Y == tile.Y))

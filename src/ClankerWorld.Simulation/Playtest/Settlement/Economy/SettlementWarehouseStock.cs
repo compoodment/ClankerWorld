@@ -14,12 +14,46 @@ public sealed partial class PrivateWorldRuntime
     private PlacedBuilding? WarehouseForResident(string actor)
     {
         var townId = TownForResident(actor);
-        return townId is null ? null : worldSimulation.Buildings
-            .Where(building => building.TownId == townId &&
-                worldContent.Buildings.Any(definition => definition.CanonicalId == building.DefinitionId &&
-                    definition.Tags.Contains("warehouse", StringComparer.Ordinal)))
-            .OrderBy(building => building.InstanceId, StringComparer.Ordinal).FirstOrDefault();
+        return townId is null ? null : WarehousesForTown(townId).FirstOrDefault();
     }
+
+    private IEnumerable<PlacedBuilding> WarehousesForTown(string townId) => worldSimulation.Buildings
+        .Where(building => building.TownId == townId &&
+            worldContent.Buildings.Any(definition => definition.CanonicalId == building.DefinitionId &&
+                definition.Tags.Contains("warehouse", StringComparer.Ordinal)))
+        .OrderBy(building => building.InstanceId, StringComparer.Ordinal);
+
+    private IEnumerable<PlacedBuilding> WarehousesAccessibleTo(string actor)
+    {
+        if (!inhabitants.ContainsKey(actor)) yield break;
+        var residentTownId = TownForResident(actor);
+        foreach (var town in towns.Where(item => item.Id == residentTownId || item.ResidentIds.Count == 0)
+                     .OrderBy(item => item.Id == residentTownId ? 0 : 1)
+                     .ThenBy(item => item.Id, StringComparer.Ordinal))
+            foreach (var warehouse in WarehousesForTown(town.Id))
+                yield return warehouse;
+    }
+
+    private PlacedBuilding? WarehouseWithAvailableStock(string actor, string itemKind) =>
+        WarehousesAccessibleTo(actor).FirstOrDefault(warehouse =>
+            society.Checkpoint.Inventory.Lots.Any(lot => lot.OwnerId == warehouse.TownId &&
+                lot.StorageBuildingId == warehouse.InstanceId && lot.ItemKind == itemKind &&
+                AvailableLotQuantity(lot) > 0));
+
+    private bool MayCollectWarehouseStock(string actor, PlacedBuilding warehouse) =>
+        inhabitants.ContainsKey(actor) && warehouse.TownId is { } townId &&
+        towns.SingleOrDefault(item => item.Id == townId) is { } town &&
+        (TownForResident(actor) == townId || town.ResidentIds.Count == 0) &&
+        WarehousesForTown(townId).Any(item => item.InstanceId == warehouse.InstanceId);
+
+    private IEnumerable<InventoryLot> AvailableWarehouseStock(string actor, string? itemKind = null) =>
+        WarehousesAccessibleTo(actor).Where(warehouse => MayCollectWarehouseStock(actor, warehouse))
+            .SelectMany(warehouse => society.Checkpoint.Inventory.Lots.Where(lot =>
+                lot.OwnerId == warehouse.TownId && lot.StorageBuildingId == warehouse.InstanceId &&
+                lot.DeliveryBuildingId is null && lot.ContainerLotId is null &&
+                (itemKind is null || lot.ItemKind == itemKind) &&
+                AvailableLotQuantity(lot) > 0))
+            .Where(lot => CanReachSharedItem(actor, lot));
 
     private InventoryLot? PersonalWarehouseSurplus(string actor) => society.Checkpoint.Inventory.Lots
         .Where(lot => PersonalEquipmentRules.IsCarried(lot, actor) &&

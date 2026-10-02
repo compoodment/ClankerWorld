@@ -8,8 +8,8 @@ namespace ClankerWorld.Simulation.Playtest;
 
 public sealed partial class PrivateWorldRuntime
 {
-    private int FreeCarryCapacity(string actor) => PersonalEquipmentRules.FreeCapacity(
-        society.Checkpoint.Inventory, actor, inhabitants[actor].Equipment);
+    private int FreeCarryCapacity(string actor) => Math.Max(0, PersonalEquipmentRules.FreeCapacity(
+        society.Checkpoint.Inventory, actor, inhabitants[actor].Equipment) - ReservedBusinessCarrySpace(actor));
 
     private string EquipmentNote(string actor)
     {
@@ -42,7 +42,8 @@ public sealed partial class PrivateWorldRuntime
             (PersonalEquipmentRules.IsCarried(item, actor) ? 1 : 0);
         var capacity = carryAid ? item.ItemKind == "sack" ? PersonalEquipmentRules.SackCapacity
             : PersonalEquipmentRules.BasketCapacity : PersonalEquipmentRules.Capacity(inventory, actor, equipment);
-        return after <= before || after <= capacity;
+        return after <= before && capacity >= PersonalEquipmentRules.Capacity(inventory, actor, equipment) ||
+            after + ReservedBusinessCarrySpace(actor) <= capacity;
     }
 
     private int MissingRepairInputUnits(string actor, InventoryLot item) =>
@@ -53,7 +54,8 @@ public sealed partial class PrivateWorldRuntime
     private IEnumerable<InventoryLot> PrivateEquipmentSources(string actor) => society.Checkpoint.Inventory.Lots
         .Where(lot => AvailableLotQuantity(lot) > 0 && lot.DeliveryBuildingId is null &&
             (PersonalEquipmentRules.IsCarried(lot, actor) || lot.OwnerId == HouseholdFor(actor) &&
-                CanReachSharedItem(actor, lot)));
+                CanReachSharedItem(actor, lot)))
+        .Concat(AvailableWarehouseStock(actor)).DistinctBy(lot => lot.Id);
 
     private InventoryLot? BetterGarment(string actor)
     {
