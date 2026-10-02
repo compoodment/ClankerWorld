@@ -53,14 +53,18 @@ public sealed partial class PrivateWorldRuntime
                 targetTiles.Any(tile => !activeExpansionTiles.Add(tile)))
                 throw new InvalidDataException("The saved expansion has an invalid or competing footprint.");
             var reserved = new Dictionary<string, int>(StringComparer.Ordinal);
+            var buildingSite = new InventoryGroundPosition(building.Position.X, building.Position.Y);
             foreach (var id in job.InputReservationIds)
             {
                 var reservation = society.Inventory.Reservations.SingleOrDefault(item => item.Id == id);
                 var lot = reservation is null ? null : society.Inventory.Lots.SingleOrDefault(item => item.Id == reservation.LotId);
                 if (reservation is null || lot is null || reservation.Purpose != job.JobId ||
                     reservation.OwnerId != lot.OwnerId || lot.OwnerId != job.OwnerId && lot.OwnerId != job.WorkerId ||
-                    (lot.OwnerId == job.OwnerId ? lot.StorageBuildingId != building.InstanceId :
-                        lot.StorageBuildingId is not null || lot.DeliveryBuildingId is not null) ||
+                    (lot.OwnerId == job.OwnerId
+                        ? lot.StorageBuildingId != building.InstanceId && lot.GroundPosition != buildingSite ||
+                            lot.DeliveryBuildingId is not null
+                        : lot.StorageBuildingId is not null || lot.DeliveryBuildingId is not null ||
+                            lot.GroundPosition is not null) ||
                     reservation.State != InventoryReservationState.Reserved || reservation.ExpiryTick != job.CompletionTick)
                     throw new InvalidDataException("The expansion is missing its reserved materials.");
                 reserved[lot.ItemKind] = reserved.GetValueOrDefault(lot.ItemKind) + reservation.Quantity;

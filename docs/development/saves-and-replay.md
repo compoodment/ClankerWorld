@@ -164,6 +164,16 @@ Conversation records use private-world schema 35, following schema 34's fields
 and ground harvest lots. No migration for older alpha saves is added solely to preserve
 compatibility.
 
+Private-world schema 40 saves each inhabitant's explicit domestic family unit
+and primary caregiver, plus the caregiver, intended home and actual birth home
+for an agreed parenthood plan. Birth records retain the caregiver and actual
+household. House resident counts and limits are derived from active household
+members, recorded family units and the completed building footprint; they are
+not separately mutable counters. Current-format roundtrips preserve pending
+family decisions and births without inferring a family group from ancestry or
+household membership. Older alpha checkpoints need not load; no migration is
+provided.
+
 Checkpoint decoding enforces declared non-null members and required constructor
 fields before runtime validation. A missing society, cognition or inventory
 object is invalid data, not an unexpected null-reference fault. No saved list
@@ -237,23 +247,25 @@ unbridged one-tile crossings, and any open wade must match where that agent
 stands. A save that fails these checks is refused with a reason and kept.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 39. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 40. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
 building footprint revisions, reserved expansion jobs, House guest invitations,
 learned skills and skill-based lessons, birth-model choices, household fields
 with ground harvest lots, bounded conversations with daily allowances, personal
-equipment with timed repairs and exact reservations, and reusable container
-lots with their contents, locations, owners and reservations. These fields
-retain their current validation and roundtrip behavior.
+equipment with timed repairs and exact reservations, reusable container lots
+with their contents, locations, owners and reservations, and explicit domestic
+family and caregiver/birth-home records. These fields retain their current
+validation and roundtrip behavior.
 
 The table records earlier schema changes. Its older-save behavior is historical;
 the current loader accepts only the current schema and does not run those
 migrations or backfills.
 Feature thresholds, such as schema 33 for a birth-model descriptor, schema 34
 for fields and ground lots, schema 35 for conversations, schema 37 for personal
-equipment, and schema 39 for reusable containers, record when those fields were
+equipment, schema 39 for reusable containers, and schema 40 for domestic family
+and caregiver records, record when those fields were
 introduced; they do not allow an earlier checkpoint schema past the current
 alpha cutoff.
 
@@ -281,6 +293,7 @@ alpha cutoff.
 | Schema 37 | Personal garment and carrying-aid selection, timed repair work and exact material reservations; a paused household recipe may require a fresh choice after its materials become unavailable. Selected units must be physically carried and owned by that person. Existing overloads and broken goods are preserved; capacity and protection remain derived. Earlier schemas cannot carry equipment records. |
 | Schema 38 | Town membership and assigned-building references are validated together with physical inventory locations. Terminal expansion history retains its original building definition after removal; active work and the last Farmhouse's field work block removal or reassignment. Earlier checkpoints are refused. |
 | Schema 39 | Reusable storage pots and water jugs, their physical contents, shared owner and location, capacities and exact reservations. A vessel and its contents move together. Earlier alpha checkpoints are refused and preserved. |
+| Schema 40 | Explicit domestic family-unit IDs and dependent caregiver IDs, plus the primary caregiver and intended/actual household for a parenthood plan and birth record. House resident limits remain derived from these records and completed building footprints. Older builds refuse the checkpoint rather than infer family identities. |
 
 Other compatibility fields remain separate for simulation, envelopes, content,
 assets, generator and network contracts. Change the field whose semantics

@@ -275,6 +275,11 @@ resident counts.
   membership or distant ancestor does not by itself qualify. Nonresident
   relatives do not count toward dominance. A tie gives neither family
   priority. Extended ancestry does not automatically join that domestic unit.
+  **Owner decision, October 1:** when parents separate or a parent starts a new
+  relationship, younger children follow their recorded primary caregiver's
+  domestic family group for this count. This changes domestic-unit membership
+  only; it does not change anyone's household or residence, and it never merges
+  ancestry records.
 - **Displace only when there is no room.** In a 1×1 House, two partners, their
   baby and an unrelated adult can use all four places. A second baby makes
   five, so the crowding must be resolved by completed expansion or relocation.
@@ -282,12 +287,15 @@ resident counts.
   all residents after the move: a newcomer cannot use a family bonus their
   own arrival would remove. Ordinary adult newcomers still need unanimous agreement;
   family status alone cannot bypass it.
-- **Births always complete, even if the home is full.** The parents establish
-  a primary caregiver and intended home before birth. The newborn joins that
-  caregiver's actual household at birth; the other parent's residence does
-  not automatically change. A full or unavailable home creates a visible
-  housing need, not a lost or rejected baby. A House that exceeds its limit is
-  marked overcrowded and accepts no further voluntary residents. Once an
+- **Births always complete, even if the home is full.** Before preparation,
+  the initiating parent names a primary caregiver and intended household, and
+  the accepting parent chooses a named caregiver-and-home option. Either
+  parent's current household can be chosen. The newborn joins that caregiver's
+  actual household at birth, even if it changed after agreement; the other
+  parent's residence does not automatically change. A full or unavailable
+  home creates a visible housing need, not a lost or rejected baby. A House
+  that exceeds its limit is marked overcrowded and accepts no further
+  voluntary residents. Once an
   overcrowding case opens, a birth or age change does not restart its deadline.
 - **Adults relocate; dependents are not sent away alone.** Volunteers go
   first, then the most recently admitted eligible unrelated adult, with a
@@ -347,10 +355,11 @@ The resident counts, family scope, birth exceptions, notice and departure
 rules are agreed. The existing
 [housing-admission work](https://github.com/compoodment/ClankerWorld/issues/464)
 and [storage-expansion work](https://github.com/compoodment/ClankerWorld/issues/463)
-remain their original implementation slices; the new residence and relocation
-rules require their own follow-up work, without competing with active claims.
-Resident limits and housing-driven expansion are tracked in [#598](https://github.com/compoodment/ClankerWorld/issues/598),
-and overcrowding/relocation in [#599](https://github.com/compoodment/ClankerWorld/issues/599).
+remain their original implementation slices. Resident limits, admission checks,
+birth placement and expansion for more places are implemented in
+[#598](https://github.com/compoodment/ClankerWorld/issues/598). Notice,
+departure and relocation for existing overcrowding remain separate work in
+[#599](https://github.com/compoodment/ClankerWorld/issues/599).
 
 ### Town membership
 
