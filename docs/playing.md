@@ -2,7 +2,7 @@
 title: Playing the current game
 type: player-guide
 status: active
-updated: 2026-10-01
+updated: 2026-10-02
 ---
 
 # Playing the current game
@@ -101,15 +101,23 @@ thoughts never appear in the conversation. An interrupted conversation stays
 stopped until both participants choose to resume; loading a save never starts
 provider calls for it on its own.
 
-**Suggest** shares an idea for the agent's next ordinary request to its own
-planning model. **Order** gives it a task; sending either does not make a
-separate model request. The current order choices are limited to eating carried
-food, finding or walking toward food, and gathering berries, fruit or wild greens
-from a matching food source. A new order replaces the current one unless you
-turn on **Queue**. Use **Cancel task** to stop a waiting or active order.
+**Suggest** shares an idea with the agent's own planning model. **Order** gives
+it a task. A new suggestion or recognized order asks for one fresh planning
+decision; any short reply comes in that same response. Following an order does
+not add a model request for every step or tick.
+
+Food orders can eat carried food, collect accessible household food to eat,
+travel to a food source, or gather berries, fruit or wild greens. Use simple
+phrases such as "eat 3 berries", "gather berries from berry-patch" or "go to
+berries at (12, 4)". "Keep gathering food" continues until cancelled. Eating
+waits until the agent is hungry enough, and gathering needs enough carrying
+space. A recognized new order replaces the current one unless you turn on
+**Queue**. Use **Cancel task** to stop a waiting or active order.
+
+An instruction the game cannot understand leaves the current order running.
 Unsupported requests, such as "build a house" or "gather wood," close as not
-understood and appear in the Event Log. Recognized orders still follow normal
-access, carrying and survival rules. [What works today](what-works.md#agents-and-their-models)
+understood and appear in the Event Log. Recognized orders follow normal access
+and survival rules. [What works today](what-works.md#agents-and-their-models)
 has the details.
 
 Click a building to outline it and open a small card beside it: who owns it,
