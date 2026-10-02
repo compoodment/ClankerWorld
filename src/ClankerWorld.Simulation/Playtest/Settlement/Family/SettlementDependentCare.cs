@@ -7,8 +7,7 @@ public sealed partial class PrivateWorldRuntime
 {
     private bool NeedsCaregiver(string child) => inhabitants.ContainsKey(child) &&
         society.Checkpoint.GetInhabitant(child).AgeBand is SocietyAgeBand.Infant or SocietyAgeBand.Child or SocietyAgeBand.Adolescent &&
-        !society.Checkpoint.Relationships.Any(edge => edge.Type == SocietyRelationshipType.Caregiver &&
-            edge.State == SocietyRelationshipState.Accepted && edge.TargetId == child && inhabitants.ContainsKey(edge.ProposerId));
+        !SocietyFixture.HasActivePrimaryCaregiver(society.Checkpoint, child);
 
     private bool EligibleCaregiver(string adult, string child) => AdultResident(adult) && NeedsCaregiver(child) &&
         society.Checkpoint.GetInhabitant(adult).HouseholdId is { } household &&
@@ -29,11 +28,19 @@ public sealed partial class PrivateWorldRuntime
     private bool CanOfferCare(string adult, string child) => EligibleCaregiver(adult, child) &&
         !CareProposals().Any(edge => edge.TargetId == child) &&
         !society.Checkpoint.Relationships.Any(edge => edge.Type == SocietyRelationshipType.Caregiver &&
+            edge.ProposerId == adult && edge.TargetId == child && edge.State == SocietyRelationshipState.Accepted) &&
+        !society.Checkpoint.Relationships.Any(edge => edge.Type == SocietyRelationshipType.Caregiver &&
             edge.ProposerId == adult && edge.TargetId == child && WorldTick - Math.Max(edge.ProposedTick, edge.EffectiveTick) < worldSystems.Config.TicksPerDay);
+
+    private bool CanAssumePrimaryCare(string adult, string child) => AdultResident(adult) && NeedsCaregiver(child) &&
+        society.Checkpoint.GetInhabitant(adult).HouseholdId is { } household &&
+        society.Checkpoint.GetInhabitant(child).HouseholdId == household &&
+        society.Checkpoint.Relationships.Any(edge => edge.Type == SocietyRelationshipType.Caregiver &&
+            edge.ProposerId == adult && edge.TargetId == child && edge.State == SocietyRelationshipState.Accepted);
 
     private bool HasDependentCareDecision(string actor) => ReadyForBriefInteraction(actor) &&
         (CareProposals().Any(edge => edge.TargetId == actor) ||
-         inhabitants.Keys.Any(child => CanOfferCare(actor, child)));
+         inhabitants.Keys.Any(child => CanOfferCare(actor, child) || CanAssumePrimaryCare(actor, child)));
 
     private void MaintainDependentCare()
     {
@@ -72,6 +79,11 @@ public sealed partial class PrivateWorldRuntime
             candidates.Add(new("guardian_offer:" + child,
                 $"Offer to care for {society.Checkpoint.GetInhabitant(child).Name}, who has no surviving active caregiver. Older dependents may refuse.", 4));
         }
+        foreach (var child in inhabitants.Keys.Order(StringComparer.Ordinal).Where(child => CanAssumePrimaryCare(actor, child)))
+        {
+            candidates.Add(new("guardian_primary:" + child,
+                $"Become {society.Checkpoint.GetInhabitant(child).Name}'s primary caregiver. The former primary caregiver is unavailable, and this child already recognizes you as a caregiver.", 4));
+        }
     }
 
     private void ApplyDependentCareCandidate(string actor, string candidate)
@@ -90,6 +102,14 @@ public sealed partial class PrivateWorldRuntime
             if (existing is null) return;
             society.Apply(checkpoint => SocietyFixture.RevokeRelationship(checkpoint, target, actor));
             AppendEvent("caregiver_ended", actor);
+            return;
+        }
+        if (candidate.StartsWith("guardian_primary:", StringComparison.Ordinal))
+        {
+            if (!CanAssumePrimaryCare(actor, target)) return;
+            var result = society.Apply(checkpoint => SocietyFixture.AssumePrimaryCare(checkpoint, actor, target));
+            if (result.NewEvents?.Any(item => item.Kind == "primary_caregiver_assumed") == true)
+                AppendEvent("primary_caregiver_assigned", target);
             return;
         }
         if (candidate.StartsWith("guardian_offer:", StringComparison.Ordinal))
