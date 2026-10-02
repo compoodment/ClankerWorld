@@ -191,8 +191,10 @@ public sealed class ProviderModelCatalog(
             {
                 if (item.ValueKind != JsonValueKind.Object)
                     throw new InvalidDataException("The provider returned an unrecognised model list.");
-                if (item.TryGetProperty("id", out var id) && id.ValueKind == JsonValueKind.String)
-                    models.Add(id.GetString()!);
+                if (!item.TryGetProperty("id", out var id) || id.ValueKind != JsonValueKind.String ||
+                    string.IsNullOrWhiteSpace(id.GetString()))
+                    throw new InvalidDataException("The provider returned an unrecognised model list.");
+                models.Add(id.GetString()!);
             }
         }
         else if (root.TryGetProperty("models", out var listed) && listed.ValueKind == JsonValueKind.Array)
@@ -203,7 +205,9 @@ public sealed class ProviderModelCatalog(
                     throw new InvalidDataException("The provider returned an unrecognised model list.");
                 var name = item.TryGetProperty("name", out var named) && named.ValueKind == JsonValueKind.String ? named.GetString()
                     : item.TryGetProperty("model", out var model) && model.ValueKind == JsonValueKind.String ? model.GetString() : null;
-                if (name is not null) models.Add(name);
+                if (string.IsNullOrWhiteSpace(name))
+                    throw new InvalidDataException("The provider returned an unrecognised model list.");
+                models.Add(name);
             }
         }
         else
