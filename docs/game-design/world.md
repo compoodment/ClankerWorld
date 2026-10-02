@@ -336,13 +336,14 @@ mountain should read as one whole landform. Each massif has a centre, a long
 axis and a size, so it reads as a range rather than a round blob. Small leftover
 patches are flattened, peaks form each massif's crest, and the hill band around
 it widens with the massif's size. This replaces the earlier rule that the
-generator imposes no minimum mountain patch size. The agreed **5–12% mountain**
-target for Balanced Normal worlds is unchanged. The number of massifs (for
-example 1–2 on Small and 2–4 on Medium), their minimum size and how far hills
-reach stay provisional until computment reviews generated maps. Hills keep
-today's grass walking cost for now. A start far from stone may need a rule
-that keeps stone within reach of the first Town; that is checked when the
-generator is built.
+generator imposes no minimum mountain patch size.
+
+Massifs leave the earlier rules in place: the agreed **5–12% mountain** target
+for Balanced Normal worlds, and hills at today's grass walking cost. The number
+of massifs (for example 1–2 on Small and 2–4 on Medium), their minimum size and
+how far hills reach stay provisional until computment reviews generated maps. A
+start far from stone may need a rule that keeps stone within reach of the first
+Town; that is checked when the generator is built.
 
 Computment wants agents to cross **one-tile-wide rivers on foot, more slowly**
 than dry ground. **Agreed on October 1
