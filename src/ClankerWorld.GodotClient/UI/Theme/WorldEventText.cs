@@ -65,6 +65,8 @@ public static class WorldEventText
             "continuity_rule_off" => "The continuity rule is off because eight or more people who are not elders are alive. " +
                 "Couples may decide against having a child again.",
             "caregiver_assigned" => "A child has a new caregiver.",
+            "guardian_needed" => "Needs a guardian. No adult has accepted care yet.",
+            "guardian_assigned" => "An adult accepted care for a child.",
             "medical_care_allowed" => $"{LeadingName(snapshot, worldEvent.Detail)} allowed someone to provide medical care.",
             "medical_care_revoked" => $"{LeadingName(snapshot, worldEvent.Detail)} withdrew permission for medical care.",
             "medical_treatment_started" => $"{LeadingName(snapshot, worldEvent.Detail)} began a course of medicine.",

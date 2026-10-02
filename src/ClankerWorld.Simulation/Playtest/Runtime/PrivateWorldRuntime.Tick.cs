@@ -586,6 +586,7 @@ public sealed partial class PrivateWorldRuntime
             AdvanceMedicalTreatments();
             if (deferHosted) ApplySafeRoutinesWhileWaiting(waiting, orderActorsHandledThisTick);
             AdvanceBridgeTraffic();
+            SettleGuardianSearches();
 
             AppendEvent("tick_advanced", targetTick.ToString(System.Globalization.CultureInfo.InvariantCulture));
             var newEvents = events.Skip(startingEvent).ToArray();

@@ -117,6 +117,19 @@ after infancy. Living and deceased profiles validate the descriptor against its
 recorded birth and schema. While provider storage is being recovered, the Model
 panel keeps showing the selected provider and model with a setup message.
 
+Schema 50 saves an unresolved dependent-guardian search, including its current
+relative, household or Town stage, start tick and offered adults. Each stage
+keeps the earlier groups, and the offers are brought up to date at the end of
+every tick, so a save always matches the households it was made with. Acceptance is
+an explicit adult action that changes the saved current primary caregiver.
+Household membership changes in that same action only when a completed House
+in the child's Town has room; otherwise it stays unchanged. The original birth
+record and Town membership stay unchanged. Loading validates the stage, times,
+and adult references. Replaying
+from a pending request reaches the same acceptance opportunities and preserves
+the single guardian-needed event. Older alpha saves without this state are
+refused; no migration is added.
+
 The private catalog archives each world's checkpoint. It saves the active world
 before a paused switch and keeps world IDs, names, seed and settings separate.
 Creation/selection require signed owner requests and leave the selection paused.
@@ -229,7 +242,7 @@ provided.
 
 Private-world schema 47 records household departures, their original household, care group and once-only food allocation, plus optional physical inventory custody separate from ownership. Personal House storage retains the personal owner even after membership ends. Reload preserves collection rights, borrowed carried goods, the care group and unfinished housing task without awarding another allowance. Paused private jobs retain the original owners, exact input reservations and pause time. Their reserved workstation or expansion footprint stays occupied; a remaining authorized member can resume at the physical site with the same materials and remaining duration. Unavailable materials cancel the preserved job and release its remaining commitments. Invalid custody, departure records and unavailable carriers are refused. Older alpha checkpoints are refused and preserved; no migration is added.
 
-Private-world schema 50 lets each living inhabitant record named adult medical
+Private-world schema 51 lets each living inhabitant record named adult medical
 permissions and an active medicine course. The course binds its patient and
 caregiver to the actual completed inventory reservation for the consumed dose,
 including the supply lot, owner and start time. Strict validation checks
@@ -336,7 +349,7 @@ blocked-return behavior. These checks use existing timestamps and add no saved
 fields, schema change or migration.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 50. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 51. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
@@ -351,8 +364,9 @@ recipe work, per-agent life-moment identity opportunities with their outcomes,
 connected Town-title plots, household use rights and pending use requests,
 physical shop exchanges beside their exact inventory offers,
 the continuity rule's state with each eligible couple's deadline, food-order
-targets, progress, retry state and cancellation receipts, and medical
-permission and consumed-dose progress.
+targets, progress, retry state and cancellation receipts, staged
+guardian-search records with their offered adults, and medical permission
+and consumed-dose progress.
 Land records are checked against the saved map, Towns, households and one
 another before load. These fields retain their current validation and roundtrip
 behavior.
@@ -369,8 +383,8 @@ selected tools on saved field and recipe work, schema 43 for life-moment
 identity, schema 44 for Town land records, schema 45 for physical shop
 exchanges, schema 46 for continuity, schema 47 for household departures and
 physical custody, schema 48 for Town councils, schema 49 for food-order
-progress and cancellations, and schema 50 for medical permission and
-consumed-dose progress record when those fields or behaviors were
+progress and cancellations, schema 50 for guardian searches and schema 51
+for medical permission and consumed-dose progress record when those fields or behaviors were
 introduced; they do not allow an earlier checkpoint schema past the
 current alpha cutoff.
 
@@ -408,7 +422,8 @@ current alpha cutoff.
 | Schema 47 | Household departure records, once-only physical food allowances, care groups and personal collection rights; optional carrier IDs keep custody separate from property. Production jobs capture their owner at start. Paused private work preserves its original inputs and pause time for a remaining member to resume. Older alpha checkpoints are refused and preserved. |
 | Schema 48 | Independent Town councils, personal candidacy agreements, proposal windows and final votes, current and archived elections, recorded runoff draws, notices and actor-owned read/relay receipts. Founded Towns require valid governance. Earlier alpha checkpoints are refused and preserved; no civic state is inferred or migrated. |
 | Schema 49 | Recognized food orders keep their target, requested and completed units, retry state and status, plus cancellation receipts tied to the exact world, actor and order. Progress records the physical effect that earned it, so an unrelated action or a stale order cannot advance a replacement task. Earlier alpha checkpoints are refused and preserved; no order migration is added. |
-| Schema 50 | Named medical permissions and active consumed-dose progress bind to actual completed inventory receipts. Terminal treatment closes its receipt without refund or resurrection; death retains completed consumption history and archived profiles cannot carry active treatment. Earlier alpha saves are refused and preserved without migration. |
+| Schema 50 | Staged dependent-guardian searches with their current stage, timing and offered adults, so consent remains ordered and replayable. Older builds refuse the checkpoint rather than infer or discard a search. |
+| Schema 51 | Named medical permissions and active consumed-dose progress bind to actual completed inventory receipts. Terminal treatment closes its receipt without refund or resurrection; death retains completed consumption history and archived profiles cannot carry active treatment. Earlier alpha saves are refused and preserved without migration. |
 
 Other compatibility fields remain separate for simulation, envelopes, content,
 assets, generator and network contracts. Change the field whose semantics

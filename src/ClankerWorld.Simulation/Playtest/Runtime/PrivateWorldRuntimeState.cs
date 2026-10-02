@@ -36,8 +36,16 @@ public sealed record PlaytestInhabitantState(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SettlementDeparture>? Departures = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] PersonalEquipment? Equipment = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<AgentIdentityMoment>? IdentityMoments = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementGuardianSearch? GuardianSearch = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] MedicalConsentState? MedicalConsent = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] MedicalTreatmentState? MedicalTreatment = null);
+
+/// <summary>A saved, ordered request for an adult to accept primary care of a dependent.</summary>
+public sealed record SettlementGuardianSearch(
+    string Stage,
+    long StartedTick,
+    long StageStartedTick,
+    IReadOnlyList<string> OfferedAdultIds);
 
 /// <summary>A child's non-secret personal-model choice, kept with the world rather than installation credentials.</summary>
 public sealed record ChildPersonalModelSelection(
