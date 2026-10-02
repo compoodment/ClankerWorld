@@ -376,7 +376,9 @@ public sealed class HouseholdDepartureTests
         initial.Pause();
         var actor = initial.Society.GetHousehold(Alpha).MemberIds[0];
         var house = initial.WorldSimulation.Buildings.Single(building => building.InstanceId == "first-town-house-a");
-        var recipe = initial.WorldContent.Recipes.First(item => item.WorkstationBuildingId == house.DefinitionId);
+        // Keep two private material reservations without depending on recipe catalogue order.
+        var recipe = initial.WorldContent.Recipes.Single(item => item.LocalId == "weave-basket" &&
+            item.WorkstationBuildingId == house.DefinitionId);
         var state = initial.ExportState();
         var inventory = state.Society.Society.Inventory;
         var reservationIds = new List<string>();
