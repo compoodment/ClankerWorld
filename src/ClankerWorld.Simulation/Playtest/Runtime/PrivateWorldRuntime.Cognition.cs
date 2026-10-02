@@ -91,7 +91,8 @@ public sealed partial class PrivateWorldRuntime
                 physical.RecentThoughts is { Count: > 0 } thoughts ? thoughts[^1].Text : null,
                 checkpoint.Households.SingleOrDefault(item => item.Id == inhabitant.HouseholdId)?.Name,
                 towns.SingleOrDefault(item => item.ResidentIds.Contains(inhabitant.Id, StringComparer.Ordinal))?.Name,
-                HousingNote(inhabitant.Id), EquipmentNote(inhabitant.Id), ContinuityNote(inhabitant.Id), DepartureNote(inhabitant.Id));
+                HousingNote(inhabitant.Id), EquipmentNote(inhabitant.Id), ContinuityNote(inhabitant.Id),
+                DepartureNote: DepartureNote(inhabitant.Id), CivicNote: CivicNote(inhabitant.Id));
             var observation = new InhabitantObservation(
                 inhabitant.Id,
                 WorldTick,
@@ -299,12 +300,21 @@ public sealed partial class PrivateWorldRuntime
                 ContinueProject(inhabitant.Id, state);
                 continue;
             }
-            if (runtimes[inhabitant.Id].CurrentIntention is not { } intention ||
-                !CreateCandidates(inhabitant.Id, state).Any(candidate => candidate.Id == intention.CandidateId))
+            if (runtimes[inhabitant.Id].CurrentIntention is not { } intention)
             {
                 continue;
             }
 
+            if (intention.CandidateId.StartsWith("civic|", StringComparison.Ordinal))
+            {
+                // Formal civic acts require a fresh admitted personal choice. Only the physical trip
+                // toward the notice place continues locally between ordinary model turns.
+                var civic = intention.CandidateId.Split('|');
+                if (civic.Length == 5 && civic[2] == "visit" && intention.Provider == DecisionProviderKind.LargeLanguageModel)
+                    ContinueTownCivicVisit(inhabitant.Id, intention.CandidateId);
+                continue;
+            }
+            if (!CreateCandidates(inhabitant.Id, state).Any(candidate => candidate.Id == intention.CandidateId)) continue;
             ApplyCandidate(inhabitant.Id, state, intention.CandidateId, reportIdle: false);
         }
     }
@@ -360,7 +370,13 @@ public sealed partial class PrivateWorldRuntime
 
         var carriedFoodBefore = society.Checkpoint.Inventory.Lots.Where(lot =>
             lot.OwnerId == decision.InhabitantId && IsEdibleFood(lot.ItemKind)).Sum(lot => (long)lot.Quantity);
-        ApplyCandidate(decision.InhabitantId, state, candidateId, reportIdle: true);
+        if (candidateId.StartsWith("civic|", StringComparison.Ordinal))
+        {
+            if (!decision.Admission.FellBack && decision.Admission.Intention.Provider == DecisionProviderKind.LargeLanguageModel)
+                ApplyTownCivicCandidate(decision.InhabitantId, candidateId, decision.Admission.CivicProposal, decision.Admission.CivicBallot);
+        }
+        else
+            ApplyCandidate(decision.InhabitantId, state, candidateId, reportIdle: true);
         var forcedApplied = forcedCandidate == candidateId && (candidateId switch
         {
             "seek_food" => inhabitants[decision.InhabitantId].Position != state.Position,
@@ -492,6 +508,11 @@ public sealed partial class PrivateWorldRuntime
         if (candidateId.StartsWith("learn:", StringComparison.Ordinal) || candidateId.StartsWith("lesson_", StringComparison.Ordinal))
         {
             ApplyLearningCandidate(inhabitantId, candidateId);
+            return;
+        }
+        if (candidateId.StartsWith("civic|", StringComparison.Ordinal))
+        {
+            // Civic choices execute only through the personal admission path above.
             return;
         }
         if (candidateId.StartsWith("council_", StringComparison.Ordinal))
@@ -922,6 +943,7 @@ public sealed partial class PrivateWorldRuntime
             AddForestryCandidates(candidates, inhabitantId, state);
             AddTradeCandidates(candidates, inhabitantId);
             AddCouncilCandidates(candidates, inhabitantId);
+            AddTownCivicCandidates(candidates, inhabitantId);
             AddLearningCandidates(candidates, inhabitantId);
             AddExplorationCandidate(candidates, inhabitantId, state);
         }

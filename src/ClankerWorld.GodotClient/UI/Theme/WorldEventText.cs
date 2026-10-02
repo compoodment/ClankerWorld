@@ -18,6 +18,8 @@ public static class WorldEventText
             IsLeadingId(worldEvent.Detail, building.InstanceId))?.DisplayName ?? "Building";
         var guestName = snapshot?.Inhabitants.OrderByDescending(person => person.Id.Length).FirstOrDefault(person =>
             worldEvent.Detail.EndsWith(":" + person.Id, StringComparison.Ordinal))?.DisplayName ?? "The guest";
+        var civicTownId = worldEvent.Detail.Split('|', 3)[0];
+        var civicTownName = snapshot?.Towns.FirstOrDefault(town => town.Id == civicTownId)?.Name ?? "A Town";
 
         return worldEvent.Kind switch
         {
@@ -80,6 +82,12 @@ public static class WorldEventText
             "instruction_not_understood" => $"{Name(snapshot, BeforeLastField(worldEvent.Detail))} didn't understand your order. " +
                 "For now, orders can only ask them to gather food, eat or find food.",
             "settlement_founded" => "A new Town was founded.",
+            "town_civic_council" => $"{civicTownName}'s council changed.",
+            "town_civic_election" => $"{civicTownName}'s council election opened.",
+            "town_civic_runoff" => $"{civicTownName}'s council election needs a runoff for tied seats.",
+            "town_civic_proposal" => $"A proposal was submitted to {civicTownName}'s council.",
+            "town_civic_result" => $"{civicTownName}'s council recorded a decision. See the Towns page for its result.",
+            "town_civic_cancelled" => $"An unfinished election in {civicTownName} was cancelled.",
             "town_founding_started" => "Your first Town is being set up.",
             "town_resident_joined" => $"{ResidentName(snapshot, worldEvent)} joined the first Town.",
             "town_resident_left" => $"{ResidentName(snapshot, worldEvent)} left the first Town.",

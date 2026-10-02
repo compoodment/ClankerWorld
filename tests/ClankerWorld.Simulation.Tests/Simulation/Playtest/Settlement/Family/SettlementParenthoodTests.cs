@@ -373,9 +373,17 @@ public sealed partial class SettlementParenthoodTests
             Society = state.Society with { Society = society },
             Inhabitants = state.Inhabitants.Where(person => person.InhabitantId != primary).ToArray(),
             DeceasedInhabitants = [.. state.DeceasedInhabitants ?? [], deceased],
-            Towns = state.Towns!.Select(town => town with
+            Towns = state.Towns!.Select(town =>
             {
-                ResidentIds = town.ResidentIds.Where(id => id != primary).ToArray(),
+                var residents = town.ResidentIds.Where(id => id != primary).ToArray();
+                var adults = residents.Where(id => society.GetInhabitant(id).Status == SocietyInhabitantStatus.Active &&
+                    society.GetInhabitant(id).AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder);
+                return town with
+                {
+                    ResidentIds = residents,
+                    Governance = TownGovernanceRules.Advance(town.Governance!, town.Id, state.WorldSeed, adults,
+                        society.WorldTick, state.WorldSystems!.Config.TicksPerDay),
+                };
             }).ToArray(),
         };
         Assert.Equal(primary, society.GetInhabitant(childId).PrimaryCaregiverId);
