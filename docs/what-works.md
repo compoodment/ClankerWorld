@@ -459,7 +459,8 @@ reason and keeps the file. Mod compatibility and history retention remain design
 questions. Technical rules
 are in [saves and replay](development/saves-and-replay.md).
 
-The Mod Library lists the current world's recorded packages read-only. Previously recorded
+The Mod Library lists the current world's recorded packages read-only, one card each with
+its name, who proposed it, its version and whether it is in use. Previously recorded
 data-only building proposals and host approval rules remain, but agents no
 longer create the retired shelter, storehouse or hearth proposals, and they do
 not build approved designs, because households plan only their own buildings. General invention,
