@@ -10,7 +10,7 @@ public static class BridgeTriggers
     /// <summary>A generated Road's route met a bridgeable river.</summary>
     public const string Road = "road";
 
-    /// <summary>Agents repeatedly waded across the same narrow crossing.</summary>
+    /// <summary>Agents repeatedly waded across the same crossing of one or two river tiles.</summary>
     public const string Traffic = "traffic";
 }
 
