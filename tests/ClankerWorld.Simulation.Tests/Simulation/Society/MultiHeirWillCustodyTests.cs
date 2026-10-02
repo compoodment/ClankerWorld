@@ -123,7 +123,7 @@ public sealed class MultiHeirWillCustodyTests
             "missing" => [],
             "quantity" => new[] { original with { Quantity = 3 } },
             "kind" => new[] { original with { ItemKind = "stone" } },
-            "extra" => new[] { original, original with { Id = "extra", Quantity = 1 } },
+            "extra" => new[] { original with { Id = "extra", Quantity = 1 }, original },
             "storage" => new[] { original with { StorageBuildingId = "other-house" } },
             _ => throw new ArgumentOutOfRangeException(nameof(alteration)),
         };
