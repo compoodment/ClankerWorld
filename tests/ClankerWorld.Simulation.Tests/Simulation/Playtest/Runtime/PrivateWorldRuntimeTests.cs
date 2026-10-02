@@ -446,12 +446,26 @@ public sealed partial class PrivateWorldRuntimeTests
     public async Task ExplorationAfterLegalTravelInterruptionKeepsAValidSaveablePath()
     {
         var provider = new ExplorationSelectingProvider("founder-scout");
-        using var world = new PrivateWorldRuntime("interrupted-exploration-repro", _ => provider);
+        using var genesis = new PrivateWorldRuntime("interrupted-exploration-repro", _ => provider);
+        var seeded = genesis.ExportState();
+        var berryPatch = seeded.Map.Resources.Single(resource => resource.Id == "berry-patch");
+        var berryTerrain = seeded.Map.Tiles.Single(tile => tile.Position == berryPatch.Position).Terrain.ToString();
+        var knownBerry = new AgentKnowledgeFact("interrupted-exploration-known-berry", "founder-scout",
+            "founder-scout", berryPatch.Position, berryTerrain, ["berries"],
+            seeded.Society.Society.WorldTick, "firsthand");
+        var initialState = seeded with
+        {
+            Knowledge = seeded.Knowledge! with
+            {
+                Facts = seeded.Knowledge.Facts.Append(knownBerry).ToArray(),
+            },
+        };
+        using var world = PrivateWorldRuntime.Restore(initialState, _ => provider);
         _ = await world.AdvanceOneTickAsync();
         var initial = world.Inhabitants.Single(person => person.InhabitantId == "founder-scout");
         Assert.NotEmpty(initial.Exploration!.OutingPath);
         world.SubmitInstruction(new OwnerInstructionRequest("interrupt-exploration", "owner:test",
-            "founder-scout", OwnerInstructionKind.MustDo, "travel to berry patch"));
+            "founder-scout", OwnerInstructionKind.MustDo, "travel to berry-patch"));
         for (var tick = 0; tick < 60; tick++)
         {
             _ = await world.AdvanceOneTickAsync();

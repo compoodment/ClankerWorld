@@ -13,22 +13,25 @@ public partial class Main
 {
     private readonly VBoxContainer worldStatsPage = new();
     private readonly VBoxContainer townExtras = new();
-    private readonly ScrollContainer townExtrasScroll = new() { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled };
-    private readonly MarginContainer townExtrasGap = new() { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+    private readonly MarginContainer townsGap = new() { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
     private string? renderedWorldStats;
     private string? renderedTownExtras;
     private const int ResidentPortraitLimit = 10;
 
+    /// <summary>
+    /// The Towns page, Town list then stores, projects and activity, scrolls as
+    /// one once it would pass the bottom of the screen; the World page follows.
+    /// </summary>
     private void BuildWorldInfoPages(VBoxContainer body)
     {
-        worldStatsPage.AddThemeConstantOverride("separation", 8);
-        body.AddChild(worldStatsPage);
         townExtras.AddThemeConstantOverride("separation", 6);
         townExtras.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-        townExtras.MinimumSizeChanged += FitTownExtras;
-        townExtrasGap.AddChild(townExtras);
-        townExtrasScroll.AddChild(townExtrasGap);
-        townsPage.AddChild(townExtrasScroll);
+        townsPage.AddChild(townExtras);
+        townsGap.AddChild(townsPage);
+        townsScroll.AddChild(townsGap);
+        body.AddChild(townsScroll);
+        worldStatsPage.AddThemeConstantOverride("separation", 8);
+        body.AddChild(worldStatsPage);
     }
 
     /// <summary>The wood brown of the Town house icon, for icons of things people built.</summary>
@@ -227,22 +230,7 @@ public partial class Main
             });
             townExtras.AddChild(line);
         }
-        FitTownExtras();
-    }
-
-    /// <summary>
-    /// Stores, projects and activity grow with the Town, so they scroll once the
-    /// panel would reach the bottom of the screen.
-    /// </summary>
-    private void FitTownExtras()
-    {
-        var content = townExtras.GetCombinedMinimumSize().Y;
-        var rest = worldInfoPanel.GetCombinedMinimumSize().Y - townExtrasScroll.CustomMinimumSize.Y;
-        var room = Math.Max(120, UiSize.Y - HudTop - 16 - rest);
-        var scrolls = content > room;
-        townExtrasGap.AddThemeConstantOverride("margin_right", scrolls ? SettingsScrollGap : 0);
-        townExtrasScroll.CustomMinimumSize = new Vector2(0, scrolls ? room : content);
-        worldInfoPanel.ResetSize();
+        QueueHudListsFit();
     }
 
     /// <summary>A row of the residents' portraits under a Town's name.</summary>

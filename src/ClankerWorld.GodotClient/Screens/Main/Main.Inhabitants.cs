@@ -22,9 +22,12 @@ public partial class Main
             .ToArray();
         var living = inhabitants.Count(IsLiving);
         var deceased = inhabitants.Length - living;
+        var hungry = inhabitants.Count(person => IsLiving(person) &&
+            GameUiText.FullnessState(person.HungerBasisPoints) is "hungry" or "very hungry");
         rosterSummaryLabel.Text = inhabitants.Length == 0
             ? "No one lives here yet."
-            : deceased == 0 ? $"{living} living" : $"{living} living · {deceased} deceased";
+            : (deceased == 0 ? $"{living} living" : $"{living} living · {deceased} deceased") +
+              (hungry == 0 ? string.Empty : $" · {hungry} hungry");
 
         foreach (var inhabitant in inhabitants)
         {
@@ -48,7 +51,6 @@ public partial class Main
             }
         }
         // Fit the list to its rows instead of reserving a tall empty box.
-        inhabitantList.Visible = inhabitantList.ItemCount > 0;
         var rowHeight = inhabitantList.GetThemeFont("font").GetHeight(inhabitantList.GetThemeFontSize("font_size")) +
             inhabitantList.GetThemeConstant("v_separation") + 4;
         inhabitantList.CustomMinimumSize = new Vector2(inhabitantList.CustomMinimumSize.X,
@@ -60,6 +62,8 @@ public partial class Main
             selectedInhabitantId = null;
             inhabitantList.DeselectAll();
         }
+        RenderRosterCards(inhabitants);
+        rosterPanel.Size = rosterPanel.GetCombinedMinimumSize();
     }
 
     private static bool IsLiving(OwnerWorldInhabitant inhabitant) =>

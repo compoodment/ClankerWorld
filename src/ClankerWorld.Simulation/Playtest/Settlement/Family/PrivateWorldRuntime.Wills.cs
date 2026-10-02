@@ -158,13 +158,13 @@ public sealed partial class PrivateWorldRuntime
         AppendEvent("estate_will_default", $"{estateId}:{reason}");
     }
 
-    private void CancelPendingWill(string estateId, string reason = "interrupted")
+    private void CancelPendingWill(string estateId, string reason = "interrupted", bool underRuntimeGate = true)
     {
         var estateIsPending = society.Checkpoint.Estates.Any(item => item.Id == estateId && item.WillStatus == "pending");
         if (!pendingWills.Remove(estateId, out var pending)) return;
         if (estateIsPending) pendingWillCancellationReasons[estateId] = reason;
         else pendingWillCancellationReasons.Remove(estateId);
-        pending.Cancellation.Cancel();
+        CancelProviderCall(pending.Cancellation, underRuntimeGate);
         _ = pending.Task.ContinueWith(_ => pending.Cancellation.Dispose(), TaskScheduler.Default);
     }
 }

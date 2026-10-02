@@ -28,8 +28,20 @@ public sealed class PlayerRenameTests
                 Society = saved.Society with { Society = society },
                 Inhabitants = saved.Inhabitants.Where(person => person.InhabitantId != First).ToArray(),
                 DeceasedInhabitants = [new(First, 0, society.AgeAt(society.GetInhabitant(First), 0), physical)],
-                Towns = saved.Towns!.Select(town => town with
-                { ResidentIds = town.ResidentIds.Where(id => id != First).ToArray() }).ToArray(),
+                Towns = saved.Towns!.Select(town =>
+                {
+                    var residents = town.ResidentIds.Where(id => id != First).ToArray();
+                    var adults = residents.Where(id => society.Inhabitants.Any(person => person.Id == id &&
+                        person.Status == SocietyInhabitantStatus.Active &&
+                        person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder));
+                    // Complete the council transition that follows death in the normal runtime.
+                    return town with
+                    {
+                        ResidentIds = residents,
+                        Governance = TownGovernanceRules.Advance(town.Governance!, town.Id, saved.WorldSeed,
+                            adults, society.WorldTick, saved.WorldSystems!.Config.TicksPerDay),
+                    };
+                }).ToArray(),
             };
         }
         using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(saved)));

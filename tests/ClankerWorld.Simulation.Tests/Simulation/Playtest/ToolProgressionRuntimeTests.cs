@@ -280,8 +280,9 @@ public sealed class ToolProgressionRuntimeTests
         Assert.Contains(chooser.ObservedCandidateSets, candidates => candidates.Contains(candidateId));
         Assert.Contains(world.ExportState().Events, item =>
             item.Kind == "equipment_collected" && item.Detail == $"{actor}:{itemKind}");
+        // The household lends its tool: it stays household property while the agent carries it.
         var collected = Assert.Single(world.Society.Inventory.Lots, lot =>
-            lot.OwnerId == actor && lot.ItemKind == itemKind);
+            lot.OwnerId == "household:camp-alpha" && lot.CarrierId == actor && lot.ItemKind == itemKind);
         Assert.Equal(1, collected.Quantity);
         Assert.Null(collected.StorageBuildingId);
         Assert.Null(collected.GroundPosition);
@@ -388,13 +389,23 @@ public sealed class ToolProgressionRuntimeTests
                 ? state.Society.Society.Inhabitants.Where(person => person.HouseholdId == "household:camp-beta")
                     .Select(person => person.Id).Order(StringComparer.Ordinal).ToArray()
                 : [];
+            var firstTownResidents = firstTown.ResidentIds.Except(otherResidents).ToArray();
+            var adultIds = state.Society.Society.Inhabitants.Where(person => person.Status == SocietyInhabitantStatus.Active &&
+                person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder).Select(person => person.Id).ToHashSet(StringComparer.Ordinal);
             state = state with
             {
                 Towns =
                 [
-                    firstTown with { ResidentIds = firstTown.ResidentIds.Except(otherResidents).ToArray() },
+                    firstTown with
+                    {
+                        ResidentIds = firstTownResidents,
+                        Governance = TownGovernanceRules.Advance(firstTown.Governance!, firstTown.Id, state.WorldSeed,
+                            firstTownResidents.Where(adultIds.Contains), state.Society.Society.WorldTick,
+                            state.WorldSystems!.Config.TicksPerDay),
+                    },
                     new TownRuntimeState("town:tool-yard", "Tool Yard", "founded",
-                        state.Society.Society.WorldTick, otherResidents, [], [outside]),
+                        state.Society.Society.WorldTick, otherResidents, [], [outside],
+                        Governance: TownGovernanceState.Create(otherResidents.Where(adultIds.Contains))),
                 ],
             };
             using var reassigned = PrivateWorldRuntime.Restore(state, _ => new CandidateProvider("safe_idle"));

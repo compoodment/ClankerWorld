@@ -291,6 +291,50 @@ public sealed class PersonalEquipmentTests
     }
 
     [Fact]
+    public async Task AnOwnerOrderStepInterruptsTimedRepairAndReleasesItsCloth()
+    {
+        var (state, shop) = TailorTestWorld.Create("order-interrupts-repair", 0);
+        var actor = state.Society.Society.Inhabitants.First(item => item.HouseholdId == Alpha).Id;
+        var position = state.WorldSimulation!.Buildings.Single(item => item.InstanceId == shop).Position;
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "order-coat", "padded_coat", actor, 1);
+        inventory = InventoryFixture.WearSingleUnit(inventory, "order-coat", 8_000);
+        inventory = InventoryFixture.AddLot(inventory, "order-cloth", "cloth", actor, 2);
+        inventory = InventoryFixture.AddLot(inventory, "order-berries", "berries", actor, 1);
+        state = WithInventory(state, inventory) with
+        {
+            Inhabitants = state.Inhabitants.Select(item => item.InhabitantId == actor
+                ? item with { Position = position, HungerBasisPoints = 9_000, Survival = new(), Equipment = new("order-coat") } : item).ToArray(),
+        };
+        IDecisionProvider Provider(string id) => new Choices(id == actor ? ["repair_equipment"] : []);
+        using var world = PrivateWorldRuntime.Restore(state, Provider);
+        for (var tick = 0; tick < 30 && world.ExportState().Inhabitants.Single(item => item.InhabitantId == actor).Equipment?.Repair is null; tick++)
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        var repair = Assert.IsType<EquipmentRepairWork>(world.ExportState().Inhabitants.Single(item => item.InhabitantId == actor).Equipment?.Repair);
+
+        var working = world.ExportState();
+        var readyToEat = working with
+        {
+            Inhabitants = working.Inhabitants.Select(item => item.InhabitantId == actor
+                ? item with { HungerBasisPoints = 3_000 } : item).ToArray(),
+        };
+        using var ordered = PrivateWorldRuntime.Restore(readyToEat, Provider);
+        var order = ordered.SubmitInstruction(new OwnerInstructionRequest("eat-during-repair", "owner:test", actor,
+            OwnerInstructionKind.MustDo, "eat berries"));
+        for (var tick = 0; tick < 3 && !(ordered.ExportState().CompletedInstructionIds ?? []).Contains(order.InstructionId); tick++)
+            Assert.True((await ordered.AdvanceOneTickAsync()).Advanced);
+
+        var after = ordered.ExportState();
+        Assert.Contains(order.InstructionId, after.CompletedInstructionIds ?? []);
+        Assert.DoesNotContain(after.Society.Society.Inventory.Lots, lot => lot.Id == "order-berries");
+        Assert.Null(after.Inhabitants.Single(item => item.InhabitantId == actor).Equipment?.Repair);
+        Assert.Equal(2, ordered.Society.Inventory.GetLot("order-cloth").Quantity);
+        Assert.All(repair.MaterialReservationIds, id =>
+            Assert.Equal(InventoryReservationState.Released, ordered.Society.Inventory.GetReservation(id).State));
+        Assert.Contains(after.Events, item => item.Kind == "equipment_repair_interrupted");
+        ordered.Validate();
+    }
+
+    [Fact]
     public async Task WaitingForHostedInstructionCannotKeepAnExpiredRepairInTheCheckpoint()
     {
         var (state, shopId) = TailorTestWorld.Create("held-planning-repair-probe", 0);
@@ -340,7 +384,14 @@ public sealed class PersonalEquipmentTests
         using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), _ => new Choices([]));
         Assert.Null(restored.Inhabitants.Single(person => person.InhabitantId == actor).Equipment?.Repair);
         Assert.Equal(coatId, restored.Inhabitants.Single(person => person.InhabitantId == actor).Equipment?.ClothingLotId);
-        Assert.Equal(pausedPlan, restored.Inhabitants.Single(person => person.InhabitantId == actor).Project);
+        var savedProject = Assert.IsType<SettlementProject>(
+            restored.Inhabitants.Single(person => person.InhabitantId == actor).Project);
+        Assert.Equal(pausedPlan.CandidateId, savedProject.CandidateId);
+        Assert.Equal(pausedPlan.WorkDone, savedProject.WorkDone);
+        Assert.Equal("paused", savedProject.Stage);
+        Assert.Null(savedProject.JobId);
+        Assert.True(savedProject.RequiresFreshChoice);
+        Assert.False(string.IsNullOrWhiteSpace(savedProject.Blocker));
         Assert.Equal(InventoryReservationState.Released, restored.Society.Inventory.GetReservation(reservationId).State);
         Assert.Equal(2, restored.Society.Inventory.GetLot(clothId).Quantity);
         Assert.Equal(2_000, restored.Society.Inventory.GetLot(coatId).ConditionBasisPoints);

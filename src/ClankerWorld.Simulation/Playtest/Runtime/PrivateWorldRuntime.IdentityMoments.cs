@@ -200,18 +200,18 @@ public sealed partial class PrivateWorldRuntime
         checkpointSchemaVersion = StateSchemaVersion;
     }
 
-    private void CancelIdentityMoments()
+    private void CancelIdentityMoments(bool underRuntimeGate = true)
     {
-        foreach (var id in pendingIdentityMoments.Keys.ToArray()) CancelIdentityMoment(id);
+        foreach (var id in pendingIdentityMoments.Keys.ToArray()) CancelIdentityMoment(id, underRuntimeGate);
     }
 
-    private void CancelIdentityMoment(string id)
+    private void CancelIdentityMoment(string id, bool underRuntimeGate = true)
     {
         if (!pendingIdentityMoments.Remove(id, out var pending)) return;
         if (inhabitants.TryGetValue(id, out var physical) &&
             (physical.IdentityMoments ?? []).Any(moment => moment.Kind == pending.Kind && moment.Outcome == "requested"))
             FinishIdentityMoment(id, pending.Kind, "interrupted");
-        pending.Cancellation.Cancel();
+        CancelProviderCall(pending.Cancellation, underRuntimeGate);
         _ = pending.Task.ContinueWith(_ => pending.Cancellation.Dispose(), TaskScheduler.Default);
     }
 

@@ -84,8 +84,8 @@ public partial class Main
             });
             for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             if (worldInfoPanel.Position.Y + worldInfoPanel.Size.Y > UiSize.Y + 1 ||
-                townExtrasScroll.CustomMinimumSize.Y >= townExtras.GetCombinedMinimumSize().Y ||
-                townExtrasGap.GetThemeConstant("margin_right") != SettingsScrollGap)
+                townsScroll.CustomMinimumSize.Y >= townsPage.GetCombinedMinimumSize().Y ||
+                townsGap.GetThemeConstant("margin_right") != SettingsScrollGap)
                 throw new InvalidOperationException($"Long Town details must scroll inside World Info, clear of the scrollbar: panel={worldInfoPanel.GetRect()} screen={UiSize}.");
         }
         finally
