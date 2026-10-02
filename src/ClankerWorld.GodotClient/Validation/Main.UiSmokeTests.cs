@@ -1265,7 +1265,7 @@ public partial class Main
                     };
                     Render(sample with { WorldTick = 3_600, CalendarPace = new OwnerWorldCalendarPace(360, 40, 10, 10, 10, 10) }, []);
                     if (clockLabel.Text != expectedClock ||
-                        !worldInfoText.Text.Contains("40 days", StringComparison.Ordinal) ||
+                        !PageText(worldStatsPage).Contains("40-day years", StringComparison.Ordinal) ||
                         !TownListText().Contains("First Town", StringComparison.Ordinal) ||
                         !TownListText().Contains("4 residents · founding", StringComparison.Ordinal))
                         throw new InvalidOperationException("World Info must show the saved calendar and only the first Town's established founding, membership and border facts.");
@@ -1392,7 +1392,7 @@ public partial class Main
                     if (townsScroll.ScrollVertical == 0 || lastLineBottom < scrollRect.Position.Y || lastLineBottom > scrollRect.End.Y + 1)
                         throw new InvalidOperationException("Scrolling to the bottom must make the last Town's proposal result reachable.");
                     ShowWorldInfoPage(towns: false);
-                    if (townsScroll.Visible || !worldInfoText.Visible)
+                    if (townsScroll.Visible || !worldStatsPage.Visible)
                         throw new InvalidOperationException("The World page must replace the scrolling Towns contents.");
                 }
             }
@@ -1446,20 +1446,20 @@ public partial class Main
             RenderUsageStatus();
             Render(sample, []);
             Render(sample, []);
-            if (worldDetails.GetParsedText().Length == 0)
+            if (townExtras.GetChildCount() == 0)
                 throw new InvalidOperationException("An unchanged refresh must keep the Town panel's stores and projects visible.");
-            if (!worldDetails.GetParsedText().Contains("Shared stores", StringComparison.Ordinal) ||
-                !worldDetails.GetParsedText().Contains("No one is working on a project right now.", StringComparison.Ordinal))
-                throw new InvalidOperationException($"The Town panel must head its sections and say when nothing is under way instead of leaving gaps: {worldDetails.GetParsedText()}");
-            RenderWorldDetails(sample with
+            if (!PageText(townExtras).Contains("HOUSEHOLD STORES", StringComparison.Ordinal) ||
+                !PageText(townExtras).Contains("No one is working on a project right now.", StringComparison.Ordinal))
+                throw new InvalidOperationException($"The Town panel must head its sections and say when nothing is under way instead of leaving gaps: {PageText(townExtras)}");
+            RenderTownExtras(sample with
             {
                 Authoring = new OwnerWorldAuthoringState(false, 3, 7, 1, "initial-digest", "current-digest", "clear", "spring", []),
             });
-            if (worldDetails.TooltipText.Length != 0 ||
-                worldDetails.GetParsedText().Contains("digest", StringComparison.OrdinalIgnoreCase) ||
-                worldDetails.GetParsedText().Contains("revision", StringComparison.OrdinalIgnoreCase))
+            if (PageText(townExtras).Contains("digest", StringComparison.OrdinalIgnoreCase) ||
+                PageText(townExtras).Contains("revision", StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException("The Town panel must not show operator diagnostics such as revisions or digests.");
-            RenderWorldDetails(sample);
+            RenderTownExtras(sample);
+            await VerifyWorldInfoPagesAsync();
             // Top-bar panels hug their contents, and short text leaves no empty space below it.
             foreach (var panel in new PanelContainer[] { rosterPanel, eventsPanel, worldInfoPanel, filtersPanel, worldOverviewPanel })
             {
@@ -1623,17 +1623,15 @@ public partial class Main
                 townLandTitleFilter.ButtonPressed || householdLandUseFilter.ButtonPressed || disputedLandFilter.ButtonPressed ||
                 terrainLayer.TownBorderTileCount != 0 || terrainLayer.HouseholdPropertyTileCount != 0 ||
                 terrainLayer.TownLandTitleTileCount != 0 || terrainLayer.HouseholdLandUseTileCount != 0 ||
-                terrainLayer.DisputedLandTileCount != 0 ||
-                !townBorderHint.Text.Contains("Town borders are hidden", StringComparison.Ordinal))
+                terrainLayer.DisputedLandTileCount != 0)
                 throw new InvalidOperationException("Map Filters must start off, with no Town or household land records drawn.");
             filtersButton.EmitSignal(BaseButton.SignalName.Pressed);
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             if (!filtersPanel.Visible || !mapCanvas.GetGlobalRect().Encloses(filtersPanel.GetGlobalRect()))
                 throw new InvalidOperationException($"Map Filters must open inside the world view: map={mapCanvas.GetGlobalRect()} filters={filtersPanel.GetGlobalRect()} site_visible={townSiteButton.Visible}.");
             townBorderFilter.ButtonPressed = true;
-            if (terrainLayer.TownBorderTileCount == 0 ||
-                !townBorderHint.Text.Contains("dashed line", StringComparison.Ordinal))
-                throw new InvalidOperationException("Turning on Town borders must draw them and explain the dashed line.");
+            if (terrainLayer.TownBorderTileCount == 0)
+                throw new InvalidOperationException("Turning on Town borders must draw them.");
             townBorderFilter.ButtonPressed = false;
             townLandTitleFilter.ButtonPressed = true;
             if (terrainLayer.TownLandTitleTileCount == 0)
@@ -1648,9 +1646,8 @@ public partial class Main
                 throw new InvalidOperationException("The disputed-land filter must show only the tiles with competing claims.");
             disputedLandFilter.ButtonPressed = false;
             householdPropertyFilter.ButtonPressed = true;
-            if (terrainLayer.TownBorderTileCount != 0 || terrainLayer.HouseholdPropertyTileCount == 0 ||
-                !townBorderHint.Text.Contains("Town borders are hidden", StringComparison.Ordinal))
-                throw new InvalidOperationException("The Town border filter must update the map and its visible explanation.");
+            if (terrainLayer.TownBorderTileCount != 0 || terrainLayer.HouseholdPropertyTileCount == 0)
+                throw new InvalidOperationException("The Town border filter must update the map.");
             selectedTile = new Vector2I(2, 2);
             selectedTilePanel.Show();
             RenderTileInspection(ownedMap);
@@ -2947,7 +2944,7 @@ public partial class Main
                 worldOverview.VisibleTiles.Size.X >= 256)
                 throw new InvalidOperationException($"A regional map must draw only the visible terrain without per-tile nodes: children={terrainLayer.GetChildCount()}, visible={terrainLayer.VisibleTileCount}, overview={worldOverview.VisibleTiles.Size}.");
             if (seasonLabel.Text != "Spring" || weatherLabel.Text != "Rain" ||
-                !worldInfoText.Text.Contains("Soil moisture here: 78%", StringComparison.Ordinal) ||
+                !PageText(worldStatsPage).Contains("Soil moisture here: 78%", StringComparison.Ordinal) ||
                 terrainLayer.WeatherAt(150, 80) != "rain" || terrainLayer.WeatherAt(20, 20) != "snow")
                 throw new InvalidOperationException("The world HUD and info must show weather and moisture at the camera.");
             // Regions are squares on the host; on the map their weather must
@@ -3020,7 +3017,7 @@ public partial class Main
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             UpdateHoverReadout(withBridge, hoveredCenter);
             if (!hoverReadoutLabel.Text.Contains(" · Bridge", StringComparison.Ordinal) ||
-                !worldInfoText.Text.Contains("Bridges: 1", StringComparison.Ordinal))
+                !PageText(worldStatsPage).Contains("1 bridge", StringComparison.Ordinal))
                 throw new InvalidOperationException($"A saved bridge must show in the hover readout and World Info: {hoverReadoutLabel.Text}");
             RenderMap(largeMap);
             RenderWorldInfo(largeMap);
@@ -3033,9 +3030,9 @@ public partial class Main
                 terrainLayer.VisibleTileCount >= largeTerrain.Length / 2)
                 throw new InvalidOperationException("Panning a large map must update the camera-bounded terrain view.");
             if (seasonLabel.Text != "Spring" || weatherLabel.Text != "Snow" ||
-                !worldInfoText.Text.Contains("here: Spring · Snow", StringComparison.Ordinal) ||
-                !worldInfoText.Text.Contains("Soil moisture here: 12%", StringComparison.Ordinal))
-                throw new InvalidOperationException($"Panning must update HUD and World Info to local weather: camera={cameraCenterTiles}, HUD={seasonLabel.Text} · {weatherLabel.Text}, info={worldInfoText.Text}.");
+                !PageText(worldStatsPage).Contains("Spring · Snow here", StringComparison.Ordinal) ||
+                !PageText(worldStatsPage).Contains("Soil moisture here: 12%", StringComparison.Ordinal))
+                throw new InvalidOperationException($"Panning must update HUD and World Info to local weather: camera={cameraCenterTiles}, HUD={seasonLabel.Text} · {weatherLabel.Text}, info={PageText(worldStatsPage)}.");
             var wrappedMap = largeMap with
             {
                 WorldId = "ui-wrapped-map",
@@ -3544,7 +3541,7 @@ public partial class Main
             RenderMap(occupied);
             ClearInhabitantSelection();
             _UnhandledKeyInput(new InputEventKey { Keycode = Key.I, Pressed = true });
-            if (!worldInfoPanel.Visible || !worldInfoText.Text.Contains("F1", StringComparison.Ordinal))
+            if (!worldInfoPanel.Visible || !PageText(worldStatsPage).Contains("F1", StringComparison.Ordinal))
                 throw new InvalidOperationException("I must open World Info, which points to the F1 controls list.");
             _UnhandledKeyInput(new InputEventKey { Keycode = Key.I, Pressed = true });
             if (worldInfoPanel.Visible)
