@@ -276,14 +276,26 @@ public sealed class CareProductionTests(ITestOutputHelper output)
         IDecisionProvider Provider(string id) => id == actor ? choices : new Preferred([]);
         using var world = PrivateWorldRuntime.Restore(state, Provider);
         PrivateWorldRuntime? restored = null;
-        var minimumHerbStock = initialHerbs;
+        var previousHerbStock = initialHerbs;
+        var observedHerbDepletion = false;
         try
         {
             for (var tick = 0; tick < 600 && !world.WorldSimulation.ProductionJobs.Any(job =>
                      job.RecipeId == medicineRecipe.CanonicalId && job.State == WorldProductionJobState.Completed); tick++)
             {
-                Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-                minimumHerbStock = Math.Min(minimumHerbStock, world.ExportState().WorldSystems!.Ecology.GetResource(herbs.Id).Quantity);
+                var step = await world.AdvanceOneTickAsync();
+                Assert.True(step.Advanced);
+                var currentHerbStock = world.ExportState().WorldSystems!.Ecology.GetResource(herbs.Id).Quantity;
+                if (step.Events.Any(item => item.Kind == "material_gathered" &&
+                        item.Detail.StartsWith(actor + ":" + CareContent.MedicinalHerbs + ":", StringComparison.Ordinal)))
+                {
+                    Assert.True(currentHerbStock < previousHerbStock,
+                        $"Gathering at tick {world.WorldTick} must deplete the actual herb patch ({previousHerbStock} -> {currentHerbStock}).");
+                    observedHerbDepletion = true;
+                    output.WriteLine("Herb patch {0} at gathering tick {1}: {2} -> {3}",
+                        herbs.Id, world.WorldTick, previousHerbStock, currentHerbStock);
+                }
+                previousHerbStock = currentHerbStock;
                 if (tick % 60 == 59)
                 {
                     var snapshot = world.ExportState();
@@ -308,7 +320,7 @@ public sealed class CareProductionTests(ITestOutputHelper output)
             Assert.NotNull(restored);
             Assert.Contains("supply_workstation:" + CareContent.MedicinalHerbs, choices.Offers);
             Assert.Contains("supply_workstation:" + InventoryContainerRules.FreshWater, choices.Offers);
-            Assert.True(minimumHerbStock < initialHerbs);
+            Assert.True(observedHerbDepletion);
             Assert.Contains(world.ExportState().Events, item => item.Kind == "material_gathered" &&
                 item.Detail.StartsWith(actor + ":" + CareContent.MedicinalHerbs + ":", StringComparison.Ordinal));
             Assert.Contains(world.ExportState().Events, item => item.Kind == "water_jug_filled" &&

@@ -171,10 +171,19 @@ public sealed class ContainerReturnTests
         Assert.Equal(InventoryReservationState.Completed, first.Society.Inventory.GetReservation(firstWater.Id).State);
         Assert.Equal(2, first.Society.Inventory.GetLot(firstStart.JobId + ":output:00").Quantity);
         Assert.DoesNotContain(first.Society.Inventory.Lots, lot => lot.ContainerLotId == Vessel);
+        var completed = first.ExportState();
+        Assert.Equal("safe_idle", completed.Society.Cognition.Runtimes.Single(item => item.InhabitantId == actor)
+            .CurrentIntention?.CandidateId);
         var returnProvider = new VesselChoices("return_empty_vessel:", "haul_household_stock");
-        using var returning = Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(first.ExportState())), actor, returnProvider);
+        using var returning = Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(completed)), actor, returnProvider);
+        // The idle production provider left a valid intention. Its normal 300-tick interval survives reload;
+        // wait for the actual return decision before spending the existing physical delivery budget.
+        await AdvanceUntil(returning, () => returnProvider.Offered.Contains("return_empty_vessel:" + Vessel), 300);
+        Assert.Contains("return_empty_vessel:" + Vessel, returnProvider.Offered);
         await AdvanceUntil(returning, () => returning.Society.Inventory.GetLot(Vessel).StorageBuildingId == House, 160);
         Assert.Equal(Alpha, returning.Society.Inventory.GetLot(Vessel).OwnerId);
+        Assert.Single(returning.ExportState().Events, item => item.Kind == "empty_vessel_picked_up" &&
+            item.Detail == $"{actor}:{Vessel}:{Clinic}:{House}");
 
         var supply = new VesselChoices("supply_workstation:fresh_water", "fill_water_jug:", "collect_water_jug",
             "return_water_jug", "haul_household_stock");
