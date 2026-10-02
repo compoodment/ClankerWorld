@@ -41,7 +41,11 @@ public sealed partial class PrivateWorldRuntime
             if (physical.Project is { Stage: not ("completed" or "cancelled") } project &&
                 (NeedsUrgentFood(physical) || NeedsUrgentWarmth(physical) && !IsProtectiveProject(project)))
             {
-                SetProject(inhabitant.Id, project with { Stage = "paused", Blocker = NeedsUrgentWarmth(physical) ? "Seeking warmth" : "Meeting food needs" });
+                SetProject(inhabitant.Id, project with
+                {
+                    Stage = "paused",
+                    Blocker = NeedsUrgentWarmth(physical) ? "Seeking warmth" : "Meeting food needs",
+                });
                 physical = inhabitants[inhabitant.Id];
             }
             if (IsConversationBusy(inhabitant.Id) && !ShouldDispatchConversationChoice(inhabitant.Id))
@@ -50,6 +54,13 @@ public sealed partial class PrivateWorldRuntime
             var candidates = CreateCandidates(inhabitant.Id, physical)
                 .Select(candidate => candidate with { DestinationName = DestinationNameForModel(candidate.DestinationId) })
                 .ToList();
+            if (PauseExpiredUnfillableHouseholdRecipeProject(inhabitant.Id))
+            {
+                physical = inhabitants[inhabitant.Id];
+                candidates = CreateCandidates(inhabitant.Id, physical)
+                    .Select(candidate => candidate with { DestinationName = DestinationNameForModel(candidate.DestinationId) })
+                    .ToList();
+            }
             var current = runtimes[inhabitant.Id].CurrentIntention;
             if (!namingRetries.Contains(inhabitant.Id) &&
                 !NeedsCognition(inhabitant.Id, current, candidates, conversationChoiceContext))
@@ -76,7 +87,7 @@ public sealed partial class PrivateWorldRuntime
                 physical.RecentThoughts is { Count: > 0 } thoughts ? thoughts[^1].Text : null,
                 checkpoint.Households.SingleOrDefault(item => item.Id == inhabitant.HouseholdId)?.Name,
                 towns.SingleOrDefault(item => item.ResidentIds.Contains(inhabitant.Id, StringComparer.Ordinal))?.Name,
-                HousingNote(inhabitant.Id));
+                HousingNote(inhabitant.Id), EquipmentNote(inhabitant.Id));
             var observation = new InhabitantObservation(
                 inhabitant.Id,
                 WorldTick,
@@ -166,7 +177,7 @@ public sealed partial class PrivateWorldRuntime
             return true;
         }
 
-        if (CanContinueLesson(inhabitantId) || CanContinueProject(inhabitants[inhabitantId]))
+        if (CanContinueEquipmentRepair(inhabitantId) || CanContinueLesson(inhabitantId) || CanContinueProject(inhabitants[inhabitantId]))
         {
             return false;
         }
@@ -177,6 +188,15 @@ public sealed partial class PrivateWorldRuntime
         }
 
         if (current is null)
+        {
+            return true;
+        }
+
+        // Finishing a project frees its inputs and work site for the next
+        // craft. Reconsider once instead of repeating the old recipe before
+        // the usual reevaluation interval has elapsed.
+        if (inhabitants[inhabitantId].Project is { Stage: "completed" } completed &&
+            current.CandidateId == completed.CandidateId && current.WorldTick <= completed.LastTransitionTick)
         {
             return true;
         }
@@ -240,6 +260,11 @@ public sealed partial class PrivateWorldRuntime
             }
             if (inhabitant.AgeBand == SocietyAgeBand.Infant)
             {
+                continue;
+            }
+            if (CanContinueEquipmentRepair(inhabitant.Id))
+            {
+                ContinueEquipmentRepair(inhabitant.Id);
                 continue;
             }
             if (CanContinueLesson(inhabitant.Id))
@@ -342,12 +367,19 @@ public sealed partial class PrivateWorldRuntime
         {
             if (!ApplyConversationCandidate(inhabitantId, candidateId))
                 AppendEvent("conversation_action_rejected", $"{inhabitantId}:{candidateId.Split(':')[0]}");
+            else if (inhabitants[inhabitantId].Equipment?.Repair is not null)
+                CancelEquipmentRepair(inhabitantId);
             return;
         }
         if (!AgePermitsCandidate(inhabitantId, candidateId))
         {
             AppendEvent("age_action_rejected", $"{inhabitantId}:{candidateId}");
             return;
+        }
+        if (inhabitants[inhabitantId].Equipment?.Repair is not null && candidateId != "repair_equipment")
+        {
+            CancelEquipmentRepair(inhabitantId);
+            state = inhabitants[inhabitantId];
         }
         if (ContinueFarmWork(inhabitantId)) return;
         if (candidateId.StartsWith("farm:", StringComparison.Ordinal))
@@ -405,6 +437,11 @@ public sealed partial class PrivateWorldRuntime
             StoreHouseholdFood(inhabitantId, state);
             return;
         }
+        if (candidateId == "make_room_for_food")
+        {
+            MakeRoomForFood(inhabitantId, state);
+            return;
+        }
         if (candidateId == "store_town_resources")
         {
             StoreTownResources(inhabitantId, state);
@@ -449,6 +486,31 @@ public sealed partial class PrivateWorldRuntime
         if (candidateId.StartsWith(SupplyWorkstationPrefix, StringComparison.Ordinal))
         {
             SupplyWorkstation(inhabitantId, state, candidateId[SupplyWorkstationPrefix.Length..]);
+            return;
+        }
+        if (candidateId == "collect_water_jug")
+        {
+            CollectWaterJug(inhabitantId, state);
+            return;
+        }
+        if (candidateId == "return_water_jug")
+        {
+            ReturnWaterJug(inhabitantId, state);
+            return;
+        }
+        if (candidateId == "store_food_in_pot")
+        {
+            StoreFoodInPot(inhabitantId, state);
+            return;
+        }
+        if (candidateId == "take_food_from_pot")
+        {
+            TakeFoodFromPot(inhabitantId, state);
+            return;
+        }
+        if (candidateId.StartsWith(FillWaterJugPrefix, StringComparison.Ordinal))
+        {
+            FillWaterJug(inhabitantId, state, candidateId[FillWaterJugPrefix.Length..]);
             return;
         }
         if (candidateId.StartsWith(GatherBuildingMaterialPrefix, StringComparison.Ordinal))
@@ -498,7 +560,13 @@ public sealed partial class PrivateWorldRuntime
                 Explore(inhabitantId, state);
                 break;
             case "wear_clothing":
-                CollectEquipment(inhabitantId, state, "clothing");
+                EquipPrivateItem(inhabitantId, state, carryAid: false);
+                break;
+            case "equip_carry_aid":
+                EquipPrivateItem(inhabitantId, state, carryAid: true);
+                break;
+            case "repair_equipment":
+                RepairEquipment(inhabitantId, state);
                 break;
             case "tend_fire":
                 TendFire(inhabitantId, state);
@@ -658,9 +726,12 @@ public sealed partial class PrivateWorldRuntime
 
         var foodPriority = NeedsUrgentFood(state) ? 2 : state.HungerBasisPoints < RoutineFoodSeekFullness ? 5 : 90;
         // An optional reserve remains selectable without outranking ordinary activities.
-        var shouldGatherFood = !hasFood && state.HungerBasisPoints < 7_000;
+        var wantsFood = !hasFood && state.HungerBasisPoints < 7_000;
+        var shouldGatherFood = wantsFood && FreeCarryCapacity(inhabitantId) > 0;
         var foodSource = shouldGatherFood || instructionCandidate is "seek_food" or "harvest_food"
             ? AvailableFoodSource(inhabitantId, state.Position) : null;
+        if (foodSource is not null && FreeCarryCapacity(inhabitantId) < FoodHarvestCarryUnits(foodSource))
+            foodSource = null;
         var sharedFood = shouldGatherFood ? AvailableSharedFood(inhabitantId) : null;
         if (sharedFood is not null && contentRegistry.ExportState().Packages.Any(package =>
                 package.Manifest.PackageId == StarterContent.PackageId && package.Lifecycle == ContentPackageLifecycle.Active))
@@ -686,6 +757,10 @@ public sealed partial class PrivateWorldRuntime
                 foodPriority,
                 foodSource.Id));
         }
+        else if (wantsFood && sharedFood is null)
+        {
+            AddMakeRoomForFoodCandidate(candidates, inhabitantId, state, foodPriority);
+        }
 
         if (instructionCandidate == "seek_food" && foodSource is not null &&
             !candidates.Any(item => item.Id == "seek_food"))
@@ -709,6 +784,7 @@ public sealed partial class PrivateWorldRuntime
             AddFamilyCandidates(candidates, inhabitantId);
             AddHousingCandidates(candidates, inhabitantId);
             AddParenthoodCandidates(candidates, inhabitantId);
+            AddUrgentFoodPotCandidate(candidates, inhabitantId, state);
         }
         if (!NeedsUrgentWarmth(state) && ChildResident(inhabitantId))
         {
@@ -728,6 +804,7 @@ public sealed partial class PrivateWorldRuntime
             AddBlacksmithStockCandidate(candidates, inhabitantId, state);
             AddBlacksmithOreCandidates(candidates, inhabitantId, state);
             AddWorkstationSupplyCandidate(candidates, inhabitantId);
+            AddContainerCandidates(candidates, inhabitantId, state);
             AddCraftToolCandidates(candidates, inhabitantId);
             AddProjectAssistanceCandidates(candidates, inhabitantId);
             AddForestryCandidates(candidates, inhabitantId, state);
@@ -758,7 +835,7 @@ public sealed partial class PrivateWorldRuntime
                      !item.Outputs.Any(output => output.ResourceId == "bedding") &&
                      !item.IsCrop))
         {
-            if (NeedsUrgentWarmth(state) && !recipe.Outputs.Any(output => output.ResourceId == "clothing"))
+            if (NeedsUrgentWarmth(state) && !recipe.Outputs.Any(output => PersonalEquipmentRules.IsGarment(output.ResourceId)))
             {
                 continue;
             }
@@ -778,7 +855,7 @@ public sealed partial class PrivateWorldRuntime
             candidates.Add(new CognitionCandidate(
                 $"build:recipe:{recipe.CanonicalId}",
                 $"Build {recipe.DisplayName} at a valid site.",
-                recipe.IsCrop ? 20 : WeatherExposure(state.Position) > 0 && recipe.Outputs.Any(output => output.ResourceId == "clothing") ? 25 : 30,
+                recipe.IsCrop ? 20 : WeatherExposure(state.Position) > 0 && recipe.Outputs.Any(output => PersonalEquipmentRules.IsGarment(output.ResourceId)) ? 25 : 30,
                 $"build-site:{position.X},{position.Y}"));
         }
     }

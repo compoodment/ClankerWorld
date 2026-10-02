@@ -169,6 +169,10 @@ public sealed partial class PrivateWorldRuntime
     }
 
     private bool TradeQuantityAvailable(InventoryLot lot) =>
+        PersonalEquipmentRules.IsCarried(lot, lot.OwnerId) && lot.ContainerLotId is null &&
+        !InventoryContainerRules.IsContainer(lot.ItemKind) && lot.DeliveryBuildingId is null &&
+        (!inhabitants.TryGetValue(lot.OwnerId, out var carrier) ||
+         lot.Id != carrier.Equipment?.ClothingLotId && lot.Id != carrier.Equipment?.CarryAidLotId && lot.Id != carrier.Equipment?.Repair?.LotId) &&
         AvailableLotQuantity(lot) >= (lot.ItemKind is "field_map" or "field_record" ? 1 : 2);
 
     private void MaintainSettlementTrades()
@@ -183,7 +187,8 @@ public sealed partial class PrivateWorldRuntime
                 (Owner: offer.SecondPartyId, Lot: offer.SecondLotId, Quantity: offer.SecondQuantity, Reservation: offer.Id + ":second"),
             };
             if (parties.Any(party => !society.Checkpoint.Inhabitants.Any(person => person.Id == party.Owner && person.Status == SocietyInhabitantStatus.Active) ||
-                    !currentInventory.Lots.Any(lot => lot.Id == party.Lot && lot.OwnerId == party.Owner && lot.Quantity >= party.Quantity &&
+                    !currentInventory.Lots.Any(lot => lot.Id == party.Lot && PersonalEquipmentRules.IsCarried(lot, party.Owner) &&
+                        lot.DeliveryBuildingId is null && lot.Quantity >= party.Quantity &&
                         lot.FreshnessBasisPoints > 0 && lot.ConditionBasisPoints > 0) ||
                     !currentInventory.Reservations.Any(reservation => reservation.Id == party.Reservation && reservation.State == InventoryReservationState.Reserved)))
             {

@@ -7,7 +7,7 @@ public sealed partial class PrivateWorldRuntime
 {
     private void AddCraftToolCandidates(List<CognitionCandidate> candidates, string actor)
     {
-        if (!AdultResident(actor)) return;
+        if (!AdultResident(actor) || FreeCarryCapacity(actor) == 0) return;
         foreach (var (kind, candidate) in new[]
                  { ("wooden_axe", "collect_wooden_axe"), ("wooden_pickaxe", "collect_wooden_pickaxe") })
         {
@@ -25,7 +25,7 @@ public sealed partial class PrivateWorldRuntime
             lot.StorageBuildingId == blacksmithId && lot.ItemKind == "iron_ore").Sum(AvailableLotQuantity);
 
     private InventoryLot? PersonalSmithOre(string actor) => society.Checkpoint.Inventory.Lots
-        .Where(lot => lot.OwnerId == actor && lot.ItemKind == "iron_ore" &&
+        .Where(lot => PersonalEquipmentRules.IsCarried(lot, actor) && lot.ItemKind == "iron_ore" &&
             lot.DeliveryBuildingId is null && AvailableLotQuantity(lot) > 0)
         .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
 
@@ -49,6 +49,7 @@ public sealed partial class PrivateWorldRuntime
                 lot.ItemKind == "iron_ore" && AvailableLotQuantity(lot) > 0))
             return;
         if (MaterialSource("iron_ore", actor) is not { } source ||
+            FreeCarryCapacity(actor) < ProjectMaterialCarryUnits(actor, "iron_ore", source) ||
             !IsWithinInteractionRange(state.Position, source.Position, ResourceInteractionRange) &&
             FindUnoccupiedRoute(actor, state.Position, source.Position, ResourceInteractionRange).Count == 0)
             return;
@@ -94,7 +95,7 @@ public sealed partial class PrivateWorldRuntime
         AppendEvent("smith_ore_delivered", $"{actor}:{ore.Id}:{quantity}:{blacksmith.InstanceId}");
     }
 
-    private InventoryLot? BlacksmithInputForDelivery(string householdId, string blacksmithId)
+    private InventoryLot? BlacksmithInputForDelivery(string actor, string householdId, string blacksmithId)
     {
         foreach (var (kind, target) in new[] { ("wood", 6), ("iron_ore", 2) })
         {
@@ -106,6 +107,7 @@ public sealed partial class PrivateWorldRuntime
                 .Where(lot => lot.OwnerId == householdId && lot.StorageBuildingId != blacksmithId &&
                     lot.ItemKind == kind && AvailableLotQuantity(lot) > 0)
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
+            source ??= AvailableWarehouseStock(actor, kind).FirstOrDefault();
             if (source is not null) return source;
         }
         return null;
@@ -115,9 +117,10 @@ public sealed partial class PrivateWorldRuntime
         PlaytestInhabitantState state)
     {
         var householdId = society.Checkpoint.GetInhabitant(actor).HouseholdId;
-        if (!AdultResident(actor) || householdId is null || CarriedHouseDelivery(actor) is not null ||
+        if (!AdultResident(actor) || householdId is null || FreeCarryCapacity(actor) == 0 ||
+            CarriedHouseDelivery(actor) is not null ||
             BlacksmithForHousehold(householdId) is not { } blacksmith ||
-            BlacksmithInputForDelivery(householdId, blacksmith.InstanceId) is not { } input)
+            BlacksmithInputForDelivery(actor, householdId, blacksmith.InstanceId) is not { } input)
             return;
         var source = HouseholdStockPosition(input);
         var range = HouseholdStockInteractionRange(input);
@@ -135,7 +138,7 @@ public sealed partial class PrivateWorldRuntime
         var householdId = society.Checkpoint.GetInhabitant(actor).HouseholdId;
         if (!AdultResident(actor) || householdId is null ||
             BlacksmithForHousehold(householdId) is not { } blacksmith ||
-            BlacksmithInputForDelivery(householdId, blacksmith.InstanceId) is not { } input)
+            BlacksmithInputForDelivery(actor, householdId, blacksmith.InstanceId) is not { } input)
             return;
         var source = HouseholdStockPosition(input);
         var range = HouseholdStockInteractionRange(input);
@@ -149,9 +152,10 @@ public sealed partial class PrivateWorldRuntime
                 lot.ItemKind == input.ItemKind).Sum(AvailableLotQuantity);
         var target = input.ItemKind == "wood" ? 6 : 2;
         var quantity = Math.Min(HouseHaulLoadQuantity, Math.Min(target - stocked, AvailableLotQuantity(input)));
+        quantity = Math.Min(quantity, FreeCarryCapacity(actor));
         if (quantity <= 0) return;
         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
-            $"smith-input-pickup:{WorldTick}:{actor}", householdId, actor, input.Id,
+            $"smith-input-pickup:{WorldTick}:{actor}", input.OwnerId, actor, input.Id,
             quantity, "smith_input_picked_up", destinationDeliveryBuildingId: blacksmith.InstanceId));
         AppendEvent("smith_input_picked_up", $"{actor}:{input.Id}:{quantity}:{blacksmith.InstanceId}");
     }

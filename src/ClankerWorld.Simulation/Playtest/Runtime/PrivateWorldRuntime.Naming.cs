@@ -1,4 +1,3 @@
-using System.Text;
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Society;
 
@@ -27,7 +26,7 @@ public sealed partial class PrivateWorldRuntime
         }
 
         var chosenName = CognitionDecisionResponse.NormalizeChosenName(response.ChosenName);
-        var chosenKey = chosenName is null ? null : CanonicalNameKey(chosenName);
+        var chosenKey = chosenName is null ? null : InhabitantNameRules.CanonicalKey(chosenName);
         if (chosenName is null || chosenKey is null)
         {
             CloseNameRequest(inhabitantId, inhabitant.Name);
@@ -35,11 +34,7 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
 
-        var duplicate = society.Checkpoint.Inhabitants
-            .Where(other => other.Id != inhabitantId)
-            .Select(other => CanonicalNameKey(other.Name))
-            .Any(otherKey => otherKey is not null &&
-                StringComparer.OrdinalIgnoreCase.Equals(otherKey, chosenKey));
+        var duplicate = InhabitantNameRules.IsTaken(society.Checkpoint, inhabitantId, chosenName);
         if (!duplicate)
         {
             society.Apply(checkpoint => SocietyFixture.RenameInhabitant(checkpoint, inhabitantId, chosenName));
@@ -95,37 +90,4 @@ public sealed partial class PrivateWorldRuntime
         AppendEvent("agent_name_retry_unusable", inhabitantId);
     }
 
-    private static string? CanonicalNameKey(string name)
-    {
-        string normalized;
-        try
-        {
-            normalized = name.Normalize(NormalizationForm.FormC);
-        }
-        catch (ArgumentException)
-        {
-            return null;
-        }
-
-        var result = new StringBuilder(normalized.Length);
-        var pendingSpace = false;
-        foreach (var rune in normalized.EnumerateRunes())
-        {
-            if (Rune.IsWhiteSpace(rune))
-            {
-                pendingSpace = result.Length > 0;
-                continue;
-            }
-
-            if (pendingSpace)
-            {
-                result.Append(' ');
-                pendingSpace = false;
-            }
-
-            result.Append(rune.ToString());
-        }
-
-        return result.Length == 0 ? null : result.ToString();
-    }
 }
