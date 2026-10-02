@@ -1051,6 +1051,29 @@ rule is on in a started world, even when the transition event has left bounded
 history. The link opens the existing Add Agent controls and rechecks the current
 snapshot when clicked; it neither places an agent nor asks for a paid model call.
 
+## Developer tools readouts
+
+Developer tools (**F12** in the Godot client) read two diagnostics from the owner
+observation. Both come from the committed world, are never saved and are never
+read back by the simulation, so they cannot change a tick, a save or replay.
+
+- **`PlannedRoute`** on each living agent is the route `MoveToward` planned on
+  the agent's latest step: its reason code, destination and the tiles still
+  ahead. The observation sends at most 256 steps; `StepCount` gives the full
+  count. An agent waiting out a slow step keeps the route it was walking; one
+  that arrived, was blocked or did something else that tick has none. Each
+  proposed tick starts without routes and its commit replaces them. Loading a
+  checkpoint, switching worlds or restarting the host clears them until the
+  next tick.
+- **`LastTickMilliseconds`** on the snapshot is the wall-clock time to prepare
+  and advance the latest committed tick, rounded to 0.1 ms. It leaves out
+  waiting for the runtime gate, hosted model calls between ticks and the
+  checkpoint save. It is null until the first tick after start, load or a
+  world switch, and the legacy fixture host never reports it.
+
+The client draws only the reported route; it never plans one. Frame time is
+measured in the client.
+
 ## Development and finished distribution
 
 Development currently uses the private server. The intended first finished

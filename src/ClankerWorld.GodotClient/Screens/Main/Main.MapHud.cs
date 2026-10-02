@@ -57,6 +57,7 @@ public partial class Main
             hoverReadout.Hide();
             return;
         }
+        NoteDeveloperTile(point);
         var townSiteMode = choosingFirstTownSite;
         if (hoverReadoutTile == point && ReferenceEquals(hoverReadoutSnapshot, snapshot) &&
             hoverReadoutTownSiteMode == townSiteMode && hoverReadout.Visible) return;
