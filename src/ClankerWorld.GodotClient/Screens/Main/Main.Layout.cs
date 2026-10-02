@@ -378,11 +378,11 @@ public partial class Main
         clockFormatChoice.Selected = displayPreferences.UseTwelveHourClock ? 1 : 0;
         clockFormatChoice.ItemSelected += SetClockFormat;
 
-        dateFormatChoice.AddItem("DD-MM-YYYY");
-        dateFormatChoice.AddItem("MM-DD-YYYY");
-        dateFormatChoice.AddItem("YYYY-MM-DD");
-        dateFormatChoice.Selected = displayPreferences.DateFormat switch { "mdy" => 1, "ymd" => 2, _ => 0 };
-        dateFormatChoice.ItemSelected += SetDateFormat;
+        foreach (var (_, label) in DateStyles)
+            dateFormatChoice.AddItem(label);
+        dateFormatChoice.Selected = DateStyleIndex(displayPreferences.DateStyle);
+        dateFormatChoice.TooltipText = "Show dates by season and day, or as numbers in the order you prefer.";
+        dateFormatChoice.ItemSelected += SetDateStyle;
         gameSettingsContent.AddChild(SettingsBox("Date and time",
             DisplaySettingRow("Time display", clockFormatChoice), DisplaySettingRow("Date display", dateFormatChoice)));
 
