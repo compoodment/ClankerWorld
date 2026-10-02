@@ -666,6 +666,8 @@ public partial class Main
                 details.Add($"Wearing {Pretty(garment).ToLowerInvariant()} · Condition {equipment.ClothingConditionPercent}%");
             if (equipment.CarryAidKind is { } aid)
                 details.Add($"Equipped {Pretty(aid).ToLowerInvariant()} · Condition {equipment.CarryAidConditionPercent}%");
+            if (equipment.OrnamentKind is { } ornament)
+                details.Add($"Wearing {GameUiText.ItemName(ornament).ToLowerInvariant()}");
             if (equipment.RepairItemKind is { } repairItem)
                 details.Add($"Repairing {Pretty(repairItem).ToLowerInvariant()} · {equipment.RepairWorkDone}/{equipment.RepairWorkRequired}");
         }

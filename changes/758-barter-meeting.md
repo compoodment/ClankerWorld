@@ -1,0 +1,1 @@
+- Personal barter now completes only when both people have actually met and each has room to carry what they receive. The one who proposed an accepted offer waits at the meeting place while the other arrives ([#758](https://github.com/compoodment/ClankerWorld/issues/758)).
