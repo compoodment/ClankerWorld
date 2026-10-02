@@ -287,8 +287,8 @@ tick. Bridges that predate the outing remain, so an impossible sideways step
 across an existing deck is not excused by removing it.
 
 For a deceased agent's archived outing, the first graph includes only bridges
-built at or before `DeathTick`; a later bridge cannot make a fabricated old
-step legal. Record bounds, coordinates, times and discovery uniqueness remain
+built at or before `DeathTick`; a bridge built on a later tick cannot make a
+fabricated old step legal. Record bounds, coordinates, times and discovery uniqueness remain
 checked. Saving and loading keep the recorded path, visits and discoveries
 without clearing them to hide a topology change. Actual scouting and return
 movement always use today's bridge map, with its legal axes, detours and
