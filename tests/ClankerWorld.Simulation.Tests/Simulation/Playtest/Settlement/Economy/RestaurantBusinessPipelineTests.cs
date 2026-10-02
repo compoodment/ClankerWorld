@@ -314,6 +314,90 @@ public sealed class RestaurantBusinessPipelineTests
         world.Validate();
     }
 
+    [Theory]
+    [InlineData(false, 4, true, 2)]
+    [InlineData(false, 4, false, 0)]
+    [InlineData(true, 4, true, 0)]
+    [InlineData(false, 2, true, 0)]
+    public async Task RestaurantIngredientVisitWalksBeforeQuotingAndRequiresItsOwnSpendablePayment(
+        bool householdOwnsPayment, int paymentQuantity, bool millHasGrain, int expectedPurchases)
+    {
+        var fixture = CreateFixture(purchaseOnly: true, householdOwnsPayment: householdOwnsPayment);
+        var initial = fixture.State;
+        var occupied = initial.Inhabitants.Where(person => person.InhabitantId != fixture.Cook)
+            .Select(person => person.Position).ToHashSet();
+        var start = initial.Map.Tiles.Select(tile => tile.Position).Where(point => initial.Map.IsPassable(point) &&
+                initial.Map.IsReachableFromCampOnFoot(point) && !occupied.Contains(point) &&
+                initial.Map.FootDistance(point, fixture.Farmhouse.Position) >= 4)
+            .OrderBy(point => initial.Map.FootDistance(point, fixture.Farmhouse.Position)).First();
+        var inventory = initial.Society.Society.Inventory with
+        {
+            Lots = initial.Society.Society.Inventory.Lots.Where(lot => millHasGrain || lot.Id != "restaurant-mill-grain")
+                .Select(lot => lot.Id == "restaurant-buyer-payment" ? lot with { Quantity = paymentQuantity } : lot).ToArray(),
+        };
+        fixture = fixture with
+        {
+            State = WithInventory(initial with
+            {
+                Inhabitants = initial.Inhabitants.Select(person => person.InhabitantId == fixture.Cook
+                    ? person with { Position = start } : person).ToArray(),
+            }, inventory),
+        };
+        using var world = Restore(fixture);
+        var mayVisit = !householdOwnsPayment && paymentQuantity > 2;
+        for (var tick = 0; tick < 200; tick++)
+        {
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+            var position = world.Inhabitants.Single(person => person.InhabitantId == fixture.Cook).Position;
+            if (initial.Map.FootDistance(position, fixture.Farmhouse.Position) > 1)
+            {
+                Assert.DoesNotContain(world.BusinessTrades, trade => trade.BuyerId == fixture.Cook);
+                Assert.DoesNotContain(world.Society.Inventory.Offers, offer => offer.SecondPartyId == fixture.Cook);
+                Assert.DoesNotContain(world.Society.Inventory.Reservations, reservation =>
+                    reservation.Purpose.StartsWith("barter:", StringComparison.Ordinal));
+            }
+        }
+        var visits = fixture.CookProvider.SeenObservations.SelectMany(observation => observation.Candidates)
+            .Where(candidate => candidate.Id == "business_shop:" + fixture.Farmhouse.InstanceId &&
+                candidate.Description.StartsWith("Visit this Town shop", StringComparison.Ordinal)).ToArray();
+        Assert.Equal(mayVisit, visits.Length > 0);
+        Assert.All(visits, visit =>
+        {
+            Assert.DoesNotContain("flour", visit.Description, StringComparison.Ordinal);
+            Assert.DoesNotContain("stocked", visit.Description, StringComparison.Ordinal);
+            Assert.DoesNotContain("restaurant-mill-grain", visit.Description, StringComparison.Ordinal);
+        });
+        var finish = world.Inhabitants.Single(person => person.InhabitantId == fixture.Cook).Position;
+        if (mayVisit)
+        {
+            Assert.NotEqual(start, finish);
+            Assert.True(initial.Map.FootDistance(finish, fixture.Farmhouse.Position) <= 1);
+            Assert.Contains(world.ExportState().Events, item => item.Kind == "inhabitant_moved" &&
+                item.Detail.StartsWith(fixture.Cook + ":", StringComparison.Ordinal));
+        }
+        else Assert.Equal(start, finish);
+        var purchases = world.BusinessTrades.Where(trade => trade.BuyerId == fixture.Cook).ToArray();
+        Assert.Equal(expectedPurchases, purchases.Length);
+        Assert.All(purchases, trade =>
+        {
+            Assert.Equal("flour", trade.GoodsKind);
+            var offer = world.Society.Inventory.GetOffer(trade.OfferId);
+            Assert.Equal(DirectBarterState.Settled, offer.State);
+            Assert.Contains(world.WorldSimulation.ProductionJobs, job => job.JobId + ":output:00" == offer.FirstLotId &&
+                job.RecipeId == fixture.MillRecipe.CanonicalId && job.State == WorldProductionJobState.Completed);
+        });
+        Assert.Equal(paymentQuantity - expectedPurchases, world.Society.Inventory.GetLot("restaurant-buyer-payment").Quantity);
+        Assert.Equal(householdOwnsPayment ? Beta : fixture.Cook,
+            world.Society.Inventory.GetLot("restaurant-buyer-payment").OwnerId);
+        Assert.Equal(4, world.Society.Inventory.GetLot("restaurant-house-flour").Quantity);
+        if (!millHasGrain)
+        {
+            Assert.DoesNotContain(world.WorldSimulation.ProductionJobs, job => job.RecipeId == fixture.MillRecipe.CanonicalId);
+            Assert.DoesNotContain(world.Society.Inventory.Lots, lot => lot.OwnerId == Alpha && lot.ItemKind == "flour");
+        }
+        await AssertStrictReplayAndDiscard(world, fixture);
+    }
+
     private sealed record Fixture(PrivateWorldRuntimeState State, string Cook, string Miller, string Customer,
         PlacedBuilding Restaurant, PlacedBuilding Farmhouse, PlacedBuilding House, RecipeDefinition Recipe,
         RecipeDefinition MillRecipe, bool KitchenReady, bool PurchaseOnly, PipelineProvider CookProvider);

@@ -619,12 +619,16 @@ public sealed partial class PrivateWorldRuntime
                 definition.Tags.Any(IsHouseholdBuildingTag)) &&
             !HasIngredientsAtBuilding(recipe.Inputs, constructionOwner, recipeBuilding.InstanceId))
         {
+            if (FinishProjectHouseholdDelivery(inhabitantId, state))
+                return;
             SetProject(inhabitantId, project with { Stage = "blocked", Blocker = MissingProductionIngredients(recipe, constructionOwner, recipeBuilding.InstanceId) });
             return;
         }
         var missing = inputs.FirstOrDefault(input => !HasAvailableQuantities([input], constructionOwner));
         if (missing.Amount > 0)
         {
+            if (FinishProjectHouseholdDelivery(inhabitantId, state))
+                return;
             AcquireProjectInput(inhabitantId, state, missing, constructionOwner);
             return;
         }
@@ -725,6 +729,21 @@ public sealed partial class PrivateWorldRuntime
             TownConstructionCandidateIds.TryParse(waiting.CandidateId, out var selection) && !selection.IsBuilding &&
             worldContent.Recipes.FirstOrDefault(item => item.CanonicalId == selection.DefinitionId) is { } queued &&
             (queued.IsCrop ? recipe.IsCrop : !recipe.IsCrop && queued.WorkstationBuildingId == recipe.WorkstationBuildingId));
+
+    private bool FinishProjectHouseholdDelivery(string actor, PlaytestInhabitantState state)
+    {
+        if (!AdultResident(actor) || society.Checkpoint.GetInhabitant(actor).HouseholdId is not { } householdId ||
+            CarriedHouseDelivery(actor) is not { } carried || carried.OwnerId != actor ||
+            worldSimulation.Buildings.SingleOrDefault(building => building.InstanceId == carried.DeliveryBuildingId &&
+                building.HouseholdId == householdId) is not { } destination ||
+            !CanDeliverHouseDelivery(carried) ||
+            state.Position != destination.Position &&
+                FindUnoccupiedRoute(actor, state.Position, destination.Position, 0).Count == 0)
+            return false;
+        SetProject(actor, state.Project! with { Stage = "delivering", Blocker = "Completing the household supply delivery" });
+        HaulHouseholdStock(actor, inhabitants[actor]);
+        return true;
+    }
 
     private void AcquireProjectInput(string inhabitantId, PlaytestInhabitantState state,
         ContentQuantity input, string constructionOwner)

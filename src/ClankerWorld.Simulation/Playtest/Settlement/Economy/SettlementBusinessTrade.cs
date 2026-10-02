@@ -177,6 +177,45 @@ public sealed partial class PrivateWorldRuntime
             .Select(family => ToolProgressionRules.BestUsableTool(inventory, actor, family)?.Id)
             .OfType<string>().ToHashSet(StringComparer.Ordinal);
 
+    private IEnumerable<InventoryLot> BusinessPaymentLots(string buyer, PlacedBuilding building)
+    {
+        var inventory = society.Checkpoint.Inventory;
+        var protectedToolIds = BestUsableToolIds(inventory, buyer);
+        return inventory.Lots.Where(lot => lot.OwnerId == buyer && PersonalEquipmentRules.IsCarried(lot, buyer) &&
+                IsLooseBusinessLot(lot) && AvailableLotQuantity(lot) > 0 &&
+                !protectedToolIds.Contains(lot.Id) && !BusinessBuyerWants(buyer, lot) &&
+                BusinessPaymentUseful(building, lot) &&
+                lot.Id != inhabitants[buyer].Equipment?.ClothingLotId &&
+                lot.Id != inhabitants[buyer].Equipment?.CarryAidLotId &&
+                lot.Id != inhabitants[buyer].Equipment?.Repair?.LotId &&
+                lot.ItemKind is not ("field_map" or "field_record"));
+    }
+
+    private bool RestaurantIngredientShopTrip(string buyer, PlacedBuilding building)
+    {
+        if (!AdultResident(buyer) || NeedsUrgentWarmth(inhabitants[buyer]) ||
+            TownForResident(buyer) is not { } townId || building.TownId != townId ||
+            HouseholdFor(buyer) is not { } householdId || building.HouseholdId is not { } seller ||
+            seller == householdId || !society.Checkpoint.Households.Any(household => household.Id == seller) ||
+            !inhabitants.Keys.Any(actor => AdultResident(actor) && HouseholdFor(actor) == seller) ||
+            IsWithinInteractionRange(inhabitants[buyer].Position, building.Position, ResourceInteractionRange) ||
+            society.Checkpoint.Inventory.Offers.Any(offer => offer.State == DirectBarterState.Open &&
+                (offer.FirstPartyId == buyer || offer.SecondPartyId == buyer))) return false;
+        var definition = worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
+        if (BusinessRules.KindOf(definition) is not { } kind) return false;
+        // A Town shop's location and kind can motivate a visit. Its private
+        // stock and exact terms are inspected only after the buyer arrives.
+        var inputs = worldSimulation.Buildings.Where(site => site.HouseholdId == householdId && site.TownId == townId &&
+                worldContent.Buildings.Any(item => item.CanonicalId == site.DefinitionId &&
+                    item.Tags.Contains("restaurant", StringComparer.Ordinal)))
+            .SelectMany(site => worldContent.Recipes.Where(recipe => recipe.WorkstationBuildingId == site.DefinitionId)
+                .SelectMany(recipe => recipe.Inputs)).Select(input => input.ResourceId).Distinct(StringComparer.Ordinal);
+        return inputs.Any(itemKind => BusinessRules.MaySell(kind, itemKind) && RestaurantInputDemand(buyer, itemKind) > 0) &&
+            BusinessPaymentLots(buyer, building).Any(payment => RestaurantInputDemand(buyer, payment.ItemKind, 1) ==
+                RestaurantInputDemand(buyer, payment.ItemKind)) &&
+            FindUnoccupiedRoute(buyer, inhabitants[buyer].Position, building.Position, ResourceInteractionRange).Count > 0;
+    }
+
     private BusinessQuote? BusinessOpportunity(string buyer, PlacedBuilding building)
     {
         var inventory = society.Checkpoint.Inventory;
@@ -190,21 +229,13 @@ public sealed partial class PrivateWorldRuntime
             return null;
         var definition = worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
         if (BusinessRules.KindOf(definition) is not { } kind) return null;
-        var protectedToolIds = BestUsableToolIds(inventory, buyer);
         foreach (var goods in inventory.Lots.Where(lot => lot.OwnerId == seller &&
                      lot.StorageBuildingId == building.InstanceId && IsLooseBusinessLot(lot) &&
                      AvailableLotQuantity(lot) > 0 && BusinessRules.MaySell(kind, lot.ItemKind) &&
                      BusinessBuyerWants(buyer, lot)).OrderBy(lot => lot.Id, StringComparer.Ordinal))
         {
             // Payment comes from the buyer's own goods, never borrowed household ones.
-            foreach (var payment in inventory.Lots.Where(lot => lot.OwnerId == buyer && PersonalEquipmentRules.IsCarried(lot, buyer) &&
-                    IsLooseBusinessLot(lot) && lot.ItemKind != goods.ItemKind && AvailableLotQuantity(lot) > 0 &&
-                    !protectedToolIds.Contains(lot.Id) &&
-                    !BusinessBuyerWants(buyer, lot) && BusinessPaymentUseful(building, lot) &&
-                    lot.Id != inhabitants[buyer].Equipment?.ClothingLotId &&
-                    lot.Id != inhabitants[buyer].Equipment?.CarryAidLotId &&
-                    lot.Id != inhabitants[buyer].Equipment?.Repair?.LotId &&
-                    lot.ItemKind is not ("field_map" or "field_record"))
+            foreach (var payment in BusinessPaymentLots(buyer, building).Where(lot => lot.ItemKind != goods.ItemKind)
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal))
             {
                 var amounts = BusinessQuoteAmounts(building, goods, payment);
@@ -244,6 +275,10 @@ public sealed partial class PrivateWorldRuntime
                 candidates.Add(new("business_shop:" + building.InstanceId,
                     $"Offer {choice.PaymentQuantity} {choice.Payment.ItemKind} for {choice.GoodsQuantity} {choice.Goods.ItemKind} stocked at this shop; the household may refuse.",
                     14, building.InstanceId));
+            else if (RestaurantIngredientShopTrip(actor, building))
+                candidates.Add(new("business_shop:" + building.InstanceId,
+                    "Visit this Town shop to ask about missing Restaurant ingredients; any offer is checked there.",
+                    14, building.InstanceId));
     }
 
     private void ApplyBusinessCandidate(string actor, PlaytestInhabitantState state, string candidate)
@@ -256,7 +291,14 @@ public sealed partial class PrivateWorldRuntime
         if (candidate.StartsWith("business_shop:", StringComparison.Ordinal))
         {
             var building = worldSimulation.Buildings.SingleOrDefault(item => item.InstanceId == candidate[14..]);
-            if (building is null || BusinessOpportunity(actor, building) is not { } choice) return;
+            if (building is null) return;
+            if (!IsWithinInteractionRange(state.Position, building.Position, ResourceInteractionRange))
+            {
+                if (RestaurantIngredientShopTrip(actor, building))
+                    MoveToward(actor, state, building.Position, "business_shop", ResourceInteractionRange);
+                return;
+            }
+            if (BusinessOpportunity(actor, building) is not { } choice) return;
             var id = $"{BusinessTradePrefix}{WorldTick}:{actor}:{building.InstanceId}";
             // Quotes name exact actual quantities; future goods are never reserved.
             ApplyInventoryTransition(inventory => InventoryFixture.AcceptDirectBarterOffer(
