@@ -1,0 +1,1 @@
+- In a disposable world, let residents explore and store their maps or field records at home. Watch their activity and House stock: the same belongings should remain stored instead of alternating between storage and collection every few steps. Save and reload, then check that the cycle does not return. ([#783](https://github.com/compoodment/ClankerWorld/issues/783))

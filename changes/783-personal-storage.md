@@ -1,0 +1,1 @@
+- Agents leave personal maps and other belongings stored at home instead of repeatedly putting them away and collecting them. They can still choose to collect them, and recover belongings after moving out.

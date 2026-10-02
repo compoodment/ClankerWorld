@@ -254,7 +254,17 @@ public sealed partial class PrivateWorldRuntime
         {
             foreach (var lot in PersonalGoodsAwaitingCollection(actor).Where(lot => VesselFits(lot, FreeCarryCapacity(actor)))
                          .OrderBy(lot => lot.Id, StringComparer.Ordinal))
-                candidates.Add(new("household_collect:" + lot.Id, $"Physically collect your own {lot.ItemKind.Replace('_', ' ')}; other household stock remains private.", 20));
+            {
+                var storedAtHome = lot.StorageBuildingId is { } storageId &&
+                    worldSimulation.Buildings.Any(building => building.InstanceId == storageId &&
+                        building.HouseholdId == society.Checkpoint.GetInhabitant(actor).HouseholdId);
+                // Safe storage at the current home is not a recovery errand.
+                // Keep collection available to a deliberate choice without
+                // making the built-in chooser undo its own storage next tick.
+                candidates.Add(new("household_collect:" + lot.Id,
+                    $"Physically collect your own {lot.ItemKind.Replace('_', ' ')}; other household stock remains private.",
+                    storedAtHome ? 110 : 20));
+            }
         }
         foreach (var lot in BorrowedGoods(actor).OrderBy(lot => lot.Id, StringComparer.Ordinal))
             if (lot.OwnerId != society.Checkpoint.GetInhabitant(actor).HouseholdId && HouseForHousehold(lot.OwnerId) is { } ownerHouse &&
