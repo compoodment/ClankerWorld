@@ -23,6 +23,7 @@ public sealed partial class PrivateWorldRuntime
                 SocietyCognitionScheduler.NameRetryTriggerId, StringComparer.Ordinal))
             .Select(entry => entry.InhabitantId)
             .ToHashSet(StringComparer.Ordinal);
+        var waitingHosted = society.PendingHostedInhabitantIds();
         foreach (var inhabitant in society.Checkpoint.Inhabitants
                      .Where(item => item.Status == SocietyInhabitantStatus.Active)
                      .OrderBy(item => item.Id, StringComparer.Ordinal))
@@ -36,6 +37,8 @@ public sealed partial class PrivateWorldRuntime
             CloseOrdersNotUnderstood(inhabitant.Id);
             var physical = inhabitants[inhabitant.Id];
             var operativeOrder = PendingInstructionFor(inhabitant.Id);
+            if (waitingHosted.Contains(inhabitant.Id) && !HasNewObserverGuidanceFor(inhabitant.Id))
+                continue;
             if (HasWaitingIdentityMoment(physical) && !NeedsUrgentFood(physical) && !NeedsUrgentWarmth(physical) &&
                 !IsConversationBusy(inhabitant.Id))
                 continue;
@@ -207,6 +210,11 @@ public sealed partial class PrivateWorldRuntime
             return true;
         }
 
+        if (PendingInstructionFor(inhabitantId) is { Order: { } order })
+        {
+            return current is null || checked(WorldTick - current.WorldTick) >= CognitionReevaluationIntervalTicks;
+        }
+
         if (CanContinueEquipmentRepair(inhabitantId) || CanContinueLesson(inhabitantId) || CanContinueProject(inhabitants[inhabitantId]))
         {
             return false;
@@ -271,9 +279,13 @@ public sealed partial class PrivateWorldRuntime
     private static string ConversationChoiceContextDigest(string conversationChoiceContext) =>
         Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(conversationChoiceContext)));
 
-    private void ApplyContinuingIntentions(IEnumerable<string> dispatchedInhabitantIds)
+    private HashSet<string> ApplyContinuingIntentions(
+        IEnumerable<string> dispatchedInhabitantIds,
+        IEnumerable<string> pendingHostedInhabitantIds)
     {
         var dispatched = dispatchedInhabitantIds.ToHashSet(StringComparer.Ordinal);
+        var pendingHosted = pendingHostedInhabitantIds.ToHashSet(StringComparer.Ordinal);
+        var orderActorsHandledThisTick = new HashSet<string>(StringComparer.Ordinal);
         var runtimes = society.Capture().Cognition.Runtimes
             .ToDictionary(item => item.InhabitantId, StringComparer.Ordinal);
         foreach (var inhabitant in society.Checkpoint.Inhabitants
@@ -284,6 +296,9 @@ public sealed partial class PrivateWorldRuntime
             {
                 continue;
             }
+            var order = PendingInstructionFor(inhabitant.Id);
+            if (pendingHosted.Contains(inhabitant.Id) && order is null)
+                continue;
             if (IsConversationBusy(inhabitant.Id))
             {
                 continue;
@@ -292,25 +307,24 @@ public sealed partial class PrivateWorldRuntime
             {
                 continue;
             }
-            if (PendingInstructionFor(inhabitant.Id) is { } order)
+            if (order is not null)
             {
+                orderActorsHandledThisTick.Add(inhabitant.Id);
                 var orderCandidate = OrderCandidateFor(order, state);
-                if (ShouldInterruptOrder(state, order, orderCandidate))
+                var urgentCandidate = NeedsUrgentFood(state) || NeedsUrgentWarmth(state)
+                    ? UrgentSurvivalCandidateFor(inhabitant.Id, state)
+                    : null;
+                if (ShouldInterruptOrder(state, order, orderCandidate, urgentCandidate))
                 {
-                    SetOrderStatus(order, "interrupted", "Urgent survival needs come first.");
-                    var urgentCandidate = UrgentSurvivalCandidateFor(inhabitant.Id, state);
+                    SetOrderStatus(order, "interrupted", "Food or warmth needs come first.");
                     if (urgentCandidate is not null)
                         ApplyCandidate(inhabitant.Id, state, urgentCandidate.Id, reportIdle: false);
                     continue;
                 }
                 if (order.Order!.WaitForDecisionAfterFailure)
                 {
-                    if (NeedsUrgentFood(state) || NeedsUrgentWarmth(state))
-                    {
-                        var urgentCandidate = UrgentSurvivalCandidateFor(inhabitant.Id, state);
-                        if (urgentCandidate is not null)
-                            ApplyCandidate(inhabitant.Id, state, urgentCandidate.Id, reportIdle: false);
-                    }
+                    if (urgentCandidate is not null)
+                        ApplyCandidate(inhabitant.Id, state, urgentCandidate.Id, reportIdle: false);
                     continue;
                 }
                 if (orderCandidate is not null)
@@ -345,21 +359,29 @@ public sealed partial class PrivateWorldRuntime
 
             ApplyCandidate(inhabitant.Id, state, intention.CandidateId, reportIdle: false);
         }
+
+        return orderActorsHandledThisTick;
     }
 
-    private void ApplySafeRoutinesWhileWaiting(IEnumerable<string> waitingIds)
+    private void ApplySafeRoutinesWhileWaiting(
+        IEnumerable<string> waitingIds,
+        IEnumerable<string> orderActorsHandledThisTick)
     {
+        var handledOrders = orderActorsHandledThisTick.ToHashSet(StringComparer.Ordinal);
         var safe = new HashSet<string>(StringComparer.Ordinal)
         {
-            "consume_food", "collect_shared_food", "harvest_food", "seek_food",
+            "consume_food", "collect_shared_food", "take_food_from_pot", "make_room_for_food",
+            "harvest_food", "seek_food",
             "wear_clothing", "tend_fire", "seek_warmth",
         };
         foreach (var id in waitingIds.OrderBy(item => item, StringComparer.Ordinal))
         {
             if (!inhabitants.TryGetValue(id, out var state)) continue;
+            if (handledOrders.Contains(id)) continue;
+            if (PendingInstructionFor(id) is not null) continue;
             if (!NeedsUrgentFood(state) && !NeedsUrgentWarmth(state))
                 continue;
-            var candidate = CreateCandidates(id, state)
+            var candidate = CreateCandidates(id, state, restrictForOrder: false)
                 .Where(item => safe.Contains(item.Id))
                 .OrderBy(item => item.DeterministicPriority)
                 .ThenBy(item => item.Id, StringComparer.Ordinal)
@@ -397,16 +419,18 @@ public sealed partial class PrivateWorldRuntime
         {
             if (decision.Admission.FellBack)
             {
-                SetOrderStatus(order, "blocked", "Waiting for a usable decision.", waitForDecision: true);
+                SetOrderStatus(order, "blocked", "The order will try again after a short wait.", waitForDecision: true);
                 ApplyCandidate(decision.InhabitantId, state, candidateId, reportIdle: true);
             }
             else
             {
                 var orderCandidate = OrderCandidateFor(order, state);
-                if (ShouldInterruptOrder(state, order, orderCandidate))
+                var urgentCandidate = NeedsUrgentFood(state) || NeedsUrgentWarmth(state)
+                    ? UrgentSurvivalCandidateFor(decision.InhabitantId, state)
+                    : null;
+                if (ShouldInterruptOrder(state, order, orderCandidate, urgentCandidate))
                 {
-                    SetOrderStatus(order, "interrupted", "Urgent survival needs come first.");
-                    var urgentCandidate = UrgentSurvivalCandidateFor(decision.InhabitantId, state);
+                    SetOrderStatus(order, "interrupted", "Food or warmth needs come first.");
                     if (urgentCandidate is not null)
                         ApplyCandidate(decision.InhabitantId, state, urgentCandidate.Id, reportIdle: true);
                 }
@@ -456,10 +480,11 @@ public sealed partial class PrivateWorldRuntime
                 instruction.SubmittedTick != message.SubmittedTick || instruction.RunEpoch != message.RunEpoch ||
                 instruction.SubmissionSequence != message.SubmissionSequence ||
                 (instruction.Kind == OwnerInstructionKind.MustDo &&
-                 UnderstoodTaskFor(InstructionCandidate(instruction.Text)) != message.UnderstoodTask) ||
+                 UnderstoodTaskFor(instruction.Order?.Action) != message.UnderstoodTask) ||
                 (instruction.Kind == OwnerInstructionKind.Suggestive && message.UnderstoodTask is not null) ||
                 (instruction.ObserverReply is null) != message.ReplyAllowed ||
-                completedInstructionIds.Contains(instruction.InstructionId))
+                completedInstructionIds.Contains(instruction.InstructionId) &&
+                    !(instruction.Kind == OwnerInstructionKind.MustDo && instruction.Order?.Status == "finished"))
                 continue;
 
             var observerReply = replies.TryGetValue(instruction.InstructionId, out var reply)
@@ -848,7 +873,8 @@ public sealed partial class PrivateWorldRuntime
 
     private List<CognitionCandidate> CreateCandidates(
         string inhabitantId,
-        PlaytestInhabitantState state)
+        PlaytestInhabitantState state,
+        bool restrictForOrder = true)
     {
         var currentConversation = ConversationFor(inhabitantId);
         var candidates = currentConversation is null
@@ -863,7 +889,7 @@ public sealed partial class PrivateWorldRuntime
             return candidates;
         }
         var instruction = PendingInstructionFor(inhabitantId);
-        var instructionCandidate = instruction is null ? null : InstructionCandidate(instruction.Text);
+        var instructionCandidate = instruction?.Order?.Action;
 
         var hasFood = PreferredFood(inhabitantId, inhabitantId).Any();
         if (hasFood && state.HungerBasisPoints < ComfortableFullness)
@@ -871,7 +897,9 @@ public sealed partial class PrivateWorldRuntime
             candidates.Add(new CognitionCandidate("consume_food", "Eat one carried food item.", 0));
         }
 
-        if (instructionCandidate == "consume_food" && hasFood && !candidates.Any(item => item.Id == "consume_food"))
+        if (instructionCandidate == "consume_food" && hasFood &&
+            state.HungerBasisPoints < ComfortableFullness &&
+            !candidates.Any(item => item.Id == "consume_food"))
         {
             candidates.Add(new CognitionCandidate("consume_food", "Follow the owner's food instruction.", 0));
         }
@@ -971,7 +999,7 @@ public sealed partial class PrivateWorldRuntime
         if (currentConversation is null)
             candidates.AddRange(ConversationCandidates(inhabitantId));
         candidates.Add(new CognitionCandidate("safe_idle", "Continue safely without starting a new task.", 100));
-        if (PendingInstructionFor(inhabitantId) is { } order)
+        if (restrictForOrder && PendingInstructionFor(inhabitantId) is { } order)
             return RestrictCandidatesForOrder(candidates, order, state);
         return candidates;
     }
@@ -983,8 +1011,14 @@ public sealed partial class PrivateWorldRuntime
     {
         var safeIdle = candidates.Single(item => item.Id == "safe_idle");
         var urgent = NeedsUrgentFood(state) || NeedsUrgentWarmth(state);
-        var taskCandidate = order.Order!.WaitForDecisionAfterFailure ? null : OrderCandidateFor(order, state);
-        if (ShouldInterruptOrder(state, order, taskCandidate))
+        var urgentCandidate = urgent
+            ? candidates.Where(candidate => IsSurvivalCandidate(candidate.Id))
+                .OrderBy(candidate => candidate.DeterministicPriority)
+                .ThenBy(candidate => candidate.Id, StringComparer.Ordinal)
+                .FirstOrDefault()
+            : null;
+        var taskCandidate = OrderCandidateFor(order, state);
+        if (ShouldInterruptOrder(state, order, taskCandidate, urgentCandidate))
             taskCandidate = null;
         if (taskCandidate is null)
         {

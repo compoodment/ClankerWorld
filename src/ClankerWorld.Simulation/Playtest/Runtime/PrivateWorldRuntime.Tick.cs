@@ -510,8 +510,21 @@ public sealed partial class PrivateWorldRuntime
                     var id = item.Request.Observation.InhabitantId;
                     if (!inhabitants.TryGetValue(id, out var physical)) continue;
                     var outcome = await item.Task.ConfigureAwait(false);
-                    var legal = CreateCandidates(id, physical).Select(candidate => candidate.Id)
-                        .ToHashSet(StringComparer.Ordinal);
+                    var request = item.Request;
+                    var completedRequestedOrder = request.Observation.OperativeOrderInstructionId is { } requestedOrderId &&
+                        request.Observation.WorldId == society.Checkpoint.WorldId &&
+                        request.Observation.RunEpoch == society.Checkpoint.RunEpoch &&
+                        request.Observation.ObserverGuidance?.Any(message => message.InstructionId == requestedOrderId &&
+                            message.TargetInhabitantId == id && message.Kind == "must_do") == true &&
+                        instructionsByIdempotency.Values.Any(instruction =>
+                            instruction.InstructionId == requestedOrderId && instruction.TargetInhabitantId == id &&
+                            instruction.Kind == OwnerInstructionKind.MustDo && instruction.Order?.Status == "finished" &&
+                            completedInstructionIds.Contains(requestedOrderId));
+                    var legal = completedRequestedOrder
+                        ? request.Observation.Candidates.Select(candidate => candidate.Id)
+                            .ToHashSet(StringComparer.Ordinal)
+                        : CreateCandidates(id, physical).Select(candidate => candidate.Id)
+                            .ToHashSet(StringComparer.Ordinal);
                     var decision = society.CompleteDeferredCognition(item.Request, outcome.Response,
                         outcome.Failure, legal);
                     if (decision is not null)
@@ -556,8 +569,9 @@ public sealed partial class PrivateWorldRuntime
                 ApplyDecision(decision);
             }
             var waiting = deferHosted ? society.PendingHostedInhabitantIds() : new HashSet<string>(StringComparer.Ordinal);
-            ApplyContinuingIntentions(decisions.Select(item => item.InhabitantId).Concat(waiting));
-            if (deferHosted) ApplySafeRoutinesWhileWaiting(waiting);
+            var orderActorsHandledThisTick = ApplyContinuingIntentions(
+                decisions.Select(item => item.InhabitantId), waiting);
+            if (deferHosted) ApplySafeRoutinesWhileWaiting(waiting, orderActorsHandledThisTick);
             AdvanceBridgeTraffic();
 
             AppendEvent("tick_advanced", targetTick.ToString(System.Globalization.CultureInfo.InvariantCulture));

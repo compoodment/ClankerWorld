@@ -18,11 +18,15 @@ public sealed partial class PrivateWorldRuntime
 
         if (order.Action == "consume_food")
         {
+            if (person.HungerBasisPoints >= ComfortableFullness)
+                return null;
+
             var carried = PreferredFood(instruction.TargetInhabitantId, instruction.TargetInhabitantId)
                 .FirstOrDefault(lot => order.TargetFoodKind is null || lot.ItemKind == order.TargetFoodKind);
             if (carried is not null)
                 return new CognitionCandidate("consume_food", "Eat the requested carried food item.", 0);
-            if (order.TargetFoodKind is null && AvailableSharedFood(instruction.TargetInhabitantId) is { } shared)
+            if (AvailableSharedFood(instruction.TargetInhabitantId, order.TargetFoodKind) is { } shared &&
+                FreeCarryCapacity(instruction.TargetInhabitantId) > 0)
                 return new CognitionCandidate("collect_shared_food", "Collect food that is available to this household.", 0, shared.Id);
             return null;
         }
@@ -33,6 +37,9 @@ public sealed partial class PrivateWorldRuntime
         var source = KnownFoodSourceForOrder(instruction, person);
         if (source is not null)
         {
+            if (order.Action == "harvest_food" &&
+                FreeCarryCapacity(instruction.TargetInhabitantId) < FoodHarvestCarryUnits(source))
+                return null;
             if (order.Action == "seek_food")
                 return new CognitionCandidate("seek_food", "Travel to the food site named by this order.", 0, source.Id);
             return IsWithinInteractionRange(person.Position, source.Position, ResourceInteractionRange)
@@ -94,24 +101,28 @@ public sealed partial class PrivateWorldRuntime
     private bool ShouldInterruptOrder(
         PlaytestInhabitantState person,
         OwnerQueuedInstruction instruction,
-        CognitionCandidate? orderCandidate)
+        CognitionCandidate? orderCandidate,
+        CognitionCandidate? urgentCandidate)
     {
         if (NeedsUrgentWarmth(person))
-            return orderCandidate?.Id is not ("wear_clothing" or "tend_fire" or "seek_warmth");
+            return urgentCandidate is not null &&
+                orderCandidate?.Id is not ("wear_clothing" or "tend_fire" or "seek_warmth");
         if (!NeedsUrgentFood(person)) return false;
-        return orderCandidate?.Id is not ("consume_food" or "collect_shared_food" or "seek_food" or "harvest_food");
+        if (urgentCandidate is null) return false;
+        return orderCandidate is null || orderCandidate.Id != urgentCandidate.Id ||
+            orderCandidate.DestinationId != urgentCandidate.DestinationId;
     }
 
     private CognitionCandidate? UrgentSurvivalCandidateFor(string inhabitantId, PlaytestInhabitantState person) =>
-        CreateCandidates(inhabitantId, person)
+        CreateCandidates(inhabitantId, person, restrictForOrder: false)
             .Where(candidate => IsSurvivalCandidate(candidate.Id))
             .OrderBy(candidate => candidate.DeterministicPriority)
             .ThenBy(candidate => candidate.Id, StringComparer.Ordinal)
             .FirstOrDefault();
 
     private static bool IsSurvivalCandidate(string candidateId) => candidateId is
-        "consume_food" or "collect_shared_food" or "harvest_food" or "seek_food" or
-        "wear_clothing" or "tend_fire" or "seek_warmth";
+        "consume_food" or "collect_shared_food" or "take_food_from_pot" or "make_room_for_food" or
+        "harvest_food" or "seek_food" or "wear_clothing" or "tend_fire" or "seek_warmth";
 
     private void ExecuteOrderStep(
         OwnerQueuedInstruction instruction,
@@ -136,7 +147,7 @@ public sealed partial class PrivateWorldRuntime
                     SetOrderStatus(instruction, "blocked", "No matching food is available to eat.");
                 return;
             case "collect_shared_food":
-                CollectSharedFood(actor, person);
+                CollectSharedFood(actor, person, order.TargetFoodKind);
                 return;
             case "explore":
                 inhabitants[actor] = person;
@@ -188,7 +199,7 @@ public sealed partial class PrivateWorldRuntime
                     return;
                 }
             default:
-                SetOrderStatus(instruction, "blocked", "This task is not available in the current action registry.");
+                SetOrderStatus(instruction, "blocked", "The requested task is not available right now.");
                 return;
         }
     }
@@ -249,11 +260,22 @@ public sealed partial class PrivateWorldRuntime
     private string OrderBlockedReason(OwnerQueuedInstruction instruction, PlaytestInhabitantState person)
     {
         if (instruction.Order?.Action == "consume_food")
-            return "No matching food is carried or available from the household store.";
+        {
+            if (person.HungerBasisPoints >= ComfortableFullness)
+                return "Waiting until hungry enough to eat.";
+            if (FreeCarryCapacity(instruction.TargetInhabitantId) == 0 &&
+                AvailableSharedFood(instruction.TargetInhabitantId, instruction.Order.TargetFoodKind) is not null)
+                return "Carrying space is full; make room before collecting food from the household store.";
+            return "No matching food is available to eat right now.";
+        }
+        if (instruction.Order?.Action == "harvest_food" &&
+            KnownFoodSourceForOrder(instruction, person) is { } source &&
+            FreeCarryCapacity(instruction.TargetInhabitantId) < FoodHarvestCarryUnits(source))
+            return "Carrying space is full; make room before gathering from the requested food site.";
         if (instruction.Order?.TargetPosition is not null || instruction.Order?.TargetResourceId is not null)
-            return "The named food site has not been found or is not currently reachable.";
+            return "The requested food site isn't known or reachable right now.";
         return !CanExploreForOrder(person)
-            ? "The agent needs to be safe and rested before exploring for food."
-            : "No suitable food site is known yet; the order will retry exploration at a normal decision opportunity.";
+            ? "The agent needs a safe place to rest before searching for food."
+            : "No suitable food source is known yet.";
     }
 }

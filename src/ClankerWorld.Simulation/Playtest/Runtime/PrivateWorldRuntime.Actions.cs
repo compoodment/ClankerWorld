@@ -241,19 +241,23 @@ public sealed partial class PrivateWorldRuntime
     private static int HouseholdStockInteractionRange(InventoryLot lot) =>
         lot.StorageBuildingId is null && lot.GroundPosition is null ? ResourceInteractionRange : 0;
 
-    private InventoryLot? AvailableSharedFood(string actor) =>
+    private InventoryLot? AvailableSharedFood(string actor, string? requiredItemKind = null) =>
         society.Checkpoint.GetInhabitant(actor).HouseholdId is not null && MayCollectSharedFood(actor)
         ? PreferredFood(HouseholdFor(actor), actor).FirstOrDefault(lot =>
+            (requiredItemKind is null || lot.ItemKind == requiredItemKind) &&
             (lot.StorageBuildingId is null ||
              society.Checkpoint.GetInhabitant(actor).HouseholdId == lot.OwnerId) &&
             FindUnoccupiedRoute(actor, inhabitants[actor].Position, HouseholdStockPosition(lot),
                 HouseholdStockInteractionRange(lot)).Count > 0)
         : null;
 
-    private void CollectSharedFood(string inhabitantId, PlaytestInhabitantState state)
+    private void CollectSharedFood(
+        string inhabitantId,
+        PlaytestInhabitantState state,
+        string? requiredItemKind = null)
     {
         if (FreeCarryCapacity(inhabitantId) == 0) return;
-        if (AvailableSharedFood(inhabitantId) is not { } lot)
+        if (AvailableSharedFood(inhabitantId, requiredItemKind) is not { } lot)
             return;
         var supplyPoint = HouseholdStockPosition(lot);
         var interactionRange = HouseholdStockInteractionRange(lot);
