@@ -79,6 +79,7 @@ public sealed partial class PrivateWorldRuntime
                 inhabitant.Id,
                 WorldTick,
                 candidates);
+            var observerGuidance = ObserverGuidanceFor(inhabitant.Id);
             var requiresPersonalProvider = checkpoint.Births.Any(birth => birth.ChildId == inhabitant.Id);
             var knownMapFacts = KnownMapFactsForCognition(inhabitant.Id);
             var self = new CognitionSelfContext(inhabitant.Id, inhabitant.Name, inhabitant.AgeBand.ToString(),
@@ -93,7 +94,8 @@ public sealed partial class PrivateWorldRuntime
                 WorldTick,
                 society.Checkpoint.RunEpoch,
                 generation,
-                ObservationDigest(inhabitant.Id, physical, candidates, retrievedMemories, [], knownMapFacts, self),
+                ObservationDigest(inhabitant.Id, checkpoint.WorldId, physical, candidates, retrievedMemories,
+                    [], knownMapFacts, self, observerGuidance),
                 physical.HungerBasisPoints,
                 candidates,
                 NeedsName: inhabitant.NeedsName,
@@ -103,6 +105,8 @@ public sealed partial class PrivateWorldRuntime
                 NeedsPersonality: physical.IdentityChoicePending,
                 NeedsAspiration: physical.IdentityChoicePending)
             {
+                WorldId = checkpoint.WorldId,
+                ObserverGuidance = observerGuidance,
                 ConversationChoiceContext = conversationChoiceContext,
             };
             if (jevEnabled && !requiresPersonalProvider && providerFactory is not null)
@@ -124,7 +128,8 @@ public sealed partial class PrivateWorldRuntime
                             {
                                 MemoryCompactionCandidates = memoryCandidates,
                                 ObservationDigest = ObservationDigest(
-                                    inhabitant.Id, physical, candidates, retrievedMemories, memoryCandidates, knownMapFacts, self),
+                                    inhabitant.Id, checkpoint.WorldId, physical, candidates, retrievedMemories,
+                                    memoryCandidates, knownMapFacts, self, observerGuidance),
                             };
                         }
                     }
@@ -148,6 +153,20 @@ public sealed partial class PrivateWorldRuntime
             }
             else
             {
+                foreach (var message in observerGuidance)
+                {
+                    var instruction = instructionsByIdempotency.Values.SingleOrDefault(item =>
+                        item.InstructionId == message.InstructionId);
+                    if (instruction is not null && instruction.GuidancePromptedTick is null)
+                    {
+                        instructionsByIdempotency[instruction.IdempotencyKey] = instruction with
+                        {
+                            GuidancePromptedTick = WorldTick,
+                        };
+                    }
+                }
+                if (observerGuidance.Length > 0)
+                    checkpointSchemaVersion = StateSchemaVersion;
                 inhabitants[inhabitant.Id] = inhabitants[inhabitant.Id] with
                 {
                     LastDecisionContext = DecisionContext(physical, candidates, conversationChoiceContext),
@@ -171,8 +190,7 @@ public sealed partial class PrivateWorldRuntime
         // A new instruction prompts one fresh decision. If it cannot progress
         // yet, it waits for the agent's usual decisions instead of requesting
         // another (possibly paid) decision on every tick.
-        if (PendingInstructionFor(inhabitantId) is { } instruction &&
-            (current is null || current.WorldTick <= instruction.SubmittedTick))
+        if (HasNewObserverGuidanceFor(inhabitantId))
         {
             return true;
         }
@@ -325,6 +343,7 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
 
+        var completedSuggestions = ApplyObserverGuidanceResult(decision.InhabitantId, decision.Admission);
         var pendingInstruction = PendingInstructionFor(decision.InhabitantId);
         var candidateId = decision.Admission.Intention.CandidateId;
         var forcedCandidate = !decision.Admission.FellBack && pendingInstruction?.Kind == OwnerInstructionKind.MustDo
@@ -348,12 +367,67 @@ public sealed partial class PrivateWorldRuntime
             _ => false,
         });
 
-        if (!decision.Admission.FellBack && pendingInstruction is not null &&
-            (pendingInstruction.Kind == OwnerInstructionKind.Suggestive || forcedApplied))
+        foreach (var instructionId in completedSuggestions)
+        {
+            AppendEvent("instruction_applied", $"{instructionId}:{candidateId}");
+        }
+
+        if (!decision.Admission.FellBack && pendingInstruction?.Kind == OwnerInstructionKind.MustDo && forcedApplied)
         {
             completedInstructionIds.Add(pendingInstruction.InstructionId);
             AppendEvent("instruction_applied", $"{pendingInstruction.InstructionId}:{candidateId}");
         }
+    }
+
+    private List<string> ApplyObserverGuidanceResult(
+        string inhabitantId,
+        CognitionAdmissionResult admission)
+    {
+        if (!admission.Accepted || admission.FellBack ||
+            admission.Intention?.Provider != DecisionProviderKind.LargeLanguageModel ||
+            admission.ObserverGuidance is not { } result ||
+            result.WorldId != society.Checkpoint.WorldId ||
+            result.InhabitantId != inhabitantId ||
+            result.RunEpoch != admission.Intention.RunEpoch ||
+            result.DecisionGeneration != admission.Intention.DecisionGeneration ||
+            result.ObservationDigest != admission.Intention.ObservationDigest ||
+            !inhabitants.ContainsKey(inhabitantId))
+            return [];
+
+        var replies = result.Replies.ToDictionary(reply => reply.InstructionId, StringComparer.Ordinal);
+        var completedSuggestions = new List<string>();
+        foreach (var message in result.Messages)
+        {
+            var instruction = instructionsByIdempotency.Values.SingleOrDefault(item =>
+                item.InstructionId == message.InstructionId);
+            if (instruction is null || instruction.IssuerId != message.IssuerId ||
+                instruction.TargetInhabitantId != inhabitantId ||
+                instruction.TargetInhabitantId != message.TargetInhabitantId ||
+                ToWireValue(instruction.Kind) != message.Kind || instruction.Text != message.Text ||
+                instruction.SubmittedTick != message.SubmittedTick || instruction.RunEpoch != message.RunEpoch ||
+                instruction.SubmissionSequence != message.SubmissionSequence ||
+                (instruction.Kind == OwnerInstructionKind.MustDo &&
+                 UnderstoodTaskFor(InstructionCandidate(instruction.Text)) != message.UnderstoodTask) ||
+                (instruction.Kind == OwnerInstructionKind.Suggestive && message.UnderstoodTask is not null) ||
+                (instruction.ObserverReply is null) != message.ReplyAllowed ||
+                completedInstructionIds.Contains(instruction.InstructionId))
+                continue;
+
+            var observerReply = replies.TryGetValue(instruction.InstructionId, out var reply)
+                ? reply.Text
+                : instruction.ObserverReply;
+            instructionsByIdempotency[instruction.IdempotencyKey] = instruction with
+            {
+                ObservedTick = instruction.ObservedTick ?? admission.Intention.WorldTick,
+                ObserverReply = observerReply,
+            };
+            checkpointSchemaVersion = StateSchemaVersion;
+            if (instruction.Kind == OwnerInstructionKind.Suggestive &&
+                completedInstructionIds.Add(instruction.InstructionId))
+                completedSuggestions.Add(instruction.InstructionId);
+        }
+
+        return completedSuggestions;
     }
 
     private void ApplyCandidate(
@@ -467,6 +541,11 @@ public sealed partial class PrivateWorldRuntime
             GatherBlacksmithOre(inhabitantId, state);
             return;
         }
+        if (candidateId.StartsWith(GatherBlacksmithInputPrefix, StringComparison.Ordinal))
+        {
+            GatherBlacksmithInput(inhabitantId, state, candidateId[GatherBlacksmithInputPrefix.Length..]);
+            return;
+        }
         if (candidateId == "deliver_smith_ore")
         {
             DeliverBlacksmithOre(inhabitantId, state);
@@ -474,8 +553,27 @@ public sealed partial class PrivateWorldRuntime
         }
         if (candidateId is "collect_wooden_axe" or "collect_wooden_pickaxe" or "collect_wooden_hoe")
         {
-            CollectEquipment(inhabitantId, state,
-                candidateId == "collect_wooden_axe" ? "wooden_axe" : candidateId == "collect_wooden_hoe" ? FarmFieldRules.Hoe : "wooden_pickaxe");
+            var kind = candidateId == "collect_wooden_axe" ? "wooden_axe" :
+                candidateId == "collect_wooden_hoe" ? FarmFieldRules.Hoe : "wooden_pickaxe";
+            if (MayCollectToolFamily(inhabitantId, ToolProgressionRules.Find(kind)!.Family))
+                CollectEquipment(inhabitantId, state, kind);
+            return;
+        }
+        if (candidateId.StartsWith(CollectToolPrefix, StringComparison.Ordinal))
+        {
+            var kind = candidateId[CollectToolPrefix.Length..];
+            if (ToolProgressionRules.Find(kind) is { } tool && MayCollectToolFamily(inhabitantId, tool.Family))
+                CollectEquipment(inhabitantId, state, kind);
+            return;
+        }
+        if (candidateId.StartsWith(RepairToolPrefix, StringComparison.Ordinal))
+        {
+            RepairTool(inhabitantId, state, candidateId[RepairToolPrefix.Length..]);
+            return;
+        }
+        if (candidateId.StartsWith(RareMiningPrefix, StringComparison.Ordinal))
+        {
+            GatherRareMaterial(inhabitantId, state, candidateId[RareMiningPrefix.Length..]);
             return;
         }
         if (candidateId.StartsWith(KnowledgeSharePrefix, StringComparison.Ordinal))
@@ -486,6 +584,31 @@ public sealed partial class PrivateWorldRuntime
         if (candidateId.StartsWith(SupplyWorkstationPrefix, StringComparison.Ordinal))
         {
             SupplyWorkstation(inhabitantId, state, candidateId[SupplyWorkstationPrefix.Length..]);
+            return;
+        }
+        if (candidateId == "collect_water_jug")
+        {
+            CollectWaterJug(inhabitantId, state);
+            return;
+        }
+        if (candidateId == "return_water_jug")
+        {
+            ReturnWaterJug(inhabitantId, state);
+            return;
+        }
+        if (candidateId == "store_food_in_pot")
+        {
+            StoreFoodInPot(inhabitantId, state);
+            return;
+        }
+        if (candidateId == "take_food_from_pot")
+        {
+            TakeFoodFromPot(inhabitantId, state);
+            return;
+        }
+        if (candidateId.StartsWith(FillWaterJugPrefix, StringComparison.Ordinal))
+        {
+            FillWaterJug(inhabitantId, state, candidateId[FillWaterJugPrefix.Length..]);
             return;
         }
         if (candidateId.StartsWith(GatherBuildingMaterialPrefix, StringComparison.Ordinal))
@@ -759,6 +882,7 @@ public sealed partial class PrivateWorldRuntime
             AddFamilyCandidates(candidates, inhabitantId);
             AddHousingCandidates(candidates, inhabitantId);
             AddParenthoodCandidates(candidates, inhabitantId);
+            AddUrgentFoodPotCandidate(candidates, inhabitantId, state);
         }
         if (!NeedsUrgentWarmth(state) && ChildResident(inhabitantId))
         {
@@ -778,7 +902,9 @@ public sealed partial class PrivateWorldRuntime
             AddBlacksmithStockCandidate(candidates, inhabitantId, state);
             AddBlacksmithOreCandidates(candidates, inhabitantId, state);
             AddWorkstationSupplyCandidate(candidates, inhabitantId);
+            AddContainerCandidates(candidates, inhabitantId, state);
             AddCraftToolCandidates(candidates, inhabitantId);
+            AddRareMiningCandidates(candidates, inhabitantId);
             AddProjectAssistanceCandidates(candidates, inhabitantId);
             AddForestryCandidates(candidates, inhabitantId, state);
             AddTradeCandidates(candidates, inhabitantId);
@@ -847,16 +973,19 @@ public sealed partial class PrivateWorldRuntime
 
     private static string ObservationDigest(
         string inhabitantId,
+        string worldId,
         PlaytestInhabitantState state,
         IReadOnlyList<CognitionCandidate> candidates,
         IReadOnlyList<CognitionMemoryExcerpt> memories,
         IReadOnlyList<CognitionMemoryCompactionCandidate> compactionCandidates,
         IReadOnlyList<CognitionKnowledgeFact> knownMapFacts,
-        CognitionSelfContext self)
+        CognitionSelfContext self,
+        IReadOnlyList<CognitionObserverGuidance> observerGuidance)
     {
         var text = new StringBuilder()
-            .Append("clankerworld.private-world-observation/v1|")
+            .Append("clankerworld.private-world-observation/v2|")
             .Append(inhabitantId).Append('|')
+            .Append(worldId.Length).Append(':').Append(worldId).Append('|')
             .Append(state.Position.X).Append(',').Append(state.Position.Y).Append('|')
             .Append(state.HungerBasisPoints).Append('|')
             .Append(string.Join(',', candidates.Select(candidate => candidate.Id)));
@@ -891,6 +1020,17 @@ public sealed partial class PrivateWorldRuntime
                 .Append(fact.Terrain).Append('|').Append(string.Join(',', fact.ResourceKinds))
                 .Append('|').Append(fact.DiscovererId).Append('|').Append(fact.Acquisition)
                 .Append('|').Append(fact.LearnedTick);
+        foreach (var message in observerGuidance)
+            text.Append("|observer=").Append(message.InstructionId.Length).Append(':').Append(message.InstructionId)
+                .Append('|').Append(message.IssuerId.Length).Append(':').Append(message.IssuerId)
+                .Append('|').Append(message.TargetInhabitantId.Length).Append(':').Append(message.TargetInhabitantId)
+                .Append('|').Append(message.Kind)
+                .Append('|').Append(message.Text.Length).Append(':').Append(message.Text)
+                .Append('|').Append(message.SubmittedTick)
+                .Append('|').Append(message.RunEpoch)
+                .Append('|').Append(message.SubmissionSequence)
+                .Append('|').Append(message.UnderstoodTask ?? "none")
+                .Append('|').Append(message.ReplyAllowed);
         text.Append("|self=").Append(JsonSerializer.Serialize(self))
             .Append("|identity_pending=").Append(state.IdentityChoicePending);
         return $"sha256:{Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(text.ToString())))}";

@@ -148,6 +148,17 @@ public sealed class HouseContentTests
                 },
             },
         };
+        state = state with
+        {
+            Society = state.Society with
+            {
+                Society = state.Society.Society with
+                {
+                    Inventory = InventoryFixture.AddLot(state.Society.Society.Inventory,
+                        "beta-iron-knife", "iron_knife", beta, 1),
+                },
+            },
+        };
         using var world = PrivateWorldRuntime.Restore(state, _ => new IdleProvider());
         var alphaFood = HouseholdQuantity(world, "household:camp-alpha", "food");
         var betaFood = HouseholdQuantity(world, "household:camp-beta", "food");
@@ -157,17 +168,29 @@ public sealed class HouseContentTests
         Assert.Contains("Only a member", rejected.Failure, StringComparison.Ordinal);
         var started = world.StartProduction(recipe.CanonicalId, "meal-home-beta", beta);
         Assert.True(started.Applied, started.Failure);
-        Assert.All(world.WorldSimulation.ProductionJobs.Single(job => job.JobId == started.JobId)
-            .InputReservationIds, reservationId =>
+        var activeJob = Assert.Single(world.WorldSimulation.ProductionJobs, job => job.JobId == started.JobId);
+        Assert.Equal("beta-iron-knife", activeJob.ToolLotId);
+        Assert.Equal(recipe.DurationTicks / 2, activeJob.CompletionTick - activeJob.StartedTick);
+        Assert.All(activeJob.InputReservationIds, reservationId =>
                 Assert.Equal("household:camp-beta", world.Society.Inventory.GetReservation(reservationId).OwnerId));
 
-        var saved = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+        var activeWithKnife = world.ExportState();
+        Assert.Equal(PrivateWorldRuntime.StateSchemaVersion, activeWithKnife.SchemaVersion);
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(
+            activeWithKnife with { SchemaVersion = PrivateWorldRuntime.ToolProgressionSchemaVersion - 1 }, _ => new IdleProvider()));
+        var saved = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(activeWithKnife));
         using var resumed = PrivateWorldRuntime.Restore(saved, _ => new IdleProvider());
-        for (var tick = 0; tick < recipe.DurationTicks; tick++)
+        Assert.Equal(10_000, resumed.Society.Inventory.GetLot("beta-iron-knife").ConditionBasisPoints);
+        for (var tick = 0; tick < recipe.DurationTicks / 2 - 1; tick++)
             Assert.True((await resumed.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal(WorldProductionJobState.Running,
+            resumed.WorldSimulation.ProductionJobs.Single(job => job.JobId == started.JobId).State);
+        Assert.Equal(10_000, resumed.Society.Inventory.GetLot("beta-iron-knife").ConditionBasisPoints);
+        Assert.True((await resumed.AdvanceOneTickAsync()).Advanced);
         Assert.Equal(alphaFood, HouseholdQuantity(resumed, "household:camp-alpha", "food"));
         Assert.Equal(betaFood + 2, HouseholdQuantity(resumed, "household:camp-beta", "food"));
         Assert.Equal(betaWood - 1, HouseholdQuantity(resumed, "household:camp-beta", "wood"));
+        Assert.Equal(9_000, resumed.Society.Inventory.GetLot("beta-iron-knife").ConditionBasisPoints);
         Assert.Equal(WorldProductionJobState.Completed,
             resumed.WorldSimulation.ProductionJobs.Single(job => job.JobId == started.JobId).State);
         var cookedLotId = $"{started.JobId}:output:00";
@@ -388,12 +411,25 @@ public sealed class HouseContentTests
 
         var beforeAlphaWood = HouseholdWood(world, "household:camp-alpha");
         var beforeBetaWood = HouseholdWood(world, "household:camp-beta");
-        var map = world.ExportState().Map;
+        var secondState = world.ExportState();
+        var map = secondState.Map;
+        var definitions = world.WorldContent.Buildings.ToDictionary(item => item.CanonicalId, StringComparer.Ordinal);
+        var simulation = secondState.WorldSimulation!;
+        var occupied = map.CampObjects.Select(item => item.Position)
+            .Concat(map.Resources.Select(item => item.Position))
+            .Concat(secondState.Inhabitants.Select(item => item.Position))
+            .Concat(secondState.RoadTiles ?? [])
+            .Concat((secondState.Bridges ?? []).SelectMany(item => item.Entrances))
+            .Concat((secondState.Fields ?? []).Select(item => item.Position))
+            .Concat((simulation.BuildingExpansions ?? []).Where(job => job.State == WorldProductionJobState.Running)
+                .SelectMany(job => Enumerable.Range(0, job.TargetFootprint.Height).SelectMany(dy =>
+                    Enumerable.Range(0, job.TargetFootprint.Width).Select(dx =>
+                        new GridPoint(job.TargetPosition.X + dx, job.TargetPosition.Y + dy)))))
+            .Concat(simulation.Buildings.SelectMany(building =>
+                WorldContentSimulationRules.Footprint(definitions[building.DefinitionId], building)))
+            .ToHashSet();
         var secondSite = map.Tiles.Select(tile => tile.Position).First(point =>
-            map.IsBuildable(point) &&
-            !map.CampObjects.Any(item => item.Position == point) &&
-            !map.Resources.Any(item => item.Position == point) &&
-            !world.WorldSimulation.Buildings.Any(building => building.Position == point));
+            map.IsBuildable(point) && !occupied.Contains(point));
         var betaPlacement = world.PlaceBuilding("refuge-beta", house.CanonicalId, secondSite,
             "household:camp-beta");
         Assert.True(betaPlacement.Applied, betaPlacement.Failure);

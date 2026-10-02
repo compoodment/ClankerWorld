@@ -27,14 +27,16 @@ everything that is available in the current build. See [what works today](../wha
   exist, **Settings**, **Mod Library**, **Quit Game**, and a separate **Continue** action for the
   most recently played world.
 - **New World** offers world size and climate choices, advanced generation
-  controls, preview/reroll, wrapping, and an optional early survival grace
-  period. The ordinary game has **one supported first-Town setup mode**. The
-  nothing-start challenge mode was removed from the plan for now. Generating
-  the world creates the map and opens it paused; four starting agents must be
-  configured before starting time. The first-Town siting and generated
-  building layout flow are in
-  [Agents and social life](agents-and-families.md#agreed-starter-town-and-remaining-choices). API keys are not a prerequisite for
-  reaching the world view.
+  controls, preview/reroll and wrapping. **Agreed on October 1
+  ([#648](https://github.com/compoodment/ClankerWorld/issues/648)):** it offers
+  no survival grace period or extra starting supplies for now; a gentler start
+  may be added once the default game is finished. The ordinary game has **one
+  supported first-Town setup mode**. The nothing-start challenge mode was
+  removed from the plan for now. Generating the world creates the map and opens
+  it paused; four starting agents must be configured before starting time. The
+  first-Town siting and generated building layout flow are in
+  [Agents and social life](agents-and-families.md#agreed-starter-town-and-remaining-choices).
+  API keys are not a prerequisite for reaching the world view.
 - Enter a visually coherent generated world. The player can see its whole
   geography from the start; there is no player fog of war. Individual agents
   may know only what they have experienced or learned.
@@ -70,6 +72,13 @@ everything that is available in the current build. See [what works today](../wha
   **Event Log** button, an **Add Agent** button near the menu button, and the
   menu button at top-right. Date display format and 24-hour/AM-PM time format
   belong in UI Settings.
+- **Agreed on October 1
+  ([#640](https://github.com/compoodment/ClankerWorld/issues/640)):** the date
+  uses season names by default, such as **Autumn 2, Year 1 · 14:20**, because
+  each 10-day month is one season: Spring, Summer, Autumn and Winter. Game
+  Settings also offers numeric dates (DD-MM-YYYY, MM-DD-YYYY or YYYY-MM-DD) for
+  players who prefer them, and keeps the 24-hour or 12-hour time choice. Agent
+  ages show as life stage plus days, such as **Adult · 22 days**.
 - **Agreed after the September 29 style review:** the Event Log button shows
   how many events arrived since the player last opened the log. Because a
   world can hold several Towns, the top bar has no single-Town button; Town
@@ -173,7 +182,17 @@ everything that is available in the current build. See [what works today](../wha
 - **Agreed on October 1:** Developer tools leave the pause menu for their own
   panel on a key, and become genuinely useful: for example tile coordinates,
   a performance readout, jumping to any agent and showing an agent's planned
-  path. The exact set is open.
+  path.
+- **The first Developer tools, agreed on October 1
+  ([#650](https://github.com/compoodment/ClankerWorld/issues/650)):** **F12**
+  opens the panel. It keeps today's tools (life-speed override, recovery for a
+  lost model reply, paused world editing and paired-device management) and adds
+  tile coordinates and facts, a performance readout, jumping to any agent and
+  showing an agent's planned path. It also offers **direct edits**: set an
+  agent's needs, give or remove goods, add or remove a skill, and start or end
+  a relationship. Every direct edit is written to the Event Log as a developer
+  edit, so playtest results are not mixed up with normal play. Time tools, such
+  as stepping one tick, are not in the first set.
 - **Agreed on September 30:** panels and confirmation dialogs fit what they
   hold rather than keeping a fixed size with empty space. A panel with long
   text stays on screen and scrolls that text; a long dialog message wraps.
@@ -213,8 +232,14 @@ everything that is available in the current build. See [what works today](../wha
   faces; storage as a larger icon grid with each item's name; work in progress
   with what it uses; and who lives there or is inside. A list of recent
   storage changes and what a workstation can make are wanted later. A
-  storage-space bar waits until buildings record a storage limit. Hovering a
-  building still names it.
+  storage-space bar waits until buildings record a storage limit. When the
+  owner is paired, Details also offers signed building removal and owner-change
+  actions. A confirmation explains that removal keeps the Town border and
+  Roads; the host refuses a change while stock, deliveries or active work
+  remain. Moving a private building between households keeps its Town title and
+  assignment; moving a Warehouse changes its recorded Town assignment but not
+  either border. Refusals appear in plain language. Hovering a building still
+  names it.
 - **Agreed on September 30:** items have their own pixel-art icons, drawn by
   hand on a 16-pixel grid in a few shades with a complete dark outline and
   shown only at whole-number sizes so they stay crisp. An item without its own
@@ -340,7 +365,7 @@ everything that is available in the current build. See [what works today](../wha
   the existing Add Agent and Suggest/Order controls. Needs, skills, goods,
   memories, relationships and world objects change through simulation actions.
   Direct manipulation of those fields belongs in developer tools, whose
-  exact tool set has not been chosen. This preserves the separately agreed
+  first set is agreed above. This preserves the separately agreed
   founder setup, world settings and Mod Library controls.
 - **Player renaming uses the same full-name check as model naming**, against
   every other living or deceased agent in the world. A taken full name is
@@ -373,19 +398,21 @@ measured, and is then tuned. Computment suggested Small/Medium zoom-out around
 exact percentage and visible-tile budget remain preferred starting points for
 tuning, not fixed finished-game numbers.
 
-Game Settings apply across worlds/on this installation:
-UI date and time display formats, graphics/display preferences, and stored
-provider credentials. The Main Menu's Settings entry opens
-Game Settings. World Settings belong to the current save: autosave on/off,
-interval and rotation; the optional AI-usage meter/limit; and Jev's per-world
-configuration. Selecting either category within Pause Menu Settings keeps the
-world paused.
-World generation choices such as size, climate and wrapping are chosen before
-creation and should be inspectable afterward, not silently mutable settings.
-Jev's on/off switch for an existing world is accepted; the exact settings
-categories and transition behavior for an in-flight Jev task remain open.
-World Settings must be absent from Main Menu Settings while no world is loaded;
-opening Main Menu settings must never enter a world.
+Game Settings apply across worlds/on this installation: UI date and time
+display formats, graphics/display preferences, and stored provider credentials.
+**Agreed on October 1
+([#639](https://github.com/compoodment/ClankerWorld/issues/639)):** the
+AI-usage meter and limit also belong in Game Settings, because one limit covers
+every world on the installation. The Main Menu's Settings entry opens Game
+Settings. World Settings belong to the current save: autosave on/off, interval
+and rotation, and Jev's per-world configuration. Selecting either category
+within Pause Menu Settings keeps the world paused. World generation choices
+such as size, climate and wrapping are chosen before creation and should be
+inspectable afterward, not silently mutable settings. Jev's on/off switch for
+an existing world is accepted; the exact settings categories and transition
+behavior for an in-flight Jev task remain open. World Settings must be absent
+from Main Menu Settings while no world is loaded; opening Main Menu settings
+must never enter a world.
 
 **Agreed (confirmed 30 September):** placing an agent with Add Agent on a
 household's property joins that household without its consent, as recorded in
@@ -416,8 +443,8 @@ is separate from this later Add Agent placement rule.
 Exact top-bar layout on small screens; the final zoom-out/visible-tile cap,
 which waits for measurements of Large worlds; which overview and filter layers
 ship first; display of disputed or overlapping claims; the precise event
-categories, filter UI, event retention, and handling of events without a single map location; custom
-month/season names and date presentation. The player's role, direct edits,
+categories, filter UI, event retention, and handling of events without a
+single map location. The player's role, direct edits,
 suggestions and order rules are agreed in
 [Player guidance and orders](#player-guidance-and-orders). Computment may
 provide a UI drawing.
@@ -436,8 +463,9 @@ The recent history should persist with the world save but remain bounded.
 
 ### Agreed
 
-- **Pixel art** is the visual style. **32×32-pixel ground tiles** and **PNG
-  runtime assets** are the initial standard. Taller agents/trees and multi-tile
+- **Pixel art** is the visual style, with **32×32-pixel ground tiles**. The
+  art is drawn in code at startup rather than loaded from PNG files (October
+  1); an exported mod may still carry approved image files. Taller agents/trees and multi-tile
   buildings can use larger transparent images anchored to logical tiles.
 - **Straight top-down** is the chosen art perspective for now: show the tops of
   objects, not isometric sides. Isometric would need a visual comparison before
@@ -472,6 +500,58 @@ The recent history should persist with the world save but remain bounded.
   permanently limited to the original art catalogue. Each new design still
   needs a valid visual/gameplay representation; this does not authorize every
   theoretical combination.
+- **Agreed after the October 1 art review:** the game keeps its current
+  pixel-art character, made more consistent by the
+  [pixel-art style guide](../development/art-style.md): ramps built on the
+  existing colours, light from the north-west, calm ground with soft
+  patches, outlined sprites and roof materials. computment reviewed every
+  texture beside a proposed redraw and approved 193 of 216 pictures as drawn,
+  with no rejections. Approved: the ground tiles for grass, forest, sand,
+  rock, snow and tundra; water; Roads and the plank bridge, with a street
+  running up to the deck; trees and natural sites, including picked and
+  depleted states; crop fields and orchard stages; House, Warehouse,
+  Blacksmith, Silo and Tailor Shop roofs and the Store, Market, Town Hall,
+  Port and Clinic; agents facing all eight directions, with walking,
+  carrying, working, talking and hurt poses and a first horse; and item
+  icons, including those for water, wild greens, potatoes, porridge, stew,
+  meals and diamonds. The coin icon is gold.
+- **Changes asked in that review:** mountains, peaks and hills are redrawn as
+  one landform spanning many tiles rather than a picture per tile, and how
+  they generate is to be rethought too
+  ([#628](https://github.com/compoodment/ClankerWorld/issues/628)); the Main Menu valley keeps its look
+  with better mountains; tilled soil needs more than plain lines; the grain
+  icon must read as grain as clearly as before; and the Farmhouse loses its
+  painted cart, because handcarts will be real vehicles.
+- **Agreed after the second round of the art review (October 1):** computment
+  approved 211 of 222 pictures, with no rejections. Mountains, peaks and
+  hills are drawn from the world's elevation as one landform spanning many
+  tiles: a range reads as one mass with a snowy crest, and hills are soft
+  foothill shading with no rings ("I like that mountain is a range"). Also
+  approved: the Main Menu valley with its new mountains; tilled soil and the
+  scrub, dry brush, desert brush and tundra snow ground; the clearer grain
+  icon; the Farmhouse with grain sheaves and sacks instead of a cart; every
+  building footprint, the Workshop, the Restaurant, a handcart vehicle and a
+  rowing boat; chickens, sheep and cows; the remaining tree, plant, outcrop
+  and crop states; 43 more item icons; and part of the interface icon set.
+  Animals, handcarts and boats face all eight directions, like agents. How
+  mountains generate stays open in [#628](https://github.com/compoodment/ClankerWorld/issues/628).
+- **Agreed after the third round of the art review (October 1):** computment
+  approved 99 pictures; the others were the icon options not chosen, the old
+  snow edge shown for comparison, and the Market plaza. Approved: the Market
+  as a timber hall with no stalls inside; a Port where six boats moor bow-in,
+  three along each side of the pier; chickens, sheep, cows, the horse with and
+  without a rider, handcarts and boats drawn in all eight directions; the
+  redrawn Hammer, Map, Pencil and Play icons, the Sun and Speech icons kept
+  close to today's, the Rain, Snow and Storm icons built on the new cloud, and
+  the solid-headed Arrow; three desert cacti, a barrel cactus, a saguaro and a
+  prickly pear, standing on some of the desert's cactus cover; and a soft snow
+  edge that thins into clumps and frost, shaded like a low drift, instead of
+  ending in a flat white band. The plaza was "a bit too big for the eight
+  stalls"; in the fourth round computment kept a shorter plaza but wanted
+  the open column on each side back, so eight stalls take a 7×4 plaza.
+- Art is drawn in code, not stored as image files. computment prefers this.
+  Approved art for content that is not built yet waits in
+  `tools/ArtPreview/Proposed/` until its feature lands.
 - Worn everyday, cold or wet clothing **does not change an agent's map sprite
   appearance**. Clothing has item icons and gameplay effects. Armor imagery
   may be prompted as new art later; whether worn armor is shown on agents and
@@ -496,7 +576,7 @@ method remains Clanker's proposal, not an accepted implementation rule.
 
 ### Still to decide
 
-Exact palette and style guide; animation standards;
+How mountains, peaks and hills generate ([#628](https://github.com/compoodment/ClankerWorld/issues/628)); animation timing;
 AI-generation provider and spending controls; how much visual cleanup can be
 automated; quality criteria; asset size budgets; and the final art/content
 metadata contract. Also open: the minimum distinct designs each category

@@ -461,8 +461,12 @@ public sealed partial class PrivateWorldRuntime
     {
         var inventoryState = society.Checkpoint.Inventory;
         var inputs = job.InputReservationIds.Select(inventoryState.GetReservation).ToArray();
-        if (inputs.Any(reservation => reservation.State is not (InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed) ||
-            reservation.ExpiryTick < targetTick || inventoryState.Lots.FirstOrDefault(lot => lot.Id == reservation.LotId) is not { FreshnessBasisPoints: > 0, ConditionBasisPoints: > 0 }))
+        var knifePlan = job.ToolLotId is null ? null : ToolProgressionRules.PlanWorkForLot(inventoryState,
+            job.WorkerId, ToolFamily.Knife, job.ToolLotId);
+        var inputUnusable = inputs.Any(reservation =>
+            reservation.State is not (InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed) ||
+            reservation.ExpiryTick < targetTick || inventoryState.Lots.FirstOrDefault(lot => lot.Id == reservation.LotId) is not { FreshnessBasisPoints: > 0, ConditionBasisPoints: > 0 });
+        if (inputUnusable || job.ToolLotId is not null && knifePlan is null)
         {
             ApplyInventoryTransition(inventory =>
             {
@@ -472,7 +476,7 @@ public sealed partial class PrivateWorldRuntime
                 }
                 return inventory;
             });
-            AppendEvent("production_input_unusable", job.JobId);
+            AppendEvent(inputUnusable ? "production_input_unusable" : "production_tool_unusable", job.JobId);
             return false;
         }
         var productionBuilding = worldSimulation.Buildings
@@ -500,7 +504,8 @@ public sealed partial class PrivateWorldRuntime
                         : null);
             }
 
-            return current;
+            return knifePlan is null ? current : ApplyToolWorkToInventory(current, job.WorkerId,
+                targetTick, [knifePlan]);
         });
         CreditCompletedWork(job.WorkerId, "crafting", SkillForRecipe(recipe));
         return true;

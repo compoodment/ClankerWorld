@@ -17,18 +17,13 @@ public sealed partial class PrivateWorldRuntime
         if (householdId is null || FarmhouseForHousehold(householdId) is not { } farmhouse ||
             NeedsUrgentFood(state) || NeedsUrgentWarmth(state) ||
             (state.Project is { Stage: not ("completed" or "cancelled") } project && !project.RequiresFreshChoice)) return;
-        if (!HasCarriedItem(actor, FarmFieldRules.Hoe))
-        {
-            if (SharedItem(FarmFieldRules.Hoe, actor) is not null)
-                candidates.Add(new("collect_wooden_hoe", "Collect a hoe to prepare and tend the household fields.", 16));
-            return;
-        }
+        var hasHoe = ToolProgressionRules.PlanWork(society.Checkpoint.Inventory, actor, ToolFamily.Hoe) is not null;
         foreach (var field in fields.Where(field => field.HouseholdId == householdId && field.Work is null))
         {
             if (!CanReachField(actor, state.Position, field.Position)) continue;
             if (field.Stage == FarmFieldStage.Ready)
                 candidates.Add(new(FarmCandidate(FarmWorkKind.Harvest, field.Position), "Harvest the ready crop; it stays on the ground until carried.", 12));
-            else if (field.Stage == FarmFieldStage.Growing && !field.Tended)
+            else if (hasHoe && field.Stage == FarmFieldStage.Growing && !field.Tended)
                 candidates.Add(new(FarmCandidate(FarmWorkKind.Tend, field.Position), "Tend the growing crop with a hoe.", 13));
             else if (field.Stage is FarmFieldStage.Prepared or FarmFieldStage.Harvested && FarmNeedsFood(householdId))
             {
@@ -43,7 +38,7 @@ public sealed partial class PrivateWorldRuntime
             person.Status == SocietyInhabitantStatus.Active);
         var expectedYield = Math.Max(1, FarmFieldRules.HarvestQuantity(FarmFieldRules.Grain, fertility.At(farmhouse.Position)));
         var wantedFields = Math.Max(1, (int)Math.Ceiling(population * FarmFieldRules.MealsPerPersonPerDay * 2d / expectedYield));
-        if (!FarmNeedsFood(householdId) || fields.Count(field => field.HouseholdId == householdId) >= wantedFields) return;
+        if (!hasHoe || !FarmNeedsFood(householdId) || fields.Count(field => field.HouseholdId == householdId) >= wantedFields) return;
         var site = NearbyFarmTiles(farmhouse.Position)
             .Where(FarmableFreeTile)
             .OrderByDescending(point => fields.Any(field => field.HouseholdId == householdId && map.FootDistance(field.Position, point) == 1))
@@ -115,7 +110,9 @@ public sealed partial class PrivateWorldRuntime
         var inventory = society.Checkpoint.Inventory;
         var reserve = inventory.Reservations.FirstOrDefault(item => item.Id == field.ReplantingReservationId &&
             item.State == InventoryReservationState.Reserved);
+        // Potatoes in a storage pot move only with the pot, so they are not planting stock.
         return inventory.Lots.Where(lot => lot.ItemKind == kind && lot.DeliveryBuildingId is null &&
+                lot.ContainerLotId is null &&
                 (PersonalEquipmentRules.IsCarried(lot, actor) || lot.OwnerId == field.HouseholdId && FreeCarryCapacity(actor) > 0) &&
                 (AvailableLotQuantity(lot) > 0 || reserve?.LotId == lot.Id))
             .OrderBy(lot => lot.OwnerId == actor ? 0 : reserve?.LotId == lot.Id ? 1 : 2)
