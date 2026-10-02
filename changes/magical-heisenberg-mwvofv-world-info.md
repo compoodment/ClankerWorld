@@ -1,0 +1,1 @@
+- World Info's World page opens with today's date, season and local weather, then shows the world's counts as tiles with icons. Its Towns page shows each Town's residents as portraits, household stores as item slots and projects with a progress bar, and no longer repeats whether Town borders are shown.

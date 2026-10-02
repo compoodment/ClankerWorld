@@ -313,8 +313,7 @@ public partial class Main
             {
                 if (usageStatus?.LimitReached == true && reconnect.Baseline.Snapshot.Authoring?.IsPaused == true)
                 {
-                    SetStatus("Paid-call limit reached. The world is paused; open World Settings to allow more calls.",
-                        good: false, StatusToastKind.UsageLimit);
+                    SetStatus(UsageLimitPausedMessage, good: false, StatusToastKind.UsageLimit);
                 }
                 else
                 {

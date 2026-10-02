@@ -1,7 +1,3 @@
-# Model choices and setup checks
-
-Pending after merge from [#453](https://github.com/compoodment/ClankerWorld/issues/453).
-
 - On the paired world: use a personal model and let several agents make choices. A slow model leaves the others moving. An unusable reply ends that attempt, and the agent card explains what happened while keeping its last accepted choice visible. Save and load, and check those facts remain. ([#453](https://github.com/compoodment/ClankerWorld/issues/453))
 - In Add Agent and an existing agent's Model panel, use **Test model · 1 paid call** with your chosen model and key. The result names that model and the call count rises by one. Changing the model, key or selected agent clears the old result, including when a check is still waiting. ([#453](https://github.com/compoodment/ClankerWorld/issues/453))
 - With a missing key or the paid-call limit reached, try the setup check. It explains the problem without making another paid call. ([#453](https://github.com/compoodment/ClankerWorld/issues/453))

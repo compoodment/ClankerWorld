@@ -1,8 +1,10 @@
 using System.Globalization;
 using ClankerWorld.Simulation.Cognition;
+using ClankerWorld.Simulation.Content;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
+using ClankerWorld.Simulation.Society;
 using ClankerWorld.Viewer.Observation;
 
 namespace ClankerWorld.Simulation.Tests;
@@ -100,6 +102,30 @@ public sealed class WarehouseContentTests
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(invalidGrain));
 
         var house = seed.WorldContent.Buildings.Single(item => item.LocalId == "house-1x1");
+        var currentTown = reloaded.Towns!.Single(item => item.Id == town.Id);
+        var buildingDefinitions = seed.WorldContent.Buildings.ToDictionary(item => item.CanonicalId,
+            StringComparer.Ordinal);
+        var worldSimulation = reloaded.WorldSimulation!;
+        var occupied = reloaded.Map.CampObjects.Select(item => item.Position)
+            .Concat(reloaded.Map.Resources.Select(item => item.Position))
+            .Concat(reloaded.Inhabitants.Select(item => item.Position))
+            .Concat(reloaded.RoadTiles ?? [])
+            .Concat((reloaded.Bridges ?? []).SelectMany(item => item.Entrances))
+            .Concat((reloaded.Fields ?? []).Select(item => item.Position))
+            .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State == WorldProductionJobState.Running)
+                .SelectMany(job => Enumerable.Range(0, job.TargetFootprint.Height).SelectMany(dy =>
+                    Enumerable.Range(0, job.TargetFootprint.Width).Select(dx =>
+                        new GridPoint(job.TargetPosition.X + dx, job.TargetPosition.Y + dy)))))
+            .Concat(worldSimulation.Buildings.SelectMany(building =>
+                WorldContentSimulationRules.Footprint(buildingDefinitions[building.DefinitionId], building)))
+            .ToHashSet();
+        GridPoint FindOpenSite(BuildingDefinition definition) => reloaded.Map.Tiles.Select(tile => tile.Position)
+            .OrderBy(point => reloaded.Map.FootDistance(warehouse.Position, point))
+            .ThenBy(point => point.Y).ThenBy(point => point.X)
+            .First(point => TownBorderRules.IsWithinOrAdjacent(currentTown, point, definition.Width, definition.Height) &&
+                WorldContentSimulationRules.Footprint(definition, point)
+                    .All(tile => reloaded.Map.IsBuildable(tile) && !occupied.Contains(tile)));
+        var houseSite = FindOpenSite(house);
         var materialPickup = reloaded with
         {
             Inhabitants = reloaded.Inhabitants.Select(person => person.InhabitantId == beta
@@ -108,7 +134,7 @@ public sealed class WarehouseContentTests
                     Position = warehouse.Position,
                     HungerBasisPoints = 9_000,
                     Project = new SettlementProject(TownConstructionCandidateIds.Building(house.CanonicalId,
-                            warehouse.Position), house.DisplayName, reloaded.Society.Society.WorldTick,
+                            houseSite), house.DisplayName, reloaded.Society.Society.WorldTick,
                         "acquiring", LastTransitionTick: reloaded.Society.Society.WorldTick),
                 } : person).ToArray(),
             Society = reloaded.Society with
@@ -135,46 +161,75 @@ public sealed class WarehouseContentTests
         }
 
         var inventory = InventoryFixture.AddLot(reloaded.Society.Society.Inventory,
-            "warehouse-tool", "tool", town.Id, 1, storageBuildingId: warehouse.InstanceId);
+            "warehouse-tool", "wooden_hammer", town.Id, 1, storageBuildingId: warehouse.InstanceId);
+        var farmWorkers = (reloaded.Fields ?? []).Where(field => field.Work is not null)
+            .Select(field => field.Work!.WorkerId).ToHashSet(StringComparer.Ordinal);
+        var toolCollectorId = reloaded.Society.Society.Inhabitants
+            .Where(person => person.Status == SocietyInhabitantStatus.Active &&
+                person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder &&
+                currentTown.ResidentIds.Contains(person.Id, StringComparer.Ordinal) &&
+                !farmWorkers.Contains(person.Id))
+            .OrderBy(person => person.Id, StringComparer.Ordinal)
+            .Select(person => person.Id)
+            .First();
         inventory = inventory with
         {
             Lots = inventory.Lots.Where(lot =>
-            lot.OwnerId != "household:camp-beta" || lot.ItemKind != "tool").ToArray()
+                !lot.OwnerId.StartsWith("household:", StringComparison.Ordinal) || lot.ItemKind != "wooden_hammer").ToArray()
         };
-        var workshop = seed.WorldContent.Buildings.Single(item => item.LocalId == "workshop");
         reloaded = reloaded with
         {
-            Inhabitants = reloaded.Inhabitants.Select(person => person.InhabitantId == beta
+            Inhabitants = reloaded.Inhabitants.Select(person => person.InhabitantId == toolCollectorId
                 ? person with
                 {
                     Position = warehouse.Position,
-                    HungerBasisPoints = 9_000,
-                    Project = new SettlementProject(TownConstructionCandidateIds.Building(workshop.CanonicalId,
-                            warehouse.Position),
-                        workshop.DisplayName, reloaded.Society.Society.WorldTick, "acquiring",
-                        LastTransitionTick: reloaded.Society.Society.WorldTick),
+                    HungerBasisPoints = 10_000,
+                    Project = null,
+                    LastDecisionContext = null,
+                    TravelCooldownTicks = 0,
                 } : person).ToArray(),
             Society = reloaded.Society with { Society = reloaded.Society.Society with { Inventory = inventory } },
         };
-        using var collecting = PrivateWorldRuntime.Restore(reloaded, _ => new CandidateProvider("safe_idle"));
+        var toolCollector = new CandidateProvider("collect_tool:wooden_hammer", requireCandidate: true);
+        using var collecting = PrivateWorldRuntime.Restore(reloaded,
+            id => id == toolCollectorId ? toolCollector : new CandidateProvider("safe_idle"));
         for (var tick = 0; tick < 20 && !collecting.ExportState().Events.Any(item =>
-                 item.Kind == "equipment_collected" && item.Detail == beta + ":tool"); tick++)
+                 item.Kind == "equipment_collected" && item.Detail == toolCollectorId + ":wooden_hammer"); tick++)
             Assert.True((await collecting.AdvanceOneTickAsync()).Advanced);
-        Assert.Contains(collecting.ExportState().Events, item => item.Kind == "equipment_collected" &&
-            item.Detail == beta + ":tool");
-        Assert.Equal(beta, collecting.Society.Inventory.GetLot("warehouse-tool").OwnerId);
+        var finalCollectionState = collecting.ExportState();
+        var finalCollector = finalCollectionState.Inhabitants.Single(person => person.InhabitantId == toolCollectorId);
+        var finalInventory = finalCollectionState.Society.Society.Inventory;
+        var carried = finalInventory.Lots.Where(lot => PersonalEquipmentRules.IsPhysicallyCarried(
+                finalInventory, lot, toolCollectorId))
+            .Select(lot => $"{lot.Id}={lot.ItemKind}x{lot.Quantity}").ToArray();
+        Assert.True(finalCollectionState.Events.Any(item => item.Kind == "equipment_collected" &&
+                item.Detail == toolCollectorId + ":wooden_hammer"),
+            $"The warehouse's physical hammer should be collected by its available pickup action; " +
+            $"collector={toolCollectorId}, free capacity={PersonalEquipmentRules.FreeCapacity(finalInventory, toolCollectorId, finalCollector.Equipment)}, " +
+            $"carried=[{string.Join(",", carried)}], position={finalCollector.Position}, blocker={finalCollector.Project?.Blocker}, " +
+            $"choices=[{string.Join(",", toolCollector.SelectedCandidates)}], " +
+            $"observed=[{string.Join(";", toolCollector.ObservedCandidates)}].");
+        Assert.Equal(toolCollectorId, collecting.Society.Inventory.GetLot("warehouse-tool").OwnerId);
         Assert.Null(collecting.Society.Inventory.GetLot("warehouse-tool").StorageBuildingId);
     }
 
-    private sealed class CandidateProvider(string candidateId) : IDecisionProvider
+    private sealed class CandidateProvider(string candidateId, bool requireCandidate = false) : IDecisionProvider
     {
+        public List<string> SelectedCandidates { get; } = [];
+        public List<string> ObservedCandidates { get; } = [];
         public DecisionProviderKind Kind => DecisionProviderKind.Deterministic;
         public long ProviderEpoch => 0;
         public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request,
             CancellationToken cancellationToken = default)
         {
-            var selected = request.Observation.Candidates.FirstOrDefault(candidate => candidate.Id == candidateId) ??
-                request.Observation.Candidates.Single(candidate => candidate.Id == "safe_idle");
+            ObservedCandidates.Add(request.Observation.InhabitantId + "=[" +
+                string.Join(",", request.Observation.Candidates.Select(candidate => candidate.Id)) + "]");
+            var selected = request.Observation.Candidates.FirstOrDefault(candidate => candidate.Id == candidateId);
+            if (selected is null && requireCandidate)
+                throw new InvalidOperationException($"Expected '{candidateId}' candidate; available: " +
+                    string.Join(",", request.Observation.Candidates.Select(candidate => candidate.Id)));
+            selected ??= request.Observation.Candidates.Single(candidate => candidate.Id == "safe_idle");
+            SelectedCandidates.Add(request.Observation.InhabitantId + "=" + selected.Id);
             return ValueTask.FromResult(new CognitionDecisionResponse(request.RequestId,
                 request.Observation.InhabitantId, Kind, ProviderEpoch, request.Observation.RunEpoch,
                 request.Observation.DecisionGeneration, request.Observation.ObservationDigest, selected.Id, 1,
