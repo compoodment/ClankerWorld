@@ -129,6 +129,11 @@ public sealed partial class PrivateWorldRuntime
                 (society.Checkpoint.GetInhabitant(actor).HouseholdId == home ||
                  inhabitants[actor].Departures?.Any(departure => departure.HouseholdId == home) == true))));
 
+    /// <summary>A vessel moves with its contents, so it needs room for all of them and nothing reserved.</summary>
+    private bool VesselFits(InventoryLot lot, int room) => !InventoryContainerRules.IsContainer(lot.ItemKind) ||
+        !HasActiveContainerReservation(society.Checkpoint.Inventory, lot.Id) &&
+        room >= ContainerFamilyQuantity(society.Checkpoint.Inventory, lot.Id);
+
     private IEnumerable<InventoryLot> BorrowedGoods(string actor) => society.Checkpoint.Inventory.Lots.Where(lot =>
         lot.OwnerId != actor && lot.CarrierId == actor && lot.ContainerLotId is null && lot.Quantity > 0);
 
@@ -247,11 +252,13 @@ public sealed partial class PrivateWorldRuntime
             candidates.Add(new("household_found", "Start your own household with your dependent children. A House still needs a legal site, materials and work.", 19));
         if (FreeCarryCapacity(actor) > 0)
         {
-            foreach (var lot in PersonalGoodsAwaitingCollection(actor).OrderBy(lot => lot.Id, StringComparer.Ordinal))
+            foreach (var lot in PersonalGoodsAwaitingCollection(actor).Where(lot => VesselFits(lot, FreeCarryCapacity(actor)))
+                         .OrderBy(lot => lot.Id, StringComparer.Ordinal))
                 candidates.Add(new("household_collect:" + lot.Id, $"Physically collect your own {lot.ItemKind.Replace('_', ' ')}; other household stock remains private.", 20));
         }
         foreach (var lot in BorrowedGoods(actor).OrderBy(lot => lot.Id, StringComparer.Ordinal))
-            if (lot.OwnerId != society.Checkpoint.GetInhabitant(actor).HouseholdId && HouseForHousehold(lot.OwnerId) is not null)
+            if (lot.OwnerId != society.Checkpoint.GetInhabitant(actor).HouseholdId && HouseForHousehold(lot.OwnerId) is { } ownerHouse &&
+                VesselFits(lot, StorageRoom(ownerHouse.InstanceId)))
                 candidates.Add(new("household_return:" + lot.Id, $"Physically return borrowed {lot.ItemKind.Replace('_', ' ')} to its owning household.", 22));
         if (society.Checkpoint.GetInhabitant(actor).HouseholdId is { } home && HouseForHousehold(home) is { } house &&
             StorageRoom(house.InstanceId) > 0)
@@ -259,7 +266,8 @@ public sealed partial class PrivateWorldRuntime
             foreach (var lot in society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == actor &&
                          PersonalEquipmentRules.IsCarried(lot, actor) && lot.DeliveryBuildingId is null && lot.ContainerLotId is null &&
                          lot.Id != inhabitants[actor].Equipment?.ClothingLotId && lot.Id != inhabitants[actor].Equipment?.CarryAidLotId &&
-                         !IsEdibleFood(lot.ItemKind) && PhysicalUnreservedQuantity(lot) > 0).OrderBy(lot => lot.Id, StringComparer.Ordinal))
+                         !IsEdibleFood(lot.ItemKind) && PhysicalUnreservedQuantity(lot) > 0 &&
+                         VesselFits(lot, StorageRoom(house.InstanceId))).OrderBy(lot => lot.Id, StringComparer.Ordinal))
                 candidates.Add(new("household_store_personal:" + lot.Id, $"Store your own {lot.ItemKind.Replace('_', ' ')} in your House while keeping personal ownership.", 95));
         }
         foreach (var child in society.Checkpoint.Inhabitants.Where(person => person.Status == SocietyInhabitantStatus.Active &&
@@ -318,10 +326,8 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
         var room = collect ? FreeCarryCapacity(actor) : StorageRoom(house!.InstanceId);
-        // A vessel moves with its contents, so it needs room for all of them.
         var quantity = InventoryContainerRules.IsContainer(lot.ItemKind)
-            ? HasActiveContainerReservation(society.Checkpoint.Inventory, lot.Id) ||
-                room < ContainerFamilyQuantity(society.Checkpoint.Inventory, lot.Id) ? 0 : 1
+            ? VesselFits(lot, room) ? 1 : 0
             : Math.Min(PhysicalUnreservedQuantity(lot), room);
         if (quantity <= 0) return;
         ApplyInventoryTransition(inventory => InventoryFixture.Relocate(inventory,

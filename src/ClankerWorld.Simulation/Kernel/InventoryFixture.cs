@@ -198,8 +198,9 @@ public static partial class InventoryFixture
         ArgumentException.ThrowIfNullOrWhiteSpace(lotId);
         ArgumentException.ThrowIfNullOrWhiteSpace(itemKind);
         ArgumentException.ThrowIfNullOrWhiteSpace(ownerId);
-        if (containerLotId is not null)
-            EnsureUsableContainer(checkpoint.GetLot(containerLotId));
+        var container = containerLotId is null ? null : checkpoint.GetLot(containerLotId);
+        if (container is not null)
+            EnsureUsableContainer(container);
         var nextTick = targetTick ?? checkpoint.WorldTick;
         if (nextTick < checkpoint.WorldTick)
         {
@@ -222,7 +223,8 @@ public static partial class InventoryFixture
             nextTick,
             StorageBuildingId: storageBuildingId,
             ContainerLotId: containerLotId,
-            GroundPosition: groundPosition);
+            GroundPosition: groundPosition,
+            CarrierId: container?.CarrierId);
         ValidateLots([lot]);
         var lots = checkpoint.Lots
             .Append(lot)
@@ -613,6 +615,8 @@ public static partial class InventoryFixture
         ArgumentException.ThrowIfNullOrWhiteSpace(moveId);
         var source = checkpoint.GetLot(lotId);
         var movedId = $"{lotId}#move:{moveId}";
+        // An owner carrying their own goods is recorded without a separate carrier.
+        if (carrierId == ownerId) carrierId = null;
         if (source.OwnerId != ownerId || quantity <= 0 || quantity > source.Quantity ||
             checkpoint.Lots.Any(lot => lot.Id == movedId))
             throw new InvalidOperationException("The exact owned physical quantity is unavailable.");
@@ -681,8 +685,15 @@ public static partial class InventoryFixture
     {
         ValidateCheckpoint(checkpoint);
         ArgumentException.ThrowIfNullOrWhiteSpace(carrierId);
+        // A dropped vessel lands on the ground; its contents stay inside it.
         var lots = checkpoint.Lots.Select(lot => lot.CarrierId == carrierId
-            ? lot with { CarrierId = null, GroundPosition = position, StorageBuildingId = null, DeliveryBuildingId = null }
+            ? lot with
+            {
+                CarrierId = null,
+                GroundPosition = lot.ContainerLotId is null ? position : null,
+                StorageBuildingId = null,
+                DeliveryBuildingId = null,
+            }
             : lot).ToArray();
         ValidateLots(lots);
         return Commit(checkpoint, lots: lots, eventKind: "carrier_goods_set_down", detail: carrierId);

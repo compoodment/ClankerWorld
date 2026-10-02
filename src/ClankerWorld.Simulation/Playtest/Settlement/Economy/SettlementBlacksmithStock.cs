@@ -186,7 +186,7 @@ public sealed partial class PrivateWorldRuntime
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
             if (personal is not null) return personal;
             var source = inventory.Lots
-                .Where(lot => lot.OwnerId == householdId && lot.StorageBuildingId != blacksmithId &&
+                .Where(lot => lot.OwnerId == householdId && lot.CarrierId is null && lot.StorageBuildingId != blacksmithId &&
                     lot.DeliveryBuildingId != blacksmithId && lot.ContainerLotId is null && lot.ItemKind == kind &&
                     AvailableLotQuantity(lot) > 0)
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
