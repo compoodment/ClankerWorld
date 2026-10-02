@@ -181,6 +181,9 @@ public static class GameUiText
             "crop_moisture_effect" or "food_harvested" or "food_consumed" or "tree_planted" or "tree_replanted" or "child_born" or
             "inhabitant_removed" or "estate_will_accepted" or "estate_will_default" or
             "partnership_accepted" or "partnership_ended" or "caregiver_assigned" or
+            "medical_care_allowed" or "medical_care_revoked" or
+            "medical_treatment_started" or "medical_treatment_completed" or "medical_treatment_interrupted" or
+            "empty_vessel_picked_up" or
             "council_policy_adopted" or "settlement_trade_completed" or
             "business_trade_offered" or "business_trade_completed" or "business_trade_cancelled" or
             "store_stock_collected" or "store_stock_delivered" or
