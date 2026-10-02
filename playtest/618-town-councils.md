@@ -1,9 +1,3 @@
-# Town councils and elections
-
-Checks for [#618](https://github.com/compoodment/ClankerWorld/issues/618), from
-[#699](https://github.com/compoodment/ClankerWorld/pull/699). These still need a
-Windows playtest after merge.
-
 - On the paired world: open World Info and its Towns page. Each founded Town shows its own councillors, willing candidates, current election, latest settled election and eight recent proposal results. Names and world dates should fit the panel. With two Towns and long proposals on a short screen, scroll to the last results and switch to the World page and back. Failed and cancelled elections should stay visible after voting closes. ([#618](https://github.com/compoodment/ClankerWorld/issues/618))
 - On the paired world: let adults visit their Town's notice place near its founding site. They can read notices and relay what they learned to someone nearby. A resident traveling away should not suddenly know an unseen proposal or election. ([#618](https://github.com/compoodment/ClankerWorld/issues/618))
 - On the paired world: let a personal model submit an ordinary proposal and watch its council votes. A four-adult council needs three yes votes; silence never passes it. Passed, rejected and cancelled proposals should remain visible as different results. ([#618](https://github.com/compoodment/ClankerWorld/issues/618))

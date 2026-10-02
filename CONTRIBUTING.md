@@ -22,7 +22,6 @@ Otherwise use the matching template:
 | **Implementation** | Agreed work needs building. Say the goal, the design it follows, how we will know it works and what is out of scope. |
 | **Decision** | A game choice needs the owner's answer. Give the options, trade-offs and a recommendation. |
 | **Prototype** | A small experiment would answer a question. Say what to learn and how to judge the result. |
-| **Playtest report** | You played and noticed things. Rough notes are fine. |
 
 - One topic per issue, with a title in ordinary words. Link related issues
   instead of copying progress notes between them.
@@ -33,6 +32,10 @@ Otherwise use the matching template:
 - computment reads chat, not GitHub comments. An agent that needs their answer
   asks in its chat reply and records the answer afterwards
   ([how](AGENTS.md#ask-the-owner-in-chat)).
+- The owner reports playtests in chat. Record the result in the
+  [playtest list](playtest/README.md), with linked Bug or Implementation issues
+  labelled `from:playtest` and the build details the owner gave. Do not open a
+  separate report issue.
 - A routine fix follows the agreed design and existing behavior. A change that
   would settle an open game choice needs a Decision issue or an explicit owner
   decision. An open pull request, draft or not, does not make a suggestion
@@ -56,13 +59,13 @@ hours.
 
 | Kind | Labels |
 | --- | --- |
-| Type | `type:bug`, `type:feature` (agreed work), `type:decision`, `type:experiment`, `type:playtest`, `type:docs`, `type:tooling` (CI, tests, build, refactors and how-we-work changes) |
+| Type | `type:bug`, `type:feature` (agreed work), `type:decision`, `type:experiment`, `type:docs`, `type:tooling` (CI, tests, build, refactors and how-we-work changes) |
 | Area | `area:agents` (models, memories, personality, families, conversations), `area:towns` (buildings, households, land, work, trade), `area:world` (map, terrain, weather, plants, survival, time), `area:saves`, `area:interface` (screens, controls, art), `area:server` (host, pairing, keys, deployment), `area:tooling` (CI, tests, build, workflow) |
 | Priority | `priority:p0` to `priority:p3`; see [Priorities](#priorities) |
 | Issue status | `status:needs-pr` (agreed and unblocked; only on issues that need a pull request, never on decisions or owner tasks), `status:in-progress` ([claimed](#claim-an-issue)), `status:has-pr` (a pull request closes it), `status:parked` (closed for a later stage) |
 | Pull request status | `status:needs-review` (ready for review), `status:reviewing` ([claimed by a reviewer](#review-and-merge)), `status:merging` ([taking its turn to merge](#review-and-merge)) |
 | Either | `status:needs-decision` (waiting on the owner), `status:blocked` (waiting on something its description names, such as `Blocked by #123`) |
-| Other | `owner-task` (only computment can do it), `regression`, `from:playtest`, `accessibility` |
+| Other | `owner-task` (only computment can do it), `owner-priority` (the owner chose this priority), `regression`, `from:playtest`, `accessibility` |
 
 `status:in-progress` stays next to `status:has-pr` while the claimed pull
 request is a draft, and next to `status:needs-decision` while the claim waits
@@ -122,8 +125,9 @@ on the owner.
   `type:bug`, `owner-task`, `priority:p0` and one area, and no details. The
   owner decides in chat how it is fixed. Hardening ideas with no working
   exploit are ordinary issues.
-- **Features, experiments and decisions** start at P2, and move to P1 when the
-  next playtest needs them.
+- **Features, experiments and decisions** start at P2. They move to P1 for a
+  playtest only when the owner says in chat that the next playtest needs them.
+  Add `owner-priority` and a comment naming that playtest.
 - **How we work:** changes to CI, labels, templates, Claude Code settings
   (`.claude/`), CONTRIBUTING, AGENTS or CLAUDE.md affect every agent, so they
   are P0.
@@ -132,10 +136,15 @@ on the owner.
   did not pick, counting the new one, goes down a level; between equals, the
   newest goes down. If the owner picked every other issue at that level, the
   new one goes down, and you say so in your chat reply.
+  Record the cap demotion in a comment, such as "Moved to P1: P0 is full".
+  While the higher level is full, do not move it back solely for severity.
+  When an issue at that level closes, whoever closes it restores the oldest
+  cap-demoted issue to that level.
 - **Anyone may set or change a priority by these rules without asking the
   owner.** Change one only when the rules call for it, and add a one-line
-  comment saying why. When the owner picks a priority, say so in that comment;
-  nobody else moves it afterwards, even to make room.
+  comment saying why. When the owner picks a priority, add `owner-priority`
+  and say so in that comment. Nobody else moves an owner-picked priority,
+  even to make room.
 
 ## Work on an issue
 
@@ -269,7 +278,13 @@ was not checked.
 - **Replaced issues:** carry over anything useful, then close the older issue
   as a duplicate of the new one.
 - **Decisions:** the pull request that records the owner's answer in the game
-  design closes the Decision issue and links or opens the implementation issues.
+  design, or in the workflow rules for a workflow decision, closes the
+  Decision issue and links or opens the implementation issues. Implementation
+  may start once the owner explicitly approves the design, including in chat.
+  The design pull request takes the highest priority of the issues it
+  unblocks, and reviewers take it first. Each dependent implementation pull
+  request writes `Waits on #<design PR>` in its description and merges only
+  after that design pull request.
 - **Not needed:** close as *not planned* with a one-line reason. Check the open
   `status:blocked` issues that name it: park them too if they cannot happen
   without it, or comment with what they now wait on.
@@ -297,8 +312,9 @@ remains on the issue and pull request, not in a second tracker.
    in. If #A closes without merging, change your base to main and drop the
    parts of #A you don't need. If yours is already ready, whoever closed #A
    changes its base ([after closing without merging](#review-and-merge)) and
-   its reviewer drops those parts. If your pull request needs another one's code but is not stacked on
-   it, write `Waits on #A` on the overlap line.
+   its reviewer drops those parts. If your pull request needs another one's
+   code or approved design but is not stacked on it, write `Waits on #A` on
+   the overlap line.
 4. Keep to one concern, with the docs and tests it needs.
 5. Fill in the [pull request template](.github/pull_request_template.md) for
    someone who has not read the conversation, including the **Author** line.
@@ -344,8 +360,8 @@ change, such as `431-orchard-harvest.md`. When there is no issue, name it after
 your branch without the `claude/` or `codex/` prefix, such as
 `settings-redesign.md`. Put the file directly in `changes/`; entries in
 subfolders are not collected. `scripts/collect-changes.sh` moves the entries
-into CHANGELOG.md when a release is prepared, or whenever the changelog should
-catch up.
+into CHANGELOG.md when a release is prepared. A catch-up outside a release is
+an owner request, handled by one session at a time.
 
 ### Drafts and readiness
 
@@ -492,8 +508,9 @@ Before merging, check that:
 4. The description links its issues correctly
    ([Link issues](#link-issues-from-the-pull-request)); fix it first if not.
 5. If the description says this pull request must follow another, that one has
-   merged. Only a pull request that needs another's code sets such an order,
-   in its own description; an order stated only in a comment binds nobody.
+   merged. Code dependencies and the design-before-implementation rule above
+   set such an order in the description; an order stated only in a comment
+   binds nobody.
 
 Squash-merge with `<PR title> (#<number>)` as the subject. Write the body
 yourself, never GitHub's list of branch commit messages: what changed and why;
