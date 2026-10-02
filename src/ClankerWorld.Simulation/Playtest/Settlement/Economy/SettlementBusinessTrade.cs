@@ -105,6 +105,11 @@ public sealed partial class PrivateWorldRuntime
                 ReservedBusinessStorageSpace(building.InstanceId) + InboundDeliveryQuantity(inventory, building.InstanceId) <= capacity;
     }
 
+    private static HashSet<string> BestUsableToolIds(InventoryCheckpoint inventory, string actor) =>
+        ToolProgressionRules.All.Select(tool => tool.Family).Distinct()
+            .Select(family => ToolProgressionRules.BestUsableTool(inventory, actor, family)?.Id)
+            .OfType<string>().ToHashSet(StringComparer.Ordinal);
+
     private BusinessQuote? BusinessOpportunity(string buyer, PlacedBuilding building)
     {
         var inventory = society.Checkpoint.Inventory;
@@ -118,9 +123,7 @@ public sealed partial class PrivateWorldRuntime
             return null;
         var definition = worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
         if (BusinessRules.KindOf(definition) is not { } kind) return null;
-        var protectedToolIds = ToolProgressionRules.All.Select(tool => tool.Family).Distinct()
-            .Select(family => ToolProgressionRules.BestUsableTool(inventory, buyer, family)?.Id)
-            .OfType<string>().ToHashSet(StringComparer.Ordinal);
+        var protectedToolIds = BestUsableToolIds(inventory, buyer);
         foreach (var goods in inventory.Lots.Where(lot => lot.OwnerId == seller &&
                      lot.StorageBuildingId == building.InstanceId && IsLooseBusinessLot(lot) &&
                      AvailableLotQuantity(lot) > 0 && BusinessRules.MaySell(kind, lot.ItemKind) &&

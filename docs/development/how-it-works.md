@@ -658,6 +658,8 @@ the active equipment repair target are excluded from payment.
 Customers receive transaction access only. Store stocking first moves actual
 surplus into carried delivery lots, then uses ordinary household hauling to
 reach the Store. A remote House, field or Warehouse is never sale stock.
+Store stocking also keeps each adult's best usable work tool. Optional shelf
+restocking waits behind gathering materials needed by household work.
 Rates, the eight-unit shelf target and four-unit carried loads are provisional.
 Blacksmiths can sell real refined iron for another household's tool work.
 Market stalls, tool orders, meals and care remain tracked in #564 and its
