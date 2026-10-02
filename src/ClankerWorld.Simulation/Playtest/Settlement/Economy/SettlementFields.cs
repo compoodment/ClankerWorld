@@ -95,7 +95,7 @@ public sealed partial class PrivateWorldRuntime
     {
         if (!fertility.CanFarm(position) || fields.Any(field => field.Position == position) ||
             RoadAndBridgeTiles().Contains(position) || map.CampObjects.Any(item => item.Position == position) ||
-            (worldSimulation.BuildingExpansions ?? []).Any(job => job.State == WorldProductionJobState.Running && ExpansionTiles(job).Contains(position)) ||
+            (worldSimulation.BuildingExpansions ?? []).Any(job => (job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused) && ExpansionTiles(job).Contains(position)) ||
             map.Resources.Any(item => item.Position == position)) return false;
         return !worldSimulation.Buildings.Any(building => WorldContentSimulationRules.Footprint(
             worldContent.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId), building).Contains(position));

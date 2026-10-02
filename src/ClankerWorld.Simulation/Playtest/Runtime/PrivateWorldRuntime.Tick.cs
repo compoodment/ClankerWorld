@@ -489,6 +489,7 @@ public sealed partial class PrivateWorldRuntime
                     package.Lifecycle == ContentPackageLifecycle.Active && package.ActivationTick == 0))
                 AddSettlementResources();
             CancelUnavailableWorkers();
+            ReconcilePausedHouseholdWork();
             ProcessBuildingExpansions(targetTick);
             ProcessProduction(targetTick);
             MaintainFarmFields();
@@ -504,6 +505,7 @@ public sealed partial class PrivateWorldRuntime
             MaintainLessons();
             MaintainPartnerships();
             MaintainHousing();
+            MaintainMovingCareGroups();
             MaintainParenthood();
             MaintainContinuity();
             MaintainDependentCare();
