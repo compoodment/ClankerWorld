@@ -93,8 +93,8 @@ public sealed class OrnamentPersonalUseTests
         Assert.Equal(world.WorldTick, observed.ObservedTick);
         Assert.Equal(reply, observed.ObserverReply);
         Assert.Contains(receipt.InstructionId, result.CompletedInstructionIds!);
-        Assert.Single(result.Events, item => item.Kind == "instruction_applied" &&
-            item.Detail.StartsWith(receipt.InstructionId + ":wear_ornament:", StringComparison.Ordinal));
+        // Completed suggestions are recorded as completed instructions, not as order events.
+        Assert.DoesNotContain(result.Events, item => item.Kind == "instruction_applied");
 
         var bytes = PrivateWorldRuntimeCodec.Encode(result);
         using var replay = Restore(PrivateWorldRuntimeCodec.Decode(bytes));
@@ -105,6 +105,56 @@ public sealed class OrnamentPersonalUseTests
         Assert.Equal(Ornament, Physical(replay, actor).Equipment!.OrnamentLotId);
         Assert.Single(replay.ExportState().Events, item => item.Kind == "ornament_worn");
         replay.Validate();
+    }
+
+    [Fact]
+    public async Task AWornOrnamentIsNeverPutAwayAsPersonalStorage()
+    {
+        var state = Prepared(local: true);
+        var actor = Actor(state);
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, Ornament, "gold_ornament", actor, 1);
+        inventory = InventoryFixture.AddLot(inventory, "ornament-storage-control", "cloth", actor, 1);
+        var choices = new OrnamentChoices("household_store_personal:", DecisionProviderKind.Deterministic);
+        using var world = Restore(WithInventory(state, inventory), actor, choices);
+        Assert.True(world.WearOrnament(actor, Ornament).Applied);
+        for (var tick = 0; tick < 3; tick++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        // The unworn control item may be stored; the worn ornament stays with the adult, so the save still loads.
+        Assert.Contains(choices.Offered, candidate => candidate.Id == "household_store_personal:ornament-storage-control");
+        Assert.DoesNotContain(choices.Offered, candidate => candidate.Id == "household_store_personal:" + Ornament);
+        Assert.Equal(Ornament, Physical(world, actor).Equipment!.OrnamentLotId);
+        Assert.Null(world.Society.Inventory.GetLot(Ornament).StorageBuildingId);
+        var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var reloaded = Restore(PrivateWorldRuntimeCodec.Decode(bytes));
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
+    }
+
+    [Fact]
+    public async Task ABorrowedOrnamentCanBeNeitherWornNorGivenByItsCarrier()
+    {
+        // Carrying is custody, not ownership, for example goods kept after leaving a household.
+        var state = Prepared(local: true);
+        var actor = Actor(state);
+        var owner = Recipient(state);
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, Ornament, "gold_ornament", owner, 1);
+        inventory = InventoryFixture.AddLot(inventory, "own-ornament-control", "gold_ornament", actor, 1);
+        inventory = inventory with
+        {
+            Lots = inventory.Lots.Select(lot => lot.Id == Ornament ? lot with { CarrierId = actor } : lot).ToArray(),
+        };
+        var choices = new OrnamentChoices("safe_idle", DecisionProviderKind.LargeLanguageModel);
+        using var world = Restore(WithInventory(state, inventory), actor, choices);
+        Assert.False(world.WearOrnament(actor, Ornament).Applied);
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.Contains(choices.Offered, candidate => candidate.Id.StartsWith("gift_ornament:", StringComparison.Ordinal));
+        var borrowedChoices = new[]
+        {
+            "wear_ornament:" + Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(
+                System.Text.Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(new[] { Ornament })))),
+        };
+        Assert.DoesNotContain(choices.Offered, candidate => borrowedChoices.Contains(candidate.Id));
+        Assert.Equal((owner, actor), (world.Society.Inventory.GetLot(Ornament).OwnerId, world.Society.Inventory.GetLot(Ornament).CarrierId));
+        Assert.Null(Physical(world, actor).Equipment?.OrnamentLotId);
+        world.Validate();
     }
 
     [Theory]
@@ -248,7 +298,16 @@ public sealed class OrnamentPersonalUseTests
         var actor = Actor(state);
         var recipient = Recipient(state);
         var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, Ornament, "diamond_ornament", actor, 1);
-        if (mustDo) inventory = InventoryFixture.AddLot(inventory, "ornament-forced-berry", "berries", actor, 1);
+        if (mustDo)
+        {
+            inventory = InventoryFixture.AddLot(inventory, "ornament-forced-berry", "berries", actor, 1);
+            // Below comfortable fullness, so the eat order runs instead of waiting.
+            state = state with
+            {
+                Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                    ? person with { HungerBasisPoints = 3_000 } : person).ToArray(),
+            };
+        }
         var provider = new OrnamentChoices("gift_ornament:", kind, fail, recipient);
         using var world = Restore(WithInventory(state, inventory), actor, provider);
         Assert.True(world.WearOrnament(actor, Ornament).Applied);
@@ -256,7 +315,9 @@ public sealed class OrnamentPersonalUseTests
         if (mustDo)
             instruction = world.SubmitInstruction(new("ornament-owner-food", "owner:test", actor, OwnerInstructionKind.MustDo, "eat food"));
         Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-        Assert.Contains(provider.Offered, candidate => candidate.Id.StartsWith("gift_ornament:", StringComparison.Ordinal) && candidate.DestinationId == recipient);
+        // An active order narrows the choices to the order, so a gift cannot be chosen under one.
+        if (mustDo) Assert.DoesNotContain(provider.Offered, candidate => candidate.Id.StartsWith("gift_ornament:", StringComparison.Ordinal));
+        else Assert.Contains(provider.Offered, candidate => candidate.Id.StartsWith("gift_ornament:", StringComparison.Ordinal) && candidate.DestinationId == recipient);
         var applied = kind == DecisionProviderKind.LargeLanguageModel && !fail && !mustDo;
         Assert.Equal(applied ? recipient : actor, world.Society.Inventory.GetLot(Ornament).OwnerId);
         Assert.Equal(applied ? null : Ornament, Physical(world, actor).Equipment?.OrnamentLotId);

@@ -26,7 +26,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     public const int ChildModelSelectionSchemaVersion = 33;
     public const int ConversationSchemaVersion = 35;
     public const int PersonalEquipmentSchemaVersion = 37;
-    private const int OrnamentEquipmentSchemaVersion = 47;
+    private const int OrnamentEquipmentSchemaVersion = 52;
     public const int ReusableContainerSchemaVersion = 39;
     public const int DependentGuardianSearchSchemaVersion = 50;
     public const int ToolProgressionSchemaVersion = 42;

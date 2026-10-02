@@ -456,6 +456,12 @@ public sealed partial class PrivateWorldRuntime
                     ContinueTownCivicVisit(inhabitant.Id, intention.CandidateId);
                 continue;
             }
+            if (IsOrnamentCandidate(intention.CandidateId))
+            {
+                if (intention.Provider == DecisionProviderKind.LargeLanguageModel)
+                    ContinueOrnamentWalk(inhabitant.Id, intention.CandidateId);
+                continue;
+            }
             if (!CreateCandidates(inhabitant.Id, state).Any(candidate => candidate.Id == intention.CandidateId)) continue;
             ApplyCandidate(inhabitant.Id, state, intention.CandidateId, reportIdle: false);
         }

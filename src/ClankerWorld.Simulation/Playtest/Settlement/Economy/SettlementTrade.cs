@@ -35,7 +35,7 @@ public sealed partial class PrivateWorldRuntime
         {
             // One personal ornament is enough. A diamond setting can replace
             // a plain one; private household stock is never personal equipment.
-            var ornaments = society.Checkpoint.Inventory.Lots.Where(lot =>
+            var ornaments = society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == actor &&
                 PersonalEquipmentRules.IsCarried(lot, actor) && lot.ContainerLotId is null &&
                 lot.DeliveryBuildingId is null && OrnamentContent.IsOrnament(lot.ItemKind) &&
                 AvailableLotQuantity(lot) > 0).ToArray();
