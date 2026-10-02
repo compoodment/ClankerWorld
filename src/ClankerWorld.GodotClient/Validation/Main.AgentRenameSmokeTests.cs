@@ -72,14 +72,16 @@ public partial class Main
                     host.RenameReceived = new(TaskCreationOptions.RunContinuationsAsynchronously);
                     var release = host.ReleaseRename = new(TaskCreationOptions.RunContinuationsAsynchronously);
                     var renaming = RenameSelectedAgentAsync();
-                    await host.RenameReceived.Task;
+                    await Task.WhenAny(host.RenameReceived.Task, renaming).WaitAsync(TimeSpan.FromSeconds(5));
+                    if (!host.RenameReceived.Task.IsCompleted)
+                        throw new InvalidOperationException("The rename request must reach the host before the refresh check.");
                     // The periodic refresh does not wait for owner actions.
                     await RefreshFromHostAsync(refreshWhileDeciding);
                     if (renameAgentInput.Text != "Aster Vale")
                         throw new InvalidOperationException($"A refresh while the host decides must keep the attempted name: field={renameAgentInput.Text}.");
                     host.ReleaseRename = null;
                     release.SetResult();
-                    await renaming;
+                    await renaming.WaitAsync(TimeSpan.FromSeconds(5));
                 }
                 if (!host.RenameRequests.TryDequeue(out var sent) || sent != new OwnerAgentRenameAction(rowanId, "Aster Vale") ||
                     !renameRow.Visible || renameAgentInput.Text != "Aster Vale" || renameAgentInput.HasFocus() ||
