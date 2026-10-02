@@ -139,7 +139,7 @@ public sealed partial class PrivateWorldRuntime
                     !protectedToolIds.Contains(lot.Id) &&
                     !BusinessBuyerWants(buyer, lot) && BusinessPaymentUseful(building, lot) &&
                     !PersonalEquipmentRules.IsSelected(inhabitants[buyer].Equipment, lot.Id) &&
-                    lot.ItemKind is not ("field_map" or "field_record"))
+                    !AgentKnowledgeRules.IsArtifactKind(lot.ItemKind))
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal))
             {
                 var amounts = BusinessQuoteAmounts(building, goods, payment);

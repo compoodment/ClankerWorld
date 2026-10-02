@@ -1481,7 +1481,7 @@ public static partial class SocietyFixture
 
                     // Physical knowledge artifacts are indivisible and their saved
                     // ledger references this lot ID. Ownership changes, identity does not.
-                    var preserveIdentity = lot.Quantity == 1 && lot.ItemKind is "field_map" or "field_record";
+                    var preserveIdentity = lot.Quantity == 1 && lot.ItemKind is "field_map" or "field_record" or "book";
                     nextLots.Add(lot with
                     {
                         Id = preserveIdentity ? lot.Id : $"{lot.Id}#estate:{estate.Id}:{beneficiaries[index]}",

@@ -254,7 +254,8 @@ public sealed partial class PrivateWorldRuntime
         {
             foreach (var lot in PersonalGoodsAwaitingCollection(actor).Where(lot => VesselFits(lot, FreeCarryCapacity(actor)))
                          .OrderBy(lot => lot.Id, StringComparer.Ordinal))
-                candidates.Add(new("household_collect:" + lot.Id, $"Physically collect your own {lot.ItemKind.Replace('_', ' ')}; other household stock remains private.", 20));
+                candidates.Add(new("household_collect:" + lot.Id, $"Physically collect your own {lot.ItemKind.Replace('_', ' ')}; other household stock remains private.",
+                    StoredBookCollectionPriority(actor, lot)));
         }
         foreach (var lot in BorrowedGoods(actor).OrderBy(lot => lot.Id, StringComparer.Ordinal))
             if (lot.OwnerId != society.Checkpoint.GetInhabitant(actor).HouseholdId && HouseForHousehold(lot.OwnerId) is { } ownerHouse &&
@@ -279,6 +280,14 @@ public sealed partial class PrivateWorldRuntime
                      SocietyFixture.HasActivePrimaryCaregiver(society.Checkpoint, person.Id)))
             candidates.Add(new("household_accept_care:" + child.Id, $"Explicitly accept primary care of {child.Name}, so their current caregiver may leave without taking them.", 112));
     }
+
+    // Books kept at home are collected by explicit choice; ground recovery
+    // and collection after departure retain the ordinary recovery priority.
+    private int StoredBookCollectionPriority(string actor, InventoryLot lot) =>
+        lot.ItemKind == "book" && lot.StorageBuildingId is { } storageId &&
+        society.Checkpoint.GetInhabitant(actor).HouseholdId is { } householdId &&
+        worldSimulation.Buildings.Any(building => building.InstanceId == storageId && building.HouseholdId == householdId)
+            ? 190 : 20;
 
     private void ApplyDepartureCandidate(string actor, string candidate)
     {
