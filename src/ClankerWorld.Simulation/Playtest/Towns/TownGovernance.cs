@@ -1,4 +1,5 @@
 using ClankerWorld.Simulation.Kernel;
+using ClankerWorld.Simulation.Harness;
 
 namespace ClankerWorld.Simulation.Playtest;
 
@@ -7,7 +8,7 @@ public sealed record TownProposalVote(string AgentId, bool Yes);
 public sealed record TownProposal(string Id, string RequestKey, string Kind, string AuthorId, string? SubjectId,
     string Text, string Circumstances, long CouncilRevision, long OpenedTick, long DeadlineTick,
     IReadOnlyList<string> Voters, int RequiredYes, IReadOnlyList<TownProposalVote> Votes,
-    string Status = "pending", long? SettledTick = null);
+    string Status = "pending", long? SettledTick = null, IReadOnlyList<GridPoint>? LandClaimTiles = null);
 public sealed record TownElectionBallot(string AgentId, IReadOnlyList<string> Choices);
 public sealed record TownElection(string Id, string Kind, string Stage, long OpenedTick, long DeadlineTick,
     long TermEndTick, int Seats, IReadOnlyList<string> Voters, IReadOnlyList<string> Candidates,
@@ -26,7 +27,7 @@ public sealed record TownGovernanceState(string Form, string Fallback, long Revi
             [], [], null, [], [], []);
 }
 
-/// <summary>One Town's ordinary civic rules. No proposal changes ownership, membership or physical facts.</summary>
+/// <summary>One Town's ordinary civic rules. The world validates and executes approved land claims separately.</summary>
 public static class TownGovernanceRules
 {
     public const int RepresentationThreshold = 8;
@@ -311,12 +312,16 @@ public static class TownGovernanceRules
                 (reason is null ? string.Empty : " " + reason), tick);
 
     public static TownGovernanceState SubmitProposal(TownGovernanceState state, string townId, string actor,
-        string kind, string? subject, string text, string circumstances, IEnumerable<string> adults, long tick, int day)
+        string kind, string? subject, string text, string circumstances, IEnumerable<string> adults, long tick, int day,
+        IReadOnlyList<GridPoint>? landClaimTiles = null)
     {
-        if (kind is not ("law" or "admission") || text.Trim().Length is < 1 or > MaximumProposalText || text.Any(char.IsControl) ||
-            kind == "law" && !Has(adults, actor) || kind == "admission" && actor != subject && !Has(adults, actor))
+        if (kind is not ("law" or "admission" or "land_claim") || text.Trim().Length is < 1 or > MaximumProposalText || text.Any(char.IsControl) ||
+            kind is "law" or "land_claim" && !Has(adults, actor) || kind == "admission" && actor != subject && !Has(adults, actor) ||
+            kind == "land_claim" && (landClaimTiles is not { Count: > 0 } || subject is not null) ||
+            kind != "land_claim" && landClaimTiles is not null)
             throw new InvalidOperationException("Only an adult resident or the newcomer requesting admission may submit this proposal.");
-        var key = kind == "admission" ? "admission:" + subject : "law:" + string.Join(' ', text.Split(' ', StringSplitOptions.RemoveEmptyEntries)).ToUpperInvariant();
+        var key = kind == "land_claim" ? TownLandClaimRules.RequestKey(landClaimTiles!) :
+            kind == "admission" ? "admission:" + subject : "law:" + string.Join(' ', text.Split(' ', StringSplitOptions.RemoveEmptyEntries)).ToUpperInvariant();
         if (state.Proposals.Any(p => p.RequestKey == key && p.Status == "pending")) return state;
         var previous = state.Proposals.LastOrDefault(p => p.RequestKey == key);
         if (previous is { Status: "rejected" or "withdrawn" } && tick < previous.SettledTick + day &&
@@ -324,7 +329,8 @@ public static class TownGovernanceRules
             throw new InvalidOperationException("The same request needs one unpaused day or materially changed circumstances before retrying.");
         var id = townId + ":proposal:" + (state.Sequence + 1);
         var proposal = new TownProposal(id, key, kind, actor, subject, text.Trim(), circumstances, state.Revision,
-            tick, tick + day, state.Members.ToArray(), state.Form == "representative" ? 2 : state.Members.Count / 2 + 1, []);
+            tick, tick + day, state.Members.ToArray(), state.Form == "representative" ? 2 : state.Members.Count / 2 + 1, [],
+            LandClaimTiles: landClaimTiles is null ? null : TownLandRightsRules.OrderTiles(landClaimTiles));
         state = state with { Sequence = state.Sequence + 1, Proposals = state.Proposals.Append(proposal).ToArray() };
         return Notice(state, "proposal", id, $"{kind} proposal by {actor}: {text.Trim()} " +
             $"Needs {proposal.RequiredYes} yes votes by tick {proposal.DeadlineTick}. A cast vote is final.", tick);
@@ -361,6 +367,10 @@ public static class TownGovernanceRules
     private static TownGovernanceState SettleProposal(TownGovernanceState state, TownProposal p, string status, long tick) =>
         Notice(ReplaceProposal(state, p with { Status = status, SettledTick = tick }), "result", p.Id,
             $"{p.Kind} proposal {status}: {p.Text}", tick);
+
+    internal static TownGovernanceState CancelLandClaim(TownGovernanceState state, TownProposal proposal, long tick) =>
+        Notice(ReplaceProposal(state, proposal with { Status = "cancelled", SettledTick = tick }), "result", proposal.Id,
+            "Land claim cancelled: the plot is no longer unclaimed land adjoining this Town's title.", tick);
     private static TownGovernanceState ReplaceProposal(TownGovernanceState state, TownProposal proposal) =>
         state with { Proposals = state.Proposals.Select(p => p.Id == proposal.Id ? proposal : p).ToArray() };
     private static TownGovernanceState Notice(TownGovernanceState state, string kind, string subject, string text, long tick)

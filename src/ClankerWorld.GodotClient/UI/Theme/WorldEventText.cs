@@ -99,6 +99,7 @@ public static class WorldEventText
             "town_civic_runoff" => $"{civicTownName}'s council election needs a runoff for tied seats.",
             "town_civic_proposal" => $"A proposal was submitted to {civicTownName}'s council.",
             "town_civic_result" => $"{civicTownName}'s council recorded a decision. See the Towns page for its result.",
+            "town_land_claimed" => $"{civicTownName}'s council approved a claim to adjoining land. The Town title filter shows the new plot.",
             "town_civic_cancelled" => $"An unfinished election in {civicTownName} was cancelled.",
             "town_founding_started" => "Your first Town is being set up.",
             "town_resident_joined" => $"{ResidentName(snapshot, worldEvent)} joined the first Town.",

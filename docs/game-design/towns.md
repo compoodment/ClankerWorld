@@ -639,7 +639,7 @@ the protected government-change process. Its creation, term and elections are
 agreed in [The mayor's office and elections](#the-mayors-office-and-elections);
 [Land hearings and rulings](#land-hearings-and-rulings) settles adjudication.
 
-**Current implementation, not yet confirmed by computment:** the first
+**Current implementation:** the first
 accepted Town layout records title to the connected land inside its initial
 border, and later border growth makes room for the Town without adding title.
 That follows answer 19A, that a boundary change does not by itself change
@@ -650,11 +650,18 @@ Add Agent treats a recorded use right as household property and Town title
 like a Town border; a single pending request gives no household. A household
 building's current owner comes before another household's undisputed use right
 on its footprint, so reassigning a building does not block placement there. A
-field does not, and disputed land is always refused. Whether title grows with
-the Town, how much land comes with a starter use right, and whether reassigning
-a building should move its starter use right remain open. Because new grants
-use existing Town-owned land, the first answer decides where later households
-can receive use rights.
+field does not, and disputed land is always refused.
+
+The October 2 owner answers on
+[#426](https://github.com/compoodment/ClankerWorld/issues/426#issuecomment-5956742184)
+settle title growth through Council-approved claims to adjoining unclaimed
+land. These claims now run through ordinary Council proposals: an adult names
+one connected plot, councillors learn its notice and vote, and the server
+rechecks the plot before recording title. Existing claims, household rights,
+structures and private goods are preserved. A border change alone still gives
+no title. The same owner answers require Council permission for household
+expansion onto additional tiles and use rights to follow legitimate building
+reassignment; those separate runtime changes remain in #426.
 
 Competing requests are visible as **pending disputes**. While one is pending,
 conflicting formal rights transfers pause; residents are not evicted, goods
@@ -672,7 +679,7 @@ the final decision on disputes and what happens when an agreed period ends.
 These rules do not imply automatic confiscation or unilateral household
 transfers. Evidence, hearings, outcomes and conflicts of interest follow the
 agreed [case procedure](#land-hearings-and-rulings). Disputed land is striped
-on the map, and inspecting a tile lists each household's claim. Approval,
+on the map, and inspecting a tile lists each household's claim. Household grants,
 consent, transfer and case actions are not built yet
 ([what works today](../what-works.md)).
 

@@ -374,7 +374,8 @@ public sealed class OwnerWorldObservationStore
                         civic.Form, civic.Fallback, civic.Members.Select(id => inhabitantsById.GetValueOrDefault(id)?.Name ?? id).ToArray(),
                         civic.TermEndTick, civic.RetryTick, civic.Candidates.Select(c =>
                             (inhabitantsById.GetValueOrDefault(c.AgentId)?.Name ?? c.AgentId) + (c.FullTerm ? " (full term)" : " (current vacancy only)")).ToArray(),
-                        civic.Proposals.TakeLast(RecentCivicProposalLimit).Select(p => new ViewerCivicProposal(p.Id, p.Kind, p.Text, p.Status,
+                        civic.Proposals.TakeLast(RecentCivicProposalLimit).Select(p => new ViewerCivicProposal(p.Id, p.Kind,
+                            p.Text + (p.LandClaimTiles is { } tiles ? " Exact tiles: " + TownLandClaimRules.DescribeTiles(tiles) + "." : ""), p.Status,
                             p.Votes.Count(v => v.Yes), p.Votes.Count(v => !v.Yes), p.RequiredYes, p.DeadlineTick)).ToArray(),
                         civic.Election is { } election ? ProjectElection(election) : null)
                     {

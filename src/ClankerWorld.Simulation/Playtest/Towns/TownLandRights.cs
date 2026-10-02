@@ -165,6 +165,7 @@ public static class TownLandRightsRules
                 title.Tiles.Any(tile => !town.BorderTiles.Contains(tile) || !titledTiles.Add(tile)))
                 throw new InvalidDataException("A saved Town title is invalid or outside its recorded Town border.");
         }
+        TownLandClaimRules.Validate(map, worldTick, towns, titles);
 
         if (titles.Count > 0 && towns.All(town => town.OriginSite is null))
             throw new InvalidDataException("Town title may only be created from an accepted first-Town layout.");

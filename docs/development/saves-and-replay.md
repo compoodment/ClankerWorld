@@ -100,6 +100,16 @@ unrelated action or a stale order cannot advance a replacement task. Alpha saves
 must use the current checkpoint schema; older saves are refused without
 migration and remain unchanged.
 
+Schema 53 adds exact land-claim coordinates to Council proposals. A passed
+claim and its title record must agree on Town, tiles and settlement time;
+loading refuses a claim title without approval or a passed claim without its
+title. Pending, refused and cancelled claims hold no title. Proposal identity
+uses ordered coordinates, and title identity is derived from the proposal ID.
+Prepared-tick rollback removes votes, titles and border changes together;
+continuing a current-format checkpoint preserves the vote window and cannot
+apply an accepted claim twice. Older alpha schemas are refused and preserved;
+no migration is provided.
+
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
 Matching parent assignments are disclosed as agreement; when they differ, the
