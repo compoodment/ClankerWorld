@@ -64,8 +64,9 @@ public partial class Main
     /// <summary>
     /// Agents' own words reach the drawn panels as their models wrote them:
     /// the Profile's newest thought and People notes, memory cards, World
-    /// Info's council proposals, project blockers and social notes, and the
-    /// Event Log rows. Each spells an ellipsis as three full stops.
+    /// Info's council proposals, project blockers and social notes, Event Log
+    /// rows, an agent-proposed add-on's name and status messages from the
+    /// host. Each spells an ellipsis as three full stops.
     /// </summary>
     private void VerifyAgentTextEllipses()
     {
@@ -92,12 +93,20 @@ public partial class Main
             RenderSelectedInhabitantCard(snapshot);
             RenderTownExtras(snapshot);
             RenderEventRows([(EventId, false, "08:00", $"Ash said{ellipsis} hello")], false);
+            RenderModLibrary(snapshot with
+            {
+                ContentPackages = [new OwnerWorldContentPackage("ellipsis.pottery", "1.0.0", "sha256:package", "active",
+                    null, null, null, 1, "sha256:manifest", $"River{ellipsis} pottery", ash.Id)],
+            });
+            SetStatus($"Saved{ellipsis} nearly", good: true);
             var texts = new Dictionary<string, string>
             {
                 ["thought"] = privateThoughtHistory.Text,
                 ["memory"] = MemoryCardsText(),
                 ["People"] = ProfilePeopleText(),
                 ["Town details"] = PageText(townExtras),
+                ["Mod Library"] = ModLibraryText(),
+                ["status"] = statusLabel.Text,
                 ["Event Log"] = string.Join("\n", eventRows.FindChildren("*", nameof(Label), recursive: true, owned: false).OfType<Label>().Select(label => label.Text)),
                 ["council"] = TownCivicText(shown.Towns.Count > 0 ? shown.Towns[0] with { Governance = council } :
                     new OwnerWorldTown("town:ellipsis", "Ellipsis", "founded", 0, [], [], []) { Governance = council }, 0),
@@ -113,6 +122,8 @@ public partial class Main
             selectedInhabitantId = selected;
             RenderSelectedInhabitantCard(shown);
             RenderTownExtras(shown);
+            RenderModLibrary(shown);
+            statusToast.Hide();
             renderedEventLog = null;
             RenderEventLog();
         }
