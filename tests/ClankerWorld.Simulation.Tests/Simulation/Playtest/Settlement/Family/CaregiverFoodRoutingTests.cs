@@ -188,7 +188,7 @@ public sealed class CaregiverFoodRoutingTests
         society = SocietyFixture.AcceptRelationship(society, "pot-care-parents", 1, ids[1]).Checkpoint;
         var birthFood = society.Inventory.Lots.First(lot => lot.OwnerId == household && lot.ItemKind == "food" && lot.Quantity >= 4);
         var birth = SocietyFixture.CommitBirth(society, new($"family:{ids[0]}:{society.WorldTick}", 1,
-            ids[0], ids[1], household, [ids[0], ids[1]], [ids[0], ids[1]], birthFood.Id, 4, society.WorldTick, ChildName: "Ari"));
+            ids[0], ids[1], household, [ids[0], ids[1]], [ids[0], ids[1]], birthFood.Id, 4, society.WorldTick, ChildName: "Ari", PrimaryCaregiverId: ids[0]));
         var childId = Assert.IsType<string>(birth.CreatedId);
         society = birth.Checkpoint;
         // The household's only food is in its House pot.

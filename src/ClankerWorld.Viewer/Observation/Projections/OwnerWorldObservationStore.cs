@@ -494,8 +494,7 @@ public sealed class OwnerWorldObservationStore
                     residentCapacity?.HasDominantFamily ?? false,
                     residentCapacity?.IsOvercrowded ?? false)
                     {
-                        AllowsHouseholdOwner = buildingDefinitions?.GetValueOrDefault(item.DefinitionId)?.Tags
-                        .Any(HouseholdBuildingKinds.IsKindTag) == true,
+                        AllowsHouseholdOwner = definition?.Tags.Any(HouseholdBuildingKinds.IsKindTag) == true,
                     };
                 })
                 .ToArray() ?? [],
@@ -776,7 +775,7 @@ public sealed class OwnerWorldObservationStore
             HousingBlockers.NoAuthorizedHome => "No home. The household holds no House yet and can plan one.",
             HousingBlockers.MissingMaterials => "No home. The household holds no House and lacks the materials to build one.",
             HousingBlockers.NoLegalSite => "No home. The household has the materials for a House but no legal site to build it.",
-            HousingBlockers.Overcrowded => "Housing need. The household's House is over its completed resident capacity; no one is moved automatically.",
+            HousingBlockers.Overcrowded => "Housing need. The House has more residents than places; nobody is moved out.",
             _ => null,
         };
     }

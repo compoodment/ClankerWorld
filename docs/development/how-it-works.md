@@ -568,7 +568,8 @@ requests, then recomputes the blocker and appends `housing_blocked` when it
 changes. The blocker codes are `no_household`, `no_authorized_home` (the
 household can plan or is building a House), `missing_materials`,
 `no_legal_site` (the household has the build costs but `TownLayoutService`
-ranks no site) and `awaiting_answer`. The code is shown on the owner's agent
+ranks no site), `awaiting_answer` and `overcrowded` (the household's House
+has more permanent residents than places). The code is shown on the owner's agent
 card and sent to the agent's own model as a `housing` line in its self context.
 An adult with no household is offered `household_ask:{household}` for each
 household that holds a House in the same Town, has an adult who can answer and
@@ -889,6 +890,8 @@ lives in `TreeGrowthRules` and is provisional ([#462](https://github.com/compood
   site is the nearest reachable open tile outside every Town border, so trees
   do not block building sites. The species follows the nearest wood tree.
   `replant_tree` also uses a tree seed.
+  Replanting selects stumps reachable from the acting agent, including on
+  disconnected islands, and skips stumps with no unoccupied route into reach.
 - **Orchard trees** are `growing`, `fruiting` or `picked`. Fruit is seasonal in
   `EcologyRules`: it ripens only in the tree's recorded season (autumn for new
   worlds) and falls when that season ends. New worlds start in spring, so

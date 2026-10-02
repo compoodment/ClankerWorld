@@ -177,7 +177,7 @@ public partial class Main
                 (building.InvitedGuests is { Count: > 0 } guests ? $"\nStorm guests · {string.Join(", ", guests)}" : "") +
                 (building.ExpansionState == "running"
                     ? building.Tags?.Contains("house", StringComparer.Ordinal) == true
-                        ? "\nHouse expansion underway · resident places change on completion"
+                        ? "\nHouse expansion underway · more storage and resident places when finished"
                         : "\nExpanding storage"
                     : "") +
                 (building.ExpansionFailure is { } failure ? $"\nExpansion stopped · {failure}" : ""),
