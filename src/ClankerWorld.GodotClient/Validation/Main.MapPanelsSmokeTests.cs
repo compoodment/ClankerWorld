@@ -37,6 +37,15 @@ public partial class Main
         if (worldOverview.Backdrop != UiTheme.Current.Inset || worldOverview.TownMarkerCount != towns ||
             worldOverview.AgentMarkerCount != agents)
             throw new InvalidOperationException($"The World Map must sit on parchment and mark each Town and living agent: towns {worldOverview.TownMarkerCount}/{towns}, agents {worldOverview.AgentMarkerCount}/{agents}.");
+        // A Town across the east-west seam is marked at the seam, not in the middle of the map.
+        var seamTown = new OwnerWorldTown("town:seam", "Seam", "founded", 0, [], [], [new(0, 3), new(9, 3)]);
+        var westOfSeam = seamTown with { BorderTiles = [new(0, 3), new(8, 3), new(9, 3)] };
+        var inland = seamTown with { BorderTiles = [new(3, 3), new(4, 3), new(5, 3)] };
+        if (TownMarkerTile(seamTown, 10, wrapsEastWest: true) is not { X: 0, Y: 3.5f } ||
+            TownMarkerTile(seamTown, 10, wrapsEastWest: false) is not { X: 5, Y: 3.5f } ||
+            TownMarkerTile(westOfSeam, 10, wrapsEastWest: true) is not { X: 9.5f } ||
+            TownMarkerTile(inland, 10, wrapsEastWest: true) is not { X: 4.5f })
+            throw new InvalidOperationException($"A Town's World Map mark must sit in the middle of its tiles, the short way round a wrapping map: {TownMarkerTile(seamTown, 10, wrapsEastWest: true)}.");
         var legend = worldOverviewPanel.FindChildren("*", nameof(Label), recursive: true, owned: false).OfType<Label>().Select(label => label.Text).ToArray();
         if (!legend.Contains("Town") || !legend.Contains("Agent") || !legend.Contains("Your view"))
             throw new InvalidOperationException("The World Map must explain its marks with a legend.");

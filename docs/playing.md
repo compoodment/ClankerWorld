@@ -80,14 +80,16 @@ Use the mouse wheel to zoom and movement keys to pan. **Map** opens the World
 Map, which marks each Town and agent; click it or drag its view rectangle to
 move the camera. The label in the corner names the ground under the pointer
 beside a small picture of it. Click a tile to open its card: the ground with a
-picture of the tile, its height, climate, weather and soil, the household that
+picture of the tile, its height, climate, weather and soil, its Town, any land
+title, household use right, pending use request or dispute, the household that
 owns it, and anything on it, such as a tree, a field or goods left on the
 ground.
 
-**Filters** controls the saved Town border and household-owned building
-overlays, and each one says what it draws. Both start off. Town borders show as
-a pale dashed line. While you place a founder or an added agent, the map shows
-both without turning Filters on.
+**Filters** turns map overlays on and off: Town borders, household property,
+Town land title, household land use and disputed land. Each one says what it
+draws, and all start off. Town borders show as a pale dashed line. While you
+place a founder or an added agent, the map shows all of them without turning
+Filters on.
 
 Click an agent to open a small card beside them: what they are doing and bars
 for fullness, warmth and illness. **Profile** opens everything else on the left

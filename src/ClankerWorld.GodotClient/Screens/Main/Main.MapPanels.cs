@@ -42,7 +42,24 @@ public partial class Main
         return row;
     }
 
-    /// <summary>A 16-pixel patch of grass showing what a filter draws on the map.</summary>
+    /// <summary>
+    /// Where the World Map puts a Town's House mark: the middle of its tiles.
+    /// On a map that wraps east-west, each tile is measured the short way
+    /// round from the first, so a Town across the seam is not marked mid-map.
+    /// </summary>
+    private static Vector2 TownMarkerTile(OwnerWorldTown town, int mapWidth, bool wrapsEastWest)
+    {
+        var firstX = town.BorderTiles[0].X;
+        var x = firstX + (float)town.BorderTiles.Average(tile =>
+        {
+            var dx = tile.X - firstX;
+            if (wrapsEastWest && Math.Abs(dx) > mapWidth / 2) dx -= Math.Sign(dx) * mapWidth;
+            return dx;
+        }) + 0.5f;
+        if (wrapsEastWest) x = ((x % mapWidth) + mapWidth) % mapWidth;
+        return new Vector2(x, (float)town.BorderTiles.Average(tile => tile.Y) + 0.5f);
+    }
+
     /// <summary>What a map filter draws, for the picture beside it.</summary>
     private enum FilterLook { Border, Property, Title, Use, Dispute }
 

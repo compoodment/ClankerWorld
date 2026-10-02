@@ -111,7 +111,8 @@ public partial class Main
             .SelectMany(node => node is Label label ? [label] : node.FindChildren("*", nameof(Label), recursive: true, owned: false).OfType<Label>())
             .Select(label => label.Text)));
 
-    private void RenderTileCard(OwnerWorldSnapshot snapshot, Vector2I tile, string? weather, int? moisture)
+    private void RenderTileCard(OwnerWorldSnapshot snapshot, Vector2I tile, OwnerWorldTown? town,
+        IReadOnlyList<(string Key, string Value)> landFacts, string? weather, int? moisture)
     {
         var map = terrainMap!;
         foreach (var child in tileFacts.GetChildren().Concat(tileThings.GetChildren()))
@@ -133,8 +134,8 @@ public partial class Main
         if (weather is not null) AddTileFact("Weather", Pretty(weather));
         if (map.FertilityAt(tile.X, tile.Y) is { } fertility) AddTileFact("Fertility", WorldTerrainMap.FertilityName(fertility));
         if (moisture is { } wet) AddTileFact("Moisture", $"{(wet < 30 ? "Dry" : wet < 65 ? "Damp" : "Wet")} · {wet}%");
-        if (snapshot.Towns.FirstOrDefault(item => item.BorderTiles.Any(point => point.X == tile.X && point.Y == tile.Y)) is { } town)
-            AddTileFact("Town", town.Name);
+        if (town is not null) AddTileFact("Town", town.Name);
+        foreach (var (key, value) in landFacts) AddTileFact(key, value);
         string HouseholdName(string id) => snapshot.Stockpiles.FirstOrDefault(item => item.OwnerId == id)?.Name ?? Pretty(id);
         var field = snapshot.Fields.FirstOrDefault(item => item.Position.X == tile.X && item.Position.Y == tile.Y);
         var propertyOwner = snapshot.PlacedBuildings.FirstOrDefault(item => item.HouseholdId is not null &&
