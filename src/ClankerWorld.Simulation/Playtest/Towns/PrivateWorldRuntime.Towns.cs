@@ -180,14 +180,14 @@ public sealed partial class PrivateWorldRuntime
             throw new ArgumentException("Choose an empty passable tile for this agent.", nameof(position));
 
         var definitions = worldContent.Buildings.ToDictionary(item => item.CanonicalId, StringComparer.Ordinal);
-        var propertyOwners = worldSimulation.Buildings.Where(building => building.HouseholdId is not null &&
+        var buildingOwners = worldSimulation.Buildings.Where(building => building.HouseholdId is not null &&
                 definitions.TryGetValue(building.DefinitionId, out var definition) &&
                 WorldContentSimulationRules.Footprint(definition, building).Contains(position))
             .Select(building => building.HouseholdId)
-            .Concat(fields.Where(field => field.Position == position).Select(field => (string?)field.HouseholdId))
             .ToArray();
-        var householdOwners = propertyOwners
-            .Concat(HouseholdLandClaimantsAt(position, propertyOwners.Any(owner => owner is not null)));
+        var householdOwners = buildingOwners
+            .Concat(fields.Where(field => field.Position == position).Select(field => (string?)field.HouseholdId))
+            .Concat(HouseholdLandClaimantsAt(position, buildingOwners.Length > 0));
         var townIds = towns.Where(item => item.BorderTiles.Contains(position) ||
                 TownLandRightsRules.IsCoveredByTownTitle(position, item.Id, townLandTitles))
             .Select(item => item.Id);
@@ -206,15 +206,16 @@ public sealed partial class PrivateWorldRuntime
         return membership;
     }
 
-    private IEnumerable<string?> HouseholdLandClaimantsAt(GridPoint position, bool ownedProperty)
+    private IEnumerable<string?> HouseholdLandClaimantsAt(GridPoint position, bool householdBuildingStands)
     {
         var rights = householdLandUseRights.Where(right => right.Tiles.Contains(position)).ToArray();
         var requests = householdLandUseRequests.Where(request => request.Tiles.Contains(position)).ToArray();
         if (TownLandRightsRules.IsDisputed(position, rights, requests))
             return TownLandRightsRules.ClaimantsAt(position, rights, requests);
-        // A building or field's current owner comes before an older use right on
-        // the same tile, so a reassigned building does not block placement there.
-        if (ownedProperty)
+        // A household building's current owner comes before another household's
+        // undisputed use right, so a reassigned building does not block placement.
+        // A field does not: tilling land never overrides a recorded right.
+        if (householdBuildingStands)
             return [];
         return rights.Select(right => right.HouseholdId);
     }

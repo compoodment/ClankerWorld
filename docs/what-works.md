@@ -169,8 +169,8 @@ title over its then-connected land; later border expansion does not add title.
 Starter household use rights cover the footprints of the buildings assigned to
 each household. Add Agent uses building/field ownership and recorded use
 rights, then Town title or border: one clear household claim sets the household,
-and land claimed by one Town gives Town membership. A building or field's
-current owner comes before an older use right on the same tile, so a reassigned
+and land claimed by one Town gives Town membership. A building's current owner
+comes before another household's use right on its footprint, so a reassigned
 building places new agents with its new owner. A lone pending use request does
 not create household membership. Disputed land and other conflicting claims are
 refused for a new placement, but do not move existing residents or stop

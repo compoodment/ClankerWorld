@@ -238,7 +238,8 @@ public sealed class TownLandRightsTests
                 TownBorderRules.FirstTownId, [tile]);
             Assert.True(request.Applied, request.Failure);
             Assert.True(request.IsDisputed);
-            Assert.Throws<InvalidOperationException>(() => reloaded.ValidateAgentPlacement(addedAgent, tile));
+            var refused = Assert.Throws<InvalidOperationException>(() => reloaded.ValidateAgentPlacement(addedAgent, tile));
+            Assert.Contains("overlaps", refused.Message, StringComparison.Ordinal);
         }
         finally
         {

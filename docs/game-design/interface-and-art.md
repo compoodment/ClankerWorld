@@ -278,11 +278,8 @@ everything that is available in the current build. See [what works today](../wha
   reservation: when the player confirms, the game checks the same map again and
   tells the player if the placement changed. If claims or Towns overlap so that
   the answer is ambiguous, the placement is refused and the game explains why.
-  It is never decided by list order or distance. Where no building or field
-  stands, a recorded land-use right counts as household property; disputed land
-  is always ambiguous. Town title counts like a Town border, and a single
-  pending use request does not create household membership. How claims and use
-  rights work is in
+  It is never decided by list order or distance. How claims and use rights
+  work, and how Add Agent currently reads them, is in
   [Town land and household use rights](towns.md#town-land-and-household-use-rights).
 - Selecting an agent opens an **interactive info popup near that agent**. The
   player can change that agent's provider and model there, including choosing

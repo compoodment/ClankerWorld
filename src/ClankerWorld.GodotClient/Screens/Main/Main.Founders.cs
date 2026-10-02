@@ -513,15 +513,15 @@ public partial class Main
 
     private static AgentPlacementResolution ResolveAgentPlacement(OwnerWorldSnapshot snapshot, Vector2I tile)
     {
-        var propertyOwners = snapshot.PlacedBuildings
+        var buildingOwners = snapshot.PlacedBuildings
             .Where(item => item.HouseholdId is not null &&
                 tile.X >= item.Position.X && tile.X < item.Position.X + item.Width &&
                 tile.Y >= item.Position.Y && tile.Y < item.Position.Y + item.Height)
             .Select(item => item.HouseholdId)
-            .Concat(snapshot.Fields.Where(item => item.Position.X == tile.X && item.Position.Y == tile.Y)
-                .Select(item => (string?)item.HouseholdId))
             .ToArray();
-        IEnumerable<string?> householdOwners = propertyOwners;
+        var householdOwners = buildingOwners
+            .Concat(snapshot.Fields.Where(item => item.Position.X == tile.X && item.Position.Y == tile.Y)
+                .Select(item => (string?)item.HouseholdId));
         var rights = snapshot.HouseholdLandUseRights
             .Where(item => item.Tiles.Any(point => point.X == tile.X && point.Y == tile.Y)).ToArray();
         var requests = snapshot.HouseholdLandUseRequests
@@ -530,9 +530,9 @@ public partial class Main
             .Concat(requests.Select(item => item.HouseholdId))
             .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
         // Matches the server: a dispute always counts, and otherwise a use right
-        // counts only where no building or field owner stands.
+        // counts only where no household building stands.
         if (claimants.Length > 1) householdOwners = householdOwners.Concat(claimants);
-        else if (!propertyOwners.Any(owner => owner is not null))
+        else if (buildingOwners.Length == 0)
             householdOwners = householdOwners.Concat(rights.Select(item => item.HouseholdId));
         var townIds = snapshot.Towns
             .Where(item => item.BorderTiles.Any(point => point.X == tile.X && point.Y == tile.Y) ||

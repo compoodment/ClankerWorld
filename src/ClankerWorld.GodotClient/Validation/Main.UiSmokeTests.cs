@@ -1536,6 +1536,22 @@ public partial class Main
                 !founderSetupHint.Text.Contains("Choose", StringComparison.Ordinal))
                 throw new InvalidOperationException("Add Agent must refuse a tile with disputed household land-use claims.");
 
+            PreviewAddAgentPlacement(ownedMap with
+            {
+                HouseholdLandUseRights = [.. ownedMap.HouseholdLandUseRights,
+                    new("right:empty", "town:first", "household:two", [new(0, 0)], 0, "starter_allocation", null)],
+            }, new Vector2I(0, 0));
+            if (!founderSetupHint.Text.Contains("Household: Other household · Town: First Town", StringComparison.Ordinal))
+                throw new InvalidOperationException($"A use right on empty Town land must give Add Agent that household; preview was '{founderSetupHint.Text}'.");
+            PreviewAddAgentPlacement(ownedMap with
+            {
+                HouseholdLandUseRights = [new("right:previous", "town:first", "household:two",
+                    [new(2, 2)], 0, "starter_allocation", null)],
+                HouseholdLandUseRequests = [],
+            }, new Vector2I(2, 2));
+            if (!founderSetupHint.Text.Contains("Household: Founder's household · Town: First Town", StringComparison.Ordinal))
+                throw new InvalidOperationException($"A building's owner must come before another household's use right; preview was '{founderSetupHint.Text}'.");
+
             var overlappingProperties = ownedMap with
             {
                 PlacedBuildings = [.. ownedMap.PlacedBuildings,

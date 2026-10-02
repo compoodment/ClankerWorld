@@ -611,9 +611,15 @@ That follows answer 19A, that a boundary change does not by itself change
 title ([Borders, abandoned Towns and salvage](#borders-abandoned-towns-and-salvage)).
 Starter household use rights cover only the footprints of the buildings
 assigned to each household; the shared Warehouse remains Town property.
-Whether title grows with the Town, and how much land comes with a starter use
-right, remain open. Because new grants use existing Town-owned land, the first
-answer decides where later households can receive use rights.
+Add Agent treats a recorded use right as household property and Town title
+like a Town border; a single pending request gives no household. A household
+building's current owner comes before another household's undisputed use right
+on its footprint, so reassigning a building does not block placement there. A
+field does not, and disputed land is always refused. Whether title grows with
+the Town, how much land comes with a starter use right, and whether reassigning
+a building should move its starter use right remain open. Because new grants
+use existing Town-owned land, the first answer decides where later households
+can receive use rights.
 
 Competing requests are visible as **pending disputes**. While one is pending,
 conflicting formal rights transfers pause; residents are not evicted, goods
@@ -631,9 +637,8 @@ the final decision on disputes and what happens when an agreed period ends.
 These rules do not imply automatic confiscation or unilateral household
 transfers. Evidence, hearings, outcomes and conflicts of interest follow the
 agreed [case procedure](#land-hearings-and-rulings). Disputed land is striped
-on the map; inspecting a tile lists the Town title, each household's use right
-or pending request, and the households claiming it. Approval, consent,
-transfer and case actions are not built yet
+on the map, and inspecting a tile lists each household's claim. Approval,
+consent, transfer and case actions are not built yet
 ([what works today](../what-works.md)).
 
 ### How Roads and bridges appear
