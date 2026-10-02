@@ -511,8 +511,12 @@ and invented content are not silently approved. In particular:
   **7×4** plaza in the October 1 art review: 7×5 was "a bit too big for the
   eight stalls", and 5×4 lost the open column on each side that it needed.
   The stalls stand in two back-to-back rows of four, each facing an aisle,
-  with a path from the hall's door down the middle. Town Hall is
-  **3×4**. These are building/plot footprints, not interior rooms.
+  with a path from the hall's door down the middle. **Agreed on
+  October 1, 2026:** the Town owns the stalls. A new Market comes with a
+  starter set; when sellers need more, the Town builds them on the plaza as
+  Town building projects, using Town materials. The size of the starter set
+  stays provisional. Town Hall is **3×4**. These are building/plot
+  footprints, not interior rooms.
 - Port is **2×4**, rotatable to all four cardinal directions. One tile of its
   four-tile length rests on land; three extend over water. Keep clear docking
   space along both long sides of that three-tile water section. **Agreed after
@@ -1343,7 +1347,8 @@ and make either vessel at a household House.
 | Wooden hoe | Wood; prepares and tends fields. |
 | Iron hoe | Wood and iron; performs field work faster. |
 | Hammer | Wood and stone; helps construction and repairs. |
-| Sickle | Wood and iron; speeds crop harvesting. |
+| Wooden sickle | Wood; speeds crop harvesting. |
+| Iron sickle | Wood and iron; harvests faster than the wooden sickle. |
 | Knife | Iron; speeds food preparation and suitable crafting work. |
 
 Tools wear through use. The Blacksmith repairs worn tools with some of their

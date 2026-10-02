@@ -464,7 +464,6 @@ public sealed class SettlementProjectTests(Xunit.Abstractions.ITestOutputHelper 
         Assert.Contains(state.Events, item => item.Kind == "household_food_collected");
         var gathered = state.Events.Where(item => item.Kind == "material_gathered")
             .Select(item => item.Detail.Split(':')[1]).ToHashSet(StringComparer.Ordinal);
-        if (gathered.Count < 3) output.WriteLine(CapacityDiagnostic(world));
         Assert.True(gathered.Count >= 3);
         Assert.Contains("stone", gathered);
         Assert.Contains("fiber", gathered);

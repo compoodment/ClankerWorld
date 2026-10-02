@@ -13,6 +13,7 @@ public sealed class IslandTreeReplantingTests
     public async Task IslandResidentReplantsTheLocalTreeTheyFelledAcrossReload()
     {
         using var setup = IslandWorld();
+        Assert.True((await setup.AdvanceOneTickAsync()).Advanced);
         var state = setup.ExportState();
         var actor = state.Inhabitants[0].InhabitantId;
         var origin = state.Inhabitants[0].Position;
@@ -20,9 +21,15 @@ public sealed class IslandTreeReplantingTests
         var society = state.Society.Society;
         foreach (var lot in society.Inventory.Lots.Where(lot => lot.OwnerId == household && lot.ItemKind == "wood").ToArray())
             society = SocietyFixture.ConsumeInventory(society, household, lot.Id, lot.Quantity, "fuel-depletion-fixture").Checkpoint;
+        var looseWood = state.Map.Resources.Single(resource => resource.Id == "settlement-wood");
+        var looseStock = state.WorldSystems!.Ecology.GetResource(looseWood.Id);
+        var depletedWood = EcologyRules.Harvest(looseStock, looseStock.Quantity);
+        Assert.True(depletedWood.IsValid);
         state = state with
         {
             Society = state.Society with { Society = society },
+            Resources = state.Resources.Select(resource => resource.ResourceId == looseWood.Id
+                ? resource with { State = ResourceState.Depleted } : resource).ToArray(),
             Survival = new SettlementSurvivalState(0, []),
             Inhabitants = state.Inhabitants.Select(person => person with
             {
@@ -31,6 +38,11 @@ public sealed class IslandTreeReplantingTests
             }).ToArray(),
             WorldSystems = state.WorldSystems! with
             {
+                Ecology = state.WorldSystems.Ecology with
+                {
+                    Resources = state.WorldSystems.Ecology.Resources.Select(resource => resource.Id == looseWood.Id
+                        ? depletedWood.Resource! : resource).ToArray(),
+                },
                 RegionalWeather = null,
                 Config = state.WorldSystems.Config with
                 {
@@ -44,7 +56,8 @@ public sealed class IslandTreeReplantingTests
         Assert.True(state.Map.IsReachableOnFoot(origin, local.Position));
         Assert.False(state.Map.IsReachableFromCampOnFoot(local.Position));
 
-        using (var harvesting = PrivateWorldRuntime.Restore(state, id => new ActionProvider(id == actor ? "tend_fire" : "safe_idle")))
+        var harvestProvider = new ActionProvider("tend_fire", "collect_wooden_axe");
+        using (var harvesting = PrivateWorldRuntime.Restore(state, id => id == actor ? harvestProvider : new ActionProvider("safe_idle")))
         {
             for (var tick = 0; tick < 24; tick++) Assert.True((await harvesting.AdvanceOneTickAsync()).Advanced);
             state = harvesting.ExportState();
@@ -132,7 +145,8 @@ public sealed class IslandTreeReplantingTests
     private static PrivateWorldRuntime IslandWorld()
     {
         var options = new GeographyOptions("island-fuel-review-0", WorldSizePreset.Small);
-        var world = new PrivateWorldRuntime(options.Seed, startPace: WorldStartPace.FounderSetup, geographyOptions: options);
+        var world = new PrivateWorldRuntime(options.Seed, _ => new ActionProvider("safe_idle"),
+            startPace: WorldStartPace.FounderSetup, geographyOptions: options);
         world.InitializeFirstTownContent();
         world.AcceptFirstTownLayout(new GridPoint(136, 14));
         var positions = new[] { new GridPoint(135, 14), new GridPoint(131, 9), new GridPoint(132, 9), new GridPoint(133, 9) };
@@ -141,7 +155,7 @@ public sealed class IslandTreeReplantingTests
         return world;
     }
 
-    private sealed class ActionProvider(string action) : IDecisionProvider
+    private sealed class ActionProvider(string action, string? fallback = null) : IDecisionProvider
     {
         public DecisionProviderKind Kind => DecisionProviderKind.Deterministic;
         public long ProviderEpoch => 0;
@@ -151,6 +165,7 @@ public sealed class IslandTreeReplantingTests
         {
             Seen.Add(request);
             var selected = request.Observation.Candidates.FirstOrDefault(candidate => candidate.Id == action) ??
+                (fallback is null ? null : request.Observation.Candidates.FirstOrDefault(candidate => candidate.Id == fallback)) ??
                 request.Observation.Candidates.Single(candidate => candidate.Id == "safe_idle");
             return new DeterministicDecisionProvider().DecideAsync(request with
             {
