@@ -181,6 +181,23 @@ everything that is available in the current build. See [what works today](../wha
   threshold may be the first implementation, but the finished system should
   assess **continuity risk**—eligible unrelated adults, family lines, children,
   expected deaths, and care/resources—not just count heads.
+- Before a parenthood plan advances, the initiating parent nominates the
+  primary caregiver and intended household. The other parent explicitly accepts
+  one named caregiver-and-home option; either parent may be chosen, including
+  when they currently live in different households. The saved choice cannot
+  delay or cancel a due birth if that caregiver later changes households: the
+  child joins the caregiver's actual household at birth, while the other
+  parent's residence stays put. A full House does not block the birth; it
+  becomes visibly overcrowded instead. The caregiver and birth home are saved
+  with the plan and birth record. Other pregnancy timing and detailed childcare
+  rules remain open.
+- The birth record keeps the caregiver chosen for that birth as history. The
+  child's current primary caregiver remains that person while they are active.
+  A second accepted caregiver does not take over or change the child's domestic
+  family group by itself. If the current primary caregiver is no longer
+  available, an explicit care assignment may make an already accepted caregiver
+  the new primary; the child then follows that caregiver's current domestic
+  family group for housing counts without changing residence or parentage.
 - **The first continuity rule, agreed on October 1
   ([#654](https://github.com/compoodment/ClankerWorld/issues/654)):** the rule
   is on while the world has **fewer than eight living agents who are not
@@ -241,7 +258,7 @@ The exact UI for assigning the first four agents to the two starting
 households, the detailed limits on child tasks and elder capabilities, whether
 older childhood needs a separate phase, relationship and
 inheritance mechanics, the risk-based continuity check that follows the first
-head-count rule, pregnancy/birth and childcare rules, care/resource
+head-count rule, pregnancy timing and detailed childcare rules, care/resource
 eligibility, Jev's optional role in childhood, and the identity implications
 of player renaming. First-Town placement details remain open: the local
 search extent, the placement boundary's exact distance
