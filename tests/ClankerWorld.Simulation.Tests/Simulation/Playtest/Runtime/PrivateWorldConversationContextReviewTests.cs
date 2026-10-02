@@ -157,7 +157,7 @@ public sealed partial class PrivateWorldConversationTests
                 var lesson = world.Inhabitants.Single(person => person.InhabitantId == learner).Lesson!;
                 if (lesson.Stage == "completed" || world.WorldTick - conversationClosedAtTick >= completionTickHorizon)
                     break;
-                // Each lesson step needs a fresh decision; await it before spending the tick budget.
+                // Await hosted decisions before spending the lesson tick budget.
                 _ = await world.AdvanceOneTickAsync(completionDeadline.Token);
             }
             else
