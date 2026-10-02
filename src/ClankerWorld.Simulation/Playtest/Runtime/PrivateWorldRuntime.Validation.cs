@@ -486,7 +486,7 @@ public sealed partial class PrivateWorldRuntime
                 instruction.Kind == OwnerInstructionKind.Suggestive && instruction.Order is not null ||
                 instruction.Kind == OwnerInstructionKind.MustDo && instruction.Order is null ||
                 instruction.Order is { } order && !IsValidSavedOrder(order, instruction, completedInstructionIds,
-                    checkpoint.WorldTick))
+                    people))
                 throw new InvalidDataException("The saved owner instruction or observer response is invalid.");
         }
 
@@ -526,7 +526,7 @@ public sealed partial class PrivateWorldRuntime
         OwnerInstructionOrder order,
         OwnerQueuedInstruction instruction,
         IReadOnlyList<string> completedInstructionIds,
-        long worldTick)
+        HashSet<string> people)
     {
         var knownStatus = order.Status is "queued" or "waiting" or "doing" or "interrupted" or "blocked" or
             "finished" or "cancelled" or "not_understood";
@@ -547,9 +547,18 @@ public sealed partial class PrivateWorldRuntime
         if (order.Action == "unknown")
             return order.Status == "not_understood" && order.RequestedUnits == 0 && order.CompletedUnits == 0 &&
                 order.ProgressUnit == "none" && !order.RepeatUntilCancelled && order.TargetFoodKind is null &&
-                order.TargetResourceId is null && order.TargetPosition is null && order.LastEffectId is null;
+                order.TargetResourceId is null && order.TargetPosition is null && order.LastEffectId is null &&
+                order.TargetAgentId is null;
 
-        if (order.Action is not ("consume_food" or "seek_food" or "harvest_food") ||
+        if (order.Action == "accept_guardianship")
+            return order.TargetAgentId is { } child && people.Contains(child) && child != instruction.TargetInhabitantId &&
+                order.RequestedUnits == 1 && order.CompletedUnits is 0 or 1 &&
+                (order.Status == "finished") == (order.CompletedUnits == 1) && order.Status != "not_understood" &&
+                order.ProgressUnit == "guardianships" && !order.RepeatUntilCancelled && !order.QuantityIsExplicit &&
+                order.TargetFoodKind is null && order.TargetResourceId is null && order.TargetPosition is null &&
+                order.LastEffectId == (order.CompletedUnits == 1 ? GuardianOrderEffectId(instruction.TargetInhabitantId, child) : null);
+
+        if (order.TargetAgentId is not null || order.Action is not ("consume_food" or "seek_food" or "harvest_food") ||
             order.RequestedUnits is < 1 or > 1000 || order.CompletedUnits is < 0 or > 1_000_000 ||
             order.Status == "finished" && (order.RepeatUntilCancelled || order.CompletedUnits < order.RequestedUnits) ||
             order.Action == "consume_food" && order.ProgressUnit != "food_items" ||

@@ -2,7 +2,7 @@
 title: How the game works
 type: architecture
 status: active
-updated: 2026-10-02
+updated: 2026-10-03
 ---
 
 # How the game works
@@ -97,6 +97,15 @@ the requested physical effect before recording progress. Names in the prompt
 do not create map knowledge. Optional observer replies are tied to the exact
 message ID and stored separately from private thoughts and conversation
 speech. Local deterministic decisions do not mark messages as heard.
+
+The strict guardian-order form is `Become guardian for <full name or exact ID>`.
+It resolves one active child with an open search and saves that child's ID as
+`TargetAgentId`. Only an adult can carry out this task; renames cannot retarget it.
+`CanAcceptGuardian` is checked again for each step, and acceptance goes through
+the existing dependent-care transition. Completion requires the actual primary
+care assignment. A search that closes first leaves the order blocked rather
+than replacing its accepted guardian. Queue, cancellation, stale-response
+checks and urgent survival interruptions use the common order lifecycle.
 
 A MustDo with no recognized action is closed when it is submitted: it is added
 to the completed instructions with an `instruction_not_understood` event
