@@ -19,7 +19,7 @@ namespace ArtPreview.Proposed.Buildings;
 /// feature per kind (B1 to B7).
 /// </para>
 /// <para>
-/// Store, Market, Market stall, Town Hall, Port, Restaurant and Clinic are
+/// Market, Market stall, Town Hall, Port, Restaurant and Clinic are
 /// agreed but have no <see cref="BuildingKind"/> yet, so they are drawn
 /// through the private <see cref="Design"/> list and only yielded for review.
 /// </para>

@@ -3,3 +3,5 @@ Household shops can exchange goods kept at their actual location. Both traders m
 A Blacksmith can sell spare refined iron from its own stock. Another Blacksmith household can buy it for tool work; a transaction still reserves exact goods and payment and preserves both households' private work rights.
 
 Buyers can consider better tools and clothing suited to the weather while keeping their existing equipment.
+
+Stores use their approved brown shingle roof and striped awning, facing the road beside their entrance.

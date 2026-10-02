@@ -1005,7 +1005,7 @@ public static class BuildingSprites
             };
             Awning(p, area, side, Berry);
         }
-    
+
         /// <summary>
         /// A striped canvas awning in <paramref name="area"/> (pixels), sloping
         /// down toward <paramref name="front"/>. Stripes run down the slope; the
@@ -1043,14 +1043,14 @@ public static class BuildingSprites
                     p.Put(x, y, c);
                 }
         }
-    
+
         private static int StepOnly(Plate p, Rect2I roof, DoorSide side, int middle, int startRow, int stepRows)
         {
             var (from, to) = Span(p, middle, 3);
             return Step(p, roof, side, from, to, p.Small ? startRow / 2 + 1 : startRow, p.Small ? 1 : stepRows);
         }
-    
-            /// <summary>Tailor shop: a cream sign board with a red thread spool between timber flanges.</summary>
+
+        /// <summary>Tailor shop: a cream sign board with a red thread spool between timber flanges.</summary>
         private static void SpoolSign(Plate p, int cx, int cy)
         {
             if (p.Small)
