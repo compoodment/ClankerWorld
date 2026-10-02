@@ -108,7 +108,8 @@ public sealed record CognitionSelfContext(
     string OwnerId, string Name, string LifeStage, string Personality, string Aspiration,
     string? HouseholdId, int? WarmthBasisPoints, int? IllnessBasisPoints, string? RecentThought,
     string? HouseholdName = null, string? TownName = null, string? HousingNote = null,
-    string? EquipmentNote = null, string? ContinuityNote = null, string? DepartureNote = null, string? CivicNote = null);
+    string? EquipmentNote = null, string? ContinuityNote = null, string? DepartureNote = null, string? CivicNote = null,
+    string? MedicalCareNote = null);
 
 /// <summary>
 /// An exact owner message addressed to this actor. The authoritative identity
@@ -253,7 +254,7 @@ public sealed record InhabitantObservation(
             self.HouseholdId?.Length > 128 || self.RecentThought?.Length > 160 ||
             self.HouseholdName?.Length > 128 || self.TownName?.Length > 128 || self.HousingNote?.Length > 256 ||
             self.EquipmentNote?.Length > 256 || self.ContinuityNote?.Length > 256 || self.DepartureNote?.Length > 256 ||
-            self.CivicNote?.Length > 1024 ||
+            self.CivicNote?.Length > 1024 || self.MedicalCareNote?.Length > 256 ||
             self.WarmthBasisPoints is < 0 or > 10_000 || self.IllnessBasisPoints is < 0 or > 10_000))
             throw new ArgumentException("Self context must be bounded and owned by the actor.", nameof(Self));
 
@@ -677,6 +678,7 @@ public sealed class JevDecisionProvider : IDecisionProvider
                 housing = request.Observation.Self?.HousingNote,
                 continuity = request.Observation.Self?.ContinuityNote,
                 departure = request.Observation.Self?.DepartureNote,
+                medical_care = request.Observation.Self?.MedicalCareNote,
                 candidates = request.Observation.Candidates.Select(candidate => new
                 {
                     id = candidate.Id,
@@ -999,6 +1001,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                             continuity = self.ContinuityNote,
                             departure = self.DepartureNote,
                             civic_notices_learned = self.CivicNote,
+                            medical_care = self.MedicalCareNote,
                             warmth_basis_points = self.WarmthBasisPoints,
                             illness_basis_points = self.IllnessBasisPoints,
                             recent_thought = self.RecentThought,

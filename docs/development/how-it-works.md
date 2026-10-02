@@ -940,8 +940,50 @@ Store stocking also keeps each adult's best usable work tool. Optional shelf
 restocking waits behind gathering materials needed by household work.
 Rates, the eight-unit shelf target and four-unit carried loads are provisional.
 Blacksmiths can sell real refined iron for another household's tool work.
-Market stalls, tool orders, meals and care remain tracked in #564 and its
-domain issues; currency remains later work.
+Market stalls, tool orders and meals remain tracked in #564 and its domain
+issues; currency remains later work. The Clinic sells actual medicine
+and bandages through the same inventory and physical business authority.
+
+**Clinic supplies and illness care** use the normal household building,
+workstation supply, ecology and recipe paths. `clankerworld-care-v1` adds a
+1×2 Clinic costing 10 wood and 4 stone, bandage recipes at the House and Tailor
+Shop, and a medicine recipe at the Clinic. One cloth makes two bandages in
+eight base work ticks; two medicinal herbs, one fresh water and one wood make
+two medicine in sixteen. These quantities and times are provisional. Herbs
+come from reachable renewable patches. Ingredients must arrive at the actual
+workplace; medicine reserves water from a real reusable jug and leaves the
+vessel intact. Injury causes and bandage treatment remain deferred.
+
+The [#749](https://github.com/compoodment/ClankerWorld/issues/749) fix
+returns empty household pots and jugs from a workstation to the household's
+House using physical pickup and the existing delivery path. It keeps inventory
+ownership and reservations authoritative and checks carrying room, the walking
+route and destination space. As with other household deliveries, the hauling
+adult holds the vessel during the trip and delivery hands it back to the
+household. A save during the trip retains the same vessel and delivery.
+Automated checks cover the return path.
+
+Medical permission is admitted only from a fresh, accepted, non-fallback
+`LargeLanguageModel` choice by the adult patient. Jev, owner orders, failed
+replies and continuing intentions cannot grant or revoke that authority.
+Self-treatment is allowed, and a dependent's effective accepted `Caregiver`
+relationship supplies their existing authority. Treatment checks living adult
+caregivers, permission, local patient observation and actual usable medicine.
+An unrelated household's stock must be bought through ordinary barter first.
+Models receive no distant patient's hidden health or location through care.
+
+Starting medicine reserves and consumes one actual dose through the inventory
+authority. Its completed reservation binds the patient, caregiver, owner and
+start time. The provisional course lasts twenty world ticks and removes
+75 illness basis points per tick. Maintenance ends an interrupted course
+without refunding the dose, including death, permission withdrawal or loss of
+dependent-care authority. Closing the receipt's medical purpose prevents a
+spent effect from being reattached after permission is renewed. Death releases
+live reservations while preserving completed consumption receipts. Permission,
+active progress and closed receipts survive current-format save/reload; a
+paused world advances no treatment time. See [saves and replay](saves-and-replay.md).
+Automated checks cover this path; the
+[Windows playtest](../../playtest/565-clinic-care.md) is still pending.
 
 Death archives the last physical state and frozen age, then removes the active
 actor. Existing personal inventory can be frozen in estate escrow. One bounded
@@ -966,8 +1008,8 @@ saves made before this change are refused.
 
 Workstation recipes use only stock already at the building. A household
 building without its own dedicated hauling (every kind except the House,
-Farmhouse and Blacksmith, so today the Tailor Shop) is kept stocked by the
-`supply_workstation:<item>` choice. It is offered to an adult of the holding
+Farmhouse and Blacksmith, including the Tailor Shop and Clinic) is kept stocked
+by the `supply_workstation:<item>` choice. It is offered to an adult of the holding
 household while the building holds less of an input than two batches of the
 largest recipe that needs it, counting loads already on their way. The adult
 delivers what they carry, picks up the household's spare stock from its House
