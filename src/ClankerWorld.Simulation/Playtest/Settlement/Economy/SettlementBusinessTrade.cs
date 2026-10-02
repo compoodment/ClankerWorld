@@ -118,6 +118,9 @@ public sealed partial class PrivateWorldRuntime
             return null;
         var definition = worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
         if (BusinessRules.KindOf(definition) is not { } kind) return null;
+        var protectedToolIds = ToolProgressionRules.All.Select(tool => tool.Family).Distinct()
+            .Select(family => ToolProgressionRules.BestUsableTool(inventory, buyer, family)?.Id)
+            .OfType<string>().ToHashSet(StringComparer.Ordinal);
         foreach (var goods in inventory.Lots.Where(lot => lot.OwnerId == seller &&
                      lot.StorageBuildingId == building.InstanceId && IsLooseBusinessLot(lot) &&
                      AvailableLotQuantity(lot) > 0 && BusinessRules.MaySell(kind, lot.ItemKind) &&
@@ -125,6 +128,7 @@ public sealed partial class PrivateWorldRuntime
         {
             foreach (var payment in inventory.Lots.Where(lot => PersonalEquipmentRules.IsCarried(lot, buyer) &&
                     IsLooseBusinessLot(lot) && lot.ItemKind != goods.ItemKind && AvailableLotQuantity(lot) > 0 &&
+                    !protectedToolIds.Contains(lot.Id) &&
                     !BusinessBuyerWants(buyer, lot) && BusinessPaymentUseful(building, lot) &&
                     lot.Id != inhabitants[buyer].Equipment?.ClothingLotId &&
                     lot.Id != inhabitants[buyer].Equipment?.CarryAidLotId &&

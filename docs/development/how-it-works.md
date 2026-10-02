@@ -652,12 +652,16 @@ inbound delivery space. Both traders must reach the shop before the household
 accepts and the inventory transfers anything. Payment is placed in that exact
 building; the purchase becomes personal cargo. Cancelled, expired or
 invalidated offers release their reservations without transporting goods.
+Buyers compare usable tool tiers and garment protection in the current weather.
+Their best usable tool in each family, equipped clothing and carrying aids, and
+the active equipment repair target are excluded from payment.
 Customers receive transaction access only. Store stocking first moves actual
 surplus into carried delivery lots, then uses ordinary household hauling to
 reach the Store. A remote House, field or Warehouse is never sale stock.
 Rates, the eight-unit shelf target and four-unit carried loads are provisional.
+Blacksmiths can sell real refined iron for another household's tool work.
 Market stalls, tool orders, meals and care remain tracked in #564 and its
-domain issues; no imaginary money or refined-metal retail is introduced.
+domain issues; currency remains later work.
 
 Death archives the last physical state and frozen age, then removes the active
 actor. Existing personal inventory can be frozen in estate escrow. One bounded
