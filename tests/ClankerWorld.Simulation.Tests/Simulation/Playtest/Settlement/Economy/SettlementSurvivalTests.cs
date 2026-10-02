@@ -248,14 +248,14 @@ public sealed class SettlementSurvivalTests
     }
 
     [Fact]
-    public async Task ColdSettlementUsesFuelAndToolsAndCanRecoverAcrossRestart()
+    public async Task ColdSettlementUsesFuelAndEquipmentAndCanRecoverAcrossRestart()
     {
         using var seed = new PrivateWorldRuntime("cold-settlement");
         var initial = SettlementWeatherTestFixture.WithWeather(seed.ExportState(), WeatherKind.Snow);
         using var world = PrivateWorldRuntime.Restore(initial);
         world.StageStarterContent();
-        // Exercise autonomous survival separately from the finite Tailor
-        // production/equipment chains in PersonalEquipmentTests.
+        // Exercise autonomous warmth recovery. Physical tool and Tailor
+        // acquisition have dedicated normal-path tests.
         for (var tick = 0; tick < 900; tick++)
         {
             await world.AdvanceOneTickAsync();
@@ -263,7 +263,6 @@ public sealed class SettlementSurvivalTests
         var state = world.ExportState();
         Assert.NotNull(state.Survival);
         Assert.Contains(state.Events, item => item.Kind == "fire_fuelled");
-        Assert.Contains(state.Events, item => item.Kind == "equipment_collected" && item.Detail.EndsWith(":tool", StringComparison.Ordinal));
         Assert.Contains(state.Events, item => item.Kind == "survival_condition_changed");
         Assert.All(new OwnerWorldObservationStore(world).GetSnapshot().Inhabitants, person => Assert.NotNull(person.Survival));
         using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)));

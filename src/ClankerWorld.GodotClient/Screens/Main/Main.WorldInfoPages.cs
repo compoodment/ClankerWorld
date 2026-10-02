@@ -173,7 +173,7 @@ public partial class Main
             foreach (var item in store.Items)
             {
                 var slot = new ItemSlot();
-                slot.SetItem(item.Kind, item.Quantity, Pretty(item.Kind));
+                slot.SetItem(item.Kind, item.Quantity, GameUiText.ItemName(item.Kind));
                 slots.AddChild(slot);
             }
             townExtras.AddChild(slots);

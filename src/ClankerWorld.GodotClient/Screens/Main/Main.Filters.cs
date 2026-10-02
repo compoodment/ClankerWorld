@@ -9,6 +9,9 @@ public partial class Main
     private readonly PanelContainer filtersPanel = new();
     private readonly CheckButton townBorderFilter = new();
     private readonly CheckButton householdPropertyFilter = new();
+    private readonly CheckButton townLandTitleFilter = new();
+    private readonly CheckButton householdLandUseFilter = new();
+    private readonly CheckButton disputedLandFilter = new();
 
     private void BuildFiltersButton()
     {
@@ -35,9 +38,24 @@ public partial class Main
         householdPropertyFilter.Toggled += _ => ApplyMapFiltersFromCurrentSnapshot();
         body.AddChild(householdPropertyFilter);
 
+        townLandTitleFilter.Text = "Town land title";
+        townLandTitleFilter.TooltipText = "Show land formally titled to each Town.";
+        townLandTitleFilter.Toggled += _ => ApplyMapFiltersFromCurrentSnapshot();
+        body.AddChild(townLandTitleFilter);
+
+        householdLandUseFilter.Text = "Household land use";
+        householdLandUseFilter.TooltipText = "Show recorded household use rights and pending requests.";
+        householdLandUseFilter.Toggled += _ => ApplyMapFiltersFromCurrentSnapshot();
+        body.AddChild(householdLandUseFilter);
+
+        disputedLandFilter.Text = "Disputed land";
+        disputedLandFilter.TooltipText = "Stripe land with conflicting household claims.";
+        disputedLandFilter.Toggled += _ => ApplyMapFiltersFromCurrentSnapshot();
+        body.AddChild(disputedLandFilter);
+
         var note = new Label
         {
-            Text = "Only buildings that belong to a household are tinted. Unclaimed land is not marked.",
+            Text = "Town title, household use and disputes are separate from building and field ownership.",
             AutowrapMode = TextServer.AutowrapMode.WordSmart,
             CustomMinimumSize = new Vector2(275, 0),
         };
@@ -65,8 +83,8 @@ public partial class Main
     }
 
     /// <summary>
-    /// Placing a founder or an added agent shows Town borders and household
-    /// property, so the owner can see where the agent will belong, without
+    /// Placing a founder or an added agent shows recorded Town and household
+    /// claims, so the owner can see where the agent will belong without
     /// switching the Filters on.
     /// </summary>
     private bool ShowsPlacementOverlays => founderSetupPanel.Visible;
@@ -77,5 +95,12 @@ public partial class Main
         terrainLayer.SetHouseholdProperties(householdPropertyFilter.ButtonPressed || ShowsPlacementOverlays
             ? snapshot.PlacedBuildings : [], householdPropertyFilter.ButtonPressed || ShowsPlacementOverlays
             ? snapshot.Fields : []);
+        terrainLayer.SetTownLandTitles(townLandTitleFilter.ButtonPressed || ShowsPlacementOverlays
+            ? snapshot.TownLandTitles : []);
+        terrainLayer.SetHouseholdLandUses(householdLandUseFilter.ButtonPressed || ShowsPlacementOverlays
+            ? snapshot.HouseholdLandUseRights : [], householdLandUseFilter.ButtonPressed || ShowsPlacementOverlays
+            ? snapshot.HouseholdLandUseRequests : []);
+        terrainLayer.SetDisputedLand(disputedLandFilter.ButtonPressed || ShowsPlacementOverlays
+            ? snapshot.HouseholdLandUseRequests : []);
     }
 }

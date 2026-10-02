@@ -96,7 +96,8 @@ public sealed class ViewerObservationTests
         Assert.Equal(household, field.HouseholdId);
         Assert.Equal("preparing", field.Stage);
         Assert.Equal(farmer, field.WorkerId);
-        Assert.Equal(5, field.WorkRemaining);
+        // Eight units of tilling, with two units per wooden-hoe work action.
+        Assert.Equal(2, field.WorkRemaining);
         Assert.Equal(miller, Assert.Single(snapshot.ProductionJobs).WorkerId);
         Assert.Equal(snapshot.ProductionJobs.Count, snapshot.WorldSystems!.ProductionJobCount);
         using var restored = FarmFieldTests.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(runtime.ExportState())));
