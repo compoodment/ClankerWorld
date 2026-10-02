@@ -2,7 +2,7 @@
 title: Towns, buildings and government
 type: game-design
 status: active
-updated: 2026-10-01
+updated: 2026-10-02
 ---
 
 # Towns, buildings and government
@@ -483,7 +483,8 @@ and invented content are not silently approved. In particular:
   Store is required for its own products.
 - The accepted medical goods include **bandages and medicine**. Their cloth
   and herb/water/fuel supply chains are agreed below; detailed recovery rates
-  remain provisional.
+  remain provisional. The October 2 decision stages bandage production, storage
+  and trade now; injury causes and bandage treatment wait for the injury stage.
 - Farmhouse **1×1 or 1×2**; adjacent private Silo **1×1**; Blacksmith
   **1×2 or 2×2**; Tailor Shop **1×1 or 2×2**; Workshop **2×2**;
   Restaurant **1×2 or 2×2**; Clinic/healer's shop **1×1 or 1×2**.
@@ -1369,7 +1370,7 @@ capacities, wear rates and repair effects remain provisional.
 
 | Product | Complete path |
 | --- | --- |
-| Bandage | Fiber → cloth → cut bandages at a House or Tailor Shop → carry to a patient → consume while treating an injury. |
+| Bandage | Fiber → cloth → cut bandages at a House or Tailor Shop → store, carry or trade. Injury treatment is deferred under the October 2 decision. |
 | Medicine | Gather medicinal herbs → carry to Clinic → herbs, water and fuel make medicine → administer to an ill agent. |
 | Clinic treatment | The Clinic stocks its own medicine and bandages. A patient visits or a caregiver carries supplies to them; treatment consumes the required goods. |
 | Eggs | Household chickens with reachable feed, water and care produce eggs; collect into local House/Restaurant stock, cook or sell. |
@@ -1382,12 +1383,45 @@ capacities, wear rates and repair effects remain provisional.
 | Shield and basic armor | Wood, cloth and iron at the Blacksmith → equip → protection → repair or replace. |
 | Maps, records and books | Fiber and water make paper; write actual learned knowledge, bind where needed, then carry, read, copy or sell. Cloth may supply a book cover. |
 
-Bandages treat injuries; medicine supports illness recovery. Neither instantly
-restores full health. Medicinal herbs, paper, hides and ornaments are approved
+Bandages are intended for the later injury stage; medicine supports gradual
+illness recovery. Neither is an instant full-health restoration. Medicinal
+herbs, paper, hides and ornaments are approved
 additions to the catalogue. Animals, mounts, combat and invention work retain
 their later staging; their detailed actions and balance are not settled by
 these item pipelines. See [combat](agents-and-families.md#combat) and
 [inventions](inventions-and-mods.md).
+
+#### Clinic supplies and illness care
+
+**Owner decision on October 2, 2026:** "Defer injury causes; build supplies now."
+This stage makes, stores and trades bandages, but does not create injuries or
+apply bandages to a patient. Medicine uses the existing illness system and
+supports recovery gradually. This is an agreed implementation scope, not a
+claim that the Clinic is already available; its work is tracked in
+[#565](https://github.com/compoodment/ClankerWorld/issues/565).
+
+The first Clinic is a household-held 1×2 building. Trial construction uses
+10 wood and 4 stone. At a House or Tailor Shop, 1 cloth makes 2 bandages in
+8 work ticks. At the Clinic, 2 medicinal herbs, 1 fresh water and 1 wood make
+2 medicine in 16 work ticks. Water must arrive in an actual reusable jug;
+using its contents leaves the vessel intact. Costs, quantities, time, stock
+targets and recovery rates remain provisional.
+
+Patients may use their own medicine. An adult patient explicitly chooses a
+named caregiver and may revoke that permission. A purchase, household
+membership, kinship, helper choice, failed model reply, repeated intention or
+owner order cannot supply that agreement. A dependent's effective, accepted
+caregiver relationship supplies its existing care authority; another relative
+or household adult does not acquire it automatically. Treatment needs the
+actual usable dose at the patient and does not give the caregiver access to
+another household's stock.
+
+An outside customer buys real Clinic goods through the ordinary local barter
+rules. Buying a dose grants possession of that dose, not treatment permission
+or private work access. Care does not reveal distant patients' unseen health,
+location or private thoughts to an agent's model. Supplies, permissions,
+consumed doses and gradual progress must survive interruption and reload
+without being duplicated; pausing freezes treatment time.
 
 #### Physical trade and production safeguards
 
