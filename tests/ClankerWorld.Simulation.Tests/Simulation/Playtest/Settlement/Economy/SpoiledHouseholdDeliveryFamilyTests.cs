@@ -14,14 +14,14 @@ public sealed partial class SpoiledHouseholdDeliveryTests
     public async Task ARealFourUnitPotFamilyRecoversTogetherAndDiscardedDeliveryDoesNotMoveAnyStock()
     {
         var (state, actor, camp) = await PickedUpPot();
-        using var world = Restore(state, actor, new DeliveryChoices("recover_household_delivery"));
+        using var world = Restore(state, actor, DeliveryPolicy());
         for (var tick = 0; tick < 8 && world.Society.Inventory.GetLot(PotGreens).FreshnessBasisPoints > 0; tick++)
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         AssertSpoiledCarriedFamily(world, actor);
         var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
-        var choices = new DeliveryChoices("recover_household_delivery");
+        var choices = DeliveryPolicy();
         using var recovered = Restore(PrivateWorldRuntimeCodec.Decode(bytes), actor, choices);
-        using var replay = Restore(PrivateWorldRuntimeCodec.Decode(bytes), actor, new DeliveryChoices("recover_household_delivery"));
+        using var replay = Restore(PrivateWorldRuntimeCodec.Decode(bytes), actor, DeliveryPolicy());
         Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(recovered.ExportState()));
         var discarded = false;
         for (var tick = 0; tick < 96 && recovered.Society.Inventory.GetLot(Pot).OwnerId == actor; tick++)
@@ -39,9 +39,23 @@ public sealed partial class SpoiledHouseholdDeliveryTests
                 discarded = true;
                 discardHere = true;
             }
+            var beforeInventory = recovered.Society.Inventory;
+            var carriedBefore = PersonalEquipmentRules.CarriedQuantity(beforeInventory, actor, null);
+            var unrelatedBefore = beforeInventory.GetLot(SecondGreens);
             Assert.True((await recovered.AdvanceOneTickAsync()).Advanced);
             Assert.True((await replay.AdvanceOneTickAsync()).Advanced);
             Assert.Equal(PrivateWorldRuntimeCodec.Encode(recovered.ExportState()), PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
+            if (recovered.Society.Inventory.GetLot(Pot).OwnerId == Household)
+            {
+                Assert.Equal(carriedBefore - 4, PersonalEquipmentRules.CarriedQuantity(recovered.Society.Inventory, actor, null));
+                var unrelatedAfter = recovered.Society.Inventory.GetLot(SecondGreens);
+                Assert.Equal((unrelatedBefore.Id, unrelatedBefore.OwnerId, unrelatedBefore.Quantity,
+                        unrelatedBefore.ConditionBasisPoints, unrelatedBefore.StorageBuildingId, unrelatedBefore.DeliveryBuildingId,
+                        unrelatedBefore.ContainerLotId, unrelatedBefore.GroundPosition, unrelatedBefore.ProvenanceLotId),
+                    (unrelatedAfter.Id, unrelatedAfter.OwnerId, unrelatedAfter.Quantity,
+                        unrelatedAfter.ConditionBasisPoints, unrelatedAfter.StorageBuildingId, unrelatedAfter.DeliveryBuildingId,
+                        unrelatedAfter.ContainerLotId, unrelatedAfter.GroundPosition, unrelatedAfter.ProvenanceLotId));
+            }
             if (discardHere)
             {
                 Assert.Equal(Household, recovered.Society.Inventory.GetLot(Pot).OwnerId);
@@ -65,7 +79,6 @@ public sealed partial class SpoiledHouseholdDeliveryTests
             Assert.Null(lot.ProvenanceLotId);
         });
         Assert.Equal(4, recovered.Society.Inventory.Lots.Where(lot => lot.Id == Pot || lot.ContainerLotId == Pot).Sum(lot => lot.Quantity));
-        Assert.Equal(0, PersonalEquipmentRules.CarriedQuantity(recovered.Society.Inventory, actor, null));
         Assert.Single(recovered.ExportState().Events, item => item.Kind == "household_delivery_recovered" &&
             item.Detail == $"{actor}:{Pot}:4:camp");
         Assert.Equal(2, recovered.Society.Inventory.Events.Count(item => item.Kind == "container_transferred" &&
@@ -93,7 +106,7 @@ public sealed partial class SpoiledHouseholdDeliveryTests
         Assert.Equal(originalFamily, inventory.Lots.Where(lot => lot.Id == Pot || lot.ContainerLotId == Pot));
         var claimed = pickedUp with { Society = pickedUp.Society with { Society = pickedUp.Society.Society with { Inventory = inventory } } };
         var bytes = PrivateWorldRuntimeCodec.Encode(claimed);
-        var choices = new DeliveryChoices("haul_household_stock");
+        var choices = DeliveryPolicy();
         using var collecting = Restore(PrivateWorldRuntimeCodec.Decode(bytes), actor, choices);
         Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(collecting.ExportState()));
         for (var tick = 0; tick < 12 && (collecting.Society.Inventory.GetLot(SecondGreens).OwnerId != actor ||
@@ -112,7 +125,7 @@ public sealed partial class SpoiledHouseholdDeliveryTests
         Assert.Contains(collecting.Society.Inventory.Events, item => item.Kind == "lot_spoiled" && item.Detail == PotGreens);
         var recoveryBytes = PrivateWorldRuntimeCodec.Encode(collecting.ExportState());
         using var recovered = Restore(PrivateWorldRuntimeCodec.Decode(recoveryBytes), actor,
-            new DeliveryChoices("recover_household_delivery"));
+            DeliveryPolicy());
         for (var tick = 0; tick < 96 && recovered.Society.Inventory.GetLot(SecondGreens).OwnerId == actor; tick++)
             Assert.True((await recovered.AdvanceOneTickAsync()).Advanced);
         Assert.Equal((Household, 4, new InventoryGroundPosition(camp.X, camp.Y)),
@@ -141,7 +154,7 @@ public sealed partial class SpoiledHouseholdDeliveryTests
     private static async Task<(PrivateWorldRuntimeState State, string Actor, GridPoint Camp)> PickedUpPot()
     {
         var (state, actor, camp) = await PreparedDelivery(wholeFamily: true);
-        using var world = Restore(state, actor, new DeliveryChoices("haul_household_stock"));
+        using var world = Restore(state, actor, DeliveryPolicy());
         for (var tick = 0; tick < 4 && world.Society.Inventory.GetLot(Pot).OwnerId != actor; tick++)
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         Assert.Equal(actor, world.Society.Inventory.GetLot(Pot).OwnerId);

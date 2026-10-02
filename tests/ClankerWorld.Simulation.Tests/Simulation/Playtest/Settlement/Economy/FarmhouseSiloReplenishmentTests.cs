@@ -8,6 +8,8 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed class FarmhouseSiloReplenishmentTests
 {
+    private const string UnrelatedHouseCargoClaimPrefix = "test-replenishment-house-cargo:";
+
     [Fact]
     public async Task StoredSiloGrainIsActuallyCarriedToAnEmptyFarmhouseForMillingAcrossReload()
     {
@@ -18,7 +20,9 @@ public sealed class FarmhouseSiloReplenishmentTests
             "haul_farm_grain", "haul_household_stock");
         var mill = world.WorldContent.Recipes.Single(recipe => recipe.LocalId == "mill-grain");
         Assert.False(world.StartProduction(mill.CanonicalId, setup.Farmhouse, setup.Actor).Applied);
-        await Until(world, () => CarriedGrain(world, setup) is not null, 96, "Silo grain pickup");
+        var initialRoutes = DescribeFarmStockRoutes(world, setup);
+        await Until(world, () => CarriedGrain(world, setup) is not null, 96, "Silo grain pickup",
+            () => "Initial farm stock/routes:\n" + initialRoutes + "\nFinal farm stock/routes:\n" + DescribeFarmStockRoutes(world, setup));
         var carried = CarriedGrain(world, setup)!;
         Assert.Equal(2, carried.Quantity);
         Assert.True(IsFrom(carried, "silo-grain"));
@@ -90,6 +94,7 @@ public sealed class FarmhouseSiloReplenishmentTests
         Assert.Equal(batchQuantity, firstMill.Society.Inventory.Lots.Where(lot => IsFrom(lot, grainRoot)).Sum(lot => lot.Quantity));
 
         var flourId = firstJob.JobId + ":output:00";
+        AssertFlourDeliveryPremises(firstMill, setup);
         using var flour = Reload(firstMill, setup.Actor, "haul_farm_flour", "haul_household_stock");
         await Until(flour, () => flour.Society.Inventory.Lots.Any(lot => IsFrom(lot, flourId) &&
                 lot.StorageBuildingId == setup.House), 96, "first flour carried home");
@@ -136,6 +141,7 @@ public sealed class FarmhouseSiloReplenishmentTests
             (output.OwnerId, output.ItemKind, output.Quantity, output.StorageBuildingId));
         Assert.Equal(batchQuantity - 1, secondMill.Society.Inventory.Lots.Where(lot => IsFrom(lot, grainRoot)).Sum(lot => lot.Quantity));
         Assert.Equal(95, secondMill.Society.Inventory.GetLot("full-farm-seeds").Quantity);
+        AssertUnrelatedHouseCargoClaims(secondMill, setup);
         using var saved = Reload(secondMill, setup.Actor, "safe_idle");
         Assert.Equal(PrivateWorldRuntimeCodec.Encode(secondMill.ExportState()),
             PrivateWorldRuntimeCodec.Encode(saved.ExportState()));
@@ -275,6 +281,22 @@ public sealed class FarmhouseSiloReplenishmentTests
         {
             Lots = state.Society.Society.Inventory.Lots.Where(lot => lot.StorageBuildingId != farmhouse.InstanceId).ToArray(),
         };
+        if (growField)
+        {
+            // Silo construction has actually spent its costs. Keep unrelated
+            // camp supplies claimed so this directed delivery proof cannot
+            // fill the House with tools/wood before its actual flour arrives.
+            foreach (var stock in inventory.Lots.Where(lot => lot.OwnerId == household &&
+                         lot.StorageBuildingId is null && lot.DeliveryBuildingId is null &&
+                         lot.ContainerLotId is null && !FarmFieldRules.IsFarmStock(lot.ItemKind) &&
+                         !InventoryContainerRules.IsContainer(lot.ItemKind)).ToArray())
+            {
+                var quantity = PersonalEquipmentRules.AvailableQuantity(inventory, stock);
+                if (quantity > 0)
+                    inventory = InventoryFixture.Reserve(inventory, UnrelatedHouseCargoClaimPrefix + stock.Id,
+                        household, stock.Id, quantity, "unrelated-house-supply-claim", long.MaxValue);
+            }
+        }
         state = FarmFieldTests.WithInventory(state, inventory);
         if (!growField) state = state with
         {
@@ -287,6 +309,137 @@ public sealed class FarmhouseSiloReplenishmentTests
 
     private static int Stored(PrivateWorldRuntime world, string building) =>
         world.Society.Inventory.Lots.Where(lot => lot.StorageBuildingId == building).Sum(lot => lot.Quantity);
+
+    private static void AssertFlourDeliveryPremises(PrivateWorldRuntime world, Setup setup)
+    {
+        var state = world.ExportState();
+        var person = state.Inhabitants.Single(item => item.InhabitantId == setup.Actor);
+        var inventory = world.Society.Inventory;
+        var house = world.WorldSimulation.Buildings.Single(item => item.InstanceId == setup.House);
+        var farmhouse = world.WorldSimulation.Buildings.Single(item => item.InstanceId == setup.Farmhouse);
+        var definition = world.WorldContent.Buildings.Single(item => item.CanonicalId == house.DefinitionId);
+        var capacity = BuildingStorageRules.Capacity(definition, house)!.Value;
+        var stored = Stored(world, setup.House);
+        var inbound = inventory.Lots.Where(lot => lot.DeliveryBuildingId == setup.House).Sum(lot => lot.Quantity);
+        var freeCarry = PersonalEquipmentRules.FreeCapacity(inventory, setup.Actor, person.Equipment);
+        var hasRoute = HasUnoccupiedRoute(state, setup.Actor, farmhouse.Position, house.Position);
+        var detail = $"Flour delivery premise at tick {world.WorldTick}: carry-free={freeCarry}, " +
+            $"House={house.Position}, capacity={capacity}, stored={stored}, inbound={inbound}, " +
+            $"Farmhouse={farmhouse.Position}, actor={person.Position}, route={hasRoute}.\n" +
+            "Personal/House stock: " + string.Join("; ", inventory.Lots.Where(lot =>
+                lot.OwnerId == setup.Actor || lot.StorageBuildingId == setup.House || lot.DeliveryBuildingId == setup.House)
+                .Select(lot => $"{lot.Id}:{lot.ItemKind}:{lot.Quantity}:owner={lot.OwnerId}:store={lot.StorageBuildingId}:delivery={lot.DeliveryBuildingId}:ground={lot.GroundPosition}:pot={lot.ContainerLotId}"));
+        // These directed phases do not negotiate trades or start House jobs,
+        // so no other promise can consume the measured carry/storage room.
+        Assert.Empty(world.BusinessTrades);
+        Assert.DoesNotContain(world.WorldSimulation.ProductionJobs, job =>
+            job.BuildingInstanceId == setup.House && job.State == WorldProductionJobState.Running);
+        Assert.True(freeCarry >= 1, detail);
+        Assert.True(capacity - stored - inbound >= 1, detail);
+        Assert.Equal(farmhouse.Position, person.Position);
+        Assert.True(hasRoute, detail);
+        AssertUnrelatedHouseCargoClaims(world, setup);
+    }
+
+    private static void AssertUnrelatedHouseCargoClaims(PrivateWorldRuntime world, Setup setup)
+    {
+        var initial = setup.State.Society.Society.Inventory;
+        var claims = initial.Reservations.Where(item => item.Id.StartsWith(UnrelatedHouseCargoClaimPrefix,
+            StringComparison.Ordinal)).ToArray();
+        Assert.NotEmpty(claims);
+        foreach (var claim in claims)
+        {
+            Assert.Equal(claim, world.Society.Inventory.GetReservation(claim.Id));
+            var before = initial.GetLot(claim.LotId);
+            var after = world.Society.Inventory.GetLot(claim.LotId);
+            Assert.Equal((before.OwnerId, before.ItemKind, before.Quantity, before.StorageBuildingId,
+                    before.DeliveryBuildingId, before.ContainerLotId, before.GroundPosition),
+                (after.OwnerId, after.ItemKind, after.Quantity, after.StorageBuildingId,
+                    after.DeliveryBuildingId, after.ContainerLotId, after.GroundPosition));
+            Assert.DoesNotContain(world.Society.Inventory.Lots, lot => lot.Id != before.Id && IsFrom(lot, before.Id));
+        }
+    }
+
+    private static bool HasUnoccupiedRoute(PrivateWorldRuntimeState state, string actor, GridPoint source,
+        GridPoint destination, int interactionRange = 0)
+    {
+        var occupied = state.Inhabitants.Where(person => person.InhabitantId != actor)
+            .Select(person => person.Position).ToHashSet();
+        var household = state.Society.Society.GetInhabitant(actor).HouseholdId;
+        // Exact work tiles at buildings held by this household are shared.
+        if (interactionRange == 0 && state.WorldSimulation!.Buildings.Any(building =>
+                building.Position == destination && building.HouseholdId == household && household is not null))
+            occupied.Remove(destination);
+        var seen = new HashSet<GridPoint> { source };
+        var pending = new Queue<GridPoint>();
+        pending.Enqueue(source);
+        while (pending.TryDequeue(out var point))
+        {
+            if (state.Map.FootDistance(point, destination) <= interactionRange) return true;
+            foreach (var next in state.Map.FootNeighbors(point))
+            {
+                if (occupied.Contains(next) || state.Map.IsDiagonalFootStep(point, next) &&
+                    (occupied.Contains(new GridPoint(next.X, point.Y)) || occupied.Contains(new GridPoint(point.X, next.Y))))
+                    continue;
+                if (seen.Add(next)) pending.Enqueue(next);
+            }
+        }
+        return false;
+    }
+
+    private static string DescribeFarmStockRoutes(PrivateWorldRuntime world, Setup setup)
+    {
+        var state = world.ExportState();
+        var inventory = world.Society.Inventory;
+        var person = state.Inhabitants.Single(item => item.InhabitantId == setup.Actor);
+        var social = state.Society.Society.GetInhabitant(setup.Actor);
+        var household = state.Society.Society.GetHousehold(setup.Household);
+        var farmhouse = world.WorldSimulation.Buildings.Single(item => item.InstanceId == setup.Farmhouse);
+        var silo = world.WorldSimulation.Buildings.Single(item => item.InstanceId == setup.Silo);
+        var camp = state.Map.CampObjects.FirstOrDefault(item => item.Id == "storage")?.Position ??
+            world.WorldSimulation.Buildings.FirstOrDefault(item => item.InstanceId == "first-town-warehouse")?.Position ??
+            state.Towns?.FirstOrDefault(item => item.OriginSite is not null)?.OriginSite ??
+            state.Map.Resources.First(item => item.Id == "berry-patch").Position;
+        int Room(string building) => Math.Max(0, FarmFieldRules.FarmStorageCapacity - inventory.Lots
+            .Where(lot => lot.StorageBuildingId == building || lot.DeliveryBuildingId == building).Sum(lot => lot.Quantity));
+        var freeCarry = PersonalEquipmentRules.FreeCapacity(inventory, setup.Actor, person.Equipment);
+        var roots = inventory.Lots.Where(lot => lot.OwnerId == setup.Household && lot.ContainerLotId is null &&
+                lot.StorageBuildingId is null && lot.DeliveryBuildingId is null && FarmFieldRules.IsFarmStock(lot.ItemKind))
+            .OrderBy(lot => lot.GroundPosition is not null ? 0 : 1).ThenBy(lot => lot.Id, StringComparer.Ordinal).ToArray();
+        var firstFitting = roots.FirstOrDefault(lot => PersonalEquipmentRules.AvailableQuantity(inventory, lot) > 0 &&
+            freeCarry > 0 && (Room(setup.Farmhouse) > 0 || Room(setup.Silo) > 0));
+        var loose = roots.Select(lot =>
+        {
+            var source = lot.GroundPosition is { } ground ? new GridPoint(ground.X, ground.Y) : camp;
+            var range = lot.GroundPosition is null ? 1 : 0;
+            var destination = lot.ItemKind == FarmFieldRules.Grain
+                ? Room(setup.Farmhouse) > 0 ? farmhouse : silo
+                : Room(setup.Silo) > 0 ? silo : farmhouse;
+            return $"{lot.Id}:{lot.ItemKind}:qty={lot.Quantity}:available={PersonalEquipmentRules.AvailableQuantity(inventory, lot)}:" +
+                $"source={source}:range={range}:in-range={state.Map.FootDistance(person.Position, source) <= range}:" +
+                $"pickup-route={HasUnoccupiedRoute(state, setup.Actor, person.Position, source, range)}:" +
+                $"destination={destination.InstanceId}@{destination.Position}:delivery-route={HasUnoccupiedRoute(state, setup.Actor, source, destination.Position)}";
+        });
+        var titles = (state.TownLandTitles ?? []).Where(title => title.Tiles.Contains(silo.Position) ||
+            title.Tiles.Contains(farmhouse.Position)).Select(title => title.Id + ":" + title.TownId);
+        var rights = (state.HouseholdLandUseRights ?? []).Where(right => right.HouseholdId == setup.Household &&
+                (right.Tiles.Contains(silo.Position) || right.Tiles.Contains(farmhouse.Position)))
+            .Select(right => $"{right.Id}:{right.GrantSource}:end={right.AgreedEndTick}");
+        return $"tick={world.WorldTick}, actor={setup.Actor}@{person.Position}, age={social.AgeBand}, " +
+            $"HH={social.HouseholdId}/{household.Name}, free-carry={freeCarry}, camp={camp}, " +
+            $"FH={farmhouse.Position}/owner={farmhouse.HouseholdId}/capacity={FarmFieldRules.FarmStorageCapacity}/room={Room(setup.Farmhouse)}, " +
+            $"Silo={silo.Position}/owner={silo.HouseholdId}/capacity={FarmFieldRules.FarmStorageCapacity}/room={Room(setup.Silo)}, trades={world.BusinessTrades.Count}, " +
+            $"Silo-pickup-route={HasUnoccupiedRoute(state, setup.Actor, person.Position, silo.Position)}, " +
+            $"Silo-FH-route={HasUnoccupiedRoute(state, setup.Actor, silo.Position, farmhouse.Position)}, " +
+            $"first-fitting-loose-root={firstFitting?.Id}, titles={string.Join(",", titles)}, rights={string.Join(",", rights)}.\n" +
+            "Loose farm roots: " + string.Join("; ", loose) + "\nStored farm stock: " +
+            string.Join("; ", inventory.Lots.Where(lot => lot.StorageBuildingId == setup.Farmhouse || lot.StorageBuildingId == setup.Silo)
+                .Select(lot => $"{lot.Id}:{lot.ItemKind}:qty={lot.Quantity}:available={PersonalEquipmentRules.AvailableQuantity(inventory, lot)}:store={lot.StorageBuildingId}:pot={lot.ContainerLotId}")) +
+            "\nFH recipes: " + string.Join("; ", world.WorldContent.Recipes.Where(recipe => recipe.WorkstationBuildingId == farmhouse.DefinitionId)
+                .Select(recipe => recipe.CanonicalId + ":" + string.Join(",", recipe.Inputs.Select(input => input.ResourceId + "=" + input.Amount)))) +
+            "\nPersonal stock: " + string.Join("; ", inventory.Lots.Where(lot => lot.OwnerId == setup.Actor)
+                .Select(lot => $"{lot.Id}:{lot.ItemKind}:{lot.Quantity}:store={lot.StorageBuildingId}:delivery={lot.DeliveryBuildingId}:ground={lot.GroundPosition}"));
+    }
 
     private static InventoryLot? CarriedGrain(PrivateWorldRuntime world, Setup setup) =>
         world.Society.Inventory.Lots.SingleOrDefault(lot => lot.OwnerId == setup.Actor && lot.ItemKind == FarmFieldRules.Grain &&
@@ -301,7 +454,8 @@ public sealed class FarmhouseSiloReplenishmentTests
     private static PrivateWorldRuntime Reload(PrivateWorldRuntime world, string actor, params string[] choices) =>
         Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState())), actor, choices);
 
-    private static async Task Until(PrivateWorldRuntime world, Func<bool> done, int ticks, string phase)
+    private static async Task Until(PrivateWorldRuntime world, Func<bool> done, int ticks, string phase,
+        Func<string>? diagnostics = null)
     {
         for (var tick = 0; tick < ticks && !done(); tick++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         Assert.True(done(), $"{phase} did not finish within {ticks} actual ticks (world tick {world.WorldTick}).\n" +
@@ -311,7 +465,8 @@ public sealed class FarmhouseSiloReplenishmentTests
                 lot.ItemKind is FarmFieldRules.Grain or "flour" || lot.DeliveryBuildingId is not null).Select(lot =>
                 $"{lot.Id}:{lot.ItemKind}:{lot.Quantity}:owner={lot.OwnerId}:store={lot.StorageBuildingId}:delivery={lot.DeliveryBuildingId}:ground={lot.GroundPosition}:pot={lot.ContainerLotId}")) +
             "\nRecent events: " + string.Join("; ", world.ExportState().Events.TakeLast(16).Select(item =>
-                $"{item.WorldTick}:{item.Kind}:{item.Detail}")));
+                $"{item.WorldTick}:{item.Kind}:{item.Detail}")) +
+            (diagnostics is null ? string.Empty : "\n" + diagnostics()));
         world.Validate();
     }
 

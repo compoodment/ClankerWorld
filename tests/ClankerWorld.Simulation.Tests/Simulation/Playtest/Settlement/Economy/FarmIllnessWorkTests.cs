@@ -144,8 +144,11 @@ public sealed class FarmIllnessWorkTests
         {
             var away = state.Map.Tiles.Select(tile => tile.Position).First(point => point != setup.Point &&
                 state.Map.IsPassable(point) && !state.Inhabitants.Any(person => person.Position == point));
-            state = state with { Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == setup.Actor
-                ? person with { Position = away } : person).ToArray() };
+            state = state with
+            {
+                Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == setup.Actor
+                ? person with { Position = away } : person).ToArray()
+            };
         }
         using var interrupted = FarmFieldTests.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)));
         await Advance(interrupted, 1);
@@ -233,15 +236,21 @@ public sealed class FarmIllnessWorkTests
         var nextLifeTick = society.Config.TicksPerLifecycleAge - 1;
         var delta = nextLifeTick - society.LifeTickAt(society.WorldTick);
         var years = society.Config.DayLifecycle!.MaximumDay - 1;
-        return state with { Society = state.Society with { Society = society with
+        return state with
         {
-            LifeClock = new SocietyLifeClock(society.LifeClock?.Rate ?? 1, society.WorldTick, nextLifeTick),
-            Inhabitants = society.Inhabitants.Select(person => person.Id == actor ? person with
+            Society = state.Society with
             {
-                BirthLifeTick = nextLifeTick + 1 - (years + 1) * society.Config.TicksPerLifecycleAge,
-                AgeBand = SocietyAgeBand.Elder,
-                LastLifecycleYearChecked = years,
-            } : person with { BirthLifeTick = (person.BirthLifeTick ?? person.BirthTick) + delta }).ToArray(),
-        } } };
+                Society = society with
+                {
+                    LifeClock = new SocietyLifeClock(society.LifeClock?.Rate ?? 1, society.WorldTick, nextLifeTick),
+                    Inhabitants = society.Inhabitants.Select(person => person.Id == actor ? person with
+                    {
+                        BirthLifeTick = nextLifeTick + 1 - (years + 1) * society.Config.TicksPerLifecycleAge,
+                        AgeBand = SocietyAgeBand.Elder,
+                        LastLifecycleYearChecked = years,
+                    } : person with { BirthLifeTick = (person.BirthLifeTick ?? person.BirthTick) + delta }).ToArray(),
+                }
+            }
+        };
     }
 }

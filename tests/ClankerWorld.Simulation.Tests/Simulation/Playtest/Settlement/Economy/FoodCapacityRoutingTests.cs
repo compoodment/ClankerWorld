@@ -25,20 +25,20 @@ public sealed class FoodCapacityRoutingTests
         var buildingTiles = state.WorldSimulation!.Buildings.SelectMany(building => WorldContentSimulationRules.Footprint(
             state.WorldContent!.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId), building)).ToHashSet();
         var pairs = (from tile in state.Map.Tiles
-                    let origin = tile.Position
-                    where state.Map.IsBuildable(origin) && !occupied.Contains(origin) && !naturalSites.Contains(origin) &&
-                        state.Map.FootDistance(origin, berries.Position) == 2 &&
-                        state.Map.Resources.Where(resource => resource.Kind == "food" && resource.Id != berries.Id).All(resource =>
-                            state.Map.FootDistance(origin, resource.Position) >= 2)
-                    from site in state.Map.FootNeighbors(origin)
-                    where state.Map.IsBuildable(site) && !naturalSites.Contains(site) && !facilities.Contains(site) &&
-                        !buildingTiles.Contains(site) && !occupied.Contains(site) &&
-                        !(state.RoadTiles ?? []).Contains(site) && !(state.Fields ?? []).Any(field => field.Position == site) &&
-                        state.Map.FootDistance(site, berries.Position) <= 1 &&
-                        (!state.Map.IsDiagonalFootStep(origin, site) ||
-                         !occupied.Contains(new GridPoint(site.X, origin.Y)) && !occupied.Contains(new GridPoint(origin.X, site.Y)))
-                    orderby origin.Y, origin.X, site.Y, site.X
-                    select (Stand: origin, Orchard: site)).ToArray();
+                     let origin = tile.Position
+                     where state.Map.IsBuildable(origin) && !occupied.Contains(origin) && !naturalSites.Contains(origin) &&
+                         state.Map.FootDistance(origin, berries.Position) == 2 &&
+                         state.Map.Resources.Where(resource => resource.Kind == "food" && resource.Id != berries.Id).All(resource =>
+                             state.Map.FootDistance(origin, resource.Position) >= 2)
+                     from site in state.Map.FootNeighbors(origin)
+                     where state.Map.IsBuildable(site) && !naturalSites.Contains(site) && !facilities.Contains(site) &&
+                         !buildingTiles.Contains(site) && !occupied.Contains(site) &&
+                         !(state.RoadTiles ?? []).Contains(site) && !(state.Fields ?? []).Any(field => field.Position == site) &&
+                         state.Map.FootDistance(site, berries.Position) <= 1 &&
+                         (!state.Map.IsDiagonalFootStep(origin, site) ||
+                          !occupied.Contains(new GridPoint(site.X, origin.Y)) && !occupied.Contains(new GridPoint(origin.X, site.Y)))
+                     orderby origin.Y, origin.X, site.Y, site.X
+                     select (Stand: origin, Orchard: site)).ToArray();
         Assert.NotEmpty(pairs);
         var pair = pairs[0];
         var orchardPoint = pair.Orchard;
@@ -57,8 +57,14 @@ public sealed class FoodCapacityRoutingTests
         state = FoodCapacityTestFixture.WithInventory(state, inventory) with
         {
             Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
-                ? person with { Position = stand, HungerBasisPoints = 1_000, Equipment = null, LastDecisionContext = null,
-                    Survival = new SurvivalCondition(10_000) }
+                ? person with
+                {
+                    Position = stand,
+                    HungerBasisPoints = 1_000,
+                    Equipment = null,
+                    LastDecisionContext = null,
+                    Survival = new SurvivalCondition(10_000)
+                }
                 : person).ToArray(),
         };
         using var planting = FoodCapacityTestFixture.Restore(state, actor, new FoodCapacityTestFixture.Choices());

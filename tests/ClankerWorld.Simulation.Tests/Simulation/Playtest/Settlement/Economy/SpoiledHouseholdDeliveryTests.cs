@@ -21,7 +21,7 @@ public sealed partial class SpoiledHouseholdDeliveryTests
     public async Task RealFourUnitPickupsSpoilInTransitAndWalkBackToCampBeforeTheEmptyHouseCanChange(bool reassign)
     {
         var (state, actor, camp) = await PreparedDelivery();
-        var choices = new DeliveryChoices("haul_household_stock");
+        var choices = DeliveryPolicy();
         using var pickupWorld = Restore(state, actor, choices);
         var house = pickupWorld.WorldSimulation.Buildings.Single(building => building.InstanceId == House);
         var initialInventory = pickupWorld.Society.Inventory;
@@ -57,13 +57,13 @@ public sealed partial class SpoiledHouseholdDeliveryTests
         Assert.DoesNotContain(pickupWorld.Society.Inventory.Lots, lot => lot.StorageBuildingId == House);
         AssertBuildingStillBlocked(pickupWorld, house, reassign);
 
-        // Resume the actual in-flight state. Only the admitted routine choice changes;
-        // no intention, stock, position, reservation or delivery pointer is reset.
+        // Resume the actual in-flight state with the same admitted policy.
+        // No intention, stock, position, reservation or delivery pointer is reset.
         var bytes = PrivateWorldRuntimeCodec.Encode(pickupWorld.ExportState());
-        var recoveryChoices = new DeliveryChoices("recover_household_delivery");
+        var recoveryChoices = DeliveryPolicy();
         using var recovered = Restore(PrivateWorldRuntimeCodec.Decode(bytes), actor, recoveryChoices);
         using var replay = Restore(PrivateWorldRuntimeCodec.Decode(bytes), actor,
-            new DeliveryChoices("recover_household_delivery"));
+            DeliveryPolicy());
         Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(recovered.ExportState()));
         var previous = recovered.Inhabitants.Single(person => person.InhabitantId == actor).Position;
         var walked = false;
@@ -152,13 +152,21 @@ public sealed partial class SpoiledHouseholdDeliveryTests
         var wood = inventory.Lots.First(lot => lot.OwnerId == Household && lot.ItemKind == "wood" && lot.Quantity > 0);
         inventory = InventoryFixture.Reserve(inventory, UnrelatedReservation, Household, wood.Id, 1,
             "retained_recovery_control", long.MaxValue);
-        // Generic food has precedence over greens in ordinary House hauling.
-        // Hold that unrelated camp stock with real claims before the action
-        // phase, leaving the two at-hand greens loads available for delivery.
-        foreach (var food in inventory.Lots.Where(lot => lot.OwnerId == Household && lot.ItemKind == "food" &&
-            lot.StorageBuildingId is null && lot.Quantity > 0).ToArray())
-            inventory = InventoryFixture.Reserve(inventory, $"retained-food:{food.Id}", Household, food.Id, food.Quantity,
-                "retained_recovery_control", long.MaxValue);
+        // Hold unrelated loose camp supplies with real claims before the
+        // action phase. They remain physical stock; freeing a recovery load
+        // must not start a new unrelated delivery into the empty target House.
+        foreach (var stock in inventory.Lots.Where(lot => lot.OwnerId == Household &&
+            lot.StorageBuildingId is null && lot.DeliveryBuildingId is null && lot.ContainerLotId is null &&
+            !InventoryContainerRules.IsContainer(lot.ItemKind) && lot.Quantity > 0 &&
+            lot.ConditionBasisPoints > 0 && lot.FreshnessBasisPoints > 0).ToArray())
+        {
+            var alreadyReserved = inventory.Reservations.Where(reservation => reservation.LotId == stock.Id &&
+                reservation.State is InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed or
+                    InventoryReservationState.Committed).Sum(reservation => reservation.Quantity);
+            if (alreadyReserved < stock.Quantity)
+                inventory = InventoryFixture.Reserve(inventory, $"retained-stock:{stock.Id}", Household, stock.Id,
+                    stock.Quantity - alreadyReserved, "retained_recovery_control", long.MaxValue);
+        }
         if (wholeFamily)
         {
             inventory = InventoryFixture.AddLot(inventory, Pot, InventoryContainerRules.StoragePot, Household, 1,
@@ -215,6 +223,8 @@ public sealed partial class SpoiledHouseholdDeliveryTests
         PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)),
             id => id == actor ? choices : new DeliveryChoices());
 
+    private static DeliveryChoices DeliveryPolicy() => new("haul_household_stock", "recover_household_delivery");
+
     private sealed class DeliveryChoices(params string[] allowed) : IDecisionProvider
     {
         internal List<string[]> Offers { get; } = [];
@@ -223,17 +233,18 @@ public sealed partial class SpoiledHouseholdDeliveryTests
         public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request,
             CancellationToken cancellationToken = default)
         {
+            request.Validate();
+            cancellationToken.ThrowIfCancellationRequested();
             Offers.Add(request.Observation.Candidates.Select(candidate => candidate.Id).ToArray());
-            var permitted = request.Observation.Candidates.Where(candidate => allowed.Contains(candidate.Id, StringComparer.Ordinal)).ToArray();
-            return new DeterministicDecisionProvider().DecideAsync(request with
-            {
-                Observation = request.Observation with
-                {
-                    Candidates = permitted.Length == 0
-                        ? [request.Observation.Candidates.Single(candidate => candidate.Id == "safe_idle")]
-                        : permitted,
-                },
-            }, cancellationToken);
+            // Complete an actual usable delivery first. The same policy admits
+            // recovery as soon as no legal haul remains, including after reload.
+            var selected = allowed.SelectMany(id => request.Observation.Candidates.Where(candidate => candidate.Id == id))
+                .FirstOrDefault() ?? request.Observation.Candidates.Single(candidate => candidate.Id == "safe_idle");
+            var probabilities = request.Observation.Candidates.ToDictionary(candidate => candidate.Id,
+                candidate => candidate.Id == selected.Id ? 1d : 0d, StringComparer.Ordinal);
+            return ValueTask.FromResult(new CognitionDecisionResponse(request.RequestId, request.Observation.InhabitantId,
+                Kind, ProviderEpoch, request.Observation.RunEpoch, request.Observation.DecisionGeneration,
+                request.Observation.ObservationDigest, selected.Id, 1d, probabilities));
         }
     }
 }
