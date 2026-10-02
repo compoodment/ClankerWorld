@@ -395,11 +395,13 @@ public sealed partial class PrivateWorldRuntime : IDisposable
 
     public void Dispose()
     {
-        foreach (var id in pendingHosted.Keys.ToArray()) CancelPendingHosted(id);
-        foreach (var id in pendingWills.Keys.ToArray()) CancelPendingWill(id);
-        CancelIdentityMoments();
+        // Disposal does not hold the runtime gate; its provider callbacks can
+        // still apply their usage effects synchronously before the gate closes.
+        foreach (var id in pendingHosted.Keys.ToArray()) CancelPendingHosted(id, underRuntimeGate: false);
+        foreach (var id in pendingWills.Keys.ToArray()) CancelPendingWill(id, underRuntimeGate: false);
+        CancelIdentityMoments(underRuntimeGate: false);
         foreach (var id in pendingConversationTurns.Keys.ToArray()) CancelPendingConversationTurn(id,
-            AgentConversationInterruption.Disconnected);
+            AgentConversationInterruption.Disconnected, underRuntimeGate: false);
         society.Dispose();
         gate.Dispose();
         tickGate.Dispose();

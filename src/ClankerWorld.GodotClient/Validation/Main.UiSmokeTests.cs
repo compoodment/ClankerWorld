@@ -922,6 +922,11 @@ public partial class Main
                 throw new InvalidOperationException("The open Settings category must read as selected, not disabled.");
             if (!apiKeysPanel.IsVisibleInTree() || !gameSettingsContent.IsAncestorOf(apiKeysPanel) || !apiKeyInput.Secret)
                 throw new InvalidOperationException("Main Menu Game Settings must offer API keys with a masked key entry before placing any agents.");
+            if (!usageLimitPanel.IsVisibleInTree() || !gameSettingsContent.IsAncestorOf(usageLimitPanel) ||
+                worldSettingsContent.IsAncestorOf(usageLimitPanel) ||
+                !usageScopeHint.Text.Contains("all your worlds", StringComparison.Ordinal) ||
+                !usageScopeHint.Text.Contains("call attempt", StringComparison.Ordinal))
+                throw new InvalidOperationException("Main Menu Game Settings must show the model-call limit and say it covers every world and counts call attempts.");
             apiKeyInput.Text = "test-only-ui-key";
             apiKeyProviderChoice.Select(1);
             apiKeyProviderChoice.EmitSignal(OptionButton.SignalName.ItemSelected, 1);
@@ -1097,15 +1102,20 @@ public partial class Main
             for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             if (!GetViewportRect().Grow(1).Encloses(gameMenuPanel.GetGlobalRect()))
                 throw new InvalidOperationException($"Pause Menu Settings must fit on screen: menu={gameMenuPanel.GetGlobalRect()} screen={GetViewportRect()}.");
-            // Game and World share one width, and the call limit has its own box on the World page.
+            // Game and World share one width. The call limit covers every world, so it is on the Game page only.
+            if (!usageLimitPanel.IsVisibleInTree() || usageLimitPanel.GetParent() != gameSettingsContent ||
+                usageLimitPanel.GetIndex() != apiKeysPanel.GetIndex() + 1)
+                throw new InvalidOperationException("In-world Game Settings must show Model calls right after API keys.");
             var gamePageWidth = gameMenuPanel.Size.X;
             settingsScroll.ScrollVertical = 200;
             worldSettingsCategoryButton.EmitSignal(BaseButton.SignalName.Pressed);
             for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             if (!worldSettingsContent.Visible || !Mathf.IsEqualApprox(gameMenuPanel.Size.X, gamePageWidth) ||
-                settingsScroll.ScrollVertical != 0 || usageLimitPanel.GetParent() != worldSettingsContent ||
-                cognitionSettingsPanel.GetIndex() + 1 != usageLimitPanel.GetIndex())
-                throw new InvalidOperationException($"World Settings must open at the top, keep the Game page's width and show Model calls after Agent model: {gameMenuPanel.Size.X} vs {gamePageWidth}.");
+                settingsScroll.ScrollVertical != 0 || usageLimitPanel.IsVisibleInTree() ||
+                worldSettingsContent.IsAncestorOf(usageLimitPanel) ||
+                cognitionSettingsPanel.GetParent() != worldSettingsContent ||
+                cognitionSettingsPanel.GetIndex() != worldSettingsContent.GetChildCount() - 1)
+                throw new InvalidOperationException($"World Settings must open at the top, keep the Game page's width, end with Agent model and leave Model calls to Game Settings: {gameMenuPanel.Size.X} vs {gamePageWidth}.");
             ShowPauseMenuButtons();
             menuQuitToMainButton.EmitSignal(BaseButton.SignalName.Pressed);
             if (!quitToMenuConfirmation.Visible)
@@ -1409,11 +1419,17 @@ public partial class Main
             usageStatus = new OwnerUsageStatus(2, 1, 0, 1, 10, 3, 2, true,
                 [new OwnerUsageRow("openai", "test-model", "planning", 2, 1, 0, 1, 10, 3)]);
             RenderUsageStatus();
-            if (!usageMeterStatus.Text.Contains("2 of 2 model calls used", StringComparison.Ordinal) ||
+            if (!usageMeterStatus.Text.Contains("2 of 2 calls used across all worlds", StringComparison.Ordinal) ||
                 !usageMeterStatus.Text.Contains("Time is paused", StringComparison.Ordinal) ||
                 !usageMeterStatus.Text.Contains("openai / test-model", StringComparison.Ordinal) ||
+                !usageMeterStatus.TooltipText.Contains("for information only", StringComparison.Ordinal) ||
                 !grantUsageCallsButton.Visible || usageAttemptLimitInput.Text != "2")
-                throw new InvalidOperationException("World Settings must present paid attempts, scope, provider/model and explicit consent at the cap.");
+                throw new InvalidOperationException("Game Settings must present call attempts, scope, provider/model, tokens as information and explicit consent at the limit.");
+            usageStatus = usageStatus with { Attempts = 812, AttemptLimit = 1_000, LimitReached = false };
+            RenderUsageStatus();
+            if (!usageMeterStatus.Text.StartsWith("812 of 1,000 calls used across all worlds.", StringComparison.Ordinal) ||
+                usageMeterStatus.Text.Contains("Time is paused", StringComparison.Ordinal) || grantUsageCallsButton.Visible)
+                throw new InvalidOperationException("Below the limit, Model calls must show grouped counts and offer no extra allowance.");
             usageStatus = usageStatus with { AccountingError = "Accounting unavailable. Restore a trusted backup and restart." };
             RenderUsageStatus();
             if (!usageMeterStatus.Text.Contains("Restore a trusted backup", StringComparison.Ordinal) ||
@@ -2768,6 +2784,13 @@ public partial class Main
             if (unreadEvents != readBefore + 1 || !eventsBadge.Visible ||
                 eventsBadge.Text != (readBefore + 1).ToString(CultureInfo.InvariantCulture))
                 throw new InvalidOperationException($"A new event must show an unread count on the Event Log button: {unreadEvents} after {readBefore}.");
+            knownEvents[103] = new OwnerWorldEvent(103, 3, "model_call_warning", "used:812:limit:1000", null);
+            RenderEventLog();
+            var loggedWarning = eventLog.GetParsedText();
+            if (unreadEvents != readBefore + 2 ||
+                loggedWarning.Split("Model calls: 812 of 1,000 used across all worlds.").Length != 2 ||
+                !loggedWarning.Contains("raise it in Settings → Game.", StringComparison.Ordinal))
+                throw new InvalidOperationException($"The 80% model-call warning must be one Event Log row pointing to Game Settings: {loggedWarning}");
             if (eventsBadge.ZIndex < 1 || !eventsBadge.ZAsRelative)
                 throw new InvalidOperationException("The unread count must draw over the HUD button next to Events instead of being covered by it.");
             ToggleEvents();
@@ -2815,6 +2838,7 @@ public partial class Main
             if (Math.Abs(logRight - screenRight) > 1)
                 throw new InvalidOperationException($"The Event Log must open at the right edge of the screen: ends at {logRight}, edge {screenRight}.");
             knownEvents.Remove(102);
+            knownEvents.Remove(103);
             RenderEventLog();
             var largeTerrain = Enumerable.Range(0, 256 * 128)
                 .Select(index => (byte)(index % 37 == 0 ? 3 : 0)).ToArray();

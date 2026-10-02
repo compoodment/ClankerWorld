@@ -71,7 +71,7 @@ Choose the saved key later in **Add Agent** or an agent's **Model** panel.
 
 To check a selected model, press **Test model · 1 paid call** in Add Agent or
 an agent's Model panel. This sends one real request and counts toward the
-installation's paid-call limit, even if the provider times out or rejects it.
+model-call limit, even if the provider times out or rejects it.
 A key pasted for this check is not saved. The result tells you whether the
 provider returned a reply the game can use; it does not show provider error
 details.
@@ -183,12 +183,12 @@ the world paused. Opening ordinary inspection panels leaves time running.
 Settings and the Mod Library open inside the Pause Menu window; its back arrow
 or **Escape** returns to the menu's buttons.
 
-Game Settings controls the window, theme, weather effects and date/time format.
+Game Settings controls the window, theme, weather effects, date/time format
+and the model-call limit.
 Menus, panels and text grow with your screen in whole steps, so pixel letters
 stay crisp: 100% on small screens, 200% at 1080p and 1440p and 300% at 4K.
 There is no setting for this. World Settings contains that world's autosaves,
-Jev and the current model-usage controls. Main Menu Settings exposes Game
-Settings only.
+Jev and agent model settings. Main Menu Settings exposes Game Settings only.
 Autosave Apply stays unavailable until the current world's settings have loaded.
 
 Press **F1** or **?** for the in-game controls list, with keys drawn as keycaps
@@ -208,10 +208,14 @@ planned it. The panel also holds the aging override, recovery for a request
 whose reply was lost, paused world editing and paired-device management. The
 aging override and world editing need the world paused first.
 
-The optional model-call limit counts hosted call attempts across this
-installation, including failed, retried or abandoned attempts. It is not a
-currency budget or provider invoice. Reaching it pauses time. Add allowance or
-remove the cap in World Settings, then resume separately.
+**Settings → Game → Model calls** shows how many model calls this installation
+has made and sets an optional limit. One count and limit cover all your worlds.
+Every call attempt counts, including failed, retried or abandoned ones; tokens
+reported by providers are shown for information only. The count never resets
+by itself, and loading an older save does not lower it. It is not a currency
+budget or provider invoice. When the count reaches 80% of the limit, the Event
+Log warns you once. Reaching the limit pauses time: raise or remove the limit,
+or choose **Allow 100 more calls**, then resume separately.
 
 ## Save and return
 
