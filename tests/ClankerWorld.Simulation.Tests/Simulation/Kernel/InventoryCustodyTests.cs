@@ -11,7 +11,8 @@ public sealed class InventoryCustodyTests
             [new("coat", "clothing", "adult", 1, 8_000, 9_000, 0, StorageBuildingId: "former-house")]);
         var collected = InventoryFixture.Relocate(inventory, "collect", "coat", "adult", 1, carrierId: "adult");
         var coat = collected.GetLot("coat");
-        Assert.Equal(("adult", "adult", 1, 8_000, 9_000),
+        // The owner carries it, so no separate carrier is recorded.
+        Assert.Equal(("adult", (string?)null, 1, 8_000, 9_000),
             (coat.OwnerId, coat.CarrierId, coat.Quantity, coat.ConditionBasisPoints, coat.FreshnessBasisPoints));
         Assert.Null(coat.StorageBuildingId);
         Assert.Null(coat.GroundPosition);

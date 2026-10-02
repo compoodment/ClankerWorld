@@ -616,7 +616,7 @@ public static partial class InventoryFixture
         var source = checkpoint.GetLot(lotId);
         var movedId = $"{lotId}#move:{moveId}";
         // An owner carrying their own goods is recorded without a separate carrier.
-        if (carrierId == ownerId) carrierId = null;
+        if (carrierId == ownerId && storageBuildingId is null && groundPosition is null) carrierId = null;
         if (source.OwnerId != ownerId || quantity <= 0 || quantity > source.Quantity ||
             checkpoint.Lots.Any(lot => lot.Id == movedId))
             throw new InvalidOperationException("The exact owned physical quantity is unavailable.");
