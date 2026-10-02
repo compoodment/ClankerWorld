@@ -1,0 +1,1 @@
+- Dates now name the season and its day by default, such as Autumn 2, Year 1 · 14:20, and the top bar no longer repeats the season beside them. Game Settings still offers DD-MM-YYYY, MM-DD-YYYY or YYYY-MM-DD and a 12-hour clock; a numeric date chosen before this update needs choosing again.

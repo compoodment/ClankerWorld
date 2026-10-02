@@ -58,6 +58,9 @@ The current host aims for one tick per real second. New worlds save 360 ticks
 per day and a 40-day year with four ten-day seasons; lifecycle thresholds are
 3/15/45/60 days. Load can affect real-time pace. The old development calendar
 is not silently reinterpreted; the observation carries the saved clock values.
+Its calendar pace includes the saved season lengths, so the game names dates
+such as Autumn 2, Year 1 from the world's own calendar instead of a copy. With
+no season lengths, from an older host, the game shows numeric dates.
 
 Hosted requests are dispatched after a committed tick and resolved at a later
 tick boundary. The unresolved queue entry is saved; the HTTP task is not save

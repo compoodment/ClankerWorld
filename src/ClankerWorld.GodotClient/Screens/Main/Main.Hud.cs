@@ -321,6 +321,8 @@ public partial class Main
         if (snapshot.Authoring is { } authoring)
         {
             seasonLabel.Text = Pretty(authoring.Season);
+            // A season date already names the season, so only the weather follows it.
+            seasonIcon.Visible = seasonLabel.Visible = !DatesShowSeason;
             weatherLabel.Text = Pretty(WeatherAtCamera(snapshot));
             climateBox.Visible = Size.X >= 1100;
         }
@@ -432,7 +434,7 @@ public partial class Main
     {
         var signature = string.Join("\n", snapshot.Towns.Select(town =>
             $"{town.Id}|{town.Name}|{town.FoundingState}|{town.FoundedTick}|{town.ResidentIds.Count}|{town.BorderTiles.Count}|{TownCivicText(town, snapshot.WorldTick)}")) +
-            "|" + displayPreferences.DateFormat + "|" + UiTheme.Current.Name;
+            "|" + displayPreferences.DateStyle + "|" + observedCalendarPace + "|" + UiTheme.Current.Name;
         townBorderHint.Visible = snapshot.Towns.Count > 0;
         townBorderHint.Text = townBorderFilter.ButtonPressed
             ? "Town borders show as a dashed line on the map."

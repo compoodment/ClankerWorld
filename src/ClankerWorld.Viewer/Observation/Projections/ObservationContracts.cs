@@ -128,7 +128,17 @@ public sealed record ViewerAgentKnowledgeArtifact(
     long CreatedTick,
     string CreatorName,
     IReadOnlyList<ViewerKnowledgeSite> Sites);
-public sealed record ViewerCalendarPace(int TicksPerDay, int DaysPerYear);
+/// <summary>
+/// The world's saved calendar, including its season lengths, so the game can
+/// name the season and day of any tick the same way the world does.
+/// </summary>
+public sealed record ViewerCalendarPace(
+    int TicksPerDay,
+    int DaysPerYear,
+    int SpringDays,
+    int SummerDays,
+    int AutumnDays,
+    int WinterDays);
 
 /// <summary>
 /// An inspection projection, never an editable actor record. A founder draft
