@@ -243,6 +243,9 @@ public sealed partial class PrivateWorldRuntime
         {
             var deceased = society.Checkpoint.GetInhabitant(id);
             var deathTick = deceased.DeathTick ?? throw new InvalidDataException("A removed inhabitant has no committed death.");
+            foreach (var moment in (inhabitants[id].IdentityMoments ?? [])
+                         .Where(item => item.Outcome is "waiting" or "requested").ToArray())
+                FinishIdentityMoment(id, moment.Kind, "interrupted");
             deceasedInhabitants.Add(id, new PlaytestDeceasedInhabitantState(
                 id, deathTick, society.Checkpoint.AgeAt(deceased, deathTick),
                 inhabitants[id] with { MedicalTreatment = null }));

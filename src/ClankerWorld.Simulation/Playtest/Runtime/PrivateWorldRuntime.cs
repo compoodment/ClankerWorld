@@ -20,13 +20,14 @@ namespace ClankerWorld.Simulation.Playtest;
 /// </summary>
 public sealed partial class PrivateWorldRuntime : IDisposable
 {
-    public const int StateSchemaVersion = 44;
+    public const int StateSchemaVersion = 46;
     public const int ObserverGuidanceSchemaVersion = 41;
     public const int ChildModelSelectionSchemaVersion = 33;
     public const int ConversationSchemaVersion = 35;
     public const int PersonalEquipmentSchemaVersion = 37;
     public const int ReusableContainerSchemaVersion = 39;
     public const int ToolProgressionSchemaVersion = 42;
+    public const int LifeMomentIdentitySchemaVersion = 43;
     internal const int MinimumSupportedStateSchemaVersion = StateSchemaVersion;
     // Trees planted on new tiles are saved as map resources from this schema.
     private const int PlantedTreeSchemaVersion = 27;
@@ -73,6 +74,9 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     private long jevPolicyRevision;
     private FounderSetupState? founderSetup;
     private List<TownRuntimeState> towns = [];
+    private List<TownLandTitleRecord> townLandTitles = [];
+    private List<HouseholdLandUseRight> householdLandUseRights = [];
+    private List<HouseholdLandUseRequest> householdLandUseRequests = [];
     private HashSet<GridPoint> roadTiles = [];
     private List<AgentConversation> conversations = [];
     private List<AgentConversationDailyBudget> conversationBudgets = [];
@@ -216,6 +220,15 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     public IReadOnlyList<TownRuntimeState> Towns => towns
         .OrderBy(item => item.Id, StringComparer.Ordinal).ToArray();
 
+    public IReadOnlyList<TownLandTitleRecord> TownLandTitles => townLandTitles
+        .OrderBy(item => item.Id, StringComparer.Ordinal).ToArray();
+
+    public IReadOnlyList<HouseholdLandUseRight> HouseholdLandUseRights => householdLandUseRights
+        .OrderBy(item => item.Id, StringComparer.Ordinal).ToArray();
+
+    public IReadOnlyList<HouseholdLandUseRequest> HouseholdLandUseRequests => householdLandUseRequests
+        .OrderBy(item => item.Id, StringComparer.Ordinal).ToArray();
+
     public IReadOnlyList<GridPoint> RoadTiles => roadTiles.OrderBy(item => item.Y).ThenBy(item => item.X).ToArray();
 
     public WorldContentSimulationState WorldSimulation => worldSimulation;
@@ -287,6 +300,11 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         runtime.fields = state.Fields!.OrderBy(field => field.Position.Y)
             .ThenBy(field => field.Position.X).ToList();
         runtime.towns = state.Towns!.OrderBy(item => item.Id, StringComparer.Ordinal).ToList();
+        runtime.townLandTitles = state.TownLandTitles!.OrderBy(item => item.Id, StringComparer.Ordinal).ToList();
+        runtime.householdLandUseRights = state.HouseholdLandUseRights!
+            .OrderBy(item => item.Id, StringComparer.Ordinal).ToList();
+        runtime.householdLandUseRequests = state.HouseholdLandUseRequests!
+            .OrderBy(item => item.Id, StringComparer.Ordinal).ToList();
         runtime.roadTiles = state.RoadTiles!.ToHashSet();
         runtime.bridges = state.Bridges!.OrderBy(item => item.Id, StringComparer.Ordinal).ToList();
         runtime.bridgeTraffic = state.BridgeTraffic!;
@@ -363,6 +381,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     {
         foreach (var id in pendingHosted.Keys.ToArray()) CancelPendingHosted(id);
         foreach (var id in pendingWills.Keys.ToArray()) CancelPendingWill(id);
+        CancelIdentityMoments();
         foreach (var id in pendingConversationTurns.Keys.ToArray()) CancelPendingConversationTurn(id,
             AgentConversationInterruption.Disconnected);
         society.Dispose();
@@ -427,7 +446,8 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         geographyOptions, towns.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(), knowledge,
         RoadTiles, Bridges, bridgeTraffic, fields.ToArray(),
         conversations.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(),
-        conversationBudgets.OrderBy(item => item.AgentId, StringComparer.Ordinal).ToArray(), BusinessTrades);
+        conversationBudgets.OrderBy(item => item.AgentId, StringComparer.Ordinal).ToArray(),
+        TownLandTitles, HouseholdLandUseRights, HouseholdLandUseRequests, BusinessTrades);
 
     private void AppendEvent(string kind, string detail)
     {

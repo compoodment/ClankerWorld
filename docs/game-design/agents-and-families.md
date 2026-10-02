@@ -51,12 +51,15 @@ everything that is available in the current build. See [what works today](../wha
   aspirations and initial identity. Agents start with no skills; an agent first
   gains a skill by finishing that kind of work. The player can add adults freely.
 - An agent chooses its personality and aspiration **once, at its first
-  decision**. **Leaning toward (provisional; the moments and the cap are tuned
-  in playtests):** it can change them later only at moments the game names: a
+  decision**. **Agreed, with provisional timing and limits for playtesting:**
+  it can change them later only at moments the game names: a
   midlife point (around day 30 of a life of up to 60 world days), becoming a
   parent, losing a partner or a parent, and becoming an elder. Revisions are
-  capped per life. The game decides when one of these moments comes; the agent
-  decides what changes.
+  capped at one opportunity for each kind of moment, up to five extra requests
+  per life. The game decides when one of these moments comes; the agent decides
+  what changes. It may keep either or both current choices. A missing, invalid
+  or interrupted reply leaves the current identity alone and is not retried
+  automatically. A name change is separate from these opportunities.
 - **Two agents in one world cannot share an exact full name.** If a model
   chooses a name that is already taken, the game asks that agent once more,
   which costs one extra request that counts toward model usage. If that also
