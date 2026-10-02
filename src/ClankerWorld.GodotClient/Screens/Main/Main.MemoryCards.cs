@@ -128,7 +128,10 @@ public partial class Main
     private void RenderMemoryCards(OwnerWorldSnapshot snapshot, OwnerWorldInhabitant inhabitant)
     {
         // A belief names its subject by looking them up, so a rename must redraw it too.
-        string? SubjectName(string? id) => id is null ? null : snapshot.Inhabitants.FirstOrDefault(person => person.Id == id)?.DisplayName;
+        // The names are copied out so the cards do not keep the whole snapshot alive.
+        var names = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var person in snapshot.Inhabitants) names.TryAdd(person.Id, person.DisplayName);
+        string? SubjectName(string? id) => id is not null && names.TryGetValue(id, out var name) ? name : null;
         var signature = string.Join("|", inhabitant.Id, UiTheme.Current.Name, displayPreferences.DateStyle, observedCalendarPace, displayPreferences.UseTwelveHourClock,
             string.Join(",", inhabitant.RecentMemories.Select(item => $"{item.WorldTick}:{item.Summary}:{item.SubjectName}:{item.Visibility}")),
             string.Join(",", inhabitant.RecentBeliefs.Select(item => $"{item.WorldTick}:{item.Statement}:{item.Provenance}:{item.ConfidenceBasisPoints}:{item.SourceAgentName}:{item.AboutInhabitantId}:{SubjectName(item.AboutInhabitantId)}:{item.IsCorrected}:{item.CorrectedTick}")),

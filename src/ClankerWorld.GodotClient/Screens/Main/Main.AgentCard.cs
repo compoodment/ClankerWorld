@@ -250,7 +250,7 @@ public partial class Main
 
         // Speak to them: suggest or order beside the heading, then the message.
         speakSection.AddThemeConstantOverride("separation", 4);
-        // Queue and Cancel task wrap under the switch instead of widening the Profile.
+        // Queue and Cancel task wrap onto a second line instead of widening the Profile.
         var speakHeading = new HFlowContainer();
         speakHeading.AddThemeConstantOverride("h_separation", 4);
         speakHeading.AddThemeConstantOverride("v_separation", 4);
