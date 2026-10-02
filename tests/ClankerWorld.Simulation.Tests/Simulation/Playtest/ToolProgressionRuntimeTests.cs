@@ -112,6 +112,8 @@ public sealed class ToolProgressionRuntimeTests
         Assert.Equal(gatheredQuantity,
             resumed.Society.Inventory.Lots.Where(lot => lot.ItemKind == itemKind).Sum(lot => lot.Quantity));
         Assert.Equal(household, resumed.Society.Inventory.GetLot("spare-pick").OwnerId);
+        Assert.Equal(itemKind == "wood" ? 1 : 0,
+            resumed.Society.Inventory.Lots.Where(lot => lot.ItemKind == "tree_seed").Sum(lot => lot.Quantity));
         if (largerAxeAvailable)
         {
             Assert.Equal((household, house.InstanceId, 10_000),
@@ -146,7 +148,11 @@ public sealed class ToolProgressionRuntimeTests
             lot.ItemKind == (itemKind == "wood" ? "wooden_pickaxe" : "wooden_axe")).Sum(lot => lot.Quantity));
         Assert.Equal(gatheredQuantity - repairs,
             resumed.Society.Inventory.Lots.Where(lot => lot.ItemKind == itemKind).Sum(lot => lot.Quantity));
-        Assert.Equal(itemKind == "wood" ? 1 : 0, resumed.Society.Inventory.Lots.Where(lot => lot.ItemKind == "tree_seed").Sum(lot => lot.Quantity));
+        var plantedSeeds = resumed.ExportState().Events.Count(item =>
+            item.Kind is "tree_planted" or "tree_replanted" &&
+            item.Detail.StartsWith(actor + ":", StringComparison.Ordinal));
+        Assert.Equal(itemKind == "wood" ? 1 : 0, plantedSeeds +
+            resumed.Society.Inventory.Lots.Where(lot => lot.ItemKind == "tree_seed").Sum(lot => lot.Quantity));
         Assert.Contains(resumed.Society.Inventory.Lots, lot => lot.ItemKind == itemKind && lot.OwnerId == household &&
             lot.StorageBuildingId == smith.InstanceId && lot.Quantity > 0);
         resumed.Validate();
@@ -451,6 +457,121 @@ public sealed class ToolProgressionRuntimeTests
         reloaded.Validate();
         Assert.Equal(tool with { LastProcessedTick = reloaded.Society.WorldTick },
             reloaded.Society.Inventory.GetLot("warehouse-work-tool"));
+    }
+
+    [Theory]
+    [InlineData("tree")]
+    [InlineData("shared")]
+    public async Task ToolRepairMakesRoomWithoutStowingTheRepairOrHarvestToolAcrossReload(string materialSource)
+    {
+        using var setup = NormalPathWorld.CreateGenerated("tool-repair-capacity-" + materialSource,
+            _ => new CandidateProvider("safe_idle"));
+        Assert.True((await setup.AdvanceOneTickAsync()).Advanced);
+        var state = setup.ExportState();
+        var smith = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == "first-town-blacksmith");
+        var household = smith.HouseholdId!;
+        var actor = state.Society.Society.Inhabitants.First(person => person.HouseholdId == household &&
+            person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder).Id;
+        var house = state.WorldSimulation.Buildings.Single(building => building.HouseholdId == household &&
+            setup.WorldContent.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId)
+                .Tags.Contains("house"));
+        var tree = materialSource == "tree"
+            ? state.Map.Resources.Where(resource => TreeGrowthRules.IsWoodTree(resource.TreeKind) &&
+                    state.Map.IsReachableOnFoot(house.Position, resource.Position))
+                .OrderBy(resource => state.Map.FootDistance(house.Position, resource.Position)).First()
+            : null;
+        var inventory = state.Society.Society.Inventory with { Lots = [], Reservations = [] };
+        inventory = InventoryFixture.AddLot(inventory, "repair-target", "wooden_axe", actor, 1,
+            conditionBasisPoints: 5_000);
+        inventory = InventoryFixture.AddLot(inventory, "harvest-axe", "wooden_axe", actor, 1);
+        inventory = InventoryFixture.AddLot(inventory, "repair-ballast", "fiber", actor, 14);
+        inventory = InventoryFixture.AddLot(inventory, "repair-basket", "basket", actor, 1);
+        if (materialSource == "shared")
+            inventory = InventoryFixture.AddLot(inventory, "repair-shared-wood", "wood", household, 1,
+                storageBuildingId: house.InstanceId);
+
+        var ecology = state.WorldSystems!.Ecology with
+        {
+            Resources = state.WorldSystems.Ecology.Resources.Select(resource => resource.Id == tree?.Id
+                ? resource with { Quantity = 1, State = EcologyResourceState.Available }
+                : resource with { Quantity = 0, State = EcologyResourceState.Depleted }).ToArray(),
+        };
+        state = state with
+        {
+            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
+            WorldSystems = state.WorldSystems with { Ecology = ecology },
+            Resources = state.Resources.Select(resource => resource.ResourceId == tree?.Id
+                ? resource with { State = ResourceState.Available }
+                : resource with { State = ResourceState.Depleted }).ToArray(),
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with
+                {
+                    Position = house.Position,
+                    HungerBasisPoints = 9_000,
+                    Equipment = new(CarryAidLotId: "repair-basket"),
+                    Project = null,
+                    LastDecisionContext = null,
+                } : person).ToArray(),
+        };
+        var candidateId = "repair_tool:repair-target";
+        var chooser = new CandidateProvider(candidateId);
+        using var preparing = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
+            PrivateWorldRuntimeCodec.Encode(state)), id => id == actor ? chooser : new CandidateProvider("safe_idle"));
+        bool HasRepairMaterialProgress() => materialSource == "tree"
+            ? preparing.ExportState().Events.Any(item => item.Kind == "material_gathered" &&
+                item.Detail == actor + ":wood:6")
+            : preparing.ExportState().Events.Any(item => item.Kind == "equipment_collected" &&
+                item.Detail == actor + ":wood");
+        for (var tick = 0; tick < 240 && !HasRepairMaterialProgress(); tick++)
+            Assert.True((await preparing.AdvanceOneTickAsync()).Advanced);
+
+        Assert.Contains(chooser.ObservedCandidateSets, candidates => candidates.Contains(candidateId));
+        Assert.Contains(preparing.ExportState().Events, item => item.Kind == "spare_cargo_stored");
+        Assert.Equal(actor, preparing.Society.Inventory.GetLot("repair-target").OwnerId);
+        Assert.Equal(5_000, preparing.Society.Inventory.GetLot("repair-target").ConditionBasisPoints);
+        Assert.Equal(actor, preparing.Society.Inventory.GetLot("harvest-axe").OwnerId);
+        Assert.Equal(materialSource == "tree" ? 8_000 : 10_000,
+            preparing.Society.Inventory.GetLot("harvest-axe").ConditionBasisPoints);
+        Assert.Equal(14, preparing.Society.Inventory.Lots.Where(lot => lot.ItemKind == "fiber").Sum(lot => lot.Quantity));
+        Assert.Equal(materialSource == "tree" ? 7 : 13, preparing.Society.Inventory.Lots
+            .Where(lot => lot.ItemKind == "fiber" && lot.OwnerId == actor).Sum(lot => lot.Quantity));
+        Assert.Equal(materialSource == "tree" ? 7 : 1, preparing.Society.Inventory.Lots
+            .Where(lot => lot.ItemKind == "fiber" && lot.OwnerId == household && lot.StorageBuildingId == house.InstanceId)
+            .Sum(lot => lot.Quantity));
+        if (materialSource == "tree")
+        {
+            Assert.Equal(6, preparing.Society.Inventory.Lots.Where(lot => lot.ItemKind == "wood" && lot.OwnerId == actor)
+                .Sum(lot => lot.Quantity));
+            Assert.Equal(1, preparing.Society.Inventory.Lots.Where(lot => lot.ItemKind == "tree_seed" && lot.OwnerId == actor)
+                .Sum(lot => lot.Quantity));
+        }
+        else
+        {
+            Assert.Equal(actor, preparing.Society.Inventory.GetLot("repair-shared-wood").OwnerId);
+            Assert.Equal(1, preparing.Society.Inventory.GetLot("repair-shared-wood").Quantity);
+        }
+        preparing.Validate();
+
+        var bytes = PrivateWorldRuntimeCodec.Encode(preparing.ExportState());
+        using var resumed = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes),
+            id => id == actor ? chooser : new CandidateProvider("safe_idle"));
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(resumed.ExportState()));
+        for (var tick = 0; tick < 240 && !resumed.ExportState().Events.Any(item => item.Kind == "tool_repaired" &&
+                 item.Detail == actor + ":repair-target:" + smith.InstanceId); tick++)
+            Assert.True((await resumed.AdvanceOneTickAsync()).Advanced);
+        Assert.Contains(resumed.ExportState().Events, item => item.Kind == "tool_repaired" &&
+            item.Detail == actor + ":repair-target:" + smith.InstanceId);
+        Assert.Equal(10_000, resumed.Society.Inventory.GetLot("repair-target").ConditionBasisPoints);
+        Assert.Equal(materialSource == "tree" ? 8_000 : 10_000,
+            resumed.Society.Inventory.GetLot("harvest-axe").ConditionBasisPoints);
+        Assert.Equal(materialSource == "tree" ? 5 : 0,
+            resumed.Society.Inventory.Lots.Where(lot => lot.ItemKind == "wood" && lot.OwnerId == actor)
+                .Sum(lot => lot.Quantity));
+        Assert.Equal(materialSource == "tree" ? 1 : 0,
+            resumed.Society.Inventory.Lots.Where(lot => lot.ItemKind == "tree_seed" && lot.OwnerId == actor)
+                .Sum(lot => lot.Quantity));
+        Assert.Equal(14, resumed.Society.Inventory.Lots.Where(lot => lot.ItemKind == "fiber").Sum(lot => lot.Quantity));
+        resumed.Validate();
     }
 
     private sealed class WorkChoiceRecorder : IDecisionProvider

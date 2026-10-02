@@ -241,14 +241,15 @@ public sealed partial class PrivateWorldRuntime
 
     private sealed record SpareCargoMove(InventoryLot Lot, int TransferQuantity, int PhysicalQuantity);
 
-    private List<SpareCargoMove> SpareCargoForFood(string actor, int missing, string? protectedLotId = null)
+    private List<SpareCargoMove> SpareCargoForFood(string actor, int missing, string? protectedLotId = null,
+        params string[] additionallyProtectedLotIds)
     {
         if (missing <= 0) return [];
         var equipment = inhabitants[actor].Equipment;
         var inventory = society.Checkpoint.Inventory;
         var spare = inventory.Lots
             .Where(lot => PersonalEquipmentRules.IsCarried(lot, actor) && lot.ContainerLotId is null &&
-                lot.Id != protectedLotId &&
+                lot.Id != protectedLotId && !additionallyProtectedLotIds.Contains(lot.Id, StringComparer.Ordinal) &&
                 lot.DeliveryBuildingId is null &&
                 lot.Id != equipment?.ClothingLotId && lot.Id != equipment?.CarryAidLotId &&
                 lot.ItemKind is not ("field_map" or "field_record") &&
