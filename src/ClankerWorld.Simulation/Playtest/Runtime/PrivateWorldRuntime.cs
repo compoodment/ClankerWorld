@@ -20,7 +20,9 @@ namespace ClankerWorld.Simulation.Playtest;
 /// </summary>
 public sealed partial class PrivateWorldRuntime : IDisposable
 {
-    public const int StateSchemaVersion = 52;
+    public const int StateSchemaVersion = 53;
+    // Founded Towns save laws, protected government changes and the mayor's office from this schema.
+    public const int TownGovernmentSchemaVersion = 53;
     public const int ObserverGuidanceSchemaVersion = 41;
     public const int OrderLifecycleSchemaVersion = 49;
     public const int ChildModelSelectionSchemaVersion = 33;

@@ -87,7 +87,10 @@ public sealed partial class PrivateWorldRuntime
         TownLandRightsRules.ValidateRecords(map, WorldTick, towns, townLandTitles,
             householdLandUseRights, householdLandUseRequests, society.Checkpoint);
         foreach (var town in towns)
+        {
             TownGovernanceValidation.Validate(town, society.Checkpoint, worldSystems.Config.TicksPerDay);
+            TownGovernmentValidation.Validate(town, society.Checkpoint, townLandTitles, worldSystems.Config.TicksPerDay);
+        }
         ValidateRoads(RoadTiles, map, founderSetup);
         ValidateBridges(Bridges, bridgeTraffic, map, RoadTiles, worldSimulation, worldContent,
             society.Checkpoint, inhabitants.Values);
@@ -366,7 +369,10 @@ public sealed partial class PrivateWorldRuntime
         ValidateSurvival(state);
         ValidateCouncil(state);
         foreach (var town in state.Towns ?? [])
+        {
             TownGovernanceValidation.Validate(town, society.Checkpoint, state.WorldSystems!.Config.TicksPerDay);
+            TownGovernmentValidation.Validate(town, society.Checkpoint, state.TownLandTitles!, state.WorldSystems!.Config.TicksPerDay);
+        }
         ValidateLessons(state);
         ValidateHousing(state.Inhabitants, state.Society.Society, state.SchemaVersion);
         ValidateDependentCare(state.Inhabitants, state.Society.Society, state.Towns ?? [], state.SchemaVersion);

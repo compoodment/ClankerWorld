@@ -311,12 +311,14 @@ public static class TownGovernanceRules
                 (reason is null ? string.Empty : " " + reason), tick);
 
     public static TownGovernanceState SubmitProposal(TownGovernanceState state, string townId, string actor,
-        string kind, string? subject, string text, string circumstances, IEnumerable<string> adults, long tick, int day)
+        string kind, string? subject, string text, string circumstances, IEnumerable<string> adults, long tick, int day,
+        string? requestKey = null)
     {
         if (kind is not ("law" or "admission") || text.Trim().Length is < 1 or > MaximumProposalText || text.Any(char.IsControl) ||
             kind == "law" && !Has(adults, actor) || kind == "admission" && actor != subject && !Has(adults, actor))
             throw new InvalidOperationException("Only an adult resident or the newcomer requesting admission may submit this proposal.");
-        var key = kind == "admission" ? "admission:" + subject : "law:" + string.Join(' ', text.Split(' ', StringSplitOptions.RemoveEmptyEntries)).ToUpperInvariant();
+        // Structured law proposals supply their own key so scope and the affected law decide equivalence.
+        var key = requestKey ?? (kind == "admission" ? "admission:" + subject : "law:" + string.Join(' ', text.Split(' ', StringSplitOptions.RemoveEmptyEntries)).ToUpperInvariant());
         if (state.Proposals.Any(p => p.RequestKey == key && p.Status == "pending")) return state;
         var previous = state.Proposals.LastOrDefault(p => p.RequestKey == key);
         if (previous is { Status: "rejected" or "withdrawn" } && tick < previous.SettledTick + day &&
@@ -363,6 +365,10 @@ public static class TownGovernanceRules
             $"{p.Kind} proposal {status}: {p.Text}", tick);
     private static TownGovernanceState ReplaceProposal(TownGovernanceState state, TownProposal proposal) =>
         state with { Proposals = state.Proposals.Select(p => p.Id == proposal.Id ? proposal : p).ToArray() };
+    /// <summary>Posts an actual notice at the Town's notice place; reading or hearing it is still a separate act.</summary>
+    public static TownGovernanceState PostNotice(TownGovernanceState state, string kind, string subject, string text, long tick) =>
+        Notice(state, kind, subject, text, tick);
+
     private static TownGovernanceState Notice(TownGovernanceState state, string kind, string subject, string text, long tick)
     {
         var id = "notice:" + (state.Notices.Count + 1);
