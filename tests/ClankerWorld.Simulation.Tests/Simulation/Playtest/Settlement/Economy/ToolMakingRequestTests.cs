@@ -1,4 +1,5 @@
 using ClankerWorld.Simulation.Cognition;
+using ClankerWorld.Simulation.Content;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
@@ -10,6 +11,8 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed class ToolMakingRequestTests
 {
+    private static readonly JsonSerializerOptions PayloadOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+
     [Fact]
     public async Task RequestedToolUsesSmithInputsAndTheActualFinishedOutputIsBoughtAcrossReplay()
     {
@@ -403,6 +406,90 @@ public sealed class ToolMakingRequestTests
         Assert.DoesNotContain(withdrawing.Society.Inventory.Lots, lot => lot.Id == "smith-input");
         Assert.Equal(woodBefore - 3, withdrawing.Society.Inventory.Lots.Where(lot => lot.ItemKind == "wood").Sum(lot => lot.Quantity));
         _ = Roundtrip(withdrawing);
+    }
+
+    [Fact]
+    public async Task RequestedCustomRecipePreventsRollbackUntilActualNoJobWithdrawalAcrossReload()
+    {
+        var (state, buyer, seller, shop) = Prepared();
+        using var setup = Restore(state, buyer, seller, new RequestChoices(), new RequestChoices());
+        var requestedPackage = CustomToolRecipe("test-commission-rollback-requested", shop.DefinitionId);
+        var unusedPackage = CustomToolRecipe("test-commission-rollback-unused", shop.DefinitionId);
+        foreach (var package in new[] { requestedPackage, unusedPackage })
+        {
+            setup.ProposeContent(package);
+            var resolution = setup.ResolveContent(package.PackageId);
+            Assert.True(resolution.IsSuccess, resolution.Diagnostic);
+            setup.ValidateContent(package.PackageId, resolution);
+            setup.ApproveContent(package.PackageId);
+            setup.StageContent(package.PackageId);
+        }
+        Assert.True((await setup.AdvanceOneTickAsync()).Advanced);
+        var recipe = Assert.Single(setup.WorldContent.Recipes, recipe => recipe.PackageDigest == requestedPackage.PackageDigest);
+        Assert.Equal(shop.DefinitionId, recipe.WorkstationBuildingId);
+        state = Roundtrip(setup);
+        var placeChoice = "tool_request_place:" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(
+            JsonSerializer.Serialize(new[] { shop.InstanceId, recipe.CanonicalId }))));
+        var buyerChoices = new RequestChoices(placeChoice);
+        using var requesting = Restore(state, buyer, seller, buyerChoices, new RequestChoices());
+        // Activation already admitted safe_idle. A new personal choice waits
+        // for its normal 300-tick interval when the legal choices stay unchanged.
+        await Until(requesting, world => world.ToolMakingRequests.Count == 1, 301);
+        Assert.Contains(buyerChoices.Offered, candidate => candidate.Id == placeChoice && candidate.DestinationId == shop.InstanceId);
+        var request = Assert.Single(requesting.ToolMakingRequests);
+        Assert.Equal(ToolMakingRequestStatus.Requested, request.Status);
+        Assert.Equal(recipe.CanonicalId, request.RecipeId);
+        Assert.Equal(buyer, request.RequesterId);
+        Assert.Equal(shop.HouseholdId, request.SellerHouseholdId);
+        Assert.Equal(shop.InstanceId, request.BuildingInstanceId);
+        Assert.Null(request.JobId);
+        Assert.DoesNotContain(requesting.WorldSimulation.ProductionJobs, job => job.RecipeId == recipe.CanonicalId);
+        var before = PrivateWorldRuntimeCodec.Encode(Roundtrip(requesting));
+        var error = Record.Exception(() => requesting.RollbackContent(requestedPackage.PackageId, "withdraw requested recipe"));
+        if (error is null)
+            Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(requesting.ExportState()));
+        var refusal = Assert.IsType<InvalidOperationException>(error);
+        Assert.Contains("tool request", refusal.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(before, PrivateWorldRuntimeCodec.Encode(requesting.ExportState()));
+        var unchangedInventory = requesting.Society.Inventory;
+        Assert.Equal(ContentPackageLifecycle.Quarantined, requesting.RollbackContent(unusedPackage.PackageId, "unused recipe").Lifecycle);
+        Assert.Equal(unchangedInventory, requesting.Society.Inventory);
+        Assert.Equal(request, Assert.Single(requesting.ToolMakingRequests));
+        Assert.Contains(requesting.WorldContent.Recipes, live => live.CanonicalId == recipe.CanonicalId);
+        state = Roundtrip(requesting);
+        using var withdrawing = Restore(state, buyer, seller, new RequestChoices("tool_request_withdraw:"), new RequestChoices());
+        await Until(withdrawing, world => Assert.Single(world.ToolMakingRequests).Status == ToolMakingRequestStatus.Withdrawn, 301);
+        var terminalRequest = Assert.Single(withdrawing.ToolMakingRequests);
+        Assert.Null(terminalRequest.JobId);
+        Assert.Empty(withdrawing.Society.Inventory.Offers);
+        Assert.DoesNotContain(withdrawing.Society.Inventory.Reservations, receipt => receipt.LotId == "smith-input");
+        unchangedInventory = withdrawing.Society.Inventory;
+        Assert.Equal(ContentPackageLifecycle.Quarantined, withdrawing.RollbackContent(requestedPackage.PackageId, "withdrawn no-job recipe").Lifecycle);
+        Assert.Equal(unchangedInventory, withdrawing.Society.Inventory);
+        Assert.Equal(terminalRequest, Assert.Single(withdrawing.ToolMakingRequests));
+        Assert.DoesNotContain(withdrawing.WorldContent.Recipes, live => live.CanonicalId == recipe.CanonicalId);
+        _ = Roundtrip(withdrawing);
+    }
+
+    private static ContentPackageManifest CustomToolRecipe(string packageId, string workstation)
+    {
+        var version = ContentVersion.Parse("1.0.0");
+        var digest = "sha256:" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(packageId + ":1.0.0:wooden-axe")));
+        var recipe = new RecipeDefinition(digest, "wooden-axe-request", version, "Make requested wooden axe",
+            [new("wood", 3)], [new("wooden_axe", 1)], 20, workstation, ["tool", "woodcutting"]);
+        var definition = new ContentDefinition(RecipeDefinition.SchemaKind, recipe.LocalId, version, recipe.DisplayName,
+            recipe.PayloadDigest, JsonSerializer.Serialize(new
+            {
+                schema = "recipe/v1",
+                recipe.Inputs,
+                recipe.Outputs,
+                recipe.DurationTicks,
+                recipe.WorkstationBuildingId,
+                recipe.Tags,
+            }, PayloadOptions));
+        return new ContentPackageManifest(packageId, version, digest,
+            [new ContentDependency(BlacksmithContent.PackageId, new ContentVersionRange(
+                ContentVersion.Parse("1.0.0"), ContentVersion.Parse("2.0.0")))], [definition], []);
     }
 
     private static async Task Until(PrivateWorldRuntime world, Func<PrivateWorldRuntime, bool> done, int limit)

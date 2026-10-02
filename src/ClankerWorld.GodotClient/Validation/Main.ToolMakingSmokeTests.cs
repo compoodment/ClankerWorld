@@ -26,7 +26,7 @@ public partial class Main
             ToolMakingRequests = [request],
         };
         var fixture = new OwnerWorldSnapshot("tool-making-ui-smoke", 1, "tool-making-ui-map",
-            [new(0, 0, "meadow")], [], [], null, 3)
+            [new(0, 0, "meadow")], [], [], null, 4)
         {
             Inhabitants = [Person(customerId, "Mira") with
                 { ToolMakingRequestNote = "River Blacksmith accepted your stone pickaxe request. " + missing },
