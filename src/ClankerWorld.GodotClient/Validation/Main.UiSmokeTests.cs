@@ -2555,10 +2555,11 @@ public partial class Main
             ToggleEvents();
             if (unreadEvents != 0 || eventsBadge.Visible || !eventLog.GetParsedText().Contains('●'))
                 throw new InvalidOperationException("Opening the Event Log must mark events read and dot the rows that were new.");
+            VerifyEventRows();
             // The mouse wheel over a panel scrolls it and never zooms the map behind it, even at the end of the scroll.
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             var zoomBeforeWheel = cameraZoom;
-            var overEventLog = eventLog.GetGlobalRect().GetCenter();
+            var overEventLog = eventScroll.GetGlobalRect().GetCenter();
             GetViewport().PushInput(new InputEventMouseMotion { Position = overEventLog, GlobalPosition = overEventLog }, true);
             for (var turn = 0; turn < 40; turn++)
                 GetViewport().PushInput(new InputEventMouseButton
@@ -3079,7 +3080,17 @@ public partial class Main
             };
             RenderMap(rosterMap);
             RenderInhabitantList(rosterMap);
-            if (inhabitantList.ItemCount != 4 || !inhabitantList.Visible ||
+            // The cards show who is doing what and who needs help; the hidden text list keeps the same order for selection.
+            if (rosterCards.ItemCount != 3 || !rosterCards.Visible || inhabitantList.Visible ||
+                rosterCards.GetItemTitle(0) != "Ilya" || rosterCards.GetItemTitle(1) != "Rowan" || rosterCards.GetItemTitle(2) != "Mira" ||
+                !RosterCardText(1).Contains("Looking for food", StringComparison.Ordinal) ||
+                !RosterCardText(1).Contains("hungry", StringComparison.OrdinalIgnoreCase) ||
+                RosterCardText(0).Contains("hungry", StringComparison.OrdinalIgnoreCase) ||
+                !RosterCardText(2).Contains("Died", StringComparison.Ordinal) ||
+                !rosterSummaryLabel.Text.Contains("1 hungry", StringComparison.Ordinal))
+                throw new InvalidOperationException("The Agents list must show a card per agent, living first, with activity and a Hungry tag: " +
+                    string.Join(" | ", Enumerable.Range(0, rosterCards.ItemCount).Select(RosterCardText)));
+            if (inhabitantList.ItemCount != 4 ||
                 !inhabitantList.GetItemText(0).StartsWith("Ilya", StringComparison.Ordinal) ||
                 !inhabitantList.GetItemText(1).Contains("looking for food", StringComparison.Ordinal) ||
                 !inhabitantList.GetItemText(1).Contains("very hungry", StringComparison.Ordinal) ||
@@ -3097,7 +3108,7 @@ public partial class Main
                 throw new InvalidOperationException($"Choosing a living agent in the roster must bring them into view: camera={cameraCenterTiles}.");
             selectedInhabitantId = null;
             RenderInhabitantList(rosterMap with { Inhabitants = [] });
-            if (inhabitantList.Visible || !rosterSummaryLabel.Text.Contains("No one lives here yet", StringComparison.Ordinal))
+            if (inhabitantList.Visible || rosterCards.Visible || !rosterSummaryLabel.Text.Contains("No one lives here yet", StringComparison.Ordinal))
                 throw new InvalidOperationException("An empty roster must show its summary without an empty list box.");
             var formerPosition = new OwnerWorldPosition(2, 2);
             var deceased = new OwnerWorldInhabitant("agent:00000000000000000000000000000098", "Mira", "dead", formerPosition,
@@ -3306,6 +3317,7 @@ public partial class Main
             for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             if (!controlsPanel.Visible || !mapCanvas.GetGlobalRect().Encloses(controlsPanel.GetGlobalRect()))
                 throw new InvalidOperationException($"F1 must open the controls list inside the world view: map={mapCanvas.GetGlobalRect()} controls={controlsPanel.GetGlobalRect()}.");
+            VerifyControlsKeycaps();
             _UnhandledKeyInput(new InputEventKey { Keycode = Key.Escape, Pressed = true });
             if (controlsPanel.Visible)
                 throw new InvalidOperationException("Escape must close the controls list.");
