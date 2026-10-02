@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Viewer.Control;
 
@@ -9,7 +10,7 @@ namespace ClankerWorld.Viewer.Observation;
 
 public sealed record ManualWorldSave(string Id, string Name, DateTimeOffset CreatedUtc, long WorldTick,
     bool IsAutosave = false, SaveBranch? Branch = null, string? ContinuedFromId = null,
-    DateTimeOffset? ContinuedFromCreatedUtc = null);
+    DateTimeOffset? ContinuedFromCreatedUtc = null, long BranchPosition = 0);
 public sealed record ManualSaveOverwriteReceipt(ManualWorldSave Saved, string BackupId);
 
 /// <summary>
@@ -31,12 +32,16 @@ public sealed record SaveTimelineRestorePoint(string WorldId, byte[]? Bytes);
 public sealed class ManualWorldSaveStore
 {
     private sealed record Metadata(ManualWorldSave Save, IReadOnlyList<InhabitantProviderAssignment> Assignments,
-        WorldAutosaveSettings? AutosaveSettings, string? WorldId = null, string? Generation = null);
+        WorldAutosaveSettings? AutosaveSettings, string? WorldId = null, string? Generation = null,
+        [property: JsonIgnore] bool HasInvalidBranchMetadata = false);
+    private sealed record BranchMetadata(SaveBranch? Branch = null, string? ContinuedFromId = null,
+        DateTimeOffset? ContinuedFromCreatedUtc = null, long BranchPosition = 0);
     // Where the running world's history continues from: its branch (null when the
     // next save must start one) and the last save it was loaded from or saved as.
     private sealed record Timeline(string WorldId, SaveBranch? Branch, string? ContinuedFromId,
         string? ContinuedFromName, long ContinuedFromTick, int LastBranchNumber,
-        DateTimeOffset? ContinuedFromCreatedUtc = null);
+        DateTimeOffset? ContinuedFromCreatedUtc = null, long ContinuedFromBranchPosition = 0,
+        string? LoadedStateFingerprint = null, string? SavedCheckpointFingerprint = null);
     private const string LegacyBranchKey = "";
     private readonly object gate;
     private readonly string directory;
@@ -105,27 +110,35 @@ public sealed class ManualWorldSaveStore
             // slot now holds the running world, so it joins the running world's branch.
             var worldId = state.Society.Society.WorldId;
             var timeline = ReadTimeline(worldId);
+            // Decide against the actual loaded version before its ID is rebound
+            // to the recovery copy. Positions survive deleted intermediate saves.
+            var branch = ResolveBranch(timeline, List(worldId));
             if (timeline?.ContinuedFromId == id)
+            {
                 timeline = timeline with
                 {
                     ContinuedFromId = backup.Id,
                     ContinuedFromName = backup.Name,
                     ContinuedFromCreatedUtc = backup.CreatedUtc
                 };
-            var branch = ResolveBranch(timeline, List(worldId).Where(item => item.Id != id).ToArray());
+                if (branch.Id != timeline.Branch?.Id)
+                    branch = branch with { StartedFromId = backup.Id, StartedFromName = backup.Name };
+            }
             var saved = previousMetadata.Save with
             {
                 CreatedUtc = DateTimeOffset.UtcNow,
                 WorldTick = state.Society.Society.WorldTick,
                 Branch = branch,
                 ContinuedFromId = timeline?.ContinuedFromId,
-                ContinuedFromCreatedUtc = timeline?.ContinuedFromCreatedUtc
+                ContinuedFromCreatedUtc = timeline?.ContinuedFromCreatedUtc,
+                BranchPosition = NextBranchPosition(branch, timeline)
             };
             var generation = Guid.NewGuid().ToString("N");
             // Only metadata publishes the new immutable generation. A failed metadata
             // replacement leaves the prior checkpoint and routing/settings selected.
-            WriteAtomic(GenerationPath(id, generation), PrivateWorldRuntimeCodec.Encode(state));
-            AdvanceTimeline(worldId, timeline, saved);
+            var bytes = PrivateWorldRuntimeCodec.Encode(state);
+            WriteAtomic(GenerationPath(id, generation), bytes);
+            AdvanceTimeline(worldId, timeline, saved, bytes);
             WriteAtomic(MetadataPath(id), JsonSerializer.SerializeToUtf8Bytes(new Metadata(
                 saved, assignments, autosaveSettings, worldId, generation)), overwrite: true);
             return new ManualSaveOverwriteReceipt(saved, backup.Id);
@@ -149,14 +162,15 @@ public sealed class ManualWorldSaveStore
             var branch = ResolveBranch(timeline, List(worldId));
             var entry = new ManualWorldSave(Guid.NewGuid().ToString("N"), name, DateTimeOffset.UtcNow,
                 state.Society.Society.WorldTick, isAutosave, branch, timeline?.ContinuedFromId,
-                timeline?.ContinuedFromCreatedUtc);
+                timeline?.ContinuedFromCreatedUtc, NextBranchPosition(branch, timeline));
             Directory.CreateDirectory(directory);
             RestrictDirectory();
-            WriteAtomic(StatePath(entry.Id), PrivateWorldRuntimeCodec.Encode(state));
+            var bytes = PrivateWorldRuntimeCodec.Encode(state);
+            WriteAtomic(StatePath(entry.Id), bytes);
             // The branch record moves before the save is published. A failure in
-            // between leaves a record pointing at an unlisted save, whose world
-            // tick still keeps the next save on this branch.
-            AdvanceTimeline(worldId, timeline, entry);
+            // between leaves a record pointing at an unlisted save, whose
+            // position still keeps the next save on this branch.
+            AdvanceTimeline(worldId, timeline, entry, bytes);
             WriteAtomic(MetadataPath(entry.Id), JsonSerializer.SerializeToUtf8Bytes(
                 new Metadata(entry, assignments, autosaveSettings, worldId)));
             return entry;
@@ -181,8 +195,10 @@ public sealed class ManualWorldSaveStore
             var restore = new SaveTimelineRestorePoint(worldId, File.Exists(path) ? File.ReadAllBytes(path) : null);
             var previous = ReadTimeline(worldId);
             var save = WithValidBranch(metadata.Save);
+            var checkpointFingerprint = Fingerprint(File.ReadAllBytes(CommittedStatePath(id, metadata)));
             WriteTimeline(new Timeline(worldId, save.Branch, save.Id, save.Name, save.WorldTick,
-                Math.Max(previous?.LastBranchNumber ?? 0, save.Branch?.Number ?? 0), save.CreatedUtc));
+                Math.Max(previous?.LastBranchNumber ?? 0, save.Branch?.Number ?? 0), save.CreatedUtc,
+                save.BranchPosition, SavedCheckpointFingerprint: checkpointFingerprint));
             return restore;
         }
     }
@@ -195,6 +211,19 @@ public sealed class ManualWorldSaveStore
             var path = TimelinePath(restore.WorldId);
             if (restore.Bytes is null) File.Delete(path);
             else WriteAtomic(path, restore.Bytes, overwrite: true);
+        }
+    }
+
+    /// <summary>Remember the loaded state after the host has applied its required pause.</summary>
+    public void RecordLoadedState(PrivateWorldRuntime runtime)
+    {
+        ArgumentNullException.ThrowIfNull(runtime);
+        lock (gate)
+        {
+            var state = runtime.ExportState();
+            var timeline = ReadTimeline(state.Society.Society.WorldId)
+                ?? throw new InvalidDataException("The loaded save has no branch record.");
+            WriteTimeline(timeline with { LoadedStateFingerprint = Fingerprint(PrivateWorldRuntimeCodec.Encode(state)) });
         }
     }
 
@@ -212,16 +241,25 @@ public sealed class ManualWorldSaveStore
         {
             var state = runtime.ExportState();
             var worldId = state.Society.Society.WorldId;
-            if (ReadTimeline(worldId)?.ContinuedFromId is not { } id || !File.Exists(MetadataPath(id)))
+            var timeline = ReadTimeline(worldId);
+            if (timeline?.ContinuedFromId is not { } id || !File.Exists(MetadataPath(id)))
                 return null;
             try
             {
                 var metadata = ReadMetadata(id);
-                if (metadata.WorldId != worldId || !metadata.Assignments.SequenceEqual(assignments) ||
+                if (metadata.WorldId != worldId || metadata.Save.CreatedUtc != timeline.ContinuedFromCreatedUtc ||
+                    !metadata.Assignments.SequenceEqual(assignments) ||
                     !SameAutosaveChoices(metadata.AutosaveSettings, autosaveSettings))
                     return null;
-                var saved = File.ReadAllBytes(CommittedStatePath(id, metadata));
-                return saved.AsSpan().SequenceEqual(PrivateWorldRuntimeCodec.Encode(state)) ? metadata.Save : null;
+                var bytes = PrivateWorldRuntimeCodec.Encode(state);
+                // A remembered runtime baseline cannot stand in for a missing
+                // or damaged recovery checkpoint. Verify the stored bytes too.
+                var checkpointBytes = File.ReadAllBytes(CommittedStatePath(id, metadata));
+                var unchanged = timeline.SavedCheckpointFingerprint is { } checkpointFingerprint &&
+                    timeline.LoadedStateFingerprint is { } fingerprint
+                    ? checkpointFingerprint == Fingerprint(checkpointBytes) && fingerprint == Fingerprint(bytes)
+                    : checkpointBytes.AsSpan().SequenceEqual(bytes);
+                return unchanged ? metadata.Save : null;
             }
             catch (Exception exception) when (exception is InvalidDataException or IOException)
             {
@@ -238,14 +276,11 @@ public sealed class ManualWorldSaveStore
 
     private SaveBranch ResolveBranch(Timeline? timeline, IReadOnlyList<ManualWorldSave> worldSaves)
     {
-        // A branch continues only while nothing else on it already went on from
-        // the point this world continues from: no later world tick, and no other
-        // save made straight from that same save (changes while paused keep the tick).
+        // Positions order snapshots even when the world tick stays unchanged or
+        // an intermediate checkpoint has been deleted. Recovery copies retain
+        // the original position and do not themselves advance the history.
         if (timeline?.Branch is { } current && !worldSaves.Any(save => save.Branch?.Id == current.Id &&
-                save.Id != timeline.ContinuedFromId &&
-                (save.WorldTick > timeline.ContinuedFromTick ||
-                 timeline.ContinuedFromId is not null && save.ContinuedFromId == timeline.ContinuedFromId &&
-                 save.ContinuedFromCreatedUtc == timeline.ContinuedFromCreatedUtc)))
+                save.BranchPosition > timeline.ContinuedFromBranchPosition))
             return current;
         var number = Math.Max(timeline?.LastBranchNumber ?? 0,
             worldSaves.Select(save => save.Branch?.Number ?? 0).DefaultIfEmpty(0).Max()) + 1;
@@ -258,9 +293,18 @@ public sealed class ManualWorldSaveStore
         return started;
     }
 
-    private void AdvanceTimeline(string worldId, Timeline? previous, ManualWorldSave saved) =>
+    private static long NextBranchPosition(SaveBranch branch, Timeline? timeline) =>
+        branch.Id == timeline?.Branch?.Id ? checked(timeline.ContinuedFromBranchPosition + 1) : 1;
+
+    private static string Fingerprint(byte[] bytes) => Convert.ToHexStringLower(SHA256.HashData(bytes));
+
+    private void AdvanceTimeline(string worldId, Timeline? previous, ManualWorldSave saved, byte[] bytes)
+    {
+        var fingerprint = Fingerprint(bytes);
         WriteTimeline(new Timeline(worldId, saved.Branch, saved.Id, saved.Name, saved.WorldTick,
-            Math.Max(previous?.LastBranchNumber ?? 0, saved.Branch?.Number ?? 0), saved.CreatedUtc));
+            Math.Max(previous?.LastBranchNumber ?? 0, saved.Branch?.Number ?? 0), saved.CreatedUtc,
+            saved.BranchPosition, fingerprint, fingerprint));
+    }
 
     private Timeline? ReadTimeline(string worldId)
     {
@@ -271,7 +315,10 @@ public sealed class ManualWorldSaveStore
             var timeline = JsonSerializer.Deserialize<Timeline>(File.ReadAllBytes(path));
             if (timeline is not null && timeline.WorldId == worldId && IsValidBranch(timeline.Branch) &&
                 (timeline.ContinuedFromId is null || IsId(timeline.ContinuedFromId)) &&
-                timeline.LastBranchNumber >= 0)
+                timeline.LastBranchNumber is >= 0 and < int.MaxValue &&
+                (timeline.Branch is null ? timeline.ContinuedFromBranchPosition == 0
+                    : timeline.ContinuedFromBranchPosition is > 0 and < long.MaxValue) &&
+                IsValidFingerprint(timeline.LoadedStateFingerprint) && IsValidFingerprint(timeline.SavedCheckpointFingerprint))
                 return timeline;
         }
         catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException) { }
@@ -287,11 +334,14 @@ public sealed class ManualWorldSaveStore
         WriteAtomic(TimelinePath(timeline.WorldId), JsonSerializer.SerializeToUtf8Bytes(timeline), overwrite: true);
     }
 
+    private static bool IsValidFingerprint(string? fingerprint) => fingerprint is null ||
+        fingerprint is { Length: 64 } && fingerprint.All(char.IsAsciiHexDigit);
+
     private string TimelinePath(string worldId) => Path.Combine(directory, "timeline-" +
         Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(worldId)))[..32] + ".json");
 
     private static bool IsValidBranch(SaveBranch? branch) => branch is null ||
-        IsId(branch.Id) && branch.Number >= 1 &&
+        IsId(branch.Id) && branch.Number is >= 1 and < int.MaxValue &&
         (branch.StartedFromId is null || IsId(branch.StartedFromId)) &&
         (branch.StartedFromName is null || branch.StartedFromName.Length <= 80 &&
             !branch.StartedFromName.Any(char.IsControl)) &&
@@ -299,8 +349,10 @@ public sealed class ManualWorldSaveStore
 
     // A damaged branch record only loses the save's branch; the save itself stays listed.
     private static ManualWorldSave WithValidBranch(ManualWorldSave save) =>
-        IsValidBranch(save.Branch) && (save.ContinuedFromId is null || IsId(save.ContinuedFromId))
-            ? save : save with { Branch = null, ContinuedFromId = null, ContinuedFromCreatedUtc = null };
+        IsValidBranch(save.Branch) && (save.Branch is null ? save.BranchPosition == 0
+                : save.BranchPosition is > 0 and < long.MaxValue) &&
+            (save.ContinuedFromId is null || IsId(save.ContinuedFromId))
+            ? save : save with { Branch = null, ContinuedFromId = null, ContinuedFromCreatedUtc = null, BranchPosition = 0 };
 
     // The metadata rename is the durable point of deletion. A partial cleanup
     // stays hidden from List/Read and can be resumed without reviving the save.
@@ -368,7 +420,7 @@ public sealed class ManualWorldSaveStore
 
     private static Metadata ReadDeletionMetadata(string path, string id)
     {
-        var metadata = JsonSerializer.Deserialize<Metadata>(File.ReadAllBytes(path));
+        var metadata = DeserializeMetadata(File.ReadAllBytes(path));
         // Deletion needs a verified identity, not playable routing/settings.
         // Malformed records must enter the existing pending-cleanup path.
         if (!IsId(id) || metadata?.Save is null || metadata.Save.Id != id)
@@ -399,7 +451,7 @@ public sealed class ManualWorldSaveStore
                 var fileId = Path.GetFileName(path)[..^".meta.json".Length];
                 try
                 {
-                    var item = JsonSerializer.Deserialize<Metadata>(File.ReadAllBytes(path));
+                    var item = DeserializeMetadata(File.ReadAllBytes(path));
                     if (!IsValidMetadata(item, fileId))
                     {
                         ReportInvalid(path, fileId, "invalid_metadata", invalidPaths);
@@ -439,8 +491,9 @@ public sealed class ManualWorldSaveStore
         lock (gate)
         {
             // Each branch keeps its own newest autosaves, so playing one branch
-            // never retires another branch's history.
-            var candidates = List(worldId).Where(item => item.IsAutosave)
+            // never retires another branch's history. Unknown histories stay
+            // recoverable rather than being merged into the pre-branch group.
+            var candidates = List(worldId).Where(item => item.IsAutosave && !ReadMetadata(item.Id).HasInvalidBranchMetadata)
                 .GroupBy(item => item.Branch?.Id ?? LegacyBranchKey, StringComparer.Ordinal)
                 .SelectMany(branch => branch.Where(item => item.Id != preserveId)
                     .Skip(branch.Any(item => item.Id == preserveId) ? count - 1 : count))
@@ -502,7 +555,7 @@ public sealed class ManualWorldSaveStore
         Metadata? metadata;
         try
         {
-            metadata = JsonSerializer.Deserialize<Metadata>(File.ReadAllBytes(MetadataPath(id)));
+            metadata = DeserializeMetadata(File.ReadAllBytes(MetadataPath(id)));
         }
         catch (JsonException exception)
         {
@@ -511,6 +564,62 @@ public sealed class ManualWorldSaveStore
         if (!IsValidMetadata(metadata, id))
             throw new InvalidDataException("The manual save metadata is invalid.");
         return metadata;
+    }
+
+    private static Metadata? DeserializeMetadata(byte[] bytes)
+    {
+        using var document = JsonDocument.Parse(bytes);
+        var root = document.RootElement;
+        if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("Save", out var save) ||
+            save.ValueKind != JsonValueKind.Object)
+            return JsonSerializer.Deserialize<Metadata>(bytes);
+
+        // Parse required identity/checkpoint/routing fields strictly. Optional
+        // branch fields cannot make an otherwise playable checkpoint disappear.
+        using var core = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(core))
+        {
+            writer.WriteStartObject();
+            foreach (var property in root.EnumerateObject())
+            {
+                if (property.Name != "Save" || property.Value.ValueKind != JsonValueKind.Object)
+                {
+                    property.WriteTo(writer);
+                    continue;
+                }
+                writer.WritePropertyName(property.Name);
+                writer.WriteStartObject();
+                foreach (var field in property.Value.EnumerateObject())
+                    if (field.Name is not ("Branch" or "ContinuedFromId" or "ContinuedFromCreatedUtc" or "BranchPosition"))
+                        field.WriteTo(writer);
+                writer.WriteEndObject();
+            }
+            writer.WriteEndObject();
+        }
+        var metadata = JsonSerializer.Deserialize<Metadata>(core.ToArray());
+        if (metadata?.Save is null) return metadata;
+        try
+        {
+            var branch = JsonSerializer.Deserialize<BranchMetadata>(save.GetRawText());
+            if (branch is not null)
+            {
+                var parsedSave = metadata.Save with
+                {
+                    Branch = branch.Branch,
+                    ContinuedFromId = branch.ContinuedFromId,
+                    ContinuedFromCreatedUtc = branch.ContinuedFromCreatedUtc,
+                    BranchPosition = branch.BranchPosition
+                };
+                var validSave = WithValidBranch(parsedSave);
+                return metadata with
+                {
+                    Save = validSave,
+                    HasInvalidBranchMetadata = validSave != parsedSave
+                };
+            }
+        }
+        catch (JsonException) { }
+        return metadata with { HasInvalidBranchMetadata = true };
     }
 
     private static bool IsValidMetadata([NotNullWhen(true)] Metadata? metadata, string id) =>

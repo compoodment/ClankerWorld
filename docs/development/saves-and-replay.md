@@ -376,32 +376,41 @@ kept. Finished releases follow the migration promise in [Saves](../game-design/s
 Loading an older save and playing on starts a new branch instead of mixing two
 histories in one list ([design](../game-design/saves.md#agreed)). Each save's
 metadata records its branch (an opaque ID, a number for display and the save it
-started from) and the save it continued from, with that save's creation time.
+started from), its position within that branch and the save it continued from,
+with that save's creation time.
 A per-world record in `.manual` (`timeline-` plus a hash of the world ID) says
 which branch and save the running world continues from. Loading a save moves it
 to that save; every new save moves it to the new save. These are save metadata
 only: checkpoints, events and replay are unchanged.
 
 A new save continues the recorded branch unless something else on that branch
-already went on from the same point: a save with a later world tick, or another
-save made straight from the same save. The second test catches changes made
-while paused, which keep the tick. Otherwise the save starts a branch numbered
+has a higher position. Positions advance even while paused and survive deletion
+of intermediate saves, so equal world ticks do not mix separate histories.
+Otherwise the save starts a branch numbered
 one higher than any the world has used. Overwriting a slot moves it into the
-running world's branch; its recovery copy keeps the old branch.
+running world's branch; its recovery copy keeps the old branch and position.
+The fork decision uses the loaded save before rebinding it to that recovery copy.
 
 Before loading, the host saves the world being left as **Before loading**, so its
-unsaved progress stays on its own branch. It skips that copy when the world is
-byte-for-byte the save it continues from, with the same model routing and
-autosave choices, so browsing saves does not create empty branches. If loading
-fails, the branch record is restored along with the world.
+unsaved progress stays on its own branch. After a successful load, the record
+keeps a fingerprint of the loaded world after the host's required pause, as well
+as the stored checkpoint's fingerprint. It skips the copy only when the world
+still matches that loaded state, the stored checkpoint remains readable and
+unchanged, and model routing and autosave choices match. Browsing running
+autosaves therefore does not create empty branches, while a missing or damaged
+checkpoint cannot replace a recovery copy. If loading fails, the branch record
+is restored along with the world.
 
 The branch record is written before a new save's metadata is published, so an
-interruption leaves it pointing at an unlisted save whose tick still keeps the
+interruption leaves it pointing at an unlisted save whose position still keeps the
 next save on the same branch. A missing or damaged record never blocks saving:
 the next save starts a new branch, with a warning in the log. A save whose own
 branch fields are damaged stays listed, without a branch. Saves made before
 branches existed have none either; Load World groups them as **Earlier saves**,
-and playing on from one starts a new branch. Deleting a world removes its
+and playing on from one starts a new branch. Autosave rotation leaves saves
+with damaged branch fields alone, since their histories cannot safely be
+grouped; genuinely branchless earlier autosaves still rotate together.
+Deleting a world removes its
 branch record with its saves.
 
 ## Validation boundaries

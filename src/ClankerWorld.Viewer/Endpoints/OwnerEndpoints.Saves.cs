@@ -214,6 +214,7 @@ internal static partial class OwnerEndpoints
                         providers.RestoreWorldAssignments(assignments);
                         if (autosaveSettings is not null) autosave.RestoreFromCheckpoint(autosaveSettings);
                         jevPolicy.Initialize(runtime.JevEnabled, runtime.JevPolicyRevision);
+                        saves.RecordLoadedState(runtime);
                     }
                     catch
                     {

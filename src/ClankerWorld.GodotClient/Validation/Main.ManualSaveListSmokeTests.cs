@@ -12,9 +12,9 @@ public partial class Main
         var start = DateTimeOffset.UnixEpoch;
         var first = new SaveBranch("a", 1);
         var second = new SaveBranch("b", 2, "flood", "Before the flood", 10);
-        ManualWorldSave flood = new("flood", "Before the flood", start, 10, false, first);
-        ManualWorldSave harvest = new("harvest", "Big harvest", start.AddMinutes(1), 90, false, first, "flood", start);
-        ManualWorldSave winter = new("winter", "Hungry winter", start.AddMinutes(2), 60, false, second, "flood", start);
+        ManualWorldSave flood = new("flood", "Before the flood", start, 10, false, first, BranchPosition: 1);
+        ManualWorldSave harvest = new("harvest", "Big harvest", start.AddMinutes(1), 90, false, first, "flood", start, BranchPosition: 2);
+        ManualWorldSave winter = new("winter", "Hungry winter", start.AddMinutes(2), 60, false, second, "flood", start, BranchPosition: 1);
         ManualWorldSave old = new("old", "Old save", start.AddMinutes(-1), 5);
         ManualWorldSave[] saves = [old, flood, harvest, winter];
         var ordered = OrderSavesByBranch(saves).Select(save => save.Id).ToArray();
@@ -26,6 +26,17 @@ public partial class Main
             throw new InvalidOperationException("Only the newest point of a branch may continue it.");
         if (BranchLabel(second) != "Branch 2" || BranchLabel(null) != "Earlier saves")
             throw new InvalidOperationException("Branch labels must name the branch, or saves from before branches.");
+
+        // The middle save was deleted, and a recovery copy of the first point
+        // was made most recently. Equal ticks and creation dates cannot order history.
+        ManualWorldSave pausedFirst = new("paused-first", "Before changing Jev", start.AddMinutes(3), 10,
+            false, first, BranchPosition: 1);
+        ManualWorldSave pausedLater = new("paused-later", "Jev off", start.AddMinutes(2), 10,
+            false, first, "deleted-middle", start.AddMinutes(1), BranchPosition: 3);
+        ManualWorldSave[] retainedPausedSaves = [pausedFirst, pausedLater];
+        if (IsLatestInBranch(pausedFirst, retainedPausedSaves) || !IsLatestInBranch(pausedLater, retainedPausedSaves) ||
+            !OrderSavesByBranch(retainedPausedSaves).Select(save => save.Id).SequenceEqual(["paused-later", "paused-first"]))
+            throw new InvalidOperationException("Paused history must retain its latest position after an intermediate save is deleted.");
 
         allListedManualSaves = saves;
         listedManualSaves = OrderSavesByBranch(saves);
@@ -68,6 +79,35 @@ public partial class Main
             }
             ManualWorldSave[] oldSaves = [new("old-save", "Old save", DateTimeOffset.UnixEpoch, 0)];
             ManualWorldSave[] currentSaves = [new("new-save", "New current save", DateTimeOffset.UnixEpoch, 0), oldSaves[0]];
+            AcceptWorld("world-A");
+            host.Catalog = WorldActionSmokeCatalog(["A", "B"]);
+            OpenWorldMenu(create: false);
+            await RefreshWorldListAsync();
+            ChooseWorldActionSmokeRow(1);
+            if (!worldSavesButton.Visible || !worldSavesButton.Disabled)
+                throw new InvalidOperationException("Another world's saves must wait until that world is opened.");
+            ChooseWorldActionSmokeRow(0);
+            if (worldSavesButton.Disabled)
+                throw new InvalidOperationException("Load World must offer the current world's saves.");
+            // Use the real button path. Escape must close the upper panel even
+            // while its signed save-list read is pending, keeping Load World below.
+            worldSavesButton.GrabFocus();
+            worldSavesButton.EmitSignal(BaseButton.SignalName.Pressed);
+            if (!manualSaveOverlay.Visible || !manualSaveLoadMode || !worldMenuOverlay.Visible)
+                throw new InvalidOperationException("Load a save must open Load Save above Load World.");
+            if (!HandleEscape() || manualSaveOverlay.Visible || !worldMenuOverlay.Visible ||
+                worldSelectionList.GetSelectedItems() is not [0])
+                throw new InvalidOperationException("Escape from Load Save must return to the same Load World selection.");
+            worldSavesButton.GrabFocus();
+            worldSavesButton.EmitSignal(BaseButton.SignalName.Pressed);
+            if (!manualSaveOverlay.Visible || manualSaveBackButton.TooltipText != "Back to Load World")
+                throw new InvalidOperationException("The save chooser must reopen with its Load World back action.");
+            manualSaveBackButton.EmitSignal(BaseButton.SignalName.Pressed);
+            if (manualSaveOverlay.Visible || !worldMenuOverlay.Visible ||
+                worldSelectionList.GetSelectedItems() is not [0])
+                throw new InvalidOperationException("Back from a reopened Load Save must retain Load World and its selection.");
+            if (!HandleEscape() || worldMenuOverlay.Visible)
+                throw new InvalidOperationException("Escape from Load World must then close that parent panel.");
             foreach (var scenario in new[] { "create", "back", "late-failure" })
             {
                 AcceptWorld("save-world-A");
@@ -139,6 +179,11 @@ public partial class Main
         }
         finally
         {
+            worldListRequest.Cancel();
+            worldMenuOverlay.Hide();
+            listedWorlds = [];
+            listedActiveWorldId = null;
+            worldSelectionList.Clear();
             manualSaveOverlay.Hide();
             manualSaveOverwriteConfirmation.Hide();
             pendingOverwriteSaveId = null;

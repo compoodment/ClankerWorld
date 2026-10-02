@@ -376,7 +376,8 @@ public partial class Main
         saves.GroupBy(BranchKey, StringComparer.Ordinal)
             .OrderByDescending(branch => branch.Max(save => save.CreatedUtc))
             .ThenBy(branch => branch.Key, StringComparer.Ordinal)
-            .SelectMany(branch => branch.OrderByDescending(save => save.WorldTick)
+            .SelectMany(branch => branch.OrderByDescending(save => save.BranchPosition)
+                .ThenByDescending(save => save.WorldTick)
                 .ThenByDescending(save => save.CreatedUtc)
                 .ThenBy(save => save.Id, StringComparer.Ordinal))
             .ToArray();
@@ -385,8 +386,7 @@ public partial class Main
     internal static bool IsLatestInBranch(ManualWorldSave save, IEnumerable<ManualWorldSave> worldSaves) =>
         save.Branch is { } branch && !worldSaves.Any(other => other.Id != save.Id &&
             other.Branch?.Id == branch.Id &&
-            (other.WorldTick > save.WorldTick ||
-             other.ContinuedFromId == save.Id && other.ContinuedFromCreatedUtc == save.CreatedUtc));
+            other.BranchPosition > save.BranchPosition);
 
     private async Task CreateManualSaveAsync()
     {
