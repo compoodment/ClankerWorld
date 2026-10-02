@@ -5,52 +5,14 @@ namespace ClankerWorld.GodotClient;
 /// <summary>
 /// In-world keyboard shortcuts and the F1 controls list. Shortcuts press the
 /// same top-bar buttons the mouse does, so they obey the same availability:
-/// nothing here works behind a modal menu or while typing in a text field,
-/// and none of them commits a world change the buttons would not.
+/// nothing here works behind a modal menu, only F12 works while typing in a
+/// text field, and none of them commits a world change the buttons would not.
 /// </summary>
 public partial class Main
 {
     private readonly PanelContainer controlsPanel = new();
 
-    private static readonly (string Keys, string Action)[] ControlsList =
-    [
-        ("Left click", "Select an agent or inspect a tile"),
-        ("Scroll wheel", "Zoom toward the pointer"),
-        ("Middle-drag", "Move the map"),
-        ("W A S D / arrows", "Move the map"),
-        ("+ / −", "Zoom in or out"),
-        ("Space or P", "Pause or resume"),
-        ("N / Shift+N", "Next or previous agent"),
-        ("C", "Center on the selected agent"),
-        ("H", "Back to the first Town"),
-        ("M", "Map overview"),
-        ("F", "Filters"),
-        ("I", "World Info"),
-        ("R", "Agents"),
-        ("T", "Towns"),
-        ("E", "Event Log"),
-        ("F1 or ?", "Show or hide this list"),
-        ("Esc", "Close the newest panel, or open the Pause Menu"),
-    ];
-
-    private void BuildControlsPanel(Control content)
-    {
-        var grid = new GridContainer { Columns = 2 };
-        grid.AddThemeConstantOverride("h_separation", 18);
-        grid.AddThemeConstantOverride("v_separation", 5);
-        foreach (var (keys, action) in ControlsList)
-        {
-            var keyLabel = new Label { Text = keys };
-            keyLabel.ThemeTypeVariation = "KeyLabel";
-            grid.AddChild(keyLabel);
-            grid.AddChild(new Label { Text = action });
-        }
-        AddClosablePanelContents(controlsPanel, "Controls", grid);
-        controlsPanel.ZIndex = 85;
-        controlsPanel.Resized += PositionControlsPanel;
-        controlsPanel.Hide();
-        content.AddChild(controlsPanel);
-    }
+    private void BuildControlsPanel(Control content) => BuildControlsGroups(content);
 
     private void PositionControlsPanel()
     {
@@ -68,22 +30,31 @@ public partial class Main
 
     /// <summary>World keys apply only in a world with no modal menu open and no text field focused.</summary>
     private bool WorldKeysAvailable() =>
+        NoMenuOverWorld() && GetViewport().GuiGetFocusOwner() is not (LineEdit or TextEdit);
+
+    private bool NoMenuOverWorld() =>
         isInWorld && !mainMenuOverlay.Visible && !gameMenuPanel.Visible && !topBarShade.Visible &&
-        !worldMenuOverlay.Visible && !manualSaveOverlay.Visible &&
-        GetViewport().GuiGetFocusOwner() is not (LineEdit or TextEdit);
+        !worldMenuOverlay.Visible && !manualSaveOverlay.Visible;
 
     /// <summary>
     /// Space pauses even when a clicked button still holds keyboard focus;
     /// otherwise Godot would re-press that button instead. Enter still
-    /// activates a focused button.
+    /// activates a focused button. F12 types nothing, so it opens and closes
+    /// Developer tools even while one of their fields is being edited.
     /// </summary>
     public override void _Input(InputEvent @event)
     {
-        if (@event is InputEventKey { Pressed: true, Echo: false, Keycode: Key.Space } key &&
-            !key.ShiftPressed && !key.CtrlPressed && !key.AltPressed && !key.MetaPressed &&
-            WorldKeysAvailable())
+        if (@event is not InputEventKey { Pressed: true, Echo: false } key ||
+            key.ShiftPressed || key.CtrlPressed || key.AltPressed || key.MetaPressed)
+            return;
+        if (key.Keycode == Key.Space && WorldKeysAvailable())
         {
             PressTopBarAction(pauseButton);
+            GetViewport().SetInputAsHandled();
+        }
+        else if (key.Keycode == Key.F12 && NoMenuOverWorld())
+        {
+            ToggleDeveloperTools();
             GetViewport().SetInputAsHandled();
         }
     }

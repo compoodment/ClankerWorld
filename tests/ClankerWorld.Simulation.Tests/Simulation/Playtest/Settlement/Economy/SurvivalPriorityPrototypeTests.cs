@@ -45,9 +45,11 @@ public sealed class SurvivalPriorityPrototypeTests
         using var world = PrivateWorldRuntime.Restore(initial, _ => provider);
         var step = await world.AdvanceOneTickAsync();
         var scout = Assert.Single(provider.Seen, request => request.Observation.InhabitantId == "founder-scout");
-        Assert.Contains(scout.Observation.Candidates, candidate => candidate.Id == "guardian_offer:founder-mira");
+        Assert.Contains(scout.Observation.Candidates, candidate => candidate.Id == "guardian_accept:founder-mira");
+        Assert.Contains(scout.Observation.Candidates, candidate => candidate.Id == "care:founder-mira");
         Assert.DoesNotContain(scout.Observation.Candidates, candidate => candidate.Id == "explore");
         Assert.Contains(step.Decisions, decision => decision.InhabitantId == "founder-scout" && decision.Admission.Intention?.CandidateId == "consume_food");
+        Assert.Null(world.ExportState().Society.Society.GetInhabitant("founder-mira").PrimaryCaregiverId);
     }
 
     [Theory]

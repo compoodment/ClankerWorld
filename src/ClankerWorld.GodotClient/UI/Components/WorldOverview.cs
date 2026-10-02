@@ -24,6 +24,26 @@ public partial class WorldOverview : Control
     public bool ShowCameraBounds { get; set; } = true;
     public Vector2? MarkerTile { get; set; }
 
+    /// <summary>The surround and frame; the in-world map uses the panel's parchment instead of the default dark sea.</summary>
+    public Color Backdrop { get; set; } = new("101A1E");
+    public Color AtlasEdge { get; set; } = new("AFC4BA");
+
+    private readonly List<Vector2> townTiles = [];
+    private readonly List<Vector2> agentTiles = [];
+
+    /// <summary>Town centers drawn as small houses, and living agents as dots.</summary>
+    public int TownMarkerCount => townTiles.Count;
+    public int AgentMarkerCount => agentTiles.Count;
+
+    public void SetMarkers(IEnumerable<Vector2> towns, IEnumerable<Vector2> agents)
+    {
+        townTiles.Clear();
+        townTiles.AddRange(towns);
+        agentTiles.Clear();
+        agentTiles.AddRange(agents);
+        QueueRedraw();
+    }
+
     public WorldOverview()
     {
         MouseFilter = MouseFilterEnum.Stop;
@@ -120,7 +140,7 @@ public partial class WorldOverview : Control
 
     public override void _Draw()
     {
-        DrawRect(new Rect2(Vector2.Zero, Size), new Color("101A1E"));
+        DrawRect(new Rect2(Vector2.Zero, Size), Backdrop);
         if (mapWidth <= 0 || mapHeight <= 0)
         {
             return;
@@ -145,7 +165,20 @@ public partial class WorldOverview : Control
             DrawRect(new Rect2(position, new Vector2(Math.Max(1, atlas.Size.X / mapWidth), Math.Max(1, atlas.Size.Y / mapHeight))),
                 new Color(field.Value == "ready" ? "D9BD57" : field.Value == "growing" ? "67A847" : "8C6442"));
         }
-        DrawRect(atlas, new Color("AFC4BA"), filled: false, width: 1);
+        DrawRect(atlas.Grow(1), AtlasEdge, filled: false, width: 1);
+        var ink = new Color("1E1712");
+        foreach (var agent in agentTiles)
+        {
+            var dot = (atlas.Position + new Vector2(agent.X * atlas.Size.X / mapWidth, agent.Y * atlas.Size.Y / mapHeight)).Floor();
+            DrawRect(new Rect2(dot - new Vector2(2, 2), new Vector2(4, 4)), ink);
+            DrawRect(new Rect2(dot - new Vector2(1, 1), new Vector2(2, 2)), new Color("FFF6E0"));
+        }
+        foreach (var town in townTiles)
+        {
+            var at = (atlas.Position + new Vector2(town.X * atlas.Size.X / mapWidth, town.Y * atlas.Size.Y / mapHeight)).Floor();
+            var house = PixelIcons.Texture(PixelGlyph.House, ink, new Color("F2C14E"), 1);
+            DrawTexture(house, at - new Vector2(6, 9));
+        }
         if (MarkerTile is { } markerTile)
         {
             var marker = atlas.Position + new Vector2(

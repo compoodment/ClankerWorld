@@ -212,7 +212,6 @@ public partial class Main
         familyTreeView.QueueRedraw();
         RefreshHudIcons();
         renderedTownList = null;
-        renderedTownPanel = null;
         renderedEventLog = null;
         if (observationSession.Current is { } current)
             Render(current.Baseline.Snapshot, []);
@@ -225,10 +224,22 @@ public partial class Main
             Render(current.Baseline.Snapshot, []);
     }
 
-    private void SetDateFormat(long index)
+    /// <summary>The Date display choices in Game Settings, in list order: season first, then the numeric orders.</summary>
+    private static readonly (string Style, string Label)[] DateStyles =
+    [
+        (GameUiText.SeasonDates, "Season (Autumn 2, Year 1)"),
+        ("dmy", "DD-MM-YYYY"),
+        ("mdy", "MM-DD-YYYY"),
+        ("ymd", "YYYY-MM-DD"),
+    ];
+
+    private static int DateStyleIndex(string style) =>
+        Math.Max(0, Array.FindIndex(DateStyles, choice => choice.Style == style));
+
+    private void SetDateStyle(long index)
     {
-        var format = index switch { 1 => "mdy", 2 => "ymd", _ => "dmy" };
-        SaveDisplayPreferences(displayPreferences with { DateFormat = format });
+        var style = DateStyles[Math.Clamp((int)index, 0, DateStyles.Length - 1)].Style;
+        SaveDisplayPreferences(displayPreferences with { DateStyle = style });
         if (observationSession.Current is { } current)
             Render(current.Baseline.Snapshot, []);
     }
@@ -248,6 +259,10 @@ public partial class Main
 
     private string DisplayWorldClock(long worldTick) =>
         GameUiText.FormatWorldClock(worldTick, displayPreferences.UseTwelveHourClock,
-            observedCalendarPace, displayPreferences.DateFormat);
+            observedCalendarPace, displayPreferences.DateStyle);
+
+    /// <summary>When the date already names the season, the season is not repeated beside it.</summary>
+    private bool DatesShowSeason =>
+        GameUiText.ShowsSeasonDates(observedCalendarPace, displayPreferences.DateStyle);
 
 }

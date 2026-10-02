@@ -1,7 +1,3 @@
-# Terrain and trees
-
-Merged on 30 September from [#461](https://github.com/compoodment/ClankerWorld/issues/461) and [#462](https://github.com/compoodment/ClankerWorld/issues/462).
-
 - Create new Small and Medium worlds, wrapped and unwrapped. Sand shows only as deserts and stretches of ocean beach, and rivers and lakes keep grass banks. ([#461](https://github.com/compoodment/ClankerWorld/issues/461))
 - Look closely at sand and forests. No tree or plant stands on sand. Forests have small groves of darker forest floor where every tile holds a tree, among scattered trees on forest grass. ([#461](https://github.com/compoodment/ClankerWorld/issues/461))
 - Find a mountain area. A band of hills rings it at close and overview zoom, tile inspection shows "Landform: Hills", and agents cross hills as quickly as grass. ([#461](https://github.com/compoodment/ClankerWorld/issues/461))

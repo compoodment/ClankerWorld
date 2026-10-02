@@ -86,6 +86,13 @@ public sealed record SeededMap(
     public const byte MountainElevationThreshold = 215;
     public const byte PeakElevationThreshold = 245;
 
+    /// <summary>
+    /// Provisional foot cost of river water that can only be waded as part of a
+    /// two-tile crossing: a third of dry-ground speed, slower than the half
+    /// speed of a one-tile river. The wading speed has not been tuned yet.
+    /// </summary>
+    public const int TwoTileWadingFootCost = 300;
+
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public byte[]? ClimateZones { get; init; }
 
@@ -120,13 +127,19 @@ public sealed record SeededMap(
         point.X >= 0 && point.X < Width && point.Y >= 0 && point.Y < Height;
 
     public bool IsPassable(GridPoint point) =>
-        Contains(point) && (IsOpenGroundAt(point) || IsMountainAt(point) || IsNarrowRiverCrossing(point) ||
-            IsBridgeDeck(point));
+        Contains(point) && (IsOpenGroundAt(point) || IsMountainAt(point) || IsOneTileRiverCrossing(point) ||
+            IsTwoTileRiverCrossing(point) || IsBridgeDeck(point));
 
+    /// <summary>
+    /// The cost of entering a tile on foot. A river tile costs what its
+    /// narrowest crossing costs: half speed where one tile of water separates
+    /// dry banks, and <see cref="TwoTileWadingFootCost"/> where it takes two.
+    /// </summary>
     public int FootTravelCost(GridPoint point) => !IsPassable(point)
         ? throw new ArgumentOutOfRangeException(nameof(point), "The tile cannot be crossed on foot.")
         : IsBridgeDeck(point) ? 100
-        : IsRiverAt(point) || IsMountainAt(point) ? 200 : 100;
+        : IsRiverAt(point) ? IsOneTileRiverCrossing(point) ? 200 : TwoTileWadingFootCost
+        : IsMountainAt(point) ? 200 : 100;
 
     public bool IsBridgeDeck(GridPoint point) => BridgeDecks is { } decks && decks.ContainsKey(point);
 
@@ -186,21 +199,28 @@ public sealed record SeededMap(
         var destinationIsRiver = IsRiverAt(destination);
         if (originIsRiver || destinationIsRiver)
         {
-            // A narrow river is a bank-to-bank crossing, not a footpath along
-            // the channel or a diagonal shortcut through the water.
-            if (originIsRiver && destinationIsRiver || IsDiagonalFootStep(origin, destination))
-                return false;
-            var river = originIsRiver ? origin : destination;
-            var bank = originIsRiver ? destination : origin;
-            var dx = bank.X - river.X;
+            // A river is waded bank to bank along one straight crossing of one
+            // or two river tiles, not along the channel or diagonally through
+            // the water.
+            if (IsDiagonalFootStep(origin, destination)) return false;
+            var dx = destination.X - origin.X;
             if (WrapsEastWest)
             {
                 if (dx == Width - 1) dx = -1;
                 else if (dx == 1 - Width) dx = 1;
             }
-            var dy = bank.Y - river.Y;
-            return Math.Abs(dx) + Math.Abs(dy) == 1 && IsDryBank(bank) &&
-                IsDryBank(new GridPoint(river.X - dx, river.Y - dy));
+            var dy = destination.Y - origin.Y;
+            if (Math.Abs(dx) + Math.Abs(dy) != 1) return false;
+            // Between the two river tiles of a crossing, with dry banks
+            // straight behind and ahead.
+            if (originIsRiver && destinationIsRiver)
+                return IsTwoTileLine(origin, dx, dy);
+            // Between a bank and the water: the crossing runs on from the
+            // bank through one river tile, or two, to a dry bank opposite.
+            var (river, bank) = originIsRiver ? (origin, destination) : (destination, origin);
+            var (outX, outY) = originIsRiver ? (dx, dy) : (-dx, -dy);
+            var beyond = Step(river, -outX, -outY);
+            return IsDryBank(bank) && (IsDryBank(beyond) || IsTwoTileLine(river, -outX, -outY));
         }
         if (!IsDiagonalFootStep(origin, destination)) return true;
         // Both orthogonal shoulders must be traversable. A diagonal cannot
@@ -343,7 +363,7 @@ public sealed record SeededMap(
         ? elevation >= PeakElevationThreshold
         : TerrainAt(point) == (byte)TerrainKind.Peak;
 
-    private bool IsNarrowRiverCrossing(GridPoint point)
+    private bool IsOneTileRiverCrossing(GridPoint point)
     {
         if (!IsRiverAt(point))
             return false;
@@ -354,6 +374,41 @@ public sealed record SeededMap(
         return IsDryBank(west) && IsDryBank(east) ||
             IsDryBank(north) && IsDryBank(south);
     }
+
+    /// <summary>
+    /// River water that is either tile of a straight two-tile crossing: dry
+    /// bank, two river tiles, dry bank, east-west or north-south. A third
+    /// water tile, a lake or the sea in that line means it is not one.
+    /// Bridge decks do not change this: they decide only which steps a deck allows.
+    /// </summary>
+    private bool IsTwoTileRiverCrossing(GridPoint point) =>
+        IsRiverAt(point) &&
+        (IsTwoTileLine(point, 1, 0) || IsTwoTileLine(Step(point, -1, 0), 1, 0) ||
+            IsTwoTileLine(point, 0, 1) || IsTwoTileLine(Step(point, 0, -1), 0, 1));
+
+    // A tile that also lies on a two-tile line across the other axis is a
+    // corner of a river one tile thick that runs diagonally. Wading through it
+    // would turn inside the water and walk along the channel, so neither line
+    // through such a tile counts as a crossing.
+    private bool IsTwoTileLine(GridPoint first, int dx, int dy)
+    {
+        var second = Step(first, dx, dy);
+        return IsBankToBankPair(first, dx, dy) &&
+            !HasBankToBankPair(first, dy, dx) && !HasBankToBankPair(second, dy, dx);
+    }
+
+    private bool HasBankToBankPair(GridPoint point, int dx, int dy) =>
+        IsBankToBankPair(point, dx, dy) || IsBankToBankPair(Step(point, -dx, -dy), dx, dy);
+
+    private bool IsBankToBankPair(GridPoint first, int dx, int dy)
+    {
+        var second = Step(first, dx, dy);
+        return IsRiverWater(first) && IsRiverWater(second) &&
+            IsDryBank(Step(first, -dx, -dy)) && IsDryBank(Step(second, dx, dy));
+    }
+
+    private GridPoint Step(GridPoint point, int dx, int dy) =>
+        WrapColumn(new GridPoint(point.X + dx, point.Y + dy));
 
     private bool IsDryBank(GridPoint point)
     {

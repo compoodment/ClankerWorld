@@ -116,8 +116,28 @@ public static class GameUiText
         _ => null,
     };
 
+    /// <summary>
+    /// The default date style: the season and its day, such as Autumn 2, Year 1.
+    /// The numeric styles are "dmy", "mdy" and "ymd".
+    /// </summary>
+    public const string SeasonDates = "season";
+
+    private static readonly string[] SeasonNames = ["Spring", "Summer", "Autumn", "Winter"];
+
+    /// <summary>
+    /// Whether dates in this style name the season. That needs the world's
+    /// season lengths; without them, such as from an older host, a season-style
+    /// date falls back to DD-MM-YYYY.
+    /// </summary>
+    public static bool ShowsSeasonDates(OwnerWorldCalendarPace? calendarPace, string dateFormat) =>
+        SeasonDateLengths(calendarPace, dateFormat) is not null;
+
+    /// <summary>
+    /// The one place a world tick becomes the date and time the player reads:
+    /// the top bar, Event Log, saves and every other full date use it.
+    /// </summary>
     public static string FormatWorldClock(long worldTick, bool useTwelveHourClock = false,
-        OwnerWorldCalendarPace? calendarPace = null, string dateFormat = "dmy")
+        OwnerWorldCalendarPace? calendarPace = null, string dateFormat = SeasonDates)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(worldTick);
         var ticksPerDay = calendarPace?.TicksPerDay ?? MinutesPerDay;
@@ -125,7 +145,9 @@ public static class GameUiText
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(ticksPerDay);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(daysPerYear);
         var dayIndex = worldTick / ticksPerDay;
-        var date = FormatWorldDate(dayIndex, daysPerYear, dateFormat);
+        var date = SeasonDateLengths(calendarPace, dateFormat) is { } seasonLengths
+            ? FormatSeasonDate(dayIndex, daysPerYear, seasonLengths)
+            : FormatWorldDate(dayIndex, daysPerYear, dateFormat);
         var minuteOfDay = (int)(((worldTick % ticksPerDay) * MinutesPerDay) / ticksPerDay);
         var hour = minuteOfDay / 60;
         var minute = minuteOfDay % 60;
@@ -133,6 +155,32 @@ public static class GameUiText
         var twelveHour = hour % 12;
         if (twelveHour == 0) twelveHour = 12;
         return $"{date} · {twelveHour}:{minute:00} {(hour < 12 ? "AM" : "PM")}";
+    }
+
+    /// <summary>
+    /// Spring, Summer, Autumn and Winter lengths in days when dates in this
+    /// style name the season; null for a numeric style, or unless the
+    /// calendar's season lengths fill its year exactly.
+    /// </summary>
+    private static int[]? SeasonDateLengths(OwnerWorldCalendarPace? pace, string dateFormat)
+    {
+        if (pace is null || dateFormat is "dmy" or "mdy" or "ymd") return null;
+        int[] lengths = [pace.SpringDays, pace.SummerDays, pace.AutumnDays, pace.WinterDays];
+        return lengths.All(days => days > 0) && lengths.Sum(days => (long)days) == pace.DaysPerYear ? lengths : null;
+    }
+
+    /// <summary>The season and its day, counted the way the world counts seasons, such as Autumn 2, Year 1.</summary>
+    private static string FormatSeasonDate(long dayIndex, int daysPerYear, int[] seasonLengths)
+    {
+        var year = (dayIndex / daysPerYear) + 1;
+        var day = (int)(dayIndex % daysPerYear);
+        var season = 0;
+        while (day >= seasonLengths[season])
+        {
+            day -= seasonLengths[season];
+            season++;
+        }
+        return $"{SeasonNames[season]} {day + 1}, Year {year}";
     }
 
     private static string FormatWorldDate(long dayIndex, int daysPerYear, string dateFormat)
@@ -186,10 +234,12 @@ public static class GameUiText
             "business_trade_offered" or "business_trade_completed" or "business_trade_cancelled" or
             "store_stock_collected" or "store_stock_delivered" or
             "inhabitant_building_proposed" or "instruction_not_understood" or "settlement_founded" or "town_founding_started" or
+            "town_civic_council" or "town_civic_election" or "town_civic_runoff" or "town_civic_proposal" or "town_civic_result" or "town_civic_cancelled" or
             "town_resident_joined" or "town_resident_left" or "town_membership_evaluated" or
             "town_building_assigned" or "town_border_expanded" or "town_founded" or "bridge_built" or
             "housing_request_made" or "household_joined" or "housing_request_refused" or "housing_request_expired" or
-            "housing_blocked" or "paused" or "resumed";
+            "housing_blocked" or "household_left" or "household_founded" or "personal_goods_collected" or
+            "household_work_resumed" or "personal_goods_stored" or "borrowed_goods_returned" or "replacement_care_accepted" or "paused" or "resumed" or "model_call_warning";
     }
 
     /// <summary>
@@ -301,6 +351,23 @@ public static class GameUiText
             return normalized.StartsWith("lesson_decline:", StringComparison.Ordinal) || normalized == "lesson_cancel"
                 ? "turn down or stop a lesson" : "take a lesson";
         }
+        if (normalized.StartsWith("civic|", StringComparison.Ordinal))
+            return normalized.Split('|').ElementAtOrDefault(2) switch
+            {
+                "visit" => "visit the Town notice place",
+                "read" => "read Town notices",
+                "relay" => "relay Town notices",
+                "nominate" => "nominate a council candidate",
+                "request_admission" => "propose a newcomer's admission",
+                "register" or "remainder" => "agree to stand for council",
+                "withdraw_candidate" => "withdraw a candidacy",
+                "propose" => "propose a Town rule",
+                "admission" => "request Town admission",
+                "yes" or "no" => "vote on a Town proposal",
+                "withdraw_proposal" => "withdraw a proposal",
+                "ballot" or "single" => "cast a council election ballot",
+                _ => "take part in Town affairs",
+            };
         if (normalized.StartsWith("council_", StringComparison.Ordinal))
         {
             return normalized.StartsWith("council_propose:", StringComparison.Ordinal) ? "suggest a food rule"
