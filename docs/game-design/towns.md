@@ -346,7 +346,8 @@ resident counts.
 | Four residents in two equally sized family units in a 1×1 House | No family majority. A voluntary fourth admission is refused; an existing birth-related case needs expansion or relocation with no family favored. |
 | A resident is away gathering; a guest is invited | The traveler still occupies their resident place. The guest gains shelter only. |
 
-The resident counts, family scope and birth exceptions are agreed. The existing
+The resident counts, family scope, birth exceptions, notice and departure
+rules are agreed. The existing
 [housing-admission work](https://github.com/compoodment/ClankerWorld/issues/464)
 and [storage-expansion work](https://github.com/compoodment/ClankerWorld/issues/463)
 remain their original implementation slices. Resident limits, admission checks,

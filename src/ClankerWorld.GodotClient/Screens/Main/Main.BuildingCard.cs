@@ -274,7 +274,7 @@ public partial class Main
             buildingQuickStatus.AddChild(new Label
             {
                 Text = building.Tags?.Contains("house", StringComparer.Ordinal) == true
-                    ? "House expansion underway · places change on completion"
+                    ? "House expansion underway · more storage and resident places when finished"
                     : "Expanding storage",
                 AutowrapMode = TextServer.AutowrapMode.WordSmart,
             });
@@ -331,9 +331,9 @@ public partial class Main
         {
             facts.Add(("Permanent residents", $"{building.PermanentResidentCount} / {residentLimit} places"));
             if (building.HasDominantFamily)
-                facts.Add(("Family limit", "Dominant family qualifies for four places per tile"));
+                facts.Add(("Family limit", "One family is most of the household · 4 places per tile"));
             if (building.IsOvercrowded)
-                facts.Add(("Crowding", "Overcrowded · voluntary admissions are blocked"));
+                facts.Add(("Crowding", "Over the limit · nobody new can move in until there is room"));
         }
         if (building.ExpansionState == "running")
             facts.Add(("Expansion", building.ResidentLimit is not null

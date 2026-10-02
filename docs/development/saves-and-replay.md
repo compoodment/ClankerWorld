@@ -264,7 +264,8 @@ the current loader accepts only the current schema and does not run those
 migrations or backfills.
 Feature thresholds, such as schema 33 for a birth-model descriptor, schema 34
 for fields and ground lots, schema 35 for conversations, schema 37 for personal
-equipment, and schema 39 for reusable containers, record when those fields were
+equipment, schema 39 for reusable containers, and schema 40 for domestic family
+and caregiver records, record when those fields were
 introduced; they do not allow an earlier checkpoint schema past the current
 alpha cutoff.
 

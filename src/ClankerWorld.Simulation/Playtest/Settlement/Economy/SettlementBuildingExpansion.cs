@@ -118,16 +118,18 @@ public sealed partial class PrivateWorldRuntime
     {
         var owner = ExpansionOwner(building);
         var site = ExpansionGroundPosition(building);
-        var residentWarehouse = building.HouseholdId is not null && building.TownId == TownForResident(actor)
-            ? WarehouseForResident(actor) : null;
+        // Town Warehouse stock follows the usual Warehouse access rules: the
+        // actor's own Town, or an empty Town's Warehouse anyone may recover.
+        var warehouseStock = building.HouseholdId is not null
+            ? AvailableWarehouseStock(actor, itemKind) : Enumerable.Empty<InventoryLot>();
         return society.Checkpoint.Inventory.Lots
-            .Where(lot => (lot.OwnerId == owner || residentWarehouse is { } warehouse &&
-                    warehouse.TownId == building.TownId && lot.OwnerId == warehouse.TownId &&
-                    lot.StorageBuildingId == warehouse.InstanceId) && lot.ItemKind == itemKind &&
+            .Where(lot => lot.OwnerId == owner && lot.ItemKind == itemKind &&
                 lot.StorageBuildingId != building.InstanceId && lot.DeliveryBuildingId is null &&
-                lot.GroundPosition != site && AvailableLotQuantity(lot) > 0)
+                lot.GroundPosition != site && lot.ContainerLotId is null && AvailableLotQuantity(lot) > 0)
             .OrderBy(lot => lot.Id, StringComparer.Ordinal)
-            .FirstOrDefault(lot => CanReachSharedItem(actor, lot));
+            .Where(lot => CanReachSharedItem(actor, lot))
+            .Concat(warehouseStock)
+            .FirstOrDefault();
     }
 
     private (InventoryLot? Source, int Quantity) ExpansionSharedMaterialPickup(

@@ -127,6 +127,49 @@ public sealed partial class SettlementParenthoodTests
             OwnerInstructionKind.MustDo, "build a shelter")));
         Assert.Contains(caring.ExportState().Events, item => item.Kind == "child_cared_for");
         Assert.Contains(caring.Society.Relationships, item => item.ProposerId == second && item.TargetId == birth.ChildId);
+
+        var childId = birth.ChildId;
+        state = completedState;
+        var caregiverId = state.Society.Society.Relationships.First(edge => edge.Type == SocietyRelationshipType.Caregiver &&
+            edge.TargetId == childId && edge.State == SocietyRelationshipState.Accepted).ProposerId;
+        var child = state.Inhabitants.Single(person => person.InhabitantId == childId);
+        var caregiverTile = state.Map.FootNeighbors(child.Position).First(point => state.Map.IsPassable(point) &&
+            Math.Abs(point.X - child.Position.X) + Math.Abs(point.Y - child.Position.Y) == 1 &&
+            !state.Inhabitants.Any(person => person.InhabitantId != caregiverId && person.InhabitantId != childId && person.Position == point));
+        const int initialIllness = 9_000;
+        state = state with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId switch
+            {
+                var id when id == caregiverId => person with
+                {
+                    Position = caregiverTile,
+                    HungerBasisPoints = 9_000,
+                    Survival = new SurvivalCondition(10_000, 0),
+                    Project = null,
+                    LastDecisionContext = null,
+                    TravelCooldownTicks = 0,
+                },
+                var id when id == childId => person with
+                {
+                    HungerBasisPoints = 9_000,
+                    Survival = new SurvivalCondition(9_000, initialIllness),
+                    Project = null,
+                },
+                _ => person,
+            }).ToArray(),
+        };
+        using var tending = PrivateWorldRuntime.Restore(state, actor =>
+            new ParentProvider(actor == caregiverId ? "care:" : "safe_idle"));
+
+        var tendingStep = await tending.AdvanceOneTickAsync();
+        Assert.True(tendingStep.Advanced);
+
+        var caredFor = tending.Inhabitants.Single(person => person.InhabitantId == childId);
+        Assert.Contains(tendingStep.Events, item => item.Kind == "child_cared_for" && item.Detail == childId);
+        Assert.Equal(10_000, caredFor.Survival!.WarmthBasisPoints);
+        Assert.True(caredFor.Survival.IllnessBasisPoints < initialIllness - 12,
+            $"Expected direct caregiver care to improve on ordinary warm-and-fed recovery; actual illness {caredFor.Survival.IllnessBasisPoints}.");
     }
 
     [Fact]

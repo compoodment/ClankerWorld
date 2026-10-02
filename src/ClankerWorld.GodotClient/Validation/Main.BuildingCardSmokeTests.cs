@@ -60,7 +60,7 @@ public partial class Main
             !facts.Contains("Used by\nFounder's household", StringComparison.Ordinal) ||
             !facts.Contains("Built\n", StringComparison.Ordinal) ||
             !facts.Contains("Permanent residents\n2 / 8 places", StringComparison.Ordinal) ||
-            !facts.Contains("Family limit\nDominant family qualifies for four places per tile", StringComparison.Ordinal) ||
+            !facts.Contains("Family limit\nOne family is most of the household · 4 places per tile", StringComparison.Ordinal) ||
             !facts.Contains("Expansion\nWork in progress · current resident places remain until completion", StringComparison.Ordinal) ||
             !facts.Contains("Door\nSouth side", StringComparison.Ordinal) ||
             !buildingWorkSection.Visible || buildingWorkRows.GetChildCount() != 1 ||
@@ -91,7 +91,7 @@ public partial class Main
         if (!facts.Contains("Footprint\n2 × 2 tiles", StringComparison.Ordinal) ||
             !facts.Contains("Storage\n11 / 256 items", StringComparison.Ordinal) ||
             !facts.Contains("Permanent residents\n17 / 16 places", StringComparison.Ordinal) ||
-            !facts.Contains("Crowding\nOvercrowded · voluntary admissions are blocked", StringComparison.Ordinal) ||
+            !facts.Contains("Crowding\nOver the limit · nobody new can move in until there is room", StringComparison.Ordinal) ||
             !facts.Contains("Storm guests\nLina · shelter only", StringComparison.Ordinal))
             throw new InvalidOperationException("Building Details must show current expansion geometry, capacity and limited guest access.");
         ApplyResponsiveLayout();
