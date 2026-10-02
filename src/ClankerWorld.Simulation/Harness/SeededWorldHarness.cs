@@ -490,7 +490,7 @@ public static class BaseCampMapGenerator
         {
             CampObjects = objects,
             Resources = fixture.Resources.Concat([
-                new MapResource("medicinal-herb-patch", "medicinal_herbs", new GridPoint(3, 2), true,
+                new MapResource("medicinal-herb-patch", "medicinal_herbs", new GridPoint(5, 3), true,
                     NaturalObjectKind: "medicinal_herb_patch"),
             ]).ToArray(),
             ManifestDigest = string.Empty,
