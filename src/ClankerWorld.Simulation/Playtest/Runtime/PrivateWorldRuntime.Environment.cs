@@ -133,12 +133,13 @@ public sealed partial class PrivateWorldRuntime
         WorldStartPace startPace)
     {
         var config = WorldStartPaceRules.Society(startPace);
+        int Age(int index) => SocietyFixture.FounderArrivalAge(config, worldSeed, index);
         var founders = new[]
         {
-            SocietyFixture.CreateFounder("founder-scout", "Scout", "model:scout", config: config),
-            SocietyFixture.CreateFounder("founder-mira", "Mira", "model:mira", config: config),
-            SocietyFixture.CreateFounder("founder-rowan", "Rowan", "model:rowan", config: config),
-            SocietyFixture.CreateFounder("founder-ilya", "Ilya", "model:ilya", config: config),
+            SocietyFixture.CreateFounder("founder-scout", "Scout", "model:scout", config: config, startingAge: Age(0)),
+            SocietyFixture.CreateFounder("founder-mira", "Mira", "model:mira", config: config, startingAge: Age(1)),
+            SocietyFixture.CreateFounder("founder-rowan", "Rowan", "model:rowan", config: config, startingAge: Age(2)),
+            SocietyFixture.CreateFounder("founder-ilya", "Ilya", "model:ilya", config: config, startingAge: Age(3)),
         };
         var initialFounders = startPace == WorldStartPace.FounderSetup ? [] : founders;
         var checkpoint = SocietyFixture.CreateGenesis(

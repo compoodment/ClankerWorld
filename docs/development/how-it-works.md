@@ -578,6 +578,16 @@ Later placement inside the saved border establishes residence; walking does
 not change it. Children inherit the resident parent's Town; death removes the
 resident. Owned-building placement establishes household membership.
 
+Founders and added adults arrive at a seeded age from day 15 to day 25 in
+day-lifecycle worlds. `SocietyFixture.FounderArrivalAge` orders that range once
+per world seed and gives the founder in each placement position its day, so
+the four founders never share a day, the same seed repeats their ages, and a
+founder placed after an undo gets the undone position's age. `AddAdult` draws
+an added adult's day from the world seed and the number of inhabitants already
+recorded, living or dead, not from the client's agent ID. The saved birth tick
+holds the result, so loading never draws again. Year-based development worlds
+keep the 18-year adult age.
+
 `FirstTownLayoutPlanner` lays the first Town street first, using
 `TownStreets`. A main road runs both ways from the chosen site along its most
 open line, bending in 45° steps, never more than 45° from the heading it set out
