@@ -53,7 +53,7 @@ Adults may leave a household without its permission. Their own goods remain thei
    provider. Then pick the model from the game's short list for that
    provider, newest at the top. Models your key can't use are greyed out; if
    it can't use the model shown, the picker asks you to choose another.
-   **Type a model name…** covers any other model. The agents start in two
+   **Type a model name...** covers any other model. The agents start in two
    households, not two forced couples or biological families.
 5. Press **Start World** when all four are ready. Placing the fourth agent does
    not start time automatically. Before starting, placements can be moved or
@@ -254,7 +254,7 @@ current world and any it cannot open. Double-click a card, or choose it and
 and Delete are unavailable while another world action finishes.
 
 To go back to an earlier save, choose the current world in Load World and
-**Load a save…**, then pick a save and **Load**. Your world as it was is saved
+**Load a save...**, then pick a save and **Load**. Your world as it was is saved
 first. Playing on from an older save starts a new **branch**, so the saves from
 the first version of events stay as they were. When a world has more than one
 branch, each save card names its branch, such as **Branch 2**, and each branch's
@@ -266,7 +266,7 @@ last client stops time and model work after about five seconds. Returning makes
 no offline progress or change to a manual pause. An unfinished model call can
 be cancelled and retried later; the provider may charge for both attempts.
 
-To remove one snapshot, choose it in **Load a save…** or Save World and choose
+To remove one snapshot, choose it in **Load a save...** or Save World and choose
 **Delete**.
 The confirmation names the snapshot; deletion is permanent and leaves its world
 and other saves alone. In Load World, **Delete World** removes that

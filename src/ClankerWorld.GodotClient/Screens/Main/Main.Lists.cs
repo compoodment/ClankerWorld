@@ -181,7 +181,7 @@ public partial class Main
             row.AddChild(new Label { Text = time, ThemeTypeVariation = "DimLabel", SizeFlagsVertical = Control.SizeFlags.ShrinkCenter });
             row.AddChild(new Label
             {
-                Text = entry.Text,
+                Text = GameUiText.PlainEllipses(entry.Text),
                 SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
                 SizeFlagsVertical = Control.SizeFlags.ShrinkCenter,
                 AutowrapMode = TextServer.AutowrapMode.WordSmart,

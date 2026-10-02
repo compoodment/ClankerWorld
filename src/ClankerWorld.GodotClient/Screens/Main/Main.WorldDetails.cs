@@ -87,11 +87,11 @@ public partial class Main
             {
                 eventLog.PushMeta(entry.EventId.ToString(CultureInfo.InvariantCulture));
                 eventLog.PushColor(LinkText);
-                eventLog.AddText(entry.Text + " ↗");
+                eventLog.AddText(GameUiText.PlainEllipses(entry.Text) + " ↗");
                 eventLog.Pop();
                 eventLog.Pop();
             }
-            else eventLog.AddText(entry.Text);
+            else eventLog.AddText(GameUiText.PlainEllipses(entry.Text));
         }
         FitTextPanel(eventLog);
     }
