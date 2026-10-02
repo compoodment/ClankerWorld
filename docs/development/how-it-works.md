@@ -1060,8 +1060,9 @@ map or field record keeps its lot ID.
 Final words are optional with either outcome. `CognitionWillChoice.NormalizeFinalWords`
 turns control and invisible formatting characters into spaces, collapses
 spaces, and refuses text over 80 characters or containing markup characters
-(`< > [ ] { }` and backticks). A reply with refused words is invalid; a reply the
-runtime admits keeps its words even when its division falls back. At settlement
+(`< > [ ] { }` and backticks). The HTTP provider parser drops unusable words
+before admission; a directly supplied typed reply with invalid words is refused.
+An admitted reply keeps its words even when its division falls back. At settlement
 each living person who receives goods gets the private memory
 `final-words:{estate}:{heir}` ("Name's final words were: '…'"). The owner sees
 the words on the historical profile through
