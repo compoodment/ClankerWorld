@@ -358,8 +358,10 @@ public sealed class PersonalEquipmentTests
         restored.Validate();
     }
 
-    [Fact]
-    public async Task AcceptingConversationReleasesRepairMaterialsAndKeepsTheBusyWorldSaveable()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AcceptingConversationReleasesRepairMaterialsAndKeepsTheBusyWorldSaveable(bool timeout)
     {
         var (state, shopId) = TailorTestWorld.Create("repair-conversation-expiry", 0);
         var people = state.Society.Society.Inhabitants.Where(person => person.HouseholdId == Alpha).ToArray();
@@ -400,23 +402,68 @@ public sealed class PersonalEquipmentTests
         await provider.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Contains(world.ExportState().Events, item => item.Kind == "conversation_accepted" &&
             item.Detail.StartsWith(conversationId, StringComparison.Ordinal));
-        for (var tick = 0; tick < 120; tick++)
+        // Repair stops on acceptance. Keep the held request below its 45-second
+        // wall deadline, then explicitly complete or fail it instead of racing it.
+        const int pendingProviderTicks = 12;
+        for (var tick = 0; tick < pendingProviderTicks; tick++)
         {
             Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
             Assert.Equal(AgentConversationStatus.AwaitingSpeaker, Assert.Single(world.Conversations).Status);
         }
-        Assert.True(world.WorldTick - started > 120);
+        Assert.True(world.WorldTick - started > pendingProviderTicks);
         var saved = PrivateWorldRuntimeCodec.Encode(world.ExportState());
         var decoded = PrivateWorldRuntimeCodec.Decode(saved);
         Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(decoded));
         using var restored = PrivateWorldRuntime.Restore(decoded, _ => provider);
         Assert.Null(restored.Inhabitants.Single(person => person.InhabitantId == actor).Equipment?.Repair);
+        Assert.Equal(AgentConversationStatus.Suspended, Assert.Single(restored.Conversations).Status);
+        Assert.Equal(AgentConversationInterruption.Restored, Assert.Single(restored.Conversations).Interruption);
         Assert.Equal(InventoryReservationState.Released, restored.Society.Inventory.GetReservation(reservationId).State);
         Assert.Equal(2, restored.Society.Inventory.GetLot(clothId).Quantity);
         Assert.Null(world.Inhabitants.Single(person => person.InhabitantId == actor).Equipment?.Repair);
         Assert.Equal(InventoryReservationState.Released, world.Society.Inventory.GetReservation(reservationId).State);
         Assert.Equal(2, world.Society.Inventory.GetLot(clothId).Quantity);
         Assert.Equal(2_000, world.Society.Inventory.GetLot(coatId).ConditionBasisPoints);
+
+        if (timeout)
+        {
+            provider.TimeoutHeldTurn();
+            await provider.CancellationObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            for (var tick = 0; tick < 24 && Assert.Single(world.Conversations).Status == AgentConversationStatus.AwaitingSpeaker; tick++)
+                Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+            var suspended = Assert.Single(world.Conversations);
+            Assert.Equal(AgentConversationStatus.Suspended, suspended.Status);
+            Assert.Equal(AgentConversationInterruption.ProviderTimedOut, suspended.Interruption);
+            Assert.Empty(suspended.Turns);
+            Assert.Contains(world.ExportState().Events, item => item.Kind == "conversation_interrupted" &&
+                item.Detail == conversationId + ":provider_timed_out");
+            var timeoutSave = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+            var timeoutDecoded = PrivateWorldRuntimeCodec.Decode(timeoutSave);
+            Assert.Equal(timeoutSave, PrivateWorldRuntimeCodec.Encode(timeoutDecoded));
+            using var timeoutReload = PrivateWorldRuntime.Restore(timeoutDecoded, _ => new Choices([]));
+            Assert.Equal(AgentConversationStatus.Suspended, Assert.Single(timeoutReload.Conversations).Status);
+            Assert.Empty(Assert.Single(timeoutReload.Conversations).Turns);
+            Assert.Null(timeoutReload.Inhabitants.Single(person => person.InhabitantId == actor).Equipment?.Repair);
+            Assert.Equal(InventoryReservationState.Released, timeoutReload.Society.Inventory.GetReservation(reservationId).State);
+            Assert.Equal(2, timeoutReload.Society.Inventory.GetLot(clothId).Quantity);
+            Assert.Equal(2_000, timeoutReload.Society.Inventory.GetLot(coatId).ConditionBasisPoints);
+            return;
+        }
+
+        provider.ReleaseHeldTurn();
+        for (var tick = 0; tick < 24 && Assert.Single(world.Conversations).Status != AgentConversationStatus.Closed; tick++)
+            Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+        var completedConversation = Assert.Single(world.Conversations);
+        Assert.Equal(AgentConversationStatus.Closed, completedConversation.Status);
+        Assert.Equal("agreed", completedConversation.Outcome);
+        Assert.Contains(world.ExportState().Events, item => item.Kind == "conversation_turn_admitted" &&
+            item.Detail.StartsWith(conversationId + ":", StringComparison.Ordinal));
+        var completedSave = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var completedReload = PrivateWorldRuntime.Restore(
+            PrivateWorldRuntimeCodec.Decode(completedSave), _ => new Choices([]));
+        Assert.Equal(completedSave, PrivateWorldRuntimeCodec.Encode(completedReload.ExportState()));
+        Assert.Equal(AgentConversationStatus.Closed, Assert.Single(completedReload.Conversations).Status);
+        Assert.Equal(2_000, completedReload.Society.Inventory.GetLot(coatId).ConditionBasisPoints);
     }
 
     [Fact]
@@ -1146,9 +1193,12 @@ public sealed class PersonalEquipmentTests
     private sealed class HeldRepairConversationProvider(IReadOnlySet<string> participants)
         : IDecisionProvider, IAgentConversationProvider
     {
-        private readonly Choices planner = new(["conversation_accept:"]);
+        private readonly Choices planner = new(["conversation_accept:", "conversation_wrapup_accept:"]);
         private readonly TaskCompletionSource<AgentConversationTurnResponse> held = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private AgentConversationTurnRequest? heldRequest;
+        private int released;
         public TaskCompletionSource<bool> Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<bool> CancellationObserved { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public DecisionProviderKind Kind => planner.Kind;
         public long ProviderEpoch => planner.ProviderEpoch;
         public bool CanSpeakAs(string agentId) => participants.Contains(agentId);
@@ -1158,9 +1208,26 @@ public sealed class PersonalEquipmentTests
             CancellationToken cancellationToken = default)
         {
             request.Validate();
+            if (Volatile.Read(ref released) != 0)
+                return ValueTask.FromResult(Response(request));
+            heldRequest = request;
+            cancellationToken.Register(() => { CancellationObserved.TrySetResult(true); });
             Started.TrySetResult(true);
             return new(held.Task.WaitAsync(cancellationToken));
         }
+
+        public void ReleaseHeldTurn()
+        {
+            var request = heldRequest ?? throw new InvalidOperationException("The held conversation turn has not started.");
+            Interlocked.Exchange(ref released, 1);
+            held.TrySetResult(Response(request));
+        }
+
+        public void TimeoutHeldTurn() => held.TrySetException(new TimeoutException("Controlled conversation deadline."));
+
+        private static AgentConversationTurnResponse Response(AgentConversationTurnRequest request) => new(
+            request.RequestId, request.ConversationId, request.Revision, request.RunEpoch, request.SpeakerId,
+            "We can finish this talk together.", AgentConversationDisposition.Continue);
     }
 
     private sealed class Choices(IReadOnlyList<string> allowed) : IDecisionProvider
