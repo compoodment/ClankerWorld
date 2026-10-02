@@ -1,5 +1,8 @@
 blank_issues_enabled: false
 contact_links:
+  - name: Report a security problem privately
+    url: https://github.com/compoodment/ClankerWorld/security/advisories/new
+    about: For a problem someone could exploit now, such as reading keys or private saves. Only the owner sees the report.
   - name: Contributing guide
     url: https://github.com/compoodment/ClankerWorld/blob/main/CONTRIBUTING.md
     about: How issues and pull requests are written and reviewed.

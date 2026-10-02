@@ -2,7 +2,7 @@
 title: How the game works
 type: architecture
 status: active
-updated: 2026-10-01
+updated: 2026-10-02
 ---
 
 # How the game works
@@ -58,6 +58,9 @@ The current host aims for one tick per real second. New worlds save 360 ticks
 per day and a 40-day year with four ten-day seasons; lifecycle thresholds are
 3/15/45/60 days. Load can affect real-time pace. The old development calendar
 is not silently reinterpreted; the observation carries the saved clock values.
+Its calendar pace includes the saved season lengths, so the game names dates
+such as Autumn 2, Year 1 from the world's own calendar instead of a copy. With
+no season lengths, from an older host, the game shows numeric dates.
 
 Hosted requests are dispatched after a committed tick and resolved at a later
 tick boundary. The unresolved queue entry is saved; the HTTP task is not save
@@ -82,36 +85,40 @@ error; the world, its message numbering and its save stay unchanged. These are
 the same limits a save applies, so an accepted message cannot leave the world
 unable to save.
 
-`InstructionCandidate` reads whole words only: *harvest* or *gather* means
-`harvest_food`; *berry* means `seek_food`; *eat*, *food* or *hungry* means
-`consume_food`; and *go*, *travel* or *move* means `seek_food`, so travel
-always heads toward food. A few plain inflections such as *gathering* and
-*berries* also count. A recognized order includes that understood task beside
-the original wording, but the host still checks current legal choices and
-whether the physical action actually succeeds. Text about a place or resource
-does not create map knowledge. A personal model can return a short optional
-reply tied to one exact message ID; that reply is saved separately from private
-thoughts and conversation speech. A local deterministic choice does not mark a
-message as heard.
+`ParseInstructionOrder` reads a complete, bounded food-task grammar: eating food,
+seeking a food source, and harvesting food. Harvest and travel orders must name
+food (or a supported food resource); explicit resource names must match a
+complete identifier, and food kinds must match that resource. Unsupported
+objects or operations, mixed tasks, unknown explicit targets, and invalid
+quantities or leftover words are rejected as not understood rather than mapped
+to a nearby candidate. A recognized order retains the player's original text and the
+understood action, but the simulation still checks legal choices and requires
+the requested physical effect before recording progress. Names in the prompt
+do not create map knowledge. Optional observer replies are tied to the exact
+message ID and stored separately from private thoughts and conversation
+speech. Local deterministic decisions do not mark messages as heard.
 
 A MustDo with no recognized action is closed when it is submitted: it is added
 to the completed instructions with an `instruction_not_understood` event
-(`<agent ID>:<instruction ID>`), which the Event Log shows. Each tick repeats
-this check before scheduling, which also closes an order queued under earlier
-matching rules. A closed order requests no decision and no longer blocks later
-instructions to that agent.
+(`<agent ID>:<instruction ID>`), which the Event Log shows. This preserves the
+active and queued recognized orders. A closed unsupported order requests no
+decision and does not block later instructions. Suggestive interpretation stays
+separate from the strict MustDo grammar.
 
 Recognized MustDo instructions complete only when their requested legal action
-actually progresses: acquiring food or orchard fruit, eating, or taking a travel
-step. An unrelated action, blocked movement or unavailable food leaves the
-instruction pending, including across reload. Travel completion here is one
-step, not a full-route goal. Recognized orders to one agent apply in submission
-order, so a pending order holds later orders back. Suggestions do not block
-orders. A suggestion completes only after the addressed personal model accepts
-a request containing it; local choices and provider failures do not claim it
-was heard.
+actually progresses. Default gathering counts one harvest; explicit quantities
+count food acquired or consumed. Travel finishes only on arrival within
+interaction range of the requested food site; counted travel is refused.
+An unrelated action, blocked movement or unavailable food leaves the instruction
+pending, including across reload. A recognized new order replaces outstanding
+orders unless `Queue` is true; queued orders run in submission order. Cancel
+retains an idempotent receipt, including a no-op cancellation of a closed order.
+Receipt-only owner changes supersede a concurrently prepared tick too.
+Suggestions do not block orders. A suggestion completes only after the
+addressed personal model accepts a request containing it; local choices and
+provider failures do not claim it was heard.
 
-A newly submitted message triggers one fresh cognition request. Its prompt
+New suggestions and recognized active orders trigger one fresh cognition request. Its prompt
 marker only prevents a new request every tick; it is not a read receipt. The
 same pending message remains available on the agent's later ordinary planning
 requests until a personal-model result is accepted. After the fresh request,
@@ -119,6 +126,17 @@ requests until a personal-model result is accepted. After the fresh request,
 every 30 ticks, and idle agents reevaluate when their legal choices change or
 after 300 ticks. A blocked order therefore cannot request a paid model call on
 every tick.
+
+Local order steps can continue while a hosted reply is pending. An accepted
+decision and a local continuation do not execute the same order twice in one
+tick. If local work finishes first, a valid reply to that exact original
+request can still record that the model heard the message. Its old action is
+discarded before execution; cancelled or replaced tasks cannot use this path.
+Urgent survival uses the normal unrestricted legal candidates before
+resuming the task, and repeated eating respects the normal fullness threshold.
+Gathering and collecting household food check free carrying capacity before
+starting a step. A provider fallback leaves the order blocked for a bounded
+normal retry; it cannot strand the task permanently on `safe_idle`.
 
 The owner snapshot sends every open message, plus the six most recently
 submitted closed messages for each agent, whether or not a personal model heard
@@ -150,7 +168,33 @@ personality, aspiration, household, available warmth/illness and the latest
 private thought. Absent fields remain unknown. Need scales are explained;
 `hunger_basis_points` measures fullness (0 starving, 10,000 full).
 Self context is included in the queued-observation digest. Nearby relationships,
-carried inventory and current activity are not provided.
+carried inventory and current activity are not provided. Jev's routine request
+sends the same three needs as flat fields after `hunger_basis_points`:
+`warmth_basis_points` and `illness_basis_points`, `null` when unknown, with
+their scales explained in its instructions.
+
+`ModelNeedWords` holds the agreed alternative from
+[#646](https://github.com/compoodment/ClankerWorld/issues/646): each need as a
+word followed by its whole scale, worst to best, with no exact value, such as
+`"fullness": "hungry (starving, hungry, fine, full; starving is worst, full is best)"`.
+Fullness is *full* from 70%, *fine* from 40%, *hungry* from 20% and *starving*
+below that, matching the comfortable and urgent food references. Warmth is
+*warm* from 60%, *chilly* from 35% and *freezing* below that. Illness is *well*
+below 25%, *unwell* below 50%, *ill* below 75% and *very ill* from there: each
+step is where illness slows work further (the owner's choice on
+[#672](https://github.com/compoodment/ClankerWorld/issues/672)). In words, the
+personal request sends `fullness`, `self.warmth` and `self.illness` in place of
+the three `_basis_points` fields, in the same positions, and drops the numeric
+scale sentences; Jev's routine request sends `fullness`, `warmth` and `illness`
+the same way. Unknown warmth or illness stays `null`. Nothing else in either request changes, and
+the observation, its digest, admission and the simulation keep the exact values.
+
+Both adapters take a `needFormat` setting. `ModelNeedWords.DefaultFormat` is
+`Numbers`, so play sends numbers. Words were to become the default only if they
+did no worse than numbers with GLM 5.3 Flash and GPT 6 Luna; they did worse
+with GLM 5.3 Flash, and on October 2 the owner chose to keep numbers.
+[Need wording comparison](need-wording-comparison.md) describes the comparison
+harness and its results.
 
 Newly placed adults get one opportunity to choose personality and aspiration
 in the existing first personal-model action reply. Optional `chosen_personality`
@@ -360,6 +404,34 @@ Concurrent requests share its optional lifetime attempt cap. Failure, retry and
 abandonment keep their spent allowance; only known token counts are added.
 Deterministic choices consume no attempt. Reaching the cap persists a pause;
 changing allowance and resuming are separate owner actions.
+
+The reservation that brings the total to 80% of the cap, rounded up
+(`ProviderUsageStore.WarningMark`), raises `WarningReached` once at that
+installation-wide crossing. No additional durable warning marker is saved:
+totals only grow, one per reservation, and a changed cap sets a new mark that
+only later reservations can cross. In private-world mode the host acquires the
+world mutation gate, then appends a player-facing `model_call_warning` event
+(`used:<count>:limit:<cap>`) to the world active at that time. A concurrent world
+switch can change which world receives it.
+
+A successful save keeps the warning event with that world. A failed save leaves
+the event in memory for the next successful world save and logs
+`event_log_unsaved`. A restart or loading an older save restores its checkpoint,
+which may predate the warning; the installation counter never rewinds and does
+not reissue past crossings. The count and cap stay in the usage file, and no
+checkpoint schema changed. Telemetry logs `provider_usage_warning` with its
+outcome.
+
+`ProviderUsageWorldEffects` applies both the cap's pause and the warning, each
+under the world mutation gate and followed by a save. Starting a conversation
+call reserves before the provider's first await; canceling a provider call can
+also invoke accounting callbacks synchronously. Both can happen on the thread
+holding the runtime gate. That gate is not reentrant, so the runtime marks
+provider startup and cancellation under it
+(`IsInvokingProviderUnderGateOnThisThread`). On that thread the pause or warning
+moves to another task that waits for the world. Outside the runtime gate it
+runs at once, so a hosted decision's late reply cannot be admitted before the
+pause. `provider_usage_limit_reached` logs `paused`, `paused_unsaved` or `failed`.
 
 Unreadable or inconsistent accounting leaves the host reachable with paid work
 blocked. Preserve the damaged file; changing the cap cannot bypass it. Writes
@@ -588,6 +660,56 @@ recorded, living or dead, not from the client's agent ID. The saved birth tick
 holds the result, so loading never draws again. Year-based development worlds
 keep the 18-year adult age.
 
+Each `TownRuntimeState` carries its own `TownGovernanceState`. `TownGovernanceRules`
+implements all-adult and representative councils from recorded living adult
+residents, independently of geometry and household affiliation. A separate
+`SettlementCouncil` remains the household-food steward prototype.
+
+The civic engine keeps final proposal votes, continuing candidate agreements,
+opening voter/candidate lists, latest election ballots, cutoff runoffs, settled
+seats, fair draw order, ten-day terms and retry snapshots. A failed election may
+retry after one world day, or sooner when adult/candidate availability improves;
+withdrawals and departures do not themselves reset that wait. Council revisions
+cancel pending proposals without altering settled decisions. Admission requests
+merge by subject identity; ordinary text requests merge after case/whitespace
+normalization. Roster changes or independently supplied material circumstances
+allow earlier proposal reconsideration.
+
+`PrivateWorldRuntime.Governance` advances each Town on the normal tick path and
+rechecks authority when applying choices. `civic|...` actions let actors visit
+the public notice place, read posted notices, relay them within interaction
+range, nominate another resident, register their own consent and choose proposals
+or ballots. A nomination posts a notice; only the named agent's personal response
+can add agreement. Adults may request their own admission near the notice place,
+and residents may request admission of an unaffiliated adult nearby. The optional
+`civic_proposal` and `civic_ballot` structured response fields are carried only
+through admitted choices. Missing, stale or malformed responses cannot supply
+votes. A generic private thought or another actor naming a candidate supplies
+neither agreement nor approval. No polling provider calls are added, and Jev is
+optional.
+
+Formal civic acts require an admitted personal-model choice. Built-in decisions,
+failed replies and continued intentions supply no votes or candidate agreement.
+An explicitly chosen visit can continue moving locally; ballots may be revised
+on the agent's ordinary decision cadence.
+
+Long ancestry-based agent IDs use stable SHA-256 aliases in civic model action
+tokens. The runtime resolves these against current inhabitants before checking a
+ballot; saved candidates and choices retain the actual IDs.
+
+Saved notice receipts enter a bounded `CognitionSelfContext.CivicNote` excerpt
+with read/relay provenance and readable names/world days. An actor receives no
+unseen civic dump. Owner observations project each council, its latest eight
+proposals, the current election and the latest archived election onto the normal
+Godot Towns page. Failed and cancelled outcomes remain visible; the complete
+authoritative proposal and election history stays in the checkpoint. Long Town
+readouts scroll within the available screen height. A passed ordinary law
+proposal records approval without creating new physical/legal powers. The
+`AdmissionApproval` result is available for #602; the engine does not perform
+membership, household, care-group or inventory transfers. Bounded civic lifecycle
+telemetry records Town identity and council/vote/status counts without proposal
+text, notices, names or per-read polling noise.
+
 `FirstTownLayoutPlanner` lays the first Town street first, using
 `TownStreets`. A main road runs both ways from the chosen site along its most
 open line, bending in 45° steps, never more than 45° from the heading it set out
@@ -653,6 +775,14 @@ pickup and delivery both check remaining space. Grain prefers the Farmhouse,
 while other farm stock prefers the Silo. Ready-to-eat greens and fruit go to
 the household's House. Neither stock nor ownership moves
 remotely.
+
+**Household departure and personal custody** (`SettlementDeparture`). Ordinary decision candidates allow an adult to leave without a vote, store or collect their own goods, return borrowed household tools, explicitly accept replacement care, and found a solo household only when no suitable existing home can currently be asked. Membership exits and admissions include the complete primary-care group. The same completed House-capacity calculation checks all incoming residents; children never apply alone. The displacement transition refuses adults with a moving dependent group, leaving overcrowding eligibility and notice to #599.
+
+`InventoryLot.OwnerId` records property; optional `CarrierId` records physical custody without donation. Personal goods may remain in House storage after departure. `InventoryFixture.Relocate` preserves ownership, condition, provenance and reservations while moving an unreserved quantity. A stored personal lot is collected physically, with carrying limits, under the current household membership or a recorded departure's limited collection right. Borrowed tools retain the lender's owner ID while carried and are returned physically. Shared delivery loads retain their owning household on departure. Shared buildings, stock and job records are never reassigned to the new household. A departing worker's private production and expansion jobs pause with their existing owners and reservations; their previous work plan is retained on the departure record instead of resuming under a new household. A remaining member can take over paused work at its physical site, using the same still-available committed inputs and remaining work time. Private materials held by the former worker are not reassigned; these keep the task blocked. Held reservations keep their exact owner and stock, receive a new deadline only on resumption, and are released if the materials become unusable; canceled job records retain the original property owner.
+
+Each departure allocates at most two unreserved ready-to-eat portions once. Ownership changes at allocation while the existing storage/ground location stays fixed. Saved departure records retain the allocation and collection right; retries with no current membership cannot allocate again. Caregiver IDs and ancestry stay unchanged. Dependents follow the caregiver in physical steps, and a traveling caregiver waits when a dependent falls behind. Housing, ownership, collection and care facts use normal personal-model observations and player inspection; no extra acknowledgement request is made.
+
+Production jobs capture their owner when the original inputs are reserved. Completion uses that saved owner, including at a public workstation when the worker leaves or forms a household during the job; membership changes cannot redirect the finished goods.
 
 **Housing requests** (`SettlementHousing`). An adult whose household holds no
 House has a saved `Housing` record on their physical state: a pending request,
@@ -810,8 +940,50 @@ Store stocking also keeps each adult's best usable work tool. Optional shelf
 restocking waits behind gathering materials needed by household work.
 Rates, the eight-unit shelf target and four-unit carried loads are provisional.
 Blacksmiths can sell real refined iron for another household's tool work.
-Market stalls, tool orders, meals and care remain tracked in #564 and its
-domain issues; currency remains later work.
+Market stalls, tool orders and meals remain tracked in #564 and its domain
+issues; currency remains later work. The Clinic sells actual medicine
+and bandages through the same inventory and physical business authority.
+
+**Clinic supplies and illness care** use the normal household building,
+workstation supply, ecology and recipe paths. `clankerworld-care-v1` adds a
+1×2 Clinic costing 10 wood and 4 stone, bandage recipes at the House and Tailor
+Shop, and a medicine recipe at the Clinic. One cloth makes two bandages in
+eight base work ticks; two medicinal herbs, one fresh water and one wood make
+two medicine in sixteen. These quantities and times are provisional. Herbs
+come from reachable renewable patches. Ingredients must arrive at the actual
+workplace; medicine reserves water from a real reusable jug and leaves the
+vessel intact. Injury causes and bandage treatment remain deferred.
+
+The [#749](https://github.com/compoodment/ClankerWorld/issues/749) fix
+returns empty household pots and jugs from a workstation to the household's
+House using physical pickup and the existing delivery path. It keeps inventory
+ownership and reservations authoritative and checks carrying room, the walking
+route and destination space. As with other household deliveries, the hauling
+adult holds the vessel during the trip and delivery hands it back to the
+household. A save during the trip retains the same vessel and delivery.
+Automated checks cover the return path.
+
+Medical permission is admitted only from a fresh, accepted, non-fallback
+`LargeLanguageModel` choice by the adult patient. Jev, owner orders, failed
+replies and continuing intentions cannot grant or revoke that authority.
+Self-treatment is allowed, and a dependent's effective accepted `Caregiver`
+relationship supplies their existing authority. Treatment checks living adult
+caregivers, permission, local patient observation and actual usable medicine.
+An unrelated household's stock must be bought through ordinary barter first.
+Models receive no distant patient's hidden health or location through care.
+
+Starting medicine reserves and consumes one actual dose through the inventory
+authority. Its completed reservation binds the patient, caregiver, owner and
+start time. The provisional course lasts twenty world ticks and removes
+75 illness basis points per tick. Maintenance ends an interrupted course
+without refunding the dose, including death, permission withdrawal or loss of
+dependent-care authority. Closing the receipt's medical purpose prevents a
+spent effect from being reattached after permission is renewed. Death releases
+live reservations while preserving completed consumption receipts. Permission,
+active progress and closed receipts survive current-format save/reload; a
+paused world advances no treatment time. See [saves and replay](saves-and-replay.md).
+Automated checks cover this path; the
+[Windows playtest](../../playtest/565-clinic-care.md) is still pending.
 
 Death archives the last physical state and frozen age, then removes the active
 actor. Existing personal inventory can be frozen in estate escrow. One bounded
@@ -836,8 +1008,8 @@ saves made before this change are refused.
 
 Workstation recipes use only stock already at the building. A household
 building without its own dedicated hauling (every kind except the House,
-Farmhouse and Blacksmith, so today the Tailor Shop) is kept stocked by the
-`supply_workstation:<item>` choice. It is offered to an adult of the holding
+Farmhouse and Blacksmith, including the Tailor Shop and Clinic) is kept stocked
+by the `supply_workstation:<item>` choice. It is offered to an adult of the holding
 household while the building holds less of an input than two batches of the
 largest recipe that needs it, counting loads already on their way. The adult
 delivers what they carry, picks up the household's spare stock from its House
@@ -1019,6 +1191,35 @@ fields are read separately. Existing entries use the current saved name, includi
 deceased profiles. Hosted-decision and Town telemetry likewise keep complete IDs.
 These readers do not rewrite accepted event details or change save/replay formats.
 
+The owner snapshot projects the saved continuity rule's current on/off state.
+Godot uses it to keep an **Add a newcomer** offer in the Event Log while the
+rule is on in a started world, even when the transition event has left bounded
+history. The link opens the existing Add Agent controls and rechecks the current
+snapshot when clicked; it neither places an agent nor asks for a paid model call.
+
+## Developer tools readouts
+
+Developer tools (**F12** in the Godot client) read two diagnostics from the owner
+observation. Both come from the committed world, are never saved and are never
+read back by the simulation, so they cannot change a tick, a save or replay.
+
+- **`PlannedRoute`** on each living agent is the route `MoveToward` planned on
+  the agent's latest step: its reason code, destination and the tiles still
+  ahead. The observation sends at most 256 steps; `StepCount` gives the full
+  count. An agent waiting out a slow step keeps the route it was walking; one
+  that arrived, was blocked or did something else that tick has none. Each
+  proposed tick starts without routes and its commit replaces them. Loading a
+  checkpoint, switching worlds or restarting the host clears them until the
+  next tick.
+- **`LastTickMilliseconds`** on the snapshot is the wall-clock time to prepare
+  and advance the latest committed tick, rounded to 0.1 ms. It leaves out
+  waiting for the runtime gate, hosted model calls between ticks and the
+  checkpoint save. It is null until the first tick after start, load or a
+  world switch, and the legacy fixture host never reports it.
+
+The client draws only the reported route; it never plans one. Frame time is
+measured in the client.
+
 ## Development and finished distribution
 
 Development currently uses the private server. The intended first finished
@@ -1052,7 +1253,21 @@ An adult carrying a usable, unreserved iron pickaxe can choose actual gold or
 diamond mining from a reachable finite outcrop. The complete eight-item trial
 load must fit. The decision stops offering more once the adult and their
 household together hold eight of that material. These goods remain carried
-physical stock; ornament making and a special rare-goods market are later work.
+physical stock.
+Ornaments extend this stock path with Blacksmith gold refining, gold
+ornaments and optional diamond setting. They reuse normal physical supply,
+reserved production and shop exchanges rather than adding a second inventory
+or market.
+
+Its worn-item record refers to one exact personally carried ornament. Wearing
+does not exempt that unit from cargo or grant protection. Collection, removal,
+gifts, sale, storage and estate handling must keep ownership, reservations and
+location consistent; automatic storage or payment must protect the selected
+unit. Viewer and client descriptions show the worn kind, without a new sprite.
+Wear, removal and gift candidates require a fresh accepted non-fallback
+LargeLanguageModel response whose exact offered target is still valid at
+admission. Jev, continuing intentions and MustDo cannot select them. Gift
+recipients come from locally observable people rather than a remote world scan.
 
 The Blacksmith makes wooden, stone and iron tools from actual inputs, refines
 iron ore into separate refined iron, and repairs one carried worn tool at a

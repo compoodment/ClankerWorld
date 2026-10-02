@@ -53,6 +53,7 @@ public partial class Main
         }
 
         if (controlsPanel.Visible) PositionControlsPanel();
+        PositionDeveloperTools();
         PositionAgentProfile();
         PositionBuildingDetails();
         PositionMapHud();
@@ -61,9 +62,11 @@ public partial class Main
         PlaceHudPanels();
         PositionSelectedTilePanel();
         PositionFamilyTreePanel(viewport, hudTop);
+        FitHudLists();
         foreach (var reader in new[] { memoriesPanel, thoughtsPanel, conversationPanel })
         {
             reader.CustomMinimumSize = new Vector2(Math.Clamp(viewport.X - 28, 320, ReaderWidth), 0);
+            if (reader == memoriesPanel && reader.Visible) FitMemoryCards();
             PlaceReaderPanel(reader);
         }
 
@@ -79,25 +82,36 @@ public partial class Main
 
     private void PositionFamilyTreePanel(Vector2 viewport, float hudTop)
     {
-        var panelWidth = Math.Max(1, Math.Min(840, viewport.X - 28));
         familyTreePanel.CustomMinimumSize = Vector2.Zero;
         familyTreeScroll.CustomMinimumSize = Vector2.Zero;
 
-        // Measure the heading, help text, frame padding and spacing without
-        // the tree viewport, then give the tree as much of the remaining
-        // screen height as its content needs. Long trees scroll inside this
-        // bounded area instead of making the panel run off-screen.
-        var panelChrome = Math.Max(0,
-            familyTreePanel.GetCombinedMinimumSize().Y - familyTreeScroll.GetCombinedMinimumSize().Y);
+        // Measure the panel with the whole tree in view, then cap it to the
+        // screen. Long or wide trees scroll inside this bounded area instead
+        // of making the panel run off-screen.
+        var tree = familyTreeView.GetCombinedMinimumSize();
+        familyTreeScroll.CustomMinimumSize = new Vector2(Math.Max(0, tree.X), 0);
+        var wanted = familyTreePanel.GetCombinedMinimumSize();
         var topLimit = Math.Min(Math.Max(14, hudTop), Math.Max(14, viewport.Y - 14));
         var availableHeight = Math.Max(1, viewport.Y - topLimit - 14);
-        var treeHeight = Math.Max(0, familyTreeView.GetCombinedMinimumSize().Y);
-        familyTreeScroll.CustomMinimumSize = new Vector2(0,
-            Math.Min(treeHeight, Math.Max(0, availableHeight - panelChrome)));
+        var panelWidth = Math.Max(1, Math.Min(Math.Max(320, wanted.X), viewport.X - 28));
+        // The scroll area is measured at the tree's width but no height, so
+        // everything else in the panel is the width beside it and the height above it.
+        var chromeWidth = Math.Max(0, wanted.X - tree.X);
+        var chromeHeight = wanted.Y;
+        familyTreeScroll.CustomMinimumSize = new Vector2(
+            Math.Max(0, Math.Min(tree.X, panelWidth - chromeWidth)),
+            Math.Min(Math.Max(0, tree.Y), Math.Max(0, availableHeight - chromeHeight)));
         familyTreePanel.CustomMinimumSize = new Vector2(panelWidth, 0);
 
         var panelHeight = Math.Min(availableHeight, familyTreePanel.GetCombinedMinimumSize().Y);
         familyTreePanel.Size = new Vector2(panelWidth, panelHeight);
+        // Beside the Profile it was opened from when there is room, so both stay readable.
+        var beside = agentProfilePanel.Position.X + agentProfilePanel.Size.X + 12;
+        if (agentProfilePanel.Visible && beside + panelWidth <= viewport.X - 14)
+        {
+            familyTreePanel.Position = new Vector2(beside, topLimit);
+            return;
+        }
         var maximumY = Math.Max(14, viewport.Y - panelHeight - 14);
         var minimumY = Math.Min(topLimit, maximumY);
         var centeredY = (viewport.Y - panelHeight) / 2;
@@ -169,8 +183,8 @@ public partial class Main
     }
 
     /// <summary>
-    /// Settings and Developer tools scroll inside the menu panel, as tall as
-    /// their contents but never taller than the screen leaves room for.
+    /// Settings scrolls inside the menu panel, as tall as its contents but
+    /// never taller than the screen leaves room for.
     /// </summary>
     private void FitMenuScrolls(float viewportHeight)
     {
@@ -178,13 +192,12 @@ public partial class Main
         settingsScroll.CustomMinimumSize = new Vector2(
             Math.Max(gameSettingsContent.GetCombinedMinimumSize().X, worldSettingsContent.GetCombinedMinimumSize().X) +
             SettingsScrollGap + settingsScroll.GetVScrollBar().GetCombinedMinimumSize().X, settingsScroll.CustomMinimumSize.Y);
-        foreach (var scroll in new[] { settingsScroll, developerScroll })
+        if (settingsScroll.IsVisibleInTree() && settingsScroll.GetChildCount() > 0 && settingsScroll.GetChild(0) is Control content)
         {
-            if (!scroll.IsVisibleInTree() || scroll.GetChildCount() == 0 || scroll.GetChild(0) is not Control content) continue;
-            scroll.CustomMinimumSize = new Vector2(scroll.CustomMinimumSize.X, 0);
+            settingsScroll.CustomMinimumSize = new Vector2(settingsScroll.CustomMinimumSize.X, 0);
             var around = gameMenuPanel.GetCombinedMinimumSize().Y;
             var height = Math.Clamp(content.GetCombinedMinimumSize().Y, 120, Math.Max(120, viewportHeight - 28 - around));
-            scroll.CustomMinimumSize = new Vector2(scroll.CustomMinimumSize.X, height);
+            settingsScroll.CustomMinimumSize = new Vector2(settingsScroll.CustomMinimumSize.X, height);
         }
         gameMenuPanel.Size = gameMenuPanel.GetCombinedMinimumSize();
     }

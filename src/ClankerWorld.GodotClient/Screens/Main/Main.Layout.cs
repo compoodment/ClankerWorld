@@ -26,6 +26,7 @@ public partial class Main
         BuildFounderSetupPanel(uiLayer);
         BuildInspectorColumn(uiLayer);
         BuildOwnerColumn(uiLayer);
+        BuildDeveloperTools(uiLayer);
         FitFloatingPanelsToContents();
         BuildStatusToast(uiLayer);
         AddChild(menuLayer);
@@ -79,13 +80,15 @@ public partial class Main
         worldSettingsContent.Visible = worldSpecific;
         SelectSettingsCategory(worldSpecific ? worldSettingsCategoryButton : gameSettingsCategoryButton);
         settingsScroll.Show();
-        developerScroll.Hide();
-        developerToggleButton.Text = "Developer tools";
         if (worldSpecific && registration is not null)
         {
             _ = RefreshWorldSettingsAsync();
         }
-        if (!worldSpecific) _ = RefreshApiKeysAsync();
+        if (!worldSpecific)
+        {
+            _ = RefreshApiKeysAsync();
+            _ = RefreshUsageAsync();
+        }
 
         ShowPauseMenuPage("Settings");
         ApplyResponsiveLayout();
@@ -95,7 +98,6 @@ public partial class Main
     {
         await RefreshAutosaveSettingsAsync();
         await RefreshProviderConfigurationAsync();
-        await RefreshUsageAsync();
     }
 
     private void BuildPairingPanel()
@@ -150,6 +152,10 @@ public partial class Main
         objectLayer.MouseFilter = Control.MouseFilterEnum.Ignore;
         mapStage.AddChild(objectLayer);
 
+        // Developer tools draw an agent's planned path between objects and agents.
+        plannedPathLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        mapStage.AddChild(plannedPathLayer);
+
         entityLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         entityLayer.MouseFilter = Control.MouseFilterEnum.Ignore;
         mapStage.AddChild(entityLayer);
@@ -165,7 +171,11 @@ public partial class Main
         BuildBuildingCards();
 
         worldOverview.CenterRequested += CenterCameraAt;
-        AddClosablePanelContents(worldOverviewPanel, "World Map", worldOverview);
+        var overviewBody = new VBoxContainer();
+        overviewBody.AddThemeConstantOverride("separation", 6);
+        overviewBody.AddChild(worldOverview);
+        overviewBody.AddChild(OverviewLegend());
+        AddClosablePanelContents(worldOverviewPanel, "World Map", overviewBody);
         worldOverviewPanel.Position = new Vector2(14, 14);
         worldOverviewPanel.ZIndex = 80;
         worldOverviewPanel.Hide();
@@ -194,6 +204,7 @@ public partial class Main
         inhabitantList.ItemSelected += index => SelectInhabitantFromList(index);
         inhabitantList.TooltipText = "Choose someone to find them in the world.";
         rosterBody.AddChild(inhabitantList);
+        BuildRosterCards(rosterBody);
         AddClosablePanelContents(rosterPanel, "Agents", rosterBody);
         rosterPanel.CustomMinimumSize = new Vector2(410, 0);
         rosterPanel.ZIndex = 80;
@@ -201,15 +212,20 @@ public partial class Main
         content.AddChild(rosterPanel);
 
         ConfigureTextPanel(eventLog, 300);
-        eventLog.MetaClicked += meta => JumpToEvent(meta.AsString());
+        eventLog.MetaClicked += meta => _ = HandleEventLogActionAsync(meta.AsString());
         eventLog.TooltipText = "Click a located event to jump to where it happened.";
-        AddClosablePanelContents(eventsPanel, "Event Log", eventLog);
-        eventsPanel.CustomMinimumSize = new Vector2(390, 0);
+        var eventsBody = new VBoxContainer();
+        eventLog.Hide();
+        eventsBody.AddChild(eventLog);
+        BuildEventRows(eventsBody);
+        AddClosablePanelContents(eventsPanel, "Event Log", eventsBody);
+        eventsPanel.CustomMinimumSize = new Vector2(430, 0);
         eventsPanel.ZIndex = 80;
         eventsPanel.Hide();
         content.AddChild(eventsPanel);
 
         var familyBody = new VBoxContainer();
+        familyBody.AddThemeConstantOverride("separation", 8);
         var familyHeading = new HBoxContainer();
         var familyTitle = new Label { Text = "Family Tree", ThemeTypeVariation = "HeadingLabel", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
         familyHeading.AddChild(familyTitle);
@@ -217,13 +233,19 @@ public partial class Main
         closeFamily.Pressed += () => familyTreePanel.Hide();
         familyHeading.AddChild(closeFamily);
         familyBody.AddChild(familyHeading);
-        familyTreeStatus.Text = "Green: parent–child   ·   Pink: partnership   ·   Click a person to inspect";
+        familyTreeStatus.Text = "No family links recorded yet. Housemates are not automatically relatives.";
+        familyTreeStatus.ThemeTypeVariation = "DimLabel";
+        familyTreeStatus.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        familyTreeStatus.CustomMinimumSize = new Vector2(280, 0);
         familyBody.AddChild(familyTreeStatus);
+        FillFamilyLegend();
+        familyBody.AddChild(familyLegend);
         familyTreeScroll.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         familyTreeScroll.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
         familyTreeScroll.AddChild(familyTreeView);
         familyBody.AddChild(familyTreeScroll);
         familyTreeView.PersonRequested += SelectFromFamilyTree;
+        familyTreeView.Portrait = AgentPortrait;
         AddPanelContents(familyTreePanel, familyBody);
         familyTreePanel.ZIndex = 85;
         familyTreePanel.Hide();
@@ -237,9 +259,7 @@ public partial class Main
         closeMemories.Pressed += () => memoriesPanel.Hide();
         memoriesHeading.AddChild(closeMemories);
         memoriesBody.AddChild(memoriesHeading);
-        ConfigureTextPanel(memoryHistory, 360);
-        memoryHistory.TooltipText = "What this agent remembers and believes, plus the maps they know. This is their view, not the full world log.";
-        memoriesBody.AddChild(memoryHistory);
+        BuildMemoryCards(memoriesBody);
         AddPanelContents(memoriesPanel, memoriesBody);
         memoriesPanel.ZIndex = 85;
         memoriesPanel.Resized += () => PlaceReaderPanel(memoriesPanel);
@@ -249,21 +269,7 @@ public partial class Main
         BuildWorldInfoPanel(content);
         BuildControlsPanel(content);
 
-        var tileBody = new VBoxContainer();
-        var tileHeading = new HBoxContainer();
-        tileHeading.AddChild(new Label { Text = "Selected tile", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill });
-        var closeTile = CloseButton("Close tile inspection");
-        closeTile.Pressed += ClearTileSelection;
-        tileHeading.AddChild(closeTile);
-        tileBody.AddChild(tileHeading);
-        ConfigureTextPanel(selectedTileText, float.MaxValue);
-        tileBody.AddChild(selectedTileText);
-        AddPanelContents(selectedTilePanel, tileBody);
-        selectedTilePanel.CustomMinimumSize = new Vector2(315, 0);
-        selectedTilePanel.Resized += PositionSelectedTilePanel;
-        selectedTilePanel.ZIndex = 80;
-        selectedTilePanel.Hide();
-        content.AddChild(selectedTilePanel);
+        BuildTileCard(content);
         BuildMapHud(content);
     }
 
@@ -321,16 +327,6 @@ public partial class Main
         modLibraryButton.Pressed += ShowModLibrary;
         menuActions.AddChild(modLibraryButton);
 
-        developerToggleButton.Text = "Developer tools";
-        StyleSettingsCategoryButton(developerToggleButton);
-        developerToggleButton.Pressed += () =>
-        {
-            settingsScroll.Hide();
-            developerScroll.Show();
-            SelectSettingsCategory(developerToggleButton);
-            ApplyResponsiveLayout();
-        };
-
         menuActions.AddChild(menuQuitSeparator);
         menuQuitToMainButton.Text = "Quit to Menu";
         StyleMenuChoice(menuQuitToMainButton);
@@ -387,37 +383,13 @@ public partial class Main
         clockFormatChoice.Selected = displayPreferences.UseTwelveHourClock ? 1 : 0;
         clockFormatChoice.ItemSelected += SetClockFormat;
 
-        dateFormatChoice.AddItem("DD-MM-YYYY");
-        dateFormatChoice.AddItem("MM-DD-YYYY");
-        dateFormatChoice.AddItem("YYYY-MM-DD");
-        dateFormatChoice.Selected = displayPreferences.DateFormat switch { "mdy" => 1, "ymd" => 2, _ => 0 };
-        dateFormatChoice.ItemSelected += SetDateFormat;
+        foreach (var (_, label) in DateStyles)
+            dateFormatChoice.AddItem(label);
+        dateFormatChoice.Selected = DateStyleIndex(displayPreferences.DateStyle);
+        dateFormatChoice.TooltipText = "Show dates by season and day, or as numbers in the order you prefer.";
+        dateFormatChoice.ItemSelected += SetDateStyle;
         gameSettingsContent.AddChild(SettingsBox("Date and time",
             DisplaySettingRow("Time display", clockFormatChoice), DisplaySettingRow("Date display", dateFormatChoice)));
-
-        var lifePaceRow = new HBoxContainer();
-        lifePaceRow.AddChild(new Label { Text = "Aging multiplier" });
-        lifePaceChoice.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-        lifePaceChoice.AddItem("Calendar", 1);
-        lifePaceChoice.AddItem("Generations", 365);
-        lifePaceChoice.AddItem("Fast generations", 1_460);
-        lifePaceChoice.SetItemTooltip(0, "Original aging: one biological year per 365 world days.");
-        lifePaceChoice.SetItemTooltip(1, "One biological year per world day (about 24 active minutes).");
-        lifePaceChoice.SetItemTooltip(2, "One biological year per quarter-day (about 6 active minutes).");
-        lifePaceChoice.TooltipText = "Prototype override only: changes future biological aging without changing the calendar, seasons or model-call speed. This is not the decided 40-day year or six-hour lifespan.";
-        lifePaceRow.AddChild(lifePaceChoice);
-        applyLifePaceButton.Text = "Apply";
-        StyleButton(applyLifePaceButton);
-        applyLifePaceButton.Pressed += () => _ = SaveLifePaceAsync();
-        lifePaceRow.AddChild(applyLifePaceButton);
-        var prototypePaceBody = new VBoxContainer();
-        prototypePaceBody.AddChild(new Label
-        {
-            Text = "Experimental prototype control. The decided world calendar and lifespan are not implemented by this setting.",
-            AutowrapMode = TextServer.AutowrapMode.WordSmart,
-        });
-        prototypePaceBody.AddChild(lifePaceRow);
-        developerBody.AddChild(NewPanel("Prototype aging override", prototypePaceBody));
 
         BuildAutosaveSettings();
 
@@ -428,10 +400,11 @@ public partial class Main
 
         BuildCognitionSettingsPanel();
         worldSettingsContent.AddChild(cognitionSettingsPanel);
-        BuildUsageLimitPanel();
-        worldSettingsContent.AddChild(usageLimitPanel);
 
         BuildApiKeysPanel();
+        // One call count and limit covers every world, so it is a Game setting.
+        BuildUsageLimitPanel();
+        gameSettingsContent.AddChild(usageLimitPanel);
         BuildConnectionPanel();
         gameSettingsContent.AddChild(connectionPanel);
         BuildPairingPanel();
@@ -458,7 +431,6 @@ public partial class Main
         StyleSettingsCategoryButton(worldSettingsCategoryButton);
         worldSettingsCategoryButton.Pressed += () => ShowSettingsSection(worldSpecific: true);
         settingsCategories.AddChild(worldSettingsCategoryButton);
-        settingsCategories.AddChild(developerToggleButton);
         SelectSettingsCategory(gameSettingsCategoryButton);
         var settingsLayout = new HBoxContainer();
         settingsLayout.AddThemeConstantOverride("separation", 10);
@@ -472,83 +444,6 @@ public partial class Main
         body.AddChild(settingsPanel);
         BuildModLibrary(body);
 
-        developerScroll.CustomMinimumSize = new Vector2(0, 340);
-        developerScroll.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-        developerScroll.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
-        developerScroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
-        developerBody.AddThemeConstantOverride("separation", 8);
-        developerScroll.AddChild(developerBody);
-
-        var retryBody = new VBoxContainer();
-        pendingSubmissionLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-        retryBody.AddChild(pendingSubmissionLabel);
-        var retryButtons = new HBoxContainer();
-        retryPendingSubmissionButton.Text = "Retry retained request";
-        retryPendingSubmissionButton.Pressed += () => _ = RetryPendingSubmissionAsync();
-        retryButtons.AddChild(retryPendingSubmissionButton);
-        forgetPendingSubmissionButton.Text = "Forget retained request";
-        forgetPendingSubmissionButton.Pressed += ForgetPendingSubmission;
-        retryButtons.AddChild(forgetPendingSubmissionButton);
-        retryBody.AddChild(retryButtons);
-        developerBody.AddChild(NewPanel("Response-loss recovery · exact server retry", retryBody));
-        RenderPendingSubmission();
-
-        var authoringBody = new VBoxContainer();
-        authoringKind.ItemSelected += _ => UpdateAuthoringHint();
-        AddAuthoringKinds();
-        authoringBody.AddChild(authoringKind);
-        authoringId.PlaceholderText = "ID (resource/object/draft/asset as required)";
-        authoringBody.AddChild(authoringId);
-        authoringValue.PlaceholderText = "Value (terrain, kind, name, weather, digest…)";
-        authoringBody.AddChild(authoringValue);
-        authoringSecondaryValue.PlaceholderText = "Secondary value (season for set_weather_season)";
-        authoringBody.AddChild(authoringSecondaryValue);
-        var coordinateRow = new HBoxContainer();
-        ConfigureCoordinate(authoringX, "x");
-        ConfigureCoordinate(authoringY, "y");
-        coordinateRow.AddChild(authoringX);
-        coordinateRow.AddChild(authoringY);
-        authoringRenewable.Text = "renewable resource";
-        coordinateRow.AddChild(authoringRenewable);
-        authoringBody.AddChild(coordinateRow);
-        authoringHintLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-        authoringBody.AddChild(authoringHintLabel);
-        submitAuthoringButton.Text = "Apply one paused authoring operation";
-        submitAuthoringButton.Pressed += () => _ = SubmitAuthoringAsync();
-        authoringBody.AddChild(submitAuthoringButton);
-        developerBody.AddChild(NewPanel("Paused authoring · server validates atomically", authoringBody));
-
-        var deviceManagementBody = new VBoxContainer();
-        pairingApprovalId.PlaceholderText = "Pending pairing ID from the new device";
-        deviceManagementBody.AddChild(pairingApprovalId);
-        pairingApprovalCode.PlaceholderText = "Six-digit comparison code";
-        pairingApprovalCode.Secret = true;
-        deviceManagementBody.AddChild(pairingApprovalCode);
-        approvePairingButton.Text = "Approve paired device";
-        approvePairingButton.Pressed += () => _ = ApprovePairingAsync();
-        deviceManagementBody.AddChild(approvePairingButton);
-        refreshDevicesButton.Text = "Refresh signed device list";
-        refreshDevicesButton.Pressed += () => _ = RefreshDeviceRegistryAsync();
-        deviceManagementBody.AddChild(refreshDevicesButton);
-        pairedDeviceList.CustomMinimumSize = new Vector2(0, 104);
-        pairedDeviceList.ItemSelected += index =>
-        {
-            var deviceId = pairedDeviceList.GetItemMetadata(checked((int)index)).AsString();
-            if (!string.IsNullOrWhiteSpace(deviceId))
-            {
-                revokeDeviceId.Text = deviceId;
-            }
-        };
-        deviceManagementBody.AddChild(pairedDeviceList);
-        revokeDeviceId.PlaceholderText = "Device ID to revoke";
-        deviceManagementBody.AddChild(revokeDeviceId);
-        revokeDeviceButton.Text = "Revoke other device";
-        revokeDeviceButton.Pressed += () => _ = RevokeDeviceAsync();
-        deviceManagementBody.AddChild(revokeDeviceButton);
-        developerBody.AddChild(NewPanel("Paired-device management · signed server requests", deviceManagementBody));
-
-        developerScroll.Hide();
-        settingsLayout.AddChild(developerScroll);
         AddPanelContents(gameMenuPanel, body);
         gameMenuPanel.ZIndex = 100;
         gameMenuPanel.Hide();
@@ -560,16 +455,19 @@ public partial class Main
         menuCenter.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         content.AddChild(menuCenter);
         menuCenter.AddChild(gameMenuPanel);
-        UpdateAuthoringHint();
     }
 
     private void BuildStatusToast(Control content)
     {
         statusLabel.Text = "Connecting…";
-        statusLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-        statusLabel.HorizontalAlignment = HorizontalAlignment.Center;
-        statusLabel.CustomMinimumSize = new Vector2(320, 0);
-        AddPanelContents(statusToast, statusLabel);
+        statusLabel.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
+        var row = new HBoxContainer();
+        row.AddThemeConstantOverride("separation", 8);
+        statusIcon.StretchMode = TextureRect.StretchModeEnum.KeepCentered;
+        statusIcon.SizeFlagsVertical = Control.SizeFlags.ShrinkBegin;
+        row.AddChild(statusIcon);
+        row.AddChild(statusLabel);
+        AddPanelContents(statusToast, row);
         // Above the title backdrop and menus, so connection and pairing
         // results remain visible from Main Menu Settings.
         statusToast.ZIndex = 250;
@@ -799,7 +697,7 @@ public partial class Main
 
     private void SelectSettingsCategory(Button selected)
     {
-        foreach (var button in new[] { gameSettingsCategoryButton, worldSettingsCategoryButton, developerToggleButton })
+        foreach (var button in new[] { gameSettingsCategoryButton, worldSettingsCategoryButton })
             button.SetPressedNoSignal(button == selected);
     }
 

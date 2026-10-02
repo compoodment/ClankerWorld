@@ -40,6 +40,7 @@ public sealed partial class SettlementParenthoodTests
         Assert.Equal("continuity_rule_on", on.Kind);
         Assert.True(on.EventId < state.Events.Single(item => item.Kind == "world_started").EventId);
         Assert.Equal(ContinuityOnText, DescribeForPlayer(restored, on.Kind));
+        Assert.True(ClientSnapshot(restored).ContinuityRuleActive);
     }
 
     [Fact]
@@ -72,6 +73,7 @@ public sealed partial class SettlementParenthoodTests
         var off = Assert.Single(world.ExportState().Events, item => item.Kind == "continuity_rule_off");
         Assert.Equal("non_elders:8", off.Detail);
         Assert.False(world.ExportState().Continuity!.Active);
+        Assert.False(ClientSnapshot(world).ContinuityRuleActive);
         Assert.Equal(ContinuityOffText, DescribeForPlayer(world, off.Kind));
         Assert.True(GameUiText.IsPlayerFacingEvent("continuity_rule_off"));
         Assert.True(GameUiText.IsPlayerFacingEvent("continuity_rule_on"));
@@ -326,14 +328,17 @@ public sealed partial class SettlementParenthoodTests
     private static string DescribeForPlayer(PrivateWorldRuntime world, string kind)
     {
         var store = new OwnerWorldObservationStore(world);
-        var snapshot = JsonSerializer.Deserialize<GodotOwnerWorldSnapshot>(
-            JsonSerializer.Serialize(store.GetSnapshot(), ContinuityGodotJson), ContinuityGodotJson);
+        var snapshot = ClientSnapshot(world);
         var accepted = store.GetEventsAfter(0).Events.Last(item => item.Kind == kind);
         var clientEvent = JsonSerializer.Deserialize<GodotOwnerWorldEvent>(
             JsonSerializer.Serialize(accepted, ContinuityGodotJson), ContinuityGodotJson);
         Assert.True(GameUiText.IsPlayerFacingEvent(clientEvent!.Kind));
         return WorldEventText.Describe(clientEvent, snapshot);
     }
+
+    private static GodotOwnerWorldSnapshot ClientSnapshot(PrivateWorldRuntime world) =>
+        JsonSerializer.Deserialize<GodotOwnerWorldSnapshot>(JsonSerializer.Serialize(
+            new OwnerWorldObservationStore(world).GetSnapshot(), ContinuityGodotJson), ContinuityGodotJson)!;
 
     /// <summary>Adds unrelated adults without a household until eight non-elders live, which turns the rule off.</summary>
     private static PrivateWorldRuntimeState WithEightNonElders(PrivateWorldRuntimeState state)
