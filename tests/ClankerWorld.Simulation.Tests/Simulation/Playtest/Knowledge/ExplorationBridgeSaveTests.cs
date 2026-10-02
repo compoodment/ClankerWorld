@@ -117,26 +117,18 @@ public sealed class ExplorationBridgeSaveTests(ITestOutputHelper output)
                 item.Kind == "exploration_aborted" && item.Detail == actor + ":return_blocked");
             if (terminal.Kind == "exploration_completed") Assert.Equal(Start, Scout(world, actor).Position);
             Assert.DoesNotContain(result.Events, item => item.Kind == "exploration_aborted" && item.Detail == actor + ":interrupted_movement");
-            var artifact = Assert.Single(result.Knowledge!.Artifacts, item => item.CreatorId == actor);
+            Assert.Empty(result.Knowledge!.Artifacts);
             Assert.NotEmpty(returned.OutingDiscoveries!);
-            Assert.Equal(returned.OutingDiscoveries!.Distinct(), artifact.Facts.Select(fact => fact.Position));
-            Assert.All(artifact.Facts, fact =>
+            Assert.All(returned.OutingDiscoveries!.Distinct(), point =>
             {
+                var fact = Assert.Single(result.Knowledge.Facts, fact => fact.OwnerId == actor && fact.Position == point);
                 Assert.Equal(actor, fact.OwnerId);
                 Assert.Equal(actor, fact.DiscovererId);
                 Assert.Equal("firsthand", fact.Acquisition);
-                Assert.Contains(fact, result.Knowledge.Facts);
             });
-            var physicalMap = Assert.Single(result.Society.Society.Inventory.Lots, lot => lot.Id == artifact.LotId);
-            Assert.Equal((actor, artifact.Kind, 1), (physicalMap.OwnerId, physicalMap.ItemKind, physicalMap.Quantity));
-            Assert.Equal(artifact.Facts.Count == 1 ? "field_record" : "field_map", artifact.Kind);
-            Assert.Equal((10_000, 10_000), (physicalMap.ConditionBasisPoints, physicalMap.FreshnessBasisPoints));
-            Assert.Null(physicalMap.ProvenanceLotId);
-            Assert.Null(physicalMap.StorageBuildingId);
-            Assert.Null(physicalMap.DeliveryBuildingId);
-            Assert.Null(physicalMap.GroundPosition);
-            Assert.Null(physicalMap.ContainerLotId);
-            output.WriteLine($"Actual terminal={terminal.Kind}; tick={artifact.CreatedTick}; artifact={artifact.Kind}; quantity={physicalMap.Quantity}; facts={artifact.Facts.Count}.");
+            Assert.DoesNotContain(result.Society.Society.Inventory.Lots,
+                lot => lot.ItemKind is "field_record" or "field_map" or "book");
+            output.WriteLine($"Actual terminal={terminal.Kind}; discoveries={returned.OutingDiscoveries.Count}; learned facts preserved without creating physical goods.");
             Assert.Equal(PrivateWorldRuntimeCodec.Encode(result), PrivateWorldRuntimeCodec.Encode(recovery.ExportState()));
         }
         finally
