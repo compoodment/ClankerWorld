@@ -180,7 +180,9 @@ public sealed record ViewerInstruction(
     string State,
     long SubmittedTick,
     long RunEpoch,
-    long SubmissionSequence);
+    long SubmissionSequence,
+    long? ObservedTick = null,
+    string? ObserverReply = null);
 
 public sealed record ViewerCognitionEvent(long EventId, long WorldTick, string Kind, string Detail);
 
@@ -254,10 +256,18 @@ public sealed record ViewerPlacedBuilding(
     int FootprintRevision = 0,
     IReadOnlyList<string>? InvitedGuests = null,
     string? ExpansionState = null,
-    string? ExpansionFailure = null)
+    string? ExpansionFailure = null,
+    int? ResidentLimit = null,
+    int PermanentResidentCount = 0,
+    bool HasDominantFamily = false,
+    bool IsOvercrowded = false)
 {
+    public IReadOnlyList<ViewerBusinessTrade> Trades { get; init; } = [];
     public bool AllowsHouseholdOwner { get; init; }
 }
+
+public sealed record ViewerBusinessTrade(string OfferId, string BuyerName, string GoodsKind, int GoodsQuantity,
+    string PaymentKind, int PaymentQuantity, string Status, string? CancellationReason);
 
 public sealed record ViewerProductionJob(
     string JobId,
@@ -296,6 +306,17 @@ public sealed record ViewerTown(
     IReadOnlyList<string> ResidentIds,
     IReadOnlyList<string> AssignedBuildingIds,
     IReadOnlyList<ViewerPosition> BorderTiles);
+
+public sealed record ViewerTownLandTitle(string Id, string TownId, IReadOnlyList<ViewerPosition> Tiles,
+    long RecordedTick);
+
+public sealed record ViewerHouseholdLandUseRight(string Id, string TownId, string HouseholdId,
+    IReadOnlyList<ViewerPosition> Tiles, long GrantedTick, string GrantSource, long? AgreedEndTick);
+
+public sealed record ViewerHouseholdLandUseRequest(string Id, string TownId, string HouseholdId,
+    string RequestedByAgentId, IReadOnlyList<ViewerPosition> Tiles, long RequestedTick,
+    long? AgreedEndTick, bool IsDisputed, IReadOnlyList<string> ClaimantHouseholdIds,
+    IReadOnlyList<ViewerPosition> DisputedTiles);
 
 public sealed record ViewerWeatherRegion(int X, int Y, string Weather, int? SoilMoisture = null);
 
@@ -357,6 +378,9 @@ public sealed record ViewerWorldSnapshot(
     public bool? JevEnabled { get; init; }
     public ViewerFounderSetup? FounderSetup { get; init; }
     public IReadOnlyList<ViewerTown> Towns { get; init; } = [];
+    public IReadOnlyList<ViewerTownLandTitle> TownLandTitles { get; init; } = [];
+    public IReadOnlyList<ViewerHouseholdLandUseRight> HouseholdLandUseRights { get; init; } = [];
+    public IReadOnlyList<ViewerHouseholdLandUseRequest> HouseholdLandUseRequests { get; init; } = [];
     public IReadOnlyList<ViewerPosition> RoadTiles { get; init; } = [];
     public IReadOnlyList<ViewerBridge> Bridges { get; init; } = [];
     public int WeatherRegionSize { get; init; } = 32;

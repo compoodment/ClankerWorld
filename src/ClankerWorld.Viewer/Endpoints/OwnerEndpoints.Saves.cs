@@ -199,10 +199,14 @@ internal static partial class OwnerEndpoints
                         ManualWorldSaveTelemetry.Rejected(logger, "load", "different_world");
                         return Results.Conflict(new { error = "This save belongs to a different world." });
                     }
-                    // A rewind must never destroy the current timeline. The backup is a
-                    // normal named checkpoint, visible in Load Saves immediately.
-                    var backup = saves.Create("Before loading", runtime,
-                        providers.CaptureRuntimeConfiguration().Assignments ?? [], autosave.Capture());
+                    // Loading must never lose the world being left. Its unsaved progress
+                    // becomes a normal save on its own branch, unless the world is
+                    // still exactly the save it continues from.
+                    var currentAssignments = providers.CaptureRuntimeConfiguration().Assignments ?? [];
+                    var currentAutosave = autosave.Capture();
+                    var backup = saves.FindUnchangedSave(runtime, currentAssignments, currentAutosave)
+                        ?? saves.Create("Before loading", runtime, currentAssignments, currentAutosave);
+                    var timelineRestore = saves.ContinueFrom(action.Value);
                     try
                     {
                         runtime.LoadPausedCheckpoint(checkpoint);
@@ -210,6 +214,7 @@ internal static partial class OwnerEndpoints
                         providers.RestoreWorldAssignments(assignments);
                         if (autosaveSettings is not null) autosave.RestoreFromCheckpoint(autosaveSettings);
                         jevPolicy.Initialize(runtime.JevEnabled, runtime.JevPolicyRevision);
+                        saves.RecordLoadedState(runtime);
                     }
                     catch
                     {
@@ -219,6 +224,7 @@ internal static partial class OwnerEndpoints
                         if (saves.ReadAutosaveSettings(backup.Id) is { } previousAutosave)
                             autosave.RestoreFromCheckpoint(previousAutosave);
                         jevPolicy.Initialize(runtime.JevEnabled, runtime.JevPolicyRevision);
+                        saves.RestoreTimeline(timelineRestore);
                         throw;
                     }
                     ManualWorldSaveTelemetry.Loaded(logger, action.Value, backup.Id, runtime.WorldTick);

@@ -45,6 +45,7 @@ public sealed partial class PrivateWorldRuntime
             PendingHostedDecision[] completed = [];
             PendingWillDecision[] completedWills = [];
             PendingConversationTurn[] completedConversationTurns = [];
+            PendingIdentityMoment[] completedIdentityMoments = [];
             string[] activeWillIds = [];
             IReadOnlyDictionary<string, string> inactiveWillReasons = new Dictionary<string, string>();
             await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -96,6 +97,8 @@ public sealed partial class PrivateWorldRuntime
                     inactiveWillReasons = new Dictionary<string, string>(pendingWillCancellationReasons, StringComparer.Ordinal);
                 }
                 ReconcilePendingConversationTurns();
+                ReconcileIdentityMoments();
+                completedIdentityMoments = pendingIdentityMoments.Values.Where(item => item.Task.IsCompleted).ToArray();
                 completedConversationTurns = pendingConversationTurns.Values
                     .Where(item => item.Task.IsCompleted).ToArray();
                 baseline = CaptureState();
@@ -164,7 +167,13 @@ public sealed partial class PrivateWorldRuntime
                     completedConversationTurns,
                     proposed.WorldTick,
                     IsConversationTurnProviderCurrent);
+                proposed.CompleteIdentityMoments(completedIdentityMoments, IsIdentityMomentProviderCurrent);
                 CommitPreparedTick(proposed);
+                foreach (var item in completedIdentityMoments)
+                {
+                    pendingIdentityMoments.Remove(item.Request.Observation.InhabitantId);
+                    item.Cancellation.Dispose();
+                }
                 if (deferHosted)
                 {
                     foreach (var id in pendingWills.Keys.Where(id =>
@@ -202,6 +211,7 @@ public sealed partial class PrivateWorldRuntime
                     CancelNoLongerAwaitingConversationTurns();
                 }
                 if (commitPermitted is null || commitPermitted()) StartConversationTurns();
+                if (commitPermitted is null || commitPermitted()) StartIdentityMoments();
                 return result with { Events = events.Where(item => item.EventId >= baselineEventId).ToArray() };
             }
             finally
@@ -219,7 +229,8 @@ public sealed partial class PrivateWorldRuntime
     {
         var capacity = Math.Max(0, maxCognitionDispatchPerCycle - pendingHosted.Count);
         if (capacity == 0) return;
-        foreach (var preview in society.PreviewHostedRequests(pendingHosted.Keys.ToHashSet(StringComparer.Ordinal)).Take(capacity))
+        foreach (var preview in society.PreviewHostedRequests(pendingHosted.Keys.Concat(pendingIdentityMoments.Keys)
+                     .ToHashSet(StringComparer.Ordinal)).Take(capacity))
         {
             var cancellation = new CancellationTokenSource();
             var task = Task.Run(async () =>
@@ -257,6 +268,7 @@ public sealed partial class PrivateWorldRuntime
         {
             foreach (var id in pendingHosted.Keys.ToArray()) CancelPendingHosted(id);
             foreach (var id in pendingWills.Keys.ToArray()) CancelPendingWill(id);
+            CancelIdentityMoments();
             foreach (var id in pendingConversationTurns.Keys.ToArray())
                 CancelPendingConversationTurn(id, AgentConversationInterruption.Disconnected);
             SuspendAllConversations(AgentConversationInterruption.Disconnected);
@@ -296,11 +308,15 @@ public sealed partial class PrivateWorldRuntime
         jevPolicyRevision = proposed.jevPolicyRevision;
         founderSetup = proposed.founderSetup;
         towns = proposed.towns;
+        townLandTitles = proposed.townLandTitles;
+        householdLandUseRights = proposed.householdLandUseRights;
+        householdLandUseRequests = proposed.householdLandUseRequests;
         roadTiles = proposed.roadTiles;
         bridges = proposed.bridges;
         bridgeTraffic = proposed.bridgeTraffic;
         conversations = proposed.conversations;
         conversationBudgets = proposed.conversationBudgets;
+        businessTrades = proposed.businessTrades;
         roadBridgeDecks = proposed.roadBridgeDecks;
         nextInstructionSequence = proposed.nextInstructionSequence;
     }
@@ -326,6 +342,7 @@ public sealed partial class PrivateWorldRuntime
                 restored.Pause();
                 foreach (var id in pendingHosted.Keys.ToArray()) CancelPendingHosted(id);
                 foreach (var id in pendingWills.Keys.ToArray()) CancelPendingWill(id);
+                CancelIdentityMoments();
                 foreach (var id in pendingConversationTurns.Keys.ToArray())
                     CancelPendingConversationTurn(id, AgentConversationInterruption.OwnerPaused, suspendCurrent: false);
                 CommitPreparedTick(restored);
@@ -352,6 +369,7 @@ public sealed partial class PrivateWorldRuntime
                 restored.Pause();
                 foreach (var id in pendingHosted.Keys.ToArray()) CancelPendingHosted(id);
                 foreach (var id in pendingWills.Keys.ToArray()) CancelPendingWill(id);
+                CancelIdentityMoments();
                 foreach (var id in pendingConversationTurns.Keys.ToArray())
                     CancelPendingConversationTurn(id, AgentConversationInterruption.OwnerPaused, suspendCurrent: false);
                 CommitPreparedTick(restored);
@@ -388,6 +406,7 @@ public sealed partial class PrivateWorldRuntime
             StagePotteryContent();
             StageSiloContent();
             StageTailorContent();
+            StageBuiltInContent(BusinessContent.PackageId, HouseContent.PackageId, BusinessContent.Create, "business_content_staged");
             var readyPackages = contentRegistry.GetActivationCandidates(targetTick);
             var reservationPreview = WorldAssetReservationLedger.Restore(
                 assetReservations.ExportState(),
@@ -463,14 +482,17 @@ public sealed partial class PrivateWorldRuntime
             WearEquippedClothing();
             AdvanceSettlementSurvival();
             MaintainSettlementTrades();
+            MaintainBusinessTrades();
             DrainNeeds();
             RemoveDeadPhysicalState();
+            CancelFieldWorkForUnavailableWorkers();
             AdvanceSettlementCouncil();
             MaintainLessons();
             MaintainPartnerships();
             MaintainHousing();
             MaintainParenthood();
             MaintainDependentCare();
+            DiscoverIdentityMoments();
             UpdateConversationsForTick(targetTick);
             EnqueueDueCognition();
             var deferredDecisions = new List<SocietyCognitionDispatchResult>();

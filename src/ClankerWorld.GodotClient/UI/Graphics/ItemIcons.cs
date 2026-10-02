@@ -1354,7 +1354,21 @@ public static class ItemIcons
         ["simple_meal"] = "food",
         ["berry_porridge"] = "food",
         ["fruit_porridge"] = "food",
+        ["gold_ore"] = "gold",
+        ["stone_hammer"] = "hammer",
+        ["iron_sickle"] = "sickle",
+        ["iron_knife"] = "knife",
+        ["padded_coat"] = "cold_clothing",
+        ["rain_cloak"] = "wet_clothing",
     };
+
+    static ItemIcons()
+    {
+        // Named wooden tools keep the approved silhouettes and handle colours,
+        // with the approved wooden head palette distinguishing their tier.
+        Icons["wooden_hammer"] = Icons["hammer"] with { Palette = Handle + " " + Cord + " " + WoodHead };
+        Icons["wooden_sickle"] = Icons["sickle"] with { Palette = Handle + " " + WoodHead + " wE6C77B k6E4E31" };
+    }
 
     private static string Drawing(string kind) => Icons.ContainsKey(kind) ? kind : DrawnAs.GetValueOrDefault(kind, kind);
 

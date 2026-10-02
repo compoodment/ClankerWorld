@@ -38,6 +38,13 @@ public sealed partial class PrivateWorldRuntime
             if (field.Work is { } work)
             {
                 var worker = society.Inhabitants.SingleOrDefault(person => person.Id == work.WorkerId);
+                var workToolsValid = worker is not null && (work.Kind is FarmWorkKind.Till or FarmWorkKind.Tend
+                    ? ToolProgressionRules.PlanWorkForLot(society.Inventory, work.WorkerId, ToolFamily.Hoe,
+                        work.HoeLotId) is not null && work.SickleLotId is null
+                    : work.HoeLotId is null && (work.Kind == FarmWorkKind.Harvest
+                        ? work.SickleLotId is null || ToolProgressionRules.PlanWorkForLot(society.Inventory,
+                            work.WorkerId, ToolFamily.Sickle, work.SickleLotId) is not null
+                        : work.SickleLotId is null));
                 if (worker is null || worker.Status != SocietyInhabitantStatus.Active || worker.AgeBand is not (SocietyAgeBand.Adult or SocietyAgeBand.Elder) ||
                     worker.HouseholdId != field.HouseholdId || !Enum.IsDefined(work.Kind) || work.LastWorkedTick < 0 ||
                     work.LastWorkedTick > society.WorldTick || work.RemainingTicks < 1 || work.RemainingTicks > FarmFieldRules.WorkTicks(work.Kind) ||
@@ -45,7 +52,8 @@ public sealed partial class PrivateWorldRuntime
                     work.Kind == FarmWorkKind.Tend && (field.Stage != FarmFieldStage.Growing || field.Tended) ||
                     work.Kind == FarmWorkKind.Harvest && field.Stage != FarmFieldStage.Ready ||
                     work.Kind == FarmWorkKind.Plant && (field.Stage is not (FarmFieldStage.Prepared or FarmFieldStage.Harvested) ||
-                        !FarmFieldRules.IsCrop(work.Crop)) || work.Kind != FarmWorkKind.Plant && (work.Crop is not null || work.SeedReservationId is not null))
+                        !FarmFieldRules.IsCrop(work.Crop)) || work.Kind != FarmWorkKind.Plant && (work.Crop is not null || work.SeedReservationId is not null) ||
+                    !workToolsValid)
                     throw new InvalidDataException("A field has invalid work in progress.");
                 if (work.Kind == FarmWorkKind.Plant)
                 {
