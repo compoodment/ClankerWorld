@@ -117,23 +117,35 @@ public partial class Main
         body.AddChild(eventScroll);
     }
 
-    /// <summary>Newest first under a heading for each day; a located event gets a button that finds it on the map.</summary>
-    private void RenderEventRows((long EventId, bool Located, string Clock, string Text)[] entries)
+    /// <summary>
+    /// Newest first under a heading for each day; a located event gets a button
+    /// that finds it on the map. While the continuity rule is on, the newcomer
+    /// offer sits above the history.
+    /// </summary>
+    private void RenderEventRows((long EventId, bool Located, string Clock, string Text)[] entries, bool offersNewcomer)
     {
         foreach (var child in eventRows.GetChildren())
         {
             eventRows.RemoveChild(child);
             child.QueueFree();
         }
+        var height = 0f;
+        if (offersNewcomer)
+        {
+            AddNewcomerOffer();
+            height += 34;
+            if (entries.Length > 0) eventRows.AddChild(new Control { CustomMinimumSize = new Vector2(0, 6) });
+        }
         if (entries.Length == 0)
         {
-            eventRows.AddChild(new Label { Text = "Nothing notable has happened yet.", ThemeTypeVariation = "DimLabel" });
-            eventsWantedHeight = 30;
+            if (!offersNewcomer)
+                eventRows.AddChild(new Label { Text = "Nothing notable has happened yet.", ThemeTypeVariation = "DimLabel" });
+            eventsWantedHeight = Math.Max(30, height);
             FitHudLists();
+            QueueHudListsFit();
             return;
         }
         string? day = null;
-        var height = 0f;
         foreach (var entry in entries)
         {
             var (date, time) = SplitClock(entry.Clock);
@@ -194,6 +206,36 @@ public partial class Main
         eventsWantedHeight = height;
         FitHudLists();
         QueueHudListsFit();
+    }
+
+    /// <summary>
+    /// The current offer, kept above the history even after the rule-on event
+    /// leaves the latest rows. The button opens Add Agent and places nobody.
+    /// </summary>
+    private void AddNewcomerOffer()
+    {
+        var offer = new HBoxContainer { Name = "NewcomerOffer" };
+        offer.AddThemeConstantOverride("separation", 8);
+        var warning = new Label
+        {
+            Text = WorldEventText.ContinuityRisk,
+            SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
+            SizeFlagsVertical = Control.SizeFlags.ShrinkCenter,
+            AutowrapMode = TextServer.AutowrapMode.WordSmart,
+            CustomMinimumSize = new Vector2(120, 0),
+        };
+        warning.AddThemeColorOverride("font_color", UiTheme.Current.Warning);
+        offer.AddChild(warning);
+        var add = new Button
+        {
+            Text = "Add a newcomer",
+            TooltipText = "Open Add Agent to place another adult.",
+            FocusMode = Control.FocusModeEnum.None,
+            SizeFlagsVertical = Control.SizeFlags.ShrinkCenter,
+        };
+        add.Pressed += () => _ = HandleEventLogActionAsync("add-newcomer");
+        offer.AddChild(add);
+        eventRows.AddChild(offer);
     }
 
     private float rosterWantedHeight = 60;

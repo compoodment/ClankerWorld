@@ -22,7 +22,7 @@ public partial class Main
     private void VerifyEventRows()
     {
         var bands = eventRows.GetChildren().OfType<HBoxContainer>().Where(row => row.GetChildCount() > 0 && row.GetChild(0) is Label label && label.ThemeTypeVariation == "SectionLabel").ToArray();
-        var rows = eventRows.GetChildren().OfType<HBoxContainer>().Except(bands).ToArray();
+        var rows = eventRows.GetChildren().OfType<HBoxContainer>().Except(bands).Where(row => row.Name != "NewcomerOffer").ToArray();
         if (bands.Length == 0 || rows.Length == 0 || rows.Any(row => row.GetChildren().OfType<TextureRect>().FirstOrDefault()?.Texture is null))
             throw new InvalidOperationException("Every Event Log row needs a kind icon under a heading for its day.");
         if (!rows.Any(row => row.GetChildren().OfType<Button>().Any(button => ShowsFind(button))))
@@ -37,6 +37,11 @@ public partial class Main
 
     private static bool ShowsFind(Button button) =>
         button.Icon is Texture2D icon && icon.GetWidth() == PixelIcons.Grid;
+
+    /// <summary>The newcomer offer's button at the top of the Event Log, if shown.</summary>
+    private Button? NewcomerOfferButton() =>
+        eventRows.GetChildren().OfType<HBoxContainer>().FirstOrDefault(row => row.Name == "NewcomerOffer")?
+            .GetChildren().OfType<Button>().FirstOrDefault(button => button.Text == "Add a newcomer");
 
     /// <summary>The controls list draws keys as keycaps in the current theme's colours, grouped by what they do.</summary>
     private void VerifyControlsKeycaps()

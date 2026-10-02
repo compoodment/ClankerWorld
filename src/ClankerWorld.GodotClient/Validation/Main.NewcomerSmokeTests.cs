@@ -55,6 +55,8 @@ public partial class Main
             if (!eventLog.GetParsedText().Contains(WorldEventText.ContinuityRisk, StringComparison.Ordinal) ||
                 !eventLog.GetParsedText().Contains("Add a newcomer", StringComparison.Ordinal))
                 throw new InvalidOperationException("An active rule must offer a newcomer even without retained transition events.");
+            if (NewcomerOfferButton() is null)
+                throw new InvalidOperationException("The Event Log rows must show the newcomer offer while the rule is on.");
             var requests = new List<string>();
             var responses = Task.Run(async () =>
             {
@@ -79,7 +81,7 @@ public partial class Main
                     context.Response.Close();
                 }
             });
-            eventLog.EmitSignal(RichTextLabel.SignalName.MetaClicked, "add-newcomer");
+            NewcomerOfferButton()!.EmitSignal(BaseButton.SignalName.Pressed);
             await responses;
             for (var frame = 0; frame < 10 && isOwnerAction; frame++)
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
@@ -95,6 +97,8 @@ public partial class Main
             if (eventLog.GetParsedText().Contains("Add a newcomer", StringComparison.Ordinal) ||
                 eventLog.GetParsedText().Contains(WorldEventText.ContinuityRisk, StringComparison.Ordinal))
                 throw new InvalidOperationException("The offer must disappear when the rule turns off, even without an event-list change.");
+            if (NewcomerOfferButton() is not null)
+                throw new InvalidOperationException("The Event Log rows must drop the newcomer offer when the rule turns off.");
             founderSetupPanel.Hide();
             placingAddedAgent = false;
             await HandleEventLogActionAsync("add-newcomer");
