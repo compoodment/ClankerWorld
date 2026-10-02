@@ -85,7 +85,6 @@ jobs:
   tests:
     needs: scope
     if: needs.scope.outputs.code == 'true'
-    name: tests (${{ matrix.shard }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
