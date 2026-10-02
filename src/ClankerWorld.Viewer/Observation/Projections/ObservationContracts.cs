@@ -180,7 +180,9 @@ public sealed record ViewerInstruction(
     string State,
     long SubmittedTick,
     long RunEpoch,
-    long SubmissionSequence);
+    long SubmissionSequence,
+    long? ObservedTick = null,
+    string? ObserverReply = null);
 
 public sealed record ViewerCognitionEvent(long EventId, long WorldTick, string Kind, string Detail);
 
@@ -254,7 +256,11 @@ public sealed record ViewerPlacedBuilding(
     int FootprintRevision = 0,
     IReadOnlyList<string>? InvitedGuests = null,
     string? ExpansionState = null,
-    string? ExpansionFailure = null)
+    string? ExpansionFailure = null,
+    int? ResidentLimit = null,
+    int PermanentResidentCount = 0,
+    bool HasDominantFamily = false,
+    bool IsOvercrowded = false)
 {
     public IReadOnlyList<ViewerBusinessTrade> Trades { get; init; } = [];
     public bool AllowsHouseholdOwner { get; init; }

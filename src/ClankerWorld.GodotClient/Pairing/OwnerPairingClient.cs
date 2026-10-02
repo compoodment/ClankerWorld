@@ -12,6 +12,12 @@ public sealed class OwnerActionCompatibilityException : InvalidOperationExceptio
         : base("The host and client need matching updates for this action.") { }
 }
 
+public sealed class OwnerAgentNameTakenException : HttpRequestException
+{
+    public OwnerAgentNameTakenException()
+        : base("The agent name is already taken.", null, HttpStatusCode.Conflict) { }
+}
+
 /// <summary>
 /// Default absolute-path endpoints for the owner pairing and signed-action
 /// protocol. These paths are relative to the supplied ClankerWorld server URI.
@@ -458,6 +464,8 @@ public sealed class OwnerPairingClient
         return await ReadRequiredJsonAsync<TResponse>(response, cancellationToken).ConfigureAwait(false);
     }
 
+    private sealed record AgentRenameFailure(string? Code);
+
     private async Task<TResponse> SendJsonAsync<TRequest, TResponse>(
         HttpMethod method,
         Uri endpointUri,
@@ -473,6 +481,17 @@ public sealed class OwnerPairingClient
             request,
             HttpCompletionOption.ResponseHeadersRead,
             cancellationToken).ConfigureAwait(false);
+        if (endpointUri.AbsolutePath == OwnerPairingEndpoints.OwnerAgentRename &&
+            response.StatusCode == HttpStatusCode.Conflict)
+        {
+            try
+            {
+                var failure = await response.Content.ReadFromJsonAsync<AgentRenameFailure>(
+                    JsonOptions, cancellationToken).ConfigureAwait(false);
+                if (failure?.Code == "name_taken") throw new OwnerAgentNameTakenException();
+            }
+            catch (JsonException) { }
+        }
         response.EnsureSuccessStatusCode();
         return await ReadRequiredJsonAsync<TResponse>(response, cancellationToken).ConfigureAwait(false);
     }

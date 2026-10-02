@@ -1034,6 +1034,7 @@ public partial class Main
                 await VerifyAutosaveSettingsOwnershipAsync();
                 await VerifyUiScaleAt1440pAsync(displayWindow);
                 await VerifyManualSaveListOwnershipAsync();
+                VerifySaveBranchList();
                 windowSizeChoice.Select(1);
                 SetWindowSize(1);
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
@@ -2097,6 +2098,23 @@ public partial class Main
                     !resourceVisual.TooltipText.Contains(expectedName, StringComparison.Ordinal))
                     throw new InvalidOperationException($"The {expectedName} natural object must draw as a distinct inspectable map site.");
             }
+            var fallenWood = new OwnerWorldResource("sample-fallen-wood", "wood", new(3, 3), false,
+                "available", 3, 3, NaturalObjectKind: "fallen_wood");
+            var fallenWoodMap = sample with { Resources = [sampleResource, fallenWood] };
+            RenderMap(fallenWoodMap);
+            if (terrainLayer.NaturalObjectNameAt(3, 3) != "Fallen wood" ||
+                terrainLayer.NaturalObjectStageAt(3, 3) != "available" ||
+                !mapObjectVisuals["resource:sample-fallen-wood"].TooltipText.Contains("Fallen wood", StringComparison.Ordinal))
+                throw new InvalidOperationException("Loose fallen wood must have a named, available natural site after an observation refresh.");
+            selectedTile = new Vector2I(3, 3);
+            RenderTileInspection(fallenWoodMap);
+            if (!selectedTileText.Text.Contains("Fallen wood · 3 available", StringComparison.Ordinal))
+                throw new InvalidOperationException("Selecting loose fallen wood must show its name and remaining stock.");
+            ClearTileSelection();
+            RenderMap(fallenWoodMap with { Resources = [sampleResource, fallenWood with { Quantity = 0, State = "depleted" }] });
+            if (terrainLayer.NaturalObjectNameAt(3, 3) != "Fallen wood" ||
+                terrainLayer.NaturalObjectStageAt(3, 3) != "depleted")
+                throw new InvalidOperationException("Exhausted loose wood must keep its site name and show its depleted stage.");
             var sampleOrchard = new OwnerWorldResource("sample-orchard", "fruit", new(2, 1), true,
                 "available", 1, 1, 1, 3, "spring", "orchard", TreeStage: "fruiting");
             RenderMap(sample with { Resources = [sampleResource, sampleTree, sampleOrchard] });
@@ -2162,6 +2180,43 @@ public partial class Main
                 !selectedActorConditionLabel.Text.Contains("Clothed", StringComparison.Ordinal) || profileDietMeter.Percent != 74 ||
                 !mapCanvas.GetGlobalRect().Grow(1).Encloses(agentProfilePanel.GetGlobalRect()))
                 throw new InvalidOperationException($"The Profile must replace the quick card, dock on the left below the top bar and offer a way back: {agentProfilePanel.GetGlobalRect()}.");
+            var messageSnapshot = occupied with
+            {
+                Instructions =
+                [
+                    new OwnerWorldInstruction("message-suggestion", founder.Id, "suggestive",
+                        "Try the riverbank berries.", "completed", 0, 0, 1, 1, "I will look there."),
+                    new OwnerWorldInstruction("message-other-agent", "agent:other", "suggestive",
+                        "Private message for someone else.", "pending", 0, 0, 2),
+                ],
+            };
+            RenderSelectedInhabitantCard(messageSnapshot);
+            var renderedMessages = instructionHistory.GetParsedText();
+            if (!renderedMessages.Contains("Try the riverbank berries.", StringComparison.Ordinal) ||
+                !renderedMessages.Contains("Suggestion heard by their personal model", StringComparison.Ordinal) ||
+                !renderedMessages.Contains("Agent reply: “I will look there.”", StringComparison.Ordinal) ||
+                renderedMessages.Contains("Private message for someone else", StringComparison.Ordinal) ||
+                privateThoughtHistory.GetParsedText().Contains("I will look there.", StringComparison.Ordinal) ||
+                instructionText.MaxLength != 512)
+                throw new InvalidOperationException("The Profile must show only this agent's original observer messages and keep a short reply separate from private thoughts.");
+            // The server keeps closed messages that no personal model heard, such as orders the game
+            // could not act on. They must show as closed without hiding an older order that is still open.
+            RenderSelectedInhabitantCard(occupied with
+            {
+                Instructions =
+                [
+                    new OwnerWorldInstruction("message-open-order", founder.Id, "must_do",
+                        "Eat the berries you carry.", "queued", 0, 0, 1),
+                    .. Enumerable.Range(1, 4).Select(index => new OwnerWorldInstruction($"message-closed-order-{index}",
+                        founder.Id, "must_do", $"Build house number {index}.", "completed", 0, 0, 1 + index)),
+                ],
+            });
+            renderedMessages = instructionHistory.GetParsedText();
+            if (!renderedMessages.Contains("Order pending · waiting for their personal model\n“You said: Eat the berries you carry.”", StringComparison.Ordinal) ||
+                !renderedMessages.Contains("Order closed · not reported as heard\n“You said: Build house number 4.”", StringComparison.Ordinal) ||
+                !renderedMessages.Contains("Build house number 2.", StringComparison.Ordinal) ||
+                renderedMessages.Contains("Build house number 1.", StringComparison.Ordinal))
+                throw new InvalidOperationException($"The Profile must list closed unheard orders as closed and keep an open order in view: {renderedMessages}");
             // Read all, or clicking the Profile's thoughts, opens the reader beside the Profile.
             var suggestDisabled = instructionSuggestButton.Disabled;
             var orderDisabled = instructionOrderButton.Disabled;
@@ -2845,6 +2900,21 @@ public partial class Main
             if (currentTileSize > 9 || worldOverview.VisibleTiles.Size.X < oldVisibleWidth * 1.3f ||
                 terrainLayer.VisibleTileCount > 40_000)
                 throw new InvalidOperationException($"Overview zoom must widen bounded terrain coverage: tile={currentTileSize}, width={oldVisibleWidth}->{worldOverview.VisibleTiles.Size.X}, tiles={terrainLayer.VisibleTileCount}.");
+            var overviewWood = fallenWood with { Position = new(84, 64) };
+            var overviewWoodMap = largeMap with { Resources = [overviewWood] };
+            RenderMap(overviewWoodMap);
+            for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (terrainLayer.TileSize >= WorldTerrainLayer.SpriteTileMinimum ||
+                terrainLayer.OverviewNaturalObjectDrawCount != 1 ||
+                terrainLayer.NaturalObjectNameAt(84, 64) != "Fallen wood" ||
+                terrainLayer.NaturalObjectStageAt(84, 64) != "available" ||
+                !mapObjectVisuals["resource:sample-fallen-wood"].TooltipText.Contains("Fallen wood", StringComparison.Ordinal))
+                throw new InvalidOperationException("Available loose wood must remain drawn and inspectable below sprite zoom.");
+            RenderMap(largeMap);
+            for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (terrainLayer.OverviewNaturalObjectDrawCount != 0 ||
+                mapObjectVisuals.ContainsKey("resource:sample-fallen-wood"))
+                throw new InvalidOperationException("Removing loose wood in the next observation must clear its overview drawing and marker.");
             var wideVisibleWidth = worldOverview.VisibleTiles.Size.X;
             var wideTileCount = terrainLayer.VisibleTileCount;
             var widePan = System.Diagnostics.Stopwatch.StartNew();
@@ -3201,7 +3271,8 @@ public partial class Main
                 longDialog.X != DialogTextWidth + (int)dialogMargins.X || deletionConfirmation.GetLabel().GetLineCount() < 2 ||
                 longDialog.Y <= shortDialog.Y)
                 throw new InvalidOperationException($"Confirmations must fit their message: short {shortDialog}, long {longDialog}.");
-            GD.Print("UI checks passed: startup Main Menu and settings, compact in-world pause menu and read-only Mod Library, confirmed quit, World Info Towns page, resource hover, square tile hover and agent priority, agent facings, walk steps and activity frames, bounded marker hitboxes at zoom, building footprints, mountain relief chunks drawn off the main thread, soft snow edges and desert cacti, camera-bounded large terrain and regional weather, zoom, middle-drag, WASD, overview navigation, Event Log jumps without pop-ups, keyboard shortcuts and the F1 controls list, private thoughts, memories, deceased inspection and family tree.");
+            await VerifyRefusedAgentRenameAsync();
+            GD.Print("UI checks passed: startup Main Menu and settings, compact in-world pause menu and read-only Mod Library, confirmed quit, World Info Towns page, resource hover, square tile hover and agent priority, agent facings, walk steps and activity frames, bounded marker hitboxes at zoom, building footprints, mountain relief chunks drawn off the main thread, soft snow edges and desert cacti, camera-bounded large terrain and regional weather, zoom, middle-drag, WASD, overview navigation, Event Log jumps without pop-ups, keyboard shortcuts and the F1 controls list, private thoughts, memories, deceased inspection, family tree and refused agent renames.");
             GetTree().Quit();
         }
         catch (Exception exception)

@@ -22,7 +22,8 @@ public partial class Main
                 "household_membership", "accepted", "household", 1)],
         };
         var house = new OwnerWorldPlacedBuilding("test-house", "sha256:test/house", new(2, 2), 0, "House", ["house"], 2, 1,
-            "town:first", "household:one", [new("wood", 4), new("bread", 2), new("never_an_item", 1)], new(2, 3));
+            "town:first", "household:one", [new("wood", 4), new("bread", 2), new("never_an_item", 1)], new(2, 3),
+            ResidentLimit: 8, PermanentResidentCount: 2, HasDominantFamily: true, ExpansionState: "running");
         var buildingMap = baseMap with
         {
             WorldTick = 30,
@@ -58,11 +59,14 @@ public partial class Main
             !facts.Contains("Owner\nFounder's household", StringComparison.Ordinal) ||
             !facts.Contains("Used by\nFounder's household", StringComparison.Ordinal) ||
             !facts.Contains("Built\n", StringComparison.Ordinal) ||
+            !facts.Contains("Permanent residents\n2 / 8 places", StringComparison.Ordinal) ||
+            !facts.Contains("Family limit\nOne family is most of the household · 4 places per tile", StringComparison.Ordinal) ||
+            !facts.Contains("Expansion\nWork in progress · current resident places remain until completion", StringComparison.Ordinal) ||
             !facts.Contains("Door\nSouth side", StringComparison.Ordinal) ||
             !buildingWorkSection.Visible || buildingWorkRows.GetChildCount() != 1 ||
             buildingDetailsStorage.Summary != "3 kinds · 7 items" || buildingDetailsStorage.SlotCount != 3 ||
             !buildingPeopleText.Text.Contains("Inside: Oren", StringComparison.Ordinal) ||
-            !buildingPeopleText.Text.Contains("Home of Founder's household: Oren", StringComparison.Ordinal) ||
+            !buildingPeopleText.Text.Contains("Permanent residents (including travelers): Oren", StringComparison.Ordinal) ||
             !mapCanvas.GetGlobalRect().Grow(1).Encloses(buildingDetailsPanel.GetGlobalRect()) ||
             buildingDetailsPanel.Position.X > 14.5f)
             throw new InvalidOperationException($"Details must dock on the left with the building's facts, work, storage and people: {facts} / {buildingPeopleText.Text} / {buildingDetailsPanel.GetGlobalRect()}.");
@@ -75,7 +79,8 @@ public partial class Main
                 {
                     StoredItems = [new("wood", 5), new("bread", 2), new("never_an_item", 1), new("fruit", 3)],
                     Width = 2, Height = 2, StorageCapacity = 256, StoredQuantity = 11, FootprintRevision = 2,
-                    InvitedGuests = ["Lina"], ExpansionState = "completed",
+                    InvitedGuests = ["Lina"], ExpansionState = "completed", ResidentLimit = 16,
+                    PermanentResidentCount = 17, HasDominantFamily = true, IsOvercrowded = true,
                 }],
             ProductionJobs = [],
         });
@@ -85,6 +90,8 @@ public partial class Main
         facts = string.Join('\n', buildingFacts.GetChildren().OfType<Label>().Select(label => label.Text));
         if (!facts.Contains("Footprint\n2 × 2 tiles", StringComparison.Ordinal) ||
             !facts.Contains("Storage\n11 / 256 items", StringComparison.Ordinal) ||
+            !facts.Contains("Permanent residents\n17 / 16 places", StringComparison.Ordinal) ||
+            !facts.Contains("Crowding\nOver the limit · nobody new can move in until there is room", StringComparison.Ordinal) ||
             !facts.Contains("Storm guests\nLina · shelter only", StringComparison.Ordinal))
             throw new InvalidOperationException("Building Details must show current expansion geometry, capacity and limited guest access.");
         RenderBuildingCard(buildingMap with
