@@ -265,7 +265,8 @@ public sealed partial class PrivateWorldRuntime
         {
             foreach (var lot in society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == actor &&
                          PersonalEquipmentRules.IsCarried(lot, actor) && lot.DeliveryBuildingId is null && lot.ContainerLotId is null &&
-                         lot.Id != inhabitants[actor].Equipment?.ClothingLotId && lot.Id != inhabitants[actor].Equipment?.CarryAidLotId &&
+                         // Worn clothing, the carry aid, a worn ornament and a tool under repair stay with the adult.
+                         !PersonalEquipmentRules.IsSelected(inhabitants[actor].Equipment, lot.Id) &&
                          !IsEdibleFood(lot.ItemKind) && PhysicalUnreservedQuantity(lot) > 0 &&
                          VesselFits(lot, StorageRoom(house.InstanceId))).OrderBy(lot => lot.Id, StringComparer.Ordinal))
                 candidates.Add(new("household_store_personal:" + lot.Id, $"Store your own {lot.ItemKind.Replace('_', ' ')} in your House while keeping personal ownership.", 95));
@@ -316,7 +317,8 @@ public sealed partial class PrivateWorldRuntime
         if (lot is null) return;
         if (collect && !PersonalGoodsAwaitingCollection(actor).Any(item => item.Id == lotId)) return;
         if (returnBorrowed && !BorrowedGoods(actor).Any(item => item.Id == lotId)) return;
-        if (store && (lot.OwnerId != actor || lot.ContainerLotId is not null || !PersonalEquipmentRules.IsCarried(lot, actor))) return;
+        if (store && (lot.OwnerId != actor || lot.ContainerLotId is not null || !PersonalEquipmentRules.IsCarried(lot, actor) ||
+                      PersonalEquipmentRules.IsSelected(inhabitants[actor].Equipment, lot.Id))) return;
         var house = collect ? null : HouseForHousehold(returnBorrowed ? lot.OwnerId : HouseholdFor(actor));
         if (!collect && house is null) return;
         var destination = collect ? HouseholdStockPosition(lot) : house!.Position;
