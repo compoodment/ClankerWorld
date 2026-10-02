@@ -249,9 +249,10 @@ everything that is available in the current build. See [what works today](../wha
   four looks). Add Agent placement still shows Town borders and household
   property while placing, without switching the Filters on.
 - **Agreed on October 1:** stripe land with competing household claims, and
-  clicking a tile lists each household's claim. Following the Filters above,
-  Town title and household use rights show as separate overlays; the tile list
-  also names the Town title, and Add Agent placement shows these records.
+  clicking a tile lists each household's claim.
+- Following the Filters above, Town title and household use rights show as
+  separate overlays; the tile list also names the Town title, and Add Agent
+  placement shows these records.
 - Adding an adult agent opens a flow to select a provider, one of its stored
   API credentials or a newly entered one, and a model, then place the agent in
   the world. Existing credentials can be reused by multiple agents. A player

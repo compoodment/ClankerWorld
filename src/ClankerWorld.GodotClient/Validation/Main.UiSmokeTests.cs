@@ -1546,6 +1546,14 @@ public partial class Main
                 throw new InvalidOperationException($"A use right on empty Town land must give Add Agent that household; preview was '{founderSetupHint.Text}'.");
             PreviewAddAgentPlacement(ownedMap with
             {
+                Fields = [new(new(0, 0), "household:one", "growing", "cultivated_greens", 67, null, null)],
+                HouseholdLandUseRights = [.. ownedMap.HouseholdLandUseRights,
+                    new("right:tilled", "town:first", "household:two", [new(0, 0)], 0, "starter_allocation", null)],
+            }, new Vector2I(0, 0));
+            if (!founderSetupHint.Text.Contains("overlap here", StringComparison.Ordinal))
+                throw new InvalidOperationException($"A field must not override another household's use right; preview was '{founderSetupHint.Text}'.");
+            PreviewAddAgentPlacement(ownedMap with
+            {
                 HouseholdLandUseRights = [new("right:previous", "town:first", "household:two",
                     [new(2, 2)], 0, "starter_allocation", null)],
                 HouseholdLandUseRequests = [],
