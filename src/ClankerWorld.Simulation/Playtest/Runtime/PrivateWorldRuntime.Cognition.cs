@@ -87,7 +87,7 @@ public sealed partial class PrivateWorldRuntime
                 physical.RecentThoughts is { Count: > 0 } thoughts ? thoughts[^1].Text : null,
                 checkpoint.Households.SingleOrDefault(item => item.Id == inhabitant.HouseholdId)?.Name,
                 towns.SingleOrDefault(item => item.ResidentIds.Contains(inhabitant.Id, StringComparer.Ordinal))?.Name,
-                HousingNote(inhabitant.Id), EquipmentNote(inhabitant.Id));
+                HousingNote(inhabitant.Id), EquipmentNote(inhabitant.Id), MedicalCareNoteCore(inhabitant.Id));
             var observation = new InhabitantObservation(
                 inhabitant.Id,
                 WorldTick,
@@ -311,6 +311,7 @@ public sealed partial class PrivateWorldRuntime
 
     private void ApplyDecision(SocietyCognitionDispatchResult decision)
     {
+        if (ApplyMedicalConsentDecision(decision)) return;
         if (decision.Admission.Accepted && !decision.Admission.FellBack &&
             decision.Admission.Intention?.Provider == DecisionProviderKind.Jev &&
             decision.Admission.MemoryCompactionScores is { Count: > 0 } memoryScores)
@@ -374,6 +375,11 @@ public sealed partial class PrivateWorldRuntime
         if (!AgePermitsCandidate(inhabitantId, candidateId))
         {
             AppendEvent("age_action_rejected", $"{inhabitantId}:{candidateId}");
+            return;
+        }
+        if (candidateId.StartsWith("medical_", StringComparison.Ordinal))
+        {
+            ApplyMedicalCandidate(inhabitantId, state, candidateId);
             return;
         }
         if (inhabitants[inhabitantId].Equipment?.Repair is not null && candidateId != "repair_equipment")
@@ -807,6 +813,7 @@ public sealed partial class PrivateWorldRuntime
 
         AddSurvivalCandidates(candidates, inhabitantId, state);
         AddDependentCareCandidates(candidates, inhabitantId);
+        AddMedicalCareCandidates(candidates, inhabitantId);
         if (AdultResident(inhabitantId))
         {
             AddKnowledgeCandidates(candidates, inhabitantId, state);

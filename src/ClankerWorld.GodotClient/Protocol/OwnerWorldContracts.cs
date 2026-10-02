@@ -144,6 +144,7 @@ public sealed record OwnerWorldInhabitant(
     public OwnerWorldProject? Project { get; init; }
     public OwnerWorldSurvival? Survival { get; init; }
     public OwnerWorldEquipment? Equipment { get; init; }
+    public string? MedicalCareNote { get; init; }
     public OwnerWorldLesson? Lesson { get; init; }
     public OwnerWorldProficiency? Proficiency { get; init; }
     public IReadOnlyList<OwnerWorldSkill>? Skills { get; init; }

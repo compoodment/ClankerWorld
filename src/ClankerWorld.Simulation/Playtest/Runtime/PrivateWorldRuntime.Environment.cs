@@ -244,7 +244,8 @@ public sealed partial class PrivateWorldRuntime
             var deceased = society.Checkpoint.GetInhabitant(id);
             var deathTick = deceased.DeathTick ?? throw new InvalidDataException("A removed inhabitant has no committed death.");
             deceasedInhabitants.Add(id, new PlaytestDeceasedInhabitantState(
-                id, deathTick, society.Checkpoint.AgeAt(deceased, deathTick), inhabitants[id]));
+                id, deathTick, society.Checkpoint.AgeAt(deceased, deathTick),
+                inhabitants[id] with { MedicalTreatment = null }));
             inhabitants.Remove(id);
             RemoveTownResident(id);
             checkpointSchemaVersion = StateSchemaVersion;
