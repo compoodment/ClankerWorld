@@ -148,6 +148,17 @@ public sealed class WorldEventTextTests
         Assert.Equal("Someone planted something new.", WorldEventText.Describe(new(4, 0, "field_planted", ""), null));
     }
 
+    [Theory]
+    [InlineData("used:812:limit:1000", "Model calls: 812 of 1,000 used across all worlds.")]
+    [InlineData("used:8:limit:10", "Model calls: 8 of 10 used across all worlds.")]
+    [InlineData("used:8", "Model calls: 80% of the limit used across all worlds.")]
+    public void ModelCallWarningNamesTheInstallationCountAndWhereToRaiseTheLimit(string detail, string count)
+    {
+        Assert.True(GameUiText.IsPlayerFacingEvent("model_call_warning"));
+        Assert.Equal(count + " Your worlds pause at the limit; raise it in Settings → Game.",
+            WorldEventText.Describe(new(1, 0, "model_call_warning", detail), null));
+    }
+
     private static OwnerWorldSnapshot Snapshot(params OwnerWorldInhabitant[] people) =>
         new("event-names", 1, "map", [], [], [], null, 1) { Inhabitants = people };
 

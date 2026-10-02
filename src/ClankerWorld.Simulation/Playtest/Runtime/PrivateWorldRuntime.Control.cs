@@ -178,23 +178,96 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
+    // Provider startup and synchronous cancellation completions can reserve or
+    // finish a model call on the thread holding this nonreentrant runtime gate.
+    [ThreadStatic] private static PrivateWorldRuntime? providerInvocationUnderGate;
+
+    /// <summary>
+    /// True while this thread invokes a provider or its cancellation callbacks
+    /// under the runtime gate. Code reached from those callbacks must not wait
+    /// for this nonreentrant gate.
+    /// </summary>
+    public bool IsInvokingProviderUnderGateOnThisThread => ReferenceEquals(providerInvocationUnderGate, this);
+
+    private void CancelProviderCall(CancellationTokenSource cancellation, bool underRuntimeGate)
+    {
+        var outerInvocation = providerInvocationUnderGate;
+        if (underRuntimeGate) providerInvocationUnderGate = this;
+        try
+        {
+            cancellation.Cancel();
+        }
+        finally
+        {
+            providerInvocationUnderGate = outerInvocation;
+        }
+    }
+
     public void Pause()
     {
         gate.Wait();
         try
         {
-            var wasPaused = society.Checkpoint.IsPaused;
-            var result = society.Pause();
-            if (!wasPaused && result.Checkpoint.IsPaused)
-            {
-                foreach (var id in pendingHosted.Keys.ToArray()) CancelPendingHosted(id);
-                foreach (var id in pendingWills.Keys.ToArray()) CancelPendingWill(id);
-                CancelIdentityMoments();
-                foreach (var id in pendingConversationTurns.Keys.ToArray())
-                    CancelPendingConversationTurn(id, AgentConversationInterruption.OwnerPaused);
-                SuspendAllConversations(AgentConversationInterruption.OwnerPaused);
-                AppendEvent("paused", "owner_request");
-            }
+            PauseCore();
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Pauses like <see cref="Pause"/>, but returns false without pausing if
+    /// the runtime stays busy for <paramref name="wait"/> or this thread is
+    /// invoking a provider or its cancellation callbacks under the runtime gate.
+    /// </summary>
+    public bool TryPause(TimeSpan wait)
+    {
+        if (IsInvokingProviderUnderGateOnThisThread || !gate.Wait(wait)) return false;
+        try
+        {
+            PauseCore();
+            return true;
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    private void PauseCore()
+    {
+        var wasPaused = society.Checkpoint.IsPaused;
+        var result = society.Pause();
+        if (!wasPaused && result.Checkpoint.IsPaused)
+        {
+            foreach (var id in pendingHosted.Keys.ToArray()) CancelPendingHosted(id);
+            foreach (var id in pendingWills.Keys.ToArray()) CancelPendingWill(id);
+            CancelIdentityMoments();
+            foreach (var id in pendingConversationTurns.Keys.ToArray())
+                CancelPendingConversationTurn(id, AgentConversationInterruption.OwnerPaused);
+            SuspendAllConversations(AgentConversationInterruption.OwnerPaused);
+            AppendEvent("paused", "owner_request");
+        }
+    }
+
+    /// <summary>
+    /// Writes the installation's 80% model-call warning into this world's
+    /// Event Log. The count and limit stay in installation accounting; the
+    /// event only records what the player was told, like a pause. Returns
+    /// false, recording nothing, when the runtime stays busy for
+    /// <paramref name="wait"/> or this thread invokes a provider or its
+    /// cancellation callbacks under the runtime gate.
+    /// </summary>
+    public bool TryRecordModelCallWarning(long attempts, long attemptLimit, TimeSpan wait)
+    {
+        if (attemptLimit < 1 || attempts < 1 || attempts > attemptLimit)
+            throw new ArgumentOutOfRangeException(nameof(attempts), "A model-call warning needs a used count within a positive limit.");
+        if (IsInvokingProviderUnderGateOnThisThread || !gate.Wait(wait)) return false;
+        try
+        {
+            AppendEvent("model_call_warning", FormattableString.Invariant($"used:{attempts}:limit:{attemptLimit}"));
+            return true;
         }
         finally
         {

@@ -133,6 +133,19 @@ timed out or unavailable. It shows the last accepted model choice separately.
 Those facts survive a refresh and save/reload. The paired Windows/model-wait
 check remains in [the playtest list](../playtest/453-model-choices-and-checks.md).
 
+**Settings → Game → Model calls**, also reachable from the Main Menu, shows the
+installation's model-call count and its optional limit. One count and limit
+cover every world and every call attempt, including failed, retried and
+abandoned ones. The count never resets by itself, and loading an older save
+does not lower it. Provider-reported tokens appear only as information. When
+a call brings the count to 80% of the limit, the host adds one Event Log warning.
+It belongs to the world active when the host records it; switching worlds while
+it waits can change which world receives it. A changed limit sets a new 80%
+mark that only later calls can cross. Reaching the limit pauses
+the world until the limit is raised or more calls are allowed and the world is
+resumed. Per-world limits and cost estimates are not offered. The Windows
+check is in [the playtest list](../playtest/670-model-call-limit-game-settings.md).
+
 The agent card's **Speak to them** box sends a message as a **Suggest** or an
 **Order**. A new suggestion or recognized order asks for one fresh decision from
 the agent's planning model containing the exact words; a queued order reaches it when that order
@@ -417,10 +430,11 @@ materials still lack a complete production chain.
 
 ## Saves, keys and inventions
 
-Worlds keep their own saves, model assignments and autosave settings. API keys
-and pairing belong to the installation. The Windows host protects stored keys
-for the current Windows user; Unix hosts use private file permissions. Damaged
-or wrong-user key data is preserved. Moving installations may require re-entry.
+Worlds keep their own saves, model assignments and autosave settings. API keys,
+pairing and the model-call count and limit belong to the installation. The
+Windows host protects stored keys for the current Windows user; Unix hosts use
+private file permissions. Damaged or wrong-user key data is preserved. Moving
+installations may require re-entry.
 
 If a world tick fails, the server holds the world paused. A failed active
 checkpoint write can retry while paused, but other faults require operator

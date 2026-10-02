@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace ClankerWorld.GodotClient.UI;
 
 /// <summary>Player event descriptions, derived without rewriting accepted history.</summary>
@@ -110,8 +112,20 @@ public static class WorldEventText
             "housing_blocked" => $"{LeadingName(snapshot, worldEvent.Detail)} has no home: {HousingReason(worldEvent.Detail)}.",
             "paused" => "The world was paused.",
             "resumed" => "The world resumed.",
+            "model_call_warning" => DescribeModelCallWarning(parts),
             _ => $"{GameUiText.HumanizeIdentifier(worldEvent.Kind)}.",
         };
+    }
+
+    /// <summary>The installation's one warning at 80% of its model-call limit.</summary>
+    private static string DescribeModelCallWarning(string[] parts)
+    {
+        var count = parts.Length == 4 && parts[0] == "used" && parts[2] == "limit" &&
+            long.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out var used) &&
+            long.TryParse(parts[3], NumberStyles.None, CultureInfo.InvariantCulture, out var limit)
+            ? string.Create(CultureInfo.InvariantCulture, $"{used:N0} of {limit:N0}")
+            : "80% of the limit";
+        return $"Model calls: {count} used across all worlds. Your worlds pause at the limit; raise it in Settings → Game.";
     }
 
     private static string DescribeSkill(string detail, OwnerWorldSnapshot? snapshot)
