@@ -44,7 +44,7 @@ perspective; no parallel isometric art set is planned.
 | --- | --- | --- | --- |
 | 1.1 | Agreed | Ground surfaces | Meadow/grass, forest floor, sand/beach, dry scrub, rocky upland, snow/tundra, and fertile/cultivated soil. Climate, elevation, surface and vegetation remain separate data, not one tile type per combination. |
 | 1.2 | Agreed | Water | Ocean, lake, continuous river, shoreline/water edge; shallow one-tile river crossing distinct enough to read. Depth/flow variants only if they affect crossing rules. |
-| 1.3 | Agreed | Elevation | Mountain and peak terrain silhouettes/edges; neither allows construction. Mountains are passable more slowly; peaks cannot be traversed. Exact slow-down is open. |
+| 1.3 | Agreed | Elevation | Mountain and peak terrain silhouettes/edges; neither allows construction. Mountains are passable at twice the walking cost of grass; peaks cannot be traversed. |
 | 1.4 | Agreed | Ground transitions | Coasts, river banks/corners, grass–sand, grass–snow, and rocky boundaries. On worlds with optional east/west wrapping, terrain and rivers continue correctly across the map's right/left edge; this is a map rule, not a separate texture family. |
 | 1.5 | Agreed | Seasons and weather | Spring/summer/autumn/winter palette treatment; clouds, rain, snow and a severe storm effect. Weather is regional. Night affects temperature/weather, not sleep, travel, visibility, work or social rules; a cosmetic night tint is accepted without a visibility penalty. |
 | 1.6 | Agreed | Surface texture variation | Roughly two subtle textures per terrain type—e.g. clean grass and grass with small tufts/stones. Little leaves, stones and similar details live mainly inside the texture, not as many individually placed objects. Shoreline effects/edges may need their own pieces. |
@@ -94,7 +94,7 @@ are provisional. Farm planning responds to population, yield and stored reserves
 | --- | --- | --- | --- |
 | 3.1 | Agreed | Wood | Trees and hand-gathered fallen wood → tools, buildings, fuel, carts and boats. One wood item initially; split logs/planks only when useful. |
 | 3.2 | Agreed | Stone | Outcrops → stone tools and construction. |
-| 3.3 | Agreed | Iron ore / refined iron | Stone pickaxe extracts ore; Blacksmith refines a separate iron item for tools, fittings and equipment. Trial recipe in the [approved pipelines](towns.md#item-and-resource-pipelines). Offering refined metal directly from the Blacksmith remains a separate business-catalogue choice. |
+| 3.3 | Agreed | Iron ore / refined iron | Stone pickaxe extracts ore; Blacksmith refines a separate iron item for tools, fittings and equipment. Trial recipe in the [approved pipelines](towns.md#item-and-resource-pipelines). The Blacksmith may also sell spare refined iron from its stock ([#651](https://github.com/compoodment/ClankerWorld/issues/651)). |
 | 3.4 | Agreed | Gold / diamond / ornament | Iron pickaxe extracts rare deposits. The Blacksmith makes gold ornaments, optionally set with a diamond, for wearing, gifts and trade; no gold standard or diamond tool tier. |
 | 3.5 | Agreed | Plant fiber / cloth | Fiber plants → the Tailor Shop turns plant fiber into a real **cloth intermediate** → the Tailor Shop turns cloth into clothing; cloth can be held and traded as its own stock. Recipe numbers are provisional (see 6.8). |
 | 3.6 | Agreed | Seeds | Distinct wood-tree, orchard, universal-grain and cultivated-green seeds; potatoes are their own planting stock. Harvest replacement seeds and reserve enough to replant before selling surplus. |
@@ -124,12 +124,12 @@ an endless ore ladder merely because they are conventional crafting-game items.
 **First-Town guaranteed start:** two Houses, a Warehouse, a Farmhouse and a
 Blacksmith, plus **eight food portions in each House** and **at least one
 usable wooden axe and one usable wooden pickaxe** in the communal Warehouse,
-and **one garment** for each starting agent, kept in their House.
-The game automatically assigns the Farmhouse and Blacksmith to the two
-starting households, one productive building each. Optional extra supplies
-and later ownership transfers remain **open**. Wooden replacement tools come
-from wood at the Blacksmith; fallen wood can be gathered by hand if the last
-axe is lost. The Workshop is not required at start.
+and **one garment** for each starting agent, kept in their House. The game
+automatically assigns the Farmhouse and Blacksmith to the two starting
+households, one productive building each. There are no optional extra supplies
+for now; later ownership transfers remain **open**. Wooden replacement tools
+come from wood at the Blacksmith; fallen wood can be gathered by hand if the
+last axe is lost. The Workshop is not required at start.
 
 ## 5. Food, cooking, and care
 
@@ -164,7 +164,7 @@ and an inspection-panel identity/icon. There are **no room-interior assets**.
 | 6.4 | Agreed | Farmhouse: 1×1 or 1×2 | Crop processing and farm-household activity; one of the guaranteed first-Town productive buildings, held by a starting household. Household-held, **not communal**: the holding household works there and sells directly from it, and any adult resident of that household may use it. A Farmhouse household may also build a Silo and an optional Store. |
 | 6.5 | Agreed | Farm fields | Prepared/seeded/growing/ready/harvested states for each accepted crop, not visible building interiors. |
 | 6.6 | Agreed | Private farm Silo: 1×1 | Separate private farm-work stock **next to the Farmhouse**, which the Farmhouse household may build; exact adjacency/placement rule and storage capacity open. |
-| 6.7 | Agreed | Blacksmith: 1×2 or 2×2 | Guaranteed first-Town building, held by a household. Household-held, **not communal**: any adult resident of the holding household may use it. Refines ore and makes tools; sells tools and accepts tool-making requests **at the Blacksmith** with on-site stock—no separate Store needed. Sale of refined metal remains proposed. |
+| 6.7 | Agreed | Blacksmith: 1×2 or 2×2 | Guaranteed first-Town building, held by a household. Household-held, **not communal**: any adult resident of the holding household may use it. Refines ore and makes tools; sells tools and accepts tool-making requests **at the Blacksmith** with on-site stock—no separate Store needed. It may also sell spare refined iron. |
 | 6.8 | Agreed | Tailor Shop: 1×1 or 2×2 | Household-held clothing business. It turns plant fiber into cloth and cloth into clothing; cloth is a real tradable item (see 3.5). A Tailor Shop household may build an optional Store. It replaces the Weaving frame and its "Woven clothing" outright, with no legacy transition. Recipe numbers, costs and work time are **Leaning toward**: provisional, tuned in playtests. The holding household sells clothing directly from the building and does not need a Store. Any tool recipes remain open. |
 | 6.9 | Agreed | Workshop: 2×2 | Inventions/mods and work access for outsiders; communal, held by the Town. **Late-development mechanics/code**, after the base simulation and assets are fuller. Not guaranteed at the start. The one shared building a household may plan; the Town holds it once built. |
 | 6.10 | Agreed | Market: 2×2; stalls: 1×1 | Main building plus separate stall assets. The Market building is a hall without stalls; stalls stand on an open plaza of packed earth around it, and the market need not be as large as the earlier approximately 10×12 plot (October 1 art review). Sellers may use any empty stall until they leave, without Town assignment (see [physical trade rules](towns.md#physical-trade-and-production-safeguards)). Plot reservation, stall ownership and how new stalls fill the plot remain open. Trading admits any Town's agents. |
@@ -272,8 +272,7 @@ Food, crops, pottery, water, rope, tools, carry aids and care supplies no longer
 wait on a first recipe proposal. Medicinal herbs, paper, hides and ornaments
 are also agreed additions.
 
-Still open: optional starter supplies beyond the guaranteed minima; whether a
-Blacksmith offers refined metal directly in its business catalogue; exact Port
+Still open: exact Port
 clearance, visitor-permission authority and boat queueing; Market plot
 reservation, stall ownership and construction; currency and
 governance rules; detailed animal breeding/mortality, injury and combat rules;
