@@ -44,6 +44,11 @@ public sealed class OrnamentPersonalUseTests
         var transit = PrivateWorldRuntimeCodec.Encode(world.ExportState());
         using var resumed = Restore(PrivateWorldRuntimeCodec.Decode(transit), actor,
             new OrnamentChoices("wear_ornament:", DecisionProviderKind.LargeLanguageModel));
+        // The walk continues between model turns; putting the ornament on still waits for a fresh choice.
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.True((await resumed.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal(house.Position, Physical(world, actor).Position);
+        Assert.Null(Physical(world, actor).Equipment?.OrnamentLotId);
         for (var tick = 0; tick < 181 && Physical(world, actor).Equipment?.OrnamentLotId is null; tick++)
         {
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
@@ -144,14 +149,12 @@ public sealed class OrnamentPersonalUseTests
         var choices = new OrnamentChoices("safe_idle", DecisionProviderKind.LargeLanguageModel);
         using var world = Restore(WithInventory(state, inventory), actor, choices);
         Assert.False(world.WearOrnament(actor, Ornament).Applied);
+        // Giving it used to throw inside the tick and stall the world.
+        Assert.False(world.GiveOrnament(actor, owner, Ornament).Applied);
         Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-        Assert.Contains(choices.Offered, candidate => candidate.Id.StartsWith("gift_ornament:", StringComparison.Ordinal));
-        var borrowedChoices = new[]
-        {
-            "wear_ornament:" + Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(
-                System.Text.Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(new[] { Ornament })))),
-        };
-        Assert.DoesNotContain(choices.Offered, candidate => borrowedChoices.Contains(candidate.Id));
+        Assert.Contains(choices.Offered, candidate => candidate.Id == ChoiceId("gift_ornament:", "own-ornament-control", owner));
+        Assert.DoesNotContain(choices.Offered, candidate => candidate.Id == ChoiceId("wear_ornament:", Ornament) ||
+            candidate.Id == ChoiceId("gift_ornament:", Ornament, owner));
         Assert.Equal((owner, actor), (world.Society.Inventory.GetLot(Ornament).OwnerId, world.Society.Inventory.GetLot(Ornament).CarrierId));
         Assert.Null(Physical(world, actor).Equipment?.OrnamentLotId);
         world.Validate();
@@ -508,6 +511,8 @@ public sealed class OrnamentPersonalUseTests
         };
     }
 
+    private static string ChoiceId(string prefix, params string[] identity) => prefix + Convert.ToHexStringLower(
+        System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(identity))));
     private static string Actor(PrivateWorldRuntimeState state) => state.Society.Society.Inhabitants.First(person => person.HouseholdId == Alpha).Id;
     private static string Recipient(PrivateWorldRuntimeState state) => state.Society.Society.Inhabitants.First(person => person.HouseholdId != Alpha).Id;
     private static PrivateWorldRuntimeState WithInventory(PrivateWorldRuntimeState state, InventoryCheckpoint inventory) =>
