@@ -34,7 +34,12 @@ public partial class WorldTerrainLayer : Control
     // Saved bridge decks, true when the deck runs east-west.
     private readonly Dictionary<Vector2I, bool> bridgeDecks = [];
     private readonly Dictionary<Vector2I, string> householdPropertyTiles = [];
+    private readonly HashSet<Vector2I> townLandTitleTiles = [];
+    private readonly Dictionary<Vector2I, string[]> householdLandUseTiles = [];
+    private readonly HashSet<Vector2I> pendingLandUseTiles = [];
+    private readonly HashSet<Vector2I> disputedLandTiles = [];
     private readonly List<(Rect2I Footprint, BuildingKind Kind, BuildingDoor Door)> buildings = [];
+    private readonly HashSet<Vector2I> buildingTiles = [];
     // Road tiles in front of a door, and the side of the tile the door is on.
     private readonly Dictionary<Vector2I, RoadLinks> doorsteps = [];
     private readonly Dictionary<Vector2I, OwnerWorldFarmField> fields = [];
@@ -44,6 +49,9 @@ public partial class WorldTerrainLayer : Control
     ];
 
     public int VisibleTileCount { get; private set; }
+
+    /// <summary>Natural sites drawn with simple shapes in the last overview frame.</summary>
+    public int OverviewNaturalObjectDrawCount { get; private set; }
 
     /// <summary>Opt-in developer measurement of CPU draw-command submission, excluding GPU rendering.</summary>
     public bool MeasureDrawCost { get; set; }
@@ -57,6 +65,13 @@ public partial class WorldTerrainLayer : Control
 
     /// <summary>Tiles tinted as household property; zero when that overlay is hidden.</summary>
     public int HouseholdPropertyTileCount => householdPropertyTiles.Count;
+
+    public int TownLandTitleTileCount => townLandTitleTiles.Count;
+
+    public int HouseholdLandUseTileCount => householdLandUseTiles.Count +
+        pendingLandUseTiles.Count(tile => !householdLandUseTiles.ContainsKey(tile));
+
+    public int DisputedLandTileCount => disputedLandTiles.Count;
 
     /// <summary>Camera-visible tile rectangle, in tiles; x can run past the seam on wrapped worlds.</summary>
     public Rect2 VisibleTiles => visibleTiles;
@@ -91,6 +106,7 @@ public partial class WorldTerrainLayer : Control
     public void SetWorld(WorldTerrainMap map)
     {
         world = map;
+        ResetRelief();
         townSiteGuidanceTexture = null;
         currentTownSiteGuidance = null;
         // At overview scale, thousands of individual draw commands are much
@@ -180,24 +196,32 @@ public partial class WorldTerrainLayer : Control
         QueueRedraw();
     }
 
+    /// <summary>
+    /// Farm fields. Where the map draws ground textures, each field tile shows
+    /// the tilled Fertile soil tile with the approved overlay for its crop and
+    /// stage on top (<see cref="FieldSprites"/>); at overview zoom it is one
+    /// flat colour taken from that same art.
+    /// </summary>
     private void DrawFields((int Left, int Top, int Width, int Height) bounds, int stride)
     {
+        if (world is null || fields.Count == 0) return;
+        var atlasSize = TerrainTextures.AtlasTileSize(tileSize);
+        var soil = DrawsGroundTextures ? TerrainTextures.Atlas(atlasSize) : null;
         for (var y = bounds.Top; y < bounds.Top + bounds.Height; y++)
             for (var x = bounds.Left; x < bounds.Left + bounds.Width; x++)
             {
-                if (!fields.TryGetValue(new(wrapsEastWest ? Mod(x, world!.Width) : x, y), out var field)) continue;
+                var mapX = wrapsEastWest ? Mod(x, world.Width) : x;
+                if (!fields.TryGetValue(new(mapX, y), out var field)) continue;
                 var tile = new Rect2(x * stride, y * stride, tileSize, tileSize);
-                DrawRect(tile, new Color(field.Stage == "preparing" ? "84765D" : "654931"));
-                if (tileSize >= 8)
-                    for (var row = 1; row <= 3; row++)
-                        DrawLine(tile.Position + new Vector2(1, tileSize * row / 4f),
-                            tile.Position + new Vector2(tileSize - 1, tileSize * row / 4f), new Color("9B7149"), Math.Max(1, tileSize / 24f));
-                if (field.Stage is not ("planted" or "growing" or "ready")) continue;
-                var color = new Color(field.Stage == "ready" && field.Crop == "grain" ? "D9BD57" : "67A847");
-                var radius = Math.Max(1, tileSize * (field.Stage == "planted" ? 0.04f : 0.1f));
-                for (var row = 1; row <= 2; row++)
-                    for (var column = 1; column <= 2; column++)
-                        DrawCircle(tile.Position + new Vector2(tileSize * column / 3f, tileSize * row / 3f), radius, color);
+                var crop = FieldSprites.CropFor(field.Crop);
+                var growth = FieldSprites.GrowthFor(field.Stage);
+                if (soil is null)
+                {
+                    DrawRect(tile, FieldSprites.OverviewColor(crop, growth));
+                    continue;
+                }
+                DrawTextureRectRegion(soil, tile, TerrainTextures.Region(TerrainStyle.FertileSoil, TerrainTextures.VariantAt(mapX, y), atlasSize));
+                DrawTextureRect(FieldSprites.Texture(crop, growth, atlasSize), tile, false);
             }
     }
 
@@ -211,6 +235,58 @@ public partial class WorldTerrainLayer : Control
         townBorderTiles.UnionWith(next);
         QueueRedraw();
     }
+
+    public void SetTownLandTitles(IReadOnlyList<OwnerWorldLandTitle> titles)
+    {
+        ArgumentNullException.ThrowIfNull(titles);
+        var next = titles.SelectMany(title => title.Tiles)
+            .Select(point => new Vector2I(point.X, point.Y)).ToHashSet();
+        if (next.SetEquals(townLandTitleTiles)) return;
+        townLandTitleTiles.Clear();
+        townLandTitleTiles.UnionWith(next);
+        QueueRedraw();
+    }
+
+    public void SetHouseholdLandUses(IReadOnlyList<OwnerWorldHouseholdLandUseRight> rights,
+        IReadOnlyList<OwnerWorldHouseholdLandUseRequest> requests)
+    {
+        ArgumentNullException.ThrowIfNull(rights);
+        ArgumentNullException.ThrowIfNull(requests);
+        var owners = new Dictionary<Vector2I, HashSet<string>>();
+        foreach (var right in rights)
+            foreach (var point in right.Tiles)
+            {
+                var tile = new Vector2I(point.X, point.Y);
+                if (!owners.TryGetValue(tile, out var households))
+                    owners.Add(tile, households = new HashSet<string>(StringComparer.Ordinal));
+                households.Add(right.HouseholdId);
+            }
+        var nextOwners = owners.ToDictionary(entry => entry.Key,
+            entry => entry.Value.Order(StringComparer.Ordinal).ToArray());
+        var nextPending = requests.SelectMany(request => request.Tiles)
+            .Select(point => new Vector2I(point.X, point.Y)).ToHashSet();
+        if (LandUseOwnersEqual(nextOwners, householdLandUseTiles) && nextPending.SetEquals(pendingLandUseTiles)) return;
+        householdLandUseTiles.Clear();
+        foreach (var (tile, households) in nextOwners) householdLandUseTiles.Add(tile, households);
+        pendingLandUseTiles.Clear();
+        pendingLandUseTiles.UnionWith(nextPending);
+        QueueRedraw();
+    }
+
+    public void SetDisputedLand(IReadOnlyList<OwnerWorldHouseholdLandUseRequest> requests)
+    {
+        ArgumentNullException.ThrowIfNull(requests);
+        var next = requests.SelectMany(request => request.DisputedTiles)
+            .Select(point => new Vector2I(point.X, point.Y)).ToHashSet();
+        if (next.SetEquals(disputedLandTiles)) return;
+        disputedLandTiles.Clear();
+        disputedLandTiles.UnionWith(next);
+        QueueRedraw();
+    }
+
+    private static bool LandUseOwnersEqual(Dictionary<Vector2I, string[]> left,
+        Dictionary<Vector2I, string[]> right) => left.Count == right.Count && left.All(entry =>
+        right.TryGetValue(entry.Key, out var owners) && entry.Value.SequenceEqual(owners, StringComparer.Ordinal));
 
     public void SetRoads(IReadOnlyList<OwnerWorldPosition> roads)
     {
@@ -274,6 +350,11 @@ public partial class WorldTerrainLayer : Control
         if (next.SequenceEqual(buildings)) return;
         buildings.Clear();
         buildings.AddRange(next);
+        buildingTiles.Clear();
+        foreach (var (footprint, _, _) in buildings)
+            for (var y = footprint.Position.Y; y < footprint.End.Y; y++)
+                for (var x = footprint.Position.X; x < footprint.End.X; x++)
+                    buildingTiles.Add(new Vector2I(wrapsEastWest && world is not null ? Mod(x, world.Width) : x, y));
         doorsteps.Clear();
         foreach (var (footprint, _, door) in buildings)
         {
@@ -379,6 +460,7 @@ public partial class WorldTerrainLayer : Control
             9 => "Gold outcrop",
             10 => "Diamond outcrop",
             11 => "Clay bank",
+            12 => "Fallen wood",
             _ => null,
         };
     }
@@ -409,6 +491,7 @@ public partial class WorldTerrainLayer : Control
                 "fiber_plant" => (byte)3,
                 "reeds" => (byte)4,
                 "stone_outcrop" => (byte)5,
+                "fallen_wood" => (byte)12,
                 "wild_seed_patch" => (byte)6,
                 "fertile_soil" => (byte)7,
                 "iron_outcrop" => (byte)8,
@@ -452,6 +535,23 @@ public partial class WorldTerrainLayer : Control
 
     public int CampResourceSpriteCount => campResources.Count;
 
+    /// <summary>Cacti drawn in the last frame; zero below sprite zoom.</summary>
+    public int CactusSpriteCount { get; private set; }
+
+    /// <summary>
+    /// The cactus drawn on a tile: only on cactus cover, and never under a
+    /// Road, bridge, doorstep, field or building.
+    /// </summary>
+    public NatureSprite? CactusAt(int x, int y)
+    {
+        if (world is null || !world.IsCactusCoverAt(x, y)) return null;
+        var tile = new Vector2I(x, y);
+        if (roadTiles.Contains(tile) || bridgeDecks.ContainsKey(tile) || doorsteps.ContainsKey(tile) ||
+            fields.ContainsKey(tile) || buildingTiles.Contains(tile))
+            return null;
+        return CactusSprites.ForTile(x, y);
+    }
+
     public void SetHoveredTile(Vector2I? tile)
     {
         if (hoveredTile == tile) return;
@@ -492,6 +592,8 @@ public partial class WorldTerrainLayer : Control
 
     private void DrawMapContents()
     {
+        OverviewNaturalObjectDrawCount = 0;
+        BeginReliefDraw();
         if (world is null) return;
         var bounds = VisibleBounds();
         var stride = tileSize + tileGap;
@@ -519,6 +621,7 @@ public partial class WorldTerrainLayer : Control
             var coasts = CoastEdges.Atlas(atlasSize);
             var water = WaterTextures.Atlas(atlasSize);
             var hills = TerrainTextures.HillAtlas(atlasSize);
+            var hillOverlays = 0;
             for (var y = bounds.Top; y < bounds.Top + bounds.Height; y++)
             {
                 for (var x = bounds.Left; x < bounds.Left + bounds.Width; x++)
@@ -545,11 +648,20 @@ public partial class WorldTerrainLayer : Control
                         DrawTextureRectRegion(edges, tile, TerrainTransitions.Region(over, piece, atlasSize));
                     // Hills are relief over the tile's own ground, not a
                     // separate surface, so grass or snow still shows through.
-                    if (world.IsHillAt(mapX, y))
+                    // The relief layer shades them once its chunk is ready;
+                    // until then the per-tile overlay stands in.
+                    if (world.IsHillAt(mapX, y) && !ReliefCovers(mapX, y, atlasSize))
+                    {
                         DrawTextureRectRegion(hills, tile, TerrainTextures.HillRegion(
                             (int)(PixelArt.Hash(mapX, y, 61) % TerrainTextures.VariantCount), atlasSize));
+                        hillOverlays++;
+                    }
                 }
             }
+            HillOverlayTileCount = hillOverlays;
+            // Mountains, peaks and hills as one landform over the ground and
+            // its edges, under fields, Roads and everything standing on them.
+            DrawRelief(bounds, stride, atlasSize);
         }
         DrawFields(bounds, stride);
         DrawTownSiteGuidance(bounds, stride);
@@ -558,6 +670,7 @@ public partial class WorldTerrainLayer : Control
         DrawBuildings(bounds, stride);
         // Trees are objects, not baked ground colors: keep them visible both
         // above full-size tiles and above the small-tile palette cache.
+        var cacti = 0;
         for (var y = bounds.Top; y < bounds.Top + bounds.Height; y++)
             for (var x = bounds.Left; x < bounds.Left + bounds.Width; x++)
             {
@@ -569,8 +682,17 @@ public partial class WorldTerrainLayer : Control
                     DrawNaturalObject(new Vector2(x * stride, y * stride), naturalObjects[index], naturalStages[index]);
                 else if (campResources.TryGetValue(index, out var campSprite))
                     DrawCampResource(new Vector2(x * stride, y * stride), campSprite);
+                else if (tree == 0 && tileSize >= SpriteTileMinimum && CactusAt(mapX, y) is { } cactus)
+                {
+                    DrawNatureSprite(new Vector2(x * stride, y * stride), cactus);
+                    cacti++;
+                }
             }
+        CactusSpriteCount = cacti;
+        DrawTownLandTitles(bounds, stride);
+        DrawHouseholdLandUses(bounds, stride);
         DrawHouseholdProperties(bounds, stride);
+        DrawDisputedLand(bounds, stride);
         DrawTownBorders(bounds, stride);
         if (hoveredTile is { } hover && tileSize > 0 &&
             hover.Y >= bounds.Top && hover.Y < bounds.Top + bounds.Height)
@@ -664,11 +786,13 @@ public partial class WorldTerrainLayer : Control
         {
             DrawCircle(center, Math.Max(2f, tileSize * 0.18f), new Color("77766D", 0.78f));
             DrawCircle(center, Math.Max(1f, tileSize * 0.1f), new Color("A69A81", 0.72f));
+            OverviewNaturalObjectDrawCount++;
             return;
         }
         if (stage == 2)
         {
             DrawCircle(center, Math.Max(1.5f, tileSize * 0.10f), new Color("658451", 0.74f));
+            OverviewNaturalObjectDrawCount++;
             return;
         }
         switch (kind)
@@ -744,7 +868,13 @@ public partial class WorldTerrainLayer : Control
                 DrawLine(center + new Vector2(-tileSize * 0.12f, -tileSize * 0.03f),
                     center + new Vector2(tileSize * 0.11f, -tileSize * 0.07f), new Color("B69B69"), scale);
                 break;
+            case 12: // fallen wood
+                DrawCampResource(position, NatureSprite.WoodPile);
+                break;
+            default:
+                return;
         }
+        OverviewNaturalObjectDrawCount++;
     }
 
     private void DrawLeaf(Vector2 center, float radius, Color color)
@@ -783,6 +913,97 @@ public partial class WorldTerrainLayer : Control
         }
         return (int)(hash % HouseholdPropertyColors.Length);
     }
+
+    private void DrawTownLandTitles((int Left, int Top, int Width, int Height) bounds, int stride)
+    {
+        if (world is null || townLandTitleTiles.Count == 0 || tileSize <= 0) return;
+        foreach (var (point, drawX) in VisibleLandTiles(bounds))
+        {
+            if (!townLandTitleTiles.Contains(point)) continue;
+            var tile = new Rect2(new Vector2(drawX * stride, point.Y * stride), new Vector2(tileSize, tileSize));
+            DrawRect(tile, new Color("659BC1", 0.09f));
+        }
+        DrawLandTileSetBoundary(bounds, stride, townLandTitleTiles, new Color("A7D0EE", 0.92f));
+    }
+
+    private void DrawHouseholdLandUses((int Left, int Top, int Width, int Height) bounds, int stride)
+    {
+        if (world is null || tileSize <= 0 || householdLandUseTiles.Count == 0 && pendingLandUseTiles.Count == 0) return;
+        foreach (var (point, drawX) in VisibleLandTiles(bounds))
+        {
+            if (!householdLandUseTiles.TryGetValue(point, out var households)) continue;
+            var color = HouseholdPropertyColors[HouseholdColorIndex(households[0])];
+            var tile = new Rect2(new Vector2(drawX * stride, point.Y * stride), new Vector2(tileSize, tileSize));
+            DrawRect(tile, new Color(color.R, color.G, color.B, 0.17f));
+        }
+        var householdsWithLand = householdLandUseTiles.Values.SelectMany(item => item)
+            .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal);
+        foreach (var householdId in householdsWithLand)
+        {
+            var tiles = householdLandUseTiles.Where(entry => entry.Value.Contains(householdId, StringComparer.Ordinal))
+                .Select(entry => entry.Key).ToHashSet();
+            var ownerColor = HouseholdPropertyColors[HouseholdColorIndex(householdId)];
+            DrawLandTileSetBoundary(bounds, stride, tiles,
+                new Color(ownerColor.R, ownerColor.G, ownerColor.B, 0.9f));
+        }
+        DrawLandTileSetBoundary(bounds, stride, pendingLandUseTiles, new Color("E8B765", 0.95f));
+    }
+
+    private void DrawDisputedLand((int Left, int Top, int Width, int Height) bounds, int stride)
+    {
+        if (world is null || disputedLandTiles.Count == 0 || tileSize <= 0) return;
+        foreach (var (point, drawX) in VisibleLandTiles(bounds))
+        {
+            if (!disputedLandTiles.Contains(point)) continue;
+            var origin = new Vector2(drawX * stride, point.Y * stride);
+            DrawRect(new Rect2(origin, new Vector2(tileSize, tileSize)), new Color("A54545", 0.25f));
+            if (tileSize >= 4)
+            {
+                var band = Math.Max(1f, tileSize / 5f);
+                for (var y = 0f; y < tileSize; y += band * 2)
+                    DrawRect(new Rect2(origin + new Vector2(0, y), new Vector2(tileSize, Math.Min(band, tileSize - y))),
+                        new Color("C95A55", 0.42f));
+            }
+        }
+        DrawLandTileSetBoundary(bounds, stride, disputedLandTiles, new Color("F08B83", 0.98f));
+    }
+
+    private IEnumerable<(Vector2I Point, int DrawX)> VisibleLandTiles(
+        (int Left, int Top, int Width, int Height) bounds)
+    {
+        if (world is null) yield break;
+        for (var y = bounds.Top; y < bounds.Top + bounds.Height; y++)
+            for (var x = bounds.Left; x < bounds.Left + bounds.Width; x++)
+            {
+                var canonicalX = wrapsEastWest ? Mod(x, world.Width) : x;
+                yield return (new Vector2I(canonicalX, y), x);
+            }
+    }
+
+    private void DrawLandTileSetBoundary((int Left, int Top, int Width, int Height) bounds, int stride,
+        HashSet<Vector2I> tiles, Color color)
+    {
+        if (world is null || tiles.Count == 0 || tileSize <= 0) return;
+        var width = Math.Clamp(tileSize / 24f, 1f, 3f);
+        foreach (var (point, drawX) in VisibleLandTiles(bounds))
+        {
+            if (!tiles.Contains(point)) continue;
+            var origin = new Vector2(drawX * stride, point.Y * stride);
+            if (!ContainsLandTile(point.X, point.Y - 1, tiles))
+                DrawLine(origin, origin + new Vector2(tileSize, 0), color, width);
+            if (!ContainsLandTile(point.X + 1, point.Y, tiles))
+                DrawLine(origin + new Vector2(tileSize, 0), origin + new Vector2(tileSize, tileSize), color, width);
+            if (!ContainsLandTile(point.X, point.Y + 1, tiles))
+                DrawLine(origin + new Vector2(tileSize, tileSize), origin + new Vector2(0, tileSize), color, width);
+            if (!ContainsLandTile(point.X - 1, point.Y, tiles))
+                DrawLine(origin + new Vector2(0, tileSize), origin, color, width);
+        }
+    }
+
+    private bool ContainsLandTile(int x, int y, HashSet<Vector2I> tiles) => world is not null &&
+        y >= 0 && y < world.Height && (wrapsEastWest
+            ? tiles.Contains(new Vector2I(Mod(x, world.Width), y))
+            : x >= 0 && x < world.Width && tiles.Contains(new Vector2I(x, y)));
 
     /// <summary>
     /// Town borders as a pale dashed line just inside the border's outer edge,
@@ -861,8 +1082,8 @@ public partial class WorldTerrainLayer : Control
 
     /// <summary>
     /// Packed-dirt Road pieces joined along the Road, with smooth diagonals
-    /// and doorstep paths. At overview zoom the same links are drawn as flat
-    /// lines.
+    /// and doorstep paths. A Road in line with a bridge deck runs up to it.
+    /// At overview zoom the same links are drawn as flat lines.
     /// </summary>
     private void DrawRoads((int Left, int Top, int Width, int Height) bounds, int stride)
     {
@@ -877,9 +1098,11 @@ public partial class WorldTerrainLayer : Control
         for (var y = bounds.Top; y < bounds.Top + bounds.Height; y++)
             for (var x = bounds.Left; x < bounds.Left + bounds.Width; x++)
             {
+                var mapX = wrapsEastWest ? Mod(x, world.Width) : x;
+                // A deck tile draws its planks instead of a Road piece.
+                if (bridgeDecks.ContainsKey(new Vector2I(mapX, y))) continue;
                 var links = RoadLinksAt(x, y);
                 if (!RoadSprites.Draws(links)) continue;
-                var mapX = wrapsEastWest ? Mod(x, world.Width) : x;
                 if (links.HasFlag(RoadLinks.Road)) links |= doorsteps.GetValueOrDefault(new Vector2I(mapX, y));
                 var variant = (int)(PixelArt.Hash(mapX, y, 7) % RoadSprites.VariantCount);
                 var dark = RoadSprites.NeedsDarkEdge(world.StyleAt(mapX, y));
@@ -888,15 +1111,20 @@ public partial class WorldTerrainLayer : Control
             }
     }
 
-    /// <summary>Which of a tile's neighbours are Road, and whether it is Road itself.</summary>
+    /// <summary>
+    /// Which of a tile's neighbours are Road, and whether it is Road itself. A
+    /// Road tile in line with a bridge deck counts the deck as Road, so the
+    /// street runs onto the bridge instead of ending short of it.
+    /// </summary>
     private RoadLinks RoadLinksAt(int x, int y)
     {
         var links = RoadLinks.None;
-        if (IsRoad(x, y)) links |= RoadLinks.Road;
-        if (IsRoad(x, y - 1)) links |= RoadLinks.North;
-        if (IsRoad(x + 1, y)) links |= RoadLinks.East;
-        if (IsRoad(x, y + 1)) links |= RoadLinks.South;
-        if (IsRoad(x - 1, y)) links |= RoadLinks.West;
+        var road = IsRoad(x, y);
+        if (road) links |= RoadLinks.Road;
+        if (IsRoad(x, y - 1) || (road && IsDeck(x, y - 1, eastWest: false))) links |= RoadLinks.North;
+        if (IsRoad(x + 1, y) || (road && IsDeck(x + 1, y, eastWest: true))) links |= RoadLinks.East;
+        if (IsRoad(x, y + 1) || (road && IsDeck(x, y + 1, eastWest: false))) links |= RoadLinks.South;
+        if (IsRoad(x - 1, y) || (road && IsDeck(x - 1, y, eastWest: true))) links |= RoadLinks.West;
         // Diagonals only matter for Road tiles and for tiles between two Roads.
         if (!links.HasFlag(RoadLinks.Road) && System.Numerics.BitOperations.PopCount((uint)links) < 2) return links;
         if (IsRoad(x + 1, y - 1)) links |= RoadLinks.NorthEast;
@@ -909,6 +1137,11 @@ public partial class WorldTerrainLayer : Control
     private bool IsRoad(int x, int y) => world is not null && y >= 0 && y < world.Height &&
         (wrapsEastWest || x >= 0 && x < world.Width) &&
         roadTiles.Contains(new Vector2I(wrapsEastWest ? Mod(x, world.Width) : x, y));
+
+    /// <summary>Whether a bridge deck running along the given axis lies on this tile.</summary>
+    private bool IsDeck(int x, int y, bool eastWest) => world is not null && y >= 0 && y < world.Height &&
+        (wrapsEastWest || x >= 0 && x < world.Width) &&
+        bridgeDecks.TryGetValue(new Vector2I(wrapsEastWest ? Mod(x, world.Width) : x, y), out var axis) && axis == eastWest;
 
     private void DrawRoadLines((int Left, int Top, int Width, int Height) bounds, int stride, Color color, float width)
     {
@@ -926,41 +1159,42 @@ public partial class WorldTerrainLayer : Control
                     if (dx != 0 && dy != 0 && (IsRoad(x + dx, y) || IsRoad(x, y + dy))) continue;
                     DrawLine(center, center + new Vector2(dx * stride, dy * stride), color, width);
                 }
+                // Run on to the edge of a bridge deck in line with the Road.
+                foreach (var (dx, dy) in new (int X, int Y)[] { (1, 0), (-1, 0), (0, 1), (0, -1) })
+                    if (IsDeck(x + dx, y + dy, eastWest: dy == 0))
+                        DrawLine(center, center + new Vector2(dx, dy) * (stride / 2f), color, width);
             }
     }
 
+    /// <summary>
+    /// Plank bridge decks over their saved tiles, so deck tiles join each
+    /// other and the Road on each bank. At overview zoom a deck is a flat
+    /// timber band with dark side rails.
+    /// </summary>
     private void DrawBridges((int Left, int Top, int Width, int Height) bounds, int stride)
     {
         if (world is null || bridgeDecks.Count == 0 || tileSize <= 0) return;
-        // A plank deck reaching a little onto each bank, with dark side rails
-        // and, when large enough to read, cross planks.
-        var deck = new Color("A47A4C");
-        var rail = new Color("4F3522");
-        var plank = new Color("7C5836");
-        var breadth = Math.Max(2f, tileSize * 0.62f);
-        var overhang = tileSize * 0.3f;
+        var atlasSize = TerrainTextures.AtlasTileSize(tileSize);
+        var deck = new Color("A77C52");
+        var rail = new Color("3F2A1A");
+        var breadth = Math.Max(2f, tileSize * 0.625f);
+        var railWidth = Math.Max(1f, tileSize / 14f);
         for (var y = bounds.Top; y < bounds.Top + bounds.Height; y++)
             for (var x = bounds.Left; x < bounds.Left + bounds.Width; x++)
             {
                 var mapX = wrapsEastWest ? Mod(x, world.Width) : x;
                 if (!bridgeDecks.TryGetValue(new Vector2I(mapX, y), out var eastWest)) continue;
-                var center = new Vector2(x * stride + tileSize / 2f, y * stride + tileSize / 2f);
-                var length = stride + overhang * 2;
+                var tile = new Rect2(x * stride, y * stride, tileSize, tileSize);
+                if (tileSize >= SpriteTileMinimum)
+                {
+                    DrawTextureRect(RoadSprites.BridgeTexture(eastWest, atlasSize), tile, false);
+                    continue;
+                }
+                var center = tile.GetCenter();
+                var length = (float)stride;
                 var size = eastWest ? new Vector2(length, breadth) : new Vector2(breadth, length);
                 var rect = new Rect2(center - size / 2f, size);
                 DrawRect(rect, deck);
-                if (tileSize >= SpriteTileMinimum)
-                {
-                    var planks = Math.Max(2, tileSize / 6);
-                    for (var index = 1; index < planks * 2; index++)
-                    {
-                        var offset = -length / 2f + index * length / (planks * 2);
-                        var from = eastWest ? center + new Vector2(offset, -breadth / 2f) : center + new Vector2(-breadth / 2f, offset);
-                        var to = eastWest ? center + new Vector2(offset, breadth / 2f) : center + new Vector2(breadth / 2f, offset);
-                        DrawLine(from, to, plank, 1f);
-                    }
-                }
-                var railWidth = Math.Max(1f, tileSize / 14f);
                 if (eastWest)
                 {
                     DrawLine(rect.Position, rect.Position + new Vector2(rect.Size.X, 0), rail, railWidth);

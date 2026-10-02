@@ -28,9 +28,6 @@ public static class TerrainTransitions
     private static readonly Dictionary<int, Image> Images = [];
     private static readonly Dictionary<int, ImageTexture> Textures = [];
     private static readonly (int X, int Y)[] Offsets = [(0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1)];
-    // Reused per call: the terrain layer collects pieces tile by tile on the main thread.
-    private static readonly int[] Around = new int[8];
-    private static readonly int[] Candidates = new int[8];
 
     // Low to high: each surface reaches into the ones before it. Mountain and
     // peak relief reach into their neighbors but never take an edge themselves.
@@ -167,7 +164,9 @@ public static class TerrainTransitions
             return;
         int RankOf(int style) => mode == Mode.Water ? WaterRank((TerrainStyle)style) : Rank((TerrainStyle)style);
         // Neighbors clockwise from north; a missing neighbor (map edge) is −1.
-        var around = Around;
+        // Working space is on the stack, so the relief layer can collect shore
+        // pieces on worker threads while the main thread draws.
+        Span<int> around = stackalloc int[8];
         for (var index = 0; index < 8; index++)
         {
             var nx = x + Offsets[index].X;
@@ -177,7 +176,7 @@ public static class TerrainTransitions
         }
 
         // Distinct overlapping neighbors, lowest rank first.
-        var candidates = Candidates;
+        Span<int> candidates = stackalloc int[8];
         var count = 0;
         foreach (var neighbor in around)
         {
@@ -187,7 +186,7 @@ public static class TerrainTransitions
                 Mode.Coast => Rank((TerrainStyle)neighbor) >= 0,
                 _ => WaterOverlaps((TerrainStyle)neighbor, here),
             };
-            if (!reaches || Array.IndexOf(candidates, neighbor, 0, count) >= 0) continue;
+            if (!reaches || candidates[..count].Contains(neighbor)) continue;
             var slot = count++;
             while (slot > 0 && RankOf(candidates[slot - 1]) > RankOf(neighbor))
             {
@@ -241,9 +240,17 @@ public static class TerrainTransitions
         return image;
     }
 
-    private static void PaintPiece(byte[] data, int stride, int left, int top, int size, TerrainStyle style, int piece) =>
+    private static void PaintPiece(byte[] data, int stride, int left, int top, int size, TerrainStyle style, int piece)
+    {
+        // Snow thins into clumps and frost like a low drift instead of ending in a flat band.
+        if (SnowEdges.Applies(style))
+        {
+            SnowEdges.Write(data, stride, left, top, size, style, piece);
+            return;
+        }
         WriteMask(data, stride, left, top, size, Mask(piece, size, PixelArt.Hash((int)style + 1, piece + 1, size), gaps: true),
             TerrainTextures.BaseColor(style), softRim: true);
+    }
 
     /// <summary>
     /// Covered pixels of one piece in tile coordinates. The same piece index
