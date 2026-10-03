@@ -33,6 +33,7 @@ public sealed record ViewerWorldPreview(ViewerPackedTerrain Terrain, ViewerPosit
     public string? MapLayersDigest { get; init; }
     public GeographyCandidateReport? Coverage { get; init; }
     public IReadOnlyList<GeographyCandidateReport> Candidates { get; init; } = [];
+    public IReadOnlyList<GeographyCandidateFailure> FailedCandidates { get; init; } = [];
 }
 
 public sealed record ViewerMapObject(string Id, string Kind, ViewerPosition Position);
@@ -442,6 +443,12 @@ public sealed record ViewerWorldSnapshot(
     public ViewerCouncil? Council { get; init; }
     public int? LifePaceRate { get; init; }
     public ViewerCalendarPace? CalendarPace { get; init; }
+    /// <summary>
+    /// How dark the world is now, decided by the host from the world clock:
+    /// 0 in daylight, 10,000 at full night, between them at dusk and dawn.
+    /// Absent for a world without a calendar.
+    /// </summary>
+    public int? DarknessBasisPoints { get; init; }
     public bool? JevEnabled { get; init; }
     /// <summary>The current saved rule state, independent of retained event history.</summary>
     public bool? ContinuityRuleActive { get; init; }

@@ -2,7 +2,7 @@
 title: Saves and replay
 type: persistence-reference
 status: active
-updated: 2026-10-02
+updated: 2026-10-03
 ---
 
 # Saves and replay
@@ -227,6 +227,12 @@ Conversation records use private-world schema 35, following schema 34's fields
 and ground harvest lots. No migration for older alpha saves is added solely to preserve
 compatibility.
 
+Routine history compaction validates the compacted checkpoint without applying
+load transitions. It preserves the live conversation cursor, consent and pending
+turn admission identity. Resume with compaction likewise keeps the conversation's
+existing pause state; only an actual load suspends it as restored and clears
+previous resume choices. A failed checkpoint write leaves the live state unchanged.
+
 Private-world schema 40 saves each inhabitant's explicit domestic family unit
 and primary caregiver, plus the caregiver, intended home and actual birth home
 for an agreed parenthood plan. Birth records retain the caregiver and actual
@@ -414,8 +420,11 @@ guardian-search records with their offered adults, medical permission and
 consumed-dose progress, selected personal ornaments, and wills with up to
 three named heirs, exact divisions and final words.
 Land records are checked against the saved map, Towns, households and one
-another before load. These fields retain their current validation and roundtrip
-behavior.
+another before load. Building reassignment moves only existing footprint use rights;
+connected remainder plots keep their holder and original grant terms. Split
+records get deterministic unique IDs, and whole-plot moves retain their IDs.
+The building and rights change under the same world lock; rejected or stale
+requests change neither. No save-format change or migration is needed.
 
 The food repairs use the existing field, inventory, reservation and delivery
 records; they add no migration or new save fields. New planting claims remain
@@ -493,6 +502,15 @@ changed; a cosmetic game-version bump is not a migration.
 The saved clock/lifecycle values govern old worlds. Restore validates matching
 society/world-system calendar values rather than silently assigning the newest
 playtest pace.
+
+Night ([#673](https://github.com/compoodment/ClankerWorld/issues/673)) adds no
+saved field: time of day is derived from the saved tick and ticks per day, so
+the checkpoint schema and every other version stay as they are. A current-schema
+save made before night existed loads unchanged; nights, and their chill on
+outdoor warmth, apply from its next tick. Its recorded history is not
+re-simulated. A world saved during dawn reloads at the same darkness and
+advances to the same bytes as the live world, which `SettlementSurvivalTests`
+checks.
 
 ## Pending model work and estates
 
