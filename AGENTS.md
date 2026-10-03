@@ -193,3 +193,7 @@ come up again and again. When your task matches one, follow its `SKILL.md`.
   and give the commit hash.
 - Never call work delivered while review or another required step is still
   pending.
+- **On your own machine:** keep evidence in `.evidence/`, with what is worth
+  keeping in `.evidence/keep/`. When your job ends, run
+  `scripts/clean-workspace.sh` and remove what it lists with `--apply`
+  ([Disk space](docs/development/build-and-test.md#disk-space)).
