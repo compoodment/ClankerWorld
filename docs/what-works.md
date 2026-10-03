@@ -466,8 +466,8 @@ or missing delivered stock releases unused claims, while the real goods stay
 where they are and retain Town ownership. A pending household land request on
 the site only pauses the project. A site that can no longer be used, for
 example because the request was granted or the site was taken while the vote
-was open, cancels the project instead of holding its land. Residents can then
-pick up its leftover loads and carry them back to a reachable Town Warehouse.
+was open, cancels the project instead of holding its land. Its leftover loads
+stay Town property where they are, and a later Town project can use them.
 A pending Hall proposal's site is not offered for another Hall proposal or as
 free land for a household request. The Towns page shows the plan,
 Council result, supplied materials, work and blocker, even after the vote leaves

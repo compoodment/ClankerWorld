@@ -160,14 +160,13 @@ public static class WorldEventText
             "town_project_blocked" => $"Work on {townProjectName} is blocked. See the Towns page for what is needed.",
             "town_project_resumed" => $"{townProjectSubject} can continue.",
             "town_project_cancelled" => $"{townProjectSubject} cannot be built at its approved site, so the Town stopped it. " +
-                "Its materials stay where they are; see the Towns page for the reason.",
+                "Its materials stay Town property where they are; see the Towns page for the reason.",
             "town_project_donated" => $"{LeadingName(snapshot, worldEvent.Detail)} donated personal materials to {townProjectName}.",
             "town_project_material_picked_up" => $"{LeadingName(snapshot, worldEvent.Detail)} picked up Town materials for {townProjectName}; the load is still being carried.",
             "town_project_material_delivered" => $"{LeadingName(snapshot, worldEvent.Detail)} delivered materials to the approved site for {townProjectName}.",
             "town_project_material_returned" => worldEvent.Detail.EndsWith(":ground", StringComparison.Ordinal)
                 ? $"{LeadingName(snapshot, worldEvent.Detail)} set down unused Town materials from {townProjectName}."
                 : $"{LeadingName(snapshot, worldEvent.Detail)} returned unused materials from {townProjectName} to the Town Warehouse.",
-            "town_project_material_recovered" => $"{LeadingName(snapshot, worldEvent.Detail)} picked up unused Town materials from {townProjectName} to take them back to the Town Warehouse.",
             "town_project_worked" => $"{LeadingName(snapshot, worldEvent.Detail)} worked on {townProjectName}.",
             "town_project_completed" => $"{townProjectSubject} was built with its approved materials.",
             "town_founding_started" => "Your first Town is being set up.",

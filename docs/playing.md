@@ -299,8 +299,8 @@ select the Hall for its project and payment details. Agents read civic notices
 there, with the same nearby learning and relay rules as before. A blocked project
 keeps its materials as Town property and releases unused claims rather than
 building for free. If its site can no longer be used, the Town stops the
-project; the Towns page says why, and residents can carry its leftover
-materials back to the Warehouse. See [What works today](what-works.md#life-work-and-society)
+project and the Towns page says why; its leftover materials stay Town
+property where they are. See [What works today](what-works.md#life-work-and-society)
 for this first version's limits and provisional amounts. Its
 [hands-on checklist](../playtest/767-town-projects.md) remains pending.
 

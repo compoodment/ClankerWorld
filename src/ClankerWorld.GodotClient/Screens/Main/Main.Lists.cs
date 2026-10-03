@@ -102,7 +102,7 @@ public partial class Main
             "resumed" => PixelIcons.Texture(PixelGlyph.Play, ink, ink, 1),
             "instruction_not_understood" or "inhabitant_building_proposed" => PixelIcons.Texture(PixelGlyph.Speech, ink, UiTheme.Current.Paper, 1),
             "settlement_trade_completed" or "town_project_donated" or "town_project_material_picked_up" or
-                "town_project_material_delivered" or "town_project_material_returned" or "town_project_material_recovered" => PixelIcons.Texture(PixelGlyph.Box, ink, wood, 1),
+                "town_project_material_delivered" or "town_project_material_returned" => PixelIcons.Texture(PixelGlyph.Box, ink, wood, 1),
             _ => PixelIcons.Texture(PixelGlyph.Globe, ink, green, 1),
         };
     }

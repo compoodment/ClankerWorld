@@ -210,10 +210,10 @@ public sealed partial class PrivateWorldRuntime
                 BuildingStorageRules.WithSize(definition, shape.Footprint.Width, shape.Footprint.Height), shape.Position)
                 .Except(WorldContentSimulationRules.Footprint(definition, building))
                 .Where(tile => !householdLandUseRights.Any(right => right.HouseholdId == building.HouseholdId && right.Tiles.Contains(tile))));
-            if (extra.Length == 0 || extra.Any(tile => !TownLandRightsRules.IsCoveredByTownTitle(tile, building.TownId!, townLandTitles)) ||
-                extra.Any(proposedHalls.Contains)) continue;
+            if (extra.Length == 0 || extra.Any(tile => !TownLandRightsRules.IsCoveredByTownTitle(tile, building.TownId!, townLandTitles))) continue;
             // One expansion asks the Council once: a pending request for any of its shapes waits to be decided.
             if (extra.Any(pending.Contains)) return null;
+            if (extra.Any(proposedHalls.Contains)) continue;
             if (extra.Any(heldByOthers.Contains)) disputed ??= extra;
             else offered ??= extra;
         }

@@ -238,7 +238,7 @@ public sealed class TownProjectRuntimeTests
     }
 
     [Fact]
-    public async Task GrantedHouseholdRightOnAHallSiteCancelsTheProjectAndResidentsTakeItsLoadsBack()
+    public async Task GrantedHouseholdRightOnAHallSiteCancelsTheProjectWithoutLosingGoods()
     {
         using var scenario = await TownProjectScenario.ApprovedAsync(initialTownStock: true);
         scenario.Policy.Supply = true;
@@ -261,24 +261,10 @@ public sealed class TownProjectRuntimeTests
         scenario.Reload();
         Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(scenario.World.ExportState()));
 
-        // Residents take released loads away from the dead site instead of leaving Town goods there.
+        // The cancelled project's goods stay Town property where they are; nothing is created or spent.
         scenario.Policy.AcceptLandUse = false;
-        scenario.Policy.Supply = true;
-        var released = scenario.Project.Deliveries.Count;
-        int Recovered() => scenario.World.ExportState().Events.Count(item => item.Kind == "town_project_material_recovered");
-        var warehouse = scenario.World.WorldSimulation.Buildings.Single(building => building.InstanceId == "first-town-warehouse");
-        bool LeftLying(InventoryLot lot) => lot.OwnerId == TownBorderRules.FirstTownId && lot.ItemKind is "wood" or "stone" &&
-            lot.StorageBuildingId != warehouse.InstanceId && lot.CarrierId is null;
-        await scenario.UntilAsync(() => Recovered() > 0 && !scenario.World.Society.Inventory.Lots.Any(LeftLying), 120);
-        for (var tick = 0; tick < 40; tick++) Assert.True((await scenario.World.AdvanceOneTickAsync()).Advanced);
-        // Every leftover load is stored or on its way; an occupied Warehouse tile only makes the carrier wait,
-        // so loads are not set down and picked up again in a loop.
-        Assert.DoesNotContain(scenario.World.Society.Inventory.Lots, LeftLying);
-        Assert.Contains(scenario.World.Society.Inventory.Lots, lot => lot.OwnerId == TownBorderRules.FirstTownId &&
-            lot.ItemKind == "stone" && lot.Id.Contains("#move:", StringComparison.Ordinal) && lot.StorageBuildingId == warehouse.InstanceId);
-        Assert.InRange(Recovered(), 1, released);
-        Assert.DoesNotContain(scenario.World.ExportState().Events, item => item.Kind == "town_project_material_returned" &&
-            item.Detail.EndsWith(":ground", StringComparison.Ordinal) && item.WorldTick > scenario.Project.LastTransitionTick);
+        for (var tick = 0; tick < 10; tick++) Assert.True((await scenario.World.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal("cancelled", scenario.Project.Stage);
         Assert.Equal(44, TownProjectScenario.MaterialQuantity(scenario.World.Society.Inventory, TownBorderRules.FirstTownId));
         Assert.DoesNotContain(scenario.World.WorldSimulation.Buildings, building => building.DefinitionId == TownHallContent.Hall3x4().CanonicalId);
         scenario.World.Validate();
