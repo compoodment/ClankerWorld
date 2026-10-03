@@ -787,6 +787,7 @@ public partial class Main
             "collect_food" => "Collecting " + (order.TargetFoodKind?.Replace('_', ' ') ?? "food"),
             "collect_equipment" => "Collecting " + (order.TargetEquipmentKind?.Replace('_', ' ') ?? "equipment"),
             "store_material" => "Storing " + (order.TargetMaterialKind?.Replace('_', ' ') ?? "materials"),
+            "store_equipment" => "Storing " + (order.TargetEquipmentKind?.Replace('_', ' ') ?? "equipment"),
             "gather_material" => "Gathering " + (order.TargetMaterialKind?.Replace('_', ' ') ?? "materials"),
             "seek_food" => "Going to a food site",
             _ => "Order",

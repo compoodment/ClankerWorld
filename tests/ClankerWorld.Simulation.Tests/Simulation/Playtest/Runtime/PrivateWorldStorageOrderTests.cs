@@ -9,7 +9,7 @@ using ClankerWorld.Simulation.World;
 
 namespace ClankerWorld.Simulation.Tests;
 
-public sealed class PrivateWorldStorageOrderTests
+public sealed partial class PrivateWorldStorageOrderTests
 {
     private const string Household = "household:camp-alpha";
     private const string House = "first-town-house-a";
@@ -48,16 +48,24 @@ public sealed class PrivateWorldStorageOrderTests
         world.Validate();
     }
 
-    [Fact]
-    public async Task StorageOrderCountsExactQuantitiesAcrossLotsQueueAndReplay()
+    [Theory]
+    [InlineData("wood")]
+    [InlineData("basket")]
+    public async Task StorageOrderCountsExactQuantitiesAcrossLotsQueueAndReplay(string kind)
     {
         var state = Prepared();
         var actor = Actor(state);
-        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "storage-a", "wood", actor, 2);
-        inventory = InventoryFixture.AddLot(inventory, "storage-b", "wood", actor, 2);
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "storage-a", kind, actor, 2);
+        inventory = InventoryFixture.AddLot(inventory, "storage-b", kind, actor, 2);
         using var world = Restore(WithInventory(state, inventory));
-        var first = Submit(world, actor, "three", "store three wood");
-        var second = Submit(world, actor, "remaining", "store wood", queue: true);
+        var first = Submit(world, actor, "three", $"store three {kind}");
+        var second = Submit(world, actor, "remaining", $"store {kind}", queue: true);
+        world.Pause();
+        Assert.False((await world.AdvanceOneTickAsync()).Advanced);
+        world.Resume();
+        var before = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        Assert.False((await world.AdvanceOneTickAsync(() => false)).Advanced);
+        Assert.Equal(before, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
         Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         Assert.Equal(("doing", 2), (Order(world, first).Status, Order(world, first).CompletedUnits));
         Assert.Equal("queued", Order(world, second).Status);
@@ -74,19 +82,21 @@ public sealed class PrivateWorldStorageOrderTests
             Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
         }
         Assert.Equal("finished", Order(restored, second).Status);
-        Assert.Equal(4, restored.Society.Inventory.Lots.Where(lot => lot.OwnerId == actor && lot.ItemKind == "wood" &&
+        Assert.Equal(4, restored.Society.Inventory.Lots.Where(lot => lot.OwnerId == actor && lot.ItemKind == kind &&
             lot.StorageBuildingId == House).Sum(lot => lot.Quantity));
         Assert.Equal(3, restored.ExportState().Events.Count(item => item.Kind == "personal_goods_stored"));
     }
 
-    [Fact]
-    public async Task StorageOrderWalksHomeWithoutCreditingTravelAndResumesAfterReload()
+    [Theory]
+    [InlineData("clay")]
+    [InlineData("basket")]
+    public async Task StorageOrderWalksHomeWithoutCreditingTravelAndResumesAfterReload(string kind)
     {
         var state = Prepared(distant: true);
         var actor = Actor(state);
-        state = WithInventory(state, InventoryFixture.AddLot(state.Society.Society.Inventory, "storage-distant", "clay", actor, 2));
+        state = WithInventory(state, InventoryFixture.AddLot(state.Society.Society.Inventory, "storage-distant", kind, actor, 2));
         using var world = Restore(state);
-        var receipt = Submit(world, actor, "walk", "store clay at home");
+        var receipt = Submit(world, actor, "walk", $"store {kind} at home");
         Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         Assert.Equal(0, Order(world, receipt).CompletedUnits);
         Assert.Null(world.Society.Inventory.GetLot("storage-distant").StorageBuildingId);
@@ -127,18 +137,24 @@ public sealed class PrivateWorldStorageOrderTests
     }
 
     [Theory]
-    [InlineData("borrowed")]
-    [InlineData("reserved")]
-    [InlineData("promised")]
-    [InlineData("ground")]
-    [InlineData("stored")]
-    [InlineData("wrong-kind")]
-    public async Task StorageOrderCannotUseUnavailableGoods(string boundary)
+    [InlineData("borrowed", "wood")]
+    [InlineData("borrowed", "basket")]
+    [InlineData("reserved", "wood")]
+    [InlineData("reserved", "basket")]
+    [InlineData("promised", "wood")]
+    [InlineData("promised", "basket")]
+    [InlineData("ground", "wood")]
+    [InlineData("ground", "basket")]
+    [InlineData("stored", "wood")]
+    [InlineData("stored", "basket")]
+    [InlineData("wrong-kind", "wood")]
+    [InlineData("wrong-kind", "basket")]
+    public async Task StorageOrderCannotUseUnavailableGoods(string boundary, string kind)
     {
         var state = Prepared();
         var actor = Actor(state);
         var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "storage-boundary",
-            boundary == "wrong-kind" ? "stone" : "wood", boundary == "borrowed" ? Household : actor, 2,
+            boundary == "wrong-kind" ? "stone" : kind, boundary == "borrowed" ? Household : actor, 2,
             storageBuildingId: boundary == "stored" ? House : null,
             groundPosition: boundary == "ground" ? new(state.Inhabitants.Single(person => person.InhabitantId == actor).Position.X,
                 state.Inhabitants.Single(person => person.InhabitantId == actor).Position.Y) : null);
@@ -153,11 +169,11 @@ public sealed class PrivateWorldStorageOrderTests
         if (boundary == "reserved")
             inventory = InventoryFixture.Reserve(inventory, "storage-reserved", actor, "storage-boundary", 2, "other_work", 120);
         using var world = Restore(WithInventory(state, inventory));
-        var receipt = Submit(world, actor, "blocked", "store wood");
+        var receipt = Submit(world, actor, "blocked", $"store {kind}");
         Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         Assert.Equal("blocked", Order(world, receipt).Status);
         Assert.Equal(0, Order(world, receipt).CompletedUnits);
-        Assert.Contains("No matching personal material", Order(world, receipt).BlockedReason, StringComparison.Ordinal);
+        Assert.Contains(kind == "basket" ? "No matching personal equipment" : "No matching personal material", Order(world, receipt).BlockedReason, StringComparison.Ordinal);
         // The ordinary inventory clock still advances while the order waits.
         Assert.Equal(inventory.GetLot("storage-boundary") with { LastProcessedTick = world.WorldTick }, world.Society.Inventory.GetLot("storage-boundary"));
         Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "personal_goods_stored");
@@ -165,15 +181,17 @@ public sealed class PrivateWorldStorageOrderTests
         Assert.Equal("blocked", Order(restored, receipt).Status);
     }
 
-    [Fact]
-    public async Task StorageOrderMovesOnlyUnreservedUnitsAndLeavesReservationsIntact()
+    [Theory]
+    [InlineData("wood")]
+    [InlineData("basket")]
+    public async Task StorageOrderMovesOnlyUnreservedUnitsAndLeavesReservationsIntact(string kind)
     {
         var state = Prepared();
         var actor = Actor(state);
-        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "storage-partial", "wood", actor, 4);
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "storage-partial", kind, actor, 4);
         inventory = InventoryFixture.Reserve(inventory, "storage-partial-reservation", actor, "storage-partial", 2, "other_work", 120);
         using var world = Restore(WithInventory(state, inventory));
-        var receipt = Submit(world, actor, "partial", "store wood");
+        var receipt = Submit(world, actor, "partial", $"store {kind}");
         Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         Assert.Equal("finished", Order(world, receipt).Status);
         Assert.Equal((2, (string?)null), (world.Society.Inventory.GetLot("storage-partial").Quantity,
@@ -183,8 +201,10 @@ public sealed class PrivateWorldStorageOrderTests
         world.Validate();
     }
 
-    [Fact]
-    public async Task StorageOrderWaitsForRoomThenResumesWithoutDuplicatingStoredGoods()
+    [Theory]
+    [InlineData("wood")]
+    [InlineData("basket")]
+    public async Task StorageOrderWaitsForRoomThenResumesWithoutDuplicatingStoredGoods(string kind)
     {
         var state = Prepared();
         var actor = Actor(state);
@@ -193,9 +213,9 @@ public sealed class PrivateWorldStorageOrderTests
         var inventory = state.Society.Society.Inventory;
         var room = BuildingStorageRules.Capacity(definition, house)!.Value - inventory.Lots.Where(lot => lot.StorageBuildingId == House).Sum(lot => lot.Quantity);
         inventory = InventoryFixture.AddLot(inventory, "storage-filler", "stone", Household, room - 1, storageBuildingId: House);
-        inventory = InventoryFixture.AddLot(inventory, "storage-capacity", "wood", actor, 3);
+        inventory = InventoryFixture.AddLot(inventory, "storage-capacity", kind, actor, 3);
         using var world = Restore(WithInventory(state, inventory));
-        var receipt = Submit(world, actor, "three", "store three wood");
+        var receipt = Submit(world, actor, "three", $"store three {kind}");
         Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         Assert.Equal(("doing", 1), (Order(world, receipt).Status, Order(world, receipt).CompletedUnits));
         Assert.True((await world.AdvanceOneTickAsync()).Advanced);
@@ -207,19 +227,21 @@ public sealed class PrivateWorldStorageOrderTests
         for (var tick = 0; tick < 8 && Order(restored, receipt).Status != "finished"; tick++)
             Assert.True((await restored.AdvanceOneTickAsync()).Advanced);
         Assert.Equal(("finished", 3), (Order(restored, receipt).Status, Order(restored, receipt).CompletedUnits));
-        Assert.Equal(3, restored.Society.Inventory.Lots.Where(lot => lot.OwnerId == actor && lot.ItemKind == "wood" && lot.StorageBuildingId == House).Sum(lot => lot.Quantity));
+        Assert.Equal(3, restored.Society.Inventory.Lots.Where(lot => lot.OwnerId == actor && lot.ItemKind == kind && lot.StorageBuildingId == House).Sum(lot => lot.Quantity));
         Assert.Equal(2, restored.ExportState().Events.Count(item => item.Kind == "personal_goods_stored"));
     }
 
-    [Fact]
-    public async Task StorageOrderRepeatsUntilCancellationAndKeepsTheRemainingLoad()
+    [Theory]
+    [InlineData("fiber")]
+    [InlineData("basket")]
+    public async Task StorageOrderRepeatsUntilCancellationAndKeepsTheRemainingLoad(string kind)
     {
         var state = Prepared();
         var actor = Actor(state);
-        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "storage-repeat-a", "fiber", actor, 1);
-        inventory = InventoryFixture.AddLot(inventory, "storage-repeat-b", "fiber", actor, 1);
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "storage-repeat-a", kind, actor, 1);
+        inventory = InventoryFixture.AddLot(inventory, "storage-repeat-b", kind, actor, 1);
         using var world = Restore(WithInventory(state, inventory));
-        var receipt = Submit(world, actor, "repeat", "keep storing fiber");
+        var receipt = Submit(world, actor, "repeat", $"keep storing {kind}");
         Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         Assert.Equal(("doing", 1), (Order(world, receipt).Status, Order(world, receipt).CompletedUnits));
         Assert.True(world.CancelOrder(new("storage-cancel", "owner:test", world.Society.WorldId, actor, receipt.InstructionId)).Changed);
@@ -230,19 +252,21 @@ public sealed class PrivateWorldStorageOrderTests
         Assert.Single(restored.ExportState().Events, item => item.Kind == "personal_goods_stored");
     }
 
-    [Fact]
-    public async Task StorageOrderCannotTreatSurvivalFoodAsAStoredLoad()
+    [Theory]
+    [InlineData("clay")]
+    [InlineData("basket")]
+    public async Task StorageOrderCannotTreatSurvivalFoodAsAStoredLoad(string kind)
     {
         var state = Prepared();
         var actor = Actor(state);
         var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "storage-urgent-food", "berries", actor, 1);
-        inventory = InventoryFixture.AddLot(inventory, "storage-after-food", "clay", actor, 2);
+        inventory = InventoryFixture.AddLot(inventory, "storage-after-food", kind, actor, 2);
         state = WithInventory(state, inventory) with
         {
             Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor ? person with { HungerBasisPoints = 1_000 } : person).ToArray(),
         };
         using var world = Restore(state);
-        var receipt = Submit(world, actor, "survival", "store clay");
+        var receipt = Submit(world, actor, "survival", $"store {kind}");
         Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         Assert.Equal("interrupted", Order(world, receipt).Status);
         Assert.Equal(0, Order(world, receipt).CompletedUnits);
@@ -317,15 +341,17 @@ public sealed class PrivateWorldStorageOrderTests
         Assert.Throws<InvalidDataException>(() => Restore(corrupt));
     }
 
-    [Fact]
-    public async Task StorageOrderNeedsTheActorsOwnHouseAfterDeparture()
+    [Theory]
+    [InlineData("wood")]
+    [InlineData("basket")]
+    public async Task StorageOrderNeedsTheActorsOwnHouseAfterDeparture(string kind)
     {
         var state = Prepared();
         var actor = Actor(state);
-        state = WithInventory(state, InventoryFixture.AddLot(state.Society.Society.Inventory, "storage-no-home", "wood", actor, 2));
+        state = WithInventory(state, InventoryFixture.AddLot(state.Society.Society.Inventory, "storage-no-home", kind, actor, 2));
         using var world = Restore(state);
         Assert.True(world.DisplaceAdult(actor));
-        var receipt = Submit(world, actor, "no-home", "store wood");
+        var receipt = Submit(world, actor, "no-home", $"store {kind}");
         Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         Assert.Equal("blocked", Order(world, receipt).Status);
         Assert.Contains("needs a House", Order(world, receipt).BlockedReason, StringComparison.Ordinal);
@@ -333,8 +359,10 @@ public sealed class PrivateWorldStorageOrderTests
         world.Validate();
     }
 
-    [Fact]
-    public async Task StorageOrderDoesNotGiveChildrenAdultStorageWork()
+    [Theory]
+    [InlineData("wood")]
+    [InlineData("basket")]
+    public async Task StorageOrderDoesNotGiveChildrenAdultStorageWork(string kind)
     {
         var state = Prepared();
         var actor = Actor(state);
@@ -362,9 +390,9 @@ public sealed class PrivateWorldStorageOrderTests
                     checkpoint.GetInhabitant(id).AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder)),
             }).ToArray(),
         };
-        state = WithInventory(state, InventoryFixture.AddLot(state.Society.Society.Inventory, "storage-child", "wood", actor, 1));
+        state = WithInventory(state, InventoryFixture.AddLot(state.Society.Society.Inventory, "storage-child", kind, actor, 1));
         using var world = Restore(state);
-        var receipt = Submit(world, actor, "child", "store wood");
+        var receipt = Submit(world, actor, "child", $"store {kind}");
         Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         Assert.Equal("blocked", Order(world, receipt).Status);
         Assert.Contains("too young", Order(world, receipt).BlockedReason, StringComparison.Ordinal);
@@ -372,32 +400,37 @@ public sealed class PrivateWorldStorageOrderTests
         world.Validate();
     }
 
-    [Fact]
-    public async Task StorageOrderUsesOnePersonalDecisionAcrossSeveralLoads()
+    [Theory]
+    [InlineData("clay")]
+    [InlineData("basket")]
+    public async Task StorageOrderUsesOnePersonalDecisionAcrossSeveralLoads(string kind)
     {
         var state = Prepared();
         var actor = Actor(state);
         var inventory = state.Society.Society.Inventory;
-        for (var index = 0; index < 3; index++) inventory = InventoryFixture.AddLot(inventory, $"storage-model-{index}", "clay", actor, 1);
+        for (var index = 0; index < 3; index++) inventory = InventoryFixture.AddLot(inventory, $"storage-model-{index}", kind, actor, 1);
         var provider = new StorageChoices(DecisionProviderKind.LargeLanguageModel);
         using var world = PrivateWorldRuntime.Restore(WithInventory(state, inventory), id => id == actor ? provider : new StorageChoices());
-        var receipt = Submit(world, actor, "model", "keep storing clay");
+        var receipt = Submit(world, actor, "model", $"keep storing {kind}");
         for (var tick = 0; tick < 3; tick++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         Assert.Equal(3, Order(world, receipt).CompletedUnits);
         var request = Assert.Single(provider.Requests, item => item.OperativeOrderInstructionId == receipt.InstructionId);
-        Assert.Contains(request.ObserverGuidance!, message => message.UnderstoodTask == "store your own carried material in your House");
+        Assert.Contains(request.ObserverGuidance!, message => message.UnderstoodTask == (kind == "basket"
+            ? "store your own carried equipment in your House" : "store your own carried material in your House"));
     }
 
-    [Fact]
-    public async Task StorageOrderCancelledWhileAModelReplyIsHeldCannotStoreAnotherLoad()
+    [Theory]
+    [InlineData("clay")]
+    [InlineData("basket")]
+    public async Task StorageOrderCancelledWhileAModelReplyIsHeldCannotStoreAnotherLoad(string kind)
     {
         var state = Prepared();
         var actor = Actor(state);
-        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "storage-held-a", "clay", actor, 1);
-        inventory = InventoryFixture.AddLot(inventory, "storage-held-b", "clay", actor, 1);
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "storage-held-a", kind, actor, 1);
+        inventory = InventoryFixture.AddLot(inventory, "storage-held-b", kind, actor, 1);
         var provider = new StorageChoices(DecisionProviderKind.LargeLanguageModel, hold: true);
         using var world = PrivateWorldRuntime.Restore(WithInventory(state, inventory), id => id == actor ? provider : new StorageChoices());
-        var receipt = Submit(world, actor, "held", "keep storing clay");
+        var receipt = Submit(world, actor, "held", $"keep storing {kind}");
         try
         {
             Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
@@ -467,7 +500,8 @@ public sealed class PrivateWorldStorageOrderTests
                 await Release.Task;
                 Returned.TrySetResult(true);
             }
-            var selected = request.Observation.Candidates.Any(candidate => candidate.Id == "store_material") ? "store_material" : "safe_idle";
+            var selected = request.Observation.Candidates.FirstOrDefault(candidate =>
+                candidate.Id is "store_material" or "store_equipment")?.Id ?? "safe_idle";
             return new CognitionDecisionResponse(request.RequestId, request.Observation.InhabitantId,
                 Kind, request.ProviderEpoch, request.Observation.RunEpoch, request.Observation.DecisionGeneration,
                 request.Observation.ObservationDigest, selected, 1, new Dictionary<string, double> { [selected] = 1 });

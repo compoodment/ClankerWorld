@@ -151,15 +151,16 @@ internal static class PrivateWorldInstructionOrderParser
             if (keepPrefix && actionVerb is not ("gathering" or "harvesting" or "eating" or "storing" or "collecting" or "repairing"))
                 return null;
 
-            _ = action is "collect_material" or "repair_equipment" && ReadWord("my");
+            _ = action is "collect_material" or "store_material" or "repair_equipment" && ReadWord("my");
             var hasExplicitQuantity = TryReadQuantity(out var requestedUnits);
             if (action == "seek_food" && hasExplicitQuantity)
                 return null;
 
-            var equipmentKind = action is "repair_equipment" or "collect_material" ? TryReadEquipmentSubject() : null;
+            var equipmentKind = action is "repair_equipment" or "collect_material" or "store_material" ? TryReadEquipmentSubject() : null;
             if (action == "repair_equipment" && equipmentKind is null) return null;
             if (action == "repair_equipment" && IsToolKind(equipmentKind)) action = "repair_tool";
             if (action == "collect_material" && equipmentKind is not null) action = "collect_equipment";
+            if (action == "store_material" && equipmentKind is not null) action = "store_equipment";
             var materialKind = action is "harvest_food" or "store_material" or "collect_material" ? TryReadMaterialSubject() : null;
             if (action == "store_material" && materialKind is null) return null;
             if (materialKind is not null && action == "harvest_food") action = "gather_material";
@@ -177,7 +178,7 @@ internal static class PrivateWorldInstructionOrderParser
             {
                 "collect_material" or "collect_food" or "collect_equipment" => TryReadCollectionLocation(ref targetPosition),
                 "repair_equipment" or "repair_tool" => true,
-                "store_material" => TryReadHomeStorageLocation(),
+                "store_material" or "store_equipment" => TryReadHomeStorageLocation(),
                 _ => TryReadLocation(action, targetFoodKind, ref targetResourceId, ref targetPosition, materialKind),
             };
             if (!hasLocation)
@@ -214,6 +215,7 @@ internal static class PrivateWorldInstructionOrderParser
                     "harvest_food" when !hasExplicitQuantity => "harvests",
                     "gather_material" => hasExplicitQuantity ? "material_items" : "harvests",
                     "store_material" => hasExplicitQuantity ? "material_items" : "storage_loads",
+                    "store_equipment" => hasExplicitQuantity ? "equipment_items" : "storage_loads",
                     "collect_material" => hasExplicitQuantity ? "material_items" : "collection_loads",
                     "collect_food" => hasExplicitQuantity ? "food_items" : "collection_loads",
                     "collect_equipment" => hasExplicitQuantity ? "equipment_items" : "collection_loads",
