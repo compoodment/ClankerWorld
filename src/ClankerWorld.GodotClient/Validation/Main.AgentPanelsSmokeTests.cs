@@ -51,7 +51,15 @@ public partial class Main
             if (!profileActivityLabel.Text.Contains("Model: OpenAI · Ready", StringComparison.Ordinal) ||
                 (profileActivityLabel.Text + inhabitantDetails.Text).Contains("hosen by", StringComparison.Ordinal))
                 throw new InvalidOperationException($"The Profile must name the model's provider on the Model line instead of \"chosen by\": {profileActivityLabel.Text}");
+            RenderSelectedInhabitantCard(snapshot with
+            {
+                Inhabitants = [mira with { DecisionFactors = [.. mira.DecisionFactors, new("knowledge-writing", "Writing a book · 4/12")] }, rowan, pip],
+            });
+            if (!inhabitantDetails.GetParsedText().Contains("Writing a book · 4/12", StringComparison.Ordinal))
+                throw new InvalidOperationException("The Profile must show writing progress from the owner's observation.");
             RenderSelectedInhabitantCard(snapshot with { Cognition = Decided("jev") });
+            if (inhabitantDetails.GetParsedText().Contains("Writing a book", StringComparison.Ordinal))
+                throw new InvalidOperationException("Finished writing must disappear from the Profile when no writing project remains.");
             if (!profileActivityLabel.Text.Contains("Model: Ready", StringComparison.Ordinal) ||
                 !inhabitantDetails.Text.Contains("Jev made their latest choice.", StringComparison.Ordinal))
                 throw new InvalidOperationException($"A choice Jev made must be said plainly: {profileActivityLabel.Text} / {inhabitantDetails.Text}");

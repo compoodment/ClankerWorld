@@ -1,0 +1,1 @@
+- Adults can follow "Become guardian for Lina" orders for children in an active guardian search. Orders keep the same child after renaming, support queueing and cancellation, and respect existing care and House placement rules. This uses a new alpha save format; older saves are refused and kept unchanged.

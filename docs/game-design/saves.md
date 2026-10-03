@@ -64,8 +64,9 @@ everything that is available in the current build. See [what works today](../wha
   belong to which version of events, and each branch has its own latest save.
   For example, loading **Before the flood** after saving **Big harvest** keeps
   **Big harvest** in the first branch; **Hungry winter**, saved after playing
-  on, belongs to the new one. The functionality comes first. A timeline
-  graphic of a world's branches in Load World is wanted afterwards.
+  on, belongs to the new one. Load Save and Save World draw a world's
+  branches as a timeline; [Interface and art](interface-and-art.md) records
+  its look.
 
 **Agreed development playtest policy:** computment does not require old
 playtest worlds to remain loadable as the New World flow and save format change;
@@ -92,8 +93,7 @@ still needs measurement and a choice; age alone must not trigger deletion.
 ### Still to decide
 
 How branches are named and how autosave rotation treats them; which branch
-the Mod Library's global view reads; the timeline graphic's design;
-disk-space warnings and the opt-in recovery-history budget; exactly
+the Mod Library's global view reads; disk-space warnings and the opt-in recovery-history budget; exactly
 when autosave occurs relative to model/conversation work; crash-recovery
 guarantees; and compatibility outside the preceding supported stable format
 or across changed mod requirements.

@@ -25,9 +25,24 @@ public sealed class HouseholdDepartureTests
         var kinds = new[] { "field_map", "field_record", "food", "wooden_axe", "clothing" };
         var fact = new AgentKnowledgeFact("personal-collection-fact", actor, actor, house.Position,
             state.Map.TerrainKindAt(house.Position)!.Value.ToString(), [], initial.WorldTick, "firsthand");
-        var artifacts = kinds.Take(2).Select(kind => new AgentKnowledgeArtifact(
-            "personal-artifact-" + kind, actor, "personal-" + kind, kind, "Personal field notes",
-            initial.WorldTick, [fact])).ToArray();
+        var artifacts = new List<AgentKnowledgeArtifact>();
+        foreach (var kind in kinds.Take(2))
+        {
+            var projectId = "personal-writing-" + kind;
+            var paperId = "personal-writing-paper-" + kind;
+            var reservationId = projectId + ":paper";
+            inventory = InventoryFixture.AddLot(inventory, paperId, "paper", actor, 1, initial.WorldTick);
+            inventory = InventoryFixture.Reserve(inventory, reservationId, actor, paperId, 1,
+                $"knowledge_writing:{projectId}:paper", long.MaxValue);
+            inventory = InventoryFixture.ConsumeReservation(inventory, reservationId);
+            artifacts.Add(new AgentKnowledgeArtifact(
+                "personal-artifact-" + kind, actor, "personal-" + kind, kind, "Personal field notes",
+                initial.WorldTick, [fact])
+            {
+                WritingProjectId = projectId,
+                Materials = [new AgentKnowledgeMaterial(reservationId, paperId, "paper", 1)],
+            });
+        }
         foreach (var kind in kinds)
             inventory = InventoryFixture.AddLot(inventory, "personal-" + kind, kind, actor, 1,
                 storageBuildingId: house.InstanceId);
@@ -420,7 +435,9 @@ public sealed class HouseholdDepartureTests
         initial.Pause();
         var actor = initial.Society.GetHousehold(Alpha).MemberIds[0];
         var house = initial.WorldSimulation.Buildings.Single(building => building.InstanceId == "first-town-house-a");
-        var recipe = initial.WorldContent.Recipes.First(item => item.WorkstationBuildingId == house.DefinitionId);
+        // Keep two private material reservations without depending on recipe catalogue order.
+        var recipe = initial.WorldContent.Recipes.Single(item => item.LocalId == "weave-basket" &&
+            item.WorkstationBuildingId == house.DefinitionId);
         var state = initial.ExportState();
         var inventory = state.Society.Society.Inventory;
         var reservationIds = new List<string>();

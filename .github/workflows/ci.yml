@@ -17,6 +17,9 @@ concurrency:
 # The Protect main ruleset requires verify, windows-documentation and windows-provider-storage.
 # verify passes only when scope, checks and every test shard pass. A pull request that changes
 # only documentation (Markdown files and docs/) runs the documentation tests and skips the rest.
+# One that also changes only Godot client files the test project does not compile runs the code
+# checks too, but skips the test suite, which those files cannot affect. Only an explicit
+# tests=false from scope skips the test suite.
 jobs:
   scope:
     runs-on: ubuntu-latest
@@ -26,6 +29,7 @@ jobs:
       actions: read
     outputs:
       code: ${{ steps.plan.outputs.code }}
+      tests: ${{ steps.plan.outputs.tests }}
       shards: ${{ steps.plan.outputs.shards }}
       filter-1: ${{ steps.split.outputs.filter_1 }}
       filter-2: ${{ steps.split.outputs.filter_2 }}
@@ -51,7 +55,7 @@ jobs:
           node .github/scripts/ci-plan.js matrix | tee -a "$GITHUB_OUTPUT"
       # Without these timings the split falls back to the fixed one in ci-plan.js.
       - name: Fetch test timings from main's latest green run
-        if: steps.plan.outputs.code == 'true'
+        if: steps.plan.outputs.tests != 'false'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
@@ -61,7 +65,7 @@ jobs:
           gh run download "$run_id" --repo "$GITHUB_REPOSITORY" --pattern 'test-timings-*' --dir "$RUNNER_TEMP/timings"
       - name: Split the tests between the test jobs
         id: split
-        if: steps.plan.outputs.code == 'true'
+        if: steps.plan.outputs.tests != 'false'
         run: node .github/scripts/ci-plan.js plan "$RUNNER_TEMP/timings" >> "$GITHUB_OUTPUT"
 
   checks:
@@ -82,8 +86,8 @@ jobs:
         run: bash scripts/verify-godot-client.sh
       - if: needs.scope.outputs.code == 'true'
         run: dotnet format --verify-no-changes --no-restore
-      - name: Verify documentation (documentation-only change)
-        if: needs.scope.outputs.code != 'true'
+      - name: Verify documentation (the test suite is skipped)
+        if: needs.scope.outputs.tests == 'false'
         run: dotnet test tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.csproj --configuration Release --no-restore --filter FullyQualifiedName~DocumentationTests
       - name: Restore pinned Godot export downloads
         if: needs.scope.outputs.code == 'true'
@@ -106,7 +110,7 @@ jobs:
   # every test runs in exactly one of them.
   tests:
     needs: scope
-    if: needs.scope.outputs.code == 'true'
+    if: needs.scope.outputs.tests != 'false'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -146,14 +150,15 @@ jobs:
       - name: Require every part of Verify to pass
         env:
           CODE: ${{ needs.scope.outputs.code }}
+          TESTS_NEEDED: ${{ needs.scope.outputs.tests }}
           SCOPE: ${{ needs.scope.result }}
           CHECKS: ${{ needs.checks.result }}
           TESTS: ${{ needs.tests.result }}
         run: |
-          echo "scope: $SCOPE, checks: $CHECKS, tests: $TESTS, code changed: $CODE"
+          echo "scope: $SCOPE, checks: $CHECKS, tests: $TESTS, code changed: $CODE, tests needed: $TESTS_NEEDED"
           test "$SCOPE" = success
           test "$CHECKS" = success
-          if [ "$CODE" = true ]; then test "$TESTS" = success; else test "$TESTS" = skipped; fi
+          if [ "$TESTS_NEEDED" = false ]; then test "$TESTS" = skipped; else test "$TESTS" = success; fi
 
   windows-documentation:
     runs-on: windows-latest
@@ -167,10 +172,10 @@ jobs:
       - name: Verify documentation with LF and CRLF checkout text
         run: dotnet test tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.csproj --configuration Release --no-restore --filter FullyQualifiedName~DocumentationTests
 
-  # Skipped for a documentation-only pull request; GitHub counts a skipped required job as passed.
+  # Skipped when scope skips the test suite; GitHub counts a skipped required job as passed.
   windows-provider-storage:
     needs: scope
-    if: needs.scope.outputs.code == 'true'
+    if: needs.scope.outputs.tests != 'false'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
@@ -180,4 +185,17 @@ jobs:
       - name: Restore locked test dependencies
         run: dotnet restore tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.csproj --locked-mode
       - name: Verify native protected storage and checkpoint recovery
-        run: dotnet test tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.csproj --configuration Release --no-restore --filter "FullyQualifiedName~ProviderConfigurationStoreTests|FullyQualifiedName~PairedOwnerCanConfigureHostedCognitionWithoutEchoingOrSavingTheKeyInTheWorld|FullyQualifiedName~OnlySignedOwnerCanDeleteUnusedNamedCredentialSlot|FullyQualifiedName~ManualSaveGenerationTests|FullyQualifiedName~ResumeRequiresDurableCheckpointEvenOnRetry|FullyQualifiedName~ResumeCheckpointTests|FullyQualifiedName~Deletion"
+        env:
+          CLANKERWORLD_CHECKPOINT_DIAGNOSTICS: ${{ runner.temp }}/checkpoint-evidence
+        run: dotnet test tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.csproj --configuration Release --no-restore --filter "FullyQualifiedName~ProviderConfigurationStoreTests|FullyQualifiedName~PairedOwnerCanConfigureHostedCognitionWithoutEchoingOrSavingTheKeyInTheWorld|FullyQualifiedName~OnlySignedOwnerCanDeleteUnusedNamedCredentialSlot|FullyQualifiedName~ManualSaveGenerationTests|FullyQualifiedName~ResumeRequiresDurableCheckpointEvenOnRetry|FullyQualifiedName~ResumeCheckpointTests|FullyQualifiedName~PrivateWorldStateFileTests|FullyQualifiedName~Deletion" --logger "trx;LogFileName=windows-storage.trx" --results-directory "${{ runner.temp }}/windows-storage-results"
+      - name: Upload native storage test results and checkpoint failure evidence
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-storage-evidence
+          path: |
+            ${{ runner.temp }}/windows-storage-results
+            ${{ runner.temp }}/checkpoint-evidence
+          include-hidden-files: true
+          retention-days: 14
+          if-no-files-found: warn
