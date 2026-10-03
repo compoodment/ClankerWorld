@@ -235,6 +235,11 @@ everything that is available in the current build. See [what works today](../wha
     - **You are here** is an orange camp marker at the end of a dotted line.
     - The row above the timeline holds a key to the points (newest on its
       branch, save, autosave) beside the switch, instead of a line of counts.
+    - **Agreed later on October 2:** Save World shows the same timeline under
+      its **New save** box, with the same switch. With no save chosen, the
+      card underneath says where the new save goes: on along a branch, or
+      starting a new one. Choosing a save offers **Overwrite**. Autosaves are
+      drawn but can't be chosen there, because they can't be overwritten.
 - **Agreed on September 30:** panels and confirmation dialogs fit what they
   hold rather than keeping a fixed size with empty space. A panel with long
   text stays on screen and scrolls that text; a long dialog message wraps.

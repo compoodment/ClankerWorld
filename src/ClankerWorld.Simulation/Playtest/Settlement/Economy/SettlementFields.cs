@@ -64,8 +64,10 @@ public sealed partial class PrivateWorldRuntime
                 seed.ItemKind != FarmFieldRules.PlantingItem(crop!) || AvailableLotQuantity(seed) < 1)
                 return new(false, "Carry one of your own usable planting items to the field.");
             reservationId = $"{FarmFieldRules.FieldId(position)}:plant:{field.Cycle}:{WorldTick}:{workerId}";
+            // This seed belongs to active work, including illness and conversation
+            // pauses. Completion consumes it; every work cancellation releases it.
             ApplyInventoryTransition(inventory => InventoryFixture.Reserve(inventory, reservationId,
-                workerId, seed.Id, 1, "field_planting", checked(WorldTick + FarmFieldRules.WorkTicks(kind) + 1)));
+                workerId, seed.Id, 1, "field_planting", long.MaxValue));
         }
         var hoeLotId = hoe is null ? null : IsolateFieldToolForWork(workerId, position, hoe.ToolLotId);
         var sickleLotId = sickle is null ? null : IsolateFieldToolForWork(workerId, position, sickle.ToolLotId);
@@ -168,6 +170,8 @@ public sealed partial class PrivateWorldRuntime
             return false;
         }
         if (IsConversationBusy(workerId)) return true;
+        if (!SettlementIllnessRules.AllowsWork(workerId, WorldTick,
+                worker.Survival?.IllnessBasisPoints ?? 0)) return true;
         var toolPlans = FieldWorkToolPlans(workerId, work);
         var hoe = toolPlans.FirstOrDefault(plan => ToolProgressionRules.Find(
             society.Checkpoint.Inventory.GetLot(plan.ToolLotId).ItemKind)?.Family == ToolFamily.Hoe);
