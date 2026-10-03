@@ -116,7 +116,8 @@ public sealed partial class PrivateWorldRuntime
                 towns.SingleOrDefault(item => item.ResidentIds.Contains(inhabitant.Id, StringComparer.Ordinal))?.Name,
                 HousingNote(inhabitant.Id), EquipmentNote(inhabitant.Id), ContinuityNote(inhabitant.Id),
                 DepartureNote: DepartureNote(inhabitant.Id), CivicNote: CivicNote(inhabitant.Id),
-                MedicalCareNote: MedicalCareNoteCore(inhabitant.Id));
+                MedicalCareNote: MedicalCareNoteCore(inhabitant.Id), TownMembershipNote: TownMembershipNote(inhabitant.Id),
+                ToolMakingRequestNote: ToolMakingRequestNoteCore(inhabitant.Id));
             var observation = new InhabitantObservation(
                 inhabitant.Id,
                 WorldTick,
@@ -476,7 +477,7 @@ public sealed partial class PrivateWorldRuntime
         var handledOrders = orderActorsHandledThisTick.ToHashSet(StringComparer.Ordinal);
         var safe = new HashSet<string>(StringComparer.Ordinal)
         {
-            "consume_food", "collect_shared_food", "take_food_from_pot", "make_room_for_food",
+            "consume_food", "collect_shared_food", "take_food_from_pot", "make_room_for_food", "recover_household_delivery",
             "harvest_food", "seek_food",
             "wear_clothing", "tend_fire", "seek_warmth",
         };
@@ -558,9 +559,10 @@ public sealed partial class PrivateWorldRuntime
             if (candidateId.StartsWith("civic|", StringComparison.Ordinal))
             {
                 if (!decision.Admission.FellBack && decision.Admission.Intention.Provider == DecisionProviderKind.LargeLanguageModel)
-                    ApplyTownCivicCandidate(decision.InhabitantId, candidateId, decision.Admission.CivicProposal, decision.Admission.CivicBallot);
+                    ApplyTownCivicCandidate(decision.InhabitantId, candidateId, decision.Admission.CivicProposal,
+                        decision.Admission.CivicBallot, decision.Admission.CivicLandTiles);
             }
-            else
+            else if (!ApplyToolMakingRequestDecision(decision))
                 ApplyCandidate(decision.InhabitantId, state, candidateId, reportIdle: true);
         }
 
@@ -625,6 +627,11 @@ public sealed partial class PrivateWorldRuntime
         bool reportIdle)
     {
         if (IsOrnamentCandidate(candidateId)) return;
+        if (candidateId.StartsWith(ToolRequestPrefix, StringComparison.Ordinal))
+        {
+            ApplyToolMakingRequestCandidate(inhabitantId, state, candidateId, reportIdle);
+            return;
+        }
         if (candidateId.StartsWith("talk:", StringComparison.Ordinal) ||
             candidateId.StartsWith("conversation_", StringComparison.Ordinal))
         {
@@ -710,6 +717,11 @@ public sealed partial class PrivateWorldRuntime
             HaulHouseholdStock(inhabitantId, state);
             return;
         }
+        if (candidateId == "recover_household_delivery")
+        {
+            RecoverHouseholdDelivery(inhabitantId, state);
+            return;
+        }
         if (candidateId == "store_household_food")
         {
             StoreHouseholdFood(inhabitantId, state);
@@ -770,6 +782,7 @@ public sealed partial class PrivateWorldRuntime
                 CollectEquipment(inhabitantId, state, kind);
             return;
         }
+        if (ApplyHandcartCandidate(inhabitantId, state, candidateId)) return;
         if (candidateId.StartsWith(RepairToolPrefix, StringComparison.Ordinal))
         {
             RepairTool(inhabitantId, state, candidateId[RepairToolPrefix.Length..]);
@@ -1040,8 +1053,6 @@ public sealed partial class PrivateWorldRuntime
         var shouldGatherFood = wantsFood && FreeCarryCapacity(inhabitantId) > 0;
         var foodSource = shouldGatherFood || instructionCandidate is "seek_food" or "harvest_food"
             ? AvailableFoodSource(inhabitantId, state.Position) : null;
-        if (foodSource is not null && FreeCarryCapacity(inhabitantId) < FoodHarvestCarryUnits(foodSource))
-            foodSource = null;
         var sharedFood = shouldGatherFood ? AvailableSharedFood(inhabitantId) : null;
         if (sharedFood is not null && contentRegistry.ExportState().Packages.Any(package =>
                 package.Manifest.PackageId == StarterContent.PackageId && package.Lifecycle == ContentPackageLifecycle.Active))
@@ -1086,6 +1097,7 @@ public sealed partial class PrivateWorldRuntime
             candidates.Add(new CognitionCandidate("harvest_food", "Follow the owner's harvest instruction.", 0, foodSource.Id));
         }
 
+        if (AdultResident(inhabitantId)) AddHandcartCandidates(candidates, inhabitantId, state);
         AddSurvivalCandidates(candidates, inhabitantId, state);
         AddDependentCareCandidates(candidates, inhabitantId);
         AddMedicalCareCandidates(candidates, inhabitantId);
@@ -1095,8 +1107,10 @@ public sealed partial class PrivateWorldRuntime
             AddFamilyCandidates(candidates, inhabitantId);
             AddHousingCandidates(candidates, inhabitantId);
             AddParenthoodCandidates(candidates, inhabitantId);
+            AddRecoverHouseholdDeliveryCandidate(candidates, inhabitantId, state);
             AddUrgentFoodPotCandidate(candidates, inhabitantId, state);
             AddBusinessCandidates(candidates, inhabitantId);
+            AddToolMakingRequestCandidates(candidates, inhabitantId);
         }
         if (!NeedsUrgentWarmth(state) && ChildResident(inhabitantId))
         {
@@ -1178,7 +1192,7 @@ public sealed partial class PrivateWorldRuntime
         // household holds or a communal one (see TryFindRecipeSite).
         foreach (var recipe in worldContent.Recipes.Where(item =>
                      !item.Outputs.Any(output => output.ResourceId == "bedding") &&
-                     !item.IsCrop))
+                     !item.IsCrop && !IsGenericFoodRecipe(item)))
         {
             if (NeedsUrgentWarmth(state) && !recipe.Outputs.Any(output => PersonalEquipmentRules.IsGarment(output.ResourceId)))
             {
@@ -1187,11 +1201,15 @@ public sealed partial class PrivateWorldRuntime
             var householdWorkstation = recipe.WorkstationBuildingId is { } workstationId &&
                 worldContent.Buildings.Any(definition => definition.CanonicalId == workstationId &&
                     definition.Tags.Any(IsHouseholdBuildingTag));
-            var recipeOwner = ProductionOwnerFor(null, inhabitant.Id);
-            if (!NeedsRecipeOutput(recipe, recipeOwner) || AnotherAgentWaitsForWorkSite(inhabitant.Id, recipe) ||
+            var personalCart = IsHandcartRecipe(recipe);
+            var recipeOwner = personalCart ? inhabitant.Id : ProductionOwnerFor(null, inhabitant.Id);
+            if (personalCart && (!HasCarriedUnreservedQuantities(inhabitant.Id, recipe.Inputs) ||
+                society.Checkpoint.Inventory.Lots.Any(lot => lot.ItemKind == InventoryContainerRules.Handcart && lot.OwnerId == inhabitant.Id)))
+                continue;
+            if (!NeedsRecipeOutput(recipe, recipeOwner, inhabitant.Id) || AnotherAgentWaitsForWorkSite(inhabitant.Id, recipe) ||
                 !CanAcquireProjectInputs(recipe.Inputs, recipeOwner, inhabitant.Id) ||
                 !TryFindRecipeSite(recipe, out var siteId, out var position, inhabitant.Id) ||
-                householdWorkstation &&
+                householdWorkstation && !personalCart &&
                 (recipeOwner is null || !HasIngredientsAtBuilding(recipe.Inputs, recipeOwner, siteId)))
             {
                 continue;
@@ -1199,8 +1217,8 @@ public sealed partial class PrivateWorldRuntime
 
             candidates.Add(new CognitionCandidate(
                 $"build:recipe:{recipe.CanonicalId}",
-                $"Build {recipe.DisplayName} at a valid site.",
-                recipe.IsCrop ? 20 : WeatherExposure(state.Position) > 0 && recipe.Outputs.Any(output => PersonalEquipmentRules.IsGarment(output.ResourceId)) ? 25 : 30,
+                $"{recipe.DisplayName} at the household work site.",
+                recipe.Tags.Contains("named-meal", StringComparer.Ordinal) ? 20 : recipe.IsCrop ? 20 : OutdoorExposure(state.Position) > 0 && recipe.Outputs.Any(output => PersonalEquipmentRules.IsGarment(output.ResourceId)) ? 25 : 30,
                 $"build-site:{position.X},{position.Y}"));
         }
     }
