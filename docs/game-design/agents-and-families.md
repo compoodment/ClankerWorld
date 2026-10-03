@@ -237,12 +237,15 @@ everything that is available in the current build. See [what works today](../wha
   asks living biological relatives first, then adults in the dependent's household, then
   adult residents of their Town. Each wider group is added to those already
   asked, so a relative who missed the first day can still accept. The first adult who explicitly accepts becomes
-  the current primary caregiver. A child moves to that adult's household only
-  when its completed House has a free resident place and both belong to the
-  same Town; Town membership and birth parentage remain unchanged. A cross-Town
-  acceptance records care but leaves the child's household in place until
-  Town admission rules in [issue #602](https://github.com/compoodment/ClankerWorld/issues/602)
-  allow a move. Until acceptance, the child stays where they are, nearby adults
+  the current primary caregiver. A child can join that adult's household at
+  acceptance when its completed House has a free resident place and both belong
+  to the same known Town. Otherwise accepted care keeps a pending move: once
+  the guardian has a recorded Town and a completed House with room, they
+  collect the child and accompany them home. On arrival together, the child
+  joins that household and the guardian's recorded Town under the dependent
+  care rules. A full or unavailable House waits; acceptance alone grants no
+  resident place or Town membership. Birth parentage stays unchanged.
+  Until acceptance, the child stays where they are, nearby adults
   may still feed them, and the player can see the unmet guardian need and
   suggest an adult in a message. Ordering an adult to take the child in waits
   for the order list in [issue #587](https://github.com/compoodment/ClankerWorld/issues/587).

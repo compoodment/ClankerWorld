@@ -103,6 +103,7 @@ public sealed partial class PrivateWorldRuntime
         AgentKnowledgeRules.Validate(knowledge, map, society.Checkpoint, WorldTick);
         ValidateHousing(inhabitants.Values, society.Checkpoint, checkpointSchemaVersion);
         ValidateDependentCare(inhabitants.Values, society.Checkpoint, towns, checkpointSchemaVersion);
+        ValidateGuardianPlacements(inhabitants.Values, society.Checkpoint, towns, map, checkpointSchemaVersion);
         ValidateDepartures(inhabitants.Values, society.Checkpoint, checkpointSchemaVersion);
         ValidateEquipment(inhabitants.Values, society.Checkpoint, worldSimulation, worldContent, checkpointSchemaVersion);
         ValidateContinuity(continuity, society.Checkpoint, checkpointSchemaVersion);
@@ -399,6 +400,7 @@ public sealed partial class PrivateWorldRuntime
         ValidateLessons(state);
         ValidateHousing(state.Inhabitants, state.Society.Society, state.SchemaVersion);
         ValidateDependentCare(state.Inhabitants, state.Society.Society, state.Towns ?? [], state.SchemaVersion);
+        ValidateGuardianPlacements(state.Inhabitants, state.Society.Society, state.Towns ?? [], travelMap, state.SchemaVersion);
         ValidateDepartures(state.Inhabitants, state.Society.Society, state.SchemaVersion);
         ValidateEquipment(state.Inhabitants, state.Society.Society, state.WorldSimulation, state.WorldContent, state.SchemaVersion);
         foreach (var person in state.Inhabitants)
@@ -695,6 +697,7 @@ public sealed partial class PrivateWorldRuntime
                 !deathMap.IsPassable(person.LastPhysical.Position) ||
                 person.LastPhysical.HungerBasisPoints is < 0 or > 10_000 ||
                 person.LastPhysical.Equipment?.OrnamentLotId is not null ||
+                person.LastPhysical.GuardianPlacement is not null ||
                 person.TownId is { } townId && !townIds.Contains(townId))
                 throw new InvalidDataException("The deceased inhabitant archive contains an invalid final state.");
             ValidatePrivateThoughts(person.LastPhysical.RecentThoughts, person.DeathTick);

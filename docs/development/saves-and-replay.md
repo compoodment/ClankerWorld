@@ -154,13 +154,30 @@ relative, household or Town stage, start tick and offered adults. Each stage
 keeps the earlier groups, and the offers are brought up to date at the end of
 every tick, so a save always matches the households it was made with. Acceptance is
 an explicit adult action that changes the saved current primary caregiver.
-Household membership changes in that same action only when a completed House
-in the child's Town has room; otherwise it stays unchanged. The original birth
-record and Town membership stay unchanged. Loading validates the stage, times,
-and adult references. Replaying
+The original search format placed a child only in a completed House with room
+in the same Town. Schema 60 adds the pending physical placement described below.
+Loading validates the search stage, times and adult references. Replaying
 from a pending request reaches the same acceptance opportunities and preserves
 the single guardian-needed event. Older alpha saves without this state are
 refused; no migration is added.
+
+Schema 60 saves a dependent's pending guardian placement separately from the
+accepted care relationship. It records the caregiver, exact relationship and
+revision, start time, collecting or escorting stage, selected household and
+Town, and the House's instance, definition, placement time and anchor. A
+blocker may preserve accepted care while a home or route is unavailable. These
+records grant no membership, reserve no House place and never substitute a
+teleport for movement.
+
+Loading checks the care authority, references, stage and saved destination as
+one placement. A House that disappeared or changed ownership can leave a
+pending destination; the runtime refreshes it rather than discarding accepted
+care. The normal runtime rechecks availability and capacity on retry and
+arrival. Completion changes the child's household and Town together and
+clears the pending record; cancellation also clears it without changing birth
+history. Save/load retains intermediate travel and blockers, and replay must
+reach the same membership, position and lifecycle events. Earlier alpha saves
+are refused and preserved; no migration is added.
 
 The private catalog archives each world's checkpoint. It saves the active world
 before a paused switch and keeps world IDs, names, seed and settings separate.
@@ -460,7 +477,8 @@ connected Town-title plots, household use rights and pending use requests,
 physical shop exchanges beside their exact inventory offers,
 the continuity rule's state with each eligible couple's deadline, food-order
 targets, progress, retry state and cancellation receipts, staged
-guardian-search records with their offered adults, medical permission and
+guardian-search records with their offered adults and pending physical
+guardian placements, medical permission and
 consumed-dose progress, selected personal ornaments, and wills with up to
 three named heirs, exact divisions and final words, Town admission records,
 Town laws and government, concrete last-meal names for nourishment and
@@ -500,7 +518,8 @@ for medical permission and consumed-dose progress, schema 52 for selected
 ornaments, schema 53 for wills with several heirs and final words, schema 54
 for Town admission records, schema 55 for Town laws and government, schema
 56 for named last meals, schema 57 for tool-making requests, schema 58 for
-Council land claims and schema 59 for household land grants record when
+Council land claims, schema 59 for household land grants and schema 60 for
+physical guardian placements record when
 those fields or behaviors were introduced;
 they do not allow an earlier checkpoint schema past the current alpha cutoff.
 
@@ -548,6 +567,7 @@ they do not allow an earlier checkpoint schema past the current alpha cutoff.
 | Schema 57 | Bounded tool-making requests bind their customer, selling household, actual Blacksmith, accepted worker and ordinary production/offer history. Completed work requires exact full input receipts; purchase status must agree with the real inventory offer. Earlier alpha checkpoints are refused and preserved without migration. |
 | Schema 58 | Council proposals may carry the exact connected plot of a land claim; a passed claim and its Town title must agree on Town, tiles and settlement time. Earlier alpha checkpoints are refused and preserved without migration. |
 | Schema 59 | Household land requests keep their status, Council proposal, each adult's separate consent and the adult roster at settlement; a grant and its rights must agree on plot, grant time and end date. Earlier alpha checkpoints are refused and preserved without migration. |
+| Schema 60 | Pending guardian placements retain exact accepted care authority, collecting or escorting progress, a selected House and current blocker. Household and Town membership change together only on valid arrival. Earlier alpha checkpoints are refused and preserved without migration. |
 
 ### Tool-making requests
 
@@ -609,7 +629,7 @@ person's Town. Positive personal recipients alone receive its final words.
 Inheritance changes ownership while retaining ground, House storage or a living
 carrier's custody; goods carried by the deceased are dropped at their last tile.
 Town shares use the Town's current Warehouse while it can accept them.
-Debts, Town-law conflicts and guardianship remain separate work.
+Debts and Town-law conflicts remain separate work. Inheritance does not decide guardianship.
 
 A quantity-one physical map or field record retains its lot ID when inherited.
 Ownership and location change; its creator, discovery facts and artifact link

@@ -55,6 +55,25 @@ public partial class Main
             if (!profileActivityLabel.Text.Contains("Model: Ready", StringComparison.Ordinal) ||
                 !inhabitantDetails.Text.Contains("Jev made their latest choice.", StringComparison.Ordinal))
                 throw new InvalidOperationException($"A choice Jev made must be said plainly: {profileActivityLabel.Text} / {inhabitantDetails.Text}");
+            // Reuse the displayed agent to prove that projected care notes reach
+            // the actual Profile controls and clear when the move is no longer pending.
+            const string guardianNote = "Accepted care; waiting for a place in the guardian's House.";
+            var pendingGuardian = mira with
+            {
+                DecisionFactors = [.. mira.DecisionFactors, new("guardian-care", guardianNote)],
+                SocialNotes = [guardianNote],
+            };
+            RenderSelectedInhabitantCard(snapshot with { Inhabitants = [pendingGuardian, rowan, pip] });
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (!agentProfilePanel.IsVisibleInTree() || !inhabitantDetails.IsVisibleInTree() ||
+                !inhabitantDetails.GetParsedText().Contains(guardianNote, StringComparison.Ordinal) ||
+                !profilePeople.GetChildren().OfType<Label>().Any(label => label.IsVisibleInTree() &&
+                    label.Text.Contains(guardianNote, StringComparison.Ordinal)))
+                throw new InvalidOperationException("Pending guardian care must reach the visible Profile details and People section from the observation.");
+            RenderSelectedInhabitantCard(snapshot);
+            if (inhabitantDetails.GetParsedText().Contains(guardianNote, StringComparison.Ordinal) ||
+                ProfilePeopleText().Contains(guardianNote, StringComparison.Ordinal))
+                throw new InvalidOperationException("Refreshing the same agent without pending guardian care must clear its old note from both Profile sections.");
             // At 200% on this small window, four messages make the Profile taller than the screen:
             // its details scroll inside it and the panel stays on screen.
             var factor = uiLayer.Factor;

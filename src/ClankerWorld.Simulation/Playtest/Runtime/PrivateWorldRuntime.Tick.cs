@@ -418,6 +418,7 @@ public sealed partial class PrivateWorldRuntime
                 return new PrivateWorldStepResult(false, "paused", WorldTick, [], []);
             }
 
+            guardianPlacementActions.Clear();
             var startingEvent = events.Count;
             var targetTick = checked(WorldTick + 1);
             StageSettlementContent();
@@ -525,6 +526,7 @@ public sealed partial class PrivateWorldRuntime
             MaintainParenthood();
             MaintainContinuity();
             MaintainDependentCare();
+            ReconcileGuardianPlacements();
             DiscoverIdentityMoments();
             UpdateConversationsForTick(targetTick);
             EnqueueDueCognition();
@@ -592,8 +594,11 @@ public sealed partial class PrivateWorldRuntime
                 decisions.Select(item => item.InhabitantId), waiting);
             AdvanceMedicalTreatments();
             if (deferHosted) ApplySafeRoutinesWhileWaiting(waiting, orderActorsHandledThisTick);
+            ReconcileGuardianPlacements();
+            AdvanceGuardianPlacementFollowers(orderActorsHandledThisTick);
             AdvanceBridgeTraffic();
             SettleGuardianSearches();
+            ReconcileGuardianPlacements();
             MaintainToolMakingRequests();
 
             AppendEvent("tick_advanced", targetTick.ToString(System.Globalization.CultureInfo.InvariantCulture));
