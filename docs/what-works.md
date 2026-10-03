@@ -49,7 +49,9 @@ second holds the Blacksmith. The player presses Start World explicitly.
 
 Default Balanced Small/Medium previews measure forests and mountains against
 dry land and try at most three deterministic maps for the Normal settings. The
-preview shows every candidate's coverage and creates the exact selected map.
+preview shows each playable candidate's coverage, lists attempts that have no
+room for a first Town, and creates the exact selected map. If no attempted map
+has room, it asks the player to try another seed or change the settings.
 If a selected map misses a target, Create World stays unavailable until the
 player accepts the displayed result or changes the seed. Uniform Dry and
 polar-only settings do not use those trial bands; each band applies only while

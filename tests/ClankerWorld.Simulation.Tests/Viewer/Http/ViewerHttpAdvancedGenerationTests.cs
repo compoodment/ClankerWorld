@@ -57,7 +57,7 @@ public sealed partial class ViewerHttpTests
         Assert.Equal(HttpStatusCode.Conflict, unaccepted.StatusCode);
         Assert.Single(host.Services.GetRequiredService<WorldCatalogStore>().Capture().Worlds);
 
-        var stale = create with { ExpectedMapLayersDigest = "sha256:stale-preview" };
+        var stale = create with { ExpectedMapLayersDigest = "sha256:stale-preview", AcceptUnmetTargets = true };
         using var changedPreview = await SendSignedAsync(host, client, key, device.DeviceId,
             "/api/v1/owner/worlds/create", stale, OwnerHttpBinding.WorldCreationPayload(stale));
         Assert.Equal(HttpStatusCode.Conflict, changedPreview.StatusCode);
