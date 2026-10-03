@@ -58,7 +58,8 @@ public sealed record OwnerInstructionOrder(
     string? BlockedReason = null,
     string? LastEffectId = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool WaitForDecisionAfterFailure = false,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? TargetAgentId = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? TargetAgentId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? TargetMaterialKind = null);
 
 public sealed record OwnerOrderCancelRequest(
     string IdempotencyKey,
