@@ -181,7 +181,7 @@ public sealed partial class PrivateWorldRuntime
                     action == "hearing_answer" ? "answer" : "waive", action == "hearing_waive" ? "I waive only my own response opportunity." : LandHearingText(hearingChoice?.Statement ?? proposalText),
                     WorldTick, council.Knowledge, parties, partyId: parties.Single(party => CivicAgentToken(party.Id) == choice).Id);
                 break;
-            case "hearing_judge_register": hearings = TownLandCaseJudgeRules.Register(hearings, item.Id, actor, TownAdults(town), LandHearingHouseholds(), WorldTick); break;
+            case "hearing_judge_register": hearings = TownLandCaseJudgeRules.Register(hearings, item.Id, actor, TownAdults(town), LandHearingHouseholds(), WorldTick, parties); break;
             case "hearing_judge_withdraw": hearings = TownLandCaseJudgeRules.Withdraw(hearings, item.Id, actor, WorldTick); break;
             case "hearing_judge_resign": hearings = TownLandCaseJudgeRules.Resign(hearings, item.Id, actor, WorldTick); break;
             case "hearing_judge_vote":

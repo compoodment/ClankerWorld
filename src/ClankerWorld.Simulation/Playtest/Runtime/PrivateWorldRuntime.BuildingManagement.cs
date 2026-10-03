@@ -159,7 +159,10 @@ public sealed partial class PrivateWorldRuntime
             };
             householdLandUseRights = reassignedRights.ToList();
             if (rightsTown is not null && reassignedHearings is not null)
+            {
                 SetTown(rightsTown with { LandHearings = reassignedHearings });
+                RefreshTownLandHearings();
+            }
             checkpointSchemaVersion = StateSchemaVersion;
             AppendEvent("building_reassigned", $"{instanceId}:town={nextTownId ?? "none"}:household={nextHouseholdId ?? "none"}");
             return new BuildingManagementResult(true, instanceId, null, nextTownId, nextHouseholdId);

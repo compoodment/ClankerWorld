@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using ClankerWorld.Simulation.Harness;
 
 namespace ClankerWorld.Simulation.Playtest;
@@ -83,7 +84,7 @@ public sealed record TownLandCase(string Id, string Key, string Kind, long Filed
 public sealed record TownLandRightAdjustment(string Id, string Kind, long Tick,
     IReadOnlyList<TownLandRightVersion> PriorRights, IReadOnlyList<HouseholdLandUseRight> ResultRights,
     IReadOnlyList<GridPoint> Tiles, string? CaseId = null, string? RulingId = null,
-    string? BuildingId = null, string? TargetHouseholdId = null);
+    string? BuildingId = null, string? TargetHouseholdId = null, string? TransferId = null);
 
 /// <summary>
 /// OriginalRights retains first-touched original grant pieces; requests retain their original Council receipts.
@@ -92,6 +93,8 @@ public sealed record TownLandRightAdjustment(string Id, string Kind, long Tick,
 public sealed record TownLandHearingState(long Sequence, IReadOnlyList<TownLandCase> Cases,
     IReadOnlyList<TownLandRightVersion> OriginalRights, IReadOnlyList<TownLandRightAdjustment> Adjustments)
 {
+    [JsonRequired]
+    public IReadOnlyList<TownLandTransferRequest> Transfers { get; init; } = [];
     public static TownLandHearingState Create() => new(0, [], [], []);
     public static TownLandHearingState Empty { get; } = Create();
 }

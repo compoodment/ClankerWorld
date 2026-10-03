@@ -536,6 +536,26 @@ public sealed partial class PrivateWorldRuntimeService(
     private void LogTownEvent(PlaytestWorldEvent worldEvent)
     {
         if (logger is null) return;
+        var transferKind = worldEvent.Kind switch
+        {
+            "land_transfer_proposed" => TownLandTransferTransitionKind.Proposed,
+            "land_transfer_read" => TownLandTransferTransitionKind.Read,
+            "land_transfer_consent" => TownLandTransferTransitionKind.Consent,
+            "land_transfer_withdrawn" => TownLandTransferTransitionKind.Withdrawn,
+            "land_transfer_settled" => TownLandTransferTransitionKind.Settled,
+            "land_transfer_blocked" => TownLandTransferTransitionKind.Blocked,
+            _ => (TownLandTransferTransitionKind?)null,
+        };
+        if (transferKind is { } transferTransition)
+        {
+            var fields = worldEvent.Detail.Split('|', 5);
+            var transferTown = fields.Length == 5 ? runtime.Towns.FirstOrDefault(item => item.Id == fields[0]) : null;
+            var transfer = transferTown?.LandHearings.Transfers.FirstOrDefault(item => item.Id == fields[1]);
+            if (transferTown is not null && transfer is not null)
+                TownTelemetry.LandTransfer(logger, worldEvent.WorldTick, transferTown.Id, transfer.Id, transferTransition,
+                    transfer.Status, transfer.Parties.Count, transfer.Responses.Count, transfer.Tiles.Count);
+            return;
+        }
         var hearingKind = worldEvent.Kind switch
         {
             "land_case_opened" => TownLandHearingTransitionKind.Opened,

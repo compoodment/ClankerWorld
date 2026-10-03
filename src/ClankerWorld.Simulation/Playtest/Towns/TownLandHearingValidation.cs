@@ -10,7 +10,8 @@ public static class TownLandHearingValidation
         IReadOnlyList<HouseholdLandUseRight> currentRights, IReadOnlyList<TownLandTitleRecord> titles,
         IReadOnlySet<string> knownAgents, IReadOnlySet<string> knownHouseholds,
         TownGovernanceState? council, int day, TownGovernmentState? government = null,
-        IReadOnlyList<string>? adultResidents = null, IReadOnlyDictionary<string, string?>? agentHouseholds = null)
+        IReadOnlyList<string>? adultResidents = null, IReadOnlyDictionary<string, string?>? agentHouseholds = null,
+        IReadOnlyDictionary<string, IReadOnlyList<TownLandCaseParty>>? currentPartiesByCase = null)
     {
         Check(state is not null && state.Sequence >= 0 && day > 0 && state.Cases is not null && state.OriginalRights is not null && state.Adjustments is not null,
             "Saved land hearings must contain their case file and permission history.");
@@ -19,14 +20,16 @@ public static class TownLandHearingValidation
         Unique(state.Cases.Select(c => c.Id));
         Unique(state.OriginalRights.Select(r => r.Id));
         Unique(state.Adjustments.Select(a => a.Id));
-        Check(state.Cases.Count + state.Adjustments.Count <= state.Sequence, "Saved hearing numbering cannot precede its records.");
+        TownLandTransferValidation.Validate(map, tick, townId, state, currentRights, titles, knownAgents, knownHouseholds, council);
+        Check(state.Cases.Count + state.Adjustments.Count + state.Transfers.Count <= state.Sequence, "Saved hearing numbering cannot precede its records.");
         foreach (var original in state.OriginalRights) ValidateRight(map, tick, townId, original, titles, knownHouseholds);
         foreach (var item in state.Cases) ValidateCase(map, tick, townId, item, titles, knownAgents, knownHouseholds, council, day, government, state, currentRights);
         if (adultResidents is not null && agentHouseholds is not null)
             foreach (var item in state.Cases.Where(c => c.Judge is not null))
                 Check(adultResidents.Contains(item.Judge!.AgentId, StringComparer.Ordinal) &&
                     !TownLandHearingRules.JudgeConflict(item.Judge.AgentId, agentHouseholds.GetValueOrDefault(item.Judge.AgentId),
-                        TownLandHearingRules.CurrentRevision(item).Parties, item.DirectStakeIds.ToHashSet(StringComparer.Ordinal)),
+                        currentPartiesByCase?.GetValueOrDefault(item.Id) ?? TownLandHearingRules.CurrentRevision(item).Parties,
+                        item.DirectStakeIds.ToHashSet(StringComparer.Ordinal)),
                     "A live saved case judge must remain an eligible independent adult resident.");
         foreach (var adjustment in state.Adjustments)
         {
@@ -46,7 +49,7 @@ public static class TownLandHearingValidation
                 var item = state.Cases.SingleOrDefault(c => c.Id == adjustment.CaseId);
                 var ruling = item?.Rulings.SingleOrDefault(r => r.Id == adjustment.RulingId);
                 Check(item is not null && ruling is not null && ruling.Tick == adjustment.Tick && ruling.AdjustmentIds.Contains(adjustment.Id, StringComparer.Ordinal) &&
-                    adjustment.BuildingId is null && adjustment.TargetHouseholdId is null, "A ruling adjustment needs its exact durable case and ruling.");
+                    adjustment.BuildingId is null && adjustment.TargetHouseholdId is null && adjustment.TransferId is null, "A ruling adjustment needs its exact durable case and ruling.");
                 var revision = item.Revisions.Single(r => r.Number == ruling.Revision);
                 Check(adjustment.Tiles.SequenceEqual(revision.Tiles) && ruling.Outcome.Kind is "renew" or "amend" or "end" &&
                     TownLandHearingRules.SameRights(adjustment.ResultRights, TownLandHearingRules.BoundedOutcome(map,
@@ -55,7 +58,7 @@ public static class TownLandHearingValidation
             }
             else if (adjustment.Kind == "building_transfer")
             {
-                Check(adjustment.CaseId is null && adjustment.RulingId is null && Id(adjustment.BuildingId) &&
+                Check(adjustment.CaseId is null && adjustment.RulingId is null && adjustment.TransferId is null && Id(adjustment.BuildingId) &&
                     adjustment.TargetHouseholdId is { } target && knownHouseholds.Contains(target), "A building transfer needs its captured footprint and known beneficiary.");
                 var prior = adjustment.PriorRights.Select(r => r.Right).ToArray();
                 var expected = TownLandRightsRules.ReassignFootprintRights(map, prior, adjustment.Tiles.ToHashSet(), adjustment.TargetHouseholdId!, adjustment.Tick);
@@ -63,6 +66,7 @@ public static class TownLandHearingValidation
                 // Per-tile terms prove its effect; the replay chain separately checks all exact identities.
                 Check(SameTileTerms(expected, adjustment.ResultRights), "A saved building adjustment may only reassign existing footprint permissions and retain grant terms.");
             }
+            else if (adjustment.Kind == "voluntary_transfer") TownLandTransferValidation.ValidateAdjustment(map, state, adjustment);
             else throw new InvalidDataException("A saved land adjustment has an unsupported source.");
         }
         Check(state.Adjustments.Select(a => a.Tick).SequenceEqual(state.Adjustments.Select(a => a.Tick).Order()), "Land adjustments must retain chronological order.");

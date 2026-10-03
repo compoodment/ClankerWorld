@@ -101,6 +101,9 @@ public sealed partial class PrivateWorldRuntime
         (town, updated) = ApplyApprovedTownLandClaims(town, updated);
         updated = ResolveHouseholdLandRequests(town, updated);
         var priorHearings = town.LandHearings;
+        var transferUpdate = AdvanceTownLandTransfers(town with { Governance = updated, Government = government }, updated);
+        updated = transferUpdate.Council;
+        town = town with { LandHearings = transferUpdate.LandHearings };
         var hearingUpdate = AdvanceTownLandHearings(town with { Governance = updated, Government = government },
             updated, government ?? TownGovernmentState.Create());
         updated = hearingUpdate.Council;
@@ -187,6 +190,7 @@ public sealed partial class PrivateWorldRuntime
             AddTownAdmissionCandidates(candidates, actor, town);
             AddHouseholdLandCandidates(candidates, actor, town);
             AddTownLandHearingCandidates(candidates, actor, town);
+            AddTownLandTransferCandidates(candidates, actor, town);
             foreach (var proposal in state.Proposals.Where(p => p.Status == "pending" && history.Knows(actor, p.Id)))
             {
                 var draft = town.Government?.LawDrafts.SingleOrDefault(d => d.ProposalId == proposal.Id);
@@ -226,7 +230,7 @@ public sealed partial class PrivateWorldRuntime
         var parts = candidate.Split('|');
         if (parts.Length != 5 || parts[2] != "visit" || NeedsUrgentWarmth(inhabitants[actor])) return;
         var town = towns.SingleOrDefault(t => t.Id == parts[1]);
-        if (town?.Governance is null || !TownAdults(town).Contains(actor, StringComparer.Ordinal) && !MayVisitAsNewcomer(actor, town) && !MayVisitLandHearing(actor, town) ||
+        if (town?.Governance is null || !TownAdults(town).Contains(actor, StringComparer.Ordinal) && !MayVisitAsNewcomer(actor, town) && !MayVisitLandHearing(actor, town) && !MayVisitLandTransfer(actor, town) ||
             CivicBoard(town) is not { } destination ||
             IsWithinInteractionRange(inhabitants[actor].Position, destination, ResourceInteractionRange)) return;
         MoveToward(actor, inhabitants[actor], destination, "town_notices", ResourceInteractionRange);
@@ -262,6 +266,14 @@ public sealed partial class PrivateWorldRuntime
                     proposalText, landTiles, hearingChoice, state, government);
                 state = hearingUpdate.Council;
                 town = town with { LandHearings = hearingUpdate.LandHearings };
+                SetTown(town with { Governance = state, Government = government });
+            }
+            else if (parts[2].StartsWith("land_transfer_", StringComparison.Ordinal))
+            {
+                var transferUpdate = ApplyTownLandTransferAction(town with { Governance = state, Government = government },
+                    actor, parts[2], parts[3], parts[4], landTiles, hearingChoice, state);
+                state = transferUpdate.Council;
+                town = town with { LandHearings = transferUpdate.LandHearings };
                 SetTown(town with { Governance = state, Government = government });
             }
             if (parts[2] is "ballot" or "single" &&

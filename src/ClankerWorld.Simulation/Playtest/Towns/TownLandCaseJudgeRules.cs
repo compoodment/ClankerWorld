@@ -11,15 +11,18 @@ public static class TownLandCaseJudgeRules
     private static TownLandHearingState Replace(TownLandHearingState state, TownLandCase item) =>
         state with { Cases = state.Cases.Select(c => c.Id == item.Id ? item : c).ToArray() };
     private static bool Willing(TownLandCase item, string actor) => item.JudgeConsents.Any(c => c.AgentId == actor && c.WithdrawnTick is null);
-    private static bool Eligible(TownLandCase item, string actor, IReadOnlyList<string> adults, IReadOnlyDictionary<string, string?> households) =>
+    private static bool Eligible(TownLandCase item, string actor, IReadOnlyList<string> adults,
+        IReadOnlyDictionary<string, string?> households, IReadOnlyList<TownLandCaseParty> parties) =>
         adults.Contains(actor, StringComparer.Ordinal) && !TownLandHearingRules.JudgeConflict(actor,
-            households.GetValueOrDefault(actor), TownLandHearingRules.CurrentRevision(item).Parties, item.DirectStakeIds.ToHashSet(StringComparer.Ordinal));
+            households.GetValueOrDefault(actor), parties, item.DirectStakeIds.ToHashSet(StringComparer.Ordinal));
 
     public static TownLandHearingState Register(TownLandHearingState state, string caseId, string actor,
-        IReadOnlyList<string> adultResidents, IReadOnlyDictionary<string, string?> households, long tick)
+        IReadOnlyList<string> adultResidents, IReadOnlyDictionary<string, string?> households, long tick,
+        IReadOnlyList<TownLandCaseParty>? currentParties = null)
     {
         var item = state.Cases.Single(c => c.Id == caseId);
-        if (!Eligible(item, actor, adultResidents, households)) throw new InvalidOperationException("Only a willing, eligible and independent adult resident may seek this case mandate.");
+        if (!Eligible(item, actor, adultResidents, households, currentParties ?? TownLandHearingRules.CurrentRevision(item).Parties))
+            throw new InvalidOperationException("Only a willing, eligible and independent adult resident may seek this case mandate.");
         return Willing(item, actor) ? state : Replace(state, item with { JudgeConsents = item.JudgeConsents.Append(new(actor, tick)).ToArray() });
     }
 
@@ -54,7 +57,8 @@ public static class TownLandCaseJudgeRules
 
     public static (TownLandHearingState State, TownGovernanceState Council) Advance(TownLandHearingState state,
         TownGovernanceState council, TownGovernmentState government, IReadOnlyList<string> adultResidents,
-        IReadOnlyDictionary<string, string?> households, long tick, int day, bool ordinaryContestBusy = false)
+        IReadOnlyDictionary<string, string?> households, long tick, int day, bool ordinaryContestBusy = false,
+        IReadOnlyDictionary<string, IReadOnlyList<TownLandCaseParty>>? currentPartiesByCase = null)
     {
         var adults = TownLandHearingRules.Ordered(adultResidents);
         var office = government.Offices.SingleOrDefault(o => o.Mandates == "land" && o.HolderId is not null && o.TermEndTick > tick);
@@ -63,7 +67,8 @@ public static class TownLandCaseJudgeRules
         foreach (var saved in state.Cases.Where(c => c.Status == "pending" || c.ReopenRequests.Any(r => r.Status == "pending")).OrderBy(c => c.FiledTick).ThenBy(c => c.Id, StringComparer.Ordinal).ToArray())
         {
             var item = saved;
-            if (item.Judge is { } judge && (!Eligible(item, judge.AgentId, adults, households) || government.Arrangement.Land != TownArrangementRules.Mayor ||
+            var parties = currentPartiesByCase?.GetValueOrDefault(item.Id) ?? TownLandHearingRules.CurrentRevision(item).Parties;
+            if (item.Judge is { } judge && (!Eligible(item, judge.AgentId, adults, households, parties) || government.Arrangement.Land != TownArrangementRules.Mayor ||
                     judge.Kind == "case_elected" && !Willing(item, judge.AgentId) ||
                     judge.Kind == "land_mayor" && (office?.HolderId != judge.AgentId || office.ElectionId != judge.AuthorityId)))
             {
@@ -76,13 +81,13 @@ public static class TownLandCaseJudgeRules
                 state = Replace(state, CancelContest(item, tick, "land_mandate_ended"));
                 continue;
             }
-            if (office is not null && Eligible(item, office.HolderId!, adults, households))
+            if (office is not null && Eligible(item, office.HolderId!, adults, households, parties))
             {
                 state = TownLandHearingRules.AssignJudge(state, item.Id, new(office.HolderId!, "land_mayor", office.ElectionId!, tick));
                 continue;
             }
             if (office is null && item.Contest is null && item.ContestHistory.Count == 0) continue;
-            var candidates = TownLandHearingRules.Ordered(item.JudgeConsents.Where(c => c.WithdrawnTick is null && Eligible(item, c.AgentId, adults, households)).Select(c => c.AgentId));
+            var candidates = TownLandHearingRules.Ordered(item.JudgeConsents.Where(c => c.WithdrawnTick is null && Eligible(item, c.AgentId, adults, households, parties)).Select(c => c.AgentId));
             var contest = item.Contest;
             var busyForCase = schedulerBusy || heldCaseId is not null && heldCaseId != item.Id;
             if (contest is null)

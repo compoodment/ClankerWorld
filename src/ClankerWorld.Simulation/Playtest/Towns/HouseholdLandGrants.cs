@@ -24,6 +24,14 @@ public static class HouseholdLandGrantRules
         !requests.Any(other => other.Status == "pending" && other.HouseholdId != request.HouseholdId &&
             other.Tiles.Any(tile => request.Tiles.Contains(tile) && !other.HearingResolutions.Any(resolution => resolution.Tiles.Contains(tile))));
 
+    public static string? RefusalReason(HouseholdLandUseRequest request, IReadOnlyList<string> adults,
+        TownProposal? proposal, long tick) =>
+        adults.Count == 0 ? "The household has no living adult signatory." :
+        request.AgreedEndTick is { } end && end <= tick ? "The requested end date has arrived." :
+        request.Consents.Any(c => !c.Accepted && adults.Contains(c.AgentId, StringComparer.Ordinal)) ? "A current adult in the household declined." :
+        proposal is { Status: "cancelled" } && request.HearingResolutions.Count == 0 ? "The Council changed before it decided; the household may ask again." :
+        proposal is { Status: "rejected" or "withdrawn" } ? "The Council proposal did not pass." : null;
+
     public static void Validate(long tick, IReadOnlyList<TownRuntimeState> towns,
         IReadOnlyList<HouseholdLandUseRight> rights, IReadOnlyList<HouseholdLandUseRequest> requests,
         IReadOnlySet<string> knownAgents)
@@ -99,14 +107,9 @@ public sealed partial class PrivateWorldRuntime
         foreach (var saved in householdLandUseRequests.Where(r => r.TownId == town.Id && r.Status == "pending").ToArray())
         {
             var request = saved;
-            if (HasOpenLandHearingPlot(town.Id, request.Tiles) || request.HearingResolutions.Count != 0) continue;
             var adults = HouseholdAdults(request.HouseholdId);
             var proposal = state.Proposals.SingleOrDefault(p => p.Id == request.CouncilProposalId);
-            string? refusal = adults.Length == 0 ? "The household has no living adult signatory." :
-                request.AgreedEndTick is { } end && end <= WorldTick ? "The requested end date has arrived." :
-                request.Consents.Any(c => !c.Accepted && adults.Contains(c.AgentId, StringComparer.Ordinal)) ? "A current adult in the household declined." :
-                proposal is { Status: "cancelled" } ? "The Council changed before it decided; the household may ask again." :
-                proposal is { Status: "rejected" or "withdrawn" } ? "The Council proposal did not pass." : null;
+            var refusal = HouseholdLandGrantRules.RefusalReason(request, adults, proposal, WorldTick);
             if (refusal is not null)
             {
                 request = request with { Status = "rejected", SettledTick = WorldTick };
@@ -114,7 +117,8 @@ public sealed partial class PrivateWorldRuntime
                     state = TownGovernanceRules.CancelLandUseProposal(state, proposalId, WorldTick);
                 state = TownGovernanceRules.LandUseNotice(state, request.Id, "Household land request refused: " + refusal, WorldTick);
             }
-            else if (HouseholdLandGrantRules.IsAvailable(request, householdLandUseRights, householdLandUseRequests))
+            else if (!HasOpenLandHearingPlot(town.Id, request.Tiles) &&
+                HouseholdLandGrantRules.IsAvailable(request, householdLandUseRights, householdLandUseRequests))
             {
                 if (proposal is null)
                 {
@@ -180,14 +184,18 @@ public sealed partial class PrivateWorldRuntime
         var history = CivicHistory(town);
         foreach (var request in householdLandUseRequests.Where(r => r.TownId == town.Id && r.Status == "pending" && history.Knows(actor, "land_use", r.Id)))
         {
+            var terms = request.HearingResolutions.Count == 0 ? LandUseTerms(request) :
+                "Remaining unheard requested tiles: " + TownLandClaimRules.DescribeTiles(TownLandRightsRules.UnresolvedRequestTiles(request)) +
+                ". Completed hearing decisions remain. A new ordinary grant requires a separate request for its exact plot. ";
             if (request.RequestedByAgentId == actor)
                 candidates.Add(new(CivicAction(town.Id, "withdraw_land_use", request.Id),
-                    "Withdraw your pending household land request. " + LandUseTerms(request), 190));
+                    "Withdraw your pending household land request. " + terms, 190));
             if (!HouseholdAdults(request.HouseholdId).Contains(actor, StringComparer.Ordinal) || request.Consents.Any(c => c.AgentId == actor)) continue;
-            candidates.Add(new(CivicAction(town.Id, "accept_land_use", request.Id),
-                "Personally accept the requested use right for your household. Council approval and every current adult's acceptance are also required. " + LandUseTerms(request), 165));
+            if (request.HearingResolutions.Count == 0)
+                candidates.Add(new(CivicAction(town.Id, "accept_land_use", request.Id),
+                    "Personally accept the requested use right for your household. Council approval and every current adult's acceptance are also required. " + terms, 165));
             candidates.Add(new(CivicAction(town.Id, "decline_land_use", request.Id),
-                "Personally decline the requested use right for your household. " + LandUseTerms(request), 166));
+                "Personally decline the requested use right for your household. " + terms, 166));
         }
     }
 

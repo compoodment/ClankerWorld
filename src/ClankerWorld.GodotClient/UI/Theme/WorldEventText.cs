@@ -118,6 +118,8 @@ public static class WorldEventText
             "land_case_judge_consent" or "land_case_judge_election" or "land_case_judge_assigned" or
             "land_case_ruling" or "land_case_reopen_requested" or "land_case_reopened" or
             "land_case_inspected" or "land_case_relayed" or "land_case_rejected" => DescribeLandHearing(worldEvent, snapshot),
+            "land_transfer_proposed" or "land_transfer_read" or "land_transfer_consent" or "land_transfer_withdrawn" or
+            "land_transfer_settled" or "land_transfer_blocked" => DescribeLandTransfer(worldEvent, snapshot),
             "town_land_claimed" => $"{civicTownName}'s council approved a claim to adjoining land. The Town title filter shows the new plot.",
             "town_civic_cancelled" => $"An unfinished election in {civicTownName} was cancelled.",
             "town_founding_started" => "Your first Town is being set up.",
@@ -148,6 +150,29 @@ public static class WorldEventText
             "resumed" => "The world resumed.",
             "model_call_warning" => DescribeModelCallWarning(parts),
             _ => $"{GameUiText.HumanizeIdentifier(worldEvent.Kind)}.",
+        };
+    }
+
+    private static string DescribeLandTransfer(OwnerWorldEvent worldEvent, OwnerWorldSnapshot? snapshot)
+    {
+        var fields = worldEvent.Detail.Split('|', 5);
+        var town = fields.Length == 5 ? snapshot?.Towns.FirstOrDefault(item => item.Id == fields[0]) : null;
+        var transfer = fields.Length == 5 ? town?.LandTransfers.FirstOrDefault(item => item.Id == fields[1]) : null;
+        var transferId = fields.Length == 5 ? fields[1] : "";
+        var number = transferId.Length > 0 ? transferId[(transferId.LastIndexOf(':') + 1)..] : "";
+        var subject = number.Length > 0 ? "permission transfer " + number : "a permission transfer";
+        if (transfer is not null) subject += " from " + string.Join("; ", transfer.Parties.Where(party => party.Kind == "source")
+            .Select(party => party.HouseholdName)) + " to " + transfer.TargetHouseholdName;
+        var actor = fields.Length == 5 ? snapshot?.Inhabitants.FirstOrDefault(item => item.Id == fields[3])?.DisplayName : null;
+        return worldEvent.Kind switch
+        {
+            "land_transfer_proposed" => $"{actor ?? "An affected adult"} proposed {subject} in {town?.Name ?? "a Town"}. Every affected adult must accept separately.",
+            "land_transfer_read" => $"{actor ?? "A household adult"} learned the published terms of {subject}; reading supplies no acceptance.",
+            "land_transfer_consent" => $"{actor ?? "A household adult"} " + (fields.Length == 5 && fields[4] == "decline"
+                ? "declined" : "personally accepted") + $" the terms of {subject}.",
+            "land_transfer_withdrawn" => $"{actor ?? "The proposer"} withdrew {subject}; permission did not move.",
+            "land_transfer_settled" => $"{subject} completed after every current source and receiving household adult accepted. Its original permission terms and private property remain unchanged.",
+            _ => $"{subject} stopped because its published terms no longer qualify. Permission did not move.",
         };
     }
 

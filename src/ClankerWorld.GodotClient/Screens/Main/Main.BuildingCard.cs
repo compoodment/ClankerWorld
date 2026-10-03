@@ -346,6 +346,17 @@ public partial class Main
                 facts.Add(("Use permission", LandHearingText.Outcome(hearing.Rulings[^1].Outcome, DisplayWorldClock)));
             facts.Add(("Private property", "This hearing does not change the building's owner or access"));
         }
+        foreach (var transfer in LandTransferText.ForInspection(snapshot.Towns.SelectMany(item => item.LandTransfers).Where(item =>
+                     item.Tiles.Any(tile => tile.X >= building.Position.X && tile.X < building.Position.X + building.Width &&
+                         tile.Y >= building.Position.Y && tile.Y < building.Position.Y + building.Height))))
+        {
+            facts.Add(("Permission transfer", LandTransferText.Summary(transfer)));
+            facts.Add(("Household acceptance", LandTransferText.Acceptance(transfer)));
+            facts.Add(("Proposed", DisplayWorldClock(transfer.ProposedTick)));
+            foreach (var terms in LandTransferText.Terms(transfer, DisplayWorldClock))
+                facts.Add(("Exact permission terms", terms));
+            facts.Add(("Private property", "This permission transfer leaves the building's owner and access unchanged"));
+        }
         foreach (var request in building.ToolMakingRequests)
             facts.Add((request.RequesterName + " · " + request.RecipeName,
                 GameUiText.ToolMakingRequestStatus(request.Status) +

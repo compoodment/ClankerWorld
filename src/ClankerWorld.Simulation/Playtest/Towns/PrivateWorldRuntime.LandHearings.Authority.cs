@@ -11,43 +11,12 @@ public sealed partial class PrivateWorldRuntime
 
     private TownLandCaseParty[] LandHearingParties(TownRuntimeState town,
         IReadOnlyList<GridPoint> tiles, TownLandCase? item = null, string? filingHousehold = null,
-        string? townRepresentative = null)
-    {
-        var householdIds = householdLandUseRights.Where(right => right.TownId == town.Id && right.Tiles.Any(tiles.Contains))
-            .Select(right => right.HouseholdId)
-            .Concat(householdLandUseRequests.Where(request => request.TownId == town.Id && request.Status == "pending" &&
-                TownLandRightsRules.UnresolvedRequestTiles(request).Any(tiles.Contains)).Select(request => request.HouseholdId))
-            .Concat(item is null ? [] : TownLandHearingRules.CurrentRevision(item).Parties
-                .Where(party => party.HouseholdId is not null).Select(party => party.HouseholdId!))
-            .Concat(filingHousehold is null ? [] : new[] { filingHousehold });
-        var parties = householdIds.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)
-            .Select(id => new TownLandCaseParty("household:" + id, "household", id, town.Id, HouseholdAdults(id)))
-            .ToList();
-        var townFiling = item?.Filings.LastOrDefault(filing => filing.AuthorityId is not null && filing.Kind != "expiry");
-        if (townRepresentative is not null || townFiling is not null)
-        {
-            var representative = townRepresentative ?? (townFiling?.AgentId is { } filer &&
-                LandHearingTownFilingAuthority(town, filer, townFiling.AuthorityId) ? filer : null);
-            if (representative is null && town.Government is { Arrangement.Ordinary: TownArrangementRules.Mayor } government)
-                representative = government.Offices.SingleOrDefault(office => office.Mandates == "ordinary" &&
-                    office.HolderId is not null && office.TermEndTick > WorldTick)?.HolderId;
-            parties.Add(new("town:" + town.Id, "town", null, town.Id, [], representative));
-        }
-        return parties.OrderBy(party => party.Id, StringComparer.Ordinal).ToArray();
-    }
+        string? townRepresentative = null) =>
+        TownLandCasePartyRules.CurrentParties(town, tiles, householdLandUseRights, householdLandUseRequests,
+            society.Checkpoint.Inhabitants, WorldTick, item, filingHousehold, townRepresentative);
 
     private bool LandHearingTownFilingAuthority(TownRuntimeState town, string actor, string? authorityId)
-    {
-        if (!TownAdults(town).Contains(actor, StringComparer.Ordinal) || town.Government is not { } government || authorityId is null)
-            return false;
-        if (government.Arrangement.Ordinary == TownArrangementRules.Mayor)
-            return government.Offices.Any(office => office.Mandates == "ordinary" && office.HolderId == actor &&
-                office.TermEndTick > WorldTick && office.ElectionId == authorityId);
-        return government.Arrangement.Ordinary is TownArrangementRules.Council or TownArrangementRules.ElectedCouncil or TownArrangementRules.AllAdultCouncil &&
-            town.Governance is { } council && council.Members.Contains(actor, StringComparer.Ordinal) &&
-            council.Proposals.Any(proposal => proposal.Id == authorityId && proposal.Kind == "land_hearing" &&
-                proposal.Status == "passed" && proposal.AuthorId == actor);
-    }
+        => TownLandCasePartyRules.TownFilingAuthority(town, actor, authorityId, society.Checkpoint.Inhabitants, WorldTick);
 
     private HashSet<string> LandHearingDirectStakes(TownLandCase item)
     {

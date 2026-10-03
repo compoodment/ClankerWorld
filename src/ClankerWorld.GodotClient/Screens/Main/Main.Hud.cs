@@ -555,6 +555,10 @@ public partial class Main
             lines.Add($"Showing {town.LandHearings.Count} active or recent land hearings of {town.LandHearingCount}.");
         foreach (var hearing in town.LandHearings)
             lines.AddRange(LandHearingText.Details(hearing, DisplayWorldClock, town.Government?.Laws));
+        if (town.LandTransferCount > town.LandTransfers.Count)
+            lines.Add($"Showing {town.LandTransfers.Count} pending or recent permission transfers of {town.LandTransferCount}.");
+        foreach (var transfer in town.LandTransfers)
+            lines.AddRange(LandTransferText.Details(transfer, DisplayWorldClock));
         // Proposals are written by agents' models, which may use the font's mid-height ellipsis.
         return GameUiText.PlainEllipses(string.Join("\n", lines));
     }

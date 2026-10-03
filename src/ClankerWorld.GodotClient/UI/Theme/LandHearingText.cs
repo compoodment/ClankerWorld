@@ -55,13 +55,16 @@ public static class LandHearingText
             lines.Add((filing.AgentName is { } filer ? "Filed by " + filer : "Automatic expiry review") +
                 " · " + clock(filing.Tick) + ": " + filing.Text);
         foreach (var party in hearing.Parties)
+            lines.Add("At notice publication: " + PartyRoster(party));
+        if (hearing.Status == "pending") lines.Add("Current participants and responses to this notice:");
+        foreach (var party in hearing.CurrentParties)
         {
             string[] required = party.Kind == "town"
                 ? party.RepresentativeId is { } representative ? [representative] : Array.Empty<string>()
                 : party.AdultIds.ToArray();
             if (required.Length == 0)
             {
-                lines.Add(party.Name + ": no eligible adult representative; a response has not been waived.");
+                lines.Add(party.Name + ": no current eligible adult representative; the full response period remains unwaived.");
                 continue;
             }
             foreach (var adult in required)
@@ -77,6 +80,15 @@ public static class LandHearingText
                     (response is not null ? " · " + clock(response.Tick) + (response.Text.Length > 0 ? ": " + response.Text : "") :
                         party.NoticeAwareAdultIds.Contains(adult, StringComparer.Ordinal) ? " · learned the formal notice" : " · has not learned the formal notice"));
             }
+        }
+        foreach (var response in hearing.Responses.Where(response => hearing.Status != "pending" || response.Revision != hearing.Revision ||
+            !hearing.CurrentParties.Any(party => party.Id == response.PartyId &&
+                (party.AdultIds.Contains(response.AgentId, StringComparer.Ordinal) || party.RepresentativeId == response.AgentId))))
+        {
+            var party = hearing.Parties.FirstOrDefault(party => party.Id == response.PartyId)?.Name ?? "An affected party";
+            lines.Add("Recorded notice " + response.Revision + " response · " + party + " · " + response.AgentName +
+                (response.Kind == "waive" ? " explicitly waived a response" : " answered") + " · " + clock(response.Tick) +
+                (response.Text.Length > 0 ? ": " + response.Text : "."));
         }
         lines.Add(hearing.Judge is { } judge ? "Adjudicator: " + Judge(judge) + " · assigned " + clock(judge.AssignedTick)
             : hearing.SettledTick is not null && !hearing.ReopenRequests.Any(request => request.Status == "pending")
@@ -122,6 +134,7 @@ public static class LandHearingText
             lines.Add($"Ruling {index + 1}" + (index > 0 ? " after reopening" : "") + ": " + Outcome(ruling.Outcome, clock) +
                 " · " + clock(ruling.Tick) + " · " + Judge(ruling.Judge));
             lines.Add("Exact plot: " + Tiles(ruling.Tiles) + ". Reason: " + ruling.Reasons);
+            foreach (var party in ruling.Parties) lines.Add("At this ruling: " + PartyRoster(party));
             if (ruling.EvidenceIds.Count > 0)
                 lines.Add("Evidence cited: " + string.Join(", ", ruling.EvidenceIds.Select(id => evidenceNames.GetValueOrDefault(id, "Earlier evidence"))) + ".");
             if (ruling.LawIds.Count > 0)
@@ -139,6 +152,10 @@ public static class LandHearingText
         lines.Add("Use permission changes leave Town title, household membership, private buildings, crops and goods with their owners.");
         return lines.Select(GameUiText.PlainEllipses).ToArray();
     }
+
+    private static string PartyRoster(OwnerLandHearingParty party) => party.Name + (party.Kind == "town"
+        ? " · authorized representative: " + (party.RepresentativeName ?? "none")
+        : " · adults: " + (party.AdultNames.Count > 0 ? string.Join(", ", party.AdultNames) : "none"));
 
     private static string RecordText(OwnerTownLandHearing hearing, OwnerLandHearingEvidence evidence, Func<long, string> clock)
     {

@@ -95,7 +95,7 @@ public static partial class TownGovernanceValidation
             var notice = state.Notices[index];
             if (notice.Id != "notice:" + (index + 1).ToString(CultureInfo.InvariantCulture) || string.IsNullOrWhiteSpace(notice.SubjectId) ||
                 notice.Kind is not ("council" or "candidate" or "nomination" or "election" or "runoff" or "result" or "proposal" or "cancelled" or
-                    "law" or "government" or "mayor" or "land_use" or "land_hearing") ||
+                    "law" or "government" or "mayor" or "land_use" or "land_hearing" or "land_transfer") ||
                 string.IsNullOrWhiteSpace(notice.Text) || notice.Text.Length > 32768 || notice.PostedTick < 0 || notice.PostedTick > tick)
                 throw new InvalidDataException("A saved Town civic notice is invalid.");
         }

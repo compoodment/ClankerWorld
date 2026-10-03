@@ -361,6 +361,22 @@ public partial class Main
                 lines.Add("Previous permission remains provisional during review");
             }
         }
+        foreach (var transfer in LandTransferText.ForInspection(snapshot.Towns.SelectMany(item => item.LandTransfers)
+                     .Where(item => item.Tiles.Any(point => point.X == tile.X && point.Y == tile.Y))))
+        {
+            var summary = LandTransferText.Summary(transfer);
+            var acceptance = LandTransferText.Acceptance(transfer);
+            landFacts.Add(("Permission transfer", summary));
+            landFacts.Add(("Household acceptance", acceptance));
+            landFacts.Add(("Proposed", DisplayWorldClock(transfer.ProposedTick)));
+            lines.Add(summary);
+            lines.Add(acceptance);
+            foreach (var terms in LandTransferText.Terms(transfer, DisplayWorldClock))
+            {
+                landFacts.Add(("Exact permission terms", terms));
+                lines.Add(terms);
+            }
+        }
         var landClaimants = useRights.Select(right => right.HouseholdId)
             .Concat(useRequests.Select(request => request.HouseholdId))
             .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();

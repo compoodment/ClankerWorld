@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json.Serialization;
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Society;
@@ -40,6 +41,7 @@ public sealed record HouseholdLandUseRequest(
     public string? CouncilProposalId { get; init; }
     public IReadOnlyList<HouseholdLandUseConsent> Consents { get; init; } = [];
     public IReadOnlyList<string> GrantAdults { get; init; } = [];
+    [JsonRequired]
     public IReadOnlyList<TownLandRequestResolution> HearingResolutions { get; init; } = [];
 }
 

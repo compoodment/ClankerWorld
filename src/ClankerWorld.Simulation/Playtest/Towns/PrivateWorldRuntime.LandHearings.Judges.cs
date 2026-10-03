@@ -12,10 +12,14 @@ public sealed partial class PrivateWorldRuntime
         {
             DirectStakeIds = LandHearingDirectStakes(item).Order(StringComparer.Ordinal).ToArray(),
         }).ToArray() };
+        var parties = hearings.Cases.ToDictionary(item => item.Id,
+            item => (IReadOnlyList<TownLandCaseParty>)LandHearingParties(town, TownLandHearingRules.CurrentRevision(item).Tiles, item),
+            StringComparer.Ordinal);
         var before = hearings;
         (hearings, council) = TownLandCaseJudgeRules.Advance(hearings, council, government, TownAdults(town),
             LandHearingHouseholds(), WorldTick, CivicDay,
-            ordinaryContestBusy: government.Contest is { Stage: "voting" or "ready" } || council.Election is { Stage: "ready" });
+            ordinaryContestBusy: government.Contest is { Stage: "voting" or "ready" } || council.Election is { Stage: "ready" },
+            currentPartiesByCase: parties);
         foreach (var item in hearings.Cases)
         {
             var old = before.Cases.Single(c => c.Id == item.Id);
