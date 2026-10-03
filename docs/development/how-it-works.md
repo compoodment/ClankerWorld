@@ -1036,8 +1036,8 @@ and every lot under "equal", is divided equally: each heir gets the same whole
 number of units, and the units left over go one at a time to the heirs in the
 order the will names them, continuing from where the previous lot's leftovers
 stopped. Lots are taken in lot-ID order, so each lot's parts always sum to its
-frozen quantity. A storage pot or water jug counts as one unit, and its contents
-always go with it to the same heir; only top-level lots are offered to the
+frozen quantity. A storage pot, water jug or handcart counts as one unit, and its
+contents always go with it to the same heir; only top-level lots are offered to the
 model, with a vessel's contents described beside it.
 
 Settlement runs once, when the escrow expires and no will is pending. A
@@ -1047,7 +1047,8 @@ storage, and goods held by a living carrier remain in that carrier's custody.
 Goods carried by the deceased are dropped at their last tile. A Town heir's
 part goes to its Warehouse as Town stock while the Warehouse has
 room and stores that kind; the runtime passes each Town's Warehouse, free room
-and refused kinds (food) as `SocietyTownStore`. Whatever the will cannot
+and refused kinds (food, and handcarts, which stay on the ground) as
+`SocietyTownStore`. Whatever the will cannot
 deliver (a share for an heir who has since died, food or goods beyond the room)
 follows the household default: an equal split between the living household
 beneficiaries, with the first in ID order taking leftovers, or communal stock

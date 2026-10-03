@@ -107,6 +107,75 @@ public sealed class TownHeirWillTests
     }
 
     [Fact]
+    public async Task AHandcartLeftToTheTownStaysOnTheGroundWithItsCargoForTheHousehold()
+    {
+        var handler = new WillModelHandler();
+        using var client = new HttpClient(handler);
+        var model = new OpenAiCompatibleDecisionProvider(client, () => "synthetic-key",
+            new Uri("https://model.test/v1/chat/completions"), "synthetic-model");
+        const string deceasedId = "founder:00000000000000000000000000000001";
+        IDecisionProvider Provider(string id) => id == deceasedId ? model : new DeterministicDecisionProvider();
+        using var generated = NormalPathWorld.CreateGenerated("will-town-cart", Provider);
+        var state = generated.ExportState();
+        var society = state.Society.Society;
+        var lastDay = Assert.IsType<SocietyDayLifecycle>(society.Config.DayLifecycle).MaximumDay;
+        var birth = society.LifeTickAt(society.WorldTick + 1) - lastDay * society.Config.TicksPerLifecycleAge;
+        var position = state.Inhabitants.Single(person => person.InhabitantId == deceasedId).Position;
+        var site = new InventoryGroundPosition(position.X, position.Y);
+        var inventory = society.Inventory with
+        {
+            Lots = society.Inventory.Lots.Where(lot => lot.OwnerId != deceasedId).ToArray(),
+        };
+        inventory = InventoryFixture.AddLot(inventory, "will-cart", "handcart", deceasedId, 1, groundPosition: site);
+        inventory = InventoryFixture.AddLot(inventory, "will-cargo", "stone", deceasedId, 5, containerLotId: "will-cart");
+        society = society with
+        {
+            Inventory = inventory,
+            Inhabitants = society.Inhabitants.Select(person => person.Id == deceasedId ? person with
+            {
+                BirthTick = society.LifeClock is null ? birth : person.BirthTick,
+                BirthLifeTick = society.LifeClock is null ? null : birth,
+                AgeBand = SocietyAgeBand.Elder,
+                LastLifecycleYearChecked = lastDay - 1,
+            } : person).ToArray(),
+        };
+        using var world = PrivateWorldRuntime.Restore(state with
+        {
+            Society = state.Society with { Society = society },
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == deceasedId
+                ? person with { Equipment = null } : person).ToArray(),
+        }, Provider);
+        Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+        var estate = Assert.Single(world.Society.Estates);
+        for (var attempt = 0; attempt < 40 && world.Society.GetEstate(estate.Id).WillStatus is null or "pending"; attempt++)
+        {
+            Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+            await Task.Delay(10);
+        }
+        estate = world.Society.GetEstate(estate.Id);
+        Assert.Equal("accepted", estate.WillStatus);
+        Assert.Contains(new SocietyWillBequest("will-cart", TownBorderRules.FirstTownId, 1), estate.WillBequests!);
+
+        // A Warehouse cannot hold a cart, which must stay on the ground. Settling
+        // it into the Warehouse once failed every tick and stopped the world.
+        var saved = world.ExportState();
+        var shortened = saved.Society.Society with
+        {
+            Estates = saved.Society.Society.Estates.Select(item => item with { ExpiryTick = saved.Society.Society.WorldTick + 1 }).ToArray(),
+        };
+        using var settling = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(
+            saved with { Society = saved.Society with { Society = shortened } })), Provider);
+        Assert.True((await settling.AdvanceOneTickNonBlockingAsync()).Advanced);
+        settling.Validate();
+        Assert.True(settling.Society.GetEstate(estate.Id).Settled);
+        var cart = settling.Society.Inventory.GetLot("will-cart");
+        Assert.Contains(cart.OwnerId, estate.BeneficiaryIds);
+        Assert.Equal((site, (string?)null), (cart.GroundPosition, cart.StorageBuildingId));
+        var cargo = settling.Society.Inventory.GetLot("will-cargo");
+        Assert.Equal((cart.OwnerId, "will-cart", 5), (cargo.OwnerId, cargo.ContainerLotId, cargo.Quantity));
+    }
+
+    [Fact]
     public void SettlementDeliversWhatTheTownCanKeepAndSendsTheRestToTheHousehold()
     {
         var config = new SocietyConfig(TicksPerWorldDay: 2, DaysPerWorldYear: 2, BaseNaturalMortalityBasisPoints: 0);

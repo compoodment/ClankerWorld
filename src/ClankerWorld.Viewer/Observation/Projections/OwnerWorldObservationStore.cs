@@ -1201,10 +1201,8 @@ public sealed class OwnerWorldObservationStore
 
     private static ViewerHandcart[] ProjectHandcarts(PrivateWorldRuntimeState state)
     {
-        // A will can leave a cart to a Town.
         string Name(string id) => state.Society.Society.Inhabitants.FirstOrDefault(person => person.Id == id)?.Name ??
             state.Society.Society.Households.FirstOrDefault(household => household.Id == id)?.Name ??
-            (state.Towns ?? []).FirstOrDefault(town => town.Id == id)?.Name ??
             (id == "settlement:communal" ? "Communal property" : "Estate property");
         var inventory = state.Society.Society.Inventory;
         return inventory.Lots.Where(lot => lot.ItemKind == InventoryContainerRules.Handcart)
