@@ -560,7 +560,7 @@ public sealed partial class PrivateWorldRuntime
             {
                 if (!decision.Admission.FellBack && decision.Admission.Intention.Provider == DecisionProviderKind.LargeLanguageModel)
                     ApplyTownCivicCandidate(decision.InhabitantId, candidateId, decision.Admission.CivicProposal,
-                        decision.Admission.CivicBallot, decision.Admission.CivicLandTiles);
+                        decision.Admission.CivicBallot, decision.Admission.CivicLandTiles, decision.Admission.CivicLandHearing);
             }
             else if (!ApplyToolMakingRequestDecision(decision))
                 ApplyCandidate(decision.InhabitantId, state, candidateId, reportIdle: true);

@@ -111,7 +111,7 @@ public static partial class TownGovernmentRules
 
     public static (TownGovernanceState Council, TownGovernmentState Government) Advance(
         TownGovernanceState council, TownGovernmentState state, string townId, string townName, string seed,
-        IEnumerable<string> adultResidents, long tick, int day)
+        IEnumerable<string> adultResidents, long tick, int day, bool caseElectionActive = false)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(day);
         var adults = Ordered(adultResidents);
@@ -156,7 +156,7 @@ public static partial class TownGovernmentRules
         else if (state.Arrangement.Ordinary == TownArrangementRules.AllAdultCouncil)
             council = TownGovernanceRules.ChangeCouncil(council, adults, "all_adult", "arrangement", null, tick);
         // A ready winner waiting for this handover must not hold back the council election it also needs.
-        var holdOtherElections = state.Contest is { Stage: "voting" } or { Stage: "ready", Purpose: not "handover" };
+        var holdOtherElections = caseElectionActive || state.Contest is { Stage: "voting" } or { Stage: "ready", Purpose: not "handover" };
         // Representatives the current arrangement would not elect wait for the handover to complete.
         var deferFullHandover = targetNeedsCouncil && !currentElectsCouncil;
         var fallbackBefore = council.Fallback;
@@ -170,7 +170,7 @@ public static partial class TownGovernmentRules
             council = TownGovernanceRules.ChangeCouncil(council, council.Members, council.Form, fallbackBefore, council.TermEndTick, tick);
         (council, state) = TownLawRules.Enact(council, state, townId, townName, tick);
 
-        (council, state) = AdvanceMayor(council, state, townId, adults, tick, day);
+        (council, state) = AdvanceMayor(council, state, townId, adults, tick, day, caseElectionActive);
         if (handover is not null)
         {
             var winner = state.Contest is { Stage: "ready", Purpose: "handover" } contest && contest.ChangeId == handover.Id ? contest : null;

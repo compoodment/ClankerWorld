@@ -119,6 +119,8 @@ public sealed partial class PrivateWorldRuntime
             var affectedRights = householdLandUseRights.Where(right => right.Tiles.Any(footprint.Contains)).ToArray();
             if (!isWarehouse && nextHouseholdId != building.HouseholdId && affectedRights.Length > 0)
             {
+                if (building.TownId is { } hearingTownId && HasOpenLandHearingPlot(hearingTownId, footprint))
+                    return BuildingManagementResult.Rejected(instanceId, "Finish the land hearing before reassigning this building.");
                 if (footprint.Any(tile => TownLandRightsRules.IsDisputed(tile, householdLandUseRights, householdLandUseRequests)))
                     return BuildingManagementResult.Rejected(instanceId, "Resolve the land dispute before reassigning this building.");
                 if (affectedRights.Any(right => right.AgreedEndTick is { } end && end <= WorldTick))
@@ -131,6 +133,14 @@ public sealed partial class PrivateWorldRuntime
             var reassignedRights = !isWarehouse && nextHouseholdId is not null && affectedRights.Length > 0
                 ? TownLandRightsRules.ReassignFootprintRights(map, householdLandUseRights, footprint, nextHouseholdId, WorldTick)
                 : householdLandUseRights;
+            TownRuntimeState? rightsTown = !isWarehouse && building.TownId is { } rightsTownId &&
+                nextHouseholdId is not null && affectedRights.Length > 0
+                ? towns.Single(town => town.Id == rightsTownId) : null;
+            var reassignedHearings = rightsTown is not null
+                ? TownLandHearingRules.RecordBuildingTransfer(rightsTown.LandHearings, map, instanceId,
+                    TownLandRightsRules.OrderTiles(footprint), nextHouseholdId!, householdLandUseRights,
+                    reassignedRights, WorldTick)
+                : null;
 
             if (isWarehouse && nextTownId is { } reassignedTownId)
             {
@@ -148,6 +158,11 @@ public sealed partial class PrivateWorldRuntime
                     : worldSimulation.GuestInvitations,
             };
             householdLandUseRights = reassignedRights.ToList();
+            if (rightsTown is not null && reassignedHearings is not null)
+            {
+                SetTown(rightsTown with { LandHearings = reassignedHearings });
+                RefreshTownLandHearings();
+            }
             checkpointSchemaVersion = StateSchemaVersion;
             AppendEvent("building_reassigned", $"{instanceId}:town={nextTownId ?? "none"}:household={nextHouseholdId ?? "none"}");
             return new BuildingManagementResult(true, instanceId, null, nextTownId, nextHouseholdId);

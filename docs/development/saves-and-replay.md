@@ -134,12 +134,42 @@ apply an accepted claim twice. Older alpha schemas are refused and preserved;
 no migration is provided.
 
 Schema 59 adds household land request status, separate adult consent, the
-Council proposal link and the adult roster at grant settlement. A grant and its
-rights must retain matching plot coverage, grant time and agreed end date;
+Council proposal link and the adult roster at grant settlement. A grant's
+original rights receipt must retain matching plot coverage, grant time and agreed end date;
 loading rejects missing approval or consent evidence and orphaned Council
 land-use proposals. Closed requests remain history without competing claims.
 Prepared-tick rollback and current-format reload preserve approval progress and
 commit the final grant once. Older alpha schemas are refused without migration.
+
+Schema 61 saves each Town's land-hearing ledger: plot and right-version notice
+revisions, affected parties, public evidence and provenance, explicit responses,
+actual file reads, case-only candidate consent and elections, adjudicator terms,
+rulings and rehearing assessments. Notice publication does not become a receipt,
+and a read records the evidence and rehearing requests actually seen. Original
+grant rights remain available for the Council receipt checks; versioned bounded
+adjustments reproduce current permissions without destroying that receipt.
+Request-resolution pointers identify the ruling and exact tiles decided, leaving
+only unresolved portions as competing claims. Loading validates the case's notice,
+source, read, authority and adjustment links rather than inventing missing evidence.
+Notice party snapshots remain historical; current response standing is derived
+from the captured world, while each ruling retains its actual closure parties.
+
+The same ledger saves voluntary transfer requests with immutable exact plots,
+right versions, published party rosters and terms. Actual notice receipts remain
+separate from individual accept or decline responses and their contemporaneous
+household rosters. A completed transfer retains its final adult rosters and
+exact permission-adjustment receipt. Loading validates that completion against
+every required adult's informed acceptance and the unchanged original grant terms; incomplete,
+declined, withdrawn or invalidated transfers cannot carry a completed adjustment.
+Pending consent requirements are derived from living adults, so a new adult must
+personally accept before completion. These records preserve original Council
+grant receipts without transferring title or physical property.
+
+These records share prepared-tick rollback with permissions, requests, civic
+receipts and events. Current-format reload and continuation retain pending
+windows, rulings and transfers without applying a decision twice. Reopening
+preserves the earlier ruling and current rights until a new correction is committed. Older
+alpha schemas are refused and preserved without migration.
 
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
@@ -453,7 +483,7 @@ blocked-return behavior. These checks use existing timestamps and add no saved
 fields, schema change or migration.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 60. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 61. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
@@ -510,7 +540,8 @@ ornaments, schema 53 for wills with several heirs and final words, schema 54
 for Town admission records, schema 55 for Town laws and government, schema
 56 for named last meals, schema 57 for tool-making requests, schema 58 for
 Council land claims and schema 59 for household land grants record when
-those fields or behaviors were introduced; schema 60 adds handcart attachments;
+those fields or behaviors were introduced; schema 60 adds handcart attachments
+and schema 61 adds land hearings and consensual permission transfers;
 they do not allow an earlier checkpoint schema past the current alpha cutoff.
 
 | Compatibility change | Meaning |
@@ -558,6 +589,7 @@ they do not allow an earlier checkpoint schema past the current alpha cutoff.
 | Schema 58 | Council proposals may carry the exact connected plot of a land claim; a passed claim and its Town title must agree on Town, tiles and settlement time. Earlier alpha checkpoints are refused and preserved without migration. |
 | Schema 59 | Household land requests keep their status, Council proposal, each adult's separate consent and the adult roster at settlement; a grant and its rights must agree on plot, grant time and end date. Earlier alpha checkpoints are refused and preserved without migration. |
 | Schema 60 | Exclusive physical handcart attachments: one cart per puller and one puller per cart, for a living owner, with cart and puller on the same tile. Cargo stays in ordinary inventory lots inside the cart. Earlier alpha saves are refused and preserved without migration. |
+| Schema 61 | Land hearings and voluntary permission transfers retain notice, evidence, personal consent, authority and closure history. Original grants and bounded adjustments must reproduce current permissions. Earlier alpha saves are refused and preserved without migration. |
 
 ### Tool-making requests
 
