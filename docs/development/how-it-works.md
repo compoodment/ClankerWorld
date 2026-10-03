@@ -56,9 +56,13 @@ host's versioned HTTP contract. Legacy web assets are diagnostic tools.
 
 The current host aims for one tick per real second. New worlds save 360 ticks
 per day and a 40-day year with four ten-day seasons; lifecycle thresholds are
-3/15/45/60 days. Load can affect real-time pace. The old development calendar
+3/15/45/60 days. Newly created playable worlds start at 06:00 on Spring 1,
+Year 1. A saved 90-tick calendar offset sets that clock while elapsed world
+time still begins at zero, preserving founder setup, seeded ages and elapsed
+deadlines. Calendar dates and daily conversation allowances turn over at the
+displayed midnight. Load can affect real-time pace. The old development calendar
 is not silently reinterpreted; the observation carries the saved clock values.
-Its calendar pace includes the saved season lengths, so the game names dates
+Its calendar pace includes the saved season lengths and clock offset, so the game names dates
 such as Autumn 2, Year 1 from the world's own calendar instead of a copy. With
 no season lengths, from an older host, the game shows numeric dates.
 
@@ -87,7 +91,7 @@ unable to save.
 
 `ParseInstructionOrder` reads a complete, bounded grammar for eating food,
 seeking a food source, harvesting food, gathering supported raw materials,
-storing personal raw materials and moving to an exact tile. Harvest and food-source travel orders must name a
+storing or collecting personal raw materials and moving to an exact tile. Harvest and food-source travel orders must name a
 supported kind or resource; explicit resource names must match a complete
 identifier and the requested kind. Unsupported
 objects or operations, mixed tasks, unknown explicit targets, and invalid
@@ -145,6 +149,17 @@ limit the final relocation to the remaining amount. Repetition keeps waiting
 for further personal material or space until cancelled. The destination is the
 agent's current household House; named foreign buildings and map coordinates
 are not recognized storage targets.
+
+Collection orders use `PersonalGoodsAwaitingCollection` and the shared
+`CollectPersonalGoods` action. The actor must own the lot, which cannot be
+carried, reserved in full, promised for delivery or inside another container.
+Storage must belong to the current household or one recorded in that actor's
+departures. Ground lots use normal pickup range. The nearest reachable eligible
+lot is chosen, with stable identity ordering for ties; an explicit source is
+not yet recognized. Physical pickup preserves ownership, condition, provenance
+and reserved portions, with the final quantity capped by carrying space and
+the requested remainder. Only the committed relocation earns progress, using
+a bounded hashed receipt. Former-household collection grants no other access.
 
 A MustDo with no recognized action is closed when it is submitted: it is added
 to the completed instructions with an `instruction_not_understood` event
@@ -237,8 +252,8 @@ does not establish arbitrary mid-tick rollback or crash durability.
 
 ### Time of day and night
 
-Time of day is worked out from the saved tick and the world's saved ticks per
-day; nothing about it is saved. `DaylightRules` follows the 24-hour clock the
+Time of day is worked out from the elapsed tick, the world's saved ticks per
+day and its calendar offset. Darkness itself is not saved. `DaylightRules` follows the 24-hour clock the
 game shows, where a tick's clock minute is its tick of day × 1,440 ÷ ticks per
 day. Night is 40% of every day, the same all year
 ([#641](https://github.com/compoodment/ClankerWorld/issues/641)), centred on
@@ -246,8 +261,10 @@ midnight: 19:12 to 04:48. Dusk and dawn each fade over the clock hour centred
 on those times (18:42–19:42 and 04:18–05:18), so the darker half of each fade
 counts as night and night covers exactly 40% of the day. At 360 ticks a day
 that is 144 ticks of night with 15-tick fades. Darkness is reported in basis
-points, 0 in daylight and 10,000 at full night. Tick 0 is midnight, so a new
-world, and its founder setup, starts at night.
+points, 0 in daylight and 10,000 at full night. New playable worlds and their
+founder setup begin at 06:00, after the dawn fade. A saved zero-offset world
+keeps midnight at elapsed tick zero. The first day of a new world therefore
+has 18 hours left; later days retain their full duration.
 
 Night adds a provisional chill of 15 exposure points per tick at full night,
 faded in and out with the darkness (`NightChillAtFullDarkness`). It is added to
@@ -1189,9 +1206,12 @@ unanimous admission, and Add Agent checks the selected household property
 before placement. A birth always goes to the primary caregiver's current
 household, even when that puts the House over its limit; the building card,
 agent context and the newborn's saved housing status show the resulting need.
-An unavailable House is recorded the same way without delaying birth. This
-status gives dependents no adult admission or construction choices. House
-expansion can start for a
+An unavailable House is recorded the same way without delaying an agreed birth.
+The birth still needs food and an unoccupied, buildable tile for the newborn:
+near an accessible shelter, or near the primary caregiver when there is none.
+Losing a House does not bypass the food or consent checks. This status gives
+dependents no adult admission or construction choices. House expansion can
+start for a
 storage need or when there is no resident place, but added places use only the
 completed footprint. Unfinished expansion does not reserve room for another
 resident.
