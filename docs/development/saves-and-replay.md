@@ -117,7 +117,15 @@ material kinds are refused. Queueing, cancellation, discovery and partial
 quantities retain their state across reload. Older alpha saves are refused and
 preserved unchanged; no migration is added.
 
-Private-world schema 66 introduces crude House tool behavior. The two new
+Private-world schema 66 adds `store_material` orders using the same bounded
+material target. The destination is the current household House, so source,
+food, guardian and coordinate target fields are refused. Progress counts storage
+loads or exact item quantities and requires a committed personal-relocation receipt
+with a fixed-length identity, even when the inventory lot identifier is long.
+Replay preserves partial storage, queued work and cancellation without moving
+goods again. Older alpha saves are refused and preserved without migration.
+
+Private-world schema 67 introduces crude House tool behavior. The two new
 item kinds keep ownership, physical custody, condition and reservations in
 ordinary inventory lots; their recipes use existing saved projects and
 production jobs. Current saves resume supply, paid work and tool use without
@@ -487,7 +495,7 @@ from timed displacement even when their dependent lives in another household.
 No older-save migration or backfill is added.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 66. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 67. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
@@ -549,10 +557,10 @@ for Town admission records, schema 55 for Town laws and government, schema
 Council land claims, schema 59 for household land grants, schema 60 for
 handcart attachments, schema 61 for guardian-order targets, schema 62 for
 physical knowledge writing, schema 63 for exact-tile movement orders and
-schema 64 for overcrowding move-out notices, schema 65 for material orders
-and schema 66 for crude House tools record when those fields or behaviors were
-introduced; they do not allow an earlier checkpoint schema past the current
-alpha cutoff.
+schema 64 for overcrowding move-out notices, schema 65 for material orders,
+schema 66 for personal-material storage orders and schema 67 for crude House
+tools record when those fields or behaviors were introduced; they do not allow
+an earlier checkpoint schema past the current alpha cutoff.
 
 | Compatibility change | Meaning |
 | --- | --- |
@@ -604,7 +612,8 @@ alpha cutoff.
 | Schema 63 | Exact-tile movement orders retain their destination, progress and arrival receipt. Loading refuses missing destinations, mixed food/resource fields, repetition and inconsistent completion. Queues and interrupted trips replay across saves. Older alpha saves are refused and preserved without migration. |
 | Schema 64 | Household move-out notices retain their original notice period, fixed deadline and selection reason alongside pending housing requests. Reload and replacement do not restart notice or duplicate departure goods. Runtime admission and displacement recheck current need and caregiver protection. Earlier alpha saves are refused and preserved without migration. |
 | Schema 65 | Material-gathering orders retain the material kind, exact optional source or position, batch/item progress and physical harvest receipt. Loading rejects mixed food/guardian/material fields and inconsistent progress. Queue, cancellation and partial work replay without duplicate harvests; older alpha saves are refused and preserved without migration. |
-| Schema 66 | Crude House tools use ordinary saved inventory, projects and production jobs, with their own content package and tool tier. Supply, paid work, ownership, condition and extraction continue across reload without duplicate output or wear. Older alpha saves are refused and preserved without migration. |
+| Schema 66 | Personal-material storage orders retain their bounded material target, partial progress and committed relocation receipt. Queued work, cancellation and replay cannot move goods twice. Older alpha saves are refused and preserved without migration. |
+| Schema 67 | Crude House tools use ordinary saved inventory, projects and production jobs, with their own content package and tool tier. Supply, paid work, ownership, condition and extraction continue across reload without duplicate output or wear. Older alpha saves are refused and preserved without migration. |
 
 ### Tool-making requests
 

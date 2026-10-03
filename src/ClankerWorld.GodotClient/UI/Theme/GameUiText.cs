@@ -509,6 +509,7 @@ public static class GameUiText
             "collect_shared_food" => "collect food from camp",
             "harvest_food" => "gather food",
             "gather_material" => "gather materials",
+            "store_material" => "store personal materials",
             "inspect_material_site" => "look for the requested material",
             "storage_pot" => "storage pot",
             "water_jug" => "water jug",
