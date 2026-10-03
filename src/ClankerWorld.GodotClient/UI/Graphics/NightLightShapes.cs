@@ -48,10 +48,12 @@ public enum LanternStyle : byte
 
 /// <summary>
 /// Where a building's lights can come from, in 32-unit tile space relative
-/// to its footprint: its roof, door, yard and, for a Port or a Restaurant
-/// terrace, the spot of its own lantern.
+/// to its footprint: its roof, door, yard and, for a Port, the spot of its
+/// lantern. A cross-plan building such as the Town Hall gives its main roof
+/// as <see cref="Roof"/> and the lower wings across it as <see cref="Wing"/>.
 /// </summary>
-public readonly record struct LightPlan(LitDesign Design, Rect2 Roof, Rect2? Yard, DoorSide Door, float DoorMiddle, Vector2? Lantern = null);
+public readonly record struct LightPlan(LitDesign Design, Rect2 Roof, Rect2? Yard, DoorSide Door, float DoorMiddle,
+    Vector2? Lantern = null, Rect2? Wing = null);
 
 /// <summary>
 /// The shapes of light at night, shared by the map and the art preview so
@@ -88,9 +90,11 @@ public static class NightLightShapes
     /// <summary>
     /// The lights a building shows: windows and door while someone is inside,
     /// work lights while a job runs there, and lights that burn every night
-    /// once built. <paramref name="time"/> is in seconds and drives the drift.
+    /// once built. Lantern fittings show by day too, unlit unless it is
+    /// <paramref name="night"/>. <paramref name="time"/> is in seconds and
+    /// drives the drift.
     /// </summary>
-    public static List<LightCell> Building(LightPlan plan, bool occupied, bool working, float time, int seed, int snap = 1)
+    public static List<LightCell> Building(LightPlan plan, bool occupied, bool working, bool night, float time, int seed, int snap = 1)
     {
         var cells = new List<LightCell>();
         var pen = new Pen(cells, snap, plan.Roof, time, seed);
@@ -104,8 +108,7 @@ public static class NightLightShapes
                 break;
             case LitDesign.Warehouse:
                 // No windows: a lantern on the wall by the loading doors, lit while someone fetches or stores goods.
-                if (occupied) pen.WallLantern(plan.Door, plan.DoorMiddle + 12, lit: true);
-                else pen.WallLantern(plan.Door, plan.DoorMiddle + 12, lit: false);
+                pen.WallLantern(plan.Door, plan.DoorMiddle + 12, lit: night && occupied);
                 break;
             case LitDesign.Blacksmith:
                 if (working && plan.Yard is { } yard) pen.Pool(ForgeHearth(yard), 17, 4, Fire, 0.44f, flicker: true, clip: true);
@@ -121,12 +124,12 @@ public static class NightLightShapes
                 {
                     Openings(pen, plan, windowGap: 32, doorReach: 8);
                     foreach (var along in Along(plan.Roof, plan.Door, 10, null))
-                        pen.Spill(plan.Door, along, 2.5f, 5, 0.25f, Lamp, 0.8f);
+                        pen.Spill(plan.Roof, plan.Door, along, 2.5f, 5, 0.25f, Lamp, 0.8f);
                 }
                 break;
             case LitDesign.Port:
                 // The pier's lantern burns every night so boats can find the Port; the shed is lit while someone is in it.
-                if (plan.Lantern is { } pier) pen.HangingLantern(pier, pier, lit: true, armless: true);
+                if (plan.Lantern is { } pier) pen.HangingLantern(pier, pier, lit: night, armless: true);
                 if (lived) Openings(pen, plan, windowGap: 32, doorReach: 8);
                 break;
             case LitDesign.Restaurant:
@@ -136,7 +139,7 @@ public static class NightLightShapes
                     if (plan.Yard is { } terrace)
                     {
                         var middle = terrace.Position + terrace.Size / 2;
-                        pen.HangingLantern(middle, middle, lit: true, armless: true, radius: 15);
+                        pen.HangingLantern(middle, middle, lit: night, armless: true, radius: 15);
                     }
                 }
                 break;
@@ -170,7 +173,11 @@ public static class NightLightShapes
         return cells;
     }
 
-    /// <summary>Windows on the front and both sides, but not the back, and the door's spill.</summary>
+    /// <summary>
+    /// Windows on the front and both sides, but not the back, and the door's
+    /// spill. On a cross plan the wings cover part of the main side walls, so
+    /// those windows move to the wings' own end walls.
+    /// </summary>
     private static void Openings(Pen pen, LightPlan plan, float windowGap, float doorReach, float doorHalf = 3.5f)
     {
         var back = plan.Door switch
@@ -185,10 +192,21 @@ public static class NightLightShapes
             if (side == back) continue;
             var door = side == plan.Door ? plan.DoorMiddle : (float?)null;
             foreach (var along in Along(plan.Roof, side, windowGap, door))
-                pen.Spill(side, along, 2.5f, 5, 0.3f, Lamp, 1f);
+            {
+                if (plan.Wing is { } covering && side != plan.Door && Covered(covering, side, along)) continue;
+                pen.Spill(plan.Roof, side, along, 2.5f, 5, 0.3f, Lamp, 1f);
+            }
+            if (plan.Wing is { } wing && side != plan.Door)
+                foreach (var along in Along(wing, side, windowGap, null))
+                    pen.Spill(wing, side, along, 2.5f, 5, 0.3f, Lamp, 1f);
         }
-        pen.Spill(plan.Door, plan.DoorMiddle, doorHalf, doorReach, 0.45f, Lamp, 1.15f);
+        pen.Spill(plan.Roof, plan.Door, plan.DoorMiddle, doorHalf, doorReach, 0.45f, Lamp, 1.15f);
     }
+
+    /// <summary>Whether a wing hides this stretch of a main side wall.</summary>
+    private static bool Covered(Rect2 wing, DoorSide side, float along) => side is DoorSide.East or DoorSide.West
+        ? along >= wing.Position.Y - 3 && along <= wing.End.Y + 3
+        : along >= wing.Position.X - 3 && along <= wing.End.X + 3;
 
     /// <summary>
     /// Evenly spaced spots along one wall, about <paramref name="gap"/>
@@ -290,7 +308,7 @@ public static class NightLightShapes
         /// edge and widen away from the wall, rounding off at the far end,
         /// their ends drifting by an art pixel now and then.
         /// </summary>
-        public void Spill(DoorSide side, float along, float halfWidth, float reach, float spread, Color color, float strength)
+        public void Spill(Rect2 box, DoorSide side, float along, float halfWidth, float reach, float spread, Color color, float strength)
         {
             for (var step = 0; step < SpillSteps.Length; step++)
             {
@@ -308,10 +326,10 @@ public static class NightLightShapes
                     if (end <= start) break;
                     var rect = side switch
                     {
-                        DoorSide.North => new Rect2(start, Snap(roof.Position.Y) - k - snap, end - start, snap),
-                        DoorSide.East => new Rect2(Snap(roof.End.X) + k, start, snap, end - start),
-                        DoorSide.West => new Rect2(Snap(roof.Position.X) - k - snap, start, snap, end - start),
-                        _ => new Rect2(start, Snap(roof.End.Y) + k, end - start, snap),
+                        DoorSide.North => new Rect2(start, Snap(box.Position.Y) - k - snap, end - start, snap),
+                        DoorSide.East => new Rect2(Snap(box.End.X) + k, start, snap, end - start),
+                        DoorSide.West => new Rect2(Snap(box.Position.X) - k - snap, start, snap, end - start),
+                        _ => new Rect2(start, Snap(box.End.Y) + k, end - start, snap),
                     };
                     Light(rect, color, SpillSteps[step] * strength, clip: false);
                 }

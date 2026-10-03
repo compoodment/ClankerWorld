@@ -125,7 +125,7 @@ public partial class NightLightsLayer : Control
             if (!building.Footprint.Intersects(visible)) continue;
             var origin = new Vector2(building.Footprint.Position.X, building.Footprint.Position.Y) * stride;
             foreach (var cell in NightLightShapes.Building(building.Plan, building.Occupied, building.Working,
-                drawnTime, Seed(building.Footprint.Position), snap))
+                drawnDarkness > 0.05f, drawnTime, Seed(building.Footprint.Position), snap))
                 placed.Add((origin, cell));
         }
         foreach (var lantern in lanterns)

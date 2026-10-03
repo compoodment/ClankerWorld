@@ -18,6 +18,7 @@
     <!-- The repository's own art generators, compiled unchanged against the shim. -->
     <Compile Include="../../src/ClankerWorld.GodotClient/UI/Graphics/*.cs" Link="Game/Graphics/%(Filename)%(Extension)" />
     <Compile Include="../../src/ClankerWorld.GodotClient/UI/Map/CoastEdges.cs" Link="Game/Map/CoastEdges.cs" />
+    <Compile Include="../../src/ClankerWorld.GodotClient/UI/Map/HillBand.cs" Link="Game/Map/HillBand.cs" />
     <Compile Include="../../src/ClankerWorld.GodotClient/UI/Map/ReliefRenderer.cs" Link="Game/Map/ReliefRenderer.cs" />
     <Compile Include="../../src/ClankerWorld.GodotClient/UI/Map/SnowEdges.cs" Link="Game/Map/SnowEdges.cs" />
     <Compile Include="../../src/ClankerWorld.GodotClient/UI/Map/TerrainTransitions.cs" Link="Game/Map/TerrainTransitions.cs" />
