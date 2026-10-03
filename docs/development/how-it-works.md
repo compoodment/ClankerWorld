@@ -854,6 +854,13 @@ implements all-adult and representative councils from recorded living adult
 residents, independently of geometry and household affiliation. A separate
 `SettlementCouncil` remains the household-food steward prototype.
 
+Household food-policy ballots last 120 ticks and can pass through their saved
+`ExpiryTick`, inclusive, with a strict majority of the remaining eligible
+electorate. After that tick, resolution closes the ballot without changing the
+food policy, even if a death reduces the number of approvals needed. Resolution
+records its tick and adopted or rejected event, then clears the pending ballot;
+save/load preserves the original deadline and votes.
+
 The civic engine keeps final proposal votes, continuing candidate agreements,
 opening voter/candidate lists, latest election ballots, cutoff runoffs, settled
 seats, fair draw order, ten-day terms and retry snapshots. A failed election may
@@ -1156,7 +1163,10 @@ a home.
 provides three permanent-resident places per footprint tile, or four per tile
 when one explicitly recorded domestic family unit has at least two residents
 and a strict majority of the House's residents. The unit is saved separately
-from ancestry; traveling residents and infants count, dead people and invited
+from ancestry. A partnership changes these units only when it is accepted or
+when an accepted partnership ends. Withdrawing, refusing or expiring an
+unaccepted proposal leaves each person's existing unit and the resulting
+House limit alone. Traveling residents and infants count, dead people and invited
 storm guests do not. Joining a household is offered only when the proposed
 resident fits after their arrival is counted. The server checks again after
 unanimous admission, and Add Agent checks the selected household property
@@ -1618,8 +1628,12 @@ Road tiles, the building's entrance and new bridges are then committed together
 in the same tick, and the border grows around the new Road tiles on both banks.
 If there is no legal side street, nothing changes and a `town_road_unconnected`
 event records the reason (`no_entrance`, `route_unavailable` or
-`redundant_crossing`). A bridge with Road at both ends joins its two streets,
-so the run-on rule does not treat either end as a dead end.
+`redundant_crossing`). A bridge with Road at both ends counts as a link between
+them when finding street ends. If that bridge is an end's only link, its
+canonical entrance order supplies the outward heading for the run-on. This
+keeps the street heading away from the river across the east/west world seam,
+including on narrow wrapped maps. The same clearance and three-tile frontage
+checks apply.
 
 **Same connected banks.** Two crossings join the same banks only when they
 cross the same river, joined through its water, and each end of one reaches an
@@ -1629,7 +1643,13 @@ break the connection, while walkable Mountain terrain does not. A tributary
 mouth or a separate stream breaks the shore, so a bridge over a
 different nearby stream never blocks another. There is no distance limit; the
 comparison examines at most 4,096 river tiles and, if that runs out, does not
-treat the banks as the same. Along one unbranched stretch of river this allows
+treat the banks as the same. It first checks the shore beside the connecting
+water path. If that is incomplete because the river widens, it follows the
+water between the crossing spans to include the wider shore, staying within
+eight tiles of the connecting water. The spans and that reach stop the
+expansion from going around distant headwaters and joining separate
+tributaries; a locally proven connection needs no whole-river search.
+Along one unbranched stretch of river this allows
 one bridge, however long the stretch. A new crossing over the same banks as an
 existing bridge is not built; a Road uses the existing bridge instead, and one
 route never builds two bridges over the same banks.
@@ -1941,6 +1961,16 @@ skill name so older clients can still display it; new code calls it `Skill`.
 This is separate from the saved lesson record, which now stores a skill.
 
 ## World-list requests
+
+The private host can retain an untouched, nongenerated bootstrap checkpoint
+before the player creates a world. Its founder observation reports
+`requiresWorldCreation`; this is derived from the saved state, independent of
+whether the response includes cached terrain. Continue and Load World route
+that observation into the ordinary New World screen before entering play or
+resuming time. Preview selection, explicit acceptance of missed coverage
+targets and signed creation remain the only way through that screen. The
+redirect neither replaces the checkpoint nor removes its catalog entry, and
+founders or authored progress prevent it.
 
 The manual Save World and Load Save dialog owns one list read per opening.
 Closing it, creating, overwriting or deleting a save, or starting another opening
