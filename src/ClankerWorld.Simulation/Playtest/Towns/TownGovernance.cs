@@ -296,7 +296,8 @@ public static class TownGovernanceRules
         var election = state.Election!;
         state = ArchiveElection(state, election with { Stage = "failed" }, tick) with
         { RetryTick = tick + day, RetryCircumstances = Circumstances(state, adults) };
-        if (election.Kind == "replacement" || state.Form != "representative" || state.TermEndTick <= tick)
+        // An elected leader keeps ordinary authority until a handover completes.
+        if (state.Form != "leader" && (election.Kind == "replacement" || state.Form != "representative" || state.TermEndTick <= tick))
             state = ChangeCouncil(state, adults, "all_adult", "candidates", null, tick);
         return state;
     }

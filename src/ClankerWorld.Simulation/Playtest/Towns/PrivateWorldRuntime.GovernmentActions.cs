@@ -8,11 +8,14 @@ public sealed partial class PrivateWorldRuntime
     {
         var government = town.Government!;
         var history = CivicHistory(town);
-        foreach (var target in TownArrangementRules.Supported.Where(a => a != government.Arrangement))
+        // Each choice costs prompt space on every model call, so protected proposals are
+        // made at the notice place, like admission requests.
+        var atNoticePlace = NearCivicBoard(actor, town);
+        foreach (var target in TownArrangementRules.Supported.Where(a => atNoticePlace && a != government.Arrangement))
             candidates.Add(new(CivicAction(town.Id, "government_propose", TownArrangementRules.Key(target)),
                 $"Initiate a protected resident vote in {town.Name}: {TownArrangementRules.Declaration(target)} " +
                 "More than half the eligible adult residents must approve; incumbent permission is not needed. No power changes before a valid handover.", 195));
-        if (TownArrangementRules.HasOffice(government.Arrangement))
+        if (atNoticePlace && TownArrangementRules.HasOffice(government.Arrangement))
             candidates.Add(new(CivicAction(town.Id, "government_replace", TownArrangementRules.Key(government.Arrangement)),
                 $"Ask {town.Name}'s adult residents to approve early replacement of the elected mayoral mandates. Approval requires a resident majority and a valid successor election.", 196));
         foreach (var change in government.Changes.Where(c => c.Status is "queued" or "voting" && history.Knows(actor, c.Id)))
@@ -26,9 +29,12 @@ public sealed partial class PrivateWorldRuntime
             candidates.Add(new(CivicAction(town.Id, "government_no", change.Id),
                 $"Cast your final no vote on the protected resident proposal in {town.Name}. {TownArrangementRules.Declaration(change.Target)}", 166));
         }
+        var officeInPlay = TownArrangementRules.HasOffice(government.Arrangement) || government.Contest is not null ||
+            government.Changes.Any(c => c.Status is "queued" or "voting" or "handover" && TownArrangementRules.HasOffice(c.Target));
         foreach (var mandates in new[] { "land", "ordinary", "land+ordinary" })
         {
             var willing = government.Consents.Any(c => c.AgentId == actor && c.Mandates == mandates);
+            if (!officeInPlay && !willing) continue;
             candidates.Add(new(CivicAction(town.Id, willing ? "mayor_withdraw" : "mayor_register", mandates),
                 willing ? $"Withdraw willingness to seek election for {TownArrangementRules.MandateLabel(mandates)} in {town.Name}; this does not resign a held office."
                     : $"Personally agree to seek election for {TownArrangementRules.MandateLabel(mandates)} in {town.Name}, if residents authorize that office. This grants no authority or Council candidacy.", 190));

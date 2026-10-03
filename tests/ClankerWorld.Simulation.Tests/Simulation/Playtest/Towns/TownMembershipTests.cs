@@ -703,6 +703,8 @@ public sealed class TownMembershipTests
             Describe(resident, warehouses: new HashSet<string>(StringComparer.Ordinal)));
         Assert.Equal("Town: resident of Second Town · may vote in its council elections, housed or not; it has no Warehouse yet",
             Describe(voter, second with { Governance = council with { Form = "representative" } }));
+        Assert.Equal("Town: resident of Second Town · may vote in its mayoral elections, housed or not; it has no Warehouse yet",
+            Describe(voter, second with { Governance = council with { Form = "leader" } }));
         Assert.Equal("Town: resident of First Town with their primary caregiver · council rights begin at adulthood", Describe(child));
         // A guardian from another Town does not move the child, so the line does not claim they share it.
         var guardedElsewhere = society with

@@ -788,7 +788,10 @@ bind their base version, so a stale passed proposal cannot overwrite a later law
 Territorial applicability uses formal title records, including a saved site
 subset, rather than the drawn Town border. Law text grants no physical powers.
 
-Government votes preserve their opening electorate and final votes. Later adults
+Residents propose government changes at the notice place, and the choice to
+seek a mayoral office appears only while an office exists, a contest is open or
+a change that creates one is pending, keeping these choices out of every model
+call. Government votes preserve their opening electorate and final votes. Later adults
 wait; deaths and membership departures remove voters and ballots. Equivalent
 requests share a process; different requests queue with fresh opening lists.
 Incumbent Council revisions cannot cancel this ledger. Approved transitions

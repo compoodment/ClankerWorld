@@ -296,6 +296,77 @@ public sealed class TownGovernmentTests
     }
 
     [Fact]
+    public void AReadyMayorDoesNotHoldBackTheCouncilElectionItsOwnHandoverNeeds()
+    {
+        var town = new Town("a", "b", "c", "d", "e");
+        var target = new TownArrangement(TownArrangementRules.ElectedCouncil, TownArrangementRules.Mayor);
+        town.Register("a");
+        var id = town.Propose(target);
+        town.Yes(id, "a", "b", "c");
+        town.Ballot("a", "a");
+        town.Advance(1);
+        foreach (var actor in new[] { "a", "b", "c" })
+            town.Council = TownGovernanceRules.Register(town.Council, actor, true, null, town.Adults, 1);
+        for (var tick = 2L; tick < Day * 3 && town.Government.Changes[0].Status == "handover"; tick++)
+        {
+            if (town.Council.Election is { Stage: "main" } election && election.Ballots.Count == 0)
+                town.Council = TownGovernanceRules.VoteElection(town.Council, election.Id, "a", ["a", "b", "c"], tick);
+            town.Advance(tick);
+        }
+
+        Assert.Equal("completed", town.Government.Changes[0].Status);
+        Assert.Equal(target, town.Government.Arrangement);
+        Assert.Equal("representative", town.Council.Form);
+        Assert.Equal("a", Assert.Single(town.Government.Offices).HolderId);
+    }
+
+    [Fact]
+    public void ACancelledChangeLeavesNoElectedCouncilBehind()
+    {
+        var town = new Town("a", "b", "c", "d", "e");
+        var elected = new TownArrangement(TownArrangementRules.ElectedCouncil, TownArrangementRules.NoOffice);
+        town.Yes(town.Propose(elected), "a", "b", "c");
+        // Nobody agrees to stand, so the forced first election fails and the change lapses.
+        for (var tick = 1L; tick <= Day * 3; tick++) town.Advance(tick);
+        Assert.Equal("cancelled", town.Government.Changes[0].Status);
+        Assert.Equal(TownArrangementRules.Initial, town.Government.Arrangement);
+
+        // Willing candidates later must not be seated by a council election nobody approved.
+        foreach (var actor in new[] { "a", "b", "c" })
+            town.Council = TownGovernanceRules.Register(town.Council, actor, true, null, town.Adults, town.Tick);
+        for (var tick = town.Tick + 1; tick <= Day * 8; tick++)
+        {
+            if (town.Council.Election is { Stage: "main" } election && election.Ballots.Count == 0)
+                town.Council = TownGovernanceRules.VoteElection(town.Council, election.Id, "a", ["a", "b", "c"], tick);
+            town.Advance(tick);
+        }
+        Assert.Null(town.Council.Election);
+        Assert.Equal("all_adult", town.Council.Form);
+        Assert.Equal(town.Adults, town.Council.Members);
+    }
+
+    [Fact]
+    public void AFailedSuccessorElectionKeepsTheLeadersCouncilAndPendingBusiness()
+    {
+        var town = new Town("a", "b", "c", "d", "e");
+        town.Elect(BothMandates, "land+ordinary");
+        Assert.Equal(("leader", "a"), (town.Council.Form, Assert.Single(town.Council.Members)));
+        town.Council = TownGovernanceRules.SubmitProposal(town.Council, town.Id, "a", "law", null, "Keep the well covered.",
+            $"council:{town.Council.Revision}", town.Adults, town.Tick, Day);
+        var revision = town.Council.Revision;
+        var elected = new TownArrangement(TownArrangementRules.ElectedCouncil, TownArrangementRules.NoOffice);
+        town.Yes(town.Propose(elected), "a", "b", "c");
+        // Nobody agrees to stand, so the successor council election fails.
+        var approved = town.Tick;
+        for (var tick = approved + 1; tick < approved + Day * 2; tick++) town.Advance(tick);
+
+        Assert.Contains(town.Council.ElectionHistory, election => election.Stage == "failed");
+        Assert.Equal(("leader", revision), (town.Council.Form, town.Council.Revision));
+        // Its own deadline settles the law proposal; a council change would have cancelled it.
+        Assert.NotEqual("cancelled", town.Council.Proposals.Single(proposal => proposal.Kind == "law").Status);
+    }
+
+    [Fact]
     public void ExplicitAllAdultAndElectedArrangementsUseProtectedHandover()
     {
         var town = new Town();

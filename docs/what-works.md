@@ -316,7 +316,8 @@ or an explicit duty of residents wherever they travel. Earlier wordings remain
 saved, and laws apply only from adoption. A law never blocks a physical action,
 creates goods or changes ownership.
 
-Any adult resident can initiate a protected government-change vote. It needs
+Any adult resident can initiate a protected government-change vote at the
+Town's notice place. It needs
 more than half the remaining opening electorate to approve within one day;
 cast votes are final. Equivalent proposals share the window and different
 proposals queue. Approval gives at most three days to seat a valid successor,

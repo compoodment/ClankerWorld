@@ -151,7 +151,8 @@ public static partial class TownGovernmentRules
                 leader?.HolderId is not null ? "leader" : "all_adult", "arrangement", null, tick);
         else if (state.Arrangement.Ordinary == TownArrangementRules.AllAdultCouncil)
             council = TownGovernanceRules.ChangeCouncil(council, adults, "all_adult", "arrangement", null, tick);
-        var holdOtherElections = state.Contest is { Stage: "voting" or "ready" };
+        // A ready winner waiting for this handover must not hold back the council election it also needs.
+        var holdOtherElections = state.Contest is { Stage: "voting" } or { Stage: "ready", Purpose: not "handover" };
         council = TownGovernanceRules.Advance(council, townId, seed, adults, tick, day,
             allowNewElections: (currentNeedsCouncil || targetNeedsCouncil) && !holdOtherElections,
             forceRepresentation: targetNeedsCouncil || state.Arrangement.Ordinary == TownArrangementRules.ElectedCouncil,
@@ -197,8 +198,13 @@ public static partial class TownGovernmentRules
                 state = Replace(state, handover with { Status = "cancelled", SettledTick = tick, Reason = "No valid successor was ready within three days." });
                 if (state.Contest?.ChangeId == handover.Id)
                     (council, state) = ArchiveContest(council, state, "cancelled", "The creating government transition expired.", adults, tick, day);
-                if (targetNeedsCouncil && !currentNeedsCouncil)
+                if (targetNeedsCouncil && !NeedsElectedCouncil(state.Arrangement, adults.Length))
+                {
                     council = TownGovernanceRules.CancelElection(council, tick, "The creating government transition expired.");
+                    // A failed forced election left the council waiting for candidates; that office was never approved.
+                    if (council is { Form: "all_adult", Fallback: "candidates" })
+                        council = TownGovernanceRules.ChangeCouncil(council, adults, "all_adult", "arrangement", null, tick);
+                }
                 council = Notice(council, "government", handover.Id, "Government handover cancelled: no valid successor was ready within three days. Existing lawful authority remains.", tick);
             }
         }

@@ -216,7 +216,8 @@ votes adopt, amend or repeal them. The Towns page shows their scope and effectiv
 dates. These are social rules: they do not physically prevent violations or
 change who owns a building or its goods.
 
-A resident can propose changing government without the incumbent's permission.
+A resident at the Town's notice place can propose changing government without
+the incumbent's permission.
 The one-day resident vote needs a majority of its opening adult electorate;
 death or departure removes a voter, while travel does not. Approval begins a
 handover of at most three days. The Towns page distinguishes an approved proposal

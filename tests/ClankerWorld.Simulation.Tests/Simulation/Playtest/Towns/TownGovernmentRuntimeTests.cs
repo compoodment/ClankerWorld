@@ -130,6 +130,48 @@ public sealed class TownGovernmentRuntimeTests
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Decode(Encoding.UTF8.GetBytes(document.ToJsonString())));
     }
 
+    [Fact]
+    public async Task GovernmentProposalsAreOfferedAtTheNoticePlaceAndMayoralConsentOnlyWhileAnOfficeIsInPlay()
+    {
+        var provider = new RecordingProvider();
+        using var initial = NewWorld(_ => provider);
+        var state = initial.ExportState();
+        var town = state.Towns![0];
+        var board = town.OriginSite!.Value;
+        var away = town.BorderTiles.Where(state.Map.IsPassable)
+            .OrderByDescending(point => state.Map.FootDistance(point, board)).ThenBy(point => point.Y).ThenBy(point => point.X).First();
+        const string traveler = "founder:00000000000000000000000000000002";
+        using var world = PrivateWorldRuntime.Restore(state with
+        {
+            Inhabitants = state.Inhabitants.Select(p => p.InhabitantId == traveler ? p with { Position = away } : p).ToArray(),
+        }, _ => provider);
+
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+
+        // Each choice costs prompt space on every model call; residents propose at the notice place.
+        Assert.Contains(provider.Offered(Author), id => id.Contains("|government_propose|", StringComparison.Ordinal));
+        Assert.DoesNotContain(provider.Offered(traveler), id => id.Contains("|government_propose|", StringComparison.Ordinal));
+        // No office exists or is being created, so nobody is asked to seek one yet.
+        Assert.DoesNotContain(provider.Offered(Author), id => id.Contains("|mayor_register|", StringComparison.Ordinal));
+        Assert.DoesNotContain(provider.Offered(traveler), id => id.Contains("|mayor_register|", StringComparison.Ordinal));
+    }
+
+    private sealed class RecordingProvider : IDecisionProvider
+    {
+        private readonly ConcurrentDictionary<string, ConcurrentQueue<string>> offered = new(StringComparer.Ordinal);
+        public DecisionProviderKind Kind => DecisionProviderKind.LargeLanguageModel;
+        public long ProviderEpoch => 1;
+        public string[] Offered(string id) => offered.TryGetValue(id, out var queue) ? queue.ToArray() : [];
+        public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
+        {
+            var o = request.Observation;
+            foreach (var item in o.Candidates) offered.GetOrAdd(o.InhabitantId, _ => new()).Enqueue(item.Id);
+            return ValueTask.FromResult(new CognitionDecisionResponse(request.RequestId, o.InhabitantId, Kind, ProviderEpoch,
+                o.RunEpoch, o.DecisionGeneration, o.ObservationDigest, "safe_idle", 1,
+                o.Candidates.ToDictionary(c => c.Id, c => c.Id == "safe_idle" ? 1d : 0d, StringComparer.Ordinal)));
+        }
+    }
+
     private sealed class MayorProvider : IDecisionProvider
     {
         public ConcurrentQueue<string> Seen { get; } = new();

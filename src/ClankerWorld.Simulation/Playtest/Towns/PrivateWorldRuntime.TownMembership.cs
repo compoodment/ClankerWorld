@@ -324,7 +324,12 @@ public static class TownMembershipText
         knows ??= (_, _, _) => true;
         var adult = person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder;
         var home = towns.SingleOrDefault(town => town.ResidentIds.Contains(agentId, StringComparer.Ordinal));
-        var council = home?.Governance?.Form == "representative" ? "vote in its council elections" : "sit and vote on its council";
+        var council = home?.Governance?.Form switch
+        {
+            "representative" => "vote in its council elections",
+            "leader" => "vote in its mayoral elections",
+            _ => "sit and vote on its council",
+        };
         var text = home is null
             ? adult ? "Town: none · no council vote or Warehouse access; a Town council must approve admission at its notice place"
                 : "Town: none · follows their primary caregiver's Town"
