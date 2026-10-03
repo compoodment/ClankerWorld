@@ -11,12 +11,16 @@ public static class TownLandHearingValidation
         IReadOnlySet<string> knownAgents, IReadOnlySet<string> knownHouseholds,
         TownGovernanceState? council, int day, TownGovernmentState? government = null,
         IReadOnlyList<string>? adultResidents = null, IReadOnlyDictionary<string, string?>? agentHouseholds = null,
-        IReadOnlyDictionary<string, IReadOnlyList<TownLandCaseParty>>? currentPartiesByCase = null)
+        IReadOnlyDictionary<string, IReadOnlyList<TownLandCaseParty>>? currentPartiesByCase = null,
+        Func<TownLandCase, IReadOnlyList<TownLandCaseParty>>? currentPartiesResolver = null)
     {
         Check(state is not null && state.Sequence >= 0 && day > 0 && state.Cases is not null && state.OriginalRights is not null && state.Adjustments is not null,
             "Saved land hearings must contain their case file and permission history.");
         Check(state.Cases.All(c => c is not null) && state.OriginalRights.All(r => r is not null) && state.Adjustments.All(a => a is not null),
             "Saved land hearings cannot contain null records.");
+        // Evidence may point into another case's historical rights. Check every file's
+        // shape before those lookups, while leaving semantic validation to one pass.
+        foreach (var item in state.Cases) ValidateCaseFile(tick, townId, item);
         Unique(state.Cases.Select(c => c.Id));
         Unique(state.OriginalRights.Select(r => r.Id));
         Unique(state.Adjustments.Select(a => a.Id));
@@ -28,7 +32,8 @@ public static class TownLandHearingValidation
             foreach (var item in state.Cases.Where(c => c.Judge is not null))
                 Check(adultResidents.Contains(item.Judge!.AgentId, StringComparer.Ordinal) &&
                     !TownLandHearingRules.JudgeConflict(item.Judge.AgentId, agentHouseholds.GetValueOrDefault(item.Judge.AgentId),
-                        currentPartiesByCase?.GetValueOrDefault(item.Id) ?? TownLandHearingRules.CurrentRevision(item).Parties,
+                        currentPartiesResolver?.Invoke(item) ?? currentPartiesByCase?.GetValueOrDefault(item.Id) ??
+                            TownLandHearingRules.CurrentRevision(item).Parties,
                         item.DirectStakeIds.ToHashSet(StringComparer.Ordinal)),
                     "A live saved case judge must remain an eligible independent adult resident.");
         foreach (var adjustment in state.Adjustments)
@@ -77,10 +82,7 @@ public static class TownLandHearingValidation
             "An original permission snapshot cannot be orphaned from its adjustment chain.");
     }
 
-    private static void ValidateCase(SeededMap map, long tick, string townId, TownLandCase item,
-        IReadOnlyList<TownLandTitleRecord> titles, IReadOnlySet<string> agents, IReadOnlySet<string> households,
-        TownGovernanceState? council, int day, TownGovernmentState? government, TownLandHearingState state,
-        IReadOnlyList<HouseholdLandUseRight> currentRights)
+    private static void ValidateCaseFile(long tick, string townId, TownLandCase item)
     {
         Check(Id(item.Id) && item.TownId == townId && item.Kind is "dispute" or "expiry" && item.Status is "pending" or "settled" &&
             item.FiledTick >= 0 && item.FiledTick <= tick && item.Revisions is { Count: > 0 } && item.Filings is { Count: > 0 } &&
@@ -91,6 +93,17 @@ public static class TownLandHearingValidation
             item.Responses.All(r => r is not null) && item.Reads.All(r => r is not null) && item.Rulings.All(r => r is not null) &&
             item.JudgeHistory.All(r => r is not null) && item.JudgeConsents.All(r => r is not null) && item.ContestHistory.All(r => r is not null) &&
             item.ReopenRequests.All(r => r is not null), "A saved land case cannot contain null file entries.");
+        foreach (var revision in item.Revisions)
+            Check(revision.Tiles is { Count: > 0 } && revision.Parties is { Count: > 0 } && revision.Parties.All(p => p is not null) &&
+                revision.RightVersions is not null && revision.RightVersions.All(r => r is not null && r.Right is not null),
+                "A saved land revision cannot omit its plot, parties or prior rights.");
+    }
+
+    private static void ValidateCase(SeededMap map, long tick, string townId, TownLandCase item,
+        IReadOnlyList<TownLandTitleRecord> titles, IReadOnlySet<string> agents, IReadOnlySet<string> households,
+        TownGovernanceState? council, int day, TownGovernmentState? government, TownLandHearingState state,
+        IReadOnlyList<HouseholdLandUseRight> currentRights)
+    {
         Check(item.Revisions.Select(r => r.Number).SequenceEqual(Enumerable.Range(1, item.Revisions.Count)) &&
             item.Revisions.Select(r => r.PublishedTick).SequenceEqual(item.Revisions.Select(r => r.PublishedTick).Order()) &&
             item.Key == TownLandHearingRules.CaseKey(townId, item.Kind, item.Revisions[0].Tiles), "Saved land notice revisions and case identity must be canonical.");

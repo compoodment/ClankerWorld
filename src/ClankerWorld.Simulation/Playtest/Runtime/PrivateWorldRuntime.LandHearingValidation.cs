@@ -30,13 +30,12 @@ public sealed partial class PrivateWorldRuntime
             var adults = checkpoint.Inhabitants.Where(person => town.ResidentIds.Contains(person.Id, StringComparer.Ordinal) &&
                     person.Status == SocietyInhabitantStatus.Active && person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder)
                 .Select(person => person.Id).Order(StringComparer.Ordinal).ToArray();
-            var currentParties = town.LandHearings.Cases.ToDictionary(item => item.Id,
-                item => (IReadOnlyList<TownLandCaseParty>)TownLandCasePartyRules.CurrentParties(town,
-                    TownLandHearingRules.CurrentRevision(item).Tiles, rights, requests, checkpoint.Inhabitants,
-                    checkpoint.WorldTick, item), StringComparer.Ordinal);
             TownLandHearingValidation.Validate(map, checkpoint.WorldTick, town.Id, town.LandHearings,
                 rights.Where(right => right.TownId == town.Id).ToArray(), titles, knownAgents, knownHouseholds,
-                town.Governance, day, town.Government, adults, households, currentParties);
+                town.Governance, day, town.Government, adults, households,
+                currentPartiesResolver: item => TownLandCasePartyRules.CurrentParties(town,
+                    TownLandHearingRules.CurrentRevision(item).Tiles, rights, requests, checkpoint.Inhabitants,
+                    checkpoint.WorldTick, item));
             foreach (var proposal in town.Governance?.Proposals.Where(proposal => proposal.Kind == "land_hearing") ?? [])
                 TownLandGovernmentFilingRules.Validate(proposal, town, map, titles, knownHouseholds);
         }

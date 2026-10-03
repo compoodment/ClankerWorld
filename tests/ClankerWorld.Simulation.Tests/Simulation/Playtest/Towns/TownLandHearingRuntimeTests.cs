@@ -237,7 +237,7 @@ public sealed class TownLandHearingRuntimeTests
 
     private static void AssertMalformedHearingSavesRefused(byte[] encoded)
     {
-        foreach (var damage in new[] { "missing", "null", "notice", "judge", "source", "read" })
+        foreach (var damage in new[] { "missing", "null", "cases", "case", "revisions", "revision", "tiles", "parties", "party", "filings", "filing", "notice", "judge", "source", "read" })
         {
             var document = JsonNode.Parse(encoded)!;
             var town = document["state"]!["towns"]![0]!;
@@ -247,6 +247,15 @@ public sealed class TownLandHearingRuntimeTests
             {
                 case "missing": town.AsObject().Remove("landHearings"); break;
                 case "null": town["landHearings"] = null; break;
+                case "cases": hearing["cases"] = null; break;
+                case "case": hearing["cases"]![0] = null; break;
+                case "revisions": item["revisions"] = null; break;
+                case "revision": item["revisions"]![0] = null; break;
+                case "tiles": item["revisions"]![0]!["tiles"] = null; break;
+                case "parties": item["revisions"]![0]!["parties"] = null; break;
+                case "party": item["revisions"]![0]!["parties"]![0] = null; break;
+                case "filings": item["filings"] = null; break;
+                case "filing": item["filings"]![0] = null; break;
                 case "notice": item["revisions"]![0]!["noticeId"] = "notice:invented"; break;
                 case "judge": item["rulings"]![0]!["judge"]!["kind"] = "ordinary_mayor"; break;
                 case "source": item["evidence"]![0]!["sourceVersion"] = "invented"; break;
@@ -256,6 +265,44 @@ public sealed class TownLandHearingRuntimeTests
                     break;
             }
             Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Decode(Encoding.UTF8.GetBytes(document.ToJsonString())));
+        }
+
+        // Direct typed restore must refuse the same damage without depending on
+        // the codec's JSON null-member and null-list-entry guards.
+        var saved = PrivateWorldRuntimeCodec.Decode(encoded);
+        var savedTowns = saved.Towns!;
+        var savedTown = savedTowns[0];
+        var ledger = savedTown.LandHearings;
+        var savedCase = Assert.Single(ledger.Cases);
+        var savedRevision = Assert.Single(savedCase.Revisions);
+        foreach (var malformed in new TownLandHearingState[]
+        {
+            null!,
+            ledger with { Cases = null! },
+            ledger with { Cases = [null!] },
+            ledger with { Cases = [savedCase with { Revisions = null! }] },
+            ledger with { Cases = [savedCase with { Revisions = [null!] }] },
+            ledger with { Cases = [savedCase with { Revisions = [savedRevision with { Tiles = null! }] }] },
+            ledger with { Cases = [savedCase with { Revisions = [savedRevision with { Parties = null! }] }] },
+            ledger with { Cases = [savedCase with { Revisions = [savedRevision with { Parties = [null!] }] }] },
+            ledger with { Cases = [savedCase with { Filings = null! }] },
+            ledger with { Cases = [savedCase with { Filings = [null!] }] },
+            // The valid first case has actual record evidence, whose provenance
+            // lookup must not traverse a later malformed case before refusing it.
+            ledger with
+            {
+                Cases = [savedCase, savedCase with { Id = "land-case:damaged", Revisions = [savedRevision with { RightVersions = null! }] }]
+            }
+        })
+        {
+            var damaged = saved with
+            {
+                Towns = savedTowns.Select(town => town.Id == savedTown.Id ? town with { LandHearings = malformed } : town).ToArray()
+            };
+            Assert.Throws<InvalidDataException>(() =>
+            {
+                using var restored = PrivateWorldRuntime.Restore(damaged, _ => new ActionCoverageRecorder(chooseIdle: true));
+            });
         }
     }
 
