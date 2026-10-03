@@ -2,7 +2,7 @@
 title: How the game works
 type: architecture
 status: active
-updated: 2026-10-02
+updated: 2026-10-03
 ---
 
 # How the game works
@@ -159,6 +159,40 @@ inspection. Startup corrupt-save failures remain separate. Logs use bounded
 category/type/tick fields, not raw exceptions or file paths. Do not restart a
 held process before preserving its unsaved state. Filesystem fault injection
 does not establish arbitrary mid-tick rollback or crash durability.
+
+### Time of day and night
+
+Time of day is worked out from the saved tick and the world's saved ticks per
+day; nothing about it is saved. `DaylightRules` follows the 24-hour clock the
+game shows, where a tick's clock minute is its tick of day × 1,440 ÷ ticks per
+day. Night is 40% of every day, the same all year
+([#641](https://github.com/compoodment/ClankerWorld/issues/641)), centred on
+midnight: 19:12 to 04:48. Dusk and dawn each fade over the clock hour centred
+on those times (18:42–19:42 and 04:18–05:18), so the darker half of each fade
+counts as night and night covers exactly 40% of the day. At 360 ticks a day
+that is 144 ticks of night with 15-tick fades. Darkness is reported in basis
+points, 0 in daylight and 10,000 at full night. Tick 0 is midnight, so a new
+world, and its founder setup, starts at night.
+
+Night adds a provisional chill of 15 exposure points per tick at full night,
+faded in and out with the darkness (`NightChillAtFullDarkness`). It is added to
+the weather, climate and season exposure (`OutdoorExposure`), and clothing (35
+for a basic garment when dry), shelter (45) and a lit fire (+90) offset it just
+as they offset weather. The same outdoor exposure decides the choice to put on
+better clothing, the warmth budget for a scouting trip and the preference for
+making garments. Wear on a worn garment still follows the weather alone, so a
+mild night adds no repair work. In mild clear weather a basic garment or any
+shelter cancels the chill; with no protection an agent loses about a fifth of
+their warmth over a night. There are no night-only limits on choices, travel,
+work or conversation, and no sleep or energy. Night does not change weather or
+crops yet, and night length does not vary by season.
+
+The owner snapshot carries `darknessBasisPoints`, decided by the host from the
+same rule. The Godot client's `NightLayer` draws a deep blue wash, at most 40%
+opaque, over the visible map just above the ground, roads, buildings and trees,
+and below map labels, agent markers, weather and panels. It eases between the
+once-a-tick readings, shows a newly opened world's darkness at once, and looks
+the same in both themes. The World Map panel is not darkened.
 
 ## Model inputs, usage and memories
 
@@ -572,23 +606,92 @@ beside the first Town. Grove surfaces still use the 24-tile limit; the larger
 budget supplies the denser trees on forest grass.
 
 **Hills** are dry land below mountain height (215), at least 190 high and within
-three tiles (counting diagonal steps as one) of a mountain or peak. They are a
-visual layer only: nothing is saved for them, they keep their own surface, and
-they cost the same to walk and build on as grass. `SeededMap.IsHillAt` and the
-Godot client's `WorldTerrainMap` apply the same rule to the saved elevation and
-water layers. The client draws mountains, peaks and hills as one relief layer
-from the saved elevation (`UI/Map/ReliefRenderer.cs`): it renders 16×16-tile
-chunks on worker threads, caches one texture per chunk and atlas size, and
-shows the per-tile mountain and hill art for a chunk until its relief is
-ready. It also warms hills' overview color and shows "Landform: Hills" in tile
-inspection. Hill travel cost
-and passability are not decided.
+the hill reach of a connected mountain region (counting diagonal steps as one).
+The reach widens with the region's size: one tile for every 7 in the square
+root of its tile count, from 3 tiles up to 8, so a 1,000-tile massif has a
+4-tile band and a 2,500-tile massif a 7-tile band. Regions join diagonal
+neighbours and wrap east/west only on a wrapped map. Hills are a visual layer
+only: nothing is saved for them, they keep their own surface, and they cost the
+same to walk and build on as grass. `TerrainPlacementRules.ClassifyHills`
+(used by `SeededMap.IsHillAt`) and the Godot client's `UI/Map/HillBand.cs`
+(used by `WorldTerrainMap.IsHillAt`) apply the same rule to the saved elevation
+and water layers; `MountainMassifTests` checks that they mark exactly the same
+tiles on generated maps. The client draws mountains, peaks and hills as one
+relief layer from the saved elevation (`UI/Map/ReliefRenderer.cs`): it renders
+16×16-tile chunks on worker threads, caches one texture per chunk and atlas
+size, and shows the per-tile mountain and hill art for a chunk until its relief
+is ready. It also warms hills' overview color and shows "Landform: Hills" in
+tile inspection. Hill travel cost and passability are not decided.
 
 All of these numbers are **provisional**. They were chosen from fixed-seed
 measurements, not owner-reviewed maps, and live in `TerrainPlacementRules`.
 Current fixed-world tests require 25–45% forest-grass tree coverage, and every
-forest-floor tile holds a tree. Hills remain about 0.3–2% of dry land at Normal
-mountain relief.
+forest-floor tile holds a tree. Across 160 default Balanced Small and Medium
+worlds (wrapped and bounded), hills cover about 3–8% of dry land.
+
+### Mountain massifs
+
+Mountains form as **a few large massifs** instead of scattered patches
+([#683](https://github.com/compoodment/ClankerWorld/issues/683), following the
+owner's choice on [#628](https://github.com/compoodment/ClankerWorld/issues/628)).
+`MountainMassifs` shapes them after water is classified and before rivers are
+routed:
+
+1. **Plan.** Each world picks its massif count from its size: 1–2 on Small and
+   2–4 on Medium (3–6, 5–10 and 8–16 on the unplayable larger sizes). It aims
+   the massifs at a seeded share of dry land: 7.5–9.5% for Normal mountain
+   relief, 2.5–3.5% for Low and 14–17% for High. Each massif gets a seeded
+   share of that area, but never less than twice the 150-tile minimum.
+2. **Place.** Each massif has a centre, a long axis 2.4–3.6 times its width and
+   a slight bend along its length. Placement tries 32 centres, each the most
+   inland of three random land tiles, and keeps the one whose outline holds the
+   most dry land, at least 60%. Massifs stay at least three tiles plus their
+   rough edge apart, so two never merge. A massif grows to make up for water
+   inside its outline. Where the land is too broken up for the planned size, a
+   half-size massif is tried before the massif is dropped.
+3. **Shape.** Inside its roughened outline a massif rises as a stretched dome
+   from 215 at the edge. Its **crest**, a thin band along the central 60% of
+   its length, holds the peaks (245 and up). A peak stays only if its own
+   massif surrounds it on all eight sides, so peaks never touch water, lowland
+   or the map's edge.
+4. **Flatten.** Each massif keeps only its largest connected piece; a piece cut
+   off by a coast or lake is lowered back to the ground around it. A massif
+   below 150 tiles is flattened completely. Elevation noise outside the massifs
+   that reaches 205 is squeezed into 205–214, just below mountain height, so it
+   never forms a stray mountain but can still hold stone.
+5. **Foothills.** Dry land around each massif rises to at least 190 out to its
+   hill reach, then eases back down over two more tiles, so the hill band
+   always shows and widens with the massif.
+
+Rivers never form on mountain tiles: they rise at the foot of a massif rather
+than cutting it apart. After rivers, a final pass checks that peaks never split
+any land: within each piece of dry land, the ground that is not a peak must be
+one walkable piece. If peaks enclose some ground, the fewest peaks needed to
+reconnect it are lowered to mountain height. Temperature and climate are worked
+out last, from the finished elevation, so massifs and their foothills are
+cooler than the land around them.
+
+The first Town's starting clearing always has a stone outcrop it can walk to
+within 32 tiles, counting diagonal steps as one. If none formed there, one is
+placed on the highest ground in reach, outside the clearing. This is in
+addition to the stone site the running world adds beside the first Town. Iron,
+gold and diamond outcrops still need mountain tiles, so they now gather in the
+massifs.
+
+Measured over 40 seeds for each of the four default Balanced Small/Medium
+settings (50% water, wrapped and bounded), the New World selection always met
+both trial targets, compared with 56 misses out of 160 before. Mountains covered
+7.2–10.5% of dry land, each world had a massif count within its range, the
+smallest massif had 443 tiles and peaks were 10–14% of mountain tiles. The
+nearest stone was at most 33 tiles from the starting berry patch. Before this
+change the same worlds had 1–65 separate mountain patches, the smallest of a
+single tile, and mountains covered 1.4–19% of dry land.
+
+Generation takes about a tenth longer. In four interleaved runs of
+`scripts/measure-map-generation.sh` on a shared machine under load, the median
+time to generate `probe-a` went from 191 to 211 ms, `probe-b` from 140 to
+153 ms and the Dry fixture from 76 to 85 ms (averages of the per-run medians).
+These are noisy measurements, not a performance promise.
 
 The October 1 measurements used .NET 10.0.401 and Godot 4.7.2 under WSL, with
 two .NET processors. Both Small maps are 256×128, use current hydrology and
@@ -647,8 +750,8 @@ screenshot or native playtest.
 Paused founder setup creates one First Town when the owner accepts its five-building
 site. Founders become residents; Start World changes founding state to founded.
 Later placement inside the saved border establishes residence; walking does
-not change it. Children inherit the resident parent's Town; death removes the
-resident. Owned-building placement establishes household membership.
+not change it. A newborn joins its primary caregiver's Town; death removes the
+resident. Joining another Town later needs that Town's council (below). Owned-building placement establishes household membership.
 
 Founders and added adults arrive at a seeded age from day 15 to day 25 in
 day-lifecycle worlds. `SocietyFixture.FounderArrivalAge` orders that range once
@@ -680,13 +783,62 @@ rechecks authority when applying choices. `civic|...` actions let actors visit
 the public notice place, read posted notices, relay them within interaction
 range, nominate another resident, register their own consent and choose proposals
 or ballots. A nomination posts a notice; only the named agent's personal response
-can add agreement. Adults may request their own admission near the notice place,
-and residents may request admission of an unaffiliated adult nearby. The optional
-`civic_proposal` and `civic_ballot` structured response fields are carried only
+can add agreement. An adult with no Town, or a resident of another Town, may
+request their own admission at a Town's notice place. An adult with no Town may
+walk there from anywhere, and a resident of another Town from inside its border,
+whenever a tile beside the notice place is reachable on foot. Residents may
+request admission of an unaffiliated adult nearby. The optional
+`civic_proposal`, `civic_ballot` and `civic_land_tiles` structured response fields are carried only
 through admitted choices. Missing, stale or malformed responses cannot supply
 votes. A generic private thought or another actor naming a candidate supplies
 neither agreement nor approval. No polling provider calls are added, and Jev is
 optional.
+
+An adult resident may submit a land claim with up to 64 exact tile coordinates
+in one connected plot adjoining the Town's recorded title. This is a bounded
+provider payload, not permission to rewrite title. Because the model sees no
+map grid, the claim choice names the agent's own tile and up to six unclaimed
+tiles beside the Town's title, nearest first. An empty `civic_land_tiles` array
+is no plot rather than a malformed reply. The server rejects water,
+off-map, duplicate, disconnected and already titled tiles. The saved proposal
+uses the ordinary Council majority and notice-reading rules; its identity
+comes from the canonical coordinates, so reordering them does not open another
+ballot. A successful vote rechecks the whole plot, records title and includes
+those tiles in the Town border in the same prepared tick. An overlapping claim
+that is no longer eligible is cancelled. Household rights, structures and
+inventory are unchanged. Ordinary law prose cannot execute a land claim.
+
+Household land requests use the same bounded `civic_land_tiles` field for
+already titled land. The choice names the agent's tile and up to six free Town
+tiles nearest first: no use right, pending request, building, expansion, road
+or field.
+Filing refuses tiles the household already holds and other owners' buildings
+and running expansions with no recorded right; another household's recorded
+right is contested as a dispute.
+A nonconflicting request opens an ordinary `land_use`
+Council proposal. Its canonical key includes the household, exact tiles and
+optional agreed end date. Filing posts a notice but supplies no acceptance.
+Each current adult in the household must learn that notice and explicitly
+choose `accept_land_use`; Council votes are separate. Grant settlement rechecks
+the current adult roster and competing rights/requests. A dispute leaves the
+request pending; refusal, withdrawal, an elapsed requested term and a Council
+change that cancels the vote close it, and the household may ask again.
+A grant preserves its Council proposal, individual consent records and the
+adult roster at settlement. Closed requests remain in the save history but do
+not contribute competing claims to the map or Add Agent.
+
+`request_expansion_land` derives the extra House tiles from a currently legal
+larger footprint, so agents can request them before gathering materials.
+Expansion start and completion require a Town-assigned building's added tiles
+to have that Town's title. A House needs household use rights on any titled
+added tile, even if it has no Town assignment; shared Town buildings need title
+and land no household holds or has asked for. An expansion asks the Council
+once: while any of its shapes has a pending request, no other is offered. New
+construction likewise avoids land other households hold or have asked for, and
+Town buildings avoid all of it. Unaffiliated construction on untitled land keeps its ordinary physical
+rules and creates no title. Losing permission cancels the
+job and releases its materials. Existing expired rights are not silently
+removed; their eventual ruling remains separate land-case work.
 
 Formal civic acts require an admitted personal-model choice. Built-in decisions,
 failed replies and continued intentions supply no votes or candidate agreement.
@@ -703,12 +855,82 @@ unseen civic dump. Owner observations project each council, its latest eight
 proposals, the current election and the latest archived election onto the normal
 Godot Towns page. Failed and cancelled outcomes remain visible; the complete
 authoritative proposal and election history stays in the checkpoint. Long Town
-readouts scroll within the available screen height. A passed ordinary law
-proposal records approval without creating new physical/legal powers. The
-`AdmissionApproval` result is available for #602; the engine does not perform
-membership, household, care-group or inventory transfers. Bounded civic lifecycle
-telemetry records Town identity and council/vote/status counts without proposal
-text, notices, names or per-read polling noise.
+readouts scroll within the available screen height. A passed structured law
+proposal records its scoped wording without creating physical or ownership
+powers. Bounded civic lifecycle telemetry records Town identity and
+council/vote/status counts without proposal text, notices, names or per-read
+polling noise.
+
+**Town admission** (`PrivateWorldRuntime.TownMembership`). `TownRuntimeState.ResidentIds`
+is the only record of Town membership; household, House and position never
+change it. After every saved council decision, every Town roster change and on
+every tick, `SettleTownAdmissions` reads each Town's passed admission proposals
+and records exactly one `TownAdmissionRecord` per proposal, rereading the Towns
+after every change:
+
+- A request the newcomer made for themselves is their consent, so it is applied
+  at once.
+- A request a resident made is saved as `approved`, and the newcomer is offered
+  an `accept_admission` civic choice once they have learned the result notice.
+  Accepting needs the same Town they had when the council voted, and is not
+  offered while their own request elsewhere is undecided.
+- Applying an admission moves the newcomer and their care group: the living
+  infants, children and adolescents they are primary caregiver for who share
+  their current Town. The group leaves the old Town and joins the new one in the
+  same step, the newcomer's other open approvals lapse as `joined_elsewhere`,
+  and both councils' rosters follow their recorded adult residents.
+- An approval for someone who has died, already lives there or changed Town
+  lapses instead.
+
+An adult has one undecided request of their own at a time. A refused or
+withdrawn request for the same newcomer waits one unpaused world day unless the
+council changed, and the choice is not offered during that wait. An adult with an
+open request or approval may also ask households in that Town to take them in,
+but household admission stays a separate decision and grants no Town membership.
+
+`TownMembershipText` describes recorded membership, the rights it gives (council
+seat or vote, in-person Warehouse collection) and the admission status in one
+bounded line. The agent's `CognitionSelfContext.TownMembershipNote` includes only
+pending, approved, refused or cancelled admissions the agent learned from notices;
+the owner's agent card shows the same line from all records. `town_admission`
+telemetry records the Town, outcome, previous Town and counts only.
+
+`TownGovernmentState` stores scoped law versions, protected resident processes,
+mayoral consent and contests, and separate land/ordinary mandate terms.
+`TownGovernmentRules` coordinates them with the existing Council engine. Law
+adoption consumes passed structured Council proposals once; amendment and repeal
+bind their base version, so a stale passed proposal cannot overwrite a later law.
+Territorial applicability uses formal title records, including a saved site
+subset, rather than the drawn Town border. Law text grants no physical powers.
+
+Residents propose government changes at the notice place, and the choice to
+seek a mayoral office appears only while an office exists, a contest is open or
+a change that creates one is pending, keeping these choices out of every model
+call. Government votes preserve their opening electorate and final votes. Later adults
+wait; deaths and membership departures remove voters and ballots. Equivalent
+requests share a process; different requests queue with fresh opening lists.
+Incumbent Council revisions cannot cancel this ledger. Approved transitions
+retain incumbent authority until all required successors are ready, with a
+three-day deadline. Explicit all-adult government disables automatic
+representation, and explicit elected government seeks three representatives
+above three adults. The initial arrangement retains the eight-adult threshold.
+
+Mayoral contests bind consent to exact mandates and ballots to a contest/round
+opening token. Every deciding round needs a positive vote; tied leaders repeat
+with fresh voters, without a random draw. Saved round records preserve votes,
+ties and interruptions. Scheduled Council voting takes priority; other Council
+contests wait while mayoral voting runs. A cancelled transition cannot later
+seat its dependent contest. Separate mandate records preserve a governing
+leader when a land mandate ends, and a governing vacancy temporarily restores
+all-adult authority without changing the approved succession arrangement.
+
+The normal personal-model path supplies all proposals, consent, withdrawals,
+resignations and votes. The runtime revalidates current eligibility, actual
+notice knowledge and the exact round before admitting an action. Owner
+observations add current mandates, the latest eight government processes,
+current/latest mayoral contests and the latest sixteen laws; saved history is
+not pruned. Bounded civic telemetry records transition kinds and counts without
+law wording, notice text or personal model payloads.
 
 `FirstTownLayoutPlanner` lays the first Town street first, using
 `TownStreets`. A main road runs both ways from the chosen site along its most
@@ -755,7 +977,7 @@ their tile. If it becomes illegal, the project blocks and retries after sixty
 ticks. An unchanged idle choice is reconsidered after 300 ticks, sooner if
 urgent needs or legal choices change. Weights and retry values are provisional.
 Building plans follow what a household needs, not a role. An adult whose
-household lacks a House, Farmhouse, Blacksmith, Silo or Tailor Shop is offered ranked sites
+household lacks a House, Farmhouse, Blacksmith, Silo, Tailor Shop, Clinic or Restaurant is offered ranked sites
 for it once the household has the build costs in hand: stock the household
 owns anywhere, plus what its members carry. Each kind is planned at most once
 at a time and a household never holds two of a kind; a second member choosing
@@ -776,9 +998,33 @@ while other farm stock prefers the Silo. Ready-to-eat greens and fruit go to
 the household's House. Neither stock nor ownership moves
 remotely.
 
+Ordinary milling can draw needed household grain from its Silo into its
+Farmhouse. Available and inbound Farmhouse grain reduce the pickup; recipe
+demand, free storage, reservations, carrying room and both walking routes
+still apply. Contained grain uses the existing partial pot-withdrawal rules.
+
+Food selection tests the entire harvest load, including orchard seeds, so a
+nearer oversized harvest does not hide a reachable one that fits. Making
+room uses the permitted household serving or actual harvest size. Accepted
+infant caregivers can collect household food for their dependent without
+needing to be hungry themselves; current care authority, usable food,
+reservations, capacity and real travel are checked again at execution.
+
+House pickup counts the whole vessel family against carrying and destination
+space; loose deliveries keep their four-unit limit. An unusable carried
+delivery leaves ordinary hauling and can offer `recover_household_delivery`.
+Candidate and action both check the current household-owned destination,
+physical load, selected or repaired gear, active family reservations and a
+route to camp. Recovery moves the same stock through the inventory authority,
+clears its delivery pointers and records `household_delivery_recovered`.
+Spoiled contents may be physically withdrawn from an owned usable pot, with
+the existing family, quantity, destination and reservation guards. They
+remain unusable for eating, recipes and new reservations. No agent disposal
+action or player discard control is added.
+
 **Household departure and personal custody** (`SettlementDeparture`). Ordinary decision candidates allow an adult to leave without a vote, store or collect their own goods, return borrowed household tools, explicitly accept replacement care, and found a solo household only when no suitable existing home can currently be asked. Membership exits and admissions include the complete primary-care group. The same completed House-capacity calculation checks all incoming residents; children never apply alone. The displacement transition refuses adults with a moving dependent group, leaving overcrowding eligibility and notice to #599.
 
-`InventoryLot.OwnerId` records property; optional `CarrierId` records physical custody without donation. Personal goods may remain in House storage after departure. `InventoryFixture.Relocate` preserves ownership, condition, provenance and reservations while moving an unreserved quantity. A stored personal lot is collected physically, with carrying limits, under the current household membership or a recorded departure's limited collection right. Borrowed tools retain the lender's owner ID while carried and are returned physically. Shared delivery loads retain their owning household on departure. Shared buildings, stock and job records are never reassigned to the new household. A departing worker's private production and expansion jobs pause with their existing owners and reservations; their previous work plan is retained on the departure record instead of resuming under a new household. A remaining member can take over paused work at its physical site, using the same still-available committed inputs and remaining work time. Private materials held by the former worker are not reassigned; these keep the task blocked. Held reservations keep their exact owner and stock, receive a new deadline only on resumption, and are released if the materials become unusable; canceled job records retain the original property owner.
+`InventoryLot.OwnerId` records property; optional `CarrierId` records physical custody without donation. Personal goods may remain in House storage after departure. `InventoryFixture.Relocate` preserves ownership, condition, provenance and reservations while moving an unreserved quantity. A stored personal lot is collected physically, with carrying limits, under the current household membership or a recorded departure's limited collection right. Recovery from the ground or a former household remains a routine errand. Collecting a map or field record from the current home stays available as a deliberate choice, but ranks below idle for the built-in chooser so it does not immediately retrieve knowledge goods it has just stored. Other goods retain their normal collection priority, so the built-in chooser stores only maps and field records; storing other belongings is a deliberate choice, because routine collection would fetch them straight back. Borrowed tools retain the lender's owner ID while carried and are returned physically. Shared delivery loads retain their owning household on departure. Shared buildings, stock and job records are never reassigned to the new household. A departing worker's private production and expansion jobs pause with their existing owners and reservations, except work for the worker's own goods, such as building their handcart, which nobody else may finish: it is cancelled and its reserved materials are released and stay with the worker; their previous work plan is retained on the departure record instead of resuming under a new household. A remaining member can take over paused work at its physical site, using the same still-available committed inputs and remaining work time. Private materials held by the former worker are not reassigned; these keep the task blocked. Held reservations keep their exact owner and stock, receive a new deadline only on resumption, and are released if the materials become unusable; canceled job records retain the original property owner.
 
 Each departure allocates at most two unreserved ready-to-eat portions once. Ownership changes at allocation while the existing storage/ground location stays fixed. Saved departure records retain the allocation and collection right; retries with no current membership cannot allocate again. Caregiver IDs and ancestry stay unchanged. Dependents follow the caregiver in physical steps, and a traveling caregiver waits when a dependent falls behind. Housing, ownership, collection and care facts use normal personal-model observations and player inspection; no extra acknowledgement request is made.
 
@@ -848,10 +1094,11 @@ the saved flag and appends `continuity_rule_on` or `continuity_rule_off`
 one.
 
 While the rule is on, an eligible couple is an accepted partnership that
-also passes the ordinary parenthood checks (both adults or elders, both with
-a household, not close kin) where neither partner is a parent or caregiver of
-a living infant. A couple first gets a deadline when it becomes eligible, and
-loses it when it stops being eligible or the rule turns off. Until the
+also passes the ordinary parenthood checks (both adults, since elders cannot
+have children; both with a household; not close kin) where neither partner is
+a parent or caregiver of a living infant. A couple first gets a deadline when
+it becomes eligible, and loses it when it stops being eligible or the rule
+turns off. Until the
 deadline, `parent_postpone:{owner}` replaces both `parent_decline` and
 `parent_cancel`, and moves the plan to the inactive `postponed` stage; refusal
 candidates are neither offered nor applied. A couple held by the rule may
@@ -940,9 +1187,38 @@ Store stocking also keeps each adult's best usable work tool. Optional shelf
 restocking waits behind gathering materials needed by household work.
 Rates, the eight-unit shelf target and four-unit carried loads are provisional.
 Blacksmiths can sell real refined iron for another household's tool work.
-Market stalls, tool orders and meals remain tracked in #564 and its domain
+Market stalls and meals remain tracked in #564 and its domain
 issues; currency remains later work. The Clinic sells actual medicine
 and bandages through the same inventory and physical business authority.
+
+### Blacksmith tool-making requests
+
+A tool-making request records bounded demand for an existing Blacksmith recipe.
+A customer can have one active request; the world keeps up to 32 active requests
+and 32 terminal records. Placing, accepting, refusing or withdrawing one requires
+a fresh accepted personal-model choice. Jev, fallback, repeating intentions and
+owner orders cannot make those commitments. Routine supply and already accepted
+production continue through the existing household project machinery.
+
+The accepted worker produces with actual household-owned inputs at the named
+Blacksmith and its normal output-space reservations. The finished tool remains
+household property. The request references the real production job and output;
+it creates no future inventory, advance payment or exclusive customer title.
+An eventual quote uses the existing completed-goods business barter offer and
+its acceptance, meeting, stock-room and exact transfer checks. Withdrawal or
+interruption does not undo work or change the owners of materials and goods.
+A request stops when the customer or the shop becomes unavailable, when no
+adult is left in the selling household, or when the customer joins that
+household. If the worker leaves, the request stops; a housemate may still
+resume the paused job as ordinary household work.
+
+The observation projects at most eight requests per actual building, preferring
+active requests and recent transitions. The relevant customer or household
+member gets a scoped note of at most 256 characters; public blockers are at most
+160. Notes expose request progress, never unrelated private stock or raw model
+dialogue: the worker's own errands and storage problems appear only as "still
+preparing" or "waiting for a work site". Owner cards show the requester, existing recipe and current blocker;
+the actual building supplies its name.
 
 **Clinic supplies and illness care** use the normal household building,
 workstation supply, ecology and recipe paths. `clankerworld-care-v1` adds a
@@ -985,12 +1261,10 @@ paused world advances no treatment time. See [saves and replay](saves-and-replay
 Automated checks cover this path; the
 [Windows playtest](../../playtest/565-clinic-care.md) is still pending.
 
-Death archives the last physical state and frozen age, then removes the active
-actor. Existing personal inventory can be frozen in estate escrow. One bounded
-post-death model decision can choose a living heir for the whole estate; society
-checks the frozen lots and recipient. Failed/interrupted choices use the default
-household path. Settlement applies once. See [saves and replay](saves-and-replay.md)
-for pending-will restore behavior.
+Death archives the last physical state, frozen age and the Town the agent lived
+in, then removes the active actor. Existing personal inventory is frozen in
+estate escrow, and `SocietyEstate.BeneficiaryIds` records the household default.
+[Wills](#wills) explains the final will and how the estate is divided.
 
 New proposals for Shelters, Storehouses, Cooking fires and Stone hearths are
 retired. Existing buildings, projects and recorded proposals remain for old-world
@@ -1008,14 +1282,93 @@ saves made before this change are refused.
 
 Workstation recipes use only stock already at the building. A household
 building without its own dedicated hauling (every kind except the House,
-Farmhouse and Blacksmith, including the Tailor Shop and Clinic) is kept stocked
-by the `supply_workstation:<item>` choice. It is offered to an adult of the holding
-household while the building holds less of an input than two batches of the
+Farmhouse and Blacksmith, including the Tailor Shop, Clinic and Restaurant)
+is kept stocked by the `supply_workstation:<item>` choice. It is offered to an
+adult of the holding household while the building holds less of an input than
+two batches of the
 largest recipe that needs it, counting loads already on their way. The adult
 delivers what they carry, picks up the household's spare stock from its House
-or Silo (the existing delivery step then carries it in), or gathers from a
-reachable source. Stock already set aside at another workstation is left
-alone.
+or private farm or cooking stock (the existing delivery step then carries it
+in), or gathers from a reachable source. House pottery and named cooking also
+use this supply path. A vessel and its contents move together only when the
+whole family fits the person and destination; loose inputs use four-unit loads.
+Protected planting reserves stay unavailable. Grain already delivered to a
+House or Restaurant is left there rather than hauled back into farm stock.
+
+House cooking and Restaurants use the named recipes in the
+[agreed food pipeline](../game-design/towns.md#food-and-replanting). Generic
+food-to-food production is refused. Production reserves exact usable on-site
+inputs and room for its net storage growth; finishing consumes the reservations
+and stores two named servings, leaving water jugs intact. A runnable named meal
+has priority over input replenishment, so one shared jug cannot shuttle between
+House and Restaurant indefinitely before anyone cooks. The trial cooked-food
+reserve is two servings per living household resident across prepared kinds.
+A recipe that improves already prepared food, such as Restaurant meals from
+bread, checks its own finished dish so an existing bread reserve cannot hide
+that choice. Meals give 40% fullness, stew and fruit/berry porridge 50%, and
+Restaurant meals 60%; decorated porridge and Restaurant meals also improve
+nutrition. These values remain provisional.
+
+Concrete meal names are retained for dietary variety. Raw grain, potatoes and
+flour keep their freshness in the current trial. Bread and cooked meals spoil.
+Protected odd-rate goods use a stable two-tick cadence, combined with the pot
+cadence, rather than rounding their spoilage rate to zero.
+
+### Wills
+
+An estate with frozen lots and an agent with a personal model gets exactly one
+post-death request (`PrivateWorldRuntime.Wills`). Its `CognitionWillContext`
+offers the frozen lots as `item:1`… keys (at most 24, in lot-ID order) and up to
+sixteen living people as `will:heir:{id}` keys, family and household first, plus
+`will:town:{id}` for the archived Town when it has a Warehouse of its own. The
+candidates are `will:household` and, when anyone may inherit, `will:heirs`.
+The model's reply (`CognitionWillChoice`) is untrusted: the response must match
+the request, epochs and digest; the runtime maps only offered keys back to
+heirs and lots; and `SocietyFixture.ResolveWill` checks that every heir is a
+living person other than the deceased or an offered Town, that there are one
+to three distinct heirs, and that every listed lot is still frozen in this
+estate. Anything else resolves to the household default.
+
+`ResolveWill` stores the exact division as `WillBequests` (lot, heir,
+quantity). "items" gives each listed lot whole to its heir. Every other lot,
+and every lot under "equal", is divided equally: each heir gets the same whole
+number of units, and the units left over go one at a time to the heirs in the
+order the will names them, continuing from where the previous lot's leftovers
+stopped. Lots are taken in lot-ID order, so each lot's parts always sum to its
+frozen quantity. A storage pot, water jug or handcart counts as one unit, and its
+contents always go with it to the same heir; only top-level lots are offered to the
+model, with a vessel's contents described beside it.
+
+Settlement runs once, when the escrow expires and no will is pending. A
+living person heir, including a child, owns their part without automatically
+carrying it. Ground lots keep their tile, stored lots retain their recorded
+storage, and goods held by a living carrier remain in that carrier's custody.
+Goods carried by the deceased are dropped at their last tile. A Town heir's
+part goes to its Warehouse as Town stock while the Warehouse has
+room and stores that kind; the runtime passes each Town's Warehouse, free room
+and refused kinds (food, and handcarts, which stay on the ground) as
+`SocietyTownStore`. Whatever the will cannot deliver (a share for an heir who
+has since died, food, a handcart or goods beyond the room) follows the
+household default: an equal split between the living household
+beneficiaries, with the first in ID order taking leftovers, or communal stock
+when none remain. A vessel and its contents move as one family and keep their
+lot IDs: the Town takes a family only when the Warehouse accepts every kind in
+it and has room for all of it, otherwise the family follows the household
+default, where vessels rotate between the living beneficiaries. A quantity-one
+map or field record keeps its lot ID.
+
+Final words are optional with either outcome. `CognitionWillChoice.NormalizeFinalWords`
+turns control and invisible formatting characters into spaces, collapses
+spaces, and refuses text over 80 characters or containing markup characters
+(`< > [ ] { }` and backticks). The HTTP provider parser drops unusable words
+before admission; a directly supplied typed reply with invalid words is refused.
+An admitted reply keeps its words even when its division falls back. At settlement
+each living person who receives goods gets the private memory
+`final-words:{estate}:{heir}` ("Name's final words were: '…'"). The owner sees
+the words on the historical profile through
+`ViewerFinalWill`; events, logs and telemetry carry only IDs, the split and heir
+counts, never the words. See [saves and replay](saves-and-replay.md) for
+pending-will restore behavior.
 
 ## Fertility and household fields
 
@@ -1036,6 +1389,10 @@ Each authoritative field records its household, crop, stage, work, growth
 times and replanting reserve. Planting reserves and consumes one carried
 grain seed, cultivated-green seed or potato. Moving away, death, lost tools
 or urgent needs cancel unfinished work and release its planting input.
+Field work uses the existing illness cadence. Only a successful work stroke
+advances progress and wears the selected tool. A new planting input claim
+lasts until actual completion or interruption, so illness does not make it
+expire while the worker is still planting.
 Completed harvests remain intact. Fertility and weather affect crop growth
 or yield. Harvesting creates grain, potatoes or cultivated greens on the
 field, and grain and greens also yield two replacement seeds. One usable
@@ -1048,9 +1405,9 @@ yield. It picks free reachable soil by fertility and distance, favouring
 tiles beside the household's existing fields. It can expand during shortages;
 the existing household-building planner can establish another Farmhouse for a
 household that lacks one and has the materials. Raw grain and potatoes cannot
-satisfy this food reserve while their cooking paths remain unfinished, so they
-do not stop farmers planting fresh greens. Grain is milled into flour
-at the Farmhouse, one grain to one flour. Prepared meals remain separate work.
+satisfy this ready-food reserve directly; their prepared meals can, so raw
+stock does not stop farmers planting fresh greens. Grain is milled into flour
+at the Farmhouse, one grain to one flour.
 Field work records the selected carried hoe or sickle lot. Wooden and iron hoes
 reduce the work still needed to till and tend, while wooden and iron sickles
 reduce harvest work; an iron sickle is faster than a wooden one. Each committed
@@ -1276,6 +1633,31 @@ does not restore condition for free. Hammer use speeds building work, and an
 iron knife speeds food or other preparation recipes. Recipe and field records
 keep their exact selected tool lot through save and reload.
 
+## Physical handcarts
+
+`InventoryContainerRules.Handcart` is a single ground-position inventory lot.
+Its condition, owner and child cargo lots are authoritative inventory facts;
+`HandcartHitch` saves only the exclusive cart/puller attachment. The runtime
+checks the owner has physically reached the cart, verifies every load source's
+position and household authorization, and moves the cart with each admitted
+legal cardinal step. Ground cart contents never become carried recipe inputs,
+fuel, planting seeds or equipped gear. Loading a partial quantity preserves
+the untouched remainder's original location and reservations.
+
+Crafting uses the Blacksmith's handcart recipe with the adult worker's carried
+wood, fittings and rope. An adult collects them from household or Town
+Warehouse stock only while the whole set is carried or in that stock, and the
+Blacksmith, Store and workstation supply hauls leave the carried set with them
+rather than returning it to stock. Exact inputs are reserved through the
+production job; the personal cart appears on the work site's ground after
+completion. Repair
+consumes three carried material reservations atomically. Unloading can retain
+damaged goods on the ground and works after the cart breaks. Property transfer
+and inheritance keep the entire cart/cargo family at its existing position.
+A death, break or ownership change removes the attachment without dropping or
+teleporting the goods. Owner observation derives cart inspection from those
+same saved inventory lots, rather than maintaining a second cargo ledger.
+
 ## Trees and planting
 
 Each tree is one map resource with one saved growth record
@@ -1325,36 +1707,54 @@ lives in `TreeGrowthRules` and is provisional ([#462](https://github.com/compood
 New World defaults to 50% water with a 20–80% range. `GenerationAmount`
 controls forest cover, mountain relief and river abundance independently;
 Normal is zero and omitted from saved JSON. Low/High use forest rainfall
-thresholds 175/125 and river catchment thresholds 288/72. Low mountain relief
-subtracts half the elevation above 130; High adds that full amount for Balanced
-Small/Medium worlds and half elsewhere. Outside the visibility trial, Normal
-keeps a 150 rainfall threshold, zero relief shift and river threshold 144.
+thresholds 175/125 and river catchment thresholds 288/72. Mountain relief sets
+how much dry land the [massifs](#mountain-massifs) aim to cover: Low 2.5–3.5%,
+Normal 7.5–9.5% and High 14–17%, for every climate mode and size. Outside the
+visibility trial, Normal keeps a 150 rainfall threshold and river threshold 144.
 Resource abundance retains its existing Sparse/Normal/Abundant saved values;
 the UI labels them Low/Normal/High.
 
 For Balanced Small/Medium worlds, each feature's target applies only while its
-own control is Normal. The versioned Normal trial uses a 135 rainfall threshold
-and adds one third of upper elevation as mountain relief. Low and High remain
-separate controls. `GeographyCandidateSelector` tries at most three candidates
-derived from the requested seed. It selects by unmet target count, normalized
-distance from the 20–40% forest and 5–12% mountain dry-land bands, then largest
-connected-region share as a tie-break; attempt number is the final stable
-tie-break. Connected regions use diagonal neighbors, east/west wrapping when
-enabled, and no north/south wrapping. The tie-break has no minimum region-size
-threshold. Incompatible climate modes have no trial target and use one
-candidate. Coverage is measured and returned for all settings.
+own control is Normal. The versioned Normal trial uses a 135 rainfall threshold.
+Low and High remain separate controls. `GeographyCandidateSelector` tries at
+most three candidates derived from the requested seed. It selects by unmet
+target count, normalized distance from the 20–40% forest and 5–12% mountain
+dry-land bands, then the largest connected forest region's share as a
+tie-break; attempt number is the final stable tie-break. Mountains no longer
+take part in the tie-break: they are already whole massifs, and preferring one
+large mountain region would always pick the world with the fewest massifs.
+Connected regions use diagonal neighbors, east/west wrapping when enabled, and
+no north/south wrapping. Incompatible climate modes have no trial target and
+use one candidate. The forest tie-break has no minimum region-size threshold.
+Coverage is measured and returned for all settings.
+An attempt with
+no suitable starting clearing is recorded as failed and omitted from coverage
+measurement and ranking; other generated-map validation errors still propagate.
+Successful attempts keep their original numbers, and selection continues
+through the whole bounded set. If no map remains, preview and creation refuse
+without replacing the current world.
 
 Owner world-creation signing uses payload v3 to bind all settings and, for
 Create, the candidate attempt, terrain and map-layer digests, and explicit
 acceptance of unmet trial targets. Preview reports the selected candidate and
-coverage for each attempt. Create reruns the bounded selector, checks those
-signed identities, and builds the world from its selected map. It refuses a
-changed preview or an unaccepted miss. The selected attempt is saved in
+coverage for generated candidates and a separate transient `FailedCandidates`
+list with each unavailable attempt and its bounded `no-clearing` reason. Godot
+shows these together in attempt order without inventing zero coverage for a
+failed map. Older previews that omit the list remain readable. An all-failed
+HTTP refusal carries a recognized generation code which the client maps to a
+fixed, useful message instead of displaying arbitrary server error text.
+Create reruns the bounded selector, checks those signed identities, and builds
+the world from its selected map. It refuses a changed preview or an unaccepted
+miss. The selected attempt is saved in
 `GeographyOptions` with the visibility algorithm version and in the map
-manifest; restore regenerates that attempt without searching again. Unsupported
-Balanced Small/Medium visibility versions are refused rather than replayed with
-different terrain rules. Small and Medium remain the only playable sizes; no
-continent-count control is exposed for them. Existing saved water settings are
+manifest; restore regenerates that attempt strictly without searching again.
+The transient reports do not change signed creation or saved map authority.
+Terrain version 2 adds mountain massifs and applies to every generated world,
+whatever its climate mode. Any other saved version is refused rather than
+replayed with different terrain rules (see
+[saves and replay](saves-and-replay.md#current-formats-and-older-worlds)). Small
+and Medium remain the only playable sizes; no continent-count control is exposed
+for them. Existing saved water settings are
 not rewritten.
 
 ## Skills and practical lessons

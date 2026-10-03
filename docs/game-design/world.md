@@ -2,7 +2,7 @@
 title: The world, time and survival
 type: game-design
 status: active
-updated: 2026-10-02
+updated: 2026-10-03
 ---
 
 # The world, time and survival
@@ -330,6 +330,12 @@ words ("Plenty of forest and some mountain ranges") and says when it has less
 or more forest or mountains than a balanced world. The measured shares and
 every candidate's results stay in its tooltip. Larger-size targets and
 preview latency remain subject to measurement and playtesting.
+
+An attempt with no room for the first Town is unavailable. Keep trying the
+remaining candidates and show that failed attempt alongside the coverage of
+playable maps, keeping their original attempt numbers. If none is playable,
+ask for another seed or changed settings; do not create a replacement map
+silently.
 
 Forest and mountain areas should form readable regions. The generator uses
 connected-region size only to break ties between equally good candidates; it

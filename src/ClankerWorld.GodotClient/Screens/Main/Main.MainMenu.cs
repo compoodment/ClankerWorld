@@ -880,10 +880,16 @@ public partial class Main
         if (coverage.TargetsApplicable)
             details += $" A balanced world has {ForestBand.Min}–{ForestBand.Max}% forest and {MountainBand.Min}–{MountainBand.Max}% mountains.";
         // Every map tried, when there was a choice, so a miss can be checked against the others.
-        if (result.Candidates.Count > 1)
-            details += $" Closest of {result.Candidates.Count.ToString(CultureInfo.InvariantCulture)} maps tried: " +
-                string.Join("; ", result.Candidates.Select(candidate =>
-                    $"{Percent(candidate.ForestPercent)} forest, {Percent(candidate.MountainPercent)} mountains")) + ".";
+        // An attempt that could not be used keeps its place in the order tried, without invented figures.
+        var tried = result.Candidates
+            .Select(candidate => (candidate.Attempt,
+                Text: $"{Percent(candidate.ForestPercent)} forest, {Percent(candidate.MountainPercent)} mountains"))
+            .Concat(result.FailedCandidates.Select(candidate => (candidate.Attempt,
+                Text: candidate.Reason == "no-clearing" ? "no room for a first Town" : "unavailable")))
+            .OrderBy(candidate => candidate.Attempt).Select(candidate => candidate.Text).ToList();
+        if (tried.Count > 1)
+            details += $" Closest of {tried.Count.ToString(CultureInfo.InvariantCulture)} maps tried: " +
+                string.Join("; ", tried) + ".";
         return (text + gather, details);
     }
 
@@ -924,7 +930,7 @@ public partial class Main
         if (!CanCreatePreview(action))
         {
             worldPreviewStatus.Text = previewedWorldResult?.Coverage is { TargetsApplicable: true, MeetsTargets: false }
-                ? "Accept the displayed coverage misses, or choose a new seed, before creating the world."
+                ? "Tick Keep this map anyway, or choose a new seed, before creating the world."
                 : "Preview the map before creating the world.";
             RefreshWorldMenuAvailability();
             return;
