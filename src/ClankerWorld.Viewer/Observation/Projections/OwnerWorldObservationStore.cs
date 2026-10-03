@@ -236,6 +236,29 @@ public sealed class OwnerWorldObservationStore
         };
     }
 
+    private static bool RequiresWorldCreation(PrivateWorldRuntimeState state)
+    {
+        // This is a presentation decision about the captured save, not a new
+        // world or a save migration. Keep any authored work accessible, even
+        // when its founders or buildings have since been removed.
+        return state.Geography is null &&
+            state.FounderSetup is { Started: false, FounderIds.Count: 0 } &&
+            state.Society.Society is { WorldTick: 0, IsPaused: true, Inhabitants.Count: 0, EventHistoryFloor: 0 } &&
+            state.Inhabitants.Count == 0 && state.DeceasedInhabitants is null or { Count: 0 } &&
+            state.Content is { Packages.Count: 0, Events.Count: 0 } &&
+            state.WorldContent is { Buildings.Count: 0, Recipes.Count: 0 } &&
+            state.WorldSimulation is { Buildings.Count: 0, ProductionJobs.Count: 0 } simulation &&
+            simulation.CropBuilds is null or { Count: 0 } &&
+            simulation.BuildingExpansions is null or { Count: 0 } &&
+            simulation.GuestInvitations is null or { Count: 0 } &&
+            state.Fields is null or { Count: 0 } && state.RoadTiles is null or { Count: 0 } &&
+            state.Bridges is null or { Count: 0 } && state.Instructions is null or { Count: 0 } &&
+            state.EventHistoryFloor == 0 && state.HistoryArchiveHead is null &&
+            state.Events.All(item => item.Kind is "world_created" or "town_founding_started" or "continuity_rule_on" or "paused") &&
+            state.Society.Society.Events.All(item => item.Kind is "household_created" or "paused") &&
+            state.Society.Society.Inventory.Events.Count == 0;
+    }
+
     private static ViewerWorldSnapshot ToSnapshot(PrivateWorldRuntimeState state, PrivateWorldDiagnostics diagnostics,
         string? knownTerrainWorldId = null, string? knownTerrainDigest = null,
         string? knownMapLayersDigest = null)
@@ -395,6 +418,7 @@ public sealed class OwnerWorldObservationStore
             FounderSetup = state.FounderSetup is { } setup
                 ? new ViewerFounderSetup(PrivateWorldRuntime.RequiredFounders, setup.FounderIds.Count, setup.Started)
                 {
+                    RequiresWorldCreation = RequiresWorldCreation(state),
                     CanChooseTownSite = state.Geography is not null && !setup.Started && setup.FounderIds.Count == 0,
                     HasAcceptedTownSite = (state.Towns ?? []).Any(town => town.OriginSite is not null),
                     LastFounderId = !setup.Started && setup.FounderIds.Count > 0
@@ -501,7 +525,7 @@ public sealed class OwnerWorldObservationStore
                         order.Action, order.Status, order.RequestedUnits, order.CompletedUnits,
                         order.ProgressUnit, order.RepeatUntilCancelled, order.TargetFoodKind,
                         order.TargetResourceId, order.TargetPosition?.X, order.TargetPosition?.Y,
-                        order.BlockedReason, order.TargetAgentId) : null))
+                        order.BlockedReason, order.TargetAgentId, order.TargetMaterialKind) : null))
                 .ToArray(),
             Cognition = ToCognition(state),
             ContentPackages = state.Content?.Packages
@@ -1278,6 +1302,8 @@ public sealed class OwnerWorldObservationStore
         "seek_food" => "looking for food",
         "move_to" => "walking to the ordered tile",
         "harvest_food" => "gathering food",
+        "gather_material" => "gathering the ordered material",
+        "inspect_material_site" => "checking the ordered material site",
         "consume_food" => "eating carried food",
         "safe_idle" => "keeping a safe routine",
         _ => candidateId.Replace('_', ' '),

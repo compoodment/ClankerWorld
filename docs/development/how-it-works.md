@@ -86,10 +86,10 @@ the same limits a save applies, so an accepted message cannot leave the world
 unable to save.
 
 `ParseInstructionOrder` reads a complete, bounded grammar for eating food,
-seeking a food source, harvesting food and moving to an exact tile. Food harvest
-and food-source travel orders must name food (or a supported food resource);
-explicit resource names must match a
-complete identifier, and food kinds must match that resource. Unsupported
+seeking a food source, harvesting food, gathering supported raw materials and
+moving to an exact tile. Harvest and food-source travel orders must name a
+supported kind or resource; explicit resource names must match a complete
+identifier and the requested kind. Unsupported
 objects or operations, mixed tasks, unknown explicit targets, and invalid
 quantities or leftover words are rejected as not understood rather than mapped
 to a nearby candidate. A recognized order retains the player's original text and the
@@ -98,6 +98,17 @@ the requested physical effect before recording progress. Names in the prompt
 do not create map knowledge. Optional observer replies are tied to the exact
 message ID and stored separately from private thoughts and conversation
 speech. Local deterministic decisions do not mark messages as heard.
+
+Material orders save the requested kind separately from food targets. They use
+known resource facts or observation within normal interaction range; a named
+unobserved site first requires physical travel. Untargeted orders may use normal
+exploration. Gathering uses the existing tool pickup, whole-load capacity,
+inventory, tool-wear and ecology transitions. Only a returned physical harvest
+receipt advances progress. One load is the default; explicit quantities count
+actual output, including a final whole load that exceeds the requested amount.
+Discovery, tool collection and movement never count as harvested goods.
+Only the observed resource site joins map memory; walking there adds no facts,
+so the journey cannot fill the agent's bounded ledger before arrival.
 
 `Move to tile (12, 4)`, `Go to (12, 4)` and `Travel to (12, 4)` create a
 `move_to` order with a saved `TargetPosition` and one arrival. The common
@@ -131,7 +142,7 @@ separate from the strict MustDo grammar.
 
 Recognized MustDo instructions complete only when their requested legal action
 actually progresses. Default gathering counts one harvest; explicit quantities
-count food acquired or consumed. Food-source travel finishes on arrival within
+count goods acquired or food consumed. Food-source travel finishes on arrival within
 interaction range of the requested food site; exact-tile travel requires the
 tile itself. Counted travel is refused.
 An unrelated action, blocked movement or unavailable food leaves the instruction
@@ -466,6 +477,11 @@ Copying needs the source, learned facts and new writing materials; sharing
 does not create another physical copy. Barter transfers the existing lot and
 teaches its recipient, without granting access to unrelated knowledge or
 anyone else's private stock.
+
+Outward scouting checks occupied destinations and both diagonal corner tiles
+before ranking neighboring exits. If no legal outward exit remains, the scout
+uses the existing return path instead of repeatedly targeting a blocked corner.
+Only completed movement adds a visited tile.
 
 If intervening legal movement interrupts outward scouting, a new outward path
 starts at the actual position without inventing missing steps. On the return
@@ -838,6 +854,13 @@ implements all-adult and representative councils from recorded living adult
 residents, independently of geometry and household affiliation. A separate
 `SettlementCouncil` remains the household-food steward prototype.
 
+Household food-policy ballots last 120 ticks and can pass through their saved
+`ExpiryTick`, inclusive, with a strict majority of the remaining eligible
+electorate. After that tick, resolution closes the ballot without changing the
+food policy, even if a death reduces the number of approvals needed. Resolution
+records its tick and adopted or rejected event, then clears the pending ballot;
+save/load preserves the original deadline and votes.
+
 The civic engine keeps final proposal votes, continuing candidate agreements,
 opening voter/candidate lists, latest election ballots, cutoff runoffs, settled
 seats, fair draw order, ten-day terms and retry snapshots. A failed election may
@@ -1063,7 +1086,10 @@ household planning and ownership rules, with 1×1 and 1×2 footprints.
 Harvests remain household-owned lots on their actual field tile. An adult
 carries a load of at most four raw crops or planting items to the household's Farmhouse or Silo.
 Each holds a provisional 96 items, counting deliveries already on their way;
-pickup and delivery both check remaining space. Grain prefers the Farmhouse,
+pickup and delivery both check remaining space. Source selection checks the
+adult's route to each pile or vessel and the route from there to farm storage;
+an earlier blocked source does not hide later reachable stock. The same checks
+run again when the hauling action executes. Grain prefers the Farmhouse,
 while other farm stock prefers the Silo. Ready-to-eat greens and fruit go to
 the household's House. Neither stock nor ownership moves
 remotely.
@@ -1137,7 +1163,10 @@ a home.
 provides three permanent-resident places per footprint tile, or four per tile
 when one explicitly recorded domestic family unit has at least two residents
 and a strict majority of the House's residents. The unit is saved separately
-from ancestry; traveling residents and infants count, dead people and invited
+from ancestry. A partnership changes these units only when it is accepted or
+when an accepted partnership ends. Withdrawing, refusing or expiring an
+unaccepted proposal leaves each person's existing unit and the resulting
+House limit alone. Traveling residents and infants count, dead people and invited
 storm guests do not. Joining a household is offered only when the proposed
 resident fits after their arrival is counted. The server checks again after
 unanimous admission, and Add Agent checks the selected household property
@@ -1380,6 +1409,10 @@ New proposals for Shelters, Storehouses, Cooking fires and Stone hearths are
 retired. Existing buildings, projects and recorded proposals remain for old-world
 compatibility. Approved owner building designs stay active but are not household
 kinds, so agents do not plan them; they wait for shared buildings. House fires supply heat. General invention is later Workshop work.
+Fire-tending selects an unlit hearth the adult can reach, using the same
+household access and interaction distance as movement. Selection is repeated
+when tending begins, so changed occupancy can redirect the adult to another
+hearth or leave warmth-seeking available. Fuel is consumed only at the hearth.
 
 Clothing comes from a household's Tailor Shop (`clankerworld-tailor-v1`), which
 replaced the Weaving frame and its "Woven clothing" recipe outright. The shop
@@ -1535,6 +1568,14 @@ seed with a reserved planting unit. An adult carries that seed to legal free
 land and plants a sapling; tree growth, fruiting and the reserve survive reload.
 Ordinary wood-tree seeds remain distinct.
 
+Urgent food recovery first sets down ordinary spare cargo. If that cannot free
+enough carrying room, it may also select the actor's own orchard propagation
+seeds. Their selected planting reservations are released in the same inventory
+transition that stores the seeds with the household, after reaching the House
+or camp pile. Walking, an unavailable destination or a refused transfer does
+not release them. Other reservations, delivery loads and borrowed goods remain
+protected; crafting does not use this exception.
+
 The Godot map draws worked soil and crop growth above the terrain, including
 wrapped map edges; the overview marks field tiles. Fields join the household
 property display, and inspection shows the household, stage, crop, worker and
@@ -1587,16 +1628,28 @@ Road tiles, the building's entrance and new bridges are then committed together
 in the same tick, and the border grows around the new Road tiles on both banks.
 If there is no legal side street, nothing changes and a `town_road_unconnected`
 event records the reason (`no_entrance`, `route_unavailable` or
-`redundant_crossing`). A bridge with Road at both ends joins its two streets,
-so the run-on rule does not treat either end as a dead end.
+`redundant_crossing`). A bridge with Road at both ends counts as a link between
+them when finding street ends. If that bridge is an end's only link, its
+canonical entrance order supplies the outward heading for the run-on. This
+keeps the street heading away from the river across the east/west world seam,
+including on narrow wrapped maps. The same clearance and three-tile frontage
+checks apply.
 
 **Same connected banks.** Two crossings join the same banks only when they
 cross the same river, joined through its water, and each end of one reaches an
 opposite end of the other by walking along that water's shore without crossing
-it. A tributary mouth or a separate stream breaks the shore, so a bridge over a
+it. Each shore step obeys the ordinary foot-movement rules: impassable Peaks
+break the connection, while walkable Mountain terrain does not. A tributary
+mouth or a separate stream breaks the shore, so a bridge over a
 different nearby stream never blocks another. There is no distance limit; the
 comparison examines at most 4,096 river tiles and, if that runs out, does not
-treat the banks as the same. Along one unbranched stretch of river this allows
+treat the banks as the same. It first checks the shore beside the connecting
+water path. If that is incomplete because the river widens, it follows the
+water between the crossing spans to include the wider shore, staying within
+eight tiles of the connecting water. The spans and that reach stop the
+expansion from going around distant headwaters and joining separate
+tributaries; a locally proven connection needs no whole-river search.
+Along one unbranched stretch of river this allows
 one bridge, however long the stretch. A new crossing over the same banks as an
 existing bridge is not built; a Road uses the existing bridge instead, and one
 route never builds two bridges over the same banks.
@@ -1908,6 +1961,16 @@ skill name so older clients can still display it; new code calls it `Skill`.
 This is separate from the saved lesson record, which now stores a skill.
 
 ## World-list requests
+
+The private host can retain an untouched, nongenerated bootstrap checkpoint
+before the player creates a world. Its founder observation reports
+`requiresWorldCreation`; this is derived from the saved state, independent of
+whether the response includes cached terrain. Continue and Load World route
+that observation into the ordinary New World screen before entering play or
+resuming time. Preview selection, explicit acceptance of missed coverage
+targets and signed creation remain the only way through that screen. The
+redirect neither replaces the checkpoint nor removes its catalog entry, and
+founders or authored progress prevent it.
 
 The manual Save World and Load Save dialog owns one list read per opening.
 Closing it, creating, overwriting or deleting a save, or starting another opening

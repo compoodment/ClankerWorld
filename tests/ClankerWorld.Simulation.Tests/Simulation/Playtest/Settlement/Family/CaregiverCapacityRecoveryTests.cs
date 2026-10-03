@@ -157,6 +157,36 @@ public sealed class CaregiverCapacityRecoveryTests
         await FoodCapacityTestFixture.AssertReplay(world, actor, "care:", "make_room_for_food");
     }
 
+    [Fact]
+    public async Task AFedCaregiverStoresOrdinaryCargoAndKeepsOrchardSeedsReserved()
+    {
+        var (state, actor, child, sourceId) = await Family(false, 8, 9_000);
+        var inventory = state.Society.Society.Inventory;
+        var sourceQuantity = inventory.GetLot(sourceId).Quantity;
+        inventory = inventory with
+        {
+            Lots = inventory.Lots.Select(lot => lot.Id == Cargo ? lot with { Quantity = 1 } : lot).ToArray(),
+        };
+        inventory = InventoryFixture.AddLot(inventory, "care-orchard-seeds", "orchard_seed", actor, 7);
+        inventory = InventoryFixture.Reserve(inventory, "orchard-replant:care-orchard-seeds", actor,
+            "care-orchard-seeds", 7, "orchard_replanting", long.MaxValue);
+        var claim = inventory.GetReservation("orchard-replant:care-orchard-seeds");
+        var choices = new FoodCapacityTestFixture.Choices("care:", "make_room_for_food");
+        using var world = FoodCapacityTestFixture.Restore(FoodCapacityTestFixture.WithInventory(state, inventory), actor, choices);
+        for (var tick = 0; tick < 40 && !world.ExportState().Events.Any(item => item.Kind == "child_cared_for" && item.Detail == child); tick++)
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+
+        Assert.Contains(world.ExportState().Events, item => item.Kind == "child_cared_for" && item.Detail == child);
+        Assert.Single(world.ExportState().Events, item => item.Kind == "spare_cargo_stored" &&
+            item.Detail == $"{actor}:stone:1:{FoodCapacityTestFixture.House}");
+        Assert.Equal(claim, world.Society.Inventory.GetReservation(claim.Id));
+        Assert.Equal(7, world.Society.Inventory.GetLot("care-orchard-seeds").Quantity);
+        Assert.True(PersonalEquipmentRules.IsCarried(world.Society.Inventory.GetLot("care-orchard-seeds"), actor));
+        Assert.Equal(sourceQuantity - 1, world.Society.Inventory.GetLot(sourceId).Quantity);
+        Assert.True(world.Inhabitants.Single(person => person.InhabitantId == actor).HungerBasisPoints > 7_000);
+        await FoodCapacityTestFixture.AssertReplay(world, actor, "care:", "make_room_for_food");
+    }
+
     private static async Task<(PrivateWorldRuntimeState State, string Actor, string Child, string SourceId)> Family(
         bool inPot, int carried, int parentFullness)
     {

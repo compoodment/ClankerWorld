@@ -1,0 +1,1 @@
+- Continue on a fresh server now opens New World instead of the retired test camp. Choose and preview the map normally before placing the first Town; existing worlds with progress remain available.

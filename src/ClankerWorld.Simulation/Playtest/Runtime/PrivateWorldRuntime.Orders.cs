@@ -17,6 +17,9 @@ public sealed partial class PrivateWorldRuntime
         if (order.TargetPosition is { } requestedPosition && !map.Contains(requestedPosition))
             return null;
 
+        if (order.Action == "gather_material")
+            return MaterialOrderCandidateFor(instruction, person);
+
         if (order.Action == "move_to" && order.TargetPosition is { } destination)
             return !MovementOrderNeedsHouseInvitation(instruction.TargetInhabitantId, destination) &&
                 (person.Position == destination ||
@@ -157,6 +160,10 @@ public sealed partial class PrivateWorldRuntime
         }
         switch (candidate.Id)
         {
+            case "gather_material":
+            case "inspect_material_site":
+                ExecuteMaterialOrderStep(instruction, person, candidate.Id);
+                return;
             case "move_to" when order.Action == "move_to" && order.TargetPosition is { } destination:
                 MoveToward(actor, person, destination, "owner_order_move");
                 // Only the tile reached joins the agent's small map memory. Recording
@@ -287,6 +294,9 @@ public sealed partial class PrivateWorldRuntime
 
     private string OrderBlockedReason(OwnerQueuedInstruction instruction, PlaytestInhabitantState person)
     {
+        if (instruction.Order?.Action == "gather_material")
+            return MaterialOrderBlockedReason(instruction, person);
+
         if (instruction.Order?.Action == "move_to")
             return instruction.Order.TargetPosition is not { } destination || !map.Contains(destination)
                 ? "The requested tile is outside this world."
