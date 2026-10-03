@@ -113,8 +113,9 @@ eligibility. `StorePersonalGoods` serves both ordinary choices and orders: it
 walks to the House entrance, then uses `InventoryFixture.Relocate` to preserve
 ownership, condition and provenance. Reserved goods, promised deliveries,
 container contents, food and selected equipment are excluded. Only a committed
-relocation receipt advances the order; walking and survival actions earn no
-storage progress. Default tasks count one stored lot, while explicit quantities
+relocation receipt advances the order; its identity is hashed to a fixed length
+because split inventory identifiers can grow. Walking and survival actions earn
+no storage progress. Default tasks count one stored lot, while explicit quantities
 limit the final relocation to the remaining amount. Repetition keeps waiting
 for further personal material or space until cancelled. The destination is the
 agent's current household House; named foreign buildings and map coordinates

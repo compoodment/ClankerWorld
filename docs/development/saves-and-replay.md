@@ -111,7 +111,8 @@ preserved unchanged; no migration is added.
 Private-world schema 54 adds `store_material` orders using the same bounded
 material target. The destination is the current household House, so source,
 food and coordinate target fields are refused. Progress counts storage loads
-or exact item quantities and requires a committed personal-relocation receipt.
+or exact item quantities and requires a committed personal-relocation receipt
+with a fixed-length identity, even when the inventory lot identifier is long.
 Replay preserves partial storage, queued work and cancellation without moving
 goods again. Older alpha saves are refused and preserved without migration.
 This number is provisional until merge and must remain above the material-order

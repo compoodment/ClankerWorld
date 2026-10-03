@@ -279,6 +279,26 @@ public sealed class PrivateWorldStorageOrderTests
     }
 
     [Fact]
+    public async Task StorageOrderKeepsItsReceiptBoundedForLongInventoryLotIds()
+    {
+        var state = Prepared();
+        var actor = Actor(state);
+        // Inventory split identities can grow through successive physical moves.
+        var lotId = "storage-split-" + new string('x', 600);
+        state = WithInventory(state, InventoryFixture.AddLot(state.Society.Society.Inventory, lotId, "wood", actor, 2));
+        using var world = Restore(state);
+        var receipt = Submit(world, actor, "long-lot", "store wood");
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal("finished", Order(world, receipt).Status);
+        Assert.InRange(Order(world, receipt).LastEffectId!.Length, 1, 512);
+        var saved = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var restored = Restore(PrivateWorldRuntimeCodec.Decode(saved));
+        Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+        Assert.Equal((actor, House, 2), (restored.Society.Inventory.GetLot(lotId).OwnerId,
+            restored.Society.Inventory.GetLot(lotId).StorageBuildingId, restored.Society.Inventory.GetLot(lotId).Quantity));
+    }
+
+    [Fact]
     public async Task StorageOrderRejectsFinishedProgressBeyondTheExactRequestedQuantity()
     {
         var state = Prepared();

@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Harness;
 
@@ -30,8 +32,12 @@ public sealed partial class PrivateWorldRuntime
         var remaining = order.QuantityIsExplicit && !order.RepeatUntilCancelled
             ? order.RequestedUnits - order.CompletedUnits : int.MaxValue;
         if (StorePersonalGoods(instruction.TargetInhabitantId, lotId, remaining) is { } effect)
-            CreditOrderEffect(instruction, "store:" + effect.MoveId,
+        {
+            // Split inventory identities can grow; keep the saved receipt bounded.
+            var receipt = "store:personal:" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(effect.MoveId)));
+            CreditOrderEffect(instruction, receipt,
                 order.ProgressUnit == "storage_loads" ? 1 : effect.Quantity);
+        }
     }
 
     private string StorageOrderBlockedReason(OwnerQueuedInstruction instruction, PlaytestInhabitantState person)
