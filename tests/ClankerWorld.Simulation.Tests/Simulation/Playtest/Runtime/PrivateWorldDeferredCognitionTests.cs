@@ -124,6 +124,8 @@ public sealed class PrivateWorldDeferredCognitionTests
 
         Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
         _ = await AdvanceUntilAcceptedAsync(world, NameTargetId);
+        // Retained work is refreshed on the tick after the first reply is admitted.
+        Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
         await provider.SecondFailed.Task.WaitAsync(TimeSpan.FromSeconds(3));
         await Task.Delay(100);
         _ = await AdvanceUntilAcceptedAsync(world, NameTargetId);
@@ -239,6 +241,7 @@ public sealed class PrivateWorldDeferredCognitionTests
 
         Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
         _ = await AdvanceUntilAcceptedAsync(world, NameTargetId);
+        Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
         await provider.SecondStarted.Task.WaitAsync(TimeSpan.FromSeconds(3));
         Assert.True(provider.SecondObservation!.IsNameRetry);
         var completedBeforeCancellation = world.ExportState().Events.Count(item =>
@@ -281,6 +284,7 @@ public sealed class PrivateWorldDeferredCognitionTests
         world.StartWorld();
         await world.AdvanceOneTickNonBlockingAsync();
         _ = await AdvanceUntilAcceptedAsync(world, NameTargetId);
+        Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
         await provider.SecondStarted.Task.WaitAsync(TimeSpan.FromSeconds(3));
         world.Pause();
         var saved = world.ExportState();

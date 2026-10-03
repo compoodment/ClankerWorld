@@ -169,16 +169,18 @@ public sealed class SocietyWorldRuntime : IDisposable
 
     public ValueTask<SocietyDispatchCycleResult> DispatchDeterministicCognitionAsync(
         CancellationToken cancellationToken = default) =>
-        DispatchDeterministicCognitionAsync(null, cancellationToken);
+        DispatchDeterministicCognitionAsync(null, null, cancellationToken);
 
     internal async ValueTask<SocietyDispatchCycleResult> DispatchDeterministicCognitionAsync(
-        IReadOnlySet<string>? excludedInhabitantIds, CancellationToken cancellationToken)
+        IReadOnlySet<string>? excludedInhabitantIds, Func<InhabitantObservation, bool>? observationIsCurrent,
+        CancellationToken cancellationToken)
     {
         await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             return new SocietyDispatchCycleResult(society,
-                await cognition.DispatchDeterministicAsync(excludedInhabitantIds, cancellationToken).ConfigureAwait(false));
+                await cognition.DispatchDeterministicAsync(excludedInhabitantIds, observationIsCurrent,
+                    cancellationToken).ConfigureAwait(false));
         }
         finally
         {
@@ -186,10 +188,14 @@ public sealed class SocietyWorldRuntime : IDisposable
         }
     }
 
-    public IReadOnlyList<SocietyDeferredCognitionRequest> PreviewHostedRequests(IReadOnlySet<string> excludedIds)
+    public IReadOnlyList<SocietyDeferredCognitionRequest> PreviewHostedRequests(IReadOnlySet<string> excludedIds) =>
+        PreviewHostedRequests(excludedIds, null);
+
+    internal IReadOnlyList<SocietyDeferredCognitionRequest> PreviewHostedRequests(
+        IReadOnlySet<string> excludedIds, Func<InhabitantObservation, bool>? observationIsCurrent)
     {
         gate.Wait();
-        try { return cognition.PreviewHostedRequests(excludedIds); }
+        try { return cognition.PreviewHostedRequests(excludedIds, observationIsCurrent); }
         finally { gate.Release(); }
     }
 

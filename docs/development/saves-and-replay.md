@@ -2,7 +2,7 @@
 title: Saves and replay
 type: persistence-reference
 status: active
-updated: 2026-10-02
+updated: 2026-10-03
 ---
 
 # Saves and replay
@@ -226,6 +226,12 @@ requires normal acceptance, which counts against the invitee's daily allowance.
 Conversation records use private-world schema 35, following schema 34's fields
 and ground harvest lots. No migration for older alpha saves is added solely to preserve
 compatibility.
+
+Routine history compaction validates the compacted checkpoint without applying
+load transitions. It preserves the live conversation cursor, consent and pending
+turn admission identity. Resume with compaction likewise keeps the conversation's
+existing pause state; only an actual load suspends it as restored and clears
+previous resume choices. A failed checkpoint write leaves the live state unchanged.
 
 Private-world schema 40 saves each inhabitant's explicit domestic family unit
 and primary caregiver, plus the caregiver, intended home and actual birth home

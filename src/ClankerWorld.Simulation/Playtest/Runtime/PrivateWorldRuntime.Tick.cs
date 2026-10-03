@@ -252,7 +252,9 @@ public sealed partial class PrivateWorldRuntime
         var excluded = pendingHosted.Keys.Concat(pendingIdentityMoments.Keys).Concat(completedIds)
             .Concat(inhabitants.Keys.Where(id => IsConversationBusy(id) && !ShouldDispatchConversationChoice(id)))
             .ToHashSet(StringComparer.Ordinal);
-        foreach (var preview in society.PreviewHostedRequests(excluded).Take(capacity))
+        // A turn or another participant's decision can change the conversation
+        // after this tick's observation was queued. Defer it before batching.
+        foreach (var preview in society.PreviewHostedRequests(excluded, IsQueuedObservationReady).Take(capacity))
         {
             var cancellation = new CancellationTokenSource();
             var task = Task.Run(async () =>
@@ -275,6 +277,14 @@ public sealed partial class PrivateWorldRuntime
             AppendEvent("hosted_decision_started", preview.InhabitantId);
         }
     }
+
+    private bool IsQueuedObservationReady(InhabitantObservation observation) =>
+        // A completed order may still need its exact original message acknowledged;
+        // applying that reply cannot execute the finished action again.
+        IsFinishedOrderDecisionAwaitingReply(observation) ||
+        observation.WorldTick == WorldTick &&
+        string.Equals(observation.ConversationChoiceContext,
+            ConversationChoiceContextFor(observation.InhabitantId), StringComparison.Ordinal);
 
     private void CancelPendingHosted(string inhabitantId, bool underRuntimeGate = true)
     {
@@ -592,7 +602,7 @@ public sealed partial class PrivateWorldRuntime
                 ? await society.DispatchDeterministicCognitionAsync(
                     activeHostedIds.Concat(inhabitants.Keys.Where(id =>
                             IsConversationBusy(id) && !ShouldDispatchConversationChoice(id)))
-                        .ToHashSet(StringComparer.Ordinal), cancellationToken).ConfigureAwait(false)
+                        .ToHashSet(StringComparer.Ordinal), IsQueuedObservationReady, cancellationToken).ConfigureAwait(false)
                 : await society.DispatchCognitionAsync(cancellationToken).ConfigureAwait(false);
             var decisions = deferredDecisions.Concat(dispatch.Decisions)
                 .OrderBy(item => item.InhabitantId, StringComparer.Ordinal).ToArray();

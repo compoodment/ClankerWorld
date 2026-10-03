@@ -131,7 +131,9 @@ When a hosted decision is still running, a newly queued choice or observer
 message remains pending after its older reply is accepted. The next prepared
 tick refreshes that work against the resulting world before another request
 starts. Ordinary planning waits while the agent is busy talking; pending work
-remains available after the conversation. Ordinary changes to the clock or need values do
+remains available after the conversation. It also waits for a life-event
+identity reply, then uses the accepted identity in its refreshed observation.
+Ordinary changes to the clock or need values do
 not by themselves request another paid decision; the existing decision-context
 rules still decide when the situation has changed. Pending observations survive
 save/load and are refreshed for the resumed world before dispatch. The usual

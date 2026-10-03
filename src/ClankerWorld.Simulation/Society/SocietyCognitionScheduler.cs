@@ -202,20 +202,27 @@ public sealed class SocietyCognitionScheduler
 
     public ValueTask<IReadOnlyList<SocietyCognitionDispatchResult>> DispatchDeterministicAsync(
         CancellationToken cancellationToken = default) =>
-        DispatchDeterministicAsync(null, cancellationToken);
+        DispatchDeterministicAsync(null, null, cancellationToken);
 
     internal ValueTask<IReadOnlyList<SocietyCognitionDispatchResult>> DispatchDeterministicAsync(
-        IReadOnlySet<string>? excludedInhabitantIds, CancellationToken cancellationToken) =>
+        IReadOnlySet<string>? excludedInhabitantIds, Func<InhabitantObservation, bool>? observationIsCurrent,
+        CancellationToken cancellationToken) =>
         DispatchEligibleAsync(entry => excludedInhabitantIds?.Contains(entry.InhabitantId) != true &&
+            (observationIsCurrent?.Invoke(entry.Observation) ?? true) &&
             runtimes[entry.InhabitantId].ProviderKindFor(entry.Observation) ==
             DecisionProviderKind.Deterministic, cancellationToken);
 
     public IReadOnlyList<SocietyDeferredCognitionRequest> PreviewHostedRequests(
-        IReadOnlySet<string> excludedInhabitantIds)
+        IReadOnlySet<string> excludedInhabitantIds) =>
+        PreviewHostedRequests(excludedInhabitantIds, null);
+
+    internal IReadOnlyList<SocietyDeferredCognitionRequest> PreviewHostedRequests(
+        IReadOnlySet<string> excludedInhabitantIds, Func<InhabitantObservation, bool>? observationIsCurrent)
     {
         ArgumentNullException.ThrowIfNull(excludedInhabitantIds);
         var selected = OrderedQueue()
             .Where(entry => !excludedInhabitantIds.Contains(entry.InhabitantId) &&
+                (observationIsCurrent?.Invoke(entry.Observation) ?? true) &&
                 runtimes[entry.InhabitantId].ProviderKindFor(ObservationFor(entry)) != DecisionProviderKind.Deterministic)
             .Take(maxDispatchPerCycle)
             .ToArray();
