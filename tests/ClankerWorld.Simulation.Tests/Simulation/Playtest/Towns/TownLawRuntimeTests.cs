@@ -70,6 +70,13 @@ public sealed class TownLawRuntimeTests
     [InlineData("missingDraft")]
     [InlineData("unsupportedArrangement")]
     [InlineData("missingGovernment")]
+    [InlineData("changedRule")]
+    [InlineData("changedDraft")]
+    [InlineData("missingPendingDraft")]
+    [InlineData("pendingSiteTile")]
+    [InlineData("nullLaw")]
+    [InlineData("nullVersion")]
+    [InlineData("nullDraft")]
     public void DamagedLawRecordsAreRefused(string damage)
     {
         using var world = NormalPathWorld.CreateGenerated("town-law-damage", _ => new ActionCoverageRecorder(chooseIdle: true));
@@ -82,6 +89,8 @@ public sealed class TownLawRuntimeTests
             TownLawRules.Site, site, ids, 0, day);
         foreach (var voter in ids.Take(3)) council = TownGovernanceRules.VoteProposal(council, council.Proposals[0].Id, voter, true, 0);
         (council, government) = TownLawRules.Enact(council, government, town.Id, town.Name, 0);
+        (council, government) = TownLawRules.ProposeAdoption(council, government, town.Id, ids[0], "Paths: Leave the path clear.",
+            TownLawRules.Site, site, ids, 0, day);
         var healthy = state with { Towns = [town with { Governance = council, Government = government }] };
         var encoded = PrivateWorldRuntimeCodec.Encode(healthy);
         using (var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(encoded)))
@@ -97,8 +106,56 @@ public sealed class TownLawRuntimeTests
             case "missingDraft": savedGovernment["lawDrafts"] = new JsonArray(); break;
             case "unsupportedArrangement": savedGovernment["arrangement"]!["ordinary"] = "king"; break;
             case "missingGovernment": saved.AsObject().Remove("government"); break;
+            case "changedRule": savedGovernment["laws"]![0]!["versions"]![0]!["rule"] = "Cut every tree."; break;
+            case "changedDraft": savedGovernment["lawDrafts"]![0]!["rule"] = "Cut every tree."; break;
+            case "missingPendingDraft": savedGovernment["lawDrafts"]!.AsArray().RemoveAt(1); break;
+            case "pendingSiteTile": savedGovernment["lawDrafts"]![1]!["siteTiles"]![0]!["x"] = -1; break;
+            case "nullLaw": savedGovernment["laws"]!.AsArray().Add(null); break;
+            case "nullVersion": savedGovernment["laws"]![0]!["versions"]!.AsArray().Add(null); break;
+            case "nullDraft": savedGovernment["lawDrafts"]!.AsArray().Add(null); break;
         }
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Decode(Encoding.UTF8.GetBytes(document.ToJsonString())));
+    }
+
+    [Fact]
+    public void OlderActiveLawsRemainOfferedAndDelayedChangesCannotRetargetANewerVersion()
+    {
+        using var generated = NormalPathWorld.CreateGenerated("law-version-bound-actions", _ => new ActionCoverageRecorder(chooseIdle: true));
+        var initial = generated.ExportState();
+        var town = initial.Towns![0];
+        var day = initial.WorldSystems!.Config.TicksPerDay;
+        var adults = town.ResidentIds;
+        var council = town.Governance!;
+        var government = town.Government!;
+        for (var i = 0; i < 8; i++)
+        {
+            (council, government) = TownLawRules.ProposeAdoption(council, government, town.Id, adults[0],
+                $"Rule {i}: Share work {i}.", TownLawRules.ResidentDuty, [], adults, 0, day);
+            foreach (var voter in adults.Take(3)) council = TownGovernanceRules.VoteProposal(council, council.Proposals[^1].Id, voter, true, 0);
+            (council, government) = TownLawRules.Enact(council, government, town.Id, town.Name, 0);
+        }
+        council = TownGovernanceRules.LearnNotices(council, adults[0], council.Notices.Select(n => n.Id), 0);
+        town = town with { Governance = council, Government = government };
+        using var world = PrivateWorldRuntime.Restore(initial with { Towns = [town] });
+        var candidates = new List<CognitionCandidate>();
+        typeof(PrivateWorldRuntime).GetMethod("AddTownLawCandidates", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+            .Invoke(world, [candidates, adults[0], town]);
+        Assert.Equal(8, candidates.Count(c => c.Id.Contains("|amend|", StringComparison.Ordinal)));
+        var first = government.Laws[0];
+        var stale = candidates.Single(c => c.Id.Contains("|repeal|" + first.Id + "|", StringComparison.Ordinal)).Id;
+        Assert.EndsWith("|1", stale, StringComparison.Ordinal);
+        (council, government) = TownLawRules.ProposeAmendment(council, government, town.Id, adults[1], first.Id,
+            "Rule zero: Share the agreed work.", adults, 0, day);
+        foreach (var voter in adults.Take(3)) council = TownGovernanceRules.VoteProposal(council, council.Proposals[^1].Id, voter, true, 0);
+        (council, government) = TownLawRules.Enact(council, government, town.Id, town.Name, 0);
+        Assert.Throws<InvalidOperationException>(() => TownLawRules.ProposeRepeal(council, government, town.Id, adults[0], first.Id, adults, 0, day, expectedVersion: 1));
+        // Even after learning the new wording, an earlier delayed action cannot become consent to repeal it.
+        council = TownGovernanceRules.LearnNotices(council, adults[0], council.Notices.Select(n => n.Id), 0);
+        using var updated = PrivateWorldRuntime.Restore(initial with { Towns = [town with { Governance = council, Government = government }] });
+        var before = PrivateWorldRuntimeCodec.Encode(updated.ExportState());
+        typeof(PrivateWorldRuntime).GetMethod("ApplyTownCivicCandidate", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+            .Invoke(updated, [adults[0], stale, null, null]);
+        Assert.Equal(before, PrivateWorldRuntimeCodec.Encode(updated.ExportState()));
     }
 
     private sealed class LawProvider(string actor) : IDecisionProvider

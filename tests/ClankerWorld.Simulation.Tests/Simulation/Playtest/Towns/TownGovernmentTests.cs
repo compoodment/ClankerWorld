@@ -1,5 +1,6 @@
 using System.Text.Json;
 using ClankerWorld.Simulation.Playtest;
+using ClankerWorld.Simulation.Society;
 
 namespace ClankerWorld.Simulation.Tests;
 
@@ -11,6 +12,7 @@ public sealed class TownGovernmentTests
 
     private sealed class Town(params string[] adults)
     {
+        private readonly HashSet<string> known = new(adults.Length == 0 ? ["a", "b", "c", "d"] : adults, StringComparer.Ordinal);
         public string Id { get; init; } = "town:test";
         public string[] Adults { get; set; } = adults.Length == 0 ? ["a", "b", "c", "d"] : adults;
         public TownGovernanceState Council { get; set; } = TownGovernanceState.Create(adults.Length == 0 ? ["a", "b", "c", "d"] : adults);
@@ -20,6 +22,11 @@ public sealed class TownGovernmentTests
         {
             Tick = tick;
             (Council, Government) = TownGovernmentRules.Advance(Council, Government, Id, "Test Town", "seed", Adults, tick, Day);
+            known.UnionWith(Adults);
+            var society = SocietyFixture.CreateGenesis("government-validation", known.Select(id => SocietyFixture.CreateFounder(id, id))) with { WorldTick = tick };
+            var town = new TownRuntimeState(Id, "Test Town", "founded", 0, Adults, [], [], Governance: Council, Government: Government);
+            TownGovernanceValidation.Validate(town, society, Day);
+            TownGovernmentValidation.Validate(town, society, [], Day);
         }
         public string Propose(TownArrangement target, string actor = "a", bool replace = false)
         {

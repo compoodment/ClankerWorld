@@ -98,6 +98,13 @@ public sealed class TownLawTests
         var (_, government) = Adopt(Grove, TownLawRules.Site, [new(1, 0), new(0, 0)]);
         var version = government.Laws[0].Versions[0];
         Assert.Equal([new GridPoint(0, 0), new GridPoint(1, 0)], version.SiteTiles);
+        var (pendingCouncil, pendingGovernment) = Fresh();
+        (pendingCouncil, pendingGovernment) = TownLawRules.ProposeAdoption(pendingCouncil, pendingGovernment, Town, "a", Grove,
+            TownLawRules.Site, [new(1, 0), new(0, 0)], Adults, 0, Day);
+        var notice = pendingCouncil.Notices.Single(n => n.Kind == "proposal");
+        Assert.Contains("visitors included", notice.Text, StringComparison.Ordinal);
+        Assert.Contains("Site tiles: 0,0;1,0", notice.Text, StringComparison.Ordinal);
+        Assert.Contains(Grove, TownLawRules.VoteText(pendingGovernment.LawDrafts[0]), StringComparison.Ordinal);
         Assert.Single(TownLawRules.Applicable(government, Town, Titles, false, new(0, 0), 5));
         Assert.Empty(TownLawRules.Applicable(government, Town, Titles, false, new(2, 0), 5));
     }

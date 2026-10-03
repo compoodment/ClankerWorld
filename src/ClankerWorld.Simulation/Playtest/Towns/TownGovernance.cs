@@ -315,7 +315,7 @@ public static class TownGovernanceRules
 
     public static TownGovernanceState SubmitProposal(TownGovernanceState state, string townId, string actor,
         string kind, string? subject, string text, string circumstances, IEnumerable<string> adults, long tick, int day,
-        string? requestKey = null)
+        string? requestKey = null, string? noticeText = null)
     {
         if (kind is not ("law" or "admission") || text.Trim().Length is < 1 or > MaximumProposalText || text.Any(char.IsControl) ||
             kind == "law" && !Has(adults, actor) || kind == "admission" && actor != subject && !Has(adults, actor))
@@ -331,7 +331,7 @@ public static class TownGovernanceRules
         var proposal = new TownProposal(id, key, kind, actor, subject, text.Trim(), circumstances, state.Revision,
             tick, tick + day, state.Members.ToArray(), state.Form == "representative" ? 2 : state.Members.Count / 2 + 1, []);
         state = state with { Sequence = state.Sequence + 1, Proposals = state.Proposals.Append(proposal).ToArray() };
-        return Notice(state, "proposal", id, $"{kind} proposal by {actor}: {text.Trim()} " +
+        return Notice(state, "proposal", id, $"{kind} proposal by {actor}: {noticeText ?? text.Trim()} " +
             $"Needs {proposal.RequiredYes} yes votes by tick {proposal.DeadlineTick}. A cast vote is final.", tick);
     }
 

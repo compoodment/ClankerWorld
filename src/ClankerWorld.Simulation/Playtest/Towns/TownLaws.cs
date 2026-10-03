@@ -131,12 +131,14 @@ public static class TownLawRules
 
     public static (TownGovernanceState Council, TownGovernmentState Government) ProposeAmendment(
         TownGovernanceState council, TownGovernmentState government, string townId, string actor, string lawId,
-        string text, IEnumerable<string> adults, long tick, int day)
+        string text, IEnumerable<string> adults, long tick, int day, int? expectedVersion = null)
     {
         var law = government.Laws.SingleOrDefault(l => l.Id == lawId);
         if (law is null || !IsInForce(law) || !TryParse(text, out var subject, out var rule))
             throw new InvalidOperationException("An amendment must identify a law in force and give 'subject: rule' text.");
         var current = Current(law);
+        if (expectedVersion is { } expected && current.Version != expected)
+            throw new InvalidOperationException("The law changed after this amendment was chosen.");
         if (current.Subject == subject && current.Rule == rule)
             throw new InvalidOperationException("An amendment must change the law's wording.");
         var label = Bounded($"Amend law {Number(law.Id).ToString(CultureInfo.InvariantCulture)} to read: {Text(subject, rule)}");
@@ -147,12 +149,14 @@ public static class TownLawRules
 
     public static (TownGovernanceState Council, TownGovernmentState Government) ProposeRepeal(
         TownGovernanceState council, TownGovernmentState government, string townId, string actor, string lawId,
-        IEnumerable<string> adults, long tick, int day)
+        IEnumerable<string> adults, long tick, int day, int? expectedVersion = null)
     {
         var law = government.Laws.SingleOrDefault(l => l.Id == lawId);
         if (law is null || !IsInForce(law))
             throw new InvalidOperationException("A repeal must identify a law in force.");
         var current = Current(law);
+        if (expectedVersion is { } expected && current.Version != expected)
+            throw new InvalidOperationException("The law changed after this repeal was chosen.");
         var label = Bounded($"Repeal law {Number(law.Id).ToString(CultureInfo.InvariantCulture)}: {Text(current.Subject, current.Rule)}");
         var key = $"law_repeal:{law.Id}:{current.Version.ToString(CultureInfo.InvariantCulture)}";
         return Submit(council, government, townId, actor, label, key, adults, tick, day,
@@ -165,8 +169,9 @@ public static class TownLawRules
         IEnumerable<string> adults, long tick, int day, Func<string, TownLawDraft> draft)
     {
         var before = council.Proposals.Count;
+        var details = draft("");
         council = TownGovernanceRules.SubmitProposal(council, townId, actor, "law", null, text,
-            "council:" + council.Revision.ToString(CultureInfo.InvariantCulture), adults, tick, day, key);
+            "council:" + council.Revision.ToString(CultureInfo.InvariantCulture), adults, tick, day, key, VoteText(details));
         // An equivalent pending request merges into the open proposal and keeps its window.
         if (council.Proposals.Count == before) return (council, government);
         return (council, government with { LawDrafts = government.LawDrafts.Append(draft(council.Proposals[^1].Id)).ToArray() });
@@ -232,6 +237,29 @@ public static class TownLawRules
 
     private static TownGovernmentState Replace(TownGovernmentState government, TownLawDraft draft) =>
         government with { LawDrafts = government.LawDrafts.Select(d => d.ProposalId == draft.ProposalId ? draft : d).ToArray() };
+
+    /// <summary>The full content voters must see, including scope and the exact site; never truncate the voted rule.</summary>
+    public static string VoteText(TownLawDraft draft) =>
+        (draft.Action == "adopt" ? "Adopt law: " : draft.Action == "amend" ? $"Amend law {Number(draft.LawId!)} (version {draft.BaseVersion}) to: "
+            : $"Repeal law {Number(draft.LawId!)} (version {draft.BaseVersion}): ") + Text(draft.Subject, draft.Rule) +
+        ". Scope: " + ScopeLabel(draft.Scope, "this Town", draft.SiteTiles.Count) +
+        (draft.SiteTiles.Count > 0 ? ". Site tiles: " + SiteKey(draft.SiteTiles.ToArray()) : "") + ".";
+
+    internal static string ProposalText(TownLawDraft draft) => draft.Action switch
+    {
+        "adopt" => Text(draft.Subject, draft.Rule),
+        "amend" => Bounded($"Amend law {Number(draft.LawId!).ToString(CultureInfo.InvariantCulture)} to read: {Text(draft.Subject, draft.Rule)}"),
+        _ => Bounded($"Repeal law {Number(draft.LawId!).ToString(CultureInfo.InvariantCulture)}: {Text(draft.Subject, draft.Rule)}"),
+    };
+    internal static string RequestKey(TownLawDraft draft) => draft.Action switch
+    {
+        "adopt" => $"law:{draft.Scope}:{SiteKey(draft.SiteTiles.ToArray())}:{Normalize(Text(draft.Subject, draft.Rule))}",
+        "amend" => $"law_amend:{draft.LawId}:{draft.BaseVersion?.ToString(CultureInfo.InvariantCulture)}:{Normalize(Text(draft.Subject, draft.Rule))}",
+        _ => $"law_repeal:{draft.LawId}:{draft.BaseVersion?.ToString(CultureInfo.InvariantCulture)}",
+    };
+    internal static bool IsStructuredRequest(string key) =>
+        key.StartsWith("law_amend:", StringComparison.Ordinal) || key.StartsWith("law_repeal:", StringComparison.Ordinal) ||
+        new[] { Jurisdiction, Site, ResidentDuty }.Any(scope => key.StartsWith("law:" + scope + ":", StringComparison.Ordinal));
 
     private static string Normalize(string text) =>
         string.Join(' ', text.Split(' ', StringSplitOptions.RemoveEmptyEntries)).ToUpperInvariant();

@@ -78,9 +78,13 @@ public static class TownGovernmentValidation
                 !TownLawRules.TryParse(TownLawRules.Text(draft.Subject ?? "", draft.Rule ?? ""), out var subject, out var rule) ||
                 subject != draft.Subject || rule != draft.Rule || !TownLawRules.IsScope(draft.Scope) ||
                 draft.Scope == TownLawRules.Site != draft.SiteTiles.Count > 0 ||
+                !draft.SiteTiles.SequenceEqual(TownLandRightsRules.OrderTiles(draft.SiteTiles.Distinct())) ||
+                draft.SiteTiles.Any(tile => !TownLandRightsRules.IsCoveredByTownTitle(tile, town.Id, titles)) ||
                 draft.Action == "adopt" && (draft.BaseVersion is not null || (draft.LawId is null) != (draft.Status != "enacted")) ||
                 draft.Action != "adopt" && (law is null || draft.BaseVersion is not { } baseVersion ||
-                    baseVersion < 1 || baseVersion > law.Versions.Count) ||
+                    baseVersion < 1 || baseVersion > law.Versions.Count || draft.Scope != law.Versions[0].Scope ||
+                    !draft.SiteTiles.SequenceEqual(law.Versions[0].SiteTiles)) ||
+                proposal.Text != TownLawRules.ProposalText(draft) || proposal.RequestKey != TownLawRules.RequestKey(draft) ||
                 draft.Status switch
                 {
                     "pending" => proposal.Status != "pending",
@@ -88,13 +92,32 @@ public static class TownGovernmentValidation
                     "enacted" => proposal.Status != "passed" || !recorded.Contains(draft.ProposalId) ||
                         draft.LawId is null || state.Laws.SingleOrDefault(l => l.Id == draft.LawId) is not { } target ||
                         !target.Versions.Any(v => v.ProposalId == draft.ProposalId || v.EndedByProposalId == draft.ProposalId),
-                    "stale" => proposal.Status != "passed" || recorded.Contains(draft.ProposalId) || draft.Action == "adopt",
+                    "stale" => proposal.Status != "passed" || recorded.Contains(draft.ProposalId) || draft.Action == "adopt" ||
+                        law!.Versions[draft.BaseVersion!.Value - 1].EndedTick is not { } ended || ended > proposal.SettledTick,
                     _ => true,
                 })
                 throw new InvalidDataException("A Town's saved law proposal does not match its council vote.");
         }
         if (recorded.Any(id => !state.LawDrafts.Any(d => d.ProposalId == id && d.Status == "enacted")))
             throw new InvalidDataException("A Town law changed without a recorded passed law proposal.");
+        var drafts = state.LawDrafts.ToDictionary(d => d.ProposalId, StringComparer.Ordinal);
+        if (council.Proposals.Any(p => TownLawRules.IsStructuredRequest(p.RequestKey) && !drafts.ContainsKey(p.Id)))
+            throw new InvalidDataException("Every structured law proposal needs its full saved wording and scope.");
+        foreach (var law in state.Laws)
+            foreach (var version in law.Versions)
+            {
+                var source = drafts[version.ProposalId];
+                if (source.LawId != law.Id || source.Subject != version.Subject || source.Rule != version.Rule ||
+                    source.Scope != version.Scope || !source.SiteTiles.SequenceEqual(version.SiteTiles) ||
+                    (version.Version == 1 ? source.Action != "adopt" : source.Action != "amend" || source.BaseVersion != version.Version - 1))
+                    throw new InvalidDataException("A law version must match the exact wording and scope approved by its Council.");
+                if (version.EndedByProposalId is not { } endId) continue;
+                var ending = drafts[endId];
+                if (ending.LawId != law.Id || ending.BaseVersion != version.Version || ending.Action is not ("amend" or "repeal") ||
+                    ending.Action == "amend" && (version.Version >= law.Versions.Count || law.Versions[version.Version].ProposalId != endId) ||
+                    ending.Action == "repeal" && (version.Version != law.Versions.Count || ending.Subject != version.Subject || ending.Rule != version.Rule))
+                    throw new InvalidDataException("An ended law version needs the exact amendment or repeal of that version.");
+            }
     }
 
     internal static bool ValidId(string? id, string prefix, long sequence) =>

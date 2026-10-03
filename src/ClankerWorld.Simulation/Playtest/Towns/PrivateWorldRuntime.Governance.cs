@@ -163,12 +163,14 @@ public sealed partial class PrivateWorldRuntime
                 candidates.Add(new(CivicAction(town.Id, "admission"), $"Ask {town.Name}'s council to approve your admission. The request grants no membership or stock access.", 170));
             foreach (var proposal in state.Proposals.Where(p => p.Status == "pending" && history.Knows(actor, p.Id)))
             {
+                var draft = town.Government?.LawDrafts.SingleOrDefault(d => d.ProposalId == proposal.Id);
+                var voteText = draft is not null ? TownLawRules.VoteText(draft) : proposal.Text;
                 if (proposal.AuthorId == actor)
-                    candidates.Add(new(CivicAction(town.Id, "withdraw_proposal", proposal.Id), $"Withdraw your pending proposal: {proposal.Text}", 190));
+                    candidates.Add(new(CivicAction(town.Id, "withdraw_proposal", proposal.Id), $"Withdraw your pending proposal: {voteText}", 190));
                 if (!proposal.Voters.Contains(actor, StringComparer.Ordinal) || proposal.Votes.Any(v => v.AgentId == actor) ||
                     proposal.Kind == "admission" && proposal.SubjectId == actor) continue;
-                candidates.Add(new(CivicAction(town.Id, "yes", proposal.Id), $"Cast your final yes vote on {proposal.Text} in {town.Name}. {proposal.RequiredYes} yes votes required.", 165));
-                candidates.Add(new(CivicAction(town.Id, "no", proposal.Id), $"Cast your final no vote on {proposal.Text} in {town.Name}.", 166));
+                candidates.Add(new(CivicAction(town.Id, "yes", proposal.Id), $"Cast your final yes vote on {voteText} in {town.Name}. {proposal.RequiredYes} yes votes required.", 165));
+                candidates.Add(new(CivicAction(town.Id, "no", proposal.Id), $"Cast your final no vote on {voteText} in {town.Name}.", 166));
             }
             if (state.Election is { Stage: "main" or "runoff" } election && election.Voters.Contains(actor, StringComparer.Ordinal) &&
                 history.Knows(actor, election.Stage == "main" ? "election" : "runoff", election.Id))
@@ -242,7 +244,7 @@ public sealed partial class PrivateWorldRuntime
                 case "withdraw_candidate": state = TownGovernanceRules.WithdrawCandidate(state, actor, WorldTick); break;
                 case "propose" or "amend" or "repeal":
                     if (proposalText is null && parts[2] != "repeal") return;
-                    (state, government) = ApplyTownLawAction(town, actor, parts[2], parts[3], proposalText, state, government);
+                    (state, government) = ApplyTownLawAction(town, actor, parts[2], parts[3], parts[4], proposalText, state, government);
                     break;
                 case "admission":
                     state = TownGovernanceRules.SubmitProposal(state, town.Id, actor, "admission", actor,

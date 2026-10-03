@@ -6,8 +6,6 @@ namespace ClankerWorld.Simulation.Playtest;
 
 public sealed partial class PrivateWorldRuntime
 {
-    private const int MaximumOfferedLawChanges = 6;
-
     /// <summary>Advances one Town's council, then its laws, government changes and mayor's office, at the current tick.</summary>
     private (TownGovernanceState Council, TownGovernmentState Government) AdvanceCivic(TownRuntimeState town,
         TownGovernanceState council, TownGovernmentState government)
@@ -31,14 +29,14 @@ public sealed partial class PrivateWorldRuntime
         var history = CivicHistory(town);
         foreach (var law in town.Government?.Laws.Where(l => TownLawRules.IsInForce(l) && town.Governance!.Notices.LastOrDefault(n => n.SubjectId == l.Id) is { } latest &&
                 history.Known(actor).Contains(latest.Id))
-            .TakeLast(MaximumOfferedLawChanges) ?? [])
+            ?? [])
         {
             var number = TownLawRules.Number(law.Id).ToString(CultureInfo.InvariantCulture);
             var current = TownLawRules.Current(law);
-            candidates.Add(new(CivicAction(town.Id, "amend", law.Id),
+            candidates.Add(new(CivicAction(town.Id, "amend", law.Id, current.Version.ToString(CultureInfo.InvariantCulture)),
                 $"Propose amending {town.Name}'s law {number} ({current.Subject}); write the complete new wording in civic_proposal as 'subject: rule'. " +
                 "It keeps the law's scope, needs the council's votes and applies only from adoption.", 193));
-            candidates.Add(new(CivicAction(town.Id, "repeal", law.Id),
+            candidates.Add(new(CivicAction(town.Id, "repeal", law.Id, current.Version.ToString(CultureInfo.InvariantCulture)),
                 $"Propose repealing {town.Name}'s law {number} ({current.Subject}). It needs the council's votes; earlier conduct stays under the law.", 194));
         }
     }
@@ -58,9 +56,16 @@ public sealed partial class PrivateWorldRuntime
 
     /// <summary>Applies a structured law action already checked against the actor's current legal candidates.</summary>
     private (TownGovernanceState, TownGovernmentState) ApplyTownLawAction(TownRuntimeState town, string actor, string kind,
-        string target, string? text, TownGovernanceState council, TownGovernmentState government)
+        string target, string versionToken, string? text, TownGovernanceState council, TownGovernmentState government)
     {
         var adults = TownAdults(town);
+        int? expectedVersion = null;
+        if (kind is "amend" or "repeal")
+        {
+            if (!int.TryParse(versionToken, NumberStyles.None, CultureInfo.InvariantCulture, out var version) || version < 1)
+                throw new InvalidOperationException("A law change must identify the version that was chosen.");
+            expectedVersion = version;
+        }
         switch (kind)
         {
             case "propose":
@@ -70,9 +75,9 @@ public sealed partial class PrivateWorldRuntime
                 return TownLawRules.ProposeAdoption(council, government, town.Id, actor, text, scope, site, adults, WorldTick, CivicDay);
             case "amend":
                 if (text is null) throw new InvalidOperationException("An amendment needs civic_proposal text.");
-                return TownLawRules.ProposeAmendment(council, government, town.Id, actor, target, text, adults, WorldTick, CivicDay);
+                return TownLawRules.ProposeAmendment(council, government, town.Id, actor, target, text, adults, WorldTick, CivicDay, expectedVersion);
             case "repeal":
-                return TownLawRules.ProposeRepeal(council, government, town.Id, actor, target, adults, WorldTick, CivicDay);
+                return TownLawRules.ProposeRepeal(council, government, town.Id, actor, target, adults, WorldTick, CivicDay, expectedVersion);
             default:
                 throw new InvalidOperationException("Unknown Town law action.");
         }
