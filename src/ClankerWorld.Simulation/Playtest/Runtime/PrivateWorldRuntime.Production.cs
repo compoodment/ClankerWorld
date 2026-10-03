@@ -32,6 +32,8 @@ public sealed partial class PrivateWorldRuntime
             }))
             .Concat(inhabitants.Values.Where(person => person.InhabitantId != actor)
                 .Select(person => person.Position))
+            // A household builds only on land no other household holds or has asked for; Town buildings avoid it all.
+            .Concat(HouseholdLandHeldByOthers(building is not null && !building.Tags.Any(IsHouseholdBuildingTag) ? null : HouseholdFor(actor)))
             .ToHashSet();
         var resourcesForLayout = map.Resources.Select(resource => new TownLayoutResource(
             resource,

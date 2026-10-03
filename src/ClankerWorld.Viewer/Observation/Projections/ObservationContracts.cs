@@ -404,7 +404,10 @@ public sealed record ViewerHouseholdLandUseRight(string Id, string TownId, strin
 public sealed record ViewerHouseholdLandUseRequest(string Id, string TownId, string HouseholdId,
     string RequestedByAgentId, IReadOnlyList<ViewerPosition> Tiles, long RequestedTick,
     long? AgreedEndTick, bool IsDisputed, IReadOnlyList<string> ClaimantHouseholdIds,
-    IReadOnlyList<ViewerPosition> DisputedTiles);
+    IReadOnlyList<ViewerPosition> DisputedTiles)
+{
+    public string ApprovalDetail { get; init; } = "Awaiting approval";
+}
 
 public sealed record ViewerWeatherRegion(int X, int Y, string Weather, int? SoilMoisture = null);
 

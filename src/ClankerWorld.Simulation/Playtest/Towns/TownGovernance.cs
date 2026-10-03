@@ -317,15 +317,19 @@ public static class TownGovernanceRules
 
     public static TownGovernanceState SubmitProposal(TownGovernanceState state, string townId, string actor,
         string kind, string? subject, string text, string circumstances, IEnumerable<string> adults, long tick, int day,
-        string? requestKey = null, string? noticeText = null, IReadOnlyList<GridPoint>? landClaimTiles = null)
+        string? requestKey = null, string? noticeText = null, IReadOnlyList<GridPoint>? landClaimTiles = null,
+        HouseholdLandUseRequest? landUseRequest = null)
     {
-        if (kind is not ("law" or "admission" or "land_claim") || text.Trim().Length is < 1 or > MaximumProposalText || text.Any(char.IsControl) ||
-            kind is "law" or "land_claim" && !Has(adults, actor) || kind == "admission" && actor != subject && !Has(adults, actor) ||
+        if (kind is not ("law" or "admission" or "land_claim" or "land_use") || text.Trim().Length is < 1 or > MaximumProposalText || text.Any(char.IsControl) ||
+            kind is "law" or "land_claim" or "land_use" && !Has(adults, actor) || kind == "admission" && actor != subject && !Has(adults, actor) ||
+            kind == "land_use" && (landUseRequest is null || subject != landUseRequest.Id || townId != landUseRequest.TownId) ||
+            kind != "land_use" && landUseRequest is not null ||
             kind == "land_claim" && (landClaimTiles is not { Count: > 0 } || subject is not null) ||
             kind != "land_claim" && landClaimTiles is not null)
             throw new InvalidOperationException("Only an adult resident or the newcomer requesting admission may submit this proposal.");
         // Structured law proposals supply their own key so scope and the affected law decide equivalence.
-        var key = kind == "land_claim" ? TownLandClaimRules.RequestKey(landClaimTiles!) : requestKey ?? (kind == "admission" ? "admission:" + subject : "law:" + string.Join(' ', text.Split(' ', StringSplitOptions.RemoveEmptyEntries)).ToUpperInvariant());
+        var key = kind == "land_use" ? HouseholdLandGrantRules.RequestKey(landUseRequest!) :
+            kind == "land_claim" ? TownLandClaimRules.RequestKey(landClaimTiles!) : requestKey ?? (kind == "admission" ? "admission:" + subject : "law:" + string.Join(' ', text.Split(' ', StringSplitOptions.RemoveEmptyEntries)).ToUpperInvariant());
         if (state.Proposals.Any(p => p.RequestKey == key && p.Status == "pending")) return state;
         var previous = state.Proposals.LastOrDefault(p => p.RequestKey == key);
         if (previous is { Status: "rejected" or "withdrawn" } && tick < previous.SettledTick + day &&
@@ -375,6 +379,11 @@ public static class TownGovernanceRules
     internal static TownGovernanceState CancelLandClaim(TownGovernanceState state, TownProposal proposal, long tick) =>
         Notice(ReplaceProposal(state, proposal with { Status = "cancelled", SettledTick = tick }), "result", proposal.Id,
             "Land claim cancelled: the plot is no longer unclaimed land adjoining this Town's title.", tick);
+    internal static TownGovernanceState LandUseNotice(TownGovernanceState state, string requestId, string text, long tick) =>
+        Notice(state, "land_use", requestId, text, tick);
+    internal static TownGovernanceState CancelLandUseProposal(TownGovernanceState state, string proposalId, long tick) =>
+        state.Proposals.SingleOrDefault(p => p.Id == proposalId) is { Status: "pending" } proposal
+            ? SettleProposal(state, proposal, "cancelled", tick) : state;
     private static TownGovernanceState ReplaceProposal(TownGovernanceState state, TownProposal proposal) =>
         state with { Proposals = state.Proposals.Select(p => p.Id == proposal.Id ? proposal : p).ToArray() };
     /// <summary>Posts an actual notice at the Town's notice place; reading or hearing it is still a separate act.</summary>

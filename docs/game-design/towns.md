@@ -710,8 +710,11 @@ land. These claims now run through ordinary Council proposals: an adult names
 one connected plot, councillors learn its notice and vote, and the server
 rechecks the plot before recording title. Existing claims, household rights,
 structures and private goods are preserved. A border change alone still gives
-no title. Household land requests for expansion onto additional tiles remain
-in [#426](https://github.com/compoodment/ClankerWorld/issues/426).
+no title. Household requests for expansion onto additional tiles open
+ordinary Council proposals for nonconflicting land, and every current adult in
+the beneficiary household must separately accept before a right is granted.
+Expansion checks the resulting rights at construction start and completion.
+Pending disputes supply no grant; hearings and transfers remain in #633.
 
 Competing requests are visible as **pending disputes**. While one is pending,
 conflicting formal rights transfers pause; residents are not evicted, goods

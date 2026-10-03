@@ -124,6 +124,14 @@ continuing a current-format checkpoint preserves the vote window and cannot
 apply an accepted claim twice. Older alpha schemas are refused and preserved;
 no migration is provided.
 
+Schema 59 adds household land request status, separate adult consent, the
+Council proposal link and the adult roster at grant settlement. A grant and its
+rights must retain matching plot coverage, grant time and agreed end date;
+loading rejects missing approval or consent evidence and orphaned Council
+land-use proposals. Closed requests remain history without competing claims.
+Prepared-tick rollback and current-format reload preserve approval progress and
+commit the final grant once. Older alpha schemas are refused without migration.
+
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
 Matching parent assignments are disclosed as agreement; when they differ, the
@@ -147,13 +155,13 @@ keeps the earlier groups, and the offers are brought up to date at the end of
 every tick, so a save always matches the households it was made with. Acceptance is
 an explicit adult action that changes the saved current primary caregiver.
 The original search format placed a child only in a completed House with room
-in the same Town. Schema 59 adds the pending physical placement described below.
+in the same Town. Schema 60 adds the pending physical placement described below.
 Loading validates the search stage, times and adult references. Replaying
 from a pending request reaches the same acceptance opportunities and preserves
 the single guardian-needed event. Older alpha saves without this state are
 refused; no migration is added.
 
-Schema 59 saves a dependent's pending guardian placement separately from the
+Schema 60 saves a dependent's pending guardian placement separately from the
 accepted care relationship. It records the caregiver, exact relationship and
 revision, start time, collecting or escorting stage, selected household and
 Town, and the House's instance, definition, placement time and anchor. A
@@ -475,7 +483,8 @@ consumed-dose progress, selected personal ornaments, and wills with up to
 three named heirs, exact divisions and final words, Town admission records,
 Town laws and government, concrete last-meal names for nourishment and
 dietary variety, bounded tool-making requests linked to ordinary production
-and barter, and exact land-claim coordinates on Council proposals.
+and barter, exact land-claim coordinates on Council proposals, and household
+land requests with their Council proposal and each adult's consent.
 Land records are checked against the saved map, Towns, households and one
 another before load. Building reassignment moves only existing footprint use rights;
 connected remainder plots keep their holder and original grant terms. Split
@@ -509,7 +518,8 @@ for medical permission and consumed-dose progress, schema 52 for selected
 ornaments, schema 53 for wills with several heirs and final words, schema 54
 for Town admission records, schema 55 for Town laws and government, schema
 56 for named last meals, schema 57 for tool-making requests, schema 58 for
-Council land claims and schema 59 for physical guardian placements record when
+Council land claims, schema 59 for household land grants and schema 60 for
+physical guardian placements record when
 those fields or behaviors were introduced;
 they do not allow an earlier checkpoint schema past the current alpha cutoff.
 
@@ -556,7 +566,8 @@ they do not allow an earlier checkpoint schema past the current alpha cutoff.
 | Schema 56 | An agent's last meal keeps its concrete name, such as porridge, bread, stew or a Restaurant meal, for nourishment and dietary variety. Running House and Restaurant cooking keeps its exact inputs, reusable water jugs and outputs through reload. Earlier alpha checkpoints are refused and preserved; no migration is added. |
 | Schema 57 | Bounded tool-making requests bind their customer, selling household, actual Blacksmith, accepted worker and ordinary production/offer history. Completed work requires exact full input receipts; purchase status must agree with the real inventory offer. Earlier alpha checkpoints are refused and preserved without migration. |
 | Schema 58 | Council proposals may carry the exact connected plot of a land claim; a passed claim and its Town title must agree on Town, tiles and settlement time. Earlier alpha checkpoints are refused and preserved without migration. |
-| Schema 59 | Pending guardian placements retain exact accepted care authority, collecting or escorting progress, a selected House and current blocker. Household and Town membership change together only on valid arrival. Earlier alpha checkpoints are refused and preserved without migration. |
+| Schema 59 | Household land requests keep their status, Council proposal, each adult's separate consent and the adult roster at settlement; a grant and its rights must agree on plot, grant time and end date. Earlier alpha checkpoints are refused and preserved without migration. |
+| Schema 60 | Pending guardian placements retain exact accepted care authority, collecting or escorting progress, a selected House and current blocker. Household and Town membership change together only on valid arrival. Earlier alpha checkpoints are refused and preserved without migration. |
 
 ### Tool-making requests
 
