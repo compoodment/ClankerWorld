@@ -16,7 +16,7 @@ public sealed partial class SettlementParenthoodTests
         try
         {
             var observations = new System.Collections.Concurrent.ConcurrentDictionary<string, string>();
-            var state = await PreparedState();
+            var state = await PreparedGenerationState();
             world = PrivateWorldRuntime.Restore(state, _ => new GenerationProvider(observations));
             world.Pause();
             world.SetLifePace(1_460);
@@ -51,7 +51,14 @@ public sealed partial class SettlementParenthoodTests
                     restarts++;
                 }
             }
-            Assert.NotNull(childId);
+            Assert.True(childId is not null,
+                $"No child was born by tick {world.WorldTick}. Family plans=" +
+                System.Text.Json.JsonSerializer.Serialize(world.Inhabitants.Select(person => new
+                {
+                    person.InhabitantId,
+                    person.Parenthood,
+                    HouseholdId = world.Society.GetInhabitant(person.InhabitantId).HouseholdId,
+                })));
             var grown = world.Society.GetInhabitant(childId);
             Assert.Equal(SocietyAgeBand.Adult, grown.AgeBand);
             Assert.Equal(SocietyWorkRole.Unassigned, grown.CurrentRole);
@@ -143,6 +150,36 @@ public sealed partial class SettlementParenthoodTests
             world?.Dispose();
             directory.Delete(recursive: true);
         }
+    }
+
+    private static async Task<PrivateWorldRuntimeState> PreparedGenerationState()
+    {
+        var state = await PreparedState();
+        using var setup = PrivateWorldRuntime.Restore(state, _ => new ParentProvider("safe_idle"));
+        var house = setup.WorldContent.Buildings.Single(building => building.Tags.Contains("house", StringComparer.Ordinal));
+        var household = state.Society.Society.Households.Single();
+        var site = state.Map.Tiles.First(tile => WorldContentSimulationRules.Fits(state.Map,
+            state.WorldSimulation!.Buildings.Select(building => (building,
+                state.WorldContent!.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId))),
+            BuildingStorageRules.WithSize(house, 2, 1), tile.Position)).Position;
+        Assert.True(setup.PlaceBuilding("generation-house", house.CanonicalId, site, household.Id).Applied);
+        state = setup.ExportState();
+        var worker = household.MemberIds[0];
+        state = FarmFieldTests.WithInventory(state, InventoryFixture.AddLot(state.Society.Society.Inventory,
+            "generation-expansion-wood", "wood", household.Id, 4, storageBuildingId: "generation-house")) with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == worker
+                ? person with { Position = site, LastDecisionContext = null } : person).ToArray(),
+        };
+        // Complete a paid expansion before family life starts: four founders
+        // and their child need more than the first House's three places.
+        using var expanded = PrivateWorldRuntime.Restore(state, _ => new ParentProvider("safe_idle"));
+        var expansion = expanded.StartBuildingExpansion(worker, "generation-house");
+        Assert.True(expansion.Applied, expansion.Failure);
+        for (var tick = 0; tick < 20; tick++) Assert.True((await expanded.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal(WorldProductionJobState.Completed, Assert.Single(expanded.WorldSimulation.BuildingExpansions!).State);
+        Assert.All(expanded.Inhabitants, person => Assert.Null(person.Housing?.Relocation));
+        return expanded.ExportState();
     }
 
     private sealed class AdultWorkProvider(string actor, string recipe,
