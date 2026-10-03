@@ -32,7 +32,8 @@ public sealed class UnoccupiedRouteSearchTests
                 select new TerrainTile(new GridPoint(x, y),
                     x is 7 or 8 && y is > 2 and < 13 ? TerrainKind.Lake
                     : (x * 5 + y * 3) % 11 == 0 ? TerrainKind.Mountain : TerrainKind.Meadow)],
-            [], [], string.Empty) with { WrapsEastWest = wraps };
+            [], [], string.Empty);
+        map = map with { WrapsEastWest = wraps };
 
         CompareWithFreshSearches(map, origins: 8, questions: 40, seed: wraps ? 2 : 1);
     }
