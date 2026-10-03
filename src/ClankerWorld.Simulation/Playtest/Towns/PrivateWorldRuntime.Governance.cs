@@ -1,6 +1,7 @@
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Society;
 using ClankerWorld.Simulation.Harness;
+using ClankerWorld.Simulation.World;
 using System.Text.RegularExpressions;
 using System.Globalization;
 using System.Security.Cryptography;
@@ -76,9 +77,12 @@ public sealed partial class PrivateWorldRuntime
         foreach (var person in society.Checkpoint.Inhabitants.OrderByDescending(p => p.Id.Length))
             text = text.Replace(person.Id, person.Name, StringComparison.Ordinal);
         text = CivicTickText().Replace(text, match =>
-            long.TryParse(match.Groups[1].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var tick) && tick / CivicDay < long.MaxValue
-                ? "world day " + (tick / CivicDay + 1).ToString(CultureInfo.InvariantCulture)
-                : match.Value);
+        {
+            if (!long.TryParse(match.Groups[1].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var tick))
+                return match.Value;
+            var day = WorldCalendarRules.FromTick(tick, worldSystems.Config).DayIndex;
+            return day < long.MaxValue ? "world day " + (day + 1).ToString(CultureInfo.InvariantCulture) : match.Value;
+        });
         return text.Length > 270 ? text[..270] : text;
     }
 
@@ -173,7 +177,7 @@ public sealed partial class PrivateWorldRuntime
             {
                 candidates.Add(new(CivicAction(town.Id, "ballot", CivicRoundToken(election)), $"Submit or revise your {election.Stage} ballot in {town.Name}; choose up to {election.Seats} distinct IDs via civic_ballot. " +
                     $"Willing candidates: {string.Join(", ", election.Candidates.Select(id => society.Checkpoint.GetInhabitant(id).Name + " (" + CivicAgentToken(id) + ")"))}. Self-voting is allowed. " +
-                    $"Voting closes on world day {election.DeadlineTick / CivicDay + 1}.", 165));
+                    $"Voting closes on world day {WorldCalendarRules.FromTick(election.DeadlineTick, worldSystems.Config).DayIndex + 1}.", 165));
                 foreach (var id in election.Candidates)
                     candidates.Add(new(CivicAction(town.Id, "single", CivicRoundToken(election), id), $"Submit or revise your ballot to support only {society.Checkpoint.GetInhabitant(id).Name} in {town.Name}. Other previous choices are replaced.", 167));
             }

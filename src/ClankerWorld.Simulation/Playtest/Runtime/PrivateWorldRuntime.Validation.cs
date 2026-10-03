@@ -581,9 +581,7 @@ public sealed partial class PrivateWorldRuntime
         var conversations = state.Conversations ?? [];
         var budgets = state.ConversationBudgets ?? [];
         var knownAgents = checkpoint.Inhabitants.Select(item => item.Id).ToHashSet(StringComparer.Ordinal);
-        var worldDay = checkpoint.Config.TicksPerWorldDay <= 0
-            ? 0
-            : checkpoint.WorldTick / checkpoint.Config.TicksPerWorldDay;
+        var worldDay = WorldCalendarRules.FromTick(checkpoint.WorldTick, state.WorldSystems!.Config).DayIndex;
         if (conversations.Any(item => item is null) || budgets.Any(item => item is null) ||
             conversations.Count > AgentConversationRules.MaximumSavedConversations ||
             conversations.Select(item => item.Id).Distinct(StringComparer.Ordinal).Count() != conversations.Count ||
