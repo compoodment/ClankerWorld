@@ -26,6 +26,21 @@ internal static partial class OwnerEndpoints
             return Results.Ok(saves.List(runtime.Society.WorldId));
         });
 
+        app.MapPost("/api/v1/owner/saves/timeline", (
+            OwnerSignedHttpRequest<OwnerControlAction> request,
+            OwnerRequestAuthorizer authorizer,
+            ManualWorldSaveStore saves,
+            PrivateWorldRuntime runtime) =>
+        {
+            if (!IsControl(request, "save-timeline"))
+                return Results.BadRequest(new { error = "A save-timeline action is required." });
+            var authorization = authorizer.Authorize(request, "POST", "/api/v1/owner/saves/timeline",
+                OwnerHttpBinding.EmptyPayload("save-timeline"));
+            if (!authorization.IsSuccess) return OwnerFailures.ToHttpResult(authorization.Failure);
+            if (!isPrivateWorld) return Results.Conflict(new { error = "Manual saves require a private world." });
+            return Results.Ok(saves.CurrentPosition(runtime.Society.WorldId));
+        });
+
         app.MapPost("/api/v1/owner/saves/autosave/status", (
             OwnerSignedHttpRequest<OwnerControlAction> request,
             OwnerRequestAuthorizer authorizer,

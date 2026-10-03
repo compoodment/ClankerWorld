@@ -60,19 +60,25 @@ everything that is available in the current build. See [what works today](../wha
   what changes. It may keep either or both current choices. A missing, invalid
   or interrupted reply leaves the current identity alone and is not retried
   automatically. A name change is separate from these opportunities.
-- **Two agents in one world cannot share an exact full name.** If a model
-  chooses a name that is already taken, the game asks that agent once more,
+- **Agreed with computment on October 3
+  ([#910](https://github.com/compoodment/ClankerWorld/issues/910)): chosen first
+  names are unique within each world**, including names of deceased agents.
+  This replaces the earlier full-name-only rule. Model naming, child naming
+  and player renaming all follow it; a different surname or middle name does
+  not make a taken first name available. Temporary unnamed placeholders remain
+  until named and do not reserve a chosen first name. If a model
+  chooses a first name that is already taken, the game asks that agent once more,
   which costs one extra request that counts toward model usage. If that also
-  fails, the agent keeps a placeholder name that the player can change. Similar
-  but not identical names are allowed, such as two agents called Rowan with
-  different surnames. The comparison covers every agent in the world,
-  including those who have died. A valid name is kept even when the action in
+  fails, the agent keeps a placeholder name that the player can change. A valid
+  name is kept even when the action in
   the same reply is rejected. **Leaning toward (provisional; tuned in
   playtests):** to make names more varied, each agent's naming request suggests
   a fixed starting letter for that agent. In a test on one model this raised
   the number of different first names from 8 to 15 without extra requests.
   [Player renaming](interface-and-art.md#player-guidance-and-orders) uses the
-  same full-name check and preserves the person's identity and historical text.
+  same first-name check and preserves the person's identity and historical text.
+  Building the new rule is tracked in
+  [#912](https://github.com/compoodment/ClankerWorld/issues/912).
 - Agents have no genders. Children have **two parents**. Parents choose the
   child's name and provider/model, and must choose **one of their own surnames**
   as the child's surname. Children inherit tendencies, culture, and
@@ -94,7 +100,8 @@ everything that is available in the current build. See [what works today](../wha
   conversation below follows; the couple does not register with the Town
   Council. Building this is tracked in
   [#784](https://github.com/compoodment/ClankerWorld/issues/784). When agents
-  marry, both partners must share one of their existing surnames, chosen by them
+  marry, they keep their first names and both partners must share one of their
+  existing surnames, chosen by them
   in a dedicated conversation. That
   conversation is initiated even if they are far apart in the world: a narrow
   exception to ordinary proximity-bound conversation, not a general remote
@@ -200,6 +207,11 @@ everything that is available in the current build. See [what works today](../wha
   becomes visibly overcrowded instead. The caregiver and birth home are saved
   with the plan and birth record. Other pregnancy timing and detailed childcare
   rules remain open.
+- **Elders cannot have children, agreed on October 2:** only adults can plan
+  or have a child. A plan in progress ends if either partner becomes an elder
+  before the birth, and the continuity rule holds only couples who can have
+  children. This answer is about having children; partnerships and caring for
+  children are unchanged.
 - **The first continuity rule, agreed on October 1
   ([#654](https://github.com/compoodment/ClankerWorld/issues/654)):** the rule
   is on while the world has **fewer than eight living agents who are not

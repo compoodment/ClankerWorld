@@ -6,7 +6,7 @@ namespace ClankerWorld.Simulation.Tests;
 
 /// <summary>
 /// Seeded bridge and Road routing cases on small hand-drawn maps:
-/// <c>.</c> meadow, <c>~</c> river, <c>L</c> lake, <c>O</c> ocean, <c>M</c> mountain.
+/// <c>.</c> meadow, <c>~</c> river, <c>L</c> lake, <c>O</c> ocean, <c>M</c> mountain, <c>P</c> Peak.
 /// </summary>
 public sealed class RiverBridgeTests
 {
@@ -119,6 +119,58 @@ public sealed class RiverBridgeTests
             "...~M..");
         Assert.False(RiverBridgeRules.TryFindCrossing(map, new(2, 1), 1, 0, out _));
         Assert.Equal(RoadRouteOutcomes.RouteUnavailable, Plan(map, [new(0, 1)], [new(6, 1)]).Outcome);
+    }
+
+    [Theory]
+    [InlineData("PPP~~PPP", false)]
+    [InlineData("PPP~~...", false)]
+    [InlineData("...~~PPP", false)]
+    [InlineData("MMM~~MMM", true)]
+    [InlineData("...~~...", true)]
+    public void CrossingsShareBanksOnlyWhenBothShoreWalksArePassable(string middle, bool shared)
+    {
+        var map = Map("...~~...", "...~~...", middle, "...~~...", "...~~...");
+        Assert.True(RiverBridgeRules.TryResolve(map, "bridge-3-0-ew-2", out var upper));
+        Assert.True(RiverBridgeRules.TryResolve(map, "bridge-3-4-ew-2", out var lower));
+        var bridge = RiverBridgeRules.ToBridge(upper!, BridgeTriggers.Traffic, 0, null);
+        var bridged = WithBridges(map, bridge);
+
+        Assert.Equal(shared, RiverBridgeRules.SharesBanks(bridged, upper!, lower!));
+        Assert.Equal(shared, RiverBridgeRules.SharesBanks(bridged, lower!, upper!));
+        Assert.Equal(shared, RiverBridgeRules.IsRedundant(bridged, lower!, [upper!]));
+    }
+
+    [Theory]
+    [InlineData("PPP~~PPP", false)]
+    [InlineData("...~~...", true)]
+    public void ARoadUsesAnExistingBridgeOnlyWhenItCanReachItAlongTheBanks(string middle, bool reuse)
+    {
+        var map = Map("...~~...", "...~~...", middle, "...~~...", "...~~...");
+        Assert.True(RiverBridgeRules.TryResolve(map, "bridge-3-0-ew-2", out var upper));
+        var bridge = RiverBridgeRules.ToBridge(upper!, BridgeTriggers.Traffic, 0, null);
+        var bridged = WithBridges(map, bridge);
+        Assert.Equal(reuse, bridged.IsReachableOnFoot(new(2, 0), new(2, 4)));
+        var request = Request(bridged, [new(0, 4)], [new GridPoint(7, 4)], [bridge]);
+        var result = RoadRoutePlanner.Plan(request);
+        Assert.Equal(RoadRouteOutcomes.Connected, result.Outcome);
+        var proposal = Assert.IsType<RoadRouteProposal>(result.Proposal);
+        Assert.Null(RoadRoutePlanner.Validate(request, proposal));
+
+        if (reuse)
+        {
+            Assert.Equal([bridge.Id], proposal.UsedBridgeIds);
+            Assert.Empty(proposal.NewCrossings);
+        }
+        else
+        {
+            Assert.Empty(proposal.UsedBridgeIds);
+            Assert.Equal("bridge-3-4-ew-2", Assert.Single(proposal.NewCrossings).Id);
+            var control = Assert.IsType<RoadRouteProposal>(Plan(map, [new(0, 4)], [new(7, 4)]).Proposal);
+            Assert.Equal(control.NewCrossings.Select(crossing => crossing.Id), proposal.NewCrossings.Select(crossing => crossing.Id));
+            var connected = WithBridges(map, bridge,
+                RiverBridgeRules.ToBridge(proposal.NewCrossings[0], BridgeTriggers.Road, 0, "road:lower"));
+            Assert.True(connected.IsReachableOnFoot(new(0, 4), new(7, 4)));
+        }
     }
 
     [Fact]
@@ -293,6 +345,7 @@ public sealed class RiverBridgeTests
                     'L' => TerrainKind.Lake,
                     'O' => TerrainKind.Ocean,
                     'M' => TerrainKind.Mountain,
+                    'P' => TerrainKind.Peak,
                     _ => TerrainKind.Meadow,
                 }));
         return new SeededMap(rows[0].Length, rows.Length, 0, tiles, [], [], "sha256:test-map");
