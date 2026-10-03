@@ -242,7 +242,8 @@ public sealed partial class ViewerHttpTests
                 Assert.True(runtime.Society.IsPaused);
                 Assert.Empty(runtime.Inhabitants);
                 Assert.Equal(0, runtime.WorldTick);
-                Assert.Equal(14, runtime.Content.Packages.Count);
+                Assert.Equal(19, runtime.Content.Packages.Count);
+                AssertBuildingVariantPackagesActive(runtime);
                 Assert.Contains(runtime.Content.Packages, package => package.Manifest.PackageId == PotteryContent.PackageId);
                 Assert.Contains(runtime.Content.Packages, package => package.Manifest.PackageId == RestaurantContent.PackageId);
                 Assert.Contains(runtime.Content.Packages, package => package.Manifest.PackageId == BusinessContent.PackageId);
@@ -427,7 +428,8 @@ public sealed partial class ViewerHttpTests
             Assert.Contains(restoredCatalog.Worlds, world => world.Id == generatedId);
             var restoredRuntime = restarted.Services.GetRequiredService<PrivateWorldRuntime>();
             Assert.Equal(WorldSizePreset.Small, restoredRuntime.ExportState().Geography?.Size);
-            Assert.Equal(14, restoredRuntime.Content.Packages.Count);
+            Assert.Equal(19, restoredRuntime.Content.Packages.Count);
+            AssertBuildingVariantPackagesActive(restoredRuntime);
             Assert.Contains(restoredRuntime.Content.Packages, package => package.Manifest.PackageId == PotteryContent.PackageId);
             Assert.Contains(restoredRuntime.Content.Packages, package => package.Manifest.PackageId == RestaurantContent.PackageId);
             Assert.Contains(restoredRuntime.WorldContent.Buildings, building => building.LocalId == "restaurant-1x2");
@@ -898,6 +900,23 @@ public sealed partial class ViewerHttpTests
             else Assert.False(File.Exists(sourcePath));
         }
         finally { directory.Delete(recursive: true); }
+    }
+
+    private static void AssertBuildingVariantPackagesActive(PrivateWorldRuntime runtime)
+    {
+        foreach (var id in new[]
+                 {
+                     FarmhouseVariantContent.PackageId, BlacksmithVariantContent.PackageId,
+                     TailorVariantContent.PackageId, ClinicVariantContent.PackageId,
+                     RestaurantVariantContent.PackageId,
+                 })
+        {
+            var package = Assert.Single(runtime.Content.Packages, item => item.Manifest.PackageId == id);
+            Assert.Equal(ContentPackageLifecycle.Active, package.Lifecycle);
+            Assert.Equal(0, package.ActivationTick);
+            Assert.Contains(runtime.WorldContent.Buildings,
+                building => building.PackageDigest == package.Manifest.PackageDigest);
+        }
     }
 
     private static void AssertSavedTownLandRecordsMatch(PrivateWorldRuntimeState expected,

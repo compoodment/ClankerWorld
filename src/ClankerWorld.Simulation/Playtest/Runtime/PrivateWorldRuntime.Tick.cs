@@ -434,6 +434,7 @@ public sealed partial class PrivateWorldRuntime
             StageTailorContent();
             StageCareContent();
             StageBuiltInContent(BusinessContent.PackageId, HouseContent.PackageId, BusinessContent.Create, "business_content_staged");
+            StageBuildingVariantContent();
             var readyPackages = contentRegistry.GetActivationCandidates(targetTick);
             var reservationPreview = WorldAssetReservationLedger.Restore(
                 assetReservations.ExportState(),
