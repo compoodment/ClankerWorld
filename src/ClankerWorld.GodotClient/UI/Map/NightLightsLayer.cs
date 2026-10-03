@@ -14,6 +14,59 @@ public readonly record struct BuildingLight(Rect2I Footprint, LightPlan Plan, bo
     };
 }
 
+/// <summary>A completed street fitting on the saved edge of its adjoining Road tile.</summary>
+public readonly record struct StreetLanternLight(Vector2I RoadTile, DoorSide Edge, LanternStyle Style)
+{
+    public Vector2 Post => Edge switch
+    {
+        DoorSide.North => new(16, 4),
+        DoorSide.East => new(28, 16),
+        DoorSide.West => new(4, 16),
+        _ => new(16, 28),
+    };
+
+    public Vector2 Inward => Edge switch
+    {
+        DoorSide.North => Vector2.Down,
+        DoorSide.East => Vector2.Left,
+        DoorSide.West => Vector2.Right,
+        _ => Vector2.Up,
+    };
+
+    public static bool IsLantern(IReadOnlyList<string>? tags) =>
+        tags?.Contains("street_lantern", StringComparer.Ordinal) == true;
+
+    /// <summary>The small solid fitting at overview zoom, relative to the Road tile.</summary>
+    public Rect2 OverviewFitting(float stride)
+    {
+        var size = Math.Max(1, stride / 4f);
+        return new(Post * (stride / 32f) - Vector2.One * size / 2, Vector2.One * size);
+    }
+
+    /// <summary>Uses the actual saved Road neighbour, including a wrapped east/west seam.</summary>
+    public static StreetLanternLight? FromBuilding(OwnerWorldPlacedBuilding building, int worldWidth, bool wrapsEastWest)
+    {
+        if (!IsLantern(building.Tags) || building.Width != 1 || building.Height != 1 || building.Entrance is not { } road)
+            return null;
+        LanternStyle? style = building.Tags?.Contains("stone_lantern", StringComparer.Ordinal) == true
+            ? LanternStyle.Stone
+            : building.Tags?.Contains("hanging_lantern", StringComparer.Ordinal) == true ? LanternStyle.Hanging : null;
+        if (style is null) return null;
+        var dx = building.Position.X - road.X;
+        if (wrapsEastWest && worldWidth > 0 && Math.Abs(dx) > worldWidth / 2)
+            dx -= Math.Sign(dx) * worldWidth;
+        DoorSide? edge = (dx, building.Position.Y - road.Y) switch
+        {
+            (0, -1) => DoorSide.North,
+            (1, 0) => DoorSide.East,
+            (-1, 0) => DoorSide.West,
+            (0, 1) => DoorSide.South,
+            _ => null,
+        };
+        return edge is { } side ? new(new(road.X, road.Y), side, style.Value) : null;
+    }
+}
+
 /// <summary>
 /// Warm light on the ground around buildings in use at night, drawn from
 /// <see cref="NightLightShapes"/>. Light brightens and warms the ground under
@@ -50,6 +103,8 @@ public partial class NightLightsLayer : Control
     private WorldTerrainLayer? source;
     private NightLayer? night;
     private IReadOnlyList<BuildingLight> buildings = [];
+    private IReadOnlyList<StreetLanternLight> lanterns = [];
+    private bool wrapsEastWest;
     private Rect2 drawnCamera;
     private int drawnTileSize;
     private float drawnDarkness;
@@ -79,6 +134,15 @@ public partial class NightLightsLayer : Control
         QueueRedraw();
     }
 
+    public IReadOnlyList<StreetLanternLight> Lanterns => lanterns;
+
+    public void SetLanterns(IReadOnlyList<StreetLanternLight> next, bool wraps)
+    {
+        lanterns = next;
+        wrapsEastWest = wraps;
+        QueueRedraw();
+    }
+
     /// <summary>The cells drawn last, in map pixels, for the checks: light rows and fittings.</summary>
     public IReadOnlyList<(Rect2 Area, LightCellKind Kind)> DrawnCells { get; private set; } = [];
 
@@ -89,7 +153,7 @@ public partial class NightLightsLayer : Control
         var darkness = night.ShownDarkness;
         var step = (float)(Math.Floor(clock / StepSeconds) * StepSeconds);
         if ((darkness > 0 && step != drawnTime) || darkness != drawnDarkness ||
-            (buildings.Count > 0 &&
+            ((buildings.Count > 0 || lanterns.Count > 0) &&
              (source.VisibleTiles != drawnCamera || source.TileSize != drawnTileSize)))
             QueueRedraw();
     }
@@ -107,9 +171,30 @@ public partial class NightLightsLayer : Control
             (Vector2I)drawnCamera.Size.Ceil() + Vector2I.One * 4);
         if (source.TileSize < WorldTerrainLayer.SpriteTileMinimum)
         {
+            var overview = new List<(Rect2, LightCellKind)>();
             if (drawnDarkness > 0)
                 foreach (var building in buildings)
                     if (building.Shines && building.Footprint.Intersects(visible)) DrawSpeck(building, stride);
+            foreach (var lantern in lanterns)
+                foreach (var shift in wrapsEastWest ? new[] { -source.World.Width, 0, source.World.Width } : [0])
+                {
+                    var tile = lantern.RoadTile + new Vector2I(shift, 0);
+                    if (!visible.HasPoint(tile)) continue;
+                    var point = new Vector2(tile.X, tile.Y) * stride + lantern.Post * (stride / 32f);
+                    var fitting = lantern.OverviewFitting(stride);
+                    fitting.Position += new Vector2(tile.X, tile.Y) * stride;
+                    var fittingColor = NightLightShapes.StreetLantern(lantern.Style, lantern.Post, lantern.Inward, 0, 0, 0)[0].Color;
+                    DrawRect(fitting, fittingColor.Lerp(NightLayer.Wash, NightLayer.FullNightAlpha * drawnDarkness) with { A = 1 });
+                    overview.Add((fitting, LightCellKind.Paint));
+                    if (drawnDarkness <= 0.05f) continue;
+                    var pool = new Rect2(point - Vector2.One * stride, Vector2.One * stride * 2);
+                    var color = lantern.Style == LanternStyle.Stone ? NightLightShapes.Fire : NightLightShapes.Lamp;
+                    DrawRect(pool, color with { A = 0.12f * drawnDarkness });
+                    DrawRect(fitting, color with { A = 1 });
+                    overview.Add((pool, LightCellKind.Light));
+                    overview.Add((fitting, LightCellKind.Glow));
+                }
+            DrawnCells = overview;
             return;
         }
 
@@ -124,6 +209,16 @@ public partial class NightLightsLayer : Control
                 drawnDarkness > 0.05f, drawnTime, Seed(building.Footprint.Position), snap))
                 placed.Add((origin, cell));
         }
+        foreach (var lantern in lanterns)
+            foreach (var shift in wrapsEastWest ? new[] { -source.World.Width, 0, source.World.Width } : [0])
+            {
+                var tile = lantern.RoadTile + new Vector2I(shift, 0);
+                if (!visible.HasPoint(tile)) continue;
+                var origin = new Vector2(tile.X, tile.Y) * stride;
+                foreach (var cell in NightLightShapes.StreetLantern(lantern.Style, lantern.Post, lantern.Inward,
+                    drawnDarkness, drawnTime, Seed(lantern.RoadTile), snap))
+                    placed.Add((origin, cell));
+            }
         // Weakest light first, so where pools overlap the stronger one shows; fittings go on top.
         var drawn = new List<(Rect2, LightCellKind)>();
         if (drawnDarkness > 0)

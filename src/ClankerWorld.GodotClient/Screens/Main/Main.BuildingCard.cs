@@ -144,10 +144,36 @@ public partial class Main
         return row;
     }
 
-    private static OwnerWorldPlacedBuilding? BuildingAt(OwnerWorldSnapshot snapshot, Vector2I tile) =>
-        snapshot.PlacedBuildings.FirstOrDefault(building =>
+    private OwnerWorldPlacedBuilding? BuildingAt(OwnerWorldSnapshot snapshot, Vector2I tile, Vector2? canvasPoint = null)
+    {
+        if (canvasPoint is { } point)
+        {
+            var (width, _) = MapDimensions(snapshot);
+            var mapPoint = (point - mapStage.Position) / (currentTileSize + TileGap);
+            foreach (var building in snapshot.PlacedBuildings.OrderByDescending(building => building.InstanceId, StringComparer.Ordinal))
+            {
+                if (StreetLanternLight.FromBuilding(building, width, snapshot.WrapsEastWest) is not { } lantern) continue;
+                var relative = mapPoint - new Vector2(lantern.RoadTile.X, lantern.RoadTile.Y);
+                if (snapshot.WrapsEastWest && width > 0) relative.X -= MathF.Round(relative.X / width) * width;
+                if (relative.X is < -1 or > 2 || relative.Y is < -1 or > 2) continue;
+                if (currentTileSize < WorldTerrainLayer.SpriteTileMinimum)
+                {
+                    if (lantern.OverviewFitting(currentTileSize + TileGap).HasPoint(relative * (currentTileSize + TileGap)))
+                        return building;
+                    continue;
+                }
+                var artPoint = relative * 32;
+                var snap = BuildingSprites.AtlasTileSize(currentTileSize) == 16 ? 2 : 1;
+                if (NightLightShapes.StreetLantern(lantern.Style, lantern.Post, lantern.Inward, 0, 0, 0, snap)
+                    .Any(cell => cell.Kind == LightCellKind.Paint && cell.Area.HasPoint(artPoint)))
+                    return building;
+            }
+        }
+        return snapshot.PlacedBuildings.FirstOrDefault(building =>
+            (canvasPoint is null || !StreetLanternLight.IsLantern(building.Tags)) &&
             tile.X >= building.Position.X && tile.X < building.Position.X + Math.Max(1, building.Width) &&
             tile.Y >= building.Position.Y && tile.Y < building.Position.Y + Math.Max(1, building.Height));
+    }
 
     private OwnerWorldPlacedBuilding? SelectedBuilding() =>
         buildingCardSnapshot?.PlacedBuildings.FirstOrDefault(item =>
@@ -234,6 +260,8 @@ public partial class Main
             .OrderByDescending(item => item.Quantity).ThenBy(item => item.Kind, StringComparer.Ordinal).ToArray();
 
         var kind = BuildingSprites.KindFor(building.Tags);
+        var (mapWidth, _) = MapDimensions(snapshot);
+        var lantern = StreetLanternLight.FromBuilding(building, mapWidth, snapshot.WrapsEastWest);
         var door = BuildingDoor.Facing(footprint, building.Entrance is { } entrance
             ? new Vector2I(entrance.X, entrance.Y) : null);
         foreach (var header in new[] { buildingQuickHeader, buildingDetailsHeader })
@@ -241,7 +269,8 @@ public partial class Main
             header.NameLabel.Text = name;
             header.NameLabel.TooltipText = name;
             header.OwnerLabel.Text = owner.Length == 0 ? "No owner recorded" : owner;
-            header.SetRoof(kind, footprint.Size, door);
+            if (lantern is { } fitting) header.SetLantern(fitting);
+            else header.SetRoof(kind, footprint.Size, door);
         }
         // A building that keeps no stores has no storage section, rather than an empty one.
         foreach (var storage in new[] { buildingQuickStorage, buildingDetailsStorage })
@@ -269,7 +298,9 @@ public partial class Main
         signature += $"|{building.ExpansionState}|{building.ExpansionFailure}|" +
             string.Join('|', building.Trades.Select(trade => trade.OfferId + ":" + trade.Status));
         var townHall = building.Tags?.Contains("town_hall", StringComparer.Ordinal) == true;
-        signature += "|" + townHall;
+        var lantern = StreetLanternLight.IsLantern(building.Tags);
+        var lit = snapshot.DarknessBasisPoints > 500;
+        signature += $"|{townHall}|{lantern}|{(lantern && lit)}";
         if (renderedBuildingStatus == signature) return;
         renderedBuildingStatus = signature;
         ClearChildren(buildingQuickStatus);
@@ -292,6 +323,15 @@ public partial class Main
             buildingQuickStatus.AddChild(new Label { Text = $"{Plural(openTrades, "customer exchange")} waiting" });
         if (townHall)
             buildingQuickStatus.AddChild(new Label { Text = "Town civic notice place · see Council decisions in World Info" });
+        if (lantern)
+        {
+            buildingQuickStatus.AddChild(new Label
+            {
+                Text = lit ? "Lit · lights automatically at dusk · no fuel" : "Unlit · lights automatically at dusk · no fuel",
+                AutowrapMode = TextServer.AutowrapMode.WordSmart,
+            });
+            return;
+        }
         if (jobs.Length > 0)
         {
             buildingQuickStatus.AddChild(JobRow(snapshot, jobs[0]));
@@ -325,7 +365,9 @@ public partial class Main
         string? household, string? town, OwnerWorldProductionJob[] jobs, string[] inside)
     {
         var townHall = building.Tags?.Contains("town_hall", StringComparer.Ordinal) == true;
-        var usedBy = townHall ? "Town civic notice place" : household ?? (town is not null && building.Tags?.Contains("warehouse") == true
+        var lantern = StreetLanternLight.IsLantern(building.Tags);
+        var sharedProject = townHall || lantern;
+        var usedBy = lantern ? "Road lighting" : townHall ? "Town civic notice place" : household ?? (town is not null && building.Tags?.Contains("warehouse") == true
             ? $"{town} residents" : "Any agent");
         var facts = new List<(string Key, string Value)>
         {
@@ -334,7 +376,7 @@ public partial class Main
             ("Built", SplitClock(DisplayWorldClock(building.PlacedTick)).Date),
             ("Footprint", $"{building.Width} × {building.Height} tiles"),
         };
-        if (townHall && snapshot.Towns.SelectMany(item => item.Projects)
+        if (sharedProject && snapshot.Towns.SelectMany(item => item.Projects)
                 .FirstOrDefault(project => project.CompletedBuildingId == building.InstanceId) is { } project)
         {
             facts.Add(("Town project", project.Name));
@@ -376,7 +418,13 @@ public partial class Main
         if (building.InvitedGuests is { Count: > 0 } guests)
             facts.Add(("Storm guests", string.Join(", ", guests) + " · shelter only"));
         // Only an entrance beside the footprint names a side; the fallback door is not a fact.
-        if (building.Entrance is { } entrance &&
+        var (mapWidth, _) = MapDimensions(snapshot);
+        if (StreetLanternLight.FromBuilding(building, mapWidth, snapshot.WrapsEastWest) is { } fitting)
+        {
+            facts.Add(("Road edge", $"{fitting.Edge} edge of Road tile ({fitting.RoadTile.X}, {fitting.RoadTile.Y})"));
+            facts.Add(("Lighting", "Lights automatically at dusk; off at dawn · no fuel"));
+        }
+        else if (!lantern && building.Entrance is { } entrance &&
             BuildingDoor.Facing(Footprint(building), new Vector2I(entrance.X, entrance.Y)) is { Tile: not null } door)
             facts.Add(("Door", $"{door.Side} side"));
         RenderBuildingFacts(facts);
@@ -397,6 +445,7 @@ public partial class Main
                     string.Equals(link.State, "accepted", StringComparison.Ordinal)))
                 .Select(person => person.DisplayName).Order(StringComparer.CurrentCulture).ToArray()
             : [];
+        buildingPeopleSection.Visible = !lantern;
         buildingPeopleSummary.Text = inside.Length == 0 ? "Nobody inside" : $"{inside.Length} inside";
         var people = new List<string>();
         if (inside.Length > 0) people.Add("Inside: " + string.Join(", ", inside));

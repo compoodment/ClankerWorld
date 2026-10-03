@@ -156,13 +156,19 @@ public sealed record OwnerCivicProposal(string Id, string Kind, string Text, str
 public sealed record OwnerWorldTownProjectBudget(string Kind, int Quantity);
 public sealed record OwnerWorldTownProjectPlan(string Name, string ProposerId, string ProposerName,
     string DefinitionId, string DisplayName, OwnerWorldPosition Site, OwnerWorldPosition Entrance,
-    int Width, int Height, IReadOnlyList<OwnerWorldTownProjectBudget> Budget);
+    int Width, int Height, IReadOnlyList<OwnerWorldTownProjectBudget> Budget)
+{
+    public IReadOnlyList<string> Tags { get; init; } = [];
+}
 public sealed record OwnerWorldTownProjectMaterial(string Kind, int Budget, int Supplied);
 public sealed record OwnerWorldTownProject(string Id, string ProposalId, string Name,
     string ProposerId, string ProposerName, string DefinitionId, string DisplayName,
     OwnerWorldPosition Site, OwnerWorldPosition Entrance, int Width, int Height,
     IReadOnlyList<OwnerWorldTownProjectMaterial> Materials, int WorkDone, int WorkRequired,
-    string Stage, string? Blocker, string? CompletedBuildingId, OwnerCivicProposal Approval);
+    string Stage, string? Blocker, string? CompletedBuildingId, OwnerCivicProposal Approval)
+{
+    public IReadOnlyList<string> Tags { get; init; } = [];
+}
 public sealed record OwnerCivicCandidate(string Id, string Name, int Votes);
 public sealed record OwnerTownElection(string Id, string Kind, string Stage, int Seats, long DeadlineTick,
     IReadOnlyList<OwnerCivicCandidate> Candidates, IReadOnlyList<string> SettledNames);

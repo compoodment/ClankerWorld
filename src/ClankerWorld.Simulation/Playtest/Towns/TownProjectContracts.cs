@@ -32,13 +32,22 @@ public static class TownProjectRules
     public const int WorkTicks = 10;
     public const int MaximumNameLength = 80;
 
-    public static void ValidatePayload(TownProjectPayload? plan)
+    public static BuildingDefinition? Definition(string? definitionId)
     {
         var hall = TownHallContent.Hall3x4();
+        return definitionId == hall.CanonicalId ? hall : StreetLanternContent.Definition(definitionId);
+    }
+
+    public static void ValidatePayload(TownProjectPayload? plan)
+    {
+        var definition = Definition(plan?.DefinitionId);
         if (plan is null || string.IsNullOrWhiteSpace(plan.Name) || plan.Name != plan.Name.Trim() ||
             plan.Name.Length > MaximumNameLength || plan.Name.Any(char.IsControl) ||
-            plan.DefinitionId != hall.CanonicalId || plan.Entrance != TownHallContent.Entrance(plan.Site) ||
-            plan.Budget is null || !plan.Budget.SequenceEqual(hall.BuildCosts))
+            definition is null ||
+            (StreetLanternContent.IsLantern(plan.DefinitionId)
+                ? !StreetLanternContent.IsRoadEdge(plan.Site, plan.Entrance)
+                : plan.Entrance != TownHallContent.Entrance(plan.Site)) ||
+            plan.Budget is null || !plan.Budget.SequenceEqual(definition.BuildCosts))
             throw new InvalidDataException("The Town project must bind a supported building, name, doorway and exact provisional budget.");
     }
 
@@ -63,9 +72,16 @@ public static class TownProjectRules
         "town-project-load:" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(
             new[] { projectId, actor, sourceLotId, tick.ToString(CultureInfo.InvariantCulture), ordinal.ToString(CultureInfo.InvariantCulture) }))));
 
-    public static string ProposalText(TownProjectPayload plan) =>
-        FormattableString.Invariant($"Build {plan.Name}, a Town Hall at ({plan.Site.X},{plan.Site.Y}), with ") +
-        string.Join(" and ", plan.Budget.Select(q => q.Amount.ToString(CultureInfo.InvariantCulture) + " " + q.ResourceId)) + " (provisional budget).";
+    public static string ProposalText(TownProjectPayload plan)
+    {
+        var kind = StreetLanternContent.Definition(plan.DefinitionId)?.DisplayName ?? "Town Hall";
+        var place = StreetLanternContent.IsLantern(plan.DefinitionId)
+            ? FormattableString.Invariant($" at ({plan.Site.X},{plan.Site.Y}) beside Road ({plan.Entrance.X},{plan.Entrance.Y})")
+            : FormattableString.Invariant($" at ({plan.Site.X},{plan.Site.Y})");
+        return $"Build {plan.Name}, a {kind}{place}, with " +
+            string.Join(" and ", plan.Budget.Select(q => q.Amount.ToString(CultureInfo.InvariantCulture) + " " +
+                (q.ResourceId == "iron" ? "refined iron" : q.ResourceId))) + " (provisional budget).";
+    }
 
     public static bool SameScope(TownProjectPayload first, TownProjectPayload second) =>
         first.Name == second.Name && first.DefinitionId == second.DefinitionId && first.Site == second.Site &&

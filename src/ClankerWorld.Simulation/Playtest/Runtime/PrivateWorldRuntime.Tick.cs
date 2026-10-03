@@ -431,6 +431,7 @@ public sealed partial class PrivateWorldRuntime
             StageTailorContent();
             StageCareContent();
             StageBuiltInContent(TownHallContent.PackageId, HouseContent.PackageId, TownHallContent.Create, "town_hall_content_staged");
+            StageBuiltInContent(StreetLanternContent.PackageId, HouseContent.PackageId, StreetLanternContent.Create, "street_lantern_content_staged");
             StageBuiltInContent(BusinessContent.PackageId, HouseContent.PackageId, BusinessContent.Create, "business_content_staged");
             var readyPackages = contentRegistry.GetActivationCandidates(targetTick);
             var reservationPreview = WorldAssetReservationLedger.Restore(

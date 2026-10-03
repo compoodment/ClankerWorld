@@ -22,6 +22,7 @@ public partial class Main
         var lights = new List<BuildingLight>();
         foreach (var building in snapshot.PlacedBuildings)
         {
+            if (StreetLanternLight.IsLantern(building.Tags)) continue;
             var footprint = new Rect2I(building.Position.X, building.Position.Y,
                 Math.Max(1, building.Width), Math.Max(1, building.Height));
             var kind = BuildingSprites.KindFor(building.Tags);
@@ -33,6 +34,17 @@ public partial class Main
                 people.Any(footprint.HasPoint), working.Contains(building.InstanceId)));
         }
         return lights;
+    }
+
+    /// <summary>Completed lamps use their saved Road neighbour, without depending on occupants or jobs.</summary>
+    private static List<StreetLanternLight> StreetLanterns(OwnerWorldSnapshot snapshot)
+    {
+        var (width, _) = MapDimensions(snapshot);
+        var lanterns = new List<StreetLanternLight>();
+        foreach (var building in snapshot.PlacedBuildings.OrderBy(building => building.InstanceId, StringComparer.Ordinal))
+            if (StreetLanternLight.FromBuilding(building, width, snapshot.WrapsEastWest) is { } lantern)
+                lanterns.Add(lantern);
+        return lanterns;
     }
 
     /// <summary>The night-light design for a building family, or null for those with no lights.</summary>
