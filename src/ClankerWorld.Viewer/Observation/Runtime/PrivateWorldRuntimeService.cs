@@ -542,7 +542,7 @@ public sealed partial class PrivateWorldRuntimeService(
             "town_civic_election" => TownCivicTransitionKind.ElectionOpened,
             "town_civic_runoff" => TownCivicTransitionKind.RunoffOpened,
             "town_civic_proposal" => TownCivicTransitionKind.ProposalOpened,
-            "town_civic_result" or "town_land_claimed" => TownCivicTransitionKind.DecisionRecorded,
+            "town_civic_result" or "town_civic_land_use" or "land_use_granted" or "town_land_claimed" => TownCivicTransitionKind.DecisionRecorded,
             "town_civic_cancelled" => TownCivicTransitionKind.ElectionCancelled,
             _ => (TownCivicTransitionKind?)null,
         };

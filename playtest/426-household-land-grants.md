@@ -1,0 +1,4 @@
+- On the paired world: suggest that an adult request a free plot inside Town title. Check that the plot shows a pending request with Council and household acceptance counts, and still has no household use right.
+- On the paired world: have a Council majority approve, then have all but one adult in the beneficiary household accept. Check that the request remains pending until the last adult explicitly accepts; reload while waiting and verify the counts remain.
+- On the paired world: approve a request while another household claims the same plot. Check that the dispute remains pending and nobody loses a building, goods or movement access. Withdraw the competing request and check that an otherwise fully approved grant can complete.
+- On the paired world: ask an adult in a crowded House to expand. Check that a request names the extra tiles, construction waits for land permission, and the expanded footprint appears only after approval and building work finish.

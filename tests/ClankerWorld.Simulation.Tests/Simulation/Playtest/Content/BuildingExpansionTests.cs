@@ -11,6 +11,64 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed class BuildingExpansionTests
 {
+    [Fact]
+    public async Task APersonalChoiceRequestsTheExactExtraHouseTilesBeforeConstruction()
+    {
+        using var prepared = PreparedWorld("first-town-house-a", out var actor, out var house);
+        var state = prepared.ExportState();
+        var provider = new IdleProvider($"civic|{house.TownId}|request_expansion_land|{house.InstanceId}|", personal: true);
+        using var world = PrivateWorldRuntime.Restore(state with
+        {
+            HouseholdLandUseRights = state.HouseholdLandUseRights!.Where(r => r.GrantSource != "expansion_test_fixture").ToArray(),
+        }, id => id == actor ? provider : new IdleProvider());
+        for (var attempt = 0; attempt < 40 && world.HouseholdLandUseRequests.Count == 0; attempt++)
+            await world.AdvanceOneTickAsync();
+        var request = Assert.Single(world.HouseholdLandUseRequests);
+        Assert.Single(request.Tiles);
+        Assert.DoesNotContain(house.Position, request.Tiles);
+        Assert.Equal(house.HouseholdId, request.HouseholdId);
+        Assert.NotNull(request.CouncilProposalId);
+        Assert.Empty(request.Consents);
+        Assert.Equal("pending", request.Status);
+        Assert.False(world.StartBuildingExpansion(actor, house.InstanceId).Applied);
+        Assert.Empty(world.WorldSimulation.BuildingExpansions ?? []);
+        world.Validate();
+    }
+
+    [Fact]
+    public void HouseNeedsRecordedUseRightsBeforeReservingExpansionMaterials()
+    {
+        using var prepared = PreparedWorld("first-town-house-a", out var actor, out var house);
+        var state = prepared.ExportState();
+        using var missing = ReloadState(state with
+        {
+            HouseholdLandUseRights = state.HouseholdLandUseRights!.Where(r => r.GrantSource != "expansion_test_fixture").ToArray(),
+        });
+        var before = PrivateWorldRuntimeCodec.Encode(missing.ExportState());
+        Assert.False(missing.StartBuildingExpansion(actor, house.InstanceId).Applied);
+        Assert.Equal(before, PrivateWorldRuntimeCodec.Encode(missing.ExportState()));
+        Assert.True(prepared.StartBuildingExpansion(actor, house.InstanceId).Applied);
+    }
+
+    [Fact]
+    public async Task LosingExtraTilePermissionCancelsWorkAndReleasesItsMaterials()
+    {
+        using var prepared = PreparedWorld("first-town-house-a", out var actor, out var house);
+        Assert.True(prepared.StartBuildingExpansion(actor, house.InstanceId).Applied);
+        var state = prepared.ExportState();
+        using var changed = ReloadState(state with
+        {
+            HouseholdLandUseRights = state.HouseholdLandUseRights!.Where(r => r.GrantSource != "expansion_test_fixture").ToArray(),
+        });
+        await changed.AdvanceOneTickAsync();
+        var job = Assert.Single(changed.WorldSimulation.BuildingExpansions!);
+        Assert.Equal(WorldProductionJobState.Cancelled, job.State);
+        Assert.All(job.InputReservationIds, id => Assert.Equal(InventoryReservationState.Released,
+            changed.Society.Inventory.GetReservation(id).State));
+        Assert.Equal(house, changed.WorldSimulation.Buildings.Single(b => b.InstanceId == house.InstanceId));
+        changed.Validate();
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -41,6 +99,8 @@ public sealed class BuildingExpansionTests
                 BorderTiles = TownBorderRules.ExpandForBuilding(state.Map, town, site, 2, 2),
             } : town).ToArray(),
         };
+        state = WithExpansionFixtureRights(state, relocated, Enumerable.Range(-1, 3).SelectMany(dy =>
+            Enumerable.Range(-1, 3).Select(dx => new GridPoint(site.X + dx, site.Y + dy))));
         using var clear = PrivateWorldRuntime.Restore(state, _ => new IdleProvider());
         Assert.True(clear.StartBuildingExpansion(actor, house.InstanceId).Applied);
         var owner = foreignFields ? state.Society.Society.Households.First(item => item.Id != house.HouseholdId).Id : house.HouseholdId!;
@@ -360,6 +420,8 @@ public sealed class BuildingExpansionTests
                 : town).ToArray(),
         };
         var provider = new IdleProvider("expand_building:" + building.InstanceId);
+        state = WithExpansionFixtureRights(state, building, Enumerable.Range(-1, 3).SelectMany(dy =>
+            Enumerable.Range(-1, 3).Select(dx => new GridPoint(houseSite.X + dx, houseSite.Y + dy))).Where(state.Map.IsLand));
         using var firstStage = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)),
             id => id == actor ? provider : new IdleProvider());
         var initialCapacity = HouseResidentCapacityRules.Calculate(
@@ -1102,6 +1164,7 @@ public sealed class BuildingExpansionTests
                         definition.Width + 2, definition.Height + 2)
                     } : town).ToArray(),
             };
+            candidate = WithExpansionFixtureRights(candidate, placed, envelope);
             using var probe = PrivateWorldRuntime.Restore(
                 PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(candidate)), _ => new IdleProvider());
             if (!probe.StartBuildingExpansion(actorId, buildingId).Applied) continue;
@@ -1119,6 +1182,33 @@ public sealed class BuildingExpansionTests
         Assert.NotNull(prepared);
         return PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(prepared)),
             _ => new IdleProvider());
+    }
+
+    // Material, storage and construction fixtures begin with recorded permission.
+    // HouseholdLandGrantTests exercises the actual personal request/vote/consent path.
+    private static PrivateWorldRuntimeState WithExpansionFixtureRights(PrivateWorldRuntimeState state,
+        PlacedBuilding building, IEnumerable<GridPoint> envelope)
+    {
+        var tiles = envelope.ToArray();
+        var titles = state.TownLandTitles!.ToList();
+        foreach (var plot in TownLandRightsRules.ConnectedPlots(state.Map,
+                     tiles.Where(tile => !titles.Any(title => title.Tiles.Contains(tile)))))
+            titles.Add(new("title:expansion-fixture:" + titles.Count, building.TownId!, plot, state.Society.Society.WorldTick));
+        var rights = state.HouseholdLandUseRights!.ToList();
+        if (building.HouseholdId is { } household)
+            foreach (var plot in TownLandRightsRules.ConnectedPlots(state.Map,
+                         tiles.Where(tile => !rights.Any(right => right.Tiles.Contains(tile)))))
+                rights.Add(new("use:expansion-fixture:" + rights.Count, building.TownId!, household, plot,
+                    state.Society.Society.WorldTick, "expansion_test_fixture"));
+        return state with
+        {
+            TownLandTitles = titles.OrderBy(t => t.Id, StringComparer.Ordinal).ToArray(),
+            HouseholdLandUseRights = rights.OrderBy(r => r.Id, StringComparer.Ordinal).ToArray(),
+            Towns = state.Towns!.Select(town => town.Id == building.TownId ? town with
+            {
+                BorderTiles = TownLandRightsRules.OrderTiles(town.BorderTiles.Concat(tiles).Distinct()),
+            } : town).ToArray(),
+        };
     }
 
     private static GridPoint FindUnaffiliatedOpenTile(PrivateWorldRuntimeState state)
@@ -1159,10 +1249,10 @@ public sealed class BuildingExpansionTests
     private static PrivateWorldRuntime ReloadState(PrivateWorldRuntimeState state) => PrivateWorldRuntime.Restore(
         PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)), _ => new IdleProvider());
 
-    private sealed class IdleProvider(string preferred = "safe_idle") : IDecisionProvider
+    private sealed class IdleProvider(string preferred = "safe_idle", bool personal = false) : IDecisionProvider
     {
         public List<CognitionDecisionRequest> Seen { get; } = [];
-        public DecisionProviderKind Kind => DecisionProviderKind.Deterministic;
+        public DecisionProviderKind Kind => personal ? DecisionProviderKind.LargeLanguageModel : DecisionProviderKind.Deterministic;
         public long ProviderEpoch => 0;
         public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
         {

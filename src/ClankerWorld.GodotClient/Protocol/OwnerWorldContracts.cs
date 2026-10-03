@@ -168,7 +168,10 @@ public sealed record OwnerWorldHouseholdLandUseRight(string Id, string TownId, s
 public sealed record OwnerWorldHouseholdLandUseRequest(string Id, string TownId, string HouseholdId,
     string RequestedByAgentId, IReadOnlyList<OwnerWorldPosition> Tiles, long RequestedTick,
     long? AgreedEndTick, bool IsDisputed, IReadOnlyList<string> ClaimantHouseholdIds,
-    IReadOnlyList<OwnerWorldPosition> DisputedTiles);
+    IReadOnlyList<OwnerWorldPosition> DisputedTiles)
+{
+    public string ApprovalDetail { get; init; } = "Awaiting approval";
+}
 
 public sealed record OwnerWorldInhabitant(
     string Id,

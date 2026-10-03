@@ -100,6 +100,16 @@ unrelated action or a stale order cannot advance a replacement task. Alpha saves
 must use the current checkpoint schema; older saves are refused without
 migration and remain unchanged.
 
+Schema 54 adds household land request status, separate adult consent, the
+Council proposal link and the adult roster at grant settlement. A grant and its
+rights must retain matching plot coverage, grant time and agreed end date;
+loading rejects missing approval or consent evidence and orphaned Council
+land-use proposals. Closed requests remain history without competing claims.
+Prepared-tick rollback and current-format reload preserve approval progress and
+commit the final grant once. Older alpha schemas are refused without migration.
+These schema numbers are provisional until merge; later changes must take the
+next unused number.
+
 Schema 53 adds exact land-claim coordinates to Council proposals. A passed
 claim and its title record must agree on Town, tiles and settlement time;
 loading refuses a claim title without approval or a passed claim without its
@@ -368,7 +378,7 @@ blocked-return behavior. These checks use existing timestamps and add no saved
 fields, schema change or migration.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 52. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 54. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus

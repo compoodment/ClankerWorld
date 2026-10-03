@@ -15,6 +15,18 @@ namespace ClankerWorld.Viewer.Observation;
 /// </summary>
 public sealed class OwnerWorldObservationStore
 {
+    private static string LandRequestApprovalDetail(PrivateWorldRuntimeState state, HouseholdLandUseRequest request, bool disputed)
+    {
+        if (request.Status != "pending") return "Household request " + request.Status;
+        var adults = state.Society.Society.Inhabitants.Where(p => p.HouseholdId == request.HouseholdId &&
+            p.Status == SocietyInhabitantStatus.Active && p.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder).ToArray();
+        var accepted = adults.Count(p => request.Consents.Any(c => c.AgentId == p.Id && c.Accepted));
+        var proposal = state.Towns?.Single(t => t.Id == request.TownId).Governance?.Proposals.SingleOrDefault(p => p.Id == request.CouncilProposalId);
+        var council = proposal?.Status == "passed" ? "Council approved" : proposal is null ? "Awaiting Council consideration" :
+            $"Council votes: {proposal.Votes.Count(v => v.Yes)}/{proposal.RequiredYes}";
+        return $"{council}; household acceptance: {accepted}/{adults.Length}" + (disputed ? "; disputed plot" : "");
+    }
+
     private const int AgentKnowledgeArtifactLimit = 8;
     private const int RecentClosedInstructionLimitPerAgent = 6;
     public const int RecentCivicProposalLimit = 8;
@@ -375,7 +387,11 @@ public sealed class OwnerWorldObservationStore
                         civic.TermEndTick, civic.RetryTick, civic.Candidates.Select(c =>
                             (inhabitantsById.GetValueOrDefault(c.AgentId)?.Name ?? c.AgentId) + (c.FullTerm ? " (full term)" : " (current vacancy only)")).ToArray(),
                         civic.Proposals.TakeLast(RecentCivicProposalLimit).Select(p => new ViewerCivicProposal(p.Id, p.Kind,
-                            p.Text + (p.LandClaimTiles is { } tiles ? " Exact tiles: " + TownLandClaimRules.DescribeTiles(tiles) + "." : ""), p.Status,
+                            p.Text + (p.LandClaimTiles is { } tiles ? " Exact tiles: " + TownLandClaimRules.DescribeTiles(tiles) + "." :
+                                p.Kind == "land_use" && state.HouseholdLandUseRequests?.SingleOrDefault(r => r.Id == p.SubjectId) is { } landRequest
+                                    ? " Exact tiles: " + TownLandClaimRules.DescribeTiles(landRequest.Tiles) + ". " +
+                                        LandRequestApprovalDetail(state, landRequest, landRequest.Tiles.Any(tile => TownLandRightsRules.IsDisputed(tile,
+                                            state.HouseholdLandUseRights ?? [], state.HouseholdLandUseRequests ?? []))) : ""), p.Status,
                             p.Votes.Count(v => v.Yes), p.Votes.Count(v => !v.Yes), p.RequiredYes, p.DeadlineTick)).ToArray(),
                         civic.Election is { } election ? ProjectElection(election) : null)
                     {
@@ -392,6 +408,7 @@ public sealed class OwnerWorldObservationStore
                     item.Tiles.Select(ToPosition).ToArray(), item.GrantedTick, item.GrantSource, item.AgreedEndTick))
                 .ToArray(),
             HouseholdLandUseRequests = (state.HouseholdLandUseRequests ?? [])
+                .Where(item => item.Status == "pending")
                 .OrderBy(item => item.Id, StringComparer.Ordinal)
                 .Select(item =>
                 {
@@ -404,7 +421,10 @@ public sealed class OwnerWorldObservationStore
                     return new ViewerHouseholdLandUseRequest(item.Id, item.TownId, item.HouseholdId,
                         item.RequestedByAgentId, item.Tiles.Select(ToPosition).ToArray(), item.RequestedTick,
                         item.AgreedEndTick, disputedTiles.Length > 0, claimants,
-                        disputedTiles.Select(ToPosition).ToArray());
+                        disputedTiles.Select(ToPosition).ToArray())
+                    {
+                        ApprovalDetail = LandRequestApprovalDetail(state, item, disputedTiles.Length > 0),
+                    };
                 }).ToArray(),
             RoadTiles = (state.RoadTiles ?? []).OrderBy(point => point.Y).ThenBy(point => point.X)
                 .Select(ToPosition).ToArray(),

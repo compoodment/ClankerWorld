@@ -661,7 +661,12 @@ rechecks the plot before recording title. Existing claims, household rights,
 structures and private goods are preserved. A border change alone still gives
 no title. The same owner answers require Council permission for household
 expansion onto additional tiles and use rights to follow legitimate building
-reassignment; those separate runtime changes remain in #426.
+reassignment. Household requests now open ordinary Council proposals for
+nonconflicting land, and every current adult in the beneficiary household must
+separately accept before a right is granted. Expansion checks the resulting
+rights at construction start and completion. Pending disputes supply no grant;
+hearings and transfers remain in #633. Building reassignment is separate work
+in #426.
 
 Competing requests are visible as **pending disputes**. While one is pending,
 conflicting formal rights transfers pause; residents are not evicted, goods

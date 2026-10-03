@@ -265,7 +265,7 @@ public sealed partial class PrivateWorldRuntime
     }
 
     private bool CanFitExpansion(PlacedBuilding building, GridPoint position,
-        BuildingFootprintRevision footprint, out string failure, string? ownJobId = null)
+        BuildingFootprintRevision footprint, out string failure, string? ownJobId = null, bool requireLandRights = true)
     {
         var definition = worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
         failure = "The expansion overlaps terrain, a resource, a Road, a field, another building, or another expansion.";
@@ -292,6 +292,15 @@ public sealed partial class PrivateWorldRuntime
         if (building.Entrance is { } entrance && !WorldContentSimulationRules.IsEntrance(target, position, entrance))
         {
             failure = "The expansion would obstruct the building's entrance.";
+            return false;
+        }
+        var extraTiles = tiles.Except(original).ToArray();
+        if (requireLandRights && extraTiles.Any(tile => building.TownId is null ||
+                !TownLandRightsRules.IsCoveredByTownTitle(tile, building.TownId, townLandTitles) ||
+                building.HouseholdId is { } household && !householdLandUseRights.Any(right =>
+                    right.TownId == building.TownId && right.HouseholdId == household && right.Tiles.Contains(tile))))
+        {
+            failure = "The extra tiles need Town title and, for a House, an approved household use right before expansion.";
             return false;
         }
         failure = string.Empty;

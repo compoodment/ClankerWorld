@@ -699,6 +699,25 @@ those tiles in the Town border in the same prepared tick. An overlapping claim
 that is no longer eligible is cancelled. Household rights, structures and
 inventory are unchanged. Ordinary law prose cannot execute a land claim.
 
+Household land requests use the same bounded `civic_land_tiles` field for
+already titled land. A nonconflicting request opens an ordinary `land_use`
+Council proposal. Its canonical key includes the household, exact tiles and
+optional agreed end date. Filing posts a notice but supplies no acceptance.
+Each current adult in the household must learn that notice and explicitly
+choose `accept_land_use`; Council votes are separate. Grant settlement rechecks
+the current adult roster and competing rights/requests. A dispute leaves the
+request pending; refusal, withdrawal and an elapsed requested term close it.
+A grant preserves its Council proposal, individual consent records and the
+adult roster at settlement. Closed requests remain in the save history but do
+not contribute competing claims to the map or Add Agent.
+
+`request_expansion_land` derives the extra House tiles from a currently legal
+larger footprint, so agents can request them before gathering materials.
+Expansion start and completion require Town title and household use rights on
+the added tiles; Town buildings need title only. Losing permission cancels the
+job and releases its materials. Existing expired rights are not silently
+removed; their eventual ruling remains separate land-case work.
+
 Formal civic acts require an admitted personal-model choice. Built-in decisions,
 failed replies and continued intentions supply no votes or candidate agreement.
 An explicitly chosen visit can continue moving locally; ballots may be revised

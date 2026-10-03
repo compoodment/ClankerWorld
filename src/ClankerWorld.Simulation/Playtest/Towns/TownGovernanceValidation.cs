@@ -35,7 +35,8 @@ public static partial class TownGovernanceValidation
         foreach (var proposal in state.Proposals)
         {
             if (!ValidGeneratedId(proposal.Id, town.Id + ":proposal:", state.Sequence) ||
-                string.IsNullOrWhiteSpace(proposal.RequestKey) || proposal.Kind is not ("law" or "admission" or "land_claim") || !known.Contains(proposal.AuthorId) ||
+                string.IsNullOrWhiteSpace(proposal.RequestKey) || proposal.Kind is not ("law" or "admission" or "land_claim" or "land_use") || !known.Contains(proposal.AuthorId) ||
+                proposal.Kind == "land_use" && string.IsNullOrWhiteSpace(proposal.SubjectId) ||
                 proposal.Kind == "admission" && (proposal.SubjectId is null || !known.Contains(proposal.SubjectId)) ||
                 proposal.Kind is "law" or "land_claim" && proposal.SubjectId is not null ||
                 proposal.Kind == "land_claim" && proposal.LandClaimTiles is not { Count: > 0 } ||
@@ -89,7 +90,7 @@ public static partial class TownGovernanceValidation
         {
             var notice = state.Notices[index];
             if (notice.Id != "notice:" + (index + 1).ToString(CultureInfo.InvariantCulture) || string.IsNullOrWhiteSpace(notice.SubjectId) ||
-                notice.Kind is not ("council" or "candidate" or "nomination" or "election" or "runoff" or "result" or "proposal" or "cancelled") ||
+                notice.Kind is not ("council" or "candidate" or "nomination" or "election" or "runoff" or "result" or "proposal" or "cancelled" or "land_use") ||
                 string.IsNullOrWhiteSpace(notice.Text) || notice.Text.Length > 32768 || notice.PostedTick < 0 || notice.PostedTick > tick)
                 throw new InvalidDataException("A saved Town civic notice is invalid.");
         }
