@@ -257,8 +257,8 @@ public sealed partial class PrivateWorldRuntime
         foreach (var job in cancelledExpansions) AppendEvent("building_expansion_cancelled", $"{job.BuildingInstanceId}:{job.JobId}:Paused expansion materials are no longer available.");
     }
 
-    /// <summary>Maps and field records are the belongings the built-in chooser stores at home and leaves there.</summary>
-    private static bool KeptAtHomeByRoutine(string itemKind) => itemKind is "field_map" or "field_record";
+    /// <summary>Maps, field records and books are the belongings the built-in chooser stores at home and leaves there.</summary>
+    private static bool KeptAtHomeByRoutine(string itemKind) => AgentKnowledgeRules.IsArtifactKind(itemKind);
 
     private void AddDepartureCandidates(List<CognitionCandidate> candidates, string actor)
     {
@@ -285,7 +285,7 @@ public sealed partial class PrivateWorldRuntime
                 // making the built-in chooser undo its own storage next tick.
                 candidates.Add(new("household_collect:" + lot.Id,
                     $"Physically collect your own {lot.ItemKind.Replace('_', ' ')}; other household stock remains private.",
-                    knowledgeAtHome ? 110 : 20));
+                    knowledgeAtHome ? lot.ItemKind == "book" ? 190 : 110 : 20));
             }
         }
         foreach (var lot in BorrowedGoods(actor).OrderBy(lot => lot.Id, StringComparer.Ordinal))

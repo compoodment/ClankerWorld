@@ -444,9 +444,28 @@ previously unassessed records; only linked salience/confidence values are saved.
 It adds no separate paid request or generated prose. Local retrieval works with
 Jev off. Automatic experience capture and narrative summarization are unfinished.
 
-Exploration can create a one-site field record or a map of up to nine sites.
-Sharing nearby or bartering teaches only those sites to the recipient, retaining
-the discoverer and source agent. It does not grant access to unrelated knowledge.
+Exploration records personal knowledge; it does not create free inventory.
+Households make paper at an authorized House from physically delivered fiber
+and fresh water in a reusable jug. The provisional batch uses two fiber and
+one water to make two paper in sixteen work ticks, leaving the jug intact.
+
+An adult can write a one-site field record, draw a map or bind a book from
+facts they have actually learned. The provisional writing costs are one paper
+and four work ticks for a record, one paper and six work ticks for a map, or
+two paper, one cloth and twelve work ticks for a book. Each artifact holds at
+most nine sites. Writing reserves real personal materials and creates one
+distinct physical lot only when the work completes. Saved progress and
+material reservations survive temporary interruptions and reload. If the
+writer or copying source becomes unavailable, or the artifact limit is
+reached, the unfinished work releases its unused supplies. The agent's Profile
+shows the writing or copying progress.
+
+Reading or sharing a held artifact teaches only its recorded sites to the
+actual recipient, retaining the original discoverer and the source artifact.
+Copying needs the source, learned facts and new writing materials; sharing
+does not create another physical copy. Barter transfers the existing lot and
+teaches its recipient, without granting access to unrelated knowledge or
+anyone else's private stock.
 
 If intervening legal movement interrupts outward scouting, a new outward path
 starts at the actual position without inventing missing steps. On the return

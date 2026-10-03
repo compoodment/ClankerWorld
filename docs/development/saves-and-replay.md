@@ -453,7 +453,7 @@ blocked-return behavior. These checks use existing timestamps and add no saved
 fields, schema change or migration.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 62. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 63. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
@@ -475,8 +475,9 @@ three named heirs, exact divisions and final words, Town admission records,
 Town laws and government, concrete last-meal names for nourishment and
 dietary variety, bounded tool-making requests linked to ordinary production
 and barter, exact land-claim coordinates on Council proposals, household
-land requests with their Council proposal and each adult's consent, and
-exact-tile movement orders with their destination and arrival receipt.
+land requests with their Council proposal and each adult's consent, physical
+knowledge writing with exact material reservations and completed-artifact
+receipts, and exact-tile movement orders with their destination and arrival receipt.
 Land records are checked against the saved map, Towns, households and one
 another before load. Building reassignment moves only existing footprint use rights;
 connected remainder plots keep their holder and original grant terms. Split
@@ -510,9 +511,11 @@ for medical permission and consumed-dose progress, schema 52 for selected
 ornaments, schema 53 for wills with several heirs and final words, schema 54
 for Town admission records, schema 55 for Town laws and government, schema
 56 for named last meals, schema 57 for tool-making requests, schema 58 for
-Council land claims and schema 59 for household land grants record when
-those fields or behaviors were introduced; schema 60 adds handcart attachments,
-schema 61 adds guardian-order targets and schema 62 adds exact-tile movement orders. They do not allow an earlier checkpoint schema past the current alpha cutoff.
+Council land claims, schema 59 for household land grants, schema 60 for
+handcart attachments, schema 61 for guardian-order targets, schema 62 for
+physical knowledge writing and schema 63 for exact-tile movement orders
+record when those fields or behaviors were introduced; they do not allow an
+earlier checkpoint schema past the current alpha cutoff.
 
 | Compatibility change | Meaning |
 | --- | --- |
@@ -560,7 +563,8 @@ schema 61 adds guardian-order targets and schema 62 adds exact-tile movement ord
 | Schema 59 | Household land requests keep their status, Council proposal, each adult's separate consent and the adult roster at settlement; a grant and its rights must agree on plot, grant time and end date. Earlier alpha checkpoints are refused and preserved without migration. |
 | Schema 60 | Exclusive physical handcart attachments: one cart per puller and one puller per cart, for a living owner, with cart and puller on the same tile. Cargo stays in ordinary inventory lots inside the cart. Earlier alpha saves are refused and preserved without migration. |
 | Schema 61 | Guardian orders retain the exact target agent separately from food/resource targets. Loading refuses missing or unknown targets, mixed task fields, repetition, and inconsistent completion receipts. The order survives a rename, pause, cancellation and replay. Older alpha saves are refused and preserved without migration. |
-| Schema 62 | Exact-tile movement orders retain their destination, progress and arrival receipt. Loading refuses missing destinations, mixed food/resource fields, repetition and inconsistent completion. Queues and interrupted trips replay across saves. Older alpha saves are refused and preserved without migration. |
+| Schema 62 | Physical knowledge-writing projects retain their author, frozen learned facts, source artifact, work and exact paper/cloth reservations. Completed maps, records and books retain the consumed-material receipts and unique physical lot. Invalid provenance, duplicated inputs and malformed work are refused. Earlier alpha saves are refused and preserved without migration. |
+| Schema 63 | Exact-tile movement orders retain their destination, progress and arrival receipt. Loading refuses missing destinations, mixed food/resource fields, repetition and inconsistent completion. Queues and interrupted trips replay across saves. Older alpha saves are refused and preserved without migration. |
 
 ### Tool-making requests
 
@@ -624,10 +628,17 @@ carrier's custody; goods carried by the deceased are dropped at their last tile.
 Town shares use the Town's current Warehouse while it can accept them.
 Debts, Town-law conflicts and guardianship remain separate work.
 
-A quantity-one physical map or field record retains its lot ID when inherited.
+A quantity-one physical map, field record or book retains its lot ID when inherited.
 Ownership and location change; its creator, discovery facts and artifact link
 remain. Ordinary divisible stock follows the usual split rules. Inheritance
 does not broadcast the artifact's knowledge to everyone.
+
+Writing projects save their exact learned contents and input reservations;
+reloading does not invent supplies or finish the work. Copies preserve the
+original discoverers and the source artifact while naming the actual writer.
+Each completed artifact has its own quantity-one inventory lot and consumed
+input receipts, so a retry cannot reuse another artifact's payment. Paper
+production uses the ordinary household recipe and reusable-vessel state.
 
 Inventory lot splits leave all actively reserved stock in the original lot,
 including production and barter commitments. Only the unreserved remainder can
