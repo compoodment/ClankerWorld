@@ -67,8 +67,10 @@ public sealed class SchedulerDeferredObservationTests
         scheduler.Validate();
     }
 
-    [Fact]
-    public void LaterTickDigestAndHungerWithoutNewChoicesDoNotRequestAnotherCall()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void LaterTickDigestAndHungerWithoutNewChoicesDoNotRequestAnotherCall(bool removeChoice)
     {
         var scheduler = CreateScheduler();
         var earlier = Observation(1) with
@@ -80,7 +82,7 @@ public sealed class SchedulerDeferredObservationTests
         var later = Observation(5) with
         {
             HungerBasisPoints = earlier.HungerBasisPoints + 40,
-            Candidates = earlier.Candidates.Reverse().ToArray(),
+            Candidates = removeChoice ? [new("safe_idle", "Rest safely.")] : earlier.Candidates.Reverse().ToArray(),
         };
         Assert.True(scheduler.Enqueue(Entry(later, "routine_tick")));
 
@@ -92,6 +94,7 @@ public sealed class SchedulerDeferredObservationTests
         Assert.Empty(scheduler.ExportState().Queue);
         Assert.Empty(scheduler.PreviewHostedRequests(NoExclusions));
         Assert.Single(scheduler.CaptureRuntime(Actor).Requests);
+        Assert.Equal(2, Assert.Single(scheduler.ExportState().Runtimes).NextRequestSequence);
     }
 
     [Fact]
