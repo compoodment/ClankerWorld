@@ -90,8 +90,8 @@ the exact current contest/proposal and actor authority; cancelled votes cannot
 revive after owner membership changes. Draws use a named world-local PCG stream
 with unbiased selection and save the actual order, so loading does not reroll
 an accepted outcome. Older alpha saves are visibly refused and preserved; no
-migration is provided. Admission approval remains a saved decision for #602 to
-consume separately, with no stock or household-access effect.
+migration is provided. A passed admission changes Town membership at most once
+(schema 54); it never grants stock or household access.
 
 Private-world schema 49 stores recognized food-order targets, progress, retry
 state, cancellation receipts and their exact actor/world identity alongside the
@@ -283,6 +283,28 @@ keeping the actual item; death and estate handling retain the property without
 an active selection on an archived profile. Older alpha saves are refused and
 preserved; no migration is added.
 
+Private-world schema 54 adds optional admission records to each Town, one per
+passed admission proposal of that Town. The Town resident lists stay the only
+record of membership; an admission record says what one approval did to them:
+
+- `approved`: a resident asked for the newcomer, and the approval waits for the
+  newcomer to accept. It keeps the newcomer's Town at the time of the vote, and
+  acceptance is refused if that has changed.
+- `admitted`: membership changed. It keeps the Town the newcomer left, if any,
+  and the sorted IDs of the newcomer and the dependent children who moved.
+- `lapsed`: the approval could not be applied, with one of four reasons:
+  `unavailable`, `already_resident`, `affiliation_changed` or `joined_elsewhere`.
+
+A passed admission is settled as soon as the council decision or roster change
+that passed it is saved, so every passed admission has exactly one record and
+reload and replay never apply an approval twice. Loading, and the runtime's own
+state check, refuse a passed admission without a record, a record without a
+matching passed admission proposal, a repeated proposal, an unknown status or
+lapse reason, an unsorted or incomplete moving group, a decision time before the
+vote settled or after the saved world time, and an approval still waiting on
+someone who is already a resident there. Older alpha saves are refused and
+preserved; no migration is added.
+
 Checkpoint decoding enforces declared non-null members and required constructor
 fields before runtime validation. A missing society, cognition or inventory
 object is invalid data, not an unexpected null-reference fault. No saved list
@@ -398,8 +420,11 @@ guardian-search records with their offered adults, medical permission and
 consumed-dose progress, selected personal ornaments, and wills with up to
 three named heirs, exact divisions and final words.
 Land records are checked against the saved map, Towns, households and one
-another before load. These fields retain their current validation and roundtrip
-behavior.
+another before load. Building reassignment moves only existing footprint use rights;
+connected remainder plots keep their holder and original grant terms. Split
+records get deterministic unique IDs, and whole-plot moves retain their IDs.
+The building and rights change under the same world lock; rejected or stale
+requests change neither. No save-format change or migration is needed.
 
 The food repairs use the existing field, inventory, reservation and delivery
 records; they add no migration or new save fields. New planting claims remain
@@ -424,7 +449,8 @@ exchanges, schema 46 for continuity, schema 47 for household departures and
 physical custody, schema 48 for Town councils, schema 49 for food-order
 progress and cancellations, schema 50 for guardian searches, schema 51
 for medical permission and consumed-dose progress, schema 52 for selected
-ornaments and schema 53 for wills with several heirs and final words record when
+ornaments, schema 53 for wills with several heirs and final words and schema 54
+for Town admission records record when
 those fields or behaviors were
 introduced; they do not allow an earlier checkpoint schema past the
 current alpha cutoff.
@@ -467,6 +493,7 @@ current alpha cutoff.
 | Schema 51 | Named medical permissions and active consumed-dose progress bind to actual completed inventory receipts. Terminal treatment closes its receipt without refund or resurrection; death retains completed consumption history and archived profiles cannot carry active treatment. Earlier alpha saves are refused and preserved without migration. |
 | Schema 52 | An optional exact personally owned, carried ornament lot in the canonical personal equipment record. Wearing supplies no protection or carrying bonus; removal, gifts and death retain actual property while clearing the selection when required. Earlier alpha saves are refused and preserved without migration. |
 | Schema 53 | Wills with one to three named heirs (people or a Town), an equal or item-by-item split, the exact quantity of each frozen lot per heir, and final words; the deceased archive keeps the agent's Town. Divisions must cover every frozen lot exactly. Earlier schemas cannot carry these records. |
+| Schema 54 | Town admission records tie each passed admission proposal to one outcome: approved and waiting for the newcomer, admitted with the care group that moved, or lapsed with its reason. An approval applies at most once. Earlier alpha saves are refused and preserved without migration. |
 
 Other compatibility fields remain separate for simulation, envelopes, content,
 assets, generator and network contracts. Change the field whose semantics

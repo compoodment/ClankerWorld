@@ -681,8 +681,8 @@ screenshot or native playtest.
 Paused founder setup creates one First Town when the owner accepts its five-building
 site. Founders become residents; Start World changes founding state to founded.
 Later placement inside the saved border establishes residence; walking does
-not change it. Children inherit the resident parent's Town; death removes the
-resident. Owned-building placement establishes household membership.
+not change it. A newborn joins its primary caregiver's Town; death removes the
+resident. Joining another Town later needs that Town's council (below). Owned-building placement establishes household membership.
 
 Founders and added adults arrive at a seeded age from day 15 to day 25 in
 day-lifecycle worlds. `SocietyFixture.FounderArrivalAge` orders that range once
@@ -714,8 +714,11 @@ rechecks authority when applying choices. `civic|...` actions let actors visit
 the public notice place, read posted notices, relay them within interaction
 range, nominate another resident, register their own consent and choose proposals
 or ballots. A nomination posts a notice; only the named agent's personal response
-can add agreement. Adults may request their own admission near the notice place,
-and residents may request admission of an unaffiliated adult nearby. The optional
+can add agreement. An adult with no Town, or a resident of another Town, may
+request their own admission at a Town's notice place. An adult with no Town may
+walk there from anywhere, and a resident of another Town from inside its border,
+whenever a tile beside the notice place is reachable on foot. Residents may
+request admission of an unaffiliated adult nearby. The optional
 `civic_proposal` and `civic_ballot` structured response fields are carried only
 through admitted choices. Missing, stale or malformed responses cannot supply
 votes. A generic private thought or another actor naming a candidate supplies
@@ -738,11 +741,43 @@ proposals, the current election and the latest archived election onto the normal
 Godot Towns page. Failed and cancelled outcomes remain visible; the complete
 authoritative proposal and election history stays in the checkpoint. Long Town
 readouts scroll within the available screen height. A passed ordinary law
-proposal records approval without creating new physical/legal powers. The
-`AdmissionApproval` result is available for #602; the engine does not perform
-membership, household, care-group or inventory transfers. Bounded civic lifecycle
-telemetry records Town identity and council/vote/status counts without proposal
-text, notices, names or per-read polling noise.
+proposal records approval without creating new physical/legal powers. Bounded
+civic lifecycle telemetry records Town identity and council/vote/status counts
+without proposal text, notices, names or per-read polling noise.
+
+**Town admission** (`PrivateWorldRuntime.TownMembership`). `TownRuntimeState.ResidentIds`
+is the only record of Town membership; household, House and position never
+change it. After every saved council decision, every Town roster change and on
+every tick, `SettleTownAdmissions` reads each Town's passed admission proposals
+and records exactly one `TownAdmissionRecord` per proposal, rereading the Towns
+after every change:
+
+- A request the newcomer made for themselves is their consent, so it is applied
+  at once.
+- A request a resident made is saved as `approved`, and the newcomer is offered
+  an `accept_admission` civic choice once they have learned the result notice.
+  Accepting needs the same Town they had when the council voted, and is not
+  offered while their own request elsewhere is undecided.
+- Applying an admission moves the newcomer and their care group: the living
+  infants, children and adolescents they are primary caregiver for who share
+  their current Town. The group leaves the old Town and joins the new one in the
+  same step, the newcomer's other open approvals lapse as `joined_elsewhere`,
+  and both councils' rosters follow their recorded adult residents.
+- An approval for someone who has died, already lives there or changed Town
+  lapses instead.
+
+An adult has one undecided request of their own at a time. A refused or
+withdrawn request for the same newcomer waits one unpaused world day unless the
+council changed, and the choice is not offered during that wait. An adult with an
+open request or approval may also ask households in that Town to take them in,
+but household admission stays a separate decision and grants no Town membership.
+
+`TownMembershipText` describes recorded membership, the rights it gives (council
+seat or vote, in-person Warehouse collection) and the admission status in one
+bounded line. The agent's `CognitionSelfContext.TownMembershipNote` includes only
+pending, approved, refused or cancelled admissions the agent learned from notices;
+the owner's agent card shows the same line from all records. `town_admission`
+telemetry records the Town, outcome, previous Town and counts only.
 
 `FirstTownLayoutPlanner` lays the first Town street first, using
 `TownStreets`. A main road runs both ways from the chosen site along its most
