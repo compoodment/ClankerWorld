@@ -188,11 +188,17 @@ public static class GameUiText
         var daysPerYear = calendarPace?.DaysPerYear ?? 365;
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(ticksPerDay);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(daysPerYear);
-        var dayIndex = worldTick / ticksPerDay;
+        var offset = calendarPace?.CalendarOffsetTicks ?? 0;
+        ArgumentOutOfRangeException.ThrowIfNegative(offset);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(offset, ticksPerDay);
+        // Shift the calendar, not elapsed world time. Splitting the raw tick
+        // first keeps even the largest representable tick overflow-safe.
+        var shiftedTickOfDay = worldTick % ticksPerDay + (long)offset;
+        var dayIndex = worldTick / ticksPerDay + shiftedTickOfDay / ticksPerDay;
         var date = SeasonDateLengths(calendarPace, dateFormat) is { } seasonLengths
             ? FormatSeasonDate(dayIndex, daysPerYear, seasonLengths)
             : FormatWorldDate(dayIndex, daysPerYear, dateFormat);
-        var minuteOfDay = (int)(((worldTick % ticksPerDay) * MinutesPerDay) / ticksPerDay);
+        var minuteOfDay = (int)((shiftedTickOfDay % ticksPerDay * MinutesPerDay) / ticksPerDay);
         var hour = minuteOfDay / 60;
         var minute = minuteOfDay % 60;
         if (!useTwelveHourClock) return $"{date} · {hour:00}:{minute:00}";
@@ -509,6 +515,7 @@ public static class GameUiText
             "collect_shared_food" => "collect food from camp",
             "harvest_food" => "gather food",
             "gather_material" => "gather materials",
+            "collect_material" => "collect personal materials",
             "store_material" => "store personal materials",
             "inspect_material_site" => "look for the requested material",
             "storage_pot" => "storage pot",

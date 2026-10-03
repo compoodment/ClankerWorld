@@ -96,7 +96,7 @@ public sealed class OwnerWorldObservationStore
 
     public ViewerHandshake GetOwnerHandshake() => new(
         new ProtocolVersion(Major: 1, Minor: 1),
-        privateRuntime is null ? OwnerServerCapabilities.ToArray() : [.. OwnerServerCapabilities, "owner-life-pace.v1", "owner-jev-assistance.v1", "owner-building-design.v1", "owner-terrain-delta.v1"],
+        privateRuntime is null ? OwnerServerCapabilities.ToArray() : [.. OwnerServerCapabilities, "owner-life-pace.v1", "owner-jev-assistance.v1", "owner-building-design.v1", "owner-terrain-delta.v1", "owner-observation-timeline.v1"],
         OwnerClientCapabilities.ToArray());
 
     public ViewerWorldSnapshot GetSnapshot()
@@ -133,7 +133,7 @@ public sealed class OwnerWorldObservationStore
     {
         if (privateRuntime is not null)
         {
-            var (state, diagnostics) = privateRuntime.ExportStateWithDiagnostics();
+            var (state, diagnostics, timeline) = privateRuntime.ExportObservation();
             var privateSnapshot = ToSnapshot(state, diagnostics, knownTerrainWorldId, knownTerrainDigest,
                 knownMapLayersDigest);
             return new ViewerReconnectBaseline(
@@ -144,7 +144,8 @@ public sealed class OwnerWorldObservationStore
                     state.Events
                         .Where(worldEvent => worldEvent.EventId > afterEventId)
                         .Select(ToEvent)
-                        .ToArray(), state.EventHistoryFloor, afterEventId < state.EventHistoryFloor));
+                        .ToArray(), state.EventHistoryFloor, afterEventId < state.EventHistoryFloor),
+                new ViewerObserverTimeline(timeline.InstanceId, timeline.Generation));
         }
 
         var capture = ownerRuntime!.Capture(afterEventId);
@@ -496,7 +497,8 @@ public sealed class OwnerWorldObservationStore
             CalendarPace = state.WorldSystems is { } worldSystems
                 ? new ViewerCalendarPace(worldSystems.Config.TicksPerDay, worldSystems.Config.DaysPerYear,
                     worldSystems.Config.SpringDays, worldSystems.Config.SummerDays,
-                    worldSystems.Config.AutumnDays, worldSystems.Config.WinterDays)
+                    worldSystems.Config.AutumnDays, worldSystems.Config.WinterDays,
+                    worldSystems.Config.CalendarOffsetTicks)
                 : null,
             Authoring = new ViewerAuthoringState(
                 state.Society.Society.IsPaused,
@@ -870,7 +872,8 @@ public sealed class OwnerWorldObservationStore
         }
         if (TownMembershipText.Describe(state.Towns ?? [], state.Society.Society, inhabitant.Id,
                 state.WorldSystems!.Config.TicksPerDay,
-                TownMembershipText.TownsWithWarehouse(state.WorldSimulation, state.WorldContent!)) is { } townMembership)
+                TownMembershipText.TownsWithWarehouse(state.WorldSimulation, state.WorldContent!),
+                calendarOffsetTicks: state.WorldSystems.Config.CalendarOffsetTicks) is { } townMembership)
             decisionFactors.Add(new ViewerDecisionFactor("town-membership", townMembership));
         decisionFactors.AddRange(IdentityMomentFactors(physical));
         if (physical.ChildModelSelection is { Provider: { } birthProvider } birthModel)
@@ -1303,6 +1306,7 @@ public sealed class OwnerWorldObservationStore
         "move_to" => "walking to the ordered tile",
         "harvest_food" => "gathering food",
         "gather_material" => "gathering the ordered material",
+        "collect_material" => "collecting personal materials",
         "store_material" => "storing personal materials in the House",
         "inspect_material_site" => "checking the ordered material site",
         "consume_food" => "eating carried food",

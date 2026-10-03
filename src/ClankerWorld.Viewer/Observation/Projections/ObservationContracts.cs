@@ -134,8 +134,8 @@ public sealed record ViewerAgentKnowledgeArtifact(
     string CreatorName,
     IReadOnlyList<ViewerKnowledgeSite> Sites);
 /// <summary>
-/// The world's saved calendar, including its season lengths, so the game can
-/// name the season and day of any tick the same way the world does.
+/// The world's saved calendar, including its season lengths and clock offset,
+/// so the game names the season and day of any tick the same way the world does.
 /// </summary>
 public sealed record ViewerCalendarPace(
     int TicksPerDay,
@@ -143,7 +143,8 @@ public sealed record ViewerCalendarPace(
     int SpringDays,
     int SummerDays,
     int AutumnDays,
-    int WinterDays);
+    int WinterDays,
+    int CalendarOffsetTicks = 0);
 
 /// <summary>
 /// An inspection projection, never an editable actor record. A founder draft
@@ -530,11 +531,14 @@ public sealed record ViewerCouncil(string? StewardName, string FoodPolicy, strin
 public sealed record ViewerEventSlice(long SnapshotTick, long AfterEventId, IReadOnlyList<ViewerEvent> Events,
     long EventHistoryFloor = 0, bool ResetRequired = false);
 
+public sealed record ViewerObserverTimeline(string InstanceId, long Generation);
+
 /// <summary>
 /// A reconnect response is one server-side capture, not a race between a
 /// client's separate snapshot and event-history requests.
 /// </summary>
-public sealed record ViewerReconnectBaseline(ViewerWorldSnapshot Snapshot, ViewerEventSlice Events);
+public sealed record ViewerReconnectBaseline(ViewerWorldSnapshot Snapshot, ViewerEventSlice Events,
+    ViewerObserverTimeline? Timeline = null);
 
 /// <summary>
 /// Owns the static deterministic sample exposed by the first browser slice.
