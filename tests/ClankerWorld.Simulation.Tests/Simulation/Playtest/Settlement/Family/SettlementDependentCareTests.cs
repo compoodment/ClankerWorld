@@ -19,7 +19,7 @@ public sealed partial class SettlementParenthoodTests
             AgeBand = SocietyAgeBand.Infant,
             LastLifecycleYearChecked = 0,
         };
-        var checkpoint = SocietyFixture.CreateGenesis("multiple-care", [adult, child, child with { Id = "other" }]);
+        var checkpoint = SocietyFixture.CreateGenesis("multiple-care", [adult, child, child with { Id = "other", Name = "Other" }]);
         checkpoint = SocietyFixture.CreateHousehold(checkpoint, "home", "Home", ["adult", "child", "other"]).Checkpoint;
         var first = SocietyFixture.AssumeInfantCare(checkpoint, "adult", "child");
         var second = SocietyFixture.AssumeInfantCare(first.Checkpoint, "adult", "other");
@@ -133,6 +133,31 @@ public sealed partial class SettlementParenthoodTests
         using var generated = NormalPathWorld.CreateGenerated("guardian-relative-priority-project", _ => new ParentProvider("safe_idle"));
         generated.Pause();
         var state = generated.ExportState();
+        Assert.Equal(0, state.Society.Society.WorldTick);
+        const int testDay = 120;
+        var originalDay = state.Society.Society.Config.TicksPerWorldDay;
+        // Keep both complete guardian-search windows and their reloads, using a shorter
+        // test day. Preserve founder ages and initialize weather for the matching calendar.
+        state = state with
+        {
+            Society = state.Society with
+            {
+                Society = state.Society.Society with
+                {
+                    Config = state.Society.Society.Config with { TicksPerWorldDay = testDay },
+                    Inhabitants = state.Society.Society.Inhabitants.Select(person => person with
+                    {
+                        BirthTick = person.BirthTick / originalDay * testDay,
+                        BirthLifeTick = person.BirthLifeTick is { } birth ? birth / originalDay * testDay : null,
+                    }).ToArray(),
+                },
+            },
+            WorldSystems = ClankerWorld.Simulation.World.RegionalWeatherRules.Initialize(state.WorldSystems! with
+            {
+                Config = state.WorldSystems.Config with { TicksPerDay = testDay },
+                RegionalWeather = null,
+            }, state.Map),
+        };
         var originHouse = state.WorldSimulation!.Buildings.Single(item => item.InstanceId == "first-town-house-a");
         var relativeHouse = state.WorldSimulation.Buildings.Single(item => item.InstanceId == "first-town-house-b");
         var childHousehold = originHouse.HouseholdId!;
