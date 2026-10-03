@@ -80,8 +80,9 @@ public sealed class GodotOwnerWorldApiTests
         Assert.True(committed);
         Assert.True(session.TryAccept(selected, session.EventCursor, out var failure), failure);
         Assert.Equal(selectedWorld, session.Current!.Baseline.Snapshot.WorldId);
-        Assert.True(session.TryAccept(old, 3, out _));
-        Assert.False(session.TryAccept(selected, 0, out _));
+        Assert.False(session.TryAccept(old, 3, out _));
+        Assert.Equal(selectedWorld, session.Current!.Baseline.Snapshot.WorldId);
+        Assert.True(session.TryAccept(selected, 0, out _));
     }
 
     [Fact]

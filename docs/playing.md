@@ -61,7 +61,8 @@ still open normally.
    [More New World options](#more-new-world-options)).
 2. Wait for the preview. Changing an option updates it; **Create World** becomes
    available when the preview for the current choices succeeds.
-3. Create the world. It opens paused. Choose a rough site for its first Town;
+3. Create the world. It opens paused at 06:00 on Spring 1, Year 1, in daylight.
+   Choose a rough site for its first Town;
    greener shading and the hovered tips show nearby food, fertile ground, wood,
    stone and open space for Roads. These are suggestions only: the game checks
    whether the starter layout fits after you choose a site. It then places two
@@ -171,6 +172,13 @@ their normal tools and carrying space. A named site is checked through travel
 and observation, and an empty or unavailable site leaves the order waiting
 with a reason. These orders are for adults and elders.
 
+To put carried raw materials away, use **Store wood**, **Store five clay in my
+House**, or **Keep storing stone**. The agent walks to its household's House
+and keeps ownership of the goods. A plain request stores one carried lot, up
+to the room available; a quantity stops at that exact number. Missing personal
+materials or a full House leaves the task waiting with a reason. Storage orders
+currently cover the same seven raw materials as gathering, for adults and elders.
+
 Use **Move to tile (12, 4)** to send an agent to an exact tile. **Go to (12, 4)**
 and **Travel to (12, 4)** work too. The agent walks there normally and finishes
 only on that tile. An occupied or unreachable destination leaves the order
@@ -193,6 +201,14 @@ guardian search. The order finishes when they accept primary care; moving the
 child into their House still requires room and a shared Town. This order can be
 queued or cancelled like a food task. It cannot replace an existing guardian.
 
+To pick up personal raw materials, use **Collect my wood**, **Collect three
+clay**, or **Keep collecting stone**. Adults and elders walk to their own goods
+in their current or former household's storage, or where they were dropped.
+They keep ownership and use normal carrying space. A plain request collects
+one load; a quantity stops exactly at that number. Full hands or unavailable
+goods leave the task waiting. These orders cover the same seven raw materials;
+requests naming a particular source or destination are not understood yet.
+
 An instruction the game cannot understand leaves the current order running.
 Unsupported requests, such as "build a house" or "gather cloth," close as not
 understood and appear in the Event Log. Recognized orders follow normal access
@@ -210,8 +226,8 @@ Every day has a night, from 19:12 to 04:48 on the clock in the top bar, with a
 short dusk and dawn. In a six-minute day that is about 2 min 24 s of night. The
 map turns a gentle dark blue but stays readable; names, agents and panels keep
 their daytime colors. Nights are colder outdoors, so an agent with no clothing,
-shelter or fire loses warmth, and their warmth bar shows it. A new world starts
-at midnight.
+shelter or fire loses warmth, and their warmth bar shows it. New worlds start
+in the morning; loading a saved world keeps its recorded time.
 
 Click bare ground to inspect the recorded facts there. Agents take priority
 when they overlap the pointer. **Event Log** shows important events under a
