@@ -105,7 +105,11 @@ public sealed partial class PrivateWorldRuntime
             AppendEvent("town_civic_" + notice.Kind, $"{town.Id}|{notice.SubjectId}|{notice.Text}", CivicBoard(town));
     }
 
-    private GridPoint? CivicBoard(TownRuntimeState town) => town.OriginSite ??
+    private GridPoint? CivicBoard(TownRuntimeState town) =>
+        worldSimulation.Buildings.Where(b => b.TownId == town.Id && b.HouseholdId is null &&
+            worldContent.Buildings.Any(d => d.CanonicalId == b.DefinitionId && d.Tags.Contains(TownHallContent.HallTag, StringComparer.Ordinal)))
+            .OrderBy(b => b.PlacedTick).ThenBy(b => b.InstanceId, StringComparer.Ordinal)
+            .Select(b => (GridPoint?)(b.Entrance ?? TownHallContent.Entrance(b.Position))).FirstOrDefault() ?? town.OriginSite ??
         worldSimulation.Buildings.FirstOrDefault(b => b.TownId == town.Id && b.HouseholdId is null)?.Position ??
         map.CampObjects.FirstOrDefault(p => p.Kind == "storage" && town.BorderTiles.Contains(p.Position))?.Position ??
         town.BorderTiles.Where(map.IsBuildable).OrderBy(p => p.Y).ThenBy(p => p.X).Select(p => (GridPoint?)p).FirstOrDefault();
@@ -160,6 +164,7 @@ public sealed partial class PrivateWorldRuntime
                 }
                 AddTownLawCandidates(candidates, actor, town);
                 if (town.Government is not null) AddTownGovernmentCandidates(candidates, actor, town);
+                AddTownProjectProposalCandidates(candidates, actor, town);
                 var here = inhabitants[actor].Position;
                 // The model sees no map grid, so name real claimable tiles it can choose from.
                 if (TownLandClaimRules.ClaimableNear(map, town, townLandTitles, here, 6) is { Length: > 0 } nearest)
@@ -274,6 +279,13 @@ public sealed partial class PrivateWorldRuntime
                     if (proposalText is null && parts[2] != "repeal") return;
                     (state, government) = ApplyTownLawAction(town, actor, parts[2], parts[3], parts[4], proposalText, state, government);
                     break;
+                case "project":
+                    var plan = OfferedTownProjectPlan(town, actor, parts[3], parts[4], proposalText);
+                    if (plan is null) return;
+                    state = TownGovernanceRules.SubmitProposal(state, town.Id, actor, "project", null,
+                        TownProjectRules.ProposalText(plan), "council:" + state.Revision,
+                        TownAdults(town), WorldTick, CivicDay, project: plan);
+                    break;
                 case "claim_land": state = SubmitTownLandClaim(town, state, actor, landTiles); break;
                 case "request_land_use": state = SubmitPersonalLandUseRequest(town, state, actor, landTiles); break;
                 case "request_expansion_land": state = SubmitExpansionLandRequest(town, state, actor, parts[3]); break;
@@ -302,6 +314,7 @@ public sealed partial class PrivateWorldRuntime
             state = TownGovernanceRules.LearnNotices(state, actor,
                 state.Notices.Skip(town.Governance.Notices.Count).Select(n => n.Id), WorldTick);
             SaveTownGovernance(town, state, government);
+            MaintainTownProjects();
             AppendEvent("town_civic_action", $"{town.Id}|{actor}|{parts[2]}", inhabitants[actor].Position);
             SettleTownAdmissions();
         }
