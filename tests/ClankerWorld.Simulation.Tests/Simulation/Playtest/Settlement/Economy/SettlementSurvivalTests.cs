@@ -1,3 +1,4 @@
+using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Kernel;
@@ -302,6 +303,13 @@ public sealed class SettlementSurvivalTests
                     Inventory = InventoryFixture.AddLot(state.Society.Society.Inventory,
                         "recovery-coat", "padded_coat", recoveringId, 1),
                 },
+                // Nor may a saved intention, such as a building project chosen
+                // during the autonomous run, start that walk again.
+                Cognition = state.Society.Cognition with
+                {
+                    Runtimes = state.Society.Cognition.Runtimes.Select(runtime => runtime.InhabitantId == recoveringId
+                        ? runtime with { CurrentIntention = null } : runtime).ToArray(),
+                },
             },
             Survival = state.Survival! with { Fires = [new CampFireState(heater.InstanceId, world.WorldTick + 120)] },
         };
@@ -336,6 +344,8 @@ public sealed class SettlementSurvivalTests
         {
             await seed.AdvanceOneTickAsync();
         }
+        // Recovery by day; a cold night is covered by NightChillsUnprotectedAgentsWhileShelterClothingAndFireStillHelp.
+        await SettlementWeatherTestFixture.AdvanceToDaylightAsync(seed);
         var original = SettlementWeatherTestFixture.WithWeather(seed.ExportState(), WeatherKind.Clear);
         var sick = original with
         {
@@ -358,6 +368,117 @@ public sealed class SettlementSurvivalTests
         var before = PrivateWorldRuntimeCodec.Encode(world.ExportState());
         Assert.False((await world.AdvanceOneTickAsync()).Advanced);
         Assert.Equal(before, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+    }
+
+    [Fact]
+    public async Task NightChillsUnprotectedAgentsWhileShelterClothingAndFireStillHelp()
+    {
+        using var seed = new PrivateWorldRuntime("night-chill", _ => new IdleProvider());
+        seed.StageStarterContent();
+        for (var tick = 0; tick < 3; tick++) Assert.True((await seed.AdvanceOneTickAsync()).Advanced);
+        // Worlds start at midnight.
+        Assert.Equal(DaylightRules.FullDarkness, DaylightRules.DarknessBasisPoints(seed.WorldSystems));
+        var start = SettlementWeatherTestFixture.WithWeather(seed.ExportState(), WeatherKind.Clear);
+        var subject = start.Inhabitants[0].InhabitantId;
+        var spot = start.Map.Tiles.Select(tile => tile.Position).First(point => start.Map.IsPassable(point) &&
+            !start.Inhabitants.Any(person => person.InhabitantId != subject && person.Position == point) &&
+            !start.Map.CampObjects.Any(item => item.Position == point) &&
+            !start.Map.Resources.Any(item => item.Position == point));
+
+        // Each world tests one protection alone, on the same open ground at the same hour.
+        PrivateWorldRuntime NightAt(string? buildingLocalId, bool clothing)
+        {
+            using var preparing = PrivateWorldRuntime.Restore(start, _ => new IdleProvider());
+            string? buildingId = null;
+            if (buildingLocalId is not null)
+            {
+                var placed = preparing.PlaceBuilding("night-" + buildingLocalId,
+                    preparing.WorldContent.Buildings.Single(building => building.LocalId == buildingLocalId).CanonicalId, spot);
+                Assert.True(placed.Applied, placed.Failure);
+                buildingId = placed.InstanceId;
+            }
+            var state = preparing.ExportState();
+            state = state with
+            {
+                Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == subject
+                    ? person with
+                    {
+                        Position = spot,
+                        HungerBasisPoints = 10_000,
+                        Survival = new SurvivalCondition(8_000),
+                        Project = null,
+                        Exploration = null,
+                        Equipment = clothing ? new(ClothingLotId: "night-clothing") : null,
+                    }
+                    : person).ToArray(),
+                Society = clothing ? state.Society with
+                {
+                    Society = state.Society.Society with
+                    {
+                        Inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "night-clothing", "clothing", subject, 1),
+                    },
+                } : state.Society,
+                Survival = buildingLocalId == "fire"
+                    ? state.Survival! with { Fires = [new CampFireState(buildingId!, state.Society.Society.WorldTick + 120)] }
+                    : state.Survival,
+            };
+            return PrivateWorldRuntime.Restore(
+                PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)), _ => new IdleProvider());
+        }
+        int Warmth(PrivateWorldRuntime runtime) =>
+            runtime.Inhabitants.Single(person => person.InhabitantId == subject).Survival!.WarmthBasisPoints;
+        async Task<int> WarmthAfterNightTicks(PrivateWorldRuntime runtime)
+        {
+            for (var tick = 0; tick < 20; tick++) Assert.True((await runtime.AdvanceOneTickAsync()).Advanced);
+            Assert.Equal(DaylightRules.FullDarkness, DaylightRules.DarknessBasisPoints(runtime.WorldSystems));
+            return Warmth(runtime);
+        }
+
+        using (var clothed = NightAt(null, clothing: true))
+        {
+            Assert.True(await WarmthAfterNightTicks(clothed) > 8_000, "Clothing must still keep out a mild night's cold.");
+            // Garments wear in cold or wet weather, not merely because it is night.
+            Assert.Equal(10_000, clothed.Society.Inventory.GetLot("night-clothing").ConditionBasisPoints);
+        }
+        using (var sheltered = NightAt("shelter", clothing: false))
+            Assert.True(await WarmthAfterNightTicks(sheltered) > 8_000, "Shelter must still keep out a mild night's cold.");
+        using (var warmed = NightAt("fire", clothing: false))
+            Assert.True(await WarmthAfterNightTicks(warmed) > 8_000, "A lit fire must still warm an agent at night.");
+        using var world = NightAt(null, clothing: false);
+        Assert.True(await WarmthAfterNightTicks(world) < 8_000, "Clear night air must chill an agent with no protection.");
+
+        // Through dawn the chill fades step by step, then the same open ground warms again by day.
+        var changes = new List<int>();
+        byte[]? midDawn = null;
+        var midDawnDarkness = 0;
+        var ticksAfterMidDawn = 0;
+        var last = Warmth(world);
+        while (DaylightRules.DarknessBasisPoints(world.WorldSystems) > 0)
+        {
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+            changes.Add(Warmth(world) - last);
+            last = Warmth(world);
+            var darkness = DaylightRules.DarknessBasisPoints(world.WorldSystems);
+            if (midDawn is null && darkness is > 0 and < DaylightRules.FullDarkness / 2)
+            {
+                midDawn = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+                midDawnDarkness = darkness;
+            }
+            else if (midDawn is not null) ticksAfterMidDawn++;
+        }
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        ticksAfterMidDawn++;
+        Assert.True(Warmth(world) > last, "Daylight must end the night chill.");
+        Assert.True(changes.Zip(changes.Skip(1)).All(pair => pair.Second >= pair.First), string.Join(",", changes));
+        Assert.Contains(changes, change => change is < 0 and > -15);
+
+        // Time of day comes from the saved clock: a world saved during dawn
+        // reloads at the same light and replays to identical warmth.
+        Assert.NotNull(midDawn);
+        using var reloaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(midDawn), _ => new IdleProvider());
+        Assert.Equal(midDawnDarkness, DaylightRules.DarknessBasisPoints(reloaded.WorldSystems));
+        for (var tick = 0; tick < ticksAfterMidDawn; tick++) Assert.True((await reloaded.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
     }
 
     [Fact]

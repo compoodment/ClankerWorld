@@ -87,7 +87,7 @@ public partial class Main
     {
         if (usageStatus is null)
         {
-            usageMeterStatus.Text = "Loading model calls…";
+            usageMeterStatus.Text = "Loading model calls...";
             return;
         }
         if (usageStatus.AccountingError is not null)
@@ -364,7 +364,7 @@ public partial class Main
             cognitionCredentialChoice.AddItem(slot.Label);
             cognitionCredentialChoice.SetItemMetadata(cognitionCredentialChoice.ItemCount - 1, slot.Id);
         }
-        cognitionCredentialChoice.AddItem("Add another API key…");
+        cognitionCredentialChoice.AddItem("Add another API key...");
         cognitionCredentialChoice.SetItemMetadata(cognitionCredentialChoice.ItemCount - 1, "new");
         var assignedSlot = SelectedAssignment()?.Provider == provider ? SelectedAssignment()?.CredentialSlotId : null;
         for (var index = 0; index < cognitionCredentialChoice.ItemCount; index++)
@@ -405,17 +405,25 @@ public partial class Main
         cognitionCredentialHint.Text = newCredential
             ? "A new key is stored privately on the host and can be reused for other agents."
             : agentCredential && SelectedCredentialChoice() != "default"
-            ? "Named key saved on host"
+            ? "This key is saved on the host."
             : agentCredential && option?.HasCredential != true
             ? "No provider default key. Select Add another API key to give this agent one."
             : option?.HasCredential == true
-            ? "Key saved on host"
+            ? "The key is saved on the host."
             : "No saved key";
         cognitionConfigurationStatus.Text = providerConfiguration is null
-            ? "Loading…"
+            ? "Loading..."
             : SelectedTargetWasBornHere()
             ? SelectedChildModelStatus()
             : $"Routine: {ProviderDisplayName(providerConfiguration.RoutineProvider)} · Planning: {ProviderDisplayName(providerConfiguration.PlanningProvider)}";
+        // An agent's own page needs no summary of the world's defaults, and it
+        // loads fresh each time it opens, so it needs no Refresh either.
+        var agentPage = selectedAgentModelScroll.Visible;
+        cognitionConfigurationStatus.Visible = !agentPage || SelectedTargetWasBornHere();
+        refreshCognitionProviderButton.Visible = !agentPage;
+        // Saved keys are deleted from the world's settings; an agent's page links there instead.
+        deleteCognitionCredentialSlotButton.Visible &= !agentPage;
+        openModelSettingsButton.Visible = agentPage;
         RefreshControlAvailability();
     }
 
@@ -517,8 +525,19 @@ public partial class Main
         _ => string.Empty,
     };
 
+    /// <summary>A small caption above a field that hides and shows with it.</summary>
+    private static Label FieldCaption(string text, Control field)
+    {
+        var caption = new Label { Text = text, ThemeTypeVariation = "DimLabel", Visible = field.Visible };
+        field.VisibilityChanged += () => caption.Visible = field.Visible;
+        return caption;
+    }
+
     private void BuildCognitionSettingsPanel()
     {
+        // Long key or model names are cut short rather than widening the Profile.
+        foreach (var choice in new[] { cognitionProviderChoice, cognitionCredentialChoice, cognitionRoleChoice })
+            choice.ClipText = true;
         var body = new VBoxContainer();
         body.AddThemeConstantOverride("separation", 6);
 
@@ -558,6 +577,7 @@ public partial class Main
             RenderProviderConfiguration();
         };
         providerRow.AddChild(cognitionProviderChoice);
+        body.AddChild(FieldCaption("Provider", providerRow));
         body.AddChild(providerRow);
 
         cognitionCredentialChoice.TooltipText = "Pick a saved key for this agent, or add another key for the same provider.";
@@ -567,6 +587,7 @@ public partial class Main
             cognitionApiKeyInput.Text = string.Empty;
             RenderProviderConfiguration();
         };
+        body.AddChild(FieldCaption("API key", cognitionCredentialChoice));
         body.AddChild(cognitionCredentialChoice);
 
         cognitionCredentialLabelInput.PlaceholderText = "Name this key (for example, Personal account)";
@@ -579,6 +600,7 @@ public partial class Main
 
         cognitionModelPicker.RetryRequested += () => SyncCognitionModelPicker(force: true);
         cognitionModelPicker.ModelChanged += ClearCognitionModelSetupCheck;
+        body.AddChild(FieldCaption("Model", cognitionModelPicker));
         body.AddChild(cognitionModelPicker);
         cognitionModelSetupCheckButton.Text = "Test model · 1 paid call";
         cognitionModelSetupCheckButton.TooltipText = "Sends one request with this model and key. It counts toward your paid-call limit.";
@@ -598,8 +620,10 @@ public partial class Main
         cognitionConfigurationStatus.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         body.AddChild(cognitionConfigurationStatus);
 
-        var buttons = new HBoxContainer();
-        buttons.AddThemeConstantOverride("separation", 6);
+        // The buttons wrap rather than push the box wider than an agent's Profile.
+        var buttons = new HFlowContainer();
+        buttons.AddThemeConstantOverride("h_separation", 6);
+        buttons.AddThemeConstantOverride("v_separation", 6);
         saveCognitionProviderButton.Text = "Apply";
         StyleButton(saveCognitionProviderButton, primary: true);
         saveCognitionProviderButton.Pressed += () => _ = SaveProviderConfigurationAsync();
@@ -608,11 +632,17 @@ public partial class Main
         StyleButton(forgetCognitionCredentialButton);
         forgetCognitionCredentialButton.Pressed += () => _ = ForgetProviderCredentialAsync();
         buttons.AddChild(forgetCognitionCredentialButton);
-        deleteCognitionCredentialSlotButton.Text = "Delete named key";
+        deleteCognitionCredentialSlotButton.Text = "Delete this key";
         deleteCognitionCredentialSlotButton.TooltipText = "Delete a saved key. Move agents using it to another key first; a child bound at birth keeps its model and waits for setup.";
         StyleButton(deleteCognitionCredentialSlotButton);
         deleteCognitionCredentialSlotButton.Pressed += () => _ = DeleteCredentialSlotAsync();
         buttons.AddChild(deleteCognitionCredentialSlotButton);
+        openModelSettingsButton.Text = "Open model settings";
+        openModelSettingsButton.TooltipText = "Opens this agent's model in Settings, where you can also delete saved keys.";
+        StyleButton(openModelSettingsButton);
+        openModelSettingsButton.Pressed += () => _ = OpenWorldModelSettingsAsync();
+        openModelSettingsButton.Hide();
+        buttons.AddChild(openModelSettingsButton);
         refreshCognitionProviderButton.Text = "Refresh";
         StyleButton(refreshCognitionProviderButton);
         refreshCognitionProviderButton.Pressed += () => _ = RefreshProviderConfigurationAsync();
@@ -687,6 +717,45 @@ public partial class Main
             return;
         }
         SetStatus("You can't change this agent's model right now.", good: false);
+    }
+
+    private readonly MarginContainer selectedAgentModelGap = new() { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+
+    /// <summary>
+    /// An agent's model settings fill the Profile's width and are as tall as
+    /// they need, up to the bottom of the screen, scrolling beyond that.
+    /// </summary>
+    private void BuildAgentModelScroll()
+    {
+        selectedAgentModelScroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
+        selectedAgentModelContent.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        selectedAgentModelContent.MinimumSizeChanged += PositionAgentProfile;
+        selectedAgentModelGap.AddChild(selectedAgentModelContent);
+        selectedAgentModelScroll.AddChild(selectedAgentModelGap);
+    }
+
+    private void FitAgentModelScroll()
+    {
+        var content = selectedAgentModelContent.GetCombinedMinimumSize().Y;
+        var rest = agentProfilePanel.GetCombinedMinimumSize().Y - selectedAgentModelScroll.CustomMinimumSize.Y;
+        var room = Math.Max(120, UiSize.Y - HudTop - 14 - rest);
+        var scrolls = content > room;
+        selectedAgentModelGap.AddThemeConstantOverride("margin_right", scrolls ? SettingsScrollGap : 0);
+        selectedAgentModelScroll.CustomMinimumSize = new Vector2(0, scrolls ? room : content);
+    }
+
+    /// <summary>
+    /// From an agent's page, opens Settings on the World page at the Agent
+    /// model box with this agent still chosen, where saved keys are managed.
+    /// </summary>
+    private async Task OpenWorldModelSettingsAsync()
+    {
+        CloseAgentModelEditor();
+        if (!gameMenuPanel.Visible) await ToggleGameMenuAsync();
+        ShowSettingsSection(worldSpecific: true);
+        RenderProviderConfiguration();
+        // The page opens at its top; bring the box into view once it is laid out.
+        Callable.From(() => settingsScroll.EnsureControlVisible(cognitionSettingsPanel)).CallDeferred();
     }
 
     private void CloseAgentModelEditor()

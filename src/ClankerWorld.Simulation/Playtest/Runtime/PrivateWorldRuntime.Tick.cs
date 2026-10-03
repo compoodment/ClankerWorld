@@ -178,6 +178,9 @@ public sealed partial class PrivateWorldRuntime
                     proposed.WorldTick,
                     IsConversationTurnProviderCurrent);
                 proposed.CompleteIdentityMoments(completedIdentityMoments, IsIdentityMomentProviderCurrent);
+                if (deferHosted)
+                    proposed.ProcessWillDecisions(completedWills, activeWillIds, inactiveWillReasons,
+                        IsWillDecisionProviderCurrent);
                 CommitPreparedTick(proposed);
                 plannedRoutes = proposed.plannedRoutes;
                 lastTickMilliseconds = tickMilliseconds;
@@ -421,11 +424,13 @@ public sealed partial class PrivateWorldRuntime
             StageWarehouseContent();
             StageFarmContent();
             StageBlacksmithContent();
+            StageOrnamentContent();
             StageHouseCookingContent();
             StageRestaurantContent();
             StagePotteryContent();
             StageSiloContent();
             StageTailorContent();
+            StageCareContent();
             StageBuiltInContent(BusinessContent.PackageId, HouseContent.PackageId, BusinessContent.Create, "business_content_staged");
             var readyPackages = contentRegistry.GetActivationCandidates(targetTick);
             var reservationPreview = WorldAssetReservationLedger.Restore(
@@ -449,8 +454,7 @@ public sealed partial class PrivateWorldRuntime
             }
 
             assetReservations = reservationPreview;
-            society.AdvanceTo(targetTick);
-            if (deferHosted) await ProcessWillDecisionsAsync(completedWills, activeWillIds, inactiveWillReasons);
+            society.AdvanceTo(targetTick, TownStoresForDueEstates(targetTick));
             var previousClimate = worldSystems.Climate;
             var campPosition = WeatherAnchor;
             var previousCampWeather = WeatherAt(campPosition);
@@ -502,13 +506,16 @@ public sealed partial class PrivateWorldRuntime
 
             WearEquippedClothing();
             AdvanceSettlementSurvival();
+            AdvanceMedicalTreatments();
             MaintainSettlementTrades();
             MaintainBusinessTrades();
             DrainNeeds();
+            AdvanceMedicalTreatments();
             RemoveDeadPhysicalState();
             CancelFieldWorkForUnavailableWorkers();
             AdvanceSettlementCouncil();
             AdvanceTownGovernance();
+            SettleTownAdmissions();
             MaintainLessons();
             MaintainPartnerships();
             MaintainHousing();
@@ -581,6 +588,7 @@ public sealed partial class PrivateWorldRuntime
             var waiting = deferHosted ? society.PendingHostedInhabitantIds() : new HashSet<string>(StringComparer.Ordinal);
             var orderActorsHandledThisTick = ApplyContinuingIntentions(
                 decisions.Select(item => item.InhabitantId), waiting);
+            AdvanceMedicalTreatments();
             if (deferHosted) ApplySafeRoutinesWhileWaiting(waiting, orderActorsHandledThisTick);
             AdvanceBridgeTraffic();
             SettleGuardianSearches();

@@ -66,7 +66,7 @@ public sealed class ExplorationBridgeArchiveTests(ITestOutputHelper output)
         var state = world.ExportState();
         var deceased = Assert.Single(state.DeceasedInhabitants!);
         var exploration = Assert.IsType<SettlementExploration>(deceased.LastPhysical.Exploration);
-        var bridge = Assert.Single(state.Bridges!);
+        var bridge = Assert.Single(state.Bridges!, item => item.Id == "bridge-0-102-ew-2");
         Assert.True(exploration.LastOutingTick > 0);
         // Unlike the real later bridge, this forged timestamp says that its
         // axis already constrained every step in the recorded outing.
@@ -125,7 +125,7 @@ public sealed class ExplorationBridgeArchiveTests(ITestOutputHelper output)
             Assert.Equal(10, Assert.Single(workshop.BuildCosts).Amount);
             var placement = world.PlaceBuilding(WorkshopId, workshop.CanonicalId, WorkshopSite);
             Assert.True(placement.Applied, placement.Failure);
-            var bridge = Assert.Single(world.Bridges);
+            var bridge = Assert.Single(world.Bridges, item => item.Id == "bridge-0-102-ew-2");
             Assert.Equal("bridge-0-102-ew-2", bridge.Id);
             Assert.Equal(BridgeTriggers.Road, bridge.Trigger);
             Assert.True(bridge.BuiltTick > deceased.DeathTick);

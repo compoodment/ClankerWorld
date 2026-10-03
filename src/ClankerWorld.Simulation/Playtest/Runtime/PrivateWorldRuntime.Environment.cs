@@ -250,11 +250,31 @@ public sealed partial class PrivateWorldRuntime
             }
             var deceased = society.Checkpoint.GetInhabitant(id);
             var deathTick = deceased.DeathTick ?? throw new InvalidDataException("A removed inhabitant has no committed death.");
+            // Society escrows ownership at death. Goods that had no separate
+            // custodian or storage were carried by their owner; keep their
+            // physical position at the deceased's tile after that owner is gone.
+            var estate = society.Checkpoint.Estates.SingleOrDefault(item => item.DeceasedId == id);
+            if (estate is not null)
+            {
+                var position = inhabitants[id].Position;
+                foreach (var lot in society.Checkpoint.Inventory.Lots.Where(item => item.OwnerId == estate.Id &&
+                             item.ContainerLotId is null && item.CarrierId is null &&
+                             item.StorageBuildingId is null && item.GroundPosition is null).ToArray())
+                    ApplyInventoryTransition(inventory => InventoryFixture.Relocate(inventory,
+                        $"death:{id}:{lot.Id}", lot.Id, estate.Id, lot.Quantity,
+                        groundPosition: new InventoryGroundPosition(position.X, position.Y)));
+            }
             foreach (var moment in (inhabitants[id].IdentityMoments ?? [])
                          .Where(item => item.Outcome is "waiting" or "requested").ToArray())
                 FinishIdentityMoment(id, moment.Kind, "interrupted");
             deceasedInhabitants.Add(id, new PlaytestDeceasedInhabitantState(
-                id, deathTick, society.Checkpoint.AgeAt(deceased, deathTick), inhabitants[id]));
+                id, deathTick, society.Checkpoint.AgeAt(deceased, deathTick),
+                inhabitants[id] with
+                {
+                    MedicalTreatment = null,
+                    Equipment = inhabitants[id].Equipment is { } equipment
+                        ? equipment with { OrnamentLotId = null } : null,
+                }, TownForResident(id)));
             inhabitants.Remove(id);
             RemoveTownResident(id);
             checkpointSchemaVersion = StateSchemaVersion;

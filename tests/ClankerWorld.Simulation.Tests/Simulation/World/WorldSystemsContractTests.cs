@@ -54,6 +54,72 @@ public sealed class WorldSystemsContractTests
         Assert.False(forged.IsValid);
     }
 
+    [Theory]
+    [InlineData(4_000)]
+    [InlineData(8_000)]
+    public void EcologyLookupReadsEachResourceAboutOnceAsTheWorldGrows(int count)
+    {
+        // A tick looks up thousands of sources. Searching the list for each one
+        // made Small-world ticks grow with the square of the resource count.
+        var resources = new CountingResourceList(Enumerable.Range(0, count).Select(index => new EcologyResource(
+            $"tree-{index:D5}", "construction", new GridPoint(index % 256, index / 256), false, 1, 1, 0, 0,
+            SeasonKind.Spring, 0, EcologyResourceState.Available)).ToArray());
+        var ecology = new EcologyState(resources);
+
+        for (var index = count - 1; index >= 0; index--)
+            Assert.Same(resources.Items[index], ecology.GetResource($"tree-{index:D5}"));
+
+        Assert.InRange(resources.Reads, count, 2 * count);
+    }
+
+    [Fact]
+    public void EcologyLookupFollowsReplacedResourcesAndKeepsLookupErrors()
+    {
+        var first = new EcologyResource("tree-a", "construction", new GridPoint(1, 1), true, 1, 1, 1, 4,
+            SeasonKind.Spring, 4, EcologyResourceState.Available);
+        var second = first with { Id = "tree-b", Position = new GridPoint(2, 1) };
+        var ecology = new EcologyState([first, second]);
+        Assert.Same(second, ecology.GetResource("tree-b"));
+
+        // `with` copies the state; the copy must find its own list's resources.
+        var felled = second with { Quantity = 0, State = EcologyResourceState.Regenerating };
+        var replaced = ecology with { Resources = [felled, first] };
+        Assert.Same(felled, replaced.GetResource("tree-b"));
+        Assert.Same(first, replaced.GetResource("tree-a"));
+        Assert.Same(second, ecology.GetResource("tree-b"));
+
+        Assert.Throws<InvalidOperationException>(() => ecology.GetResource("tree-c"));
+        Assert.Throws<InvalidOperationException>(() => new EcologyState([first, second, first]).GetResource("tree-a"));
+        Assert.Same(second, new EcologyState([first, second, first]).GetResource("tree-b"));
+    }
+
+    private sealed class CountingResourceList(EcologyResource[] items) : IReadOnlyList<EcologyResource>
+    {
+        public EcologyResource[] Items { get; } = items;
+        public int Reads { get; private set; }
+        public int Count => Items.Length;
+
+        public EcologyResource this[int index]
+        {
+            get
+            {
+                Reads++;
+                return Items[index];
+            }
+        }
+
+        public IEnumerator<EcologyResource> GetEnumerator()
+        {
+            foreach (var item in Items)
+            {
+                Reads++;
+                yield return item;
+            }
+        }
+
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+    }
+
     private static WorldSystemsConfig SmallConfig() => new(
         TicksPerDay: 4,
         DaysPerYear: 8,

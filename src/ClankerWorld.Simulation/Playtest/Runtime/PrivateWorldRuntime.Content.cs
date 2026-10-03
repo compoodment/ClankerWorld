@@ -100,7 +100,7 @@ public sealed partial class PrivateWorldRuntime
                 StarterContent.Create(), SettlementContent.Create(), HouseContent.Create(),
                 WarehouseContent.Create(), FarmContent.Create(), BlacksmithContent.Create(),
                 HouseCookingContent.Create(), PotteryContent.Create(), SiloContent.Create(), TailorContent.Create(),
-                RestaurantContent.Create(), BusinessContent.Create(),
+                RestaurantContent.Create(), BusinessContent.Create(), CareContent.Create(), OrnamentContent.Create(),
             ];
             foreach (var manifest in manifests)
             {

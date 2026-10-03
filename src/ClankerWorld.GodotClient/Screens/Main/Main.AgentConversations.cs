@@ -168,9 +168,10 @@ public partial class Main
         if (heardTurns.Length == 0)
             return unreadCount > 0 ? "A conversation is waiting for a response." : "No public turns have been saved yet.";
         var latest = heardTurns[^1];
-        var preview = latest.Text.Length > ConversationPreviewCharacters
-            ? latest.Text[..ConversationPreviewCharacters].TrimEnd() + "…"
-            : latest.Text;
+        var said = GameUiText.PlainEllipses(latest.Text);
+        var preview = said.Length > ConversationPreviewCharacters
+            ? said[..ConversationPreviewCharacters].TrimEnd() + "..."
+            : said;
         var newTurns = unreadCount > 0 ? $"{unreadCount} new public turn{(unreadCount == 1 ? string.Empty : "s")}. " : string.Empty;
         return $"{newTurns}{latest.SpeakerName}: {preview}";
     }
@@ -214,7 +215,8 @@ public partial class Main
         var turn = conversation.Turns.LastOrDefault(item => ConversationTurnWasHeardBy(item, agentId));
         var status = ConversationStatusText(conversation);
         if (turn is null) return $"{status} · click to see the conversation.";
-        var preview = turn.Text.Length > 80 ? turn.Text[..80].TrimEnd() + "…" : turn.Text;
+        var said = GameUiText.PlainEllipses(turn.Text);
+        var preview = said.Length > 80 ? said[..80].TrimEnd() + "..." : said;
         return $"{status} · {turn.SpeakerName}: {preview} · click to see the conversation.";
     }
 

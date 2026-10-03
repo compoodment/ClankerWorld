@@ -54,7 +54,7 @@ public sealed class ExplorationBridgeSaveTests(ITestOutputHelper output)
             var beforeStock = Totals(world.ExportState());
             var placed = world.PlaceBuilding(WorkshopId, workshop.CanonicalId, WorkshopSite);
             Assert.True(placed.Applied, placed.Failure);
-            var bridge = Assert.Single(world.Bridges);
+            var bridge = Assert.Single(world.Bridges, item => item.Id == BridgeId);
             Assert.Equal(BridgeId, bridge.Id);
             Assert.Equal(BridgeTriggers.Road, bridge.Trigger);
             Assert.Equal($"road:{TownBorderRules.FirstTownId}:{WorkshopId}", bridge.RouteId);

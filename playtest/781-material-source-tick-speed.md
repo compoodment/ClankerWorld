@@ -1,0 +1,1 @@
+- On the paired world: load a Small world with thousands of trees, such as the one from the report, and stay connected for a few minutes while agents build and gather. World time should keep moving steadily instead of one step every 15 seconds, and agents should still walk to nearby wood, stone and ore they can use. ([#781](https://github.com/compoodment/ClankerWorld/issues/781))

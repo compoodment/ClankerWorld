@@ -48,6 +48,16 @@ internal static partial class TownTelemetry
     private static partial void LogTownCivic(ILogger logger, long worldTick, string townId, TownCivicTransitionKind transition,
         bool representative, int members, string status, int yes, int no, int ballots);
 
+    /// <summary>A passed admission's outcome. IDs and counts only; never names or proposal text.</summary>
+    public static void Admission(ILogger logger, long worldTick, string townId, string outcome, string previousTownId,
+        int members, int residents) =>
+        LogTownAdmission(logger, worldTick, townId, outcome, previousTownId, members, residents);
+
+    [LoggerMessage(EventId = 2295, Level = LogLevel.Information,
+        Message = "town_admission tick={WorldTick} town={TownId} outcome={Outcome} previous_town={PreviousTownId} members={Members} residents={Residents}")]
+    private static partial void LogTownAdmission(ILogger logger, long worldTick, string townId, string outcome,
+        string previousTownId, int members, int residents);
+
     public static void SiteRejected(ILogger logger, long worldTick, string townId, string inhabitantId,
         string buildingId, int x, int y, string reason)
     {

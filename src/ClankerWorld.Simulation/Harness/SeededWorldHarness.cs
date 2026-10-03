@@ -234,21 +234,26 @@ public sealed record SeededMap(
             ? throw new ArgumentOutOfRangeException(nameof(destination), "The foot step is illegal.")
             : checked(FootTravelCost(destination) * (IsDiagonalFootStep(origin, destination) ? 141 : 100) / 100);
 
+    private static readonly (int X, int Y)[] FootNeighborOffsets =
+    [
+        (0, -1), (1, 0), (0, 1), (-1, 0),
+        (1, -1), (1, 1), (-1, 1), (-1, -1),
+    ];
+
     public IEnumerable<GridPoint> FootNeighbors(GridPoint point)
     {
         if (!Contains(point))
             throw new ArgumentOutOfRangeException(nameof(point));
-        var seen = new HashSet<GridPoint>();
-        foreach (var (dx, dy) in new (int X, int Y)[]
-        {
-            (0, -1), (1, 0), (0, 1), (-1, 0),
-            (1, -1), (1, 1), (-1, 1), (-1, -1),
-        })
+        // Route searches call this for every tile they reach. The eight offsets
+        // are always eight different tiles, except across an east/west wrap
+        // narrower than three columns, so only that case needs to skip repeats.
+        var seen = WrapsEastWest && Width < 3 ? new HashSet<GridPoint>() : null;
+        foreach (var (dx, dy) in FootNeighborOffsets)
         {
             var x = point.X + dx;
             if (WrapsEastWest) x = (x % Width + Width) % Width;
             var next = new GridPoint(x, point.Y + dy);
-            if (seen.Add(next) && CanFootStep(point, next))
+            if ((seen is null || seen.Add(next)) && CanFootStep(point, next))
                 yield return next;
         }
     }
@@ -541,7 +546,15 @@ public static class BaseCampMapGenerator
                 new CampObject("workshop", "workshop", new GridPoint(0, 2)),
                 new CampObject("camp-path", "path", new GridPoint(2, 1)),
             ]).ToArray();
-        var candidate = fixture with { CampObjects = objects, ManifestDigest = string.Empty };
+        var candidate = fixture with
+        {
+            CampObjects = objects,
+            Resources = fixture.Resources.Concat([
+                new MapResource("medicinal-herb-patch", "medicinal_herbs", new GridPoint(5, 3), true,
+                    NaturalObjectKind: "medicinal_herb_patch"),
+            ]).ToArray(),
+            ManifestDigest = string.Empty,
+        };
         var map = candidate with { ManifestDigest = MapManifestCodec.Digest(candidate) };
         var validation = MapAcceptance.Validate(map, allowEmptyCamp: true);
         if (!validation.IsValid)
@@ -646,6 +659,7 @@ public static class GeneratedCampMapGenerator
                 "berry-patch" => "berry_bush",
                 "grain-seed-patch" => "wild_seed_patch",
                 "wild-greens-patch" => "wild_greens",
+                "medicinal-herb-patch" => "medicinal_herb_patch",
                 _ => null,
             },
         }).ToArray();
@@ -1106,7 +1120,7 @@ public static class GeneratedCampMapGenerator
                     elevationLevels, surfaceKinds, width, height, starterSites))
                     return new GridPoint(centerX + offsetX, centerY - offsetY);
             }
-        throw new InvalidOperationException("The generated geography has no suitable base-camp clearing.");
+        throw new GeographyClearingUnavailableException();
     }
 
     private static bool TrySite(int left, int top, byte[] hydrologyKinds, byte[] elevationLevels,
@@ -1124,7 +1138,7 @@ public static class GeneratedCampMapGenerator
                 if (!IsGeneratedBuildable(hydrologyKinds[index], elevationLevels[index],
                     (SurfaceKind)surfaceKinds[index])) return false;
             }
-        // The starter berry bush, tree and fertile patch grow from the soil,
+        // The starter berry bush, tree, seeds and herbs grow from the soil,
         // so none of them may land on a beach or desert sand.
         return starterSites.All(site => TerrainPlacementRules.CanHoldOrdinaryVegetation(
             (SurfaceKind)surfaceKinds[(top + site.Y) * width + left + site.X]));
@@ -1344,7 +1358,7 @@ public static class MapAcceptance
             return MapValidationResult.Invalid("The starting area has no reachable food resource.");
         var reachable = ReachableFrom(map, startingPoint.Value);
         var starterResources = allowEmptyCamp
-            ? map.Resources.Where(resource => resource.Id is "berry-patch" or "timber-tree" or "grain-seed-patch" or "wild-greens-patch")
+            ? map.Resources.Where(resource => resource.Id is "berry-patch" or "timber-tree" or "grain-seed-patch" or "wild-greens-patch" or "medicinal-herb-patch")
             : map.Resources;
         if (map.CampObjects.Any(mapObject => !reachable.Contains(mapObject.Position)) ||
             starterResources.Any(resource => !reachable.Contains(resource.Position)))
@@ -1377,6 +1391,7 @@ public static class MapAcceptance
             "diamond_outcrop" => resourceKind == "diamond",
             "clay_bank" => resourceKind == "clay",
             "wild_seed_patch" => resourceKind is "grain_seed" or "cultivated_green_seed",
+            "medicinal_herb_patch" => resourceKind == "medicinal_herbs",
             "fertile_soil" => resourceKind == "fertile_land",
             _ => false,
         };

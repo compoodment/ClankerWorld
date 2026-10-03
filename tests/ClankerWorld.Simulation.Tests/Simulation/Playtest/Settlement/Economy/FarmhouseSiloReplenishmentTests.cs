@@ -205,13 +205,16 @@ public sealed class FarmhouseSiloReplenishmentTests
     [Fact]
     public async Task StoredSiloPotReplenishesOnlyTheNeededGrainWithoutMovingOrCloningTheVessel()
     {
-        var setup = await Prepare("silo-pot-replenishment", growField: false);
+        // Keep unrelated camp deliveries claimed, as in the loose-grain case,
+        // so this directed check reaches the stored pot within its tick bound.
+        var setup = await Prepare("silo-pot-replenishment", growField: false, isolateStoredGrain: true);
         var inventory = InventoryFixture.AddLot(setup.State.Society.Society.Inventory,
             "silo-pot", InventoryContainerRules.StoragePot, setup.Household, 1, storageBuildingId: setup.Silo);
         inventory = InventoryFixture.AddLot(inventory, "silo-pot-grain", FarmFieldRules.Grain,
             setup.Household, 6, storageBuildingId: setup.Silo, containerLotId: "silo-pot");
         using var world = Restore(FarmFieldTests.WithInventory(setup.State, inventory), setup.Actor,
             "haul_farm_grain", "haul_household_stock");
+        AssertUnrelatedHouseCargoClaims(world, setup);
         await Until(world, () => CarriedGrain(world, setup) is not null, 96, "actual partial pot withdrawal");
         var carried = CarriedGrain(world, setup)!;
         Assert.Equal(2, carried.Quantity);
@@ -228,6 +231,7 @@ public sealed class FarmhouseSiloReplenishmentTests
             96, "partial pot grain delivery");
         Assert.Equal(6, delivery.Society.Inventory.Lots.Where(lot => IsFrom(lot, "silo-pot-grain")).Sum(lot => lot.Quantity));
         Assert.Equal(setup.Silo, delivery.Society.Inventory.GetLot("silo-pot").StorageBuildingId);
+        AssertUnrelatedHouseCargoClaims(delivery, setup);
     }
 
     private sealed record Setup(PrivateWorldRuntimeState State, string Actor, string Household,

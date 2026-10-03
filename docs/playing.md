@@ -53,7 +53,7 @@ Adults may leave a household without its permission. Their own goods remain thei
    provider. Then pick the model from the game's short list for that
    provider, newest at the top. Models your key can't use are greyed out; if
    it can't use the model shown, the picker asks you to choose another.
-   **Type a model name…** covers any other model. The agents start in two
+   **Type a model name...** covers any other model. The agents start in two
    households, not two forced couples or biological families.
 5. Press **Start World** when all four are ready. Placing the fourth agent does
    not start time automatically. Before starting, placements can be moved or
@@ -68,6 +68,8 @@ Choose OpenAI or Ollama Cloud, name the key, paste it and press **Save API key**
 You can save both providers' keys from Main Menu Settings once this device is
 connected and paired. Saving a key does not run a model or place an agent.
 Choose the saved key later in **Add Agent** or an agent's **Model** panel.
+**Open model settings** in that panel opens the agent's model in World
+Settings, where you can also delete a saved key.
 
 To check a selected model, press **Test model · 1 paid call** in Add Agent or
 an agent's Model panel. This sends one real request and counts toward the
@@ -95,14 +97,23 @@ Filters on.
 
 Click an agent to open a small card beside them: what they are doing and bars
 for fullness, warmth and illness. **Profile** opens everything else on the left
-of the screen: diet, belongings, work, private thoughts, relationships and the
-Memories, Family and Model buttons. Click their thoughts, or **Read all**, to
-read every recent thought in a larger panel beside the Profile. The pencil
-beside their name renames them, and **Speak** goes straight to the message box,
-where you choose **Suggest** or **Order**. The crosshair centers the camera on
-them, and back (or **Escape**) returns from the Profile to the small card.
-Inspection does not pause time, and reading private thoughts does not tell
-other agents.
+of the screen: diet, belongings, work, their newest private thought, the people
+in their life and the Memories, Family and Model buttons. The Model line names
+the provider whose model made their latest choice, such as OpenAI; when Jev or
+the built-in rules made it, the Profile says so instead. Click their thought,
+or **Read all**, to read every recent thought in a larger panel beside the
+Profile. The pencil beside their name renames them, and **Speak** goes straight
+to the message box, where you choose **Suggest** or **Order**. The crosshair
+centers the camera on them, and back (or **Escape**) returns from the Profile
+to the small card. Inspection does not pause time, and reading private thoughts
+does not tell other agents.
+
+**Memories** shows what the agent remembers, believes and has mapped as cards,
+newest first, with a tab for each kind. A belief shows how sure they are and
+whether they saw it or heard it from someone; a map record shows each place
+with a picture of its ground. **Family** opens their family tree beside the
+Profile, with a portrait for each person and a heart between partners. Click
+someone to open their Profile.
 
 When agents talk, a chat bubble appears above each participant and nearby
 listeners. Click a bubble to see who spoke and whether the conversation is
@@ -138,14 +149,19 @@ who may use it, when it was built, which side its door faces, the work in
 progress, a larger storage grid with each item's name, and who is inside or
 lives there. Back (or **Escape**) returns to the small card.
 
+Every day has a night, from 19:12 to 04:48 on the clock in the top bar, with a
+short dusk and dawn. In a six-minute day that is about 2 min 24 s of night. The
+map turns a gentle dark blue but stays readable; names, agents and panels keep
+their daytime colors. Nights are colder outdoors, so an agent with no clothing,
+shelter or fire loses warmth, and their warmth bar shows it. A new world starts
+at midnight.
+
 Click bare ground to inspect the recorded facts there. Agents take priority
-when they overlap the pointer. **World Info** includes Towns and their residents;
-its Towns page also shows each Town's council, current and latest settled election,
-and eight recent proposal results. Long Town readouts scroll. **Event Log** shows
-important events under a heading for each day, each with an
-icon for its kind. An event with a known location has a **Find** button that
-moves the camera there. Opening the log marks its new entries read; the ones
-that were new keep a small dot while it stays open. While the continuity rule
+when they overlap the pointer. **Event Log** shows important events under a
+heading for each day, each with an icon for its kind. An event with a known
+location has a **Find** button that moves the camera there. Opening the log
+marks its new entries read; the ones that were new keep a small dot while it
+stays open. While the continuity rule
 is on, the top of the log offers **Add a newcomer**, which opens Add Agent.
 Opening the offer adds nobody and makes no paid model call. **Agents** lists
 everyone with their portrait and what they are doing, and tags anyone
@@ -161,6 +177,15 @@ choose another tile. The preview does not reserve the land: the server checks
 the current ownership and borders again when you place the adult, and asks you
 to choose again if they changed. Walking later does not change membership.
 
+**World Info** has two pages. **Towns** lists each Town with its residents'
+portraits, its council, its current and latest settled election, eight recent
+proposal results and a **Show** button that moves the map there. Below the list
+are each household's stores, the projects under way and how far they have got,
+the household council and recent social activity; the page scrolls once it is
+long. **World** shows today's date, the season and weather where you are
+looking and the year length, then counts of agents, Towns, households,
+buildings, road tiles, bridges, resource sites and the map size.
+
 Town residents make civic choices through their normal personal-model turns.
 Adults can agree to stand for election, visit their Town's public notice place
 near its founding site, read notices, relay what they learned to someone nearby,
@@ -172,9 +197,18 @@ An ordinary proposal stays open for one unpaused world day unless its result
 is settled earlier. A four-person council needs three yes votes, and an elected
 three-seat council needs two. Silence supplies no approval. Election ballots
 may change until closing, while cast proposal votes are final. Pausing stops
-these windows and council terms. Passed admission requests are recorded, but
-the separate process for joining a Town has not been connected yet; approval
-alone gives no household place or access to stored goods.
+these windows and council terms.
+
+An agent belongs to one Town or none. Traveling, visiting or losing a home
+does not change it. An adult with no Town, such as one you add outside the
+border, can walk to a Town's notice place and ask its council for admission. A
+resident can also ask the council to admit an adult nearby who has no Town, and
+that adult chooses whether to accept once they read the approval. Dependent
+children join with their caregiver. Once admitted, a resident may collect their
+Town's Warehouse stock in person, but approval never gives a House or household
+place. The agent's Profile shows their Town, what it lets them do and any
+admission in progress, and the Event Log notes approvals, admissions and
+approvals that no longer apply.
 
 ## Pause, settings and controls
 
@@ -185,6 +219,12 @@ or **Escape** returns to the menu's buttons.
 
 Game Settings controls the window, theme, weather effects, date/time format
 and the model-call limit.
+Dates name the season and its day, such as **Autumn 2, Year 1 · 14:20**; a new
+world's year has four ten-day seasons: Spring, Summer, Autumn and Winter. The
+top bar then shows the weather beside the date without naming the season again.
+**Date display** can show numbers instead (DD-MM-YYYY, MM-DD-YYYY or
+YYYY-MM-DD), and the top bar then names the season beside the weather.
+**Time display** offers a 24-hour or 12-hour clock. Both apply at once.
 Menus, panels and text grow with your screen in whole steps, so pixel letters
 stay crisp: 100% on small screens, 200% at 1080p and 1440p and 300% at 4K.
 There is no setting for this. World Settings contains that world's autosaves,
@@ -230,7 +270,7 @@ current world and any it cannot open. Double-click a card, or choose it and
 and Delete are unavailable while another world action finishes.
 
 To go back to an earlier save, choose the current world in Load World and
-**Load a save…**, then pick a save and **Load**. Your world as it was is saved
+**Load a save...**, then pick a save and **Load**. Your world as it was is saved
 first. Playing on from an older save starts a new **branch**, so the saves from
 the first version of events stay as they were. When a world has more than one
 branch, each save card names its branch, such as **Branch 2**, and each branch's
@@ -242,7 +282,7 @@ last client stops time and model work after about five seconds. Returning makes
 no offline progress or change to a manual pause. An unfinished model call can
 be cancelled and retried later; the provider may charge for both attempts.
 
-To remove one snapshot, choose it in **Load a save…** or Save World and choose
+To remove one snapshot, choose it in **Load a save...** or Save World and choose
 **Delete**.
 The confirmation names the snapshot; deletion is permanent and leaves its world
 and other saves alone. In Load World, **Delete World** removes that

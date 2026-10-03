@@ -475,7 +475,7 @@ public sealed class PotteryContentTests
     [InlineData(3, true)]
     [InlineData(4, true)]
     [InlineData(4, false)]
-    public async Task WorkstationWaterSupplyMovesOnlyContainerFamiliesWithinTheHaulLoad(int waterQuantity,
+    public async Task WorkstationWaterSupplyMovesOnlyWholeContainerFamiliesWithinActualCarryCapacity(int waterQuantity,
         bool familyFits)
     {
         const string householdId = "household:camp-alpha";
@@ -534,6 +534,17 @@ public sealed class PotteryContentTests
         inventory = InventoryFixture.AddLot(inventory, waterId, InventoryContainerRules.FreshWater,
             householdId, waterQuantity, state.Society.Society.WorldTick, containerLotId: jugId,
             storageBuildingId: sourceHouseId);
+        var equipment = state.Inhabitants.Single(person => person.InhabitantId == actor).Equipment;
+        if (!familyFits)
+        {
+            var free = PersonalEquipmentRules.FreeCapacity(inventory, actor, equipment);
+            Assert.True(free > waterQuantity);
+            inventory = InventoryFixture.AddLot(inventory, "supply-test-ballast", "test_cargo", actor,
+                free - waterQuantity, state.Society.Society.WorldTick);
+            Assert.Equal(waterQuantity, PersonalEquipmentRules.FreeCapacity(inventory, actor, equipment));
+        }
+        else
+            Assert.True(PersonalEquipmentRules.FreeCapacity(inventory, actor, equipment) >= 1 + waterQuantity);
         state = state with
         {
             Society = state.Society with
@@ -563,7 +574,10 @@ public sealed class PotteryContentTests
         if (!familyFits)
         {
             Assert.DoesNotContain(provider.OfferedCandidates, id => id == "supply_workstation:fresh_water");
+            Assert.Equal(householdId, world.Society.Inventory.GetLot(jugId).OwnerId);
             Assert.Equal(sourceHouseId, world.Society.Inventory.GetLot(jugId).StorageBuildingId);
+            Assert.Equal((householdId, sourceHouseId), (world.Society.Inventory.GetLot(waterId).OwnerId,
+                world.Society.Inventory.GetLot(waterId).StorageBuildingId));
             Assert.Equal(jugId, world.Society.Inventory.GetLot(waterId).ContainerLotId);
             Assert.Equal(waterQuantity, world.Society.Inventory.GetLot(waterId).Quantity);
             world.Validate();

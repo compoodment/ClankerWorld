@@ -9,7 +9,7 @@ namespace ClankerWorld.Simulation.Playtest;
 /// </summary>
 public static class HouseholdBuildingKinds
 {
-    public static IReadOnlyList<string> All { get; } = ["house", "farmhouse", "blacksmith", "silo", "tailor", "store", "restaurant"];
+    public static IReadOnlyList<string> All { get; } = ["house", "farmhouse", "blacksmith", "silo", "tailor", "store", "clinic", "restaurant"];
 
     public static bool IsKindTag(string tag) => All.Contains(tag, StringComparer.Ordinal);
 

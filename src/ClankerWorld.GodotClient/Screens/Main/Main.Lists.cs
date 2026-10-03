@@ -93,7 +93,8 @@ public partial class Main
             "inhabitant_removed" or "estate_will_accepted" or "estate_will_default" => PixelIcons.Texture(PixelGlyph.Grave, ink, stone, 1),
             "town_founded" or "settlement_founded" or "town_founding_started" or "town_border_expanded"
                 => PixelIcons.Texture(PixelGlyph.Flag, ink, green, 1),
-            "town_resident_joined" or "town_resident_left" or "town_membership_evaluated" or "town_building_assigned"
+            "town_resident_joined" or "town_resident_left" or "town_membership_evaluated" or "town_building_assigned" or
+                "town_admission_accepted" or "town_admission_approved" or "town_admission_lapsed"
                 => PixelIcons.Texture(PixelGlyph.House, ink, wood, 1),
             "paused" => PixelIcons.Texture(PixelGlyph.Pause, ink, ink, 1),
             "resumed" => PixelIcons.Texture(PixelGlyph.Play, ink, ink, 1),
@@ -181,7 +182,7 @@ public partial class Main
             row.AddChild(new Label { Text = time, ThemeTypeVariation = "DimLabel", SizeFlagsVertical = Control.SizeFlags.ShrinkCenter });
             row.AddChild(new Label
             {
-                Text = entry.Text,
+                Text = GameUiText.PlainEllipses(entry.Text),
                 SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
                 SizeFlagsVertical = Control.SizeFlags.ShrinkCenter,
                 AutowrapMode = TextServer.AutowrapMode.WordSmart,
@@ -256,8 +257,13 @@ public partial class Main
         rosterCards.CustomMinimumSize = new Vector2(380, Math.Min(rosterWantedHeight, ListRoom(rosterPanel, rosterCards)));
         eventScroll.CustomMinimumSize = new Vector2(400, Math.Min(eventsWantedHeight, ListRoom(eventsPanel, eventScroll)));
         if (townsScroll.Visible)
-            townsScroll.CustomMinimumSize = new Vector2(0,
-                Math.Min(townsPage.GetCombinedMinimumSize().Y, ListRoom(worldInfoPanel, townsScroll)));
+        {
+            var townsWanted = townsPage.GetCombinedMinimumSize().Y;
+            var townsRoom = ListRoom(worldInfoPanel, townsScroll);
+            // Keep the Show buttons and details clear of the scrollbar, as in Settings.
+            townsGap.AddThemeConstantOverride("margin_right", townsWanted > townsRoom ? SettingsScrollGap : 0);
+            townsScroll.CustomMinimumSize = new Vector2(0, Math.Min(townsWanted, townsRoom));
+        }
         rosterPanel.ResetSize();
         eventsPanel.ResetSize();
         worldInfoPanel.ResetSize();

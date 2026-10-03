@@ -104,6 +104,8 @@ public sealed partial class PrivateWorldRuntime
 
     private bool BusinessBuyerWantsWithoutRestaurant(string actor, InventoryLot lot)
     {
+        if (MedicalSupplyWanted(actor, lot.ItemKind)) return true;
+        if (WantsOrnamentInput(actor, lot.ItemKind)) return true;
         var inventory = society.Checkpoint.Inventory;
         if (ToolProgressionRules.Find(lot.ItemKind) is { } offeredTool)
         {
@@ -139,6 +141,8 @@ public sealed partial class PrivateWorldRuntime
         IsEdibleFood(payment.ItemKind) || worldContent.Recipes.Any(recipe =>
             recipe.WorkstationBuildingId == building.DefinitionId &&
             recipe.Inputs.Any(input => input.ResourceId == payment.ItemKind)) ||
+        worldContent.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId)
+            .Tags.Contains("blacksmith", StringComparer.Ordinal) && OrnamentContent.IsOrnament(payment.ItemKind) ||
         worldContent.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId)
             .Tags.Contains("store", StringComparer.Ordinal);
 
@@ -185,9 +189,7 @@ public sealed partial class PrivateWorldRuntime
                 IsLooseBusinessLot(lot) && AvailableLotQuantity(lot) > 0 &&
                 !protectedToolIds.Contains(lot.Id) && !BusinessBuyerWants(buyer, lot) &&
                 BusinessPaymentUseful(building, lot) &&
-                lot.Id != inhabitants[buyer].Equipment?.ClothingLotId &&
-                lot.Id != inhabitants[buyer].Equipment?.CarryAidLotId &&
-                lot.Id != inhabitants[buyer].Equipment?.Repair?.LotId &&
+                !PersonalEquipmentRules.IsSelected(inhabitants[buyer].Equipment, lot.Id) &&
                 lot.ItemKind is not ("field_map" or "field_record"));
     }
 

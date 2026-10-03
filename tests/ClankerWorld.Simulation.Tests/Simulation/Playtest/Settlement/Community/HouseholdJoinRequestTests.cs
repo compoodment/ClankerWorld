@@ -777,7 +777,7 @@ public sealed class HouseholdJoinRequestTests
         var map = state.Map;
         var definitions = world.WorldContent.Buildings.ToDictionary(item => item.CanonicalId, StringComparer.Ordinal);
         var footprints = world.WorldSimulation.Buildings
-            .SelectMany(building => WorldContentSimulationRules.Footprint(definitions[building.DefinitionId], building.Position))
+            .SelectMany(building => WorldContentSimulationRules.Footprint(definitions[building.DefinitionId], building))
             .ToHashSet();
         var roads = world.RoadTiles.ToHashSet();
         return map.Tiles.Select(tile => tile.Position)

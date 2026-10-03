@@ -36,7 +36,9 @@ public sealed record PlaytestInhabitantState(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SettlementDeparture>? Departures = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] PersonalEquipment? Equipment = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<AgentIdentityMoment>? IdentityMoments = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementGuardianSearch? GuardianSearch = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementGuardianSearch? GuardianSearch = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] MedicalConsentState? MedicalConsent = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] MedicalTreatmentState? MedicalTreatment = null);
 
 /// <summary>A saved, ordered request for an adult to accept primary care of a dependent.</summary>
 public sealed record SettlementGuardianSearch(
@@ -68,11 +70,13 @@ public sealed record PlaytestPrivateThought(long WorldTick, string Text);
 
 public sealed record PlaytestResourceState(string ResourceId, ResourceState State);
 
+/// <param name="TownId">The Town the agent lived in when they died, which their will may name as an heir.</param>
 public sealed record PlaytestDeceasedInhabitantState(
     string InhabitantId,
     long DeathTick,
     int AgeAtDeath,
-    PlaytestInhabitantState LastPhysical);
+    PlaytestInhabitantState LastPhysical,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? TownId = null);
 
 public sealed record PlaytestWorldEvent(
     long EventId,

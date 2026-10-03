@@ -67,6 +67,15 @@ public static class WorldEventText
             "caregiver_assigned" => "A child has a new caregiver.",
             "guardian_needed" => "Needs a guardian. No adult has accepted care yet.",
             "guardian_assigned" => "An adult accepted care for a child.",
+            "medical_care_allowed" => $"{LeadingName(snapshot, worldEvent.Detail)} allowed someone to provide medical care.",
+            "medical_care_revoked" => $"{LeadingName(snapshot, worldEvent.Detail)} withdrew permission for medical care.",
+            "medical_treatment_started" => $"{LeadingName(snapshot, worldEvent.Detail)} began a course of medicine.",
+            "medical_treatment_completed" => $"{Name(snapshot, worldEvent.Detail)} finished a course of medicine.",
+            "medical_treatment_interrupted" => $"{Name(snapshot, worldEvent.Detail)} stopped treatment; the used dose was not returned.",
+            "empty_vessel_picked_up" => $"{LeadingName(snapshot, worldEvent.Detail)} collected an empty household vessel to bring home.",
+            "ornament_worn" => $"{LeadingName(snapshot, worldEvent.Detail)} put on an ornament.",
+            "ornament_removed" => $"{LeadingName(snapshot, worldEvent.Detail)} took off an ornament.",
+            "ornament_given" => $"{LeadingName(snapshot, worldEvent.Detail)} gave an ornament to {OrnamentGiftRecipient(snapshot, worldEvent.Detail)}.",
             "council_policy_adopted" => "The Town adopted a new policy.",
             "settlement_trade_completed" => "A trade was completed.",
             "business_trade_offered" => "A customer offered an exchange at a shop; the goods are set aside while both traders meet there.",
@@ -93,9 +102,12 @@ public static class WorldEventText
             "town_civic_result" => $"{civicTownName}'s council recorded a decision. See the Towns page for its result.",
             "town_civic_cancelled" => $"An unfinished election in {civicTownName} was cancelled.",
             "town_founding_started" => "Your first Town is being set up.",
-            "town_resident_joined" => $"{ResidentName(snapshot, worldEvent)} joined the first Town.",
-            "town_resident_left" => $"{ResidentName(snapshot, worldEvent)} left the first Town.",
+            "town_resident_joined" => $"{ResidentName(snapshot, worldEvent)} joined {ResidentTownName(snapshot, worldEvent)}.",
+            "town_resident_left" => $"{ResidentName(snapshot, worldEvent)} left {ResidentTownName(snapshot, worldEvent)}.",
             "town_membership_evaluated" => "The new adult is not part of a Town yet.",
+            "town_admission_accepted" => DescribeAdmission(worldEvent.Detail, snapshot),
+            "town_admission_approved" => $"{civicTownName}'s council approved {Name(snapshot, Field(worldEvent.Detail, 1))}'s admission. It takes effect only if they accept.",
+            "town_admission_lapsed" => $"{Name(snapshot, Field(worldEvent.Detail, 1))} did not join {civicTownName}: the approval no longer fits their circumstances.",
             "town_building_assigned" => "A building joined the first Town.",
             "town_border_expanded" => "The first Town border expanded.",
             "town_founded" => "Your first Town is founded.",
@@ -118,6 +130,25 @@ public static class WorldEventText
             "model_call_warning" => DescribeModelCallWarning(parts),
             _ => $"{GameUiText.HumanizeIdentifier(worldEvent.Kind)}.",
         };
+    }
+
+    /// <summary>A recorded Town admission: who joined, any Town they left and whether dependent children came too.</summary>
+    private static string DescribeAdmission(string detail, OwnerWorldSnapshot? snapshot)
+    {
+        var fields = detail.Split('|');
+        if (fields.Length != 4) return "Someone became a Town resident.";
+        string TownName(string id) => snapshot?.Towns.FirstOrDefault(town => town.Id == id)?.Name ?? "a Town";
+        var text = $"{Name(snapshot, fields[1])} became a resident of {TownName(fields[0])}.";
+        if (fields[2] != "none") text += $" They are no longer a resident of {TownName(fields[2])}.";
+        if (int.TryParse(fields[3], NumberStyles.None, CultureInfo.InvariantCulture, out var members) && members > 1)
+            text += " Their dependent children moved with them.";
+        return text;
+    }
+
+    private static string Field(string detail, int index)
+    {
+        var fields = detail.Split('|');
+        return index < fields.Length ? fields[index] : string.Empty;
     }
 
     /// <summary>The installation's one warning at 80% of its model-call limit.</summary>
@@ -154,10 +185,28 @@ public static class WorldEventText
         return person?.DisplayName ?? Name(snapshot, detail.Split(':', 2)[0]);
     }
 
+    private static string OrnamentGiftRecipient(OwnerWorldSnapshot? snapshot, string detail)
+    {
+        const string marker = ":ornament_gift:";
+        var actor = snapshot?.Inhabitants.OrderByDescending(person => person.Id.Length)
+            .FirstOrDefault(person => detail.StartsWith(person.Id + marker, StringComparison.Ordinal));
+        if (actor is null) return "someone";
+        var recipientDetail = detail[(actor.Id.Length + marker.Length)..];
+        return snapshot!.Inhabitants.OrderByDescending(person => person.Id.Length)
+            .FirstOrDefault(person => IsLeadingId(recipientDetail, person.Id))?.DisplayName ?? "someone";
+    }
+
+    /// <summary>The Town a resident joined or left, named as the player sees it; agents now move between Towns.</summary>
+    private static string ResidentTownName(OwnerWorldSnapshot? snapshot, OwnerWorldEvent worldEvent) =>
+        ResidentTown(snapshot, worldEvent)?.Name ?? "a Town";
+
+    private static OwnerWorldTown? ResidentTown(OwnerWorldSnapshot? snapshot, OwnerWorldEvent worldEvent) =>
+        snapshot?.Towns.OrderByDescending(item => item.Id.Length)
+            .FirstOrDefault(item => IsLeadingId(worldEvent.Detail, item.Id));
+
     private static string ResidentName(OwnerWorldSnapshot? snapshot, OwnerWorldEvent worldEvent)
     {
-        var town = snapshot?.Towns.OrderByDescending(item => item.Id.Length)
-            .FirstOrDefault(item => IsLeadingId(worldEvent.Detail, item.Id));
+        var town = ResidentTown(snapshot, worldEvent);
         // Older delimiter-free Town IDs use a single field. Current IDs must
         // be matched against the snapshot before reading the resident field.
         var townId = town?.Id ?? worldEvent.Detail.Split(':', 2)[0];
