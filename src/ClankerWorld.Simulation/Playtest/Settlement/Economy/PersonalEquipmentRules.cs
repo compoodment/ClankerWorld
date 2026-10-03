@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using ClankerWorld.Simulation.Content;
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.World;
@@ -8,7 +9,8 @@ public sealed record PersonalEquipment(string? ClothingLotId = null, string? Car
     EquipmentRepairWork? Repair = null, string? OrnamentLotId = null);
 
 public sealed record EquipmentRepairWork(string LotId, string BuildingId, long StartedTick,
-    int WorkDone, IReadOnlyList<string> MaterialReservationIds);
+    int WorkDone, IReadOnlyList<string> MaterialReservationIds,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? OrderInstructionId = null);
 
 /// <summary>Provisional protection and capacity from real, singly equipped inventory units.</summary>
 public static class PersonalEquipmentRules
@@ -26,7 +28,7 @@ public static class PersonalEquipmentRules
          equipment.OrnamentLotId == lotId || equipment.Repair?.LotId == lotId);
     public static bool IsCarried(InventoryLot lot, string actor) =>
         (lot.CarrierId == actor || lot.CarrierId is null && lot.OwnerId == actor) &&
-        lot.StorageBuildingId is null && lot.GroundPosition is null;
+        lot.StorageBuildingId is null && lot.GroundPosition is null && lot.ContainerLotId is null;
 
     public static bool IsPhysicallyCarried(InventoryCheckpoint inventory, InventoryLot lot, string actor)
     {

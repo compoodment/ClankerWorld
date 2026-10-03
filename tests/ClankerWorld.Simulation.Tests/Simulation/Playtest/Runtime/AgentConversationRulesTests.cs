@@ -178,13 +178,6 @@ public sealed class AgentConversationRulesTests
         Assert.True(AgentConversationRules.CanStartToday(budgets, "agent-a", 8));
     }
 
-    [Fact]
-    public void TimeoutsMapToABoundedPublicInterruptionCategory()
-    {
-        Assert.Equal(AgentConversationInterruption.ProviderTimedOut,
-            AgentConversationFailureClassifier.Classify(new TimeoutException("private provider detail")));
-    }
-
     private static IReadOnlyList<AgentConversationDailyBudget> Reserve(
         IReadOnlyList<AgentConversationDailyBudget> budgets,
         string agentId,

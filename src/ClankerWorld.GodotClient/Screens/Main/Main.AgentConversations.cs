@@ -64,6 +64,7 @@ public partial class Main
 
         memoriesPanel.Hide();
         thoughtsPanel.Hide();
+        ordersPanel.Hide();
         familyTreePanel.Hide();
         rosterPanel.Hide();
         eventsPanel.Hide();
