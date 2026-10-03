@@ -148,23 +148,30 @@ public sealed partial class PrivateWorldConversationTests
         using var completionDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(15));
         long? conversationClosedAtTick = null;
         var completionAttempts = 0;
-        for (; completionAttempts < maxCompletionAttempts && !completionDeadline.IsCancellationRequested;
-             completionAttempts++)
+        try
         {
-            if (world.Conversations.Single().Status == AgentConversationStatus.Closed)
+            for (; completionAttempts < maxCompletionAttempts && !completionDeadline.IsCancellationRequested;
+                 completionAttempts++)
             {
-                conversationClosedAtTick ??= world.WorldTick;
-                var lesson = world.Inhabitants.Single(person => person.InhabitantId == learner).Lesson!;
-                if (lesson.Stage == "completed" || world.WorldTick - conversationClosedAtTick >= completionTickHorizon)
-                    break;
-                // Await hosted decisions before spending the lesson tick budget.
-                _ = await world.AdvanceOneTickAsync(completionDeadline.Token);
+                if (world.Conversations.Single().Status == AgentConversationStatus.Closed)
+                {
+                    conversationClosedAtTick ??= world.WorldTick;
+                    var lesson = world.Inhabitants.Single(person => person.InhabitantId == learner).Lesson!;
+                    if (lesson.Stage == "completed" || world.WorldTick - conversationClosedAtTick >= completionTickHorizon)
+                        break;
+                    // Await hosted decisions before spending the lesson tick budget.
+                    _ = await world.AdvanceOneTickAsync(completionDeadline.Token);
+                }
+                else
+                {
+                    _ = await world.AdvanceOneTickNonBlockingAsync(cancellationToken: completionDeadline.Token);
+                    await Task.Delay(2, completionDeadline.Token);
+                }
             }
-            else
-            {
-                _ = await world.AdvanceOneTickNonBlockingAsync(cancellationToken: completionDeadline.Token);
-                await Task.Delay(2, completionDeadline.Token);
-            }
+        }
+        catch (OperationCanceledException) when (completionDeadline.IsCancellationRequested)
+        {
+            // The deadline passed mid-tick; the assertions below report where the lesson stood.
         }
         if (world.Conversations.Single().Status == AgentConversationStatus.Closed)
             conversationClosedAtTick ??= world.WorldTick;
