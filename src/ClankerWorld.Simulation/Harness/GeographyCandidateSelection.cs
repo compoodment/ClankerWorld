@@ -89,9 +89,14 @@ public static class GeographyCandidateSelector
     public const double MinimumMountainPercent = 5;
     public const double MaximumMountainPercent = 12;
 
-    public static GeographyCandidateSelection Select(GeographyOptions options)
+    public static GeographyCandidateSelection Select(GeographyOptions options) =>
+        Select(options, static candidateOptions => GenerateCandidate(candidateOptions));
+
+    internal static GeographyCandidateSelection Select(GeographyOptions options,
+        Func<GeographyOptions, SeededMap> generateCandidate)
     {
         ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(generateCandidate);
         if (options.Size is not (WorldSizePreset.Small or WorldSizePreset.Medium))
             throw new ArgumentException("Coverage selection supports playable Small and Medium worlds only.", nameof(options));
 
@@ -107,7 +112,7 @@ public static class GeographyCandidateSelector
         {
             var candidateOptions = options with { CandidateAttempt = attempt };
             SeededMap map;
-            try { map = GenerateCandidate(candidateOptions); }
+            try { map = generateCandidate(candidateOptions); }
             catch (GeographyClearingUnavailableException)
             {
                 failures.Add(new GeographyCandidateFailure(attempt, "no-clearing"));

@@ -10,19 +10,31 @@ public sealed class GeographyCandidateFailureTests
 {
     [Theory]
     [InlineData("audit-town-2", 0, 2, 0, 1)]
-    [InlineData("audit-town-3", 2, 0, 1, 2)]
+    [InlineData("audit-town-13", 2, 0, 1, 2)]
     public async Task UnavailableClearingDoesNotDiscardTheBestPlayableCandidateOrItsSavedIdentity(
         string seed, int selectedAttempt, int unavailableAttempt, int firstAvailable, int lastAvailable)
     {
         var options = Options(seed);
+        var attempted = new List<int>();
+        // Massifs leave these seeds playable. Control only the unavailable
+        // attempt; every surviving map still uses normal deterministic generation.
+        SeededMap GenerateWithUnavailableClearing(GeographyOptions candidateOptions)
+        {
+            attempted.Add(candidateOptions.CandidateAttempt);
+            if (candidateOptions.CandidateAttempt == unavailableAttempt)
+                throw new GeographyClearingUnavailableException();
+            return GeographyCandidateSelector.GenerateCandidate(candidateOptions);
+        }
         var failure = Assert.Throws<GeographyClearingUnavailableException>(() =>
-            GeographyCandidateSelector.GenerateCandidate(options with { CandidateAttempt = unavailableAttempt }));
+            GenerateWithUnavailableClearing(options with { CandidateAttempt = unavailableAttempt }));
         Assert.Equal("The generated geography has no suitable base-camp clearing.", failure.Message);
         var direct = GeographyCandidateSelector.GenerateCandidate(options with { CandidateAttempt = selectedAttempt });
         Assert.True(MapAcceptance.Validate(direct, allowEmptyCamp: true).IsValid);
 
-        var selection = GeographyCandidateSelector.Select(options);
+        attempted.Clear();
+        var selection = GeographyCandidateSelector.Select(options, GenerateWithUnavailableClearing);
 
+        Assert.Equal(new[] { 0, 1, 2 }, attempted);
         Assert.Equal(selectedAttempt, selection.Selected.Attempt);
         Assert.Equal(new[] { firstAvailable, lastAvailable }, selection.Candidates.Select(candidate => candidate.Attempt));
         var unavailable = Assert.Single(selection.FailedCandidates);
@@ -35,7 +47,9 @@ public sealed class GeographyCandidateFailureTests
         Assert.Equal(options with { CandidateAttempt = selectedAttempt }, selection.Options);
         Assert.Equal(direct.ManifestDigest, selection.Map.ManifestDigest);
         Assert.Equal(MapLayerManifestCodec.Digest(direct), MapLayerManifestCodec.Digest(selection.Map));
-        var repeated = GeographyCandidateSelector.Select(options);
+        attempted.Clear();
+        var repeated = GeographyCandidateSelector.Select(options, GenerateWithUnavailableClearing);
+        Assert.Equal(new[] { 0, 1, 2 }, attempted);
         Assert.Equal(selection.Candidates, repeated.Candidates);
         Assert.Equal(selection.FailedCandidates, repeated.FailedCandidates);
         Assert.Equal(selection.Map.ManifestDigest, repeated.Map.ManifestDigest);
@@ -65,18 +79,32 @@ public sealed class GeographyCandidateFailureTests
         Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
     }
 
-    [Fact]
-    public void SettingsWithNoPlayableCandidateStillRefuseGeneration()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void SettingsWithNoPlayableCandidateStillRefuseGeneration(bool trialTargetsApplicable)
     {
-        // Both High controls mean there is one bounded attempt, and this actual
-        // generated attempt has no clearing; no rejected map becomes selectable.
-        var options = Options("audit-town-3") with { ForestCover = GenerationAmount.High };
+        // Explicit generation failures exercise the full three-attempt bound
+        // when a target applies, and the single attempt when neither does.
+        var options = Options("controlled-no-clearing") with
+        {
+            ForestCover = trialTargetsApplicable ? GenerationAmount.Normal : GenerationAmount.High,
+        };
+        var attempted = new List<int>();
+        SeededMap GenerateWithUnavailableClearing(GeographyOptions candidateOptions)
+        {
+            attempted.Add(candidateOptions.CandidateAttempt);
+            throw new GeographyClearingUnavailableException();
+        }
         var direct = Assert.Throws<GeographyClearingUnavailableException>(() =>
-            GeographyCandidateSelector.GenerateCandidate(options));
+            GenerateWithUnavailableClearing(options));
         Assert.Equal("The generated geography has no suitable base-camp clearing.", direct.Message);
 
-        var selected = Assert.Throws<GeographyClearingUnavailableException>(() => GeographyCandidateSelector.Select(options));
+        attempted.Clear();
+        var selected = Assert.Throws<GeographyClearingUnavailableException>(() =>
+            GeographyCandidateSelector.Select(options, GenerateWithUnavailableClearing));
         Assert.Equal(direct.Message, selected.Message);
+        Assert.Equal(trialTargetsApplicable ? new[] { 0, 1, 2 } : new[] { 0 }, attempted);
     }
 
     [Fact]
