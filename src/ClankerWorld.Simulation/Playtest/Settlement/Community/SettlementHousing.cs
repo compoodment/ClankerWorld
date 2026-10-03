@@ -84,9 +84,11 @@ public sealed partial class PrivateWorldRuntime
 
     /// <summary>
     /// Households this adult may ask now: they hold a House in the adult's
-    /// Town, have an adult who can answer, and did not refuse recently. Only
+    /// Town, or in a Town whose admission the adult has asked for or been
+    /// approved for, have an adult who can answer, and did not refuse
+    /// recently. Household and Town admission stay separate decisions. Only
     /// an adult with no household asks; how an adult leaves or changes a
-    /// household is still an open design question.
+    /// household follows the agreed departure and care-group rules.
     /// </summary>
     private IEnumerable<SocietyHousehold> AskableHouseholds(string actor)
     {
@@ -98,8 +100,9 @@ public sealed partial class PrivateWorldRuntime
         var town = TownForResident(actor);
         foreach (var household in society.Checkpoint.Households.OrderBy(item => item.Id, StringComparer.Ordinal))
         {
-            if (HouseForHousehold(household.Id) is not { } house || house.TownId != town ||
-                !CanFitHouseResident(household.Id, society.Checkpoint.GetInhabitant(actor)) ||
+            if (HouseForHousehold(household.Id) is not { } house ||
+                house.TownId != town && !HasOpenAdmission(actor, house.TownId) ||
+                !CanFitCareGroup(household.Id, actor) ||
                 HouseholdAdults(household.Id).Length == 0 ||
                 housing?.Refusals?.Any(refusal => refusal.HouseholdId == household.Id &&
                     WorldTick - refusal.Tick < HousingRefusalCooldownTicks) == true)
@@ -130,6 +133,7 @@ public sealed partial class PrivateWorldRuntime
     {
         if (!AdultResident(actor) || !ReadyForBriefInteraction(actor))
             return;
+        AddDepartureCandidates(candidates, actor);
         foreach (var household in AskableHouseholds(actor))
         {
             candidates.Add(new(HousingAskPrefix + household.Id,
@@ -150,6 +154,7 @@ public sealed partial class PrivateWorldRuntime
     {
         if (!AdultResident(actor))
             return;
+        ApplyDepartureCandidate(actor, candidate);
         if (candidate.StartsWith(HousingAskPrefix, StringComparison.Ordinal))
         {
             var householdId = candidate[HousingAskPrefix.Length..];
@@ -226,19 +231,20 @@ public sealed partial class PrivateWorldRuntime
             EndHousingRequest(actor, request, "housing_request_refused", remember: true);
         }
         else if (living.All(id => request.Approvals.Contains(id, StringComparer.Ordinal)) &&
-            !CanFitHouseResident(request.HouseholdId, society.Checkpoint.GetInhabitant(actor)))
+            !CanFitCareGroup(request.HouseholdId, actor))
         {
             EndHousingRequest(actor, request, "housing_request_blocked_capacity", remember: true);
         }
         else if (living.All(id => request.Approvals.Contains(id, StringComparer.Ordinal)))
         {
-            society.Apply(checkpoint => SocietyFixture.JoinHousehold(checkpoint, actor, request.HouseholdId));
+            society.Apply(checkpoint => SocietyFixture.JoinHouseholdCareGroup(checkpoint, actor, request.HouseholdId));
             if (society.Checkpoint.GetInhabitant(actor).HouseholdId != request.HouseholdId)
             {
                 EndHousingRequest(actor, request, "housing_request_cancelled", remember: false);
                 return;
             }
-            SetHousing(actor, housing with { Request = null, Refusals = null, Blocker = null });
+            foreach (var id in MovingCareGroup(actor))
+                SetHousing(id, (inhabitants[id].Housing ?? new()) with { Request = null, Refusals = null, Blocker = null });
             AppendEvent("household_joined", $"{actor}:{request.HouseholdId}");
         }
     }
@@ -338,7 +344,7 @@ public sealed partial class PrivateWorldRuntime
             HousingBlockers.AwaitingAnswer when housing.Request is { } request =>
                 $"You have asked the {HouseholdNameFor(request.HouseholdId)} household to let you live in their House. Every adult member must agree.",
             HousingBlockers.NoHousehold =>
-                "You have no home. You belong to no household, so no House can be planned for you. A household with a House may agree to take you in.",
+                "You belong to no household. Seek an accepting household with room for your complete care group first; otherwise start your own household and build a House.",
             HousingBlockers.NoAuthorizedHome =>
                 "You have no home. Your household holds no House yet, so plan one or help build it.",
             HousingBlockers.MissingMaterials =>

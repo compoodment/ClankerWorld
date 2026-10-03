@@ -180,7 +180,8 @@ public sealed class FarmFieldTests
     {
         var inventory = state.Society.Society.Inventory;
         foreach (var lot in inventory.Lots.Where(lot => lot.OwnerId == household &&
-            lot.ItemKind is "food" or "berries" or "wild_greens" or "cultivated_greens" or "fruit").ToArray())
+            lot.ItemKind is "food" or "berries" or "wild_greens" or "cultivated_greens" or "fruit" or
+                "simple_meal" or "porridge" or "berry_porridge" or "fruit_porridge" or "bread" or "stew" or "restaurant_meal").ToArray())
         {
             var available = lot.FreshnessBasisPoints == 0 || lot.ConditionBasisPoints == 0 ? 0 : lot.Quantity - inventory.Reservations
                 .Where(reservation => reservation.LotId == lot.Id && reservation.State is
@@ -395,6 +396,11 @@ public sealed class FarmFieldTests
         var birth = society.LifeTickAt(society.WorldTick) - years * society.Config.TicksPerLifecycleAge;
         state = state with
         {
+            Towns = state.Towns!.Select(town => town with
+            {
+                Governance = TownGovernanceRules.Advance(town.Governance!, town.Id, state.WorldSeed,
+                    town.ResidentIds.Where(id => id != actor || allowed), society.WorldTick, state.WorldSystems!.Config.TicksPerDay),
+            }).ToArray(),
             Society = state.Society with
             {
                 Society = society with

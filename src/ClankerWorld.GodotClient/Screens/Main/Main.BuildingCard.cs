@@ -267,7 +267,8 @@ public partial class Main
             ? string.Join('|', JobSummary(snapshot, jobs[0])) + (jobs.Length > 1 ? "+" + (jobs.Length - 1) : "")
             : string.Join('|', inside);
         signature += $"|{building.ExpansionState}|{building.ExpansionFailure}|" +
-            string.Join('|', building.Trades.Select(trade => trade.OfferId + ":" + trade.Status));
+            string.Join('|', building.Trades.Select(trade => trade.OfferId + ":" + trade.Status)) + "|" +
+            string.Join('|', building.ToolMakingRequests.Select(request => request.Id + ":" + request.Status + ":" + request.Blocker));
         if (renderedBuildingStatus == signature) return;
         renderedBuildingStatus = signature;
         ClearChildren(buildingQuickStatus);
@@ -285,6 +286,9 @@ public partial class Main
                 Text = failure,
                 AutowrapMode = TextServer.AutowrapMode.WordSmart,
             });
+        var activeRequests = building.ToolMakingRequests.Count(request => request.Status is "requested" or "accepted" or "ready" or "offered");
+        if (activeRequests > 0)
+            buildingQuickStatus.AddChild(new Label { Text = $"{Plural(activeRequests, "tool request")} · see Details" });
         var openTrades = building.Trades.Count(trade => trade.Status == "open");
         if (openTrades > 0)
             buildingQuickStatus.AddChild(new Label { Text = $"{Plural(openTrades, "customer exchange")} waiting" });
@@ -333,6 +337,10 @@ public partial class Main
             facts.Add(("Storage", $"{building.StoredQuantity} / {capacity} items"));
         if (building.Tags?.Any(tag => tag is "farmhouse" or "blacksmith" or "tailor" or "store" or "restaurant" or "clinic") == true)
             facts.Add(("Customers", "May trade here; household stock and other uses remain private"));
+        foreach (var request in building.ToolMakingRequests)
+            facts.Add((request.RequesterName + " · " + request.RecipeName,
+                GameUiText.ToolMakingRequestStatus(request.Status) +
+                (string.IsNullOrWhiteSpace(request.Blocker) ? "" : " · " + request.Blocker)));
         foreach (var trade in building.Trades)
         {
             var terms = $"{trade.GoodsQuantity} {GameUiText.ItemName(trade.GoodsKind)} for {trade.PaymentQuantity} {GameUiText.ItemName(trade.PaymentKind)}";
@@ -577,7 +585,7 @@ public partial class Main
         return (RecipeName(job.RecipeId), percent, $"{worker} · {TimeLeft(job.CompletionTick - snapshot.WorldTick)}");
     }
 
-    /// <summary>A recipe's own words, such as "Mill grain" for <c>…/mill-grain</c>.</summary>
+    /// <summary>A recipe's own words, such as "Mill grain" for <c>.../mill-grain</c>.</summary>
     private static string RecipeName(string recipeId) =>
         Sentence(recipeId[(recipeId.LastIndexOf('/') + 1)..].Replace('-', ' ').Replace('_', ' '));
 

@@ -1,7 +1,3 @@
-# Households and buildings
-
-Merged on 30 September from [#543](https://github.com/compoodment/ClankerWorld/issues/543), [#441](https://github.com/compoodment/ClankerWorld/issues/441), [#470](https://github.com/compoodment/ClankerWorld/issues/470) and [#469](https://github.com/compoodment/ClankerWorld/issues/469).
-
 - Click a House, the Farmhouse, the Blacksmith and the Warehouse. Each is outlined, and a card opens beside it with its roof, name and owner, one status line (what is being made, with a progress bar and time left, or who is inside), and stored items as icons with the count in a corner badge. ([#543](https://github.com/compoodment/ClankerWorld/issues/543))
 - Press Details. A panel docks on the left with the owner, who may use the building, when it was built, which side its door faces, work in progress, a larger storage grid with item names, and who is inside or lives there. Check these against what the agents are doing. ([#543](https://github.com/compoodment/ClankerWorld/issues/543))
 - Leave Details open while agents store or take items. It updates as they do. Back or Escape returns to the card, and × closes it. ([#543](https://github.com/compoodment/ClankerWorld/issues/543))

@@ -1,3 +1,4 @@
+using System.Reflection;
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Kernel;
@@ -280,8 +281,9 @@ public sealed class ToolProgressionRuntimeTests
         Assert.Contains(chooser.ObservedCandidateSets, candidates => candidates.Contains(candidateId));
         Assert.Contains(world.ExportState().Events, item =>
             item.Kind == "equipment_collected" && item.Detail == $"{actor}:{itemKind}");
+        // The household lends its tool: it stays household property while the agent carries it.
         var collected = Assert.Single(world.Society.Inventory.Lots, lot =>
-            lot.OwnerId == actor && lot.ItemKind == itemKind);
+            lot.OwnerId == "household:camp-alpha" && lot.CarrierId == actor && lot.ItemKind == itemKind);
         Assert.Equal(1, collected.Quantity);
         Assert.Null(collected.StorageBuildingId);
         Assert.Null(collected.GroundPosition);
@@ -388,13 +390,24 @@ public sealed class ToolProgressionRuntimeTests
                 ? state.Society.Society.Inhabitants.Where(person => person.HouseholdId == "household:camp-beta")
                     .Select(person => person.Id).Order(StringComparer.Ordinal).ToArray()
                 : [];
+            var firstTownResidents = firstTown.ResidentIds.Except(otherResidents).ToArray();
+            var adultIds = state.Society.Society.Inhabitants.Where(person => person.Status == SocietyInhabitantStatus.Active &&
+                person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder).Select(person => person.Id).ToHashSet(StringComparer.Ordinal);
             state = state with
             {
                 Towns =
                 [
-                    firstTown with { ResidentIds = firstTown.ResidentIds.Except(otherResidents).ToArray() },
+                    firstTown with
+                    {
+                        ResidentIds = firstTownResidents,
+                        Governance = TownGovernanceRules.Advance(firstTown.Governance!, firstTown.Id, state.WorldSeed,
+                            firstTownResidents.Where(adultIds.Contains), state.Society.Society.WorldTick,
+                            state.WorldSystems!.Config.TicksPerDay),
+                    },
                     new TownRuntimeState("town:tool-yard", "Tool Yard", "founded",
-                        state.Society.Society.WorldTick, otherResidents, [], [outside]),
+                        state.Society.Society.WorldTick, otherResidents, [], [outside],
+                        Governance: TownGovernanceState.Create(otherResidents.Where(adultIds.Contains)),
+                        Government: TownGovernmentState.Create()),
                 ],
             };
             using var reassigned = PrivateWorldRuntime.Restore(state, _ => new CandidateProvider("safe_idle"));
@@ -777,6 +790,77 @@ public sealed class ToolProgressionRuntimeTests
         Assert.Equal(completedBytes, PrivateWorldRuntimeCodec.Encode(completedReload.ExportState()));
         completedReload.Validate();
     }
+
+    [Fact]
+    public async Task WoodSourceSkipsNearerTreesWithoutAnAxeAndKeepsTheNearestChoiceAcrossReload()
+    {
+        static bool IsLoose(MapResource resource) => resource.Kind == "wood" || resource.NaturalObjectKind == "fallen_wood";
+        // This Town has room for the settlement's fallen wood, which arrives on the first tick.
+        using var setup = NormalPathWorld.CreateGenerated("smith-whole-load", _ => new CandidateProvider("safe_idle"));
+        Assert.True((await setup.AdvanceOneTickAsync()).Advanced);
+        var state = setup.ExportState();
+        var map = state.Map;
+        var actor = state.Society.Society.Inhabitants[0].Id;
+        var available = state.Resources.Where(item => item.State == ResourceState.Available)
+            .Select(item => item.ResourceId).ToHashSet(StringComparer.Ordinal);
+        var loose = map.Resources.Where(resource => IsLoose(resource) && available.Contains(resource.Id))
+            .Select(resource => resource.Position).ToArray();
+        Assert.NotEmpty(loose);
+        var taken = state.Inhabitants.Select(person => person.Position)
+            .Concat(map.Resources.Select(resource => resource.Position)).ToHashSet();
+        // Stand beside a tree well away from the fallen wood, so trees are nearer than any loose wood.
+        var stand = map.Resources.Where(resource => TreeGrowthRules.IsWoodTree(resource.TreeKind) &&
+                available.Contains(resource.Id) && loose.All(point => map.FootDistance(resource.Position, point) > 12))
+            .OrderBy(resource => loose.Min(point => map.FootDistance(resource.Position, point)))
+            .ThenBy(resource => resource.Id, StringComparer.Ordinal)
+            .SelectMany(resource => map.FootNeighbors(resource.Position))
+            .First(point => !taken.Contains(point) && loose.Any(source => map.IsReachableOnFoot(point, source)));
+        MapResource Nearest(Func<MapResource, bool> usable) => map.Resources
+            .Where(resource => available.Contains(resource.Id) && usable(resource) &&
+                state.WorldSystems!.Ecology.GetResource(resource.Id).Quantity > 0 &&
+                map.IsReachableOnFoot(stand, resource.Position))
+            .OrderBy(resource => map.FootDistance(stand, resource.Position))
+            .ThenBy(resource => resource.Id, StringComparer.Ordinal).First();
+        var nearestLoose = Nearest(IsLoose);
+        var nearestTree = Nearest(resource => resource.Kind == "construction");
+        Assert.True(map.FootDistance(stand, nearestTree.Position) < map.FootDistance(stand, nearestLoose.Position));
+
+        var withoutAxes = state.Society.Society.Inventory with
+        {
+            Lots = state.Society.Society.Inventory.Lots
+                .Where(lot => ToolProgressionRules.Find(lot.ItemKind)?.Family != ToolFamily.Axe).ToArray(),
+        };
+        withoutAxes = withoutAxes with
+        {
+            Reservations = withoutAxes.Reservations
+                .Where(reservation => withoutAxes.Lots.Any(lot => lot.Id == reservation.LotId)).ToArray(),
+        };
+        PrivateWorldRuntimeState Prepared(InventoryCheckpoint inventory) => state with
+        {
+            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with { Position = stand, Project = null, LastDecisionContext = null } : person).ToArray(),
+        };
+        foreach (var (inventory, expected) in new[]
+        {
+            (withoutAxes, nearestLoose),
+            (InventoryFixture.AddLot(withoutAxes, "source-test-axe", "wooden_axe", actor, 1), nearestTree),
+        })
+        {
+            using var world = PrivateWorldRuntime.Restore(
+                PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(Prepared(inventory))),
+                _ => new CandidateProvider("safe_idle"));
+            Assert.Equal(expected.Id, MaterialSource(world, "wood", actor)?.Id);
+            using var reloaded = PrivateWorldRuntime.Restore(
+                PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState())),
+                _ => new CandidateProvider("safe_idle"));
+            Assert.Equal(expected.Id, MaterialSource(reloaded, "wood", actor)?.Id);
+        }
+    }
+
+    private static MapResource? MaterialSource(PrivateWorldRuntime world, string itemKind, string actor) =>
+        (MapResource?)typeof(PrivateWorldRuntime).GetMethod("MaterialSource", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(world, [itemKind, actor]);
 
     private sealed class WorkChoiceRecorder : IDecisionProvider
     {

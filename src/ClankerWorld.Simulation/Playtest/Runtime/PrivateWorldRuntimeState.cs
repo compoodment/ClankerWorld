@@ -33,8 +33,19 @@ public sealed record PlaytestInhabitantState(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] PlaytestModelAttempt? LastModelAttempt = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SettlementSkill>? Skills = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementHousing? Housing = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SettlementDeparture>? Departures = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] PersonalEquipment? Equipment = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<AgentIdentityMoment>? IdentityMoments = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<AgentIdentityMoment>? IdentityMoments = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementGuardianSearch? GuardianSearch = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] MedicalConsentState? MedicalConsent = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] MedicalTreatmentState? MedicalTreatment = null);
+
+/// <summary>A saved, ordered request for an adult to accept primary care of a dependent.</summary>
+public sealed record SettlementGuardianSearch(
+    string Stage,
+    long StartedTick,
+    long StageStartedTick,
+    IReadOnlyList<string> OfferedAdultIds);
 
 /// <summary>A child's non-secret personal-model choice, kept with the world rather than installation credentials.</summary>
 public sealed record ChildPersonalModelSelection(
@@ -59,11 +70,13 @@ public sealed record PlaytestPrivateThought(long WorldTick, string Text);
 
 public sealed record PlaytestResourceState(string ResourceId, ResourceState State);
 
+/// <param name="TownId">The Town the agent lived in when they died, which their will may name as an heir.</param>
 public sealed record PlaytestDeceasedInhabitantState(
     string InhabitantId,
     long DeathTick,
     int AgeAtDeath,
-    PlaytestInhabitantState LastPhysical);
+    PlaytestInhabitantState LastPhysical,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? TownId = null);
 
 public sealed record PlaytestWorldEvent(
     long EventId,
@@ -110,7 +123,9 @@ public sealed record PrivateWorldRuntimeState(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<HouseholdLandUseRight>? HouseholdLandUseRights = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<HouseholdLandUseRequest>? HouseholdLandUseRequests = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<BusinessTradeState>? BusinessTrades = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementContinuity? Continuity = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementContinuity? Continuity = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<OwnerOrderCancellation>? OrderCancellations = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<ToolMakingRequestState>? ToolMakingRequests = null);
 
 public sealed record PrivateWorldStepResult(
     bool Advanced,

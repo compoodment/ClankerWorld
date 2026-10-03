@@ -203,6 +203,9 @@ public sealed class PotteryContentTests
         };
         foreach (var recipeLocalId in new[] { "storage-pot", "water-jug" })
         {
+            // The saved supplier intention can send the worker back to the bank.
+            // Each direct production phase begins with its worker at the House.
+            productionState = SetActorCondition(productionState, actor, 10_000, house.Position);
             using var current = PrivateWorldRuntime.Restore(productionState, _ => new IdleProvider());
             var recipe = current.WorldContent.Recipes.Single(item => item.LocalId == recipeLocalId);
             var started = current.StartProduction(recipe.CanonicalId, house.InstanceId, actor);
@@ -473,8 +476,9 @@ public sealed class PotteryContentTests
 
     [Theory]
     [InlineData(3, true)]
+    [InlineData(4, true)]
     [InlineData(4, false)]
-    public async Task WorkstationWaterSupplyMovesOnlyContainerFamiliesWithinTheHaulLoad(int waterQuantity,
+    public async Task WorkstationWaterSupplyMovesOnlyWholeContainerFamiliesWithinActualCarryCapacity(int waterQuantity,
         bool familyFits)
     {
         const string householdId = "household:camp-alpha";
@@ -505,6 +509,17 @@ public sealed class PotteryContentTests
         Assert.True(placed?.Applied, "A reachable test workstation should fit beside the household House.");
 
         var state = SetActorCondition(setup.ExportState(), actor, 10_000, sourceHouse.Position);
+        state = state with
+        {
+            Society = state.Society with
+            {
+                Society = state.Society.Society with
+                {
+                    Inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "water-supply-ready-meals",
+            "simple_meal", householdId, 4, storageBuildingId: sourceHouseId)
+                }
+            }
+        };
         var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, jugId,
             InventoryContainerRules.WaterJug, householdId, 1, state.Society.Society.WorldTick,
             storageBuildingId: sourceHouseId);
@@ -513,7 +528,7 @@ public sealed class PotteryContentTests
         {
             var definition = setup.WorldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
             foreach (var input in setup.WorldContent.Recipes.Where(recipe => recipe.WorkstationBuildingId == definition.CanonicalId)
-                         .SelectMany(recipe => recipe.Inputs).GroupBy(item => item.ResourceId))
+                         .SelectMany(recipe => recipe.Inputs).Where(item => item.ResourceId != InventoryContainerRules.FreshWater).GroupBy(item => item.ResourceId))
                 inventory = InventoryFixture.AddLot(inventory,
                     $"supply-fixture-buffer:{building.InstanceId}:{input.Key}", input.Key, householdId,
                     input.Max(item => item.Amount) * 2, state.Society.Society.WorldTick,
@@ -522,6 +537,17 @@ public sealed class PotteryContentTests
         inventory = InventoryFixture.AddLot(inventory, waterId, InventoryContainerRules.FreshWater,
             householdId, waterQuantity, state.Society.Society.WorldTick, containerLotId: jugId,
             storageBuildingId: sourceHouseId);
+        var equipment = state.Inhabitants.Single(person => person.InhabitantId == actor).Equipment;
+        if (!familyFits)
+        {
+            var free = PersonalEquipmentRules.FreeCapacity(inventory, actor, equipment);
+            Assert.True(free > waterQuantity);
+            inventory = InventoryFixture.AddLot(inventory, "supply-test-ballast", "test_cargo", actor,
+                free - waterQuantity, state.Society.Society.WorldTick);
+            Assert.Equal(waterQuantity, PersonalEquipmentRules.FreeCapacity(inventory, actor, equipment));
+        }
+        else
+            Assert.True(PersonalEquipmentRules.FreeCapacity(inventory, actor, equipment) >= 1 + waterQuantity);
         state = state with
         {
             Society = state.Society with
@@ -530,6 +556,14 @@ public sealed class PotteryContentTests
             },
         };
 
+        if (!familyFits)
+        {
+            var person = state.Inhabitants.Single(item => item.InhabitantId == actor);
+            var ballast = PersonalEquipmentRules.FreeCapacity(inventory, actor, person.Equipment) - waterQuantity;
+            if (ballast > 0)
+                inventory = InventoryFixture.AddLot(inventory, "water-supply-ballast", "test_cargo", actor, ballast);
+            state = state with { Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } } };
+        }
         var provider = new ContainerSupplyProvider();
         using var world = PrivateWorldRuntime.Restore(state, id => id == actor
             ? provider : new IdleProvider());
@@ -539,10 +573,14 @@ public sealed class PotteryContentTests
                  : !provider.OfferedCandidates.Contains("supply_workstation:fresh_water")); tick++)
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
 
+        Assert.NotEmpty(provider.OfferedCandidates);
         if (!familyFits)
         {
             Assert.DoesNotContain(provider.OfferedCandidates, id => id == "supply_workstation:fresh_water");
+            Assert.Equal(householdId, world.Society.Inventory.GetLot(jugId).OwnerId);
             Assert.Equal(sourceHouseId, world.Society.Inventory.GetLot(jugId).StorageBuildingId);
+            Assert.Equal((householdId, sourceHouseId), (world.Society.Inventory.GetLot(waterId).OwnerId,
+                world.Society.Inventory.GetLot(waterId).StorageBuildingId));
             Assert.Equal(jugId, world.Society.Inventory.GetLot(waterId).ContainerLotId);
             Assert.Equal(waterQuantity, world.Society.Inventory.GetLot(waterId).Quantity);
             world.Validate();
@@ -562,7 +600,7 @@ public sealed class PotteryContentTests
         Assert.Equal(shopId, world.Society.Inventory.GetLot(jugId).StorageBuildingId);
         Assert.Equal(shopId, world.Society.Inventory.GetLot(waterId).StorageBuildingId);
         Assert.Equal(jugId, world.Society.Inventory.GetLot(waterId).ContainerLotId);
-        Assert.Equal(4, world.Society.Inventory.Lots.Where(lot => lot.Id == jugId || lot.ContainerLotId == jugId)
+        Assert.Equal(1 + waterQuantity, world.Society.Inventory.Lots.Where(lot => lot.Id == jugId || lot.ContainerLotId == jugId)
             .Sum(lot => lot.Quantity));
 
         var recipe = world.WorldContent.Recipes.Single(item => item.LocalId == "water-input-fixture");
@@ -706,6 +744,8 @@ public sealed class PotteryContentTests
         var state = setup.ExportState();
         const string householdId = "household:camp-alpha";
         const string jugId = "last-slot-jug";
+        const string backupJugId = "zz-house-reserve-jug";
+        const string backupWaterId = "zz-house-reserve-water";
         var house = setup.WorldSimulation.Buildings.Single(building => building.InstanceId == "first-town-house-a");
         var actor = state.Society.Society.Inhabitants.First(person => person.HouseholdId == householdId &&
             person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder).Id;
@@ -716,8 +756,16 @@ public sealed class PotteryContentTests
         inventory = InventoryFixture.AddLot(inventory, jugId, InventoryContainerRules.WaterJug,
             householdId, 1, storageBuildingId: house.InstanceId);
         if (storedWater > 0)
+        {
             inventory = InventoryFixture.AddLot(inventory, "last-slot-water", InventoryContainerRules.FreshWater,
                 householdId, storedWater, containerLotId: jugId, storageBuildingId: house.InstanceId);
+            // Capacity is the variable here; this separate usable family
+            // leaves the House's live two-batch water reserve intact.
+            inventory = InventoryFixture.AddLot(inventory, backupJugId, InventoryContainerRules.WaterJug,
+                householdId, 1, storageBuildingId: house.InstanceId);
+            inventory = InventoryFixture.AddLot(inventory, backupWaterId, InventoryContainerRules.FreshWater,
+                householdId, 2, containerLotId: backupJugId, storageBuildingId: house.InstanceId);
+        }
         var familyQuantity = 1 + storedWater;
         var capacity = PersonalEquipmentRules.Capacity(inventory, actor, null);
         inventory = InventoryFixture.AddLot(inventory, "last-slot-ballast", "test_cargo", actor,
@@ -745,6 +793,17 @@ public sealed class PotteryContentTests
         Assert.Equal(beforeTotal, world.Society.Inventory.Lots.Sum(lot => lot.Quantity));
         Assert.Equal(storedWater, world.Society.Inventory.Lots.Where(lot => lot.ContainerLotId == jugId)
             .Sum(lot => lot.Quantity));
+        if (storedWater > 0)
+        {
+            Assert.Equal(inventory.GetLot(backupJugId) with
+            {
+                LastProcessedTick = world.Society.Inventory.GetLot(backupJugId).LastProcessedTick,
+            }, world.Society.Inventory.GetLot(backupJugId));
+            Assert.Equal(inventory.GetLot(backupWaterId) with
+            {
+                LastProcessedTick = world.Society.Inventory.GetLot(backupWaterId).LastProcessedTick,
+            }, world.Society.Inventory.GetLot(backupWaterId));
+        }
         if (!fits)
         {
             Assert.DoesNotContain(world.ExportState().Events, item =>
@@ -762,10 +821,83 @@ public sealed class PotteryContentTests
         Assert.Equal(storedWater + 1, resumed.Society.Inventory.Lots.Where(lot => lot.ContainerLotId == jugId)
             .Sum(lot => lot.Quantity));
         Assert.Equal(beforeTotal + 1, resumed.Society.Inventory.Lots.Sum(lot => lot.Quantity));
+        if (storedWater > 0)
+        {
+            Assert.Equal(inventory.GetLot(backupJugId) with
+            {
+                LastProcessedTick = resumed.Society.Inventory.GetLot(backupJugId).LastProcessedTick,
+            }, resumed.Society.Inventory.GetLot(backupJugId));
+            Assert.Equal(inventory.GetLot(backupWaterId) with
+            {
+                LastProcessedTick = resumed.Society.Inventory.GetLot(backupWaterId).LastProcessedTick,
+            }, resumed.Society.Inventory.GetLot(backupWaterId));
+        }
         Assert.Equal(inventory.GetLot("last-slot-ballast") with
         {
             LastProcessedTick = resumed.Society.Inventory.GetLot("last-slot-ballast").LastProcessedTick,
         }, resumed.Society.Inventory.GetLot("last-slot-ballast"));
+        resumed.Validate();
+    }
+
+    [Fact]
+    public async Task AStoredJugHoldingTheHousesNeededWaterIsNotCollectedDespiteRoomAcrossReload()
+    {
+        using var setup = NormalPathWorld.CreateGenerated("jug-leaves-water-room", _ => new IdleProvider());
+        for (var tick = 0; tick < 8; tick++) Assert.True((await setup.AdvanceOneTickAsync()).Advanced);
+        var state = setup.ExportState();
+        const string householdId = "household:camp-alpha";
+        const string jugId = "needed-house-jug";
+        const string waterId = "needed-house-water";
+        var house = setup.WorldSimulation.Buildings.Single(building => building.InstanceId == "first-town-house-a");
+        var actor = state.Society.Society.Inhabitants.First(person => person.HouseholdId == householdId &&
+            person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder).Id;
+        var inventory = state.Society.Society.Inventory with
+        {
+            Lots = state.Society.Society.Inventory.Lots.Where(lot => lot.OwnerId != actor).ToArray(),
+        };
+        inventory = InventoryFixture.AddLot(inventory, jugId, InventoryContainerRules.WaterJug,
+            householdId, 1, storageBuildingId: house.InstanceId);
+        inventory = InventoryFixture.AddLot(inventory, waterId, InventoryContainerRules.FreshWater,
+            householdId, 2, containerLotId: jugId, storageBuildingId: house.InstanceId);
+        var capacity = PersonalEquipmentRules.Capacity(inventory, actor, null);
+        inventory = InventoryFixture.AddLot(inventory, "needed-jug-ballast", "test_cargo", actor, capacity - 4);
+        Assert.Equal(4, PersonalEquipmentRules.FreeCapacity(inventory, actor, null));
+        Assert.Equal(2, PersonalEquipmentRules.AvailableQuantity(inventory, inventory.GetLot(waterId)));
+        Assert.Equal(2, inventory.Lots.Where(lot => lot.OwnerId == householdId &&
+            lot.StorageBuildingId == house.InstanceId && lot.ItemKind == InventoryContainerRules.FreshWater)
+            .Sum(lot => PersonalEquipmentRules.AvailableQuantity(inventory, lot)));
+        state = SetActorCondition(state with
+        {
+            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
+        }, actor, 10_000, house.Position);
+        state = state with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with { Equipment = null, LastDecisionContext = null } : person).ToArray(),
+        };
+        var provider = new WaterLoopProvider();
+        using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
+            PrivateWorldRuntimeCodec.Encode(state)), id => id == actor ? provider : new IdleProvider());
+        Assert.Contains(world.WorldContent.Recipes, recipe => recipe.WorkstationBuildingId == house.DefinitionId &&
+            recipe.Tags.Contains("named-meal", StringComparer.Ordinal) &&
+            recipe.Inputs.Any(input => input.ResourceId == InventoryContainerRules.FreshWater && input.Amount == 1));
+        for (var tick = 0; tick < 10; tick++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.NotEmpty(provider.OfferedCandidates);
+        var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var resumed = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes),
+            id => id == actor ? provider : new IdleProvider());
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(resumed.ExportState()));
+        for (var tick = 0; tick < 10; tick++) Assert.True((await resumed.AdvanceOneTickAsync()).Advanced);
+        Assert.DoesNotContain("collect_water_jug", provider.OfferedCandidates);
+        Assert.DoesNotContain(resumed.ExportState().Events, item =>
+            item.Kind is "water_jug_collected" or "water_jug_returned" or "water_jug_filled");
+        Assert.Equal(inventory.Lots.Sum(lot => lot.Quantity), resumed.Society.Inventory.Lots.Sum(lot => lot.Quantity));
+        foreach (var id in new[] { jugId, waterId, "needed-jug-ballast" })
+        {
+            var current = resumed.Society.Inventory.GetLot(id);
+            Assert.Equal(inventory.GetLot(id) with { LastProcessedTick = current.LastProcessedTick }, current);
+        }
+        Assert.Equal(4, PersonalEquipmentRules.FreeCapacity(resumed.Society.Inventory, actor, null));
         resumed.Validate();
     }
 
@@ -821,6 +953,58 @@ public sealed class PotteryContentTests
     }
 
     [Fact]
+    public async Task UrgentOwnerOrderCanTakeFoodFromAnAccessibleHouseholdPot()
+    {
+        using var setup = NormalPathWorld.CreateGenerated("urgent-owner-order-pot-food", _ => new IdleProvider());
+        for (var tick = 0; tick < 8; tick++)
+            Assert.True((await setup.AdvanceOneTickAsync()).Advanced);
+        var state = setup.ExportState();
+        const string householdId = "household:camp-alpha";
+        const string potId = "urgent-owner-order-pot";
+        var house = setup.WorldSimulation.Buildings.Single(building => building.InstanceId == "first-town-house-a");
+        var actor = state.Society.Society.Inhabitants.First(person => person.HouseholdId == householdId &&
+            person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder).Id;
+        var inventory = state.Society.Society.Inventory with
+        {
+            Lots = state.Society.Society.Inventory.Lots.Where(lot => lot.OwnerId != actor &&
+                !(lot.OwnerId == householdId && InventoryContainerRules.IsFood(lot.ItemKind))).ToArray(),
+        };
+        inventory = InventoryFixture.AddLot(inventory, potId, InventoryContainerRules.StoragePot,
+            householdId, 1, storageBuildingId: house.InstanceId);
+        inventory = InventoryFixture.AddLot(inventory, "urgent-owner-order-pot-berries", "berries",
+            householdId, 2, storageBuildingId: house.InstanceId, containerLotId: potId);
+        state = SetActorCondition(state with
+        {
+            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
+            Council = new(state.Inhabitants[0].InhabitantId, "open", 0),
+        }, actor, 0, house.Position);
+        state = state with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with { Equipment = null, LastDecisionContext = null }
+                : person).ToArray(),
+        };
+        using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
+            PrivateWorldRuntimeCodec.Encode(state)), id => id == actor ? new IdleProvider() : new IdleProvider());
+        var order = world.SubmitInstruction(new OwnerInstructionRequest("urgent-pot-order", "owner:test",
+            actor, OwnerInstructionKind.MustDo, "gather berries from berry-patch"));
+
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+
+        var after = world.ExportState();
+        Assert.Single(after.Events, item => item.Kind == "food_taken_from_pot" &&
+            item.Detail.StartsWith(actor + ":" + potId + ":", StringComparison.Ordinal));
+        Assert.Equal(1, Assert.Single(after.Society.Society.Inventory.Lots,
+            lot => lot.Id == "urgent-owner-order-pot-berries").Quantity);
+        Assert.Contains(after.Society.Society.Inventory.Lots, lot => lot.OwnerId == actor &&
+            lot.ItemKind == "berries" && lot.Quantity == 1 && lot.ContainerLotId is null);
+        Assert.Equal("interrupted", Assert.Single(after.Instructions!, item => item.InstructionId == order.InstructionId)
+            .Order!.Status);
+        Assert.DoesNotContain(after.Events, item => item.Kind == "food_consumed" && item.Detail == actor);
+        world.Validate();
+    }
+
+    [Fact]
     public async Task AVesselTooLargeToHaulDoesNotHideOtherLooseHouseholdStock()
     {
         using var setup = NormalPathWorld.CreateGenerated("oversized-loose-jug", _ => new IdleProvider());
@@ -831,7 +1015,8 @@ public sealed class PotteryContentTests
         var house = setup.WorldSimulation.Buildings.Single(building => building.InstanceId == "first-town-house-a");
         var actor = state.Society.Society.Inhabitants.First(person => person.HouseholdId == householdId &&
             person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder).Id;
-        // The jug and its four water make five units, more than one haul load.
+        // The jug and its four water make five units, more than the actor's
+        // four remaining spaces. Loose wood still fits without splitting it.
         var inventory = state.Society.Society.Inventory with
         {
             Lots = state.Society.Society.Inventory.Lots.Where(lot => lot.OwnerId != actor &&
@@ -841,6 +1026,10 @@ public sealed class PotteryContentTests
         inventory = InventoryFixture.AddLot(inventory, "oversized-loose-water", InventoryContainerRules.FreshWater,
             householdId, InventoryContainerRules.WaterJugCapacity, containerLotId: jugId);
         inventory = InventoryFixture.AddLot(inventory, "z-loose-wood", "wood", householdId, 2);
+        inventory = InventoryFixture.AddLot(inventory, "protected-loose-haul-cargo", "stone", actor, 4);
+        inventory = InventoryFixture.Reserve(inventory, "protected-loose-haul-reservation", actor,
+            "protected-loose-haul-cargo", 4, "haul_capacity_control", inventory.WorldTick + 100);
+        Assert.Equal(4, PersonalEquipmentRules.CarriedQuantity(inventory, actor, null));
         state = SetActorCondition(state with
         {
             Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
@@ -861,6 +1050,8 @@ public sealed class PotteryContentTests
         Assert.Equal(householdId, world.Society.Inventory.GetLot(jugId).OwnerId);
         Assert.Equal(InventoryContainerRules.WaterJugCapacity, world.Society.Inventory.Lots
             .Where(lot => lot.ContainerLotId == jugId).Sum(lot => lot.Quantity));
+        Assert.Equal(4, world.Society.Inventory.GetLot("protected-loose-haul-cargo").Quantity);
+        Assert.Equal(InventoryReservationState.Reserved, world.Society.Inventory.GetReservation("protected-loose-haul-reservation").State);
         world.Validate();
     }
 

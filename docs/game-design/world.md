@@ -2,7 +2,7 @@
 title: The world, time and survival
 type: game-design
 status: active
-updated: 2026-10-01
+updated: 2026-10-03
 ---
 
 # The world, time and survival
@@ -151,6 +151,10 @@ distribution goal, the companion-process host or the first package.
   keeping it readable. Night effects on weather and night length that changes
   with the seasons come later, after colder nights are playtested. The warmth
   drop is provisional balance.
+- **Morning start, agreed on October 2
+  ([#764](https://github.com/compoodment/ClankerWorld/issues/764)):** a new
+  world starts in the morning, after the dawn fade, not at midnight, so
+  founders are placed and the first day begins in daylight.
 
 ### Still to decide
 
@@ -323,6 +327,12 @@ player choose another seed or explicitly accept the misses; do not silently
 substitute a different map. Larger-size targets and preview latency remain
 subject to measurement and playtesting.
 
+An attempt with no room for the first Town is unavailable. Keep trying the
+remaining candidates and show that failed attempt alongside the coverage of
+playable maps, keeping their original attempt numbers. If none is playable,
+ask for another seed or changed settings; do not create a replacement map
+silently.
+
 Forest and mountain areas should form readable regions. The generator uses
 connected-region size only to break ties between equally good candidates; it
 does not impose a minimum forest patch size. Region measurement joins diagonal
@@ -341,9 +351,11 @@ generator imposes no minimum mountain patch size.
 Massifs leave the earlier rules in place: the agreed **5–12% mountain** target
 for Balanced Normal worlds, and hills at today's grass walking cost. The number
 of massifs (for example 1–2 on Small and 2–4 on Medium), their minimum size and
-how far hills reach stay provisional until computment reviews generated maps. A
-start far from stone may need a rule that keeps stone within reach of the first
-Town; that is checked when the generator is built.
+how far hills reach stay provisional until computment reviews generated maps.
+**Agreed on October 2
+([#683](https://github.com/compoodment/ClankerWorld/issues/683)):** the start
+of the first Town always has stone it can walk to within 32 tiles, because
+about one start in five had none. The distance is provisional.
 
 Computment wants agents to cross **one-tile-wide rivers on foot, more slowly**
 than dry ground. **Agreed on October 1

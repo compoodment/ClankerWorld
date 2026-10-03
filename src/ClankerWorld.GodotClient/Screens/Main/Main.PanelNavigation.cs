@@ -17,6 +17,7 @@ public partial class Main
         worldOverviewPanel.Hide();
         worldInfoPanel.Hide();
         rosterPanel.Visible = show;
+        if (show) QueueHudListsFit();
     }
 
     private void ToggleEvents()
@@ -28,6 +29,7 @@ public partial class Main
         worldOverviewPanel.Hide();
         worldInfoPanel.Hide();
         eventsPanel.Visible = show;
+        if (show) QueueHudListsFit();
         if (show) MarkEventsSeen();
     }
 
@@ -67,9 +69,10 @@ public partial class Main
 
     private void UpdateFamilyTreeStatus()
     {
-        familyTreeStatus.Text = familyTreeView.ParentEdgeCount + familyTreeView.PartnerEdgeCount == 0
-            ? "No family links recorded yet. Housemates are not automatically relatives."
-            : "Green: parent–child   ·   Pink: partnership   ·   Click a person to inspect";
+        // The key explains lines that are there; with none, say why the tree is just them.
+        var empty = familyTreeView.ParentEdgeCount + familyTreeView.PartnerEdgeCount == 0;
+        familyTreeStatus.Visible = empty;
+        familyLegend.Visible = !empty;
     }
 
     private void SelectFromFamilyTree(string id)
@@ -164,7 +167,6 @@ public partial class Main
         CloseAgentModelEditor();
         settingsPanel.Hide();
         modLibraryPanel.Hide();
-        developerScroll.Hide();
         menuActions.Show();
         menuHeadingLabel.Text = "Paused";
         StyleIconButton(menuCloseButton, PixelGlyph.Close);
@@ -195,7 +197,6 @@ public partial class Main
         menuShade.Hide();
         settingsPanel.Hide();
         modLibraryPanel.Hide();
-        developerScroll.Hide();
         menuActions.Show();
         menuPausedWorld = false;
         menuPauseConfirmed = false;
@@ -236,6 +237,7 @@ public partial class Main
 
     public override void _Process(double delta)
     {
+        UpdateDeveloperFrameTime(delta);
         if (!GetWindow().HasFocus()) return;
         var direction = new Vector2(
             (Input.IsPhysicalKeyPressed(Key.D) || Input.IsPhysicalKeyPressed(Key.Right) ? 1 : 0) -
@@ -338,6 +340,12 @@ public partial class Main
         if (selectedInhabitantCard.Visible)
         {
             ClearInhabitantSelection();
+            return true;
+        }
+        // Developer tools often stay open while testing, so they close last.
+        if (developerPanel.Visible)
+        {
+            CloseDeveloperTools();
             return true;
         }
         _ = ToggleGameMenuAsync();

@@ -23,7 +23,7 @@ public sealed partial class PrivateWorldRuntime
             .Concat(map.Resources.Select(item => item.Position))
             .Concat(RoadAndBridgeTiles())
             .Concat(fields.Select(field => field.Position))
-            .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State == WorldProductionJobState.Running).SelectMany(ExpansionTiles))
+            .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused).SelectMany(ExpansionTiles))
             .Concat(worldSimulation.Buildings.SelectMany(building =>
             {
                 if (!definitions.TryGetValue(building.DefinitionId, out var definition))
@@ -150,7 +150,7 @@ public sealed partial class PrivateWorldRuntime
             if (placed.HouseholdId is null && definition.Tags.Any(IsHouseholdBuildingTag))
                 continue;
             var activeJobs = worldSimulation.ProductionJobs.Count(item =>
-                item.BuildingInstanceId == placed.InstanceId && item.State == WorldProductionJobState.Running);
+                item.BuildingInstanceId == placed.InstanceId && item.State is WorldProductionJobState.Running or WorldProductionJobState.Paused);
             if (activeJobs < definition.Capacity &&
                 (actorId is null || FindUnoccupiedRoute(actorId, inhabitants[actorId].Position, placed.Position, 0).Count > 0))
             {
@@ -164,6 +164,10 @@ public sealed partial class PrivateWorldRuntime
         position = default;
         return false;
     }
+
+    private static bool IsGenericFoodRecipe(RecipeDefinition recipe) =>
+        recipe.Inputs.Any(input => input.ResourceId == "food") &&
+        recipe.Outputs.Any(output => output.ResourceId == "food");
 
     private bool HasAvailableQuantities(IReadOnlyList<ContentQuantity> quantities, string? ownerId = null)
     {
@@ -238,7 +242,7 @@ public sealed partial class PrivateWorldRuntime
             .Concat(map.Resources.Select(item => item.Position))
             .Concat(RoadAndBridgeTiles())
             .Concat(fields.Select(field => field.Position))
-            .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State == WorldProductionJobState.Running).SelectMany(ExpansionTiles))
+            .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused).SelectMany(ExpansionTiles))
             .ToHashSet();
         var buildingDefinitions = worldContent.Buildings.ToDictionary(item => item.CanonicalId, StringComparer.Ordinal);
         foreach (var placed in worldSimulation.Buildings)
@@ -353,6 +357,20 @@ public sealed partial class PrivateWorldRuntime
         }
 
         return current;
+    }
+
+    private const string MissingHouseholdIngredientsPrefix = "The household building needs ";
+
+    private static bool IsIngredientBlocker(string? blocker) =>
+        blocker == "Waiting for ingredients at this household building" ||
+        blocker?.StartsWith(MissingHouseholdIngredientsPrefix, StringComparison.Ordinal) == true;
+
+    private string MissingProductionIngredients(RecipeDefinition recipe, string owner, string buildingId)
+    {
+        var missing = recipe.Inputs.First(input => !HasIngredientsAtBuilding([input], owner, buildingId));
+        var available = society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == owner &&
+                lot.StorageBuildingId == buildingId && lot.ItemKind == missing.ResourceId).Sum(AvailableLotQuantity);
+        return $"{MissingHouseholdIngredientsPrefix}{missing.Amount - available} {missing.ResourceId.Replace('_', ' ')} in its on-site stock. Bring it here before starting work.";
     }
 
     private bool HasIngredientsAtBuilding(IReadOnlyList<ContentQuantity> inputs,
@@ -485,7 +503,7 @@ public sealed partial class PrivateWorldRuntime
         }
         var productionBuilding = worldSimulation.Buildings
             .FirstOrDefault(building => building.InstanceId == job.BuildingInstanceId);
-        var productionOwner = ProductionOwnerFor(productionBuilding, job.WorkerId);
+        var productionOwner = job.OwnerId ?? throw new InvalidDataException("A production job has no recorded owner.");
         ApplyInventoryTransition(inventory =>
         {
             var current = inventory;

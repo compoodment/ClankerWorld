@@ -39,7 +39,7 @@ public sealed partial class PrivateWorldRuntime
                 candidates.Add(new CognitionCandidate(
                     TownConstructionCandidateIds.Building(definition.CanonicalId, site.Position),
                     $"Plan {definition.DisplayName} at ({site.Position.X}, {site.Position.Y}): {description}",
-                    20 + rank,
+                    20 + rank + HouseholdBuildingKinds.PlanOrder(HouseholdBuildingKind(definition)),
                     $"build-site:{site.Position.X},{site.Position.Y}"));
             }
         }
@@ -142,6 +142,7 @@ public sealed partial class PrivateWorldRuntime
             return null;
 
         var tool = society.Checkpoint.Inventory.Lots.Where(lot =>
+                (lot.OwnerId == actor || lot.OwnerId == householdId) &&
                 PersonalEquipmentRules.IsCarried(lot, actor) && lot.DeliveryBuildingId is null &&
                 lot.ContainerLotId is null &&
                 lot.ItemKind == "tool" && AvailableLotQuantity(lot) > 0)

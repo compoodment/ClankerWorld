@@ -144,7 +144,7 @@ public partial class Main
                     pairingInstructionLabel.Text = "Waiting for host approval. Give the host the pairing ID and comparison code exactly as shown.";
                     break;
                 case OwnerPairingState.Approved:
-                    pairingInstructionLabel.Text = "Host approval received. Proving possession of this Windows device key…";
+                    pairingInstructionLabel.Text = "Host approval received. Proving possession of this Windows device key...";
                     await ActivatePendingPairingAsync();
                     break;
                 case OwnerPairingState.Active:
@@ -313,8 +313,7 @@ public partial class Main
             {
                 if (usageStatus?.LimitReached == true && reconnect.Baseline.Snapshot.Authoring?.IsPaused == true)
                 {
-                    SetStatus("Paid-call limit reached. The world is paused; open World Settings to allow more calls.",
-                        good: false, StatusToastKind.UsageLimit);
+                    SetStatus(UsageLimitPausedMessage, good: false, StatusToastKind.UsageLimit);
                 }
                 else
                 {
@@ -372,7 +371,7 @@ public partial class Main
 
             var previousRefreshCount = successfulRefreshCount;
             var previousToastTime = statusToastShownAtMsec;
-            connectionStatusLabel.Text = "Checking connection…";
+            connectionStatusLabel.Text = "Checking connection...";
             connectionStatusLabel.Show();
             connectButton.Disabled = true;
             await RefreshAsync();

@@ -47,6 +47,8 @@ public sealed class WorldEventTextTests
             ("child_born", id, "was born"),
             ("inhabitant_removed", id, "died"),
             ("inhabitant_building_proposed", id + ":house", "suggested a new building design"),
+            ("household_delivery_recovered", id + ":spoiled-greens:4:camp-alpha",
+                "returned unusable delivery supplies to their household's pile at camp"),
             ("instruction_not_understood", id + ":private-instruction-0000000001",
                 "didn't understand your order. For now, orders can only ask them to gather food, eat or find food"),
         };
@@ -95,10 +97,43 @@ public sealed class WorldEventTextTests
         {
             Towns = [new(townId, "First Town", "founded", 0, [], [], [])],
         };
-        Assert.Equal("Aster joined the first Town.", WorldEventText.Describe(
+        Assert.Equal("Aster joined First Town.", WorldEventText.Describe(
             new(1, 0, "town_resident_joined", $"{townId}:{actorId}:child_joined:residents:4"), snapshot));
-        Assert.Equal("Aster left the first Town.", WorldEventText.Describe(
+        Assert.Equal("Aster left First Town.", WorldEventText.Describe(
             new(2, 1, "town_resident_left", $"{townId}:{actorId}:residents:3"), snapshot));
+    }
+
+    [Fact]
+    public void TownAdmissionEventsNameTheNewcomerTheirTownsAndAnyChildrenWhoMoved()
+    {
+        var snapshot = Snapshot(Person(AgentId, "Aster")) with
+        {
+            Towns = [new("town:first", "First Town", "founded", 0, [], [], []),
+                new("town:second", "Second Town", "founded", 0, [], [], [])],
+        };
+        var cases = new[]
+        {
+            ("town_admission_accepted", $"town:second|{AgentId}|none|1", "Aster became a resident of Second Town."),
+            ("town_admission_accepted", $"town:second|{AgentId}|town:first|1",
+                "Aster became a resident of Second Town. They are no longer a resident of First Town."),
+            ("town_admission_accepted", $"town:second|{AgentId}|town:first|3",
+                "Aster became a resident of Second Town. They are no longer a resident of First Town. Their dependent children moved with them."),
+            ("town_admission_accepted", $"town:second|{AgentId}|none|2",
+                "Aster became a resident of Second Town. Their dependent children moved with them."),
+            ("town_admission_approved", $"town:second|{AgentId}|town:second:proposal:4",
+                "Second Town's council approved Aster's admission. It takes effect only if they accept."),
+            ("town_admission_lapsed", $"town:first|{AgentId}|town:first:proposal:2|joined_elsewhere",
+                "Aster did not join First Town: the approval no longer fits their circumstances."),
+            ("town_admission_accepted", "town:gone|agent:missing|none|1", "Someone became a resident of a Town."),
+            ("town_admission_accepted", "town:second", "Someone became a Town resident."),
+        };
+        foreach (var (kind, detail, expected) in cases)
+        {
+            Assert.True(GameUiText.IsPlayerFacingEvent(kind));
+            var worldEvent = new OwnerWorldEvent(1, 0, kind, detail);
+            Assert.Equal(expected, WorldEventText.Describe(worldEvent, snapshot));
+            Assert.Equal(detail, worldEvent.Detail);
+        }
     }
 
     [Fact]
@@ -114,7 +149,7 @@ public sealed class WorldEventTextTests
         Assert.Equal("Someone died.", WorldEventText.Describe(new(2, 0, "inhabitant_removed", AgentId + ":unknown-child"), snapshot));
         Assert.Equal("Child suggested a new building design.", WorldEventText.Describe(
             new(3, 0, "inhabitant_building_proposed", "legacy-parent:child:house"), snapshot));
-        Assert.Equal("Child joined the first Town.", WorldEventText.Describe(
+        Assert.Equal("Child joined First Town.", WorldEventText.Describe(
             new(4, 0, "town_resident_joined", "town:first:legacy-parent:child:child_joined:residents:1"), snapshot));
     }
 
@@ -146,6 +181,17 @@ public sealed class WorldEventTextTests
         Assert.Equal("Someone died.", WorldEventText.Describe(new(2, 0, "inhabitant_removed", AgentId), null));
         Assert.Equal("Someone ate.", WorldEventText.Describe(new(3, 0, "food_consumed", ""), null));
         Assert.Equal("Someone planted something new.", WorldEventText.Describe(new(4, 0, "field_planted", ""), null));
+    }
+
+    [Theory]
+    [InlineData("used:812:limit:1000", "Model calls: 812 of 1,000 used across all worlds.")]
+    [InlineData("used:8:limit:10", "Model calls: 8 of 10 used across all worlds.")]
+    [InlineData("used:8", "Model calls: 80% of the limit used across all worlds.")]
+    public void ModelCallWarningNamesTheInstallationCountAndWhereToRaiseTheLimit(string detail, string count)
+    {
+        Assert.True(GameUiText.IsPlayerFacingEvent("model_call_warning"));
+        Assert.Equal(count + " Your worlds pause at the limit; raise it in Settings → Game.",
+            WorldEventText.Describe(new(1, 0, "model_call_warning", detail), null));
     }
 
     private static OwnerWorldSnapshot Snapshot(params OwnerWorldInhabitant[] people) =>

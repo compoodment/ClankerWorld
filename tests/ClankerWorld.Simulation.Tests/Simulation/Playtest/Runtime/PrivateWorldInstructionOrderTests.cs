@@ -15,10 +15,37 @@ public sealed partial class PrivateWorldRuntimeTests
     [InlineData("be good", false)]
     [InlineData("that was long ago", false)]
     [InlineData("build a house", false)]
+    [InlineData("gather wood", false)]
+    [InlineData("gather wood at berry-patch", false)]
+    [InlineData("go to the Blacksmith", false)]
+    [InlineData("gather berries and build a House", false)]
+    [InlineData("eat wood", false)]
+    [InlineData("eat 3 wood", false)]
+    [InlineData("eat 3 stones", false)]
+    [InlineData("eat -3 wood", false)]
+    [InlineData("eat 1.5 berries", false)]
+    [InlineData("do not eat berries", false)]
+    [InlineData("do not gather berries from berry-patch", false)]
+    [InlineData("never harvest berries from berry-patch", false)]
+    [InlineData("don’t gather berries from berry-patch", false)]
+    [InlineData("don't harvest berries from berry-patch", false)]
+    [InlineData("eat 3 berries", true)]
+    [InlineData("eat porridge", true)]
+    [InlineData("eat berry porridge", true)]
+    [InlineData("eat fruit porridge", true)]
+    [InlineData("eat bread", true)]
+    [InlineData("eat vegetable stew", true)]
+    [InlineData("eat simple meal", true)]
+    [InlineData("eat Restaurant meal", true)]
+    [InlineData("eat cultivated greens", true)]
+    [InlineData("gather bread", false)]
+    [InlineData("go to porridge", false)]
+    [InlineData("eat flour", false)]
+    [InlineData("gather -3 berries", false)]
     [InlineData("Eat!", true)]
     [InlineData("gathering berries", true)]
     [InlineData("go to the berry patch", true)]
-    [InlineData("are you hungry?", true)]
+    [InlineData("are you hungry?", false)]
     public void DirectOrdersAreReadAsWholeWords(string text, bool understood)
     {
         using var world = new PrivateWorldRuntime("whole-word-orders");
@@ -266,24 +293,50 @@ public sealed partial class PrivateWorldRuntimeTests
     }
 
     [Fact]
-    public async Task DirectOrderQueuedBeforeCurrentMatchingIsClosedOnTheNextTick()
+    public async Task UnsupportedWholeWordOrderClosesAtSubmitAndDoesNotBlockLaterOrderAfterReload()
     {
+        const string foodLotId = "unsupported-then-valid-order-berries";
+        using var genesis = new PrivateWorldRuntime("unsupported-then-valid-order");
+        var initialState = genesis.ExportState() with
+        {
+            Inhabitants = genesis.ExportState().Inhabitants.Select(person =>
+                person.InhabitantId == OrderedAgent ? person with { HungerBasisPoints = 3_000 } : person).ToArray(),
+            Society = genesis.ExportState().Society with
+            {
+                Society = genesis.ExportState().Society.Society with
+                {
+                    Inventory = InventoryFixture.AddLot(genesis.ExportState().Society.Society.Inventory,
+                        foodLotId, "berries", OrderedAgent, 1),
+                },
+            },
+        };
         var provider = new CountingSelectingProvider(DecisionProviderKind.Deterministic, chooseIdle: true);
-        using var world = new PrivateWorldRuntime("earlier-order", _ => provider);
-        var order = world.SubmitInstruction(new OwnerInstructionRequest("heat", "owner:test",
-            OrderedAgent, OwnerInstructionKind.MustDo, "heat the house"));
-        // Earlier substring matching read "heat" as "eat" and left this pending.
-        var queuedEarlier = world.ExportState() with { CompletedInstructionIds = [] };
+        using var world = PrivateWorldRuntime.Restore(initialState, _ => provider);
 
-        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
-            PrivateWorldRuntimeCodec.Encode(queuedEarlier)), _ => provider);
+        var unsupported = world.SubmitInstruction(new OwnerInstructionRequest("heat", "owner:test",
+            OrderedAgent, OwnerInstructionKind.MustDo, "heat the house"));
+        var closed = world.ExportState();
+        Assert.Contains(unsupported.InstructionId, closed.CompletedInstructionIds ?? []);
+        Assert.Equal("not_understood", Assert.Single(closed.Instructions!,
+            item => item.InstructionId == unsupported.InstructionId).Order!.Status);
+        Assert.Single(closed.Events, item => item.Kind == "instruction_not_understood" &&
+            item.Detail == OrderedAgent + ":" + unsupported.InstructionId);
+
+        var valid = world.SubmitInstruction(new OwnerInstructionRequest("eat", "owner:test",
+            OrderedAgent, OwnerInstructionKind.MustDo, "eat berries"));
+        var encoded = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(encoded), _ => provider);
+        Assert.Equal(encoded, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
         Assert.True((await restored.AdvanceOneTickAsync()).Advanced);
 
-        var state = restored.ExportState();
-        Assert.Contains(order.InstructionId, state.CompletedInstructionIds ?? []);
-        Assert.Equal(2, state.Events.Count(item => item.Kind == "instruction_not_understood" &&
-            item.Detail == OrderedAgent + ":" + order.InstructionId));
-        Assert.DoesNotContain(state.Events, item => item.Kind == "instruction_applied");
+        var after = restored.ExportState();
+        Assert.Contains(unsupported.InstructionId, after.CompletedInstructionIds ?? []);
+        Assert.Contains(valid.InstructionId, after.CompletedInstructionIds ?? []);
+        Assert.DoesNotContain(after.Society.Society.Inventory.Lots, lot => lot.Id == foodLotId);
+        Assert.Single(after.Events, item => item.Kind == "instruction_not_understood" &&
+            item.Detail == OrderedAgent + ":" + unsupported.InstructionId);
+        Assert.Single(after.Events, item => item.Kind == "instruction_applied" &&
+            item.Detail == valid.InstructionId + ":consume_food");
         restored.Validate();
     }
 
@@ -292,7 +345,9 @@ public sealed partial class PrivateWorldRuntimeTests
     {
         var hosted = new CountingSelectingProvider(DecisionProviderKind.LargeLanguageModel, chooseIdle: true);
         var local = new CountingSelectingProvider(DecisionProviderKind.Deterministic, chooseIdle: true);
-        using var world = new PrivateWorldRuntime("must-do-illegal-review", id => id == OrderedAgent ? hosted : local);
+        // This founder carries no food here, so "eat food" cannot progress.
+        using var world = CreateOrderWorldWithoutFood(
+            "must-do-illegal-review", id => id == OrderedAgent ? hosted : local);
         for (var tick = 0; tick < 5; tick++)
             await AdvanceWithHostedDecisionsAsync(world);
 
@@ -305,6 +360,35 @@ public sealed partial class PrivateWorldRuntimeTests
         var hostedCalls = hosted.CallCount - callsBefore;
         Assert.DoesNotContain(order.InstructionId, world.ExportState().CompletedInstructionIds ?? []);
         Assert.InRange(hostedCalls, 1, 10);
+    }
+
+    private static PrivateWorldRuntime CreateOrderWorldWithoutFood(
+        string seed,
+        Func<string, IDecisionProvider> providerFactory)
+    {
+        using var genesis = new PrivateWorldRuntime(seed);
+        var state = genesis.ExportState();
+        var foodKinds = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "food", "fruit", "berries", "wild_greens", "cultivated_greens", "bread", "porridge", "stew",
+        };
+        var inventory = state.Society.Society.Inventory;
+        var retainedLots = inventory.Lots.Where(item => !foodKinds.Contains(item.ItemKind)).ToArray();
+        var retainedIds = retainedLots.Select(item => item.Id).ToHashSet(StringComparer.Ordinal);
+        inventory = inventory with
+        {
+            Lots = retainedLots,
+            Reservations = inventory.Reservations.Where(item => retainedIds.Contains(item.LotId)).ToArray(),
+            Offers = inventory.Offers.Where(item => retainedIds.Contains(item.FirstLotId) && retainedIds.Contains(item.SecondLotId)).ToArray(),
+        };
+        state = state with
+        {
+            Society = state.Society with
+            {
+                Society = state.Society.Society with { Inventory = inventory },
+            },
+        };
+        return PrivateWorldRuntime.Restore(state, providerFactory);
     }
 
     [Theory]

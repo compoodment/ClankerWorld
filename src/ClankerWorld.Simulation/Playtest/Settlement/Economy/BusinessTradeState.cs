@@ -24,13 +24,18 @@ public static class BusinessRules
         "farmhouse" => itemKind is "food" or "berries" or "wild_greens" or "fruit" or
             FarmFieldRules.Grain or FarmFieldRules.Potatoes or FarmFieldRules.Greens or
             FarmFieldRules.GrainSeed or FarmFieldRules.GreensSeed or FarmFieldRules.OrchardSeed or "flour",
-        "blacksmith" => itemKind is "iron" or "tool" or "wooden_axe" or "stone_axe" or "iron_axe" or
-            "wooden_pickaxe" or "stone_pickaxe" or "iron_pickaxe" or "wooden_hoe" or "iron_hoe" or
-            "wooden_hammer" or "stone_hammer" or "wooden_sickle" or "iron_sickle" or "iron_knife",
+        "blacksmith" => BlacksmithMaySell(itemKind),
         "tailor" => itemKind is "cloth" or "clothing" or "padded_coat" or "rain_cloak" or "sack",
-        "restaurant" => itemKind is "porridge" or "bread" or "stew" or "restaurant_meal",
+        "restaurant" => itemKind is "porridge" or "berry_porridge" or "fruit_porridge" or
+            "bread" or "stew" or "restaurant_meal",
         "clinic" => itemKind is "bandage" or "medicine",
         "store" => itemKind is not ("field_map" or "field_record" or "fresh_water" or "storage_pot" or "water_jug" or "iron"),
         _ => false,
     };
+
+    private static bool BlacksmithMaySell(string itemKind) =>
+        itemKind is "iron" or "tool" or "wooden_axe" or "stone_axe" or "iron_axe" or
+            "wooden_pickaxe" or "stone_pickaxe" or "iron_pickaxe" or "wooden_hoe" or "iron_hoe" or
+            "wooden_hammer" or "stone_hammer" or "wooden_sickle" or "iron_sickle" or "iron_knife" or
+            OrnamentContent.Gold or "diamond" || OrnamentContent.IsOrnament(itemKind);
 }

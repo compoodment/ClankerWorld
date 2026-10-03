@@ -8,44 +8,6 @@ namespace ClankerWorld.GodotClient;
 
 public partial class Main
 {
-    private void RenderWorldDetails(OwnerWorldSnapshot snapshot)
-    {
-        var authoring = snapshot.Authoring;
-        var lines = new List<TownLine>();
-        if (authoring is not null)
-            lines.Add(new(TownStyle.Note, $"{(authoring.IsPaused ? "Paused" : "Playing")} · {DisplayWorldClock(snapshot.WorldTick)} · " +
-                $"{Pretty(authoring.Season)} · {Pretty(WeatherAtCamera(snapshot))} here"));
-        lines.Add(new(TownStyle.Heading, "Shared stores"));
-        if (snapshot.Stockpiles.Count == 0) lines.Add(new(TownStyle.Note, "No shared stores yet."));
-        foreach (var stockpile in snapshot.Stockpiles)
-        {
-            lines.Add(new(TownStyle.Name, stockpile.Name));
-            lines.Add(new(TownStyle.Detail, stockpile.Items.Count == 0 ? "empty" :
-                string.Join(" · ", stockpile.Items.Select(item => $"{GameUiText.ItemName(item.Kind)} {item.Quantity}"))));
-        }
-        lines.Add(new(TownStyle.Heading, "Projects"));
-        var workers = snapshot.Inhabitants.Where(person => person.Project is not null).ToArray();
-        if (workers.Length == 0) lines.Add(new(TownStyle.Note, "No one is working on a project right now."));
-        foreach (var person in workers)
-        {
-            lines.Add(new(TownStyle.Body, $"{person.DisplayName}: {person.Project!.Label} · {Pretty(person.Project.Stage)}"));
-            if (person.Project.Blocker is { } blocker) lines.Add(new(TownStyle.Warning, blocker));
-        }
-        if (snapshot.Council is { } council)
-        {
-            lines.Add(new(TownStyle.Heading, "Household council"));
-            lines.Add(new(TownStyle.Body, $"Steward: {council.StewardName ?? "awaiting a contributor"}"));
-            lines.Add(new(TownStyle.Body, council.FoodPolicy == "essential_first" ? "Food reserve: hungry members first" : "Shared food: open access"));
-            if (council.ProposedPolicy is not null)
-                lines.Add(new(TownStyle.Body, $"Vote: {Pretty(council.ProposedPolicy)} · {council.Approvals} yes / {council.Rejections} no / {council.Voters} voters"));
-        }
-        lines.Add(new(TownStyle.Heading, "Social activity"));
-        var notes = snapshot.Inhabitants.SelectMany(person => person.SocialNotes.Take(2).Select(note => $"{person.DisplayName}: {note}")).ToArray();
-        if (notes.Length == 0) lines.Add(new(TownStyle.Note, "Nothing to report yet."));
-        lines.AddRange(notes.Select(note => new TownLine(TownStyle.Body, note)));
-        WriteTownPanel(lines);
-    }
-
     private void RenderEventLog()
     {
         var snapshot = observationSession.Current?.Baseline.Snapshot;
@@ -64,6 +26,7 @@ public partial class Main
             string.Join("\n", entries.Select(entry => $"{entry.EventId}|{entry.Located}|{entry.Clock}|{entry.Text}"));
         if (renderedEventLog == content) return;
         renderedEventLog = content;
+        RenderEventRows(entries, offersNewcomer);
         eventLog.Clear();
         if (offersNewcomer)
         {
@@ -124,11 +87,11 @@ public partial class Main
             {
                 eventLog.PushMeta(entry.EventId.ToString(CultureInfo.InvariantCulture));
                 eventLog.PushColor(LinkText);
-                eventLog.AddText(entry.Text + " ↗");
+                eventLog.AddText(GameUiText.PlainEllipses(entry.Text) + " ↗");
                 eventLog.Pop();
                 eventLog.Pop();
             }
-            else eventLog.AddText(entry.Text);
+            else eventLog.AddText(GameUiText.PlainEllipses(entry.Text));
         }
         FitTextPanel(eventLog);
     }
