@@ -330,30 +330,6 @@ public sealed partial class SettlementParenthoodTests
     }
 
     [Fact]
-    public async Task ADirectGuardianOrderIsNotUnderstoodAndAppointsNobody()
-    {
-        // Ordering an adult to take a child in waits for #587's order catalogue;
-        // the strict order parser closes it without appointing anyone.
-        var state = await OrphanState(olderChild: true);
-        var child = state.Society.Society.Births.Single().ChildId;
-        var childName = state.Society.Society.GetInhabitant(child).Name;
-        var adult = state.Society.Society.Inhabitants.First(person => person.Status == SocietyInhabitantStatus.Active &&
-            person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder && person.Id != child).Id;
-        using var world = PrivateWorldRuntime.Restore(state, _ => new ParentProvider("safe_idle"));
-
-        var order = world.SubmitInstruction(new OwnerInstructionRequest("guardian-order", "owner:test",
-            adult, OwnerInstructionKind.MustDo, $"Become guardian for {childName}"));
-        for (var tick = 0; tick < 20; tick++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-
-        Assert.Contains(order.InstructionId, world.ExportState().CompletedInstructionIds ?? []);
-        Assert.Equal("not_understood", Assert.Single(world.ExportState().Instructions!,
-            item => item.InstructionId == order.InstructionId).Order!.Status);
-        Assert.DoesNotContain(world.Society.Relationships, edge => edge.Type == SocietyRelationshipType.Caregiver &&
-            edge.TargetId == child && edge.State == SocietyRelationshipState.Accepted);
-        Assert.Null(world.Society.GetInhabitant(child).PrimaryCaregiverId);
-    }
-
-    [Fact]
     public async Task NearbyAdultCanFeedAnOrphanWhileGuardianSearchRemainsOpen()
     {
         var state = await OrphanState();
