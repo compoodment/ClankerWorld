@@ -75,6 +75,12 @@ public sealed class PrivateWorldStateFile
         }
     }
 
+    public PrivateWorldDeveloperEditResult ApplyDeveloperEdit(PrivateWorldRuntime runtime, PrivateWorldDeveloperEdit edit)
+    {
+        lock (gate)
+            return runtime.ApplyDeveloperEdit(edit, state => SaveUnsafe(state));
+    }
+
     private PrivateWorldRuntimeState SaveUnsafe(PrivateWorldRuntimeState state, bool compactHistory = false)
     {
         if (compactHistory)

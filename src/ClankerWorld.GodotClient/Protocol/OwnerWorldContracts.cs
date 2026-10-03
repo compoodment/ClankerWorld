@@ -570,6 +570,9 @@ public sealed record ManualSaveOverwriteReceipt(ManualWorldSave Saved, string Ba
 public sealed record OwnerAutosaveConfigurationAction(bool Enabled, int IntervalMinutes, int RotationCount);
 public sealed record WorldAutosaveSettings(string WorldId, bool Enabled, int IntervalMinutes,
     int RotationCount, DateTimeOffset LastSavedUtc, long LastWorldTick);
+public sealed record OwnerDeveloperEditAction(string WorldId, long ExpectedEventId, string AgentId,
+    string Operation, string Value, int Amount = 0, string? OtherAgentId = null);
+
 public sealed record OwnerLifePaceAction(int Rate);
 public sealed record OwnerJevAssistanceAction(bool Enabled);
 

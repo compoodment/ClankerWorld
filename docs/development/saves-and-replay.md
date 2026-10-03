@@ -452,8 +452,26 @@ movement always use today's bridge map, with its legal axes, detours and
 blocked-return behavior. These checks use existing timestamps and add no saved
 fields, schema change or migration.
 
+Private-world schema 64 adds a move-out notice to an adult's `Housing` record:
+the current household, original notice tick, fixed deadline and selection
+reason. A pending request to another household is permitted while that notice
+is held. Loading validates the adult, membership, reason and time bounds;
+malformed notices and unsupported earlier schemas are refused and preserved.
+Live care, family and capacity changes may make a notice obsolete, so the
+runtime rechecks them before admission or displacement instead of treating a
+stale notice as authority to move someone.
+
+Current-format roundtrips retain notice deadlines, volunteer replacements,
+housing requests and the ordinary departure's collection rights and once-only
+food allowance. Replacing the selected adult keeps the original notice period;
+pause/load, births and unfinished expansion do not restart it. Replay must
+produce the same cancellation or departure without duplicating events or goods.
+Only completed footprints add resident places. Sole caregivers are protected
+from timed displacement even when their dependent lives in another household.
+No older-save migration or backfill is added.
+
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 62. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 64. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
@@ -474,9 +492,11 @@ consumed-dose progress, selected personal ornaments, and wills with up to
 three named heirs, exact divisions and final words, Town admission records,
 Town laws and government, concrete last-meal names for nourishment and
 dietary variety, bounded tool-making requests linked to ordinary production
-and barter, exact land-claim coordinates on Council proposals, and household
-land requests with their Council proposal and each adult's consent, and physical
-knowledge writing with exact material reservations and completed-artifact receipts.
+and barter, exact land-claim coordinates on Council proposals, household
+land requests with their Council proposal and each adult's consent, physical
+knowledge writing with exact material reservations and completed-artifact
+receipts, exact-tile movement orders with their destination and arrival
+receipt, and overcrowding move-out notices.
 Land records are checked against the saved map, Towns, households and one
 another before load. Building reassignment moves only existing footprint use rights;
 connected remainder plots keep their holder and original grant terms. Split
@@ -511,10 +531,11 @@ ornaments, schema 53 for wills with several heirs and final words, schema 54
 for Town admission records, schema 55 for Town laws and government, schema
 56 for named last meals, schema 57 for tool-making requests, schema 58 for
 Council land claims, schema 59 for household land grants, schema 60 for
-handcart attachments, schema 61 for guardian-order targets and schema 62 for
-physical knowledge writing record when those fields or behaviors were
-introduced; they do not allow an earlier checkpoint schema past the current
-alpha cutoff.
+handcart attachments, schema 61 for guardian-order targets, schema 62 for
+physical knowledge writing, schema 63 for exact-tile movement orders and
+schema 64 for overcrowding move-out notices
+record when those fields or behaviors were introduced; they do not allow an
+earlier checkpoint schema past the current alpha cutoff.
 
 | Compatibility change | Meaning |
 | --- | --- |
@@ -563,6 +584,8 @@ alpha cutoff.
 | Schema 60 | Exclusive physical handcart attachments: one cart per puller and one puller per cart, for a living owner, with cart and puller on the same tile. Cargo stays in ordinary inventory lots inside the cart. Earlier alpha saves are refused and preserved without migration. |
 | Schema 61 | Guardian orders retain the exact target agent separately from food/resource targets. Loading refuses missing or unknown targets, mixed task fields, repetition, and inconsistent completion receipts. The order survives a rename, pause, cancellation and replay. Older alpha saves are refused and preserved without migration. |
 | Schema 62 | Physical knowledge-writing projects retain their author, frozen learned facts, source artifact, work and exact paper/cloth reservations. Completed maps, records and books retain the consumed-material receipts and unique physical lot. Invalid provenance, duplicated inputs and malformed work are refused. Earlier alpha saves are refused and preserved without migration. |
+| Schema 63 | Exact-tile movement orders retain their destination, progress and arrival receipt. Loading refuses missing destinations, mixed food/resource fields, repetition and inconsistent completion. Queues and interrupted trips replay across saves. Older alpha saves are refused and preserved without migration. |
+| Schema 64 | Household move-out notices retain their original notice period, fixed deadline and selection reason alongside pending housing requests. Reload and replacement do not restart notice or duplicate departure goods. Runtime admission and displacement recheck current need and caregiver protection. Earlier alpha saves are refused and preserved without migration. |
 
 ### Tool-making requests
 
@@ -810,3 +833,25 @@ roots and their digest-addressed chains before removing unreferenced segments.
 Unpublished generations conservatively count as roots. Corrupt roots defer history
 cleanup, preserving other saves. This is ordinary file deletion, not secure disk
 erasure, and does not remove copies in external backups.
+
+## Developer edits
+
+A paused developer edit changes existing need, inventory, skill or partnership
+state and appends one `developer_edit` event whose JSON detail is the complete
+`PrivateWorldDeveloperEdit` command. No checkpoint fields or schema version
+change. Existing save validation still applies to the entire proposed world;
+older readers can load the same state representation, though they do not offer
+the edit UI or describe the new event kind.
+
+The event ID supplies deterministic lot and relationship IDs. Reapplying its
+command to the same paused baseline reproduces the checkpoint; replay tests
+also compare resumed ticks after a save/load roundtrip. The event carries the
+world ID and expected latest event ID. An exact retry found in hot event history
+returns already applied without another grant or event. After history compaction,
+the old event precondition refuses that retry instead of applying it again.
+
+The host writes the validated proposal through the checkpoint's atomic file
+replacement before accepting it in memory. A failed write preserves the live
+state and the prior save, and the original command can be retried. Tests cover
+this rollback, stale/wrong-world refusals, field binding in signed requests,
+and the generated-world path for every supported edit category.

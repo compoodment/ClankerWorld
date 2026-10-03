@@ -289,13 +289,18 @@ public sealed class SettlementSurvivalTests
                     Position = heater.Position,
                     HungerBasisPoints = 9_000,
                     Survival = person.Survival! with { WarmthBasisPoints = 0 },
-                    // Only the heater is under test: no unfinished outing or
-                    // project may walk the agent away from it.
+                    // Only the heater is under test: no unfinished outing,
+                    // project or lesson may walk the agent away from it.
                     Project = null,
                     Exploration = null,
+                    Lesson = null,
                     LastDecisionContext = null,
                 }
-                : person.Position == heater.Position ? person with { Position = recoveringPosition } : person).ToArray(),
+                : (person.Position == heater.Position ? person with { Position = recoveringPosition } : person) with
+                {
+                    // Nor may a lesson they are teaching call them to the camp.
+                    Lesson = person.Lesson?.TeacherId == recoveringId ? null : person.Lesson,
+                }).ToArray(),
             Society = state.Society with
             {
                 Society = state.Society.Society with

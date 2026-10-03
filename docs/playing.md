@@ -35,6 +35,21 @@ that version mismatch. You can still reconnect to the existing world.
 
 Adults may leave a household without its permission. Their own goods remain theirs even in the old House; collecting them and returning borrowed tools require travel and carrying space. A primary caregiver keeps dependent children with them unless another adult explicitly takes over care. An adult seeks an accepting existing home with room for the whole group first, then may start a household alone and build a House through the usual materials and site rules. Inspect the agent to see membership, goods awaiting collection, borrowed goods, care responsibility and the housing blocker.
 
+When a House is overcrowded, inspect a resident's housing details to see who
+has notice to move out, why, how much time remains and whether expansion is
+under way. Eligible adults get one world day; pausing stops the countdown,
+and saving and loading keep the remaining time. Volunteers go first, then
+the newest eligible arrivals outside the main family. With no family majority,
+the same order applies without favoring a family.
+
+An adult with notice may ask another household with room while still living
+in the old House. Every adult in the new household must agree. If no home is
+ready when notice ends, the adult leaves the old household and keeps seeking
+a home. Only a finished expansion adds places; it can cancel an unnecessary
+notice. Children and their sole caregivers are never forced out, including
+together as a group. Their House stays overcrowded until expansion or a
+voluntary move with care preserved provides enough room.
+
 ## Create your first Town
 
 1. Choose **New World**. Enter a name and seed and choose Small or Medium. Other
@@ -47,7 +62,9 @@ Adults may leave a household without its permission. Their own goods remain thei
    stone and open space for Roads. These are suggestions only: the game checks
    whether the starter layout fits after you choose a site. It then places two
    Houses, a Warehouse, Farmhouse, Blacksmith and Roads. You can choose another
-   site before placing the founders.
+   site before placing the founders, including after removing an empty starter
+   Farmhouse or Blacksmith. **Redo Town site** replaces the starter layout and
+   its Roads together.
 4. Configure and place **four starting agents**. Choose each agent's provider,
    key and model. A saved key can be reused, or you can add another for the same
    provider. Then pick the model from the game's short list for that
@@ -141,6 +158,13 @@ berries at (12, 4)". "Keep gathering food" continues until cancelled. Eating
 waits until the agent is hungry enough, and gathering needs enough carrying
 space. A recognized new order replaces the current one unless you turn on
 **Queue**. Use **Cancel task** to stop a waiting or active order.
+
+Use **Move to tile (12, 4)** to send an agent to an exact tile. **Go to (12, 4)**
+and **Travel to (12, 4)** work too. The agent walks there normally and finishes
+only on that tile. An occupied or unreachable destination leaves the order
+blocked with a reason. These are single trips; queue another order for the
+return journey. A destination in another household's House requires an
+invitation. Urgent food or warmth needs can interrupt the trip, then it resumes.
 
 The small card and the Profile show the order the agent is on now: whether it
 is waiting, being done, interrupted or blocked, how far along it is, why it is
@@ -288,6 +312,15 @@ turn on **Show planned path** to draw the route they are walking, as the server
 planned it. The panel also holds the aging override, recovery for a request
 whose reply was lost, paused world editing and paired-device management. The
 aging override and world editing need the world paused first.
+
+To set up a test, pause and use **Edit selected agent**. Choose a need and its
+percentage, goods and a quantity, a skill, or another agent for a partnership,
+then press **Apply developer edit**. The server saves accepted changes and
+marks each one **Developer edit** in the Event Log. Goods go into the selected
+agent's carried load; removal protects equipped items, filled vessels, knowledge
+records and reserved or borrowed goods. Starting a partnership requires two
+living, unpartnered adults who are not close relatives. A refused edit leaves the world
+unchanged; refresh the world view before trying again if the world changed.
 
 **Settings → Game → Model calls** shows how many model calls this installation
 has made and sets an optional limit. One count and limit cover all your worlds.

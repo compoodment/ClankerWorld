@@ -835,7 +835,7 @@ public sealed class OwnerWorldObservationStore
         var dependents = SocietyFixture.MovingCareGroup(state.Society.Society, inhabitant.Id).Where(id => id != inhabitant.Id)
             .Select(id => state.Society.Society.GetInhabitant(id).Name).ToArray();
         if (dependents.Length > 0) decisionFactors.Add(new("dependent-care", string.Join(", ", dependents)));
-        if (HousingDetail(state, physical.Housing) is { } housingDetail)
+        if (HousingDetail(state, inhabitant, physical.Housing) is { } housingDetail)
             decisionFactors.Add(new ViewerDecisionFactor("housing", housingDetail));
         if (state.Knowledge?.WritingProjects.SingleOrDefault(project => project.ActorId == inhabitant.Id) is { } writing)
         {
@@ -986,9 +986,12 @@ public sealed class OwnerWorldObservationStore
         }
     }
 
-    /// <summary>Why an adult has no home, in player terms; null when they have one.</summary>
-    private static string? HousingDetail(PrivateWorldRuntimeState state, SettlementHousing? housing)
+    /// <summary>The current housing need, including overcrowding and a saved move-out notice.</summary>
+    private static string? HousingDetail(PrivateWorldRuntimeState state, SocietyInhabitant inhabitant,
+        SettlementHousing? housing)
     {
+        if (housing is not null && (housing.Relocation is not null || housing.Blocker == HousingBlockers.Overcrowded))
+            return OvercrowdedHousingDetail(state, inhabitant, housing);
         if (housing?.Blocker is not { } blocker)
             return null;
         var asked = housing.Request is { } request
@@ -1001,9 +1004,57 @@ public sealed class OwnerWorldObservationStore
             HousingBlockers.NoAuthorizedHome => "No home. The household holds no House yet and can plan one.",
             HousingBlockers.MissingMaterials => "No home. The household holds no House and lacks the materials to build one.",
             HousingBlockers.NoLegalSite => "No home. The household has the materials for a House but no legal site to build it.",
-            HousingBlockers.Overcrowded => "Housing need. The House has more residents than places; nobody is moved out.",
             _ => null,
         };
+    }
+
+    private static string OvercrowdedHousingDetail(PrivateWorldRuntimeState state, SocietyInhabitant inhabitant,
+        SettlementHousing housing)
+    {
+        var society = state.Society.Society;
+        var house = state.WorldSimulation!.Buildings.FirstOrDefault(building =>
+            inhabitant.HouseholdId is not null && building.HouseholdId == inhabitant.HouseholdId &&
+            state.WorldContent!.Buildings.Any(definition => definition.CanonicalId == building.DefinitionId &&
+                definition.Tags.Contains("house", StringComparer.Ordinal)));
+        var counts = "Housing need.";
+        var construction = string.Empty;
+        if (house is not null)
+        {
+            var definition = state.WorldContent!.Buildings.Single(item => item.CanonicalId == house.DefinitionId);
+            var capacity = HouseResidentCapacityRules.Calculate(society.Inhabitants.Where(person =>
+                    person.HouseholdId == inhabitant.HouseholdId),
+                house.Footprint?.Width ?? definition.Width, house.Footprint?.Height ?? definition.Height);
+            counts = $"{(capacity.IsOvercrowded ? "House overcrowded" : "House")}: {capacity.ResidentCount} residents, {capacity.Limit} places.";
+            construction = (state.WorldSimulation.BuildingExpansions ?? [])
+                .LastOrDefault(job => job.BuildingInstanceId == house.InstanceId)?.State switch
+            {
+                WorldProductionJobState.Running => " Expansion is under way; it adds places only when finished.",
+                WorldProductionJobState.Paused => " Expansion is paused; it adds places only when finished.",
+                WorldProductionJobState.Cancelled => " The last expansion was cancelled.",
+                _ => string.Empty,
+            };
+        }
+        if (housing.Relocation is { } notice)
+        {
+            var hours = (long)Math.Ceiling(Math.Max(0, notice.DeadlineTick - society.WorldTick) *
+                24d / state.WorldSystems!.Config.TicksPerDay);
+            var reason = notice.Reason switch
+            {
+                HouseRelocationRules.Volunteer => "Volunteered to move",
+                HouseRelocationRules.LatestUnrelatedArrival => "Notice issued as the most recent arrival outside the main family",
+                _ => "Notice issued as the most recent arrival when no family had a majority",
+            };
+            var next = housing.Request is { } request
+                ? $" Asked the {society.Households.FirstOrDefault(item => item.Id == request.HouseholdId)?.Name ?? "other"} household; every adult member must agree."
+                : " Seek an accepting household with room or start a household and build a House.";
+            return $"{counts} Move-out notice: about {hours} world {(hours == 1 ? "hour" : "hours")} left. {reason}." +
+                next + construction;
+        }
+        var notices = state.Inhabitants.Count(person => person.Housing?.Relocation is { } relocation &&
+            relocation.HouseholdId == inhabitant.HouseholdId);
+        return counts + (notices > 0
+            ? $" {notices} {(notices == 1 ? "adult has" : "adults have")} notice to move out; completed expansion may let them stay."
+            : " Nobody has notice to move out. Seek a feasible expansion or a voluntary household split that preserves dependent care.") + construction;
     }
 
     /// <summary>Requests to live in this adult's House that they must answer, or have answered.</summary>
@@ -1225,6 +1276,7 @@ public sealed class OwnerWorldObservationStore
     private static string PublicIntentionSummary(string candidateId) => candidateId switch
     {
         "seek_food" => "looking for food",
+        "move_to" => "walking to the ordered tile",
         "harvest_food" => "gathering food",
         "consume_food" => "eating carried food",
         "safe_idle" => "keeping a safe routine",

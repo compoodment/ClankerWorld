@@ -4,7 +4,7 @@ using ClankerWorld.Simulation.Harness;
 namespace ClankerWorld.Simulation.Playtest;
 
 /// <summary>
-/// Parses only the small set of direct food orders that the runtime can execute.
+/// Parses only the direct food and movement orders that the runtime can execute.
 /// Every token must belong to one of these forms; unconsumed text is not guessed.
 /// </summary>
 internal static class PrivateWorldInstructionOrderParser
@@ -135,6 +135,16 @@ internal static class PrivateWorldInstructionOrderParser
                 return null;
             if (keepPrefix && actionVerb is not ("gathering" or "harvesting" or "eating"))
                 return null;
+
+            if (action == "seek_food" && TryReadCoordinate(out var destination))
+            {
+                if (repeatPrefix) return null;
+                if (!ReadWord("now")) _ = ReadWord("please");
+                return position == end
+                    ? new OwnerInstructionOrder("move_to", "queued", 1, 0, "arrivals", false,
+                        TargetPosition: destination)
+                    : null;
+            }
 
             var hasExplicitQuantity = TryReadQuantity(out var requestedUnits);
             if (action == "seek_food" && hasExplicitQuantity)
@@ -427,8 +437,9 @@ internal static class PrivateWorldInstructionOrderParser
         {
             coordinate = default;
             var start = position;
+            var tilePrefix = ReadWord("tile");
             var parenthesized = ReadToken("(");
-            _ = ReadWord("tile");
+            if (!tilePrefix) _ = ReadWord("tile");
 
             if (!TryReadSignedInteger(out var x))
             {

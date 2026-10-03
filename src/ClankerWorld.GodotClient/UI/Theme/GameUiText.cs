@@ -265,7 +265,7 @@ public static class GameUiText
     public static bool IsPlayerFacingEvent(string kind)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(kind);
-        return kind is "world_created" or "world_started" or "weather_changed" or "building_placed" or
+        return kind is "developer_edit" or "world_created" or "world_started" or "weather_changed" or "building_placed" or
             "building_expansion_started" or "building_expanded" or "building_expansion_cancelled" or "house_guest_invited" or "house_guest_revoked" or
             "build_started" or "build_completed" or "recipe_started" or "recipe_completed" or
             "field_work_started" or "field_prepared" or "field_planted" or "field_tended" or "field_harvested" or
@@ -294,7 +294,8 @@ public static class GameUiText
             "housing_request_made" or "household_joined" or "housing_request_refused" or "housing_request_expired" or
             "handcart_attached" or "handcart_parked" or "handcart_loaded" or "handcart_unloaded" or
             "handcart_repaired" or "handcart_transferred" or "handcart_blocked" or
-            "housing_blocked" or "household_left" or "household_founded" or "personal_goods_collected" or
+            "housing_blocked" or "relocation_notice" or "relocation_cancelled" or
+            "household_left" or "household_founded" or "personal_goods_collected" or
             "household_work_resumed" or "personal_goods_stored" or "borrowed_goods_returned" or "replacement_care_accepted" or "paused" or "resumed" or "model_call_warning";
     }
 
@@ -502,6 +503,7 @@ public static class GameUiText
         {
             "safe_idle" => "take it easy",
             "seek_food" => "find food",
+            "move_to" => "go to a tile",
             "eat_food" => "eat",
             "consume_food" => "eat",
             "collect_shared_food" => "collect food from camp",
