@@ -392,10 +392,18 @@ events untouched; a fresh signed retry can recover without relying on a later
 tick. Resume still requires a started world and valid usage allowance. Other
 recovery paths do not resume time implicitly.
 
-Before a potentially committed create/select/rewind request, the client clears
-its held observation timeline. If the receipt is lost, reconnect starts from a
-fresh baseline while retaining normal regression and terrain-identity checks
-within that timeline. Continue does not resume an uncertain world switch.
+Before a potentially committed create/select/rewind request, the client invalidates
+older observation requests and asks for a fresh baseline. It keeps the last
+confirmed view when the host advertises observer timelines; legacy hosts clear
+the held observation. If the receipt is lost, reconnect starts from a fresh
+baseline while retaining normal regression and terrain-identity checks within
+that timeline. Continue does not resume an uncertain world switch.
+Other connected devices detect that change through transient observer metadata
+and fetch a fresh baseline too, including for same-world rewinds. The runtime
+captures that metadata with the committed state; it is never written into a
+checkpoint and does not change saved world identity or replay. See
+[observer recovery](device-pairing.md#recovering-after-another-device-loads-a-world)
+for ordering, cache and retained-request boundaries.
 
 The internally captured proposed tick can reuse its committed map. External
 loads still validate and regenerate it; this shortcut must not weaken input
@@ -814,6 +822,12 @@ storm retains its original daily start so migration cannot extend its duration.
 Ordinary imported conditions reserve a conservative half-day storm-free window.
 New worlds start with episode data. Saved episodes resume without rerolling;
 all transitions use the same prior neighbor snapshot.
+
+Custom weather weights retain their saved values, including valid totals up to
+`int.MaxValue`. Climate conversion and episode bonuses use wider arithmetic to
+avoid overflow. Existing episodes and the save format stay unchanged; future
+transitions from extreme profiles use the corrected probabilities. Current
+saves round-trip and continue deterministically under those rules.
 
 Episode version and bounds are validated, including topology against the saved
 map. Episodes arrived with private-save schema 26; episode-bearing world systems use schema 2.
