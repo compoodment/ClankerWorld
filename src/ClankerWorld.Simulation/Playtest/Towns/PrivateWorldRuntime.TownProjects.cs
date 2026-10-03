@@ -460,19 +460,20 @@ public sealed partial class PrivateWorldRuntime
             MoveToward(actor, state, choice.Project.Plan.Site, "town_project_work", 0);
             return;
         }
-        if (choice.Project.WorkDone == TownProjectRules.WorkTicks)
+        var workNeeded = TownProjectRules.RequiredWork(choice.Project.Plan);
+        if (choice.Project.WorkDone == workNeeded)
         {
             CompletePaidTownProject(actor, choice.Town.Id, choice.Project);
             return;
         }
         if (!SettlementIllnessRules.AllowsWork(actor, WorldTick, state.Survival?.IllnessBasisPoints ?? 0)) return;
         var hammer = ToolProgressionRules.PlanWork(society.Checkpoint.Inventory, actor, ToolFamily.Hammer);
-        var done = Math.Min(TownProjectRules.WorkTicks, choice.Project.WorkDone + (hammer?.WorkUnits ?? 1));
+        var done = Math.Min(workNeeded, choice.Project.WorkDone + (hammer?.WorkUnits ?? 1));
         if (hammer is not null) ApplyToolWork(actor, hammer);
         var project = choice.Project with { Stage = "working", WorkDone = done, LastTransitionTick = WorldTick };
         SetTownProject(choice.Town.Id, project);
         AppendEvent("town_project_worked", $"{actor}:{project.Id}:{done}", project.Plan.Site);
-        if (done == TownProjectRules.WorkTicks) CompletePaidTownProject(actor, choice.Town.Id, project);
+        if (done == workNeeded) CompletePaidTownProject(actor, choice.Town.Id, project);
     }
 
     private void CompletePaidTownProject(string actor, string townId, TownConstructionProject project)
@@ -512,6 +513,7 @@ public sealed partial class PrivateWorldRuntime
             LastTransitionTick = WorldTick,
         });
         AssignBuildingToTown(placed, worldContent.Buildings.Single(item => item.CanonicalId == placed.DefinitionId));
+        CompletePaidMarketConstruction(townId, project, placed);
         CreditCompletedWork(actor, "building");
         AppendEvent("town_project_completed", $"{actor}:{project.Id}:{id}:{project.Plan.Name}", project.Plan.Site);
     }

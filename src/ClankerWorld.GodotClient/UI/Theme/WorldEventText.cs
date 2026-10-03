@@ -24,6 +24,10 @@ public static class WorldEventText
         var civicTownName = snapshot?.Towns.FirstOrDefault(town => town.Id == civicTownId)?.Name ?? "A Town";
         var townProjectName = worldEvent.Kind.StartsWith("town_project_", StringComparison.Ordinal)
             ? TownProjectForEvent(snapshot, worldEvent.Detail)?.Name ?? "a Town project" : "a Town project";
+        var marketFields = worldEvent.Kind.StartsWith("market_", StringComparison.Ordinal)
+            ? worldEvent.Detail.Split('|') : Array.Empty<string>();
+        var marketSeller = marketFields.Length > 3 ? Name(snapshot, marketFields[3]) : "Someone";
+        var marketBuyer = marketFields.Length > 4 ? Name(snapshot, marketFields[4]) : "a customer";
 
         return worldEvent.Kind switch
         {
@@ -97,6 +101,13 @@ public static class WorldEventText
             "instruction_not_understood" => $"{Name(snapshot, BeforeLastField(worldEvent.Detail))} didn't understand your order. " +
                 "For now, orders can only ask them to gather food, eat or find food.",
             "settlement_founded" => "A new Town was founded.",
+            "market_stall_borrowed" => $"{marketSeller} borrowed a free Market stall.",
+            "market_stock_delivered" => $"{marketSeller} brought goods to a Market stall; their recorded owner is unchanged.",
+            "market_stock_collected" => $"{marketSeller} collected their goods from a Market stall.",
+            "market_stall_left" => $"{marketSeller} left the Market stall. Earlier goods still belong to their recorded owners.",
+            "market_trade_offered" => $"{marketSeller} offered a Market exchange to {marketBuyer}. See the stall for its exact terms.",
+            "market_trade_completed" => $"{marketBuyer} received a Market purchase from {marketSeller}; the real payment stays with the seller's household.",
+            "market_trade_cancelled" => $"The Market exchange between {marketSeller} and {marketBuyer} was cancelled; its unused goods are released.",
             "town_civic_council" => $"{civicTownName}'s council changed.",
             "town_civic_election" => $"{civicTownName}'s council election opened.",
             "town_civic_runoff" => $"{civicTownName}'s council election needs a runoff for tied seats.",

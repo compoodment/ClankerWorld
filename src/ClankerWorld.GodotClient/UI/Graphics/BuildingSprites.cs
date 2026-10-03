@@ -20,6 +20,8 @@ public enum BuildingKind : byte
     Bedroll,
     Generic,
     TownHall,
+    Market,
+    MarketStall,
 }
 
 /// <summary>The edge of a building's footprint that its door is on.</summary>
@@ -64,7 +66,7 @@ public readonly record struct BuildingDoor(DoorSide Side, int? Tile = null)
 /// owner approved in the art review (<see cref="ApprovedArt"/>); only the
 /// retired camp objects keep their earlier provisional drawing.
 /// </summary>
-public static class BuildingSprites
+public static partial class BuildingSprites
 {
     private static readonly Dictionary<(BuildingKind Kind, int Width, int Height, int Tile, BuildingDoor Door), ImageTexture> Cache = [];
     private static readonly Color Shadow = new(0.04f, 0.06f, 0.05f, 0.30f);
@@ -83,6 +85,8 @@ public static class BuildingSprites
         if (Has("tailor")) return BuildingKind.TailorShop;
         if (Has("store")) return BuildingKind.Store;
         if (Has("town_hall")) return BuildingKind.TownHall;
+        if (Has("market_stall")) return BuildingKind.MarketStall;
+        if (Has("market")) return BuildingKind.Market;
         if ((Has("cooking") || Has("warmth")) && !Has("shelter")) return BuildingKind.Hearth;
         if (Has("storage")) return BuildingKind.Storehouse;
         if (Has("shelter")) return BuildingKind.Shelter;
@@ -320,7 +324,7 @@ public static class BuildingSprites
     /// over a stone doorstep, and one identifying feature per kind. Layouts
     /// are written in 32-unit tile space and drawn at 32 or 16 px per tile.
     /// </summary>
-    private static class ApprovedArt
+    private static partial class ApprovedArt
     {
         // Every colour is a step of an art style guide ramp.
         private static readonly Ramp Clay = Ramp.Of("5E2E22", "9E4E34", "C66A45", "E08E64", "EFA982");
@@ -389,14 +393,20 @@ public static class BuildingSprites
             BuildingKind.Workshop => new(GreenPlank, Material.Plank, RoofShape.Gable, 379, Yard: 16),
             BuildingKind.Generic => new(Plain, Material.Shingle, RoofShape.Hip, 410),
             BuildingKind.TownHall => new(Slate, Material.Slate, RoofShape.Hip, 286, Clearance: 22),
+            BuildingKind.Market => new(Timber, Material.Plank, RoofShape.Hip, 224),
             _ => null,
         };
 
         /// <summary>Whether this kind uses the approved drawing.</summary>
-        public static bool Draws(BuildingKind kind) => kind == BuildingKind.Silo || RecipeFor(kind) is not null;
+        public static bool Draws(BuildingKind kind) => kind is BuildingKind.Silo or BuildingKind.MarketStall || RecipeFor(kind) is not null;
 
         /// <summary>The main roof colour of an approved kind, for the overview fill; null for the others.</summary>
-        public static Color? MainRoof(BuildingKind kind) => kind == BuildingKind.Silo ? SiloWood.Base : RecipeFor(kind)?.Roof.Base;
+        public static Color? MainRoof(BuildingKind kind) => kind switch
+        {
+            BuildingKind.Silo => SiloWood.Base,
+            BuildingKind.MarketStall => Berry.Base,
+            _ => RecipeFor(kind)?.Roof.Base,
+        };
 
         /// <summary>Draws one approved kind over its footprint, transparent outside the building.</summary>
         public static Image Draw(BuildingKind kind, int tilesWide, int tilesHigh, int tilePixels, BuildingDoor door)
@@ -406,7 +416,12 @@ public static class BuildingSprites
             var plate = new Plate(tilesWide * tilePixels, tilesHigh * tilePixels, tilePixels / 32f);
             var w = tilesWide * 32;
             var h = tilesHigh * 32;
-            if (RecipeFor(kind) is { } recipe) PaintRoofed(plate, kind, recipe, w, h, door);
+            if (kind == BuildingKind.MarketStall) PaintStallLot(plate, w, h, door);
+            else if (RecipeFor(kind) is { } recipe)
+            {
+                if (kind == BuildingKind.Market) PaintMarket(plate, recipe, w, h, door);
+                else PaintRoofed(plate, kind, recipe, w, h, door);
+            }
             else PaintSilo(plate, w, h);
             return plate.Image;
         }
