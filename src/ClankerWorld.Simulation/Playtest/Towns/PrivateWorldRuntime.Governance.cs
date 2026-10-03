@@ -163,7 +163,7 @@ public sealed partial class PrivateWorldRuntime
                 // The model sees no map grid, so name real claimable tiles it can choose from.
                 if (TownLandClaimRules.ClaimableNear(map, town, townLandTitles, here, 6) is { Length: > 0 } nearest)
                     candidates.Add(new(CivicAction(town.Id, "claim_land"), $"Ask {town.Name}'s council to claim a connected plot of adjoining unclaimed land; include its exact coordinates in civic_land_tiles. " +
-                        FormattableString.Invariant($"You stand at ({here.X}, {here.Y}); unclaimed tiles beside the Town's land nearest you: {TownLandClaimRules.DescribeTiles(nearest)}. ") +
+                        FormattableString.Invariant($"You stand at ({here.X}, {here.Y}); unclaimed tiles beside the Town's land nearest you: {string.Join("; ", nearest.Select(tile => FormattableString.Invariant($"({tile.X}, {tile.Y})")))}. ") +
                         "Existing titles, household rights, buildings and goods stay with their holders.", 190));
             }
             else if (NearCivicBoard(actor, town))

@@ -171,6 +171,7 @@ public sealed class TownLandClaimTests
         var listed = DescribedPlotProvider.ListedTiles(description);
         Assert.InRange(listed.Length, 1, 6);
         Assert.All(listed, tile => Assert.True(TownLandClaimRules.CanClaim(initial.Map, town, [tile], initial.TownLandTitles!)));
+        Assert.Equal(listed.OrderBy(tile => initial.Map.FootDistance(origin, tile)).ThenBy(tile => tile.Y).ThenBy(tile => tile.X), listed);
         Assert.Equal([listed[0]], Assert.Single(world.Towns[0].Governance!.Proposals).LandClaimTiles);
     }
 
