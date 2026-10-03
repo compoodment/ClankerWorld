@@ -12,12 +12,12 @@ public static class BlacksmithContent
     // All rates and trial costs are provisional. The digest changes because
     // the immutable package now contains the complete agreed tool roster.
     private const string ContentRevision =
-        "clankerworld-blacksmith-v1:1.1.0:axes-pickaxes-hoes-hammers-wooden-iron-sickles-knife-refined-iron";
+        "clankerworld-blacksmith-v1:1.2.0:axes-pickaxes-hoes-hammers-wooden-iron-sickles-knife-refined-iron-handcart-fittings";
 
     public static BuildingDefinition Blacksmith1x2()
     {
         var digest = PackageDigest();
-        var version = ContentVersion.Parse("1.1.0");
+        var version = ContentVersion.Parse("1.2.0");
         return new BuildingDefinition(digest, "blacksmith-1x2", version, "Blacksmith", 1, 2, 1,
             [new("wood", 12), new("stone", 4)], ["blacksmith", "metalworking"]);
     }
@@ -65,6 +65,11 @@ public static class BlacksmithContent
             new(digest, "iron-knife", version, "Make iron knife",
                 [new("iron", 1)], [new("iron_knife", 1)], 30,
                 blacksmith.CanonicalId, ["tool", "preparation"]),
+            new(digest, "iron-fittings", version, "Make iron fittings",
+                [new("iron", 1)], [new("iron_fittings", 2)], 20, blacksmith.CanonicalId, ["metalworking"]),
+            new(digest, "handcart", version, "Build handcart",
+                [new("wood", 4), new("iron_fittings", 2), new("rope", 1)], [new("handcart", 1)], 40,
+                blacksmith.CanonicalId, ["vehicle", "carrying"]),
             new(digest, "refine-iron", version, "Refine iron ore",
                 [new("iron_ore", 2), new("wood", 1)], [new("iron", 1)], 24,
                 blacksmith.CanonicalId, ["metalworking"]),

@@ -492,7 +492,9 @@ public sealed class OwnerWorldObservationStore
             Fields = (state.Fields ?? []).Select(field => new ViewerFarmField(ToPosition(field.Position), field.HouseholdId,
                 field.Stage.ToString().ToLowerInvariant(), field.Crop, fertility.At(field.Position),
                 field.Work?.WorkerId, field.Work?.RemainingTicks)).ToArray(),
-            GroundStocks = state.Society.Society.Inventory.Lots.Where(lot => lot.GroundPosition is not null && lot.Quantity > 0)
+            Handcarts = ProjectHandcarts(state),
+            GroundStocks = state.Society.Society.Inventory.Lots.Where(lot => lot.GroundPosition is not null && lot.Quantity > 0 &&
+                lot.ItemKind != InventoryContainerRules.Handcart)
                 .GroupBy(lot => (Position: lot.GroundPosition!.Value, lot.OwnerId, lot.ItemKind))
                 .OrderBy(group => group.Key.Position.Y).ThenBy(group => group.Key.Position.X)
                 .ThenBy(group => group.Key.ItemKind, StringComparer.Ordinal).ThenBy(group => group.Key.OwnerId, StringComparer.Ordinal)
@@ -960,7 +962,11 @@ public sealed class OwnerWorldObservationStore
         SocietyInhabitant inhabitant,
         PlaytestInhabitantState physical)
     {
-        var inventory = state.Society.Society.Inventory.Lots.Where(lot => PersonalEquipmentRules.IsCarried(lot, inhabitant.Id))
+        // A handcart and the goods inside it stay with the cart, not in its owner's hands.
+        var cartIds = state.Society.Society.Inventory.Lots.Where(lot => lot.ItemKind == InventoryContainerRules.Handcart)
+            .Select(lot => lot.Id).ToHashSet(StringComparer.Ordinal);
+        var inventory = state.Society.Society.Inventory.Lots.Where(lot =>
+                PersonalEquipmentRules.IsPhysicallyCarried(state.Society.Society.Inventory, lot, inhabitant.Id) && !cartIds.Contains(lot.Id))
             .GroupBy(lot => lot.ItemKind).Select(group => new ViewerInventoryEntry(group.Key, group.Sum(lot => lot.Quantity))).ToArray();
         var route = DeterminePlaytestRoute(state, physical, inventory);
         var perceived = KnownNearby(state.Map, physical.Position).ToArray();
@@ -979,7 +985,8 @@ public sealed class OwnerWorldObservationStore
             new("hunger", $"{physical.HungerBasisPoints} basis points"),
         };
         var personalStored = state.Society.Society.Inventory.Lots.Where(lot => lot.OwnerId == inhabitant.Id &&
-            !PersonalEquipmentRules.IsCarried(lot, inhabitant.Id)).Sum(lot => lot.Quantity);
+            !PersonalEquipmentRules.IsPhysicallyCarried(state.Society.Society.Inventory, lot, inhabitant.Id) &&
+            !cartIds.Contains(lot.Id) && (lot.ContainerLotId is null || !cartIds.Contains(lot.ContainerLotId))).Sum(lot => lot.Quantity);
         var borrowed = state.Society.Society.Inventory.Lots.Where(lot => lot.CarrierId == inhabitant.Id && lot.OwnerId != inhabitant.Id).Sum(lot => lot.Quantity);
         decisionFactors.Add(new("personal-goods-awaiting-collection", $"{personalStored} units; ownership stays personal"));
         decisionFactors.Add(new("borrowed-goods", $"{borrowed} units; ownership stays with the lender"));
@@ -1426,6 +1433,25 @@ public sealed class OwnerWorldObservationStore
             garment?.ItemKind, garment?.ConditionBasisPoints / 100, aid?.ItemKind, aid?.ConditionBasisPoints / 100,
             inventory.Lots.FirstOrDefault(lot => lot.Id == repair?.LotId)?.ItemKind,
             repair?.WorkDone ?? 0, PersonalEquipmentRules.RepairWorkTicks, ornament?.ItemKind);
+    }
+
+    private static ViewerHandcart[] ProjectHandcarts(PrivateWorldRuntimeState state)
+    {
+        string Name(string id) => state.Society.Society.Inhabitants.FirstOrDefault(person => person.Id == id)?.Name ??
+            state.Society.Society.Households.FirstOrDefault(household => household.Id == id)?.Name ??
+            (id == "settlement:communal" ? "Communal property" : "Estate property");
+        var inventory = state.Society.Society.Inventory;
+        return inventory.Lots.Where(lot => lot.ItemKind == InventoryContainerRules.Handcart)
+            .OrderBy(lot => lot.Id, StringComparer.Ordinal).Select(cart =>
+            {
+                var hitch = state.HandcartHitches!.FirstOrDefault(item => item.CartLotId == cart.Id);
+                return new ViewerHandcart(cart.Id, cart.OwnerId, Name(cart.OwnerId),
+                    new(cart.GroundPosition!.Value.X, cart.GroundPosition.Value.Y), InventoryContainerRules.HandcartCapacity,
+                    cart.ConditionBasisPoints / 100, hitch?.PullerId, hitch is null ? null : Name(hitch.PullerId),
+                    inventory.Lots.Where(lot => lot.ContainerLotId == cart.Id).GroupBy(lot => lot.ItemKind, StringComparer.Ordinal)
+                        .OrderBy(group => group.Key, StringComparer.Ordinal)
+                        .Select(group => new ViewerInventoryEntry(group.Key, group.Sum(lot => lot.Quantity))).ToArray());
+            }).ToArray();
     }
 
     private static ViewerInventoryEntry[] InventoryFor(

@@ -1078,7 +1078,7 @@ action or player discard control is added.
 
 **Household departure and personal custody** (`SettlementDeparture`). Ordinary decision candidates allow an adult to leave without a vote, store or collect their own goods, return borrowed household tools, explicitly accept replacement care, and found a solo household only when no suitable existing home can currently be asked. Membership exits and admissions include the complete primary-care group. The same completed House-capacity calculation checks all incoming residents; children never apply alone. The displacement transition refuses adults with a moving dependent group, leaving overcrowding eligibility and notice to #599.
 
-`InventoryLot.OwnerId` records property; optional `CarrierId` records physical custody without donation. Personal goods may remain in House storage after departure. `InventoryFixture.Relocate` preserves ownership, condition, provenance and reservations while moving an unreserved quantity. A stored personal lot is collected physically, with carrying limits, under the current household membership or a recorded departure's limited collection right. Recovery from the ground or a former household remains a routine errand. Collecting a map or field record from the current home stays available as a deliberate choice, but ranks below idle for the built-in chooser so it does not immediately retrieve knowledge goods it has just stored. Other goods retain their normal collection priority, so the built-in chooser stores only maps and field records; storing other belongings is a deliberate choice, because routine collection would fetch them straight back. Borrowed tools retain the lender's owner ID while carried and are returned physically. Shared delivery loads retain their owning household on departure. Shared buildings, stock and job records are never reassigned to the new household. A departing worker's private production and expansion jobs pause with their existing owners and reservations; their previous work plan is retained on the departure record instead of resuming under a new household. A remaining member can take over paused work at its physical site, using the same still-available committed inputs and remaining work time. Private materials held by the former worker are not reassigned; these keep the task blocked. Held reservations keep their exact owner and stock, receive a new deadline only on resumption, and are released if the materials become unusable; canceled job records retain the original property owner.
+`InventoryLot.OwnerId` records property; optional `CarrierId` records physical custody without donation. Personal goods may remain in House storage after departure. `InventoryFixture.Relocate` preserves ownership, condition, provenance and reservations while moving an unreserved quantity. A stored personal lot is collected physically, with carrying limits, under the current household membership or a recorded departure's limited collection right. Recovery from the ground or a former household remains a routine errand. Collecting a map or field record from the current home stays available as a deliberate choice, but ranks below idle for the built-in chooser so it does not immediately retrieve knowledge goods it has just stored. Other goods retain their normal collection priority, so the built-in chooser stores only maps and field records; storing other belongings is a deliberate choice, because routine collection would fetch them straight back. Borrowed tools retain the lender's owner ID while carried and are returned physically. Shared delivery loads retain their owning household on departure. Shared buildings, stock and job records are never reassigned to the new household. A departing worker's private production and expansion jobs pause with their existing owners and reservations, except work for the worker's own goods, such as building their handcart, which nobody else may finish: it is cancelled and its reserved materials are released and stay with the worker; their previous work plan is retained on the departure record instead of resuming under a new household. A remaining member can take over paused work at its physical site, using the same still-available committed inputs and remaining work time. Private materials held by the former worker are not reassigned; these keep the task blocked. Held reservations keep their exact owner and stock, receive a new deadline only on resumption, and are released if the materials become unusable; canceled job records retain the original property owner.
 
 Each departure allocates at most two unreserved ready-to-eat portions once. Ownership changes at allocation while the existing storage/ground location stays fixed. Saved departure records retain the allocation and collection right; retries with no current membership cannot allocate again. Caregiver IDs and ancestry stay unchanged. Dependents follow the caregiver in physical steps, and a traveling caregiver waits when a dependent falls behind. Housing, ownership, collection and care facts use normal personal-model observations and player inspection; no extra acknowledgement request is made.
 
@@ -1389,8 +1389,8 @@ and every lot under "equal", is divided equally: each heir gets the same whole
 number of units, and the units left over go one at a time to the heirs in the
 order the will names them, continuing from where the previous lot's leftovers
 stopped. Lots are taken in lot-ID order, so each lot's parts always sum to its
-frozen quantity. A storage pot or water jug counts as one unit, and its contents
-always go with it to the same heir; only top-level lots are offered to the
+frozen quantity. A storage pot, water jug or handcart counts as one unit, and its
+contents always go with it to the same heir; only top-level lots are offered to the
 model, with a vessel's contents described beside it.
 
 Settlement runs once, when the escrow expires and no will is pending. A
@@ -1400,9 +1400,10 @@ storage, and goods held by a living carrier remain in that carrier's custody.
 Goods carried by the deceased are dropped at their last tile. A Town heir's
 part goes to its Warehouse as Town stock while the Warehouse has
 room and stores that kind; the runtime passes each Town's Warehouse, free room
-and refused kinds (food) as `SocietyTownStore`. Whatever the will cannot
-deliver (a share for an heir who has since died, food or goods beyond the room)
-follows the household default: an equal split between the living household
+and refused kinds (food, and handcarts, which stay on the ground) as
+`SocietyTownStore`. Whatever the will cannot deliver (a share for an heir who
+has since died, food, a handcart or goods beyond the room) follows the
+household default: an equal split between the living household
 beneficiaries, with the first in ID order taking leftovers, or communal stock
 when none remain. A vessel and its contents move as one family and keep their
 lot IDs: the Town takes a family only when the Warehouse accepts every kind in
@@ -1685,6 +1686,31 @@ time. Repair consumes the recipe materials carried by that tool's owner; it
 does not restore condition for free. Hammer use speeds building work, and an
 iron knife speeds food or other preparation recipes. Recipe and field records
 keep their exact selected tool lot through save and reload.
+
+## Physical handcarts
+
+`InventoryContainerRules.Handcart` is a single ground-position inventory lot.
+Its condition, owner and child cargo lots are authoritative inventory facts;
+`HandcartHitch` saves only the exclusive cart/puller attachment. The runtime
+checks the owner has physically reached the cart, verifies every load source's
+position and household authorization, and moves the cart with each admitted
+legal cardinal step. Ground cart contents never become carried recipe inputs,
+fuel, planting seeds or equipped gear. Loading a partial quantity preserves
+the untouched remainder's original location and reservations.
+
+Crafting uses the Blacksmith's handcart recipe with the adult worker's carried
+wood, fittings and rope. An adult collects them from household or Town
+Warehouse stock only while the whole set is carried or in that stock, and the
+Blacksmith, Store and workstation supply hauls leave the carried set with them
+rather than returning it to stock. Exact inputs are reserved through the
+production job; the personal cart appears on the work site's ground after
+completion. Repair
+consumes three carried material reservations atomically. Unloading can retain
+damaged goods on the ground and works after the cart breaks. Property transfer
+and inheritance keep the entire cart/cargo family at its existing position.
+A death, break or ownership change removes the attachment without dropping or
+teleporting the goods. Owner observation derives cart inspection from those
+same saved inventory lots, rather than maintaining a second cargo ledger.
 
 ## Trees and planting
 
