@@ -8,6 +8,9 @@ namespace ClankerWorld.GodotClient;
 
 public partial class Main
 {
+    private readonly Label usageScopeHint = new();
+    private int usageReads;
+
     private async Task RefreshProviderConfigurationAsync()
     {
         cognitionApiKeyInput.Text = string.Empty;
@@ -30,20 +33,32 @@ public partial class Main
         });
     }
 
+    /// <summary>
+    /// Reads the installation's model-call count for Game Settings without a
+    /// status message, so opening Settings from the Main Menu stays quiet.
+    /// </summary>
     private async Task RefreshUsageAsync()
     {
+        var read = ++usageReads;
+        var owner = registration;
         if (!TryGetOwner(out var authority, out var deviceId, out var signer))
         {
             usageMeterStatus.Text = "Connect this device to see model-call usage.";
             return;
         }
-        await RunOwnerActionAsync(async () =>
+        try
         {
-            usageStatus = await ownerApi.GetUsageStatusAsync(ResolveWorldUri(), authority, deviceId,
+            var status = await ownerApi.GetUsageStatusAsync(ResolveWorldUri(), authority, deviceId,
                 signer, CancellationToken.None);
+            if (read != usageReads || !ReferenceEquals(owner, registration)) return;
+            usageStatus = status;
             RenderUsageStatus();
-            return "loaded paid-call usage";
-        });
+        }
+        catch (Exception exception)
+        {
+            if (read == usageReads && ReferenceEquals(owner, registration))
+                usageMeterStatus.Text = "Could not load model calls: " + FriendlyFailure(exception);
+        }
     }
 
     private async Task ObserveUsagePauseAsync()
@@ -51,11 +66,13 @@ public partial class Main
         if (!TryGetOwner(out var authority, out var deviceId, out var signer)) return;
         try
         {
-            usageStatus = await ownerApi.GetUsageStatusAsync(ResolveWorldUri(), authority, deviceId,
+            var status = await ownerApi.GetUsageStatusAsync(ResolveWorldUri(), authority, deviceId,
                 signer, CancellationToken.None);
+            usageReads++;
+            usageStatus = status;
             RenderUsageStatus();
             if (usageStatus.LimitReached)
-                SetStatus("Paid-call limit reached. The world is paused; open World Settings to allow more calls.", good: false);
+                SetStatus(UsageLimitPausedMessage, good: false);
         }
         catch (Exception)
         {
@@ -63,11 +80,14 @@ public partial class Main
         }
     }
 
+    private const string UsageLimitPausedMessage =
+        "Model-call limit reached, so the world is paused. Raise the limit in Settings → Game, then resume.";
+
     private void RenderUsageStatus()
     {
         if (usageStatus is null)
         {
-            usageMeterStatus.Text = "Loading model calls…";
+            usageMeterStatus.Text = "Loading model calls...";
             return;
         }
         if (usageStatus.AccountingError is not null)
@@ -80,19 +100,19 @@ public partial class Main
         }
         if (!usageAttemptLimitInput.HasFocus())
             usageAttemptLimitInput.Text = usageStatus.AttemptLimit?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
+        static string Count(long value) => value.ToString("N0", CultureInfo.InvariantCulture);
         var rows = usageStatus.Rows.OrderByDescending(row => row.Attempts)
-            .Select(row => $"{row.Provider} / {row.Model}: {row.Attempts} calls");
+            .Select(row => $"{row.Provider} / {row.Model}: {Count(row.Attempts)} calls");
         usageMeterStatus.Text = usageStatus.AttemptLimit is { } limit
-            ? $"{usageStatus.Attempts} of {limit} model calls used on this installation."
-            : $"{usageStatus.Attempts} model calls used on this installation.";
+            ? $"{Count(usageStatus.Attempts)} of {Count(limit)} calls used across all worlds."
+            : $"{Count(usageStatus.Attempts)} calls used across all worlds. No limit is set.";
         if (usageStatus.LimitReached)
-            usageMeterStatus.Text += " Time is paused. Raise the limit to allow more calls, then resume.";
+            usageMeterStatus.Text += " Time is paused. Raise the limit or allow more calls, then resume.";
         if (usageStatus.Rows.Count > 0)
             usageMeterStatus.Text += "\n" + string.Join("\n", rows);
-        usageMeterStatus.TooltipText = $"Calls started: {usageStatus.Attempts}; completed: {usageStatus.Completed}; " +
-            $"failed: {usageStatus.Failed}; interrupted: {usageStatus.Abandoned}. " +
-            $"Known input/output tokens: {usageStatus.InputTokens}/{usageStatus.OutputTokens}. " +
-            "Counts since this installation began; each retry counts as another call.";
+        usageMeterStatus.TooltipText = $"Started {Count(usageStatus.Attempts)}, completed {Count(usageStatus.Completed)}, " +
+            $"failed {Count(usageStatus.Failed)} and interrupted {Count(usageStatus.Abandoned)}; providers reported " +
+            $"{Count(usageStatus.InputTokens)} input and {Count(usageStatus.OutputTokens)} output tokens, shown for information only.";
         grantUsageCallsButton.Visible = usageStatus.LimitReached;
         RefreshControlAvailability();
     }
@@ -106,7 +126,7 @@ public partial class Main
             if (!long.TryParse(usageAttemptLimitInput.Text, NumberStyles.None, CultureInfo.InvariantCulture, out var parsed) ||
                 parsed is < 1 or > 1_000_000)
             {
-                SetStatus("Enter a number of calls from 1 to 1,000,000, or leave it blank for no cap.", good: false);
+                SetStatus("Enter a number of calls from 1 to 1,000,000, or leave it blank for no limit.", good: false);
                 return;
             }
             cap = parsed;
@@ -115,12 +135,15 @@ public partial class Main
             new OwnerUsageLimitAction(cap);
         await RunOwnerActionAsync(async () =>
         {
-            usageStatus = await ownerApi.ConfigureUsageLimitAsync(ResolveWorldUri(), authority, deviceId,
+            var status = await ownerApi.ConfigureUsageLimitAsync(ResolveWorldUri(), authority, deviceId,
                 action, signer, CancellationToken.None);
+            usageReads++;
+            usageStatus = status;
             RenderUsageStatus();
             if (grant)
-                return "Allowed 100 more paid calls. Resume the world when ready";
-            return cap is null ? "paid-call limit turned off" : $"paid-call limit set to {cap} attempts";
+                return "Allowed 100 more model calls. Resume the world when ready";
+            return cap is null ? "Model-call limit turned off"
+                : string.Create(CultureInfo.InvariantCulture, $"Model-call limit set to {cap:N0} calls");
         });
     }
 
@@ -341,7 +364,7 @@ public partial class Main
             cognitionCredentialChoice.AddItem(slot.Label);
             cognitionCredentialChoice.SetItemMetadata(cognitionCredentialChoice.ItemCount - 1, slot.Id);
         }
-        cognitionCredentialChoice.AddItem("Add another API key…");
+        cognitionCredentialChoice.AddItem("Add another API key...");
         cognitionCredentialChoice.SetItemMetadata(cognitionCredentialChoice.ItemCount - 1, "new");
         var assignedSlot = SelectedAssignment()?.Provider == provider ? SelectedAssignment()?.CredentialSlotId : null;
         for (var index = 0; index < cognitionCredentialChoice.ItemCount; index++)
@@ -382,17 +405,25 @@ public partial class Main
         cognitionCredentialHint.Text = newCredential
             ? "A new key is stored privately on the host and can be reused for other agents."
             : agentCredential && SelectedCredentialChoice() != "default"
-            ? "Named key saved on host"
+            ? "This key is saved on the host."
             : agentCredential && option?.HasCredential != true
             ? "No provider default key. Select Add another API key to give this agent one."
             : option?.HasCredential == true
-            ? "Key saved on host"
+            ? "The key is saved on the host."
             : "No saved key";
         cognitionConfigurationStatus.Text = providerConfiguration is null
-            ? "Loading…"
+            ? "Loading..."
             : SelectedTargetWasBornHere()
             ? SelectedChildModelStatus()
             : $"Routine: {ProviderDisplayName(providerConfiguration.RoutineProvider)} · Planning: {ProviderDisplayName(providerConfiguration.PlanningProvider)}";
+        // An agent's own page needs no summary of the world's defaults, and it
+        // loads fresh each time it opens, so it needs no Refresh either.
+        var agentPage = selectedAgentModelScroll.Visible;
+        cognitionConfigurationStatus.Visible = !agentPage || SelectedTargetWasBornHere();
+        refreshCognitionProviderButton.Visible = !agentPage;
+        // Saved keys are deleted from the world's settings; an agent's page links there instead.
+        deleteCognitionCredentialSlotButton.Visible &= !agentPage;
+        openModelSettingsButton.Visible = agentPage;
         RefreshControlAvailability();
     }
 
@@ -494,8 +525,19 @@ public partial class Main
         _ => string.Empty,
     };
 
+    /// <summary>A small caption above a field that hides and shows with it.</summary>
+    private static Label FieldCaption(string text, Control field)
+    {
+        var caption = new Label { Text = text, ThemeTypeVariation = "DimLabel", Visible = field.Visible };
+        field.VisibilityChanged += () => caption.Visible = field.Visible;
+        return caption;
+    }
+
     private void BuildCognitionSettingsPanel()
     {
+        // Long key or model names are cut short rather than widening the Profile.
+        foreach (var choice in new[] { cognitionProviderChoice, cognitionCredentialChoice, cognitionRoleChoice })
+            choice.ClipText = true;
         var body = new VBoxContainer();
         body.AddThemeConstantOverride("separation", 6);
 
@@ -535,6 +577,7 @@ public partial class Main
             RenderProviderConfiguration();
         };
         providerRow.AddChild(cognitionProviderChoice);
+        body.AddChild(FieldCaption("Provider", providerRow));
         body.AddChild(providerRow);
 
         cognitionCredentialChoice.TooltipText = "Pick a saved key for this agent, or add another key for the same provider.";
@@ -544,6 +587,7 @@ public partial class Main
             cognitionApiKeyInput.Text = string.Empty;
             RenderProviderConfiguration();
         };
+        body.AddChild(FieldCaption("API key", cognitionCredentialChoice));
         body.AddChild(cognitionCredentialChoice);
 
         cognitionCredentialLabelInput.PlaceholderText = "Name this key (for example, Personal account)";
@@ -556,6 +600,7 @@ public partial class Main
 
         cognitionModelPicker.RetryRequested += () => SyncCognitionModelPicker(force: true);
         cognitionModelPicker.ModelChanged += ClearCognitionModelSetupCheck;
+        body.AddChild(FieldCaption("Model", cognitionModelPicker));
         body.AddChild(cognitionModelPicker);
         cognitionModelSetupCheckButton.Text = "Test model · 1 paid call";
         cognitionModelSetupCheckButton.TooltipText = "Sends one request with this model and key. It counts toward your paid-call limit.";
@@ -575,8 +620,10 @@ public partial class Main
         cognitionConfigurationStatus.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         body.AddChild(cognitionConfigurationStatus);
 
-        var buttons = new HBoxContainer();
-        buttons.AddThemeConstantOverride("separation", 6);
+        // The buttons wrap rather than push the box wider than an agent's Profile.
+        var buttons = new HFlowContainer();
+        buttons.AddThemeConstantOverride("h_separation", 6);
+        buttons.AddThemeConstantOverride("v_separation", 6);
         saveCognitionProviderButton.Text = "Apply";
         StyleButton(saveCognitionProviderButton, primary: true);
         saveCognitionProviderButton.Pressed += () => _ = SaveProviderConfigurationAsync();
@@ -585,11 +632,17 @@ public partial class Main
         StyleButton(forgetCognitionCredentialButton);
         forgetCognitionCredentialButton.Pressed += () => _ = ForgetProviderCredentialAsync();
         buttons.AddChild(forgetCognitionCredentialButton);
-        deleteCognitionCredentialSlotButton.Text = "Delete named key";
+        deleteCognitionCredentialSlotButton.Text = "Delete this key";
         deleteCognitionCredentialSlotButton.TooltipText = "Delete a saved key. Move agents using it to another key first; a child bound at birth keeps its model and waits for setup.";
         StyleButton(deleteCognitionCredentialSlotButton);
         deleteCognitionCredentialSlotButton.Pressed += () => _ = DeleteCredentialSlotAsync();
         buttons.AddChild(deleteCognitionCredentialSlotButton);
+        openModelSettingsButton.Text = "Open model settings";
+        openModelSettingsButton.TooltipText = "Opens this agent's model in Settings, where you can also delete saved keys.";
+        StyleButton(openModelSettingsButton);
+        openModelSettingsButton.Pressed += () => _ = OpenWorldModelSettingsAsync();
+        openModelSettingsButton.Hide();
+        buttons.AddChild(openModelSettingsButton);
         refreshCognitionProviderButton.Text = "Refresh";
         StyleButton(refreshCognitionProviderButton);
         refreshCognitionProviderButton.Pressed += () => _ = RefreshProviderConfigurationAsync();
@@ -602,17 +655,23 @@ public partial class Main
     }
 
     /// <summary>
-    /// The installation's model-call count and optional limit. It stays on the
-    /// World page when the Agent model box moves into an agent's card.
+    /// The installation's model-call count and optional limit. One count and
+    /// limit cover every world, so the box sits on the Game page and opens
+    /// from the Main Menu as well as in a world.
     /// </summary>
     private void BuildUsageLimitPanel()
     {
         var body = new VBoxContainer();
         body.AddThemeConstantOverride("separation", 6);
+        usageScopeHint.Text = "Counts every model call attempt in all your worlds, including ones that fail or are retried. " +
+            "The count never resets; the Event Log warns you once at 80% of the limit.";
+        usageScopeHint.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        usageScopeHint.ThemeTypeVariation = "DimLabel";
+        body.AddChild(usageScopeHint);
         usageMeterStatus.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         body.AddChild(usageMeterStatus);
         usageAttemptLimitInput.PlaceholderText = "No limit";
-        usageAttemptLimitInput.TooltipText = "Time pauses when this many calls have been made. Every call counts, even ones that fail or are retried. This counts calls, not money.";
+        usageAttemptLimitInput.TooltipText = "Your worlds pause when this many calls have been made; it counts calls, not money.";
         body.AddChild(DisplaySettingRow("Limit", usageAttemptLimitInput));
         var usageButtons = new HBoxContainer();
         usageButtons.AddThemeConstantOverride("separation", 6);
@@ -621,7 +680,7 @@ public partial class Main
         applyUsageLimitButton.Pressed += () => _ = ConfigureUsageAsync(grant: false);
         usageButtons.AddChild(applyUsageLimitButton);
         grantUsageCallsButton.Text = "Allow 100 more calls";
-        grantUsageCallsButton.TooltipText = "Allow 100 more paid model calls. The world stays paused until you resume it.";
+        grantUsageCallsButton.TooltipText = "Allow 100 more model calls; the world stays paused until you resume it.";
         StyleButton(grantUsageCallsButton, primary: true);
         grantUsageCallsButton.Pressed += () => _ = ConfigureUsageAsync(grant: true);
         grantUsageCallsButton.Visible = false;
@@ -660,12 +719,51 @@ public partial class Main
         SetStatus("You can't change this agent's model right now.", good: false);
     }
 
+    private readonly MarginContainer selectedAgentModelGap = new() { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+
+    /// <summary>
+    /// An agent's model settings fill the Profile's width and are as tall as
+    /// they need, up to the bottom of the screen, scrolling beyond that.
+    /// </summary>
+    private void BuildAgentModelScroll()
+    {
+        selectedAgentModelScroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
+        selectedAgentModelContent.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        selectedAgentModelContent.MinimumSizeChanged += PositionAgentProfile;
+        selectedAgentModelGap.AddChild(selectedAgentModelContent);
+        selectedAgentModelScroll.AddChild(selectedAgentModelGap);
+    }
+
+    private void FitAgentModelScroll()
+    {
+        var content = selectedAgentModelContent.GetCombinedMinimumSize().Y;
+        var rest = agentProfilePanel.GetCombinedMinimumSize().Y - selectedAgentModelScroll.CustomMinimumSize.Y;
+        var room = Math.Max(120, UiSize.Y - HudTop - 14 - rest);
+        var scrolls = content > room;
+        selectedAgentModelGap.AddThemeConstantOverride("margin_right", scrolls ? SettingsScrollGap : 0);
+        selectedAgentModelScroll.CustomMinimumSize = new Vector2(0, scrolls ? room : content);
+    }
+
+    /// <summary>
+    /// From an agent's page, opens Settings on the World page at the Agent
+    /// model box with this agent still chosen, where saved keys are managed.
+    /// </summary>
+    private async Task OpenWorldModelSettingsAsync()
+    {
+        CloseAgentModelEditor();
+        if (!gameMenuPanel.Visible) await ToggleGameMenuAsync();
+        ShowSettingsSection(worldSpecific: true);
+        RenderProviderConfiguration();
+        // The page opens at its top; bring the box into view once it is laid out.
+        Callable.From(() => settingsScroll.EnsureControlVisible(cognitionSettingsPanel)).CallDeferred();
+    }
+
     private void CloseAgentModelEditor()
     {
         if (!selectedAgentModelScroll.Visible) return;
         selectedAgentModelScroll.Hide();
+        // Agent model is the World page's last box, so it returns to the end.
         cognitionSettingsPanel.Reparent(worldSettingsContent, keepGlobalTransform: false);
-        worldSettingsContent.MoveChild(cognitionSettingsPanel, usageLimitPanel.GetIndex());
         cognitionTargetChoice.Show();
         selectedAgentOverview.Show();
         cognitionApiKeyInput.Text = string.Empty;

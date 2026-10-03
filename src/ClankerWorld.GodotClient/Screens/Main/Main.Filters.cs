@@ -9,6 +9,9 @@ public partial class Main
     private readonly PanelContainer filtersPanel = new();
     private readonly CheckButton townBorderFilter = new();
     private readonly CheckButton householdPropertyFilter = new();
+    private readonly CheckButton townLandTitleFilter = new();
+    private readonly CheckButton householdLandUseFilter = new();
+    private readonly CheckButton disputedLandFilter = new();
 
     private void BuildFiltersButton()
     {
@@ -25,25 +28,27 @@ public partial class Main
         body.AddThemeConstantOverride("separation", 8);
 
         // Filters start off, so the map starts clean.
-        townBorderFilter.Text = "Town borders";
         townBorderFilter.TooltipText = "Show Town borders as a dashed line.";
         townBorderFilter.Toggled += _ => ApplyMapFiltersFromCurrentSnapshot();
-        body.AddChild(townBorderFilter);
+        body.AddChild(FilterRow(townBorderFilter, FilterLook.Border, "Town borders", "A dashed line around each Town"));
 
-        householdPropertyFilter.Text = "Household property";
         householdPropertyFilter.TooltipText = "Tint buildings and fields that belong to a household.";
         householdPropertyFilter.Toggled += _ => ApplyMapFiltersFromCurrentSnapshot();
-        body.AddChild(householdPropertyFilter);
+        body.AddChild(FilterRow(householdPropertyFilter, FilterLook.Property, "Household property", "Tints the buildings and fields a household owns"));
 
-        var note = new Label
-        {
-            Text = "Only buildings that belong to a household are tinted. Unclaimed land is not marked.",
-            AutowrapMode = TextServer.AutowrapMode.WordSmart,
-            CustomMinimumSize = new Vector2(275, 0),
-        };
-        body.AddChild(note);
+        townLandTitleFilter.TooltipText = "Show land formally titled to each Town.";
+        townLandTitleFilter.Toggled += _ => ApplyMapFiltersFromCurrentSnapshot();
+        body.AddChild(FilterRow(townLandTitleFilter, FilterLook.Title, "Town land title", "A blue edge around land titled to a Town"));
+
+        householdLandUseFilter.TooltipText = "Show recorded household use rights and pending requests.";
+        householdLandUseFilter.Toggled += _ => ApplyMapFiltersFromCurrentSnapshot();
+        body.AddChild(FilterRow(householdLandUseFilter, FilterLook.Use, "Household land use", "Land each household may use, in its colour"));
+
+        disputedLandFilter.TooltipText = "Stripe land with conflicting household claims.";
+        disputedLandFilter.Toggled += _ => ApplyMapFiltersFromCurrentSnapshot();
+        body.AddChild(FilterRow(disputedLandFilter, FilterLook.Dispute, "Disputed land", "Red stripes where households' claims overlap"));
         AddClosablePanelContents(filtersPanel, "Map filters", body);
-        filtersPanel.CustomMinimumSize = new Vector2(305, 0);
+        filtersPanel.CustomMinimumSize = new Vector2(320, 0);
         filtersPanel.ZIndex = 85;
         filtersPanel.Hide();
         canvas.AddChild(filtersPanel);
@@ -61,15 +66,12 @@ public partial class Main
     private void ApplyMapFiltersFromCurrentSnapshot()
     {
         if (renderedMapSnapshot is { } snapshot)
-        {
             ApplyMapFilters(snapshot);
-            RenderWorldInfo(snapshot);
-        }
     }
 
     /// <summary>
-    /// Placing a founder or an added agent shows Town borders and household
-    /// property, so the owner can see where the agent will belong, without
+    /// Placing a founder or an added agent shows recorded Town and household
+    /// claims, so the owner can see where the agent will belong without
     /// switching the Filters on.
     /// </summary>
     private bool ShowsPlacementOverlays => founderSetupPanel.Visible;
@@ -80,5 +82,12 @@ public partial class Main
         terrainLayer.SetHouseholdProperties(householdPropertyFilter.ButtonPressed || ShowsPlacementOverlays
             ? snapshot.PlacedBuildings : [], householdPropertyFilter.ButtonPressed || ShowsPlacementOverlays
             ? snapshot.Fields : []);
+        terrainLayer.SetTownLandTitles(townLandTitleFilter.ButtonPressed || ShowsPlacementOverlays
+            ? snapshot.TownLandTitles : []);
+        terrainLayer.SetHouseholdLandUses(householdLandUseFilter.ButtonPressed || ShowsPlacementOverlays
+            ? snapshot.HouseholdLandUseRights : [], householdLandUseFilter.ButtonPressed || ShowsPlacementOverlays
+            ? snapshot.HouseholdLandUseRequests : []);
+        terrainLayer.SetDisputedLand(disputedLandFilter.ButtonPressed || ShowsPlacementOverlays
+            ? snapshot.HouseholdLandUseRequests : []);
     }
 }

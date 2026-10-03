@@ -3,6 +3,16 @@ using ClankerWorld.Simulation.World;
 
 namespace ClankerWorld.Simulation.Harness;
 
+/// <summary>A generated map has no valid place for its first Town.</summary>
+public sealed class GeographyClearingUnavailableException : InvalidOperationException
+{
+    public GeographyClearingUnavailableException()
+        : base("The generated geography has no suitable base-camp clearing.") { }
+}
+
+/// <summary>An attempted map that could not provide a playable clearing.</summary>
+public sealed record GeographyCandidateFailure(int Attempt, string Reason);
+
 /// <summary>Measured visibility and connected regions for one deterministic candidate.</summary>
 public sealed record GeographyCandidateReport(
     int Attempt,
@@ -64,6 +74,7 @@ public sealed record GeographyCandidateSelection(
     IReadOnlyList<GeographyCandidateReport> Candidates)
 {
     public GeographyCandidateReport Selected => Candidates.Single(candidate => candidate.Attempt == Map.GenerationAttempt);
+    public IReadOnlyList<GeographyCandidateFailure> FailedCandidates { get; init; } = [];
 }
 
 /// <summary>
@@ -89,12 +100,19 @@ public static class GeographyCandidateSelector
             ? GeographyGenerator.MaximumCandidateAttempts
             : 1;
         var reports = new List<GeographyCandidateReport>(attemptCount);
+        var failures = new List<GeographyCandidateFailure>(attemptCount);
         SeededMap? selectedMap = null;
         GeographyCandidateReport? selectedReport = null;
         for (var attempt = 0; attempt < attemptCount; attempt++)
         {
             var candidateOptions = options with { CandidateAttempt = attempt };
-            var map = GenerateCandidate(candidateOptions);
+            SeededMap map;
+            try { map = GenerateCandidate(candidateOptions); }
+            catch (GeographyClearingUnavailableException)
+            {
+                failures.Add(new GeographyCandidateFailure(attempt, "no-clearing"));
+                continue;
+            }
             var report = Measure(candidateOptions, map, forestTargetApplicable, mountainTargetApplicable);
             reports.Add(report);
             if (selectedReport is null || Compare(report, selectedReport) < 0)
@@ -104,8 +122,11 @@ public static class GeographyCandidateSelector
             }
         }
 
-        return new GeographyCandidateSelection(options with { CandidateAttempt = selectedReport!.Attempt },
-            selectedMap!, reports);
+        if (selectedReport is null || selectedMap is null)
+            throw new GeographyClearingUnavailableException();
+        return new GeographyCandidateSelection(options with { CandidateAttempt = selectedReport.Attempt },
+            selectedMap, reports)
+        { FailedCandidates = failures };
     }
 
     /// <summary>Recreates one saved candidate without searching or changing its identity.</summary>

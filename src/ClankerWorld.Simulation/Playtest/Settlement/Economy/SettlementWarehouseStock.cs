@@ -9,7 +9,7 @@ public sealed partial class PrivateWorldRuntime
     private static readonly HashSet<string> WarehouseResourceKinds =
         new(StringComparer.Ordinal) { "wood", "stone", "fiber", "tree_seed" };
     private static readonly HashSet<string> WarehouseFoodKinds =
-        new(StringComparer.Ordinal) { "food", "fruit", "grain", "flour", "potatoes", "berries", "wild_greens", "cultivated_greens", "bread", "porridge", "stew" };
+        new(StringComparer.Ordinal) { "food", "fruit", "grain", "flour", "potatoes", "berries", "wild_greens", "cultivated_greens", "bread", "porridge", "stew", "simple_meal", "berry_porridge", "fruit_porridge", "restaurant_meal" };
 
     private PlacedBuilding? WarehouseForResident(string actor)
     {
@@ -56,7 +56,7 @@ public sealed partial class PrivateWorldRuntime
             .Where(lot => CanReachSharedItem(actor, lot));
 
     private InventoryLot? PersonalWarehouseSurplus(string actor) => society.Checkpoint.Inventory.Lots
-        .Where(lot => PersonalEquipmentRules.IsCarried(lot, actor) &&
+        .Where(lot => lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) &&
             lot.DeliveryBuildingId is null && WarehouseResourceKinds.Contains(lot.ItemKind) &&
             AvailableLotQuantity(lot) > WarehouseLoadQuantity)
         .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();

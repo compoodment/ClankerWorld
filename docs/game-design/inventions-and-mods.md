@@ -2,7 +2,7 @@
 title: Inventions and mods
 type: game-design
 status: active
-updated: 2026-09-29
+updated: 2026-10-01
 ---
 
 # Inventions and mods
@@ -62,13 +62,12 @@ designed in that phase rather than assumed solved by the base roster.
   Import/Export, and History are accepted as a starting arrangement.
 - The player wants **discovered capabilities inspectable** through World Info.
   This must not falsely imply that every agent knows every discovery.
-
-### Leaning toward
-
-Use a **network of discoveries and their requirements**, not a rigid visible technology tree or
-unrestricted “invent a car out of sticks” system. Computment likes this
-recommendation, but did not explicitly answer the separate final yes/no
-question. The graph should show discoveries, not spoil a fixed future list.
+- **Agreed on October 1
+  ([#652](https://github.com/compoodment/ClankerWorld/issues/652)):** use a
+  **network of discoveries and their requirements**, not a rigid visible
+  technology tree or unrestricted “invent a car out of sticks” system. Each
+  discovery needs materials, tools, skills or earlier discoveries. The graph
+  shows discoveries already made, not a fixed list of future ones.
 
 ### Still to decide
 

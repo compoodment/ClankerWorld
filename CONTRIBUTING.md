@@ -22,7 +22,6 @@ Otherwise use the matching template:
 | **Implementation** | Agreed work needs building. Say the goal, the design it follows, how we will know it works and what is out of scope. |
 | **Decision** | A game choice needs the owner's answer. Give the options, trade-offs and a recommendation. |
 | **Prototype** | A small experiment would answer a question. Say what to learn and how to judge the result. |
-| **Playtest report** | You played and noticed things. Rough notes are fine. |
 
 - One topic per issue, with a title in ordinary words. Link related issues
   instead of copying progress notes between them.
@@ -33,6 +32,10 @@ Otherwise use the matching template:
 - computment reads chat, not GitHub comments. An agent that needs their answer
   asks in its chat reply and records the answer afterwards
   ([how](AGENTS.md#ask-the-owner-in-chat)).
+- The owner reports playtests in chat. Record the result in the
+  [playtest list](playtest/README.md), with linked Bug or Implementation issues
+  labelled `from:playtest` and the build details the owner gave. Do not open a
+  separate report issue.
 - A routine fix follows the agreed design and existing behavior. A change that
   would settle an open game choice needs a Decision issue or an explicit owner
   decision. An open pull request, draft or not, does not make a suggestion
@@ -56,13 +59,13 @@ hours.
 
 | Kind | Labels |
 | --- | --- |
-| Type | `type:bug`, `type:feature` (agreed work), `type:decision`, `type:experiment`, `type:playtest`, `type:docs`, `type:tooling` (CI, tests, build, refactors and how-we-work changes) |
+| Type | `type:bug`, `type:feature` (agreed work), `type:decision`, `type:experiment`, `type:docs`, `type:tooling` (CI, tests, build, refactors and how-we-work changes) |
 | Area | `area:agents` (models, memories, personality, families, conversations), `area:towns` (buildings, households, land, work, trade), `area:world` (map, terrain, weather, plants, survival, time), `area:saves`, `area:interface` (screens, controls, art), `area:server` (host, pairing, keys, deployment), `area:tooling` (CI, tests, build, workflow) |
 | Priority | `priority:p0` to `priority:p3`; see [Priorities](#priorities) |
 | Issue status | `status:needs-pr` (agreed and unblocked; only on issues that need a pull request, never on decisions or owner tasks), `status:in-progress` ([claimed](#claim-an-issue)), `status:has-pr` (a pull request closes it), `status:parked` (closed for a later stage) |
 | Pull request status | `status:needs-review` (ready for review), `status:reviewing` ([claimed by a reviewer](#review-and-merge)), `status:merging` ([taking its turn to merge](#review-and-merge)) |
 | Either | `status:needs-decision` (waiting on the owner), `status:blocked` (waiting on something its description names, such as `Blocked by #123`) |
-| Other | `owner-task` (only computment can do it), `regression`, `from:playtest`, `accessibility` |
+| Other | `owner-task` (only computment can do it), `owner-priority` (the owner chose this priority), `regression`, `from:playtest`, `accessibility` |
 
 `status:in-progress` stays next to `status:has-pr` while the claimed pull
 request is a draft, and next to `status:needs-decision` while the claim waits
@@ -122,20 +125,26 @@ on the owner.
   `type:bug`, `owner-task`, `priority:p0` and one area, and no details. The
   owner decides in chat how it is fixed. Hardening ideas with no working
   exploit are ordinary issues.
-- **Features, experiments and decisions** start at P2, and move to P1 when the
-  next playtest needs them.
+- **Features, experiments and decisions** start at P2. They move to P1 for a
+  playtest only when the owner says in chat that the next playtest needs them.
+  Add `owner-priority` and a comment naming that playtest.
 - **How we work:** changes to CI, labels, templates, Claude Code settings
-  (`.claude/`), CONTRIBUTING, AGENTS or CLAUDE.md affect every agent, so they
-  are P0.
-- **At most 5 open P0 and 10 open P1 issues.** Count issues only, not pull
+  (`.claude/`), agent skills (`skills/`), CONTRIBUTING, AGENTS or CLAUDE.md
+  affect every agent, so they are P0.
+- **At most 10 open P0 and 20 open P1 issues.** Count issues only, not pull
   requests. When a level is full, the least urgent issue there that the owner
   did not pick, counting the new one, goes down a level; between equals, the
   newest goes down. If the owner picked every other issue at that level, the
   new one goes down, and you say so in your chat reply.
+  Record the cap demotion in a comment, such as "Moved to P1: P0 is full".
+  While the higher level is full, do not move it back solely for severity.
+  When an issue at that level closes, whoever closes it restores the oldest
+  cap-demoted issue to that level.
 - **Anyone may set or change a priority by these rules without asking the
   owner.** Change one only when the rules call for it, and add a one-line
-  comment saying why. When the owner picks a priority, say so in that comment;
-  nobody else moves it afterwards, even to make room.
+  comment saying why. When the owner picks a priority, add `owner-priority`
+  and say so in that comment. Nobody else moves an owner-picked priority,
+  even to make room.
 
 ## Work on an issue
 
@@ -153,10 +162,9 @@ is:issue is:open label:"status:needs-pr" -label:"type:decision" -label:owner-tas
 
 Take the highest priority first: add `label:"priority:p0"` to the search, then
 p1, p2 and p3, and take the first result, which is the oldest issue at that
-level. Before you claim it, read its comments and look for pull requests that
-name it, open or merged (search `is:pr <number>`): an open one may already be
-doing the work, and a merged one may mean main already fixes it. If main
-already fixes it, name the commit and close the issue.
+level. Before you claim it, check that the work is still needed and that
+nobody else is already doing it
+([how](#check-for-duplicates-and-stale-work)).
 
 If the issue also has `status:has-pr`, an earlier draft was abandoned: continue
 that pull request's branch rather than starting again. If the draft also
@@ -167,6 +175,40 @@ are taking it over, fetch its latest head before each push, and never
 force-push. If a push is rejected because the branch moved, read its newest
 comments first: if another session has claimed the work since, stop and leave
 it to them; otherwise merge the new commits in before you continue.
+
+Merge main into an abandoned draft before anything else. If it no longer fits
+current main, for example because most of it conflicts or the code it changes
+has been rewritten, start a fresh branch from main instead. Carry over what
+still applies, open a new draft that closes the same issues, name the new
+branch in your claim comment, and close the old draft with a comment naming
+the new one ([after closing without merging](#review-and-merge)).
+
+### Check for duplicates and stale work
+
+Many sessions file and fix issues at once, so by the time you reach an issue it
+may already be done, filed twice or out of date. Before you claim an issue:
+
+- **Read its comments and the pull requests that name it**, open or merged
+  (search `is:pr <number>`).
+- **Check it against current main.** Reproduce a bug on current main, in the
+  game or with a test. For a feature, read the code and docs it names to see
+  whether it is already there: a pull request may have done it without naming
+  the issue.
+- **Search open issues and pull requests by topic**, with a few words from its
+  title and the features or files it names, not only by its number.
+
+Then act on what you find:
+
+| You find | Do this |
+| --- | --- |
+| Main already does it | Close the issue as completed with a comment naming the commit or pull request. If only part is done, comment with what remains and carry on with the rest. |
+| A bug you can't reproduce on main | Comment with what you tried. Close it as not planned, unless it describes an intermittent failure; anyone who sees it again reopens it with the new evidence. |
+| Another open issue covers the same work | Keep the one that is further along: claimed, with a pull request, or with more detail; between equals, the older one. Copy anything useful from the other into it, keep the higher priority, and close the other as a duplicate. Never close an issue another session holds; comment on both instead. |
+| An open pull request already does the work | Comment on the issue and the pull request, linking them, and pick other work. If that pull request should close the issue, ask its author or reviewer in a comment to add `Closes #<number>`. |
+| The description no longer matches main | Update it to current main before you start, with a comment saying what changed. If the design itself is in question, ask the owner ([how](AGENTS.md#ask-the-owner-in-chat)) and add `status:needs-decision`. |
+
+Record what you checked in your claim comment, in a line such as "Checked
+against main 1a2b3c4: still broken; no other issue or pull request covers it."
 
 ### Claim an issue
 
@@ -269,7 +311,13 @@ was not checked.
 - **Replaced issues:** carry over anything useful, then close the older issue
   as a duplicate of the new one.
 - **Decisions:** the pull request that records the owner's answer in the game
-  design closes the Decision issue and links or opens the implementation issues.
+  design, or in the workflow rules for a workflow decision, closes the
+  Decision issue and links or opens the implementation issues. Implementation
+  may start once the owner explicitly approves the design, including in chat.
+  The design pull request takes the highest priority of the issues it
+  unblocks, and reviewers take it first. Each dependent implementation pull
+  request writes `Waits on #<design PR>` in its description and merges only
+  after that design pull request.
 - **Not needed:** close as *not planned* with a one-line reason. Check the open
   `status:blocked` issues that name it: park them too if they cannot happen
   without it, or comment with what they now wait on.
@@ -289,7 +337,9 @@ remains on the issue and pull request, not in a second tracker.
    ([how](#link-issues-from-the-pull-request)). If no issue is needed, such as
    for a direct owner request, say so.
 2. Read the relevant game-design, current-feature and developer pages.
-3. Check open pull requests for overlap and name any you find. To build on an
+3. Check open pull requests and recent merges for overlap and name any you
+   find; if one already makes your change, stop
+   ([how](#check-for-duplicates-and-stale-work)). To build on an
    unmerged pull request #A, branch from its branch, set your pull request's
    base to that branch and fill in the template's **Stacked on** line. While
    stacked, bring in newer main only by merging your base branch. When #A
@@ -297,8 +347,9 @@ remains on the issue and pull request, not in a second tracker.
    in. If #A closes without merging, change your base to main and drop the
    parts of #A you don't need. If yours is already ready, whoever closed #A
    changes its base ([after closing without merging](#review-and-merge)) and
-   its reviewer drops those parts. If your pull request needs another one's code but is not stacked on
-   it, write `Waits on #A` on the overlap line.
+   its reviewer drops those parts. If your pull request needs another one's
+   code or approved design but is not stacked on it, write `Waits on #A` on
+   the overlap line.
 4. Keep to one concern, with the docs and tests it needs.
 5. Fill in the [pull request template](.github/pull_request_template.md) for
    someone who has not read the conversation, including the **Author** line.
@@ -318,6 +369,10 @@ Use a short title about the effect, such as
   save may stop loading; do not write migration or old-save code to keep one working.
 - Add meaningful tests for behavior changes, and update existing checks when
   their contract changes. Wording and docs changes need no new tests.
+- Keep each test quick, ideally under a minute on CI: every merge waits for a
+  full CI run, and no run finishes before its slowest test. If CI warns about a
+  slow test you added or changed, make it faster before marking the pull
+  request ready ([how CI runs](docs/development/build-and-test.md#how-ci-runs)).
 - Run the applicable [build and test checks](docs/development/build-and-test.md#which-checks-to-run)
   and put commands and results in the PR, including anything that could not
   run. A passing export is not a Windows playtest.
@@ -337,6 +392,9 @@ world-runtime, save-compatibility, deployment, packaging or security changes.
 Skip refactors, tests and docs-only edits unless they change an explicit
 supported behavior or operational promise.
 
+If your change makes a waiting entry wrong, edit or delete it in the same pull
+request.
+
 Put the entry in a new file in [changes/](changes/README.md) rather than editing
 [CHANGELOG.md](CHANGELOG.md), so parallel pull requests do not conflict. Start
 the file with a `- ` bullet. Name the file after the issue number and the
@@ -344,8 +402,8 @@ change, such as `431-orchard-harvest.md`. When there is no issue, name it after
 your branch without the `claude/` or `codex/` prefix, such as
 `settings-redesign.md`. Put the file directly in `changes/`; entries in
 subfolders are not collected. `scripts/collect-changes.sh` moves the entries
-into CHANGELOG.md when a release is prepared, or whenever the changelog should
-catch up.
+into CHANGELOG.md when a release is prepared. A catch-up outside a release is
+an owner request, handled by one session at a time.
 
 ### Drafts and readiness
 
@@ -422,6 +480,16 @@ Several reviewers may be merging at the same time, so:
   label alone and pick another. Pull requests missing from that search are
   stacked or wait on another pull request; if that one is ready and unclaimed,
   review it instead.
+- **Check it isn't a duplicate.** Before you review in depth, check that main
+  or another open pull request doesn't already make the same change. If main
+  has it, close the pull request with a comment naming the commit
+  ([after closing without merging](#review-and-merge)), and close or update
+  its issues ([how](#check-for-duplicates-and-stale-work)). If another open
+  pull request makes it, comment on both. Review the one that is further
+  along: more complete, already reviewed, or the older between equals. Hand
+  the other back to draft with a comment saying which pull request it
+  duplicates, so its author decides; if another reviewer holds it, comment
+  instead. If it isn't clear which to keep, ask the owner in chat.
 - **One review claim at a time.** A claim is not a place in the queue. Take a
   second pull request only while the first waits on CI or for its merging
   turn.
@@ -492,8 +560,9 @@ Before merging, check that:
 4. The description links its issues correctly
    ([Link issues](#link-issues-from-the-pull-request)); fix it first if not.
 5. If the description says this pull request must follow another, that one has
-   merged. Only a pull request that needs another's code sets such an order,
-   in its own description; an order stated only in a comment binds nobody.
+   merged. Code dependencies and the design-before-implementation rule above
+   set such an order in the description; an order stated only in a comment
+   binds nobody.
 
 Squash-merge with `<PR title> (#<number>)` as the subject. Write the body
 yourself, never GitHub's list of branch commit messages: what changed and why;
@@ -592,6 +661,6 @@ body when needed. A closing keyword in a commit that reaches main also closes
 the issue, so do not write one for an issue the change does not complete.
 Report vulnerabilities privately, never in an issue, pull request or comment
 ([Security problems](#priorities)): agents tell the owner in chat, and people
-contact the repository owner directly, without credentials, pairing material or
-private saves. Be respectful, assume good faith, and argue with evidence about
-the design rather than the person.
+use [private vulnerability reporting](https://github.com/compoodment/ClankerWorld/security/advisories/new),
+without credentials, pairing material or private saves. Be respectful, assume
+good faith, and argue with evidence about the design rather than the person.

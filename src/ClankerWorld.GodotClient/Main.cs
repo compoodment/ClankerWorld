@@ -73,6 +73,7 @@ public partial class Main : Control
     private readonly Button saveCognitionProviderButton = new();
     private readonly Button forgetCognitionCredentialButton = new();
     private readonly Button deleteCognitionCredentialSlotButton = new();
+    private readonly Button openModelSettingsButton = new();
     private readonly Button refreshCognitionProviderButton = new();
     private readonly PanelContainer pairingPanel = new();
     private readonly Label pairingInstructionLabel = new();
@@ -92,6 +93,7 @@ public partial class Main : Control
     private readonly ColorRect topBarShade = new();
     private readonly WorldTerrainLayer terrainLayer = new();
     private readonly WeatherLayer weatherLayer = new();
+    private readonly NightLayer nightLayer = new();
     private WorldTerrainMap? terrainMap;
     private string? terrainWorldId;
     private string? terrainManifestDigest;
@@ -122,13 +124,9 @@ public partial class Main : Control
     private readonly Label familyTreeStatus = new();
     private readonly ItemList inhabitantList = new();
     private readonly RichTextLabel inhabitantDetails = new();
-    private readonly RichTextLabel inhabitantSocialDetails = new();
-    private readonly RichTextLabel privateThoughtHistory = new();
+    private readonly Label privateThoughtHistory = new();
     private readonly Button memoriesButton = new();
     private readonly PanelContainer memoriesPanel = new();
-    private readonly RichTextLabel memoryHistory = new();
-    private readonly RichTextLabel worldDetails = new();
-    private readonly RichTextLabel worldInfoText = new();
     private readonly RichTextLabel eventLog = new();
     private readonly PanelContainer rosterPanel = new();
     private readonly PanelContainer eventsPanel = new();
@@ -188,9 +186,6 @@ public partial class Main : Control
     private readonly ItemList pairedDeviceList = new();
     private readonly LineEdit revokeDeviceId = new();
     private readonly Button revokeDeviceButton = new();
-    private readonly Button developerToggleButton = new();
-    private readonly ScrollContainer developerScroll = new();
-    private readonly VBoxContainer developerBody = new();
 
     private OwnerDeviceKey? deviceKey;
     private OwnerDeviceRegistration? registration
@@ -214,6 +209,7 @@ public partial class Main : Control
     private OwnerPendingSubmission? pendingSubmission;
     private string? selectedInhabitantId;
     private string? renamingAgentId;
+    private readonly RefusedAgentRename refusedAgentRename = new();
     private bool isRefreshing;
     private CancellationTokenSource? refreshCancellation;
     private int successfulRefreshCount;

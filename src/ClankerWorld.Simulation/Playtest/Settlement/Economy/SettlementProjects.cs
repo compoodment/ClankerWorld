@@ -55,15 +55,16 @@ public sealed partial class PrivateWorldRuntime
             added.Any(resource => baseline.CampObjects.Any(item => item.Position == resource.Position) ||
                 baseline.Resources.Any(item => item.Position == resource.Position)))
             return false;
-        if (staged.Length > 0 && (state.SchemaVersion < 5 || staged.Length > 4 ||
+        if (staged.Length > 0 && (state.SchemaVersion < 5 || staged.Length > 6 ||
             state.Content?.Packages.Any(package => package.Manifest.PackageId == SettlementContent.PackageId &&
                 package.Manifest.PackageDigest == SettlementContent.Create().PackageDigest &&
                 package.ActivationTick is not null) != true ||
             staged.Any(resource =>
             {
                 if (resource.Id != "settlement-" + resource.Kind ||
-                    resource.Kind is not ("stone" or "fiber" or "grain_seed" or "clay") ||
-                    resource.IsRenewable != (resource.Kind is "fiber" or "grain_seed"))
+                    resource.Kind is not ("stone" or "fiber" or "seed" or "grain_seed" or "wood" or "clay") ||
+                    resource.IsRenewable != (resource.Kind is "fiber" or "seed" or "grain_seed") ||
+                    resource.NaturalObjectKind != (resource.Kind == "wood" ? "fallen_wood" : null))
                     return true;
                 return resource.Kind == "clay"
                     ? !IsReachableClayBank(baseline, resource.Position)
@@ -190,6 +191,10 @@ public sealed partial class PrivateWorldRuntime
         AppendEvent("house_cooking_content_staged", manifest.PackageId);
     }
 
+    private void StageRestaurantContent() =>
+        StageBuiltInContent(RestaurantContent.PackageId, HouseContent.PackageId, RestaurantContent.Create,
+            "restaurant_content_staged");
+
     private void StagePotteryContent() =>
         StageBuiltInContent(PotteryContent.PackageId, HouseContent.PackageId, PotteryContent.Create,
             "pottery_content_staged");
@@ -229,7 +234,7 @@ public sealed partial class PrivateWorldRuntime
             .Concat(RoadAndBridgeTiles())
             .Concat(worldSimulation.Buildings.SelectMany(building => WorldContentSimulationRules.Footprint(
                 worldContent.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId), building)))
-            .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State == WorldProductionJobState.Running).SelectMany(ExpansionTiles))
+            .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused).SelectMany(ExpansionTiles))
             .ToHashSet();
         var additions = new List<MapResource>();
         var townStorage = SettlementStoragePosition;
@@ -249,7 +254,7 @@ public sealed partial class PrivateWorldRuntime
                 occupied.Add(bank.Value);
             }
         }
-        foreach (var kind in new[] { "stone", "fiber", "grain_seed" })
+        foreach (var kind in new[] { "stone", "fiber", "seed", "grain_seed", "wood" })
         {
             var id = "settlement-" + kind;
             if (map.Resources.Any(resource => resource.Id == id))
@@ -267,7 +272,9 @@ public sealed partial class PrivateWorldRuntime
                 AppendEvent("settlement_resource_blocked", kind);
                 continue;
             }
-            additions.Add(new MapResource(id, kind, tile.Position, kind is "fiber" or "grain_seed"));
+            additions.Add(new MapResource(id, kind, tile.Position,
+                kind is "fiber" or "seed" or "grain_seed",
+                NaturalObjectKind: kind == "wood" ? "fallen_wood" : null));
             occupied.Add(tile.Position);
         }
         if (additions.Count == 0)
@@ -370,9 +377,9 @@ public sealed partial class PrivateWorldRuntime
         if (inhabitants[inhabitantId].Project is not
             {
                 Stage: "blocked",
-                Blocker: "Waiting for ingredients at this household building",
                 JobId: null,
-            } project || WorldTick - project.LastTransitionTick < BlockedProjectRetryDelayTicks ||
+            } project || !IsIngredientBlocker(project.Blocker) ||
+            WorldTick - project.LastTransitionTick < BlockedProjectRetryDelayTicks ||
             !TownConstructionCandidateIds.TryParse(project.CandidateId, out var selection) || selection.IsBuilding)
             return false;
 
@@ -423,7 +430,7 @@ public sealed partial class PrivateWorldRuntime
                     return true;
 
                 if (candidate.Id == "haul_smith_input" && candidate.DestinationId == building.InstanceId &&
-                    BlacksmithInputForDelivery(resident, householdId, building.InstanceId) is { } smithInput &&
+                    BlacksmithInputForDelivery(householdId, building.InstanceId, resident) is { } smithInput &&
                     missingKinds.Contains(smithInput.ItemKind))
                     return true;
 
@@ -612,22 +619,19 @@ public sealed partial class PrivateWorldRuntime
                 definition.Tags.Any(IsHouseholdBuildingTag)) &&
             !HasIngredientsAtBuilding(recipe.Inputs, constructionOwner, recipeBuilding.InstanceId))
         {
-            SetProject(inhabitantId, project with { Stage = "blocked", Blocker = "Waiting for ingredients at this household building" });
+            if (FinishProjectHouseholdDelivery(inhabitantId, state))
+                return;
+            SetProject(inhabitantId, project with { Stage = "blocked", Blocker = MissingProductionIngredients(recipe, constructionOwner, recipeBuilding.InstanceId) });
             return;
         }
         var missing = inputs.FirstOrDefault(input => !HasAvailableQuantities([input], constructionOwner));
         if (missing.Amount > 0)
         {
+            if (FinishProjectHouseholdDelivery(inhabitantId, state))
+                return;
             AcquireProjectInput(inhabitantId, state, missing, constructionOwner);
             return;
         }
-        if (survivalState is not null && FreeCarryCapacity(inhabitantId) > 0 &&
-            !HasCarriedItem(inhabitantId, "tool") && SharedItem("tool", inhabitantId) is not null)
-        {
-            CollectEquipment(inhabitantId, state, "tool");
-            return;
-        }
-
         GridPoint position;
         if (building is not null)
         {
@@ -686,7 +690,11 @@ public sealed partial class PrivateWorldRuntime
                 SetProject(inhabitantId, project with { Stage = "working", Blocker = null });
                 return;
             }
-            var work = (HasCarriedItem(inhabitantId, "tool") ? 2 : 1) + ProjectPracticeBonus(state, project);
+            var hammer = ToolProgressionRules.PlanWork(society.Checkpoint.Inventory,
+                inhabitantId, ToolFamily.Hammer);
+            var work = (hammer?.WorkUnits ?? 1) + ProjectPracticeBonus(state, project);
+            if (hammer is not null)
+                ApplyToolWork(inhabitantId, hammer);
             SetProject(inhabitantId, project with { Stage = "working", WorkDone = Math.Min(ProjectWorkTicks, project.WorkDone + work), Blocker = null });
             return;
         }
@@ -722,11 +730,28 @@ public sealed partial class PrivateWorldRuntime
             worldContent.Recipes.FirstOrDefault(item => item.CanonicalId == selection.DefinitionId) is { } queued &&
             (queued.IsCrop ? recipe.IsCrop : !recipe.IsCrop && queued.WorkstationBuildingId == recipe.WorkstationBuildingId));
 
+    private bool FinishProjectHouseholdDelivery(string actor, PlaytestInhabitantState state)
+    {
+        if (!AdultResident(actor) || society.Checkpoint.GetInhabitant(actor).HouseholdId is not { } householdId ||
+            CarriedHouseDelivery(actor) is not { } carried || carried.OwnerId != actor ||
+            worldSimulation.Buildings.SingleOrDefault(building => building.InstanceId == carried.DeliveryBuildingId &&
+                building.HouseholdId == householdId) is not { } destination ||
+            !CanDeliverHouseDelivery(carried) ||
+            state.Position != destination.Position &&
+                FindUnoccupiedRoute(actor, state.Position, destination.Position, 0).Count == 0)
+            return false;
+        SetProject(actor, state.Project! with { Stage = "delivering", Blocker = "Completing the household supply delivery" });
+        HaulHouseholdStock(actor, inhabitants[actor]);
+        return true;
+    }
+
     private void AcquireProjectInput(string inhabitantId, PlaytestInhabitantState state,
         ContentQuantity input, string constructionOwner)
     {
         var project = state.Project!;
-        var carried = society.Checkpoint.Inventory.Lots.FirstOrDefault(lot => PersonalEquipmentRules.IsCarried(lot, inhabitantId) &&
+        // Only the agent's own goods; borrowed household goods are not theirs to give.
+        var carried = society.Checkpoint.Inventory.Lots.FirstOrDefault(lot => lot.OwnerId == inhabitantId &&
+            PersonalEquipmentRules.IsCarried(lot, inhabitantId) &&
             lot.ContainerLotId is null && lot.ItemKind == input.ResourceId && lot.DeliveryBuildingId is null &&
             AvailableLotQuantity(lot) > 0);
         if (carried is not null && constructionOwner != inhabitantId)
@@ -787,63 +812,51 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
 
-        var gatheringTool = input.ResourceId switch
-        {
-            "wood" => "wooden_axe",
-            "stone" or "iron_ore" => "wooden_pickaxe",
-            _ => null,
-        };
-        if (gatheringTool is not null && !HasCarriedItem(inhabitantId, gatheringTool) &&
-            SharedItem(gatheringTool, inhabitantId) is not null)
-        {
-            CollectEquipment(inhabitantId, state, gatheringTool);
-            return;
-        }
-
-        var source = map.Resources.Where(resource =>
-            (resource.Kind == input.ResourceId || (input.ResourceId == "wood" && resource.Kind == "construction")) &&
-            resources.GetValueOrDefault(resource.Id) == ResourceState.Available &&
-            map.IsReachableFromCampOnFoot(resource.Position))
-            .OrderBy(resource => map.FootDistance(resource.Position, state.Position))
-            .FirstOrDefault();
+        var source = MaterialSource(input.ResourceId, inhabitantId);
         if (source is null)
         {
             SetProject(inhabitantId, project with { Stage = "blocked", Blocker = $"No available source of {input.ResourceId}" });
             return;
         }
         SetProject(inhabitantId, project with { Stage = "gathering", Blocker = $"Need {input.Amount} {input.ResourceId}" });
-        GatherProjectMaterial(inhabitantId, state, input.ResourceId, source);
+        var useHarvestBonus = UseHarvestBonusForBuildingMaterial(inhabitantId, input.ResourceId, source);
+        GatherProjectMaterial(inhabitantId, state, input.ResourceId, source, useHarvestBonus);
     }
 
-    private (int Quantity, int SeedQuantity) ProjectMaterialHarvest(string actor, string itemKind, MapResource source,
+    private ToolGatheringPlan? ProjectMaterialHarvest(string actor, string itemKind, MapResource source,
         bool useHarvestBonus = true)
     {
-        var harvestWithTool = useHarvestBonus &&
-            (itemKind == "wood" && HasCarriedItem(actor, "wooden_axe") ||
-             itemKind is ("stone" or "iron_ore") && HasCarriedItem(actor, "wooden_pickaxe"));
-        var quantity = harvestWithTool ? 6 : 4;
-        var seeds = TreeGrowthRules.IsWoodTree(source.TreeKind) && worldSystems.Ecology.GetResource(source.Id).Quantity == 1
-            ? TreeGrowthRules.TreeSeedsPerFelledTree : 0;
-        return (quantity, seeds);
+        var ecology = worldSystems.Ecology.GetResource(source.Id);
+        var plan = ToolProgressionRules.PlanGather(itemKind, source, society.Checkpoint.Inventory, actor,
+            ecology.Quantity);
+        if (plan is null || useHarvestBonus || plan.ToolLotId is null)
+            return plan;
+        return plan with { Quantity = Math.Min(plan.Quantity, 4) };
     }
 
-    private int ProjectMaterialCarryUnits(string actor, string itemKind, MapResource source, bool useHarvestBonus = true)
+    private int ProjectMaterialCarryUnits(string actor, string itemKind, MapResource source,
+        bool useHarvestBonus = true)
     {
-        var harvest = ProjectMaterialHarvest(actor, itemKind, source, useHarvestBonus);
-        return harvest.Quantity + harvest.SeedQuantity;
+        var plan = ProjectMaterialHarvest(actor, itemKind, source, useHarvestBonus);
+        return plan is null ? int.MaxValue : checked(plan.Quantity + plan.TreeSeedQuantity);
     }
 
     private void GatherProjectMaterial(string inhabitantId, PlaytestInhabitantState state, string itemKind,
         MapResource source, bool useHarvestBonus = true, string? deliveryBuildingId = null)
     {
+        var ecology = worldSystems.Ecology.GetResource(source.Id);
+        var plan = ProjectMaterialHarvest(inhabitantId, itemKind, source, useHarvestBonus);
+        if (plan is null)
+        {
+            CollectToolForGathering(inhabitantId, state, itemKind, source);
+            return;
+        }
         if (!IsWithinInteractionRange(state.Position, source.Position, ResourceInteractionRange))
         {
             MoveToward(inhabitantId, inhabitants[inhabitantId], source.Position, "materials", ResourceInteractionRange);
             return;
         }
-        var ecology = worldSystems.Ecology.GetResource(source.Id);
-        var (quantity, seedQuantity) = ProjectMaterialHarvest(inhabitantId, itemKind, source, useHarvestBonus);
-        if (FreeCarryCapacity(inhabitantId) < quantity + seedQuantity)
+        if (FreeCarryCapacity(inhabitantId) < checked(plan.Quantity + plan.TreeSeedQuantity))
         {
             AppendEvent("carrying_full", inhabitantId);
             return;
@@ -860,6 +873,11 @@ public sealed partial class PrivateWorldRuntime
                     harvest.Resource.RegenerationIntervalDays,
             }
             : harvest.Resource;
+        // The inventory helper also applies one unit of tool wear. Commit that
+        // together with the output before reducing the finite ecology stock.
+        // A failed inventory/capacity transition therefore leaves the source
+        // untouched and does not wear a tool.
+        ApplyGatheringInventory(inhabitantId, itemKind, plan, deliveryBuildingId);
         worldSystems = worldSystems with
         {
             Ecology = worldSystems.Ecology with
@@ -868,23 +886,14 @@ public sealed partial class PrivateWorldRuntime
             },
         };
         SyncEcologyResourceStates();
-        var materialLotId = $"material:{WorldTick}:{inhabitantId}";
-        ApplyInventoryTransition(inventory => MarkBuildingMaterialDelivery(
-            InventoryFixture.AddLot(inventory, materialLotId, itemKind, inhabitantId, quantity, WorldTick),
-            materialLotId, deliveryBuildingId));
-        AppendEvent("material_gathered", $"{inhabitantId}:{itemKind}:{quantity}");
-        if (source.TreeKind is not null)
+        AppendEvent("material_gathered", $"{inhabitantId}:{itemKind}:{plan.Quantity}");
+        if (plan.FellTree)
             AppendEvent("tree_harvested", $"{inhabitantId}:{source.Id}:{source.TreeKind}:stump");
-        if (TreeGrowthRules.IsWoodTree(source.TreeKind) && harvested.Quantity == 0 &&
-            TreeGrowthRules.TreeSeedsPerFelledTree > 0)
+        if (plan.TreeSeedQuantity > 0)
         {
             // A felled tree also gives a seed that can replant a stump or
             // start a new tree elsewhere.
-            var seedLotId = $"tree-seed:{WorldTick}:{inhabitantId}";
-            ApplyInventoryTransition(inventory => MarkBuildingMaterialDelivery(
-                InventoryFixture.AddLot(inventory, seedLotId, TreeGrowthRules.TreeSeedItem, inhabitantId,
-                    TreeGrowthRules.TreeSeedsPerFelledTree, WorldTick), seedLotId, deliveryBuildingId));
-            AppendEvent("tree_seed_collected", $"{inhabitantId}:{source.Id}:{TreeGrowthRules.TreeSeedsPerFelledTree}");
+            AppendEvent("tree_seed_collected", $"{inhabitantId}:{source.Id}:{plan.TreeSeedQuantity}");
         }
     }
 
@@ -930,35 +939,73 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
-    private MapResource? MaterialSource(string itemKind, string actor) => map.Resources
-        .Where(resource =>
-            (resource.Kind == itemKind || (itemKind == "wood" && resource.Kind == "construction")) &&
-            resources.GetValueOrDefault(resource.Id) == ResourceState.Available &&
-            map.IsReachableOnFoot(inhabitants[actor].Position, resource.Position))
-        .OrderBy(resource => map.FootDistance(inhabitants[actor].Position, resource.Position))
-        .ThenBy(resource => resource.Id, StringComparer.Ordinal)
-        .FirstOrDefault(resource => IsWithinInteractionRange(inhabitants[actor].Position, resource.Position, ResourceInteractionRange) ||
-            FindUnoccupiedRoute(actor, inhabitants[actor].Position, resource.Position, ResourceInteractionRange).Count > 0);
+    private MapResource? MaterialSource(string itemKind, string actor)
+    {
+        // A source scan observes one inventory snapshot. Reuse tool availability
+        // during that scan; gathering rechecks the actual tool and capacity.
+        var reachableToolCache = new Dictionary<(ToolFamily Family, int Tier), ToolDefinition?>();
+        // Sort the cheap matches, then check tools and routes nearest first. A
+        // Small world can hold thousands of trees; the nearest usable one wins
+        // either way, so checking every one first only costs time.
+        return map.Resources
+            .Where(resource =>
+                (resource.Kind == itemKind || (itemKind == "wood" && resource.Kind == "construction")) &&
+                resources.GetValueOrDefault(resource.Id) == ResourceState.Available)
+            .OrderBy(resource => map.FootDistance(inhabitants[actor].Position, resource.Position))
+            .ThenBy(resource => resource.Id, StringComparer.Ordinal)
+            .FirstOrDefault(resource =>
+                CanGatherFromSource(actor, itemKind, resource, reachableToolCache) &&
+                map.IsReachableOnFoot(inhabitants[actor].Position, resource.Position) &&
+                (IsWithinInteractionRange(inhabitants[actor].Position, resource.Position, ResourceInteractionRange) ||
+                 FindUnoccupiedRoute(actor, inhabitants[actor].Position, resource.Position, ResourceInteractionRange).Count > 0));
+    }
 
     private bool CanAcquireProjectInputs(IReadOnlyList<ContentQuantity> inputs, string? ownerId = null,
-        string? residentId = null) => inputs.All(input =>
+        string? residentId = null)
     {
-        var stored = society.Checkpoint.Inventory.Lots.Where(lot => lot.ItemKind == input.ResourceId &&
-                (lot.OwnerId == (ownerId ?? HouseholdId) || inhabitants.ContainsKey(lot.OwnerId) &&
-                    (ownerId is null || HouseholdFor(lot.OwnerId) == ownerId)))
-            .Sum(lot => (long)AvailableLotQuantity(lot));
-        var harvestable = worldSystems.Ecology.Resources.Where(resource =>
-                resource.State == EcologyResourceState.Available &&
-                (resource.Kind == input.ResourceId || (input.ResourceId == "wood" && resource.Kind == "construction")) &&
-                map.IsReachableFromCampOnFoot(resource.Position))
-            .Sum(resource => (long)resource.Quantity * 4);
-        var communal = residentId is null ? 0 : WarehousesAccessibleTo(residentId)
-            .SelectMany(warehouse => society.Checkpoint.Inventory.Lots.Where(lot =>
-                lot.OwnerId == warehouse.TownId && lot.StorageBuildingId == warehouse.InstanceId &&
-                lot.ItemKind == input.ResourceId))
-            .Sum(lot => (long)AvailableLotQuantity(lot));
-        return stored + harvestable + communal >= input.Amount;
-    });
+        // Candidate evaluation is a read-only snapshot. Reuse a shared tool's route
+        // result only within this one input check; actions revalidate before gathering.
+        var reachableToolCache = new Dictionary<(ToolFamily Family, int Tier), ToolDefinition?>();
+        return inputs.All(input =>
+        {
+            var stored = society.Checkpoint.Inventory.Lots.Where(lot => lot.ItemKind == input.ResourceId &&
+                    (lot.OwnerId == (ownerId ?? HouseholdId) || inhabitants.ContainsKey(lot.OwnerId) &&
+                        (ownerId is null || HouseholdFor(lot.OwnerId) == ownerId)))
+                .Sum(lot => (long)AvailableLotQuantity(lot));
+            var communal = residentId is null ? 0 : WarehousesAccessibleTo(residentId)
+                .SelectMany(warehouse => society.Checkpoint.Inventory.Lots.Where(lot =>
+                    lot.OwnerId == warehouse.TownId && lot.StorageBuildingId == warehouse.InstanceId &&
+                    lot.ItemKind == input.ResourceId))
+                .Sum(lot => (long)AvailableLotQuantity(lot));
+            var remaining = input.Amount - stored - communal;
+            if (remaining <= 0)
+                return true;
+            if (residentId is null)
+                return false;
+
+            var position = inhabitants[residentId].Position;
+            foreach (var resource in map.Resources)
+            {
+                if (resources.GetValueOrDefault(resource.Id) != ResourceState.Available ||
+                    resource.Kind != input.ResourceId && !(input.ResourceId == "wood" && resource.Kind == "construction"))
+                    continue;
+
+                var sourceQuantity = worldSystems.Ecology.GetResource(resource.Id).Quantity;
+                if (sourceQuantity <= 0 || !map.IsReachableOnFoot(position, resource.Position))
+                    continue;
+
+                var gatherQuantity = AvailableGatherQuantity(residentId, input.ResourceId, resource, reachableToolCache);
+                if (gatherQuantity <= 0)
+                    continue;
+
+                remaining -= (long)sourceQuantity * gatherQuantity;
+                if (remaining <= 0)
+                    return true;
+            }
+
+            return false;
+        });
+    }
 
     private void AddProjectAssistanceCandidates(List<CognitionCandidate> candidates, string helperId)
     {
@@ -968,7 +1015,7 @@ public sealed partial class PrivateWorldRuntime
             if (candidates.Any(candidate => candidate.Id == "assist:" + itemKind)) continue;
             if (!CanReceiveProjectAssistance(request)) continue;
             var hasCarriedMaterial = society.Checkpoint.Inventory.Lots.Any(lot =>
-                    PersonalEquipmentRules.IsCarried(lot, helperId) && lot.ContainerLotId is null &&
+                    lot.OwnerId == helperId && PersonalEquipmentRules.IsCarried(lot, helperId) && lot.ContainerLotId is null &&
                     lot.ItemKind == itemKind && lot.DeliveryBuildingId is null &&
                     AvailableLotQuantity(lot) > 0);
             if (hasCarriedMaterial || MaterialSource(itemKind, helperId) is { } source &&
@@ -997,7 +1044,8 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
         // A load already on its way into a household building is not spare.
-        var carried = society.Checkpoint.Inventory.Lots.FirstOrDefault(lot => PersonalEquipmentRules.IsCarried(lot, helperId) &&
+        var carried = society.Checkpoint.Inventory.Lots.FirstOrDefault(lot => lot.OwnerId == helperId &&
+            PersonalEquipmentRules.IsCarried(lot, helperId) &&
             lot.ContainerLotId is null && lot.ItemKind == itemKind && lot.DeliveryBuildingId is null &&
             AvailableLotQuantity(lot) > 0);
         if (carried is null)

@@ -1,0 +1,1 @@
+- Saving no longer interrupts an ongoing conversation when older world history is archived. Loading a world still requires both agents to agree to resume their conversation.

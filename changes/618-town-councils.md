@@ -1,0 +1,2 @@
+- Each Town has its own council, proposals and representative elections. Agents personally agree to stand, learn from real notices or nearby relays, vote through their ordinary choices and keep their civic records across saves. The Towns page shows the current council, election and recent results, and long readouts scroll. Council approval is separate from joining a household.
+- Older alpha saves cannot be opened with this version. They are kept unchanged, and the game explains why a new world is needed.

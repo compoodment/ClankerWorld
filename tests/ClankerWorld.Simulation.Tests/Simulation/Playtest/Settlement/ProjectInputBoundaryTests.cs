@@ -80,7 +80,7 @@ public sealed class ProjectInputBoundaryTests
                     Inventory = state.Society.Society.Inventory with
                     {
                         Lots = state.Society.Society.Inventory.Lots.Select(lot =>
-                        lot.OwnerId == "household:camp-beta" && lot.ItemKind is "food" or "wood"
+                        lot.OwnerId == "household:camp-beta" && lot.ItemKind is "potatoes" or "wood"
                             ? lot with { StorageBuildingId = "cook-home" } : lot).ToArray()
                     },
                 }
@@ -100,12 +100,60 @@ public sealed class ProjectInputBoundaryTests
         using var seed = await Prepared();
         var workshop = seed.WorldContent.Buildings.Single(item => item.LocalId == "workshop");
         var recipe = seed.WorldContent.Recipes.Single(item => item.LocalId == "tools");
-        Assert.True(seed.PlaceBuilding("a-workshop", workshop.CanonicalId, new GridPoint(5, 0)).Applied);
-        Assert.True(seed.PlaceBuilding("z-workshop", workshop.CanonicalId, new GridPoint(3, 1)).Applied);
-        var state = seed.ExportState();
-        var adults = state.Society.Society.Inhabitants.Where(person => person.HouseholdId == "household:camp-alpha").ToArray();
+        var initial = seed.ExportState();
+        var adults = initial.Society.Society.Inhabitants.Where(person => person.HouseholdId == "household:camp-alpha").ToArray();
         var actor = adults[0].Id;
         var blocker = adults[1].Id;
+        var actorPosition = initial.Inhabitants.Single(person => person.InhabitantId == actor).Position;
+        var initialTown = Assert.Single(initial.Towns!);
+        var reachableBuildSites = initial.Map.Tiles.Select(tile => tile.Position)
+            .Where(position => initial.Map.IsBuildable(position) &&
+                TownBorderRules.IsWithinOrAdjacent(initialTown, position, workshop.Width, workshop.Height) &&
+                initial.Map.IsReachableOnFoot(actorPosition, position))
+            .OrderBy(position => initial.Map.FootDistance(actorPosition, position))
+            .ThenBy(position => position.Y)
+            .ThenBy(position => position.X)
+            .ToArray();
+        GridPoint? firstWorkshopPosition = null;
+        var firstWorkshopFailures = new SortedDictionary<string, int>(StringComparer.Ordinal);
+        foreach (var position in reachableBuildSites)
+        {
+            var placement = seed.PlaceBuilding("a-workshop", workshop.CanonicalId, position);
+            if (!placement.Applied)
+            {
+                var failure = placement.Failure ?? "<no failure reason>";
+                firstWorkshopFailures[failure] = firstWorkshopFailures.GetValueOrDefault(failure) + 1;
+                continue;
+            }
+
+            firstWorkshopPosition = position;
+            break;
+        }
+        Assert.True(firstWorkshopPosition.HasValue,
+            $"No reachable first workshop site on {initial.Map.Width}x{initial.Map.Height} map " +
+            $"({reachableBuildSites.Length} candidate tiles). Placement failures: " +
+            string.Join("; ", firstWorkshopFailures.Select(item => $"{item.Key} ({item.Value})")));
+        GridPoint? secondWorkshopPosition = null;
+        var secondWorkshopFailures = new SortedDictionary<string, int>(StringComparer.Ordinal);
+        foreach (var position in reachableBuildSites.Where(position => position != firstWorkshopPosition.Value &&
+                     initial.Inhabitants.All(person => person.Position != position)))
+        {
+            var placement = seed.PlaceBuilding("z-workshop", workshop.CanonicalId, position);
+            if (!placement.Applied)
+            {
+                var failure = placement.Failure ?? "<no failure reason>";
+                secondWorkshopFailures[failure] = secondWorkshopFailures.GetValueOrDefault(failure) + 1;
+                continue;
+            }
+
+            secondWorkshopPosition = position;
+            break;
+        }
+        Assert.True(secondWorkshopPosition.HasValue,
+            $"No reachable second workshop site on {initial.Map.Width}x{initial.Map.Height} map " +
+            $"({reachableBuildSites.Length} candidate tiles). " +
+            $"Placement failures: {string.Join("; ", secondWorkshopFailures.Select(item => $"{item.Key} ({item.Value})"))}");
+        var state = seed.ExportState();
         // No role: a communal Workshop serves any Town resident.
         var society = state.Society.Society;
         Assert.Equal(SocietyWorkRole.Unassigned, society.GetInhabitant(actor).CurrentRole);
@@ -121,7 +169,7 @@ public sealed class ProjectInputBoundaryTests
             Society = state.Society with { Society = society with { Inventory = inventory } },
             Inhabitants = state.Inhabitants.Select(person => person with
             {
-                Position = person.InhabitantId == blocker ? new GridPoint(5, 0) : person.Position,
+                Position = person.InhabitantId == blocker ? firstWorkshopPosition.Value : person.Position,
                 HungerBasisPoints = 9_500,
             }).ToArray(),
         };
@@ -129,7 +177,7 @@ public sealed class ProjectInputBoundaryTests
         IDecisionProvider Provider(string id) => id == actor ? chooser : new Idle();
         using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)), Provider);
         Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-        Assert.True(chooser.SelectedRecipe);
+        Assert.True(chooser.SelectedRecipe, string.Join(", ", chooser.LastCandidateIds));
         var checkpoint = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState()));
         using var restored = reloadDuringProject ? PrivateWorldRuntime.Restore(checkpoint, Provider) : null;
         var continuing = restored ?? world;
@@ -138,7 +186,7 @@ public sealed class ProjectInputBoundaryTests
             Assert.True((await continuing.AdvanceOneTickAsync()).Advanced);
         Assert.Contains(continuing.WorldSimulation.ProductionJobs, job => job.WorkerId == actor &&
             job.BuildingInstanceId == "z-workshop" && job.State == WorldProductionJobState.Completed);
-        Assert.Equal(new GridPoint(5, 0), continuing.Inhabitants.Single(person => person.InhabitantId == blocker).Position);
+        Assert.Equal(firstWorkshopPosition.Value, continuing.Inhabitants.Single(person => person.InhabitantId == blocker).Position);
         Assert.DoesNotContain(continuing.WorldSimulation.ProductionJobs, job => job.WorkerId == actor && job.BuildingInstanceId == "a-workshop");
         Assert.Contains(continuing.Society.Inventory.Lots, lot => lot.OwnerId == "household:camp-alpha" && lot.ItemKind == "tool" && lot.Quantity > 0);
         _ = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(continuing.ExportState()));
@@ -147,10 +195,12 @@ public sealed class ProjectInputBoundaryTests
     private sealed class ToolChooser(string recipeCandidate) : IDecisionProvider
     {
         public bool SelectedRecipe { get; private set; }
+        public IReadOnlyList<string> LastCandidateIds { get; private set; } = [];
         public DecisionProviderKind Kind => DecisionProviderKind.Deterministic;
         public long ProviderEpoch => 0;
         public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
         {
+            LastCandidateIds = request.Observation.Candidates.Select(candidate => candidate.Id).ToArray();
             var choice = request.Observation.Candidates.FirstOrDefault(candidate => candidate.Id == recipeCandidate)
                 ?? request.Observation.Candidates.Single(candidate => candidate.Id == "safe_idle");
             SelectedRecipe |= choice.Id == recipeCandidate;

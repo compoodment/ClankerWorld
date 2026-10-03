@@ -50,6 +50,26 @@ public sealed class ViewerObservationTests
     }
 
     [Fact]
+    public async Task HostReportsNightDarknessFromTheWorldClockToTheClient()
+    {
+        using var runtime = new PrivateWorldRuntime("night-projection");
+        var store = new OwnerWorldObservationStore(runtime);
+        var options = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web);
+        int? ClientDarkness() => System.Text.Json.JsonSerializer.Deserialize<ClankerWorld.GodotClient.UI.OwnerWorldSnapshot>(
+            System.Text.Json.JsonSerializer.Serialize(store.GetSnapshot(), options), options)!.DarknessBasisPoints;
+
+        // A world's clock starts at midnight.
+        Assert.Equal(DaylightRules.FullDarkness, store.GetSnapshot().DarknessBasisPoints);
+        Assert.Equal(DaylightRules.FullDarkness, ClientDarkness());
+        while (DaylightRules.DarknessBasisPoints(runtime.WorldSystems) == DaylightRules.FullDarkness)
+            Assert.True((await runtime.AdvanceOneTickAsync()).Advanced);
+        var dawn = DaylightRules.DarknessBasisPoints(runtime.WorldSystems);
+        Assert.InRange(dawn, 1, DaylightRules.FullDarkness - 1);
+        Assert.Equal(dawn, store.GetSnapshot().DarknessBasisPoints);
+        Assert.Equal(dawn, ClientDarkness());
+    }
+
+    [Fact]
     public void ResourceProjectionCarriesAuthoritativeStockAndRegrowthIntoTheClient()
     {
         using var runtime = new PrivateWorldRuntime("ecology-projection");
@@ -96,7 +116,8 @@ public sealed class ViewerObservationTests
         Assert.Equal(household, field.HouseholdId);
         Assert.Equal("preparing", field.Stage);
         Assert.Equal(farmer, field.WorkerId);
-        Assert.Equal(5, field.WorkRemaining);
+        // Eight units of tilling, with two units per wooden-hoe work action.
+        Assert.Equal(2, field.WorkRemaining);
         Assert.Equal(miller, Assert.Single(snapshot.ProductionJobs).WorkerId);
         Assert.Equal(snapshot.ProductionJobs.Count, snapshot.WorldSystems!.ProductionJobCount);
         using var restored = FarmFieldTests.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(runtime.ExportState())));

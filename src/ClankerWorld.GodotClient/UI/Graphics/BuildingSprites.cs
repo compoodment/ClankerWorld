@@ -14,6 +14,7 @@ public enum BuildingKind : byte
     Storehouse,
     Hearth,
     TailorShop,
+    Store,
     Workshop,
     Path,
     Bedroll,
@@ -79,6 +80,7 @@ public static class BuildingSprites
         if (Has("silo")) return BuildingKind.Silo;
         if (Has("workshop")) return BuildingKind.Workshop;
         if (Has("tailor")) return BuildingKind.TailorShop;
+        if (Has("store")) return BuildingKind.Store;
         if ((Has("cooking") || Has("warmth")) && !Has("shelter")) return BuildingKind.Hearth;
         if (Has("storage")) return BuildingKind.Storehouse;
         if (Has("shelter")) return BuildingKind.Shelter;
@@ -379,6 +381,7 @@ public static class BuildingSprites
             BuildingKind.Farmhouse => new(Thatch, Material.Thatch, RoofShape.Hip, 69, Yard: 18, Clearance: 8),
             BuildingKind.Blacksmith => new(Slate, Material.Slate, RoofShape.Gable, 100, Yard: 20),
             BuildingKind.TailorShop => new(DyedShingle, Material.Shingle, RoofShape.Hip, 162),
+            BuildingKind.Store => new(Timber, Material.Shingle, RoofShape.Hip, 193, Clearance: 10),
             BuildingKind.Workshop => new(GreenPlank, Material.Plank, RoofShape.Gable, 379, Yard: 16),
             BuildingKind.Generic => new(Plain, Material.Shingle, RoofShape.Hip, 410),
             _ => null,
@@ -528,6 +531,10 @@ public static class BuildingSprites
                     var hammer = Inward(p, roof, door.Side, middle, 9);
                     HammerSign(p, hammer.X, hammer.Y);
                     nextRow = Door(p, roof, door.Side, middle, 3, 3);
+                    break;
+                case BuildingKind.Store:
+                    StoreAwning(p, roof, door.Side);
+                    nextRow = StepOnly(p, roof, door.Side, middle, 6, 3);
                     break;
                 case BuildingKind.Generic:
                     nextRow = Door(p, roof, door.Side, middle, 3, 3);
@@ -979,6 +986,68 @@ public static class BuildingSprites
             p.Put(x + 4, y + 1, Rock.Light);
             p.Put(x + 1, y + 4, Rock.Light);
             p.Fill(x + 2, y + 2, 2, 2, Soot);
+        }
+
+        /// <summary>
+        /// B3 Store: a striped awning over the door across the shop front,
+        /// sloping down toward the Road with a scalloped hem.
+        /// </summary>
+        private static void StoreAwning(Plate p, Rect2I roof, DoorSide side)
+        {
+            var depth = p.Small ? 3 : 6;
+            var inset = p.Small ? 1 : 2;
+            var area = side switch
+            {
+                DoorSide.North => new Rect2I(roof.Position.X + inset, roof.Position.Y - depth + 1, roof.Size.X - inset * 2, depth),
+                DoorSide.East => new Rect2I(roof.End.X - 1, roof.Position.Y + inset, depth, roof.Size.Y - inset * 2),
+                DoorSide.West => new Rect2I(roof.Position.X - depth + 1, roof.Position.Y + inset, depth, roof.Size.Y - inset * 2),
+                _ => new Rect2I(roof.Position.X + inset, roof.End.Y - 1, roof.Size.X - inset * 2, depth),
+            };
+            Awning(p, area, side, Berry);
+        }
+
+        /// <summary>
+        /// A striped canvas awning in <paramref name="area"/> (pixels), sloping
+        /// down toward <paramref name="front"/>. Stripes run down the slope; the
+        /// hem is a darker band whose stripe middles hang one pixel lower.
+        /// </summary>
+        private static void Awning(Plate p, Rect2I area, DoorSide front, Ramp stripe)
+        {
+            p.Fill(new Rect2I(area.Position.X + p.P(2), area.Position.Y + p.P(2), area.Size.X, area.Size.Y), Shadow);
+            var across = front is DoorSide.South or DoorSide.North;
+            var lit = front is DoorSide.North or DoorSide.West;
+            var width = p.Small ? 2 : 3;
+            int length = across ? area.Size.X : area.Size.Y, depth = across ? area.Size.Y : area.Size.X;
+            for (var i = 0; i < length; i++)
+                for (var j = 0; j < depth; j++)
+                {
+                    var striped = i / width % 2 == 0;
+                    var ramp = striped ? stripe : Cloth;
+                    var step = striped ? 2 : lit ? 4 : 3;
+                    Color c;
+                    if (j == depth - 1)
+                    {
+                        if (i % width != width / 2) continue;
+                        c = ramp[step - 1];
+                    }
+                    else if (j == depth - 2) c = ramp[step - 1];
+                    else if (j == 0 || i == 0 || i == length - 1) c = stripe.Edge;
+                    else c = ramp[step];
+                    var (x, y) = front switch
+                    {
+                        DoorSide.North => (area.Position.X + i, area.End.Y - 1 - j),
+                        DoorSide.East => (area.Position.X + j, area.Position.Y + i),
+                        DoorSide.West => (area.End.X - 1 - j, area.Position.Y + i),
+                        _ => (area.Position.X + i, area.Position.Y + j),
+                    };
+                    p.Put(x, y, c);
+                }
+        }
+
+        private static int StepOnly(Plate p, Rect2I roof, DoorSide side, int middle, int startRow, int stepRows)
+        {
+            var (from, to) = Span(p, middle, 3);
+            return Step(p, roof, side, from, to, p.Small ? startRow / 2 + 1 : startRow, p.Small ? 1 : stepRows);
         }
 
         /// <summary>Tailor shop: a cream sign board with a red thread spool between timber flanges.</summary>

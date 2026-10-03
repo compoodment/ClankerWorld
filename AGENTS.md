@@ -34,8 +34,9 @@ computment reads your chat replies, not GitHub comments, issues or pull request
 descriptions. Put whatever you need from them in your reply: a decision, an
 owner task, a go-ahead for something outside your job, or a problem you cannot
 solve. Give the options and your recommendation, highest priority first. Then
-record the answer yourself: a design choice in its game-design chapter, and a
-short comment on the issue saying it was the owner's answer. In the same step,
+record the answer yourself: a design choice in its game-design chapter, a
+workflow choice in CONTRIBUTING or its linked developer page, and a short
+comment on the issue saying it was the owner's answer. In the same step,
 remove `status:needs-decision` from the issue and from any pull request that
 waited on it. If nobody holds the issue (no `status:in-progress`) and it is not
 a decision or owner task, add `status:needs-pr` too.
@@ -133,6 +134,11 @@ parts of CONTRIBUTING named in its row and ends at a different point.
 
 What each job adds:
 
+- **Watching pull requests:** a fixing session may watch its own draft, and
+  stops watching when it marks it ready. A reviewer starts watching when it
+  claims a pull request, and stops when it merges, hands it back or its claim
+  lapses. An event on a pull request you no longer own is not a reason to push
+  or comment; if it needs the owner, say so in chat.
 - **Find bugs:** reproduce the problem on current main first, and say whether
   you saw it in the game or in code or tests. Fix it only if asked.
 - **Fix issues:** before you claim, check whether an owner decision outranks
@@ -151,6 +157,12 @@ What each job adds:
   or claim; say so in the pull request. Turn agreed work into Implementation
   issues: reuse an older issue if one covers it, and give new ones their
   [labels](CONTRIBUTING.md#labels), including `status:needs-pr`.
+  Implementation may start after the owner's explicit design approval, but
+  its pull request waits for the design pull request to merge, as described in
+  [Decisions](CONTRIBUTING.md#close-issues-when-the-work-merges).
+  When the owner requests a release, the preparing session also performs
+  the post-merge verification, tagging and publication steps in
+  [Releasing](docs/development/releasing.md#release-gate).
 
 ## Find the right source
 
@@ -165,6 +177,10 @@ Use the [documentation guide](docs/README.md) to choose the right page.
 | Change owner access or device credentials | [Device pairing](docs/development/device-pairing.md) |
 | Build, check or package a change | [Build and test](docs/development/build-and-test.md) |
 | Prepare an explicitly requested release | [Releasing](docs/development/releasing.md) |
+| Review, prune or add tests | [Test audit skill](skills/test-audit/SKILL.md) |
+
+The [skills folder](skills/README.md) holds step-by-step guides for jobs that
+come up again and again. When your task matches one, follow its `SKILL.md`.
 
 ## Report your result
 

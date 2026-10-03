@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Content;
@@ -165,6 +166,7 @@ public sealed partial class ViewerHttpTests
             string firstId;
             string generatedId;
             string deviceId;
+            PrivateWorldRuntimeState generatedLandState;
             using (var host = new ViewerWebApplicationFactory(directory.FullName, null,
                        privateWorld: true, legacyPrivateWorld: false))
             using (var client = host.CreateClient())
@@ -240,8 +242,12 @@ public sealed partial class ViewerHttpTests
                 Assert.True(runtime.Society.IsPaused);
                 Assert.Empty(runtime.Inhabitants);
                 Assert.Equal(0, runtime.WorldTick);
-                Assert.Equal(10, runtime.Content.Packages.Count);
+                Assert.Equal(14, runtime.Content.Packages.Count);
                 Assert.Contains(runtime.Content.Packages, package => package.Manifest.PackageId == PotteryContent.PackageId);
+                Assert.Contains(runtime.Content.Packages, package => package.Manifest.PackageId == RestaurantContent.PackageId);
+                Assert.Contains(runtime.Content.Packages, package => package.Manifest.PackageId == BusinessContent.PackageId);
+                Assert.Contains(runtime.Content.Packages, package => package.Manifest.PackageId == CareContent.PackageId);
+                Assert.Contains(runtime.Content.Packages, package => package.Manifest.PackageId == OrnamentContent.PackageId);
                 Assert.All(runtime.Content.Packages, package =>
                     Assert.Equal(ContentPackageLifecycle.Active, package.Lifecycle));
                 Assert.Contains(runtime.WorldContent.Buildings, building => building.LocalId == "house-1x1");
@@ -249,6 +255,8 @@ public sealed partial class ViewerHttpTests
                 Assert.Contains(runtime.WorldContent.Buildings, building => building.LocalId == "silo-1x1");
                 Assert.Contains(runtime.WorldContent.Buildings, building => building.LocalId == "farmhouse-1x1");
                 Assert.Contains(runtime.WorldContent.Buildings, building => building.LocalId == "blacksmith-1x2");
+                Assert.Contains(runtime.WorldContent.Buildings, building => building.LocalId == "restaurant-1x2");
+                Assert.Contains(runtime.WorldContent.Buildings, building => building.LocalId == "store-1x1");
                 Assert.Equal(WorldSizePreset.Small, runtime.ExportState().Geography?.Size);
                 Assert.Equal(256, runtime.ExportState().Map.Width);
                 Assert.Equal(GeographyGenerator.CurrentHydrologyVersion, runtime.ExportState().Geography!.HydrologyVersion);
@@ -273,6 +281,7 @@ public sealed partial class ViewerHttpTests
                 Assert.Equal(5, runtime.WorldSimulation.Buildings.Count);
                 Assert.NotEmpty(runtime.RoadTiles);
                 Assert.Equal(new GridPoint(preview.Camp.X, preview.Camp.Y), Assert.Single(runtime.Towns).OriginSite);
+                generatedLandState = runtime.ExportState();
                 Assert.Contains(townLog.Messages, message => message.Contains(
                     "first_town_layout outcome=accepted world_tick=0", StringComparison.Ordinal));
                 Assert.DoesNotContain(townLog.Messages, message => message.Contains(
@@ -379,11 +388,16 @@ public sealed partial class ViewerHttpTests
                 Assert.Equal(activeBytesBeforeRefusal, PrivateWorldRuntimeCodec.Encode(runtime.ExportState()));
                 File.WriteAllBytes(firstPath, originalBytes);
 
+                var originalCheckpoint = PrivateWorldRuntimeCodec.Decode(originalBytes);
+                Assert.NotEqual(JsonSerializer.Serialize(originalCheckpoint.TownLandTitles),
+                    JsonSerializer.Serialize(generatedLandState.TownLandTitles));
+
                 var select = new OwnerManualSaveAction("select-world", firstId);
                 using var selected = await SendSignedAsync(host, client, key, device.DeviceId,
                     "/api/v1/owner/worlds/select", select,
                     OwnerHttpBinding.ManualSavePayload(select));
                 Assert.Equal(HttpStatusCode.OK, selected.StatusCode);
+                AssertSavedTownLandRecordsMatch(originalCheckpoint, runtime.ExportState());
                 Assert.Null(runtime.ExportState().Geography);
                 Assert.True(runtime.Society.IsPaused);
                 Assert.Contains(providers.CaptureRuntimeConfiguration().Assignments ?? [],
@@ -394,6 +408,7 @@ public sealed partial class ViewerHttpTests
                     "/api/v1/owner/worlds/select", returnToGenerated,
                     OwnerHttpBinding.ManualSavePayload(returnToGenerated));
                 Assert.Equal(HttpStatusCode.OK, returned.StatusCode);
+                AssertSavedTownLandRecordsMatch(generatedLandState, runtime.ExportState());
             }
 
             using var restarted = new ViewerWebApplicationFactory(directory.FullName, null,
@@ -406,12 +421,20 @@ public sealed partial class ViewerHttpTests
             Assert.Equal(HttpStatusCode.OK, signedListAfterRestart.StatusCode);
             var restoredCatalog = restarted.Services.GetRequiredService<WorldCatalogStore>().Capture();
             Assert.Equal(generatedId, restoredCatalog.ActiveId);
+            AssertSavedTownLandRecordsMatch(generatedLandState,
+                restarted.Services.GetRequiredService<PrivateWorldRuntime>().ExportState());
             Assert.Equal(2, restoredCatalog.Worlds.Count);
             Assert.Contains(restoredCatalog.Worlds, world => world.Id == generatedId);
             var restoredRuntime = restarted.Services.GetRequiredService<PrivateWorldRuntime>();
             Assert.Equal(WorldSizePreset.Small, restoredRuntime.ExportState().Geography?.Size);
-            Assert.Equal(10, restoredRuntime.Content.Packages.Count);
+            Assert.Equal(14, restoredRuntime.Content.Packages.Count);
             Assert.Contains(restoredRuntime.Content.Packages, package => package.Manifest.PackageId == PotteryContent.PackageId);
+            Assert.Contains(restoredRuntime.Content.Packages, package => package.Manifest.PackageId == RestaurantContent.PackageId);
+            Assert.Contains(restoredRuntime.WorldContent.Buildings, building => building.LocalId == "restaurant-1x2");
+            Assert.Contains(restoredRuntime.Content.Packages, package => package.Manifest.PackageId == BusinessContent.PackageId);
+            Assert.Contains(restoredRuntime.Content.Packages, package => package.Manifest.PackageId == CareContent.PackageId);
+            Assert.Contains(restoredRuntime.Content.Packages, package => package.Manifest.PackageId == OrnamentContent.PackageId);
+            Assert.Contains(restoredRuntime.WorldContent.Buildings, building => building.LocalId == "store-1x1");
             Assert.Equal(5, restoredRuntime.WorldSimulation.Buildings.Count);
             Assert.NotEmpty(restoredRuntime.RoadTiles);
             var selectedOld = restarted.Services.GetRequiredService<WorldSelectionCoordinator>()
@@ -535,6 +558,18 @@ public sealed partial class ViewerHttpTests
                 Assert.True(host.Services.GetRequiredService<WorldAutosaveStore>().Capture().Enabled);
                 Assert.Equal(5, host.Services.GetRequiredService<WorldAutosaveStore>().Capture().IntervalMinutes);
                 Assert.False(host.Services.GetRequiredService<ManualWorldSaveStore>().Read(backupId).JevEnabled);
+                // The world left behind stays on the save's branch; playing on from
+                // the loaded save starts a second branch.
+                var branchStore = host.Services.GetRequiredService<ManualWorldSaveStore>();
+                var original = Assert.Single(branchStore.List(), item => item.Id == saveId);
+                Assert.Equal(original.Branch, Assert.Single(branchStore.List(), item => item.Id == backupId).Branch);
+                var afterLoad = new OwnerManualSaveAction("create", "After loading");
+                using var savedAfterLoad = await SendSignedAsync(host, client, key, device.DeviceId,
+                    createPath, afterLoad, OwnerHttpBinding.ManualSavePayload(afterLoad));
+                Assert.Equal(HttpStatusCode.OK, savedAfterLoad.StatusCode);
+                var branched = await savedAfterLoad.Content.ReadFromJsonAsync<ManualWorldSave>();
+                Assert.Equal(2, branched?.Branch?.Number);
+                Assert.Equal(saveId, branched?.Branch?.StartedFromId);
                 Assert.Contains(providers.CaptureRuntimeConfiguration().Assignments ?? [],
                     item => item.InhabitantId == "founder:checkpoint" && item.CredentialSlotId == slotId);
                 var statusAction = new OwnerControlAction("autosave-status");
@@ -744,5 +779,128 @@ public sealed partial class ViewerHttpTests
             Assert.Equal(0, reloaded.Capture().RotationCount);
         }
         finally { directory.Delete(recursive: true); }
+    }
+
+    [Fact]
+    public async Task BrowsingRunningAutosavesWithoutPlayingCreatesNoExtraBackupOrBranch()
+    {
+        var directory = Directory.CreateTempSubdirectory("browse-running-autosaves-");
+        try
+        {
+            using var host = new ViewerWebApplicationFactory(directory.FullName, privateWorld: true);
+            using var client = host.CreateClient();
+            using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+            var device = await StartAndActivateAsync(host, client, key);
+            var runtime = host.Services.GetRequiredService<PrivateWorldRuntime>();
+            var providers = host.Services.GetRequiredService<ProviderConfigurationStore>();
+            var autosave = host.Services.GetRequiredService<WorldAutosaveStore>();
+            var saves = host.Services.GetRequiredService<ManualWorldSaveStore>();
+            runtime.Resume();
+            Assert.True((await runtime.AdvanceOneTickAsync()).Advanced);
+            var first = saves.CreateAutosave(runtime, providers.CaptureRuntimeConfiguration().Assignments ?? [],
+                autosave.Capture());
+            Assert.True((await runtime.AdvanceOneTickAsync()).Advanced);
+            var second = saves.CreateAutosave(runtime, providers.CaptureRuntimeConfiguration().Assignments ?? [],
+                autosave.Capture());
+            Assert.False(saves.Read(first.Id).Society.Society.IsPaused);
+            Assert.False(saves.Read(second.Id).Society.Society.IsPaused);
+            var firstBytes = PrivateWorldRuntimeCodec.Encode(saves.Read(first.Id));
+            var secondBytes = PrivateWorldRuntimeCodec.Encode(saves.Read(second.Id));
+            runtime.Pause();
+
+            const string loadPath = "/api/v1/owner/saves/load";
+            var loadFirst = new OwnerManualSaveAction("load", first.Id);
+            using var firstResponse = await SendSignedAsync(host, client, key, device.DeviceId,
+                loadPath, loadFirst, OwnerHttpBinding.ManualSavePayload(loadFirst));
+            Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+            Assert.True(runtime.Society.IsPaused);
+            var beforeBrowsing = saves.List(runtime.Society.WorldId);
+
+            var loadSecond = new OwnerManualSaveAction("load", second.Id);
+            using var secondResponse = await SendSignedAsync(host, client, key, device.DeviceId,
+                loadPath, loadSecond, OwnerHttpBinding.ManualSavePayload(loadSecond));
+            Assert.Equal(HttpStatusCode.OK, secondResponse.StatusCode);
+            var receipt = await secondResponse.Content.ReadFromJsonAsync<ManualSaveLoadReceiptForTest>();
+            Assert.NotNull(receipt);
+            Assert.Equal(first.Id, receipt.BackupId);
+            Assert.Equal(second.WorldTick, runtime.WorldTick);
+            Assert.True(runtime.Society.IsPaused);
+            var afterBrowsing = saves.List(runtime.Society.WorldId);
+            Assert.Equal(beforeBrowsing.Select(save => save.Id).Order(), afterBrowsing.Select(save => save.Id).Order());
+            Assert.All(afterBrowsing, save => Assert.Equal(first.Branch, save.Branch));
+            Assert.Equal(firstBytes, PrivateWorldRuntimeCodec.Encode(saves.Read(first.Id)));
+            Assert.Equal(secondBytes, PrivateWorldRuntimeCodec.Encode(saves.Read(second.Id)));
+        }
+        finally { directory.Delete(recursive: true); }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task LoadingAnotherSavePreservesTheCurrentWorldWhenItsSourceCheckpointIsLost(bool damagedBody)
+    {
+        var directory = Directory.CreateTempSubdirectory("loaded-save-source-lost-");
+        try
+        {
+            using var host = new ViewerWebApplicationFactory(directory.FullName, privateWorld: true);
+            using var client = host.CreateClient();
+            using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+            var device = await StartAndActivateAsync(host, client, key);
+            var runtime = host.Services.GetRequiredService<PrivateWorldRuntime>();
+            var providers = host.Services.GetRequiredService<ProviderConfigurationStore>();
+            var autosave = host.Services.GetRequiredService<WorldAutosaveStore>();
+            var saves = host.Services.GetRequiredService<ManualWorldSaveStore>();
+            var stateFile = host.Services.GetRequiredService<PrivateWorldStateFile>();
+            runtime.Pause();
+            var first = saves.Create("Jev on", runtime,
+                providers.CaptureRuntimeConfiguration().Assignments ?? [], autosave.Capture());
+            runtime.SetJevEnabled(false);
+            var second = saves.Create("Jev off", runtime,
+                providers.CaptureRuntimeConfiguration().Assignments ?? [], autosave.Capture());
+            var secondBytes = PrivateWorldRuntimeCodec.Encode(saves.Read(second.Id));
+
+            const string loadPath = "/api/v1/owner/saves/load";
+            var loadFirst = new OwnerManualSaveAction("load", first.Id);
+            using var firstResponse = await SendSignedAsync(host, client, key, device.DeviceId,
+                loadPath, loadFirst, OwnerHttpBinding.ManualSavePayload(loadFirst));
+            Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+            Assert.True(runtime.JevEnabled);
+            var currentBytes = PrivateWorldRuntimeCodec.Encode(runtime.ExportState());
+            var sourcePath = Path.Combine(stateFile.Path + ".manual", first.Id + ".save");
+            var damagedBytes = Encoding.UTF8.GetBytes("{truncated checkpoint");
+            if (damagedBody) File.WriteAllBytes(sourcePath, damagedBytes);
+            else File.Delete(sourcePath);
+            Assert.True(File.Exists(Path.Combine(stateFile.Path + ".manual", first.Id + ".meta.json")));
+
+            var loadSecond = new OwnerManualSaveAction("load", second.Id);
+            using var secondResponse = await SendSignedAsync(host, client, key, device.DeviceId,
+                loadPath, loadSecond, OwnerHttpBinding.ManualSavePayload(loadSecond));
+            Assert.Equal(HttpStatusCode.OK, secondResponse.StatusCode);
+            var receipt = await secondResponse.Content.ReadFromJsonAsync<ManualSaveLoadReceiptForTest>();
+            Assert.NotNull(receipt);
+            Assert.Equal(second.Id, receipt.LoadedId);
+            Assert.NotEqual(first.Id, receipt.BackupId);
+            var backup = Assert.Single(saves.List(runtime.Society.WorldId), save => save.Id == receipt.BackupId);
+            Assert.Equal("Before loading", backup.Name);
+            Assert.Equal(currentBytes, PrivateWorldRuntimeCodec.Encode(saves.Read(backup.Id)));
+            Assert.False(runtime.JevEnabled);
+            Assert.True(runtime.Society.IsPaused);
+            Assert.Equal(secondBytes, PrivateWorldRuntimeCodec.Encode(runtime.ExportState()));
+            Assert.Equal(secondBytes, PrivateWorldRuntimeCodec.Encode(saves.Read(second.Id)));
+            if (damagedBody) Assert.Equal(damagedBytes, File.ReadAllBytes(sourcePath));
+            else Assert.False(File.Exists(sourcePath));
+        }
+        finally { directory.Delete(recursive: true); }
+    }
+
+    private static void AssertSavedTownLandRecordsMatch(PrivateWorldRuntimeState expected,
+        PrivateWorldRuntimeState actual)
+    {
+        Assert.Equal(JsonSerializer.Serialize(expected.TownLandTitles),
+            JsonSerializer.Serialize(actual.TownLandTitles));
+        Assert.Equal(JsonSerializer.Serialize(expected.HouseholdLandUseRights),
+            JsonSerializer.Serialize(actual.HouseholdLandUseRights));
+        Assert.Equal(JsonSerializer.Serialize(expected.HouseholdLandUseRequests),
+            JsonSerializer.Serialize(actual.HouseholdLandUseRequests));
     }
 }

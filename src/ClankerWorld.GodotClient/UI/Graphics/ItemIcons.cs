@@ -7,9 +7,10 @@ namespace ClankerWorld.GodotClient.UI;
 /// in three or four shades, and gets a one-pixel outline all the way round
 /// its silhouette, in a darker shade of whatever it borders, so the outline
 /// is always complete. Icons scale only by whole numbers (16, 32, 48 px) so
-/// they stay crisp. An item kind without its own icon yet (for example new
-/// content) shows a plain crate, so it is still counted. The set is the
-/// complete catalogue the owner approved in the art review, so many icons are
+/// they stay crisp. Related item kinds can share approved art; a kind with
+/// neither its own art nor a mapping shows a plain crate, so it is still
+/// counted. The set is the complete catalogue the owner approved in the art
+/// review, so many icons are
 /// for agreed items the simulation does not make yet, such as milk, the
 /// weapons, the handcart and the coin; they wait here until it does.
 /// </summary>
@@ -1342,21 +1343,39 @@ public static class ItemIcons
 
     /// <summary>
     /// Simulation item kinds shown with an approved icon kept under the art
-    /// review's name: the storage pot is the approved clay pot, and fresh
-    /// water carried in a jug is the approved water.
+    /// review's name: the storage pot uses the clay pot, fresh water uses
+    /// the water drop, and meals without distinct art use the food icon.
+    /// A kind's own art takes precedence over these mappings.
     /// </summary>
     private static readonly Dictionary<string, string> DrawnAs = new(StringComparer.Ordinal)
     {
         ["storage_pot"] = "clay_pot",
         ["fresh_water"] = "water",
+        ["simple_meal"] = "food",
+        ["berry_porridge"] = "food",
+        ["fruit_porridge"] = "food",
+        ["gold_ore"] = "gold",
+        ["stone_hammer"] = "hammer",
+        ["iron_sickle"] = "sickle",
+        ["iron_knife"] = "knife",
+        ["padded_coat"] = "cold_clothing",
+        ["rain_cloak"] = "wet_clothing",
     };
 
-    private static string Drawing(string kind) => DrawnAs.GetValueOrDefault(kind, kind);
+    static ItemIcons()
+    {
+        // Named wooden tools keep the approved silhouettes and handle colours,
+        // with the approved wooden head palette distinguishing their tier.
+        Icons["wooden_hammer"] = Icons["hammer"] with { Palette = Handle + " " + Cord + " " + WoodHead };
+        Icons["wooden_sickle"] = Icons["sickle"] with { Palette = Handle + " " + WoodHead + " wE6C77B k6E4E31" };
+    }
+
+    private static string Drawing(string kind) => Icons.ContainsKey(kind) ? kind : DrawnAs.GetValueOrDefault(kind, kind);
 
     /// <summary>The item kinds that have their own icon.</summary>
     public static IReadOnlyCollection<string> Kinds => Icons.Keys.Where(kind => kind != Fallback).ToArray();
 
-    /// <summary>Whether this kind has its own icon rather than the crate.</summary>
+    /// <summary>Whether this kind has its own or mapped icon rather than the crate.</summary>
     public static bool Has(string kind) => kind != Fallback && Icons.ContainsKey(Drawing(kind));
 
     public static ImageTexture Texture(string kind, int size)
@@ -1430,8 +1449,8 @@ public static class ItemIcons
 
     private static float Step(float channel) => Math.Clamp(MathF.Round(channel * 255f), 0f, 255f) / 255f;
 
-    /// <summary>Whether every row is 16 wide and no pixel touches the edge, so the outline fits.</summary>
-    public static bool FitsGrid(string kind) => Icons.TryGetValue(kind, out var icon) && icon.Rows.Length == Grid &&
+    /// <summary>Whether the kind's own or mapped art is 16 wide with an empty edge for its outline.</summary>
+    public static bool FitsGrid(string kind) => Icons.TryGetValue(Drawing(kind), out var icon) && icon.Rows.Length == Grid &&
         icon.Rows.All(row => row.Length == Grid) &&
         icon.Rows[0].All(pixel => pixel == '.') && icon.Rows[^1].All(pixel => pixel == '.') &&
         icon.Rows.All(row => row[0] == '.' && row[^1] == '.');

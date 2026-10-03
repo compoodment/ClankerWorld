@@ -15,6 +15,19 @@ internal enum TownTransitionKind
     BorderExpanded,
 }
 
+internal enum TownCivicTransitionKind
+{
+    CouncilChanged,
+    ElectionOpened,
+    RunoffOpened,
+    ProposalOpened,
+    DecisionRecorded,
+    ElectionCancelled,
+    LawRecorded,
+    GovernmentRecorded,
+    MayorRecorded,
+}
+
 /// <summary>Bounded operational outcomes for authoritative Town state changes.</summary>
 internal static partial class TownTelemetry
 {
@@ -28,6 +41,25 @@ internal static partial class TownTelemetry
         Message = "town_transition tick={WorldTick} town={TownId} transition={Transition} residents={ResidentCount} buildings={BuildingCount} border_tiles={BorderTileCount}")]
     private static partial void LogTownTransition(ILogger logger, long worldTick, string townId, TownTransitionKind transition,
         int residentCount, int buildingCount, int borderTileCount);
+
+    public static void Civic(ILogger logger, long worldTick, string townId, TownCivicTransitionKind transition,
+        bool representative, int members, string status, int yes, int no, int ballots) =>
+        LogTownCivic(logger, worldTick, townId, transition, representative, members, status, yes, no, ballots);
+
+    [LoggerMessage(EventId = 2290, Level = LogLevel.Information,
+        Message = "town_civic tick={WorldTick} town={TownId} transition={Transition} representative={Representative} members={Members} status={Status} yes={Yes} no={No} ballots={Ballots}")]
+    private static partial void LogTownCivic(ILogger logger, long worldTick, string townId, TownCivicTransitionKind transition,
+        bool representative, int members, string status, int yes, int no, int ballots);
+
+    /// <summary>A passed admission's outcome. IDs and counts only; never names or proposal text.</summary>
+    public static void Admission(ILogger logger, long worldTick, string townId, string outcome, string previousTownId,
+        int members, int residents) =>
+        LogTownAdmission(logger, worldTick, townId, outcome, previousTownId, members, residents);
+
+    [LoggerMessage(EventId = 2295, Level = LogLevel.Information,
+        Message = "town_admission tick={WorldTick} town={TownId} outcome={Outcome} previous_town={PreviousTownId} members={Members} residents={Residents}")]
+    private static partial void LogTownAdmission(ILogger logger, long worldTick, string townId, string outcome,
+        string previousTownId, int members, int residents);
 
     public static void SiteRejected(ILogger logger, long worldTick, string townId, string inhabitantId,
         string buildingId, int x, int y, string reason)
