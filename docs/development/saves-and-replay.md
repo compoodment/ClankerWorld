@@ -178,6 +178,17 @@ This version is provisional above the collection-source base and must be
 reconciled above its integrated base before merge. Older alpha saves are refused
 and preserved unchanged without migration.
 
+Private-world schema 61 adds `collect_food` orders using the existing
+`TargetFoodKind` and optional `TargetPosition` fields. Food targets are generic
+or one of berries, fruit, wild greens and cultivated greens. They use
+`food_items` for exact quantities or `collection_loads` for default pickups,
+with the same bounded `collect:personal:` receipts as material collection.
+Validation refuses mixed material, equipment, crop or resource targets, wrong
+progress units and unearned receipts. Queues, interruptions, cancellation and
+partial pickups retain their state across replay and rollback. This version
+is provisional above the field-location base until integration. Older alpha
+checkpoints are refused and preserved without migration.
+
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
 Matching parent assignments are disclosed as agreement; when they differ, the
@@ -436,7 +447,7 @@ blocked-return behavior. These checks use existing timestamps and add no saved
 fields, schema change or migration.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 60. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 61. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus

@@ -540,7 +540,8 @@ public sealed partial class PrivateWorldRuntime
             order.BlockedReason is { Length: > 256 } || order.BlockedReason?.Any(char.IsControl) == true ||
             order.LastEffectId is { Length: > 512 } || order.LastEffectId?.Any(char.IsControl) == true ||
             order.TargetResourceId is { Length: > 128 } || order.TargetResourceId?.Any(char.IsControl) == true ||
-            order.TargetFoodKind is not (null or "berries" or "fruit" or "wild_greens") ||
+            order.TargetFoodKind is not (null or "berries" or "fruit" or "wild_greens") &&
+                !(order.Action == "collect_food" && order.TargetFoodKind == "cultivated_greens") ||
             !IsFieldOrder(order.Action) && order.TargetCropKind is not null ||
             order.Action is not ("repair_equipment" or "repair_tool") && order.TargetEquipmentKind is not null ||
             order.Action is not ("gather_material" or "store_material" or "collect_material") && order.TargetMaterialKind is not null ||
@@ -578,14 +579,15 @@ public sealed partial class PrivateWorldRuntime
                 (order.Status == "finished") == (!order.RepeatUntilCancelled && order.CompletedUnits >= order.RequestedUnits) &&
                 (order.CompletedUnits == 0 ? order.LastEffectId is null : order.LastEffectId?.StartsWith(order.Action == "repair_tool" ? "repair:tool:" : "repair:equipment:", StringComparison.Ordinal) == true);
 
-        if (order.Action == "collect_material")
-            return PrivateWorldInstructionOrderParser.IsMaterialKind(order.TargetMaterialKind) &&
-                order.TargetFoodKind is null && order.TargetResourceId is null &&
+        if (order.Action is "collect_material" or "collect_food")
+            return (order.Action == "collect_material"
+                    ? PrivateWorldInstructionOrderParser.IsMaterialKind(order.TargetMaterialKind) && order.TargetFoodKind is null
+                    : order.TargetMaterialKind is null) && order.TargetResourceId is null &&
                 order.RequestedUnits is >= 1 and <= 1000 && order.CompletedUnits is >= 0 and <= 1_000_000 &&
                 (order.RepeatUntilCancelled || order.CompletedUnits <= order.RequestedUnits) &&
                 order.Status != "not_understood" &&
                 (order.Status == "finished") == (!order.RepeatUntilCancelled && order.CompletedUnits >= order.RequestedUnits) &&
-                (order.QuantityIsExplicit ? order.ProgressUnit == "material_items" : order.ProgressUnit == "collection_loads" && order.RequestedUnits == 1) &&
+                (order.QuantityIsExplicit ? order.ProgressUnit == (order.Action == "collect_food" ? "food_items" : "material_items") : order.ProgressUnit == "collection_loads" && order.RequestedUnits == 1) &&
                 (order.CompletedUnits == 0 ? order.LastEffectId is null : order.LastEffectId?.StartsWith("collect:personal:", StringComparison.Ordinal) == true);
 
         if (order.Action == "store_material")
