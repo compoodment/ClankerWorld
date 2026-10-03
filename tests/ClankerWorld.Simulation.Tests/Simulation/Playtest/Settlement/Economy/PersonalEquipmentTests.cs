@@ -176,6 +176,18 @@ public sealed class PersonalEquipmentTests
         if (kind == "sack")
             state = WithInventory(state, InventoryFixture.AddLot(state.Society.Society.Inventory,
                 "sack-rope", "rope", Alpha, 1, storageBuildingId: "first-town-house-a"));
+        // The House keeps two real rope/basket batches. The original inputs
+        // above remain the surplus that this scenario carries into the Tailor.
+        inventory = InventoryFixture.AddLot(state.Society.Society.Inventory,
+            "zz-tailor-house-fiber-reserve", "fiber", Alpha, 6, storageBuildingId: "first-town-house-a");
+        var sourceReserves = new List<InventoryLot> { inventory.GetLot("zz-tailor-house-fiber-reserve") };
+        if (kind == "sack")
+        {
+            inventory = InventoryFixture.AddLot(inventory,
+                "zz-tailor-house-rope-reserve", "rope", Alpha, 2, storageBuildingId: "first-town-house-a");
+            sourceReserves.Add(inventory.GetLot("zz-tailor-house-rope-reserve"));
+        }
+        state = WithInventory(state, inventory);
         var systems = state.WorldSystems!;
         state = state with
         {
@@ -211,6 +223,7 @@ public sealed class PersonalEquipmentTests
             for (var tick = 0; tick < tickLimit; tick++)
             {
                 Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+                AssertSourceReserves(world);
                 if (!reopened && world.WorldSimulation.ProductionJobs.Any(job =>
                         job.RecipeId == target.CanonicalId && job.State == WorldProductionJobState.Running))
                 {
@@ -246,9 +259,16 @@ public sealed class PersonalEquipmentTests
                 PrivateWorldRuntimeCodec.Encode(world.ExportState())), Provider);
             Assert.Equal(world.Inhabitants.Single(person => person.InhabitantId == actor).Equipment,
                 savedWorld.Inhabitants.Single(person => person.InhabitantId == actor).Equipment);
+            AssertSourceReserves(savedWorld);
             savedWorld.Validate();
         }
         finally { world.Dispose(); }
+
+        void AssertSourceReserves(PrivateWorldRuntime current) => Assert.All(sourceReserves, expected =>
+        {
+            var actual = current.Society.Inventory.GetLot(expected.Id);
+            Assert.Equal(expected with { LastProcessedTick = actual.LastProcessedTick }, actual);
+        });
     }
 
     [Fact]

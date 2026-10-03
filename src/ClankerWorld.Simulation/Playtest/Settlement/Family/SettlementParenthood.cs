@@ -42,17 +42,31 @@ public sealed partial class PrivateWorldRuntime
     private bool FamilyResourcesReady(string actor) =>
         society.Checkpoint.GetInhabitant(actor).HouseholdId is not null &&
         AccessibleShelters(actor).Any() &&
-        society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == HouseholdFor(actor) &&
-            IsEdibleFood(lot.ItemKind) && InUsableVesselOrLoose(lot))
+        BirthFoodSources(actor)
             .Sum(AvailableLotQuantity) >= society.Checkpoint.Inhabitants.Count(person => person.HouseholdId == HouseholdFor(actor) &&
                 person.Status == SocietyInhabitantStatus.Active) * 2 + 4 &&
         BirthFood(actor) is not null;
 
     // Birth reserves and consumes its food in place, which the inventory
     // allows for food in a usable storage pot as well as loose food.
-    private InventoryLot? BirthFood(string actor) => society.Checkpoint.Inventory.Lots.FirstOrDefault(lot =>
-        lot.OwnerId == HouseholdFor(actor) && InUsableVesselOrLoose(lot) &&
-        IsEdibleFood(lot.ItemKind) && AvailableLotQuantity(lot) >= 4);
+    private IEnumerable<InventoryLot> BirthFoodSources(string actor) => society.Checkpoint.Inventory.Lots.Where(lot =>
+        lot.OwnerId == HouseholdFor(actor) && (lot.CarrierId is null || lot.CarrierId == actor) &&
+        InUsableVesselOrLoose(lot) &&
+        IsEdibleFood(lot.ItemKind) && AvailableLotQuantity(lot) > 0).OrderBy(lot => lot.Id, StringComparer.Ordinal);
+
+    private List<SocietyBirthFoodContribution>? BirthFood(string actor)
+    {
+        var remaining = 4;
+        var contributions = new List<SocietyBirthFoodContribution>();
+        foreach (var lot in BirthFoodSources(actor))
+        {
+            var quantity = Math.Min(remaining, AvailableLotQuantity(lot));
+            contributions.Add(new(lot.Id, quantity));
+            remaining -= quantity;
+            if (remaining == 0) return contributions;
+        }
+        return null;
+    }
 
     private bool InUsableVesselOrLoose(InventoryLot lot) => lot.ContainerLotId is not { } containerId ||
         society.Checkpoint.Inventory.GetLot(containerId).ConditionBasisPoints > 0;
@@ -285,11 +299,12 @@ public sealed partial class PrivateWorldRuntime
             var householdCaregivers = new[] { person.InhabitantId, plan.PartnerId }
                 .Where(parent => HouseholdFor(parent) == birthHouseholdId)
                 .Append(caregiverId).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
+            var birthFood = BirthFood(caregiverId)!;
             society.Apply(checkpoint => SocietyFixture.CommitBirth(checkpoint,
                 new(requestId, 1, person.InhabitantId, plan.PartnerId, birthHouseholdId,
-                    householdCaregivers, [person.InhabitantId, plan.PartnerId], BirthFood(caregiverId)!.Id, 4, WorldTick,
+                    householdCaregivers, [person.InhabitantId, plan.PartnerId], birthFood[0].LotId, 4, WorldTick,
                     ChildName: $"{ChildNames[society.Checkpoint.Births.Count % ChildNames.Length]} {society.Checkpoint.Births.Count + 1}",
-                    PrimaryCaregiverId: caregiverId)));
+                    PrimaryCaregiverId: caregiverId, FoodContributions: birthFood)));
             var birth = society.Checkpoint.Births.FirstOrDefault(item => item.RequestId == requestId);
             if (birth is null)
             {
