@@ -1,0 +1,1 @@
+- Agents can follow "Move to tile (12, 4)" orders through normal walking routes. Trips support Queue and Cancel task, wait for blocked destinations, and resume after urgent needs or save/reload. They finish only on the requested tile. This uses a new alpha save format; older saves are refused and kept unchanged.

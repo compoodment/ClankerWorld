@@ -235,6 +235,11 @@ everything that is available in the current build. See [what works today](../wha
     - **You are here** is an orange camp marker at the end of a dotted line.
     - The row above the timeline holds a key to the points (newest on its
       branch, save, autosave) beside the switch, instead of a line of counts.
+    - **Agreed later on October 2:** Save World shows the same timeline under
+      its **New save** box, with the same switch. With no save chosen, the
+      card underneath says where the new save goes: on along a branch, or
+      starting a new one. Choosing a save offers **Overwrite**. Autosaves are
+      drawn but can't be chosen there, because they can't be overwritten.
 - **Agreed on September 30:** panels and confirmation dialogs fit what they
   hold rather than keeping a fixed size with empty space. A panel with long
   text stays on screen and scrolls that text; a long dialog message wraps.
@@ -514,6 +519,12 @@ The recent history should persist with the world save but remain bounded.
 - **Straight top-down** is the chosen art perspective for now: show the tops of
   objects, not isometric sides. Isometric would need a visual comparison before
   reconsideration, and no second isometric asset library is currently planned.
+- **Agreed on October 2:** computment likes the map's square-tile look, which
+  gives the game its own character, so keep it. Coastlines and rivers keep
+  their stepped, tile-by-tile shapes, and forests keep one tree to a tile on
+  their square forest ground; none of them should be smoothed into curves or
+  scattered. All art stays straight top-down: buildings show their roofs, not
+  front walls drawn at an angle.
 - For a given terrain surface, start with roughly **two texture tiles**—for
   example, clean grass and a subtly different grass tile. Small ground details
   belong mainly in those textures, rather than being a large set of separate

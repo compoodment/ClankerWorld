@@ -35,6 +35,7 @@ public static class OwnerPairingEndpoints
     public const string ChallengeIssue = "/api/v1/owner/challenges";
     public const string OwnerReconnect = "/api/v1/owner/reconnect";
     public const string OwnerPause = "/api/v1/owner/control/pause";
+    public const string OwnerDeveloperEdit = "/api/v1/owner/developer-edit";
     public const string OwnerLifePace = "/api/v1/owner/control/life-pace";
     public const string OwnerJevAssistance = "/api/v1/owner/control/jev-assistance";
     public const string OwnerResume = "/api/v1/owner/control/resume";
@@ -43,6 +44,7 @@ public static class OwnerPairingEndpoints
     public const string OwnerSaveCreate = "/api/v1/owner/saves/create";
     public const string OwnerSaveOverwrite = "/api/v1/owner/saves/overwrite";
     public const string OwnerSaveLoad = "/api/v1/owner/saves/load";
+    public const string OwnerSaveTimeline = "/api/v1/owner/saves/timeline";
     public const string OwnerWorldList = "/api/v1/owner/worlds/list";
     public const string OwnerWorldCreate = "/api/v1/owner/worlds/create";
     public const string OwnerWorldPreview = "/api/v1/owner/worlds/preview";

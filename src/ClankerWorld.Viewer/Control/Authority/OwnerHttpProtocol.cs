@@ -50,6 +50,9 @@ public sealed record OwnerWorldCreationAction(string Name, string Seed, string S
     int? CandidateAttempt = null, string? ExpectedManifestDigest = null,
     string? ExpectedMapLayersDigest = null, bool AcceptUnmetTargets = false);
 public sealed record OwnerAutosaveConfigurationAction(bool Enabled, int IntervalMinutes, int RotationCount);
+public sealed record OwnerDeveloperEditAction(string WorldId, long ExpectedEventId, string AgentId,
+    string Operation, string Value, int Amount = 0, string? OtherAgentId = null);
+
 public sealed record OwnerLifePaceAction(int Rate);
 public sealed record OwnerJevAssistanceAction(bool Enabled);
 
@@ -286,6 +289,16 @@ public static class OwnerHttpBinding
         $"enabled={action.Enabled.ToString().ToLowerInvariant()}",
         $"interval-minutes={action.IntervalMinutes.ToString(CultureInfo.InvariantCulture)}",
         $"rotation-count={action.RotationCount.ToString(CultureInfo.InvariantCulture)}");
+
+    public static string DeveloperEditPayload(OwnerDeveloperEditAction action) => string.Join(
+        '\n', "clankerworld.owner-developer-edit.v1",
+        $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}",
+        $"expected-event-id={action.ExpectedEventId.ToString(CultureInfo.InvariantCulture)}",
+        $"agent-id={EncodeRequired(action.AgentId, nameof(action.AgentId))}",
+        $"operation={EncodeRequired(action.Operation, nameof(action.Operation))}",
+        $"value={EncodeRequired(action.Value, nameof(action.Value))}",
+        $"amount={action.Amount.ToString(CultureInfo.InvariantCulture)}",
+        $"other-agent-id={EncodeOptional(action.OtherAgentId)}");
 
     public static string LifePacePayload(OwnerLifePaceAction action) =>
         "clankerworld.owner-life-pace.v1\nrate=" + action.Rate.ToString(CultureInfo.InvariantCulture);
