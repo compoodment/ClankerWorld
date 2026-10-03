@@ -138,8 +138,10 @@ not by themselves request another paid decision. Pending work is kept only for
 a choice the earlier request lacked, a change in urgent hunger or warmth, or new
 observer guidance; choices that merely disappeared leave the accepted reply
 valid. An agent whose reply was accepted takes no extra waiting routine in that
-tick, and pending work with no call in flight is always rebuilt before it is
-sent, so a finished order never reaches the model again. Pending observations survive
+tick, and pending work with no call in flight is rebuilt before it is sent, so
+a finished order the model has already seen never reaches it again. An order
+that finished before its first request went out still sends that exact message,
+so the agent can acknowledge it. Pending observations survive
 save/load and are refreshed for the resumed world before dispatch. The usual
 request, provider, conversation and legal-choice checks still reject stale
 replies.

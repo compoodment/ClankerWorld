@@ -278,9 +278,10 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
-    // Queued work with no call in flight is always rebuilt before dispatch. The
-    // finished-order exception applies only to a reply already in flight.
+    // Queued work with no call in flight is rebuilt before dispatch, except an
+    // order that finished before the model ever saw it: its exact message is still sent.
     private bool IsQueuedObservationReady(InhabitantObservation observation) =>
+        IsUndeliveredFinishedOrderDecision(observation) ||
         observation.WorldTick == WorldTick &&
         string.Equals(observation.ConversationChoiceContext,
             ConversationChoiceContextFor(observation.InhabitantId), StringComparison.Ordinal);

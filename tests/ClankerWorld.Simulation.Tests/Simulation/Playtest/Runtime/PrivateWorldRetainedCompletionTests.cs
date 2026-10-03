@@ -102,6 +102,97 @@ public sealed partial class PrivateWorldRuntimeTests
         Assert.Equal(2, provider.CallCount);
     }
 
+    [Fact]
+    public async Task AnOrderThatFinishesBeforeItsRequestIsSentStillReachesTheModel()
+    {
+        var actorProvider = new ImmediateOrderReplyProvider();
+        var blocker = new HoldingProvider();
+        using var setup = CreateKnownBerryOrderWorld(_ => new DeterministicDecisionProvider());
+        var state = setup.ExportState();
+        var farStand = FarFromBerries(state, 7, 40);
+        state = state with
+        {
+            Inhabitants = state.Inhabitants.Select(item => item.InhabitantId == HarvestInstructionActor
+                ? item with { Position = farStand, HungerBasisPoints = 10_000 }
+                : item).ToArray(),
+        };
+        var blockerId = state.Society.Society.Inhabitants
+            .Where(item => item.Id != HarvestInstructionActor && item.AgeBand != ClankerWorld.Simulation.Society.SocietyAgeBand.Infant)
+            .Select(item => item.Id).OrderBy(item => item, StringComparer.Ordinal).First();
+        using var world = PrivateWorldRuntime.Restore(state, id => id == HarvestInstructionActor
+            ? actorProvider
+            : id == blockerId ? blocker : new DeterministicDecisionProvider(), maxCognitionDispatchPerCycle: 1);
+        for (var tick = 0; tick < 400 && !blocker.Started.Task.IsCompleted; tick++)
+        {
+            Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+            await Task.Delay(5);
+        }
+        Assert.True(blocker.Started.Task.IsCompleted);
+        var callsBefore = actorProvider.CallCount;
+        var order = world.SubmitInstruction(new OwnerInstructionRequest("queued-harvest", "owner:test",
+            HarvestInstructionActor, OwnerInstructionKind.MustDo, "gather 2 berries from berry-patch"));
+        for (var tick = 0; tick < 80 && Assert.Single(world.ExportState().Instructions!,
+                 item => item.InstructionId == order.InstructionId).Order!.Status != "finished"; tick++)
+            Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+        Assert.Equal("finished", Assert.Single(world.ExportState().Instructions!,
+            item => item.InstructionId == order.InstructionId).Order!.Status);
+        Assert.Equal(callsBefore, actorProvider.CallCount);
+        // One more tick after it finished while still queued.
+        Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+
+        blocker.Release.TrySetResult(true);
+        for (var tick = 0; tick < 12; tick++)
+        {
+            Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+            await Task.Delay(20);
+        }
+        var saved = Assert.Single(world.ExportState().Instructions!, item => item.InstructionId == order.InstructionId);
+        var sawOrder = actorProvider.Requests.Any(request =>
+            request.ObserverGuidance?.Any(message => message.InstructionId == order.InstructionId) == true);
+        Assert.True(sawOrder, $"order never reached the model; calls={actorProvider.CallCount - callsBefore} observed={saved.ObservedTick} reply={saved.ObserverReply}");
+        Assert.NotNull(saved.ObservedTick);
+        Assert.Equal("On it.", saved.ObserverReply);
+    }
+
+    private sealed class ImmediateOrderReplyProvider : IDecisionProvider
+    {
+        private int callCount;
+        public DecisionProviderKind Kind => DecisionProviderKind.LargeLanguageModel;
+        public long ProviderEpoch => 1;
+        public int CallCount => Volatile.Read(ref callCount);
+        public ConcurrentQueue<InhabitantObservation> Requests { get; } = new();
+
+        public ValueTask<CognitionDecisionResponse> DecideAsync(
+            CognitionDecisionRequest request, CancellationToken cancellationToken = default)
+        {
+            request.Validate();
+            Interlocked.Increment(ref callCount);
+            Requests.Enqueue(request.Observation);
+            var replies = (request.Observation.ObserverGuidance ?? [])
+                .Where(item => item.ReplyAllowed)
+                .Select(item => new CognitionObserverReply(item.InstructionId, "On it."))
+                .ToArray();
+            return ValueTask.FromResult(HostedResponse(request, Kind, ProviderEpoch, "seek_food", replies));
+        }
+    }
+
+    private sealed class HoldingProvider : IDecisionProvider
+    {
+        public DecisionProviderKind Kind => DecisionProviderKind.LargeLanguageModel;
+        public long ProviderEpoch => 1;
+        public TaskCompletionSource<bool> Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<bool> Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async ValueTask<CognitionDecisionResponse> DecideAsync(
+            CognitionDecisionRequest request, CancellationToken cancellationToken = default)
+        {
+            request.Validate();
+            Started.TrySetResult(true);
+            await Release.Task.WaitAsync(cancellationToken);
+            return HostedResponse(request, Kind, ProviderEpoch, "safe_idle");
+        }
+    }
+
     private static GridPoint FarFromBerries(PrivateWorldRuntimeState state, int nearest, int farthest)
     {
         var source = state.Map.Resources.Single(item => item.Id == "berry-patch");

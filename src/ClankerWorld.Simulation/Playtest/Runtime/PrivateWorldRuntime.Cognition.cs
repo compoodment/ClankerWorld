@@ -38,7 +38,8 @@ public sealed partial class PrivateWorldRuntime
             .Where(entry => waitingHosted.Contains(entry.InhabitantId) &&
                 entry.Observation.OperativeOrderInstructionId is not null &&
                 IsOrderDecisionObservationCurrent(entry.Observation) &&
-                !awaitingDispatch.Contains(entry.InhabitantId))
+                (!awaitingDispatch.Contains(entry.InhabitantId) ||
+                 IsUndeliveredFinishedOrderDecision(entry.Observation)))
             .Select(entry => entry.InhabitantId)
             .ToHashSet(StringComparer.Ordinal);
         var staleOrderDecisions = cognitionState.Queue
@@ -225,6 +226,10 @@ public sealed partial class PrivateWorldRuntime
         observation.RunEpoch == society.Checkpoint.RunEpoch &&
         (observation.OperativeOrderInstructionId == PendingInstructionFor(observation.InhabitantId)?.InstructionId ||
             IsFinishedOrderDecisionAwaitingReply(observation));
+
+    private bool IsUndeliveredFinishedOrderDecision(InhabitantObservation observation) =>
+        IsFinishedOrderDecisionAwaitingReply(observation) && instructionsByIdempotency.Values.Any(item =>
+            item.InstructionId == observation.OperativeOrderInstructionId && item.ObservedTick is null);
 
     private bool IsFinishedOrderDecisionAwaitingReply(InhabitantObservation observation)
     {
