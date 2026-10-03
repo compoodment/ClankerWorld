@@ -65,6 +65,18 @@ period. Returning makes no offline progress; a manually paused world stays
 paused. New worlds use six-minute days and a 40-day year as the current playtest
 pace, subject to model/server load.
 
+Every world day has a night covering 40% of it, the same all year: 19:12 to
+04:48 on the clock, about 2 min 24 s of a six-minute day, with an hour-long
+dusk and dawn fade (15 seconds each at that pace). A new world starts at
+midnight, so founder setup happens at night. At night the map darkens with a
+gentle blue wash at every zoom, under map names, agents and weather, and it is
+colder outdoors (see [Life, work and society](#life-work-and-society)). Night
+adds no rules of its own: agents need no sleep or energy, and nothing limits
+their choices or travel at night; they only react to the cold. The night chill
+is a provisional amount for playtesting, and night has not been checked by hand
+in the Windows game yet. Night effects on weather and night length that changes
+with the seasons are not built.
+
 ## Agents and their models
 
 Each starting agent has a provider, model and key assignment. Stored keys can
@@ -198,7 +210,7 @@ summaries remain unfinished.
 
 | Feature | Status | Current limits |
 | --- | --- | --- |
-| Food, warmth, illness, clothing and shelter | Available in the game | Basic diet/recovery. Agents treat 40% fullness and 60% warmth as comfortable, and survival becomes urgent below 20% fullness, or below 35% warmth while exposure continues. These are provisional values ([#140](https://github.com/compoodment/ClankerWorld/issues/140)). No energy meter or sleep. Medicine supports gradual illness recovery, described below. |
+| Food, warmth, illness, clothing and shelter | Available in the game | Basic diet/recovery. Agents treat 40% fullness and 60% warmth as comfortable, and survival becomes urgent below 20% fullness, or below 35% warmth while exposure continues. These are provisional values ([#140](https://github.com/compoodment/ClankerWorld/issues/140)). Nights are colder outdoors by a provisional amount; clothing, shelter and a lit fire help at night as they do by day ([#673](https://github.com/compoodment/ClankerWorld/issues/673)). No energy meter or sleep. Medicine supports gradual illness recovery, described below. |
 | Gathering and carrying | Basic version | Agents gather named berries, wild greens and orchard fruit, keep a hearth burning, and collect shared tools. Field harvests remain on their tiles until carried. Agents carry raw crops and seeds to private Farmhouse/Silo storage, ready-to-eat greens and fruit to the House, flour back to the House, and wood and iron ore into the Blacksmith. |
 | Farming and crafting | Basic version | Adults from a household holding a Farmhouse use wooden or iron hoes to prepare fertile land, carry grain seed, potatoes or cultivated-green seed, tend the crop and harvest it. Illness slows field work and tool wear. Planting supplies stay held until the work finishes or is interrupted. Wooden and iron sickles make harvesting faster. Fields show each stage on the map and overview; inspection names the soil's fertility and the household. Harvests stay on the field, with planting stock reserved for another crop, until physically carried into finite private farm storage. Orchard seeds grow saplings that mature and fruit in autumn. The household holding a Blacksmith makes and repairs tools from real materials: axes fell trees, pickaxes unlock finite stone, iron and rare deposits, and hammers speed building work. Iron knives speed food preparation and suitable crafting. Tools wear during successful work; loose fallen wood can be gathered by hand if an axe breaks. Adults carry needed grain back from their Silo to the Farmhouse, where it mills into flour. A Tailor Shop makes cloth and clothing. If a household workshop recipe cannot get its ingredients, it pauses so an adult can choose another task; its saved plan can resume when supplies return to the building. Rates remain provisional. |
 | Clay, pottery and water | Basic version | A household can dig finite clay and make storage pots and water jugs at its House. A pot holds up to 8 food and slows spoilage; hungry household children, adolescents and adults, and caregivers feeding an infant, take ready-to-eat servings from it. A jug holds up to 4 fresh water, which an adult can collect from a reachable riverbank or lakeshore and return to the House. Collecting a jug requires carrying room for the jug, its contents and some water. The Clinic uses delivered fresh water to make medicine, leaving the jug reusable. The related [empty-vessel return fix](https://github.com/compoodment/ClankerWorld/issues/749) carries empty household pots and jugs from workstations back to the House; automated checks cover its return and reuse. Cooking and animal-care uses remain unfinished. |
@@ -444,7 +456,7 @@ storm lasts at most three-quarters of a day, and that region then gets at least
 half a day without another. Rain nearby makes rain a little more likely. These
 values are a prototype for playtesting ([#204](https://github.com/compoodment/ClankerWorld/issues/204)).
 Recent rain gives a modest soil-moisture estimate. The map shows rain, snow, storms and optional
-haze/flashes. Drifting visual edges do not mean weather fronts actually move
+haze/flashes, and darkens gently at night. Drifting visual edges do not mean weather fronts actually move
 between regions yet.
 
 The map uses the pixel art approved in the October 1 art review: every ground

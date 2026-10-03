@@ -148,6 +148,11 @@ public partial class Main
 
         mapStage.AddChild(terrainLayer);
 
+        // Night darkens the ground but not the labels, agents and weather above it.
+        nightLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        nightLayer.Follow(terrainLayer);
+        mapStage.AddChild(nightLayer);
+
         objectLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         objectLayer.MouseFilter = Control.MouseFilterEnum.Ignore;
         mapStage.AddChild(objectLayer);

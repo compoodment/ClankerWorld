@@ -13,6 +13,50 @@ public sealed class HouseholdDepartureTests
     private const string Beta = "household:camp-beta";
 
     [Fact]
+    public async Task CurrentResidentCanDeliberatelyCollectPersonalGoodsAfterReload()
+    {
+        var provider = new Choices();
+        using var initial = NormalPathWorld.CreateGenerated("personal-home-collection", _ => provider);
+        initial.Pause();
+        var actor = initial.Society.GetHousehold(Alpha).MemberIds[0];
+        var house = initial.WorldSimulation.Buildings.Single(building => building.InstanceId == "first-town-house-a");
+        var state = initial.ExportState();
+        var inventory = state.Society.Society.Inventory;
+        var kinds = new[] { "field_map", "field_record", "food", "wooden_axe", "clothing" };
+        var fact = new AgentKnowledgeFact("personal-collection-fact", actor, actor, house.Position,
+            state.Map.TerrainKindAt(house.Position)!.Value.ToString(), [], initial.WorldTick, "firsthand");
+        var artifacts = kinds.Take(2).Select(kind => new AgentKnowledgeArtifact(
+            "personal-artifact-" + kind, actor, "personal-" + kind, kind, "Personal field notes",
+            initial.WorldTick, [fact])).ToArray();
+        foreach (var kind in kinds)
+            inventory = InventoryFixture.AddLot(inventory, "personal-" + kind, kind, actor, 1,
+                storageBuildingId: house.InstanceId);
+        state = WithInventory(state, inventory) with
+        {
+            Knowledge = new PrivateWorldKnowledgeState([fact], artifacts),
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with { Position = house.Position, HungerBasisPoints = 9_000, LastDecisionContext = null }
+                : person).ToArray(),
+        };
+        var saved = PrivateWorldRuntimeCodec.Encode(state);
+        using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), _ => provider);
+        Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+        world.Resume();
+        foreach (var kind in kinds)
+        {
+            var lotId = "personal-" + kind;
+            provider.Wanted[actor] = "household_collect:" + lotId;
+            await AdvanceUntil(world, () => PersonalEquipmentRules.IsCarried(world.Society.Inventory.GetLot(lotId), actor));
+            Assert.Equal(actor, world.Society.Inventory.GetLot(lotId).OwnerId);
+            Assert.Equal(Alpha, world.Society.GetInhabitant(actor).HouseholdId);
+        }
+        world.Validate();
+        var collected = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(collected), _ => provider);
+        Assert.Equal(collected, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+    }
+
+    [Fact]
     public async Task VoluntaryDeparturePreservesPropertyTownAndOnceOnlyPhysicalAllowanceAcrossReload()
     {
         var provider = new Choices();
