@@ -85,9 +85,10 @@ error; the world, its message numbering and its save stay unchanged. These are
 the same limits a save applies, so an accepted message cannot leave the world
 unable to save.
 
-`ParseInstructionOrder` reads a complete, bounded food-task grammar: eating food,
-seeking a food source, and harvesting food. Harvest and travel orders must name
-food (or a supported food resource); explicit resource names must match a
+`ParseInstructionOrder` reads a complete, bounded grammar for eating food,
+seeking a food source, harvesting food and moving to an exact tile. Food harvest
+and food-source travel orders must name food (or a supported food resource);
+explicit resource names must match a
 complete identifier, and food kinds must match that resource. Unsupported
 objects or operations, mixed tasks, unknown explicit targets, and invalid
 quantities or leftover words are rejected as not understood rather than mapped
@@ -97,6 +98,20 @@ the requested physical effect before recording progress. Names in the prompt
 do not create map knowledge. Optional observer replies are tied to the exact
 message ID and stored separately from private thoughts and conversation
 speech. Local deterministic decisions do not mark messages as heard.
+
+`Move to tile (12, 4)`, `Go to (12, 4)` and `Travel to (12, 4)` create a
+`move_to` order with a saved `TargetPosition` and one arrival. The common
+unoccupied-route finder and `MoveToward` enforce walking rules, occupancy,
+travel cooldowns and illness delays. House destinations check current household
+membership or a saved guest invitation. An unavailable destination stays blocked;
+it is never substituted. The order completes only when the actor occupies the
+exact target tile. Repetition, quantities and extra task words are rejected.
+Arrival records one firsthand fact, for the destination tile. Submission,
+waiting and the walk itself add none, so a long trip cannot fill the agent's
+bounded map memory.
+Children and adolescents can walk under an order; infants still cannot take
+instructions. The normal queue, cancellation, stale-reply and survival rules
+apply without a separate model request for each step.
 
 The strict guardian-order form is `Become guardian for <full name or exact ID>`.
 It resolves one active child with an open search and saves that child's ID as
@@ -116,8 +131,9 @@ separate from the strict MustDo grammar.
 
 Recognized MustDo instructions complete only when their requested legal action
 actually progresses. Default gathering counts one harvest; explicit quantities
-count food acquired or consumed. Travel finishes only on arrival within
-interaction range of the requested food site; counted travel is refused.
+count food acquired or consumed. Food-source travel finishes on arrival within
+interaction range of the requested food site; exact-tile travel requires the
+tile itself. Counted travel is refused.
 An unrelated action, blocked movement or unavailable food leaves the instruction
 pending, including across reload. A recognized new order replaces outstanding
 orders unless `Queue` is true; queued orders run in submission order. Cancel

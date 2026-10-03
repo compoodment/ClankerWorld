@@ -585,6 +585,14 @@ public sealed partial class PrivateWorldRuntime
                 order.TargetResourceId is null && order.TargetPosition is null && order.LastEffectId is null &&
                 order.TargetAgentId is null;
 
+        if (order.Action == "move_to")
+            return order.TargetPosition is { } destination && order.TargetFoodKind is null && order.TargetResourceId is null &&
+                order.TargetAgentId is null &&
+                order.RequestedUnits == 1 && order.CompletedUnits is 0 or 1 &&
+                (order.Status == "finished") == (order.CompletedUnits == 1) && order.Status != "not_understood" &&
+                order.ProgressUnit == "arrivals" && !order.RepeatUntilCancelled && !order.QuantityIsExplicit &&
+                order.LastEffectId == (order.CompletedUnits == 1 ? MovementOrderEffectId(destination) : null);
+
         if (order.Action == "accept_guardianship")
             return order.TargetAgentId is { } child && people.Contains(child) && child != instruction.TargetInhabitantId &&
                 order.RequestedUnits == 1 && order.CompletedUnits is 0 or 1 &&

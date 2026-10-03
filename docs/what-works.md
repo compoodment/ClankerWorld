@@ -198,6 +198,15 @@ cancelled". Quantities count food actually eaten or gathered; travel finishes
 on arrival at the food source. Eating waits until the agent is hungry enough,
 and a full load blocks gathering with a reason.
 
+Orders also support exact-tile movement: "Move to tile (12, 4)", "Go to (12, 4)"
+or "Travel to (12, 4)". They use ordinary walking routes and travel delays,
+finish only on the requested tile, and wait when it is occupied or unreachable.
+Entering another household's House still requires an invitation.
+Each order is one trip; repeated or counted tile trips are not understood.
+The target survives queueing, urgent survival interruptions and save/reload.
+Giving coordinates does not create firsthand map knowledge; the agent learns
+the tile only by reaching it.
+
 An adult can also follow "Become guardian for Lina", using the full name of a
 child with an open guardian search. The name is resolved once to that child,
 so a later rename does not redirect the task. Acceptance uses the search's
