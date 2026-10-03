@@ -438,13 +438,16 @@ public sealed partial class PrivateWorldRuntimeTests
     }
 
     [Fact]
-    public void AgentCardKeepsTheLatestClosedMessagesEvenWhenNoPersonalModelHeardThem()
+    public void AgentCardKeepsTheLatestClosedOrdersAndSuggestionsEvenWhenNoPersonalModelHeardThem()
     {
+        const int heardCount = 7;
         const int closedOrderCount = 8;
         const int closedMessagesShown = 6;
         using var world = new PrivateWorldRuntime("closed-unheard-messages");
-        var heard = world.SubmitInstruction(new OwnerInstructionRequest("heard-suggestion", "owner:test",
-            OrderedAgent, OwnerInstructionKind.Suggestive, "Try the riverbank berries."));
+        var heard = Enumerable.Range(1, heardCount)
+            .Select(index => world.SubmitInstruction(new OwnerInstructionRequest($"heard-suggestion-{index}",
+                "owner:test", OrderedAgent, OwnerInstructionKind.Suggestive, $"Try the riverbank berries, idea {index}.")))
+            .ToArray();
         var waiting = world.SubmitInstruction(new OwnerInstructionRequest("waiting-suggestion", "owner:test",
             OrderedAgent, OwnerInstructionKind.Suggestive, "Rest when you can."));
         // The game cannot act on these orders, so each closes at once and no personal model hears it.
@@ -457,29 +460,37 @@ public sealed partial class PrivateWorldRuntimeTests
         var exported = world.ExportState();
         Assert.All(closedOrders.Append(otherAgentOrder), order =>
             Assert.Contains(order.InstructionId, exported.CompletedInstructionIds ?? []));
-        // The oldest message was heard by a personal model and answered.
-        var withHeardMessage = exported with
+        // The oldest suggestions were heard by a personal model and answered.
+        var heardIds = heard.Select(item => item.InstructionId).ToHashSet(StringComparer.Ordinal);
+        var withHeardMessages = exported with
         {
-            Instructions = exported.Instructions!.Select(item => item.InstructionId == heard.InstructionId
+            Instructions = exported.Instructions!.Select(item => heardIds.Contains(item.InstructionId)
                 ? item with { ObservedTick = item.SubmittedTick, ObserverReply = "I will look there." }
                 : item).ToArray(),
-            CompletedInstructionIds = [.. exported.CompletedInstructionIds!, heard.InstructionId],
+            CompletedInstructionIds = [.. exported.CompletedInstructionIds!, .. heardIds],
         };
 
-        using var live = PrivateWorldRuntime.Restore(withHeardMessage);
+        using var live = PrivateWorldRuntime.Restore(withHeardMessages);
         using var reloaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
             PrivateWorldRuntimeCodec.Encode(live.ExportState())));
         foreach (var runtime in new[] { live, reloaded })
         {
             var projected = new OwnerWorldObservationStore(runtime).GetSnapshot().Instructions;
             var forAgent = projected.Where(item => item.TargetInhabitantId == OrderedAgent).ToArray();
-            // Open messages always stay; closed ones are bounded to the newest few, heard or not.
+            // Open messages always stay; closed orders and closed suggestions are each
+            // bounded to the newest few, heard or not, so more suggestions never hide orders.
             Assert.Equal(
-                closedOrders.TakeLast(closedMessagesShown).Select(item => item.InstructionId)
-                    .Prepend(waiting.InstructionId).ToArray(),
+                heard.TakeLast(closedMessagesShown).Append(waiting)
+                    .Concat(closedOrders.TakeLast(closedMessagesShown)).Select(item => item.InstructionId).ToArray(),
                 forAgent.Select(item => item.InstructionId).ToArray());
-            Assert.Equal("queued", forAgent[0].State);
-            Assert.All(forAgent.Skip(1), item =>
+            Assert.All(forAgent.Take(closedMessagesShown), item =>
+            {
+                Assert.Equal("suggestive", item.Kind);
+                Assert.Equal("completed", item.State);
+                Assert.Equal("I will look there.", item.ObserverReply);
+            });
+            Assert.Equal("queued", forAgent[closedMessagesShown].State);
+            Assert.All(forAgent.Skip(closedMessagesShown + 1), item =>
             {
                 Assert.Equal("must_do", item.Kind);
                 Assert.Equal("completed", item.State);

@@ -55,6 +55,7 @@ public partial class Main
     {
         memoriesPanel.Hide();
         thoughtsPanel.Hide();
+        ordersPanel.Hide();
         conversationPanel.Hide();
         familyTreeView.SetPeople(snapshot.WorldId, snapshot.Inhabitants, id);
         UpdateFamilyTreeStatus();
@@ -95,6 +96,7 @@ public partial class Main
         worldOverviewPanel.Hide();
         worldInfoPanel.Hide();
         thoughtsPanel.Hide();
+        ordersPanel.Hide();
         conversationPanel.Hide();
         memoriesPanel.Show();
         ApplyResponsiveLayout();
@@ -119,6 +121,7 @@ public partial class Main
         familyTreePanel.Hide();
         memoriesPanel.Hide();
         thoughtsPanel.Hide();
+        ordersPanel.Hide();
         conversationPanel.Hide();
         returnToMainMenu = false;
         menuResumeButton.Text = "Resume";
@@ -305,7 +308,7 @@ public partial class Main
             placingAddedAgent = false;
             return true;
         }
-        foreach (var panel in new Control[] { conversationPanel, familyTreePanel, memoriesPanel, thoughtsPanel })
+        foreach (var panel in new Control[] { conversationPanel, familyTreePanel, memoriesPanel, thoughtsPanel, ordersPanel })
         {
             if (!panel.Visible) continue;
             panel.Hide();

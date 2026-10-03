@@ -265,7 +265,7 @@ public static class GameUiText
     public static bool IsPlayerFacingEvent(string kind)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(kind);
-        return kind is "world_created" or "world_started" or "weather_changed" or "building_placed" or
+        return kind is "developer_edit" or "world_created" or "world_started" or "weather_changed" or "building_placed" or
             "building_expansion_started" or "building_expanded" or "building_expansion_cancelled" or "house_guest_invited" or "house_guest_revoked" or
             "build_started" or "build_completed" or "recipe_started" or "recipe_completed" or
             "field_work_started" or "field_prepared" or "field_planted" or "field_tended" or "field_harvested" or
@@ -280,6 +280,9 @@ public static class GameUiText
             "council_policy_adopted" or "settlement_trade_completed" or
             "business_trade_offered" or "business_trade_completed" or "business_trade_cancelled" or
             "store_stock_collected" or "store_stock_delivered" or "household_delivery_recovered" or
+            "agent_knowledge_artifact_created" or "agent_knowledge_artifact_read" or "agent_knowledge_shared" or
+            "agent_knowledge_writing_started" or "agent_knowledge_writing_cancelled" or "agent_knowledge_material_collected" or
+            "agent_knowledge_artifact_collected" or "agent_knowledge_artifact_stored" or
             "tool_request_placed" or "tool_request_accepted" or "tool_request_refused" or "tool_request_withdrawn" or
             "tool_request_ready" or "tool_request_completed" or "tool_request_interrupted" or
             "ornament_worn" or "ornament_removed" or "ornament_given" or
@@ -291,7 +294,8 @@ public static class GameUiText
             "housing_request_made" or "household_joined" or "housing_request_refused" or "housing_request_expired" or
             "handcart_attached" or "handcart_parked" or "handcart_loaded" or "handcart_unloaded" or
             "handcart_repaired" or "handcart_transferred" or "handcart_blocked" or
-            "housing_blocked" or "household_left" or "household_founded" or "personal_goods_collected" or
+            "housing_blocked" or "relocation_notice" or "relocation_cancelled" or
+            "household_left" or "household_founded" or "personal_goods_collected" or
             "household_work_resumed" or "personal_goods_stored" or "borrowed_goods_returned" or "replacement_care_accepted" or "paused" or "resumed" or "model_call_warning";
     }
 
@@ -347,6 +351,8 @@ public static class GameUiText
     /// </summary>
     public static string ActivityPhrase(string? candidateId, string? summary)
     {
+        if (candidateId is not null && KnowledgeActionPhrase(candidateId, inProgress: true) is { } knowledgeActivity)
+            return knowledgeActivity;
         if (candidateId?.StartsWith("tool_request_", StringComparison.Ordinal) == true)
             return candidateId.Split(':', 2)[0] switch
             {
@@ -420,6 +426,8 @@ public static class GameUiText
         }
 
         var normalized = value.Trim();
+        if (KnowledgeActionPhrase(normalized, inProgress: false) is { } knowledgeAction)
+            return knowledgeAction;
         if (normalized.StartsWith("return_empty_vessel:", StringComparison.Ordinal)) return "bring an empty vessel home";
         if (normalized.StartsWith("guardian_tend:", StringComparison.Ordinal)) return "look after someone who is ill";
         if (normalized.StartsWith("care:", StringComparison.Ordinal)) return "look after a child";
@@ -487,6 +495,7 @@ public static class GameUiText
             {
                 localId = localId[..versionSeparator];
             }
+            if (localId == "house-paper") return "make paper";
             return $"build {HumanizeIdentifier(localId)}";
         }
 
@@ -494,6 +503,7 @@ public static class GameUiText
         {
             "safe_idle" => "take it easy",
             "seek_food" => "find food",
+            "move_to" => "go to a tile",
             "eat_food" => "eat",
             "consume_food" => "eat",
             "collect_shared_food" => "collect food from camp",
@@ -522,4 +532,24 @@ public static class GameUiText
         var phrase = string.Join(' ', words.Select(word => word.ToLowerInvariant()));
         return char.ToUpperInvariant(phrase[0]) + phrase[1..];
     }
+
+    private static string? KnowledgeActionPhrase(string candidateId, bool inProgress) => candidateId switch
+    {
+        "knowledge_write:field_record" => inProgress ? "writing a field record" : "write a field record",
+        "knowledge_write:field_map" => inProgress ? "drawing a field map" : "draw a field map",
+        "knowledge_write:book" => inProgress ? "writing a book" : "write a book",
+        "knowledge_continue" => inProgress ? "continuing written work" : "continue written work",
+        "knowledge_materials" => inProgress ? "collecting writing supplies" : "collect writing supplies",
+        _ when candidateId == "knowledge_collect" || candidateId.StartsWith("knowledge_collect:", StringComparison.Ordinal) =>
+            inProgress ? "collecting a written work" : "collect a written work",
+        _ when candidateId == "knowledge_store" || candidateId.StartsWith("knowledge_store:", StringComparison.Ordinal) =>
+            inProgress ? "storing a written work" : "store a written work",
+        _ when candidateId.StartsWith("knowledge_copy:", StringComparison.Ordinal) =>
+            inProgress ? "copying a written work" : "copy a written work",
+        _ when candidateId.StartsWith("knowledge_read:", StringComparison.Ordinal) =>
+            inProgress ? "reading a written work" : "read a written work",
+        _ when candidateId.StartsWith("knowledge_share:", StringComparison.Ordinal) =>
+            inProgress ? "sharing written knowledge" : "share written knowledge",
+        _ => null,
+    };
 }
