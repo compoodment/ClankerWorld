@@ -1007,6 +1007,10 @@ retain incumbent authority until all required successors are ready, with a
 three-day deadline. Explicit all-adult government disables automatic
 representation, and explicit elected government seeks three representatives
 above three adults. The initial arrangement retains the eight-adult threshold.
+Each transition records the exact Council election it caused to open, including
+an attempt that fails immediately. Only that election waits for the transition
+or is cancelled when it lapses. An ordinary election keeps its own result and
+retry policy when population changes during an unrelated handover.
 
 Mayoral contests bind consent to exact mandates and ballots to a contest/round
 opening token. Every deciding round needs a positive vote; tied leaders repeat

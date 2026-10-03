@@ -241,6 +241,15 @@ choices and distinct mandates. Paused and rejected ticks do not advance or
 partly apply civic work; replay does not reroll ties or duplicate authority.
 Older alpha checkpoints are refused and preserved; no migration is added.
 
+Private-world schema 66 records the exact initial Council election forced by a
+protected government change, or an explicit null when it forced none. The field
+is required in the current format. Loading rejects missing or cross-Town
+elections, duplicate ownership, unrelated renewal/replacement elections and
+links inconsistent with approval or settlement. A runoff keeps the same
+identity while its current round opening moves forward. Current-format replay
+preserves forced attempts and ordinary elections independently; old alpha
+schemas are refused and preserved without migration or inferred ownership.
+
 ## Commit and restore rules
 
 Canonical state is the accepted state used by the simulation. A replay checks
@@ -540,10 +549,11 @@ for Town admission records, schema 55 for Town laws and government, schema
 56 for named last meals, schema 57 for tool-making requests, schema 58 for
 Council land claims, schema 59 for household land grants, schema 60 for
 handcart attachments, schema 61 for guardian-order targets, schema 62 for
-physical knowledge writing, schema 63 for exact-tile movement orders and
-schema 64 for overcrowding move-out notices and schema 65 for material orders
-record when those fields or behaviors were introduced; they do not allow an
-earlier checkpoint schema past the current alpha cutoff.
+physical knowledge writing, schema 63 for exact-tile movement orders,
+schema 64 for overcrowding move-out notices, schema 65 for material orders
+and schema 66 for elections forced by government changes record when those
+fields or behaviors were introduced; they do not allow an earlier checkpoint
+schema past the current alpha cutoff.
 
 | Compatibility change | Meaning |
 | --- | --- |
@@ -595,6 +605,7 @@ earlier checkpoint schema past the current alpha cutoff.
 | Schema 63 | Exact-tile movement orders retain their destination, progress and arrival receipt. Loading refuses missing destinations, mixed food/resource fields, repetition and inconsistent completion. Queues and interrupted trips replay across saves. Older alpha saves are refused and preserved without migration. |
 | Schema 64 | Household move-out notices retain their original notice period, fixed deadline and selection reason alongside pending housing requests. Reload and replacement do not restart notice or duplicate departure goods. Runtime admission and displacement recheck current need and caregiver protection. Earlier alpha saves are refused and preserved without migration. |
 | Schema 65 | Material-gathering orders retain the material kind, exact optional source or position, batch/item progress and physical harvest receipt. Loading rejects mixed food/guardian/material fields and inconsistent progress. Queue, cancellation and partial work replay without duplicate harvests; older alpha saves are refused and preserved without migration. |
+| Schema 66 | A protected government change records the exact initial Council election it forced, including failed attempts. Current-format saves require the explicit nullable link and validate its Town, ownership and lifecycle. Ordinary elections remain independent; earlier alpha saves are refused and preserved without migration. |
 
 ### Tool-making requests
 
