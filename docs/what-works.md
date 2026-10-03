@@ -530,8 +530,12 @@ room for the whole yield, including orchard seeds. A hungry adult can make room
 for one permitted household serving when spare supplies can be set down. An
 accepted caregiver can also make room to feed a hungry infant, even when
 already well fed. The spare supplies go to the House if it has room or to the
-camp pile otherwise. Maps, field records, books, worn gear, gear being repaired and
-reserved goods stay carried. Exploring still teaches
+camp pile otherwise, with tools set down after other ordinary supplies. Maps,
+field records, books, worn gear, gear being repaired and reserved goods stay
+carried. If urgent hunger leaves no other way to make enough room, an adult may
+set down some of their own reserved orchard seeds too. Only the seeds actually
+stored lose their planting reserve; the seeds remain household property for
+later planting. Exploring still teaches
 personal knowledge when there is no paper or room for a written copy.
 Broken or spoiled spare cargo can also be set down without losing it.
 A filled jug moves home as one load when the adult has room for the jug and
@@ -597,7 +601,8 @@ the tile card and hover readout, and walked at dry-ground speed. When a Town gro
 running on past a door crosses a river up to two tiles wide on a new bridge.
 Households can plan new buildings, whose streets may need a bridge; the
 starting layout keeps its streets on dry land. No bridge is added where one already joins the same river
-banks. Road links between Towns are unfinished, and bridges have not been
+banks and agents can walk along both banks to reach it. Peaks that block either
+bank can leave room for another needed crossing. Road links between Towns are unfinished, and bridges have not been
 checked in hands-on Windows play.
 
 Resources can deplete or regrow. Each tile holds at most one tree. Wood trees

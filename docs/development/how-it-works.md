@@ -1546,6 +1546,14 @@ seed with a reserved planting unit. An adult carries that seed to legal free
 land and plants a sapling; tree growth, fruiting and the reserve survive reload.
 Ordinary wood-tree seeds remain distinct.
 
+Urgent food recovery first sets down ordinary spare cargo. If that cannot free
+enough carrying room, it may also select the actor's own orchard propagation
+seeds. Their selected planting reservations are released in the same inventory
+transition that stores the seeds with the household, after reaching the House
+or camp pile. Walking, an unavailable destination or a refused transfer does
+not release them. Other reservations, delivery loads and borrowed goods remain
+protected; crafting does not use this exception.
+
 The Godot map draws worked soil and crop growth above the terrain, including
 wrapped map edges; the overview marks field tiles. Fields join the household
 property display, and inspection shows the household, stage, crop, worker and
@@ -1604,7 +1612,9 @@ so the run-on rule does not treat either end as a dead end.
 **Same connected banks.** Two crossings join the same banks only when they
 cross the same river, joined through its water, and each end of one reaches an
 opposite end of the other by walking along that water's shore without crossing
-it. A tributary mouth or a separate stream breaks the shore, so a bridge over a
+it. Each shore step obeys the ordinary foot-movement rules: impassable Peaks
+break the connection, while walkable Mountain terrain does not. A tributary
+mouth or a separate stream breaks the shore, so a bridge over a
 different nearby stream never blocks another. There is no distance limit; the
 comparison examines at most 4,096 river tiles and, if that runs out, does not
 treat the banks as the same. Along one unbranched stretch of river this allows
