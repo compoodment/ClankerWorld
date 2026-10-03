@@ -626,10 +626,10 @@ The recent history should persist with the world save but remain bounded.
     slightly**; fires flicker faster. Light is stepped on the art's pixel grid,
     warms the ground without hiding its texture, and fades in and out with
     dusk and dawn.
-  - Every design gets lights, including those approved on October 1 that the
-    game does not have yet (Market, Town Hall, Port, Clinic and Restaurant);
-    each gets its lights when its feature lands. Night lights are only for
-    looks: night still sets no visibility rule.
+  - Every design gets lights, including the Market, Town Hall, Port, Clinic
+    and Restaurant designs approved on October 1; a design whose feature is
+    not in the game yet gets its lights when that feature lands. Night lights
+    are only for looks: night still sets no visibility rule.
 - **Street lanterns, agreed on October 3:** agents build street lanterns
   beside Roads; they need **no fuel** and light themselves at dusk. Two
   designs: **B, a round stone lamp with an open flame**, and **C, a lantern
