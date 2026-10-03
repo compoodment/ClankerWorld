@@ -94,6 +94,10 @@ public sealed partial class PrivateWorldRuntime
         var next = map.FootNeighbors(person.Position)
             .Where(point => map.IsPassable(point) && !occupied.Contains(point) &&
                 !exploration.OutingPath.Contains(point))
+            // Match movement's corner occupancy rules before ranking exits.
+            .Where(point => !map.IsDiagonalFootStep(person.Position, point) ||
+                !occupied.Contains(new GridPoint(point.X, person.Position.Y)) &&
+                !occupied.Contains(new GridPoint(person.Position.X, point.Y)))
             .OrderBy(point => exploration.VisitedTiles.Contains(point) ? 1 : 0)
             .ThenByDescending(point => map.FootDistance(point, exploration.OutingPath[0]))
             .ThenBy(point => point.Y).ThenBy(point => point.X)
