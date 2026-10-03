@@ -159,6 +159,14 @@ one load; a quantity stops exactly at that number. Full hands or unavailable
 goods leave the task waiting. These orders cover the same seven raw materials;
 requests naming a particular source or destination are not understood yet.
 
+To mend worn personal equipment, use **Repair my basket**, **Repair two padded
+coats**, or **Keep repairing basic garments**. Adults and elders can repair basic
+clothing, padded coats, rain cloaks, baskets and sacks. They collect real supplies
+and use their household's House for baskets or Tailor Shop for the other items.
+Only finished repairs count. Missing items, materials, carrying space or a work
+site leaves the task waiting. Queue, cancellation and save/reload also work for
+these orders. Tools, weapons and named work sites are not supported repair targets.
+
 An instruction the game cannot understand leaves the current order running.
 Unsupported requests, such as "build a house" or "gather cloth," close as not
 understood and appear in the Event Log. Recognized orders follow normal access

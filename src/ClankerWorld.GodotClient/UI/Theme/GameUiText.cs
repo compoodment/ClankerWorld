@@ -411,6 +411,7 @@ public static class GameUiText
             "consume_food" => "eat",
             "collect_shared_food" => "collect food from camp",
             "harvest_food" => "gather food",
+            "repair_equipment" => "repair personal equipment",
             "collect_material" => "collect personal materials",
             "store_material" => "store personal materials",
             "gather_material" => "gather materials",

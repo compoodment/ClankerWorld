@@ -100,6 +100,7 @@ public sealed partial class PrivateWorldRuntime
         ValidateDependentCare(inhabitants.Values, society.Checkpoint, towns, checkpointSchemaVersion);
         ValidateDepartures(inhabitants.Values, society.Checkpoint, checkpointSchemaVersion);
         ValidateEquipment(inhabitants.Values, society.Checkpoint, worldSimulation, worldContent, checkpointSchemaVersion);
+        ValidateRepairOrderBindings(inhabitants.Values, society.Checkpoint.Inventory, instructionsByIdempotency.Values);
         ValidateContinuity(continuity, society.Checkpoint, checkpointSchemaVersion);
 
         foreach (var inhabitant in inhabitants.Values)
@@ -372,6 +373,7 @@ public sealed partial class PrivateWorldRuntime
         ValidateDependentCare(state.Inhabitants, state.Society.Society, state.Towns ?? [], state.SchemaVersion);
         ValidateDepartures(state.Inhabitants, state.Society.Society, state.SchemaVersion);
         ValidateEquipment(state.Inhabitants, state.Society.Society, state.WorldSimulation, state.WorldContent, state.SchemaVersion);
+        ValidateRepairOrderBindings(state.Inhabitants, state.Society.Society.Inventory, state.Instructions ?? []);
         foreach (var person in state.Inhabitants)
         {
             if (person.LastModelAttempt is { } attempt &&
@@ -537,6 +539,7 @@ public sealed partial class PrivateWorldRuntime
             order.LastEffectId is { Length: > 512 } || order.LastEffectId?.Any(char.IsControl) == true ||
             order.TargetResourceId is { Length: > 128 } || order.TargetResourceId?.Any(char.IsControl) == true ||
             order.TargetFoodKind is not (null or "berries" or "fruit" or "wild_greens") ||
+            order.Action != "repair_equipment" && order.TargetEquipmentKind is not null ||
             order.Action is not ("gather_material" or "store_material" or "collect_material") && order.TargetMaterialKind is not null ||
             order.TargetPosition is { X: < -10_000_000 or > 10_000_000 } ||
             order.TargetPosition is { Y: < -10_000_000 or > 10_000_000 } ||
@@ -549,6 +552,16 @@ public sealed partial class PrivateWorldRuntime
             return order.Status == "not_understood" && order.RequestedUnits == 0 && order.CompletedUnits == 0 &&
                 order.ProgressUnit == "none" && !order.RepeatUntilCancelled && order.TargetFoodKind is null &&
                 order.TargetResourceId is null && order.TargetPosition is null && order.LastEffectId is null;
+
+        if (order.Action == "repair_equipment")
+            return PrivateWorldInstructionOrderParser.IsEquipmentKind(order.TargetEquipmentKind) &&
+                order.TargetFoodKind is null && order.TargetResourceId is null && order.TargetPosition is null &&
+                order.RequestedUnits is >= 1 and <= 1000 && order.CompletedUnits is >= 0 and <= 1_000_000 &&
+                (order.QuantityIsExplicit || order.RequestedUnits == 1) && order.ProgressUnit == "repairs" &&
+                (order.RepeatUntilCancelled || order.CompletedUnits <= order.RequestedUnits) &&
+                order.Status != "not_understood" &&
+                (order.Status == "finished") == (!order.RepeatUntilCancelled && order.CompletedUnits >= order.RequestedUnits) &&
+                (order.CompletedUnits == 0 ? order.LastEffectId is null : order.LastEffectId?.StartsWith("repair:equipment:", StringComparison.Ordinal) == true);
 
         if (order.Action == "collect_material")
             return PrivateWorldInstructionOrderParser.IsMaterialKind(order.TargetMaterialKind) &&
