@@ -35,6 +35,15 @@ that version mismatch. You can still reconnect to the existing world.
 
 Adults may leave a household without its permission. Their own goods remain theirs even in the old House; collecting them and returning borrowed tools require travel and carrying space. A primary caregiver keeps dependent children with them unless another adult explicitly takes over care. An adult seeks an accepting existing home with room for the whole group first, then may start a household alone and build a House through the usual materials and site rules. Inspect the agent to see membership, goods awaiting collection, borrowed goods, care responsibility and the housing blocker.
 
+When a child loses their last caregiver, relatives are asked first, then adults
+in the child's household and Town. Until someone accepts, the child shows
+**Needs a guardian**. Accepting care does not mean the child has moved in: a
+guardian in another Town must have a completed House with room, collect the
+child and accompany them home. Inspect either agent to see whether they are
+waiting for a home, meeting up or travelling. The child joins the guardian's
+household and Town only when they arrive together and the House still has room.
+Birth parents and family history stay unchanged.
+
 ## Create your first Town
 
 1. Choose **New World**. Enter a name and seed and choose Small or Medium. Other

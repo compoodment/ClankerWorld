@@ -112,6 +112,7 @@ public sealed partial class PrivateWorldRuntime
         }
         checkpointSchemaVersion = StateSchemaVersion;
         AppendEvent("household_left", $"{actor}|{householdId}|{cause}|{allowance}");
+        ReconcileGuardianPlacements();
         return true;
     }
 
@@ -398,7 +399,7 @@ public sealed partial class PrivateWorldRuntime
         {
             foreach (var childId in MovingCareGroup(adult.InhabitantId).Where(id => id != adult.InhabitantId))
             {
-                if (!inhabitants.TryGetValue(childId, out var child) ||
+                if (!inhabitants.TryGetValue(childId, out var child) || child.GuardianPlacement is not null ||
                     IsWithinInteractionRange(child.Position, adult.Position, 1)) continue;
                 MoveToward(childId, child, adult.Position, "follow_caregiver", 1);
             }

@@ -830,7 +830,7 @@ council/vote/status counts without proposal text, notices, names or per-read
 polling noise.
 
 **Town admission** (`PrivateWorldRuntime.TownMembership`). `TownRuntimeState.ResidentIds`
-is the only record of Town membership; household, House and position never
+is the only record of Town membership; household, House and position alone never
 change it. After every saved council decision, every Town roster change and on
 every tick, `SettleTownAdmissions` reads each Town's passed admission proposals
 and records exactly one `TownAdmissionRecord` per proposal, rereading the Towns
@@ -1048,6 +1048,31 @@ completed footprint. Unfinished expansion does not reserve room for another
 resident. The game does not yet relocate people who already live in an
 overcrowded House; that remains in
 [#599](https://github.com/compoodment/ClankerWorld/issues/599).
+
+**Guardian placement** (`SettlementGuardianPlacement`). An adult's explicit
+acceptance records primary care separately from the child's move. When a child
+cannot yet join that adult's household, their physical state keeps a pending
+placement tied to the exact accepted care relationship and its revision. The
+guardian needs a recorded Town and a completed household House with room;
+acceptance creates neither a House nor a resident place.
+
+The guardian first reaches the child, then accompanies them to the selected
+House through ordinary movement. The guardian waits for a child who falls
+behind. Urgent food and warmth needs may interrupt the journey without
+removing accepted care. Capacity, current care authority, Town membership and
+the House's identity are checked again before placement. Only arrival together
+commits the child's household and Town membership in the same world transition,
+using the existing rule that dependents follow their accepted primary caregiver.
+The destination guardian is already a Town resident; the move does not invent a
+Council admission proposal or give an unrelated adult membership. Parenthood,
+birth records and property ownership do not change.
+
+Pending placements retry after temporary blockers clear. A change of caregiver,
+death or the child reaching adulthood ends the old placement. The owner's
+agent card and People section distinguish accepted care, a blocked home and
+travel through existing observation notes. `guardian_placement_pending`,
+`guardian_placement_completed` and `guardian_placement_cancelled` record the
+placement lifecycle separately from `guardian_assigned` and `guardian_needed`.
 
 **Continuity rule** (`SettlementContinuity`). The owner's answer on
 [#654](https://github.com/compoodment/ClankerWorld/issues/654) sets provisional

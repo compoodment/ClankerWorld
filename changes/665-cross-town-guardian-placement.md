@@ -1,0 +1,1 @@
+- A guardian in another Town can collect a child and accompany them to a completed House with room. The child's household and Town change on arrival; the agent card distinguishes accepted care, waiting and travel. Older alpha saves are refused and preserved.
