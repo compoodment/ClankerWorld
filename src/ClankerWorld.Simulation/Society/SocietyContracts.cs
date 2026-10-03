@@ -301,6 +301,8 @@ public sealed record SocietyAgentMemoryCompaction(
     string OwnerId,
     IReadOnlyList<SocietyAgentMemoryImportance> Sources);
 
+public sealed record SocietyBirthFoodContribution(string LotId, int Quantity);
+
 public sealed record SocietyBirthRequest(
     string Id,
     int Revision,
@@ -315,7 +317,8 @@ public sealed record SocietyBirthRequest(
     NewbornProviderPolicy ProviderPolicy = NewbornProviderPolicy.Hybrid,
     string? RequestedProviderBindingId = null,
     string? ChildName = null,
-    string? PrimaryCaregiverId = null);
+    string? PrimaryCaregiverId = null,
+    IReadOnlyList<SocietyBirthFoodContribution>? FoodContributions = null);
 
 /// <summary>
 /// A dead agent's frozen estate. <paramref name="BeneficiaryIds"/> is always the

@@ -406,7 +406,8 @@ public sealed class ToolProgressionRuntimeTests
                     },
                     new TownRuntimeState("town:tool-yard", "Tool Yard", "founded",
                         state.Society.Society.WorldTick, otherResidents, [], [outside],
-                        Governance: TownGovernanceState.Create(otherResidents.Where(adultIds.Contains))),
+                        Governance: TownGovernanceState.Create(otherResidents.Where(adultIds.Contains)),
+                        Government: TownGovernmentState.Create()),
                 ],
             };
             using var reassigned = PrivateWorldRuntime.Restore(state, _ => new CandidateProvider("safe_idle"));

@@ -116,7 +116,8 @@ public sealed partial class PrivateWorldRuntime
                 towns.SingleOrDefault(item => item.ResidentIds.Contains(inhabitant.Id, StringComparer.Ordinal))?.Name,
                 HousingNote(inhabitant.Id), EquipmentNote(inhabitant.Id), ContinuityNote(inhabitant.Id),
                 DepartureNote: DepartureNote(inhabitant.Id), CivicNote: CivicNote(inhabitant.Id),
-                MedicalCareNote: MedicalCareNoteCore(inhabitant.Id));
+                MedicalCareNote: MedicalCareNoteCore(inhabitant.Id), TownMembershipNote: TownMembershipNote(inhabitant.Id),
+                ToolMakingRequestNote: ToolMakingRequestNoteCore(inhabitant.Id));
             var observation = new InhabitantObservation(
                 inhabitant.Id,
                 WorldTick,
@@ -558,9 +559,10 @@ public sealed partial class PrivateWorldRuntime
             if (candidateId.StartsWith("civic|", StringComparison.Ordinal))
             {
                 if (!decision.Admission.FellBack && decision.Admission.Intention.Provider == DecisionProviderKind.LargeLanguageModel)
-                    ApplyTownCivicCandidate(decision.InhabitantId, candidateId, decision.Admission.CivicProposal, decision.Admission.CivicBallot);
+                    ApplyTownCivicCandidate(decision.InhabitantId, candidateId, decision.Admission.CivicProposal,
+                        decision.Admission.CivicBallot, decision.Admission.CivicLandTiles);
             }
-            else
+            else if (!ApplyToolMakingRequestDecision(decision))
                 ApplyCandidate(decision.InhabitantId, state, candidateId, reportIdle: true);
         }
 
@@ -625,6 +627,11 @@ public sealed partial class PrivateWorldRuntime
         bool reportIdle)
     {
         if (IsOrnamentCandidate(candidateId)) return;
+        if (candidateId.StartsWith(ToolRequestPrefix, StringComparison.Ordinal))
+        {
+            ApplyToolMakingRequestCandidate(inhabitantId, state, candidateId, reportIdle);
+            return;
+        }
         if (candidateId.StartsWith("talk:", StringComparison.Ordinal) ||
             candidateId.StartsWith("conversation_", StringComparison.Ordinal))
         {
@@ -1101,6 +1108,7 @@ public sealed partial class PrivateWorldRuntime
             AddRecoverHouseholdDeliveryCandidate(candidates, inhabitantId, state);
             AddUrgentFoodPotCandidate(candidates, inhabitantId, state);
             AddBusinessCandidates(candidates, inhabitantId);
+            AddToolMakingRequestCandidates(candidates, inhabitantId);
         }
         if (!NeedsUrgentWarmth(state) && ChildResident(inhabitantId))
         {
@@ -1182,7 +1190,7 @@ public sealed partial class PrivateWorldRuntime
         // household holds or a communal one (see TryFindRecipeSite).
         foreach (var recipe in worldContent.Recipes.Where(item =>
                      !item.Outputs.Any(output => output.ResourceId == "bedding") &&
-                     !item.IsCrop))
+                     !item.IsCrop && !IsGenericFoodRecipe(item)))
         {
             if (NeedsUrgentWarmth(state) && !recipe.Outputs.Any(output => PersonalEquipmentRules.IsGarment(output.ResourceId)))
             {
@@ -1192,7 +1200,7 @@ public sealed partial class PrivateWorldRuntime
                 worldContent.Buildings.Any(definition => definition.CanonicalId == workstationId &&
                     definition.Tags.Any(IsHouseholdBuildingTag));
             var recipeOwner = ProductionOwnerFor(null, inhabitant.Id);
-            if (!NeedsRecipeOutput(recipe, recipeOwner) || AnotherAgentWaitsForWorkSite(inhabitant.Id, recipe) ||
+            if (!NeedsRecipeOutput(recipe, recipeOwner, inhabitant.Id) || AnotherAgentWaitsForWorkSite(inhabitant.Id, recipe) ||
                 !CanAcquireProjectInputs(recipe.Inputs, recipeOwner, inhabitant.Id) ||
                 !TryFindRecipeSite(recipe, out var siteId, out var position, inhabitant.Id) ||
                 householdWorkstation &&
@@ -1203,8 +1211,8 @@ public sealed partial class PrivateWorldRuntime
 
             candidates.Add(new CognitionCandidate(
                 $"build:recipe:{recipe.CanonicalId}",
-                $"Build {recipe.DisplayName} at a valid site.",
-                recipe.IsCrop ? 20 : OutdoorExposure(state.Position) > 0 && recipe.Outputs.Any(output => PersonalEquipmentRules.IsGarment(output.ResourceId)) ? 25 : 30,
+                $"{recipe.DisplayName} at the household work site.",
+                recipe.Tags.Contains("named-meal", StringComparer.Ordinal) ? 20 : recipe.IsCrop ? 20 : OutdoorExposure(state.Position) > 0 && recipe.Outputs.Any(output => PersonalEquipmentRules.IsGarment(output.ResourceId)) ? 25 : 30,
                 $"build-site:{position.X},{position.Y}"));
         }
     }

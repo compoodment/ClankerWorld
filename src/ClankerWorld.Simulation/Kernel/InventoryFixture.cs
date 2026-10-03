@@ -113,6 +113,7 @@ public static class InventoryContainerRules
     {
         "food", "berries", "wild_greens", "fruit", "grain", "flour", "potato", "potatoes",
         "greens", "cultivated_greens", "bread", "porridge", "stew",
+        "simple_meal", "berry_porridge", "fruit_porridge", "restaurant_meal",
     };
 
     public static bool IsContainer(string itemKind) => itemKind is StoragePot or WaterJug;
@@ -243,10 +244,12 @@ public static partial class InventoryFixture
         long targetTick,
         int freshnessLossPerTick,
         IReadOnlySet<string>? itemKinds = null,
-        IReadOnlySet<string>? protectedOwnerIds = null)
+        IReadOnlySet<string>? protectedOwnerIds = null,
+        IReadOnlyDictionary<string, int>? itemFreshnessLossPerTick = null)
     {
         ValidateCheckpoint(checkpoint);
-        if (targetTick < checkpoint.WorldTick || freshnessLossPerTick < 0)
+        if (targetTick < checkpoint.WorldTick || freshnessLossPerTick < 0 ||
+            itemFreshnessLossPerTick?.Values.Any(rate => rate < 0) == true)
         {
             throw new ArgumentOutOfRangeException(nameof(targetTick));
         }
@@ -260,19 +263,22 @@ public static partial class InventoryFixture
                 return lot;
             }
 
-            var rate = itemKinds is not null && !itemKinds.Contains(lot.ItemKind) ? 0 : freshnessLossPerTick;
-            var elapsedAtRate = elapsed;
+            var rate = itemKinds is not null && !itemKinds.Contains(lot.ItemKind) ? 0
+                : itemFreshnessLossPerTick?.GetValueOrDefault(lot.ItemKind, freshnessLossPerTick) ?? freshnessLossPerTick;
+            var cadence = 1;
             if (lot.ContainerLotId is { } containerId &&
                 checkpoint.Lots.Any(container => container.Id == containerId && container.ItemKind == InventoryContainerRules.StoragePot))
             {
                 // Use a stable two-tick cadence so a one-point-per-tick decay
                 // rate still decays at half speed instead of truncating to zero.
-                elapsedAtRate = targetTick / 2 - lot.LastProcessedTick / 2;
+                cadence = 2;
             }
             if (protectedOwnerIds?.Contains(lot.OwnerId) == true)
             {
-                rate /= 2;
+                if (rate % 2 == 0) rate /= 2;
+                else cadence *= 2;
             }
+            var elapsedAtRate = targetTick / cadence - lot.LastProcessedTick / cadence;
             var freshnessLoss = checked(elapsedAtRate * rate);
             var freshness = freshnessLoss >= lot.FreshnessBasisPoints
                 ? 0

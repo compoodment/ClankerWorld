@@ -145,7 +145,22 @@ public sealed record OwnerWorldTown(
     IReadOnlyList<OwnerWorldPosition> BorderTiles)
 {
     public OwnerTownGovernance? Governance { get; init; }
+    public OwnerTownGovernment? Government { get; init; }
 }
+
+public sealed record OwnerTownLaw(string Id, string Subject, string Rule, string Scope, int SiteTiles, int Version,
+    long AdoptedTick, long? EndedTick)
+{
+    public IReadOnlyList<OwnerWorldPosition> Site { get; init; } = [];
+}
+public sealed record OwnerTownOffice(string Mandate, string? HolderName, long? TermEndTick, string? VacancyReason);
+public sealed record OwnerGovernmentChange(string Id, string Declaration, string Status, int Yes, int No, int RequiredYes,
+    long? DeadlineTick, long? HandoverDeadlineTick, string? Reason);
+public sealed record OwnerMayoralElection(string Id, string Mandates, string Stage, int Round, long? DeadlineTick,
+    IReadOnlyList<OwnerCivicCandidate> Candidates, string? WinnerName, string? Reason);
+public sealed record OwnerTownGovernment(string Declaration, IReadOnlyList<OwnerTownLaw> Laws, int LawCount,
+    IReadOnlyList<OwnerTownOffice> Offices, IReadOnlyList<OwnerGovernmentChange> Changes,
+    OwnerMayoralElection? Election, OwnerMayoralElection? LatestElection, long RetryTick);
 
 public sealed record OwnerCivicProposal(string Id, string Kind, string Text, string Status, int Yes, int No,
     int RequiredYes, long DeadlineTick);
@@ -168,7 +183,10 @@ public sealed record OwnerWorldHouseholdLandUseRight(string Id, string TownId, s
 public sealed record OwnerWorldHouseholdLandUseRequest(string Id, string TownId, string HouseholdId,
     string RequestedByAgentId, IReadOnlyList<OwnerWorldPosition> Tiles, long RequestedTick,
     long? AgreedEndTick, bool IsDisputed, IReadOnlyList<string> ClaimantHouseholdIds,
-    IReadOnlyList<OwnerWorldPosition> DisputedTiles);
+    IReadOnlyList<OwnerWorldPosition> DisputedTiles)
+{
+    public string ApprovalDetail { get; init; } = "Awaiting approval";
+}
 
 public sealed record OwnerWorldInhabitant(
     string Id,
@@ -191,6 +209,7 @@ public sealed record OwnerWorldInhabitant(
     public OwnerWorldSurvival? Survival { get; init; }
     public OwnerWorldEquipment? Equipment { get; init; }
     public string? MedicalCareNote { get; init; }
+    public string? ToolMakingRequestNote { get; init; }
     public OwnerWorldLesson? Lesson { get; init; }
     public OwnerWorldProficiency? Proficiency { get; init; }
     public IReadOnlyList<OwnerWorldSkill>? Skills { get; init; }
@@ -336,8 +355,12 @@ public sealed record OwnerWorldPlacedBuilding(
     bool IsOvercrowded = false)
 {
     public IReadOnlyList<OwnerWorldBusinessTrade> Trades { get; init; } = [];
+    public IReadOnlyList<OwnerWorldToolMakingRequest> ToolMakingRequests { get; init; } = [];
     public bool AllowsHouseholdOwner { get; init; }
 }
+
+public sealed record OwnerWorldToolMakingRequest(string Id, string RequesterName, string RecipeId,
+    string RecipeName, string ItemKind, string Status, string? Blocker, string? OfferId = null);
 
 public sealed record OwnerWorldBusinessTrade(string OfferId, string BuyerName, string GoodsKind, int GoodsQuantity,
     string PaymentKind, int PaymentQuantity, string Status, string? CancellationReason);
