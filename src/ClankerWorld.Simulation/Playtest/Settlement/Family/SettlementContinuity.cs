@@ -133,7 +133,7 @@ public sealed partial class PrivateWorldRuntime
         const string rule = "Continuity rule: while fewer than eight non-elders are alive, you and your partner " +
             "may put off having a child for up to two days but may not refuse.";
         if (!ContinuityAllowsPostponement(couple))
-            return rule + " Your two days are up, so your child plan is going ahead; the birth still needs food and shelter.";
+            return rule + " Your two days are up, so your child plan is going ahead; the birth still needs food.";
         var ticksPerDay = worldSystems.Config.TicksPerDay;
         var hours = ((couple.DeadlineTick - WorldTick) * 24 + ticksPerDay - 1) / ticksPerDay;
         return rule + $" Your two days end in about {hours.ToString(CultureInfo.InvariantCulture)} hours; then your child plan goes ahead.";

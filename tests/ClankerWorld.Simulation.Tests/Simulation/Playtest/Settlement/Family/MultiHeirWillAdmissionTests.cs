@@ -1,4 +1,6 @@
+using System.Collections;
 using System.Net;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -26,7 +28,9 @@ public sealed class MultiHeirWillAdmissionTests
         var provider = new OpenAiCompatibleDecisionProvider(client, () => "synthetic-key",
             new Uri("https://model.invalid/v1/chat/completions"), "synthetic-model", providerEpoch: 42);
         using var world = NewWorld(provider, longDescendant: true, rawKeyCollision: rawKeyCollision);
-        var heirId = world.Society.Inhabitants.Single(person => person.Name == "Long Heir").Id;
+        var firstBirth = Assert.Single(world.Society.Births, birth => birth.PrimaryCaregiverId == Actor);
+        var heirId = Assert.Single(world.Society.Births, birth => birth.PrimaryCaregiverId == firstBirth.ChildId).ChildId;
+        handler.ExpectedHeirName = world.Society.GetInhabitant(heirId).Name;
         Assert.True(heirId.Length > CognitionWillContext.MaximumHeirKeyLength);
 
         Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
@@ -90,10 +94,13 @@ public sealed class MultiHeirWillAdmissionTests
         using var world = NewWorld(provider);
         Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
         await provider.Started.Task.WaitAsync(Deadline);
+        var pendingWill = PendingWillTask(world);
 
         // This legal provider completion permits its awaiting continuation to
         // run inline on the completion thread, as configured HTTP adapters do.
         await Task.Run(provider.Complete).WaitAsync(Deadline);
+        await pendingWill.WaitAsync(Deadline);
+        Assert.Equal("pending", Assert.Single(world.Society.Estates).WillStatus);
         var changed = false;
         var result = await world.AdvanceOneTickNonBlockingAsync(null, (_, _) =>
         {
@@ -234,6 +241,7 @@ public sealed class MultiHeirWillAdmissionTests
                 checkpoint = SocietyFixture.ProposeRelationship(checkpoint, new(partnershipId, 1,
                     SocietyRelationshipType.Partnership, parentId, partnerId, checkpoint.WorldTick)).Checkpoint;
                 checkpoint = SocietyFixture.AcceptRelationship(checkpoint, partnershipId, 1, partnerId).Checkpoint;
+                checkpoint = ChosenBirthNameTestFixture.NameParent(checkpoint, parentId);
                 var householdId = checkpoint.GetInhabitant(parentId).HouseholdId!;
                 var caregivers = new[] { parentId, partnerId }
                     .Where(id => checkpoint.GetInhabitant(id).HouseholdId == householdId)
@@ -241,7 +249,7 @@ public sealed class MultiHeirWillAdmissionTests
                 var birth = SocietyFixture.CommitBirth(checkpoint, new($"family:{parentId}:{checkpoint.WorldTick}", 1,
                     parentId, partnerId, householdId, caregivers, [parentId, partnerId],
                     "food:camp-alpha", 2, checkpoint.WorldTick,
-                    ChildName: generation == 0 ? "Intermediate Parent" : "Long Heir", PrimaryCaregiverId: parentId));
+                    ChildName: ChosenBirthNameTestFixture.ChildName(checkpoint, parentId, generation == 0 ? "Intermediate" : "Long"), PrimaryCaregiverId: parentId));
                 var childId = Assert.IsType<string>(birth.CreatedId);
                 checkpoint = birth.Checkpoint;
                 // Keep the actual inherited identities and birth records, with
@@ -306,10 +314,20 @@ public sealed class MultiHeirWillAdmissionTests
             id => id == Actor ? provider : new DeterministicDecisionProvider());
     }
 
+    private static Task PendingWillTask(PrivateWorldRuntime world)
+    {
+        // Between controlled ticks, await the runtime's full provider handoff
+        // without advancing another tick that could admit the unchanged reply.
+        var field = typeof(PrivateWorldRuntime).GetField("pendingWills",
+            BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var pending = Assert.Single(Assert.IsAssignableFrom<IDictionary>(field.GetValue(world)).Values.Cast<object>());
+        return Assert.IsAssignableFrom<Task>(pending.GetType().GetProperty("Task")!.GetValue(pending));
+    }
+
     private sealed class HeldWillProvider : IDecisionProvider
     {
-        // Inline continuations let completion return only after the awaiting
-        // runtime task has observed the reply; no polling of private tasks.
+        // Permit inline continuations, but the runtime may not yet be awaiting
+        // this reply when Complete returns. Its task must be awaited separately.
         private readonly TaskCompletionSource<CognitionDecisionResponse> reply = new();
         private CognitionDecisionRequest? request;
         private CancellationTokenRegistration registration;
@@ -398,6 +416,7 @@ public sealed class MultiHeirWillAdmissionTests
         public int RequestCount => Volatile.Read(ref requestCount);
         public string? HeirKey { get; private set; }
         public string? CollisionKey { get; private set; }
+        public string? ExpectedHeirName { get; set; }
         public TaskCompletionSource<bool> Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,
@@ -411,7 +430,7 @@ public sealed class MultiHeirWillAdmissionTests
             Assert.All(heirs, heir => Assert.InRange(heir.GetProperty("id").GetString()!.Length,
                 1, CognitionWillContext.MaximumHeirKeyLength));
             Assert.Equal(heirs.Length, heirs.Select(heir => heir.GetProperty("id").GetString()).Distinct().Count());
-            HeirKey = heirs.Single(heir => heir.GetProperty("name").GetString() == "Long Heir")
+            HeirKey = heirs.Single(heir => heir.GetProperty("name").GetString() == ExpectedHeirName)
                 .GetProperty("id").GetString()!;
             CollisionKey = heirs.SingleOrDefault(heir => heir.GetProperty("name").GetString() == "Hash Twin") is { ValueKind: JsonValueKind.Object } collision
                 ? collision.GetProperty("id").GetString() : null;

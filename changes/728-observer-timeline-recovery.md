@@ -1,0 +1,1 @@
+- Connected devices recover when another paired device selects a world or loads an earlier save, refreshing the map and Event Log together. Retained requests stay available to inspect but cannot be retried against a different loaded world state.

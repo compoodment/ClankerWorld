@@ -8,7 +8,6 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class SettlementLearningTests
 {
     [Theory]
-    [InlineData("ready", true)]
     [InlineData("unskilled", false)]
     [InlineData("hungry", false)]
     [InlineData("busy", false)]

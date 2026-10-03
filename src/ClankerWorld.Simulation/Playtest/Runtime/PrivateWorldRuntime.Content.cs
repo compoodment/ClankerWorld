@@ -100,7 +100,8 @@ public sealed partial class PrivateWorldRuntime
                 StarterContent.Create(), SettlementContent.Create(), HouseContent.Create(),
                 WarehouseContent.Create(), FarmContent.Create(), BlacksmithContent.Create(),
                 HouseCookingContent.Create(), PotteryContent.Create(), SiloContent.Create(), TailorContent.Create(),
-                RestaurantContent.Create(), BusinessContent.Create(), CareContent.Create(), OrnamentContent.Create(),
+                RestaurantContent.Create(), BusinessContent.Create(), CareContent.Create(), OrnamentContent.Create(), TownHallContent.Create(),
+                KnowledgeContent.Create(),
             ];
             foreach (var manifest in manifests)
             {
@@ -217,6 +218,10 @@ public sealed partial class PrivateWorldRuntime
                     position,
                     $"Building definition '{normalizedDefinitionId}' is not active.");
             }
+
+            if (definition.Tags.Contains(TownHallContent.HallTag, StringComparer.Ordinal))
+                return BuildingPlacementResult.Rejected(normalizedInstanceId, normalizedDefinitionId, position,
+                    "The Town Hall needs a Council-approved project, delivered materials and completed building work.");
 
             if (worldSimulation.Buildings.Any(item => item.InstanceId == normalizedInstanceId))
             {
@@ -362,7 +367,11 @@ public sealed partial class PrivateWorldRuntime
                 return ProductionStartResult.Rejected(normalizedRecipeId,
                     "The household workshop must be claimed before production.");
 
-            var onSiteHouseholdRecipe = placed?.HouseholdId is not null && workstation?.Tags.Any(IsHouseholdBuildingTag) == true;
+            var personalCartRecipe = IsHandcartRecipe(recipe);
+            if (personalCartRecipe && !HasCarriedUnreservedQuantities(normalizedWorkerId, recipe.Inputs))
+                return ProductionStartResult.Rejected(normalizedRecipeId,
+                    "Carry the wood, iron fittings and rope to the Blacksmith before building a handcart.");
+            var onSiteHouseholdRecipe = !personalCartRecipe && placed?.HouseholdId is not null && workstation?.Tags.Any(IsHouseholdBuildingTag) == true;
             if (onSiteHouseholdRecipe && !HasIngredientsAtBuilding(recipe.Inputs, worker.HouseholdId!, placed!.InstanceId))
                 return ProductionStartResult.Rejected(normalizedRecipeId,
                     MissingProductionIngredients(recipe, worker.HouseholdId!, placed!.InstanceId));
@@ -383,7 +392,8 @@ public sealed partial class PrivateWorldRuntime
                 ToolProgressionRules.WorkDuration(recipe.DurationTicks, knife.WorkUnits);
             var jobId = $"production-{worldSimulation.NextProductionJobSequence.ToString("D10", System.Globalization.CultureInfo.InvariantCulture)}";
             var completionTick = checked(WorldTick + workDuration);
-            var productionOwner = ProductionOwnerFor(placed, normalizedWorkerId);
+            // A handcart belongs to the adult who builds it, not to the Blacksmith's household.
+            var productionOwner = personalCartRecipe ? normalizedWorkerId : ProductionOwnerFor(placed, normalizedWorkerId);
             IReadOnlyList<string> reservationIds = [];
             ApplyInventoryTransition(inventory =>
             {
@@ -394,7 +404,8 @@ public sealed partial class PrivateWorldRuntime
                     completionTick,
                     productionOwner,
                     out reservationIds,
-                    onSiteHouseholdRecipe ? placed!.InstanceId : null);
+                    onSiteHouseholdRecipe ? placed!.InstanceId : null,
+                    requireCarried: personalCartRecipe);
                 return reserved;
             });
 
@@ -433,6 +444,12 @@ public sealed partial class PrivateWorldRuntime
         try
         {
             var manifest = GetContentManifest(packageId);
+            if (towns.SelectMany(town => town.Projects).Any(project => project.Plan.DefinitionId
+                    .StartsWith(manifest.PackageDigest + "/", StringComparison.Ordinal)) ||
+                towns.SelectMany(town => town.Governance?.Proposals ?? []).Any(proposal =>
+                    proposal.Status is "pending" or "passed" && proposal.Project is { } plan &&
+                    plan.DefinitionId.StartsWith(manifest.PackageDigest + "/", StringComparison.Ordinal)))
+                throw new InvalidOperationException("This content is referenced by retained Town construction approvals and material receipts.");
             var packageRecipes = manifest.Definitions.Where(definition => definition.Kind == RecipeDefinition.SchemaKind)
                 .Select(definition => definition.CanonicalId(manifest.PackageDigest)).ToHashSet(StringComparer.Ordinal);
             if (toolMakingRequests.Any(request => !ToolMakingRequestRules.IsTerminal(request.Status) &&

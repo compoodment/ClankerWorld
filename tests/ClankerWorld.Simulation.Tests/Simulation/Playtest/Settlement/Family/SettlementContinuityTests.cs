@@ -105,6 +105,8 @@ public sealed partial class SettlementParenthoodTests
         Assert.Equal("postponed", world.Inhabitants.Single(person => person.InhabitantId == first).Parenthood!.Stage);
 
         // A postponed plan is ordinary saved state, and replay from it is deterministic.
+        // Exercise both sides of the deadline without simulating the idle days.
+        PositionFamilyFixtureAt(world, couple.DeadlineTick - 2);
         world.Pause();
         var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
         using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes), providers);
@@ -283,7 +285,7 @@ public sealed partial class SettlementParenthoodTests
                 {
                     Society = state.Society.Society with
                     {
-                        Inhabitants = state.Society.Society.Inhabitants.Select(person => person with { Name = "private-continuity-secret" }).ToArray(),
+                        Inhabitants = state.Society.Society.Inhabitants.Select(person => person with { Name = $"private-continuity-secret-{person.Id}" }).ToArray(),
                     }
                 }
             };

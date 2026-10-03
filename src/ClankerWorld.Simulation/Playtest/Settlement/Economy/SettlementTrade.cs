@@ -48,7 +48,7 @@ public sealed partial class PrivateWorldRuntime
                 ? !ornaments.Any(lot => lot.ItemKind == OrnamentContent.DiamondOrnament)
                 : ornaments.Length == 0;
         }
-        if (kind is "field_map" or "field_record")
+        if (AgentKnowledgeRules.IsArtifactKind(kind))
         {
             // An agent can offer a record they physically hold; a prospective
             // recipient wants it only if it contains a fact they have not learned.
@@ -228,7 +228,7 @@ public sealed partial class PrivateWorldRuntime
         !InventoryContainerRules.IsContainer(lot.ItemKind) && lot.DeliveryBuildingId is null &&
         (!inhabitants.TryGetValue(lot.OwnerId, out var carrier) ||
          !PersonalEquipmentRules.IsSelected(carrier.Equipment, lot.Id)) &&
-        AvailableLotQuantity(lot) >= (lot.ItemKind is "field_map" or "field_record" ||
+        AvailableLotQuantity(lot) >= (AgentKnowledgeRules.IsArtifactKind(lot.ItemKind) ||
             OrnamentContent.IsOrnament(lot.ItemKind) ? 1 : 2);
 
     private void MaintainSettlementTrades()

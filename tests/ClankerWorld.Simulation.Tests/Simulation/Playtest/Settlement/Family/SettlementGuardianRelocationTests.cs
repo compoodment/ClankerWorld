@@ -9,11 +9,15 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed partial class SettlementParenthoodTests
 {
     [Theory]
-    [InlineData("last_place")]
-    [InlineData("full")]
-    [InlineData("other_town")]
-    [InlineData("no_town")]
-    public async Task GuardianAcceptanceMovesHouseholdOnlyToALegalPlaceInTheSameRecordedTown(string scenario)
+    [InlineData("last_place", false)]
+    [InlineData("full", false)]
+    [InlineData("other_town", false)]
+    [InlineData("no_town", false)]
+    [InlineData("last_place", true)]
+    [InlineData("full", true)]
+    [InlineData("other_town", true)]
+    [InlineData("no_town", true)]
+    public async Task GuardianAcceptanceMovesHouseholdOnlyToALegalPlaceInTheSameRecordedTown(string scenario, bool ordered)
     {
         using var initial = NormalPathWorld.CreateGenerated("guardian-relocation", _ => new ParentProvider("safe_idle"));
         var state = initial.ExportState();
@@ -41,9 +45,11 @@ public sealed partial class SettlementParenthoodTests
         inventory = InventoryFixture.AddLot(inventory, "guardian-birth-food", "food", destinationHousehold, 12,
             storageBuildingId: destinationHouse.InstanceId);
         society = society with { Inventory = inventory };
+        society = ChosenBirthNameTestFixture.NameParent(society, parents[0]);
+        society = ChosenBirthNameTestFixture.NameParent(society, guardians[0]);
         var orphanBirth = SocietyFixture.CommitBirth(society, new SocietyBirthRequest(
             "relocation-orphan", 1, parents[0], parents[1], originHousehold, parents, parents,
-            "orphan-birth-food", 4, society.WorldTick, ChildName: "Orphan", PrimaryCaregiverId: parents[0]));
+            "orphan-birth-food", 4, society.WorldTick, ChildName: ChosenBirthNameTestFixture.ChildName(society, parents[0], "Orphan"), PrimaryCaregiverId: parents[0]));
         var child = Assert.IsType<string>(orphanBirth.CreatedId);
         society = orphanBirth.Checkpoint;
         // A grandparent is asked first wherever they live, so the same adult is offered in every scenario.
@@ -62,7 +68,7 @@ public sealed partial class SettlementParenthoodTests
             var birth = SocietyFixture.CommitBirth(society, new SocietyBirthRequest(
                 "relocation-resident:" + index, 1, guardians[0], guardians[1], destinationHousehold,
                 guardians, guardians, "guardian-birth-food", 4, society.WorldTick,
-                ChildName: "Resident" + index, PrimaryCaregiverId: adult));
+                ChildName: ChosenBirthNameTestFixture.ChildName(society, guardians[0], "Resident" + index), PrimaryCaregiverId: adult));
             society = birth.Checkpoint;
             addedChildren.Add((Assert.IsType<string>(birth.CreatedId), destinationHouse.Position));
         }
@@ -147,7 +153,15 @@ public sealed partial class SettlementParenthoodTests
         Assert.Equal(scenario == "full" ? 5 : 4, capacity.ResidentCount);
         Assert.Equal(scenario == "full", capacity.IsOvercrowded);
 
-        var provider = new ParentProvider("guardian_accept:");
+        if (ordered)
+        {
+            using var search = PrivateWorldRuntime.Restore(state, _ => new ParentProvider("safe_idle"));
+            Assert.True((await search.AdvanceOneTickAsync()).Advanced);
+            search.SubmitInstruction(GuardianRequest("relocation-order", adult, child));
+            state = search.ExportState();
+            Assert.Equal("waiting", Assert.Single(state.Instructions!).Order!.Status);
+        }
+        var provider = new ParentProvider(ordered ? "safe_idle" : "guardian_accept:");
         using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)),
             actor => actor == adult ? provider : new ParentProvider("safe_idle"));
         var beforeAcceptance = PrivateWorldRuntimeCodec.Encode(world.ExportState());
@@ -157,7 +171,10 @@ public sealed partial class SettlementParenthoodTests
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
             ticks++;
         }
-        Assert.Contains(provider.SeenCandidates, candidate => candidate.Id == "guardian_accept:" + child);
+        if (ordered)
+            Assert.Equal("finished", Assert.Single(world.ExportState().Instructions!).Order!.Status);
+        else
+            Assert.Contains(provider.SeenCandidates, candidate => candidate.Id == "guardian_accept:" + child);
         var result = world.Society.GetInhabitant(child);
         Assert.Equal(adult, result.PrimaryCaregiverId);
         Assert.Equal(scenario == "last_place" ? destinationHousehold : originHousehold, result.HouseholdId);
@@ -188,7 +205,7 @@ public sealed partial class SettlementParenthoodTests
         var encoded = PrivateWorldRuntimeCodec.Encode(world.ExportState());
         Assert.Equal(encoded, PrivateWorldRuntimeCodec.Encode(PrivateWorldRuntimeCodec.Decode(encoded)));
         using var replay = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(beforeAcceptance),
-            actor => actor == adult ? new ParentProvider("guardian_accept:") : new ParentProvider("safe_idle"));
+            actor => actor == adult ? new ParentProvider(ordered ? "safe_idle" : "guardian_accept:") : new ParentProvider("safe_idle"));
         for (var tick = 0; tick < ticks; tick++) Assert.True((await replay.AdvanceOneTickAsync()).Advanced);
         Assert.Equal(encoded, PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
     }

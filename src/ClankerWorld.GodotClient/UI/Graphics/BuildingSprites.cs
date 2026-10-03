@@ -21,6 +21,7 @@ public enum BuildingKind : byte
     Generic,
     Clinic,
     Restaurant,
+    TownHall,
 }
 
 /// <summary>The edge of a building's footprint that its door is on.</summary>
@@ -85,6 +86,7 @@ public static class BuildingSprites
         if (Has("store")) return BuildingKind.Store;
         if (Has("clinic")) return BuildingKind.Clinic;
         if (Has("restaurant")) return BuildingKind.Restaurant;
+        if (Has("town_hall")) return BuildingKind.TownHall;
         if ((Has("cooking") || Has("warmth")) && !Has("shelter")) return BuildingKind.Hearth;
         if (Has("storage")) return BuildingKind.Storehouse;
         if (Has("shelter")) return BuildingKind.Shelter;
@@ -344,8 +346,9 @@ public static class BuildingSprites
         private static readonly Ramp Rock = Ramp.Of("4A4542", "625B56", "756D68", "8B837D", "A49C95");
         private static readonly Ramp Iron = Ramp.Of("3E3A37", "524C48", "6C6560", "8A827C", "A69E98");
         private static readonly Ramp Cloth = Ramp.Of("75674D", "A09170", "CABC99", "E8DCC0", "FFF5DF");
-        private static readonly Ramp Berry = Ramp.Of("7A2A2E", "A33A3F", "C4474B", "F08A8A", "FFC2C2");
+        private static readonly Ramp Gold = Ramp.Of("8A6A1E", "B8902E", "D9AE3C", "F2CC5E", "FFE28A");
         private static readonly Ramp Leaf = Ramp.Of("3C5F2E", "4C7A3A", "5E8C45", "79A657", "9BC66F");
+        private static readonly Ramp Berry = Ramp.Of("7A2A2E", "A33A3F", "C4474B", "F08A8A", "FFC2C2");
         private static readonly Ramp Fruit = Ramp.Of("9A4E1E", "C8702E", "E0893F", "F6C27A", "FFE0A8");
         private static readonly Ramp Dirt = Ramp.Of("6E5538", "977852", "B99A6B", "C9AC7C", "D9C08F");
         private static readonly Ramp River = Ramp.Of("2F5A75", "3B7294", "4786AB", "5695B8", "7FB4CF");
@@ -393,6 +396,7 @@ public static class BuildingSprites
             BuildingKind.Generic => new(Plain, Material.Shingle, RoofShape.Hip, 410),
             BuildingKind.Clinic => new(Cloth, Material.Shingle, RoofShape.Hip, 348),
             BuildingKind.Restaurant => new(Clay, Material.Clay, RoofShape.Gable, 441, Yard: 20),
+            BuildingKind.TownHall => new(Slate, Material.Slate, RoofShape.Hip, 286, Clearance: 22),
             _ => null,
         };
 
@@ -501,6 +505,11 @@ public static class BuildingSprites
         {
             // The approved dining terrace needs at least two tiles each way.
             if (kind == BuildingKind.Restaurant && (w <= 32 || h <= 32)) recipe = recipe with { Yard = 0 };
+            if (kind == BuildingKind.TownHall)
+            {
+                PaintHall(p, recipe, w, h, door);
+                return;
+            }
             var doorHalf = kind == BuildingKind.Warehouse ? 7f : 3f;
             var plan = Lay(w, h, door, recipe, doorHalf);
             var roof = p.Px(plan.Roof);
@@ -580,6 +589,164 @@ public static class BuildingSprites
             }
             // The doorstep path the Road's own doorstep piece continues.
             if (door.Tile is not null) Path(p, roof, door.Side, middle, nextRow);
+        }
+
+        /// <summary>The approved TownHall.3x4 drawing; the supported Hall binds its south door to slot one.</summary>
+        private static void PaintHall(Plate p, Recipe recipe, int w, int h, BuildingDoor door)
+        {
+            var plan = Lay(w, h, door, recipe, 5);
+            var roof = p.Px(plan.Roof);
+            var middle = p.P(plan.DoorMiddle);
+            Forecourt(p, roof, door.Side);
+            var main = HallRoofs(p, roof, recipe, door.Side, recipe.Salt);
+            middle = door.Side is DoorSide.South or DoorSide.North
+                ? FitHallPixel(middle, main.Position.X + p.P(10), main.End.X - 1 - p.P(10))
+                : FitHallPixel(middle, main.Position.Y + p.P(10), main.End.Y - 1 - p.P(10));
+            var tower = Inward(p, main, door.Side, middle, 15);
+            BellTower(p, tower.X, tower.Y);
+            Door(p, main, door.Side, middle, 5, 3);
+            Planters(p, main, door.Side, middle);
+        }
+
+        private static int FitHallPixel(int value, int min, int max) => max < min ? (min + max) / 2 : Math.Clamp(value, min, max);
+
+        private static Rect2I HallRoofs(Plate p, Rect2I roof, Recipe recipe, DoorSide door, int salt)
+        {
+            var towardDoor = door is DoorSide.South or DoorSide.North;
+            int x = roof.Position.X, y = roof.Position.Y, w = roof.Size.X, h = roof.Size.Y;
+            var main = towardDoor
+                ? new Rect2I(x + (int)(w * 0.2f), y, w - 2 * (int)(w * 0.2f), h)
+                : new Rect2I(x, y + (int)(h * 0.2f), w, h - 2 * (int)(h * 0.2f));
+            var wings = towardDoor
+                ? new Rect2I(x, y + (int)(h * 0.3f), w, (int)(h * 0.38f))
+                : new Rect2I(x + (int)(w * 0.3f), y, (int)(w * 0.38f), h);
+            PaintRoof(p, wings, recipe with { Salt = salt + 1 });
+            PaintRoof(p, main, recipe with { Salt = salt });
+            // Gold finials where the main ridge ends.
+            int iw = main.Size.X - 2, ih = main.Size.Y - 2;
+            var size = p.Small ? 1 : 2;
+            foreach (var (fx, fy) in RidgeEnds(main.Position.X + 1, main.Position.Y + 1, iw, ih))
+            {
+                p.Fill(fx - size / 2 + 1, fy - size / 2 + 1, size, size, RoofShadow);
+                p.Fill(fx - size / 2, fy - size / 2, size, size, Gold.Base);
+                p.Put(fx - size / 2, fy - size / 2, Gold.Highlight);
+            }
+            return main;
+        }
+
+        /// <summary>The two ends of a hipped roof's ridge, in pixels.</summary>
+        private static (int X, int Y)[] RidgeEnds(int left, int top, int iw, int ih)
+        {
+            if (iw >= ih)
+            {
+                var ridge = (ih + 1) / 2 - 1;
+                return [(left + ridge, top + ridge), (left + iw - 1 - ridge, top + ridge)];
+            }
+            var column = (iw + 1) / 2 - 1;
+            return [(left + column, top + column), (left + column, top + ih - 1 - column)];
+        }
+
+        private static void Forecourt(Plate p, Rect2I roof, DoorSide side)
+        {
+            var inset = p.P(2);
+            var area = side switch
+            {
+                DoorSide.North => new Rect2I(inset, 0, p.Width - inset * 2, roof.Position.Y + 1),
+                DoorSide.East => new Rect2I(roof.End.X - 1, inset, p.Width - roof.End.X + 1, p.Height - inset * 2),
+                DoorSide.West => new Rect2I(0, inset, roof.Position.X + 1, p.Height - inset * 2),
+                _ => new Rect2I(inset, roof.End.Y - 1, p.Width - inset * 2, p.Height - roof.End.Y + 1),
+            };
+            Flagstones(p, area, 151);
+        }
+
+        /// <summary>Town Hall: two stone planters of flowers on the forecourt, one either side of the steps.</summary>
+        private static void Planters(Plate p, Rect2I roof, DoorSide side, int middle)
+        {
+            var size = p.Small ? 3 : 6;
+            var gap = p.Small ? 6 : 12;
+            var firstRow = p.Small ? 3 : 6;
+            foreach (var start in new[] { middle - gap - size, middle + gap })
+                for (var k = firstRow; k < firstRow + size; k++)
+                    for (var t = start; t < start + size; t++)
+                    {
+                        var rim = k == firstRow || k == firstRow + size - 1 || t == start || t == start + size - 1;
+                        var c = rim ? (p.Small ? Doorstep.Shade : k == firstRow || t == start ? Doorstep.Light : Doorstep.Edge)
+                            : (t + k) % 3 == 0 ? Leaf.Light : Leaf.Base;
+                        if (!rim && (t * 5 + k * 3) % 7 == 0) c = (t + k) % 2 == 0 ? Berry.Light : Gold.Light;
+                        Out(p, roof, side, k, t, c);
+                    }
+        }
+
+        /// <summary>Calm flagstones: offset rows of stones in the Doorstep ramp, joints one step darker, worn border.</summary>
+        private static void Flagstones(Plate p, Rect2I area, int salt)
+        {
+            int rowHeight = p.Small ? 3 : 5, stoneWidth = p.Small ? 4 : 7;
+            for (var y = area.Position.Y; y < area.End.Y; y++)
+            {
+                var row = (y - area.Position.Y) / rowHeight;
+                var inRow = (y - area.Position.Y) % rowHeight;
+                var shift = (int)(PixelArt.Hash(row, 0, salt) % (uint)stoneWidth);
+                for (var x = area.Position.X; x < area.End.X; x++)
+                {
+                    var position = x - area.Position.X + shift;
+                    var border = x == area.Position.X || y == area.Position.Y || x == area.End.X - 1 || y == area.End.Y - 1;
+                    Color c;
+                    if (border) c = Doorstep.Shade;
+                    else if (inRow == rowHeight - 1 || position % stoneWidth == stoneWidth - 1) c = Toward(Doorstep, 2, 1, 0.7f);
+                    else
+                    {
+                        var roll = PixelArt.Hash(position / stoneWidth, row, salt + 1) % 6;
+                        c = roll == 0 ? Toward(Doorstep, 2, 3, 0.6f) : roll == 1 ? Toward(Doorstep, 2, 1, 0.25f) : Doorstep.Base;
+                        if (inRow == 0 && !p.Small) c = c.Lerp(Doorstep.Light, 0.3f);
+                    }
+                    p.Put(x, y, c);
+                }
+            }
+        }
+
+        /// <summary>
+        /// B3 Town Hall: an open bell tower on the roof, seen from above. Stone
+        /// walls lit north-west with corner piers, the dark belfry inside, a
+        /// timber headstock across it and the bronze bell hanging from it.
+        /// </summary>
+        private static void BellTower(Plate p, int cx, int cy)
+        {
+            if (p.Small)
+            {
+                p.Fill(cx - 3, cy - 3, 8, 8, RoofShadow);
+                p.Fill(cx - 4, cy - 4, 8, 8, Doorstep.Edge);
+                p.Fill(cx - 3, cy - 3, 6, 6, Doorstep.Light);
+                p.Fill(cx - 2, cy - 2, 4, 4, Soot);
+                p.Fill(cx - 1, cy - 1, 2, 2, Gold.Base);
+                p.Put(cx - 1, cy - 1, Gold.Highlight);
+                return;
+            }
+            const int half = 9;
+            int x = cx - half, y = cy - half, size = half * 2;
+            p.Fill(x + 3, y + 3, size, size, RoofShadow);
+            p.Fill(x, y, size, size, Doorstep.Edge);
+            p.Fill(x + 1, y + 1, size - 2, size - 2, Doorstep.Shade);
+            p.Fill(x + 1, y + 1, size - 3, size - 3, Doorstep.Base);
+            p.Fill(x + 1, y + 1, size - 3, 1, Doorstep.Light);
+            p.Fill(x + 1, y + 1, 1, size - 3, Doorstep.Light);
+            p.Fill(x + 3, y + 3, size - 6, size - 6, Doorstep.Edge);
+            p.Fill(x + 4, y + 4, size - 8, size - 8, Soot);
+            // Corner piers, lit on their north-west faces.
+            foreach (var (px, py) in new[] { (x, y), (x + size - 5, y), (x, y + size - 5), (x + size - 5, y + size - 5) })
+            {
+                p.Fill(px, py, 5, 5, Doorstep.Edge);
+                p.Fill(px + 1, py + 1, 3, 3, Doorstep.Light);
+                p.Put(px + 1, py + 1, Doorstep.Highlight);
+                p.Put(px + 3, py + 3, Doorstep.Shade);
+            }
+            // Headstock beam and the bell: a bronze dome lit from the north-west.
+            p.Fill(x + 4, cy - 1, size - 8, 2, Timber.Shade);
+            p.Disc(cx, cy, 4.2f, Gold.Edge);
+            p.Disc(cx, cy, 3.4f, Gold.Shade);
+            p.Disc(cx - 0.6f, cy - 0.6f, 2.5f, Gold.Base);
+            p.Disc(cx - 1.2f, cy - 1.2f, 1.2f, Gold.Light);
+            p.Put(cx - 2, cy - 2, Gold.Highlight);
+            p.Fill(cx - 1, cy - 1, 2, 2, Timber.Edge);
         }
 
         /// <summary>
@@ -1648,33 +1815,6 @@ public static class BuildingSprites
                 p.Put(tx - 1, ty - 1, Cloth.Highlight);
                 p.Put(tx, ty, Cloth.Light);
                 p.Put(tx + 2, ty, Cloth.Highlight);
-            }
-        }
-
-        /// <summary>Calm flagstones: offset rows of stones in the Doorstep ramp, joints one step darker, worn border.</summary>
-        private static void Flagstones(Plate p, Rect2I area, int salt)
-        {
-            int rowHeight = p.Small ? 3 : 5, stoneWidth = p.Small ? 4 : 7;
-            for (var y = area.Position.Y; y < area.End.Y; y++)
-            {
-                var row = (y - area.Position.Y) / rowHeight;
-                var inRow = (y - area.Position.Y) % rowHeight;
-                var shift = (int)(PixelArt.Hash(row, 0, salt) % (uint)stoneWidth);
-                for (var x = area.Position.X; x < area.End.X; x++)
-                {
-                    var position = x - area.Position.X + shift;
-                    var border = x == area.Position.X || y == area.Position.Y || x == area.End.X - 1 || y == area.End.Y - 1;
-                    Color c;
-                    if (border) c = Doorstep.Shade;
-                    else if (inRow == rowHeight - 1 || position % stoneWidth == stoneWidth - 1) c = Toward(Doorstep, 2, 1, 0.7f);
-                    else
-                    {
-                        var roll = PixelArt.Hash(position / stoneWidth, row, salt + 1) % 6;
-                        c = roll == 0 ? Toward(Doorstep, 2, 3, 0.6f) : roll == 1 ? Toward(Doorstep, 2, 1, 0.25f) : Doorstep.Base;
-                        if (inRow == 0 && !p.Small) c = c.Lerp(Doorstep.Light, 0.3f);
-                    }
-                    p.Put(x, y, c);
-                }
             }
         }
 
