@@ -36,6 +36,7 @@ public readonly record struct ContentQuantity(string ResourceId, int Amount)
 public sealed class BuildingDefinition
 {
     public const string SchemaKind = "building";
+    private string? canonicalId;
 
     public BuildingDefinition(
         string packageDigest,
@@ -90,7 +91,9 @@ public sealed class BuildingDefinition
 
     public string PayloadDigest { get; }
 
-    public string CanonicalId => ContentPackageRules.CanonicalDefinitionId(
+    // Every part of the ID is fixed at construction, and runtime checks compare
+    // it constantly, so validate and format it once.
+    public string CanonicalId => canonicalId ??= ContentPackageRules.CanonicalDefinitionId(
         PackageDigest,
         SchemaKind,
         LocalId,
@@ -149,6 +152,7 @@ public sealed class BuildingDefinition
 public sealed class RecipeDefinition
 {
     public const string SchemaKind = "recipe";
+    private string? canonicalId;
 
     public RecipeDefinition(
         string packageDigest,
@@ -211,7 +215,9 @@ public sealed class RecipeDefinition
     /// </summary>
     public bool IsCrop => Tags.Contains("crop", StringComparer.Ordinal);
 
-    public string CanonicalId => ContentPackageRules.CanonicalDefinitionId(
+    // Every part of the ID is fixed at construction, and runtime checks compare
+    // it constantly, so validate and format it once.
+    public string CanonicalId => canonicalId ??= ContentPackageRules.CanonicalDefinitionId(
         PackageDigest,
         SchemaKind,
         LocalId,

@@ -1,4 +1,6 @@
+using System.Collections;
 using System.Net;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -50,7 +52,7 @@ public sealed class MultiHeirWillAdmissionTests
                 handler.CollisionKey);
 
         var saved = world.ExportState();
-        Assert.Equal(53, saved.SchemaVersion);
+        Assert.Equal(PrivateWorldRuntime.StateSchemaVersion, saved.SchemaVersion);
         using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
             PrivateWorldRuntimeCodec.Encode(saved)));
         var restoredEstate = Assert.Single(restored.Society.Estates);
@@ -90,10 +92,13 @@ public sealed class MultiHeirWillAdmissionTests
         using var world = NewWorld(provider);
         Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
         await provider.Started.Task.WaitAsync(Deadline);
+        var pendingWill = PendingWillTask(world);
 
         // This legal provider completion permits its awaiting continuation to
         // run inline on the completion thread, as configured HTTP adapters do.
         await Task.Run(provider.Complete).WaitAsync(Deadline);
+        await pendingWill.WaitAsync(Deadline);
+        Assert.Equal("pending", Assert.Single(world.Society.Estates).WillStatus);
         var changed = false;
         var result = await world.AdvanceOneTickNonBlockingAsync(null, (_, _) =>
         {
@@ -306,10 +311,20 @@ public sealed class MultiHeirWillAdmissionTests
             id => id == Actor ? provider : new DeterministicDecisionProvider());
     }
 
+    private static Task PendingWillTask(PrivateWorldRuntime world)
+    {
+        // Between controlled ticks, await the runtime's full provider handoff
+        // without advancing another tick that could admit the unchanged reply.
+        var field = typeof(PrivateWorldRuntime).GetField("pendingWills",
+            BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var pending = Assert.Single(Assert.IsAssignableFrom<IDictionary>(field.GetValue(world)).Values.Cast<object>());
+        return Assert.IsAssignableFrom<Task>(pending.GetType().GetProperty("Task")!.GetValue(pending));
+    }
+
     private sealed class HeldWillProvider : IDecisionProvider
     {
-        // Inline continuations let completion return only after the awaiting
-        // runtime task has observed the reply; no polling of private tasks.
+        // Permit inline continuations, but the runtime may not yet be awaiting
+        // this reply when Complete returns. Its task must be awaited separately.
         private readonly TaskCompletionSource<CognitionDecisionResponse> reply = new();
         private CognitionDecisionRequest? request;
         private CancellationTokenRegistration registration;

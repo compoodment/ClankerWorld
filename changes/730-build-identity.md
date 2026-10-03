@@ -1,0 +1,1 @@
+- Settings and Developer tools now show the client version and source commit for bug reports. The host reports its own build at `/api/v1/status`, and Windows export metadata and the checksum manifest identify the source build. Untagged builds are labelled `dev`.
