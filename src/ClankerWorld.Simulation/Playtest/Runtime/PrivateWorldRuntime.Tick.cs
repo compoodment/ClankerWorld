@@ -178,6 +178,9 @@ public sealed partial class PrivateWorldRuntime
                     proposed.WorldTick,
                     IsConversationTurnProviderCurrent);
                 proposed.CompleteIdentityMoments(completedIdentityMoments, IsIdentityMomentProviderCurrent);
+                if (deferHosted)
+                    proposed.ProcessWillDecisions(completedWills, activeWillIds, inactiveWillReasons,
+                        IsWillDecisionProviderCurrent);
                 CommitPreparedTick(proposed);
                 plannedRoutes = proposed.plannedRoutes;
                 lastTickMilliseconds = tickMilliseconds;
@@ -331,6 +334,7 @@ public sealed partial class PrivateWorldRuntime
         conversations = proposed.conversations;
         conversationBudgets = proposed.conversationBudgets;
         businessTrades = proposed.businessTrades;
+        toolMakingRequests = proposed.toolMakingRequests;
         roadBridgeDecks = proposed.roadBridgeDecks;
         nextInstructionSequence = proposed.nextInstructionSequence;
     }
@@ -423,6 +427,7 @@ public sealed partial class PrivateWorldRuntime
             StageBlacksmithContent();
             StageOrnamentContent();
             StageHouseCookingContent();
+            StageRestaurantContent();
             StagePotteryContent();
             StageSiloContent();
             StageTailorContent();
@@ -451,8 +456,7 @@ public sealed partial class PrivateWorldRuntime
             }
 
             assetReservations = reservationPreview;
-            society.AdvanceTo(targetTick);
-            if (deferHosted) await ProcessWillDecisionsAsync(completedWills, activeWillIds, inactiveWillReasons);
+            society.AdvanceTo(targetTick, TownStoresForDueEstates(targetTick));
             var previousClimate = worldSystems.Climate;
             var campPosition = WeatherAnchor;
             var previousCampWeather = WeatherAt(campPosition);
@@ -507,12 +511,14 @@ public sealed partial class PrivateWorldRuntime
             AdvanceMedicalTreatments();
             MaintainSettlementTrades();
             MaintainBusinessTrades();
+            MaintainToolMakingRequests();
             DrainNeeds();
             AdvanceMedicalTreatments();
             RemoveDeadPhysicalState();
             CancelFieldWorkForUnavailableWorkers();
             AdvanceSettlementCouncil();
             AdvanceTownGovernance();
+            SettleTownAdmissions();
             MaintainLessons();
             MaintainPartnerships();
             MaintainHousing();
@@ -589,6 +595,7 @@ public sealed partial class PrivateWorldRuntime
             if (deferHosted) ApplySafeRoutinesWhileWaiting(waiting, orderActorsHandledThisTick);
             AdvanceBridgeTraffic();
             SettleGuardianSearches();
+            MaintainToolMakingRequests();
             MaintainKnowledgeWriting();
 
             AppendEvent("tick_advanced", targetTick.ToString(System.Globalization.CultureInfo.InvariantCulture));

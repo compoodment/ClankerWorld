@@ -15,6 +15,41 @@ namespace ClankerWorld.Viewer.Observation;
 /// </summary>
 public sealed class OwnerWorldObservationStore
 {
+    private static ViewerTownGovernment ProjectGovernment(TownGovernmentState government, Func<string, string> name)
+    {
+        ViewerMayoralElection Election(TownMayoralContest contest) => new(contest.Id,
+            TownArrangementRules.MandateLabel(contest.Mandates), contest.Stage, contest.Round, contest.RoundDeadlineTick,
+            contest.Candidates.Select(id => new ViewerCivicCandidate(id, name(id), contest.Ballots.Count(b => b.CandidateId == id))).ToArray(),
+            contest.WinnerId is { } winner ? name(winner) : null, contest.Reason);
+        return new(TownArrangementRules.Declaration(government.Arrangement),
+            government.Laws.TakeLast(16).Select(l =>
+            {
+                var v = TownLawRules.Current(l);
+                return new ViewerTownLaw(l.Id, v.Subject, v.Rule, v.Scope, v.SiteTiles.Count, v.Version, v.AdoptedTick, v.EndedTick)
+                { Site = v.SiteTiles.Select(ToPosition).ToArray() };
+            }).ToArray(), government.Laws.Count,
+            government.Offices.Select(o => new ViewerTownOffice(TownArrangementRules.MandateLabel(o.Mandates),
+                o.HolderId is { } holder ? name(holder) : null, o.TermEndTick, o.VacancyReason)).ToArray(),
+            government.Changes.TakeLast(8).Select(c => new ViewerGovernmentChange(c.Id,
+                (c.Kind == "replace_mayor" ? "Replace the elected mayoral mandates. " : "") + TownArrangementRules.Declaration(c.Target),
+                c.Status, c.Votes.Count(v => v.Yes), c.Votes.Count(v => !v.Yes), c.Voters.Count / 2 + 1,
+                c.DeadlineTick, c.HandoverDeadlineTick, c.Reason)).ToArray(),
+            government.Contest is { } live ? Election(live) : null,
+            government.ContestHistory.Count > 0 ? Election(government.ContestHistory[^1]) : null, government.MayoralRetryTick);
+    }
+
+    private static string LandRequestApprovalDetail(PrivateWorldRuntimeState state, HouseholdLandUseRequest request, bool disputed)
+    {
+        if (request.Status != "pending") return "Household request " + request.Status;
+        var adults = state.Society.Society.Inhabitants.Where(p => p.HouseholdId == request.HouseholdId &&
+            p.Status == SocietyInhabitantStatus.Active && p.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder).ToArray();
+        var accepted = adults.Count(p => request.Consents.Any(c => c.AgentId == p.Id && c.Accepted));
+        var proposal = state.Towns?.Single(t => t.Id == request.TownId).Governance?.Proposals.SingleOrDefault(p => p.Id == request.CouncilProposalId);
+        var council = proposal?.Status == "passed" ? "Council approved" : proposal is null ? "Awaiting Council consideration" :
+            $"Council votes: {proposal.Votes.Count(v => v.Yes)}/{proposal.RequiredYes}";
+        return $"{council}; household acceptance: {accepted}/{adults.Length}" + (disputed ? "; disputed plot" : "");
+    }
+
     private const int AgentKnowledgeArtifactLimit = 8;
     private const int RecentClosedInstructionLimitPerAgent = 6;
     public const int RecentCivicProposalLimit = 8;
@@ -370,11 +405,19 @@ public sealed class OwnerWorldObservationStore
                     item.BorderTiles.OrderBy(point => point.Y).ThenBy(point => point.X)
                         .Select(ToPosition).ToArray())
                 {
+                    Government = item.Government is { } government ? ProjectGovernment(government,
+                        id => inhabitantsById.GetValueOrDefault(id)?.Name ?? id) : null,
                     Governance = item.Governance is { } civic ? new ViewerTownGovernance(
                         civic.Form, civic.Fallback, civic.Members.Select(id => inhabitantsById.GetValueOrDefault(id)?.Name ?? id).ToArray(),
                         civic.TermEndTick, civic.RetryTick, civic.Candidates.Select(c =>
                             (inhabitantsById.GetValueOrDefault(c.AgentId)?.Name ?? c.AgentId) + (c.FullTerm ? " (full term)" : " (current vacancy only)")).ToArray(),
-                        civic.Proposals.TakeLast(RecentCivicProposalLimit).Select(p => new ViewerCivicProposal(p.Id, p.Kind, p.Text, p.Status,
+                        civic.Proposals.TakeLast(RecentCivicProposalLimit).Select(p => new ViewerCivicProposal(p.Id, p.Kind,
+                            item.Government?.LawDrafts.SingleOrDefault(d => d.ProposalId == p.Id) is { } draft ? TownLawRules.VoteText(draft) :
+                                p.Text + (p.LandClaimTiles is { } tiles ? " Exact tiles: " + TownLandClaimRules.DescribeTiles(tiles) + "." :
+                                    p.Kind == "land_use" && state.HouseholdLandUseRequests?.SingleOrDefault(r => r.Id == p.SubjectId) is { } landRequest
+                                        ? " Exact tiles: " + TownLandClaimRules.DescribeTiles(landRequest.Tiles) + ". " +
+                                            LandRequestApprovalDetail(state, landRequest, landRequest.Tiles.Any(tile => TownLandRightsRules.IsDisputed(tile,
+                                                state.HouseholdLandUseRights ?? [], state.HouseholdLandUseRequests ?? []))) : ""), p.Status,
                             p.Votes.Count(v => v.Yes), p.Votes.Count(v => !v.Yes), p.RequiredYes, p.DeadlineTick)).ToArray(),
                         civic.Election is { } election ? ProjectElection(election) : null)
                     {
@@ -391,6 +434,7 @@ public sealed class OwnerWorldObservationStore
                     item.Tiles.Select(ToPosition).ToArray(), item.GrantedTick, item.GrantSource, item.AgreedEndTick))
                 .ToArray(),
             HouseholdLandUseRequests = (state.HouseholdLandUseRequests ?? [])
+                .Where(item => item.Status == "pending")
                 .OrderBy(item => item.Id, StringComparer.Ordinal)
                 .Select(item =>
                 {
@@ -403,7 +447,10 @@ public sealed class OwnerWorldObservationStore
                     return new ViewerHouseholdLandUseRequest(item.Id, item.TownId, item.HouseholdId,
                         item.RequestedByAgentId, item.Tiles.Select(ToPosition).ToArray(), item.RequestedTick,
                         item.AgreedEndTick, disputedTiles.Length > 0, claimants,
-                        disputedTiles.Select(ToPosition).ToArray());
+                        disputedTiles.Select(ToPosition).ToArray())
+                    {
+                        ApprovalDetail = LandRequestApprovalDetail(state, item, disputedTiles.Length > 0),
+                    };
                 }).ToArray(),
             RoadTiles = (state.RoadTiles ?? []).OrderBy(point => point.Y).ThenBy(point => point.X)
                 .Select(ToPosition).ToArray(),
@@ -417,6 +464,9 @@ public sealed class OwnerWorldObservationStore
                 ? CreateWeatherRegions(weatherSystems, map)
                 : [],
             WeatherRegionSize = WeatherRules.RegionSize,
+            DarknessBasisPoints = state.WorldSystems is { } daylightSystems
+                ? DaylightRules.DarknessBasisPoints(daylightSystems)
+                : null,
             CalendarPace = state.WorldSystems is { } worldSystems
                 ? new ViewerCalendarPace(worldSystems.Config.TicksPerDay, worldSystems.Config.DaysPerYear,
                     worldSystems.Config.SpringDays, worldSystems.Config.SummerDays,
@@ -555,6 +605,7 @@ public sealed class OwnerWorldObservationStore
                     residentCapacity?.IsOvercrowded ?? false)
                     {
                         Trades = BusinessTradesAt(state, item.InstanceId),
+                        ToolMakingRequests = ToolMakingRequestsAt(state, item.InstanceId),
                         AllowsHouseholdOwner = definition?.Tags.Any(HouseholdBuildingKinds.IsKindTag) == true,
                     };
                 })
@@ -784,6 +835,10 @@ public sealed class OwnerWorldObservationStore
             decisionFactors.Add(new ViewerDecisionFactor("knowledge-writing",
                 $"{action} a {kind} · {writing.WorkDone}/{writing.WorkRequired}"));
         }
+        if (TownMembershipText.Describe(state.Towns ?? [], state.Society.Society, inhabitant.Id,
+                state.WorldSystems!.Config.TicksPerDay,
+                TownMembershipText.TownsWithWarehouse(state.WorldSimulation, state.WorldContent!)) is { } townMembership)
+            decisionFactors.Add(new ViewerDecisionFactor("town-membership", townMembership));
         decisionFactors.AddRange(IdentityMomentFactors(physical));
         if (physical.ChildModelSelection is { Provider: { } birthProvider } birthModel)
         {
@@ -840,6 +895,8 @@ public sealed class OwnerWorldObservationStore
                     inventory.Any(item => item.Kind == "tool" && item.Quantity > 0), survival.NutritionBasisPoints, survival.LastMealKind) : null,
             Equipment = EquipmentFor(state, physical),
             MedicalCareNote = inhabitant.Status == SocietyInhabitantStatus.Active ? MedicalCareRules.Note(physical) : null,
+            ToolMakingRequestNote = inhabitant.Status == SocietyInhabitantStatus.Active
+                ? ToolMakingRequestRules.Note(state.ToolMakingRequests ?? [], inhabitant.Id, inhabitant.HouseholdId) : null,
             Lesson = physical.Lesson is { } lesson ? new ViewerLesson(
                 state.Society.Society.GetInhabitant(lesson.TeacherId).Name, lesson.Skill.ToString().ToLowerInvariant(),
                 lesson.Stage, lesson.Progress, 20) : null,
@@ -878,6 +935,16 @@ public sealed class OwnerWorldObservationStore
         state.Continuity?.Couples.Any(couple => couple.DeadlineTick <= state.Society.Society.WorldTick &&
             (couple.FirstPartnerId == owner && couple.SecondPartnerId == partner ||
              couple.FirstPartnerId == partner && couple.SecondPartnerId == owner)) == true;
+
+    private static ViewerToolMakingRequest[] ToolMakingRequestsAt(PrivateWorldRuntimeState state, string building) =>
+        (state.ToolMakingRequests ?? []).Where(request => request.BuildingInstanceId == building)
+            .OrderBy(request => ToolMakingRequestRules.IsTerminal(request.Status))
+            .ThenByDescending(request => request.LastTransitionTick).ThenBy(request => request.Id, StringComparer.Ordinal).Take(8)
+            .Select(request => new ViewerToolMakingRequest(request.Id,
+                state.Society.Society.GetInhabitant(request.RequesterId).Name, request.RecipeId,
+                state.WorldContent?.Recipes.FirstOrDefault(recipe => recipe.CanonicalId == request.RecipeId)?.DisplayName
+                    ?? request.ItemKind.Replace('_', ' '),
+                request.ItemKind, request.Status.ToString().ToLowerInvariant(), request.Blocker, request.OfferId)).ToArray();
     private static ViewerBusinessTrade[] BusinessTradesAt(PrivateWorldRuntimeState state, string buildingId) =>
         (state.BusinessTrades ?? []).Where(trade => trade.BuildingInstanceId == buildingId)
             .OrderByDescending(trade => state.Society.Society.Inventory.GetOffer(trade.OfferId).State == DirectBarterState.Open)
@@ -980,9 +1047,6 @@ public sealed class OwnerWorldObservationStore
                 new("death-tick", archived.DeathTick.ToString(System.Globalization.CultureInfo.InvariantCulture)),
                 new("death-cause", inhabitant.DeathCause?.ToString().ToLowerInvariant() ?? "unknown"),
                 new("will-status", estate?.WillStatus ?? "not_requested"),
-                new("will-heir", estate?.WillBeneficiaryId is { } heirId
-                    ? state.Society.Society.Inhabitants.FirstOrDefault(item => item.Id == heirId)?.Name ?? heirId
-                    : ""),
             }.Concat(IdentityMomentFactors(lastPhysical)).ToArray(),
             new ViewerRoute("deceased", null, null, [], string.Empty),
             new ViewerSpatialKnowledge(position, [position], [position]),
@@ -999,7 +1063,27 @@ public sealed class OwnerWorldObservationStore
                 ? new ViewerProficiency(practice.Building, practice.Farming, practice.Crafting) : null,
             Skills = ProjectSkills(lastPhysical, state.Society.Society),
             SocialStanding = SocialStandingFor(state, inhabitant.Id, lastPhysical),
+            FinalWill = estate is { WillStatus: { } status } ? FinalWillFor(state, estate, status) : null,
         };
+    }
+
+    /// <summary>The will as written: each named heir's exact goods, not later fallbacks.</summary>
+    private static ViewerFinalWill FinalWillFor(PrivateWorldRuntimeState state, SocietyEstate estate, string status)
+    {
+        var frozen = (estate.FrozenLots ?? []).ToDictionary(item => item.LotId, StringComparer.Ordinal);
+        var heirs = (estate.WillHeirIds ?? []).Select(heirId =>
+        {
+            var town = (state.Towns ?? []).FirstOrDefault(item => item.Id == heirId);
+            var items = (estate.WillBequests ?? []).Where(item => item.HeirId == heirId && frozen.ContainsKey(item.LotId))
+                .GroupBy(item => frozen[item.LotId].ItemKind, StringComparer.Ordinal)
+                .OrderBy(group => group.Key, StringComparer.Ordinal)
+                .Select(group => new ViewerInventoryEntry(group.Key, group.Sum(item => item.Quantity)))
+                .ToArray();
+            return new ViewerWillHeir(heirId,
+                town?.Name ?? state.Society.Society.Inhabitants.FirstOrDefault(item => item.Id == heirId)?.Name ?? heirId,
+                town is not null, items);
+        }).ToArray();
+        return new ViewerFinalWill(status, estate.WillSplit, heirs, estate.FinalWords);
     }
 
     private static ViewerAgentMemory[] MemoriesFor(PrivateWorldRuntimeState state, string ownerId) =>

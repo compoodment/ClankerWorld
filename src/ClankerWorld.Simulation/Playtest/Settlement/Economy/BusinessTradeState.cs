@@ -26,7 +26,8 @@ public static class BusinessRules
             FarmFieldRules.GrainSeed or FarmFieldRules.GreensSeed or FarmFieldRules.OrchardSeed or "flour",
         "blacksmith" => BlacksmithMaySell(itemKind),
         "tailor" => itemKind is "cloth" or "clothing" or "padded_coat" or "rain_cloak" or "sack",
-        "restaurant" => itemKind is "porridge" or "bread" or "stew" or "restaurant_meal",
+        "restaurant" => itemKind is "porridge" or "berry_porridge" or "fruit_porridge" or
+            "bread" or "stew" or "restaurant_meal",
         "clinic" => itemKind is "bandage" or "medicine",
         "store" => !AgentKnowledgeRules.IsArtifactKind(itemKind) &&
             itemKind is not ("fresh_water" or "storage_pot" or "water_jug" or "iron"),

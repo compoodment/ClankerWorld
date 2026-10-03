@@ -156,13 +156,24 @@ public sealed class AgentKnowledgeTests
         var physical = state.Inhabitants.Single(person => person.InhabitantId == creator);
         var dead = SocietyFixture.Kill(state.Society.Society, creator, SocietyDeathCause.Accident).Checkpoint;
         var estate = Assert.Single(dead.Estates);
+        // A raw society death does not know the physical tile. Preserve the
+        // natural artifact there, as the runtime's death transition does.
+        var inventory = dead.Inventory;
+        if (inventory.Lots.Any(lot => lot.CarrierId == creator))
+            inventory = InventoryFixture.DropCarrierGoods(inventory, creator,
+                new InventoryGroundPosition(physical.Position.X, physical.Position.Y));
+        foreach (var lot in inventory.Lots.Where(lot => lot.OwnerId == estate.Id && lot.ContainerLotId is null &&
+                     lot.CarrierId is null && lot.StorageBuildingId is null && lot.GroundPosition is null).ToArray())
+            inventory = InventoryFixture.Relocate(inventory, $"death:{creator}:{lot.Id}", lot.Id, estate.Id, lot.Quantity,
+                groundPosition: new InventoryGroundPosition(physical.Position.X, physical.Position.Y));
+        dead = dead with { Inventory = inventory };
         // Bounded test clock: accelerate only this valid fixture's escrow deadline.
         dead = dead with { Estates = [estate with { ExpiryTick = state.Society.Society.WorldTick + 1 }] };
         var heir = dead.Inhabitants.Where(person => person.Status == SocietyInhabitantStatus.Active).Last().Id;
         if (selectedHeir)
         {
             dead = SocietyFixture.MarkWillStarted(dead, estate.Id).Checkpoint;
-            dead = SocietyFixture.ResolveWill(dead, estate.Id, heir, "accepted").Checkpoint;
+            dead = SocietyFixture.ResolveWill(dead, estate.Id, new SocietyWillDirective([heir], "equal"), "accepted").Checkpoint;
         }
         state = state with
         {
@@ -179,6 +190,9 @@ public sealed class AgentKnowledgeTests
         var inherited = settled.Society.Society.Inventory.GetLot(artifact.LotId);
         Assert.Equal(1, inherited.Quantity);
         Assert.Equal(selectedHeir ? heir : estate.BeneficiaryIds.Order(StringComparer.Ordinal).First(), inherited.OwnerId);
+        Assert.Equal(((string?)null, (string?)null,
+                (InventoryGroundPosition?)new InventoryGroundPosition(physical.Position.X, physical.Position.Y)),
+            (inherited.CarrierId, inherited.StorageBuildingId, inherited.GroundPosition));
         Assert.Equal(ArtifactKey(artifact), ArtifactKey(Assert.Single(settled.Knowledge!.Artifacts)));
         Assert.DoesNotContain(settled.Knowledge.Facts, fact => fact.OwnerId != creator);
         var directory = Directory.CreateTempSubdirectory("inherited-record-save-");

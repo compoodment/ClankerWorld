@@ -26,7 +26,9 @@ public sealed partial class ViewerHttpTests
         using var client = host.CreateClient();
         using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
         var device = await StartAndActivateAsync(host, client, key);
-        var action = new OwnerWorldCreationAction("Balanced", "issue-409-miss-1", "Small", 50, true);
+        // Mountains always meet their target now, so this seed's three
+        // candidates all miss on forest instead.
+        var action = new OwnerWorldCreationAction("Balanced", "issue-409-miss-133", "Small", 50, true);
         var payload = OwnerHttpBinding.WorldCreationPayload(action);
         var stopwatch = Stopwatch.StartNew();
         using var previewed = await SendSignedAsync(host, client, key, device.DeviceId,
@@ -57,7 +59,7 @@ public sealed partial class ViewerHttpTests
         Assert.Equal(HttpStatusCode.Conflict, unaccepted.StatusCode);
         Assert.Single(host.Services.GetRequiredService<WorldCatalogStore>().Capture().Worlds);
 
-        var stale = create with { ExpectedMapLayersDigest = "sha256:stale-preview" };
+        var stale = create with { ExpectedMapLayersDigest = "sha256:stale-preview", AcceptUnmetTargets = true };
         using var changedPreview = await SendSignedAsync(host, client, key, device.DeviceId,
             "/api/v1/owner/worlds/create", stale, OwnerHttpBinding.WorldCreationPayload(stale));
         Assert.Equal(HttpStatusCode.Conflict, changedPreview.StatusCode);

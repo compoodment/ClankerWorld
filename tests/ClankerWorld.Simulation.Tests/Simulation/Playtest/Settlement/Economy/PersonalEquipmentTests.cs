@@ -163,7 +163,9 @@ public sealed class PersonalEquipmentTests
     public async Task HouseholdSuppliesWeavesSewsAndEquipsTailorGoodsAcrossReload(string recipeId,
         string kind, int fiber, int clothCost, WeatherKind weather)
     {
-        var (state, shopId) = TailorTestWorld.Create("equipment-tailor-" + kind, fiber);
+        // On some maps the tailor also gathers nearby wild fiber and weaves
+        // more cloth than the garment needs; these seeds' maps do not.
+        var (state, shopId) = TailorTestWorld.Create("equipment-tailor-" + recipeId, fiber);
         var actor = state.Society.Society.Inhabitants.First(item => item.HouseholdId == Alpha).Id;
         // Exhaust the starting garments so the selected garment must come
         // from the actual Tailor production chain below.
@@ -176,6 +178,18 @@ public sealed class PersonalEquipmentTests
         if (kind == "sack")
             state = WithInventory(state, InventoryFixture.AddLot(state.Society.Society.Inventory,
                 "sack-rope", "rope", Alpha, 1, storageBuildingId: "first-town-house-a"));
+        // The House keeps two real rope/basket batches. The original inputs
+        // above remain the surplus that this scenario carries into the Tailor.
+        inventory = InventoryFixture.AddLot(state.Society.Society.Inventory,
+            "zz-tailor-house-fiber-reserve", "fiber", Alpha, 6, storageBuildingId: "first-town-house-a");
+        var sourceReserves = new List<InventoryLot> { inventory.GetLot("zz-tailor-house-fiber-reserve") };
+        if (kind == "sack")
+        {
+            inventory = InventoryFixture.AddLot(inventory,
+                "zz-tailor-house-rope-reserve", "rope", Alpha, 2, storageBuildingId: "first-town-house-a");
+            sourceReserves.Add(inventory.GetLot("zz-tailor-house-rope-reserve"));
+        }
+        state = WithInventory(state, inventory);
         var systems = state.WorldSystems!;
         state = state with
         {
@@ -211,6 +225,7 @@ public sealed class PersonalEquipmentTests
             for (var tick = 0; tick < tickLimit; tick++)
             {
                 Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+                AssertSourceReserves(world);
                 if (!reopened && world.WorldSimulation.ProductionJobs.Any(job =>
                         job.RecipeId == target.CanonicalId && job.State == WorldProductionJobState.Running))
                 {
@@ -246,9 +261,16 @@ public sealed class PersonalEquipmentTests
                 PrivateWorldRuntimeCodec.Encode(world.ExportState())), Provider);
             Assert.Equal(world.Inhabitants.Single(person => person.InhabitantId == actor).Equipment,
                 savedWorld.Inhabitants.Single(person => person.InhabitantId == actor).Equipment);
+            AssertSourceReserves(savedWorld);
             savedWorld.Validate();
         }
         finally { world.Dispose(); }
+
+        void AssertSourceReserves(PrivateWorldRuntime current) => Assert.All(sourceReserves, expected =>
+        {
+            var actual = current.Society.Inventory.GetLot(expected.Id);
+            Assert.Equal(expected with { LastProcessedTick = actual.LastProcessedTick }, actual);
+        });
     }
 
     [Fact]
@@ -462,8 +484,13 @@ public sealed class PersonalEquipmentTests
         Assert.Equal(2_000, world.Society.Inventory.GetLot(coatId).ConditionBasisPoints);
 
         provider.ReleaseHeldTurn();
-        for (var tick = 0; tick < 24 && Assert.Single(world.Conversations).Status != AgentConversationStatus.Closed; tick++)
-            Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+        using var completionDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        while (Assert.Single(world.Conversations).Status != AgentConversationStatus.Closed)
+        {
+            // Held responses resume asynchronously; give them time to reach a later tick's admission.
+            await Task.Delay(10, completionDeadline.Token);
+            Assert.True((await world.AdvanceOneTickNonBlockingAsync(cancellationToken: completionDeadline.Token)).Advanced);
+        }
         var completedConversation = Assert.Single(world.Conversations);
         Assert.Equal(AgentConversationStatus.Closed, completedConversation.Status);
         Assert.Equal("agreed", completedConversation.Outcome);
