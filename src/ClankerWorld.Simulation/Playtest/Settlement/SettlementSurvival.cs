@@ -194,6 +194,15 @@ public sealed partial class PrivateWorldRuntime
         .Where(building => building.HouseholdId is null ||
             building.HouseholdId == society.Checkpoint.GetInhabitant(actor).HouseholdId);
 
+    private PlacedBuilding? ReachableUnlitHearth(string actor, PlaytestInhabitantState person) =>
+        AccessibleHeatingBuildings(actor).FirstOrDefault(building =>
+        {
+            if (IsFireLit(building)) return false;
+            var range = building.HouseholdId is null ? ResourceInteractionRange : 0;
+            return IsWithinInteractionRange(person.Position, building.Position, range) ||
+                FindUnoccupiedRoute(actor, person.Position, building.Position, range).Count > 0;
+        });
+
     private void AdvanceSettlementSurvival()
     {
         if (survivalState is null && !contentRegistry.ExportState().Packages.Any(package => package.Manifest.PackageId == SettlementContent.PackageId &&
@@ -253,7 +262,7 @@ public sealed partial class PrivateWorldRuntime
         AddEquipmentCandidates(candidates, actor, person);
         AddOrnamentCandidates(candidates, actor);
         var losingWarmth = WarmthChange(person) < 0;
-        if (AdultResident(actor) && losingWarmth && condition.WarmthBasisPoints < ComfortableWarmth && AccessibleHeatingBuildings(actor).Any(building => !IsFireLit(building)) &&
+        if (AdultResident(actor) && losingWarmth && condition.WarmthBasisPoints < ComfortableWarmth && ReachableUnlitHearth(actor, person) is not null &&
             (HasCarriedOwnItem(actor, "wood") || FreeCarryCapacity(actor) > 0 && SharedItem("wood", actor) is not null ||
                 MaterialSource("wood", actor) is { } firewood && FreeCarryCapacity(actor) >= ProjectMaterialCarryUnits(actor, "wood", firewood)))
         {
@@ -304,7 +313,7 @@ public sealed partial class PrivateWorldRuntime
 
     private void TendFire(string actor, PlaytestInhabitantState person)
     {
-        var building = AccessibleHeatingBuildings(actor).FirstOrDefault(building => !IsFireLit(building));
+        var building = ReachableUnlitHearth(actor, person);
         if (building is null || survivalState is null)
         {
             return;
