@@ -30,6 +30,36 @@ public sealed partial class SettlementParenthoodTests
     }
 
     [Fact]
+    public async Task OrphanedInfantGetsOneVoluntaryCaregiverAndRealCareAcrossRestart()
+    {
+        var state = await OrphanState();
+        var child = state.Society.Society.Births.Single().ChildId;
+        using var world = PrivateWorldRuntime.Restore(state, _ => new ParentProvider("guardian_accept:"));
+        for (var tick = 0; tick < 40 && !world.Society.Relationships.Any(edge => edge.Type == SocietyRelationshipType.Caregiver &&
+                 edge.TargetId == child && edge.State == SocietyRelationshipState.Accepted); tick++) await world.AdvanceOneTickAsync();
+        var caregiver = Assert.Single(world.Society.Relationships, edge => edge.Type == SocietyRelationshipType.Caregiver &&
+            edge.TargetId == child && edge.State == SocietyRelationshipState.Accepted);
+        Assert.Equal(SocietyConsentState.Accepted, caregiver.Consent);
+        Assert.Equal([caregiver.ProposerId], caregiver.AcceptedBy);
+        Assert.Equal(2, world.Society.Relationships.Count(edge => edge.Type == SocietyRelationshipType.BiologicalParentage && edge.TargetId == child));
+        Assert.Contains(world.ExportState().Events, item => item.Kind == "guardian_needed" && item.Detail == child);
+        Assert.Single(world.ExportState().Events, item => item.Kind == "guardian_needed" && item.Detail == child);
+        Assert.Contains(world.ExportState().Events, item => item.Kind == "guardian_assigned" && item.Detail == child);
+        world.Pause();
+        var saved = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), _ => new ParentProvider("care:"));
+        Assert.False((await restored.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+        restored.Resume();
+        for (var tick = 0; tick < 80 && !restored.ExportState().Events.Any(item => item.Kind == "child_cared_for"); tick++)
+            await restored.AdvanceOneTickAsync();
+        Assert.Contains(restored.ExportState().Events, item => item.Kind == "child_cared_for");
+        Assert.True(restored.Inhabitants.Single(person => person.InhabitantId == child).HungerBasisPoints > 3_000);
+        Assert.Contains(new OwnerWorldObservationStore(restored).GetSnapshot().Inhabitants.Single(person => person.Id == child).Relationships,
+            edge => edge.Type == "caregiver");
+    }
+
+    [Fact]
     public async Task OlderDependentKeepsVisibleGuardianNeedUntilAnAdultAcceptsAcrossReload()
     {
         var state = await OrphanState(olderChild: true);

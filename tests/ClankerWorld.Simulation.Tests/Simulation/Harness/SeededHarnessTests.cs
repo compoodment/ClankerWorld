@@ -205,6 +205,48 @@ public sealed class SeededHarnessTests
     }
 
     [Fact]
+    public void TwoTileWideRiverIsWadedBankToBankMoreSlowlyThanAOneTileRiver()
+    {
+        var map = TerrainMap(6, 3, point => point.X is 2 or 3 ? TerrainKind.River : TerrainKind.Meadow);
+        var westBank = new GridPoint(1, 1);
+        var westWater = new GridPoint(2, 1);
+        var eastWater = new GridPoint(3, 1);
+        var eastBank = new GridPoint(4, 1);
+
+        Assert.All(map.Tiles.Where(tile => tile.Terrain == TerrainKind.River), tile =>
+        {
+            Assert.True(map.IsPassable(tile.Position));
+            Assert.False(map.IsBuildable(tile.Position));
+            Assert.Equal(SeededMap.TwoTileWadingFootCost, map.FootTravelCost(tile.Position));
+        });
+        Assert.True(map.CanFootStep(westBank, westWater));
+        Assert.True(map.CanFootStep(westWater, eastWater));
+        Assert.True(map.CanFootStep(eastWater, eastBank));
+        Assert.True(map.CanFootStep(eastWater, westWater));
+        Assert.Equal(new[] { new GridPoint(0, 1), westBank, westWater, eastWater, eastBank, new GridPoint(5, 1) },
+            DeterministicRouteFinder.Find(map, new GridPoint(0, 1), new GridPoint(5, 1)));
+
+        // Wading never runs along the channel, nor diagonally into, through
+        // or out of the water.
+        Assert.False(map.CanFootStep(westWater, new GridPoint(2, 2)));
+        Assert.False(map.CanFootStep(eastWater, new GridPoint(3, 0)));
+        Assert.False(map.CanFootStep(westBank, new GridPoint(2, 2)));
+        Assert.False(map.CanFootStep(westWater, new GridPoint(3, 2)));
+        Assert.False(map.CanFootStep(eastWater, new GridPoint(4, 0)));
+        var alongChannel = DeterministicMovementResolver.Resolve(map,
+            [new MovementActor("walker", westWater, 0)],
+            [new MovementIntent("walker", new GridPoint(2, 2))]);
+        Assert.Equal(westWater, alongChannel.GetActor("walker").Position);
+
+        // Each tile of a two-tile river is slower than a one-tile river's.
+        var narrow = TerrainMap(5, 3, point => point.X == 2 ? TerrainKind.River : TerrainKind.Meadow);
+        Assert.Equal(200, narrow.FootTravelCost(new GridPoint(2, 1)));
+        Assert.True(SeededMap.TwoTileWadingFootCost > 200);
+        Assert.Equal(2 * SeededMap.TwoTileWadingFootCost + 100, RouteCost(map, westBank, westWater, eastWater, eastBank));
+        Assert.Equal(200 + 100, RouteCost(narrow, westBank, new GridPoint(2, 1), new GridPoint(3, 1)));
+    }
+
+    [Fact]
     public void ARiverOneTileThickRunningDiagonallyIsNotWadedAlongItsChannel()
     {
         // A staircase river: each pair of neighbouring water tiles has dry
@@ -338,6 +380,9 @@ public sealed class SeededHarnessTests
                 from x in Enumerable.Range(0, width)
                 select (byte)water(new GridPoint(x, y))],
         };
+
+    private static int RouteCost(SeededMap map, params GridPoint[] route) =>
+        route.Zip(route.Skip(1), map.FootStepCost).Sum();
 
     [Fact]
     public void SaveReloadAndPhysicalReplayProduceTheSameFinalDigestsAsTheCleanRun()

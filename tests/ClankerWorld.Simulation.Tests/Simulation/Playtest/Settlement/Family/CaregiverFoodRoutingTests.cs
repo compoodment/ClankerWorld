@@ -10,6 +10,7 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class CaregiverFoodRoutingTests
 {
     [Theory]
+    [InlineData("berries", 2_000)]
     [InlineData("wild_greens", 1_500)]
     [InlineData("cultivated_greens", 4_000)]
     public async Task FeedingAnInfantKeepsTheNamedFoodsNourishmentAcrossReload(string kind, int nourishment)
@@ -60,6 +61,7 @@ public sealed class CaregiverFoodRoutingTests
     }
 
     [Theory]
+    [InlineData(false)]
     [InlineData(true)]
     public async Task CaregiverFeedsInfantWhenStoredFoodCannotBeReached(bool blockStorage)
     {

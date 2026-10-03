@@ -176,6 +176,22 @@ public sealed class SettlementLearningTests
     }
 
     [Fact]
+    public async Task MentorRefusalDoesNotGrantTheRequestedSkill()
+    {
+        var state = await PreparedState();
+        var learner = state.Society.Society.Inhabitants.Single(person => person.CurrentRole == SocietyWorkRole.Trader).Id;
+        using var world = PrivateWorldRuntime.Restore(state, actor => new LessonProvider(actor == learner ? "learn:building:" : "lesson_decline:"));
+        for (var tick = 0; tick < 5; tick++)
+        {
+            await world.AdvanceOneTickAsync();
+        }
+        Assert.Equal("declined", world.Inhabitants.Single(person => person.InhabitantId == learner).Lesson!.Stage);
+        Assert.Equal(0, world.Inhabitants.Single(person => person.InhabitantId == learner).Lesson!.Progress);
+        Assert.Empty(world.Inhabitants.Single(person => person.InhabitantId == learner).Skills ?? []);
+        Assert.Equal(SocietyWorkRole.Trader, world.Society.GetInhabitant(learner).CurrentRole);
+    }
+
+    [Fact]
     public async Task MentorDeathCancelsTrainingWithoutGrantingAnUnearnedSkill()
     {
         var state = await PreparedState();

@@ -48,6 +48,51 @@ public sealed class SocietyLifePaceTests
     }
 
     [Fact]
+    public void FounderArrivalAgesAreDifferentSeededDaysFromFifteenToTwentyFive()
+    {
+        var config = PlaytestDays();
+        Assert.Equal(25, SocietyFixture.LatestArrivalAge(config));
+        int[] FounderAges(string seed, int count) => Enumerable.Range(0, count)
+            .Select(index => SocietyFixture.FounderArrivalAge(config, seed, index)).ToArray();
+
+        var orders = Enumerable.Range(0, 32)
+            .Select(index => FounderAges(FormattableString.Invariant($"founder-ages-{index}"), 4)).ToArray();
+        foreach (var ages in orders)
+        {
+            Assert.All(ages, age => Assert.InRange(age, 15, 25));
+            Assert.Equal(ages.Length, ages.Distinct().Count());
+        }
+        Assert.Equal(orders[0], FounderAges("founder-ages-0", 4));
+        Assert.True(orders.Select(ages => string.Join(',', ages)).Distinct().Count() > 1);
+        // Every arrival day is used once before any founder repeats one.
+        Assert.Equal(Enumerable.Range(15, 11), FounderAges("founder-ages-0", 11).Order());
+        Assert.Equal(18, SocietyFixture.FounderArrivalAge(new SocietyConfig(), "founder-ages-0", 3));
+    }
+
+    [Fact]
+    public void AddedAdultsArriveAtSeededAgesFromFifteenToTwentyFive()
+    {
+        var config = PlaytestDays();
+        int[] AddedAges(string seed, string idPrefix)
+        {
+            var society = SocietyFixture.AdvanceTo(SocietyFixture.CreateGenesis(seed, [], config: config), 1_000).Checkpoint;
+            for (var index = 0; index < 60; index++)
+                society = SocietyFixture.AddAdult(society, FormattableString.Invariant($"{idPrefix}-{index:D2}"), null).Checkpoint;
+            society = SocietyCheckpointCodec.Decode(SocietyCheckpointCodec.Encode(society));
+            Assert.All(society.Inhabitants, person => Assert.Equal(SocietyAgeBand.Adult, person.AgeBand));
+            return society.Inhabitants.Select(person => society.AgeAt(person, society.WorldTick)).ToArray();
+        }
+
+        var ages = AddedAges("added-adults", "agent:first");
+        Assert.All(ages, age => Assert.InRange(age, 15, 25));
+        Assert.Contains(15, ages);
+        Assert.Contains(25, ages);
+        // Arrival order, not the client-chosen ID, picks the age.
+        Assert.Equal(ages, AddedAges("added-adults", "agent:second"));
+        Assert.NotEqual(ages, AddedAges("other-added-adults", "agent:first"));
+    }
+
+    [Fact]
     public void EveryArrivalAgeIsAdultAndTheUnchangedDeathCurveEndsLifeByDaySixty()
     {
         var config = PlaytestDays();

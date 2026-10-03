@@ -670,6 +670,21 @@ public sealed partial class ViewerHttpTests
         finally { directory.Delete(recursive: true); }
     }
 
+    [Fact]
+    public void LoadingAnEarlierFounderCheckpointRestoresTheSetupGate()
+    {
+        using var runtime = new PrivateWorldRuntime("founder-save-rewind", startPace: WorldStartPace.FounderSetup);
+        var emptyCamp = runtime.ExportState();
+        runtime.PlaceFounder("founder:" + Guid.NewGuid().ToString("N"), new(0, 0));
+        Assert.Single(runtime.FounderSetup!.FounderIds);
+
+        runtime.LoadPausedCheckpoint(emptyCamp);
+
+        Assert.Empty(runtime.FounderSetup!.FounderIds);
+        Assert.Empty(runtime.Inhabitants);
+        Assert.Throws<InvalidOperationException>(runtime.Resume);
+    }
+
     [Theory]
     [InlineData("truncated")]
     [InlineData("missing-save")]

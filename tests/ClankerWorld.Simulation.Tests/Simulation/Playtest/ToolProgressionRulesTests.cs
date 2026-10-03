@@ -1,11 +1,31 @@
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
+using ClankerWorld.Simulation.World;
 
 namespace ClankerWorld.Simulation.Tests;
 
 public sealed class ToolProgressionRulesTests
 {
+    [Fact]
+    public void OnlyFellingAWoodTreeAwardsASeedAndLooseWoodNeedsNoAxe()
+    {
+        var inventory = InventoryFixture.CreateGenesis(
+        [new("axe", "wooden_axe", "actor", 2, 10_000, 10_000, 0)]);
+        var tree = new MapResource("tree", "construction", new GridPoint(4, 5), true, "broadleaf");
+        var fallenWood = new MapResource("fallen", "wood", new GridPoint(5, 5), false,
+            NaturalObjectKind: "fallen_wood");
+
+        var felling = ToolProgressionRules.PlanGather("wood", tree, inventory, "actor", 1);
+        var handGathering = ToolProgressionRules.PlanGather("wood", fallenWood,
+            InventoryFixture.CreateGenesis([]), "actor", 3);
+
+        Assert.Equal((6, "axe", TreeGrowthRules.TreeSeedsPerFelledTree, true),
+            (felling!.Quantity, felling.ToolLotId, felling.TreeSeedQuantity, felling.FellTree));
+        Assert.Equal((1, null, 0, false),
+            (handGathering!.Quantity, handGathering.ToolLotId, handGathering.TreeSeedQuantity, handGathering.FellTree));
+    }
+
     [Fact]
     public void GenericConstructionToolDoesNotUnlockTreeFellingOrStoneMining()
     {

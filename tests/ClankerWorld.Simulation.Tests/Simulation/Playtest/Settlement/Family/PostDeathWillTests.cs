@@ -13,6 +13,72 @@ public sealed class PostDeathWillTests
     private const string Words = "Keep the orchard going.";
 
     [Fact]
+    public async Task TwoHeirsShareEquallyAndHearFinalWordsThatSurviveSaveAndReload()
+    {
+        var provider = new WillProvider(CognitionWillContext.HeirsCandidateId, observation =>
+            new CognitionWillChoice([HeirKey(observation, "Mira"), HeirKey(observation, "Rowan")],
+                CognitionWillContext.EqualSplit, FinalWords: Words));
+        using var world = NewWorld(provider);
+        Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+        await provider.Called.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await AdvanceUntilResolved(world);
+
+        var estate = Assert.Single(world.Society.Estates, item => item.DeceasedId == "founder-scout");
+        Assert.Equal("accepted", estate.WillStatus);
+        Assert.Equal(["founder-mira", "founder-rowan"], estate.WillHeirIds);
+        Assert.Equal(Words, estate.FinalWords);
+        // Lot-ID order: rope 1, seed 3, stone 5. Leftover units go one at a time
+        // in will order, continuing from where the previous lot stopped.
+        Assert.Equal(
+        [
+            new SocietyWillBequest("rope-lot", "founder-mira", 1),
+            new SocietyWillBequest("seed-lot", "founder-mira", 1),
+            new SocietyWillBequest("seed-lot", "founder-rowan", 2),
+            new SocietyWillBequest("stone-lot", "founder-mira", 3),
+            new SocietyWillBequest("stone-lot", "founder-rowan", 2),
+        ], estate.WillBequests);
+        var will = Assert.Single(provider.Observations).Will!;
+        Assert.Equal(["rope", "seed", "stone"], will.Items.Select(item => item.Kind));
+        Assert.DoesNotContain(will.Heirs, heir => heir.Key.EndsWith("founder-scout", StringComparison.Ordinal));
+        Assert.Contains(world.ExportState().Events, item => item.Kind == "estate_will_accepted");
+        Assert.True(GameUiText.IsPlayerFacingEvent("estate_will_accepted"));
+        Assert.False(GameUiText.IsPlayerFacingEvent("estate_will_started"));
+
+        var profile = new OwnerWorldObservationStore(world).GetSnapshot().Inhabitants
+            .Single(item => item.Id == "founder-scout").FinalWill!;
+        Assert.Equal(("accepted", "equal", Words), (profile.Status, profile.Split, profile.FinalWords));
+        Assert.Equal(["Mira", "Rowan"], profile.Heirs.Select(heir => heir.Name));
+        Assert.Equal([new ViewerInventoryEntry("rope", 1), new ViewerInventoryEntry("seed", 1), new ViewerInventoryEntry("stone", 3)],
+            profile.Heirs[0].Items);
+
+        var saved = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved),
+            id => id == "founder-scout" ? provider : new DeterministicDecisionProvider());
+        Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+        var original = await AdvanceUntilSettled(world, estate.Id);
+        var reloaded = await AdvanceUntilSettled(restored, estate.Id);
+        Assert.Equal(Inherited(original), Inherited(reloaded));
+        Assert.Equal(FinalWordMemories(original), FinalWordMemories(reloaded));
+
+        Assert.Equal(
+        [
+            ("founder-mira", "rope-lot", 1), ("founder-mira", "seed-lot", 1), ("founder-mira", "stone-lot", 3),
+            ("founder-rowan", "seed-lot", 2), ("founder-rowan", "stone-lot", 2),
+        ], Inherited(reloaded));
+        Assert.Equal(
+        [
+            ("founder-mira", "Scout's final words were: 'Keep the orchard going.'"),
+            ("founder-rowan", "Scout's final words were: 'Keep the orchard going.'"),
+        ], FinalWordMemories(reloaded));
+        Assert.All(reloaded.Memories.Where(memory => memory.Id.StartsWith("final-words:", StringComparison.Ordinal)),
+            memory => Assert.Equal("private", memory.Visibility));
+        Assert.DoesNotContain(reloaded.Memories, memory => memory.OwnerId == "founder-ilya" &&
+            memory.Summary.Contains("final words", StringComparison.Ordinal));
+        Assert.Single(reloaded.Events, item => item.Kind == "estate_settled" && item.Detail == estate.Id);
+        Assert.Equal(1, provider.CallCount);
+    }
+
+    [Fact]
     public async Task ItemByItemWillGivesListedItemsWholeSharesTheRestAndAChildOwnsTheirPart()
     {
         var provider = new WillProvider(CognitionWillContext.HeirsCandidateId, observation =>
@@ -336,6 +402,12 @@ public sealed class PostDeathWillTests
 
     internal static string ItemKey(InhabitantObservation observation, string kind) =>
         observation.Will!.Items.Single(item => item.Kind == kind).Key;
+
+    private static (string OwnerId, string LotId, int Quantity)[] Inherited(SocietyCheckpoint checkpoint) =>
+        checkpoint.Inventory.Lots.Where(lot => lot.ProvenanceLotId is "rope-lot" or "seed-lot" or "stone-lot")
+            .Select(lot => (lot.OwnerId, lot.ProvenanceLotId!, lot.Quantity))
+            .OrderBy(item => item.OwnerId, StringComparer.Ordinal).ThenBy(item => item.Item2, StringComparer.Ordinal)
+            .ToArray();
 
     private static (string OwnerId, string Summary)[] FinalWordMemories(SocietyCheckpoint checkpoint) =>
         checkpoint.Memories.Where(memory => memory.Id.StartsWith("final-words:", StringComparison.Ordinal))
