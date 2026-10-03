@@ -13,6 +13,11 @@ Godot client connected to a private world server. Repository changes may still
 need deployment or testing on the owner's laptop. Check the tested build on an
 issue before treating a source fix as a verified game fix.
 
+**Settings → Game** and **Developer tools (F12)** show the client build, for
+example `Build 0.1.0-dev+abc1234`. Include that line in a bug or playtest report.
+Hover over it for the full source commit. The host reports its own version and
+full commit at `/api/v1/status`; client and host builds can differ.
+
 ## Status labels
 
 - **Available in the game:** connected to the normal private-world and Godot path.

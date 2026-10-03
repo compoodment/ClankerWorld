@@ -347,6 +347,11 @@ public partial class Main
 
         gameSettingsContent.AddThemeConstantOverride("separation", 8);
         worldSettingsContent.AddThemeConstantOverride("separation", 8);
+        gameSettingsContent.AddChild(SettingsBox("Build", new Label
+        {
+            Text = BuildInformation.Display,
+            TooltipText = "Source commit: " + BuildInformation.SourceRevision,
+        }));
         themeChoice.AddItem("Light", (int)UiThemeChoice.Light);
         themeChoice.AddItem("Dark", (int)UiThemeChoice.Dark);
         themeChoice.AddItem("Match system", (int)UiThemeChoice.System);

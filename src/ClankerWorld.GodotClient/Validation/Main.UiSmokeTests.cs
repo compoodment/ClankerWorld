@@ -925,6 +925,10 @@ public partial class Main
                 worldPreview.Hide();
             }
             OpenMainMenuSettings();
+            if (BuildInformation.SourceRevision.Length != 40 ||
+                !gameSettingsContent.FindChildren("*", nameof(Label), recursive: true, owned: false)
+                    .OfType<Label>().Any(label => label.Text == BuildInformation.Display && label.IsVisibleInTree()))
+                throw new InvalidOperationException("Settings must show the assembly version and source commit before a world is loaded.");
             if (!mainMenuOverlay.Visible || mainMenuCard.Visible || !gameMenuPanel.Visible || !gameSettingsContent.Visible ||
                 worldSettingsCategoryButton.Visible || worldSettingsContent.Visible || menuResumeButton.Visible ||
                 !ShowsGlyph(menuCloseButton, PixelGlyph.Back) || !mainMenuBackdrop.IsVisibleInTree() || mainMenuLogo.Visible)
