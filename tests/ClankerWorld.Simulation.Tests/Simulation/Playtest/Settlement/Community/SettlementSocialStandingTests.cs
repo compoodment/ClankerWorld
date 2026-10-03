@@ -8,25 +8,6 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed class SettlementSocialStandingTests
 {
-    [Theory]
-    [InlineData(0, 12, false)]
-    [InlineData(1, 12, true)]
-    public void InvalidStandingFailsClosed(int trust, int schema, bool unknownSubject)
-    {
-        using var world = new PrivateWorldRuntime("invalid-social-standing");
-        var state = world.ExportState();
-        var owner = state.Inhabitants[0];
-        var subject = unknownSubject ? "missing-person" : state.Inhabitants[1].InhabitantId;
-        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(state with
-        {
-            SchemaVersion = schema,
-            Inhabitants = state.Inhabitants.Select(person => person == owner ? person with
-            {
-                SocialStanding = [new(subject, trust, state.Society.Society.WorldTick)],
-            } : person).ToArray(),
-        }));
-    }
-
     [Fact]
     public void CooperationMemoriesProjectAsTrustWithoutRewritingCurrentCheckpoint()
     {

@@ -189,13 +189,13 @@ keeps the earlier groups, and the offers are brought up to date at the end of
 every tick, so a save always matches the households it was made with. Acceptance is
 an explicit adult action that changes the saved current primary caregiver.
 The original search format placed a child only in a completed House with room
-in the same Town. Schema 70 adds the pending physical placement described below.
+in the same Town. Schema 71 adds the pending physical placement described below.
 Loading validates the search stage, times and adult references. Replaying
 from a pending request reaches the same acceptance opportunities and preserves
 the single guardian-needed event. Older alpha saves without this state are
 refused; no migration is added.
 
-Schema 70 saves a dependent's pending guardian placement separately from the
+Schema 71 saves a dependent's pending guardian placement separately from the
 accepted care relationship. It records the caregiver, exact relationship and
 revision, start time, collecting or escorting stage, selected household and
 Town, and the House's instance, definition, placement time and anchor. A
@@ -521,7 +521,7 @@ from timed displacement even when their dependent lives in another household.
 No older-save migration or backfill is added.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 70. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 71. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
@@ -588,7 +588,7 @@ handcart attachments, schema 61 for guardian-order targets, schema 62 for
 physical knowledge writing, schema 63 for exact-tile movement orders, schema 64
 for overcrowding move-out notices, schemas 65 to 67 for material gathering,
 storage and collection orders, schema 68 for shared Town-project construction
-and schema 70 for physical guardian placements record when those fields or
+and schema 71 for physical guardian placements record when those fields or
 behaviors were introduced; they do not allow an earlier checkpoint schema past
 the current alpha cutoff.
 
@@ -643,7 +643,7 @@ the current alpha cutoff.
 | Schema 64 | Household move-out notices retain their original notice period, fixed deadline and selection reason alongside pending housing requests. Reload and replacement do not restart notice or duplicate departure goods. Runtime admission and displacement recheck current need and caregiver protection. Earlier alpha saves are refused and preserved without migration. |
 | Schema 65 | Material-gathering orders retain the material kind, exact optional source or position, batch/item progress and physical harvest receipt. Loading rejects mixed food/guardian/material fields and inconsistent progress. Queue, cancellation and partial work replay without duplicate harvests; older alpha saves are refused and preserved without migration. |
 | Schema 68 | Typed Council project plans and one shared Town construction record per passed proposal, with exact physical load/reservation/release history, work and paid building identity. The first consumer is the Town Hall. Earlier alpha checkpoints are refused and preserved without migration. |
-| Schema 70 | Pending guardian placements retain exact accepted care authority, collecting or escorting progress, a selected House and current blocker. Household and Town membership change together only on valid arrival. Earlier alpha checkpoints are refused and preserved without migration. |
+| Schema 71 | Pending guardian placements retain exact accepted care authority, collecting or escorting progress, a selected House and current blocker. Household and Town membership change together only on valid arrival. Earlier alpha checkpoints are refused and preserved without migration. |
 
 ### Tool-making requests
 

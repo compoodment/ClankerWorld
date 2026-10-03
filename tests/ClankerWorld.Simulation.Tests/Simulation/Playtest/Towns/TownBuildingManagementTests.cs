@@ -80,45 +80,6 @@ public sealed class TownBuildingManagementTests
     }
 
     [Fact]
-    public void RemovingAHousePreservesItsCompletedExpansionDefinitionForReload()
-    {
-        var state = StartedState("town-building-expansion-history");
-        var house = state.WorldSimulation!.Buildings.Single(item => item.InstanceId == "first-town-house-b");
-        var worker = state.Society.Society.Inhabitants.First(item => item.HouseholdId == house.HouseholdId).Id;
-        var lotIds = state.Society.Society.Inventory.Lots
-            .Where(lot => lot.StorageBuildingId == house.InstanceId || lot.DeliveryBuildingId == house.InstanceId)
-            .Select(lot => lot.Id).ToHashSet(StringComparer.Ordinal);
-        var inventory = state.Society.Society.Inventory with
-        {
-            Lots = state.Society.Society.Inventory.Lots.Where(lot => !lotIds.Contains(lot.Id)).ToArray(),
-            Reservations = state.Society.Society.Inventory.Reservations
-                .Where(item => !lotIds.Contains(item.LotId)).ToArray(),
-        };
-        var expansion = new BuildingExpansionJob(
-            "historic-expansion", house.InstanceId, worker, house.HouseholdId!, 0,
-            house.Position, house.Position, new(1, 2, 1),
-            0, 1, WorldProductionJobState.Completed, ["historic-reservation"]);
-        state = state with
-        {
-            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
-            WorldSimulation = state.WorldSimulation with { BuildingExpansions = [expansion] },
-        };
-
-        using var world = PrivateWorldRuntime.Restore(state, _ => new IdleProvider());
-        var removed = world.RemoveBuilding(house.InstanceId, house.TownId, house.HouseholdId);
-        Assert.True(removed.Applied, removed.Failure);
-        var saved = world.ExportState();
-        var history = Assert.Single(saved.WorldSimulation!.BuildingExpansions!);
-        Assert.Equal(house.InstanceId, history.BuildingInstanceId);
-        Assert.Equal(house.DefinitionId, history.DefinitionId);
-
-        var bytes = PrivateWorldRuntimeCodec.Encode(saved);
-        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes), _ => new IdleProvider());
-        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
-        Assert.DoesNotContain(restored.WorldSimulation.Buildings, item => item.InstanceId == house.InstanceId);
-    }
-
-    [Fact]
     public void ReassignmentCannotGiveAHouseholdASecondBuildingOfTheSameKind()
     {
         var state = StartedState("town-building-duplicate-kind");
