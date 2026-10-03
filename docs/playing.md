@@ -148,16 +148,36 @@ To put carried raw materials away, use **Store wood**, **Store five clay in my
 House**, or **Keep storing stone**. The agent walks to its household's House
 and keeps ownership of the goods. A plain request stores one carried lot, up
 to the room available; a quantity stops at that exact number. Missing personal
-materials or a full House leaves the task waiting with a reason. Storage orders
-currently cover the same seven raw materials as gathering, for adults and elders.
+materials or a full House leaves the task waiting with a reason. Adults and
+elders can also store unworn personal equipment and the goods listed below.
+Add **in my House at (12, 4)** to require that House's listed tile. Once the
+task chooses a House, it keeps that destination; losing access or moving the
+House leaves it waiting instead of switching homes.
 
 To pick up personal raw materials, use **Collect my wood**, **Collect three
 clay**, or **Keep collecting stone**. Adults and elders walk to their own goods
 in their current or former household's storage, or where they were dropped.
 They keep ownership and use normal carrying space. A plain request collects
 one load; a quantity stops exactly at that number. Full hands or unavailable
-goods leave the task waiting. These orders cover the same seven raw materials;
-requests naming a particular source or destination are not understood yet.
+goods leave the task waiting. Add **from (12, 4)** to require that source tile.
+You can also collect personal food or equipment without eating or equipping it.
+
+Collection and storage also recognize rope, cloth, refined iron and gold,
+workshop tools, grain, flour, potatoes, named planting seeds, medicinal herbs,
+bandages, medicine, storage pots, water jugs and named ornaments. For example,
+use **Collect two refined iron**, **Store three grain seeds in my House**, or
+**Collect one water jug at (12, 4)**. Name tree, grain, cultivated-green or
+orchard seeds; bare **seeds**, **tools** and **ornaments** are not understood.
+A pot or jug moves with its contents and counts as one item, while all of its
+contents use carrying and storage space. These tasks cannot take household
+production stock as personal property.
+
+To return borrowed stock, use **Return two borrowed cloth** or **Return one
+borrowed water jug**. The agent carries the goods back to their owning
+household's House. Its owner stays the same, and only goods actually put away
+count. The task keeps its chosen House; missing space, reserved goods or a
+blocked route leaves it waiting. **Queue**, **Cancel task** and save/reload
+retain the same quantities and destination rules.
 
 To work on household fields, try **Till two fields**, **Plant grain**,
 **Plant two fields of potatoes**, **Tend cultivated greens**, or **Keep

@@ -28,11 +28,14 @@ public sealed partial class PrivateWorldRuntime
         if (order.Action == "repair_equipment")
             return RepairOrderCandidateFor(instruction, person);
 
-        if (order.Action is "collect_material" or "collect_food" or "collect_equipment")
+        if (order.Action is "collect_material" or "collect_food" or "collect_equipment" or "collect_goods")
             return CollectionOrderCandidateFor(instruction, person);
 
-        if (order.Action is "store_material" or "store_equipment")
+        if (order.Action is "store_material" or "store_equipment" or "store_goods")
             return StorageOrderCandidateFor(instruction, person);
+
+        if (order.Action == "return_borrowed")
+            return ReturnOrderCandidateFor(instruction, person);
 
         if (order.Action == "gather_material")
             return MaterialOrderCandidateFor(instruction, person);
@@ -176,11 +179,16 @@ public sealed partial class PrivateWorldRuntime
             case "collect_material":
             case "collect_food":
             case "collect_equipment":
+            case "collect_goods":
                 ExecuteCollectionOrderStep(instruction, person);
                 return;
             case "store_material":
             case "store_equipment":
+            case "store_goods":
                 ExecuteStorageOrderStep(instruction, person);
+                return;
+            case "return_borrowed":
+                ExecuteReturnOrderStep(instruction, person);
                 return;
             case "gather_material":
             case "inspect_material_site":
@@ -315,10 +323,12 @@ public sealed partial class PrivateWorldRuntime
             return ToolRepairOrderBlockedReason(instruction);
         if (instruction.Order?.Action == "repair_equipment")
             return RepairOrderBlockedReason(instruction);
-        if (instruction.Order?.Action is "collect_material" or "collect_food" or "collect_equipment")
+        if (instruction.Order?.Action is "collect_material" or "collect_food" or "collect_equipment" or "collect_goods")
             return CollectionOrderBlockedReason(instruction, person);
-        if (instruction.Order?.Action is "store_material" or "store_equipment")
+        if (instruction.Order?.Action is "store_material" or "store_equipment" or "store_goods")
             return StorageOrderBlockedReason(instruction, person);
+        if (instruction.Order?.Action == "return_borrowed")
+            return ReturnOrderBlockedReason(instruction, person);
         if (instruction.Order?.Action == "gather_material")
             return MaterialOrderBlockedReason(instruction, person);
         if (instruction.Order?.Action == "consume_food")

@@ -78,7 +78,7 @@ public sealed partial class PrivateWorldStorageOrderTests
     [InlineData("store stone hoe")]
     [InlineData("store basket and sack")]
     [InlineData("store basket in the Warehouse")]
-    [InlineData("store basket at (1, 2)")]
+    [InlineData("store basket at another House")]
     public void EquipmentStorageRejectsUnsupportedTargetsWithoutReplacingTheCurrentOrder(string text)
     {
         var state = Prepared();
@@ -104,7 +104,7 @@ public sealed partial class PrivateWorldStorageOrderTests
             valid with { TargetEquipmentKind = null }, valid with { TargetEquipmentKind = "stone_hoe" },
             valid with { TargetFoodKind = "berries" }, valid with { TargetMaterialKind = "stone" },
             valid with { TargetCropKind = "greens" }, valid with { TargetResourceId = "stone" },
-            valid with { TargetPosition = new(1, 1) }, valid with { RequestedUnits = 0 },
+            valid with { TargetPosition = new(10_000_001, 1) }, valid with { RequestedUnits = 0 },
             valid with { CompletedUnits = -1 }, valid with { ProgressUnit = "collection_loads" },
             valid with { ProgressUnit = "material_items" }, valid with { LastEffectId = "store:personal:unearned" },
             valid with { QuantityIsExplicit = false, ProgressUnit = "storage_loads" },

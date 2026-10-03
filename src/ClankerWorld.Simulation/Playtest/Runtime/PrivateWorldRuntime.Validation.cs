@@ -36,6 +36,7 @@ public sealed partial class PrivateWorldRuntime
         ValidateFarmFields(fields.ToArray(), map, worldSeed, society.Checkpoint, worldSimulation, worldContent, RoadAndBridgeTiles().ToArray());
         ValidateFieldOrderBindings(fields, instructionsByIdempotency.Values);
         ValidateProductionOrderBindings(worldSimulation, worldContent, inhabitants.Values, instructionsByIdempotency.Values);
+        ValidateCustodyOrderBindings(society.Checkpoint, instructionsByIdempotency.Values);
         if (worldSimulation.Buildings.Any(building => building.HouseholdId is { } householdId &&
             !society.Checkpoint.Households.Any(household => household.Id == householdId)))
             throw new InvalidDataException("A House references a missing household.");
@@ -411,6 +412,7 @@ public sealed partial class PrivateWorldRuntime
         WorldContentSimulationRules.Validate(state.WorldSimulation, state.WorldContent, state.Map,
             state.Society.Society.WorldTick);
         ValidateProductionOrderBindings(state.WorldSimulation, state.WorldContent, state.Inhabitants, state.Instructions ?? []);
+        ValidateCustodyOrderBindings(society.Checkpoint, state.Instructions ?? []);
         ValidateBuildingExpansionState(state.WorldSimulation, state.WorldContent, state.Society.Society,
             state.Map, state.SchemaVersion);
         ValidatePhysicalInventoryLocations(state.Society.Society.Inventory, state.WorldSimulation,
@@ -546,6 +548,8 @@ public sealed partial class PrivateWorldRuntime
             order.TargetResourceId is { Length: > 128 } || order.TargetResourceId?.Any(char.IsControl) == true ||
             order.Action != "produce_item" && (order.TargetRecipeId is not null || order.TargetOutputKind is not null ||
                 order.ProductionBuildingId is not null || order.ProductionJobId is not null || order.ProductionProjectStartedTick is not null) ||
+            order.Action is not ("collect_goods" or "store_goods" or "return_borrowed") && order.TargetItemKind is not null ||
+            !IsValidCustodyBindingShape(order) ||
             order.TargetFoodKind is not (null or "berries" or "fruit" or "wild_greens") &&
                 !(order.Action is "collect_food" or "consume_food" && order.TargetFoodKind == "cultivated_greens") ||
             !IsFieldOrder(order.Action) && order.TargetCropKind is not null ||
@@ -562,6 +566,33 @@ public sealed partial class PrivateWorldRuntime
             return order.Status == "not_understood" && order.RequestedUnits == 0 && order.CompletedUnits == 0 &&
                 order.ProgressUnit == "none" && !order.RepeatUntilCancelled && order.TargetFoodKind is null &&
                 order.TargetResourceId is null && order.TargetPosition is null && order.LastEffectId is null;
+
+        if (order.Action is "collect_goods" or "store_goods" or "return_borrowed")
+        {
+            var defaultProgress = order.Action switch
+            {
+                "collect_goods" => "collection_loads",
+                "store_goods" => "storage_loads",
+                _ => "return_loads",
+            };
+            var receiptPrefix = order.Action switch
+            {
+                "collect_goods" => "collect:personal:",
+                "store_goods" => "store:personal:",
+                _ => "return:borrowed:",
+            };
+            return (order.Action == "return_borrowed"
+                    ? PrivateWorldCustodyOrderCatalog.IsReturnKind(order.TargetItemKind)
+                    : PrivateWorldCustodyOrderCatalog.IsGoodsKind(order.TargetItemKind)) &&
+                order.TargetFoodKind is null && order.TargetResourceId is null &&
+                order.RequestedUnits is >= 1 and <= 1000 && order.CompletedUnits is >= 0 and <= 1_000_000 &&
+                (order.RepeatUntilCancelled || order.CompletedUnits <= order.RequestedUnits) &&
+                order.Status != "not_understood" &&
+                (order.Status == "finished") == (!order.RepeatUntilCancelled && order.CompletedUnits >= order.RequestedUnits) &&
+                (order.QuantityIsExplicit ? order.ProgressUnit == "goods_items"
+                    : order.ProgressUnit == defaultProgress && order.RequestedUnits == 1) &&
+                (order.CompletedUnits == 0 ? order.LastEffectId is null : IsValidCustodyReceipt(order.LastEffectId, receiptPrefix));
+        }
 
         if (order.Action == "produce_item")
         {
@@ -630,7 +661,7 @@ public sealed partial class PrivateWorldRuntime
                 ? PrivateWorldInstructionOrderParser.IsEquipmentKind(order.TargetEquipmentKind) ||
                     PrivateWorldInstructionOrderParser.IsToolKind(order.TargetEquipmentKind)
                 : PrivateWorldInstructionOrderParser.IsMaterialKind(order.TargetMaterialKind)) &&
-                order.TargetFoodKind is null && order.TargetResourceId is null && order.TargetPosition is null &&
+                order.TargetFoodKind is null && order.TargetResourceId is null &&
                 order.RequestedUnits is >= 1 and <= 1000 && order.CompletedUnits is >= 0 and <= 1_000_000 &&
                 (order.RepeatUntilCancelled || order.CompletedUnits <= order.RequestedUnits) &&
                 order.Status != "not_understood" &&
@@ -662,6 +693,27 @@ public sealed partial class PrivateWorldRuntime
 
     private static bool IsValidProductionBindingId(string id) => id.Length is > 0 and <= 512 &&
         id == id.Trim() && !id.Any(char.IsControl);
+
+    private static bool IsValidCustodyBindingShape(OwnerInstructionOrder order)
+    {
+        var stores = order.Action is "store_material" or "store_equipment" or "store_goods" or "return_borrowed";
+        if (!stores && (order.TargetStorageBuildingId is not null || order.TargetStorageOwnerId is not null ||
+            order.TargetStoragePosition is not null) || order.Action != "return_borrowed" && order.TargetLotId is not null)
+            return false;
+        if (order.TargetStorageBuildingId is null)
+            return order.TargetStorageOwnerId is null && order.TargetStoragePosition is null && order.TargetLotId is null &&
+                (!stores || order.CompletedUnits == 0);
+        return IsValidProductionBindingId(order.TargetStorageBuildingId) &&
+            order.TargetStorageOwnerId is { } owner && IsValidProductionBindingId(owner) &&
+            order.TargetStoragePosition is { X: >= -10_000_000 and <= 10_000_000, Y: >= -10_000_000 and <= 10_000_000 } location &&
+            (order.TargetPosition is null || order.TargetPosition == location) &&
+            (order.TargetLotId is null || !string.IsNullOrWhiteSpace(order.TargetLotId) &&
+                order.TargetLotId == order.TargetLotId.Trim() && !order.TargetLotId.Any(char.IsControl));
+    }
+
+    private static bool IsValidCustodyReceipt(string? receipt, string prefix) =>
+        receipt is not null && receipt.Length == prefix.Length + 64 && receipt.StartsWith(prefix, StringComparison.Ordinal) &&
+        receipt.Skip(prefix.Length).All(character => character is >= '0' and <= '9' or >= 'a' and <= 'f');
 
     private static bool IsValidProductionReceipt(string? receipt) => receipt is { Length: 76 } &&
         receipt.StartsWith("produce:job:", StringComparison.Ordinal) &&
