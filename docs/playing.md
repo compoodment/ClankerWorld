@@ -294,8 +294,8 @@ percentage, goods and a quantity, a skill, or another agent for a partnership,
 then press **Apply developer edit**. The server saves accepted changes and
 marks each one **Developer edit** in the Event Log. Goods go into the selected
 agent's carried load; removal protects equipped items, filled vessels, knowledge
-records and reserved or borrowed goods. Partnerships require two living,
-unpartnered adults who are not close relatives. A refused edit leaves the world
+records and reserved or borrowed goods. Starting a partnership requires two
+living, unpartnered adults who are not close relatives. A refused edit leaves the world
 unchanged; refresh the world view before trying again if the world changed.
 
 **Settings → Game → Model calls** shows how many model calls this installation
