@@ -57,6 +57,19 @@ public sealed partial class PrivateWorldRuntime
     private bool InUsableVesselOrLoose(InventoryLot lot) => lot.ContainerLotId is not { } containerId ||
         society.Checkpoint.Inventory.GetLot(containerId).ConditionBasisPoints > 0;
 
+    private bool CanReachDependent(string actor, PlaytestInhabitantState parent, PlaytestInhabitantState child) =>
+        IsWithinInteractionRange(parent.Position, child.Position, ResourceInteractionRange) ||
+        FindUnoccupiedRoute(actor, parent.Position, child.Position, ResourceInteractionRange).Count > 0;
+
+    private int CaregiverFoodCarryRequirement(string actor, PlaytestInhabitantState parent)
+    {
+        if (!AdultResident(actor) || !ReadyForBriefInteraction(actor) || NeedsUrgentFood(parent) ||
+            PreferredFood(actor, actor).Any() ||
+            !ChildrenNeedingCare(actor).Any(child => child.HungerBasisPoints < 7_000 && CanReachDependent(actor, parent, child)))
+            return 0;
+        return MinimumFoodPickupCarryUnits(actor, parent.Position, forDependent: true);
+    }
+
     private void AddParenthoodCandidates(List<CognitionCandidate> candidates, string actor)
     {
         if (!AdultResident(actor) || !ReadyForBriefInteraction(actor) || survivalState is null)
@@ -66,6 +79,20 @@ public sealed partial class PrivateWorldRuntime
         foreach (var child in ChildrenNeedingCare(actor).Where(child =>
                      !NeedsUrgentFood(inhabitants[actor]) || IsWithinInteractionRange(inhabitants[actor].Position, child.Position, ResourceInteractionRange)))
         {
+            var parent = inhabitants[actor];
+            if (child.HungerBasisPoints < 7_000 && !PreferredFood(actor, actor).Any())
+            {
+                if (NeedsUrgentFood(parent) || !CanReachDependent(actor, parent, child))
+                    continue;
+                var required = MinimumFoodPickupCarryUnits(actor, parent.Position, forDependent: true);
+                if (required == 0)
+                    continue;
+                if (FreeCarryCapacity(actor) < required)
+                {
+                    AddMakeRoomForFoodCandidate(candidates, actor, parent, 2);
+                    continue;
+                }
+            }
             candidates.Add(new("care:" + child.InhabitantId, "Bring food and warmth to your dependent child.", 2));
         }
         if (!ReadyForLesson(actor)) return;
@@ -300,39 +327,10 @@ public sealed partial class PrivateWorldRuntime
         if (child.HungerBasisPoints < 7_000 && PreferredFood(actor, actor).FirstOrDefault() is null)
         {
             if (NeedsUrgentFood(parent)) return;
-            if (PreferredFood(HouseholdFor(actor), actor).FirstOrDefault(lot =>
-                    (lot.StorageBuildingId is null ||
-                     society.Checkpoint.GetInhabitant(actor).HouseholdId == lot.OwnerId) &&
-                    FindUnoccupiedRoute(actor, parent.Position, HouseholdStockPosition(lot),
-                        HouseholdStockInteractionRange(lot)).Count > 0) is { } sharedFood)
+            if (AvailableHouseholdServing(actor, parent.Position) is { } sharedFood)
             {
-                var camp = HouseholdStockPosition(sharedFood);
-                var interactionRange = HouseholdStockInteractionRange(sharedFood);
-                if (!IsWithinInteractionRange(parent.Position, camp, interactionRange))
-                {
-                    MoveToward(actor, parent, camp, "care_food", interactionRange);
-                    return;
-                }
-                if (FreeCarryCapacity(actor) == 0) return;
-                ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory, $"care-food:{WorldTick}:{actor}",
-                    HouseholdFor(actor), actor, sharedFood.Id, 1, "caregiver_food"));
-            }
-            else if (society.Checkpoint.GetInhabitant(actor).HouseholdId is { } householdId &&
-                     HouseForHousehold(householdId) is { } house &&
-                     FindFoodInPot(householdId, house.InstanceId) is { } potFood &&
-                     (parent.Position == house.Position ||
-                      FindUnoccupiedRoute(actor, parent.Position, house.Position, 0).Count > 0))
-            {
-                // Food kept in the household pot can feed the child too.
-                if (parent.Position != house.Position)
-                {
-                    MoveToward(actor, parent, house.Position, "care_food", 0);
-                    return;
-                }
-                if (FreeCarryCapacity(actor) == 0) return;
-                ApplyInventoryTransition(inventory => InventoryFixture.TakeFromContainer(inventory,
-                    $"care-food-pot:{WorldTick}:{actor}", householdId, actor, potFood.Pot.Id, potFood.Food.Id, 1));
-                AppendEvent("food_taken_from_pot", $"{actor}:{potFood.Pot.Id}:{potFood.Food.Id}:1");
+                TryCollectHouseholdServing(actor, parent, sharedFood, $"care-food:{WorldTick}:{actor}",
+                    "caregiver_food", "care_food");
             }
             else
             {
