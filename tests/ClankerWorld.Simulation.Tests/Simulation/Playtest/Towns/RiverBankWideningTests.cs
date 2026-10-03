@@ -52,7 +52,10 @@ public sealed class RiverBankWideningTests
         Assert.True(RiverBridgeRules.SharesBanks(map, upper, lower));
         Assert.True(RiverBridgeRules.SharesBanks(map, lower, upper));
         var blocked = map.Resources.Select(resource => resource.Position).Concat(map.CampObjects.Select(item => item.Position)).ToHashSet();
-        Assert.Equal(1_721, blocked.Count);
+        // Every generated resource and camp blocker stays in place; their number changes
+        // whenever world generation does, so only the two on the approach are named below.
+        Assert.Contains(new GridPoint(178, 94), blocked);
+        Assert.Contains(new GridPoint(178, 92), blocked);
         if (clearApproach)
         {
             // Separate cleared-ground control: the primary row retains every
@@ -94,6 +97,38 @@ public sealed class RiverBankWideningTests
         var east = Crossing(map, 6, 4);
         Assert.False(RiverBridgeRules.SharesBanks(map, west, east));
         Assert.False(RiverBridgeRules.SharesBanks(map, east, west));
+    }
+
+    [Theory]
+    [InlineData(12)]
+    [InlineData(60)]
+    public void ATributaryCrossingIsNotJoinedToAMainRiverCrossingAroundADistantSource(int sourceRows)
+    {
+        // The main river rises inland well above the tributary mouth. Its bridge lies below the
+        // mouth; the other crossing spans the tributary. Walking around the main river's distant
+        // source must not make the tributary crossing a duplicate of that bridge.
+        var rows = new List<string> { "......." };
+        rows.AddRange(Enumerable.Repeat("...~...", sourceRows));
+        rows.AddRange(["...~~~~", "...~...", "...~..."]);
+        var map = RiverBridgeTests.Map(rows.ToArray());
+        var mouth = sourceRows + 1;
+        var main = Crossing(map, 3, mouth + 2);
+        Assert.True(RiverBridgeRules.TryResolve(map, $"bridge-5-{mouth}-ns-1", out var tributary));
+        Assert.False(RiverBridgeRules.SharesBanks(map, main, tributary!));
+        Assert.False(RiverBridgeRules.SharesBanks(map, tributary!, main));
+        Assert.False(RiverBridgeRules.IsRedundant(map, tributary!, [main]));
+    }
+
+    [Fact]
+    public void AWideningWithinReachOfTheConnectingWaterStillJoinsItsBanks()
+    {
+        // The far shore of this bulge lies at the edge of the widening search's reach.
+        var reach = RiverBridgeRules.MaximumWideningReach;
+        var narrow = "...~" + new string('.', reach + 2);
+        var wide = "...~" + new string('~', reach) + "..";
+        var map = RiverBridgeTests.Map(narrow, narrow, wide, wide, narrow, narrow);
+        Assert.True(RiverBridgeRules.SharesBanks(map, Crossing(map, 3, 0), Crossing(map, 3, 5)));
+        Assert.True(RiverBridgeRules.SharesBanks(map, Crossing(map, 3, 5), Crossing(map, 3, 0)));
     }
 
     [Fact]

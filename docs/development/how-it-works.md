@@ -1624,8 +1624,9 @@ different nearby stream never blocks another. There is no distance limit; the
 comparison examines at most 4,096 river tiles and, if that runs out, does not
 treat the banks as the same. It first checks the shore beside the connecting
 water path. If that is incomplete because the river widens, it follows the
-water between the crossing spans to include the wider shore. The spans stop
-that expansion from going around distant headwaters and joining separate
+water between the crossing spans to include the wider shore, staying within
+eight tiles of the connecting water. The spans and that reach stop the
+expansion from going around distant headwaters and joining separate
 tributaries; a locally proven connection needs no whole-river search.
 Along one unbranched stretch of river this allows
 one bridge, however long the stretch. A new crossing over the same banks as an
