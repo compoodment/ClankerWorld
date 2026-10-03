@@ -35,6 +35,8 @@ public partial class Main
 
         // A smaller window can lower the UI Scale that fits, as well as re-lay the panels.
         Resized += ApplyUiScale;
+        // The map's container can finish resizing after the root signal above.
+        uiLayer.Resized += QueueHudListsFit;
         foreach (var panel in HudPanels())
         {
             panel.VisibilityChanged += PlaceHudPanels;

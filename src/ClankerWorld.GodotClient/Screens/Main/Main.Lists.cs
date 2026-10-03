@@ -116,6 +116,7 @@ public partial class Main
         gap.AddChild(eventRows);
         eventScroll.AddChild(gap);
         body.AddChild(eventScroll);
+        eventRows.MinimumSizeChanged += QueueHudListsFit;
     }
 
     /// <summary>
@@ -130,23 +131,18 @@ public partial class Main
             eventRows.RemoveChild(child);
             child.QueueFree();
         }
-        var height = 0f;
         if (offersNewcomer)
         {
             AddNewcomerOffer();
-            height += 34;
             if (entries.Length > 0)
             {
-                // The spacer and the gap after it.
                 eventRows.AddChild(new Control { CustomMinimumSize = new Vector2(0, 6) });
-                height += 8;
             }
         }
         if (entries.Length == 0)
         {
             if (!offersNewcomer)
                 eventRows.AddChild(new Label { Text = "Nothing notable has happened yet.", ThemeTypeVariation = "DimLabel" });
-            eventsWantedHeight = Math.Max(30, height);
             FitHudLists();
             QueueHudListsFit();
             return;
@@ -163,7 +159,6 @@ public partial class Main
                 band.AddChild(new Label { Text = date.ToUpperInvariant(), ThemeTypeVariation = "SectionLabel" });
                 band.AddChild(new HSeparator { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill, SizeFlagsVertical = Control.SizeFlags.ShrinkCenter });
                 eventRows.AddChild(band);
-                height += day is null ? 18 : 24;
                 day = date;
             }
             var worldEvent = knownEvents[entry.EventId];
@@ -207,9 +202,7 @@ public partial class Main
                 row.AddChild(find);
             }
             eventRows.AddChild(row);
-            height += 26;
         }
-        eventsWantedHeight = height;
         FitHudLists();
         QueueHudListsFit();
     }
@@ -255,7 +248,10 @@ public partial class Main
     private void FitHudLists()
     {
         rosterCards.CustomMinimumSize = new Vector2(380, Math.Min(rosterWantedHeight, ListRoom(rosterPanel, rosterCards)));
-        eventScroll.CustomMinimumSize = new Vector2(400, Math.Min(eventsWantedHeight, ListRoom(eventsPanel, eventScroll)));
+        eventsWantedHeight = Math.Max(30, eventRows.GetCombinedMinimumSize().Y);
+        var eventsMinimum = new Vector2(400, Math.Min(eventsWantedHeight, ListRoom(eventsPanel, eventScroll)));
+        if (!eventScroll.CustomMinimumSize.IsEqualApprox(eventsMinimum))
+            eventScroll.CustomMinimumSize = eventsMinimum;
         if (townsScroll.Visible)
         {
             var townsWanted = townsPage.GetCombinedMinimumSize().Y;

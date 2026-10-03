@@ -223,7 +223,9 @@ at midnight.
 Click bare ground to inspect the recorded facts there. Agents take priority
 when they overlap the pointer. **Event Log** shows important events under a
 heading for each day, each with an icon for its kind. An event with a known
-location has a **Find** button that moves the camera there. Opening the log
+location has a **Find** button that moves the camera there. The log grows to
+fit wrapped text and day headings until it reaches the bottom of the screen,
+then scrolls. It adjusts when the window changes size. Opening the log
 marks its new entries read; the ones that were new keep a small dot while it
 stays open. While the continuity rule
 is on, the top of the log offers **Add a newcomer**, which opens Add Agent.
