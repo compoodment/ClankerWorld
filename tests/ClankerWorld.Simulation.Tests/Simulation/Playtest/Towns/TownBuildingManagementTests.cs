@@ -238,7 +238,8 @@ public sealed class TownBuildingManagementTests
         var quietBorder = state.Map.Tiles.Select(tile => tile.Position)
             .First(point => state.Map.IsLand(point) && !firstTown.BorderTiles.Contains(point));
         var quietTown = new TownRuntimeState("town:quiet-yard", "Quiet Yard", "founded",
-            state.Society.Society.WorldTick, [], [], [quietBorder], Governance: TownGovernanceState.Create([]));
+            state.Society.Society.WorldTick, [], [], [quietBorder], Governance: TownGovernanceState.Create([]),
+            Government: TownGovernmentState.Create());
         var warehouseLotIds = state.Society.Society.Inventory.Lots
             .Where(lot => lot.StorageBuildingId == warehouse.InstanceId).Select(lot => lot.Id).ToHashSet(StringComparer.Ordinal);
         var inventory = state.Society.Society.Inventory with

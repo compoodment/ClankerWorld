@@ -21,6 +21,8 @@ public partial class Main
             return;
         }
 
+        // Host failures can carry the font's mid-height ellipsis.
+        text = GameUiText.PlainEllipses(text);
         statusLabel.Text = text;
         // A tick or a warning sign says good or bad; the words stay in plain ink so they read in both themes.
         statusLabel.ThemeTypeVariation = string.Empty;
@@ -142,7 +144,7 @@ public partial class Main
     private static string ShortMarker(string value)
     {
         var compact = value.Trim().Replace('_', ' ');
-        return compact.Length <= 6 ? compact.ToUpperInvariant() : $"{compact[..5].ToUpperInvariant()}…";
+        return compact.Length <= 6 ? compact.ToUpperInvariant() : $"{compact[..5].ToUpperInvariant()}...";
     }
 
     private static string Pretty(string value) => string.IsNullOrWhiteSpace(value)

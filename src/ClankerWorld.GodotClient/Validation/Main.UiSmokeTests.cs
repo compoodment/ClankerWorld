@@ -391,7 +391,7 @@ public partial class Main
 
             picker.SetModel("gpt-6-luna");
             var stale = picker.BeginLoading("gpt-6-luna");
-            if (!Items().Contains("Loading models…", StringComparison.Ordinal) || picker.Model != "gpt-6-luna")
+            if (!Items().Contains("Loading models...", StringComparison.Ordinal) || picker.Model != "gpt-6-luna")
                 throw new InvalidOperationException($"A loading model list must keep the current model: {Items()}.");
             var lookup = picker.BeginLoading("gpt-6-luna");
             if (picker.IsLatest(stale) || !picker.IsLatest(lookup))
@@ -694,7 +694,7 @@ public partial class Main
         var loading = worldListRequest.RefreshAsync(_ => response.Task);
         await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
         if (!worldMenuStatus.Text.StartsWith("Checking saved worlds", StringComparison.Ordinal) ||
-            worldSelectionList.Placeholder != "Checking saved worlds…" ||
+            worldSelectionList.Placeholder != "Checking saved worlds..." ||
             !worldSelectButton.Disabled || !worldDeleteButton.Disabled || worldBackButton.Disabled)
             throw new InvalidOperationException("The first world-list opening must show checking progress with Back available.");
         response.SetResult(new WorldCatalogSnapshot("world-0", Enumerable.Range(0, 7).Select(index =>
@@ -816,6 +816,8 @@ public partial class Main
         {
             VerifyEventLogAgentNames();
             await VerifyNewcomerOfferAsync();
+            VerifyOrnamentPresentation();
+            VerifyToolMakingPresentation();
             await VerifyMenuBackdropAsync();
             // Tooltips and other windows the engine creates on demand follow the root's filter,
             // so pixel frames must not be smoothed there either.
@@ -871,6 +873,16 @@ public partial class Main
                 if (!worldPreviewStatus.Text.Contains("Met applicable Normal target: mountains", StringComparison.Ordinal) ||
                     worldPreviewStatus.Text.Contains("Both default Balanced trial targets", StringComparison.Ordinal))
                     throw new InvalidOperationException("Preview must name only the applicable Normal target when the other control is Low or High.");
+                SetWorldPreviewStatus(mountainOnlyPreview with
+                {
+                    FailedCandidates = [new OwnerWorldCandidateFailure(0, "no-clearing")],
+                });
+                if (!worldPreviewStatus.Text.Contains("#0: no room for a first Town", StringComparison.Ordinal) ||
+                    worldPreviewStatus.Text.Contains("no-clearing", StringComparison.Ordinal) ||
+                    worldPreviewStatus.Text.IndexOf("#0:", StringComparison.Ordinal) >
+                        worldPreviewStatus.Text.IndexOf("#2 F", StringComparison.Ordinal) ||
+                    worldAcceptUnmetTargets.Visible)
+                    throw new InvalidOperationException("Preview must show failed attempts beside real measurements without requiring acceptance of an unavailable map.");
                 var forestOnly = missedCoverage with
                 {
                     ForestTargetApplicable = true,
@@ -914,6 +926,10 @@ public partial class Main
                 worldPreview.Hide();
             }
             OpenMainMenuSettings();
+            if (BuildInformation.SourceRevision.Length != 40 ||
+                !gameSettingsContent.FindChildren("*", nameof(Label), recursive: true, owned: false)
+                    .OfType<Label>().Any(label => label.Text == BuildInformation.Display && label.IsVisibleInTree()))
+                throw new InvalidOperationException("Settings must show the assembly version and source commit before a world is loaded.");
             if (!mainMenuOverlay.Visible || mainMenuCard.Visible || !gameMenuPanel.Visible || !gameSettingsContent.Visible ||
                 worldSettingsCategoryButton.Visible || worldSettingsContent.Visible || menuResumeButton.Visible ||
                 !ShowsGlyph(menuCloseButton, PixelGlyph.Back) || !mainMenuBackdrop.IsVisibleInTree() || mainMenuLogo.Visible)
@@ -1300,6 +1316,20 @@ public partial class Main
                 civicLabels.Contains("tick", StringComparison.OrdinalIgnoreCase) || civicLabels.Contains("candidate-", StringComparison.Ordinal) ||
                 civicLabels.Contains("representative", StringComparison.Ordinal) && !civicLabels.Contains("elected representatives", StringComparison.Ordinal))
                 throw new InvalidOperationException("Normal Town council rows must use world clocks and names rather than internal counters or IDs.");
+            var governmentTown = civicTown with
+            {
+                Government = new OwnerTownGovernment("Ordinary decisions: the elected Council. Land decisions: the elected mayor.",
+                    [new("law-1", "Grove", "Leave the saplings.", "site", 5, 2, 3_600, null)], 1,
+                    [new("land disputes and permission expiries", "Mira Vale", 10_800, null)],
+                    [new("change-1", "Every adult resident makes ordinary decisions.", "handover", 3, 0, 3, 3_600, 4_680, null)],
+                    new("mayor-1", "land disputes and permission expiries", "voting", 2, 3_960,
+                        [new("candidate-1", "Nia Moss", 2)], null, null), null, 0),
+            };
+            Render(sample with { WorldTick = 3_600, Towns = [governmentTown] }, []);
+            foreach (var phrase in new[] { "Approved government:", "Mira Vale: land disputes", "handover due by",
+                         "Mayoral election: Voting", "round 2", "Law: Grove", "recorded site (5 land tiles)", "Version 2", "Land hearings and enforcement are not available yet" })
+                if (!TownListText().Contains(phrase, StringComparison.Ordinal))
+                    throw new InvalidOperationException("The Town page must show actual law scope, government handovers and separate office authority: " + phrase);
             var revisedCivicTown = civicTown with
             {
                 Governance = civicTown.Governance! with
@@ -1411,6 +1441,7 @@ public partial class Main
             await VerifySeasonDatesAsync(sample);
             // Town rows are built after startup, so their text must still get the theme's sizes.
             VerifyPixelText("in rows added after startup");
+            VerifyPlainEllipses("in rows added after startup");
             VerifyConsistentButtons();
             VerifyPanelParts();
             VerifyMapPanels();
@@ -2191,6 +2222,11 @@ public partial class Main
             if (ItemIcons.Has("never-an-item") || Convert.ToBase64String(ItemIcons.Render("never-an-item", 32).GetData()) !=
                     Convert.ToBase64String(ItemIcons.Render("crate", 32).GetData()) || !ItemIcons.Has("wood"))
                 throw new InvalidOperationException("An item without its own icon must show the crate.");
+            foreach (var meal in new[] { "simple_meal", "porridge", "berry_porridge", "fruit_porridge", "stew", "restaurant_meal" })
+                if (!ItemIcons.Has(meal) || !ItemIcons.FitsGrid(meal) || (!ItemIcons.Kinds.Contains(meal) &&
+                    Convert.ToBase64String(ItemIcons.Render(meal, 32).GetData()) !=
+                        Convert.ToBase64String(ItemIcons.Render("food", 32).GetData())))
+                    throw new InvalidOperationException("A concrete meal without distinct art must use the meal icon.");
             if (GameUiText.ItemName("storage_pot") != "Storage pot" ||
                 GameUiText.ItemName("water_jug") != "Water jug" ||
                 GameUiText.ItemName("fresh_water") != "Fresh water")
@@ -2977,6 +3013,7 @@ public partial class Main
             }
             if (brightest > 0.31f || lit > 900 || flashes > 25)
                 throw new InvalidOperationException($"Lightning must stay soft and rare: peak={brightest}, lit samples={lit}, flashes={flashes}.");
+            await VerifyNightWashAsync(largeMap);
             var startedMap = largeMap with { FounderSetup = null };
             RenderWorldHud(startedMap);
             for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
@@ -3361,10 +3398,13 @@ public partial class Main
                 throw new InvalidOperationException("An empty roster must show its summary without an empty list box.");
             var formerPosition = new OwnerWorldPosition(2, 2);
             var deceased = new OwnerWorldInhabitant("agent:00000000000000000000000000000098", "Mira", "dead", formerPosition,
-                5_000, [], [new("age-band", "elder"), new("death-tick", "1")],
+                5_000, [], [new("age-band", "elder"), new("death-tick", "1"), new("will-status", "accepted")],
                 new OwnerWorldRoute("deceased", null, null, [], string.Empty),
                 new OwnerWorldSpatialKnowledge(formerPosition, [formerPosition], [formerPosition]), false)
             {
+                FinalWill = new OwnerWorldFinalWill("accepted", "items",
+                    [new("living-parent", "Rowan", false, [new("seed", 3)]), new("town:first", "First Town", true, [new("wood", 4)])],
+                    "Keep the orchard going."),
                 RecentPrivateThoughts = [new OwnerWorldPrivateThought(1, "I hope Rowan remembers our garden.")],
                 RecentMemories = [new OwnerWorldAgentMemory(1, "living-parent", "Rowan",
                     "I hid the garden tools where Rowan cannot see them.", "private")],
@@ -3392,6 +3432,24 @@ public partial class Main
                 !selectedActorSummaryLabel.Text.Contains("Dead", StringComparison.Ordinal) ||
                 !ShowsGlyph(profileCloseButton, PixelGlyph.Close) || renameAgentInput.Text != "Mira")
                 throw new InvalidOperationException("A deceased inhabitant must open straight to a historical Profile without appearing as a living map actor.");
+            if (!inhabitantDetails.Visible ||
+                !inhabitantDetails.Text.Contains("Final will: belongings left item by item to Rowan and First Town.", StringComparison.Ordinal) ||
+                !inhabitantDetails.Text.Contains("To Rowan: 3 seed", StringComparison.Ordinal) ||
+                !inhabitantDetails.Text.Contains("To First Town: 4 wood", StringComparison.Ordinal) ||
+                !inhabitantDetails.Text.Contains("Final words: \u201CKeep the orchard going.\u201D", StringComparison.Ordinal) ||
+                inhabitantDetails.Text.Contains("town:first", StringComparison.Ordinal))
+                throw new InvalidOperationException("A historical Profile must show the final will's heirs, their goods and the final words.");
+            // Model text remains plain even if a malformed snapshot contains formatting tags.
+            var taggedWords = "[b]Keep the orchard going.[/b]";
+            var taggedSnapshot = historicalSnapshot with
+            {
+                Inhabitants = [deceased with { FinalWill = deceased.FinalWill! with { FinalWords = taggedWords } }],
+            };
+            RenderSelectedInhabitantCard(taggedSnapshot);
+            if (inhabitantDetails.BbcodeEnabled ||
+                !inhabitantDetails.GetParsedText().Contains(taggedWords, StringComparison.Ordinal))
+                throw new InvalidOperationException("Final words must render as plain text without applying formatting from the model.");
+            RenderSelectedInhabitantCard(historicalSnapshot);
             if (!privateThoughtHistory.Text.Contains("I hope Rowan remembers our garden.", StringComparison.Ordinal) ||
                 !thoughtsHeading.Text.Contains("HISTORICAL", StringComparison.Ordinal) ||
                 !thoughtsReaderText.GetParsedText().Contains("I hope Rowan remembers our garden.", StringComparison.Ordinal) ||
@@ -3627,7 +3685,9 @@ public partial class Main
                 longDialog.Y <= shortDialog.Y)
                 throw new InvalidOperationException($"Confirmations must fit their message: short {shortDialog}, long {longDialog}.");
             await VerifyRefusedAgentRenameAsync();
-            GD.Print("UI checks passed: startup Main Menu and settings, compact in-world pause menu and read-only Mod Library, confirmed quit, World Info Towns page, resource hover, square tile hover and agent priority, agent facings, walk steps and activity frames, bounded marker hitboxes at zoom, building footprints, mountain relief chunks drawn off the main thread, soft snow edges and desert cacti, camera-bounded large terrain and regional weather, zoom, middle-drag, WASD, overview navigation, Event Log jumps without pop-ups, keyboard shortcuts and the F1 controls list, Developer tools on F12 with readouts, agent jumps and planned paths, private thoughts, memories, deceased inspection, family tree and refused agent renames.");
+            VerifyAgentTextEllipses();
+            VerifyPlainEllipses("after every panel has been shown");
+            GD.Print("UI checks passed: startup Main Menu and settings, compact in-world pause menu and read-only Mod Library, confirmed quit, World Info Towns page, resource hover, square tile hover and agent priority, agent facings, walk steps and activity frames, bounded marker hitboxes at zoom, building footprints, mountain relief chunks drawn off the main thread, soft snow edges and desert cacti, camera-bounded large terrain and regional weather, zoom, middle-drag, WASD, overview navigation, Event Log jumps without pop-ups, keyboard shortcuts and the F1 controls list, Developer tools on F12 with readouts, agent jumps and planned paths, private thoughts, memories, deceased inspection with final wills, family tree and refused agent renames.");
             GetTree().Quit();
         }
         catch (Exception exception)
@@ -3673,7 +3733,7 @@ public partial class Main
             foreach (var worldEvent in events) knownEvents[worldEvent.EventId] = worldEvent;
             RenderEventLog();
             string[] expected = ["Rowan gathered food.", "Scout ate.", "Mira was born.", "Aster died.",
-                "Rowan joined the first Town.", "Aster left the first Town."];
+                "Rowan joined First Town.", "Aster left First Town."];
             if (expected.Any(text => !eventLog.GetParsedText().Contains(text, StringComparison.Ordinal)))
                 throw new InvalidOperationException("The Event Log must show full living, deceased and descendant names for normal IDs.");
             snapshot = snapshot with

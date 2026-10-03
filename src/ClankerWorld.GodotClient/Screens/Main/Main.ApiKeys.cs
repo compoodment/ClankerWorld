@@ -68,7 +68,7 @@ public partial class Main
             apiKeysStatus.Text = "Connect and pair this device to save keys.";
             return;
         }
-        apiKeysStatus.Text = "Checking saved keys…";
+        apiKeysStatus.Text = "Checking saved keys...";
         try
         {
             var status = await ownerApi.GetProviderStatusAsync(
@@ -106,7 +106,7 @@ public partial class Main
         var action = new OwnerCredentialSlotCreationAction(Guid.NewGuid().ToString("N"),
             apiKeyProviderChoice.GetItemMetadata(apiKeyProviderChoice.Selected).AsString(), label, apiKeyInput.Text);
         apiKeyInput.Text = string.Empty;
-        apiKeysStatus.Text = "Saving key…";
+        apiKeysStatus.Text = "Saving key...";
         var saved = false;
         await RunOwnerActionAsync(async () =>
         {

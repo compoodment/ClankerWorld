@@ -76,8 +76,13 @@ public sealed partial class SettlementParenthoodTests
             // building plans left over from the preceding years of family life.
             adultState = adultState with
             {
-                Inhabitants = adultState.Inhabitants.Select(person => person.InhabitantId != childId &&
-                    person.Project?.JobId is null ? person with { Project = null, LastDecisionContext = null } : person).ToArray(),
+                Inhabitants = adultState.Inhabitants.Select(person => person with
+                {
+                    Project = person.InhabitantId != childId && person.Project?.JobId is null ? null : person.Project,
+                    // The scripted work phase replaces the preceding years of
+                    // family choices; reconsider even an unchanged idle context.
+                    LastDecisionContext = null,
+                }).ToArray(),
             };
             var household = grown.HouseholdId!;
             var inventory = InventoryFixture.AddLot(adultState.Society.Society.Inventory,
@@ -85,9 +90,13 @@ public sealed partial class SettlementParenthoodTests
             adultState = FarmFieldTests.WithInventory(adultState, inventory);
             world.Dispose();
             var tools = adultState.WorldContent!.Recipes.Single(recipe => recipe.LocalId == "tools");
+            var storeIds = adultState.WorldSimulation!.Buildings.Where(building => building.HouseholdId == household &&
+                    adultState.WorldContent.Buildings.Any(definition => definition.CanonicalId == building.DefinitionId &&
+                        definition.Tags.Contains("store", StringComparer.Ordinal)))
+                .Select(building => building.InstanceId).ToHashSet(StringComparer.Ordinal);
             var workFile = new PrivateWorldStateFile(Path.Combine(directory.FullName, "world.json"),
-                _ => new AdultWorkProvider(childId, tools.CanonicalId, observations));
-            world = PrivateWorldRuntime.Restore(adultState, _ => new AdultWorkProvider(childId, tools.CanonicalId, observations));
+                _ => new AdultWorkProvider(childId, tools.CanonicalId, observations, storeIds));
+            world = PrivateWorldRuntime.Restore(adultState, _ => new AdultWorkProvider(childId, tools.CanonicalId, observations, storeIds));
             var workshop = world.WorldContent.Buildings.Single(building => building.LocalId == "workshop");
             if (!world.WorldSimulation.Buildings.Any(building => building.DefinitionId == workshop.CanonicalId))
             {
@@ -120,8 +129,16 @@ public sealed partial class SettlementParenthoodTests
                 "; Owners=" + string.Join(',', world.Society.Inventory.Lots.Where(lot => lot.ItemKind == "wood")
                     .Select(lot => lot.OwnerId + "=" + lot.Quantity + "@" + lot.StorageBuildingId)) +
                 "; Projects=" + System.Text.Json.JsonSerializer.Serialize(world.Inhabitants.Select(person => new { person.InhabitantId, person.Project })) +
-                "; Sources=" + string.Join(',', world.WorldSystems.Ecology.Resources.Select(resource => resource.Kind + "=" + resource.Quantity)));
+                "; Sources=" + string.Join(',', world.WorldSystems.Ecology.Resources.Select(resource => resource.Kind + "=" + resource.Quantity)) +
+                "; Positions=" + string.Join(',', world.Inhabitants.Select(person => person.InhabitantId + "@" + person.Position)) +
+                "; Workstations=" + string.Join(',', world.WorldSimulation.Buildings.Where(building =>
+                    building.DefinitionId == workshop.CanonicalId).Select(building => building.InstanceId + "@" + building.Position)));
             Assert.True(savedWhileWorking);
+            Assert.Contains(world.ExportState().Events, item => item.Kind == "inhabitant_moved" &&
+                item.WorldTick >= adultState.Society.Society.WorldTick &&
+                !item.Detail.StartsWith(childId + ":", StringComparison.Ordinal) &&
+                (item.Detail.EndsWith(":explore", StringComparison.Ordinal) ||
+                 item.Detail.EndsWith(":explore_return", StringComparison.Ordinal)));
             var completed = Assert.Single(world.WorldSimulation.ProductionJobs, job => job.WorkerId == childId &&
                 job.RecipeId == tools.CanonicalId && job.StartedTick >= adultState.Society.Society.WorldTick &&
                 job.State == WorldProductionJobState.Completed);
@@ -142,7 +159,8 @@ public sealed partial class SettlementParenthoodTests
     }
 
     private sealed class AdultWorkProvider(string actor, string recipe,
-        System.Collections.Concurrent.ConcurrentDictionary<string, string> observations) : IDecisionProvider
+        System.Collections.Concurrent.ConcurrentDictionary<string, string> observations,
+        HashSet<string> storeIds) : IDecisionProvider
     {
         public DecisionProviderKind Kind => DecisionProviderKind.Deterministic;
         public long ProviderEpoch => 0;
@@ -150,8 +168,14 @@ public sealed partial class SettlementParenthoodTests
         {
             var observation = request.Observation;
             observations[observation.InhabitantId] = string.Join(',', observation.Candidates.Select(item => item.Id));
+            // Finish stock already promised to a Store during the preceding family life.
+            // This policy still excludes starting a new Store collection.
             var routine = observation.Candidates.Where(item => item.Id is "consume_food" or "collect_shared_food" or
-                "seek_food" or "harvest_food" or "safe_idle");
+                "seek_food" or "harvest_food" or "safe_idle" ||
+                item.Id == "haul_household_stock" && item.DestinationId is { } destination && storeIds.Contains(destination) ||
+                // A body frozen in the tiny map's passage can strand the adult
+                // despite a free workstation. Other residents move normally.
+                observation.InhabitantId != actor && item.Id == "explore");
             var candidates = observation.InhabitantId == actor && observation.HungerBasisPoints >= 3_500 &&
                 observation.Candidates.FirstOrDefault(item => item.Id == "build:recipe:" + recipe) is { } work
                 ? new[] { work } : routine.ToArray();

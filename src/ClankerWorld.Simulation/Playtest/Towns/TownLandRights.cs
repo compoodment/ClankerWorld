@@ -127,6 +127,51 @@ public static class TownLandRightsRules
         IReadOnlyList<HouseholdLandUseRequest> requests) =>
         ClaimantsAt(tile, rights, requests).Count > 1;
 
+    /// <summary>Partitions existing grants after an authorized building transfer; grants no new land.</summary>
+    public static IReadOnlyList<HouseholdLandUseRight> ReassignFootprintRights(SeededMap map,
+        IReadOnlyList<HouseholdLandUseRight> rights, IReadOnlySet<GridPoint> footprint,
+        string targetHouseholdId, long worldTick)
+    {
+        var usedIds = rights.Select(right => right.Id).ToHashSet(StringComparer.Ordinal);
+        var sequence = 0;
+        string NextId()
+        {
+            string id;
+            do
+            {
+                id = $"household-use:reassigned:{worldTick.ToString(CultureInfo.InvariantCulture)}:{(sequence++).ToString(CultureInfo.InvariantCulture)}";
+            } while (!usedIds.Add(id));
+            return id;
+        }
+
+        var result = new List<HouseholdLandUseRight>();
+        foreach (var right in rights.OrderBy(right => right.Id, StringComparer.Ordinal))
+        {
+            var transferred = right.Tiles.Where(footprint.Contains).ToArray();
+            if (transferred.Length == 0)
+            {
+                result.Add(right);
+                continue;
+            }
+            // Removing a footprint can split a plot. Keep every remaining tile
+            // with its owner and retain the original grant terms on each piece.
+            var originalIdAvailable = true;
+            foreach (var (tiles, owner) in ConnectedPlots(map, right.Tiles.Where(tile => !footprint.Contains(tile)))
+                         .Select(plot => (plot, right.HouseholdId))
+                         .Concat(ConnectedPlots(map, transferred).Select(plot => (plot, targetHouseholdId))))
+            {
+                result.Add(right with
+                {
+                    Id = originalIdAvailable ? right.Id : NextId(),
+                    HouseholdId = owner,
+                    Tiles = tiles,
+                });
+                originalIdAvailable = false;
+            }
+        }
+        return result.OrderBy(right => right.Id, StringComparer.Ordinal).ToArray();
+    }
+
     public static IReadOnlyList<string> ClaimantsAt(GridPoint tile,
         IReadOnlyList<HouseholdLandUseRight> rights, IReadOnlyList<HouseholdLandUseRequest> requests) =>
         rights.Where(right => right.Tiles.Contains(tile)).Select(right => right.HouseholdId)
@@ -165,6 +210,7 @@ public static class TownLandRightsRules
                 title.Tiles.Any(tile => !town.BorderTiles.Contains(tile) || !titledTiles.Add(tile)))
                 throw new InvalidDataException("A saved Town title is invalid or outside its recorded Town border.");
         }
+        TownLandClaimRules.Validate(map, worldTick, towns, titles);
 
         if (titles.Count > 0 && towns.All(town => town.OriginSite is null))
             throw new InvalidDataException("Town title may only be created from an accepted first-Town layout.");

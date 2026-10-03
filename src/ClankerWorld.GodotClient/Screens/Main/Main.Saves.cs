@@ -72,7 +72,7 @@ public partial class Main
         autosaveRotationChoice.Select(autosaveRotationChoice.GetItemIndex(5));
         content.AddChild(DisplaySettingRow("Rotating copies", autosaveRotationChoice));
         autosaveSettingsStatus.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-        autosaveSettingsStatus.Text = "Loading this world's autosave settings…";
+        autosaveSettingsStatus.Text = "Loading this world's autosave settings...";
         content.AddChild(autosaveSettingsStatus);
         autosaveApplyButton.Text = "Apply autosave settings";
         StyleButton(autosaveApplyButton);
@@ -108,7 +108,7 @@ public partial class Main
         autosaveSettingsCancellation = read;
         autosaveSettingsWorldId = readWorldId;
         autosaveSettingsRegistration = registration;
-        autosaveSettingsStatus.Text = "Loading this world's autosave settings…";
+        autosaveSettingsStatus.Text = "Loading this world's autosave settings...";
         RefreshControlAvailability();
         bool IsCurrentRead() => ReferenceEquals(autosaveSettingsCancellation, read) &&
             IsCurrentAutosaveSettingsContext();
@@ -580,7 +580,7 @@ public partial class Main
             manualSaveName.Text = DisplayWorldClock(current.WorldTick);
         manualSaveName.Visible = !loadMode;
         manualSaveCreateButton.Visible = !loadMode;
-        manualSaveList.Placeholder = "Checking saves…";
+        manualSaveList.Placeholder = "Checking saves...";
         manualSaveList.Visible = true;
         manualSaveLoadButton.Visible = loadMode;
         manualSaveOverwriteButton.Visible = !loadMode;

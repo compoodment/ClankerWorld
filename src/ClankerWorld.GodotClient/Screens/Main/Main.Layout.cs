@@ -148,6 +148,11 @@ public partial class Main
 
         mapStage.AddChild(terrainLayer);
 
+        // Night darkens the ground but not the labels, agents and weather above it.
+        nightLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        nightLayer.Follow(terrainLayer);
+        mapStage.AddChild(nightLayer);
+
         objectLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         objectLayer.MouseFilter = Control.MouseFilterEnum.Ignore;
         mapStage.AddChild(objectLayer);
@@ -195,7 +200,7 @@ public partial class Main
         BuildMapFiltersPanel(content);
         var rosterBody = new VBoxContainer();
         rosterBody.AddThemeConstantOverride("separation", 6);
-        rosterSummaryLabel.Text = "Waiting for the world…";
+        rosterSummaryLabel.Text = "Waiting for the world...";
         rosterSummaryLabel.ThemeTypeVariation = "DimLabel";
         rosterSummaryLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         rosterBody.AddChild(rosterSummaryLabel);
@@ -342,6 +347,11 @@ public partial class Main
 
         gameSettingsContent.AddThemeConstantOverride("separation", 8);
         worldSettingsContent.AddThemeConstantOverride("separation", 8);
+        gameSettingsContent.AddChild(SettingsBox("Build", new Label
+        {
+            Text = BuildInformation.Display,
+            TooltipText = "Source commit: " + BuildInformation.SourceRevision,
+        }));
         themeChoice.AddItem("Light", (int)UiThemeChoice.Light);
         themeChoice.AddItem("Dark", (int)UiThemeChoice.Dark);
         themeChoice.AddItem("Match system", (int)UiThemeChoice.System);
@@ -459,7 +469,7 @@ public partial class Main
 
     private void BuildStatusToast(Control content)
     {
-        statusLabel.Text = "Connecting…";
+        statusLabel.Text = "Connecting...";
         statusLabel.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
         var row = new HBoxContainer();
         row.AddThemeConstantOverride("separation", 8);
@@ -496,6 +506,7 @@ public partial class Main
     // Skipping unchanged text also keeps the reader's scroll position.
     private void SetPanelText(RichTextLabel label, string text)
     {
+        text = GameUiText.PlainEllipses(text);
         if (label.Text == text) return;
         label.Text = text;
         FitTextPanel(label);

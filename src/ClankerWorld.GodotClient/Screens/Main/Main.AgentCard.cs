@@ -425,7 +425,7 @@ public partial class Main
             thoughtsReaderText.PushColor(DimText);
             thoughtsReaderText.AddText(clock.Time + "  ");
             thoughtsReaderText.Pop();
-            thoughtsReaderText.AddText(text);
+            thoughtsReaderText.AddText(GameUiText.PlainEllipses(text));
         }
         FitTextPanel(thoughtsReaderText);
     }
@@ -585,7 +585,6 @@ public partial class Main
         var deathTick = Factor("death-tick");
         var deathCause = Factor("death-cause");
         var willStatus = Factor("will-status");
-        var willHeir = Factor("will-heir");
         var role = Factor("role");
         var isDeceased = IsDeceased(inhabitant);
         var waitingForDecision = inhabitant.DecisionFactors.Any(factor => factor.Key == "decision-pending");
@@ -658,6 +657,8 @@ public partial class Main
             .Select(factor => factor.Detail));
         if (!isDeceased && !string.IsNullOrWhiteSpace(inhabitant.MedicalCareNote))
             details.Add(inhabitant.MedicalCareNote);
+        if (!isDeceased && !string.IsNullOrWhiteSpace(inhabitant.ToolMakingRequestNote))
+            details.Add(inhabitant.ToolMakingRequestNote);
         if (!isDeceased && inhabitant.Equipment is { } equipment)
         {
             details.Add($"Cargo: {equipment.CarriedQuantity}/{equipment.Capacity}" +
@@ -666,6 +667,8 @@ public partial class Main
                 details.Add($"Wearing {Pretty(garment).ToLowerInvariant()} · Condition {equipment.ClothingConditionPercent}%");
             if (equipment.CarryAidKind is { } aid)
                 details.Add($"Equipped {Pretty(aid).ToLowerInvariant()} · Condition {equipment.CarryAidConditionPercent}%");
+            if (equipment.OrnamentKind is { } ornament)
+                details.Add($"Wearing {GameUiText.ItemName(ornament).ToLowerInvariant()}");
             if (equipment.RepairItemKind is { } repairItem)
                 details.Add($"Repairing {Pretty(repairItem).ToLowerInvariant()} · {equipment.RepairWorkDone}/{equipment.RepairWorkRequired}");
         }
@@ -680,6 +683,7 @@ public partial class Main
         }
         if (role is not null and not "unassigned") details.Add($"Role: {Pretty(role)}");
         if (Factor("housing") is { } housing && !isDeceased) details.Add(housing);
+        if (Factor("town-membership") is { } townMembership && !isDeceased) details.Add(townMembership);
         if (inhabitant.Lesson is { } lesson)
             details.Add($"Learning {Pretty(lesson.Skill)} with {lesson.TeacherName} · {Pretty(lesson.Stage)} · {lesson.Progress}/{lesson.Required}");
         foreach (var skill in inhabitant.Skills ?? [])
@@ -688,13 +692,7 @@ public partial class Main
             details.Add($"Practice · Building {practice.Building}/30 · Farming {practice.Farming}/30 · Crafting {practice.Crafting}/30");
         if (isDeceased)
         {
-            details.Add(willStatus switch
-            {
-                "accepted" => $"Final will: personal estate to {willHeir}.",
-                "pending" => "Final will pending.",
-                "default" => "Personal estate follows household inheritance.",
-                _ => "No current thoughts or activity.",
-            });
+            details.AddRange(GameUiText.FinalWillLines(willStatus, inhabitant.FinalWill));
         }
         else if (!waitingForDecision)
         {
@@ -716,7 +714,7 @@ public partial class Main
         thoughtsHeading.Text = isDeceased ? "THOUGHTS · HISTORICAL" : "THOUGHTS";
         privateThoughtHistory.Text = inhabitant.RecentPrivateThoughts.Count == 0
             ? "None recorded yet."
-            : $"{ThoughtTime(inhabitant.RecentPrivateThoughts[^1].WorldTick, snapshot.WorldTick)}  {inhabitant.RecentPrivateThoughts[^1].Text}";
+            : $"{ThoughtTime(inhabitant.RecentPrivateThoughts[^1].WorldTick, snapshot.WorldTick)}  {GameUiText.PlainEllipses(inhabitant.RecentPrivateThoughts[^1].Text)}";
         // Keep the task that Cancel task targets, then the newest open messages
         // before closed ones, within the same four-message history.
         var pendingOrder = PendingOrderToCancel(snapshot, inhabitant.Id);

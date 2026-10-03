@@ -17,9 +17,11 @@ public sealed partial class PrivateWorldRuntime
         var equipment = inhabitants[actor].Equipment;
         var clothing = PersonalEquipmentRules.EquippedUnit(inventory, actor, equipment?.ClothingLotId);
         var aid = PersonalEquipmentRules.EquippedUnit(inventory, actor, equipment?.CarryAidLotId);
+        var ornament = PersonalEquipmentRules.EquippedUnit(inventory, actor, equipment?.OrnamentLotId);
         return $"Carrying {PersonalEquipmentRules.CarriedQuantity(inventory, actor, equipment)} of " +
             $"{PersonalEquipmentRules.Capacity(inventory, actor, equipment)} units. Wearing " +
-            $"{clothing?.ItemKind.Replace('_', ' ') ?? "no garment"}. Carry aid: {aid?.ItemKind ?? "none"}.";
+            $"{clothing?.ItemKind.Replace('_', ' ') ?? "no garment"}. Carry aid: {aid?.ItemKind ?? "none"}." +
+            (ornament is null ? string.Empty : $" Ornament: {ornament.ItemKind.Replace('_', ' ')}.");
     }
 
     private InventoryLot? EquippedGarment(string actor) =>
@@ -94,8 +96,8 @@ public sealed partial class PrivateWorldRuntime
 
     private void AddEquipmentCandidates(List<CognitionCandidate> candidates, string actor, PlaytestInhabitantState person)
     {
-        if (WeatherExposure(person.Position) > 0 && BetterGarment(actor) is { } garment)
-            candidates.Add(new("wear_clothing", $"Collect and wear {garment.ItemKind.Replace('_', ' ')} for this weather.", 3));
+        if (OutdoorExposure(person.Position) > 0 && BetterGarment(actor) is { } garment)
+            candidates.Add(new("wear_clothing", $"Collect and wear {garment.ItemKind.Replace('_', ' ')} to keep warm outdoors.", 3));
         if (!AdultResident(actor)) return;
         if (BetterCarryAid(actor) is { } aid)
             candidates.Add(new("equip_carry_aid", $"Equip a {aid.ItemKind} to carry more supplies.", 14));
@@ -253,6 +255,8 @@ public sealed partial class PrivateWorldRuntime
         {
             if (person.Equipment?.Repair is not null && !CanContinueEquipmentRepair(person.InhabitantId))
                 CancelEquipmentRepair(person.InhabitantId);
+            // Garments wear in cold or wet weather only. The night chill is
+            // felt as lost warmth, but adds no wear the agreed design did not ask for.
             if (person.Equipment?.Repair?.LotId == person.Equipment?.ClothingLotId ||
                 WeatherExposure(person.Position) == 0 || EquippedGarment(person.InhabitantId) is not { } garment) continue;
             ApplyInventoryTransition(inventory => InventoryFixture.WearSingleUnit(inventory, garment.Id, 10));

@@ -248,7 +248,7 @@ public partial class Main
             founderCredentialChoice.AddItem(slot.Label);
             founderCredentialChoice.SetItemMetadata(founderCredentialChoice.ItemCount - 1, slot.Id);
         }
-        founderCredentialChoice.AddItem("Add a new API key…");
+        founderCredentialChoice.AddItem("Add a new API key...");
         founderCredentialChoice.SetItemMetadata(founderCredentialChoice.ItemCount - 1, "new");
         var defaultAvailable = providerConfiguration?.Providers.Any(option =>
             option.Provider == SelectedFounderProvider() && option.HasCredential) == true;
