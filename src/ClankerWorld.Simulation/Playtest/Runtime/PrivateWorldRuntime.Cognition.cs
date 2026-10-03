@@ -13,7 +13,7 @@ namespace ClankerWorld.Simulation.Playtest;
 
 public sealed partial class PrivateWorldRuntime
 {
-    private void EnqueueDueCognition()
+    private void EnqueueDueCognition(IReadOnlySet<string> activeHostedIds)
     {
         var cognitionState = society.Capture().Cognition;
         var runtimes = cognitionState.Runtimes
@@ -27,11 +27,19 @@ public sealed partial class PrivateWorldRuntime
             .Where(entry => entry.Observation.RunEpoch != society.Checkpoint.RunEpoch)
             .Select(entry => entry.InhabitantId)
             .ToHashSet(StringComparer.Ordinal);
+        // Retained work has already advanced LastDecisionContext. Once its
+        // earlier call ends, rebuild it even if the ordinary cadence is quiet.
+        var awaitingDispatch = cognitionState.Queue
+            .Where(entry => !activeHostedIds.Contains(entry.InhabitantId))
+            .Select(entry => entry.InhabitantId)
+            .ToHashSet(StringComparer.Ordinal);
         var waitingHosted = society.PendingHostedInhabitantIds();
         var waitingOrderDecisions = cognitionState.Queue
             .Where(entry => waitingHosted.Contains(entry.InhabitantId) &&
                 entry.Observation.OperativeOrderInstructionId is not null &&
-                IsOrderDecisionObservationCurrent(entry.Observation))
+                IsOrderDecisionObservationCurrent(entry.Observation) &&
+                (!awaitingDispatch.Contains(entry.InhabitantId) ||
+                 IsFinishedOrderDecisionAwaitingReply(entry.Observation)))
             .Select(entry => entry.InhabitantId)
             .ToHashSet(StringComparer.Ordinal);
         var staleOrderDecisions = cognitionState.Queue
@@ -61,6 +69,7 @@ public sealed partial class PrivateWorldRuntime
             if (FarmWorkFor(inhabitant.Id) is not null && operativeOrder is null &&
                 !NeedsUrgentFood(physical) && !NeedsUrgentWarmth(physical) &&
                 !staleRunDecisions.Contains(inhabitant.Id) &&
+                !awaitingDispatch.Contains(inhabitant.Id) &&
                 !ShouldDispatchConversationChoice(inhabitant.Id))
                 continue;
             if (operativeOrder is not null && physical.Project is { Stage: not ("completed" or "cancelled") } orderedProject)
@@ -95,6 +104,7 @@ public sealed partial class PrivateWorldRuntime
             var current = runtimes[inhabitant.Id].CurrentIntention;
             if (!namingRetries.Contains(inhabitant.Id) && !staleOrderDecisions.Contains(inhabitant.Id) &&
                 !staleRunDecisions.Contains(inhabitant.Id) &&
+                !awaitingDispatch.Contains(inhabitant.Id) &&
                 !NeedsCognition(inhabitant.Id, current, candidates, conversationChoiceContext))
             {
                 continue;

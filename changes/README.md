@@ -17,6 +17,14 @@ that does not start with a `- ` bullet. For example:
 
 `scripts/collect-changes.sh` moves these entries into CHANGELOG.md, newest
 first, and deletes their files.
+Each release section in the changelog is a flat list without categories.
+Collection requires full Git history to order entries by their original
+commits. In a shallow clone, the script stops before changing any files:
+`Run git fetch --unshallow first: entry order needs full history.`
+
 Commit edits to tracked entries before collecting them. If an entry has staged
 or unstaged changes, the script stops before changing the changelog or deleting
 any entries. New, untracked entries can be collected directly.
+
+If your change makes a waiting entry wrong, edit or delete it in the same pull
+request.

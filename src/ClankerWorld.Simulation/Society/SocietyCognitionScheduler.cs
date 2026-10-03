@@ -202,7 +202,12 @@ public sealed class SocietyCognitionScheduler
 
     public ValueTask<IReadOnlyList<SocietyCognitionDispatchResult>> DispatchDeterministicAsync(
         CancellationToken cancellationToken = default) =>
-        DispatchEligibleAsync(entry => runtimes[entry.InhabitantId].ProviderKindFor(entry.Observation) ==
+        DispatchDeterministicAsync(null, cancellationToken);
+
+    internal ValueTask<IReadOnlyList<SocietyCognitionDispatchResult>> DispatchDeterministicAsync(
+        IReadOnlySet<string>? excludedInhabitantIds, CancellationToken cancellationToken) =>
+        DispatchEligibleAsync(entry => excludedInhabitantIds?.Contains(entry.InhabitantId) != true &&
+            runtimes[entry.InhabitantId].ProviderKindFor(entry.Observation) ==
             DecisionProviderKind.Deterministic, cancellationToken);
 
     public IReadOnlyList<SocietyDeferredCognitionRequest> PreviewHostedRequests(

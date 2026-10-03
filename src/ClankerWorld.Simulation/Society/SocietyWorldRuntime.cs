@@ -167,14 +167,18 @@ public sealed class SocietyWorldRuntime : IDisposable
         }
     }
 
-    public async ValueTask<SocietyDispatchCycleResult> DispatchDeterministicCognitionAsync(
-        CancellationToken cancellationToken = default)
+    public ValueTask<SocietyDispatchCycleResult> DispatchDeterministicCognitionAsync(
+        CancellationToken cancellationToken = default) =>
+        DispatchDeterministicCognitionAsync(null, cancellationToken);
+
+    internal async ValueTask<SocietyDispatchCycleResult> DispatchDeterministicCognitionAsync(
+        IReadOnlySet<string>? excludedInhabitantIds, CancellationToken cancellationToken)
     {
         await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             return new SocietyDispatchCycleResult(society,
-                await cognition.DispatchDeterministicAsync(cancellationToken).ConfigureAwait(false));
+                await cognition.DispatchDeterministicAsync(excludedInhabitantIds, cancellationToken).ConfigureAwait(false));
         }
         finally
         {

@@ -45,6 +45,7 @@ public sealed partial class PrivateWorldRuntime
             int baselineOrderCancellationCount;
             IReadOnlyDictionary<string, PlaytestPlannedRoute> routesBefore;
             PendingHostedDecision[] completed = [];
+            IReadOnlySet<string> activeHostedIds = new HashSet<string>(StringComparer.Ordinal);
             PendingWillDecision[] completedWills = [];
             PendingConversationTurn[] completedConversationTurns = [];
             PendingIdentityMoment[] completedIdentityMoments = [];
@@ -94,6 +95,7 @@ public sealed partial class PrivateWorldRuntime
                         }
                     }
                     completed = pendingHosted.Values.Where(item => item.Task.IsCompleted).ToArray();
+                    activeHostedIds = pendingHosted.Keys.ToHashSet(StringComparer.Ordinal);
                     completedWills = pendingWills.Values.Where(item => item.Task.IsCompleted).ToArray();
                     activeWillIds = pendingWills.Keys.ToArray();
                     inactiveWillReasons = new Dictionary<string, string>(pendingWillCancellationReasons, StringComparer.Ordinal);
@@ -125,7 +127,7 @@ public sealed partial class PrivateWorldRuntime
                 maxCognitionDispatchPerCycle,
                 trustedPreparedState: true);
             proposed.previousPlannedRoutes = routesBefore;
-            var result = await proposed.AdvancePreparedTickAsync(deferHosted, completed, completedWills,
+            var result = await proposed.AdvancePreparedTickAsync(deferHosted, completed, activeHostedIds, completedWills,
                 activeWillIds, inactiveWillReasons, completedConversationTurns, cancellationToken).ConfigureAwait(false);
             var tickMilliseconds = Math.Round(System.Diagnostics.Stopwatch.GetElapsedTime(tickStarted).TotalMilliseconds, 1);
             await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -214,7 +216,8 @@ public sealed partial class PrivateWorldRuntime
                     foreach (var id in inactiveWillReasons.Keys)
                         pendingWillCancellationReasons.Remove(id);
                     if (commitPermitted is null || commitPermitted()) StartWillDecisions();
-                    if (commitPermitted is null || commitPermitted()) StartHostedDecisions();
+                    if (commitPermitted is null || commitPermitted())
+                        StartHostedDecisions(completed.Select(item => item.Request.Observation.InhabitantId));
                 }
                 else
                 {
@@ -240,12 +243,16 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
-    private void StartHostedDecisions()
+    private void StartHostedDecisions(IEnumerable<string> completedIds)
     {
         var capacity = Math.Max(0, maxCognitionDispatchPerCycle - pendingHosted.Count);
         if (capacity == 0) return;
-        foreach (var preview in society.PreviewHostedRequests(pendingHosted.Keys.Concat(pendingIdentityMoments.Keys)
-                     .ToHashSet(StringComparer.Ordinal)).Take(capacity))
+        // Applying a reply can change its actor's choices. Refresh any retained
+        // work in the next prepared tick before spending another model call.
+        var excluded = pendingHosted.Keys.Concat(pendingIdentityMoments.Keys).Concat(completedIds)
+            .Concat(inhabitants.Keys.Where(id => IsConversationBusy(id) && !ShouldDispatchConversationChoice(id)))
+            .ToHashSet(StringComparer.Ordinal);
+        foreach (var preview in society.PreviewHostedRequests(excluded).Take(capacity))
         {
             var cancellation = new CancellationTokenSource();
             var task = Task.Run(async () =>
@@ -404,7 +411,7 @@ public sealed partial class PrivateWorldRuntime
     }
 
     private async ValueTask<PrivateWorldStepResult> AdvancePreparedTickAsync(
-        bool deferHosted, IReadOnlyList<PendingHostedDecision> completed,
+        bool deferHosted, IReadOnlyList<PendingHostedDecision> completed, IReadOnlySet<string> activeHostedIds,
         IReadOnlyList<PendingWillDecision> completedWills, IReadOnlyList<string> activeWillIds,
         IReadOnlyDictionary<string, string> inactiveWillReasons,
         IReadOnlyList<PendingConversationTurn> completedConversationTurns,
@@ -524,7 +531,7 @@ public sealed partial class PrivateWorldRuntime
             MaintainDependentCare();
             DiscoverIdentityMoments();
             UpdateConversationsForTick(targetTick);
-            EnqueueDueCognition();
+            EnqueueDueCognition(activeHostedIds);
             var deferredDecisions = new List<SocietyCognitionDispatchResult>();
             if (deferHosted)
             {
@@ -582,7 +589,10 @@ public sealed partial class PrivateWorldRuntime
                 }
             }
             var dispatch = deferHosted
-                ? await society.DispatchDeterministicCognitionAsync(cancellationToken).ConfigureAwait(false)
+                ? await society.DispatchDeterministicCognitionAsync(
+                    activeHostedIds.Concat(inhabitants.Keys.Where(id =>
+                            IsConversationBusy(id) && !ShouldDispatchConversationChoice(id)))
+                        .ToHashSet(StringComparer.Ordinal), cancellationToken).ConfigureAwait(false)
                 : await society.DispatchCognitionAsync(cancellationToken).ConfigureAwait(false);
             var decisions = deferredDecisions.Concat(dispatch.Decisions)
                 .OrderBy(item => item.InhabitantId, StringComparer.Ordinal).ToArray();

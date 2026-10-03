@@ -66,19 +66,10 @@ public sealed class OwnerClientPresenceLeaseTests
             var presence = new OwnerClientPresenceLease(TimeSpan.FromMinutes(1));
             var provider = new ThrowingHostedProvider();
             var logger = new RecordingLogger<PrivateWorldRuntimeService>();
-            // Keep the hosted choices stable while checking one failure;
-            // peers taking shared tools would legitimately queue another call.
-            using var runtime = new PrivateWorldRuntime("hosted-log", id =>
-                id == actorId ? provider : new ActionCoverageRecorder(chooseIdle: true),
-                startPace: actorId.Contains(':') ? WorldStartPace.FounderSetup : WorldStartPace.Legacy);
-            if (actorId.Contains(':'))
-            {
-                runtime.PlaceFounder(actorId, new(0, 0));
-                runtime.PlaceFounder("founder:00000000000000000000000000000002", new(1, 2));
-                runtime.PlaceFounder("founder:00000000000000000000000000000003", new(2, 2));
-                runtime.PlaceFounder("founder:00000000000000000000000000000004", new(3, 2));
-                runtime.StartWorld();
-            }
+            // Begin with the normal active content and idle peers, so startup
+            // changes do not queue another decision while testing one failure.
+            using var runtime = NormalPathWorld.CreateGenerated("hosted-log", id =>
+                id == actorId ? provider : new ActionCoverageRecorder(chooseIdle: true));
             using var service = new PrivateWorldRuntimeService(runtime,
                 new PrivateWorldStateFile(Path.Combine(directory, "world.json")), presence, logger);
             presence.RecordAuthenticatedReconnect("owner");
