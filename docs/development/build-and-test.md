@@ -212,6 +212,9 @@ The Godot scripts download their pinned tools through
   and session.
 - A lock lets several sessions use the cache at the same moment. A changed pin
   downloads the new version; the cleanup later removes the old one.
+- Without `flock`, the cache uses an atomic directory lock. A stale or
+  incomplete lock stops the run and names the directory to inspect; it never
+  guesses that another session's lock can be removed.
 
 ### A scratch folder for each run
 
@@ -241,17 +244,29 @@ Run it when you finish a job on your own machine.
   was deleted, as GitHub does after a merge, or its commit is on main), it has
   no uncommitted, untracked or local files such as `.env` or `saves/`, it isn't
   locked or the one you run it from, and nothing in it changed for 12 hours.
+  It checks branch deletion on origin directly, and keeps missing or unmounted
+  worktree records, unfinished Git operations, hidden local edits and commits
+  held only in a worktree's reflog.
   The branch stays, so `git worktree add <path> <branch>` brings the files
   back. `.evidence/keep/` first moves to
-  `~/.local/state/clankerworld/kept-evidence`, where it stays 30 days.
+  `~/.local/state/clankerworld/kept-evidence`. Archives older than 30 days are
+  listed but kept. Inspect them before adding `--prune-kept-evidence` to
+  `--apply`; that flag explicitly selects old archives for removal.
 - In other idle worktrees it removes only build and test output.
-- It removes tool versions no script pins that went unused for 30 days, and
-  `clankerworld-*` temporary folders that runs and tests left behind.
+- It removes tool versions no script pins that went unused for 30 days,
+  holding the same lock as cache users and checking the age again. Unknown
+  names in overridden cache or evidence folders are kept, as are unknown
+  files in the older Godot download cache. Interrupted partial downloads are
+  cleaned after a day.
+- It removes idle managed Godot scratch folders only when their saved owner
+  process has ended. Measurements, failure worlds, unmarked older temporary
+  folders and live runs are kept for inspection.
 - `git worktree lock <path>` keeps the cleanup away from a worktree, for
   example during a long pause.
 
-It covers the worktrees of the repository you run it in; run it in each
-separate clone.
+It covers only the worktrees of the clone holding this script, and refuses
+to run from an unrelated repository. Run that clone's copy in each separate
+clone. Retention arguments must be positive whole numbers.
 
 ## Windows playtests
 

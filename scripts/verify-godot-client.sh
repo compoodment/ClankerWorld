@@ -24,6 +24,7 @@ test -n "${godot_bin}"
 # run its own, so runs from different worktrees or sessions share no state, and remove it after.
 scratch_root="$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/clankerworld-godot-client.XXXXXX")"
 trap 'rm -rf -- "${scratch_root}"' EXIT
+printf '%s\n' "$$" > "${scratch_root}/.clankerworld-run.pid"
 export XDG_CONFIG_HOME="${scratch_root}/config"
 export XDG_DATA_HOME="${scratch_root}/data"
 export XDG_CACHE_HOME="${scratch_root}/cache"

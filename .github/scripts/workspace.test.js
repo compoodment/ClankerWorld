@@ -20,7 +20,6 @@ function sandbox(t) {
   });
   const env = {
     ...process.env,
-    HOME: root,
     XDG_CACHE_HOME: path.join(root, 'xdg-cache'),
     XDG_STATE_HOME: path.join(root, 'xdg-state'),
     TMPDIR: path.join(root, 'tmp'),
@@ -122,10 +121,35 @@ function git(cwd, env, ...args) {
 }
 
 // Sets every file under a folder, and its worktree's index and HEAD, to two days ago.
+function ageFiles(folder, days = 2) {
+  if (fs.lstatSync(folder).isDirectory()) {
+    for (const name of fs.readdirSync(folder)) ageFiles(path.join(folder, name), days);
+  }
+  const when = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  fs.lutimesSync(folder, when, when);
+}
+
 function age(folder, env) {
-  ok('find', [folder, '-exec', 'touch', '-h', '-d', '2 days ago', '{}', '+']);
+  ageFiles(folder);
   const gitdir = git(folder, env, 'rev-parse', '--absolute-git-dir');
-  ok('touch', ['-h', '-d', '2 days ago', path.join(gitdir, 'HEAD'), path.join(gitdir, 'index')]);
+  for (const name of ['HEAD', 'index']) ageFiles(path.join(gitdir, name));
+}
+
+function cleanupRepo(root, env) {
+  const remote = path.join(root, 'remote.git');
+  const main = path.join(root, 'main');
+  git(root, env, 'init', '-q', '--bare', remote);
+  git(root, env, 'init', '-q', '-b', 'main', main);
+  fs.writeFileSync(path.join(main, '.gitignore'), 'bin/\nobj/\nexport/\nsaves/\n.evidence/\n');
+  fs.mkdirSync(path.join(main, 'scripts'));
+  for (const name of ['clean-workspace.sh', 'tool-cache.sh', 'verify-godot-client.sh', 'verify-godot-windows-export.sh']) {
+    fs.copyFileSync(path.join(scripts, name), path.join(main, 'scripts', name));
+  }
+  git(main, env, 'add', '.');
+  git(main, env, 'commit', '-q', '-m', 'start');
+  git(main, env, 'remote', 'add', 'origin', remote);
+  git(main, env, 'push', '-q', '-u', 'origin', 'main');
+  return { main, script: path.join(main, 'scripts', 'clean-workspace.sh') };
 }
 
 function worktree(main, env, name, { push = true, deleteRemote = true } = {}) {
@@ -141,15 +165,7 @@ function worktree(main, env, name, { push = true, deleteRemote = true } = {}) {
 
 test('cleanup lists first, then removes only finished, idle and rebuildable files', t => {
   const { root, env } = sandbox(t);
-  const remote = path.join(root, 'remote.git');
-  const main = path.join(root, 'main');
-  git(root, env, 'init', '-q', '--bare', remote);
-  git(root, env, 'init', '-q', '-b', 'main', main);
-  fs.writeFileSync(path.join(main, '.gitignore'), 'bin/\nobj/\nsaves/\n.evidence/\n');
-  git(main, env, 'add', '.');
-  git(main, env, 'commit', '-q', '-m', 'start');
-  git(main, env, 'remote', 'add', 'origin', remote);
-  git(main, env, 'push', '-q', '-u', 'origin', 'main');
+  const { main, script } = cleanupRepo(root, env);
 
   const finished = worktree(main, env, 'finished');
   fs.mkdirSync(path.join(finished, 'bin'));
@@ -181,17 +197,18 @@ test('cleanup lists first, then removes only finished, idle and rebuildable file
   const legacy = path.join(env.XDG_CACHE_HOME, 'clankerworld-godot');
   fs.mkdirSync(legacy, { recursive: true });
   fs.writeFileSync(path.join(legacy, 'old.zip'), 'x');
-  const oldTemp = path.join(env.TMPDIR, 'clankerworld-old-run');
-  const newTemp = path.join(env.TMPDIR, 'clankerworld-new-run');
+  const oldTemp = path.join(env.TMPDIR, 'clankerworld-godot-client.oldrun');
+  const newTemp = path.join(env.TMPDIR, 'clankerworld-godot-client.newrun');
   fs.mkdirSync(oldTemp);
   fs.mkdirSync(newTemp);
-  const oldKept = path.join(env.XDG_STATE_HOME, 'clankerworld', 'kept-evidence', 'gone-20200101');
+  fs.writeFileSync(path.join(oldTemp, '.clankerworld-run.pid'), '99999999');
+  fs.writeFileSync(path.join(newTemp, '.clankerworld-run.pid'), String(process.pid));
+  const oldKept = path.join(env.XDG_STATE_HOME, 'clankerworld', 'kept-evidence', 'gone-20200101000000');
   fs.mkdirSync(oldKept, { recursive: true });
   for (const folder of [unpinned, kept, legacy, oldTemp, oldKept]) {
-    ok('find', [folder, '-exec', 'touch', '-d', '40 days ago', '{}', '+']);
+    ageFiles(folder, 40);
   }
 
-  const script = path.join(scripts, 'clean-workspace.sh');
   const listing = ok('bash', [script], { cwd: main, env });
   assert.match(listing, /finished worktree: its branch on origin was deleted; branch finished is kept/);
   assert.match(listing, /dirty: kept, has uncommitted or untracked files/);
@@ -208,9 +225,10 @@ test('cleanup lists first, then removes only finished, idle and rebuildable file
   assert.doesNotMatch(git(main, env, 'worktree', 'list'), /finished/);
   const archive = path.join(env.XDG_STATE_HOME, 'clankerworld', 'kept-evidence');
   const archived = fs.readdirSync(archive);
-  assert.equal(archived.length, 1);
-  assert.match(archived[0], /^finished-\d{14}$/);
-  assert.equal(fs.readFileSync(path.join(archive, archived[0], 'failure.trx'), 'utf8'), 'kept');
+  assert.equal(archived.length, 2);
+  const retained = archived.find(name => /^finished-\d{14}$/.test(name));
+  assert.ok(retained);
+  assert.equal(fs.readFileSync(path.join(archive, retained, 'failure.trx'), 'utf8'), 'kept');
 
   assert.ok(!fs.existsSync(path.join(open, 'obj')));
   assert.ok(fs.existsSync(path.join(open, 'open.txt')));
@@ -218,7 +236,206 @@ test('cleanup lists first, then removes only finished, idle and rebuildable file
   assert.ok(fs.existsSync(path.join(local, 'saves', 'world.json')));
   assert.ok(!fs.existsSync(unpinned));
   assert.ok(fs.existsSync(kept));
-  assert.ok(!fs.existsSync(legacy));
+  assert.ok(fs.existsSync(path.join(legacy, 'old.zip')));
   assert.ok(!fs.existsSync(oldTemp));
   assert.ok(fs.existsSync(newTemp));
+  assert.ok(fs.existsSync(oldKept));
+  ok('bash', [script, '--apply', '--prune-kept-evidence'], { cwd: main, env });
+  assert.ok(!fs.existsSync(oldKept));
+});
+
+test('cleanup refuses a different repository and keeps unavailable worktree records', t => {
+  const { root, env } = sandbox(t);
+  const { main, script } = cleanupRepo(root, env);
+  const other = path.join(root, 'other');
+  fs.mkdirSync(other);
+  const foreign = cleanupRepo(other, env);
+  const finished = worktree(foreign.main, env, 'foreign-finished');
+  fs.mkdirSync(path.join(foreign.main, 'export'));
+  fs.writeFileSync(path.join(foreign.main, 'export', 'drawing.txt'), 'hand-made');
+  age(finished, env);
+  age(foreign.main, env);
+  const rejected = run('bash', [script, '--apply'], { cwd: foreign.main, env });
+  assert.notEqual(rejected.status, 0);
+  assert.match(rejected.stderr, /another repository/);
+  assert.ok(fs.existsSync(finished));
+  assert.equal(fs.readFileSync(path.join(foreign.main, 'export', 'drawing.txt'), 'utf8'), 'hand-made');
+
+  const missing = worktree(main, env, 'missing');
+  const gitdir = git(missing, env, 'rev-parse', '--absolute-git-dir');
+  fs.renameSync(missing, `${missing}-unmounted`);
+  ok('bash', [script, '--apply'], { cwd: main, env });
+  assert.ok(git(main, env, 'worktree', 'list', '--porcelain').includes(`worktree ${missing}\n`));
+  assert.ok(fs.existsSync(path.join(gitdir, 'index')));
+  assert.ok(fs.existsSync(path.join(gitdir, 'logs', 'HEAD')));
+});
+
+test('cleanup preserves hidden edits, unfinished operations and reflog-only commits', t => {
+  const { root, env } = sandbox(t);
+  const { main, script } = cleanupRepo(root, env);
+  const held = [];
+  for (const flag of ['--assume-unchanged', '--skip-worktree']) {
+    const name = flag.slice(2);
+    const folder = worktree(main, env, name);
+    git(folder, env, 'update-index', flag, `${name}.txt`);
+    fs.writeFileSync(path.join(folder, `${name}.txt`), 'local data');
+    held.push(folder);
+  }
+  for (const marker of ['MERGE_HEAD', 'CHERRY_PICK_HEAD', 'REVERT_HEAD', 'BISECT_LOG', 'rebase-merge']) {
+    const folder = worktree(main, env, marker.toLowerCase());
+    const gitdir = git(folder, env, 'rev-parse', '--absolute-git-dir');
+    fs.writeFileSync(path.join(gitdir, marker), `${git(folder, env, 'rev-parse', 'HEAD')}\n`);
+    held.push(folder);
+  }
+  const reflog = worktree(main, env, 'reflog');
+  git(reflog, env, 'checkout', '--detach');
+  fs.writeFileSync(path.join(reflog, 'only-in-reflog.txt'), 'keep this commit');
+  git(reflog, env, 'add', '.');
+  git(reflog, env, 'commit', '-q', '-m', 'only in HEAD reflog');
+  const saved = git(reflog, env, 'rev-parse', 'HEAD');
+  git(reflog, env, 'checkout', 'reflog');
+  held.push(reflog);
+  for (const folder of held) age(folder, env);
+  ok('bash', [script, '--apply'], { cwd: main, env });
+  for (const folder of held) assert.ok(fs.existsSync(folder), folder);
+  assert.ok(git(reflog, env, 'reflog', '--format=%H', 'HEAD').includes(saved));
+  for (const flag of ['assume-unchanged', 'skip-worktree']) {
+    assert.equal(fs.readFileSync(path.join(root, flag, `${flag}.txt`), 'utf8'), 'local data');
+  }
+});
+
+test('cleanup handles a newline in a finished worktree path without touching the current one', t => {
+  const { root, env } = sandbox(t);
+  const { main, script } = cleanupRepo(root, env);
+  const initial = worktree(main, env, 'line-path');
+  const finished = path.join(root, 'finished\nworktree');
+  git(main, env, 'worktree', 'move', initial, finished);
+  age(finished, env);
+  ok('bash', [script, '--apply'], { cwd: main, env });
+  assert.ok(!fs.existsSync(finished));
+  assert.ok(fs.existsSync(main));
+  assert.match(git(main, env, 'branch', '--list', 'line-path'), /line-path/);
+});
+
+test('a missing fetched tracking ref does not prove that a remote branch was deleted', t => {
+  const { root, env } = sandbox(t);
+  const { main, script } = cleanupRepo(root, env);
+  const live = worktree(main, env, 'live', { deleteRemote: false });
+  git(main, env, 'config', '--replace-all', 'remote.origin.fetch', '+refs/heads/main:refs/remotes/origin/main');
+  git(main, env, 'update-ref', '-d', 'refs/remotes/origin/live');
+  const local = worktree(main, env, 'local-upstream');
+  git(local, env, 'config', 'branch.local-upstream.remote', '.');
+  git(local, env, 'config', 'branch.local-upstream.merge', 'refs/heads/main');
+  age(live, env);
+  age(local, env);
+  ok('bash', [script, '--apply'], { cwd: main, env });
+  assert.ok(fs.existsSync(live));
+  assert.ok(fs.existsSync(local));
+});
+
+test('cleanup rejects zero retention and ignores unrelated files in overridable folders', t => {
+  const { root, env } = sandbox(t);
+  const { main, script } = cleanupRepo(root, env);
+  for (const option of ['--idle-hours', '--keep-days']) {
+    const result = run('bash', [script, '--apply', option, '0'], { cwd: main, env });
+    assert.notEqual(result.status, 0);
+  }
+  const downloads = path.join(env.CLANKERWORLD_TOOL_CACHE, 'downloads');
+  const unpacked = path.join(env.CLANKERWORLD_TOOL_CACHE, 'unpacked');
+  const retained = path.join(root, 'shared-documents');
+  fs.mkdirSync(downloads, { recursive: true });
+  fs.mkdirSync(unpacked, { recursive: true });
+  fs.mkdirSync(retained);
+  fs.writeFileSync(path.join(downloads, 'photo.jpg'), 'photo');
+  fs.mkdirSync(path.join(unpacked, 'tax-return-2025'));
+  fs.writeFileSync(path.join(retained, 'important.txt'), 'keep');
+  for (const folder of [downloads, unpacked, retained]) {
+    ageFiles(folder, 40);
+  }
+  ok('bash', [script, '--apply', '--prune-kept-evidence'], {
+    cwd: main, env: { ...env, CLANKERWORLD_KEPT_EVIDENCE: retained },
+  });
+  assert.equal(fs.readFileSync(path.join(downloads, 'photo.jpg'), 'utf8'), 'photo');
+  assert.ok(fs.existsSync(path.join(unpacked, 'tax-return-2025')));
+  assert.equal(fs.readFileSync(path.join(retained, 'important.txt'), 'utf8'), 'keep');
+});
+
+test('cleanup removes old partial downloads but preserves measurements and live scratch folders', t => {
+  const { root, env } = sandbox(t);
+  const { main, script } = cleanupRepo(root, env);
+  const folder = path.join(env.CLANKERWORLD_TOOL_CACHE, 'downloads', pinned);
+  fs.mkdirSync(folder, { recursive: true });
+  const partial = path.join(folder, 'tool.zip.partial.abcdef');
+  fs.writeFileSync(partial, 'unfinished');
+  fs.writeFileSync(path.join(folder, 'tool.zip'), 'archive');
+  const measurements = path.join(env.TMPDIR, 'clankerworld-map-measurements');
+  const active = path.join(env.TMPDIR, 'clankerworld-godot-client.active');
+  for (const name of [measurements, active]) fs.mkdirSync(name);
+  fs.writeFileSync(path.join(measurements, 'evidence.txt'), 'before and after');
+  fs.writeFileSync(path.join(active, '.clankerworld-run.pid'), String(process.pid));
+  for (const name of [folder, measurements, active]) {
+    ageFiles(name);
+  }
+  ok('bash', [script, '--apply'], { cwd: main, env });
+  assert.ok(!fs.existsSync(partial));
+  assert.equal(fs.readFileSync(path.join(folder, 'tool.zip'), 'utf8'), 'archive');
+  assert.ok(fs.existsSync(active));
+  assert.equal(fs.readFileSync(path.join(measurements, 'evidence.txt'), 'utf8'), 'before and after');
+});
+
+test('cache pruning waits for a cache user and rechecks its refreshed age under the lock', async t => {
+  const { root, env } = sandbox(t);
+  const { main, script } = cleanupRepo(root, env);
+  const sum = 'f'.repeat(64);
+  const entry = path.join(env.CLANKERWORLD_TOOL_CACHE, 'downloads', sum);
+  const locks = path.join(env.CLANKERWORLD_TOOL_CACHE, 'locks');
+  fs.mkdirSync(entry, { recursive: true });
+  fs.mkdirSync(locks);
+  fs.writeFileSync(path.join(entry, 'archive.zip'), 'verified bytes');
+  ageFiles(entry, 40);
+  const ready = path.join(root, 'ready');
+  const release = path.join(root, 'release');
+  const holder = spawn('bash', ['-c',
+    'source "$1"; tool_cache_locked "$2" bash -c \'touch "$2"; while [[ ! -e "$3" ]]; do sleep 0.05; done; touch -c "$1"\' bash "$3" "$4" "$5"',
+    'bash', path.join(scripts, 'tool-cache.sh'), sum, entry, ready, release], { env });
+  const holderDone = new Promise(resolve => holder.on('close', resolve));
+  t.after(() => { if (fs.existsSync(root) && !fs.existsSync(release)) fs.writeFileSync(release, 'go'); });
+  for (let attempt = 0; attempt < 100 && !fs.existsSync(ready); attempt++) {
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+  assert.ok(fs.existsSync(ready), 'cache user acquired the lock');
+  const cleaner = spawn('bash', [script, '--apply'], { cwd: main, env });
+  let stderr = '';
+  cleaner.stderr.on('data', data => { stderr += data; });
+  const cleanerDone = new Promise(resolve => cleaner.on('close', resolve));
+  await new Promise(resolve => setTimeout(resolve, 150));
+  fs.writeFileSync(release, 'go');
+  assert.equal(await holderDone, 0);
+  assert.equal(await cleanerDone, 0, stderr);
+  assert.equal(fs.readFileSync(path.join(entry, 'archive.zip'), 'utf8'), 'verified bytes');
+  assert.ok(fs.statSync(entry).isDirectory());
+});
+
+test('the mkdir lock fallback shares concurrent work and fails closed on stale ownership', async t => {
+  const { root, env } = sandbox(t);
+  const source = path.join(root, 'tool.zip');
+  makeZip(source, [['tool', 'bytes']]);
+  const sum = sha256(source);
+  const prefix = 'command() { if [[ "$1" == -v && "$2" == flock ]]; then return 1; fi; builtin command "$@"; };';
+  const calls = Array.from({ length: 3 }, () => new Promise(resolve => {
+    const child = spawn('bash', ['-c', `${prefix} source "$1"; tool_cache_unzip "$2" "$3"`,
+      'bash', path.join(scripts, 'tool-cache.sh'), source, sum], { env });
+    let stderr = '';
+    child.stderr.on('data', data => { stderr += data; });
+    child.on('close', status => resolve({ status, stderr }));
+  }));
+  for (const result of await Promise.all(calls)) assert.equal(result.status, 0, result.stderr);
+  const stale = path.join(env.CLANKERWORLD_TOOL_CACHE, 'locks', `${sum}.d`);
+  fs.mkdirSync(stale);
+  fs.writeFileSync(path.join(stale, 'pid'), '99999999');
+  const refused = run('bash', ['-c', `${prefix} source "$1"; tool_cache_unzip "$2" "$3"`,
+    'bash', path.join(scripts, 'tool-cache.sh'), source, sum], { env });
+  assert.notEqual(refused.status, 0);
+  assert.match(refused.stderr, /Stale tool cache lock/);
+  assert.ok(fs.existsSync(stale));
 });

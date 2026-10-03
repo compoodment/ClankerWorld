@@ -73,6 +73,7 @@ cleanup() {
     rm -rf -- "${scratch_root}"
 }
 trap cleanup EXIT
+printf '%s\n' "$$" > "${scratch_root}/.clankerworld-run.pid"
 
 editor_archive_path="$(tool_cache_download "${GODOT_RELEASE_URL}/${GODOT_ARCHIVE}" \
     "${GODOT_ARCHIVE_SHA256}" "${GODOT_ARCHIVE}")"
