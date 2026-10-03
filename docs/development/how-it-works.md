@@ -606,23 +606,92 @@ beside the first Town. Grove surfaces still use the 24-tile limit; the larger
 budget supplies the denser trees on forest grass.
 
 **Hills** are dry land below mountain height (215), at least 190 high and within
-three tiles (counting diagonal steps as one) of a mountain or peak. They are a
-visual layer only: nothing is saved for them, they keep their own surface, and
-they cost the same to walk and build on as grass. `SeededMap.IsHillAt` and the
-Godot client's `WorldTerrainMap` apply the same rule to the saved elevation and
-water layers. The client draws mountains, peaks and hills as one relief layer
-from the saved elevation (`UI/Map/ReliefRenderer.cs`): it renders 16×16-tile
-chunks on worker threads, caches one texture per chunk and atlas size, and
-shows the per-tile mountain and hill art for a chunk until its relief is
-ready. It also warms hills' overview color and shows "Landform: Hills" in tile
-inspection. Hill travel cost
-and passability are not decided.
+the hill reach of a connected mountain region (counting diagonal steps as one).
+The reach widens with the region's size: one tile for every 7 in the square
+root of its tile count, from 3 tiles up to 8, so a 1,000-tile massif has a
+4-tile band and a 2,500-tile massif a 7-tile band. Regions join diagonal
+neighbours and wrap east/west only on a wrapped map. Hills are a visual layer
+only: nothing is saved for them, they keep their own surface, and they cost the
+same to walk and build on as grass. `TerrainPlacementRules.ClassifyHills`
+(used by `SeededMap.IsHillAt`) and the Godot client's `UI/Map/HillBand.cs`
+(used by `WorldTerrainMap.IsHillAt`) apply the same rule to the saved elevation
+and water layers; `MountainMassifTests` checks that they mark exactly the same
+tiles on generated maps. The client draws mountains, peaks and hills as one
+relief layer from the saved elevation (`UI/Map/ReliefRenderer.cs`): it renders
+16×16-tile chunks on worker threads, caches one texture per chunk and atlas
+size, and shows the per-tile mountain and hill art for a chunk until its relief
+is ready. It also warms hills' overview color and shows "Landform: Hills" in
+tile inspection. Hill travel cost and passability are not decided.
 
 All of these numbers are **provisional**. They were chosen from fixed-seed
 measurements, not owner-reviewed maps, and live in `TerrainPlacementRules`.
 Current fixed-world tests require 25–45% forest-grass tree coverage, and every
-forest-floor tile holds a tree. Hills remain about 0.3–2% of dry land at Normal
-mountain relief.
+forest-floor tile holds a tree. Across 160 default Balanced Small and Medium
+worlds (wrapped and bounded), hills cover about 3–8% of dry land.
+
+### Mountain massifs
+
+Mountains form as **a few large massifs** instead of scattered patches
+([#683](https://github.com/compoodment/ClankerWorld/issues/683), following the
+owner's choice on [#628](https://github.com/compoodment/ClankerWorld/issues/628)).
+`MountainMassifs` shapes them after water is classified and before rivers are
+routed:
+
+1. **Plan.** Each world picks its massif count from its size: 1–2 on Small and
+   2–4 on Medium (3–6, 5–10 and 8–16 on the unplayable larger sizes). It aims
+   the massifs at a seeded share of dry land: 7.5–9.5% for Normal mountain
+   relief, 2.5–3.5% for Low and 14–17% for High. Each massif gets a seeded
+   share of that area, but never less than twice the 150-tile minimum.
+2. **Place.** Each massif has a centre, a long axis 2.4–3.6 times its width and
+   a slight bend along its length. Placement tries 32 centres, each the most
+   inland of three random land tiles, and keeps the one whose outline holds the
+   most dry land, at least 60%. Massifs stay at least three tiles plus their
+   rough edge apart, so two never merge. A massif grows to make up for water
+   inside its outline. Where the land is too broken up for the planned size, a
+   half-size massif is tried before the massif is dropped.
+3. **Shape.** Inside its roughened outline a massif rises as a stretched dome
+   from 215 at the edge. Its **crest**, a thin band along the central 60% of
+   its length, holds the peaks (245 and up). A peak stays only if its own
+   massif surrounds it on all eight sides, so peaks never touch water, lowland
+   or the map's edge.
+4. **Flatten.** Each massif keeps only its largest connected piece; a piece cut
+   off by a coast or lake is lowered back to the ground around it. A massif
+   below 150 tiles is flattened completely. Elevation noise outside the massifs
+   that reaches 205 is squeezed into 205–214, just below mountain height, so it
+   never forms a stray mountain but can still hold stone.
+5. **Foothills.** Dry land around each massif rises to at least 190 out to its
+   hill reach, then eases back down over two more tiles, so the hill band
+   always shows and widens with the massif.
+
+Rivers never form on mountain tiles: they rise at the foot of a massif rather
+than cutting it apart. After rivers, a final pass checks that peaks never split
+any land: within each piece of dry land, the ground that is not a peak must be
+one walkable piece. If peaks enclose some ground, the fewest peaks needed to
+reconnect it are lowered to mountain height. Temperature and climate are worked
+out last, from the finished elevation, so massifs and their foothills are
+cooler than the land around them.
+
+The first Town's starting clearing always has a stone outcrop it can walk to
+within 32 tiles, counting diagonal steps as one. If none formed there, one is
+placed on the highest ground in reach, outside the clearing. This is in
+addition to the stone site the running world adds beside the first Town. Iron,
+gold and diamond outcrops still need mountain tiles, so they now gather in the
+massifs.
+
+Measured over 40 seeds for each of the four default Balanced Small/Medium
+settings (50% water, wrapped and bounded), the New World selection always met
+both trial targets, compared with 56 misses out of 160 before. Mountains covered
+7.2–10.5% of dry land, each world had a massif count within its range, the
+smallest massif had 443 tiles and peaks were 10–14% of mountain tiles. The
+nearest stone was at most 33 tiles from the starting berry patch. Before this
+change the same worlds had 1–65 separate mountain patches, the smallest of a
+single tile, and mountains covered 1.4–19% of dry land.
+
+Generation takes about a tenth longer. In four interleaved runs of
+`scripts/measure-map-generation.sh` on a shared machine under load, the median
+time to generate `probe-a` went from 191 to 211 ms, `probe-b` from 140 to
+153 ms and the Dry fixture from 76 to 85 ms (averages of the per-run medians).
+These are noisy measurements, not a performance promise.
 
 The October 1 measurements used .NET 10.0.401 and Godot 4.7.2 under WSL, with
 two .NET processors. Both Small maps are 256×128, use current hydrology and
@@ -1579,24 +1648,27 @@ lives in `TreeGrowthRules` and is provisional ([#462](https://github.com/compood
 New World defaults to 50% water with a 20–80% range. `GenerationAmount`
 controls forest cover, mountain relief and river abundance independently;
 Normal is zero and omitted from saved JSON. Low/High use forest rainfall
-thresholds 175/125 and river catchment thresholds 288/72. Low mountain relief
-subtracts half the elevation above 130; High adds that full amount for Balanced
-Small/Medium worlds and half elsewhere. Outside the visibility trial, Normal
-keeps a 150 rainfall threshold, zero relief shift and river threshold 144.
+thresholds 175/125 and river catchment thresholds 288/72. Mountain relief sets
+how much dry land the [massifs](#mountain-massifs) aim to cover: Low 2.5–3.5%,
+Normal 7.5–9.5% and High 14–17%, for every climate mode and size. Outside the
+visibility trial, Normal keeps a 150 rainfall threshold and river threshold 144.
 Resource abundance retains its existing Sparse/Normal/Abundant saved values;
 the UI labels them Low/Normal/High.
 
 For Balanced Small/Medium worlds, each feature's target applies only while its
-own control is Normal. The versioned Normal trial uses a 135 rainfall threshold
-and adds one third of upper elevation as mountain relief. Low and High remain
-separate controls. `GeographyCandidateSelector` tries at most three candidates
-derived from the requested seed. It selects by unmet target count, normalized
-distance from the 20–40% forest and 5–12% mountain dry-land bands, then largest
-connected-region share as a tie-break; attempt number is the final stable
-tie-break. Connected regions use diagonal neighbors, east/west wrapping when
-enabled, and no north/south wrapping. The tie-break has no minimum region-size
-threshold. Incompatible climate modes have no trial target and use one
-candidate. Coverage is measured and returned for all settings. An attempt with
+own control is Normal. The versioned Normal trial uses a 135 rainfall threshold.
+Low and High remain separate controls. `GeographyCandidateSelector` tries at
+most three candidates derived from the requested seed. It selects by unmet
+target count, normalized distance from the 20–40% forest and 5–12% mountain
+dry-land bands, then the largest connected forest region's share as a
+tie-break; attempt number is the final stable tie-break. Mountains no longer
+take part in the tie-break: they are already whole massifs, and preferring one
+large mountain region would always pick the world with the fewest massifs.
+Connected regions use diagonal neighbors, east/west wrapping when enabled, and
+no north/south wrapping. Incompatible climate modes have no trial target and
+use one candidate. The forest tie-break has no minimum region-size threshold.
+Coverage is measured and returned for all settings.
+An attempt with
 no suitable starting clearing is recorded as failed and omitted from coverage
 measurement and ranking; other generated-map validation errors still propagate.
 Successful attempts keep their original numbers, and selection continues
@@ -1618,9 +1690,12 @@ miss. The selected attempt is saved in
 `GeographyOptions` with the visibility algorithm version and in the map
 manifest; restore regenerates that attempt strictly without searching again.
 The transient reports do not change signed creation or saved map authority.
-Unsupported Balanced Small/Medium visibility versions are refused rather than
-replayed with different terrain rules. Small and Medium remain the only playable
-sizes; no continent-count control is exposed for them. Existing saved water settings are
+Terrain version 2 adds mountain massifs and applies to every generated world,
+whatever its climate mode. Any other saved version is refused rather than
+replayed with different terrain rules (see
+[saves and replay](saves-and-replay.md#current-formats-and-older-worlds)). Small
+and Medium remain the only playable sizes; no continent-count control is exposed
+for them. Existing saved water settings are
 not rewritten.
 
 ## Skills and practical lessons

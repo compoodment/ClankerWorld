@@ -490,14 +490,24 @@ streets take diagonals where the land allows.
 In newly generated worlds, sand forms deserts and stretches of ocean beach
 only; rivers and lakes keep grass banks, and trees and plants never grow on
 sand. Forests show small groves on darker forest floor, where every tile holds
-a tree, among scattered trees on forest grass. A band of hills rings each
-mountain area. Hills are drawn as soft foothill shading over the ground and
-cost the same to walk and build on as grass. These are the first version of the
-September 29 terrain direction: their numbers are provisional until computment
-reviews generated maps, and they have not been checked by hand in the Windows
-game yet ([#461](https://github.com/compoodment/ClankerWorld/issues/461)).
-Worlds generated before this change no longer load; they are refused and their
-saves are kept.
+a tree, among scattered trees on forest grass. These are the first version of
+the September 29 terrain direction: their numbers are provisional until
+computment reviews generated maps, and they have not been checked by hand in
+the Windows game yet
+([#461](https://github.com/compoodment/ClankerWorld/issues/461)).
+
+Mountains form a few large massifs instead of many small patches: one or two
+on a Small world and two to four on a Medium world. Each is a long range with a
+crest of impassable peaks inside a rim of mountain that agents can walk around,
+and small leftover patches are flattened. A band of hills rings each massif and
+is wider around larger ones. Hills are drawn as soft foothill shading over the
+ground and cost the same to walk and build on as grass. Peaks never cut off any
+land, rivers start at the foot of a massif, and the starting clearing always
+has stone within 32 tiles on foot. Iron, gold and diamonds are found in the massifs. The counts, sizes and
+hill widths are provisional until computment reviews generated maps
+([#683](https://github.com/compoodment/ClankerWorld/issues/683)). Worlds
+generated before this change no longer load; they are refused and their saves
+are kept.
 
 Bridges are a basic version. Where agents often wade across the same river
 crossing, one or two tiles wide (six crossings by at least two agents within
