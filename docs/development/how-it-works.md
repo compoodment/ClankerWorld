@@ -1086,7 +1086,10 @@ household planning and ownership rules, with 1×1 and 1×2 footprints.
 Harvests remain household-owned lots on their actual field tile. An adult
 carries a load of at most four raw crops or planting items to the household's Farmhouse or Silo.
 Each holds a provisional 96 items, counting deliveries already on their way;
-pickup and delivery both check remaining space. Grain prefers the Farmhouse,
+pickup and delivery both check remaining space. Source selection checks the
+adult's route to each pile or vessel and the route from there to farm storage;
+an earlier blocked source does not hide later reachable stock. The same checks
+run again when the hauling action executes. Grain prefers the Farmhouse,
 while other farm stock prefers the Silo. Ready-to-eat greens and fruit go to
 the household's House. Neither stock nor ownership moves
 remotely.

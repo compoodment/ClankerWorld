@@ -1,0 +1,1 @@
+- Farm households can carry reachable crops and seeds to storage even when another pile or vessel is blocked by an agent.
