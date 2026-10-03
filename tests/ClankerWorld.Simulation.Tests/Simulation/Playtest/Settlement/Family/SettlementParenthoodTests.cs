@@ -540,6 +540,40 @@ public sealed partial class SettlementParenthoodTests
         Assert.Empty(restored.Society.Births);
     }
 
+    [Fact]
+    public async Task ParenthoodTelemetryReportsStagesWithoutPrivateNames()
+    {
+        var directory = Directory.CreateTempSubdirectory("clankerworld-parenthood-log-");
+        try
+        {
+            var state = await PreparedState();
+            var first = state.Inhabitants[0].InhabitantId;
+            state = state with
+            {
+                Society = state.Society with
+                {
+                    Society = state.Society.Society with
+                    {
+                        Inhabitants = state.Society.Society.Inhabitants.Select(person => person with { Name = "private-parenthood-secret" }).ToArray(),
+                    }
+                }
+            };
+            using var world = PrivateWorldRuntime.Restore(state, actor => new ParentProvider(actor == first ? "parent_propose:" : "safe_idle"));
+            var presence = new OwnerClientPresenceLease(TimeSpan.FromSeconds(30));
+            presence.RecordAuthenticatedReconnect("owner");
+            var logger = new RecordingLogger<PrivateWorldRuntimeService>();
+            using var service = new PrivateWorldRuntimeService(world, new PrivateWorldStateFile(Path.Combine(directory.FullName, "world.json")), presence, logger);
+            Assert.True(await service.TryAdvanceOnceAsync());
+            Assert.Contains(logger.Messages, message => message.Contains("settlement_family", StringComparison.Ordinal) &&
+                message.Contains("event=parenthood_requested", StringComparison.Ordinal));
+            Assert.DoesNotContain(logger.Messages, message => message.Contains("private-parenthood-secret", StringComparison.Ordinal));
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
     private static async Task<PrivateWorldRuntimeState> PreparedState()
     {
         using var world = new PrivateWorldRuntime("settlement-parenthood", _ => new ParentProvider("safe_idle"));

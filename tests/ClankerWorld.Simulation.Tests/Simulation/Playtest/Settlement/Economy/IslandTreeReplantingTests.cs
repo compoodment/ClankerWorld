@@ -2,6 +2,7 @@ using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
+using ClankerWorld.Simulation.Society;
 using ClankerWorld.Simulation.World;
 
 namespace ClankerWorld.Simulation.Tests;

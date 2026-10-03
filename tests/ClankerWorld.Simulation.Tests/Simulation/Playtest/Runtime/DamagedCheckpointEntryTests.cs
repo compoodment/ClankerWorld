@@ -52,6 +52,15 @@ public sealed class DamagedCheckpointEntryTests
         Assert.Contains("Small and Medium", refused.Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task HealthyCheckpointHasNoEmptyListEntriesAndStillLoads()
+    {
+        var healthy = await HealthyCheckpoint();
+        var state = PrivateWorldRuntimeCodec.Decode(healthy);
+        using var restored = PrivateWorldRuntime.Restore(state);
+        Assert.Equal(healthy, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+    }
+
     private static async Task<byte[]> HealthyCheckpoint()
     {
         using var world = NormalPathWorld.CreateGenerated("damaged-entry", _ => new ActionCoverageRecorder());

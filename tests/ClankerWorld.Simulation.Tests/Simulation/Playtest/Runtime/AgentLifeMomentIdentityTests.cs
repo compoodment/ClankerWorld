@@ -6,6 +6,7 @@ using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.Society;
 using ClankerWorld.Viewer.Observation;
+using ClankerWorld.Viewer.Control;
 
 namespace ClankerWorld.Simulation.Tests;
 

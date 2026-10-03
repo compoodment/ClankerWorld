@@ -11,6 +11,7 @@ public sealed class PlayerRenameTests
     private const string Second = "founder:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 
     [Theory]
+    [InlineData("Élodie Vale", false)]
     [InlineData("  e\u0301LODIE\u00a0  Vale  ", false)]
     [InlineData("Élodie Vale", true)]
     public void PlayerCannotTakeAnotherPersonsFullName(string proposed, bool deceased)
