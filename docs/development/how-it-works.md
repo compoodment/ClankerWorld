@@ -162,15 +162,24 @@ does not establish arbitrary mid-tick rollback or crash durability.
 
 ### Time of day and night
 
-Time of day is worked out from the saved tick and the world's saved ticks per
-day; nothing about it is saved. `DaylightRules` follows the 24-hour clock the
-game shows, where a tick's clock minute is its tick of day × 1,440 ÷ ticks per
-day. Night is 40% of every day, the same all year
-([#641](https://github.com/compoodment/ClankerWorld/issues/641)), centred on
-midnight: 19:12 to 04:48. Dusk and dawn each fade over the clock hour centred
-on those times (18:42–19:42 and 04:18–05:18), so the darker half of each fade
-counts as night and night covers exactly 40% of the day. At 360 ticks a day
-that is 144 ticks of night with 15-tick fades. Darkness is reported in basis
+Time of day is worked out from the saved tick and the world's saved calendar
+(ticks per day and season lengths); nothing about it is saved. `DaylightRules`
+follows the 24-hour clock the game shows, where a tick's clock minute is its
+tick of day × 1,440 ÷ ticks per day. Night follows the seasons
+([#891](https://github.com/compoodment/ClankerWorld/issues/891), replacing the
+same-all-year night of [#641](https://github.com/compoodment/ClankerWorld/issues/641)):
+`DaylightRules.NightShare` gives 30% of the day on the first day of summer,
+50% on the first day of winter and 40% on the first days of spring and autumn,
+with an even daily step between them across each season's own length. Night is
+centred on midnight: 19:12 to 04:48 at 40%, 20:24 to 03:36 at 30% and 18:00 to
+06:00 at 50%. Dusk and dawn each fade over the clock hour centred on the start
+and end of night (18:42–19:42 and 04:18–05:18 at 40%), so the darker half of
+each fade counts as night and night covers exactly its share of the day. At
+360 ticks a day a 40% night is 144 ticks, a summer-start night 108 and a
+winter-start night 180, with 15-tick fades. Each tick uses its own day's
+share, so a night's evening follows that day and its morning the next; both
+are fully dark around midnight, so nothing jumps. The rule uses whole numbers
+only, so every platform agrees on every tick. Darkness is reported in basis
 points, 0 in daylight and 10,000 at full night. Tick 0 is midnight, so a new
 world, and its founder setup, starts at night.
 
@@ -184,8 +193,8 @@ making garments. Wear on a worn garment still follows the weather alone, so a
 mild night adds no repair work. In mild clear weather a basic garment or any
 shelter cancels the chill; with no protection an agent loses about a fifth of
 their warmth over a night. There are no night-only limits on choices, travel,
-work or conversation, and no sleep or energy. Night does not change weather or
-crops yet, and night length does not vary by season.
+work or conversation, and no sleep or energy. Longer winter nights mean more
+hours of chill. Night does not change weather or crops yet.
 
 The owner snapshot carries `darknessBasisPoints`, decided by the host from the
 same rule. The Godot client's `NightLayer` draws a deep blue wash, at most 40%
