@@ -185,6 +185,9 @@ public sealed partial class SettlementParenthoodTests
             Assert.True(agingWorld.SetLifePace(1_460));
             PositionChildBeforeAge(agingWorld, childId, agingWorld.Society.Config.InfantYears);
             agingWorld.Resume();
+            Assert.True((await agingWorld.AdvanceOneTickAsync()).Advanced);
+            Assert.Equal(SocietyAgeBand.Infant, agingWorld.Society.GetInhabitant(childId).AgeBand);
+            Assert.Equal(0, callCounts.GetValueOrDefault(childId));
             var maturityTicks = agingWorld.Society.Config.TicksPerWorldDay;
             for (var tick = 0; tick < maturityTicks && callCounts.GetValueOrDefault(childId) == 0; tick++)
                 Assert.True((await agingWorld.AdvanceOneTickAsync()).Advanced);

@@ -39,7 +39,7 @@ public sealed partial class SettlementParenthoodTests
         var society = state.Society.Society;
         var child = society.GetInhabitant(childId);
         var rate = society.LifeClock!.Rate;
-        var before = (child.BirthLifeTick ?? child.BirthTick) + age * society.Config.TicksPerLifecycleAge - rate;
+        var before = (child.BirthLifeTick ?? child.BirthTick) + age * society.Config.TicksPerLifecycleAge - 2L * rate;
         Assert.True(before >= society.LifeTickAt(society.WorldTick));
         world.LoadPausedCheckpoint(state with
         {
