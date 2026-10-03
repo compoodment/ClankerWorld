@@ -316,11 +316,12 @@ public sealed class SocietyCognitionScheduler
         // Routine refreshes change ticks, hunger and digests while a reply is
         // held. Only a changed decision context or new guidance needs another
         // call. The host can supply its existing context policy; standalone
-        // scheduler callers compare the offered candidate identities.
+        // scheduler callers retain newly offered candidate identities, not
+        // choices that have only disappeared or changed order.
         var hasNewChoices = decisionContextChanged ??
             !originalRequest.Observation.Candidates.Select(candidate => candidate.Id)
                 .ToHashSet(StringComparer.Ordinal)
-                .SetEquals(currentRequest.Observation.Candidates.Select(candidate => candidate.Id));
+                .IsSupersetOf(currentRequest.Observation.Candidates.Select(candidate => candidate.Id));
         var hasNewGuidance = (currentRequest.Observation.ObserverGuidance ?? [])
             .Any(message => !(originalRequest.Observation.ObserverGuidance ?? []).Contains(message));
         if (!hasNewChoices && !hasNewGuidance)
