@@ -681,6 +681,7 @@ public partial class Main
         }
         if (role is not null and not "unassigned") details.Add($"Role: {Pretty(role)}");
         if (Factor("housing") is { } housing && !isDeceased) details.Add(housing);
+        if (Factor("town-membership") is { } townMembership && !isDeceased) details.Add(townMembership);
         if (inhabitant.Lesson is { } lesson)
             details.Add($"Learning {Pretty(lesson.Skill)} with {lesson.TeacherName} · {Pretty(lesson.Stage)} · {lesson.Progress}/{lesson.Required}");
         foreach (var skill in inhabitant.Skills ?? [])

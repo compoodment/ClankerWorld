@@ -284,6 +284,7 @@ public sealed partial class PrivateWorldRuntime
                 AppendEvent("town_founded", $"{firstTown.Id}:residents:{firstTown.ResidentIds.Count}");
             }
             AdvanceTownGovernance();
+            SettleTownAdmissions();
             if (resume) society.Resume();
             AppendEvent("world_started", "four_founders_ready");
         }
@@ -305,6 +306,7 @@ public sealed partial class PrivateWorldRuntime
         AdvanceTownGovernance();
         var updated = towns.Single(item => item.Id == townId);
         AppendEvent("town_resident_joined", $"{updated.Id}:{residentId}:{reason}:residents:{updated.ResidentIds.Count}");
+        SettleTownAdmissions();
     }
 
     private void RemoveTownResident(string residentId)
@@ -315,6 +317,7 @@ public sealed partial class PrivateWorldRuntime
         SetTown(town with { ResidentIds = residents });
         AdvanceTownGovernance();
         AppendEvent("town_resident_left", $"{town.Id}:{residentId}:residents:{residents.Length}");
+        SettleTownAdmissions();
     }
 
     private string? TownForResident(string residentId) => towns

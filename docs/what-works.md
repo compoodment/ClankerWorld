@@ -13,6 +13,11 @@ Godot client connected to a private world server. Repository changes may still
 need deployment or testing on the owner's laptop. Check the tested build on an
 issue before treating a source fix as a verified game fix.
 
+**Settings → Game** and **Developer tools (F12)** show the client build, for
+example `Build 0.1.0-dev+abc1234`. Include that line in a bug or playtest report.
+Hover over it for the full source commit. The host reports its own version and
+full commit at `/api/v1/status`; client and host builds can differ.
+
 ## Status labels
 
 - **Available in the game:** connected to the normal private-world and Godot path.
@@ -221,7 +226,7 @@ summaries remain unfinished.
 | Household shops | Basic version | Adults can offer exact goods for goods kept at a nearby Farmhouse, Blacksmith, Tailor Shop, Clinic or Store. Both traders meet there before anything changes hands. The buyer carries the purchase; payment goes into household stock at that shop. Buyers can seek better tool tiers, clothing that protects them better in the current weather or medicine for an observed illness. Store goods must be carried in first. The building card shows the terms and progress; cancelled offers release both lots. Buying grants no access to private stock, cooking, treatment or household membership. Market stalls, tool-making orders and Restaurants remain unfinished in [#564](https://github.com/compoodment/ClankerWorld/issues/564). Barter rates and shelf sizes are provisional. |
 | Clinic supplies and illness care | Basic version | Reachable renewable herb patches supply a household-held 1×2 Clinic. It makes medicine from herbs, wood and water in a reusable jug; a House or Tailor Shop cuts cloth into bandages. One real medicine dose reduces illness gradually. Adults choose named caregivers through a fresh accepted personal-model decision and may revoke permission; self-care and a dependent's accepted caregiver use their existing authority. Jev, failed replies, repeated intentions and owner orders cannot grant adult permission. Interrupted treatment stops without refunding the spent dose. Saving keeps permission and progress; pausing stops recovery time. Injury causes and bandage treatment remain deferred. Automated checks cover this path; [the Windows playtest](../playtest/565-clinic-care.md) remains pending. |
 | Parenthood, guardians, life stages and death | Basic version | Ordinary consent/preparation binds an explicit primary caregiver and intended home; the accepting parent chooses a named caregiver-and-home option. Birth joins the caregiver's current household even if it has changed or is full, and the other parent stays put. If the current primary caregiver dies or ends care, living relatives, household adults and then Town residents are asked in order, and each wider group keeps the earlier ones. A willing adult must accept; until then the child's card and Event Log say “Needs a guardian,” nearby adults may still feed them, and the player can suggest an adult who is being asked in a message. A guardian whose child stayed in another household moves alone if they leave their own. A direct order to take a child in is not understood yet ([#587](https://github.com/compoodment/ClankerWorld/issues/587)). The child moves only into an accepting adult's household in the same known Town when its House has room; otherwise the child's current household stays unchanged. Infant care, child talk/play/help and age restrictions are enforced. While fewer than eight non-elders live, the continuity rule lets a partnered couple with no infant put off a child for up to two days but not refuse. Parents' selected child model is recorded at birth; children without an explicit model use safe local choices. The owner can later choose another model or leave the child unconfigured; world defaults are not inherited. |
-| Towns and household property | Basic version | First-Town membership/borders, building ownership, household stores, household food steward, and an adult with no household asking to join a household that holds a House, with every adult member's agreement. The accepted first-Town layout records Town title over its connected land and starter household use rights on owned building footprints; later border growth does not add title. Add Agent uses recorded rights; one pending request does not assign a household, and conflicting claims make placement ambiguous. Owners can reassign or remove buildings when stored goods, deliveries and active work allow; Town borders and title stay unchanged, while a household building takes its existing footprint use right to the new household. Any agent can physically recover unreserved communal stock from an empty Town's Warehouse. Adults may leave without a vote, retrieve their personal goods and form a household alone after seeking an accepting existing home. Recorded multiple Towns can be saved and validated, but founding or joining another Town, land requests, grants, consent, transfers and land-case decisions, broader law and currencies remain unfinished. |
+| Towns and household property | Basic version | First-Town membership/borders, building ownership, household stores, household food steward, and an adult with no household asking to join a household that holds a House, with every adult member's agreement. The accepted first-Town layout records Town title over its connected land and starter household use rights on owned building footprints; later border growth does not add title. Add Agent uses recorded rights; one pending request does not assign a household, and conflicting claims make placement ambiguous. Owners can reassign or remove buildings when stored goods, deliveries and active work allow; Town borders and title stay unchanged, while a household building takes its existing footprint use right to the new household. Any agent can physically recover unreserved communal stock from an empty Town's Warehouse. Adults may leave without a vote, retrieve their personal goods and form a household alone after seeking an accepting existing home. An adult with no Town can join one through its council (below). Recorded multiple Towns can be saved and validated, but founding another Town, land requests, grants, consent, transfers and land-case decisions, broader law and currencies remain unfinished. |
 
 With a usable iron pickaxe and room for a whole load, an adult can mine a finite
 gold or diamond outcrop. The goods remain in their carried stock. Trial mining
@@ -307,10 +312,24 @@ recent pending, passed, rejected or cancelled proposals.
 
 A passed law proposal records approval; broader law powers, jurisdiction and
 enforcement remain unfinished ([#631](https://github.com/compoodment/ClankerWorld/issues/631)).
-Admission approval is recorded for the separate Town-membership work
-([#602](https://github.com/compoodment/ClankerWorld/issues/602)); it grants neither
-membership, household admission nor goods access today. Windows civic pacing
-and visual checks remain pending.
+Windows civic pacing and visual checks remain pending.
+
+An agent belongs to one Town or none, and travel never changes that. Losing a
+home keeps Town membership, the council vote and in-person Warehouse
+collection. An adult with no Town, such as one added outside the border, asks a
+Town's council for admission at its notice place; an adult inside a Town they
+don't belong to can walk there to read it. A passed request made by the
+newcomer admits them straight away. A resident may also ask the council to
+admit an adult nearby who has no Town; once it passes, the newcomer must accept
+before anything changes. Their dependent children join with them. Each agent has
+one request of their own open at a time, and a refused request waits a day
+before it is offered again. An admitted resident may collect their Town's
+Warehouse stock in person, but approval never gives a House or household place;
+an adult waiting on a Town's approval may ask its households to take them in. The agent's profile and model context show their Town, its
+rights and any admission they have heard about from notices. Moving from one
+Town to another, with the old Town left in the same step, works in saves that
+hold several Towns, but normal play has only the first Town until founding
+another Town is finished.
 
 Towns grow along their streets. Building sites that can face an existing Road
 rank higher. Each new building's street runs on a few tiles past it, and a
