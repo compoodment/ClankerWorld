@@ -234,6 +234,8 @@ public sealed partial class PrivateWorldRuntime
                 (worldSimulation.ConstructionReceipts ?? []).Any(receipt => receipt.BuildingInstanceId == normalizedInstanceId) ||
                 instructionsByIdempotency.Values.Any(instruction => instruction.Order is { } order &&
                     (order.ExpansionBinding?.BuildingInstanceId == normalizedInstanceId ||
+                     order.ShelterBinding is { } shelter && shelter.BuildingInstanceId == normalizedInstanceId &&
+                         shelter.BuildingPlacedTick == WorldTick ||
                      order.ConstructionInstanceId == normalizedInstanceId && instruction.InstructionId != constructionInstructionId)))
                 return BuildingPlacementResult.Rejected(normalizedInstanceId, normalizedDefinitionId, position,
                     $"Building instance '{normalizedInstanceId}' is reserved for building orders.");

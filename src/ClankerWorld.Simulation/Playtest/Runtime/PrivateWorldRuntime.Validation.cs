@@ -804,7 +804,7 @@ public sealed partial class PrivateWorldRuntime
     private static bool IsBoundedShelterPosition(GridPoint position) =>
         position.X is >= -10_000_000 and <= 10_000_000 && position.Y is >= -10_000_000 and <= 10_000_000;
 
-    private static bool IsValidProductionBindingId(string id) => id.Length is > 0 and <= 512 &&
+    private static bool IsValidProductionBindingId(string id) => id.Length > 0 &&
         id == id.Trim() && !id.Any(char.IsControl);
 
     private static bool IsValidCustodyBindingShape(OwnerInstructionOrder order)

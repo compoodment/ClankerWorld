@@ -32,6 +32,36 @@ public sealed partial class PrivateWorldFireOrderTests
     }
 
     [Fact]
+    public async Task APubliclyPlacedLongHouseIdCanBeBoundAndFuelledAcrossStrictReplay()
+    {
+        var state = Prepared(walking: true);
+        var actor = Actor(state);
+        var original = House(state);
+        state = WithInventory(state, InventoryFixture.AddLot(state.Society.Society.Inventory,
+            "replacement-house-wood", "wood", Alpha, 20));
+        using var placed = Restore(state);
+        Assert.True(placed.RemoveBuilding(original.InstanceId, original.TownId, Alpha).Applied);
+        var houseId = new string('h', 513);
+        var placement = placed.PlaceBuilding(houseId, original.DefinitionId, original.Position, Alpha);
+        Assert.True(placement.Applied, placement.Failure);
+        var buildingCost = placed.WorldContent.Buildings.Single(item => item.CanonicalId == original.DefinitionId)
+            .BuildCosts.Single(item => item.ResourceId == "wood").Amount;
+        Assert.Equal(20 - buildingCost, Wood(placed, "replacement-house-wood"));
+        // Public placement and a strict reload establish that the native identity is legal before any order binds it.
+        using var world = Reload(placed);
+        var house = world.WorldSimulation.Buildings.Single(item => item.InstanceId == houseId);
+        var receipt = Submit(world, actor, "long-house-id", AtHouse(house));
+        using var replay = Reload(world);
+        await FinishTogether(world, replay, receipt);
+        Assert.Equal(houseId, Order(world, receipt).ShelterBinding?.BuildingInstanceId);
+        AssertPaidFire(world, receipt, actor, house, "fire-wood");
+        Assert.Equal(1, Wood(world, "fire-wood"));
+        using var completed = Reload(world);
+        Assert.Equal(Order(world, receipt), Order(completed, receipt));
+        await TickTogether(world, replay);
+    }
+
+    [Fact]
     public async Task AnOrderedFireConsumesOneOwnedWoodOnlyAtItsPinnedHearthAcrossReplay()
     {
         var state = Prepared(walking: true);
