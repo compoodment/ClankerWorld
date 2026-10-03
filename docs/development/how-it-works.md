@@ -91,7 +91,9 @@ unable to save.
 
 `ParseInstructionOrder` reads a complete, bounded grammar for eating food,
 seeking a food source, harvesting food, gathering supported raw materials,
-storing or collecting personal raw materials and moving to an exact tile. Harvest and food-source travel orders must name a
+storing or collecting personal raw materials, repairing supported personal
+clothing and carrying aids, and moving to an exact tile. Harvest and
+food-source travel orders must name a
 supported kind or resource; explicit resource names must match a complete
 identifier and the requested kind. Unsupported
 objects or operations, mixed tasks, unknown explicit targets, and invalid
@@ -160,6 +162,20 @@ not yet recognized. Physical pickup preserves ownership, condition, provenance
 and reserved portions, with the final quantity capped by carrying space and
 the requested remainder. Only the committed relocation earns progress, using
 a bounded hashed receipt. Former-household collection grants no other access.
+
+Repair orders save a separate `TargetEquipmentKind` for basic clothing, padded
+coats, rain cloaks, baskets or sacks. The parser refuses other equipment and
+explicit sites. Orders filter the normal worn-item rules by this exact kind,
+collect real materials through `CollectEquipment`, then use `RepairEquipment`
+and `ContinueEquipmentRepair`. Ordinary item preference remains unchanged.
+A repair work record links to the active instruction; only the returned completed
+repair advances its item count, with a bounded receipt derived from the actor,
+start time and lot identity. New orders release any previous repair's unspent
+inputs before starting their own work. Cancellation or replacement releases
+reservations immediately. Survival interruption follows ordinary repair rules:
+release unused inputs and restart unfinished work when the order can resume.
+Save/reload retains a running repair's work counter and exact reservations.
+Validation refuses links to another agent, task or equipment kind.
 
 A MustDo with no recognized action is closed when it is submitted: it is added
 to the completed instructions with an `instruction_not_understood` event
@@ -370,30 +386,50 @@ and belief confidence remain explicit.
 When an unnamed agent is asked to choose a full name, the personal-model
 request includes a soft first-letter hint derived from that agent's stable ID.
 The hint stays the same if the request is retried, is computed per agent, and
-does not reveal anyone else's name. If a current reply supplies a valid full
-name already used by another agent, the scheduler queues one extra metered
-personal-model request. That request marks `name_retry` and says the chosen
-name is taken, but it still does not include anyone else's name. Names are
-compared after Unicode normalization, case folding and collapsing whitespace;
-deceased agents count too. A second duplicate, a missing or invalid name, or an
-unusable retry reply leaves the placeholder for the player to rename. The
+does not reveal anyone else's name. If a current reply supplies a valid name
+whose first token is already chosen by another agent, the scheduler queues one
+extra metered personal-model request. That request marks `name_retry` and says
+the first name is taken, without including anyone else's name. First names use
+NFC normalization, collapsed Unicode whitespace and `OrdinalIgnoreCase`;
+different middle names or surnames do not avoid a collision. Deceased agents
+with chosen names count too. A second duplicate, a missing or invalid name, or
+an unusable retry reply leaves the placeholder for the player to rename. The
 retry marker uses the existing saved cognition queue trigger list, so it
-survives pause and restore without a new per-agent save field. The name check
+survives pause and restore. Separately, required saved `HasChosenName` records
+whether the display name was chosen. `NeedsName` schedules automatic naming;
+closing that opportunity preserves a placeholder's unchosen status. Neither
+open nor closed placeholders reserve first names, and recent-event compaction
+cannot turn one into a chosen name. The name check
 is separate from action admission: a valid name from a current legal-choice,
 low-confidence or rejected-action reply is kept, while malformed replies and
 stale replies cannot name the agent.
 
 Player renames reuse `InhabitantNameRules`, including NFC normalization,
 collapsed Unicode whitespace and `OrdinalIgnoreCase` comparison. The runtime
-checks all other recorded inhabitants, living or deceased, under the same
-world gate that commits the rename. A taken name returns `name_taken` from
+checks the first names of all other inhabitants with `HasChosenName`, living
+or deceased, under the same world gate that commits the rename. Keeping one's
+own first name is allowed. A taken first name returns `name_taken` from
 the signed owner endpoint; the client translates only that refusal into a
 name-specific explanation. The Profile's open name field then keeps the
 refused text through ordinary refreshes (`RefusedAgentRename`) until the
 player edits or closes it, renames successfully, or another agent or world is
-shown; its name labels always follow the host's snapshot. An unchanged name
-is a no-op. No name check rewrites saved dialogue or identity references, and
-player choices still supersede late model naming replies.
+shown; its name labels always follow the host's snapshot. An unchanged chosen
+name is a no-op; deliberately choosing the exact displayed placeholder makes
+it a chosen name and reserves its first token. No name check rewrites saved
+dialogue or identity references, and player choices still supersede late model
+naming replies.
+
+Native births omit a chosen name and retain a placeholder with `NeedsName`.
+Infants remain excluded from personal-model dispatch. Once ordinary eligibility
+allows a naming request, bounded `self.allowed_child_surnames` lists only the
+chosen biological parents' surnames; an empty list means none is available.
+Player renames and explicit `CommitBirth` names use the same admission rule
+for a child: the final name token must match one biological parent's surname.
+An explicit birth name is checked before food or child records change. The
+rule includes deceased biological parents and does not substitute caregivers.
+An invalid surname follows the existing unusable-name outcome; only a taken
+first name earns the extra paid retry. Parent renames do not retroactively
+invalidate a child's name or saved state.
 
 The response must select a legal candidate. Any finite confidence from 0 to 1
 is accepted; confidence does not veto the choice or a valid chosen name.
@@ -988,7 +1024,7 @@ council/vote/status counts without proposal text, notices, names or per-read
 polling noise.
 
 **Town admission** (`PrivateWorldRuntime.TownMembership`). `TownRuntimeState.ResidentIds`
-is the only record of Town membership; household, House and position never
+is the only record of Town membership; household, House and position alone never
 change it. After every saved council decision, every Town roster change and on
 every tick, `SettleTownAdmissions` reads each Town's passed admission proposals
 and records exactly one `TownAdmissionRecord` per proposal, rereading the Towns
@@ -1255,6 +1291,31 @@ accepted request. Agent observations and owner inspection show resident
 counts, notice reason and time, pending requests and expansion state.
 `relocation_notice` and `relocation_cancelled` record changes without
 repeating them on reload.
+
+**Guardian placement** (`SettlementGuardianPlacement`). An adult's explicit
+acceptance records primary care separately from the child's move. When a child
+cannot yet join that adult's household, their physical state keeps a pending
+placement tied to the exact accepted care relationship and its revision. The
+guardian needs a recorded Town and a completed household House with room;
+acceptance creates neither a House nor a resident place.
+
+The guardian first reaches the child, then accompanies them to the selected
+House through ordinary movement. The guardian waits for a child who falls
+behind. Urgent food and warmth needs may interrupt the journey without
+removing accepted care. Capacity, current care authority, Town membership and
+the House's identity are checked again before placement. Only arrival together
+commits the child's household and Town membership in the same world transition,
+using the existing rule that dependents follow their accepted primary caregiver.
+The destination guardian is already a Town resident; the move does not invent a
+Council admission proposal or give an unrelated adult membership. Parenthood,
+birth records and property ownership do not change.
+
+Pending placements retry after temporary blockers clear. A change of caregiver,
+death or the child reaching adulthood ends the old placement. The owner's
+agent card and People section distinguish accepted care, a blocked home and
+travel through existing observation notes. `guardian_placement_pending`,
+`guardian_placement_completed` and `guardian_placement_cancelled` record the
+placement lifecycle separately from `guardian_assigned` and `guardian_needed`.
 
 **Continuity rule** (`SettlementContinuity`). The owner's answer on
 [#654](https://github.com/compoodment/ClankerWorld/issues/654) sets provisional
