@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 
 namespace ClankerWorld.GodotClient.UI;
 
@@ -6,6 +7,31 @@ namespace ClankerWorld.GodotClient.UI;
 public static class WorldEventText
 {
     public const string ContinuityRisk = "The world is at risk of dying out.";
+
+    private static string DescribeDeveloperEdit(string detail, OwnerWorldSnapshot? snapshot)
+    {
+        try
+        {
+            var edit = JsonSerializer.Deserialize<OwnerDeveloperEditAction>(detail);
+            if (edit is null || string.IsNullOrWhiteSpace(edit.AgentId) || string.IsNullOrWhiteSpace(edit.Operation) ||
+                string.IsNullOrWhiteSpace(edit.Value)) return "Developer edit.";
+            var name = Name(snapshot, edit.AgentId);
+            var value = GameUiText.HumanizeIdentifier(edit.Value).ToLowerInvariant();
+            var change = edit.Operation switch
+            {
+                "set_need" => $"{name}'s {value} set to {edit.Amount}%",
+                "give_goods" => $"{name} received {edit.Amount} {value}",
+                "remove_goods" => $"removed {edit.Amount} {value} from {name}",
+                "add_skill" => $"added {value} skill to {name}",
+                "remove_skill" => $"removed {value} skill from {name}",
+                "start_partnership" => $"started a partnership between {name} and {Name(snapshot, edit.OtherAgentId ?? "")}",
+                "end_partnership" => $"ended the partnership between {name} and {Name(snapshot, edit.OtherAgentId ?? "")}",
+                _ => "saved a change",
+            };
+            return "Developer edit: " + change + ".";
+        }
+        catch (JsonException) { return "Developer edit."; }
+    }
 
     public static bool OffersNewcomer(OwnerWorldSnapshot? snapshot) =>
         snapshot is { ContinuityRuleActive: true, FounderSetup.Started: true };
@@ -25,6 +51,7 @@ public static class WorldEventText
 
         return worldEvent.Kind switch
         {
+            "developer_edit" => DescribeDeveloperEdit(worldEvent.Detail, snapshot),
             "world_created" => "A new world has begun.",
             "world_started" => "Time has started in this world.",
             "weather_changed" when parts.Length >= 2 => $"The weather changed to {ThingAt(1)}.",
@@ -111,7 +138,7 @@ public static class WorldEventText
             "skill_learned" => DescribeSkill(worldEvent.Detail, snapshot),
             "inhabitant_building_proposed" => $"{LeadingName(snapshot, worldEvent.Detail)} suggested a new building design.",
             "instruction_not_understood" => $"{Name(snapshot, BeforeLastField(worldEvent.Detail))} didn't understand your order. " +
-                "For now, orders can only ask them to gather food, eat or find food.",
+                "For now, orders can only ask them to gather food, eat, find food, go to a tile or become a child's guardian.",
             "settlement_founded" => "A new Town was founded.",
             "town_civic_law" => $"{civicTownName} recorded a law decision. See the Towns page for its wording and scope.",
             "town_civic_government" => $"{civicTownName} recorded a resident government decision. See the Towns page for the vote or handover.",

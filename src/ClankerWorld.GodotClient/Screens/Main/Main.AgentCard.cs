@@ -810,6 +810,7 @@ public partial class Main
             "consume_food" => "Eating food",
             "harvest_food" => "Gathering food",
             "seek_food" => "Going to a food site",
+            "move_to" => "Going to a tile",
             "accept_guardianship" => "Becoming a guardian",
             _ => "Order",
         };

@@ -39,7 +39,7 @@ test alone does not make it available in the game.
 | Choose the first Town and place four founders before starting | Available in the game | On-map, guidance-only hints for nearby food, fertile ground, wood, stone and open space for Roads; exact factor tuning remains provisional. Player-chosen supplies are unfinished. |
 | Move around and inspect the map | Available in the game | Zoom, overview, wrapped east/west movement, tile facts, building cards with stored items as icons, and separate filters for Town title, household use, disputes, building property and Town borders. The disputes filter stays empty in normal play, because land requests cannot be filed yet. A building card does not yet list recent storage changes or what a workstation can make, and work in progress does not show its materials. |
 | Pause, inspect agents, view family trees and read events | Available in the game | Deceased profiles retain recorded thoughts and memories, and show any final will and final words; old deaths without an archive cannot be reconstructed. |
-| Developer tools | Available in the game | **F12** opens them in a world without pausing it: the tile's coordinates and facts, frame time, how long the server takes per step of world time, the agent count, jumping to an agent and drawing their planned path, plus the aging override, lost-reply recovery, paused world editing and paired-device management. Logged direct edits are not built yet ([#677](https://github.com/compoodment/ClankerWorld/issues/677)), and there are no time tools such as stepping one tick. The Windows playtest is pending. |
+| Developer tools | Available in the game | **F12** opens them in a world without pausing it: the tile's coordinates and facts, frame time, how long the server takes per step of world time, the agent count, jumping to an agent and drawing their planned path, plus the aging override, lost-reply recovery, paused world editing and paired-device management. While paused, **Edit selected agent** sets fullness, warmth, illness or nutrition, gives/removes carried goods, adds/removes skills, and starts/ends partnerships; each accepted change is saved and marked **Developer edit** in the Event Log. There are no time tools such as stepping one tick. The Windows playtest is pending. |
 | Display and interface settings | Available in the game | Themes, window size, weather switches, a 24-hour or 12-hour clock, and dates by season (the default, such as Autumn 2, Year 1) or as DD-MM-YYYY, MM-DD-YYYY or YYYY-MM-DD. A server too old to report season lengths shows numeric dates. The interface grows with the screen in whole steps (100%, 200% at 1080p and 1440p, 300% at 4K) with no setting, and the game always draws at the screen's own resolution. Windows visual and keyboard acceptance is still being checked. |
 
 New worlds open paused with no old camp. Choosing the first Town lays a winding
@@ -197,6 +197,15 @@ berry-patch", "go to berries at (12, 4)" and "keep gathering food until
 cancelled". Quantities count food actually eaten or gathered; travel finishes
 on arrival at the food source. Eating waits until the agent is hungry enough,
 and a full load blocks gathering with a reason.
+
+Orders also support exact-tile movement: "Move to tile (12, 4)", "Go to (12, 4)"
+or "Travel to (12, 4)". They use ordinary walking routes and travel delays,
+finish only on the requested tile, and wait when it is occupied or unreachable.
+Entering another household's House still requires an invitation.
+Each order is one trip; repeated or counted tile trips are not understood.
+The target survives queueing, urgent survival interruptions and save/reload.
+Giving coordinates does not create firsthand map knowledge; the agent learns
+the tile only by reaching it.
 
 An adult can also follow "Become guardian for Lina", using the full name of a
 child with an open guardian search. The name is resolved once to that child,
