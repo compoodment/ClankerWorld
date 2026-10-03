@@ -152,6 +152,28 @@ public sealed class OrchardSeedFoodRecoveryTests(OrchardSeedCargoFixture fixture
         world.Validate();
     }
 
+    [Fact]
+    public async Task AHungryHarvesterWhoIsNotYetStarvingKeepsItsSeedsReserved()
+    {
+        // Hungry enough to want a food pickup, but not urgently: planting reserves are not given up.
+        var actor = fixture.Actor;
+        var state = fixture.CreateState();
+        state = state with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with { HungerBasisPoints = 3_000 } : person).ToArray(),
+        };
+        var choices = new Choices(["make_room_for_food"]);
+        using var world = Restore(state, actor, choices);
+        await AdvanceUntil(world, () => choices.Offered.Count > 0, 12);
+
+        Assert.DoesNotContain("make_room_for_food", choices.Offered);
+        Assert.Empty(Setdowns(world, actor));
+        Assert.Equal(state.Society.Society.Inventory.Reservations, world.Society.Inventory.Reservations);
+        Assert.Equal(5, CarriedSeeds(world.Society.Inventory, actor));
+        world.Validate();
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
