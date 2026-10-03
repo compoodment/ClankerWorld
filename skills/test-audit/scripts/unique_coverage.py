@@ -28,16 +28,8 @@ import xml.etree.ElementTree as ET
 from collections import defaultdict
 from pathlib import Path
 
+from coverage_evidence import source_key
 from per_test_coverage import completed_report, slug
-
-
-def source_key(filename, sources=()):
-    """A repository-relative path. Cobertura file names may be absolute or
-    relative to one of the report's <source> roots."""
-    normalized = filename.replace("\\", "/")
-    if not normalized.startswith("/") and not re.match(r"^[A-Za-z]:/", normalized) and sources:
-        normalized = sources[0].replace("\\", "/").rstrip("/") + "/" + normalized
-    return "src/" + normalized.split("/src/", 1)[1] if "/src/" in normalized else normalized
 
 
 class Universe:

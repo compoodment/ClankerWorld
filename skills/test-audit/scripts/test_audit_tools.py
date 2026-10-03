@@ -161,6 +161,45 @@ class MeasurementTests(unittest.TestCase):
         universe, tests = unique.load(self.out)
         self.assertEqual(1, unique.Coverage(universe, tests).totals()["lines_covered"])
 
+    def test_conflicting_source_aliases_cannot_issue_or_reuse_receipts_or_enter_a_plan(self):
+        aliases = [("/repo", "src/Example.cs", "/repo/src/Example.cs"),
+                   (r"C:\repo", r"src\Example.cs", "C:/repo/src/Example.cs")]
+        for source, relative, absolute in aliases:
+            with self.subTest(source=source):
+                xml = f'''<coverage lines-covered="1" lines-valid="2" branches-covered="0" branches-valid="0">
+                    <sources><source>{source}</source></sources><packages><package name="Example"><classes>
+                    <class name="A" filename="{relative}"><lines><line number="1" hits="1"/></lines></class>
+                    <class name="B" filename="{absolute}"><lines><line number="1" hits="0"/></lines></class>
+                    </classes></package></packages></coverage>'''
+                self.assertEqual(1, self.run_measurement(lambda args, **kwargs: self.report(args, xml=xml)))
+                folder = self.out / runner.slug(self.method)
+                self.assertFalse((folder / "completion.json").exists())
+                (folder / "completion.json").write_text(json.dumps({"method": self.method, "success": True}))
+                self.assertFalse(runner.completed_measurement(folder, self.method))
+                with self.assertRaisesRegex(ValueError, "conflicting duplicate source line"):
+                    unique.load(self.out)
+                result = subprocess.run([sys.executable, str(Path(unique.__file__)), str(self.out), "--plan"],
+                                        capture_output=True, text=True)
+                self.assertNotEqual(0, result.returncode)
+                self.assertEqual("", result.stdout)
+                self.assertIn(str(folder / "coverage.cobertura.xml"), result.stderr)
+                self.assertIn("rerun per_test_coverage.py", result.stderr)
+                self.assertNotIn("Traceback", result.stderr)
+
+    def test_matching_source_aliases_with_consistent_totals_remain_valid(self):
+        xml = '''<coverage lines-covered="1" lines-valid="1" branches-covered="0" branches-valid="0">
+            <sources><source>C:\\repo</source></sources><packages><package name="Example"><classes>
+            <class name="A" filename="src\\Example.cs"><lines><line number="1" hits="1"/></lines></class>
+            <class name="B" filename="C:/repo/src/Example.cs"><lines><line number="1" hits="1"/></lines></class>
+            </classes></package></packages></coverage>'''
+        self.assertEqual(0, self.run_measurement(lambda args, **kwargs: self.report(args, xml=xml)))
+        folder = self.out / runner.slug(self.method)
+        self.assertTrue(runner.completed_measurement(folder, self.method))
+        universe, tests = unique.load(self.out)
+        totals = unique.Coverage(universe, tests).totals()
+        self.assertEqual(1, totals["lines_valid"])
+        self.assertEqual(1, totals["lines_covered"])
+
     def test_differing_reports_are_ambiguous_even_when_each_is_valid(self):
         def command(arguments, **options):
             result = self.report(arguments)

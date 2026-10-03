@@ -5,6 +5,14 @@ import re
 import xml.etree.ElementTree as ET
 
 
+def source_key(filename, sources=()):
+    """Use the same source-line identity when validating and planning coverage."""
+    normalized = filename.replace("\\", "/")
+    if not normalized.startswith("/") and not re.match(r"^[A-Za-z]:/", normalized) and sources:
+        normalized = sources[0].replace("\\", "/").rstrip("/") + "/" + normalized
+    return "src/" + normalized.split("/src/", 1)[1] if "/src/" in normalized else normalized
+
+
 def count(element, name, minimum=0):
     value = int(element.attrib[name])
     if value < minimum:
@@ -29,6 +37,7 @@ def validate_report(path):
             if totals[f"{dimension}-covered"] > totals[f"{dimension}-valid"]:
                 raise ValueError(f"covered {dimension} exceed valid {dimension}")
 
+        sources = [item.text for item in root.findall("./sources/source") if item.text]
         lines, packages = {}, set()
         for package in root.findall("./packages/package"):
             name = package.attrib["name"]
@@ -46,7 +55,7 @@ def validate_report(path):
                 if not filename.strip():
                     raise ValueError("missing source filename")
                 for line in cls.findall("./lines/line"):
-                    key = (name, filename, count(line, "number", minimum=1))
+                    key = (name, source_key(filename, sources), count(line, "number", minimum=1))
                     hits = count(line, "hits")
                     branch = line.get("branch", "false").lower()
                     if branch not in ("true", "false"):
