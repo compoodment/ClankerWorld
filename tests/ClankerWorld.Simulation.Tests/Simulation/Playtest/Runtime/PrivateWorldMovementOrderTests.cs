@@ -95,6 +95,10 @@ public sealed partial class PrivateWorldRuntimeTests
                     Assert.Equal(destination, CancellationActorPosition(after));
                     Assert.Contains(after.Knowledge!.Facts, fact => fact.OwnerId == HarvestInstructionActor &&
                         fact.Position == destination && fact.Acquisition == "firsthand");
+                    // The walk itself adds nothing to the agent's small map memory; only the tile reached does.
+                    Assert.True(initial.Map.FootDistance(origin, destination) > 1);
+                    Assert.Equal(knowledge.Facts.Count(fact => fact.OwnerId == HarvestInstructionActor) + 1,
+                        after.Knowledge.Facts.Count(fact => fact.OwnerId == HarvestInstructionActor));
                     sawFirstArrival = true;
                 }
             }
@@ -333,6 +337,7 @@ public sealed partial class PrivateWorldRuntimeTests
             order with { TargetPosition = null },
             order with { TargetFoodKind = "berries" },
             order with { TargetResourceId = "berry-patch" },
+            order with { TargetAgentId = OrderedAgent },
             order with { RequestedUnits = 2 },
             order with { RepeatUntilCancelled = true },
             order with { CompletedUnits = 1 },
@@ -342,7 +347,10 @@ public sealed partial class PrivateWorldRuntimeTests
             {
                 Instructions = [instruction with { Order = damaged }],
             }));
-        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(state with { SchemaVersion = 52 }));
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(state with
+        {
+            SchemaVersion = PrivateWorldRuntime.StateSchemaVersion - 1,
+        }));
     }
 
     private static PrivateWorldRuntimeState MovementOrderState()

@@ -204,8 +204,8 @@ finish only on the requested tile, and wait when it is occupied or unreachable.
 Entering another household's House still requires an invitation.
 Each order is one trip; repeated or counted tile trips are not understood.
 The target survives queueing, urgent survival interruptions and save/reload.
-Giving coordinates does not create firsthand map knowledge; actual travel
-and observation still supply it.
+Giving coordinates does not create firsthand map knowledge; the agent learns
+the tile only by reaching it.
 
 An adult can also follow "Become guardian for Lina", using the full name of a
 child with an open guardian search. The name is resolved once to that child,

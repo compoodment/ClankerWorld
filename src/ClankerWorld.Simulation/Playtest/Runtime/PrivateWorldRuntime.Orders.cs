@@ -20,7 +20,8 @@ public sealed partial class PrivateWorldRuntime
         if (order.Action == "move_to" && order.TargetPosition is { } destination)
             return !MovementOrderNeedsHouseInvitation(instruction.TargetInhabitantId, destination) &&
                 (person.Position == destination ||
-                 map.IsPassable(destination) && FindUnoccupiedRoute(instruction.TargetInhabitantId, person.Position, destination, 0).Count > 0)
+                 map.IsPassable(destination) && map.IsReachableOnFoot(person.Position, destination) &&
+                 FindUnoccupiedRoute(instruction.TargetInhabitantId, person.Position, destination, 0).Count > 0)
                     ? new CognitionCandidate("move_to", $"Travel to tile ({destination.X}, {destination.Y}).", 0)
                     : null;
 
@@ -158,11 +159,14 @@ public sealed partial class PrivateWorldRuntime
         {
             case "move_to" when order.Action == "move_to" && order.TargetPosition is { } destination:
                 MoveToward(actor, person, destination, "owner_order_move");
-                var reached = inhabitants[actor].Position;
-                if (reached != person.Position || reached == destination)
-                    RecordKnowledgeFact(actor, reached);
-                if (reached == destination)
+                // Only the tile reached joins the agent's small map memory. Recording
+                // every step of a long walk would fill it and leave no room for what
+                // exploration finds later.
+                if (inhabitants[actor].Position == destination)
+                {
+                    RecordKnowledgeFact(actor, destination);
                     CreditOrderEffect(instruction, MovementOrderEffectId(destination), 1);
+                }
                 return;
             case "consume_food":
                 if (ConsumeFood(actor, person, order.TargetFoodKind) is { } consumedLotId)
@@ -287,7 +291,7 @@ public sealed partial class PrivateWorldRuntime
             return instruction.Order.TargetPosition is not { } destination || !map.Contains(destination)
                 ? "The requested tile is outside this world."
                 : MovementOrderNeedsHouseInvitation(instruction.TargetInhabitantId, destination)
-                    ? "Waiting for an invitation to enter this household's House."
+                    ? "Waiting for an invitation to enter another household's House."
                 : "No open walking route reaches the requested tile right now.";
         if (instruction.Order is { Action: "accept_guardianship", TargetAgentId: { } child })
             return GuardianOrderBlockedReason(instruction.TargetInhabitantId, child);

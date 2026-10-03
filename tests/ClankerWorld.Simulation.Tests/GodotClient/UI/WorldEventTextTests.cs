@@ -50,7 +50,7 @@ public sealed class WorldEventTextTests
             ("household_delivery_recovered", id + ":spoiled-greens:4:camp-alpha",
                 "returned unusable delivery supplies to their household's pile at camp"),
             ("instruction_not_understood", id + ":private-instruction-0000000001",
-                "didn't understand your order. For now, orders can only ask them to gather food, eat or find food"),
+                "didn't understand your order. For now, orders can only ask them to gather food, eat, find food, go to a tile or become a child's guardian"),
         };
         foreach (var (kind, detail, action) in cases)
         {

@@ -106,8 +106,9 @@ travel cooldowns and illness delays. House destinations check current household
 membership or a saved guest invitation. An unavailable destination stays blocked;
 it is never substituted. The order completes only when the actor occupies the
 exact target tile. Repetition, quantities and extra task words are rejected.
-Completed steps record bounded firsthand facts only for the actor's actual
-position; submission and waiting steps reveal no remote destination facts.
+Arrival records one firsthand fact, for the destination tile. Submission,
+waiting and the walk itself add none, so a long trip cannot fill the agent's
+bounded map memory.
 Children and adolescents can walk under an order; infants still cannot take
 instructions. The normal queue, cancellation, stale-reply and survival rules
 apply without a separate model request for each step.
