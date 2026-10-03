@@ -328,8 +328,8 @@ public partial class Main
             var requester = snapshot.Inhabitants.FirstOrDefault(person => person.Id == request.RequestedByAgentId)?.DisplayName;
             var claimant = GameUiText.PartyName(snapshot, request.HouseholdId) +
                 (requester is null ? string.Empty : $" · filed by {requester}");
-            lines.Add($"Pending use request: {claimant}");
-            landFacts.Add(("Use request", claimant));
+            lines.Add($"Pending use request: {claimant} · {request.ApprovalDetail}");
+            landFacts.Add(("Use request", claimant + " · " + request.ApprovalDetail));
         }
         var landClaimants = useRights.Select(right => right.HouseholdId)
             .Concat(useRequests.Select(request => request.HouseholdId))

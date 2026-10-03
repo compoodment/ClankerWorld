@@ -2,7 +2,7 @@
 title: What works today
 type: product-status
 status: active
-updated: 2026-10-02
+updated: 2026-10-03
 ---
 
 # What works today
@@ -12,6 +12,11 @@ This describes the **current repository build**, not every feature in the
 Godot client connected to a private world server. Repository changes may still
 need deployment or testing on the owner's laptop. Check the tested build on an
 issue before treating a source fix as a verified game fix.
+
+**Settings → Game** and **Developer tools (F12)** show the client build, for
+example `Build 0.1.0-dev+abc1234`. Include that line in a bug or playtest report.
+Hover over it for the full source commit. The host reports its own version and
+full commit at `/api/v1/status`; client and host builds can differ.
 
 ## Status labels
 
@@ -49,7 +54,9 @@ second holds the Blacksmith. The player presses Start World explicitly.
 
 Default Balanced Small/Medium previews measure forests and mountains against
 dry land and try at most three deterministic maps for the Normal settings. The
-preview shows every candidate's coverage and creates the exact selected map.
+preview shows each playable candidate's coverage, lists attempts that have no
+room for a first Town, and creates the exact selected map. If no attempted map
+has room, it asks the player to try another seed or change the settings.
 If a selected map misses a target, Create World stays unavailable until the
 player accepts the displayed result or changes the seed. Uniform Dry and
 polar-only settings do not use those trial bands; each band applies only while
@@ -62,6 +69,18 @@ World time and hosted calls stop after the last connected client's short grace
 period. Returning makes no offline progress; a manually paused world stays
 paused. New worlds use six-minute days and a 40-day year as the current playtest
 pace, subject to model/server load.
+
+Every world day has a night covering 40% of it, the same all year: 19:12 to
+04:48 on the clock, about 2 min 24 s of a six-minute day, with an hour-long
+dusk and dawn fade (15 seconds each at that pace). A new world starts at
+midnight, so founder setup happens at night. At night the map darkens with a
+gentle blue wash at every zoom, under map names, agents and weather, and it is
+colder outdoors (see [Life, work and society](#life-work-and-society)). Night
+adds no rules of its own: agents need no sleep or energy, and nothing limits
+their choices or travel at night; they only react to the cold. The night chill
+is a provisional amount for playtesting, and night has not been checked by hand
+in the Windows game yet. Night effects on weather and night length that changes
+with the seasons are not built.
 
 ## Agents and their models
 
@@ -196,19 +215,36 @@ summaries remain unfinished.
 
 | Feature | Status | Current limits |
 | --- | --- | --- |
-| Food, warmth, illness, clothing and shelter | Available in the game | Basic diet/recovery. Agents treat 40% fullness and 60% warmth as comfortable, and survival becomes urgent below 20% fullness, or below 35% warmth while exposure continues. These are provisional values ([#140](https://github.com/compoodment/ClankerWorld/issues/140)). No energy meter or sleep. Medicine supports gradual illness recovery, described below. |
-| Gathering and carrying | Basic version | Agents gather named berries, wild greens and orchard fruit, keep a hearth burning, and collect shared tools. Field harvests remain on their tiles until carried. Agents carry raw crops and seeds to private Farmhouse/Silo storage, ready-to-eat greens and fruit to the House, flour back to the House, and wood and iron ore into the Blacksmith. |
-| Farming and crafting | Basic version | Adults from a household holding a Farmhouse use wooden or iron hoes to prepare fertile land, carry grain seed, potatoes or cultivated-green seed, tend the crop and harvest it. Illness slows field work and tool wear. Planting supplies stay held until the work finishes or is interrupted. Wooden and iron sickles make harvesting faster. Fields show each stage on the map and overview; inspection names the soil's fertility and the household. Harvests stay on the field, with planting stock reserved for another crop, until physically carried into finite private farm storage. Orchard seeds grow saplings that mature and fruit in autumn. The household holding a Blacksmith makes and repairs tools from real materials: axes fell trees, pickaxes unlock finite stone, iron and rare deposits, and hammers speed building work. Iron knives speed food preparation and suitable crafting. Tools wear during successful work; loose fallen wood can be gathered by hand if an axe breaks. Adults carry needed grain back from their Silo to the Farmhouse, where it mills into flour. A Tailor Shop makes cloth and clothing. If a household workshop recipe cannot get its ingredients, it pauses so an adult can choose another task; its saved plan can resume when supplies return to the building. Rates remain provisional. |
+| Food, warmth, illness, clothing and shelter | Available in the game | Basic diet/recovery. Agents treat 40% fullness and 60% warmth as comfortable, and survival becomes urgent below 20% fullness, or below 35% warmth while exposure continues. These are provisional values ([#140](https://github.com/compoodment/ClankerWorld/issues/140)). Nights are colder outdoors by a provisional amount; clothing, shelter and a lit fire help at night as they do by day ([#673](https://github.com/compoodment/ClankerWorld/issues/673)). No energy meter or sleep. Medicine supports gradual illness recovery, described below. |
+| Gathering and carrying | Basic version | Agents gather named berries, wild greens and orchard fruit, keep a hearth burning, and collect shared tools. Field harvests remain on their tiles until carried. Agents carry raw crops and seeds to private Farmhouse/Silo storage, ready-to-eat greens and fruit to the House, flour back to the House, and wood and iron ore into the Blacksmith. An adult with a building or crafting project completes a valid household delivery before gathering more project materials. |
+| Farming and crafting | Basic version | Adults from a household holding a Farmhouse use wooden or iron hoes to prepare fertile land, carry grain seed, potatoes or cultivated-green seed, tend the crop and harvest it. Illness slows field work and tool wear. Planting supplies stay held until the work finishes or is interrupted. Wooden and iron sickles make harvesting faster. Fields show each stage on the map and overview; inspection names the soil's fertility and the household. Harvests stay on the field, with planting stock reserved for another crop, until physically carried into finite private farm storage. Orchard seeds grow saplings that mature and fruit in autumn. The household holding a Blacksmith makes and repairs tools from real materials: axes fell trees, pickaxes unlock finite stone, iron and rare deposits, and hammers speed building work. Iron knives speed food preparation and suitable crafting. Tools wear during successful work; loose fallen wood can be gathered by hand if an axe breaks. Adults carry needed grain back from their Silo to the Farmhouse, where it mills into flour. Houses cook potatoes or greens into simple meals, grain into porridge, flour into bread, and potatoes with cultivated greens into stew. Porridge, bread and stew need carried fresh water and wood. Berries or fruit improve porridge; Restaurants also turn bread and greens into better meals. Cooking uses private on-site ingredients and stores its output in that House or Restaurant. A Tailor Shop makes cloth and clothing. If a household workshop recipe cannot get its ingredients, it pauses so an adult can choose another task; its saved plan can resume when supplies return to the building. Rates remain provisional. |
 | Handcarts | Basic version | Adults in the Blacksmith household can craft a personal cart from carried wood, iron fittings and rope. The visible cart carries up to 32 loose goods separately from the agent's load. Its owner reaches and attaches it, loads physically nearby authorized goods, pulls legal cardinal routes, parks, unloads, repairs or gives the cart and its cargo to a nearby adult. Roads reduce movement waits and wear; broken carts keep their cargo. Map, tile and agent inspection show ownership, position, load and condition. |
-| Clay, pottery and water | Basic version | A household can dig finite clay and make storage pots and water jugs at its House. A pot holds up to 8 food and slows spoilage; hungry household children, adolescents and adults, and caregivers feeding an infant, take ready-to-eat servings from it. A jug holds up to 4 fresh water, which an adult can collect from a reachable riverbank or lakeshore and return to the House. Collecting a jug requires carrying room for the jug, its contents and some water. The Clinic uses delivered fresh water to make medicine, leaving the jug reusable. The related [empty-vessel return fix](https://github.com/compoodment/ClankerWorld/issues/749) carries empty household pots and jugs from workstations back to the House; automated checks cover its return and reuse. Cooking and animal-care uses remain unfinished. |
-| Building new buildings | Basic version | A household plans a House, Farmhouse, Blacksmith, Silo, Tailor Shop, Clinic or optional Store it does not hold yet, one of each, once it has the materials in hand. It gathers missing materials first. Only a household holding a Farmhouse builds a Silo, within two tiles of it; farm stock reaches either building in carried loads. New shared Town buildings are not offered yet. |
+| Clay, pottery and water | Basic version | A household can dig finite clay and make storage pots and water jugs at its House. A pot holds up to 8 food and slows spoilage; hungry household children, adolescents and adults, and caregivers feeding an infant, take ready-to-eat servings from it. A jug holds up to 4 fresh water, which an adult can collect from a reachable riverbank or lakeshore and return to the House. Collecting a jug requires carrying room for the jug, its contents and some water. The Clinic uses delivered fresh water to make medicine, leaving the jug reusable. The related [empty-vessel return fix](https://github.com/compoodment/ClankerWorld/issues/749) carries empty household pots and jugs from workstations back to the House; automated checks cover its return and reuse. Porridge, bread and stew also consume fresh water while leaving the jug reusable. Empty jugs at Houses or Restaurants can be collected and refilled. Animal care remains unfinished. |
+| Building new buildings | Basic version | A household plans a House, Farmhouse, Blacksmith, Silo, Tailor Shop, Clinic, Restaurant or optional Store it does not hold yet, one of each, once it has the materials in hand. It gathers missing materials first. Only a household holding a Farmhouse builds a Silo, within two tiles of it; farm stock reaches either building in carried loads. New shared Town buildings are not offered yet. |
 | House resident places, expansion and guests | Basic version | A House gives three resident places per tile, or four when one recorded domestic family unit is at least two people and a strict majority. Travelers and infants count; dead people and invited storm guests do not. A full House can be expanded for more places when the work completes. Add Agent and unanimous household admission check the House's room before adding someone to a household that holds one. Birth still completes into the primary caregiver's current household and can make it overcrowded; the building card and agent context show the count and limit. Existing overcrowding does not yet relocate anyone. Adult household members may also expand a nearly full House for storage; adult Town residents may expand a nearly full Warehouse from 2×2 to 2×3. Expansion keeps identity, stock and cooking jobs, reserves materials and cancels safely if space or permission changes. Any adult household member may invite or revoke a named storm guest. Guests cannot use House stock or cooking. Storage limits, costs and work time are trial values. |
 | Local exploration and physical maps | Basic version | Short outings record personal knowledge and can produce a map or field record to share or barter. Purposeful distant exploration is unfinished. |
 | Trade, relationships, conversations and teaching | Basic version | One-for-one barter, where both people must meet and have room for what they receive, positive trust, accepted/refused partnerships, and bounded public conversations with mutual consent for a structured trust effect. Close biological relatives cannot become partners or plan a child together: parents and children, grandparents and grandchildren, full or half siblings, and aunts or uncles with their nieces or nephews. First cousins can; shared households and caregiving do not count as kinship. Each agent has at most two conversation starts or acceptances per world day; this and the six-turn limit are provisional. Adults can ask a free, healthy agent with a saved skill for a practical lesson; the learner keeps the skill, teacher and time, and the agent card shows them. Skills currently change no access or work speed. Pricing, currency, conflict and broader group dialogue remain unfinished. |
-| Household shops | Basic version | Adults can offer exact goods for goods kept at a nearby Farmhouse, Blacksmith, Tailor Shop, Clinic or Store. Both traders meet there before anything changes hands. The buyer carries the purchase; payment goes into household stock at that shop. Buyers can seek better tool tiers, clothing that protects them better in the current weather or medicine for an observed illness. Store goods must be carried in first. The building card shows the terms and progress; cancelled offers release both lots. Buying grants no access to private stock, cooking, treatment or household membership. Market stalls, tool-making orders and Restaurants remain unfinished in [#564](https://github.com/compoodment/ClankerWorld/issues/564). Barter rates and shelf sizes are provisional. |
+| Household shops | Basic version | Adults can offer exact goods for goods kept at a nearby Farmhouse, Blacksmith, Tailor Shop, Clinic, Restaurant or Store. Both traders meet there before anything changes hands. The buyer carries the purchase; payment goes into household stock at that shop. Buyers can seek better tool tiers, clothing that protects them better in the current weather or medicine for an observed illness. Store goods must be carried in first. The building card shows the terms and progress; cancelled offers release both lots. Buying grants no access to private stock, cooking, treatment or household membership. A customer may ask a Blacksmith household for a tool before it is stocked. The household may accept or refuse; accepted work uses its own real materials, and a finished tool is purchased through the usual physical barter. No payment, price promise or future ownership is created by the request. Request status and any missing-input or storage blocker appear on the Blacksmith and relevant agent cards; [its Windows checklist](../playtest/564-tool-making.md) is pending. Market stalls remain unfinished in [#564](https://github.com/compoodment/ClankerWorld/issues/564). Restaurant adults buy missing ingredients and customers buy meals after walking to a shop in their own Town. Its [Windows checklist](../playtest/561-concrete-meals.md) is pending. Barter rates and shelf sizes are provisional. |
 | Clinic supplies and illness care | Basic version | Reachable renewable herb patches supply a household-held 1×2 Clinic. It makes medicine from herbs, wood and water in a reusable jug; a House or Tailor Shop cuts cloth into bandages. One real medicine dose reduces illness gradually. Adults choose named caregivers through a fresh accepted personal-model decision and may revoke permission; self-care and a dependent's accepted caregiver use their existing authority. Jev, failed replies, repeated intentions and owner orders cannot grant adult permission. Interrupted treatment stops without refunding the spent dose. Saving keeps permission and progress; pausing stops recovery time. Injury causes and bandage treatment remain deferred. Automated checks cover this path; [the Windows playtest](../playtest/565-clinic-care.md) remains pending. |
-| Parenthood, guardians, life stages and death | Basic version | Ordinary consent/preparation binds an explicit primary caregiver and intended home; the accepting parent chooses a named caregiver-and-home option. Birth joins the caregiver's current household even if it has changed or is full, and the other parent stays put. If the current primary caregiver dies or ends care, living relatives, household adults and then Town residents are asked in order, and each wider group keeps the earlier ones. A willing adult must accept; until then the child's card and Event Log say “Needs a guardian,” nearby adults may still feed them, and the player can suggest an adult who is being asked in a message. A guardian whose child stayed in another household moves alone if they leave their own. A direct order to take a child in is not understood yet ([#587](https://github.com/compoodment/ClankerWorld/issues/587)). The child moves only into an accepting adult's household in the same known Town when its House has room; otherwise the child's current household stays unchanged. Infant care, child talk/play/help and age restrictions are enforced. While fewer than eight non-elders live, the continuity rule lets a partnered couple with no infant put off a child for up to two days but not refuse. Parents' selected child model is recorded at birth; children without an explicit model use safe local choices. The owner can later choose another model or leave the child unconfigured; world defaults are not inherited. |
-| Towns and household property | Basic version | First-Town membership/borders, building ownership, household stores, household food steward, and an adult with no household asking to join a household that holds a House, with every adult member's agreement. The accepted first-Town layout records Town title over its connected land and starter household use rights on owned building footprints; later border growth does not add title. Add Agent uses recorded rights; one pending request does not assign a household, and conflicting claims make placement ambiguous. Owners can reassign or remove buildings when stored goods, deliveries and active work allow; this leaves Town borders and land rights intact. Any agent can physically recover unreserved communal stock from an empty Town's Warehouse. Adults may leave without a vote, retrieve their personal goods and form a household alone after seeking an accepting existing home. Recorded multiple Towns can be saved and validated, but founding or joining another Town, land requests, grants, consent, transfers and land-case decisions, broader law and currencies remain unfinished. |
+| Parenthood, guardians, life stages and death | Basic version | Ordinary consent/preparation binds an explicit primary caregiver and intended home; the accepting parent chooses a named caregiver-and-home option. Birth joins the caregiver's current household even if it has changed or is full, and the other parent stays put. If the current primary caregiver dies or ends care, living relatives, household adults and then Town residents are asked in order, and each wider group keeps the earlier ones. A willing adult must accept; until then the child's card and Event Log say “Needs a guardian,” nearby adults may still feed them, and the player can suggest an adult who is being asked in a message. A guardian whose child stayed in another household moves alone if they leave their own. A direct order to take a child in is not understood yet ([#587](https://github.com/compoodment/ClankerWorld/issues/587)). The child moves only into an accepting adult's household in the same known Town when its House has room; otherwise the child's current household stays unchanged. Infant care, child talk/play/help and age restrictions are enforced. Only adults can have children; elders cannot, and a plan ends if either partner becomes an elder before the birth. While fewer than eight non-elders live, the continuity rule lets a partnered couple with no infant put off a child for up to two days but not refuse. Parents' selected child model is recorded at birth; children without an explicit model use safe local choices. The owner can later choose another model or leave the child unconfigured; world defaults are not inherited. |
+| Towns and household property | Basic version | First-Town membership/borders, building ownership, household stores, household food steward, and an adult with no household asking to join a household that holds a House, with every adult member's agreement. The accepted first-Town layout records Town title over its connected land and starter household use rights on owned building footprints; later border growth alone does not add title. Councils can approve explicit claims to adjoining unclaimed land. Add Agent uses recorded rights; one pending request does not assign a household, and conflicting claims make placement ambiguous. Owners can reassign or remove buildings when stored goods, deliveries and active work allow; Town borders and title stay unchanged, while a household building takes its existing footprint use right to the new household. Any agent can physically recover unreserved communal stock from an empty Town's Warehouse. Adults may leave without a vote, retrieve their personal goods and form a household alone after seeking an accepting existing home. An adult with no Town can join one through its council (below). Recorded multiple Towns can be saved and validated, but founding another Town, land transfers and land-case decisions, broader law and currencies remain unfinished. Nonconflicting household land grants require Council approval and every current adult household member's explicit acceptance. House expansion needs recorded use rights on its extra tiles. |
+
+Restaurant trading uses the normal private-world path; its
+[Windows playtest checklist](../playtest/561-concrete-meals.md) is pending.
+Restaurant adults visit ingredient shops in their Town, and adult residents
+visit its Restaurants for meals. Exact goods and terms are checked after
+arrival; a visit reveals no private stock remotely and transfers nothing.
+An adult from the household holding a Restaurant buys ingredients it actually
+lacks, such as flour milled at another household's Farmhouse. Usable supplies
+already there or actually deliverable reduce the shortage; private House
+reserves, goods in an unsuitable shop and vessels too heavy to carry do not
+become free Restaurant supplies. The adult uses only their own carried payment
+and preserves needed Restaurant ingredients. Purchased inputs must reach the
+Restaurant before cooking. Customers can buy bread, stew and porridge,
+including the berry and fruit versions, and carry their own purchase away.
+Two cooked servings for one wood is a provisional offer; other payment terms
+depend on the recipe. Trading requires both sides to meet, sufficient carrying
+and shop space, and unclaimed goods. It grants no private cooking access.
 
 With a usable iron pickaxe and room for a whole load, an adult can mine a finite
 gold or diamond outcrop. The goods remain in their carried stock. Trial mining
@@ -240,8 +276,8 @@ Add Agent controls, where you choose the key, model and placement. Opening the
 offer adds nobody and makes no paid model call. The offer disappears once the
 rule turns off; nobody arrives on their own.
 
-While the rule is on, a partnered couple with no infant may say "not yet" to a
-child, but not refuse: two world days after the rule first applies to them,
+While the rule is on, a partnered adult couple with no infant may say "not yet"
+to a child, but not refuse: two world days after the rule first applies to them,
 their plan goes ahead as if both had agreed. Preparation still takes time, and
 the birth still needs food and shelter; a plan the rule sent ahead waits for
 them instead of expiring. Such a couple may also plan another child once their
@@ -293,12 +329,74 @@ proposals. The scrolling Towns page shows current councillors, candidates,
 election totals, the latest completed, failed or cancelled election, and eight
 recent pending, passed, rejected or cancelled proposals.
 
-A passed law proposal records approval; broader law powers, jurisdiction and
-enforcement remain unfinished ([#631](https://github.com/compoodment/ClankerWorld/issues/631)).
-Admission approval is recorded for the separate Town-membership work
-([#602](https://github.com/compoodment/ClankerWorld/issues/602)); it grants neither
-membership, household admission nor goods access today. Windows civic pacing
-and visual checks remain pending.
+Adult residents can propose a connected plot of adjoining unclaimed land in
+their personal-model turns. The Towns page shows its exact coordinates and
+votes. A Council majority records the new Town title and extends the border
+to cover it; the Town title filter then shows that plot. The server rechecks
+the plot at approval, so competing claims cannot overwrite one another.
+Household use rights, buildings and goods keep their holders.
+
+Adults can request household use of a connected plot of Town-titled land. An
+ordinary Council majority and explicit acceptance from every current adult in
+the beneficiary household are both required. Filing and Council votes do not
+count as household acceptance. A new adult joining before the grant must also
+accept. A refusal, withdrawal or elapsed requested end date closes the request;
+conflicting claims remain pending without changing anyone's rights. Plot
+details show Council votes and household acceptance counts.
+
+A House that needs more room can request the exact extra tiles for an expansion.
+Construction waits for recorded permission, and rechecks it before completion.
+Town-owned expansions need Town title on their extra tiles. These checks do not
+transfer buildings or goods, and an expired existing right remains recorded
+until a lawful ruling changes it. Hearings, expiry rulings and voluntary
+transfers remain in [#633](https://github.com/compoodment/ClankerWorld/issues/633).
+
+Councils can adopt, amend and repeal laws with a named subject and scope:
+formally claimed land (including visitors), a recorded site within that land,
+or an explicit duty of residents wherever they travel. Earlier wordings remain
+saved, and laws apply only from adoption. A law never blocks a physical action,
+creates goods or changes ownership.
+
+Any adult resident can initiate a protected government-change vote at the
+Town's notice place. It needs
+more than half the remaining opening electorate to approve within one day;
+cast votes are final. Equivalent proposals share the window and different
+proposals queue. Approval gives at most three days to seat a valid successor,
+while lawful incumbents continue. Supported arrangements include all adults,
+elected representatives and one elected governing leader. Ordinary laws cannot
+remove the protected resident vote or invent new powers.
+
+Residents can create an elected land mayor without a population gate. Each
+mandate lasts twenty days, with renewal voting one day before expiry. Mayor
+candidacy needs separate personal agreement. Each resident chooses one willing
+candidate; tied leaders face further votes, never a draw. Scheduled Council
+elections interrupt mayoral voting and discard its unfinished ballots. Death,
+resignation, departure and expiry create vacancies. Land and ordinary governing
+mandates stay separate, even when one person holds both. A governing vacancy
+restores all-adult decisions until lawful succession; land cases wait.
+
+The Towns page shows the approved arrangement, offices, recent government
+votes, current and last mayoral contests, and the latest sixteen laws with
+scope, version and effective dates. Complete histories stay in the save.
+Land hearings, enforcement and punishment are still separate unfinished work.
+Windows civic pacing and visual checks remain pending.
+
+An agent belongs to one Town or none, and travel never changes that. Losing a
+home keeps Town membership, the council vote and in-person Warehouse
+collection. An adult with no Town, such as one added outside the border, asks a
+Town's council for admission at its notice place; an adult inside a Town they
+don't belong to can walk there to read it. A passed request made by the
+newcomer admits them straight away. A resident may also ask the council to
+admit an adult nearby who has no Town; once it passes, the newcomer must accept
+before anything changes. Their dependent children join with them. Each agent has
+one request of their own open at a time, and a refused request waits a day
+before it is offered again. An admitted resident may collect their Town's
+Warehouse stock in person, but approval never gives a House or household place;
+an adult waiting on a Town's approval may ask its households to take them in. The agent's profile and model context show their Town, its
+rights and any admission they have heard about from notices. Moving from one
+Town to another, with the old Town left in the same step, works in saves that
+hold several Towns, but normal play has only the first Town until founding
+another Town is finished.
 
 Towns grow along their streets. Building sites that can face an existing Road
 rank higher. Each new building's street runs on a few tiles past it, and a
@@ -309,8 +407,11 @@ Starter household use rights cover the footprints of the buildings assigned to
 each household. Add Agent uses building/field ownership and recorded use
 rights, then Town title or border: one clear household claim sets the household,
 and land claimed by one Town gives Town membership. A building's current owner
-comes before another household's use right on its footprint, so a reassigned
-building places new agents with its new owner. A lone pending use request does
+comes before another household's use right on its footprint. Reassigning a
+household building also moves its existing footprint use right to the new
+household; surrounding rights and Town title stay unchanged. Disputed, expired
+or differently owned rights block the reassignment, and a right cannot be left
+without a household holder. A lone pending use request does
 not create household membership. Disputed land and other conflicting claims are
 refused for a new placement, but do not move existing residents or stop
 ordinary movement and work. The server checks the preview against current
@@ -376,7 +477,8 @@ or deliveries can still prevent removing or reassigning its destination.
 
 Spoiled food cannot be eaten. Households do not yet clear spoiled food from
 pots automatically, and there is no discard control. Raw grain, potatoes and
-flour still need the separate cooking work before they can become meals.
+flour keep their freshness and need separate cooking work before they become
+meals. Bread and other cooked food spoil; storage pots slow that loss.
 
 Before the first House, builders carry their construction materials to the camp
 pile in loads. A helper meets the adult who requested materials and transfers only
@@ -403,14 +505,24 @@ streets take diagonals where the land allows.
 In newly generated worlds, sand forms deserts and stretches of ocean beach
 only; rivers and lakes keep grass banks, and trees and plants never grow on
 sand. Forests show small groves on darker forest floor, where every tile holds
-a tree, among scattered trees on forest grass. A band of hills rings each
-mountain area. Hills are drawn as soft foothill shading over the ground and
-cost the same to walk and build on as grass. These are the first version of the
-September 29 terrain direction: their numbers are provisional until computment
-reviews generated maps, and they have not been checked by hand in the Windows
-game yet ([#461](https://github.com/compoodment/ClankerWorld/issues/461)).
-Worlds generated before this change no longer load; they are refused and their
-saves are kept.
+a tree, among scattered trees on forest grass. These are the first version of
+the September 29 terrain direction: their numbers are provisional until
+computment reviews generated maps, and they have not been checked by hand in
+the Windows game yet
+([#461](https://github.com/compoodment/ClankerWorld/issues/461)).
+
+Mountains form a few large massifs instead of many small patches: one or two
+on a Small world and two to four on a Medium world. Each is a long range with a
+crest of impassable peaks inside a rim of mountain that agents can walk around,
+and small leftover patches are flattened. A band of hills rings each massif and
+is wider around larger ones. Hills are drawn as soft foothill shading over the
+ground and cost the same to walk and build on as grass. Peaks never cut off any
+land, rivers start at the foot of a massif, and the starting clearing always
+has stone within 32 tiles on foot. Iron, gold and diamonds are found in the massifs. The counts, sizes and
+hill widths are provisional until computment reviews generated maps
+([#683](https://github.com/compoodment/ClankerWorld/issues/683)). Worlds
+generated before this change no longer load; they are refused and their saves
+are kept.
 
 Bridges are a basic version. Where agents often wade across the same river
 crossing, one or two tiles wide (six crossings by at least two agents within
@@ -444,7 +556,7 @@ storm lasts at most three-quarters of a day, and that region then gets at least
 half a day without another. Rain nearby makes rain a little more likely. These
 values are a prototype for playtesting ([#204](https://github.com/compoodment/ClankerWorld/issues/204)).
 Recent rain gives a modest soil-moisture estimate. The map shows rain, snow, storms and optional
-haze/flashes. Drifting visual edges do not mean weather fronts actually move
+haze/flashes, and darkens gently at night. Drifting visual edges do not mean weather fronts actually move
 between regions yet.
 
 The map uses the pixel art approved in the October 1 art review: every ground
@@ -480,11 +592,14 @@ in-memory progress before restarting the server.
 
 Named saves can be overwritten after choosing one and confirming. Load World
 can load an older save of the current world. Playing on from it starts a new
-branch and keeps the saves of the first version of events; the save list groups
-saves by branch ([#679](https://github.com/compoodment/ClankerWorld/issues/679)).
-This is a first version that has not been checked by hand in the Windows game
-yet, and the planned timeline graphic is not built
-([#680](https://github.com/compoodment/ClankerWorld/issues/680)). Unusable list
+branch and keeps the saves of the first version of events
+([#679](https://github.com/compoodment/ClankerWorld/issues/679)). Load Save and
+Save World draw a world's branches as a timeline over its seasons, mark where
+the running world continues with **You are here**, and keep the save list,
+grouped by branch, behind a **Timeline / List** switch
+([#680](https://github.com/compoodment/ClankerWorld/issues/680)). A host from
+before the timeline can't say where the world continues, so the marker is left
+out. Neither has been checked by hand in the Windows game yet. Unusable list
 metadata is isolated so sound saves remain reachable. During the alpha, a save
 from an older build may stop loading after an update; the game refuses it with a
 reason and keeps the file. Mod compatibility and history retention remain design

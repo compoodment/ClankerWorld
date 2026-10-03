@@ -132,11 +132,13 @@ public partial class Main
             snapshot.Towns.Where(town => town.BorderTiles.Count > 0).Select(town => TownMarkerTile(town, mapWidth, snapshot.WrapsEastWest)),
             snapshot.Inhabitants.Where(person => !person.IsDraft && IsLiving(person))
                 .Select(person => new Vector2(person.Position.X + 0.5f, person.Position.Y + 0.5f)));
+        nightLayer.Darkness = NightLayer.FromBasisPoints(snapshot.DarknessBasisPoints);
         if (!string.Equals(cameraWorldId, snapshot.WorldId, StringComparison.Ordinal))
         {
             cameraWorldId = snapshot.WorldId;
             cameraZoom = 1;
             cameraCenterTiles = InitialCameraCenter(snapshot, terrainMap);
+            nightLayer.Settle();
         }
         UpdateMapGeometry(snapshot);
         UpdateTownSiteGuidance(snapshot);

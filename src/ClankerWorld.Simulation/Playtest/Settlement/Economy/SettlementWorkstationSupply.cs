@@ -2,6 +2,7 @@ using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Content;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Kernel;
+using ClankerWorld.Simulation.Society;
 
 namespace ClankerWorld.Simulation.Playtest;
 
@@ -25,6 +26,69 @@ public sealed partial class PrivateWorldRuntime
     private static bool HasDedicatedSupply(BuildingDefinition definition) =>
         definition.Tags.Any(tag => tag is "house" or "farmhouse" or "blacksmith");
 
+    /// <summary>The source station's live two-batch input need, independent of available supply actions.</summary>
+    private int WorkstationInputTarget(PlacedBuilding building, string itemKind) => building.HouseholdId is { } householdId
+        ? worldContent.Recipes.Where(recipe => recipe.WorkstationBuildingId == building.DefinitionId &&
+                !recipe.IsCrop && !IsGenericFoodRecipe(recipe) && NeedsRecipeOutput(recipe, householdId))
+            .SelectMany(recipe => recipe.Inputs).Where(input => input.ResourceId == itemKind)
+            .Select(input => input.Amount).DefaultIfEmpty(0).Max() * SupplyBatches
+        : 0;
+
+    private static int UsableWorkstationQuantity(InventoryCheckpoint inventory, InventoryLot lot) =>
+        lot.ContainerLotId is { } containerId && !inventory.Lots.Any(container =>
+            container.Id == containerId && container.ConditionBasisPoints > 0)
+            ? 0 : PersonalEquipmentRules.AvailableQuantity(inventory, lot);
+
+    private static int WorkstationOnsiteQuantity(InventoryCheckpoint inventory, PlacedBuilding building, string itemKind) =>
+        building.HouseholdId is { } householdId ? inventory.Lots.Where(lot => lot.OwnerId == householdId &&
+                lot.StorageBuildingId == building.InstanceId && lot.ItemKind == itemKind)
+            .Sum(lot => UsableWorkstationQuantity(inventory, lot)) : 0;
+
+    private int WorkstationIncomingQuantity(InventoryCheckpoint inventory, PlacedBuilding building, string itemKind) =>
+        building.HouseholdId is { } householdId ? inventory.Lots.Where(lot => lot.DeliveryBuildingId == building.InstanceId &&
+                lot.ItemKind == itemKind && (lot.OwnerId == householdId ||
+                    society.Checkpoint.Inhabitants.Any(person => person.Id == lot.OwnerId &&
+                        person.HouseholdId == householdId && person.Status == SocietyInhabitantStatus.Active)) &&
+                CanCreditWorkstationIncoming(inventory, lot))
+            .Sum(lot => UsableWorkstationQuantity(inventory, lot)) : 0;
+
+    private static bool CanCreditWorkstationIncoming(InventoryCheckpoint inventory, InventoryLot lot)
+    {
+        var root = lot.ContainerLotId is { } containerId ? inventory.GetLot(containerId) : lot;
+        return !InventoryContainerRules.IsContainer(root.ItemKind) ||
+            !UnusableDeliveryStock(inventory, root) && !HasActiveContainerReservation(inventory, root.Id);
+    }
+
+    private int WorkstationSourceSurplus(InventoryCheckpoint inventory, InventoryLot resource)
+    {
+        if (resource.StorageBuildingId is not { } sourceId ||
+            worldSimulation.Buildings.FirstOrDefault(building => building.InstanceId == sourceId &&
+                building.HouseholdId == resource.OwnerId) is not { } source)
+            return int.MaxValue;
+        var available = WorkstationOnsiteQuantity(inventory, source, resource.ItemKind);
+        var incoming = WorkstationIncomingQuantity(inventory, source, resource.ItemKind);
+        return Math.Max(0, available + incoming - WorkstationInputTarget(source, resource.ItemKind));
+    }
+
+    /// <summary>Actual available loose stock above its held source station's live input reserve.</summary>
+    private int WorkstationStockSurplus(InventoryCheckpoint inventory, InventoryLot resource) =>
+        Math.Min(UsableWorkstationQuantity(inventory, resource),
+            WorkstationSourceSurplus(inventory, resource));
+
+    /// <summary>A whole vessel may leave only when every moved ingredient is source surplus.</summary>
+    private bool CanRemoveWorkstationStock(InventoryCheckpoint inventory, InventoryLot root, int quantity)
+    {
+        if (quantity <= 0) return false;
+        if (!InventoryContainerRules.IsContainer(root.ItemKind))
+            return quantity <= WorkstationStockSurplus(inventory, root);
+        if (quantity != 1 || UnusableDeliveryStock(inventory, root) || HasActiveContainerReservation(inventory, root.Id))
+            return false;
+        return inventory.Lots.Where(lot => lot.ContainerLotId == root.Id)
+            .GroupBy(lot => lot.ItemKind).All(group =>
+                group.Sum(lot => UsableWorkstationQuantity(inventory, lot)) <=
+                    WorkstationSourceSurplus(inventory, group.First()));
+    }
+
     private IEnumerable<WorkstationSupplyNeed> WorkstationSupplyNeeds(string actor)
     {
         if (society.Checkpoint.GetInhabitant(actor).HouseholdId is not { } householdId)
@@ -38,21 +102,17 @@ public sealed partial class PrivateWorldRuntime
                 continue;
             var recipes = worldContent.Recipes.Where(recipe => recipe.WorkstationBuildingId == definition.CanonicalId &&
                     NeedsRecipeOutput(recipe, householdId) &&
-                    (!HasDedicatedSupply(definition) || recipe.Tags.Any(tag => tag is "pottery" or "care")))
+                    (!HasDedicatedSupply(definition) || recipe.Tags.Any(tag => tag is "pottery" or "care" or "named-meal")))
                 .OrderBy(recipe => recipe.CanonicalId, StringComparer.Ordinal).ToArray();
             foreach (var input in recipes.SelectMany(recipe => recipe.Inputs).GroupBy(input => input.ResourceId))
             {
                 var target = input.Max(item => item.Amount) * SupplyBatches;
-                var stocked = society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == householdId &&
-                        lot.StorageBuildingId == building.InstanceId && lot.ItemKind == input.Key)
-                    .Sum(AvailableLotQuantity);
-                var incoming = society.Checkpoint.Inventory.Lots.Where(lot =>
-                        lot.DeliveryBuildingId == building.InstanceId && lot.ItemKind == input.Key)
-                    .Sum(AvailableLotQuantity);
+                var inventory = society.Checkpoint.Inventory;
+                var stocked = WorkstationOnsiteQuantity(inventory, building, input.Key);
+                var incoming = WorkstationIncomingQuantity(inventory, building, input.Key);
                 var missing = target - stocked - incoming;
                 if (missing <= 0)
                     continue;
-                var inventory = society.Checkpoint.Inventory;
                 var deliveryRoom = WorkstationDeliveryRoom(inventory, building.InstanceId);
                 var carried = inventory.Lots
                     // Water travels inside a carried jug, so look through the vessel to its contents.
@@ -97,8 +157,10 @@ public sealed partial class PrivateWorldRuntime
         if (capacity <= 0)
             return 0;
         return InventoryContainerRules.IsContainer(stock.ItemKind)
-            ? ContainerFamilyQuantity(inventory, stock.Id) <= capacity ? 1 : 0
-            : Math.Min(HouseHaulLoadQuantity, Math.Min(capacity, Math.Min(missing, AvailableLotQuantity(stock))));
+            ? ContainerFamilyQuantity(inventory, stock.Id) <= capacity &&
+                CanRemoveWorkstationStock(inventory, stock, 1) ? 1 : 0
+            : Math.Min(HouseHaulLoadQuantity, Math.Min(capacity, Math.Min(missing,
+                WorkstationStockSurplus(inventory, stock))));
     }
 
     private InventoryLot? SpareHouseholdStock(string actor, string householdId, string itemKind,
@@ -117,9 +179,13 @@ public sealed partial class PrivateWorldRuntime
                 (lot.StorageBuildingId is null || worldSimulation.Buildings.Any(building =>
                     building.InstanceId == lot.StorageBuildingId && worldContent.Buildings.Any(definition =>
                         definition.CanonicalId == building.DefinitionId &&
-                        definition.Tags.Any(tag => tag is "house" or "silo")))))
+                        definition.Tags.Any(tag => tag is "house" or "silo" or "farmhouse" or "restaurant")))))
             .Where(lot => WorkstationPickupQuantity(actor, inventory, lot, destination.InstanceId,
                 int.MaxValue) > 0)
+            .Where(lot => IsWithinInteractionRange(inhabitants[actor].Position, HouseholdStockPosition(lot),
+                    HouseholdStockInteractionRange(lot)) ||
+                FindUnoccupiedRoute(actor, inhabitants[actor].Position, HouseholdStockPosition(lot),
+                    HouseholdStockInteractionRange(lot)).Count > 0)
             .DistinctBy(lot => lot.Id)
             .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
     }

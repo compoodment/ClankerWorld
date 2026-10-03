@@ -32,6 +32,8 @@ public sealed partial class PrivateWorldRuntime
             }))
             .Concat(inhabitants.Values.Where(person => person.InhabitantId != actor)
                 .Select(person => person.Position))
+            // A household builds only on land no other household holds or has asked for; Town buildings avoid it all.
+            .Concat(HouseholdLandHeldByOthers(building is not null && !building.Tags.Any(IsHouseholdBuildingTag) ? null : HouseholdFor(actor)))
             .ToHashSet();
         var resourcesForLayout = map.Resources.Select(resource => new TownLayoutResource(
             resource,
@@ -164,6 +166,10 @@ public sealed partial class PrivateWorldRuntime
         position = default;
         return false;
     }
+
+    private static bool IsGenericFoodRecipe(RecipeDefinition recipe) =>
+        recipe.Inputs.Any(input => input.ResourceId == "food") &&
+        recipe.Outputs.Any(output => output.ResourceId == "food");
 
     private bool HasAvailableQuantities(IReadOnlyList<ContentQuantity> quantities, string? ownerId = null)
     {
@@ -354,6 +360,20 @@ public sealed partial class PrivateWorldRuntime
         }
 
         return current;
+    }
+
+    private const string MissingHouseholdIngredientsPrefix = "The household building needs ";
+
+    private static bool IsIngredientBlocker(string? blocker) =>
+        blocker == "Waiting for ingredients at this household building" ||
+        blocker?.StartsWith(MissingHouseholdIngredientsPrefix, StringComparison.Ordinal) == true;
+
+    private string MissingProductionIngredients(RecipeDefinition recipe, string owner, string buildingId)
+    {
+        var missing = recipe.Inputs.First(input => !HasIngredientsAtBuilding([input], owner, buildingId));
+        var available = society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == owner &&
+                lot.StorageBuildingId == buildingId && lot.ItemKind == missing.ResourceId).Sum(AvailableLotQuantity);
+        return $"{MissingHouseholdIngredientsPrefix}{missing.Amount - available} {missing.ResourceId.Replace('_', ' ')} in its on-site stock. Bring it here before starting work.";
     }
 
     private bool HasIngredientsAtBuilding(IReadOnlyList<ContentQuantity> inputs,

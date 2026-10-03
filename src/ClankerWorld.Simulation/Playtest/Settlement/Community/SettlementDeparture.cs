@@ -257,6 +257,9 @@ public sealed partial class PrivateWorldRuntime
         foreach (var job in cancelledExpansions) AppendEvent("building_expansion_cancelled", $"{job.BuildingInstanceId}:{job.JobId}:Paused expansion materials are no longer available.");
     }
 
+    /// <summary>Maps and field records are the belongings the built-in chooser stores at home and leaves there.</summary>
+    private static bool KeptAtHomeByRoutine(string itemKind) => itemKind is "field_map" or "field_record";
+
     private void AddDepartureCandidates(List<CognitionCandidate> candidates, string actor)
     {
         if (!AdultResident(actor) || !ReadyForBriefInteraction(actor)) return;
@@ -272,7 +275,18 @@ public sealed partial class PrivateWorldRuntime
         {
             foreach (var lot in PersonalGoodsAwaitingCollection(actor).Where(lot => VesselFits(lot, FreeCarryCapacity(actor)))
                          .OrderBy(lot => lot.Id, StringComparer.Ordinal))
-                candidates.Add(new("household_collect:" + lot.Id, $"Physically collect your own {lot.ItemKind.Replace('_', ' ')}; other household stock remains private.", 20));
+            {
+                var knowledgeAtHome = KeptAtHomeByRoutine(lot.ItemKind) &&
+                    lot.StorageBuildingId is { } storageId &&
+                    worldSimulation.Buildings.Any(building => building.InstanceId == storageId &&
+                        building.HouseholdId == society.Checkpoint.GetInhabitant(actor).HouseholdId);
+                // Knowledge safely stored at home is not a recovery errand.
+                // Keep collection available to a deliberate choice without
+                // making the built-in chooser undo its own storage next tick.
+                candidates.Add(new("household_collect:" + lot.Id,
+                    $"Physically collect your own {lot.ItemKind.Replace('_', ' ')}; other household stock remains private.",
+                    knowledgeAtHome ? 110 : 20));
+            }
         }
         foreach (var lot in BorrowedGoods(actor).OrderBy(lot => lot.Id, StringComparer.Ordinal))
             if (lot.OwnerId != society.Checkpoint.GetInhabitant(actor).HouseholdId && HouseForHousehold(lot.OwnerId) is { } ownerHouse &&
@@ -287,7 +301,10 @@ public sealed partial class PrivateWorldRuntime
                          !PersonalEquipmentRules.IsSelected(inhabitants[actor].Equipment, lot.Id) &&
                          !IsEdibleFood(lot.ItemKind) && PhysicalUnreservedQuantity(lot) > 0 &&
                          VesselFits(lot, StorageRoom(house.InstanceId))).OrderBy(lot => lot.Id, StringComparer.Ordinal))
-                candidates.Add(new("household_store_personal:" + lot.Id, $"Store your own {lot.ItemKind.Replace('_', ' ')} in your House while keeping personal ownership.", 95));
+                candidates.Add(new("household_store_personal:" + lot.Id, $"Store your own {lot.ItemKind.Replace('_', ' ')} in your House while keeping personal ownership.",
+                    // The built-in chooser collects other stored belongings at once,
+                    // so it puts away only what it then leaves at home.
+                    KeptAtHomeByRoutine(lot.ItemKind) ? 95 : 110));
         }
         foreach (var child in society.Checkpoint.Inhabitants.Where(person => person.Status == SocietyInhabitantStatus.Active &&
                      person.AgeBand is SocietyAgeBand.Infant or SocietyAgeBand.Child or SocietyAgeBand.Adolescent &&

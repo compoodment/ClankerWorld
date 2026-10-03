@@ -88,6 +88,9 @@ public sealed partial class PrivateWorldRuntime
         // sharing exception above, and avoid searching an entire map for it.
         if (interactionRange == 0 && origin != destination && occupied.Contains(destination))
             return [];
+        if (AttachedHandcart(inhabitantId) is null)
+            return SharedUnoccupiedRoute(origin, occupied, destination, interactionRange);
+
         var open = new PriorityQueue<GridPoint, (int Cost, int Y, int X, int Order)>();
         var best = new Dictionary<GridPoint, int> { [origin] = 0 };
         var predecessor = new Dictionary<GridPoint, GridPoint>();
