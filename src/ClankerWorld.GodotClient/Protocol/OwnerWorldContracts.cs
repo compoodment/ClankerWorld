@@ -206,6 +206,7 @@ public sealed record OwnerWorldInhabitant(
     public OwnerWorldSurvival? Survival { get; init; }
     public OwnerWorldEquipment? Equipment { get; init; }
     public string? MedicalCareNote { get; init; }
+    public string? ToolMakingRequestNote { get; init; }
     public OwnerWorldLesson? Lesson { get; init; }
     public OwnerWorldProficiency? Proficiency { get; init; }
     public IReadOnlyList<OwnerWorldSkill>? Skills { get; init; }
@@ -351,8 +352,12 @@ public sealed record OwnerWorldPlacedBuilding(
     bool IsOvercrowded = false)
 {
     public IReadOnlyList<OwnerWorldBusinessTrade> Trades { get; init; } = [];
+    public IReadOnlyList<OwnerWorldToolMakingRequest> ToolMakingRequests { get; init; } = [];
     public bool AllowsHouseholdOwner { get; init; }
 }
+
+public sealed record OwnerWorldToolMakingRequest(string Id, string RequesterName, string RecipeId,
+    string RecipeName, string ItemKind, string Status, string? Blocker, string? OfferId = null);
 
 public sealed record OwnerWorldBusinessTrade(string OfferId, string BuyerName, string GoodsKind, int GoodsQuantity,
     string PaymentKind, int PaymentQuantity, string Status, string? CancellationReason);
