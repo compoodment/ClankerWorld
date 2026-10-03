@@ -9,6 +9,32 @@ public sealed class WorldEventTextTests
     private const string ChildId = "world:inhabitant:birth:" + FounderId + ":" + AgentId + ":1";
 
     [Theory]
+    [InlineData("{")]
+    [InlineData("null")]
+    [InlineData("{}")]
+    public void IncompleteDeveloperEditDetailsHaveASafeDescription(string detail)
+    {
+        Assert.Equal("Developer edit.", WorldEventText.Describe(new(1, 0, "developer_edit", detail), null));
+    }
+
+    [Theory]
+    [InlineData("set_need", "fullness", 62, "Aster's fullness set to 62%")]
+    [InlineData("give_goods", "wood", 2, "Aster received 2 wood")]
+    [InlineData("remove_goods", "wood", 1, "removed 1 wood from Aster")]
+    [InlineData("add_skill", "farming", 0, "added farming skill to Aster")]
+    [InlineData("remove_skill", "smithing", 0, "removed smithing skill from Aster")]
+    [InlineData("start_partnership", "partnership", 0, "started a partnership between Aster and Mira")]
+    [InlineData("end_partnership", "partnership", 0, "ended the partnership between Aster and Mira")]
+    public void DeveloperEditEventsDescribeTheActualChange(string operation, string value, int amount, string expected)
+    {
+        var action = new ClankerWorld.Simulation.Playtest.PrivateWorldDeveloperEdit("world", 12, ChildId, operation, value, amount, FounderId);
+        var detail = System.Text.Json.JsonSerializer.Serialize(action);
+        Assert.True(GameUiText.IsPlayerFacingEvent("developer_edit"));
+        Assert.Equal("Developer edit: " + expected + ".", WorldEventText.Describe(new(13, 1, "developer_edit", detail),
+            Snapshot(Person(ChildId, "Aster"), Person(FounderId, "Mira"))));
+    }
+
+    [Theory]
     [InlineData(true, true, true)]
     [InlineData(true, false, false)]
     [InlineData(false, true, false)]
@@ -50,7 +76,7 @@ public sealed class WorldEventTextTests
             ("household_delivery_recovered", id + ":spoiled-greens:4:camp-alpha",
                 "returned unusable delivery supplies to their household's pile at camp"),
             ("instruction_not_understood", id + ":private-instruction-0000000001",
-                "didn't understand your order. For now, orders can only ask them to gather food, eat or find food"),
+                "didn't understand your order. For now, orders can only ask them to gather food, eat, find food, go to a tile or become a child's guardian"),
         };
         foreach (var (kind, detail, action) in cases)
         {
@@ -172,6 +198,47 @@ public sealed class WorldEventTextTests
             WorldEventText.Describe(new(5, 0, "housing_blocked", AgentId + ":no_household"), snapshot));
         Assert.Equal("Aster has no home: their household has no legal site for a House.",
             WorldEventText.Describe(new(6, 0, "housing_blocked", AgentId + ":no_legal_site"), snapshot));
+        Assert.Equal("Aster's House is overcrowded: it has more residents than places.",
+            WorldEventText.Describe(new(7, 0, "housing_blocked", AgentId + ":overcrowded"), snapshot));
+        Assert.Equal("Aster is waiting for every adult in the other household to agree to the move.",
+            WorldEventText.Describe(new(8, 0, "housing_blocked", AgentId + ":awaiting_answer"), snapshot));
+    }
+
+    [Theory]
+    [InlineData("volunteer", "Aster volunteered to move out of their overcrowded House.")]
+    [InlineData("latest_unrelated_arrival", "Aster has notice to move out of their overcrowded House as its most recent arrival outside the main family.")]
+    [InlineData("latest_arrival", "Aster has notice to move out of their overcrowded House as its most recent arrival; no family has a majority.")]
+    public void RelocationNoticeExplainsTheSelectionWithoutSplittingAnAgentIdentity(string reason, string expected)
+    {
+        var snapshot = Snapshot(Person(FounderId, "Wrong parent"), Person(ChildId, "Aster"));
+        var worldEvent = new OwnerWorldEvent(1, 4, "relocation_notice", $"{ChildId}|household:camp-alpha|{reason}|100");
+        Assert.True(GameUiText.IsPlayerFacingEvent(worldEvent.Kind));
+        Assert.Equal(expected, WorldEventText.Describe(worldEvent, snapshot));
+        Assert.Equal($"{ChildId}|household:camp-alpha|{reason}|100", worldEvent.Detail);
+    }
+
+    [Theory]
+    [InlineData("room", "the House now has enough places")]
+    [InlineData("care", "their dependent children still need their care")]
+    [InlineData("family", "the household's family arrangements changed")]
+    [InlineData("replaced", "another adult volunteered to move instead")]
+    [InlineData("no_house", "the household no longer holds that House")]
+    [InlineData("not_needed", "the household's housing needs changed")]
+    public void CancelledRelocationExplainsWhyTheNoticeEnded(string reason, string expected)
+    {
+        var snapshot = Snapshot(Person(AgentId, "Aster"));
+        Assert.True(GameUiText.IsPlayerFacingEvent("relocation_cancelled"));
+        Assert.Equal($"Aster's move-out notice was cancelled: {expected}.", WorldEventText.Describe(
+            new(1, 4, "relocation_cancelled", $"{AgentId}|household:camp-alpha|{reason}"), snapshot));
+    }
+
+    [Theory]
+    [InlineData("voluntary", "Aster left their household and may collect their personal belongings.")]
+    [InlineData("displaced", "Aster moved out because their House was overcrowded and may collect their personal belongings.")]
+    public void DepartureDistinguishesDisplacementFromAnOrdinaryMove(string reason, string expected)
+    {
+        Assert.Equal(expected, WorldEventText.Describe(
+            new(1, 4, "household_left", $"{AgentId}|household:camp-alpha|{reason}|2"), Snapshot(Person(AgentId, "Aster"))));
     }
 
     [Fact]

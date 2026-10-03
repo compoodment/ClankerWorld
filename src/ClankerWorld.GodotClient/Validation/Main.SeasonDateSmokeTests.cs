@@ -16,6 +16,7 @@ public partial class Main
     {
         var installed = displayPreferences;
         var previousObservation = observationSession.Current;
+        var previousEvents = knownEvents.Values.ToArray();
         // Narrow widths are drawn by changing only the render size. The game
         // would match it back to the headless window at once, so that stays
         // off here, and the earlier checks' render size is put back after.
@@ -26,8 +27,8 @@ public partial class Main
         // widest date a season-and-day calendar normally shows.
         var autumn = sample with
         {
-            WorldTick = 98 * 14_400 + 29 * 360 + 180,
-            CalendarPace = new OwnerWorldCalendarPace(360, 40, 10, 10, 10, 10),
+            WorldTick = 98 * 14_400 + 29 * 360 + 180 - 90,
+            CalendarPace = new OwnerWorldCalendarPace(360, 40, 10, 10, 10, 10, CalendarOffsetTicks: 90),
             Authoring = new OwnerWorldAuthoringState(false, 0, 0, 0, "ui-map", "ui-map", "cloudy", "autumn", []),
         };
         var handshake = new OwnerWorldHandshake(new(1, 1),
@@ -40,6 +41,37 @@ public partial class Main
                 dateFormatChoice.GetItemText(1) != "DD-MM-YYYY" || dateFormatChoice.GetItemText(2) != "MM-DD-YYYY" ||
                 dateFormatChoice.GetItemText(3) != "YYYY-MM-DD")
                 throw new InvalidOperationException("A new installation must show season dates, and Game Settings must offer them first, then DD-MM-YYYY, MM-DD-YYYY and YYYY-MM-DD.");
+
+            // Raw tick zero is morning in a newly created world. The same
+            // saved offset dates old events after the live clock passes midnight.
+            displayPreferences = installed with { DateStyle = GameUiText.SeasonDates, UseTwelveHourClock = false };
+            OwnerWorldEvent[] firstMorningEvents = [new(1, 0, "town_founded", "town:first")];
+            var morning = sample with
+            {
+                WorldTick = 0,
+                LatestEventId = 1,
+                CalendarPace = autumn.CalendarPace,
+                DarknessBasisPoints = 0,
+            };
+            foreach (var (snapshot, expectedClock, expectedDarkness) in new[]
+                     {
+                         (morning, "Spring 1, Year 1 · 06:00", 0f),
+                         (morning with { WorldTick = 270, DarknessBasisPoints = 10_000 }, "Spring 2, Year 1 · 00:00", 1f),
+                     })
+            {
+                observationSession.ResetAfterLoad();
+                if (!observationSession.TryAccept(new(handshake, new(snapshot, new(snapshot.WorldTick, 0, firstMorningEvents))), 0, out var morningFailure))
+                    throw new InvalidOperationException("Morning observation fixture was refused: " + morningFailure);
+                knownEvents.Clear();
+                Render(snapshot, firstMorningEvents);
+                nightLayer.Settle();
+                var history = eventLog.GetParsedText();
+                if (clockLabel.Text != expectedClock || nightLayer.ShownDarkness != expectedDarkness ||
+                    !history.Contains("Spring 1, Year 1", StringComparison.Ordinal) ||
+                    !history.Contains("06:00", StringComparison.Ordinal) || history.Contains("12:00", StringComparison.Ordinal))
+                    throw new InvalidOperationException($"The live clock and daylight must advance while raw tick-zero history stays at 06:00: clock={clockLabel.Text}, darkness={nightLayer.ShownDarkness}, history={history}.");
+            }
+            knownEvents.Clear();
 
             // A choice in Settings redraws the world at once and is saved.
             observationSession.ResetAfterLoad();
@@ -107,6 +139,8 @@ public partial class Main
             observationSession.ResetAfterLoad();
             if (previousObservation is not null)
                 observationSession.TryAccept(previousObservation, previousObservation.Baseline.Events.AfterEventId, out _);
+            knownEvents.Clear();
+            foreach (var worldEvent in previousEvents) knownEvents[worldEvent.EventId] = worldEvent;
             for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             window.SizeChanged += RefreshRenderSize;
             Render(sample, []);

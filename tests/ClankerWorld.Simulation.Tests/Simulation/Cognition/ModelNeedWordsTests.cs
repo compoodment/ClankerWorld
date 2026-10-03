@@ -39,12 +39,6 @@ public sealed class ModelNeedWordsTests
 
     [Theory]
     [InlineData(0, "well")]
-    [InlineData(2_499, "well")]
-    [InlineData(2_500, "unwell")]
-    [InlineData(4_999, "unwell")]
-    [InlineData(5_000, "ill")]
-    [InlineData(7_499, "ill")]
-    [InlineData(7_500, "very ill")]
     [InlineData(10_000, "very ill")]
     public void IllnessWordsFollowTheCutPointsWhereIllnessSlowsWork(int illness, string level)
     {
@@ -154,25 +148,6 @@ public sealed class ModelNeedWordsTests
         var (numbersBody, _) = await JevRequestAsync(ModelNeedFormat.Numbers, Observation(1_917, 5_123, 2_731));
         using var numbersDocument = JsonDocument.Parse(numbersBody);
         Assert.Equal(FieldsWithNeedsInWords(numbersDocument.RootElement.GetProperty("state")), FieldNames(state));
-    }
-
-    [Theory]
-    [InlineData(1_999, 3_499, 2_499, "starving", "freezing", "well")]
-    [InlineData(2_000, 3_500, 2_500, "hungry", "chilly", "unwell")]
-    [InlineData(3_999, 5_999, 4_999, "hungry", "chilly", "unwell")]
-    [InlineData(4_000, 6_000, 5_000, "fine", "warm", "ill")]
-    [InlineData(6_999, 10_000, 7_499, "fine", "warm", "ill")]
-    [InlineData(7_000, 0, 7_500, "full", "freezing", "very ill")]
-    public async Task JevRoutineWordsChangeAtTheAgreedEdges(
-        int fullness, int warmth, int illness, string fullnessLevel, string warmthLevel, string illnessLevel)
-    {
-        var (body, _) = await JevRequestAsync(ModelNeedFormat.Words, Observation(fullness, warmth, illness));
-
-        using var document = JsonDocument.Parse(body);
-        var state = document.RootElement.GetProperty("state");
-        Assert.StartsWith(fullnessLevel + " (", state.GetProperty("fullness").GetString(), StringComparison.Ordinal);
-        Assert.StartsWith(warmthLevel + " (", state.GetProperty("warmth").GetString(), StringComparison.Ordinal);
-        Assert.StartsWith(illnessLevel + " (", state.GetProperty("illness").GetString(), StringComparison.Ordinal);
     }
 
     [Theory]

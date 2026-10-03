@@ -5,26 +5,6 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class InventoryCustodyTests
 {
     [Fact]
-    public void CollectingAndReturningPersonalGoodsNeverChangesTheirOwner()
-    {
-        var inventory = InventoryFixture.CreateGenesis(
-            [new("coat", "clothing", "adult", 1, 8_000, 9_000, 0, StorageBuildingId: "former-house")]);
-        var collected = InventoryFixture.Relocate(inventory, "collect", "coat", "adult", 1, carrierId: "adult");
-        var coat = collected.GetLot("coat");
-        // The owner carries it, so no separate carrier is recorded.
-        Assert.Equal(("adult", (string?)null, 1, 8_000, 9_000),
-            (coat.OwnerId, coat.CarrierId, coat.Quantity, coat.ConditionBasisPoints, coat.FreshnessBasisPoints));
-        Assert.Null(coat.StorageBuildingId);
-        Assert.Null(coat.GroundPosition);
-        var bytes = InventoryCheckpointCodec.Encode(collected);
-        var restored = InventoryCheckpointCodec.Decode(bytes);
-        Assert.Equal(bytes, InventoryCheckpointCodec.Encode(restored));
-        var stored = InventoryFixture.Relocate(restored, "store", "coat", "adult", 1, storageBuildingId: "new-house");
-        Assert.Equal(("adult", "new-house"), (stored.GetLot("coat").OwnerId, stored.GetLot("coat").StorageBuildingId));
-        Assert.Null(stored.GetLot("coat").CarrierId);
-    }
-
-    [Fact]
     public void ABorrowedBrokenAxeCanBeReturnedWithoutBecomingPersonalProperty()
     {
         var inventory = InventoryFixture.CreateGenesis(

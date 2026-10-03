@@ -42,54 +42,99 @@ public static partial class SocietyFixture
 
         var next = ApplyRelationshipProjection(checkpoint with { Relationships = relationships }, caregiver);
         next = SetPrimaryCaregiver(next, adultId, childId);
-        if (destinationHouseholdId is { } newHome && newHome != child.HouseholdId)
+        if (destinationHouseholdId is { } newHome)
         {
-            var oldHome = child.HouseholdId is { } oldId
-                ? next.Households.FirstOrDefault(household => household.Id == oldId)
-                : null;
-            var newHomeRecord = next.Households.FirstOrDefault(household => household.Id == newHome);
-            if (newHomeRecord is null || child.HouseholdId is not null && oldHome is null)
+            var moved = MoveDependentHousehold(next, adultId, childId, newHome);
+            if (moved is null)
                 return Reject(checkpoint, "care_assignment_rejected", "missing_dependent_household");
-
-            var membershipId = $"{newHome}:guardian-membership:{childId}:{checkpoint.WorldTick}";
-            var suffix = 0;
-            while (next.Relationships.Any(edge => edge.Id == membershipId))
-                membershipId = $"{newHome}:guardian-membership:{childId}:{checkpoint.WorldTick}:{++suffix}";
-            var membership = new SocietyRelationship(membershipId, 1, SocietyRelationshipType.HouseholdMembership,
-                newHome, childId, SocietyRelationshipState.Accepted, SocietyConsentState.Accepted,
-                checkpoint.WorldTick, checkpoint.WorldTick, "household", newHome,
-                [adultId]);
-            var movedRelationships = next.Relationships.Select(edge =>
-                    edge.Type == SocietyRelationshipType.HouseholdMembership && edge.TargetId == childId &&
-                    edge.State == SocietyRelationshipState.Accepted && edge.HouseholdId == child.HouseholdId
-                        ? edge with
-                        {
-                            State = SocietyRelationshipState.Revoked,
-                            Consent = SocietyConsentState.Revoked,
-                            EffectiveTick = checkpoint.WorldTick
-                        }
-                        : edge)
-                .Append(membership).OrderBy(edge => edge.Id, StringComparer.Ordinal).ToArray();
-            next = next with
-            {
-                Inhabitants = next.Inhabitants.Select(person => person.Id == childId
-                    ? person with { HouseholdId = newHome }
-                    : person).OrderBy(person => person.Id, StringComparer.Ordinal).ToArray(),
-                Households = next.Households.Select(household => household.Id == newHome
-                        ? household with
-                        {
-                            MemberIds = household.MemberIds.Append(childId).Distinct(StringComparer.Ordinal)
-                            .Order(StringComparer.Ordinal).ToArray()
-                        }
-                        : oldHome is not null && household.Id == oldHome.Id
-                            ? household with { MemberIds = household.MemberIds.Where(id => id != childId).ToArray() }
-                            : household)
-                    .OrderBy(household => household.Id, StringComparer.Ordinal).ToArray(),
-                Relationships = movedRelationships,
-            };
+            next = moved;
         }
 
         return Commit(next, "dependent_guardian_accepted", $"{adultId}:{childId}", caregiver.Id);
+    }
+
+    /// <summary>
+    /// Finishes the household part of an already accepted guardian placement.
+    /// The runtime must first verify physical arrival and current House capacity;
+    /// this operation preserves care, parentage and domestic family identity.
+    /// </summary>
+    public static SocietyOperationResult PlaceDependentWithGuardian(
+        SocietyCheckpoint checkpoint,
+        string adultId,
+        string childId,
+        string careRelationshipId,
+        int careRevision,
+        string destinationHouseholdId)
+    {
+        Validate(checkpoint);
+        var adult = checkpoint.GetInhabitant(adultId);
+        var child = checkpoint.GetInhabitant(childId);
+        if (adult.Status != SocietyInhabitantStatus.Active ||
+            adult.AgeBand is not (SocietyAgeBand.Adult or SocietyAgeBand.Elder) ||
+            !IsYoungerDependent(child) || child.PrimaryCaregiverId != adultId ||
+            !HasActivePrimaryCaregiver(checkpoint, childId) ||
+            destinationHouseholdId != adult.HouseholdId ||
+            !checkpoint.Households.Any(household => household.Id == destinationHouseholdId) ||
+            !checkpoint.Relationships.Any(edge => edge.Id == careRelationshipId && edge.Revision == careRevision &&
+                edge.Type == SocietyRelationshipType.Caregiver && edge.State == SocietyRelationshipState.Accepted &&
+                edge.ProposerId == adultId && edge.TargetId == childId))
+            return Reject(checkpoint, "care_placement_rejected", "guardian_or_care_changed");
+
+        var next = MoveDependentHousehold(checkpoint, adultId, childId, destinationHouseholdId);
+        return next is null
+            ? Reject(checkpoint, "care_placement_rejected", "missing_dependent_household")
+            : Commit(next, "dependent_guardian_placed", $"{adultId}:{childId}:{destinationHouseholdId}", childId);
+    }
+
+    private static SocietyCheckpoint? MoveDependentHousehold(
+        SocietyCheckpoint checkpoint, string adultId, string childId, string newHome)
+    {
+        var child = checkpoint.GetInhabitant(childId);
+        if (child.HouseholdId == newHome) return checkpoint;
+        var oldHome = child.HouseholdId is { } oldId
+            ? checkpoint.Households.FirstOrDefault(household => household.Id == oldId)
+            : null;
+        var newHomeRecord = checkpoint.Households.FirstOrDefault(household => household.Id == newHome);
+        if (newHomeRecord is null || child.HouseholdId is not null && oldHome is null)
+            return null;
+
+        var membershipId = $"{newHome}:guardian-membership:{childId}:{checkpoint.WorldTick}";
+        var suffix = 0;
+        while (checkpoint.Relationships.Any(edge => edge.Id == membershipId))
+            membershipId = $"{newHome}:guardian-membership:{childId}:{checkpoint.WorldTick}:{++suffix}";
+        var membership = new SocietyRelationship(membershipId, 1, SocietyRelationshipType.HouseholdMembership,
+            newHome, childId, SocietyRelationshipState.Accepted, SocietyConsentState.Accepted,
+            checkpoint.WorldTick, checkpoint.WorldTick, "household", newHome,
+            [adultId]);
+        var movedRelationships = checkpoint.Relationships.Select(edge =>
+                edge.Type == SocietyRelationshipType.HouseholdMembership && edge.TargetId == childId &&
+                edge.State == SocietyRelationshipState.Accepted && edge.HouseholdId == child.HouseholdId
+                    ? edge with
+                    {
+                        State = SocietyRelationshipState.Revoked,
+                        Consent = SocietyConsentState.Revoked,
+                        EffectiveTick = checkpoint.WorldTick
+                    }
+                    : edge)
+            .Append(membership).OrderBy(edge => edge.Id, StringComparer.Ordinal).ToArray();
+        var next = checkpoint with
+        {
+            Inhabitants = checkpoint.Inhabitants.Select(person => person.Id == childId
+                ? person with { HouseholdId = newHome }
+                : person).OrderBy(person => person.Id, StringComparer.Ordinal).ToArray(),
+            Households = checkpoint.Households.Select(household => household.Id == newHome
+                    ? household with
+                    {
+                        MemberIds = household.MemberIds.Append(childId).Distinct(StringComparer.Ordinal)
+                        .Order(StringComparer.Ordinal).ToArray()
+                    }
+                    : oldHome is not null && household.Id == oldHome.Id
+                        ? household with { MemberIds = household.MemberIds.Where(id => id != childId).ToArray() }
+                        : household)
+                .OrderBy(household => household.Id, StringComparer.Ordinal).ToArray(),
+            Relationships = movedRelationships,
+        };
+        return next;
     }
 
     public static bool HasActivePrimaryCaregiver(SocietyCheckpoint checkpoint, string childId)

@@ -311,12 +311,14 @@ everything that is available in the current build. See [what works today](../wha
   chooses its own name after placement; the player can rename it later. Agents
   should choose full names with a surname and may choose a middle name. Do not
   include every existing agent name in the naming prompt merely to avoid
-  collisions. The world rejects an already-taken exact full name and asks the
+  collisions. Under the October 3 decision in
+  [Agents and social life](agents-and-families.md#starting-agents-families-and-life-stages),
+  the world rejects an already-taken chosen first name and asks the
   agent once more; if that also fails, the agent keeps a placeholder name the
   player can change. The comparison covers every agent in the world, including
-  those who have died; similar but distinct names are allowed (see
-  [Agents and social life](agents-and-families.md#starting-agents-families-and-life-stages)).
-  Player renaming follows the same full-name check, as recorded in
+  those who have died; a different surname or middle name does not make a taken
+  first name available. Temporary unnamed placeholders do not reserve a first
+  name. Player renaming follows the same first-name check, as recorded in
   [Player guidance and orders](#player-guidance-and-orders). Cultural naming
   context remains open.
 - **Agreed on September 30:** before the player confirms, Add Agent shows which
@@ -423,10 +425,11 @@ everything that is available in the current build. See [what works today](../wha
   Direct manipulation of those fields belongs in developer tools, whose
   first set is agreed above. This preserves the separately agreed
   founder setup, world settings and Mod Library controls.
-- **Player renaming uses the same full-name check as model naming**, against
-  every other living or deceased agent in the world. A taken full name is
-  rejected; the player supplies another name, without a model retry. Similar
-  but distinct full names remain allowed. Renaming keeps the same person,
+- **Player renaming uses the same first-name check as model naming**, against
+  every other named living or deceased agent in the world. A taken first name is
+  rejected; the player supplies another name, without a model retry. An agent
+  may keep their own first name while changing the rest of their name. Renaming
+  keeps the same person,
   relationships and memories; old conversation text remains as originally
   spoken rather than being rewritten to use the new name.
 
@@ -519,6 +522,12 @@ The recent history should persist with the world save but remain bounded.
 - **Straight top-down** is the chosen art perspective for now: show the tops of
   objects, not isometric sides. Isometric would need a visual comparison before
   reconsideration, and no second isometric asset library is currently planned.
+- **Agreed on October 2:** computment likes the map's square-tile look, which
+  gives the game its own character, so keep it. Coastlines and rivers keep
+  their stepped, tile-by-tile shapes, and forests keep one tree to a tile on
+  their square forest ground; none of them should be smoothed into curves or
+  scattered. All art stays straight top-down: buildings show their roofs, not
+  front walls drawn at an angle.
 - For a given terrain surface, start with roughly **two texture tiles**—for
   example, clean grass and a subtly different grass tile. Small ground details
   belong mainly in those textures, rather than being a large set of separate

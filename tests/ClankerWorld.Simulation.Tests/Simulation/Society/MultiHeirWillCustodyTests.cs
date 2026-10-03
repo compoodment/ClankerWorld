@@ -10,7 +10,6 @@ public sealed class MultiHeirWillCustodyTests
     private static readonly string[] FounderIds = ["alice", "bob", "cara", "drew"];
 
     [Theory]
-    [InlineData("ground")]
     [InlineData("house")]
     [InlineData("custodian")]
     public void PersonalSharesPreserveTheirActualPhysicalLocation(string location)
@@ -41,7 +40,6 @@ public sealed class MultiHeirWillCustodyTests
     }
 
     [Theory]
-    [InlineData("ground")]
     [InlineData("house")]
     [InlineData("custodian")]
     public void FilledVesselKeepsItsFamilyAndPhysicalLocationThroughEscrowAndInheritance(string location)

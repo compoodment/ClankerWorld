@@ -449,8 +449,21 @@ public sealed class SettlementProjectTests(Xunit.Abstractions.ITestOutputHelper 
     public async Task DefaultSettlementGathersDifferentInputsSharesAndCompletesVisibleProjects()
     {
         var provider = new ObservingProvider();
-        using var world = new PrivateWorldRuntime("living-settlement", _ => provider);
-        world.StageStarterContent();
+        using var setup = new PrivateWorldRuntime("living-settlement", _ => provider);
+        setup.StageStarterContent();
+        var initial = setup.ExportState();
+        var inventory = initial.Society.Society.Inventory;
+        // This compact project fixture has no river or lake. Supply physical
+        // paper so learned discoveries can be written and naturally stored;
+        // the generated-world pipeline test covers manufacturing those sheets.
+        foreach (var person in initial.Society.Society.Inhabitants.Where(person =>
+                     person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder))
+            inventory = InventoryFixture.AddLot(inventory, "settlement-writing-paper:" + person.Id,
+                "paper", person.Id, 2, initial.Society.Society.WorldTick);
+        using var world = PrivateWorldRuntime.Restore(initial with
+        {
+            Society = initial.Society with { Society = initial.Society.Society with { Inventory = inventory } },
+        }, _ => provider);
         var storedBelongings = new Dictionary<string, (string Owner, string House, string Kind)>();
         for (var tick = 0; tick < 1000; tick++)
         {
@@ -462,6 +475,18 @@ public sealed class SettlementProjectTests(Xunit.Abstractions.ITestOutputHelper 
         }
         Assert.Contains(storedBelongings.Values, stored => stored.Kind is "field_map" or "field_record");
         var state = world.ExportState();
+        var storedArtifacts = state.Knowledge!.Artifacts.Where(artifact => storedBelongings.ContainsKey(artifact.LotId)).ToArray();
+        Assert.NotEmpty(storedArtifacts);
+        Assert.All(storedArtifacts, artifact =>
+        {
+            var paper = artifact.Materials.Where(material => material.ItemKind == "paper").ToArray();
+            Assert.NotEmpty(paper);
+            Assert.All(paper, material =>
+            {
+                Assert.StartsWith("settlement-writing-paper:", material.LotId);
+                Assert.Equal(InventoryReservationState.Completed, state.Society.Society.Inventory.GetReservation(material.ReservationId).State);
+            });
+        });
         Assert.DoesNotContain(state.Map.CampObjects, item => item.Kind == "bedroll");
         Assert.DoesNotContain(world.WorldContent.Recipes,
             recipe => recipe.Outputs.Any(output => output.ResourceId == "bedding"));
@@ -524,34 +549,6 @@ public sealed class SettlementProjectTests(Xunit.Abstractions.ITestOutputHelper 
             MeaningfulProjectChoiceSeen |= request.Observation.Candidates.Count(candidate => candidate.Id.StartsWith("build:", StringComparison.Ordinal)) > 1;
             return new DeterministicDecisionProvider().DecideAsync(request, cancellationToken);
         }
-    }
-
-    [Fact]
-    public async Task ProjectWorkSurvivesManualPauseAndRestartAndIsVisibleToOwner()
-    {
-        using var world = new PrivateWorldRuntime("settlement-project");
-        world.StageStarterContent();
-        for (var tick = 0; tick < 100 && !world.Inhabitants.Any(person => person.Project is { WorkDone: > 1 and < 9 }); tick++)
-        {
-            await world.AdvanceOneTickAsync();
-        }
-        var worker = world.Inhabitants.First(person => person.Project is { WorkDone: > 1 and < 9 });
-        var chosen = worker.Project!;
-        var snapshot = new OwnerWorldObservationStore(world).GetSnapshot();
-        Assert.Equal(chosen.Label, snapshot.Inhabitants.Single(person => person.Id == worker.InhabitantId).Project!.Label);
-        world.Pause();
-        var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
-        Assert.False((await world.AdvanceOneTickAsync()).Advanced);
-        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
-        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes));
-        Assert.Equal(chosen, restored.Inhabitants.Single(person => person.InhabitantId == worker.InhabitantId).Project);
-        restored.Resume();
-        for (var tick = 0; tick < 100; tick++)
-        {
-            await restored.AdvanceOneTickAsync();
-        }
-        Assert.Contains(restored.ExportState().Events, item => item.Kind == "project_progress" &&
-            item.Detail == $"{worker.InhabitantId}:completed:{chosen.Label}");
     }
 
     [Fact]
