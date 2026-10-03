@@ -56,7 +56,9 @@ def main():
     slowest = sorted(durations.items(), key=lambda item: -item[1])[: args.top]
     print(json.dumps({
         "files": [str(file) for file in files],
-        "executed_cases": sum(cases.values()),
+        "reported_cases": sum(cases.values()),
+        "executed_cases": sum(count for outcome, count in outcomes.items()
+                              if outcome not in {"NotExecuted", "Skipped"}),
         "declarations": len(cases),
         "outcomes": dict(outcomes),
         "total_seconds": round(sum(durations.values()), 1),

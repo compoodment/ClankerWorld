@@ -13,8 +13,9 @@ covers. It can then:
 
 Line coverage is exact. Cobertura gives only a count of branches taken per
 line, not which ones, so a branch union is estimated as the most any single
-remaining test took on that line: a lower bound, so estimated losses are never
-smaller than real ones. Confirm any plan with a full-suite coverage run and
+remaining test took on that line: a lower bound. Removal risk uses an upper
+bound on branches the candidate could cover exclusively, so partial counts
+alone cannot prove zero loss. Confirm any plan with a full-suite coverage run and
 compare_coverage.py.
 """
 
@@ -24,6 +25,8 @@ import re
 import xml.etree.ElementTree as ET
 from collections import defaultdict
 from pathlib import Path
+
+from per_test_coverage import completed_measurement, slug
 
 
 def source_key(filename, sources=()):
@@ -69,12 +72,17 @@ def read_report(path, universe):
 
 def load(folder):
     universe, tests = Universe(), {}
-    for directory in sorted(path for path in folder.iterdir() if path.is_dir()):
+    try:
+        methods = json.loads((folder / "methods.json").read_text())
+    except (OSError, ValueError) as error:
+        raise ValueError(f"Incomplete per-test evidence: {folder}; missing valid methods.json") from error
+    if not isinstance(methods, list) or not methods or not all(isinstance(name, str) and name for name in methods):
+        raise ValueError(f"Incomplete per-test evidence: {folder}; invalid methods.json")
+    for name in sorted(set(methods)):
+        directory = folder / slug(name)
         reports = sorted(directory.rglob("coverage.cobertura.xml"))
-        if not reports:
-            continue
-        name_file = directory / "test.txt"
-        name = name_file.read_text().strip() if name_file.is_file() else directory.name
+        if not completed_measurement(directory, name):
+            raise ValueError(f"Incomplete per-test measurement: {directory}; rerun per_test_coverage.py")
         tests[name] = read_report(reports[0], universe)
     if not tests:
         raise SystemExit(f"No per-test coverage reports under {folder}")
@@ -128,10 +136,12 @@ class Coverage:
         for index, hits in branches.items():
             levels = self.branch_levels[index]
             others = max((value for value, count in levels.items() if count - (value == hits) > 0), default=0)
-            branch_loss += max(0, hits - others)
+            branch_loss += min(hits, self.universe.branch_totals[index] - others)
         return lines, branch_loss
 
     def remove(self, name):
+        if name not in self.remaining:
+            return
         mask, branches = self.tests[name]
         for index in bits(mask):
             self.counts[index] -= 1
@@ -172,7 +182,7 @@ def main():
     result = {"measured_tests": len(tests), "baseline": coverage.totals()}
 
     if args.table:
-        rows = ["test\tlines\tunique_lines\tunique_branches_at_least\tseconds"]
+        rows = ["test\tlines\tunique_lines\tpotential_branch_loss\tseconds"]
         for name in sorted(tests):
             lines, branch_loss = coverage.unique(name)
             rows.append(f"{name}\t{tests[name][0].bit_count()}\t{lines}\t{branch_loss}\t{durations.get(name, 0):.1f}")
@@ -195,7 +205,7 @@ def main():
         keep = set()
         if args.keep:
             keep = {line.strip() for line in args.keep.read_text().splitlines() if line.strip()}
-        order = sorted((name for name in tests if name not in keep),
+        order = sorted((name for name in coverage.remaining if name not in keep),
                        key=lambda name: (coverage.unique(name)[0], -durations.get(name, 0), name))
         removable = []
         for name in order:

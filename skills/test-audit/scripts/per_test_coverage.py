@@ -5,8 +5,8 @@ coverage, several at a time. The coverage collector rewrites the assemblies in
 the test output folder while it runs, so each worker gets its own copy of that
 folder, made next to the original so tests that look for the repository root
 still find it. Each method's results go to <out>/<method>/ with a test.txt
-naming it. A method whose folder already holds a Cobertura report is skipped,
-so an interrupted run can be resumed.
+naming it. A method with a report and a successful completion record is
+skipped, so an interrupted run can be resumed with the same build and settings.
 """
 
 import argparse
@@ -18,6 +18,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 from pathlib import Path
 
@@ -60,6 +61,14 @@ def has_report(folder):
     return folder.is_dir() and any(folder.rglob("coverage.cobertura.xml"))
 
 
+def completed_measurement(folder, method):
+    try:
+        receipt = json.loads((folder / "completion.json").read_text())
+        return receipt == {"method": method, "success": True} and has_report(folder)
+    except (OSError, ValueError):
+        return False
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--assembly", required=True, type=Path, help="the built test assembly (.dll)")
@@ -74,6 +83,8 @@ def main():
                         help="where to run dotnet; it picks the SDK from global.json there, so use "
                              "the folder the baseline was measured from")
     args = parser.parse_args()
+    if args.workers < 1 or args.timeout < 1:
+        parser.error("--workers and --timeout must be positive")
 
     assembly = args.assembly.resolve()
     if not assembly.is_file():
@@ -82,20 +93,24 @@ def main():
     if adapter is None or not adapter.is_dir():
         parser.error("cannot find the coverlet collector; restore the test project or pass --adapter-path")
     methods = [line.strip() for line in args.methods.read_text().splitlines() if line.strip()]
+    methods = list(dict.fromkeys(methods))
     args.out.mkdir(parents=True, exist_ok=True)
-    pending = [name for name in methods if not has_report(args.out / slug(name))]
+    (args.out / "methods.json").write_text(json.dumps(methods))
+    pending = [name for name in methods
+               if not completed_measurement(args.out / slug(name), name)]
     print(f"{len(methods)} methods, {len(methods) - len(pending)} already measured, {len(pending)} to run", flush=True)
 
     work = queue.Queue()
     for name in pending:
         work.put(name)
-    failures, lock, done = [], threading.Lock(), [0]
+    failures, worker_errors, lock, done = [], [], threading.Lock(), [0]
 
-    def worker(index):
-        copy = assembly.parent.with_name(f"{assembly.parent.name}.coverage-worker{index}")
-        shutil.rmtree(copy, ignore_errors=True)
-        shutil.copytree(assembly.parent, copy)
+    def worker():
+        copy = None
         try:
+            copy = Path(tempfile.mkdtemp(prefix=assembly.parent.name + ".coverage-worker-",
+                                         dir=assembly.parent.parent))
+            shutil.copytree(assembly.parent, copy, dirs_exist_ok=True)
             while True:
                 try:
                     name = work.get_nowait()
@@ -115,25 +130,36 @@ def main():
                     output = result.stdout[-2000:] + result.stderr[-2000:]
                 except subprocess.TimeoutExpired:
                     ok, output = False, "timed out"
+                except OSError as error:
+                    ok, output = False, str(error)
                 (folder / "run.log").write_text(output)
+                if ok:
+                    (folder / "completion.json").write_text(json.dumps({"method": name, "success": True}))
                 with lock:
                     done[0] += 1
                     if not ok:
                         failures.append(name)
                     if done[0] % 25 == 0 or not ok:
                         print(f"{done[0]}/{len(pending)}{'' if ok else ' FAILED ' + name}", flush=True)
+        except Exception as error:
+            with lock:
+                worker_errors.append(str(error))
         finally:
-            shutil.rmtree(copy, ignore_errors=True)
+            if copy is not None:
+                shutil.rmtree(copy, ignore_errors=True)
 
-    threads = [threading.Thread(target=worker, args=(index,)) for index in range(args.workers)]
+    threads = [threading.Thread(target=worker) for _ in range(min(args.workers, len(pending)))]
     for thread in threads:
         thread.start()
     for thread in threads:
         thread.join()
-    print(f"finished: {len(pending) - len(failures)} measured, {len(failures)} failed", flush=True)
+    unfinished = len(pending) - done[0]
+    print(f"finished: {done[0] - len(failures)} measured, {len(failures)} failed, {unfinished} unfinished", flush=True)
     for name in failures:
         print(f"failed: {name}", file=sys.stderr)
-    return 1 if failures else 0
+    for error in worker_errors:
+        print(f"worker failed: {error}", file=sys.stderr)
+    return 1 if failures or worker_errors or unfinished else 0
 
 
 if __name__ == "__main__":
