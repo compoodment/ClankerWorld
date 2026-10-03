@@ -2,7 +2,7 @@
 title: Playing the current game
 type: player-guide
 status: active
-updated: 2026-10-02
+updated: 2026-10-03
 ---
 
 # Playing the current game
@@ -149,6 +149,13 @@ who may use it, when it was built, which side its door faces, the work in
 progress, a larger storage grid with each item's name, and who is inside or
 lives there. Back (or **Escape**) returns to the small card.
 
+Every day has a night, from 19:12 to 04:48 on the clock in the top bar, with a
+short dusk and dawn. In a six-minute day that is about 2 min 24 s of night. The
+map turns a gentle dark blue but stays readable; names, agents and panels keep
+their daytime colors. Nights are colder outdoors, so an agent with no clothing,
+shelter or fire loses warmth, and their warmth bar shows it. A new world starts
+at midnight.
+
 Click bare ground to inspect the recorded facts there. Agents take priority
 when they overlap the pointer. **Event Log** shows important events under a
 heading for each day, each with an icon for its kind. An event with a known
@@ -190,9 +197,38 @@ An ordinary proposal stays open for one unpaused world day unless its result
 is settled earlier. A four-person council needs three yes votes, and an elected
 three-seat council needs two. Silence supplies no approval. Election ballots
 may change until closing, while cast proposal votes are final. Pausing stops
-these windows and council terms. Passed admission requests are recorded, but
-the separate process for joining a Town has not been connected yet; approval
-alone gives no household place or access to stored goods.
+these windows and council terms.
+
+An agent belongs to one Town or none. Traveling, visiting or losing a home
+does not change it. An adult with no Town, such as one you add outside the
+border, can walk to a Town's notice place and ask its council for admission. A
+resident can also ask the council to admit an adult nearby who has no Town, and
+that adult chooses whether to accept once they read the approval. Dependent
+children join with their caregiver. Once admitted, a resident may collect their
+Town's Warehouse stock in person, but approval never gives a House or household
+place. The agent's Profile shows their Town, what it lets them do and any
+admission in progress, and the Event Log notes approvals, admissions and
+approvals that no longer apply.
+
+Residents can also propose laws as a **subject: rule**, applying to the Town's
+claimed land, a nearby recorded site, or residents wherever they travel. Council
+votes adopt, amend or repeal them. The Towns page shows their scope and effective
+dates. These are social rules: they do not physically prevent violations or
+change who owns a building or its goods.
+
+A resident at the Town's notice place can propose changing government without
+the incumbent's permission.
+The one-day resident vote needs a majority of its opening adult electorate;
+death or departure removes a voter, while travel does not. Approval begins a
+handover of at most three days. The Towns page distinguishes an approved proposal
+from a completed handover and explains a failed transition.
+
+An elected mayor may hold the land mandate, ordinary governing authority, or
+both separately. Candidates personally agree to those specific mandates.
+Residents choose one candidate and may revise their ballot. A tie means another
+vote, never a draw. The term lasts twenty days, and a vacancy needs a new election.
+Pausing stops votes, terms and handovers. The page shows officeholders and vacant
+mandates; land hearings and enforcement have not been implemented yet.
 
 ## Pause, settings and controls
 
@@ -245,8 +281,10 @@ or choose **Allow 100 more calls**, then resume separately.
 
 **Save World** creates a named save for the current world. Its name starts as
 the world's date, so **Save** works straight away; type another name first if
-you like. To overwrite a save, choose its card, then **Overwrite**, and confirm;
-typing the same name does not overwrite it. World Settings offers rotating
+you like. The card under the timeline says whether the new save continues a
+branch or starts a new one. To overwrite a save, choose it, then **Overwrite**,
+and confirm; typing the same name does not overwrite it. Autosaves can't be
+overwritten. World Settings offers rotating
 autosaves as well as automatic recovery. **Load World** shows each world as a
 card with a small map of it, when it was last saved and its seed, and marks the
 current world and any it cannot open. Double-click a card, or choose it and
@@ -254,12 +292,21 @@ current world and any it cannot open. Double-click a card, or choose it and
 and Delete are unavailable while another world action finishes.
 
 To go back to an earlier save, choose the current world in Load World and
-**Load a save...**, then pick a save and **Load**. Your world as it was is saved
-first. Playing on from an older save starts a new **branch**, so the saves from
-the first version of events stay as they were. When a world has more than one
-branch, each save card names its branch, such as **Branch 2**, and each branch's
-newest save is marked **Latest**. Saves from before branches existed are listed
-as **Earlier saves**. To load a save of another world, open that world first.
+**Load a save...**, then pick a save and **Load**, or double-click it. Your world
+as it was is saved first. Playing on from an older save starts a new **branch**,
+so the saves from the first version of events stay as they were. To load a save
+of another world, open that world first.
+
+Load Save and Save World open on a **timeline** of the world's saves: a line for
+each branch across the world's days, with the seasons along the top. A new
+branch bends down from the save it grew from. Each branch's newest save has a
+small banner, older saves are open circles and autosaves are small diamonds;
+the key above the timeline shows which is which. **You are here** marks the
+world as it is now, at the end of its branch, or on a dotted **New branch** row
+when your next save will start one. Click a save to see it described
+underneath; the arrow keys also move between saves. **List** shows the saves as
+cards instead, grouped by branch, with tags such as **Branch 2** and **Latest**.
+Saves from before branches existed are shown as **Earlier saves**.
 
 **Quit to Menu** and Main Menu **Quit Game** ask for confirmation. Closing the
 last client stops time and model work after about five seconds. Returning makes
