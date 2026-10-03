@@ -202,6 +202,21 @@ cancelled". Quantities count food actually eaten or gathered; travel finishes
 on arrival at the food source. Eating waits until the agent is hungry enough,
 and a full load blocks gathering with a reason.
 
+Orders also gather wood, stone, plant fiber, clay, iron ore, gold ore and diamond
+through the ordinary material-gathering rules. Adults and elders can take one
+load, a requested quantity, or repeat until cancelled. Quantities count real
+goods; the last whole load may exceed the requested number. A usable tool of
+the required tier and enough carrying space are still needed, including room
+for seeds from a felled tree. Tools wear and sources deplete normally. An agent
+may collect an accessible shared tool before gathering.
+
+Use "gather clay", "gather five wood", "keep gathering stone", or an exact
+resource identifier after "from". "Gather iron ore at (12, 4)" checks that tile
+without choosing a substitute. Unspecified sites use the agent's known or
+nearby observed resources, with ordinary exploration when none is available.
+Unknown explicit sites require travel and observation before gathering. Queue,
+cancellation, urgent survival interruptions and progress survive save/reload.
+
 Orders also support exact-tile movement: "Move to tile (12, 4)", "Go to (12, 4)"
 or "Travel to (12, 4)". They use ordinary walking routes and travel delays,
 finish only on the requested tile, and wait when it is occupied or unreachable.
@@ -499,6 +514,9 @@ and natural storm cover. This is a basic
 version: it has not been checked by hand in the Windows game yet. New Shelters,
 Storehouses,
 Cooking fires and Stone hearths are retired; standing ones in old saves remain.
+Cold adults use hearths they can reach. A blocked hearth does not keep them
+from tending another reachable hearth or seeking natural storm cover; wood
+is used only after they arrive.
 The Weaving frame and its woven clothing are gone. Each starting agent's
 garment waits in their household's House, and new clothing comes only from a
 household's Tailor Shop.
@@ -519,8 +537,12 @@ room for the whole yield, including orchard seeds. A hungry adult can make room
 for one permitted household serving when spare supplies can be set down. An
 accepted caregiver can also make room to feed a hungry infant, even when
 already well fed. The spare supplies go to the House if it has room or to the
-camp pile otherwise. Maps, field records, books, worn gear, gear being repaired and
-reserved goods stay carried. Exploring still teaches
+camp pile otherwise, with tools set down after other ordinary supplies. Maps,
+field records, books, worn gear, gear being repaired and reserved goods stay
+carried. If urgent hunger leaves no other way to make enough room, an adult may
+set down some of their own reserved orchard seeds too. Only the seeds actually
+stored lose their planting reserve; the seeds remain household property for
+later planting. Exploring still teaches
 personal knowledge when there is no paper or room for a written copy.
 Broken or spoiled spare cargo can also be set down without losing it.
 A filled jug moves home as one load when the adult has room for the jug and
@@ -586,7 +608,8 @@ the tile card and hover readout, and walked at dry-ground speed. When a Town gro
 running on past a door crosses a river up to two tiles wide on a new bridge.
 Households can plan new buildings, whose streets may need a bridge; the
 starting layout keeps its streets on dry land. No bridge is added where one already joins the same river
-banks. Road links between Towns are unfinished, and bridges have not been
+banks and agents can walk along both banks to reach it. Peaks that block either
+bank can leave room for another needed crossing. Road links between Towns are unfinished, and bridges have not been
 checked in hands-on Windows play.
 
 Resources can deplete or regrow. Each tile holds at most one tree. Wood trees
