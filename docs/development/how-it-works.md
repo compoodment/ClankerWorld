@@ -56,9 +56,13 @@ host's versioned HTTP contract. Legacy web assets are diagnostic tools.
 
 The current host aims for one tick per real second. New worlds save 360 ticks
 per day and a 40-day year with four ten-day seasons; lifecycle thresholds are
-3/15/45/60 days. Load can affect real-time pace. The old development calendar
+3/15/45/60 days. Newly created playable worlds start at 06:00 on Spring 1,
+Year 1. A saved 90-tick calendar offset sets that clock while elapsed world
+time still begins at zero, preserving founder setup, seeded ages and elapsed
+deadlines. Calendar dates and daily conversation allowances turn over at the
+displayed midnight. Load can affect real-time pace. The old development calendar
 is not silently reinterpreted; the observation carries the saved clock values.
-Its calendar pace includes the saved season lengths, so the game names dates
+Its calendar pace includes the saved season lengths and clock offset, so the game names dates
 such as Autumn 2, Year 1 from the world's own calendar instead of a copy. With
 no season lengths, from an older host, the game shows numeric dates.
 
@@ -86,8 +90,8 @@ the same limits a save applies, so an accepted message cannot leave the world
 unable to save.
 
 `ParseInstructionOrder` reads a complete, bounded grammar for eating food,
-seeking a food source, harvesting food, gathering supported raw materials and
-moving to an exact tile. Harvest and food-source travel orders must name a
+seeking a food source, harvesting food, gathering supported raw materials,
+storing or collecting personal raw materials and moving to an exact tile. Harvest and food-source travel orders must name a
 supported kind or resource; explicit resource names must match a complete
 identifier and the requested kind. Unsupported
 objects or operations, mixed tasks, unknown explicit targets, and invalid
@@ -132,6 +136,30 @@ the existing dependent-care transition. Completion requires the actual primary
 care assignment. A search that closes first leaves the order blocked rather
 than replacing its accepted guardian. Queue, cancellation, stale-response
 checks and urgent survival interruptions use the common order lifecycle.
+
+Storage orders reuse the material-kind catalogue and normal personal-storage
+eligibility. `StorePersonalGoods` serves both ordinary choices and orders: it
+walks to the House entrance, then uses `InventoryFixture.Relocate` to preserve
+ownership, condition and provenance. Reserved goods, promised deliveries,
+container contents, food and selected equipment are excluded. Only a committed
+relocation receipt advances the order; its identity is hashed to a fixed length
+because split inventory identifiers can grow. Walking and survival actions earn
+no storage progress. Default tasks count one stored lot, while explicit quantities
+limit the final relocation to the remaining amount. Repetition keeps waiting
+for further personal material or space until cancelled. The destination is the
+agent's current household House; named foreign buildings and map coordinates
+are not recognized storage targets.
+
+Collection orders use `PersonalGoodsAwaitingCollection` and the shared
+`CollectPersonalGoods` action. The actor must own the lot, which cannot be
+carried, reserved in full, promised for delivery or inside another container.
+Storage must belong to the current household or one recorded in that actor's
+departures. Ground lots use normal pickup range. The nearest reachable eligible
+lot is chosen, with stable identity ordering for ties; an explicit source is
+not yet recognized. Physical pickup preserves ownership, condition, provenance
+and reserved portions, with the final quantity capped by carrying space and
+the requested remainder. Only the committed relocation earns progress, using
+a bounded hashed receipt. Former-household collection grants no other access.
 
 A MustDo with no recognized action is closed when it is submitted: it is added
 to the completed instructions with an `instruction_not_understood` event
@@ -224,8 +252,8 @@ does not establish arbitrary mid-tick rollback or crash durability.
 
 ### Time of day and night
 
-Time of day is worked out from the saved tick and the world's saved ticks per
-day; nothing about it is saved. `DaylightRules` follows the 24-hour clock the
+Time of day is worked out from the elapsed tick, the world's saved ticks per
+day and its calendar offset. Darkness itself is not saved. `DaylightRules` follows the 24-hour clock the
 game shows, where a tick's clock minute is its tick of day × 1,440 ÷ ticks per
 day. Night is 40% of every day, the same all year
 ([#641](https://github.com/compoodment/ClankerWorld/issues/641)), centred on
@@ -233,8 +261,10 @@ midnight: 19:12 to 04:48. Dusk and dawn each fade over the clock hour centred
 on those times (18:42–19:42 and 04:18–05:18), so the darker half of each fade
 counts as night and night covers exactly 40% of the day. At 360 ticks a day
 that is 144 ticks of night with 15-tick fades. Darkness is reported in basis
-points, 0 in daylight and 10,000 at full night. Tick 0 is midnight, so a new
-world, and its founder setup, starts at night.
+points, 0 in daylight and 10,000 at full night. New playable worlds and their
+founder setup begin at 06:00, after the dawn fade. A saved zero-offset world
+keeps midnight at elapsed tick zero. The first day of a new world therefore
+has 18 hours left; later days retain their full duration.
 
 Night adds a provisional chill of 15 exposure points per tick at full night,
 faded in and out with the darkness (`NightChillAtFullDarkness`). It is added to
@@ -498,6 +528,11 @@ does not create another physical copy. Barter transfers the existing lot and
 teaches its recipient, without granting access to unrelated knowledge or
 anyone else's private stock.
 
+Outward scouting checks occupied destinations and both diagonal corner tiles
+before ranking neighboring exits. If no legal outward exit remains, the scout
+uses the existing return path instead of repeatedly targeting a blocked corner.
+Only completed movement adds a visited tile.
+
 If intervening legal movement interrupts outward scouting, a new outward path
 starts at the actual position without inventing missing steps. On the return
 leg, recorded visited tiles are waypoints: the actor routes from its current
@@ -653,7 +688,10 @@ one quarter after climate and latitude adjustments. The removed share goes to
 clear and cloudy weather. Integer weights use four units per old weight point,
 so small weights keep the same exact reduction. Explicit custom weather
 profiles retain their declared weights. Episode neighbor and persistence
-bonuses use the same weight scale. Further tuning remains provisional in
+bonuses use the same weight scale. Custom profile totals may reach
+`int.MaxValue`; climate conversion uses wider intermediate arithmetic, and
+episode weights remain wide through persistence bonuses and storm cooldown.
+These adjustments cannot wrap into negative weights. Further tuning remains provisional in
 [#204](https://github.com/compoodment/ClankerWorld/issues/204).
 Wet neighbors add at most four rain-weight points;
 a reduction to base precipitation weights offsets that bonus. The fixed-seed
@@ -868,6 +906,13 @@ Each `TownRuntimeState` carries its own `TownGovernanceState`. `TownGovernanceRu
 implements all-adult and representative councils from recorded living adult
 residents, independently of geometry and household affiliation. A separate
 `SettlementCouncil` remains the household-food steward prototype.
+
+Household food-policy ballots last 120 ticks and can pass through their saved
+`ExpiryTick`, inclusive, with a strict majority of the remaining eligible
+electorate. After that tick, resolution closes the ballot without changing the
+food policy, even if a death reduces the number of approvals needed. Resolution
+records its tick and adopted or rejected event, then clears the pending ballot;
+save/load preserves the original deadline and votes.
 
 The civic engine keeps final proposal votes, continuing candidate agreements,
 opening voter/candidate lists, latest election ballots, cutoff runoffs, settled
@@ -1094,7 +1139,10 @@ household planning and ownership rules, with 1×1 and 1×2 footprints.
 Harvests remain household-owned lots on their actual field tile. An adult
 carries a load of at most four raw crops or planting items to the household's Farmhouse or Silo.
 Each holds a provisional 96 items, counting deliveries already on their way;
-pickup and delivery both check remaining space. Grain prefers the Farmhouse,
+pickup and delivery both check remaining space. Source selection checks the
+adult's route to each pile or vessel and the route from there to farm storage;
+an earlier blocked source does not hide later reachable stock. The same checks
+run again when the hauling action executes. Grain prefers the Farmhouse,
 while other farm stock prefers the Silo. Ready-to-eat greens and fruit go to
 the household's House. Neither stock nor ownership moves
 remotely.
@@ -1168,16 +1216,22 @@ a home.
 provides three permanent-resident places per footprint tile, or four per tile
 when one explicitly recorded domestic family unit has at least two residents
 and a strict majority of the House's residents. The unit is saved separately
-from ancestry; traveling residents and infants count, dead people and invited
+from ancestry. A partnership changes these units only when it is accepted or
+when an accepted partnership ends. Withdrawing, refusing or expiring an
+unaccepted proposal leaves each person's existing unit and the resulting
+House limit alone. Traveling residents and infants count, dead people and invited
 storm guests do not. Joining a household is offered only when the proposed
 resident fits after their arrival is counted. The server checks again after
 unanimous admission, and Add Agent checks the selected household property
 before placement. A birth always goes to the primary caregiver's current
 household, even when that puts the House over its limit; the building card,
 agent context and the newborn's saved housing status show the resulting need.
-An unavailable House is recorded the same way without delaying birth. This
-status gives dependents no adult admission or construction choices. House
-expansion can start for a
+An unavailable House is recorded the same way without delaying an agreed birth.
+The birth still needs food and an unoccupied, buildable tile for the newborn:
+near an accessible shelter, or near the primary caregiver when there is none.
+Losing a House does not bypass the food or consent checks. This status gives
+dependents no adult admission or construction choices. House expansion can
+start for a
 storage need or when there is no resident place, but added places use only the
 completed footprint. Unfinished expansion does not reserve room for another
 resident.
@@ -1411,6 +1465,10 @@ New proposals for Shelters, Storehouses, Cooking fires and Stone hearths are
 retired. Existing buildings, projects and recorded proposals remain for old-world
 compatibility. Approved owner building designs stay active but are not household
 kinds, so agents do not plan them; they wait for shared buildings. House fires supply heat. General invention is later Workshop work.
+Fire-tending selects an unlit hearth the adult can reach, using the same
+household access and interaction distance as movement. Selection is repeated
+when tending begins, so changed occupancy can redirect the adult to another
+hearth or leave warmth-seeking available. Fuel is consumed only at the hearth.
 
 Clothing comes from a household's Tailor Shop (`clankerworld-tailor-v1`), which
 replaced the Weaving frame and its "Woven clothing" recipe outright. The shop
@@ -1626,8 +1684,12 @@ Road tiles, the building's entrance and new bridges are then committed together
 in the same tick, and the border grows around the new Road tiles on both banks.
 If there is no legal side street, nothing changes and a `town_road_unconnected`
 event records the reason (`no_entrance`, `route_unavailable` or
-`redundant_crossing`). A bridge with Road at both ends joins its two streets,
-so the run-on rule does not treat either end as a dead end.
+`redundant_crossing`). A bridge with Road at both ends counts as a link between
+them when finding street ends. If that bridge is an end's only link, its
+canonical entrance order supplies the outward heading for the run-on. This
+keeps the street heading away from the river across the east/west world seam,
+including on narrow wrapped maps. The same clearance and three-tile frontage
+checks apply.
 
 **Same connected banks.** Two crossings join the same banks only when they
 cross the same river, joined through its water, and each end of one reaches an
@@ -1637,7 +1699,13 @@ break the connection, while walkable Mountain terrain does not. A tributary
 mouth or a separate stream breaks the shore, so a bridge over a
 different nearby stream never blocks another. There is no distance limit; the
 comparison examines at most 4,096 river tiles and, if that runs out, does not
-treat the banks as the same. Along one unbranched stretch of river this allows
+treat the banks as the same. It first checks the shore beside the connecting
+water path. If that is incomplete because the river widens, it follows the
+water between the crossing spans to include the wider shore, staying within
+eight tiles of the connecting water. The spans and that reach stop the
+expansion from going around distant headwaters and joining separate
+tributaries; a locally proven connection needs no whole-river search.
+Along one unbranched stretch of river this allows
 one bridge, however long the stretch. A new crossing over the same banks as an
 existing bridge is not built; a Road uses the existing bridge instead, and one
 route never builds two bridges over the same banks.
@@ -1949,6 +2017,16 @@ skill name so older clients can still display it; new code calls it `Skill`.
 This is separate from the saved lesson record, which now stores a skill.
 
 ## World-list requests
+
+The private host can retain an untouched, nongenerated bootstrap checkpoint
+before the player creates a world. Its founder observation reports
+`requiresWorldCreation`; this is derived from the saved state, independent of
+whether the response includes cached terrain. Continue and Load World route
+that observation into the ordinary New World screen before entering play or
+resuming time. Preview selection, explicit acceptance of missed coverage
+targets and signed creation remain the only way through that screen. The
+redirect neither replaces the checkpoint nor removes its catalog entry, and
+founders or authored progress prevent it.
 
 The manual Save World and Load Save dialog owns one list read per opening.
 Closing it, creating, overwriting or deleting a save, or starting another opening

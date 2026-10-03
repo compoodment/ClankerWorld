@@ -726,6 +726,20 @@ public sealed class TownMembershipTests
         var proposal = pending.Proposals[0].Id;
         Assert.Equal(none + " · admission to Second Town pending until world day 2; grants nothing yet",
             Describe(outsider, second with { Governance = pending }));
+        // The deadline is one full day after tick zero. In a world that starts
+        // part-way through its first day it still falls on calendar day 2, and
+        // a deadline just short of the first midnight stays on day 1.
+        var deadline = pending.Proposals[0].DeadlineTick;
+        Assert.Equal(day, deadline);
+        string? Morning(TownGovernanceState governance, int offset) => TownMembershipText.Describe(
+            [first, second with { Governance = governance }], society, outsider, day,
+            new HashSet<string>([First], StringComparer.Ordinal), calendarOffsetTicks: offset);
+        Assert.Equal(none + " · admission to Second Town pending until world day 2; grants nothing yet", Morning(pending, day / 4));
+        var early = pending with { Proposals = [pending.Proposals[0] with { DeadlineTick = day - day / 4 - 1 }] };
+        Assert.Equal(none + " · admission to Second Town pending until world day 1; grants nothing yet", Morning(early, day / 4));
+        var atMidnight = pending with { Proposals = [pending.Proposals[0] with { DeadlineTick = day - day / 4 }] };
+        Assert.Equal(none + " · admission to Second Town pending until world day 2; grants nothing yet", Morning(atMidnight, day / 4));
+        Assert.Equal(none + " · admission to Second Town pending until world day 1; grants nothing yet", Morning(atMidnight, 0));
         Assert.Equal(none, Describe(outsider, second with { Governance = pending }, knows: (_, _, _) => false));
 
         var passed = TownGovernanceRules.SubmitProposal(council, Second, voter, "admission", outsider, "Admit them.", "council:0", [voter], 0, day);
@@ -978,7 +992,7 @@ public sealed class TownMembershipTests
         {
             WorldSystems = RegionalWeatherRules.Initialize(state.WorldSystems! with
             {
-                Config = state.WorldSystems.Config with { TicksPerDay = day },
+                Config = state.WorldSystems.Config with { TicksPerDay = day, CalendarOffsetTicks = 0 },
                 RegionalWeather = null,
             }, state.Map),
             Society = state.Society with

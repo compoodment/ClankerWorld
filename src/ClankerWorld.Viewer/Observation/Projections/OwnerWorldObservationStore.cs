@@ -96,7 +96,7 @@ public sealed class OwnerWorldObservationStore
 
     public ViewerHandshake GetOwnerHandshake() => new(
         new ProtocolVersion(Major: 1, Minor: 1),
-        privateRuntime is null ? OwnerServerCapabilities.ToArray() : [.. OwnerServerCapabilities, "owner-life-pace.v1", "owner-jev-assistance.v1", "owner-building-design.v1", "owner-terrain-delta.v1"],
+        privateRuntime is null ? OwnerServerCapabilities.ToArray() : [.. OwnerServerCapabilities, "owner-life-pace.v1", "owner-jev-assistance.v1", "owner-building-design.v1", "owner-terrain-delta.v1", "owner-observation-timeline.v1"],
         OwnerClientCapabilities.ToArray());
 
     public ViewerWorldSnapshot GetSnapshot()
@@ -133,7 +133,7 @@ public sealed class OwnerWorldObservationStore
     {
         if (privateRuntime is not null)
         {
-            var (state, diagnostics) = privateRuntime.ExportStateWithDiagnostics();
+            var (state, diagnostics, timeline) = privateRuntime.ExportObservation();
             var privateSnapshot = ToSnapshot(state, diagnostics, knownTerrainWorldId, knownTerrainDigest,
                 knownMapLayersDigest);
             return new ViewerReconnectBaseline(
@@ -144,7 +144,8 @@ public sealed class OwnerWorldObservationStore
                     state.Events
                         .Where(worldEvent => worldEvent.EventId > afterEventId)
                         .Select(ToEvent)
-                        .ToArray(), state.EventHistoryFloor, afterEventId < state.EventHistoryFloor));
+                        .ToArray(), state.EventHistoryFloor, afterEventId < state.EventHistoryFloor),
+                new ViewerObserverTimeline(timeline.InstanceId, timeline.Generation));
         }
 
         var capture = ownerRuntime!.Capture(afterEventId);
@@ -236,6 +237,29 @@ public sealed class OwnerWorldObservationStore
         };
     }
 
+    private static bool RequiresWorldCreation(PrivateWorldRuntimeState state)
+    {
+        // This is a presentation decision about the captured save, not a new
+        // world or a save migration. Keep any authored work accessible, even
+        // when its founders or buildings have since been removed.
+        return state.Geography is null &&
+            state.FounderSetup is { Started: false, FounderIds.Count: 0 } &&
+            state.Society.Society is { WorldTick: 0, IsPaused: true, Inhabitants.Count: 0, EventHistoryFloor: 0 } &&
+            state.Inhabitants.Count == 0 && state.DeceasedInhabitants is null or { Count: 0 } &&
+            state.Content is { Packages.Count: 0, Events.Count: 0 } &&
+            state.WorldContent is { Buildings.Count: 0, Recipes.Count: 0 } &&
+            state.WorldSimulation is { Buildings.Count: 0, ProductionJobs.Count: 0 } simulation &&
+            simulation.CropBuilds is null or { Count: 0 } &&
+            simulation.BuildingExpansions is null or { Count: 0 } &&
+            simulation.GuestInvitations is null or { Count: 0 } &&
+            state.Fields is null or { Count: 0 } && state.RoadTiles is null or { Count: 0 } &&
+            state.Bridges is null or { Count: 0 } && state.Instructions is null or { Count: 0 } &&
+            state.EventHistoryFloor == 0 && state.HistoryArchiveHead is null &&
+            state.Events.All(item => item.Kind is "world_created" or "town_founding_started" or "continuity_rule_on" or "paused") &&
+            state.Society.Society.Events.All(item => item.Kind is "household_created" or "paused") &&
+            state.Society.Society.Inventory.Events.Count == 0;
+    }
+
     private static ViewerWorldSnapshot ToSnapshot(PrivateWorldRuntimeState state, PrivateWorldDiagnostics diagnostics,
         string? knownTerrainWorldId = null, string? knownTerrainDigest = null,
         string? knownMapLayersDigest = null)
@@ -255,6 +279,34 @@ public sealed class OwnerWorldObservationStore
                 id, inhabitantsById.GetValueOrDefault(id)?.Name ?? id,
                 election.Ballots.Count(ballot => ballot.Choices.Contains(id, StringComparer.Ordinal)))).ToArray(),
             election.SettledSeats.Select(id => inhabitantsById.GetValueOrDefault(id)?.Name ?? id).ToArray());
+        ViewerTownProjectPlan ProjectPlan(TownProjectPayload plan, string proposerId)
+        {
+            var definition = buildingDefinitions?.GetValueOrDefault(plan.DefinitionId) ?? TownHallContent.Hall3x4();
+            return new ViewerTownProjectPlan(plan.Name, proposerId,
+                inhabitantsById.GetValueOrDefault(proposerId)?.Name ?? proposerId,
+                plan.DefinitionId, definition.DisplayName, ToPosition(plan.Site), ToPosition(plan.Entrance),
+                definition.Width, definition.Height,
+                plan.Budget.Select(q => new ViewerTownProjectBudget(q.ResourceId, q.Amount)).ToArray());
+        }
+        ViewerCivicProposal ProjectProposal(TownProposal proposal) => new(proposal.Id, proposal.Kind,
+            proposal.Text, proposal.Status, proposal.Votes.Count(v => v.Yes), proposal.Votes.Count(v => !v.Yes),
+            proposal.RequiredYes, proposal.DeadlineTick)
+        {
+            Project = proposal.Project is { } plan ? ProjectPlan(plan, proposal.AuthorId) : null,
+        };
+        ViewerTownProject ProjectConstruction(TownRuntimeState town, TownConstructionProject project)
+        {
+            // Approval belongs to the full civic ledger, even when it is older than the recent proposal list.
+            var approval = town.Governance!.Proposals.Single(p => p.Id == project.ProposalId);
+            var plan = ProjectPlan(project.Plan, approval.AuthorId);
+            return new ViewerTownProject(project.Id, project.ProposalId, plan.Name, plan.ProposerId,
+                plan.ProposerName, plan.DefinitionId, plan.DisplayName, plan.Site, plan.Entrance,
+                plan.Width, plan.Height, project.Plan.Budget.Select(q => new ViewerTownProjectMaterial(
+                    q.ResourceId, q.Amount, TownProjectRules.DeliveredQuantity(project, town.Id,
+                        state.Society.Society.Inventory, q.ResourceId))).ToArray(),
+                project.WorkDone, TownProjectRules.WorkTicks, project.Stage, project.Blocker,
+                project.CompletedBuildingId, ProjectProposal(approval));
+        }
         var physicalById = state.Inhabitants.ToDictionary(item => item.InhabitantId, StringComparer.Ordinal);
         var deceasedById = (state.DeceasedInhabitants ?? []).ToDictionary(item => item.InhabitantId, StringComparer.Ordinal);
         var resourceStates = state.Resources.ToDictionary(item => item.ResourceId, item => item.State, StringComparer.Ordinal);
@@ -395,6 +447,7 @@ public sealed class OwnerWorldObservationStore
             FounderSetup = state.FounderSetup is { } setup
                 ? new ViewerFounderSetup(PrivateWorldRuntime.RequiredFounders, setup.FounderIds.Count, setup.Started)
                 {
+                    RequiresWorldCreation = RequiresWorldCreation(state),
                     CanChooseTownSite = state.Geography is not null && !setup.Started && setup.FounderIds.Count == 0,
                     HasAcceptedTownSite = (state.Towns ?? []).Any(town => town.OriginSite is not null),
                     LastFounderId = !setup.Started && setup.FounderIds.Count > 0
@@ -420,12 +473,18 @@ public sealed class OwnerWorldObservationStore
                                         ? " Exact tiles: " + TownLandClaimRules.DescribeTiles(landRequest.Tiles) + ". " +
                                             LandRequestApprovalDetail(state, landRequest, landRequest.Tiles.Any(tile => TownLandRightsRules.IsDisputed(tile,
                                                 state.HouseholdLandUseRights ?? [], state.HouseholdLandUseRequests ?? []))) : ""), p.Status,
-                            p.Votes.Count(v => v.Yes), p.Votes.Count(v => !v.Yes), p.RequiredYes, p.DeadlineTick)).ToArray(),
+                            p.Votes.Count(v => v.Yes), p.Votes.Count(v => !v.Yes), p.RequiredYes, p.DeadlineTick)
+                        {
+                            Project = p.Project is { } plan ? ProjectPlan(plan, p.AuthorId) : null,
+                        }).ToArray(),
                         civic.Election is { } election ? ProjectElection(election) : null)
                     {
                         LatestElection = civic.ElectionHistory.Count > 0
                             ? ProjectElection(civic.ElectionHistory[^1]) : null,
                     } : null,
+                    Projects = item.Projects.OrderBy(project => project.ApprovedTick)
+                        .ThenBy(project => project.Id, StringComparer.Ordinal)
+                        .Select(project => ProjectConstruction(item, project)).ToArray(),
                 })
                 .ToArray(),
             TownLandTitles = (state.TownLandTitles ?? []).OrderBy(item => item.Id, StringComparer.Ordinal)
@@ -472,7 +531,8 @@ public sealed class OwnerWorldObservationStore
             CalendarPace = state.WorldSystems is { } worldSystems
                 ? new ViewerCalendarPace(worldSystems.Config.TicksPerDay, worldSystems.Config.DaysPerYear,
                     worldSystems.Config.SpringDays, worldSystems.Config.SummerDays,
-                    worldSystems.Config.AutumnDays, worldSystems.Config.WinterDays)
+                    worldSystems.Config.AutumnDays, worldSystems.Config.WinterDays,
+                    worldSystems.Config.CalendarOffsetTicks)
                 : null,
             Authoring = new ViewerAuthoringState(
                 state.Society.Society.IsPaused,
@@ -846,7 +906,8 @@ public sealed class OwnerWorldObservationStore
         }
         if (TownMembershipText.Describe(state.Towns ?? [], state.Society.Society, inhabitant.Id,
                 state.WorldSystems!.Config.TicksPerDay,
-                TownMembershipText.TownsWithWarehouse(state.WorldSimulation, state.WorldContent!)) is { } townMembership)
+                TownMembershipText.TownsWithWarehouse(state.WorldSimulation, state.WorldContent!),
+                calendarOffsetTicks: state.WorldSystems.Config.CalendarOffsetTicks) is { } townMembership)
             decisionFactors.Add(new ViewerDecisionFactor("town-membership", townMembership));
         decisionFactors.AddRange(IdentityMomentFactors(physical));
         if (physical.ChildModelSelection is { Provider: { } birthProvider } birthModel)
@@ -1279,6 +1340,8 @@ public sealed class OwnerWorldObservationStore
         "move_to" => "walking to the ordered tile",
         "harvest_food" => "gathering food",
         "gather_material" => "gathering the ordered material",
+        "collect_material" => "collecting personal materials",
+        "store_material" => "storing personal materials in the House",
         "inspect_material_site" => "checking the ordered material site",
         "consume_food" => "eating carried food",
         "safe_idle" => "keeping a safe routine",

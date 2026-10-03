@@ -17,6 +17,12 @@ public sealed partial class PrivateWorldRuntime
         if (order.TargetPosition is { } requestedPosition && !map.Contains(requestedPosition))
             return null;
 
+        if (order.Action == "collect_material")
+            return CollectionOrderCandidateFor(instruction, person);
+
+        if (order.Action == "store_material")
+            return StorageOrderCandidateFor(instruction, person);
+
         if (order.Action == "gather_material")
             return MaterialOrderCandidateFor(instruction, person);
 
@@ -160,6 +166,12 @@ public sealed partial class PrivateWorldRuntime
         }
         switch (candidate.Id)
         {
+            case "collect_material":
+                ExecuteCollectionOrderStep(instruction, person);
+                return;
+            case "store_material":
+                ExecuteStorageOrderStep(instruction, person);
+                return;
             case "gather_material":
             case "inspect_material_site":
                 ExecuteMaterialOrderStep(instruction, person, candidate.Id);
@@ -294,6 +306,10 @@ public sealed partial class PrivateWorldRuntime
 
     private string OrderBlockedReason(OwnerQueuedInstruction instruction, PlaytestInhabitantState person)
     {
+        if (instruction.Order?.Action == "collect_material")
+            return CollectionOrderBlockedReason(instruction, person);
+        if (instruction.Order?.Action == "store_material")
+            return StorageOrderBlockedReason(instruction, person);
         if (instruction.Order?.Action == "gather_material")
             return MaterialOrderBlockedReason(instruction, person);
 

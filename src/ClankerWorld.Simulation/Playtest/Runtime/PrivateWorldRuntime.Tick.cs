@@ -377,12 +377,14 @@ public sealed partial class PrivateWorldRuntime
                 // Loading never resumes a world implicitly, even if the saved
                 // checkpoint was taken while it was running.
                 restored.Pause();
+                var nextObserverGeneration = checked(observerGeneration + 1);
                 foreach (var id in pendingHosted.Keys.ToArray()) CancelPendingHosted(id);
                 foreach (var id in pendingWills.Keys.ToArray()) CancelPendingWill(id);
                 CancelIdentityMoments();
                 foreach (var id in pendingConversationTurns.Keys.ToArray())
                     CancelPendingConversationTurn(id, AgentConversationInterruption.OwnerPaused, suspendCurrent: false);
                 CommitPreparedTick(restored);
+                observerGeneration = nextObserverGeneration;
                 // Routes and timing described the world as it was; the next tick measures again.
                 plannedRoutes = new(StringComparer.Ordinal);
                 lastTickMilliseconds = null;
@@ -407,12 +409,14 @@ public sealed partial class PrivateWorldRuntime
                 using var restored = Restore(checkpoint, providerFactory,
                     maxCognitionDispatchPerCycle);
                 restored.Pause();
+                var nextObserverGeneration = checked(observerGeneration + 1);
                 foreach (var id in pendingHosted.Keys.ToArray()) CancelPendingHosted(id);
                 foreach (var id in pendingWills.Keys.ToArray()) CancelPendingWill(id);
                 CancelIdentityMoments();
                 foreach (var id in pendingConversationTurns.Keys.ToArray())
                     CancelPendingConversationTurn(id, AgentConversationInterruption.OwnerPaused, suspendCurrent: false);
                 CommitPreparedTick(restored);
+                observerGeneration = nextObserverGeneration;
                 // Routes and timing described the world as it was; the next tick measures again.
                 plannedRoutes = new(StringComparer.Ordinal);
                 lastTickMilliseconds = null;
@@ -451,6 +455,7 @@ public sealed partial class PrivateWorldRuntime
             StageSiloContent();
             StageTailorContent();
             StageCareContent();
+            StageBuiltInContent(TownHallContent.PackageId, HouseContent.PackageId, TownHallContent.Create, "town_hall_content_staged");
             StageBuiltInContent(KnowledgeContent.PackageId, HouseContent.PackageId, KnowledgeContent.Create, "knowledge_content_staged");
             StageBuiltInContent(BusinessContent.PackageId, HouseContent.PackageId, BusinessContent.Create, "business_content_staged");
             var readyPackages = contentRegistry.GetActivationCandidates(targetTick);
@@ -539,6 +544,7 @@ public sealed partial class PrivateWorldRuntime
             AdvanceSettlementCouncil();
             AdvanceTownGovernance();
             SettleTownAdmissions();
+            MaintainTownProjects();
             MaintainLessons();
             MaintainPartnerships();
             MaintainHousing();
@@ -634,6 +640,7 @@ public sealed partial class PrivateWorldRuntime
             if (deferHosted) ApplySafeRoutinesWhileWaiting(waiting.Except(decisions.Select(item => item.InhabitantId), StringComparer.Ordinal), orderActorsHandledThisTick);
             AdvanceBridgeTraffic();
             SettleGuardianSearches();
+            MaintainTownProjects();
             MaintainToolMakingRequests();
             MaintainKnowledgeWriting();
 

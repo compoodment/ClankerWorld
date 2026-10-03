@@ -288,7 +288,11 @@ public sealed partial class PrivateWorldRuntime
                 return RejectedLandRequest("The Town needs a Council before a use request can be filed.");
             var (result, updated) = FileHouseholdLandUse(requestId, requestedByAgentId, townId,
                 requestedTiles, agreedEndTick, governance);
-            if (result.Applied && !result.IsDuplicate) SaveTownGovernance(town, updated);
+            if (result.Applied && !result.IsDuplicate)
+            {
+                SaveTownGovernance(town, updated);
+                MaintainTownProjects();
+            }
             return result;
         }
         finally { gate.Release(); }
