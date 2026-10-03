@@ -14,15 +14,12 @@ public readonly record struct BuildingLight(Rect2I Footprint, LightPlan Plan, bo
     };
 }
 
-/// <summary>A street lantern on one edge of a Road tile.</summary>
-public readonly record struct StreetLantern(Vector2I Tile, DoorSide Edge, LanternStyle Style);
-
 /// <summary>
-/// Warm light on the ground around lit buildings and street lanterns at
-/// night, drawn from <see cref="NightLightShapes"/>. Light brightens and
-/// warms the ground under it instead of painting over it, so grass and dirt
-/// keep their texture, and the rows are drawn weakest first so overlapping
-/// lights add up to the stronger one. Lantern fittings show by day too.
+/// Warm light on the ground around buildings in use at night, drawn from
+/// <see cref="NightLightShapes"/>. Light brightens and warms the ground under
+/// it instead of painting over it, so grass and dirt keep their texture, and
+/// the rows are drawn weakest first so the stronger of two overlapping lights
+/// shows. Lantern fittings, such as a Warehouse's, show by day too.
 /// </summary>
 public partial class NightLightsLayer : Control
 {
@@ -53,7 +50,6 @@ public partial class NightLightsLayer : Control
     private WorldTerrainLayer? source;
     private NightLayer? night;
     private IReadOnlyList<BuildingLight> buildings = [];
-    private IReadOnlyList<StreetLantern> lanterns = [];
     private Rect2 drawnCamera;
     private int drawnTileSize;
     private float drawnDarkness;
@@ -74,18 +70,17 @@ public partial class NightLightsLayer : Control
     }
 
     /// <summary>The buildings that may be lit.</summary>
+    public IReadOnlyList<BuildingLight> Buildings => buildings;
+
+    /// <summary>Sets the buildings that may be lit.</summary>
     public void SetBuildings(IReadOnlyList<BuildingLight> next)
     {
         buildings = next;
         QueueRedraw();
     }
 
-    /// <summary>Street lanterns, drawn by day too and lit at night.</summary>
-    public void SetLanterns(IReadOnlyList<StreetLantern> next)
-    {
-        lanterns = next;
-        QueueRedraw();
-    }
+    /// <summary>The cells drawn last, in map pixels, for the checks: light rows and fittings.</summary>
+    public IReadOnlyList<(Rect2 Area, LightCellKind Kind)> DrawnCells { get; private set; } = [];
 
     public override void _Process(double delta)
     {
@@ -94,7 +89,7 @@ public partial class NightLightsLayer : Control
         var darkness = night.ShownDarkness;
         var step = (float)(Math.Floor(clock / StepSeconds) * StepSeconds);
         if ((darkness > 0 && step != drawnTime) || darkness != drawnDarkness ||
-            ((darkness > 0 || lanterns.Count > 0 || buildings.Count > 0) &&
+            (buildings.Count > 0 &&
              (source.VisibleTiles != drawnCamera || source.TileSize != drawnTileSize)))
             QueueRedraw();
     }
@@ -103,6 +98,7 @@ public partial class NightLightsLayer : Control
     {
         drawnDarkness = night?.ShownDarkness ?? 0;
         drawnTime = (float)(Math.Floor(clock / StepSeconds) * StepSeconds);
+        DrawnCells = [];
         if (source?.World is null) return;
         drawnCamera = source.VisibleTiles;
         drawnTileSize = source.TileSize;
@@ -128,39 +124,29 @@ public partial class NightLightsLayer : Control
                 drawnDarkness > 0.05f, drawnTime, Seed(building.Footprint.Position), snap))
                 placed.Add((origin, cell));
         }
-        foreach (var lantern in lanterns)
-        {
-            if (!visible.HasPoint(lantern.Tile)) continue;
-            var origin = new Vector2(lantern.Tile.X, lantern.Tile.Y) * stride;
-            var (post, inward) = LanternSpot(lantern.Edge);
-            foreach (var cell in NightLightShapes.StreetLantern(lantern.Style, post, inward, drawnDarkness, drawnTime, Seed(lantern.Tile), snap))
-                placed.Add((origin, cell));
-        }
-
         // Weakest light first, so where pools overlap the stronger one shows; fittings go on top.
+        var drawn = new List<(Rect2, LightCellKind)>();
         if (drawnDarkness > 0)
             foreach (var (origin, cell) in placed.Where(item => item.Cell.Kind == LightCellKind.Light).OrderBy(item => item.Cell.Strength))
-                DrawRect(Scaled(origin, cell.Area, unit), cell.Color with { A = Math.Min(0.98f, cell.Strength * drawnDarkness) });
+            {
+                var area = Scaled(origin, cell.Area, unit);
+                DrawRect(area, cell.Color with { A = Math.Min(0.98f, cell.Strength * drawnDarkness) });
+                drawn.Add((area, cell.Kind));
+            }
         foreach (var (origin, cell) in placed.Where(item => item.Cell.Kind != LightCellKind.Light))
         {
             var color = cell.Kind == LightCellKind.Glow
                 ? cell.Color
                 : cell.Color.Lerp(NightLayer.Wash, NightLayer.FullNightAlpha * drawnDarkness);
-            DrawRect(Scaled(origin, cell.Area, unit), color with { A = 1 });
+            var area = Scaled(origin, cell.Area, unit);
+            DrawRect(area, color with { A = 1 });
+            drawn.Add((area, cell.Kind));
         }
+        DrawnCells = drawn;
     }
 
     private static Rect2 Scaled(Vector2 origin, Rect2 units, float unit) =>
         new(origin + units.Position * unit, units.Size * unit);
-
-    /// <summary>Where a lantern's post stands on its Road tile, and which way its arm reaches.</summary>
-    private static (Vector2 Post, Vector2 Inward) LanternSpot(DoorSide edge) => edge switch
-    {
-        DoorSide.North => (new Vector2(16, 4), new Vector2(0, 1)),
-        DoorSide.East => (new Vector2(28, 16), new Vector2(-1, 0)),
-        DoorSide.West => (new Vector2(4, 16), new Vector2(1, 0)),
-        _ => (new Vector2(16, 28), new Vector2(0, -1)),
-    };
 
     /// <summary>A stable number per map tile, so each light drifts in its own way on every client.</summary>
     private static int Seed(Vector2I tile) => unchecked((tile.X * 73856093) ^ (tile.Y * 19349663)) & 0xFFFFFF;
