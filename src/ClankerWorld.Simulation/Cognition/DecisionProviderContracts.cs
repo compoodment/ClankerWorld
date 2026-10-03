@@ -232,6 +232,7 @@ public sealed record InhabitantObservation(
                     ("eat one carried food item" or "travel within gathering range of an available food source" or
                         "gather several food servings from a nearby food source" or
                         "gather the requested material from a natural source" or "store your own carried material in your House" or
+                        "store your own carried equipment in your House" or
                         "collect your own stored or dropped material" or "collect your own stored or dropped food" or
                         "collect your own stored or dropped equipment" or
                         "till a field for your household" or "plant the requested crop in your household field" or

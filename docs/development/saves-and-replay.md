@@ -209,6 +209,16 @@ reload and rollback. This version is provisional above the equipment-collection
 base until integration; older alpha checkpoints are refused and preserved
 without migration.
 
+Private-world schema 64 adds `store_equipment` with the existing exact
+`TargetEquipmentKind`. Equipment storage permits the five garment/carry-aid
+kinds and 13 tool kinds, with `equipment_items` for explicit quantities or
+`storage_loads` for default tasks. It uses bounded personal-storage receipts.
+Validation refuses mixed targets, locations, unsupported kinds, wrong units
+and unearned progress. Partial storage, queued work, cancellation and equipment
+condition survive reload and rollback. This version is provisional above the
+cultivated-greens-order base until integration; older alpha checkpoints are
+refused and preserved without migration.
+
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
 Matching parent assignments are disclosed as agreement; when they differ, the

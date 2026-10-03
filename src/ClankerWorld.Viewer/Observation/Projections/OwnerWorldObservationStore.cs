@@ -1133,6 +1133,7 @@ public sealed class OwnerWorldObservationStore
         "collect_food" => "collecting personal food",
         "collect_equipment" => "collecting personal equipment",
         "store_material" => "storing personal materials in the House",
+        "store_equipment" => "storing personal equipment in the House",
         "gather_material" => "gathering the ordered material",
         "inspect_material_site" => "checking the ordered material site",
         "consume_food" => "eating carried food",
