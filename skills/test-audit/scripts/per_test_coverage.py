@@ -22,6 +22,8 @@ import tempfile
 import threading
 from pathlib import Path
 
+from coverage_evidence import measurement_report
+
 
 def slug(name):
     safe = re.sub(r"[^A-Za-z0-9._+-]", "_", name)
@@ -57,15 +59,21 @@ def collector_path(assembly):
     return None
 
 
-def has_report(folder):
-    return folder.is_dir() and any(folder.rglob("coverage.cobertura.xml"))
+def completed_report(folder, method):
+    try:
+        receipt = json.loads((folder / "completion.json").read_text())
+    except (OSError, ValueError) as error:
+        raise ValueError(f"Incomplete per-test measurement: {folder}; rerun per_test_coverage.py") from error
+    if receipt != {"method": method, "success": True}:
+        raise ValueError(f"Incomplete per-test measurement: {folder}; rerun per_test_coverage.py")
+    return measurement_report(folder)
 
 
 def completed_measurement(folder, method):
     try:
-        receipt = json.loads((folder / "completion.json").read_text())
-        return receipt == {"method": method, "success": True} and has_report(folder)
-    except (OSError, ValueError):
+        completed_report(folder, method)
+        return True
+    except ValueError:
         return False
 
 
@@ -126,8 +134,14 @@ def main():
                            "--results-directory", str(folder.resolve()), "--logger", "trx;LogFileName=test.trx"]
                 try:
                     result = subprocess.run(command, capture_output=True, text=True, timeout=args.timeout, cwd=args.cwd)
-                    ok = result.returncode == 0 and has_report(folder)
+                    ok = result.returncode == 0
                     output = result.stdout[-2000:] + result.stderr[-2000:]
+                    if ok:
+                        try:
+                            measurement_report(folder)
+                        except ValueError as error:
+                            ok = False
+                            output += "\n" + str(error)
                 except subprocess.TimeoutExpired:
                     ok, output = False, "timed out"
                 except OSError as error:
