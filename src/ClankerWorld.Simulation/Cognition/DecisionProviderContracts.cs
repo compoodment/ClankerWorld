@@ -236,6 +236,8 @@ public sealed record InhabitantObservation(
                         "store your own carried goods in your House" or "return borrowed goods to their owning household's House" or
                         "deliver the requested goods to a permitted building" or
                         "make the requested goods at a permitted workstation" or
+                        "construct the requested household building at a permitted site" or
+                        "complete the requested building's next permitted expansion" or
                         "collect your own stored or dropped material" or "collect your own stored or dropped food" or
                         "collect your own stored or dropped equipment" or
                         "collect your own stored or dropped goods" or

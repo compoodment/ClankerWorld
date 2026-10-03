@@ -253,6 +253,18 @@ reload without crediting earlier pickup or redirecting goods. This version is
 provisional above the custody-order base until integration; older alpha
 checkpoints are refused and preserved without migration.
 
+Private-world schema 68 adds construction and expansion order bindings.
+Construction keeps its exact definition, household, site, project start and
+unique building identity, with retained completion evidence for the actual
+paid placement. Expansion keeps the original building identity, owner,
+position and revision, the selected target anchor and footprint, and its
+order-owned expansion job. Validation checks these links rather than
+inferring completion from a building that happens to exist. Completed work
+survives later building removal; unfinished work, cancellation and survival
+pauses remain replayable. This version is provisional above the delivery-order
+base until integration. Older alpha checkpoints are refused and preserved
+without migration.
+
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
 Matching parent assignments are disclosed as agreement; when they differ, the

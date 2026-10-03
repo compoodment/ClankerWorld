@@ -792,6 +792,8 @@ public partial class Main
             "store_goods" => "Storing " + OrderItemName(order.TargetItemKind),
             "return_borrowed" => "Returning borrowed " + OrderItemName(order.TargetItemKind),
             "deliver_stock" => "Delivering " + OrderItemName(order.TargetItemKind) + " to " + OrderBuildingName(order.TargetBuildingKind),
+            "construct_building" => "Building " + OrderBuildingName(order.TargetBuildingKind),
+            "expand_building" => "Expanding " + OrderBuildingName(order.TargetBuildingKind),
             "gather_material" => "Gathering " + (order.TargetMaterialKind?.Replace('_', ' ') ?? "materials"),
             "produce_item" => "Making " + (order.TargetOutputKind is { } output
                 ? GameUiText.ItemName(output).ToLowerInvariant() : "goods"),
@@ -846,6 +848,8 @@ public partial class Main
         "storage_loads" => "loads stored",
         "return_loads" => "loads returned",
         "delivery_loads" => "loads delivered",
+        "buildings" => "buildings finished",
+        "expansions" => "expansions finished",
         "arrivals" => "sites reached",
         "harvests" => "harvest batches",
         _ => unit,

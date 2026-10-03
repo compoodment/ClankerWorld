@@ -38,6 +38,10 @@ public sealed partial class PrivateWorldRuntime
         ValidateProductionOrderBindings(worldSimulation, worldContent, inhabitants.Values, instructionsByIdempotency.Values);
         ValidateCustodyOrderBindings(society.Checkpoint, instructionsByIdempotency.Values);
         ValidateDeliveryOrderBindings(worldSimulation, society.Checkpoint, towns, instructionsByIdempotency.Values);
+        ValidateConstructionOrderBindings(worldSimulation, worldContent, society.Checkpoint, inhabitants.Values,
+            instructionsByIdempotency.Values, WorldTick);
+        ValidateExpansionOrderBindings(worldSimulation, worldContent, society.Checkpoint, towns,
+            instructionsByIdempotency.Values, WorldTick);
         if (worldSimulation.Buildings.Any(building => building.HouseholdId is { } householdId &&
             !society.Checkpoint.Households.Any(household => household.Id == householdId)))
             throw new InvalidDataException("A House references a missing household.");
@@ -415,6 +419,10 @@ public sealed partial class PrivateWorldRuntime
         ValidateProductionOrderBindings(state.WorldSimulation, state.WorldContent, state.Inhabitants, state.Instructions ?? []);
         ValidateCustodyOrderBindings(society.Checkpoint, state.Instructions ?? []);
         ValidateDeliveryOrderBindings(state.WorldSimulation, society.Checkpoint, state.Towns, state.Instructions ?? []);
+        ValidateConstructionOrderBindings(state.WorldSimulation, state.WorldContent, society.Checkpoint, state.Inhabitants,
+            state.Instructions ?? [], state.Society.Society.WorldTick);
+        ValidateExpansionOrderBindings(state.WorldSimulation, state.WorldContent, society.Checkpoint, state.Towns,
+            state.Instructions ?? [], state.Society.Society.WorldTick);
         ValidateBuildingExpansionState(state.WorldSimulation, state.WorldContent, state.Society.Society,
             state.Map, state.SchemaVersion);
         ValidatePhysicalInventoryLocations(state.Society.Society.Inventory, state.WorldSimulation,
@@ -551,8 +559,12 @@ public sealed partial class PrivateWorldRuntime
             order.Action != "produce_item" && (order.TargetRecipeId is not null || order.TargetOutputKind is not null ||
                 order.ProductionBuildingId is not null || order.ProductionJobId is not null || order.ProductionProjectStartedTick is not null) ||
             order.Action is not ("collect_goods" or "store_goods" or "return_borrowed" or "deliver_stock") && order.TargetItemKind is not null ||
-            order.Action != "deliver_stock" && (order.DeliveryPurpose is not null || order.TargetBuildingKind is not null ||
+            order.Action != "deliver_stock" && (order.DeliveryPurpose is not null ||
                 order.DeliveryRoute is not null || order.DeliveryLotId is not null || order.DeliveryQuantity is not null) ||
+            order.Action is not ("deliver_stock" or "construct_building" or "expand_building") && order.TargetBuildingKind is not null ||
+            order.Action != "construct_building" && (order.TargetDefinitionId is not null || order.ConstructionOwnerId is not null ||
+                order.ConstructionPosition is not null || order.ConstructionStartedTick is not null || order.ConstructionInstanceId is not null) ||
+            order.Action != "expand_building" && order.ExpansionBinding is not null ||
             !IsValidCustodyBindingShape(order) ||
             order.TargetFoodKind is not (null or "berries" or "fruit" or "wild_greens") &&
                 !(order.Action is "collect_food" or "consume_food" && order.TargetFoodKind == "cultivated_greens") ||
@@ -570,6 +582,30 @@ public sealed partial class PrivateWorldRuntime
             return order.Status == "not_understood" && order.RequestedUnits == 0 && order.CompletedUnits == 0 &&
                 order.ProgressUnit == "none" && !order.RepeatUntilCancelled && order.TargetFoodKind is null &&
                 order.TargetResourceId is null && order.TargetPosition is null && order.LastEffectId is null;
+
+        if (order.Action is "construct_building" or "expand_building")
+        {
+            var construction = order.Action == "construct_building";
+            if (!PrivateWorldBuildingOrderCatalog.Supports(order.Action, order.TargetBuildingKind) ||
+                !PrivateWorldBuildingOrderCatalog.Available(worldContent).Any(item => item.BuildingKind == order.TargetBuildingKind) ||
+                order.RequestedUnits != 1 || order.CompletedUnits is < 0 or > 1 || order.RepeatUntilCancelled ||
+                order.ProgressUnit != (construction ? "buildings" : "expansions") ||
+                order.Status == "not_understood" || (order.Status == "finished") != (order.CompletedUnits == 1) ||
+                order.TargetFoodKind is not null || order.TargetResourceId is not null ||
+                (order.CompletedUnits == 0 ? order.LastEffectId is not null :
+                    !IsValidCustodyReceipt(order.LastEffectId, construction ? "construction:building:" : "expand:job:")))
+                return false;
+            if (!construction) return order.ExpansionBinding is not null || order.CompletedUnits == 0;
+            return PrivateWorldBuildingOrderCatalog.Find(worldContent, order.TargetDefinitionId)?.BuildingKind == order.TargetBuildingKind &&
+                (order.ConstructionInstanceId is null
+                    ? order.ConstructionOwnerId is null && order.ConstructionPosition is null &&
+                        order.ConstructionStartedTick is null && order.CompletedUnits == 0
+                    : IsValidProductionBindingId(order.ConstructionInstanceId) &&
+                        order.ConstructionOwnerId is { } owner && IsValidProductionBindingId(owner) &&
+                        order.ConstructionPosition is { X: >= -10_000_000 and <= 10_000_000, Y: >= -10_000_000 and <= 10_000_000 } site &&
+                        (order.TargetPosition is null || order.TargetPosition == site) &&
+                        order.ConstructionStartedTick >= instruction.SubmittedTick && order.ConstructionStartedTick <= worldTick);
+        }
 
         if (order.Action == "deliver_stock")
             return PrivateWorldDeliveryOrderCatalog.IsValidTarget(order.DeliveryPurpose, order.TargetItemKind,

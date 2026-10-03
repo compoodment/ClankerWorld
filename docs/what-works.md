@@ -305,6 +305,29 @@ pauses the current production job and its remaining work before the order
 resumes. Named meals such as bread and porridge are not part of this order
 catalogue yet.
 
+Building orders cover one House, Farmhouse, Blacksmith, Tailor Shop, Silo,
+Clinic or Store at its starting size (including the 1×1 Store) through the
+ordinary household construction path. "Build a
+Clinic at (12, 4)" requires that exact site; without coordinates the agent
+chooses a legal site and keeps it. Normal one-per-kind limits, Silo
+prerequisites, material ownership, carrying, travel and construction work
+still apply. An existing building or somebody else's project never counts as
+the ordered completion.
+
+"Expand my House" and "expand my Town Warehouse" request one next supported
+size under the normal access, need, space and cost checks. The task pins the
+original building and chosen expansion, then follows its real reserved
+materials and work. A changed building or lost access blocks or cancels that
+work rather than applying it somewhere else. Both forms accept an explicit
+count of one; larger counts and repetition remain unsupported.
+
+Only successful placement or a completed expansion advances progress.
+Completed work remains recorded even if the building is later removed.
+Cancellation releases unused expansion reservations and ends only the task's
+own unfinished work; collected goods stay where they are. Urgent survival
+pauses the work. Queues, cancellation, partial work and completion survive
+save/reload without repeating a paid build or adopting an unrelated project.
+
 Repair orders cover personally owned, carried basic clothing, padded coats,
 rain cloaks, baskets and sacks that are worn enough for the ordinary repair
 rules. For example, "repair my basket", "repair two padded coats", or "keep
@@ -356,9 +379,8 @@ planting stock and removes unfinished tilling; spent tool wear remains. Urgent
 survival interrupts work before its remaining task resumes. Queues, partial
 work, stock reservations and progress survive save/reload.
 
-Named collection sources, other carrying or storage destinations, cooking,
-crafting, weapon repairs and building orders remain part of the
-unfinished catalogue.
+General movement, shelter and guardian orders remain separate catalogue
+work. Named meals and weapon repairs are not supported by these orders yet.
 
 A recognized new order replaces the active and queued orders unless **Queue**
 is selected. **Cancel task** stops a waiting or active order. An instruction

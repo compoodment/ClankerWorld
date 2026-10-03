@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using ClankerWorld.Simulation.Content;
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Harness;
@@ -17,7 +18,8 @@ public sealed record SettlementProject(
     string? Blocker = null,
     string? JobId = null,
     long LastTransitionTick = 0,
-    bool RequiresFreshChoice = false);
+    bool RequiresFreshChoice = false,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? OrderInstructionId = null);
 
 public sealed partial class PrivateWorldRuntime
 {
@@ -345,7 +347,9 @@ public sealed partial class PrivateWorldRuntime
             project.LastTransitionTick < project.StartedTick || project.LastTransitionTick > worldTick ||
             project.WorkDone is < 0 or > ProjectWorkTicks ||
             project.Stage is not ("acquiring" or "gathering" or "delivering" or "travelling" or "working" or "waiting" or "blocked" or "paused" or "completed" or "cancelled") ||
-            project.RequiresFreshChoice && (project.Stage != "paused" || project.JobId is not null))
+            project.RequiresFreshChoice && (project.Stage != "paused" || project.JobId is not null) ||
+            project.OrderInstructionId is { } orderId && (string.IsNullOrWhiteSpace(orderId) ||
+                orderId != orderId.Trim() || orderId.Any(char.IsControl)))
         {
             throw new InvalidDataException("The saved settlement project is invalid.");
         }
@@ -354,6 +358,7 @@ public sealed partial class PrivateWorldRuntime
     private bool CanContinueProject(PlaytestInhabitantState state) =>
         AdultResident(state.InhabitantId) &&
         state.Project is { Stage: not ("completed" or "cancelled") } project &&
+        project.OrderInstructionId is null &&
         !project.RequiresFreshChoice &&
         (project.Stage != "blocked" || WorldTick - project.LastTransitionTick < BlockedProjectRetryDelayTicks) &&
         !NeedsUrgentFood(state) &&
@@ -632,7 +637,9 @@ public sealed partial class PrivateWorldRuntime
             {
                 if (!TownLayoutService.TryEvaluateConstructionSite(layout, building, selectedSite, out _))
                 {
-                    const string blocker = "The selected site is no longer legal; fresh ranked choices return after 60 ticks.";
+                    var blocker = project.OrderInstructionId is null
+                        ? "The selected site is no longer legal; fresh ranked choices return after 60 ticks."
+                        : "The ordered construction site is no longer legal.";
                     var newlyRejected = project.Stage != "blocked" || project.Blocker != blocker;
                     SetProject(inhabitantId, project with
                     {
@@ -691,7 +698,9 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
         ApplyBuildDecision(inhabitantId, state, project.CandidateId);
-        if (building is not null && worldSimulation.Buildings.Any(item => item.InstanceId == BuildInstanceId(inhabitantId, building)))
+        if (building is not null && (project.OrderInstructionId is { } orderId
+                ? (worldSimulation.ConstructionReceipts ?? []).Any(receipt => receipt.InstructionId == orderId)
+                : worldSimulation.Buildings.Any(item => item.InstanceId == BuildInstanceId(inhabitantId, building))))
         {
             SetProject(inhabitantId, project with { Stage = "completed", Blocker = null });
         }

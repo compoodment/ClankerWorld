@@ -55,7 +55,8 @@ public sealed record WorldContentSimulationState(
     long NextProductionJobSequence,
     IReadOnlyList<WorldProductionJob>? CropBuilds = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<BuildingExpansionJob>? BuildingExpansions = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<HouseGuestInvitation>? GuestInvitations = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<HouseGuestInvitation>? GuestInvitations = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<WorldConstructionReceipt>? ConstructionReceipts = null)
 {
     public static WorldContentSimulationState Empty { get; } = new([], [], 1, []);
 }
@@ -262,7 +263,9 @@ public static class WorldContentSimulationRules
             state.ProductionJobs.Concat(state.CropBuilds ?? []).Any(item =>
                 item.RecipeId.StartsWith($"{packageDigest}/", StringComparison.Ordinal)) ||
             (state.BuildingExpansions ?? []).Any(item =>
-                item.DefinitionId?.StartsWith($"{packageDigest}/", StringComparison.Ordinal) == true))
+                item.DefinitionId?.StartsWith($"{packageDigest}/", StringComparison.Ordinal) == true) ||
+            (state.ConstructionReceipts ?? []).Any(item =>
+                item.DefinitionId.StartsWith($"{packageDigest}/", StringComparison.Ordinal)))
         {
             throw new InvalidOperationException("Content with committed buildings or production history requires an explicit migration before removal.");
         }

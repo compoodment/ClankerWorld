@@ -70,6 +70,16 @@ public sealed partial class PrivateWorldRuntime
             CancelProductionForOrder(productionOrder);
             SetOrderStatus(productionOrder, "blocked", "The agent left the household holding the ordered workstation.");
         }
+        if (PendingInstructionFor(actor) is { Order.Action: "construct_building" } constructionOrder)
+        {
+            CancelConstructionForOrder(constructionOrder);
+            SetOrderStatus(constructionOrder, "blocked", "The agent left the household arranging the requested construction.");
+        }
+        if (PendingInstructionFor(actor) is { Order: { Action: "expand_building", TargetBuildingKind: "house" } } expansionOrder)
+        {
+            CancelExpansionForOrder(expansionOrder);
+            SetOrderStatus(expansionOrder, "blocked", "The agent left the household arranging the requested expansion.");
+        }
         foreach (var id in group)
         {
             var person = inhabitants[id];
@@ -150,7 +160,8 @@ public sealed partial class PrivateWorldRuntime
                      !IsActiveProductionOrderJob(job.JobId) &&
                      worldSimulation.Buildings.Any(building => building.InstanceId == job.BuildingInstanceId && building.HouseholdId == household)))
             yield return (job.JobId, job.BuildingInstanceId, job.WorkerId, job.CompletionTick, job.PausedAtTick!.Value, job.InputReservationIds);
-        foreach (var job in (worldSimulation.BuildingExpansions ?? []).Where(job => job.State == WorldProductionJobState.Paused && job.OwnerId == household))
+        foreach (var job in (worldSimulation.BuildingExpansions ?? []).Where(job => job.State == WorldProductionJobState.Paused &&
+                     job.OrderInstructionId is null && job.OwnerId == household))
             yield return (job.JobId, job.BuildingInstanceId, job.WorkerId, job.CompletionTick, job.PausedAtTick!.Value, job.InputReservationIds);
     }
 

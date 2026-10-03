@@ -451,6 +451,8 @@ public sealed partial class PrivateWorldRuntime
 
             assetReservations = reservationPreview;
             MaintainProductionOrdersBeforeTick();
+            MaintainConstructionOrdersBeforeTick();
+            MaintainExpansionOrdersBeforeTick();
             society.AdvanceTo(targetTick);
             if (deferHosted) await ProcessWillDecisionsAsync(completedWills, activeWillIds, inactiveWillReasons);
             var previousClimate = worldSystems.Climate;
