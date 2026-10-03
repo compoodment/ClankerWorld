@@ -423,7 +423,7 @@ public sealed class TownMembershipTests
             Assert.Equal(grown ? adult : "Town: resident of First Town with their primary caregiver · council rights begin at adulthood",
                 observation.Self?.TownMembershipNote);
             Assert.Equal(grown, observation.Candidates.Any(candidate => candidate.Id == Civic(First, "register") + "|"));
-            Assert.Equal(grown, observation.Candidates.Any(candidate => candidate.Id == Civic(First, "propose") + "|"));
+            Assert.Equal(grown, observation.Candidates.Any(candidate => candidate.Id == Civic(First, "propose") + TownLawRules.Jurisdiction + "|"));
         }
         world.Validate();
     }
@@ -703,6 +703,8 @@ public sealed class TownMembershipTests
             Describe(resident, warehouses: new HashSet<string>(StringComparer.Ordinal)));
         Assert.Equal("Town: resident of Second Town · may vote in its council elections, housed or not; it has no Warehouse yet",
             Describe(voter, second with { Governance = council with { Form = "representative" } }));
+        Assert.Equal("Town: resident of Second Town · may vote in its mayoral elections, housed or not; it has no Warehouse yet",
+            Describe(voter, second with { Governance = council with { Form = "leader" } }));
         Assert.Equal("Town: resident of First Town with their primary caregiver · council rights begin at adulthood", Describe(child));
         // A guardian from another Town does not move the child, so the line does not claim they share it.
         var guardedElsewhere = society with
@@ -878,7 +880,7 @@ public sealed class TownMembershipTests
                 .First(point => Square(point).All(tile => state.Map.Contains(tile) && state.Map.IsBuildable(tile) && !taken.Contains(tile)) &&
                     state.Map.IsReachableOnFoot(original.OriginSite!.Value, point));
             towns.Add(new TownRuntimeState(Second, "Second Town", "founded", 0, second.Order(StringComparer.Ordinal).ToArray(), [],
-                Square(origin).ToArray(), origin, TownGovernanceState.Create(Adults(second))));
+                Square(origin).ToArray(), origin, TownGovernanceState.Create(Adults(second)), TownGovernmentState.Create()));
         }
         return state with { Towns = towns };
 

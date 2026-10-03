@@ -740,10 +740,11 @@ unseen civic dump. Owner observations project each council, its latest eight
 proposals, the current election and the latest archived election onto the normal
 Godot Towns page. Failed and cancelled outcomes remain visible; the complete
 authoritative proposal and election history stays in the checkpoint. Long Town
-readouts scroll within the available screen height. A passed ordinary law
-proposal records approval without creating new physical/legal powers. Bounded
-civic lifecycle telemetry records Town identity and council/vote/status counts
-without proposal text, notices, names or per-read polling noise.
+readouts scroll within the available screen height. A passed structured law
+proposal records its scoped wording without creating physical or ownership
+powers. Bounded civic lifecycle telemetry records Town identity and
+council/vote/status counts without proposal text, notices, names or per-read
+polling noise.
 
 **Town admission** (`PrivateWorldRuntime.TownMembership`). `TownRuntimeState.ResidentIds`
 is the only record of Town membership; household, House and position never
@@ -778,6 +779,43 @@ bounded line. The agent's `CognitionSelfContext.TownMembershipNote` includes onl
 pending, approved, refused or cancelled admissions the agent learned from notices;
 the owner's agent card shows the same line from all records. `town_admission`
 telemetry records the Town, outcome, previous Town and counts only.
+
+`TownGovernmentState` stores scoped law versions, protected resident processes,
+mayoral consent and contests, and separate land/ordinary mandate terms.
+`TownGovernmentRules` coordinates them with the existing Council engine. Law
+adoption consumes passed structured Council proposals once; amendment and repeal
+bind their base version, so a stale passed proposal cannot overwrite a later law.
+Territorial applicability uses formal title records, including a saved site
+subset, rather than the drawn Town border. Law text grants no physical powers.
+
+Residents propose government changes at the notice place, and the choice to
+seek a mayoral office appears only while an office exists, a contest is open or
+a change that creates one is pending, keeping these choices out of every model
+call. Government votes preserve their opening electorate and final votes. Later adults
+wait; deaths and membership departures remove voters and ballots. Equivalent
+requests share a process; different requests queue with fresh opening lists.
+Incumbent Council revisions cannot cancel this ledger. Approved transitions
+retain incumbent authority until all required successors are ready, with a
+three-day deadline. Explicit all-adult government disables automatic
+representation, and explicit elected government seeks three representatives
+above three adults. The initial arrangement retains the eight-adult threshold.
+
+Mayoral contests bind consent to exact mandates and ballots to a contest/round
+opening token. Every deciding round needs a positive vote; tied leaders repeat
+with fresh voters, without a random draw. Saved round records preserve votes,
+ties and interruptions. Scheduled Council voting takes priority; other Council
+contests wait while mayoral voting runs. A cancelled transition cannot later
+seat its dependent contest. Separate mandate records preserve a governing
+leader when a land mandate ends, and a governing vacancy temporarily restores
+all-adult authority without changing the approved succession arrangement.
+
+The normal personal-model path supplies all proposals, consent, withdrawals,
+resignations and votes. The runtime revalidates current eligibility, actual
+notice knowledge and the exact round before admitting an action. Owner
+observations add current mandates, the latest eight government processes,
+current/latest mayoral contests and the latest sixteen laws; saved history is
+not pruned. Bounded civic telemetry records transition kinds and counts without
+law wording, notice text or personal model payloads.
 
 `FirstTownLayoutPlanner` lays the first Town street first, using
 `TownStreets`. A main road runs both ways from the chosen site along its most

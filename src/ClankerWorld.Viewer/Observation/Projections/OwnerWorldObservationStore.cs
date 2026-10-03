@@ -15,6 +15,29 @@ namespace ClankerWorld.Viewer.Observation;
 /// </summary>
 public sealed class OwnerWorldObservationStore
 {
+    private static ViewerTownGovernment ProjectGovernment(TownGovernmentState government, Func<string, string> name)
+    {
+        ViewerMayoralElection Election(TownMayoralContest contest) => new(contest.Id,
+            TownArrangementRules.MandateLabel(contest.Mandates), contest.Stage, contest.Round, contest.RoundDeadlineTick,
+            contest.Candidates.Select(id => new ViewerCivicCandidate(id, name(id), contest.Ballots.Count(b => b.CandidateId == id))).ToArray(),
+            contest.WinnerId is { } winner ? name(winner) : null, contest.Reason);
+        return new(TownArrangementRules.Declaration(government.Arrangement),
+            government.Laws.TakeLast(16).Select(l =>
+            {
+                var v = TownLawRules.Current(l);
+                return new ViewerTownLaw(l.Id, v.Subject, v.Rule, v.Scope, v.SiteTiles.Count, v.Version, v.AdoptedTick, v.EndedTick)
+                { Site = v.SiteTiles.Select(ToPosition).ToArray() };
+            }).ToArray(), government.Laws.Count,
+            government.Offices.Select(o => new ViewerTownOffice(TownArrangementRules.MandateLabel(o.Mandates),
+                o.HolderId is { } holder ? name(holder) : null, o.TermEndTick, o.VacancyReason)).ToArray(),
+            government.Changes.TakeLast(8).Select(c => new ViewerGovernmentChange(c.Id,
+                (c.Kind == "replace_mayor" ? "Replace the elected mayoral mandates. " : "") + TownArrangementRules.Declaration(c.Target),
+                c.Status, c.Votes.Count(v => v.Yes), c.Votes.Count(v => !v.Yes), c.Voters.Count / 2 + 1,
+                c.DeadlineTick, c.HandoverDeadlineTick, c.Reason)).ToArray(),
+            government.Contest is { } live ? Election(live) : null,
+            government.ContestHistory.Count > 0 ? Election(government.ContestHistory[^1]) : null, government.MayoralRetryTick);
+    }
+
     private const int AgentKnowledgeArtifactLimit = 8;
     private const int RecentClosedInstructionLimitPerAgent = 6;
     public const int RecentCivicProposalLimit = 8;
@@ -370,11 +393,14 @@ public sealed class OwnerWorldObservationStore
                     item.BorderTiles.OrderBy(point => point.Y).ThenBy(point => point.X)
                         .Select(ToPosition).ToArray())
                 {
+                    Government = item.Government is { } government ? ProjectGovernment(government,
+                        id => inhabitantsById.GetValueOrDefault(id)?.Name ?? id) : null,
                     Governance = item.Governance is { } civic ? new ViewerTownGovernance(
                         civic.Form, civic.Fallback, civic.Members.Select(id => inhabitantsById.GetValueOrDefault(id)?.Name ?? id).ToArray(),
                         civic.TermEndTick, civic.RetryTick, civic.Candidates.Select(c =>
                             (inhabitantsById.GetValueOrDefault(c.AgentId)?.Name ?? c.AgentId) + (c.FullTerm ? " (full term)" : " (current vacancy only)")).ToArray(),
-                        civic.Proposals.TakeLast(RecentCivicProposalLimit).Select(p => new ViewerCivicProposal(p.Id, p.Kind, p.Text, p.Status,
+                        civic.Proposals.TakeLast(RecentCivicProposalLimit).Select(p => new ViewerCivicProposal(p.Id, p.Kind,
+                            item.Government?.LawDrafts.SingleOrDefault(d => d.ProposalId == p.Id) is { } draft ? TownLawRules.VoteText(draft) : p.Text, p.Status,
                             p.Votes.Count(v => v.Yes), p.Votes.Count(v => !v.Yes), p.RequiredYes, p.DeadlineTick)).ToArray(),
                         civic.Election is { } election ? ProjectElection(election) : null)
                     {

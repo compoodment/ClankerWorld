@@ -20,6 +20,7 @@ public sealed record TownRuntimeState(
     IReadOnlyList<GridPoint> BorderTiles,
     GridPoint? OriginSite = null,
     TownGovernanceState? Governance = null,
+    TownGovernmentState? Government = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     IReadOnlyList<TownAdmissionRecord>? Admissions = null);
 
