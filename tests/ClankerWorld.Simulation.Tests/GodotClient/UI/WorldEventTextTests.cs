@@ -9,6 +9,32 @@ public sealed class WorldEventTextTests
     private const string ChildId = "world:inhabitant:birth:" + FounderId + ":" + AgentId + ":1";
 
     [Theory]
+    [InlineData("{")]
+    [InlineData("null")]
+    [InlineData("{}")]
+    public void IncompleteDeveloperEditDetailsHaveASafeDescription(string detail)
+    {
+        Assert.Equal("Developer edit.", WorldEventText.Describe(new(1, 0, "developer_edit", detail), null));
+    }
+
+    [Theory]
+    [InlineData("set_need", "fullness", 62, "Aster's fullness set to 62%")]
+    [InlineData("give_goods", "wood", 2, "Aster received 2 wood")]
+    [InlineData("remove_goods", "wood", 1, "removed 1 wood from Aster")]
+    [InlineData("add_skill", "farming", 0, "added farming skill to Aster")]
+    [InlineData("remove_skill", "smithing", 0, "removed smithing skill from Aster")]
+    [InlineData("start_partnership", "partnership", 0, "started a partnership between Aster and Mira")]
+    [InlineData("end_partnership", "partnership", 0, "ended the partnership between Aster and Mira")]
+    public void DeveloperEditEventsDescribeTheActualChange(string operation, string value, int amount, string expected)
+    {
+        var action = new ClankerWorld.Simulation.Playtest.PrivateWorldDeveloperEdit("world", 12, ChildId, operation, value, amount, FounderId);
+        var detail = System.Text.Json.JsonSerializer.Serialize(action);
+        Assert.True(GameUiText.IsPlayerFacingEvent("developer_edit"));
+        Assert.Equal("Developer edit: " + expected + ".", WorldEventText.Describe(new(13, 1, "developer_edit", detail),
+            Snapshot(Person(ChildId, "Aster"), Person(FounderId, "Mira"))));
+    }
+
+    [Theory]
     [InlineData(true, true, true)]
     [InlineData(true, false, false)]
     [InlineData(false, true, false)]
