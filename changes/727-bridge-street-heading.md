@@ -1,0 +1,1 @@
+- Placing a building beside a bridge across the world's east/west edge now extends the street beyond its door in the correct direction when there is room.
