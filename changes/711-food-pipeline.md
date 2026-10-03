@@ -3,4 +3,3 @@
 - A filled jug can reach home when the jug and all its contents fit. Loose goods keep their small delivery batches.
 - Owned spoiled food can leave a pot without being destroyed. No automatic pot clearing or disposal control is added.
 - Adults can walk spoiled household deliveries back to camp and set them down without losing the goods. This frees their load and clears the old delivery promise. A building still needs no stock, work or other deliveries before it can be removed or reassigned.
-

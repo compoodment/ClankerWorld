@@ -33,7 +33,7 @@ test alone does not make it available in the game.
 | Wooded forests, patchy beaches and reduced wet weather | Available in newly created worlds | Forest grass has many trees, forest-floor tiles always have trees, and cacti stay on desert sand. Default rain, storm and snow weights are one quarter lower across climates. Density and Windows performance still need owner playtesting. |
 | Choose the first Town and place four founders before starting | Available in the game | On-map, guidance-only hints for nearby food, fertile ground, wood, stone and open space for Roads; exact factor tuning remains provisional. Player-chosen supplies are unfinished. |
 | Move around and inspect the map | Available in the game | Zoom, overview, wrapped east/west movement, tile facts, building cards with stored items as icons, and separate filters for Town title, household use, disputes, building property and Town borders. The disputes filter stays empty in normal play, because land requests cannot be filed yet. A building card does not yet list recent storage changes or what a workstation can make, and work in progress does not show its materials. |
-| Pause, inspect agents, view family trees and read events | Available in the game | Deceased profiles retain recorded thoughts and memories; old deaths without an archive cannot be reconstructed. |
+| Pause, inspect agents, view family trees and read events | Available in the game | Deceased profiles retain recorded thoughts and memories, and show any final will and final words; old deaths without an archive cannot be reconstructed. |
 | Developer tools | Available in the game | **F12** opens them in a world without pausing it: the tile's coordinates and facts, frame time, how long the server takes per step of world time, the agent count, jumping to an agent and drawing their planned path, plus the aging override, lost-reply recovery, paused world editing and paired-device management. Logged direct edits are not built yet ([#677](https://github.com/compoodment/ClankerWorld/issues/677)), and there are no time tools such as stepping one tick. The Windows playtest is pending. |
 | Display and interface settings | Available in the game | Themes, window size, weather switches, a 24-hour or 12-hour clock, and dates by season (the default, such as Autumn 2, Year 1) or as DD-MM-YYYY, MM-DD-YYYY or YYYY-MM-DD. A server too old to report season lengths shows numeric dates. The interface grows with the screen in whole steps (100%, 200% at 1080p and 1440p, 300% at 4K) with no setting, and the game always draws at the screen's own resolution. Windows visual and keyboard acceptance is still being checked. |
 
@@ -251,10 +251,27 @@ threshold and two days are provisional; a check based on the real risk of the
 world dying out comes later. This has automated checks but no Windows playtest
 yet.
 
-On death, a bounded final model choice can leave the estate to the household or
-name one living recipient for the whole estate. Interrupted or invalid choices
-use the household path. Per-item bequests, debts, minors and inheritance law
-remain unfinished. Memories do not automatically pass to children.
+When an agent with a personal model dies owning something, their model is
+asked once for a final will. It can leave everything to the household or name
+up to three heirs: living people of any age, including children, or the Town
+the agent lived in when that Town has a Warehouse. The will either shares every
+item equally or gives each item to one heir, and anything it leaves out is
+shared equally. The estate is divided when its seven-day hold ends. Heirs,
+children included, own what they inherit as their own property. Inheritance
+does not put goods into the heir's carried load: ground goods stay on their
+tile, stored goods retain their storage, and goods held by a living carrier
+stay with that carrier. Goods the deceased carried are dropped at their last
+tile. A pot or jug always goes to one heir together with what it holds. A Town
+keeps its share in its Warehouse while there is room. Food, goods that do not fit,
+and shares for heirs who have died since follow the household path, as do
+interrupted, unknown or invalid choices, so no goods are created or lost.
+
+The will may also leave short final words. When the estate is divided, each
+person who inherits keeps them as a private memory, such as "Rowan Hale's final
+words were: 'Keep the orchard going.'" Nobody else learns them. The dead
+agent's profile shows the will, what it leaves each heir and the final words.
+Debts, conflicts with Town law and guardians for orphaned children remain
+unfinished. Memories do not automatically pass to children.
 
 Each founded Town has its own council. Its recorded living adult residents
 include travelers and adults without a home; visitors gain no vote. All adults
