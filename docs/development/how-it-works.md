@@ -2,7 +2,7 @@
 title: How the game works
 type: architecture
 status: active
-updated: 2026-10-02
+updated: 2026-10-03
 ---
 
 # How the game works
@@ -396,6 +396,11 @@ Jev off. Automatic experience capture and narrative summarization are unfinished
 Exploration can create a one-site field record or a map of up to nine sites.
 Sharing nearby or bartering teaches only those sites to the recipient, retaining
 the discoverer and source agent. It does not grant access to unrelated knowledge.
+
+Outward scouting checks occupied destinations and both diagonal corner tiles
+before ranking neighboring exits. If no legal outward exit remains, the scout
+uses the existing return path instead of repeatedly targeting a blocked corner.
+Only completed movement adds a visited tile.
 
 If intervening legal movement interrupts outward scouting, a new outward path
 starts at the actual position without inventing missing steps. On the return
