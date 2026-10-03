@@ -280,6 +280,9 @@ public static class GameUiText
             "council_policy_adopted" or "settlement_trade_completed" or
             "business_trade_offered" or "business_trade_completed" or "business_trade_cancelled" or
             "store_stock_collected" or "store_stock_delivered" or "household_delivery_recovered" or
+            "agent_knowledge_artifact_created" or "agent_knowledge_artifact_read" or "agent_knowledge_shared" or
+            "agent_knowledge_writing_started" or "agent_knowledge_writing_cancelled" or "agent_knowledge_material_collected" or
+            "agent_knowledge_artifact_collected" or "agent_knowledge_artifact_stored" or
             "tool_request_placed" or "tool_request_accepted" or "tool_request_refused" or "tool_request_withdrawn" or
             "tool_request_ready" or "tool_request_completed" or "tool_request_interrupted" or
             "ornament_worn" or "ornament_removed" or "ornament_given" or
@@ -347,6 +350,8 @@ public static class GameUiText
     /// </summary>
     public static string ActivityPhrase(string? candidateId, string? summary)
     {
+        if (candidateId is not null && KnowledgeActionPhrase(candidateId, inProgress: true) is { } knowledgeActivity)
+            return knowledgeActivity;
         if (candidateId?.StartsWith("tool_request_", StringComparison.Ordinal) == true)
             return candidateId.Split(':', 2)[0] switch
             {
@@ -420,6 +425,8 @@ public static class GameUiText
         }
 
         var normalized = value.Trim();
+        if (KnowledgeActionPhrase(normalized, inProgress: false) is { } knowledgeAction)
+            return knowledgeAction;
         if (normalized.StartsWith("return_empty_vessel:", StringComparison.Ordinal)) return "bring an empty vessel home";
         if (normalized.StartsWith("guardian_tend:", StringComparison.Ordinal)) return "look after someone who is ill";
         if (normalized.StartsWith("care:", StringComparison.Ordinal)) return "look after a child";
@@ -487,6 +494,7 @@ public static class GameUiText
             {
                 localId = localId[..versionSeparator];
             }
+            if (localId == "house-paper") return "make paper";
             return $"build {HumanizeIdentifier(localId)}";
         }
 
@@ -522,4 +530,24 @@ public static class GameUiText
         var phrase = string.Join(' ', words.Select(word => word.ToLowerInvariant()));
         return char.ToUpperInvariant(phrase[0]) + phrase[1..];
     }
+
+    private static string? KnowledgeActionPhrase(string candidateId, bool inProgress) => candidateId switch
+    {
+        "knowledge_write:field_record" => inProgress ? "writing a field record" : "write a field record",
+        "knowledge_write:field_map" => inProgress ? "drawing a field map" : "draw a field map",
+        "knowledge_write:book" => inProgress ? "writing a book" : "write a book",
+        "knowledge_continue" => inProgress ? "continuing written work" : "continue written work",
+        "knowledge_materials" => inProgress ? "collecting writing supplies" : "collect writing supplies",
+        _ when candidateId == "knowledge_collect" || candidateId.StartsWith("knowledge_collect:", StringComparison.Ordinal) =>
+            inProgress ? "collecting a written work" : "collect a written work",
+        _ when candidateId == "knowledge_store" || candidateId.StartsWith("knowledge_store:", StringComparison.Ordinal) =>
+            inProgress ? "storing a written work" : "store a written work",
+        _ when candidateId.StartsWith("knowledge_copy:", StringComparison.Ordinal) =>
+            inProgress ? "copying a written work" : "copy a written work",
+        _ when candidateId.StartsWith("knowledge_read:", StringComparison.Ordinal) =>
+            inProgress ? "reading a written work" : "read a written work",
+        _ when candidateId.StartsWith("knowledge_share:", StringComparison.Ordinal) =>
+            inProgress ? "sharing written knowledge" : "share written knowledge",
+        _ => null,
+    };
 }

@@ -131,6 +131,10 @@ public static class WorldEventText
             "equipment_repair_started" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} began repairing an item.",
             "equipment_repaired" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} repaired an item.",
             "equipment_repair_interrupted" => "Repair stopped; its unused materials are available again.",
+            "agent_knowledge_artifact_created" or "agent_knowledge_artifact_read" or "agent_knowledge_shared" or
+                "agent_knowledge_writing_started" or "agent_knowledge_writing_cancelled" or "agent_knowledge_material_collected" or
+                "agent_knowledge_artifact_collected" or "agent_knowledge_artifact_stored" =>
+                DescribeWrittenKnowledge(worldEvent, snapshot),
             "skill_learned" => DescribeSkill(worldEvent.Detail, snapshot),
             "inhabitant_building_proposed" => $"{LeadingName(snapshot, worldEvent.Detail)} suggested a new building design.",
             "instruction_not_understood" => $"{Name(snapshot, BeforeLastField(worldEvent.Detail))} didn't understand your order. " +
@@ -217,6 +221,30 @@ public static class WorldEventText
             return "An agent learned a skill.";
         var source = fields[2] == "work" ? "by doing the work" : "from " + Name(snapshot, fields[2]);
         return $"{Name(snapshot, fields[0])} learned {fields[1]} {source}.";
+    }
+
+    private static string DescribeWrittenKnowledge(OwnerWorldEvent worldEvent, OwnerWorldSnapshot? snapshot)
+    {
+        var fields = worldEvent.Detail.Split('|');
+        var author = Name(snapshot, fields[0]);
+        var recipient = Name(snapshot, fields.ElementAtOrDefault(1) ?? string.Empty);
+        return worldEvent.Kind switch
+        {
+            "agent_knowledge_artifact_read" => $"{recipient} learned about places from a written work.",
+            "agent_knowledge_shared" => $"{author} shared written knowledge with {recipient}.",
+            "agent_knowledge_artifact_collected" => $"{author} picked up a written work.",
+            "agent_knowledge_artifact_stored" => $"{author} stored a written work.",
+            "agent_knowledge_writing_started" => $"{author} started work on a {GameUiText.ItemName(fields.ElementAtOrDefault(1) ?? "record").ToLowerInvariant()}.",
+            "agent_knowledge_writing_cancelled" => $"{author} stopped writing; the unused materials are available again.",
+            "agent_knowledge_material_collected" => $"{author} collected writing supplies.",
+            _ => fields.ElementAtOrDefault(2) switch
+            {
+                "field_map" => $"{author} finished drawing a field map.",
+                "field_record" => $"{author} finished writing a field record.",
+                "book" => $"{author} finished writing a book.",
+                _ => $"{author} finished a written work.",
+            },
+        };
     }
 
     private static string Name(OwnerWorldSnapshot? snapshot, string id) =>
