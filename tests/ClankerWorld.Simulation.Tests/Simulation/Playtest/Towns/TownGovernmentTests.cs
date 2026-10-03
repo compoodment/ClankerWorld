@@ -276,6 +276,26 @@ public sealed class TownGovernmentTests
     }
 
     [Fact]
+    public void AddingALandMayorPreservesAnExistingSevenResidentRepresentativeCouncil()
+    {
+        var town = new Town("a", "b", "c", "d", "e", "f", "g", "h");
+        foreach (var id in town.Adults.Take(3)) town.Council = TownGovernanceRules.Register(town.Council, id, true, null, town.Adults, 0);
+        town.Advance(0);
+        town.Council = TownGovernanceRules.VoteElection(town.Council, town.Council.Election!.Id, "a", ["a", "b", "c"], 0);
+        town.Advance(10);
+        var end = town.Council.TermEndTick;
+        town.Adults = ["a", "b", "c", "d", "e", "f", "g"];
+        town.Advance(11);
+        town.Register("d");
+        town.Yes(town.Propose(LandMayor), "a", "b", "c", "d");
+        town.Ballot("d", "d"); town.Advance(21);
+        Assert.Equal("d", Assert.Single(town.Government.Offices).HolderId);
+        Assert.Equal("representative", town.Council.Form);
+        Assert.Equal(["a", "b", "c"], town.Council.Members);
+        Assert.Equal(end, town.Council.TermEndTick);
+    }
+
+    [Fact]
     public void ExplicitAllAdultAndElectedArrangementsUseProtectedHandover()
     {
         var town = new Town();

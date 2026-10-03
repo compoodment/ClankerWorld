@@ -142,7 +142,8 @@ public static partial class TownGovernmentRules
         }
 
         var handover = ActiveChange(state) is { Status: "handover" } active ? active : null;
-        var targetNeedsCouncil = handover is not null && NeedsElectedCouncil(handover.Target, adults.Length);
+        var changesOrdinaryAuthority = handover is not null && handover.Target.Ordinary != state.Arrangement.Ordinary;
+        var targetNeedsCouncil = changesOrdinaryAuthority && NeedsElectedCouncil(handover!.Target, adults.Length);
         var currentNeedsCouncil = state.Arrangement.Ordinary is TownArrangementRules.Council or TownArrangementRules.ElectedCouncil;
         var leader = GoverningOffice(state);
         if (state.Arrangement.Ordinary == TownArrangementRules.Mayor)
@@ -181,7 +182,7 @@ public static partial class TownGovernmentRules
                 state = Replace(state, handover with { Status = "completed", SettledTick = tick, SuccessorId = winner?.WinnerId });
                 if (targetNeedsCouncil && council.Election is { Stage: "ready" } successor)
                     council = TownGovernanceRules.SeatFullCouncil(council, successor, tick, day);
-                else if (!targetNeedsCouncil)
+                else if (changesOrdinaryAuthority && !targetNeedsCouncil)
                 {
                     council = TownGovernanceRules.CancelElection(council, tick, "The protected government handover changed ordinary authority.");
                     var governing = GoverningOffice(state)?.HolderId;
