@@ -377,6 +377,7 @@ public sealed partial class PrivateWorldRuntime
         "move_to" => "travel to the exact tile named in this order",
         "seek_food" => "travel within gathering range of an available food source",
         "harvest_food" => "gather several food servings from a nearby food source",
+        "gather_material" => "gather the requested material from a natural source",
         "accept_guardianship" => "accept primary care of the named child through their guardian search",
         _ => null,
     };
