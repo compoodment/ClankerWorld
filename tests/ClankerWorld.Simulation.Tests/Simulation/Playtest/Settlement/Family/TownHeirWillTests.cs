@@ -128,6 +128,9 @@ public sealed class TownHeirWillTests
         };
         inventory = InventoryFixture.AddLot(inventory, "will-cart", "handcart", deceasedId, 1, groundPosition: site);
         inventory = InventoryFixture.AddLot(inventory, "will-cargo", "stone", deceasedId, 5, containerLotId: "will-cart");
+        // As much wood as the cart and cargo, which the Town does keep: it shows the
+        // Warehouse had room for the cart too, so only the refusal keeps the cart out.
+        inventory = InventoryFixture.AddLot(inventory, "will-wood", "wood", deceasedId, 6);
         society = society with
         {
             Inventory = inventory,
@@ -173,6 +176,8 @@ public sealed class TownHeirWillTests
         Assert.Equal((site, (string?)null), (cart.GroundPosition, cart.StorageBuildingId));
         var cargo = settling.Society.Inventory.GetLot("will-cargo");
         Assert.Equal((cart.OwnerId, "will-cart", 5), (cargo.OwnerId, cargo.ContainerLotId, cargo.Quantity));
+        var wood = Assert.Single(settling.Society.Inventory.Lots, lot => lot.ProvenanceLotId == "will-wood");
+        Assert.Equal((TownBorderRules.FirstTownId, "first-town-warehouse", 6), (wood.OwnerId, wood.StorageBuildingId, wood.Quantity));
     }
 
     [Fact]

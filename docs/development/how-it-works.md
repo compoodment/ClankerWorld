@@ -1072,9 +1072,9 @@ Goods carried by the deceased are dropped at their last tile. A Town heir's
 part goes to its Warehouse as Town stock while the Warehouse has
 room and stores that kind; the runtime passes each Town's Warehouse, free room
 and refused kinds (food, and handcarts, which stay on the ground) as
-`SocietyTownStore`. Whatever the will cannot
-deliver (a share for an heir who has since died, food or goods beyond the room)
-follows the household default: an equal split between the living household
+`SocietyTownStore`. Whatever the will cannot deliver (a share for an heir who
+has since died, food, a handcart or goods beyond the room) follows the
+household default: an equal split between the living household
 beneficiaries, with the first in ID order taking leftovers, or communal stock
 when none remain. A vessel and its contents move as one family and keep their
 lot IDs: the Town takes a family only when the Warehouse accepts every kind in
