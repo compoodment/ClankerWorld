@@ -1,6 +1,7 @@
 using ClankerWorld.GodotClient.ClientState;
 using ClankerWorld.GodotClient.Pairing;
 using ClankerWorld.GodotClient.UI;
+using Godot;
 
 namespace ClankerWorld.GodotClient;
 
@@ -25,6 +26,14 @@ public partial class Main
         var previousWorldMenuVisible = worldMenuOverlay.Visible;
         var previousResumeOnContinue = resumeWorldOnContinue;
         var previousMenuPausedWorld = menuPausedWorld;
+        var previousTownSiteMode = choosingFirstTownSite;
+        var previousModel = cognitionModelPicker.Model;
+        var previousModelTyping = cognitionModelPicker.IsTyping;
+        var previousRole = cognitionRoleChoice.Selected;
+        var previousModelKey = cognitionApiKeyInput.Text;
+        var previousDeveloperKind = developerEditKind.Selected;
+        var previousDeveloperValue = developerEditValue.Selected;
+        var previousDeveloperAmount = developerEditAmount.Value;
         System.Environment.SetEnvironmentVariable("CI", "true");
         using var signer = OwnerDeviceKey.CreateEphemeralForContinuousIntegration();
         using var host = new WorldActionSmokeHost(signer.PublicKeySpkiBase64);
@@ -34,7 +43,7 @@ public partial class Main
         const string turnId = "timeline-ui-turn";
         const string retainedKey = "timeline-ui-instruction-key";
         const string retainedText = "Remember the orchard.";
-        OwnerWorldReconnect World(long generation, long tick, int eventCount)
+        OwnerWorldReconnect World(long generation, long tick, int eventCount, bool paused = false)
         {
             var position = new OwnerWorldPosition(1, 1);
             OwnerWorldInhabitant Agent(string id, string name) => new(id, name, "active", position, 8_000, [], [],
@@ -48,7 +57,8 @@ public partial class Main
                 Conversations = [new("timeline-ui-conversation", agentId, "Rowan Lake", listenerId, "Aster Vale",
                     "completed", null, null, 0, tick,
                     [new(turnId, agentId, "Rowan Lake", $"Timeline {generation} conversation.", tick, [listenerId], false)])],
-                Authoring = new(false, 0, 0, 0, "timeline-ui-map", "timeline-ui-map", "clear", "spring", []),
+                Authoring = new(paused, 0, 0, 0, "timeline-ui-map", "timeline-ui-map", "clear", "spring", []),
+                FounderSetup = new(4, 0, false) { CanChooseTownSite = true },
             };
             var events = Enumerable.Range(1, eventCount)
                 .Select(id => new OwnerWorldEvent(id, tick, "timeline_smoke", $"generation:{generation}"))
@@ -106,6 +116,7 @@ public partial class Main
                 var oldSaves = new TaskCompletionSource<ManualWorldSave[]>();
                 var settingsRead = RefreshAutosaveSettingsAsync(_ => oldSettings.Task);
                 var savesRead = OpenManualSavesAsync(true, _ => oldSaves.Task);
+                choosingFirstTownSite = true;
                 var generation = observationSession.RequestGeneration;
                 host.Reconnect = World(2, 5, 1);
                 await RefreshAsync();
@@ -113,7 +124,7 @@ public partial class Main
                 if (!observationSession.AwaitingFreshBaseline || observationSession.RequestGeneration == generation ||
                     observationSession.Current?.Baseline.Snapshot.WorldId != worldId ||
                     observationSession.Current?.Baseline.Snapshot.WorldTick != 20 || selectedInhabitantId != agentId ||
-                    !knownEvents.ContainsKey(2) || !ReferenceEquals(terrainMap, heldTerrain))
+                    !knownEvents.ContainsKey(2) || !ReferenceEquals(terrainMap, heldTerrain) || !choosingFirstTownSite)
                     throw new InvalidOperationException("A same-world rewind must hold the old display while invalidating its requests.");
                 var heldSettingsStatus = autosaveSettingsStatus.Text;
                 var heldSavesStatus = manualSaveStatus.Text;
@@ -141,7 +152,8 @@ public partial class Main
                 if (observationSession.AwaitingFreshBaseline || observationSession.Timeline?.Generation != 2 ||
                     observationSession.Current?.Baseline.Snapshot.WorldTick != 5 || selectedInhabitantId is not null ||
                     knownEvents.ContainsKey(2) || knownEvents.Count != 1 || knownEvents[1].Detail != "generation:2" ||
-                    ReferenceEquals(terrainMap, heldTerrain) || manualSaveOverlay.Visible)
+                    ReferenceEquals(terrainMap, heldTerrain) || manualSaveOverlay.Visible || choosingFirstTownSite ||
+                    observationSession.Current?.Baseline.Snapshot.FounderSetup?.CanChooseTownSite != true)
                     throw new InvalidOperationException("Accepting a fresh same-world baseline must clear old events, selection and terrain caches.");
                 if (lastSeenEventId > 1 || newEventsAfter != long.MaxValue || unreadEvents != 0 ||
                     locallyReadConversationTurns.Contains(ConversationTurnKey(worldId, turnId)))
@@ -201,6 +213,126 @@ public partial class Main
                 releaseLoad.TrySetResult();
                 await loading.WaitAsync(TimeSpan.FromSeconds(5));
             }
+
+            foreach (var lateFailure in new[] { false, true })
+            {
+                observationSession.ReplaceRegistration(registration);
+                ResetDisplayedWorldContext();
+                host.Reconnect = World(10, 20, 2);
+                await RefreshAsync();
+                gameMenuPanel.Show();
+                settingsPanel.Show();
+                gameSettingsContent.Hide();
+                worldSettingsContent.Show();
+                cognitionApiKeyInput.Text = string.Empty;
+                var models = new OwnerProviderConfigurationStatus("deterministic", "openai", 0,
+                    [new("openai", "timeline-selected-model", true)]);
+                void ShowSameModelContext()
+                {
+                    providerConfiguration = models;
+                    PopulateCognitionTargets();
+                    cognitionTargetChoice.Select(0);
+                    cognitionRoleChoice.Select(1);
+                    PopulateProviderChoices("openai");
+                    PopulateCredentialChoices();
+                    RenderProviderConfiguration();
+                }
+                bool ListsModel(string model) => Enumerable.Range(0, cognitionModelPicker.Choice.ItemCount)
+                    .Any(index => cognitionModelPicker.Choice.GetItemText(index) == model);
+                host.FailModels = false;
+                host.ReleaseModels = null;
+                host.Models = new("openai", [new("timeline-selected-model", true), new("timeline-initial-model", true)],
+                    "timeline-selected-model", null);
+                ShowSameModelContext();
+                await WaitForTimelineSmokeAsync(() => ListsModel("timeline-initial-model"),
+                    "The model lookup must first populate through its ordinary context cache and signed host endpoint.");
+
+                host.ModelsReceived = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                var releaseModels = host.ReleaseModels = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                host.Models = new("openai", [new("timeline-obsolete-model", true)], "timeline-obsolete-model", null);
+                host.FailModels = lateFailure;
+                // A retry for the same provider and key still uses the existing
+                // context cache, but the held read below has its own Task.
+                var modelRead = LoadModelListAsync(cognitionModelPicker, "openai", null, null);
+                try
+                {
+                    await Task.WhenAny(host.ModelsReceived.Task, modelRead).WaitAsync(TimeSpan.FromSeconds(5));
+                    if (!host.ModelsReceived.Task.IsCompleted || modelRead.IsCompleted ||
+                        await host.ModelsReceived.Task != new OwnerProviderModelListAction("openai", null, null, true))
+                        throw new InvalidOperationException("The old model read must reach the signed endpoint with the same provider and key before recovery.");
+                    host.Reconnect = World(11, 5, 1);
+                    await RefreshAsync();
+                    await RefreshAsync();
+                    if (observationSession.AwaitingFreshBaseline || observationSession.Timeline?.Generation != 11)
+                        throw new InvalidOperationException("The model-list check must accept a replacement timeline before releasing its old reply.");
+                    releaseModels.SetResult();
+                    await modelRead.WaitAsync(TimeSpan.FromSeconds(5));
+                    if (ListsModel("timeline-obsolete-model") || cognitionModelPicker.Problem.Length != 0)
+                        throw new InvalidOperationException("A late old-timeline model success or failure must not publish into the replacement picker.");
+
+                    host.ModelsReceived = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                    host.ReleaseModels = null;
+                    host.FailModels = false;
+                    host.Models = new("openai", [new("timeline-selected-model", true), new("timeline-current-model", true)],
+                        "timeline-selected-model", null);
+                    ShowSameModelContext();
+                    await host.ModelsReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
+                    await WaitForTimelineSmokeAsync(() => ListsModel("timeline-current-model"),
+                        "Reopening the unchanged model context after recovery must issue a new lookup and populate its current list.");
+                    if (ListsModel("timeline-obsolete-model") || cognitionModelPicker.Problem.Length != 0)
+                        throw new InvalidOperationException("The recovered model picker must keep only the current model list.");
+                }
+                finally
+                {
+                    releaseModels.TrySetResult();
+                    await modelRead.WaitAsync(TimeSpan.FromSeconds(5));
+                    host.ReleaseModels = null;
+                    host.FailModels = false;
+                }
+            }
+
+            foreach (var lateFailure in new[] { false, true })
+            {
+                observationSession.ReplaceRegistration(registration);
+                ResetDisplayedWorldContext();
+                host.Reconnect = World(20, 20, 2, paused: true);
+                await RefreshAsync();
+                selectedInhabitantId = agentId;
+                developerEditKind.Select(0);
+                ConfigureDeveloperEdit();
+                developerEditAmount.Value = 50;
+                host.DeveloperEditReceived = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                var releaseEdit = host.ReleaseDeveloperEdit = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                host.DeveloperEditReceipt = new("developer-edit", true, true, 20, 0, 0);
+                host.FailDeveloperEdit = lateFailure;
+                var editing = ApplyDeveloperEditAsync();
+                try
+                {
+                    await Task.WhenAny(host.DeveloperEditReceived.Task, editing).WaitAsync(TimeSpan.FromSeconds(5));
+                    if (!host.DeveloperEditReceived.Task.IsCompleted || editing.IsCompleted || !isOwnerAction ||
+                        await host.DeveloperEditReceived.Task != new OwnerDeveloperEditAction(worldId, 2, agentId, "set_need", "fullness", 50))
+                        throw new InvalidOperationException("The developer-edit check must hold the actual signed selected-agent request at the host.");
+                    host.Reconnect = World(21, 5, 1, paused: true);
+                    await RefreshAsync();
+                    await RefreshAsync();
+                    if (observationSession.AwaitingFreshBaseline || observationSession.Timeline?.Generation != 21)
+                        throw new InvalidOperationException("The developer-edit check must accept its replacement baseline before releasing the old reply.");
+                    SetStatus("Replacement world confirmed.", good: true);
+                    var replacementStatus = statusLabel.Text;
+                    releaseEdit.SetResult();
+                    await editing.WaitAsync(TimeSpan.FromSeconds(5));
+                    if (statusLabel.Text != replacementStatus || isOwnerAction || selectedInhabitantId is not null ||
+                        observationSession.Timeline?.Generation != 21 || observationSession.Current?.Baseline.Snapshot.WorldTick != 5)
+                        throw new InvalidOperationException("A late developer-edit success or failure must not replace the new timeline's status, selection or baseline.");
+                }
+                finally
+                {
+                    releaseEdit.TrySetResult();
+                    await editing.WaitAsync(TimeSpan.FromSeconds(5));
+                    host.ReleaseDeveloperEdit = null;
+                    host.FailDeveloperEdit = false;
+                }
+            }
         }
         finally
         {
@@ -230,9 +362,28 @@ public partial class Main
             worldMenuOverlay.Visible = previousWorldMenuVisible;
             resumeWorldOnContinue = previousResumeOnContinue;
             menuPausedWorld = previousMenuPausedWorld;
+            choosingFirstTownSite = previousTownSiteMode;
+            cognitionApiKeyInput.Text = previousModelKey;
+            cognitionRoleChoice.Select(previousRole);
+            if (previousModelTyping) cognitionModelPicker.ShowTypedOnly(previousModel);
+            else cognitionModelPicker.SetModel(previousModel);
+            developerEditKind.Select(previousDeveloperKind);
+            ConfigureDeveloperEdit();
+            developerEditValue.Select(previousDeveloperValue);
+            developerEditAmount.Value = previousDeveloperAmount;
             System.Environment.SetEnvironmentVariable("CI", previousCi);
             RefreshControlAvailability();
             statusToast.Hide();
+        }
+    }
+
+    private async Task WaitForTimelineSmokeAsync(Func<bool> ready, string failure)
+    {
+        var deadline = System.Environment.TickCount64 + 5_000;
+        while (!ready())
+        {
+            if (System.Environment.TickCount64 >= deadline) throw new InvalidOperationException(failure);
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
         }
     }
 }

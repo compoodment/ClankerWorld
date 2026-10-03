@@ -23,7 +23,13 @@ already identify exact builds.
 The current .NET version metadata comes from
 [`Directory.Build.props`](../../Directory.Build.props), not a second hand-maintained
 constant. See the [build reference](build-and-test.md) for the selected toolchain.
-A tagged release must report both its game version and source revision.
+Untagged development builds use `0.1.0-dev`; they do not claim an alpha release.
+The SDK includes the checked-out source revision in the assembly's informational
+version. Settings and Developer tools show that version with seven commit
+characters, and the tooltip gives the full commit. The host's `/api/v1/status`
+reply reports its own `build`, `version` and full `sourceRevision`, without world
+or device state. A tagged release must report both its game version and source
+revision.
 
 ## Matching client and host builds
 

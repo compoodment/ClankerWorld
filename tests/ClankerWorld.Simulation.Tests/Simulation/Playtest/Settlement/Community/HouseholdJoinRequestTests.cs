@@ -103,6 +103,8 @@ public sealed class HouseholdJoinRequestTests
         {
             Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
         };
+        state = ExpansionLandFixture.WithRights(state, house, Enumerable.Range(-1, 3).SelectMany(dy =>
+            Enumerable.Range(-1, 3).Select(dx => new GridPoint(house.Position.X + dx, house.Position.Y + dy))).Where(state.Map.IsLand));
         using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)),
             _ => provider);
         var expansion = world.StartBuildingExpansion(builder, house.InstanceId);
