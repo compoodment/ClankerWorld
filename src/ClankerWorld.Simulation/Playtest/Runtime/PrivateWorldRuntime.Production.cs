@@ -14,7 +14,7 @@ namespace ClankerWorld.Simulation.Playtest;
 public sealed partial class PrivateWorldRuntime
 {
     private TownLayoutContext CreateTownLayoutContext(string actor, GridPoint? selectedSite = null,
-        BuildingDefinition? building = null)
+        BuildingDefinition? building = null, bool forTownProject = false, string? townProjectId = null)
     {
         var origin = inhabitants[actor].Position;
         var town = towns.SingleOrDefault(item => item.ResidentIds.Contains(actor, StringComparer.Ordinal));
@@ -23,6 +23,7 @@ public sealed partial class PrivateWorldRuntime
             .Concat(map.Resources.Select(item => item.Position))
             .Concat(RoadAndBridgeTiles())
             .Concat(fields.Select(field => field.Position))
+            .Concat(TownProjectFootprintTiles(townProjectId))
             .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused).SelectMany(ExpansionTiles))
             .Concat(worldSimulation.Buildings.SelectMany(building =>
             {
@@ -47,7 +48,9 @@ public sealed partial class PrivateWorldRuntime
             resourcesForLayout,
             buildingsForLayout,
             roadTiles: roadTiles,
-            requiredNeighborTiles: building is not null && HouseholdBuildingKind(building) == "silo" ? SiloNeighborTiles(actor, definitions) : null);
+            requiredNeighborTiles: building is not null && HouseholdBuildingKind(building) == "silo" ? SiloNeighborTiles(actor, definitions) : null,
+            requiredLandTiles: forTownProject && town is not null ? TownProjectLandTiles(town) : null,
+            requiredEntranceOffset: forTownProject ? new GridPoint(1, 4) : null);
     }
 
     /// <summary>A Silo stands near its household's Farmhouse; no Farmhouse means no legal Silo site.</summary>
@@ -224,7 +227,8 @@ public sealed partial class PrivateWorldRuntime
     private bool CanPlaceBuilding(
         BuildingDefinition definition,
         GridPoint position,
-        out string failure)
+        out string failure,
+        string? townProjectId = null)
     {
         var footprint = WorldContentSimulationRules.Footprint(definition, position).ToArray();
         if (footprint.Any(point => !map.IsBuildable(point)))
@@ -238,6 +242,7 @@ public sealed partial class PrivateWorldRuntime
             .Concat(map.Resources.Select(item => item.Position))
             .Concat(RoadAndBridgeTiles())
             .Concat(fields.Select(field => field.Position))
+            .Concat(TownProjectFootprintTiles(townProjectId))
             .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused).SelectMany(ExpansionTiles))
             .ToHashSet();
         var buildingDefinitions = worldContent.Buildings.ToDictionary(item => item.CanonicalId, StringComparer.Ordinal);

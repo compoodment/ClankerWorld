@@ -22,6 +22,8 @@ public static class WorldEventText
             worldEvent.Detail.EndsWith(":" + person.Id, StringComparison.Ordinal))?.DisplayName ?? "The guest";
         var civicTownId = worldEvent.Detail.Split('|', 3)[0];
         var civicTownName = snapshot?.Towns.FirstOrDefault(town => town.Id == civicTownId)?.Name ?? "A Town";
+        var townProjectName = worldEvent.Kind.StartsWith("town_project_", StringComparison.Ordinal)
+            ? TownProjectForEvent(snapshot, worldEvent.Detail)?.Name ?? "a Town project" : "a Town project";
 
         return worldEvent.Kind switch
         {
@@ -101,6 +103,17 @@ public static class WorldEventText
             "town_civic_proposal" => $"A proposal was submitted to {civicTownName}'s council.",
             "town_civic_result" => $"{civicTownName}'s council recorded a decision. See the Towns page for its result.",
             "town_civic_cancelled" => $"An unfinished election in {civicTownName} was cancelled.",
+            "town_project_approved" => $"The Council approved {townProjectName}; real materials and construction work are still needed.",
+            "town_project_blocked" => $"Work on {townProjectName} is blocked. See the Towns page for what is needed.",
+            "town_project_resumed" => $"{townProjectName} can continue.",
+            "town_project_donated" => $"{LeadingName(snapshot, worldEvent.Detail)} donated personal materials to {townProjectName}.",
+            "town_project_material_picked_up" => $"{LeadingName(snapshot, worldEvent.Detail)} picked up Town materials for {townProjectName}; the load is still being carried.",
+            "town_project_material_delivered" => $"{LeadingName(snapshot, worldEvent.Detail)} delivered materials to the approved site for {townProjectName}.",
+            "town_project_material_returned" => worldEvent.Detail.EndsWith(":ground", StringComparison.Ordinal)
+                ? $"{LeadingName(snapshot, worldEvent.Detail)} set down unused Town materials from {townProjectName}."
+                : $"{LeadingName(snapshot, worldEvent.Detail)} returned unused materials from {townProjectName} to the Town Warehouse.",
+            "town_project_worked" => $"{LeadingName(snapshot, worldEvent.Detail)} worked on {townProjectName}.",
+            "town_project_completed" => $"{townProjectName} was built with its approved materials.",
             "town_founding_started" => "Your first Town is being set up.",
             "town_resident_joined" => $"{ResidentName(snapshot, worldEvent)} joined the first Town.",
             "town_resident_left" => $"{ResidentName(snapshot, worldEvent)} left the first Town.",
@@ -127,6 +140,20 @@ public static class WorldEventText
             "model_call_warning" => DescribeModelCallWarning(parts),
             _ => $"{GameUiText.HumanizeIdentifier(worldEvent.Kind)}.",
         };
+    }
+
+    private static OwnerWorldTownProject? TownProjectForEvent(OwnerWorldSnapshot? snapshot, string detail)
+    {
+        if (snapshot is null) return null;
+        // Town, agent and proposal IDs contain colons; match their complete known identities.
+        var town = snapshot.Towns.OrderByDescending(item => item.Id.Length)
+            .FirstOrDefault(item => IsLeadingId(detail, item.Id));
+        if (town is not null)
+            return town.Projects.FirstOrDefault(project => IsLeadingId(detail, town.Id + ":" + project.Id));
+        var person = snapshot.Inhabitants.OrderByDescending(item => item.Id.Length)
+            .FirstOrDefault(item => IsLeadingId(detail, item.Id));
+        return person is null ? null : snapshot.Towns.SelectMany(item => item.Projects)
+            .FirstOrDefault(project => IsLeadingId(detail, person.Id + ":" + project.Id));
     }
 
     /// <summary>The installation's one warning at 80% of its model-call limit.</summary>

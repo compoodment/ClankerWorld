@@ -430,6 +430,7 @@ public sealed partial class PrivateWorldRuntime
             StageSiloContent();
             StageTailorContent();
             StageCareContent();
+            StageBuiltInContent(TownHallContent.PackageId, HouseContent.PackageId, TownHallContent.Create, "town_hall_content_staged");
             StageBuiltInContent(BusinessContent.PackageId, HouseContent.PackageId, BusinessContent.Create, "business_content_staged");
             var readyPackages = contentRegistry.GetActivationCandidates(targetTick);
             var reservationPreview = WorldAssetReservationLedger.Restore(
@@ -514,6 +515,7 @@ public sealed partial class PrivateWorldRuntime
             CancelFieldWorkForUnavailableWorkers();
             AdvanceSettlementCouncil();
             AdvanceTownGovernance();
+            MaintainTownProjects();
             MaintainLessons();
             MaintainPartnerships();
             MaintainHousing();
@@ -590,6 +592,7 @@ public sealed partial class PrivateWorldRuntime
             if (deferHosted) ApplySafeRoutinesWhileWaiting(waiting, orderActorsHandledThisTick);
             AdvanceBridgeTraffic();
             SettleGuardianSearches();
+            MaintainTownProjects();
 
             AppendEvent("tick_advanced", targetTick.ToString(System.Globalization.CultureInfo.InvariantCulture));
             var newEvents = events.Skip(startingEvent).ToArray();

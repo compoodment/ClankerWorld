@@ -136,6 +136,7 @@ public sealed partial class PrivateWorldRuntime
             .OrderBy(lot => lot.Id, StringComparer.Ordinal)
             .Where(lot => CanReachSharedItem(actor, lot))
             .Concat(warehouseStock)
+            .Where(lot => !IsActiveTownProjectDelivery(lot.Id))
             .FirstOrDefault();
     }
 

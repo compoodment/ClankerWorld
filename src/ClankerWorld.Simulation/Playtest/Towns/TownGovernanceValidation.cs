@@ -35,9 +35,9 @@ public static partial class TownGovernanceValidation
         foreach (var proposal in state.Proposals)
         {
             if (!ValidGeneratedId(proposal.Id, town.Id + ":proposal:", state.Sequence) ||
-                string.IsNullOrWhiteSpace(proposal.RequestKey) || proposal.Kind is not ("law" or "admission") || !known.Contains(proposal.AuthorId) ||
+                string.IsNullOrWhiteSpace(proposal.RequestKey) || proposal.Kind is not ("law" or "admission" or "project") || !known.Contains(proposal.AuthorId) ||
                 proposal.Kind == "admission" && (proposal.SubjectId is null || !known.Contains(proposal.SubjectId)) ||
-                proposal.Kind == "law" && proposal.SubjectId is not null ||
+                proposal.Kind is "law" or "project" && proposal.SubjectId is not null ||
                 string.IsNullOrWhiteSpace(proposal.Text) || proposal.Text.Length > TownGovernanceRules.MaximumProposalText || proposal.Text.Any(char.IsControl) ||
                 proposal.Circumstances is null || proposal.Circumstances.Length > 512 || proposal.CouncilRevision < 0 || proposal.CouncilRevision > state.Revision ||
                 proposal.OpenedTick < 0 || proposal.OpenedTick > tick || proposal.DeadlineTick != proposal.OpenedTick + day ||
@@ -57,6 +57,15 @@ public static partial class TownGovernanceValidation
                 proposal.Status == "passed" && proposal.Votes.Count(v => v.Yes) < proposal.RequiredYes ||
                 proposal.Status == "rejected" && proposal.Votes.Count(v => v.Yes) >= proposal.RequiredYes)
                 throw new InvalidDataException("A Town's saved proposal or final votes are invalid.");
+            if (proposal.Kind == "project")
+            {
+                TownProjectRules.ValidatePayload(proposal.Project);
+                if (proposal.RequestKey != TownProjectRules.RequestKey(proposal.Project!) ||
+                    proposal.Text != TownProjectRules.ProposalText(proposal.Project!))
+                    throw new InvalidDataException("A Town's construction proposal differs from its named site and budget.");
+            }
+            else if (proposal.Project is not null)
+                throw new InvalidDataException("A law or admission proposal cannot contain construction authority.");
         }
         if (state.Proposals.Where(p => p.Status == "pending").GroupBy(p => p.RequestKey, StringComparer.Ordinal).Any(g => g.Count() > 1))
             throw new InvalidDataException("Equivalent pending Town proposals must share a single window.");

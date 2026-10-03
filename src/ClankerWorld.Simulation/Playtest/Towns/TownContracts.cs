@@ -1,5 +1,6 @@
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Content;
+using System.Text.Json.Serialization;
 
 namespace ClankerWorld.Simulation.Playtest;
 
@@ -17,7 +18,11 @@ public sealed record TownRuntimeState(
     IReadOnlyList<string> AssignedBuildingIds,
     IReadOnlyList<GridPoint> BorderTiles,
     GridPoint? OriginSite = null,
-    TownGovernanceState? Governance = null);
+    TownGovernanceState? Governance = null)
+{
+    [JsonRequired]
+    public IReadOnlyList<TownConstructionProject> Projects { get; init; } = [];
+}
 
 /// <summary>
 /// A Town's border keeps about <see cref="SpareTileMargin"/> tiles of spare

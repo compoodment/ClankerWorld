@@ -268,6 +268,8 @@ public partial class Main
             : string.Join('|', inside);
         signature += $"|{building.ExpansionState}|{building.ExpansionFailure}|" +
             string.Join('|', building.Trades.Select(trade => trade.OfferId + ":" + trade.Status));
+        var townHall = building.Tags?.Contains("town_hall", StringComparer.Ordinal) == true;
+        signature += "|" + townHall;
         if (renderedBuildingStatus == signature) return;
         renderedBuildingStatus = signature;
         ClearChildren(buildingQuickStatus);
@@ -288,6 +290,8 @@ public partial class Main
         var openTrades = building.Trades.Count(trade => trade.Status == "open");
         if (openTrades > 0)
             buildingQuickStatus.AddChild(new Label { Text = $"{Plural(openTrades, "customer exchange")} waiting" });
+        if (townHall)
+            buildingQuickStatus.AddChild(new Label { Text = "Town civic notice place · see Council decisions in World Info" });
         if (jobs.Length > 0)
         {
             buildingQuickStatus.AddChild(JobRow(snapshot, jobs[0]));
@@ -320,7 +324,8 @@ public partial class Main
     private void RenderBuildingDetails(OwnerWorldSnapshot snapshot, OwnerWorldPlacedBuilding building,
         string? household, string? town, OwnerWorldProductionJob[] jobs, string[] inside)
     {
-        var usedBy = household ?? (town is not null && building.Tags?.Contains("warehouse") == true
+        var townHall = building.Tags?.Contains("town_hall", StringComparer.Ordinal) == true;
+        var usedBy = townHall ? "Town civic notice place" : household ?? (town is not null && building.Tags?.Contains("warehouse") == true
             ? $"{town} residents" : "Any agent");
         var facts = new List<(string Key, string Value)>
         {
@@ -329,6 +334,16 @@ public partial class Main
             ("Built", SplitClock(DisplayWorldClock(building.PlacedTick)).Date),
             ("Footprint", $"{building.Width} × {building.Height} tiles"),
         };
+        if (townHall && snapshot.Towns.SelectMany(item => item.Projects)
+                .FirstOrDefault(project => project.CompletedBuildingId == building.InstanceId) is { } project)
+        {
+            facts.Add(("Town project", project.Name));
+            facts.Add(("Proposed by", project.ProposerName));
+            facts.Add(("Council approval", $"{project.Approval.Yes} yes / {project.Approval.No} no · {project.Approval.RequiredYes} yes needed"));
+            facts.Add(("Materials spent", string.Join(" · ", project.Materials.Select(q =>
+                $"{q.Supplied} {GameUiText.ItemName(q.Kind)}")) + " · provisional budget"));
+            facts.Add(("Construction", $"{project.WorkDone} / {project.WorkRequired} units · provisional work"));
+        }
         if (building.StorageCapacity is { } capacity)
             facts.Add(("Storage", $"{building.StoredQuantity} / {capacity} items"));
         if (building.Tags?.Any(tag => tag is "farmhouse" or "blacksmith" or "tailor" or "store" or "restaurant" or "clinic") == true)

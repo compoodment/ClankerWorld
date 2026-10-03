@@ -456,6 +456,12 @@ public sealed partial class PrivateWorldRuntime
                     ContinueTownCivicVisit(inhabitant.Id, intention.CandidateId);
                 continue;
             }
+            if (IsTownProjectDonationCandidate(intention.CandidateId))
+            {
+                if (intention.Provider == DecisionProviderKind.LargeLanguageModel)
+                    ContinueTownProjectDonationWalk(inhabitant.Id, intention.CandidateId);
+                continue;
+            }
             if (IsOrnamentCandidate(intention.CandidateId))
             {
                 if (intention.Provider == DecisionProviderKind.LargeLanguageModel)
@@ -559,6 +565,11 @@ public sealed partial class PrivateWorldRuntime
             {
                 if (!decision.Admission.FellBack && decision.Admission.Intention.Provider == DecisionProviderKind.LargeLanguageModel)
                     ApplyTownCivicCandidate(decision.InhabitantId, candidateId, decision.Admission.CivicProposal, decision.Admission.CivicBallot);
+            }
+            else if (IsTownProjectDonationCandidate(candidateId))
+            {
+                if (!decision.Admission.FellBack && decision.Admission.Intention.Provider == DecisionProviderKind.LargeLanguageModel)
+                    ApplyTownProjectDonation(decision.InhabitantId, candidateId);
             }
             else
                 ApplyCandidate(decision.InhabitantId, state, candidateId, reportIdle: true);
@@ -688,6 +699,12 @@ public sealed partial class PrivateWorldRuntime
         if (candidateId.StartsWith("civic|", StringComparison.Ordinal))
         {
             // Civic choices execute only through the personal admission path above.
+            return;
+        }
+        if (IsTownProjectDonationCandidate(candidateId)) return;
+        if (IsTownProjectCandidate(candidateId))
+        {
+            ApplyTownProjectCandidate(inhabitantId, state, candidateId);
             return;
         }
         if (candidateId.StartsWith("council_", StringComparison.Ordinal))
@@ -1128,6 +1145,8 @@ public sealed partial class PrivateWorldRuntime
             AddTradeCandidates(candidates, inhabitantId);
             AddCouncilCandidates(candidates, inhabitantId);
             AddTownCivicCandidates(candidates, inhabitantId);
+            AddTownProjectCandidates(candidates, inhabitantId);
+            AddTownProjectDonationCandidates(candidates, inhabitantId);
             AddLearningCandidates(candidates, inhabitantId);
             AddExplorationCandidate(candidates, inhabitantId, state);
         }

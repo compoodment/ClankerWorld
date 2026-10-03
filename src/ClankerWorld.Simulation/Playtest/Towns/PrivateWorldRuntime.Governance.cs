@@ -102,7 +102,11 @@ public sealed partial class PrivateWorldRuntime
             AppendEvent("town_civic_" + notice.Kind, $"{town.Id}|{notice.SubjectId}|{notice.Text}", CivicBoard(town));
     }
 
-    private GridPoint? CivicBoard(TownRuntimeState town) => town.OriginSite ??
+    private GridPoint? CivicBoard(TownRuntimeState town) =>
+        worldSimulation.Buildings.Where(b => b.TownId == town.Id && b.HouseholdId is null &&
+            worldContent.Buildings.Any(d => d.CanonicalId == b.DefinitionId && d.Tags.Contains(TownHallContent.HallTag, StringComparer.Ordinal)))
+            .OrderBy(b => b.PlacedTick).ThenBy(b => b.InstanceId, StringComparer.Ordinal)
+            .Select(b => (GridPoint?)(b.Entrance ?? TownHallContent.Entrance(b.Position))).FirstOrDefault() ?? town.OriginSite ??
         worldSimulation.Buildings.FirstOrDefault(b => b.TownId == town.Id && b.HouseholdId is null)?.Position ??
         map.CampObjects.FirstOrDefault(p => p.Kind == "storage" && town.BorderTiles.Contains(p.Position))?.Position ??
         town.BorderTiles.Where(map.IsBuildable).OrderBy(p => p.Y).ThenBy(p => p.X).Select(p => (GridPoint?)p).FirstOrDefault();
@@ -156,6 +160,7 @@ public sealed partial class PrivateWorldRuntime
                             $"Ask {town.Name}'s council to approve admission of {society.Checkpoint.GetInhabitant(nominee).Name}, the adult nearby. A request grants no membership or stock access.", 188));
                 }
                 candidates.Add(new(CivicAction(town.Id, "propose"), $"Submit an ordinary social-law proposal to {town.Name}; include civic_proposal text. It needs the current council's votes and changes no physical rights.", 190));
+                AddTownProjectProposalCandidates(candidates, actor, town);
             }
             else if (!towns.Any(t => t.ResidentIds.Contains(actor, StringComparer.Ordinal)) && AdultResident(actor) && NearCivicBoard(actor, town))
                 candidates.Add(new(CivicAction(town.Id, "admission"), $"Ask {town.Name}'s council to approve your admission. The request grants no membership or stock access.", 170));
@@ -242,6 +247,13 @@ public sealed partial class PrivateWorldRuntime
                     state = TownGovernanceRules.SubmitProposal(state, town.Id, actor, "law", null, proposalText,
                         "council:" + state.Revision, TownAdults(town), WorldTick, CivicDay);
                     break;
+                case "project":
+                    var plan = OfferedTownProjectPlan(town, actor, parts[3], parts[4], proposalText);
+                    if (plan is null) return;
+                    state = TownGovernanceRules.SubmitProposal(state, town.Id, actor, "project", null,
+                        TownProjectRules.ProposalText(plan), "council:" + state.Revision,
+                        TownAdults(town), WorldTick, CivicDay, project: plan);
+                    break;
                 case "admission":
                     state = TownGovernanceRules.SubmitProposal(state, town.Id, actor, "admission", actor,
                         $"Admit {society.Checkpoint.GetInhabitant(actor).Name} as a Town resident.", "council:" + state.Revision,
@@ -259,6 +271,7 @@ public sealed partial class PrivateWorldRuntime
             state = TownGovernanceRules.LearnNotices(state, actor,
                 state.Notices.Skip(town.Governance.Notices.Count).Select(n => n.Id), WorldTick);
             SaveTownGovernance(town, state);
+            MaintainTownProjects();
             AppendEvent("town_civic_action", $"{town.Id}|{actor}|{parts[2]}", inhabitants[actor].Position);
         }
         catch (InvalidOperationException)

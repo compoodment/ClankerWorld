@@ -220,6 +220,34 @@ public sealed class OwnerWorldObservationStore
                 id, inhabitantsById.GetValueOrDefault(id)?.Name ?? id,
                 election.Ballots.Count(ballot => ballot.Choices.Contains(id, StringComparer.Ordinal)))).ToArray(),
             election.SettledSeats.Select(id => inhabitantsById.GetValueOrDefault(id)?.Name ?? id).ToArray());
+        ViewerTownProjectPlan ProjectPlan(TownProjectPayload plan, string proposerId)
+        {
+            var definition = buildingDefinitions?.GetValueOrDefault(plan.DefinitionId) ?? TownHallContent.Hall3x4();
+            return new ViewerTownProjectPlan(plan.Name, proposerId,
+                inhabitantsById.GetValueOrDefault(proposerId)?.Name ?? proposerId,
+                plan.DefinitionId, definition.DisplayName, ToPosition(plan.Site), ToPosition(plan.Entrance),
+                definition.Width, definition.Height,
+                plan.Budget.Select(q => new ViewerTownProjectBudget(q.ResourceId, q.Amount)).ToArray());
+        }
+        ViewerCivicProposal ProjectProposal(TownProposal proposal) => new(proposal.Id, proposal.Kind,
+            proposal.Text, proposal.Status, proposal.Votes.Count(v => v.Yes), proposal.Votes.Count(v => !v.Yes),
+            proposal.RequiredYes, proposal.DeadlineTick)
+        {
+            Project = proposal.Project is { } plan ? ProjectPlan(plan, proposal.AuthorId) : null,
+        };
+        ViewerTownProject ProjectConstruction(TownRuntimeState town, TownConstructionProject project)
+        {
+            // Approval belongs to the full civic ledger, even when it is older than the recent proposal list.
+            var approval = town.Governance!.Proposals.Single(p => p.Id == project.ProposalId);
+            var plan = ProjectPlan(project.Plan, approval.AuthorId);
+            return new ViewerTownProject(project.Id, project.ProposalId, plan.Name, plan.ProposerId,
+                plan.ProposerName, plan.DefinitionId, plan.DisplayName, plan.Site, plan.Entrance,
+                plan.Width, plan.Height, project.Plan.Budget.Select(q => new ViewerTownProjectMaterial(
+                    q.ResourceId, q.Amount, TownProjectRules.DeliveredQuantity(project, town.Id,
+                        state.Society.Society.Inventory, q.ResourceId))).ToArray(),
+                project.WorkDone, TownProjectRules.WorkTicks, project.Stage, project.Blocker,
+                project.CompletedBuildingId, ProjectProposal(approval));
+        }
         var physicalById = state.Inhabitants.ToDictionary(item => item.InhabitantId, StringComparer.Ordinal);
         var deceasedById = (state.DeceasedInhabitants ?? []).ToDictionary(item => item.InhabitantId, StringComparer.Ordinal);
         var resourceStates = state.Resources.ToDictionary(item => item.ResourceId, item => item.State, StringComparer.Ordinal);
@@ -374,13 +402,15 @@ public sealed class OwnerWorldObservationStore
                         civic.Form, civic.Fallback, civic.Members.Select(id => inhabitantsById.GetValueOrDefault(id)?.Name ?? id).ToArray(),
                         civic.TermEndTick, civic.RetryTick, civic.Candidates.Select(c =>
                             (inhabitantsById.GetValueOrDefault(c.AgentId)?.Name ?? c.AgentId) + (c.FullTerm ? " (full term)" : " (current vacancy only)")).ToArray(),
-                        civic.Proposals.TakeLast(RecentCivicProposalLimit).Select(p => new ViewerCivicProposal(p.Id, p.Kind, p.Text, p.Status,
-                            p.Votes.Count(v => v.Yes), p.Votes.Count(v => !v.Yes), p.RequiredYes, p.DeadlineTick)).ToArray(),
+                        civic.Proposals.TakeLast(RecentCivicProposalLimit).Select(ProjectProposal).ToArray(),
                         civic.Election is { } election ? ProjectElection(election) : null)
                     {
                         LatestElection = civic.ElectionHistory.Count > 0
                             ? ProjectElection(civic.ElectionHistory[^1]) : null,
                     } : null,
+                    Projects = item.Projects.OrderBy(project => project.ApprovedTick)
+                        .ThenBy(project => project.Id, StringComparer.Ordinal)
+                        .Select(project => ProjectConstruction(item, project)).ToArray(),
                 })
                 .ToArray(),
             TownLandTitles = (state.TownLandTitles ?? []).OrderBy(item => item.Id, StringComparer.Ordinal)

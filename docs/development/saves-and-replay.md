@@ -378,7 +378,8 @@ blocked-return behavior. These checks use existing timestamps and add no saved
 fields, schema change or migration.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 53. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 54 (the provisional number for the
+Town-project change; recheck against main before merging). The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
@@ -396,7 +397,9 @@ the continuity rule's state with each eligible couple's deadline, food-order
 targets, progress, retry state and cancellation receipts, staged
 guardian-search records with their offered adults, medical permission and
 consumed-dose progress, selected personal ornaments, and wills with up to
-three named heirs, exact divisions and final words.
+three named heirs, exact divisions and final words, plus typed Council-approved
+Town-project plans, shared construction progress and exact physical delivery
+receipts.
 Land records are checked against the saved map, Towns, households and one
 another before load. These fields retain their current validation and roundtrip
 behavior.
@@ -424,8 +427,8 @@ exchanges, schema 46 for continuity, schema 47 for household departures and
 physical custody, schema 48 for Town councils, schema 49 for food-order
 progress and cancellations, schema 50 for guardian searches, schema 51
 for medical permission and consumed-dose progress, schema 52 for selected
-ornaments and schema 53 for wills with several heirs and final words record when
-those fields or behaviors were
+ornaments, schema 53 for wills with several heirs and final words, and schema 54
+for typed shared Town-project construction record when those fields or behaviors were
 introduced; they do not allow an earlier checkpoint schema past the
 current alpha cutoff.
 
@@ -467,6 +470,7 @@ current alpha cutoff.
 | Schema 51 | Named medical permissions and active consumed-dose progress bind to actual completed inventory receipts. Terminal treatment closes its receipt without refund or resurrection; death retains completed consumption history and archived profiles cannot carry active treatment. Earlier alpha saves are refused and preserved without migration. |
 | Schema 52 | An optional exact personally owned, carried ornament lot in the canonical personal equipment record. Wearing supplies no protection or carrying bonus; removal, gifts and death retain actual property while clearing the selection when required. Earlier alpha saves are refused and preserved without migration. |
 | Schema 53 | Wills with one to three named heirs (people or a Town), an equal or item-by-item split, the exact quantity of each frozen lot per heir, and final words; the deceased archive keeps the agent's Town. Divisions must cover every frozen lot exactly. Earlier schemas cannot carry these records. |
+| Schema 54 (provisional) | Typed Council project plans and one shared Town construction record per passed proposal, with exact physical load/reservation/release history, work and paid building identity. The first consumer is the Town Hall. Earlier alpha checkpoints are refused and preserved without migration. |
 
 Other compatibility fields remain separate for simulation, envelopes, content,
 assets, generator and network contracts. Change the field whose semantics
@@ -484,6 +488,46 @@ outdoor warmth, apply from its next tick. Its recorded history is not
 re-simulated. A world saved during dawn reloads at the same darkness and
 advances to the same bytes as the live world, which `SettlementSurvivalTests`
 checks.
+
+## Council-approved Town projects
+
+Schema 54 adds a required, non-null `Projects` list to each Town and an optional
+typed `Project` payload to a civic proposal. An empty list records that no
+construction has been approved. The first supported payload is
+`TownHallContent.Hall3x4()`: its exact definition identity, normalized name,
+site, south doorway and 24 wood / 12 stone budget are bound together. The
+material amounts and ten-unit work target are provisional gameplay values.
+No additional Council or vote authority is saved: a shared job references the
+original passed proposal in that Town's full canonical governance ledger.
+
+The records retain the approval tick, stage, work done, last transition, blocker,
+completed building ID and every actual load's contributor, source and resulting
+lot IDs, quantity, pickup/delivery times, exact reservation and release history.
+The supplied query counts usable Town-owned stock reserved on the approved
+ground site, or that project's completed consumption receipts. Carried promises,
+expired or released claims and cumulative deliveries whose goods are no longer
+there do not stand in for paid materials. Private harvesting and an accepted
+personal donation remain separate transitions.
+
+Validation for these records must reject a missing or duplicate approval
+binding, unsupported or altered payload, invalid times/stages/work, duplicate
+load identities, incorrect custody or quantities, mismatched material claims,
+unpaid completion and a completed building that does not match the approved
+Town, definition, footprint and doorway. Legal site checks use actual Town title
+and existing household rights/requests, independently of the visible border.
+A blocked live site releases unused material claims; the goods retain their
+actual location and Town owner rather than being recreated or returned by a
+counter. A completed Hall remains bound to its original paid receipt history.
+
+Current-format restore and replay must keep partial multi-load supply, consumed
+receipts, shared work and civic knowledge without duplicating approval, stock,
+donations or the Hall. Discarding a prepared tick must leave no transfer,
+reservation, progress, building or event. Late replies must recheck the current
+project, actor authority and physical goods. Approval in the owner observation
+comes from the complete proposal ledger even after it leaves the eight recent
+results. Normal runtime, malformed-save, replay and rollback verification for
+this change are still pending; these requirements are not a test result. Earlier
+alpha schemas, including 53, are refused visibly and preserved without migration.
 
 ## Pending model work and estates
 

@@ -2,7 +2,7 @@
 title: Playing the current game
 type: player-guide
 status: active
-updated: 2026-10-02
+updated: 2026-10-03
 ---
 
 # Playing the current game
@@ -200,6 +200,26 @@ may change until closing, while cast proposal votes are final. Pausing stops
 these windows and council terms. Passed admission requests are recorded, but
 the separate process for joining a Town has not been connected yet; approval
 alone gives no household place or access to stored goods.
+
+The Town Hall project is under verification in this branch. In its implemented
+flow, an adult resident proposes a named Hall on clear Town-titled land, and
+the Council votes through the same process as an ordinary proposal. In
+**World Info → Towns**, its plan shows the site and entrance, exact budget and
+Council result. An approved project also shows delivered materials, construction
+progress and anything blocking it. Council approval supplies no building or
+materials by itself.
+
+Residents must learn the proposal from notices or a nearby relay before helping.
+They carry available Town materials in real loads and work at the approved site.
+If they gather new wood or stone, those goods stay personal until their own model
+freshly chooses to donate them. **Speak → Suggest** may ask an adult to consider
+helping or donating; an Order cannot give away their goods. After completion,
+select the Hall for its project and payment details. Agents read civic notices
+there, with the same nearby learning and relay rules as before. A blocked project
+keeps its materials as Town property and releases unused claims rather than
+building for free. See [What works today](what-works.md#life-work-and-society)
+for this first version's limits and provisional amounts. Its
+[hands-on checklist](../playtest/767-town-projects.md) remains pending.
 
 ## Pause, settings and controls
 
