@@ -90,8 +90,8 @@ the exact current contest/proposal and actor authority; cancelled votes cannot
 revive after owner membership changes. Draws use a named world-local PCG stream
 with unbiased selection and save the actual order, so loading does not reroll
 an accepted outcome. Older alpha saves are visibly refused and preserved; no
-migration is provided. Admission approval remains a saved decision for #602 to
-consume separately, with no stock or household-access effect.
+migration is provided. A passed admission changes Town membership at most once
+(schema 53); it never grants stock or household access.
 
 Private-world schema 49 stores recognized food-order targets, progress, retry
 state, cancellation receipts and their exact actor/world identity alongside the
@@ -261,6 +261,27 @@ ineligible selected unit and preserve intermediate refining, diamond setting,
 gifts and barter. Removing or giving the ornament clears the selection while
 keeping the actual item; death and estate handling retain the property without
 an active selection on an archived profile. Older alpha saves are refused and
+preserved; no migration is added.
+
+Private-world schema 53 adds optional admission records to each Town, one per
+passed admission proposal of that Town. The Town resident lists stay the only
+record of membership; an admission record says what one approval did to them:
+
+- `approved`: a resident asked for the newcomer, and the approval waits for the
+  newcomer to accept. It keeps the newcomer's Town at the time of the vote, and
+  acceptance is refused if that has changed.
+- `admitted`: membership changed. It keeps the Town the newcomer left, if any,
+  and the sorted IDs of the newcomer and the dependent children who moved.
+- `lapsed`: the approval could not be applied, with one of four reasons:
+  `unavailable`, `already_resident`, `affiliation_changed` or `joined_elsewhere`.
+
+Because a proposal has at most one record, reload and replay never apply an
+approval twice. A passed admission with no record yet is settled on the next
+tick, as it would have been before the save. Loading refuses a record without a
+matching passed admission proposal, a repeated proposal, an unknown status or
+lapse reason, an unsorted or incomplete moving group, a decision time before the
+vote settled or after the saved world time, and an approval still waiting on
+someone who is already a resident there. Older alpha saves are refused and
 preserved; no migration is added.
 
 Checkpoint decoding enforces declared non-null members and required constructor
@@ -435,6 +456,7 @@ current alpha cutoff.
 | Schema 50 | Staged dependent-guardian searches with their current stage, timing and offered adults, so consent remains ordered and replayable. Older builds refuse the checkpoint rather than infer or discard a search. |
 | Schema 51 | Named medical permissions and active consumed-dose progress bind to actual completed inventory receipts. Terminal treatment closes its receipt without refund or resurrection; death retains completed consumption history and archived profiles cannot carry active treatment. Earlier alpha saves are refused and preserved without migration. |
 | Schema 52 | An optional exact personally owned, carried ornament lot in the canonical personal equipment record. Wearing supplies no protection or carrying bonus; removal, gifts and death retain actual property while clearing the selection when required. Earlier alpha saves are refused and preserved without migration. |
+| Schema 53 | Town admission records tie each passed admission proposal to one outcome: approved and waiting for the newcomer, admitted with the care group that moved, or lapsed with its reason. An approval applies at most once. Earlier alpha saves are refused and preserved without migration. |
 
 Other compatibility fields remain separate for simulation, envelopes, content,
 assets, generator and network contracts. Change the field whose semantics

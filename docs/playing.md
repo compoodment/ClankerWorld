@@ -190,9 +190,17 @@ An ordinary proposal stays open for one unpaused world day unless its result
 is settled earlier. A four-person council needs three yes votes, and an elected
 three-seat council needs two. Silence supplies no approval. Election ballots
 may change until closing, while cast proposal votes are final. Pausing stops
-these windows and council terms. Passed admission requests are recorded, but
-the separate process for joining a Town has not been connected yet; approval
-alone gives no household place or access to stored goods.
+these windows and council terms.
+
+An agent belongs to one Town or none. Traveling, visiting or losing a home
+does not change it. An adult with no Town, such as one you add outside the
+border, can walk to a Town's notice place and ask its council for admission. A
+resident can also ask the council to admit an adult nearby who has no Town, and
+that adult chooses whether to accept once they read the approval. Dependent
+children join with their caregiver. Approval gives no household place or access
+to stored goods. The agent's Profile shows their Town, what it lets them do and any
+admission in progress, and the Event Log notes approvals, admissions and
+approvals that no longer apply.
 
 ## Pause, settings and controls
 

@@ -1,0 +1,2 @@
+- An adult with no Town can now join one through its council. They ask at the notice place, or a resident asks for them and they accept. Dependent children join with their caregiver. Approval gives no household place or stored goods, and the agent's profile shows their Town, what it lets them do and any admission in progress.
+- The Event Log now names the Town an agent joined or left instead of always saying "the first Town".
