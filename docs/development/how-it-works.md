@@ -776,6 +776,30 @@ while other farm stock prefers the Silo. Ready-to-eat greens and fruit go to
 the household's House. Neither stock nor ownership moves
 remotely.
 
+Ordinary milling can draw needed household grain from its Silo into its
+Farmhouse. Available and inbound Farmhouse grain reduce the pickup; recipe
+demand, free storage, reservations, carrying room and both walking routes
+still apply. Contained grain uses the existing partial pot-withdrawal rules.
+
+Food selection tests the entire harvest load, including orchard seeds, so a
+nearer oversized harvest does not hide a reachable one that fits. Making
+room uses the permitted household serving or actual harvest size. Accepted
+infant caregivers can collect household food for their dependent without
+needing to be hungry themselves; current care authority, usable food,
+reservations, capacity and real travel are checked again at execution.
+
+House pickup counts the whole vessel family against carrying and destination
+space; loose deliveries keep their four-unit limit. An unusable carried
+delivery leaves ordinary hauling and can offer `recover_household_delivery`.
+Candidate and action both check the current household-owned destination,
+physical load, selected or repaired gear, active family reservations and a
+route to camp. Recovery moves the same stock through the inventory authority,
+clears its delivery pointers and records `household_delivery_recovered`.
+Spoiled contents may be physically withdrawn from an owned usable pot, with
+the existing family, quantity, destination and reservation guards. They
+remain unusable for eating, recipes and new reservations. No agent disposal
+action or player discard control is added.
+
 **Household departure and personal custody** (`SettlementDeparture`). Ordinary decision candidates allow an adult to leave without a vote, store or collect their own goods, return borrowed household tools, explicitly accept replacement care, and found a solo household only when no suitable existing home can currently be asked. Membership exits and admissions include the complete primary-care group. The same completed House-capacity calculation checks all incoming residents; children never apply alone. The displacement transition refuses adults with a moving dependent group, leaving overcrowding eligibility and notice to #599.
 
 `InventoryLot.OwnerId` records property; optional `CarrierId` records physical custody without donation. Personal goods may remain in House storage after departure. `InventoryFixture.Relocate` preserves ownership, condition, provenance and reservations while moving an unreserved quantity. A stored personal lot is collected physically, with carrying limits, under the current household membership or a recorded departure's limited collection right. Borrowed tools retain the lender's owner ID while carried and are returned physically. Shared delivery loads retain their owning household on departure. Shared buildings, stock and job records are never reassigned to the new household. A departing worker's private production and expansion jobs pause with their existing owners and reservations; their previous work plan is retained on the departure record instead of resuming under a new household. A remaining member can take over paused work at its physical site, using the same still-available committed inputs and remaining work time. Private materials held by the former worker are not reassigned; these keep the task blocked. Held reservations keep their exact owner and stock, receive a new deadline only on resumption, and are released if the materials become unusable; canceled job records retain the original property owner.
@@ -1089,6 +1113,10 @@ Each authoritative field records its household, crop, stage, work, growth
 times and replanting reserve. Planting reserves and consumes one carried
 grain seed, cultivated-green seed or potato. Moving away, death, lost tools
 or urgent needs cancel unfinished work and release its planting input.
+Field work uses the existing illness cadence. Only a successful work stroke
+advances progress and wears the selected tool. A new planting input claim
+lasts until actual completion or interruption, so illness does not make it
+expire while the worker is still planting.
 Completed harvests remain intact. Fertility and weather affect crop growth
 or yield. Harvesting creates grain, potatoes or cultivated greens on the
 field, and grain and greens also yield two replacement seeds. One usable
