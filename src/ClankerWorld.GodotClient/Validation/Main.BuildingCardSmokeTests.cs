@@ -233,6 +233,8 @@ public partial class Main
             PlacedBuildings = [hall, north, south],
             ProductionJobs = [],
             Towns = [town],
+            Inhabitants = [MarketPerson("seller:one", "Sam", north.Entrance!),
+                MarketPerson("buyer:two", "Lina", south.Entrance!)],
         };
         ClearBuildingSelection();
         RenderMap(map);
@@ -313,11 +315,7 @@ public partial class Main
             throw new InvalidOperationException("Inactive Market history must retain goods ownership without advertising borrowing permission.");
         var description = WorldEventText.Describe(new(1, 30, "market_trade_offered",
             "town:first|market-ui|market-ui-north|seller:one|buyer:two|market-ui-offer", north.Position),
-            map with
-            {
-                Inhabitants = [baseMap.Inhabitants[0] with { Id = "seller:one", DisplayName = "Sam" },
-                baseMap.Inhabitants[0] with { Id = "buyer:two", DisplayName = "Lina" }]
-            });
+            map);
         if (!description.Contains("Sam", StringComparison.Ordinal) || !description.Contains("Lina", StringComparison.Ordinal) ||
             !description.Contains("exact terms", StringComparison.Ordinal))
             throw new InvalidOperationException("Market event descriptions must retain full pipe-delimited trader identities.");
@@ -326,6 +324,10 @@ public partial class Main
         RenderTownList(baseMap);
 
         string Facts() => string.Join('\n', buildingFacts.GetChildren().OfType<Label>().Select(label => label.Text));
+
+        static OwnerWorldInhabitant MarketPerson(string id, string name, OwnerWorldPosition position) =>
+            new(id, name, "active", position, 8_000, [], [], new("idle", null, null, [], string.Empty),
+                new(position, [position], [position]), false);
     }
 
     private void VerifyBuildingManagementRefresh(OwnerWorldSnapshot baseMap)

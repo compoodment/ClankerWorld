@@ -595,6 +595,7 @@ public sealed partial class PrivateWorldRuntime
             AdvanceBridgeTraffic();
             SettleGuardianSearches();
             MaintainTownProjects();
+            MaintainMarkets();
 
             AppendEvent("tick_advanced", targetTick.ToString(System.Globalization.CultureInfo.InvariantCulture));
             var newEvents = events.Skip(startingEvent).ToArray();

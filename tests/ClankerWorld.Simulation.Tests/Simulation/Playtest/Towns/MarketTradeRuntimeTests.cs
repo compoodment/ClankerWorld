@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Text.Json;
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
@@ -67,7 +68,8 @@ internal static class MarketTradeScenario
                 : person).ToArray(),
         };
         var policy = new Policy(seller, buyer, successor, stall.BuildingId) { Mode = "stock" };
-        using var stocking = PrivateWorldRuntime.Restore(state, policy.CreateProvider);
+        using var phases = new PhaseWorld(state, policy);
+        var stocking = phases.World;
         await UntilAsync(stocking, () => stocking.Towns[0].Markets[0].StockReceipts.Any(receipt => receipt.SourceLotId == stockId ||
             receipt.SourceLotId.StartsWith(stockId + "#", StringComparison.Ordinal)), policy);
         var depositedMarket = stocking.Towns[0].Markets[0];
@@ -89,11 +91,11 @@ internal static class MarketTradeScenario
         Assert.Equal(seller, stocking.Society.Inventory.GetLot("market-seller-best-axe").OwnerId);
         MarketObservationTests.AssertProjection(stocking);
         AssertDepositTamperRefused(stocking.ExportState(), deposit, personalStock ? household : seller);
-        policy.Mode = "offer";
-        await UntilAsync(stocking, () => stocking.Towns[0].Markets[0].Trades.Count == 1, policy);
-        var offeredMarket = stocking.Towns[0].Markets[0];
+        var offering = phases.Resume("offer");
+        await UntilAsync(offering, () => offering.Towns[0].Markets[0].Trades.Count == 1, policy);
+        var offeredMarket = offering.Towns[0].Markets[0];
         var trade = Assert.Single(offeredMarket.Trades);
-        var offer = stocking.Society.Inventory.GetOffer(trade.OfferId);
+        var offer = offering.Society.Inventory.GetOffer(trade.OfferId);
         Assert.Equal(DirectBarterState.Open, offer.State);
         Assert.Equal(new[] { buyer }, offer.AcceptedBy);
         Assert.Equal(stockOwner, trade.GoodsOwnerId);
@@ -102,11 +104,11 @@ internal static class MarketTradeScenario
         Assert.Equal("market-buyer-payment", offer.SecondLotId);
         Assert.Equal(1, offer.FirstQuantity);
         Assert.Equal(1, offer.SecondQuantity);
-        Assert.Equal(3, MarketTradeRules.AvailableQuantity(stocking.Society.Inventory, stocking.Society.Inventory.GetLot(deposit.LotId)));
-        Assert.All(stocking.Society.Inventory.Reservations.Where(claim => claim.Purpose == "barter:" + offer.Id),
+        Assert.Equal(3, MarketTradeRules.AvailableQuantity(offering.Society.Inventory, offering.Society.Inventory.GetLot(deposit.LotId)));
+        Assert.All(offering.Society.Inventory.Reservations.Where(claim => claim.Purpose == "barter:" + offer.Id),
             claim => Assert.Equal(InventoryReservationState.Reserved, claim.State));
-        MarketObservationTests.AssertProjection(stocking);
-        var pending = stocking.ExportState();
+        MarketObservationTests.AssertProjection(offering);
+        var pending = offering.ExportState();
         var bytes = PrivateWorldRuntimeCodec.Encode(pending);
         Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(PrivateWorldRuntimeCodec.Decode(bytes)));
         var forged = pending with
@@ -120,10 +122,9 @@ internal static class MarketTradeScenario
             }).ToArray()
         };
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(forged));
-        var woodBefore = Total(stocking.Society.Inventory, "wood");
-        var axesBefore = Total(stocking.Society.Inventory, "wooden_axe");
-        policy.Mode = "accept";
-        using var settling = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes), policy.CreateProvider);
+        var woodBefore = Total(offering.Society.Inventory, "wood");
+        var axesBefore = Total(offering.Society.Inventory, "wooden_axe");
+        var settling = phases.Resume("accept", PrivateWorldRuntimeCodec.Decode(bytes));
         await UntilAsync(settling, () => settling.Society.Inventory.GetOffer(offer.Id).State == DirectBarterState.Settled, policy);
         var purchased = settling.Society.Inventory.Lots.Single(lot => lot.ProvenanceLotId == deposit.LotId &&
             lot.OwnerId == buyer && lot.ItemKind == "wooden_axe");
@@ -143,8 +144,7 @@ internal static class MarketTradeScenario
         settling.Validate();
         // A separate continuation from the same genuine open offer proves departure,
         // released reservations, and a same-household successor's lack of old-stock authority.
-        policy.Mode = "leave";
-        using var leaving = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes), policy.CreateProvider);
+        var leaving = phases.Resume("leave", PrivateWorldRuntimeCodec.Decode(bytes));
         await UntilAsync(leaving, () => leaving.Towns[0].Markets[0].Occupancies[0].EndedTick is not null, policy);
         Assert.Equal(DirectBarterState.Cancelled, leaving.Society.Inventory.GetOffer(offer.Id).State);
         Assert.All(leaving.Society.Inventory.Reservations.Where(claim => claim.Purpose == "barter:" + offer.Id),
@@ -152,7 +152,7 @@ internal static class MarketTradeScenario
         Assert.Equal(4, leaving.Society.Inventory.GetLot(deposit.LotId).Quantity);
         Assert.Equal(stockOwner, leaving.Society.Inventory.GetLot(deposit.LotId).OwnerId);
         MarketObservationTests.AssertProjection(leaving);
-        policy.Mode = "successor";
+        leaving = phases.Resume("successor");
         await UntilAsync(leaving, () => leaving.Towns[0].Markets[0].Occupancies.Any(item => item.SellerAgentId == successor &&
             item.EndedTick is null), policy);
         var newMarket = leaving.Towns[0].Markets[0];
@@ -161,12 +161,12 @@ internal static class MarketTradeScenario
         Assert.False(MarketTradeRules.MaySell(newMarket, newOccupancy, leaving.Society.Inventory.GetLot(deposit.LotId),
             leaving.Society, successor));
         MarketObservationTests.AssertProjection(leaving);
-        policy.Mode = "blocked-buy";
+        leaving = phases.Resume("blocked-buy");
         for (var tick = 0; tick < 8; tick++) Assert.True((await leaving.AdvanceOneTickAsync()).Advanced);
         Assert.Single(leaving.Towns[0].Markets[0].Trades);
         Assert.DoesNotContain(policy.Seen.Where(item => item.Actor == buyer && item.Tick > newOccupancy.StartedTick),
             item => item.Id.StartsWith("market_buy:", StringComparison.Ordinal));
-        policy.Mode = "retrieve";
+        leaving = phases.Resume("retrieve");
         var retriever = personalStock ? seller : successor;
         var carriedBefore = leaving.Society.Inventory.Lots.Where(lot => lot.OwnerId == stockOwner &&
             PersonalEquipmentRules.IsCarried(lot, retriever) && lot.ItemKind == "wooden_axe").Sum(lot => lot.Quantity);
@@ -214,26 +214,67 @@ internal static class MarketTradeScenario
 
     private static async Task UntilAsync(PrivateWorldRuntime world, Func<bool> reached, Policy policy)
     {
+        var movementMap = world.ExportState().Map;
         for (var tick = 0; tick < 160 && !reached(); tick++)
         {
             var before = world.Inhabitants.ToDictionary(person => person.InhabitantId, person => person.Position);
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-            var state = world.ExportState();
-            foreach (var person in state.Inhabitants)
+            foreach (var person in world.Inhabitants)
             {
                 if (before[person.InhabitantId] != person.Position)
-                    Assert.True(state.Map.CanFootStep(before[person.InhabitantId], person.Position));
-                Assert.InRange(PersonalEquipmentRules.CarriedQuantity(state.Society.Society.Inventory, person.InhabitantId, person.Equipment),
-                    0, PersonalEquipmentRules.Capacity(state.Society.Society.Inventory, person.InhabitantId, person.Equipment));
+                    Assert.True(movementMap.CanFootStep(before[person.InhabitantId], person.Position));
+                Assert.InRange(PersonalEquipmentRules.CarriedQuantity(world.Society.Inventory, person.InhabitantId, person.Equipment),
+                    0, PersonalEquipmentRules.Capacity(world.Society.Inventory, person.InhabitantId, person.Equipment));
             }
         }
-        Assert.True(reached(), $"Market phase {policy.Mode} not reached at tick {world.WorldTick}; choices: " +
-            string.Join(", ", policy.Seen.TakeLast(12).Select(item => item.Id)));
+        if (!reached())
+        {
+            var state = world.ExportState();
+            Assert.Fail($"Market phase {policy.Mode} not reached at tick {world.WorldTick}; selected: " +
+                JsonSerializer.Serialize(policy.Selected.TakeLast(16).Select(item => new { item.Actor, item.Id, item.Tick })) + "; physical: " +
+                JsonSerializer.Serialize(world.Inhabitants.Select(person => new
+                {
+                    person.InhabitantId,
+                    person.Position,
+                    person.HungerBasisPoints,
+                    person.Survival,
+                    person.Project,
+                })) + "; stock: " + JsonSerializer.Serialize(world.Society.Inventory.Lots.Where(lot =>
+                    lot.Id.StartsWith("market-", StringComparison.Ordinal) || lot.CarrierId == policy.Seller ||
+                    lot.OwnerId == policy.Seller)) + "; occupancies: " +
+                JsonSerializer.Serialize(world.Towns.SelectMany(town => town.Markets).SelectMany(market => market.Occupancies)) +
+                "; intentions: " + JsonSerializer.Serialize(state.Society.Cognition.Runtimes.Select(runtime =>
+                    new { runtime.InhabitantId, runtime.CurrentIntention })) + "; events: " +
+                JsonSerializer.Serialize(state.Events.TakeLast(12)));
+        }
     }
 
     private static int Total(InventoryCheckpoint inventory, string kind) => inventory.Lots.Where(lot => lot.ItemKind == kind).Sum(lot => lot.Quantity);
     private static int StockFamilyQuantity(InventoryCheckpoint inventory, string id) =>
         inventory.Lots.Where(lot => lot.Id == id || lot.Id.StartsWith(id + "#", StringComparison.Ordinal)).Sum(lot => lot.Quantity);
+
+    private sealed class PhaseWorld(PrivateWorldRuntimeState initial, Policy policy) : IDisposable
+    {
+        internal PrivateWorldRuntime World { get; private set; } = PrivateWorldRuntime.Restore(initial, policy.CreateProvider);
+
+        internal PrivateWorldRuntime Resume(string mode, PrivateWorldRuntimeState? retained = null)
+        {
+            retained ??= PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(World.ExportState()));
+            World.Dispose();
+            policy.Mode = mode;
+            // Controlled phase arrangement: policy changes are not production events.
+            // Wake a fresh personal model turn without moving an actor or changing goods,
+            // occupancy, offers, ownership or the genuine construction ledger. The first
+            // stock journey is uninterrupted; this applies only at completed phase boundaries.
+            World = PrivateWorldRuntime.Restore(retained with
+            {
+                Inhabitants = retained.Inhabitants.Select(person => person with { LastDecisionContext = null }).ToArray(),
+            }, policy.CreateProvider);
+            return World;
+        }
+
+        public void Dispose() => World.Dispose();
+    }
 
     private sealed class Policy(string seller, string buyer, string successor, string stallId)
     {
@@ -243,6 +284,7 @@ internal static class MarketTradeScenario
         internal string StallId { get; } = stallId;
         internal string Mode { get; set; } = "stock";
         internal ConcurrentQueue<(string Actor, string Id, long Tick)> Seen { get; } = new();
+        internal ConcurrentQueue<(string Actor, string Id, long Tick)> Selected { get; } = new();
         internal IDecisionProvider CreateProvider(string actor) => new Provider(this, actor);
         private sealed class Provider(Policy policy, string actor) : IDecisionProvider
         {
@@ -272,6 +314,7 @@ internal static class MarketTradeScenario
                     candidate.Id is "consume_food" or "collect_shared_food" or "take_food_from_pot" or "make_room_for_food" or
                         "harvest_food" or "seek_food" or "wear_clothing" or "seek_warmth");
                 selected ??= candidates.Single(candidate => candidate.Id == "safe_idle");
+                policy.Selected.Enqueue((actor, selected.Id, request.Observation.WorldTick));
                 return ValueTask.FromResult(new CognitionDecisionResponse(request.RequestId, actor, Kind, ProviderEpoch,
                     request.Observation.RunEpoch, request.Observation.DecisionGeneration, request.Observation.ObservationDigest,
                     selected.Id, 1, candidates.ToDictionary(candidate => candidate.Id, candidate => candidate.Id == selected.Id ? 1d : 0d, StringComparer.Ordinal)));

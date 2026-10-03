@@ -189,14 +189,19 @@ public sealed partial class PrivateWorldRuntime
                         !CanReachMarketPoint(actor, position, ResourceInteractionRange) ||
                         MarketStockQuantity(market, stall) + MarketIncomingPayment(market, stall) >= MarketTradeRules.StallCapacity)
                         continue;
+                    var offeredBorrow = false;
                     foreach (var lot in MarketLoadSources(actor))
                     {
                         if (PersonalEquipmentRules.IsCarried(lot, actor))
                         {
-                            yield return new(MarketChoiceId("borrow", market.Id, stall.BuildingId, actor,
-                                MarketPlaceMode(actor, position, ResourceInteractionRange)),
-                                "borrow", town, market, stall);
-                            break;
+                            if (!offeredBorrow)
+                            {
+                                yield return new(MarketChoiceId("borrow", market.Id, stall.BuildingId, actor,
+                                    MarketPlaceMode(actor, position, ResourceInteractionRange)),
+                                    "borrow", town, market, stall);
+                                offeredBorrow = true;
+                            }
+                            continue;
                         }
                         var quantity = Math.Min(MarketTradeRules.LoadQuantity, Math.Min(MarketSurplus(actor, lot), FreeCarryCapacity(actor)));
                         if (quantity > 0 && CanReachMarketPoint(actor, HouseholdStockPosition(lot), HouseholdStockInteractionRange(lot)))

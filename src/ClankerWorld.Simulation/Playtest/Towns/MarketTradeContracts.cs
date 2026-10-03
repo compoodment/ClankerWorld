@@ -25,7 +25,8 @@ public sealed record TownMarketState(string Id, string ProjectId, string HallBui
 public static class MarketTradeValidation
 {
     public static void Validate(IReadOnlyList<TownRuntimeState> towns, SocietyCheckpoint society,
-        SeededMap map, WorldContentSimulationState simulation, DeclarativeWorldContentState content, long worldTick)
+        SeededMap map, WorldContentSimulationState simulation, DeclarativeWorldContentState content, long worldTick,
+        IEnumerable<PlaytestInhabitantState> physicalInhabitants)
     {
         var inventory = society.Inventory;
         var people = society.Inhabitants.Select(person => person.Id).ToHashSet(StringComparer.Ordinal);
@@ -94,10 +95,12 @@ public static class MarketTradeValidation
                     if (occupancy.EndedTick is null)
                     {
                         var seller = society.GetInhabitant(occupancy.SellerAgentId);
+                        var physical = physicalInhabitants.FirstOrDefault(person => person.InhabitantId == occupancy.SellerAgentId);
                         if (!activeSellers.Add(occupancy.SellerAgentId) || market.RemovedTick is not null ||
                             market.Stalls.Single(stall => stall.BuildingId == occupancy.StallBuildingId).RemovedTick is not null ||
                             seller.Status != SocietyInhabitantStatus.Active || seller.HouseholdId != occupancy.SellerHouseholdId ||
-                            seller.AgeBand is not (SocietyAgeBand.Adult or SocietyAgeBand.Elder))
+                            seller.AgeBand is not (SocietyAgeBand.Adult or SocietyAgeBand.Elder) ||
+                            physical is null || !MarketTradeRules.IsInside(market, physical.Position))
                             throw Invalid("A live seller must borrow one existing stall for their actual household.");
                     }
                 }

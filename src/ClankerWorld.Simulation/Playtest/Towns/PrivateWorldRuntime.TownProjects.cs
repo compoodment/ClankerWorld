@@ -512,8 +512,8 @@ public sealed partial class PrivateWorldRuntime
             Blocker = null,
             LastTransitionTick = WorldTick,
         });
-        AssignBuildingToTown(placed, worldContent.Buildings.Single(item => item.CanonicalId == placed.DefinitionId));
         CompletePaidMarketConstruction(townId, project, placed);
+        AssignBuildingToTown(placed, worldContent.Buildings.Single(item => item.CanonicalId == placed.DefinitionId));
         CreditCompletedWork(actor, "building");
         AppendEvent("town_project_completed", $"{actor}:{project.Id}:{id}:{project.Plan.Name}", project.Plan.Site);
     }
