@@ -87,11 +87,26 @@ public sealed class BuildingExpansionTests
         world.Validate();
     }
 
-    [Fact]
-    public void HouseNeedsRecordedUseRightsBeforeReservingExpansionMaterials()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void HouseNeedsRecordedUseRightsBeforeReservingExpansionMaterials(bool assignedToTown)
     {
         using var prepared = PreparedWorld("first-town-house-a", out var actor, out var house);
         var state = prepared.ExportState();
+        if (!assignedToTown)
+            state = state with
+            {
+                WorldSimulation = state.WorldSimulation! with
+                {
+                    Buildings = state.WorldSimulation.Buildings.Select(b => b.InstanceId == house.InstanceId ? b with { TownId = null } : b).ToArray(),
+                },
+                Towns = state.Towns!.Select(town => town with
+                {
+                    AssignedBuildingIds = town.AssignedBuildingIds.Where(id => id != house.InstanceId).ToArray(),
+                }).ToArray(),
+            };
+        using var permitted = ReloadState(state);
         using var missing = ReloadState(state with
         {
             HouseholdLandUseRights = state.HouseholdLandUseRights!.Where(r => r.GrantSource != "expansion_test_fixture").ToArray(),
@@ -99,7 +114,7 @@ public sealed class BuildingExpansionTests
         var before = PrivateWorldRuntimeCodec.Encode(missing.ExportState());
         Assert.False(missing.StartBuildingExpansion(actor, house.InstanceId).Applied);
         Assert.Equal(before, PrivateWorldRuntimeCodec.Encode(missing.ExportState()));
-        Assert.True(prepared.StartBuildingExpansion(actor, house.InstanceId).Applied);
+        Assert.True(permitted.StartBuildingExpansion(actor, house.InstanceId).Applied);
     }
 
     [Fact]

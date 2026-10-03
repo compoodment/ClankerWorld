@@ -713,8 +713,11 @@ not contribute competing claims to the map or Add Agent.
 
 `request_expansion_land` derives the extra House tiles from a currently legal
 larger footprint, so agents can request them before gathering materials.
-Expansion start and completion require Town title and household use rights on
-the added tiles; Town buildings need title only. Losing permission cancels the
+Expansion start and completion require a Town-assigned building's added tiles
+to have that Town's title. A House needs household use rights on any titled
+added tile, even if it has no Town assignment; shared Town buildings need title
+only. Unaffiliated construction on untitled land keeps its ordinary physical
+rules and creates no title. Losing permission cancels the
 job and releases its materials. Existing expired rights are not silently
 removed; their eventual ruling remains separate land-case work.
 

@@ -295,16 +295,26 @@ public sealed partial class PrivateWorldRuntime
             return false;
         }
         var extraTiles = tiles.Except(original).ToArray();
-        if (requireLandRights && extraTiles.Any(tile => building.TownId is null ||
-                !TownLandRightsRules.IsCoveredByTownTitle(tile, building.TownId, townLandTitles) ||
-                building.HouseholdId is { } household && !householdLandUseRights.Any(right =>
-                    right.TownId == building.TownId && right.HouseholdId == household && right.Tiles.Contains(tile))))
+        if (requireLandRights && extraTiles.Any(tile => !MayExpandOntoLand(building, tile)))
         {
-            failure = "The extra tiles need Town title and, for a House, an approved household use right before expansion.";
+            failure = "The expansion lacks the required Town title or household use permission.";
             return false;
         }
         failure = string.Empty;
         return true;
+    }
+
+    private bool MayExpandOntoLand(PlacedBuilding building, GridPoint tile)
+    {
+        var title = townLandTitles.SingleOrDefault(item => item.Tiles.Contains(tile));
+        if (building.TownId is { } townId && title?.TownId != townId) return false;
+        // Unaffiliated construction on untitled land keeps its physical rules;
+        // it creates no title. Unassigning a building cannot bypass a title.
+        if (title is null) return true;
+        return building.HouseholdId is { } household
+            ? householdLandUseRights.Any(right => right.TownId == title.TownId &&
+                right.HouseholdId == household && right.Tiles.Contains(tile))
+            : building.TownId == title.TownId;
     }
 
     private static IEnumerable<GridPoint> ExpansionTiles(BuildingExpansionJob job) =>
