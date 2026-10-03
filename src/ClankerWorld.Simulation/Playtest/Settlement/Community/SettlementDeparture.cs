@@ -327,7 +327,8 @@ public sealed partial class PrivateWorldRuntime
     /// <summary>
     /// An adult with no household may start one. So may a member of an
     /// overcrowded House who has a move-out notice, or whose House cannot grow
-    /// any further, taking their dependents with them.
+    /// any further even with the Council's land permission, taking their
+    /// dependents with them.
     /// </summary>
     private bool MayFoundHousehold(string actor)
     {
@@ -337,8 +338,35 @@ public sealed partial class PrivateWorldRuntime
             !HouseCanExpandFurther(house);
     }
 
+    /// <summary>
+    /// A House can still grow when a larger footprint fits and the household
+    /// already has the use of its extra land, or could still get it by asking
+    /// the Council.
+    /// </summary>
     private bool HouseCanExpandFurther(PlacedBuilding house) =>
+        HouseCanExpandNow(house) || HouseCanExpandWithLandPermission(house);
+
+    private bool HouseCanExpandNow(PlacedBuilding house) =>
         ExpansionShapes(house).Any(shape => CanFitExpansion(house, shape.Position, shape.Footprint, out _));
+
+    /// <summary>
+    /// A larger footprint fits, and every extra tile the household may not use
+    /// yet is the Town's own land that no other household holds or has asked for.
+    /// </summary>
+    private bool HouseCanExpandWithLandPermission(PlacedBuilding house)
+    {
+        if (house.TownId is not { } townId || house.HouseholdId is not { } household) return false;
+        var definition = worldContent.Buildings.Single(item => item.CanonicalId == house.DefinitionId);
+        var original = WorldContentSimulationRules.Footprint(definition, house).ToHashSet();
+        var heldByOthers = HouseholdLandHeldByOthers(household);
+        return ExpansionShapes(house).Any(shape =>
+            CanFitExpansion(house, shape.Position, shape.Footprint, out _, requireLandRights: false) &&
+            WorldContentSimulationRules.Footprint(
+                    BuildingStorageRules.WithSize(definition, shape.Footprint.Width, shape.Footprint.Height), shape.Position)
+                .Where(tile => !original.Contains(tile) && !MayExpandOntoLand(house, tile))
+                .All(tile => TownLandRightsRules.IsCoveredByTownTitle(tile, townId, townLandTitles) &&
+                    !heldByOthers.Contains(tile)));
+    }
 
     private void ApplyDepartureCandidate(string actor, string candidate)
     {

@@ -1,3 +1,4 @@
+using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.Society;
@@ -448,6 +449,64 @@ public sealed class HouseRelocationRuntimeTests
                 },
             } : person).ToArray(),
         };
+
+    [Fact]
+    public async Task AFamilyHouseIsToldToSplitOnlyWhenItCannotExpandEvenWithLandPermission()
+    {
+        // One family of five in a four-place House: nobody can be required to leave.
+        var crowded = Crowded(residents: 5);
+        crowded = crowded with
+        {
+            Society = crowded.Society with
+            {
+                Society = crowded.Society.Society with
+                {
+                    Inhabitants = crowded.Society.Society.Inhabitants.Select(person => person with
+                    {
+                        DomesticFamilyUnitId = "relocation-family:shared",
+                    }).ToArray(),
+                },
+            },
+        };
+        var worker = crowded.Society.Society.Inhabitants.Select(person => person.Id).Order(StringComparer.Ordinal).Last();
+        var permitted = WithExpandableHouse(crowded, worker);
+        var house = permitted.WorldSimulation!.Buildings.Single(building => building.InstanceId == HouseId);
+        // The same site with Town title only: the household has not asked the Council for the extra land yet.
+        var unpermitted = permitted with
+        {
+            HouseholdLandUseRights = permitted.HouseholdLandUseRights!
+                .Where(right => right.GrantSource != "expansion_test_fixture").ToArray(),
+        };
+        // Another household holds every tile the House could grow onto.
+        GridPoint[] around =
+        [
+            new(house.Position.X, house.Position.Y - 1), new(house.Position.X + 1, house.Position.Y),
+            new(house.Position.X, house.Position.Y + 1), new(house.Position.X - 1, house.Position.Y),
+        ];
+        var enclosed = unpermitted with
+        {
+            HouseholdLandUseRights = unpermitted.HouseholdLandUseRights!.Concat(around.Select((tile, index) =>
+                    new HouseholdLandUseRight("use:relocation-neighbour:" + index, house.TownId!, "household:camp-beta",
+                        [tile], unpermitted.Society.Society.WorldTick, "test_grant")))
+                .OrderBy(right => right.Id, StringComparer.Ordinal).ToArray(),
+        };
+
+        foreach (var (state, next, maySplit) in new[]
+                 {
+                     (permitted, "Next: expand the House.", false),
+                     (unpermitted, "Next: get the Council's land permission and expand the House.", false),
+                     (enclosed, "Next: an adult may start a separate household with their dependents and build a House.", true),
+                 })
+        {
+            var choices = new Choices();
+            using var world = Restore(state, choices);
+            await AdvanceTo(world, 2);
+            Assert.Empty(Noticed(world));
+            var member = world.Society.GetHousehold(Household).MemberIds.First(id => choices.HousingNotes.ContainsKey(id));
+            Assert.EndsWith("Nobody can be required to leave. " + next, choices.HousingNotes[member], StringComparison.Ordinal);
+            Assert.Equal(maySplit, choices.Offered[member].Contains("household_found", StringComparer.Ordinal));
+        }
+    }
 
     [Theory]
     [InlineData("deadline")]

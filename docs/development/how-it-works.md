@@ -1115,7 +1115,10 @@ collection rights, borrowed goods and paused work retain their existing rules.
 An adult without a new home keeps a visible housing task. An overcrowded House
 with no eligible adult remains blocked while its members arrange expansion or
 a voluntary household split; sole caregivers are never forced out with their
-children. Agent observations and owner inspection show resident counts, notice
+children. The split is offered only when the House cannot grow: no larger
+footprint fits, or its extra land is neither the household's to use nor free
+Town land it can still ask the Council for. While only that land permission
+is missing, the housing line names it as the next step. Agent observations and owner inspection show resident counts, notice
 reason and time, pending requests and expansion state. `relocation_notice` and
 `relocation_cancelled` record changes without repeating them on reload.
 

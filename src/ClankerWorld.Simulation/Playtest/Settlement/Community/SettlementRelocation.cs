@@ -212,7 +212,8 @@ public sealed partial class PrivateWorldRuntime
             return $"{counts} {notices} adult{(notices == 1 ? " has" : "s have")} notice to move out." + expansion;
         var next = expansionJob?.State == WorldProductionJobState.Paused ? "resume the expansion"
             : expansion.Length > 0 ? "finish the expansion"
-            : HouseCanExpandFurther(house) ? "expand the House"
+            : HouseCanExpandNow(house) ? "expand the House"
+            : HouseCanExpandWithLandPermission(house) ? "get the Council's land permission and expand the House"
             : "an adult may start a separate household with their dependents and build a House";
         return $"{counts} Nobody can be required to leave. Next: {next}." + expansion;
     }
