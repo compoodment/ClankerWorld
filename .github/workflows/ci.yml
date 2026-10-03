@@ -20,9 +20,17 @@ concurrency:
 jobs:
   scope:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # To read the test timings uploaded by main's latest green run.
+      actions: read
     outputs:
       code: ${{ steps.plan.outputs.code }}
       shards: ${{ steps.plan.outputs.shards }}
+      filter-1: ${{ steps.split.outputs.filter_1 }}
+      filter-2: ${{ steps.split.outputs.filter_2 }}
+      filter-3: ${{ steps.split.outputs.filter_3 }}
+      filter-4: ${{ steps.split.outputs.filter_4 }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -41,6 +49,20 @@ jobs:
           fi
           node .github/scripts/ci-plan.js scope < "$RUNNER_TEMP/changed.txt" | tee -a "$GITHUB_OUTPUT"
           node .github/scripts/ci-plan.js matrix | tee -a "$GITHUB_OUTPUT"
+      # Without these timings the split falls back to the fixed one in ci-plan.js.
+      - name: Fetch test timings from main's latest green run
+        if: steps.plan.outputs.code == 'true'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run_id="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?branch=main&event=push&status=success&per_page=1" --jq '.workflow_runs[0].id')"
+          echo "Timings from run ${run_id}"
+          gh run download "$run_id" --repo "$GITHUB_REPOSITORY" --pattern 'test-timings-*' --dir "$RUNNER_TEMP/timings"
+      - name: Split the tests between the test jobs
+        id: split
+        if: steps.plan.outputs.code == 'true'
+        run: node .github/scripts/ci-plan.js plan "$RUNNER_TEMP/timings" >> "$GITHUB_OUTPUT"
 
   checks:
     needs: scope
@@ -80,8 +102,8 @@ jobs:
           path: export/windows-x64
           if-no-files-found: error
 
-  # The test suite split across parallel jobs; .github/scripts/ci-plan.js decides which tests
-  # each job runs, and every test runs in exactly one of them.
+  # The test suite split across parallel jobs by scope's plan (.github/scripts/ci-plan.js);
+  # every test runs in exactly one of them.
   tests:
     needs: scope
     if: needs.scope.outputs.code == 'true'
@@ -99,11 +121,14 @@ jobs:
         run: dotnet restore tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.csproj --locked-mode
       - name: Run test shard ${{ matrix.shard }}
         env:
-          SHARD: ${{ matrix.shard }}
+          FILTER: ${{ needs.scope.outputs[format('filter-{0}', matrix.shard)] }}
         run: |
-          filter="$(node .github/scripts/ci-plan.js filter "$SHARD")"
-          dotnet test tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.csproj --configuration Release --no-restore --filter "$filter" --logger "trx;LogFileName=timings.trx" --results-directory "$RUNNER_TEMP/test-results"
-      # Each test's duration, for rebalancing the shards in ci-plan.js.
+          test -n "$FILTER"
+          dotnet test tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.csproj --configuration Release --no-restore --filter "$FILTER" --logger "trx;LogFileName=timings.trx" --results-directory "$RUNNER_TEMP/test-results"
+      - name: Report the slowest tests
+        if: ${{ !cancelled() }}
+        run: node .github/scripts/ci-plan.js slow "$RUNNER_TEMP/test-results"
+      # Each test's duration, which later runs use to split the tests.
       - name: Upload test timings
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
