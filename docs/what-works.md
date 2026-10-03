@@ -582,7 +582,8 @@ the tile card and hover readout, and walked at dry-ground speed. When a Town gro
 running on past a door crosses a river up to two tiles wide on a new bridge.
 Households can plan new buildings, whose streets may need a bridge; the
 starting layout keeps its streets on dry land. No bridge is added where one already joins the same river
-banks. Road links between Towns are unfinished, and bridges have not been
+banks and agents can walk along both banks to reach it. Peaks that block either
+bank can leave room for another needed crossing. Road links between Towns are unfinished, and bridges have not been
 checked in hands-on Windows play.
 
 Resources can deplete or regrow. Each tile holds at most one tree. Wood trees

@@ -244,7 +244,7 @@ public static class RiverBridgeRules
         queue.Enqueue(start);
         while (queue.TryDequeue(out var current))
             foreach (var next in Around(map, current, Cardinal))
-                if (shore.Contains(next) && reached.Add(next))
+                if (shore.Contains(next) && map.CanFootStep(current, next) && reached.Add(next))
                     queue.Enqueue(next);
         return reached;
     }
