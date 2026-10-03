@@ -222,12 +222,17 @@ public sealed class OwnerWorldObservationStore
             election.SettledSeats.Select(id => inhabitantsById.GetValueOrDefault(id)?.Name ?? id).ToArray());
         ViewerTownProjectPlan ProjectPlan(TownProjectPayload plan, string proposerId)
         {
-            var definition = buildingDefinitions?.GetValueOrDefault(plan.DefinitionId) ?? TownHallContent.Hall3x4();
+            var definition = buildingDefinitions?.GetValueOrDefault(plan.DefinitionId) ??
+                TownProjectRules.Definition(plan.DefinitionId) ??
+                throw new InvalidDataException("The observed Town project has no supported definition.");
             return new ViewerTownProjectPlan(plan.Name, proposerId,
                 inhabitantsById.GetValueOrDefault(proposerId)?.Name ?? proposerId,
                 plan.DefinitionId, definition.DisplayName, ToPosition(plan.Site), ToPosition(plan.Entrance),
                 definition.Width, definition.Height,
-                plan.Budget.Select(q => new ViewerTownProjectBudget(q.ResourceId, q.Amount)).ToArray());
+                plan.Budget.Select(q => new ViewerTownProjectBudget(q.ResourceId, q.Amount)).ToArray())
+            {
+                Tags = definition.Tags.ToArray(),
+            };
         }
         ViewerCivicProposal ProjectProposal(TownProposal proposal) => new(proposal.Id, proposal.Kind,
             proposal.Text, proposal.Status, proposal.Votes.Count(v => v.Yes), proposal.Votes.Count(v => !v.Yes),
@@ -246,7 +251,10 @@ public sealed class OwnerWorldObservationStore
                     q.ResourceId, q.Amount, TownProjectRules.DeliveredQuantity(project, town.Id,
                         state.Society.Society.Inventory, q.ResourceId))).ToArray(),
                 project.WorkDone, TownProjectRules.WorkTicks, project.Stage, project.Blocker,
-                project.CompletedBuildingId, ProjectProposal(approval));
+                project.CompletedBuildingId, ProjectProposal(approval))
+            {
+                Tags = plan.Tags,
+            };
         }
         var physicalById = state.Inhabitants.ToDictionary(item => item.InhabitantId, StringComparer.Ordinal);
         var deceasedById = (state.DeceasedInhabitants ?? []).ToDictionary(item => item.InhabitantId, StringComparer.Ordinal);

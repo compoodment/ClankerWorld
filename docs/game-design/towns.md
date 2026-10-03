@@ -581,8 +581,8 @@ through the ordinary proposal and majority procedure before residents may
 spend Town materials or start that project. Pending votes follow the Council's
 existing membership and ballot rules; proposing a project grants no permission.
 
-This covers Markets and their Town-owned stalls, Town Halls, Ports and crafting
-communal boats at a Port. Resident adults physically supply and build the
+This covers Markets and their Town-owned stalls, Town Halls, Ports, street
+lanterns and crafting communal boats at a Port. Resident adults physically supply and build the
 approved project with real materials. Approval creates no goods, transfers no
 private stock and grants no access to household or personal supplies. Private
 donations need separate consent and the ordinary physical transfer rules.
@@ -594,6 +594,18 @@ or blocking a project must preserve its goods and safely release unspent
 reservations. This is a supported construction effect; free-form law text
 cannot execute it. The existing resident rule for Warehouse expansion stays
 in place. Costs, quantities and work times remain provisional for playtesting.
+
+**Street lanterns, agreed with the owner on October 3:** agents propose and
+build them as shared Town projects; the map never places them on its own.
+They need no fuel: a completed lantern lights at dusk and goes out at dawn.
+The two approved designs are a round stone lamp with a flickering open flame
+and a hanging lantern on a roadside post whose arm reaches over the Road,
+with gently moving light. The proposal binds the design, Road edge and exact
+material budget. A stone lamp takes stone; a hanging lantern takes wood and
+a little refined iron. Amounts remain provisional. The proposer chooses sites
+beside Roads within the ordinary land and site rules; junctions and spaced
+posts are suggestions, not automatic placement. Night lighting is for looks
+only and does not change visibility or permissions.
 
 The intended building roles now include House, Warehouse, Workshop,
 Farmhouse, farm fields, an adjacent private farm Silo, optional household-run

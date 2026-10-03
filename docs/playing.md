@@ -152,7 +152,10 @@ lives there. Back (or **Escape**) returns to the small card.
 Every day has a night, from 19:12 to 04:48 on the clock in the top bar, with a
 short dusk and dawn. In a six-minute day that is about 2 min 24 s of night. The
 map turns a gentle dark blue but stays readable; names, agents and panels keep
-their daytime colors. Nights are colder outdoors, so an agent with no clothing,
+their daytime colors. Buildings in use glow from their windows and doors: a
+House while someone is home, a workshop while someone works there, the
+Blacksmith's forge while it is busy, and a Warehouse's door lantern while goods
+are fetched. Nights are colder outdoors, so an agent with no clothing,
 shelter or fire loses warmth, and their warmth bar shows it. A new world starts
 at midnight.
 
@@ -219,6 +222,19 @@ keeps its materials as Town property and releases unused claims rather than
 building for free. See [What works today](what-works.md#life-work-and-society)
 for this first version's limits and provisional amounts. Its
 [hands-on checklist](../playtest/767-town-projects.md) remains pending.
+
+Residents can also propose a **stone street lamp** or **hanging street lantern**
+beside an existing Road. The Council approves its design, Road edge and exact
+budget before anyone builds. Trial costs are **4 stone**, or **4 wood and
+1 refined iron**, with the same provisional 10 work units as other Town
+projects. Residents carry and spend real Town materials; household stock is
+not taken. The fitting occupies one clear roadside tile on Town-titled land
+and keeps the edge that was approved. The Road itself stays open.
+
+Completed lanterns show by day, light at dusk and go out at dawn. They need no
+fuel and do not change what agents can see or do. Select the visible fitting for
+its project and payment details. The [street-lantern checklist](../playtest/892-street-lanterns.md)
+still needs a hands-on check.
 
 ## Pause, settings and controls
 

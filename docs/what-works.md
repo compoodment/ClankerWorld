@@ -70,7 +70,16 @@ Every world day has a night covering 40% of it, the same all year: 19:12 to
 dusk and dawn fade (15 seconds each at that pace). A new world starts at
 midnight, so founder setup happens at night. At night the map darkens with a
 gentle blue wash at every zoom, under map names, agents and weather, and it is
-colder outdoors (see [Life, work and society](#life-work-and-society)). Night
+colder outdoors (see [Life, work and society](#life-work-and-society)).
+Buildings in use glow: light falls on the ground from the windows on a
+building's front and sides and from its open door, never from its roof. A House
+is lit only while someone is inside; a Farmhouse, Store, Tailor Shop, Workshop
+or other building while someone is inside or a job runs there; and the
+Blacksmith's forge glows in its yard while it works. A Warehouse shows only a
+lantern by its loading doors, lit while someone fetches or stores goods, and a
+Silo stays dark. Each pool of light has a ragged edge that drifts slightly, and
+the forge flickers. Zoomed out, a lit building is a warm speck. Night lights have
+not been checked by hand in the Windows game yet. Night
 adds no rules of its own: agents need no sleep or energy, and nothing limits
 their choices or travel at night; they only react to the cold. The night chill
 is a provisional amount for playtesting, and night has not been checked by hand
@@ -214,7 +223,7 @@ summaries remain unfinished.
 | Gathering and carrying | Basic version | Agents gather named berries, wild greens and orchard fruit, keep a hearth burning, and collect shared tools. Field harvests remain on their tiles until carried. Agents carry raw crops and seeds to private Farmhouse/Silo storage, ready-to-eat greens and fruit to the House, flour back to the House, and wood and iron ore into the Blacksmith. |
 | Farming and crafting | Basic version | Adults from a household holding a Farmhouse use wooden or iron hoes to prepare fertile land, carry grain seed, potatoes or cultivated-green seed, tend the crop and harvest it. Illness slows field work and tool wear. Planting supplies stay held until the work finishes or is interrupted. Wooden and iron sickles make harvesting faster. Fields show each stage on the map and overview; inspection names the soil's fertility and the household. Harvests stay on the field, with planting stock reserved for another crop, until physically carried into finite private farm storage. Orchard seeds grow saplings that mature and fruit in autumn. The household holding a Blacksmith makes and repairs tools from real materials: axes fell trees, pickaxes unlock finite stone, iron and rare deposits, and hammers speed building work. Iron knives speed food preparation and suitable crafting. Tools wear during successful work; loose fallen wood can be gathered by hand if an axe breaks. Adults carry needed grain back from their Silo to the Farmhouse, where it mills into flour. A Tailor Shop makes cloth and clothing. If a household workshop recipe cannot get its ingredients, it pauses so an adult can choose another task; its saved plan can resume when supplies return to the building. Rates remain provisional. |
 | Clay, pottery and water | Basic version | A household can dig finite clay and make storage pots and water jugs at its House. A pot holds up to 8 food and slows spoilage; hungry household children, adolescents and adults, and caregivers feeding an infant, take ready-to-eat servings from it. A jug holds up to 4 fresh water, which an adult can collect from a reachable riverbank or lakeshore and return to the House. Collecting a jug requires carrying room for the jug, its contents and some water. The Clinic uses delivered fresh water to make medicine, leaving the jug reusable. The related [empty-vessel return fix](https://github.com/compoodment/ClankerWorld/issues/749) carries empty household pots and jugs from workstations back to the House; automated checks cover its return and reuse. Cooking and animal-care uses remain unfinished. |
-| Building new buildings | Basic version | A household plans a House, Farmhouse, Blacksmith, Silo, Tailor Shop, Clinic or optional Store it does not hold yet, one of each, once it has the materials in hand. It gathers missing materials first. Only a household holding a Farmhouse builds a Silo, within two tiles of it; farm stock reaches either building in carried loads. Adult residents can supply and build a Town Hall after the Council approves its exact site and budget, as described below; other shared buildings remain unfinished. |
+| Building new buildings | Basic version | A household plans a House, Farmhouse, Blacksmith, Silo, Tailor Shop, Clinic or optional Store it does not hold yet, one of each, once it has the materials in hand. It gathers missing materials first. Only a household holding a Farmhouse builds a Silo, within two tiles of it; farm stock reaches either building in carried loads. Adult residents can supply and build a Town Hall or either street lantern after the Council approves its exact site and budget, as described below; other shared buildings remain unfinished. |
 | House resident places, expansion and guests | Basic version | A House gives three resident places per tile, or four when one recorded domestic family unit is at least two people and a strict majority. Travelers and infants count; dead people and invited storm guests do not. A full House can be expanded for more places when the work completes. Add Agent and unanimous household admission check the House's room before adding someone to a household that holds one. Birth still completes into the primary caregiver's current household and can make it overcrowded; the building card and agent context show the count and limit. Existing overcrowding does not yet relocate anyone. Adult household members may also expand a nearly full House for storage; adult Town residents may expand a nearly full Warehouse from 2×2 to 2×3. Expansion keeps identity, stock and cooking jobs, reserves materials and cancels safely if space or permission changes. Any adult household member may invite or revoke a named storm guest. Guests cannot use House stock or cooking. Storage limits, costs and work time are trial values. |
 | Local exploration and physical maps | Basic version | Short outings record personal knowledge and can produce a map or field record to share or barter. Purposeful distant exploration is unfinished. |
 | Trade, relationships, conversations and teaching | Basic version | One-for-one barter, where both people must meet and have room for what they receive, positive trust, accepted/refused partnerships, and bounded public conversations with mutual consent for a structured trust effect. Close biological relatives cannot become partners or plan a child together: parents and children, grandparents and grandchildren, full or half siblings, and aunts or uncles with their nieces or nephews. First cousins can; shared households and caregiving do not count as kinship. Each agent has at most two conversation starts or acceptances per world day; this and the six-turn limit are provisional. Adults can ask a free, healthy agent with a saved skill for a practical lesson; the learner keeps the skill, teacher and time, and the agent card shows them. Skills currently change no access or work speed. Pricing, currency, conflict and broader group dialogue remain unfinished. |
@@ -338,6 +347,18 @@ Automated checks cover gathering, carried deliveries, fresh donations, paid
 construction, saves and civic notices. The
 [Windows checklist](../playtest/767-town-projects.md) is unchecked. Markets,
 Ports and communal boats are not part of this first slice.
+
+Street lanterns use the same Council-approved supply and construction path.
+An adult can propose a stone street lamp or hanging street lantern at a clear
+Town-titled tile beside an existing titled Road, with the exact Road edge
+bound into its plan. Trial budgets are 4 stone for a lamp and 4 wood plus
+1 refined iron for a hanging lantern, and the shared target is 10 work units.
+Both amounts and work are provisional. Completion consumes the delivered
+budget once and keeps the chosen edge; it does not lay or extend Roads.
+The Towns page and selected fitting show Council approval, materials and work.
+Daytime fittings use the approved art; at dusk they light automatically and
+go out at dawn, without fuel or visibility effects. The map never places
+them itself. [Windows checks](../playtest/892-street-lanterns.md) remain pending.
 
 Towns grow along their streets. Building sites that can face an existing Road
 rank higher. Each new building's street runs on a few tiles past it, and a

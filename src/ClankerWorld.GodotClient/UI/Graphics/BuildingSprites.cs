@@ -106,6 +106,21 @@ public static class BuildingSprites
 
     public static int AtlasTileSize(int drawnTileSize) => drawnTileSize >= 24 ? 32 : 16;
 
+    /// <summary>
+    /// Where a building's roof, yard and door are, in 32-unit tile space
+    /// relative to its footprint. Kinds without the approved drawing use the
+    /// plain three-unit inset with the door in the middle of its side.
+    /// </summary>
+    public static (Rect2 Roof, Rect2? Yard, float DoorMiddle) Plan(BuildingKind kind, int tilesWide, int tilesHigh, BuildingDoor door)
+    {
+        if (ApprovedArt.PlanFor(kind, tilesWide, tilesHigh, door) is { } plan) return plan;
+        var roof = new Rect2(3, 3, tilesWide * 32 - 6, tilesHigh * 32 - 8);
+        var horizontal = door.Side is DoorSide.South or DoorSide.North;
+        var from = horizontal ? roof.Position.X : roof.Position.Y;
+        var length = horizontal ? roof.Size.X : roof.Size.Y;
+        return (roof, null, door.Tile is { } tile ? tile * 32 + 16 : from + length / 2);
+    }
+
     public static ImageTexture Texture(BuildingKind kind, int width, int height, int tilePixels, BuildingDoor door = default)
     {
         width = Math.Clamp(width, 1, 8);
@@ -394,6 +409,15 @@ public static class BuildingSprites
 
         /// <summary>Whether this kind uses the approved drawing.</summary>
         public static bool Draws(BuildingKind kind) => kind == BuildingKind.Silo || RecipeFor(kind) is not null;
+
+        /// <summary>Where a roofed kind's roof, yard and door are, in 32-unit tile space; null for the others.</summary>
+        public static (Rect2 Roof, Rect2? Yard, float DoorMiddle)? PlanFor(BuildingKind kind, int tilesWide, int tilesHigh, BuildingDoor door)
+        {
+            if (RecipeFor(kind) is not { } recipe) return null;
+            var plan = Lay(Math.Clamp(tilesWide, 1, 8) * 32, Math.Clamp(tilesHigh, 1, 8) * 32, door, recipe,
+                kind == BuildingKind.Warehouse ? 7f : 3f);
+            return (plan.Roof, plan.Yard, plan.DoorMiddle);
+        }
 
         /// <summary>The main roof colour of an approved kind, for the overview fill; null for the others.</summary>
         public static Color? MainRoof(BuildingKind kind) => kind == BuildingKind.Silo ? SiloWood.Base : RecipeFor(kind)?.Roof.Base;

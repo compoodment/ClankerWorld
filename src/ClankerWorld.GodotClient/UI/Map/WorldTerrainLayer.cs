@@ -336,7 +336,7 @@ public partial class WorldTerrainLayer : Control
     {
         ArgumentNullException.ThrowIfNull(placed);
         ArgumentNullException.ThrowIfNull(objects);
-        var next = placed.Select(building =>
+        var next = placed.Where(building => !StreetLanternLight.IsLantern(building.Tags)).Select(building =>
             {
                 var footprint = new Rect2I(building.Position.X, building.Position.Y,
                     Math.Max(1, building.Width), Math.Max(1, building.Height));

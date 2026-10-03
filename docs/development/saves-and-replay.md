@@ -471,6 +471,7 @@ current alpha cutoff.
 | Schema 52 | An optional exact personally owned, carried ornament lot in the canonical personal equipment record. Wearing supplies no protection or carrying bonus; removal, gifts and death retain actual property while clearing the selection when required. Earlier alpha saves are refused and preserved without migration. |
 | Schema 53 | Wills with one to three named heirs (people or a Town), an equal or item-by-item split, the exact quantity of each frozen lot per heir, and final words; the deceased archive keeps the agent's Town. Divisions must cover every frozen lot exactly. Earlier schemas cannot carry these records. |
 | Schema 54 (provisional) | Typed Council project plans and one shared Town construction record per passed proposal, with exact physical load/reservation/release history, work and paid building identity. The first consumer is the Town Hall. Earlier alpha checkpoints are refused and preserved without migration. |
+| Schema 55 (provisional) | Paid stone and hanging street lanterns reuse the Town project ledger. The exact immutable definition, one-tile roadside site and adjacent Road tile bind their style and edge; altered budgets, geometry, receipts or orphan fixtures are refused. Earlier alpha saves are refused and preserved without migration. |
 
 Other compatibility fields remain separate for simulation, envelopes, content,
 assets, generator and network contracts. Change the field whose semantics
@@ -533,6 +534,22 @@ generated-world gathering and donation, genuine Warehouse loads, intermediate
 restore/replay, discarded prepared ticks, stale votes, retained removal and
 coherently altered receipt/source references. Earlier
 alpha schemas, including 53, are refused visibly and preserved without migration.
+
+Schema 55 adds two supported street-lantern definitions to that same paid
+ledger. Their `Site` is a clear one-tile roadside footprint and `Entrance` is
+the approved cardinally adjacent Road tile. The immutable definition selects
+the style; the difference between those two positions binds its Road edge.
+These positions and the exact trial budget are part of the approval scope,
+not inferred later from a nearby Road. Completion keeps the bound entrance
+and does not generate or extend streets. Live placement and current-format
+validation require uncontested Town title and an existing Road, with the same
+real delivery, reservation, work and removal receipts as the Hall. No fuel,
+lit flag or separate rendering authority is saved: day/night appearance is
+derived from the saved world clock. The owner projection supplies definition
+tags as derived display data. Current roundtrip and replay retain the edge,
+paid materials and partial custody. Earlier alpha schemas, including 54,
+are refused and preserved without migration. Both schema numbers remain
+provisional until their respective pull requests merge.
 
 ## Pending model work and estates
 
