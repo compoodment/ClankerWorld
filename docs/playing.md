@@ -171,6 +171,13 @@ their normal tools and carrying space. A named site is checked through travel
 and observation, and an empty or unavailable site leaves the order waiting
 with a reason. These orders are for adults and elders.
 
+To put carried raw materials away, use **Store wood**, **Store five clay in my
+House**, or **Keep storing stone**. The agent walks to its household's House
+and keeps ownership of the goods. A plain request stores one carried lot, up
+to the room available; a quantity stops at that exact number. Missing personal
+materials or a full House leaves the task waiting with a reason. Storage orders
+currently cover the same seven raw materials as gathering, for adults and elders.
+
 Use **Move to tile (12, 4)** to send an agent to an exact tile. **Go to (12, 4)**
 and **Travel to (12, 4)** work too. The agent walks there normally and finishes
 only on that tile. An occupied or unreachable destination leaves the order
