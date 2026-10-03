@@ -59,7 +59,13 @@ public sealed class ExplorationReturnTests
         var explorer = restored.Inhabitants.Single(person => person.InhabitantId == actor);
         Assert.Empty(explorer.Exploration!.OutingPath);
         Assert.DoesNotContain(result.Events, item => item.Kind == "exploration_aborted" && item.Detail == actor + ":interrupted_movement");
-        Assert.Equal(origin, Assert.Single(Assert.Single(result.Knowledge!.Artifacts).Facts).Position);
+        Assert.Empty(result.Knowledge!.Artifacts);
+        var learned = Assert.Single(result.Knowledge.Facts, item => item.Id == fact.Id);
+        Assert.Equal((actor, actor, origin, fact.Terrain, "firsthand"),
+            (learned.OwnerId, learned.DiscovererId, learned.Position, learned.Terrain, learned.Acquisition));
+        Assert.Equal(fact.ResourceKinds, learned.ResourceKinds);
+        Assert.DoesNotContain(result.Society.Society.Inventory.Lots,
+            lot => lot.ItemKind is "field_record" or "field_map" or "book");
         if (scenario == "blocked")
         {
             Assert.Equal(position, explorer.Position);

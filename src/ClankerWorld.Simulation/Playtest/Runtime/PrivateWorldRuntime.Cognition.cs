@@ -816,6 +816,13 @@ public sealed partial class PrivateWorldRuntime
             GatherRareMaterial(inhabitantId, state, candidateId[RareMiningPrefix.Length..]);
             return;
         }
+        if (candidateId == "knowledge_continue" || candidateId.StartsWith(KnowledgeWritePrefix, StringComparison.Ordinal) ||
+            candidateId.StartsWith(KnowledgeCopyPrefix, StringComparison.Ordinal) || candidateId.StartsWith(KnowledgeReadPrefix, StringComparison.Ordinal))
+        {
+            ApplyKnowledgeWritingCandidate(inhabitantId, state, candidateId);
+            return;
+        }
+        if (ApplyKnowledgeStorageCandidate(inhabitantId, state, candidateId)) return;
         if (candidateId.StartsWith(KnowledgeSharePrefix, StringComparison.Ordinal))
         {
             ApplyKnowledgeShare(inhabitantId, state, candidateId);
