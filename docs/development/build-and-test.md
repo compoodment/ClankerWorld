@@ -63,7 +63,7 @@ The Protect main ruleset requires three checks: `verify`,
 `windows-documentation` and `windows-provider-storage`. `verify` passes only
 when every part of the Verify workflow passes:
 
-- **scope** decides whether the change touches code.
+- **scope** decides which of the other jobs the change needs.
 - **checks** runs the workflow-script tests and the label list, the Godot
   client check, `dotnet format` and the Windows export.
 - **tests (1)** to **tests (4)** split the Release test suite between them, so
@@ -72,6 +72,14 @@ when every part of the Verify workflow passes:
 A pull request that changes only documentation (Markdown files and anything
 under `docs/`) runs the workflow-script checks and the documentation tests on
 Linux and Windows, and skips the rest, including `windows-provider-storage`.
+
+A pull request that changes only documentation and Godot client files also
+runs the Godot client check, `dotnet format` and the Windows export, and skips
+the test jobs and `windows-provider-storage`. The test project compiles only
+the client files its `<Compile Include>` lines name, so no other client file
+can change a test result. A change to one of those files, to anything under
+`tests/`, or to anything outside the client folder runs everything.
+
 Pushes to main always run everything. A newer push to a pull request cancels
 its older run.
 
