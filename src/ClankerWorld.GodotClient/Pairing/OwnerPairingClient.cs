@@ -18,6 +18,12 @@ public sealed class OwnerAgentNameTakenException : HttpRequestException
         : base("The agent name is already taken.", null, HttpStatusCode.Conflict) { }
 }
 
+public sealed class OwnerWorldGenerationException : HttpRequestException
+{
+    public OwnerWorldGenerationException()
+        : base("There is no room for a first Town with these settings.", null, HttpStatusCode.Conflict) { }
+}
+
 /// <summary>
 /// Default absolute-path endpoints for the owner pairing and signed-action
 /// protocol. These paths are relative to the supplied ClankerWorld server URI.
@@ -465,7 +471,7 @@ public sealed class OwnerPairingClient
         return await ReadRequiredJsonAsync<TResponse>(response, cancellationToken).ConfigureAwait(false);
     }
 
-    private sealed record AgentRenameFailure(string? Code);
+    private sealed record OwnerActionFailure(string? Code);
 
     private async Task<TResponse> SendJsonAsync<TRequest, TResponse>(
         HttpMethod method,
@@ -482,14 +488,18 @@ public sealed class OwnerPairingClient
             request,
             HttpCompletionOption.ResponseHeadersRead,
             cancellationToken).ConfigureAwait(false);
-        if (endpointUri.AbsolutePath == OwnerPairingEndpoints.OwnerAgentRename &&
-            response.StatusCode == HttpStatusCode.Conflict)
+        var isRename = endpointUri.AbsolutePath == OwnerPairingEndpoints.OwnerAgentRename;
+        var isWorldGeneration = endpointUri.AbsolutePath is OwnerPairingEndpoints.OwnerWorldPreview or
+            OwnerPairingEndpoints.OwnerWorldCreate;
+        if ((isRename || isWorldGeneration) && response.StatusCode == HttpStatusCode.Conflict)
         {
             try
             {
-                var failure = await response.Content.ReadFromJsonAsync<AgentRenameFailure>(
+                var failure = await response.Content.ReadFromJsonAsync<OwnerActionFailure>(
                     JsonOptions, cancellationToken).ConfigureAwait(false);
-                if (failure?.Code == "name_taken") throw new OwnerAgentNameTakenException();
+                if (isRename && failure?.Code == "name_taken") throw new OwnerAgentNameTakenException();
+                if (isWorldGeneration && failure?.Code == "no_playable_candidate")
+                    throw new OwnerWorldGenerationException();
             }
             catch (JsonException) { }
         }

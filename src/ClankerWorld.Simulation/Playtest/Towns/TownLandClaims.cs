@@ -32,6 +32,20 @@ public static class TownLandClaimRules
             .Any(neighbor => own.Contains(map.WrapColumn(neighbor))));
     }
 
+    /// <summary>Unclaimed land tiles beside this Town's title, nearest first; each one alone is a claimable plot.</summary>
+    public static GridPoint[] ClaimableNear(SeededMap map, TownRuntimeState town, IReadOnlyList<TownLandTitleRecord> titles,
+        GridPoint from, int count)
+    {
+        if (town.OriginSite is null) return [];
+        var claimed = titles.SelectMany(title => title.Tiles).ToHashSet();
+        return titles.Where(title => title.TownId == town.Id).SelectMany(title => title.Tiles)
+            .SelectMany(tile => new[] { new GridPoint(tile.X - 1, tile.Y), new GridPoint(tile.X + 1, tile.Y),
+                new GridPoint(tile.X, tile.Y - 1), new GridPoint(tile.X, tile.Y + 1) })
+            .Select(map.WrapColumn).Where(tile => map.IsLand(tile) && !claimed.Contains(tile)).Distinct()
+            .OrderBy(tile => map.FootDistance(from, tile)).ThenBy(tile => tile.Y).ThenBy(tile => tile.X)
+            .Take(count).ToArray();
+    }
+
     public static void Validate(SeededMap map, long tick, IReadOnlyList<TownRuntimeState> towns,
         IReadOnlyList<TownLandTitleRecord> titles)
     {
@@ -72,7 +86,7 @@ public sealed partial class PrivateWorldRuntime
         var text = string.Create(CultureInfo.InvariantCulture,
             $"Claim {tiles!.Length} land tiles adjoining {town.Name}, starting at ({first.X}, {first.Y}).");
         return TownGovernanceRules.SubmitProposal(state, town.Id, actor, "land_claim", null, text,
-            "council:" + state.Revision, TownAdults(town), WorldTick, CivicDay, tiles);
+            "council:" + state.Revision, TownAdults(town), WorldTick, CivicDay, landClaimTiles: tiles);
     }
 
     private (TownRuntimeState Town, TownGovernanceState Governance) ApplyApprovedTownLandClaims(

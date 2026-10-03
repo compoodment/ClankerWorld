@@ -246,7 +246,8 @@ public sealed class AbandonedWarehouseConsumerTests
         var firstTown = state.Towns!.Single(item => item.Id == TownBorderRules.FirstTownId);
         var border = state.Map.Tiles.Select(tile => tile.Position)
             .First(point => state.Map.IsLand(point) && !firstTown.BorderTiles.Contains(point));
-        var quiet = new TownRuntimeState(QuietTown, "Quiet Yard", "founded", state.Society.Society.WorldTick, [], [], [border], Governance: TownGovernanceState.Create([]));
+        var quiet = new TownRuntimeState(QuietTown, "Quiet Yard", "founded", state.Society.Society.WorldTick, [], [], [border], Governance: TownGovernanceState.Create([]),
+            Government: TownGovernmentState.Create());
         var inventory = state.Society.Society.Inventory;
         var removed = inventory.Lots.Where(lot => lot.StorageBuildingId == warehouse.InstanceId ||
                 lot.OwnerId == household && (lot.ItemKind == kind || PersonalEquipmentRules.IsGarment(lot.ItemKind) ||
