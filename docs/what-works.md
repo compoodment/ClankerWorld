@@ -590,11 +590,14 @@ in-memory progress before restarting the server.
 
 Named saves can be overwritten after choosing one and confirming. Load World
 can load an older save of the current world. Playing on from it starts a new
-branch and keeps the saves of the first version of events; the save list groups
-saves by branch ([#679](https://github.com/compoodment/ClankerWorld/issues/679)).
-This is a first version that has not been checked by hand in the Windows game
-yet, and the planned timeline graphic is not built
-([#680](https://github.com/compoodment/ClankerWorld/issues/680)). Unusable list
+branch and keeps the saves of the first version of events
+([#679](https://github.com/compoodment/ClankerWorld/issues/679)). Load Save and
+Save World draw a world's branches as a timeline over its seasons, mark where
+the running world continues with **You are here**, and keep the save list,
+grouped by branch, behind a **Timeline / List** switch
+([#680](https://github.com/compoodment/ClankerWorld/issues/680)). A host from
+before the timeline can't say where the world continues, so the marker is left
+out. Neither has been checked by hand in the Windows game yet. Unusable list
 metadata is isolated so sound saves remain reachable. During the alpha, a save
 from an older build may stop loading after an update; the game refuses it with a
 reason and keeps the file. Mod compatibility and history retention remain design
