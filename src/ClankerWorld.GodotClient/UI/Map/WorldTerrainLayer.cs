@@ -1211,7 +1211,7 @@ public partial class WorldTerrainLayer : Control
             NatureSprite.StoneOutcrop => new Color("8C8A82"),
             NatureSprite.FertileSoil => new Color("5E4A36"),
             NatureSprite.WildSeedPatch => new Color("C8B066"),
-            NatureSprite.Depleted or NatureSprite.StoneOutcropDepleted => new Color("77766D", 0.78f),
+            NatureSprite.Depleted or NatureSprite.StoneOutcropDepleted or NatureSprite.ClayBankDepleted => new Color("77766D", 0.78f),
             _ => new Color("4F7A45"),
         };
         DrawCircle(position + new Vector2(tileSize * 0.5f, tileSize * 0.56f), Math.Max(1.5f, tileSize * 0.2f), color);
