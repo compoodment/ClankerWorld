@@ -85,10 +85,11 @@ error; the world, its message numbering and its save stay unchanged. These are
 the same limits a save applies, so an accepted message cannot leave the world
 unable to save.
 
-`ParseInstructionOrder` reads a complete, bounded food-task grammar: eating food,
-seeking a food source, and harvesting food. Harvest and travel orders must name
-food (or a supported food resource); explicit resource names must match a
-complete identifier, and food kinds must match that resource. Unsupported
+`ParseInstructionOrder` reads a complete, bounded grammar for eating food,
+seeking a food source, harvesting food, gathering supported raw materials and
+moving to an exact tile. Harvest and food-source travel orders must name a
+supported kind or resource; explicit resource names must match a complete
+identifier and the requested kind. Unsupported
 objects or operations, mixed tasks, unknown explicit targets, and invalid
 quantities or leftover words are rejected as not understood rather than mapped
 to a nearby candidate. A recognized order retains the player's original text and the
@@ -97,6 +98,31 @@ the requested physical effect before recording progress. Names in the prompt
 do not create map knowledge. Optional observer replies are tied to the exact
 message ID and stored separately from private thoughts and conversation
 speech. Local deterministic decisions do not mark messages as heard.
+
+Material orders save the requested kind separately from food targets. They use
+known resource facts or observation within normal interaction range; a named
+unobserved site first requires physical travel. Untargeted orders may use normal
+exploration. Gathering uses the existing tool pickup, whole-load capacity,
+inventory, tool-wear and ecology transitions. Only a returned physical harvest
+receipt advances progress. One load is the default; explicit quantities count
+actual output, including a final whole load that exceeds the requested amount.
+Discovery, tool collection and movement never count as harvested goods.
+Only the observed resource site joins map memory; walking there adds no facts,
+so the journey cannot fill the agent's bounded ledger before arrival.
+
+`Move to tile (12, 4)`, `Go to (12, 4)` and `Travel to (12, 4)` create a
+`move_to` order with a saved `TargetPosition` and one arrival. The common
+unoccupied-route finder and `MoveToward` enforce walking rules, occupancy,
+travel cooldowns and illness delays. House destinations check current household
+membership or a saved guest invitation. An unavailable destination stays blocked;
+it is never substituted. The order completes only when the actor occupies the
+exact target tile. Repetition, quantities and extra task words are rejected.
+Arrival records one firsthand fact, for the destination tile. Submission,
+waiting and the walk itself add none, so a long trip cannot fill the agent's
+bounded map memory.
+Children and adolescents can walk under an order; infants still cannot take
+instructions. The normal queue, cancellation, stale-reply and survival rules
+apply without a separate model request for each step.
 
 The strict guardian-order form is `Become guardian for <full name or exact ID>`.
 It resolves one active child with an open search and saves that child's ID as
@@ -116,8 +142,9 @@ separate from the strict MustDo grammar.
 
 Recognized MustDo instructions complete only when their requested legal action
 actually progresses. Default gathering counts one harvest; explicit quantities
-count food acquired or consumed. Travel finishes only on arrival within
-interaction range of the requested food site; counted travel is refused.
+count goods acquired or food consumed. Food-source travel finishes on arrival within
+interaction range of the requested food site; exact-tile travel requires the
+tile itself. Counted travel is refused.
 An unrelated action, blocked movement or unavailable food leaves the instruction
 pending, including across reload. A recognized new order replaces outstanding
 orders unless `Queue` is true; queued orders run in submission order. Cancel
@@ -450,6 +477,11 @@ Copying needs the source, learned facts and new writing materials; sharing
 does not create another physical copy. Barter transfers the existing lot and
 teaches its recipient, without granting access to unrelated knowledge or
 anyone else's private stock.
+
+Outward scouting checks occupied destinations and both diagonal corner tiles
+before ranking neighboring exits. If no legal outward exit remains, the scout
+uses the existing return path instead of repeatedly targeting a blocked corner.
+Only completed movement adds a visited tile.
 
 If intervening legal movement interrupts outward scouting, a new outward path
 starts at the actual position without inventing missing steps. On the return
@@ -822,6 +854,13 @@ implements all-adult and representative councils from recorded living adult
 residents, independently of geometry and household affiliation. A separate
 `SettlementCouncil` remains the household-food steward prototype.
 
+Household food-policy ballots last 120 ticks and can pass through their saved
+`ExpiryTick`, inclusive, with a strict majority of the remaining eligible
+electorate. After that tick, resolution closes the ballot without changing the
+food policy, even if a death reduces the number of approvals needed. Resolution
+records its tick and adopted or rejected event, then clears the pending ballot;
+save/load preserves the original deadline and votes.
+
 The civic engine keeps final proposal votes, continuing candidate agreements,
 opening voter/candidate lists, latest election ballots, cutoff runoffs, settled
 seats, fair draw order, ten-day terms and retry snapshots. A failed election may
@@ -1047,7 +1086,10 @@ household planning and ownership rules, with 1×1 and 1×2 footprints.
 Harvests remain household-owned lots on their actual field tile. An adult
 carries a load of at most four raw crops or planting items to the household's Farmhouse or Silo.
 Each holds a provisional 96 items, counting deliveries already on their way;
-pickup and delivery both check remaining space. Grain prefers the Farmhouse,
+pickup and delivery both check remaining space. Source selection checks the
+adult's route to each pile or vessel and the route from there to farm storage;
+an earlier blocked source does not hide later reachable stock. The same checks
+run again when the hauling action executes. Grain prefers the Farmhouse,
 while other farm stock prefers the Silo. Ready-to-eat greens and fruit go to
 the household's House. Neither stock nor ownership moves
 remotely.
@@ -1076,7 +1118,7 @@ the existing family, quantity, destination and reservation guards. They
 remain unusable for eating, recipes and new reservations. No agent disposal
 action or player discard control is added.
 
-**Household departure and personal custody** (`SettlementDeparture`). Ordinary decision candidates allow an adult to leave without a vote, store or collect their own goods, return borrowed household tools, explicitly accept replacement care, and found a solo household only when no suitable existing home can currently be asked. Membership exits and admissions include the complete primary-care group. The same completed House-capacity calculation checks all incoming residents; children never apply alone. The displacement transition refuses adults with a moving dependent group, leaving overcrowding eligibility and notice to #599.
+**Household departure and personal custody** (`SettlementDeparture`). Ordinary decision candidates allow an adult to leave without a vote, store or collect their own goods, return borrowed household tools, explicitly accept replacement care, and found a solo household only when no suitable existing home can currently be asked. Membership exits and admissions include the complete primary-care group. The same completed House-capacity calculation checks all incoming residents; children never apply alone. Forced displacement refuses sole caregivers, including a guardian whose dependent lives in another household. Voluntary departures keep the existing care-group rules.
 
 `InventoryLot.OwnerId` records property; optional `CarrierId` records physical custody without donation. Personal goods may remain in House storage after departure. `InventoryFixture.Relocate` preserves ownership, condition, provenance and reservations while moving an unreserved quantity. A stored personal lot is collected physically, with carrying limits, under the current household membership or a recorded departure's limited collection right. Recovery from the ground or a former household remains a routine errand. Collecting a map or field record from the current home stays available as a deliberate choice, but ranks below idle for the built-in chooser so it does not immediately retrieve knowledge goods it has just stored. Other goods retain their normal collection priority, so the built-in chooser stores only maps and field records; storing other belongings is a deliberate choice, because routine collection would fetch them straight back. Borrowed tools retain the lender's owner ID while carried and are returned physically. Shared delivery loads retain their owning household on departure. Shared buildings, stock and job records are never reassigned to the new household. A departing worker's private production and expansion jobs pause with their existing owners and reservations, except work for the worker's own goods, such as building their handcart, which nobody else may finish: it is cancelled and its reserved materials are released and stay with the worker; their previous work plan is retained on the departure record instead of resuming under a new household. A remaining member can take over paused work at its physical site, using the same still-available committed inputs and remaining work time. Private materials held by the former worker are not reassigned; these keep the task blocked. Held reservations keep their exact owner and stock, receive a new deadline only on resumption, and are released if the materials become unusable; canceled job records retain the original property owner.
 
@@ -1084,19 +1126,20 @@ Each departure allocates at most two unreserved ready-to-eat portions once. Owne
 
 Production jobs capture their owner when the original inputs are reserved. Completion uses that saved owner, including at a public workstation when the worker leaves or forms a household during the job; membership changes cannot redirect the finished goods.
 
-**Housing requests** (`SettlementHousing`). An adult whose household holds no
-House has a saved `Housing` record on their physical state: a pending request,
-recent refusals and the current blocker. Each tick `MaintainHousing` resolves
+**Housing requests** (`SettlementHousing`). An agent's saved `Housing` record
+holds its current blocker and, for an adult, any pending request, recent refusals
+or move-out notice. Each tick `MaintainHousing` resolves
 requests, then recomputes the blocker and appends `housing_blocked` when it
 changes. The blocker codes are `no_household`, `no_authorized_home` (the
 household can plan or is building a House), `missing_materials`,
 `no_legal_site` (the household has the build costs but `TownLayoutService`
 ranks no site), `awaiting_answer` and `overcrowded` (the household's House
-has more permanent residents than places). The code is shown on the owner's agent
-card and sent to the agent's own model as a `housing` line in its self context.
-An adult with no household is offered `household_ask:{household}` for each
-household that holds a House in the same Town, has an adult who can answer and
-has not refused within the last two world days. Asking records that household's
+has more permanent residents than places). The state is explained on the owner's
+agent card and sent to the agent's own model as a `housing` line in its self context.
+An adult with no household, or with a currently valid move-out notice, is offered
+`household_ask:{household}` for each other household that holds a House in the
+same Town, has room for the entire moving care group, has an adult who can answer
+and has not refused within the last two world days. Asking records that household's
 adult members in the request, which expires after 120 ticks like other
 proposals. Adults who join the household or reach adulthood while it is pending
 must also answer; existing answers are retained and adults who die or leave no
@@ -1105,15 +1148,16 @@ longer need to answer. Each current adult is offered `household_admit:{applicant
 they answer. An ongoing lesson waits while either participant owes a housing
 answer, retaining its progress and already learned skills.
 One refusal by a living member ends the request; when every living
-member has agreed, `SocietyFixture.JoinHousehold` records the membership and
+member has agreed, `SocietyFixture.JoinHouseholdCareGroup` records the membership and
 `household_joined` is appended. A refusal or an unanswered request is remembered
 as a refusal for the cooldown. The request grants nothing while pending: stock,
-shelter and route rules still check household membership. Adults who already
-have a household are never offered a request in the current implementation.
-[Household departure and solo formation](../game-design/towns.md#household-membership),
-including [ownership, collection access, the food allowance and dependent care](../game-design/towns.md#household-goods-and-departure),
-are agreed but remain implementation work in
-[#593](https://github.com/compoodment/ClankerWorld/issues/593).
+shelter and route rules still check household membership. A resident with notice
+leaves through `DepartHousehold` before joining, preserving the
+[departure rules](../game-design/towns.md#household-goods-and-departure) for goods,
+food allowance and care. Before that exit, live relocation eligibility and
+destination capacity are checked again. A cancelled notice also cancels a
+resident's pending request elsewhere; an adult who already left keeps seeking
+a home.
 
 **House resident capacity** (`HouseResidentCapacityRules`). A completed House
 provides three permanent-resident places per footprint tile, or four per tile
@@ -1131,9 +1175,47 @@ status gives dependents no adult admission or construction choices. House
 expansion can start for a
 storage need or when there is no resident place, but added places use only the
 completed footprint. Unfinished expansion does not reserve room for another
-resident. The game does not yet relocate people who already live in an
-overcrowded House; that remains in
-[#599](https://github.com/compoodment/ClankerWorld/issues/599).
+resident.
+
+**Overcrowding relocation** (`HouseRelocationRules`, `SettlementRelocation`).
+Selection uses the completed House footprint and active permanent residents.
+Volunteers come first, then existing notices and the latest eligible arrivals,
+with ordinal agent IDs breaking equal arrival times. Forced selection protects
+the dominant domestic family; when no family has a majority, the arrival order
+does not favor a family. The majority is checked again after each selected
+departure, so a family that gains it part-way is protected from then on.
+Sole caregivers are ineligible for the notice timer,
+including when their dependent lives elsewhere. Capacity is recalculated after
+each proposed departure, and a departure that would not reduce overcrowding is
+skipped. Selection stops when the remaining residents fit.
+
+`Housing.Relocation` stores the household, original notice tick, fixed deadline
+and selection reason. The initial period is one world day. Pausing and loading
+do not consume or restart it; a volunteer or other replacement adult inherits
+the existing notice period. Births, age changes and unfinished expansion do not
+restart a notice. Reconciliation cancels obsolete notices after changes in
+residents, family, care or completed capacity. Admission and departure actions
+recheck that eligibility before acting on a saved or delayed choice.
+
+At expiry, each still-eligible adult leaves through the ordinary departure
+transition, in the order selection planned, rechecking remaining need before
+the next exit. No location or
+inventory is transferred remotely. The once-only food allowance, personal
+collection rights, borrowed goods and paused work retain their existing rules.
+An adult without a new home keeps a visible housing task. An overcrowded House
+with no eligible adult remains blocked while its members arrange expansion or
+a voluntary household split; sole caregivers are never forced out with their
+children. The split is offered only when the House cannot grow: no expansion
+is running, and either no larger footprint fits or its extra land is neither
+the household's to use nor free Town land it can still ask the Council for. While only that land permission
+is missing, the housing line names it as the next step, and the expansion
+land request prefers a footprint whose extra land no other household holds or
+has asked for. Built-in rules do not found a household while the adult still
+has a home, so the notice period can end in a completed expansion or an
+accepted request. Agent observations and owner inspection show resident
+counts, notice reason and time, pending requests and expansion state.
+`relocation_notice` and `relocation_cancelled` record changes without
+repeating them on reload.
 
 **Continuity rule** (`SettlementContinuity`). The owner's answer on
 [#654](https://github.com/compoodment/ClankerWorld/issues/654) sets provisional
@@ -1324,6 +1406,10 @@ New proposals for Shelters, Storehouses, Cooking fires and Stone hearths are
 retired. Existing buildings, projects and recorded proposals remain for old-world
 compatibility. Approved owner building designs stay active but are not household
 kinds, so agents do not plan them; they wait for shared buildings. House fires supply heat. General invention is later Workshop work.
+Fire-tending selects an unlit hearth the adult can reach, using the same
+household access and interaction distance as movement. Selection is repeated
+when tending begins, so changed occupancy can redirect the adult to another
+hearth or leave warmth-seeking available. Fuel is consumed only at the hearth.
 
 Clothing comes from a household's Tailor Shop (`clankerworld-tailor-v1`), which
 replaced the Weaving frame and its "Woven clothing" recipe outright. The shop
@@ -1479,6 +1565,14 @@ seed with a reserved planting unit. An adult carries that seed to legal free
 land and plants a sapling; tree growth, fruiting and the reserve survive reload.
 Ordinary wood-tree seeds remain distinct.
 
+Urgent food recovery first sets down ordinary spare cargo. If that cannot free
+enough carrying room, it may also select the actor's own orchard propagation
+seeds. Their selected planting reservations are released in the same inventory
+transition that stores the seeds with the household, after reaching the House
+or camp pile. Walking, an unavailable destination or a refused transfer does
+not release them. Other reservations, delivery loads and borrowed goods remain
+protected; crafting does not use this exception.
+
 The Godot map draws worked soil and crop growth above the terrain, including
 wrapped map edges; the overview marks field tiles. Fields join the household
 property display, and inspection shows the household, stage, crop, worker and
@@ -1537,7 +1631,9 @@ so the run-on rule does not treat either end as a dead end.
 **Same connected banks.** Two crossings join the same banks only when they
 cross the same river, joined through its water, and each end of one reaches an
 opposite end of the other by walking along that water's shore without crossing
-it. A tributary mouth or a separate stream breaks the shore, so a bridge over a
+it. Each shore step obeys the ordinary foot-movement rules: impassable Peaks
+break the connection, while walkable Mountain terrain does not. A tributary
+mouth or a separate stream breaks the shore, so a bridge over a
 different nearby stream never blocks another. There is no distance limit; the
 comparison examines at most 4,096 river tiles and, if that runs out, does not
 treat the banks as the same. Along one unbranched stretch of river this allows

@@ -109,6 +109,14 @@ unrelated action or a stale order cannot advance a replacement task. Alpha saves
 must use the current checkpoint schema; older saves are refused without
 migration and remain unchanged.
 
+Private-world schema 65 adds material-gathering orders with a distinct
+`TargetMaterialKind`, exact optional source or position, and progress measured
+in harvest batches or material items. Saved progress and the last physical
+harvest receipt are validated together; mixed food/material targets and invalid
+material kinds are refused. Queueing, cancellation, discovery and partial
+quantities retain their state across reload. Older alpha saves are refused and
+preserved unchanged; no migration is added.
+
 Schema 53 saves wills with several heirs. An estate keeps its household
 default beneficiaries and adds, for an accepted will, the named heirs in order,
 the split, the exact quantity of each frozen lot each heir receives, and any
@@ -452,8 +460,26 @@ movement always use today's bridge map, with its legal axes, detours and
 blocked-return behavior. These checks use existing timestamps and add no saved
 fields, schema change or migration.
 
+Private-world schema 64 adds a move-out notice to an adult's `Housing` record:
+the current household, original notice tick, fixed deadline and selection
+reason. A pending request to another household is permitted while that notice
+is held. Loading validates the adult, membership, reason and time bounds;
+malformed notices and unsupported earlier schemas are refused and preserved.
+Live care, family and capacity changes may make a notice obsolete, so the
+runtime rechecks them before admission or displacement instead of treating a
+stale notice as authority to move someone.
+
+Current-format roundtrips retain notice deadlines, volunteer replacements,
+housing requests and the ordinary departure's collection rights and once-only
+food allowance. Replacing the selected adult keeps the original notice period;
+pause/load, births and unfinished expansion do not restart it. Replay must
+produce the same cancellation or departure without duplicating events or goods.
+Only completed footprints add resident places. Sole caregivers are protected
+from timed displacement even when their dependent lives in another household.
+No older-save migration or backfill is added.
+
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 62. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 65. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
@@ -474,9 +500,11 @@ consumed-dose progress, selected personal ornaments, and wills with up to
 three named heirs, exact divisions and final words, Town admission records,
 Town laws and government, concrete last-meal names for nourishment and
 dietary variety, bounded tool-making requests linked to ordinary production
-and barter, exact land-claim coordinates on Council proposals, and household
-land requests with their Council proposal and each adult's consent, and physical
-knowledge writing with exact material reservations and completed-artifact receipts.
+and barter, exact land-claim coordinates on Council proposals, household
+land requests with their Council proposal and each adult's consent, physical
+knowledge writing with exact material reservations and completed-artifact
+receipts, exact-tile movement orders with their destination and arrival
+receipt, overcrowding move-out notices and material-gathering targets and receipts.
 Land records are checked against the saved map, Towns, households and one
 another before load. Building reassignment moves only existing footprint use rights;
 connected remainder plots keep their holder and original grant terms. Split
@@ -511,10 +539,11 @@ ornaments, schema 53 for wills with several heirs and final words, schema 54
 for Town admission records, schema 55 for Town laws and government, schema
 56 for named last meals, schema 57 for tool-making requests, schema 58 for
 Council land claims, schema 59 for household land grants, schema 60 for
-handcart attachments, schema 61 for guardian-order targets and schema 62 for
-physical knowledge writing record when those fields or behaviors were
-introduced; they do not allow an earlier checkpoint schema past the current
-alpha cutoff.
+handcart attachments, schema 61 for guardian-order targets, schema 62 for
+physical knowledge writing, schema 63 for exact-tile movement orders and
+schema 64 for overcrowding move-out notices and schema 65 for material orders
+record when those fields or behaviors were introduced; they do not allow an
+earlier checkpoint schema past the current alpha cutoff.
 
 | Compatibility change | Meaning |
 | --- | --- |
@@ -563,6 +592,9 @@ alpha cutoff.
 | Schema 60 | Exclusive physical handcart attachments: one cart per puller and one puller per cart, for a living owner, with cart and puller on the same tile. Cargo stays in ordinary inventory lots inside the cart. Earlier alpha saves are refused and preserved without migration. |
 | Schema 61 | Guardian orders retain the exact target agent separately from food/resource targets. Loading refuses missing or unknown targets, mixed task fields, repetition, and inconsistent completion receipts. The order survives a rename, pause, cancellation and replay. Older alpha saves are refused and preserved without migration. |
 | Schema 62 | Physical knowledge-writing projects retain their author, frozen learned facts, source artifact, work and exact paper/cloth reservations. Completed maps, records and books retain the consumed-material receipts and unique physical lot. Invalid provenance, duplicated inputs and malformed work are refused. Earlier alpha saves are refused and preserved without migration. |
+| Schema 63 | Exact-tile movement orders retain their destination, progress and arrival receipt. Loading refuses missing destinations, mixed food/resource fields, repetition and inconsistent completion. Queues and interrupted trips replay across saves. Older alpha saves are refused and preserved without migration. |
+| Schema 64 | Household move-out notices retain their original notice period, fixed deadline and selection reason alongside pending housing requests. Reload and replacement do not restart notice or duplicate departure goods. Runtime admission and displacement recheck current need and caregiver protection. Earlier alpha saves are refused and preserved without migration. |
+| Schema 65 | Material-gathering orders retain the material kind, exact optional source or position, batch/item progress and physical harvest receipt. Loading rejects mixed food/guardian/material fields and inconsistent progress. Queue, cancellation and partial work replay without duplicate harvests; older alpha saves are refused and preserved without migration. |
 
 ### Tool-making requests
 

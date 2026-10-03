@@ -198,6 +198,30 @@ cancelled". Quantities count food actually eaten or gathered; travel finishes
 on arrival at the food source. Eating waits until the agent is hungry enough,
 and a full load blocks gathering with a reason.
 
+Orders also gather wood, stone, plant fiber, clay, iron ore, gold ore and diamond
+through the ordinary material-gathering rules. Adults and elders can take one
+load, a requested quantity, or repeat until cancelled. Quantities count real
+goods; the last whole load may exceed the requested number. A usable tool of
+the required tier and enough carrying space are still needed, including room
+for seeds from a felled tree. Tools wear and sources deplete normally. An agent
+may collect an accessible shared tool before gathering.
+
+Use "gather clay", "gather five wood", "keep gathering stone", or an exact
+resource identifier after "from". "Gather iron ore at (12, 4)" checks that tile
+without choosing a substitute. Unspecified sites use the agent's known or
+nearby observed resources, with ordinary exploration when none is available.
+Unknown explicit sites require travel and observation before gathering. Queue,
+cancellation, urgent survival interruptions and progress survive save/reload.
+
+Orders also support exact-tile movement: "Move to tile (12, 4)", "Go to (12, 4)"
+or "Travel to (12, 4)". They use ordinary walking routes and travel delays,
+finish only on the requested tile, and wait when it is occupied or unreachable.
+Entering another household's House still requires an invitation.
+Each order is one trip; repeated or counted tile trips are not understood.
+The target survives queueing, urgent survival interruptions and save/reload.
+Giving coordinates does not create firsthand map knowledge; the agent learns
+the tile only by reaching it.
+
 An adult can also follow "Become guardian for Lina", using the full name of a
 child with an open guardian search. The name is resolved once to that child,
 so a later rename does not redirect the task. Acceptance uses the search's
@@ -245,7 +269,7 @@ summaries remain unfinished.
 | Handcarts | Basic version | Adults in the Blacksmith household can craft a personal cart from carried wood, iron fittings and rope. The visible cart carries up to 32 loose goods separately from the agent's load. Its owner reaches and attaches it, loads physically nearby authorized goods, pulls legal cardinal routes, parks, unloads, repairs or gives the cart and its cargo to a nearby adult. Roads reduce movement waits and wear; broken carts keep their cargo. Map, tile and agent inspection show ownership, position, load and condition. |
 | Clay, pottery and water | Basic version | A household can dig finite clay and make storage pots and water jugs at its House. A pot holds up to 8 food and slows spoilage; hungry household children, adolescents and adults, and caregivers feeding an infant, take ready-to-eat servings from it. A jug holds up to 4 fresh water, which an adult can collect from a reachable riverbank or lakeshore and return to the House. Collecting a jug requires carrying room for the jug, its contents and some water. The Clinic uses delivered fresh water to make medicine, leaving the jug reusable. The related [empty-vessel return fix](https://github.com/compoodment/ClankerWorld/issues/749) carries empty household pots and jugs from workstations back to the House; automated checks cover its return and reuse. Porridge, bread and stew also consume fresh water while leaving the jug reusable. Empty jugs at Houses or Restaurants can be collected and refilled. Animal care remains unfinished. |
 | Building new buildings | Basic version | A household plans a House, Farmhouse, Blacksmith, Silo, Tailor Shop, Clinic, Restaurant or optional Store it does not hold yet, one of each, once it has the materials in hand. It gathers missing materials first. Only a household holding a Farmhouse builds a Silo, within two tiles of it; farm stock reaches either building in carried loads. New shared Town buildings are not offered yet. |
-| House resident places, expansion and guests | Basic version | A House gives three resident places per tile, or four when one recorded domestic family unit is at least two people and a strict majority. Travelers and infants count; dead people and invited storm guests do not. A full House can be expanded for more places when the work completes. Add Agent and unanimous household admission check the House's room before adding someone to a household that holds one. Birth still completes into the primary caregiver's current household and can make it overcrowded; the building card and agent context show the count and limit. Existing overcrowding does not yet relocate anyone. Adult household members may also expand a nearly full House for storage; adult Town residents may expand a nearly full Warehouse from 2×2 to 2×3. Expansion keeps identity, stock and cooking jobs, reserves materials and cancels safely if space or permission changes. Any adult household member may invite or revoke a named storm guest. Guests cannot use House stock or cooking. Storage limits, costs and work time are trial values. |
+| House resident places, expansion and guests | Basic version | A House gives three resident places per tile, or four when one recorded domestic family unit is at least two people and a strict majority. Travelers and infants count; dead people and invited storm guests do not. A full House can be expanded for more places when the work completes. Add Agent and unanimous household admission check the House's room before adding someone to a household that holds one. Birth still completes into the primary caregiver's current household and can make it overcrowded; the building card and agent context show the count and limit. Existing overcrowding gives eligible adults one unpaused world day to move, with volunteers first and sole caregivers protected; notices, requests and expansion progress appear in agent inspection. Adult household members may also expand a nearly full House for storage; adult Town residents may expand a nearly full Warehouse from 2×2 to 2×3. Expansion keeps identity, stock and cooking jobs, reserves materials and cancels safely if space or permission changes. Any adult household member may invite or revoke a named storm guest. Guests cannot use House stock or cooking. Storage limits, costs and work time are trial values. |
 | Local exploration and physical knowledge goods | Basic version | Short outings record personal knowledge. A House makes paper from real fiber and jug-carried water; adults use paper to write field records and maps, or paper and cloth to bind books. Reading, sharing and trading teach only their actual contents to the recipient. Copies cost fresh materials. Purposeful distant exploration is unfinished. |
 | Trade, relationships, conversations and teaching | Basic version | One-for-one barter, where both people must meet and have room for what they receive, positive trust, accepted/refused partnerships, and bounded public conversations with mutual consent for a structured trust effect. Close biological relatives cannot become partners or plan a child together: parents and children, grandparents and grandchildren, full or half siblings, and aunts or uncles with their nieces or nephews. First cousins can; shared households and caregiving do not count as kinship. Each agent has at most two conversation starts or acceptances per world day; this and the six-turn limit are provisional. Adults can ask a free, healthy agent with a saved skill for a practical lesson; the learner keeps the skill, teacher and time, and the agent card shows them. Skills currently change no access or work speed. Pricing, currency, conflict and broader group dialogue remain unfinished. |
 | Household shops | Basic version | Adults can offer exact goods for goods kept at a nearby Farmhouse, Blacksmith, Tailor Shop, Clinic, Restaurant or Store. Both traders meet there before anything changes hands. The buyer carries the purchase; payment goes into household stock at that shop. Buyers can seek better tool tiers, clothing that protects them better in the current weather or medicine for an observed illness. Store goods must be carried in first. The building card shows the terms and progress; cancelled offers release both lots. Buying grants no access to private stock, cooking, treatment or household membership. A customer may ask a Blacksmith household for a tool before it is stocked. The household may accept or refuse; accepted work uses its own real materials, and a finished tool is purchased through the usual physical barter. No payment, price promise or future ownership is created by the request. Request status and any missing-input or storage blocker appear on the Blacksmith and relevant agent cards; [its Windows checklist](../playtest/564-tool-making.md) is pending. Market stalls remain unfinished in [#564](https://github.com/compoodment/ClankerWorld/issues/564). Restaurant adults buy missing ingredients and customers buy meals after walking to a shop in their own Town. Its [Windows checklist](../playtest/561-concrete-meals.md) is pending. Barter rates and shelf sizes are provisional. |
@@ -461,13 +485,34 @@ preserves Town membership and an empty household's property. See the
 [departure rules](game-design/towns.md#household-goods-and-departure).
 The agreed [House resident limits and expansion](game-design/towns.md#house-resident-capacity-and-relocation)
 are implemented by [#598](https://github.com/compoodment/ClankerWorld/issues/598).
-Relocation for existing overcrowding remains in
-[#599](https://github.com/compoodment/ClankerWorld/issues/599).
+
+An overcrowded House gives eligible adults one unpaused world day to move out.
+Volunteers go first, followed by the most recent arrivals outside its dominant
+family; without a family majority, no family gets priority. The agent's housing
+details show the reason, remaining time, requests to other households and
+expansion progress. Notices keep their deadline across save/load and changes
+of selected adult. Only a completed expansion adds places, and changed
+residents, family or care arrangements cancel notices that are no longer needed.
+Children and their sole caregivers never receive forced notices. If nobody
+can safely be required to leave, the House stays visibly overcrowded while
+adults arrange expansion or a voluntary split with care preserved.
+
+During notice an adult can ask another household with room, still requiring
+every adult member's agreement, or start their own household when no suitable
+home can be asked. If notice expires with no home ready, the eligible adult
+leaves membership and keeps a visible housing need; goods and people still move
+physically under the departure rules. The
+[Windows relocation checks](../playtest/599-overcrowding-relocation.md) remain
+pending.
+
 Until a household formed alone builds its House, its adult relies on clothing
 and natural storm cover. This is a basic
 version: it has not been checked by hand in the Windows game yet. New Shelters,
 Storehouses,
 Cooking fires and Stone hearths are retired; standing ones in old saves remain.
+Cold adults use hearths they can reach. A blocked hearth does not keep them
+from tending another reachable hearth or seeking natural storm cover; wood
+is used only after they arrive.
 The Weaving frame and its woven clothing are gone. Each starting agent's
 garment waits in their household's House, and new clothing comes only from a
 household's Tailor Shop.
@@ -488,8 +533,12 @@ room for the whole yield, including orchard seeds. A hungry adult can make room
 for one permitted household serving when spare supplies can be set down. An
 accepted caregiver can also make room to feed a hungry infant, even when
 already well fed. The spare supplies go to the House if it has room or to the
-camp pile otherwise. Maps, field records, books, worn gear, gear being repaired and
-reserved goods stay carried. Exploring still teaches
+camp pile otherwise, with tools set down after other ordinary supplies. Maps,
+field records, books, worn gear, gear being repaired and reserved goods stay
+carried. If urgent hunger leaves no other way to make enough room, an adult may
+set down some of their own reserved orchard seeds too. Only the seeds actually
+stored lose their planting reserve; the seeds remain household property for
+later planting. Exploring still teaches
 personal knowledge when there is no paper or room for a written copy.
 Broken or spoiled spare cargo can also be set down without losing it.
 A filled jug moves home as one load when the adult has room for the jug and
@@ -555,7 +604,8 @@ the tile card and hover readout, and walked at dry-ground speed. When a Town gro
 running on past a door crosses a river up to two tiles wide on a new bridge.
 Households can plan new buildings, whose streets may need a bridge; the
 starting layout keeps its streets on dry land. No bridge is added where one already joins the same river
-banks. Road links between Towns are unfinished, and bridges have not been
+banks and agents can walk along both banks to reach it. Peaks that block either
+bank can leave room for another needed crossing. Road links between Towns are unfinished, and bridges have not been
 checked in hands-on Windows play.
 
 Resources can deplete or regrow. Each tile holds at most one tree. Wood trees

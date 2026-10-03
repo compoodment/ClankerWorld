@@ -82,7 +82,7 @@ public sealed partial class PrivateWorldRuntime
         var required = living.Length / 2 + 1;
         var approvals = ballot.Approvals.Count(id => living.Contains(id, StringComparer.Ordinal));
         var rejections = ballot.Rejections.Count(id => living.Contains(id, StringComparer.Ordinal));
-        if (living.Length > 0 && approvals >= required)
+        if (WorldTick <= ballot.ExpiryTick && living.Length > 0 && approvals >= required)
         {
             council = council with { FoodPolicy = ballot.Policy, LastResolutionTick = WorldTick, Ballot = null };
             AppendEvent("council_policy_adopted", ballot.Policy);

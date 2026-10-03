@@ -572,6 +572,7 @@ public sealed partial class PrivateWorldRuntime
             order.TargetResourceId is { Length: > 128 } || order.TargetResourceId?.Any(char.IsControl) == true ||
             order.TargetFoodKind is not (null or "berries" or "fruit" or "wild_greens") &&
                 (order.Action != "consume_food" || !IsEdibleFood(order.TargetFoodKind)) ||
+            order.Action != "gather_material" && order.TargetMaterialKind is not null ||
             order.TargetPosition is { X: < -10_000_000 or > 10_000_000 } ||
             order.TargetPosition is { Y: < -10_000_000 or > 10_000_000 } ||
             order.WaitForDecisionAfterFailure && (order.Status != "blocked" || order.BlockedReason is null) ||
@@ -584,6 +585,23 @@ public sealed partial class PrivateWorldRuntime
                 order.ProgressUnit == "none" && !order.RepeatUntilCancelled && order.TargetFoodKind is null &&
                 order.TargetResourceId is null && order.TargetPosition is null && order.LastEffectId is null &&
                 order.TargetAgentId is null;
+
+        if (order.Action == "gather_material")
+            return PrivateWorldInstructionOrderParser.IsMaterialKind(order.TargetMaterialKind) &&
+                order.TargetAgentId is null && order.TargetFoodKind is null && !(order.TargetResourceId is not null && order.TargetPosition is not null) &&
+                order.RequestedUnits is >= 1 and <= 1000 && order.CompletedUnits is >= 0 and <= 1_000_000 &&
+                order.Status != "not_understood" &&
+                (order.Status == "finished") == (!order.RepeatUntilCancelled && order.CompletedUnits >= order.RequestedUnits) &&
+                (order.QuantityIsExplicit ? order.ProgressUnit == "material_items" : order.ProgressUnit == "harvests" && order.RequestedUnits == 1) &&
+                (order.CompletedUnits == 0 ? order.LastEffectId is null : order.LastEffectId?.StartsWith("gather:material:", StringComparison.Ordinal) == true);
+
+        if (order.Action == "move_to")
+            return order.TargetPosition is { } destination && order.TargetFoodKind is null && order.TargetResourceId is null &&
+                order.TargetAgentId is null &&
+                order.RequestedUnits == 1 && order.CompletedUnits is 0 or 1 &&
+                (order.Status == "finished") == (order.CompletedUnits == 1) && order.Status != "not_understood" &&
+                order.ProgressUnit == "arrivals" && !order.RepeatUntilCancelled && !order.QuantityIsExplicit &&
+                order.LastEffectId == (order.CompletedUnits == 1 ? MovementOrderEffectId(destination) : null);
 
         if (order.Action == "accept_guardianship")
             return order.TargetAgentId is { } child && people.Contains(child) && child != instruction.TargetInhabitantId &&

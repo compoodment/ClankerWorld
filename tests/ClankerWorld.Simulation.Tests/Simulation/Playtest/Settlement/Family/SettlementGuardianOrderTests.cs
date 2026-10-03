@@ -167,6 +167,7 @@ public sealed partial class SettlementParenthoodTests
             order with { TargetAgentId = "missing-child" },
             order with { TargetAgentId = adult },
             order with { TargetFoodKind = "berries" },
+            order with { TargetMaterialKind = "wood" },
             order with { RequestedUnits = 2 },
             order with { RepeatUntilCancelled = true },
             order with { CompletedUnits = 1 },

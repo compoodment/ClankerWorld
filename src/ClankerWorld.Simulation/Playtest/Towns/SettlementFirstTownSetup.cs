@@ -13,11 +13,11 @@ public sealed partial class PrivateWorldRuntime
         {
             if (geographyOptions is null || founderSetup is not { Started: false, FounderIds.Count: 0 } ||
                 !society.Checkpoint.IsPaused || WorldTick != 0 ||
-                worldSimulation.ProductionJobs.Count != 0 || (worldSimulation.CropBuilds?.Count ?? 0) != 0)
+                worldSimulation.ProductionJobs.Count != 0 || (worldSimulation.CropBuilds?.Count ?? 0) != 0 ||
+                (worldSimulation.BuildingExpansions?.Count ?? 0) != 0)
                 throw new InvalidOperationException("Choose the first Town layout during paused setup before placing founders.");
             var existing = worldSimulation.Buildings;
-            if (existing.Any(building => !building.InstanceId.StartsWith("first-town-", StringComparison.Ordinal)) ||
-                existing.Count is not (0 or 5) || bridges.Count != 0)
+            if (bridges.Count != 0)
                 throw new InvalidOperationException("Other building work prevents replacing the initial layout.");
             var plan = FirstTownLayoutPlanner.Plan(map, roughSite)
                 ?? throw new ArgumentException("No connected five-building layout fits near this rough site.", nameof(roughSite));
@@ -36,6 +36,13 @@ public sealed partial class PrivateWorldRuntime
                     "house-b" or "blacksmith" => SecondHouseholdId,
                     _ => null,
                 }, building.Entrance)).OrderBy(building => building.InstanceId, StringComparer.Ordinal).ToArray();
+            // Removing an empty building can leave only part of the starter
+            // layout. Only its known identities and unexpanded definitions may
+            // be reset; Redo also restores any reassigned starter's initial owner.
+            if (existing.Any(building => building.PlacedTick != 0 || building.Footprint is not null ||
+                !placed.Any(starter => starter.InstanceId == building.InstanceId &&
+                    starter.DefinitionId == building.DefinitionId && starter.TownId == building.TownId)))
+                throw new InvalidOperationException("Other building work prevents replacing the initial layout.");
             var town = TownBorderRules.CreateFirstTown(map, originSite: roughSite);
             town = town with
             {
