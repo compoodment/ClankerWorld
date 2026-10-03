@@ -136,9 +136,9 @@ public sealed partial class PrivateWorldRuntime
         if (TownAdults(town).Contains(actor, StringComparer.Ordinal))
             foreach (var building in worldSimulation.Buildings.Where(b => b.TownId == town.Id && b.HouseholdId == HouseholdFor(actor)))
                 if (ExpansionLandRequestTiles(actor, building) is { Length: > 0 } extra)
-                    candidates.Add(new(CivicAction(town.Id, "request_expansion_land", building.InstanceId),
+                    candidates.Add(new(CivicAction(town.Id, "request_expansion_land", building.InstanceId, TownLandClaimRules.DescribeTiles(extra)),
                         "Request household use of the extra land needed to expand your House. Council approval and every current adult's acceptance are required. Exact tiles: " +
-                        TownLandClaimRules.DescribeTiles(extra) + ".", 23));
+                        TownLandClaimRules.DescribeTiles(extra) + ".", 190));
         var history = CivicHistory(town);
         foreach (var request in householdLandUseRequests.Where(r => r.TownId == town.Id && r.Status == "pending" && history.Knows(actor, "land_use", r.Id)))
         {
