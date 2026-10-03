@@ -189,7 +189,7 @@ public sealed class TownLandHearingRuntimeTests
             Inhabitants = state.Inhabitants.Select(person => person with
             { Position = state.Towns![0].OriginSite!.Value, HungerBasisPoints = 8_000 }).ToArray(),
             WorldSystems = RegionalWeatherRules.Initialize(state.WorldSystems! with
-            { Config = state.WorldSystems.Config with { TicksPerDay = Day }, RegionalWeather = null }, state.Map),
+            { Config = state.WorldSystems.Config with { TicksPerDay = Day, CalendarOffsetTicks = 0 }, RegionalWeather = null }, state.Map),
             Society = state.Society with
             {
                 Society = society with
