@@ -591,7 +591,7 @@ public sealed partial class PrivateWorldRuntime
 
         if (order.Action == "repair_equipment")
             return PrivateWorldInstructionOrderParser.IsEquipmentKind(order.TargetEquipmentKind) &&
-                order.TargetFoodKind is null && order.TargetResourceId is null && order.TargetPosition is null &&
+                order.TargetAgentId is null && order.TargetFoodKind is null && order.TargetResourceId is null && order.TargetPosition is null &&
                 order.RequestedUnits is >= 1 and <= 1000 && order.CompletedUnits is >= 0 and <= 1_000_000 &&
                 (order.QuantityIsExplicit || order.RequestedUnits == 1) && order.ProgressUnit == "repairs" &&
                 (order.RepeatUntilCancelled || order.CompletedUnits <= order.RequestedUnits) &&
