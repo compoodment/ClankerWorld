@@ -810,9 +810,11 @@ inventory are unchanged. Ordinary law prose cannot execute a land claim.
 
 Household land requests use the same bounded `civic_land_tiles` field for
 already titled land. The choice names the agent's tile and up to six free Town
-tiles nearest first: no use right, pending request, building, road or field.
-Filing refuses tiles the household already holds and buildings with no
-recorded right; another household's recorded right is contested as a dispute.
+tiles nearest first: no use right, pending request, building, expansion, road
+or field.
+Filing refuses tiles the household already holds and other owners' buildings
+and running expansions with no recorded right; another household's recorded
+right is contested as a dispute.
 A nonconflicting request opens an ordinary `land_use`
 Council proposal. Its canonical key includes the household, exact tiles and
 optional agreed end date. Filing posts a notice but supplies no acceptance.

@@ -714,6 +714,25 @@ public sealed class BuildingExpansionTests
     }
 
     [Fact]
+    public async Task AHouseholdRequestCannotTakeTilesARunningWarehouseExpansionUses()
+    {
+        using var world = PreparedWorld("first-town-warehouse", out var actor, out var building);
+        Assert.True(world.StartBuildingExpansion(actor, building.InstanceId).Applied);
+        var job = Assert.Single(world.WorldSimulation.BuildingExpansions!);
+        var definition = world.WorldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
+        var current = WorldContentSimulationRules.Footprint(definition, building).ToHashSet();
+        var extra = Enumerable.Range(0, job.TargetFootprint.Height).SelectMany(dy => Enumerable.Range(0, job.TargetFootprint.Width)
+            .Select(dx => new GridPoint(job.TargetPosition.X + dx, job.TargetPosition.Y + dy))).First(tile => !current.Contains(tile));
+        var filer = world.Towns.Single(town => town.Id == building.TownId).ResidentIds
+            .First(id => world.Society.GetInhabitant(id).HouseholdId is not null);
+        var refused = world.RequestHouseholdLandUse("over-warehouse-work", filer, building.TownId!, [extra]);
+        Assert.False(refused.Applied);
+        Assert.Contains("expansion", refused.Failure, StringComparison.Ordinal);
+        for (var tick = 0; tick < 20; tick++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal(WorldProductionJobState.Completed, Assert.Single(world.WorldSimulation.BuildingExpansions!).State);
+    }
+
+    [Fact]
     public async Task WarehouseExpansionRequiresCurrentResidencyAndKeepsCommunalStock()
     {
         using var world = PreparedWorld("first-town-warehouse", out var actor, out var building);

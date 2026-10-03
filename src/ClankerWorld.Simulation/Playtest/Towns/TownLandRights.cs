@@ -323,10 +323,11 @@ public sealed partial class PrivateWorldRuntime
         if (householdLandUseRights.Any(right => right.TownId == townId && right.HouseholdId == householdId &&
                 tiles.Any(right.Tiles.Contains)))
             return (RejectedLandRequest("This household already has a recorded use right for part of that plot."), governance);
-        // Another household's recorded right is contested as a dispute; a building without one is not free land.
+        // Another household's recorded right is contested as a dispute; a building or running expansion without one is not free land.
         var foreignBuildings = BuildingFootprintTiles(building => building.HouseholdId != householdId);
+        foreignBuildings.UnionWith(ExpansionWorkTiles(building => building?.HouseholdId != householdId));
         if (tiles.Any(tile => foreignBuildings.Contains(tile) && !householdLandUseRights.Any(right => right.Tiles.Contains(tile))))
-            return (RejectedLandRequest("That plot includes another household's or the Town's building."), governance);
+            return (RejectedLandRequest("That plot includes another household's or the Town's building or expansion work."), governance);
 
         var existingId = householdLandUseRequests.SingleOrDefault(item => item.Id == requestId);
         var proposed = new HouseholdLandUseRequest(requestId, townId, householdId,
