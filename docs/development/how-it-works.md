@@ -740,13 +740,18 @@ that is no longer eligible is cancelled. Household rights, structures and
 inventory are unchanged. Ordinary law prose cannot execute a land claim.
 
 Household land requests use the same bounded `civic_land_tiles` field for
-already titled land. A nonconflicting request opens an ordinary `land_use`
+already titled land. The choice names the agent's tile and up to six free Town
+tiles nearest first: no use right, pending request, building, road or field.
+Filing refuses tiles the household already holds and buildings with no
+recorded right; another household's recorded right is contested as a dispute.
+A nonconflicting request opens an ordinary `land_use`
 Council proposal. Its canonical key includes the household, exact tiles and
 optional agreed end date. Filing posts a notice but supplies no acceptance.
 Each current adult in the household must learn that notice and explicitly
 choose `accept_land_use`; Council votes are separate. Grant settlement rechecks
 the current adult roster and competing rights/requests. A dispute leaves the
-request pending; refusal, withdrawal and an elapsed requested term close it.
+request pending; refusal, withdrawal, an elapsed requested term and a Council
+change that cancels the vote close it, and the household may ask again.
 A grant preserves its Council proposal, individual consent records and the
 adult roster at settlement. Closed requests remain in the save history but do
 not contribute competing claims to the map or Add Agent.
@@ -756,7 +761,10 @@ larger footprint, so agents can request them before gathering materials.
 Expansion start and completion require a Town-assigned building's added tiles
 to have that Town's title. A House needs household use rights on any titled
 added tile, even if it has no Town assignment; shared Town buildings need title
-only. Unaffiliated construction on untitled land keeps its ordinary physical
+and land no household holds or has asked for. An expansion asks the Council
+once: while any of its shapes has a pending request, no other is offered. New
+construction likewise avoids land other households hold or have asked for, and
+Town buildings avoid all of it. Unaffiliated construction on untitled land keeps its ordinary physical
 rules and creates no title. Losing permission cancels the
 job and releases its materials. Existing expired rights are not silently
 removed; their eventual ruling remains separate land-case work.

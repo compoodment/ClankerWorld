@@ -1,4 +1,6 @@
+using System.Reflection;
 using ClankerWorld.Simulation.Cognition;
+using ClankerWorld.Simulation.Content;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Viewer.Observation;
@@ -170,6 +172,123 @@ public sealed class HouseholdLandGrantTests
         Assert.Empty(world.Towns[0].Governance!.Proposals);
         Assert.Equal(initial.HouseholdLandUseRights, world.HouseholdLandUseRights);
         world.Validate();
+    }
+
+    [Fact]
+    public void FilingRefusesAnUnrecordedBuildingAndLandTheHouseholdAlreadyHolds()
+    {
+        using var world = Create("household-grant-existing", new Choices());
+        var town = world.Towns[0];
+        var actor = town.ResidentIds[0];
+        var household = world.Society.GetInhabitant(actor).HouseholdId;
+        var warehouse = world.WorldSimulation.Buildings.First(b => b.TownId == town.Id && b.HouseholdId is null);
+        var refused = world.RequestHouseholdLandUse("warehouse", actor, town.Id, [warehouse.Position]);
+        Assert.False(refused.Applied);
+        Assert.Contains("building", refused.Failure, StringComparison.Ordinal);
+        var own = world.HouseholdLandUseRights.First(r => r.HouseholdId == household).Tiles[0];
+        var neighbour = new[] { new GridPoint(own.X + 1, own.Y), new GridPoint(own.X - 1, own.Y), new GridPoint(own.X, own.Y + 1), new GridPoint(own.X, own.Y - 1) }
+            .Select(world.ExportState().Map.WrapColumn).First(tile => world.TownLandTitles.Any(t => t.Tiles.Contains(tile)) &&
+                !world.HouseholdLandUseRights.Any(r => r.Tiles.Contains(tile)));
+        var overlapping = world.RequestHouseholdLandUse("overlap", actor, town.Id, [own, neighbour]);
+        Assert.False(overlapping.Applied);
+        Assert.Contains("already", overlapping.Failure, StringComparison.Ordinal);
+        Assert.Empty(world.HouseholdLandUseRequests);
+    }
+
+    [Fact]
+    public async Task TheLandRequestChoiceNamesFreeTownLandAModelCanRequest()
+    {
+        using var source = NormalPathWorld.CreateGenerated("household-grant-listed", _ => new Provider(new Choices()));
+        var initial = source.ExportState();
+        var origin = initial.Towns![0].OriginSite!.Value;
+        var actor = initial.Towns[0].ResidentIds[0];
+        var reader = new ListedLandProvider(actor);
+        using var world = PrivateWorldRuntime.Restore(initial with
+        {
+            Inhabitants = initial.Inhabitants.Select(p => p with { Position = origin }).ToArray(),
+        }, _ => reader);
+        await Until(world, () => world.HouseholdLandUseRequests.Count == 1);
+        Assert.Contains(FormattableString.Invariant($"You stand at ({origin.X}, {origin.Y})"), reader.Description, StringComparison.Ordinal);
+        var listed = ListedLandProvider.ListedTiles(reader.Description!);
+        Assert.InRange(listed.Length, 1, 6);
+        var definitions = initial.WorldContent!.Buildings.ToDictionary(d => d.CanonicalId, StringComparer.Ordinal);
+        var buildings = initial.WorldSimulation!.Buildings.SelectMany(b => WorldContentSimulationRules.Footprint(definitions[b.DefinitionId], b)).ToHashSet();
+        Assert.All(listed, tile =>
+        {
+            Assert.Contains(initial.TownLandTitles!, t => t.TownId == initial.Towns[0].Id && t.Tiles.Contains(tile));
+            Assert.DoesNotContain(initial.HouseholdLandUseRights!, r => r.Tiles.Contains(tile));
+            Assert.DoesNotContain(tile, buildings);
+        });
+        var request = Assert.Single(world.HouseholdLandUseRequests);
+        Assert.Equal([listed[0]], request.Tiles);
+        Assert.NotNull(request.CouncilProposalId);
+    }
+
+    [Fact]
+    public void LandAHouseholdHoldsIsNotBuiltOnByAnotherHouseholdOrTheTown()
+    {
+        using var world = Create("household-grant-existing", new Choices());
+        var state = world.ExportState();
+        var town = state.Towns![0];
+        var actor = town.ResidentIds[0];
+        var household = state.Society.Society.GetInhabitant(actor).HouseholdId!;
+        var other = state.Society.Society.Households.First(h => h.Id != household && h.MemberIds.Count > 0).Id;
+        var warehouse = state.WorldSimulation!.Buildings.First(b => b.TownId == town.Id && b.HouseholdId is null);
+        var definitions = state.WorldContent!.Buildings.ToDictionary(d => d.CanonicalId, StringComparer.Ordinal);
+        var houseDefinition = state.WorldContent.Buildings.First(d => d.Tags.Contains("house"));
+        var layout = typeof(PrivateWorldRuntime).GetMethod("CreateTownLayoutContext", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        IReadOnlySet<GridPoint> Occupied(PrivateWorldRuntime runtime, BuildingDefinition building) =>
+            ((TownLayoutContext)layout.Invoke(runtime, [actor, null, building])!).OccupiedTiles;
+        var free = Occupied(world, definitions[warehouse.DefinitionId]);
+        var beside = WorldContentSimulationRules.Footprint(definitions[warehouse.DefinitionId], warehouse)
+            .SelectMany(t => new[] { new GridPoint(t.X + 1, t.Y), new GridPoint(t.X - 1, t.Y), new GridPoint(t.X, t.Y + 1), new GridPoint(t.X, t.Y - 1) })
+            .Select(state.Map.WrapColumn).Where(tile => state.Map.IsLand(tile) && !free.Contains(tile) &&
+                state.TownLandTitles!.Any(t => t.Tiles.Contains(tile)) && !state.HouseholdLandUseRights!.Any(r => r.Tiles.Contains(tile)))
+            .Distinct().OrderBy(tile => tile.Y).ThenBy(tile => tile.X).First();
+        var elsewhere = state.TownLandTitles!.Where(t => t.TownId == town.Id).SelectMany(t => t.Tiles)
+            .Where(tile => tile != beside && state.Map.IsLand(tile) && !free.Contains(tile) && !state.HouseholdLandUseRights!.Any(r => r.Tiles.Contains(tile)))
+            .OrderBy(tile => tile.Y).ThenBy(tile => tile.X).First();
+        var mayExpand = typeof(PrivateWorldRuntime).GetMethod("MayExpandOntoLand", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        Assert.True((bool)mayExpand.Invoke(world, [warehouse, beside])!);
+        using var granted = PrivateWorldRuntime.Restore(state with
+        {
+            HouseholdLandUseRights = [.. state.HouseholdLandUseRights!,
+                new HouseholdLandUseRight("use:test-other", town.Id, other, [beside], state.Society.Society.WorldTick, "test_grant"),
+                new HouseholdLandUseRight("use:test-own", town.Id, household, [elsewhere], state.Society.Society.WorldTick, "test_grant")],
+        });
+        Assert.False((bool)mayExpand.Invoke(granted, [warehouse, beside])!);
+        var house = Occupied(granted, houseDefinition);
+        Assert.Contains(beside, house);
+        Assert.DoesNotContain(elsewhere, house);
+        var townBuilding = Occupied(granted, definitions[warehouse.DefinitionId]);
+        Assert.Contains(beside, townBuilding);
+        Assert.Contains(elsewhere, townBuilding);
+    }
+
+    // Reads the request choice's text the way a model must: it has no map grid, only the listed coordinates.
+    private sealed class ListedLandProvider(string author) : IDecisionProvider
+    {
+        public string? Description { get; private set; }
+        public DecisionProviderKind Kind => DecisionProviderKind.LargeLanguageModel;
+        public long ProviderEpoch => 1;
+
+        public static GridPoint[] ListedTiles(string description) => System.Text.RegularExpressions.Regex
+            .Matches(description[description.IndexOf("nearest you:", StringComparison.Ordinal)..], @"\((-?\d+), (-?\d+)\)")
+            .Select(match => new GridPoint(int.Parse(match.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture),
+                int.Parse(match.Groups[2].Value, System.Globalization.CultureInfo.InvariantCulture))).ToArray();
+
+        public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
+        {
+            var o = request.Observation;
+            var choice = o.InhabitantId == author && Description is null
+                ? o.Candidates.FirstOrDefault(c => c.Id.Contains("|request_land_use|", StringComparison.Ordinal)) : null;
+            var selected = choice ?? o.Candidates.Single(c => c.Id == "safe_idle");
+            Description ??= choice?.Description;
+            return ValueTask.FromResult(new CognitionDecisionResponse(request.RequestId, o.InhabitantId, Kind, ProviderEpoch,
+                o.RunEpoch, o.DecisionGeneration, o.ObservationDigest, selected.Id, 1,
+                o.Candidates.ToDictionary(c => c.Id, c => c.Id == selected.Id ? 1d : 0d, StringComparer.Ordinal),
+                CivicLandTiles: choice is null ? null : [.. ListedTiles(choice.Description).Take(1).Select(tile => new CognitionLandTile(tile.X, tile.Y))]));
+        }
     }
 
     private static PrivateWorldRuntime Create(string seed, Choices choices)
