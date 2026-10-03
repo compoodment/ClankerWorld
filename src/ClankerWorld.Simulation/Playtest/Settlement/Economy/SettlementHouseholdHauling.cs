@@ -313,7 +313,7 @@ public sealed partial class PrivateWorldRuntime
                 lot.Id != protectedLotId && !additionallyProtectedLotIds.Contains(lot.Id, StringComparer.Ordinal) &&
                 lot.DeliveryBuildingId is null &&
                 !PersonalEquipmentRules.IsSelected(equipment, lot.Id) &&
-                lot.ItemKind is not ("field_map" or "field_record") &&
+                !AgentKnowledgeRules.IsArtifactKind(lot.ItemKind) &&
                 !society.Checkpoint.Inventory.Reservations.Any(reservation => reservation.LotId == lot.Id &&
                     reservation.State is InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed or
                         InventoryReservationState.Committed) &&

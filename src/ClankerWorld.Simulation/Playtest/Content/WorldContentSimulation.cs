@@ -37,7 +37,8 @@ public sealed record WorldProductionJob(
     long CompletionTick,
     WorldProductionJobState State,
     IReadOnlyList<string> InputReservationIds,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ToolLotId = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ToolLotId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ToolMakingRequestId = null)
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public long? PausedAtTick { get; init; }
