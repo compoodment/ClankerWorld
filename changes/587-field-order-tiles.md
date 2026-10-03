@@ -1,0 +1,1 @@
+- Field-work orders can name an exact tile, such as "plant grain at (12, 4)". Agents till, plant, tend or harvest only there, using their household's land, real tools and planting stock. The target stays fixed through waiting, interrupted work, queued tasks and reload. Older alpha saves are refused and preserved unchanged.

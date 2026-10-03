@@ -559,7 +559,7 @@ public sealed partial class PrivateWorldRuntime
         if (IsFieldOrder(order.Action))
             return (order.Action == "till_field" ? order.TargetCropKind is null :
                     order.TargetCropKind is null ? order.Action != "plant_field" : FarmFieldRules.IsCrop(order.TargetCropKind)) &&
-                order.TargetFoodKind is null && order.TargetResourceId is null && order.TargetPosition is null &&
+                order.TargetFoodKind is null && order.TargetResourceId is null &&
                 order.RequestedUnits is >= 1 and <= 1000 && order.CompletedUnits is >= 0 and <= 1_000_000 &&
                 (order.QuantityIsExplicit || order.RequestedUnits == 1) && order.ProgressUnit == "fields" &&
                 (order.RepeatUntilCancelled || order.CompletedUnits <= order.RequestedUnits) &&
