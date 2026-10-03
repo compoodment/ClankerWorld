@@ -194,6 +194,18 @@ public static class RiverBridgeRules
             foreach (var next in Around(map, tile, Surrounding))
                 if (map.IsRiverWater(next)) channel.Add(next);
         }
+        if (SharesShore(map, channel, first, second)) return true;
+
+        // A wider reach can hide its far shore outside that thin strip. The
+        // crossing spans cut off water beyond either end: going around distant
+        // headwaters must not join the banks of separate tributaries.
+        return TryExpandChannel(map, path, first.Span.Concat(second.Span), out channel) &&
+            SharesShore(map, channel, first, second);
+    }
+
+    private static bool SharesShore(SeededMap map, HashSet<GridPoint> channel,
+        RiverCrossing first, RiverCrossing second)
+    {
         var shore = new HashSet<GridPoint>();
         foreach (var tile in channel)
             foreach (var next in Around(map, tile, Surrounding))
@@ -203,6 +215,29 @@ public static class RiverBridgeRules
         var fromB = ShoreWalk(map, shore, first.EntranceB);
         return fromA.Contains(second.EntranceA) && fromB.Contains(second.EntranceB) ||
             fromA.Contains(second.EntranceB) && fromB.Contains(second.EntranceA);
+    }
+
+    private static bool TryExpandChannel(SeededMap map, IReadOnlyList<GridPoint> path,
+        IEnumerable<GridPoint> ends, out HashSet<GridPoint> channel)
+    {
+        channel = ends.ToHashSet();
+        var queue = new Queue<GridPoint>();
+        foreach (var tile in path)
+        {
+            if (channel.Contains(tile)) continue;
+            if (channel.Count >= MaximumBankSearchTiles) return false;
+            channel.Add(tile);
+            queue.Enqueue(tile);
+        }
+        while (queue.TryDequeue(out var current))
+            foreach (var next in Around(map, current, Cardinal))
+            {
+                if (!map.IsRiverWater(next) || channel.Contains(next)) continue;
+                if (channel.Count >= MaximumBankSearchTiles) return false;
+                channel.Add(next);
+                queue.Enqueue(next);
+            }
+        return true;
     }
 
     private static bool TryFindChannel(SeededMap map, IReadOnlyList<GridPoint> from,
