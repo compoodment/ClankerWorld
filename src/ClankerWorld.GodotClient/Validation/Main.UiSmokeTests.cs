@@ -2566,6 +2566,35 @@ public partial class Main
                     !instructionCancelButton.Visible)
                     throw new InvalidOperationException($"Goods tasks must show their subject, moved quantity and any destination blocker: {renderedMessages}");
             }
+            foreach (var (deliveryOrder, expectedSummary) in new (OwnerWorldInstructionOrder Order, string Summary)[]
+            {
+                (new("deliver_stock", "doing", 4, 2, "goods_items", false,
+                    TargetItemKind: "grain", TargetBuildingKind: "farmhouse"),
+                    "Doing · Delivering grain to Farmhouse · 2/4 items"),
+                (new("deliver_stock", "blocked", 4, 0, "goods_items", false,
+                    BlockedReason: "The Clinic needs room for the whole jug.", TargetItemKind: "fresh_water", TargetBuildingKind: "clinic"),
+                    "Blocked · Delivering fresh water to Clinic · 0/4 items · The Clinic needs room for the whole jug."),
+                (new("deliver_stock", "doing", 1, 2, "delivery_loads", true,
+                    TargetItemKind: "wood", TargetBuildingKind: "warehouse"),
+                    "Doing · Delivering wood to Town Warehouse · 2 loads delivered so far, repeats until cancelled"),
+                (new("deliver_stock", "finished", 2, 2, "goods_items", false,
+                    TargetItemKind: "cloth", TargetBuildingKind: "tailor"),
+                    "Finished · Delivering cloth to Tailor Shop · 2/2 items"),
+            })
+            {
+                RenderSelectedInhabitantCard(occupied with
+                {
+                    Instructions =
+                    [
+                        new OwnerWorldInstruction("message-delivery-order", founder.Id, "must_do",
+                            "Deliver the requested goods.", "queued", 0, 0, 1, Order: deliveryOrder),
+                    ],
+                });
+                renderedMessages = instructionHistory.GetParsedText();
+                if (!renderedMessages.Contains(expectedSummary + "\n“You said: Deliver the requested goods.”", StringComparison.Ordinal) ||
+                    instructionCancelButton.Visible == (deliveryOrder.Status == "finished"))
+                    throw new InvalidOperationException($"Delivery tasks must show their goods, destination, actual progress and active-task cancellation: {renderedMessages}");
+            }
             RenderSelectedInhabitantCard(queuedOrderSnapshot);
             var alreadyFinished = OrderCancellationResultText(
                 new OwnerOrderControlReceipt("order-private-id", "finished", false, 0, 0));

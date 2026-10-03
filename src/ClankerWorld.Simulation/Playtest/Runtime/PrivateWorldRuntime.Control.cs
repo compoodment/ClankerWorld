@@ -396,6 +396,7 @@ public sealed partial class PrivateWorldRuntime
         "store_equipment" => "store your own carried equipment in your House",
         "store_goods" => "store your own carried goods in your House",
         "return_borrowed" => "return borrowed goods to their owning household's House",
+        "deliver_stock" => "deliver the requested goods to a permitted building",
         "gather_material" => "gather the requested material from a natural source",
         "produce_item" => "make the requested goods at a permitted workstation",
         _ => null,
@@ -404,7 +405,7 @@ public sealed partial class PrivateWorldRuntime
     private OwnerInstructionOrder? ParseInstructionOrder(string text)
     {
         return PrivateWorldInstructionOrderParser.Parse(text, map.Resources, FoodKnowledgeKind,
-            PrivateWorldProductionOrderCatalog.Available(worldContent));
+            PrivateWorldProductionOrderCatalog.Available(worldContent), PrivateWorldDeliveryOrderCatalog.AvailableInputs(worldContent));
     }
 
     // A direct order that names no action the game can carry out is closed

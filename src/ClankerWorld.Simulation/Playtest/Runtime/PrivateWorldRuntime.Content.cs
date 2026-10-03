@@ -437,8 +437,17 @@ public sealed partial class PrivateWorldRuntime
             {
                 throw new InvalidOperationException("Content referenced by settlement projects requires an explicit migration before removal.");
             }
+            var remainingContent = ContentDefinitionApplicator.RemovePackage(worldContent, manifest.PackageDigest);
+            var completed = completedInstructionIds.ToArray();
+            // Cancelled orders remain checkpoint history and still need their original content targets.
+            if (instructionsByIdempotency.Values.Any(instruction =>
+                instruction.Order is { Action: "produce_item" or "deliver_stock" } order &&
+                !IsValidSavedOrder(order, instruction, completed, WorldTick, remainingContent)))
+            {
+                throw new InvalidOperationException("Content referenced by owner orders requires an explicit migration before removal.");
+            }
             var record = contentRegistry.Rollback(packageId, WorldTick, reason);
-            worldContent = ContentDefinitionApplicator.RemovePackage(worldContent, record.Manifest.PackageDigest);
+            worldContent = remainingContent;
             worldSimulation = remainingSimulation;
             if (survivalState is not null)
             {

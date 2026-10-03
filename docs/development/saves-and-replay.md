@@ -241,6 +241,18 @@ House or changing ownership. This version is provisional above the production-or
 base until integration; older alpha checkpoints are refused and preserved
 without migration.
 
+Private-world schema 67 adds `deliver_stock` with exact purpose, item and
+building kinds. Optional `DeliveryRoute`, `DeliveryLotId` and `DeliveryQuantity`
+retain the selected native route and active shipment. The destination reuses
+the complete building/owner/position binding; its owner may be the receiving
+household or Town according to the route. The active lot and quantity are
+paired, and final-delivery receipts use a distinct bounded identity. Loading
+validates the action's subject, route and binding together. Queued tasks,
+partially completed quantities, carried shipments and cancellation survive
+reload without crediting earlier pickup or redirecting goods. This version is
+provisional above the custody-order base until integration; older alpha
+checkpoints are refused and preserved without migration.
+
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
 Matching parent assignments are disclosed as agreement; when they differ, the

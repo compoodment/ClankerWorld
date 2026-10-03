@@ -71,10 +71,12 @@ public sealed partial class PrivateWorldRuntime
     /// large to haul does not hide the stock behind it.
     /// </summary>
     private InventoryLot? UnlocatedHouseholdStock(string householdId, string? actor = null,
-        string? houseId = null) =>
+        string? houseId = null, string? itemKind = null, int maximumQuantity = int.MaxValue) =>
         society.Checkpoint.Inventory.Lots
             .Where(lot => lot.OwnerId == householdId && lot.CarrierId is null && lot.ContainerLotId is null &&
                 lot.StorageBuildingId is null && lot.DeliveryBuildingId is null &&
+                (itemKind is null || DeliveryResourceQuantity(lot, itemKind) > 0 &&
+                    (!InventoryContainerRules.IsContainer(lot.ItemKind) || DeliveryResourceQuantity(lot, itemKind) <= maximumQuantity)) &&
                 (InventoryContainerRules.IsContainer(lot.ItemKind)
                     ? !HasActiveContainerReservation(society.Checkpoint.Inventory, lot.Id)
                     : AvailableLotQuantity(lot) > 0) &&
@@ -121,8 +123,9 @@ public sealed partial class PrivateWorldRuntime
                 "Bring personally carried spare food into the household House.", 30, house.InstanceId));
     }
 
-    private InventoryLot? PersonalSpareFood(string actor) => PreferredFood(actor, actor)
-        .FirstOrDefault(lot => lot.ContainerLotId is null && lot.DeliveryBuildingId is null &&
+    private InventoryLot? PersonalSpareFood(string actor, string? itemKind = null, string? sourceLotId = null) => PreferredFood(actor, actor)
+        .FirstOrDefault(lot => (itemKind is null || lot.ItemKind == itemKind) &&
+            (sourceLotId is null || lot.Id == sourceLotId) && lot.ContainerLotId is null && lot.DeliveryBuildingId is null &&
             !InventoryContainerRules.IsContainer(lot.ItemKind) && AvailableLotQuantity(lot) > 1);
 
     private void StoreHouseholdFood(string actor, PlaytestInhabitantState state)

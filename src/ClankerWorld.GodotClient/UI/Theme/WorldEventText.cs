@@ -83,6 +83,8 @@ public static class WorldEventText
             "business_trade_cancelled" => "A shop exchange stopped; its goods and receiving space are available again.",
             "store_stock_collected" => "An agent collected a load for their household Store; it is still being carried there.",
             "store_stock_delivered" => "A load reached the household Store and is now available to sell.",
+            "owner_stock_picked_up" => $"{LeadingName(snapshot, worldEvent.Detail)} collected a load for the requested delivery; it is still being carried.",
+            "owner_stock_delivered" => $"{LeadingName(snapshot, worldEvent.Detail)} delivered goods to the requested building.",
             "carrying_full" => $"{Name(snapshot, worldEvent.Detail)} cannot carry more; a load needs to be stored or set down.",
             "spare_cargo_stored" => $"{LeadingName(snapshot, worldEvent.Detail)} set down spare supplies for their household to make room in their load.",
             "equipment_equipped" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} equipped an item.",

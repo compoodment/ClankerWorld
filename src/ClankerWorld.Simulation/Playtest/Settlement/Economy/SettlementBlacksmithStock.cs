@@ -169,11 +169,13 @@ public sealed partial class PrivateWorldRuntime
         AppendEvent("smith_ore_delivered", $"{actor}:{ore.Id}:{quantity}:{blacksmith.InstanceId}");
     }
 
-    private InventoryLot? BlacksmithInputForDelivery(string householdId, string blacksmithId, string actor)
+    private InventoryLot? BlacksmithInputForDelivery(string householdId, string blacksmithId, string actor,
+        string? itemKind = null, string? sourceLotId = null)
     {
         var inventory = society.Checkpoint.Inventory;
         foreach (var (kind, target) in BlacksmithInputTargets(blacksmithId))
         {
+            if (itemKind is not null && kind != itemKind) continue;
             var stocked = inventory.Lots
                 .Where(lot => lot.OwnerId == householdId && lot.StorageBuildingId == blacksmithId &&
                     lot.ItemKind == kind).Sum(AvailableLotQuantity);
@@ -182,27 +184,31 @@ public sealed partial class PrivateWorldRuntime
             if (stocked + incoming >= target) continue;
             var personal = inventory.Lots
                 .Where(lot => lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) && lot.DeliveryBuildingId is null &&
+                    (sourceLotId is null || lot.Id == sourceLotId) &&
                     lot.ContainerLotId is null && lot.ItemKind == kind && AvailableLotQuantity(lot) > 0 &&
                     !PersonalEquipmentRules.IsSelected(inhabitants[actor].Equipment, lot.Id))
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
             if (personal is not null) return personal;
             var source = inventory.Lots
                 .Where(lot => lot.OwnerId == householdId && lot.CarrierId is null && lot.StorageBuildingId != blacksmithId &&
+                    (sourceLotId is null || lot.Id == sourceLotId) &&
                     lot.DeliveryBuildingId != blacksmithId && lot.ContainerLotId is null && lot.ItemKind == kind &&
                     AvailableLotQuantity(lot) > 0)
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
-            source ??= AvailableWarehouseStock(actor, kind).FirstOrDefault();
+            source ??= AvailableWarehouseStock(actor, kind)
+                .FirstOrDefault(lot => sourceLotId is null || lot.Id == sourceLotId);
             if (source is not null) return source;
         }
         return null;
     }
 
     private (string ItemKind, MapResource Source)? BlacksmithInputToGather(string householdId, string blacksmithId,
-        string actor)
+        string actor, string? itemKind = null)
     {
         var inventory = society.Checkpoint.Inventory;
         foreach (var (kind, target) in BlacksmithInputTargets(blacksmithId))
         {
+            if (itemKind is not null && kind != itemKind) continue;
             if (kind == "iron_ore") continue;
             var stocked = inventory.Lots.Where(lot => lot.OwnerId == householdId &&
                     lot.StorageBuildingId == blacksmithId && lot.ItemKind == kind)
@@ -373,5 +379,29 @@ public sealed partial class PrivateWorldRuntime
             $"smith-input-pickup:{WorldTick}:{actor}", input.OwnerId, actor, input.Id,
             quantity, "smith_input_picked_up", destinationDeliveryBuildingId: blacksmith.InstanceId));
         AppendEvent("smith_input_picked_up", $"{actor}:{input.Id}:{quantity}:{blacksmith.InstanceId}");
+    }
+
+    private DeliveryOrderPlan? GetBlacksmithOrderPlan(string actor, PlaytestInhabitantState person,
+        OwnerInstructionOrder order, int maximumQuantity)
+    {
+        if (!AdultResident(actor) || HouseholdFor(actor) is not { } householdId ||
+            BlacksmithForHousehold(householdId) is not { } blacksmith ||
+            !DeliveryDestinationMatches(order, blacksmith) ||
+            BlacksmithInputForDelivery(householdId, blacksmith.InstanceId, actor,
+                order.TargetItemKind, order.DeliveryLotId) is not { } input)
+            return null;
+        var direct = input.OwnerId == actor;
+        var stocked = BlacksmithInputStocked(householdId, blacksmith.InstanceId, input.ItemKind);
+        var incoming = society.Checkpoint.Inventory.Lots.Where(lot =>
+                lot.DeliveryBuildingId == blacksmith.InstanceId && lot.ItemKind == input.ItemKind)
+            .Sum(AvailableLotQuantity);
+        var missing = BlacksmithInputTarget(blacksmith.InstanceId, input.ItemKind) - stocked - incoming;
+        var quantity = Math.Min(maximumQuantity, Math.Min(missing,
+            Math.Min(StorageRoomAfterInboundDeliveries(blacksmith.InstanceId), AvailableLotQuantity(input))));
+        // Personal mined ore has a dedicated native delivery without the loose-input load limit.
+        if (!direct || input.ItemKind != "iron_ore") quantity = Math.Min(quantity, HouseHaulLoadQuantity);
+        if (!direct) quantity = Math.Min(quantity, FreeCarryCapacity(actor));
+        return quantity <= 0 ? null : new DeliveryOrderPlan("blacksmith_input", blacksmith, householdId,
+            input, input, quantity, quantity, DirectDelivery: direct);
     }
 }
