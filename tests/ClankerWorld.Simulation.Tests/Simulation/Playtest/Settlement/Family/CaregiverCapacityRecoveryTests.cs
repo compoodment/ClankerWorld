@@ -191,7 +191,7 @@ public sealed class CaregiverCapacityRecoveryTests
         bool inPot, int carried, int parentFullness)
     {
         var (state, actor, point) = await FoodCapacityTestFixture.Generated("audit-town-invariants");
-        var society = state.Society.Society;
+        var society = ChosenBirthNameTestFixture.NameParent(state.Society.Society, actor);
         var partner = society.Inhabitants.First(person => person.HouseholdId == FoodCapacityTestFixture.Household && person.Id != actor).Id;
         society = SocietyFixture.ProposeRelationship(society, new("capacity-care-parents", 1,
             SocietyRelationshipType.Partnership, actor, partner, society.WorldTick)).Checkpoint;
@@ -200,7 +200,7 @@ public sealed class CaregiverCapacityRecoveryTests
             lot.ItemKind == "food" && lot.StorageBuildingId == FoodCapacityTestFixture.House && lot.Quantity >= 8);
         var birth = SocietyFixture.CommitBirth(society, new($"capacity-family:{actor}:{society.WorldTick}", 1,
             actor, partner, FoodCapacityTestFixture.Household, [actor, partner], [actor, partner], food.Id, 4, society.WorldTick,
-            ChildName: "Ari", PrimaryCaregiverId: actor));
+            ChildName: ChosenBirthNameTestFixture.ChildName(society, actor, "Ari"), PrimaryCaregiverId: actor));
         var child = Assert.IsType<string>(birth.CreatedId);
         society = birth.Checkpoint;
         Assert.Equal(food.Quantity - 4, society.Inventory.GetLot(food.Id).Quantity);

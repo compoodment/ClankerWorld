@@ -106,7 +106,8 @@ public sealed class SocietyLifePaceTests
         Assert.Throws<ArgumentOutOfRangeException>(() =>
             SocietyFixture.CreateFounder("old", "Old", config: config, startingAge: 26));
         var founders = Enumerable.Range(15, 11).Select(age => SocietyFixture.CreateFounder(
-            FormattableString.Invariant($"arrived-day-{age}"), "Founder", config: config, startingAge: age)).ToArray();
+            FormattableString.Invariant($"arrived-day-{age}"), FormattableString.Invariant($"Founder{age}"),
+            config: config, startingAge: age)).ToArray();
         Assert.All(founders, founder => Assert.Equal(SocietyAgeBand.Adult, founder.AgeBand));
         var society = SocietyFixture.CreateGenesis("arrival-lifespans", founders, config: config);
 
@@ -236,7 +237,8 @@ public sealed class SocietyLifePaceTests
     [Fact]
     public void AcceleratedMortalityUsesTheSameBiologicalAgeRollsAsCalendarTime()
     {
-        var founders = Enumerable.Range(0, 20).Select(index => SocietyFixture.CreateFounder($"person-{index:D2}", "Person")).ToArray();
+        var founders = Enumerable.Range(0, 20).Select(index =>
+            SocietyFixture.CreateFounder($"person-{index:D2}", $"Person{index:D2}")).ToArray();
         var seed = SocietyFixture.CreateGenesis("life-mortality", founders);
         var normal = SocietyFixture.AdvanceTo(seed, 72 * seed.Config.TicksPerWorldYear).Checkpoint;
         var fast = SocietyFixture.SetLifePace(SocietyFixture.Pause(seed).Checkpoint, 1_460).Checkpoint;

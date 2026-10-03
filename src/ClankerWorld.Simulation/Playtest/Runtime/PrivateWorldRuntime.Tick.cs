@@ -441,6 +441,7 @@ public sealed partial class PrivateWorldRuntime
                 return new PrivateWorldStepResult(false, "paused", WorldTick, [], []);
             }
 
+            guardianPlacementActions.Clear();
             var startingEvent = events.Count;
             var targetTick = checked(WorldTick + 1);
             StageSettlementContent();
@@ -555,6 +556,7 @@ public sealed partial class PrivateWorldRuntime
             MaintainParenthood();
             MaintainContinuity();
             MaintainDependentCare();
+            ReconcileGuardianPlacements();
             DiscoverIdentityMoments();
             UpdateConversationsForTick(targetTick);
             EnqueueDueCognition(activeHostedIds);
@@ -640,8 +642,11 @@ public sealed partial class PrivateWorldRuntime
             AdvanceMedicalTreatments();
             // An agent whose reply was accepted this tick already acted, even if newer work stays queued.
             if (deferHosted) ApplySafeRoutinesWhileWaiting(waiting.Except(decisions.Select(item => item.InhabitantId), StringComparer.Ordinal), orderActorsHandledThisTick);
+            ReconcileGuardianPlacements();
+            AdvanceGuardianPlacementFollowers(orderActorsHandledThisTick);
             AdvanceBridgeTraffic();
             SettleGuardianSearches();
+            ReconcileGuardianPlacements();
             MaintainTownProjects();
             MaintainMarkets();
             MaintainToolMakingRequests();

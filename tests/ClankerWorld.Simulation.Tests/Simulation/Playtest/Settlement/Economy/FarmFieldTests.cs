@@ -589,7 +589,7 @@ public sealed class FarmFieldTests
     [InlineData("cultivated_greens", "cultivated_green_seed")]
     public async Task PhysicalCropCycleSurvivesReloadAndLeavesOwnedHarvestAndPlantingReserveOnTheTile(string crop, string seedKind)
     {
-        var (state, actor, household, point) = PreparedFarmer("field-cycle-" + crop);
+        var (state, actor, household, point) = await CompactFarmer("field-cycle-" + crop);
         var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "carried-planting", seedKind, actor, 2);
         state = WithInventory(state, inventory);
         using var tilling = Restore(state);
@@ -862,6 +862,50 @@ public sealed class FarmFieldTests
             Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
                 ? person with { Position = point, HungerBasisPoints = 10_000 } : person).ToArray(),
         };
+        return (state, actor, household, point);
+    }
+
+    private static async Task<(PrivateWorldRuntimeState State, string Actor, string Household, GridPoint Point)> CompactFarmer(string seed)
+    {
+        // The crop cycle needs real field work and physical stock, but no distant
+        // geography. Keep its full growth duration and every staged-work reload.
+        using var setup = new PrivateWorldRuntime(seed, _ => new IdleProvider(), startPace: WorldStartPace.FounderSetup);
+        GridPoint[] founders = [new(0, 0), new(1, 2), new(2, 2), new(3, 2)];
+        for (var index = 0; index < founders.Length; index++)
+            setup.PlaceFounder($"founder:{index + 1:D32}", founders[index]);
+        setup.StartWorld();
+        Assert.True(setup.StageStarterContent());
+        await Advance(setup, 9);
+        var state = setup.ExportState();
+        var household = state.Society.Society.Households[0].Id;
+        var actor = state.Society.Society.Inhabitants.First(person => person.HouseholdId == household).Id;
+        var farmhouse = setup.WorldContent.Buildings.Single(definition => definition.LocalId == "farmhouse-1x1");
+        var inventory = state.Society.Society.Inventory;
+        foreach (var cost in farmhouse.BuildCosts)
+            inventory = InventoryFixture.AddLot(inventory, "crop-cycle-building:" + cost.ResourceId,
+                cost.ResourceId, household, cost.Amount);
+        using var placing = Restore(WithInventory(state, inventory));
+        var town = Assert.Single(placing.Towns);
+        var placed = state.Map.Tiles.Select(tile => tile.Position)
+            .Where(position => TownBorderRules.IsWithinOrAdjacent(town, position, 1, 1))
+            .Select(position => placing.PlaceBuilding("crop-cycle-farmhouse", farmhouse.CanonicalId, position, household))
+            .First(result => result.Applied);
+        state = placing.ExportState();
+        var occupied = placing.WorldSimulation.Buildings.SelectMany(building => WorldContentSimulationRules.Footprint(
+            placing.WorldContent.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId), building))
+            .Concat(state.Map.Resources.Select(resource => resource.Position)).Concat(placing.RoadTiles)
+            .Concat(state.Map.CampObjects.Select(item => item.Position)).ToHashSet();
+        var fertility = new LandFertility(state.Map, seed);
+        var point = state.Map.Tiles.Select(tile => tile.Position).Where(position => fertility.CanFarm(position) &&
+                !occupied.Contains(position) && !state.Inhabitants.Any(person => person.Position == position))
+            .OrderByDescending(fertility.At).ThenBy(position => position.Y).ThenBy(position => position.X).First();
+        inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "carried-hoe", "wooden_hoe", actor, 1);
+        state = WithInventory(state, inventory) with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with { Position = point, HungerBasisPoints = 10_000 } : person).ToArray(),
+        };
+        Assert.Equal(household, placing.WorldSimulation.Buildings.Single(building => building.InstanceId == placed.InstanceId).HouseholdId);
         return (state, actor, household, point);
     }
 
