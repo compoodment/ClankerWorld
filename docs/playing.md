@@ -142,6 +142,12 @@ waits until the agent is hungry enough, and gathering needs enough carrying
 space. A recognized new order replaces the current one unless you turn on
 **Queue**. Use **Cancel task** to stop a waiting or active order.
 
+When a child needs a guardian, an adult can follow **Become guardian for Lina**,
+using the child's full name. The adult still has to be eligible in the current
+guardian search. The order finishes when they accept primary care; moving the
+child into their House still requires room and a shared Town. This order can be
+queued or cancelled like a food task. It cannot replace an existing guardian.
+
 An instruction the game cannot understand leaves the current order running.
 Unsupported requests, such as "build a house" or "gather wood," close as not
 understood and appear in the Event Log. Recognized orders follow normal access

@@ -45,7 +45,7 @@ public sealed partial class PrivateWorldRuntime
 
             var text = request.Text.Trim();
             var hasPendingOrder = PendingInstructionFor(targetId) is not null;
-            var parsedOrder = request.Kind == OwnerInstructionKind.MustDo ? ParseInstructionOrder(text) : null;
+            var parsedOrder = request.Kind == OwnerInstructionKind.MustDo ? ParseInstructionOrder(text, targetId) : null;
             if (parsedOrder is not null && !request.Queue)
                 ReplacePendingOrders(targetId);
             if (parsedOrder is not null)
@@ -376,12 +376,13 @@ public sealed partial class PrivateWorldRuntime
         "consume_food" => "eat one carried food item",
         "seek_food" => "travel within gathering range of an available food source",
         "harvest_food" => "gather several food servings from a nearby food source",
+        "accept_guardianship" => "accept primary care of the named child through their guardian search",
         _ => null,
     };
 
-    private OwnerInstructionOrder? ParseInstructionOrder(string text)
+    private OwnerInstructionOrder? ParseInstructionOrder(string text, string actor)
     {
-        return PrivateWorldInstructionOrderParser.Parse(text, map.Resources, FoodKnowledgeKind);
+        return ParseGuardianOrder(text, actor) ?? PrivateWorldInstructionOrderParser.Parse(text, map.Resources, FoodKnowledgeKind);
     }
 
     // A direct order that names no action the game can carry out is closed
