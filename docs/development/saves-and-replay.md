@@ -656,9 +656,20 @@ The saved clock/lifecycle values govern old worlds. Restore validates matching
 society/world-system calendar values rather than silently assigning the newest
 playtest pace.
 
+Newly created playable worlds save `CalendarOffsetTicks = 90` with 360 ticks
+per day, placing elapsed tick zero at 06:00 on Spring 1, Year 1. The offset
+must be nonnegative and less than one day. World-systems schema 3 carries a
+nonzero offset, so older readers reject it instead of silently displaying
+midnight. The outer private-world schema is unchanged. Zero-offset worlds
+continue using world-systems schema 2; an absent offset means zero and is
+omitted when writing, preserving their existing clock and canonical bytes.
+Restore uses the saved value, not the new-world default. Ages, setup guards,
+action deadlines and elapsed durations keep using the original world tick;
+calendar dates, daylight and daily allowances use its offset calendar.
+
 Night ([#673](https://github.com/compoodment/ClankerWorld/issues/673)) adds no
-saved field: time of day is derived from the saved tick and ticks per day, so
-the checkpoint schema and every other version stay as they are. A current-schema
+saved darkness field: time of day is derived from the saved tick, ticks per day
+and calendar offset. A current-schema
 save made before night existed loads unchanged; nights, and their chill on
 outdoor warmth, apply from its next tick. Its recorded history is not
 re-simulated. A world saved during dawn reloads at the same darkness and

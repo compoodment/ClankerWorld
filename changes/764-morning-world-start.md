@@ -1,0 +1,1 @@
+- New worlds now open at 06:00 on Spring 1, Year 1, so founder setup happens in daylight. Existing saves keep their recorded clock, and founder ages and the length of day and night are unchanged.

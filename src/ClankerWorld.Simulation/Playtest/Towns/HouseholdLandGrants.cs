@@ -166,7 +166,7 @@ public sealed partial class PrivateWorldRuntime
 
     private string LandUseTerms(HouseholdLandUseRequest request) =>
         "Exact tiles: " + TownLandClaimRules.DescribeTiles(request.Tiles) + ". " +
-        (request.AgreedEndTick is { } end ? $"Agreed end: world day {end / CivicDay + 1}. " : "No agreed end date. ");
+        (request.AgreedEndTick is { } end ? $"Agreed end: world day {CivicDayNumber(end)}. " : "No agreed end date. ");
 
     private void AddHouseholdLandCandidates(List<CognitionCandidate> candidates, string actor, TownRuntimeState town)
     {
