@@ -398,8 +398,11 @@ guardian-search records with their offered adults, medical permission and
 consumed-dose progress, selected personal ornaments, and wills with up to
 three named heirs, exact divisions and final words.
 Land records are checked against the saved map, Towns, households and one
-another before load. These fields retain their current validation and roundtrip
-behavior.
+another before load. Building reassignment moves only existing footprint use rights;
+connected remainder plots keep their holder and original grant terms. Split
+records get deterministic unique IDs, and whole-plot moves retain their IDs.
+The building and rights change under the same world lock; rejected or stale
+requests change neither. No save-format change or migration is needed.
 
 The food repairs use the existing field, inventory, reservation and delivery
 records; they add no migration or new save fields. New planting claims remain
