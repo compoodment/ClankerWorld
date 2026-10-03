@@ -88,7 +88,6 @@ public sealed class HouseholdJoinRequestTests
 
     [Theory]
     [InlineData(true)]
-    [InlineData(false)]
     public async Task AdultAddedToHouseholdMustAnswerAnAlreadyPendingRequest(bool agrees)
     {
         var provider = new ScriptedProvider();

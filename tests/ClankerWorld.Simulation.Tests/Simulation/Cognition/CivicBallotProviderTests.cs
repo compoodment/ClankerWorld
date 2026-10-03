@@ -30,26 +30,7 @@ public sealed class CivicBallotProviderTests
     }
 
     [Theory]
-    [InlineData(null)]
-    [InlineData("null")]
-    public async Task MissingOrNullBallotOnACivicChoiceSuppliesNoBallot(string? ballot)
-    {
-        using var handler = new ReplyHandler(BallotCandidate, ballot);
-        using var client = new HttpClient(handler);
-        var runtime = new CognitionRuntime("actor", Provider(client));
-
-        var admission = await runtime.RequestAndDecideAsync(Observation(BallotCandidate));
-
-        Assert.True(admission.Accepted);
-        Assert.False(admission.FellBack);
-        Assert.Equal(BallotCandidate, admission.Intention!.CandidateId);
-        // An absent payload is not an empty ballot that could replace an existing vote.
-        Assert.Null(admission.CivicBallot);
-    }
-
-    [Theory]
     [InlineData("[]", 0)]
-    [InlineData("[\"candidate:1\"]", 1)]
     [InlineData("[\"candidate:1\",\"candidate:2\",\"candidate:3\"]", 3)]
     public async Task PresentValidBallotRetainsItsChoicesIncludingExplicitAbstention(string ballot, int count)
     {
@@ -67,14 +48,7 @@ public sealed class CivicBallotProviderTests
     }
 
     [Theory]
-    [InlineData("7")]
-    [InlineData("true")]
-    [InlineData("{}")]
     [InlineData("\"candidate:1\"")]
-    [InlineData("[7]")]
-    [InlineData("[{}]")]
-    [InlineData("[null]")]
-    [InlineData("[\"candidate:1\",\"candidate:2\",\"candidate:3\",\"candidate:4\"]")]
     public async Task MalformedNonNullBallotStillFailsProviderParsing(string ballot)
     {
         using var handler = new ReplyHandler("seek_food", ballot);

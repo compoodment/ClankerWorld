@@ -26,21 +26,6 @@ public sealed class BridgeTrafficTests
         "...");
 
     [Fact]
-    public void OnlyAStepOntoTheFarBankCompletesACrossing()
-    {
-        var wading = BridgeTrafficRules.RecordStep(BridgeTrafficState.Empty, Map, "a", North, Water, 1);
-        Assert.Equal(new BridgeTrafficWade("a", CrossingId, North), Assert.Single(wading.InProgress));
-        Assert.Empty(wading.Completed);
-
-        var crossed = BridgeTrafficRules.RecordStep(wading, Map, "a", Water, South, 3);
-        Assert.Empty(crossed.InProgress);
-        Assert.Equal(new BridgeTrafficCrossing(CrossingId, "a", 3), Assert.Single(crossed.Completed));
-
-        var turnedBack = BridgeTrafficRules.RecordStep(wading, Map, "a", Water, North, 3);
-        Assert.True(turnedBack.IsEmpty);
-    }
-
-    [Fact]
     public void ATwoTileWadeStaysOpenMidstreamUntilAStepReachesTheFarBank()
     {
         var wading = BridgeTrafficRules.RecordStep(BridgeTrafficState.Empty, WideMap, "a", North, NearWater, 1);

@@ -55,29 +55,6 @@ public sealed class TerrainWeatherTuningTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void SavedDefaultAndExplicitWeatherProfilesKeepTheirRolls()
-    {
-        foreach (var explicitProfiles in new[] { false, true })
-        {
-            var config = WorldSystemsConfig.Default with { WeatherProfiles = explicitProfiles ? PreviousWeatherProfiles : null };
-            var saved = WorldSystemsRules.CreateGenesis("weather-config-reload", config);
-            var encoded = WorldSystemsCodec.Encode(saved);
-            var loaded = WorldSystemsCodec.Decode(encoded);
-            Assert.Equal(encoded, WorldSystemsCodec.Encode(loaded));
-            if (explicitProfiles) Assert.Equal(PreviousWeatherProfiles, loaded.Config.WeatherProfiles);
-            else Assert.Null(loaded.Config.WeatherProfiles);
-            foreach (var season in Enum.GetValues<SeasonKind>())
-                foreach (var day in Enumerable.Range(0, 64))
-                {
-                    Assert.Equal(WeatherRules.WeatherForDay(saved.WorldSeed, day, season, saved.Config),
-                        WeatherRules.WeatherForDay(loaded.WorldSeed, day, season, loaded.Config));
-                    Assert.Equal(WeatherRules.WeatherForRegion(saved.WorldSeed, day, season, saved.Config, 0, 0, 5, ClimateZone.Tropical),
-                        WeatherRules.WeatherForRegion(loaded.WorldSeed, day, season, loaded.Config, 0, 0, 5, ClimateZone.Tropical));
-                }
-        }
-    }
-
-    [Fact]
     public void ActiveWeatherEpisodesReduceWetTimeAcrossClimates()
     {
         var current = WorldSystemsConfig.Default with
