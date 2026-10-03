@@ -115,6 +115,23 @@ public sealed partial class PrivateWorldRuntime
                     $"That household already {verb} a {definition.DisplayName}.");
             }
 
+            var footprint = WorldContentSimulationRules.Footprint(definition, building).ToHashSet();
+            var affectedRights = householdLandUseRights.Where(right => right.Tiles.Any(footprint.Contains)).ToArray();
+            if (!isWarehouse && nextHouseholdId != building.HouseholdId && affectedRights.Length > 0)
+            {
+                if (footprint.Any(tile => TownLandRightsRules.IsDisputed(tile, householdLandUseRights, householdLandUseRequests)))
+                    return BuildingManagementResult.Rejected(instanceId, "Resolve the land dispute before reassigning this building.");
+                if (affectedRights.Any(right => right.AgreedEndTick is { } end && end <= WorldTick))
+                    return BuildingManagementResult.Rejected(instanceId, "Resolve the expired land-use right before reassigning this building.");
+                if (nextHouseholdId is null)
+                    return BuildingManagementResult.Rejected(instanceId, "Choose a household to receive this building and its land-use right.");
+                if (affectedRights.Any(right => right.HouseholdId != building.HouseholdId || right.TownId != building.TownId))
+                    return BuildingManagementResult.Rejected(instanceId, "This building's footprint includes another owner's land-use right.");
+            }
+            var reassignedRights = !isWarehouse && nextHouseholdId is not null && affectedRights.Length > 0
+                ? TownLandRightsRules.ReassignFootprintRights(map, householdLandUseRights, footprint, nextHouseholdId, WorldTick)
+                : householdLandUseRights;
+
             if (isWarehouse && nextTownId is { } reassignedTownId)
             {
                 if (building.TownId is { } previousTownId)
@@ -130,6 +147,7 @@ public sealed partial class PrivateWorldRuntime
                     ? RemoveHouseInvitations(instanceId)
                     : worldSimulation.GuestInvitations,
             };
+            householdLandUseRights = reassignedRights.ToList();
             checkpointSchemaVersion = StateSchemaVersion;
             AppendEvent("building_reassigned", $"{instanceId}:town={nextTownId ?? "none"}:household={nextHouseholdId ?? "none"}");
             return new BuildingManagementResult(true, instanceId, null, nextTownId, nextHouseholdId);
@@ -140,6 +158,8 @@ public sealed partial class PrivateWorldRuntime
     private string? BuildingMutationBlocker(PlacedBuilding building)
     {
         var id = building.InstanceId;
+        if (toolMakingRequests.Any(request => request.BuildingInstanceId == id && !ToolMakingRequestRules.IsTerminal(request.Status)))
+            return "Finish, refuse or withdraw the active tool request before changing this Blacksmith's owner or removing it.";
         if (society.Checkpoint.Inventory.Lots.Any(lot =>
                 lot.StorageBuildingId == id || lot.DeliveryBuildingId == id))
             return "Empty this building and wait for all deliveries before changing its owner or removing it.";
