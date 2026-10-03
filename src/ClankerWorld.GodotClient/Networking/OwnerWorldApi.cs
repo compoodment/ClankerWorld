@@ -117,6 +117,17 @@ public sealed class OwnerWorldApi
             action, deviceKey, cancellationToken);
     }
 
+    public Task<SaveTimelinePosition> GetSaveTimelinePositionAsync(
+        Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
+        IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken)
+    {
+        var action = new OwnerControlAction("save-timeline");
+        return pairing.SendSignedActionAsync<OwnerControlAction, SaveTimelinePosition>(
+            serverUri, authority, deviceId, OwnerPairingEndpoints.OwnerSaveTimeline,
+            OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.Control("save-timeline"),
+            action, deviceKey, cancellationToken);
+    }
+
     public Task<WorldAutosaveSettings> GetAutosaveSettingsAsync(
         Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
         IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken)

@@ -56,6 +56,9 @@ public partial class Main
             for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             if (!developerPanel.Visible || gameMenuPanel.Visible || topBarShade.Visible || menuPausedWorld)
                 throw new InvalidOperationException("F12 must open Developer tools over the world without opening the Pause Menu or pausing.");
+            if (!developerBody.FindChildren("*", nameof(Label), recursive: true, owned: false)
+                .OfType<Label>().Any(label => label.Text == BuildInformation.Display && label.IsVisibleInTree()))
+                throw new InvalidOperationException("Developer tools must show the assembly version and source commit.");
             var tools = new Control[]
             {
                 developerEditKind, developerEditValue, developerEditAmount, developerEditOther, developerEditApply,
