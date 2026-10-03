@@ -1,1 +1,1 @@
-- Agents leave personal maps and field records stored at home instead of repeatedly putting them away and collecting them. They can still choose to collect them, and recover belongings after moving out.
+- Agents no longer keep putting their belongings away at home and picking them straight back up. Maps and field records stay stored at home; other belongings stay with the agent unless they choose to store them. Agents can still choose to collect stored belongings, and recover them after moving out.

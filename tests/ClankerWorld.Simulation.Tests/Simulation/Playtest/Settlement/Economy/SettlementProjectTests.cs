@@ -451,16 +451,17 @@ public sealed class SettlementProjectTests(Xunit.Abstractions.ITestOutputHelper 
         var provider = new ObservingProvider();
         using var world = new PrivateWorldRuntime("living-settlement", _ => provider);
         world.StageStarterContent();
-        var storedKnowledge = new Dictionary<string, (string Owner, string House)>();
+        var storedBelongings = new Dictionary<string, (string Owner, string House)>();
         for (var tick = 0; tick < 1000; tick++)
         {
             await world.AdvanceOneTickAsync();
-            AssertKnowledgeStaysStored(world, storedKnowledge);
-            foreach (var lot in world.Society.Inventory.Lots.Where(lot =>
-                         lot.ItemKind is "field_map" or "field_record" && lot.StorageBuildingId is not null))
-                storedKnowledge.TryAdd(lot.Id, (lot.OwnerId, lot.StorageBuildingId!));
+            AssertBelongingsStayStored(world, storedBelongings);
+            foreach (var lot in world.Society.Inventory.Lots.Where(lot => lot.StorageBuildingId is not null &&
+                         world.Society.Inhabitants.Any(person => person.Id == lot.OwnerId)))
+                storedBelongings.TryAdd(lot.Id, (lot.OwnerId, lot.StorageBuildingId!));
         }
-        Assert.NotEmpty(storedKnowledge);
+        Assert.Contains(storedBelongings.Keys, lotId =>
+            world.Society.Inventory.GetLot(lotId).ItemKind is "field_map" or "field_record");
         var state = world.ExportState();
         Assert.DoesNotContain(state.Map.CampObjects, item => item.Kind == "bedroll");
         Assert.DoesNotContain(world.WorldContent.Recipes,
@@ -493,22 +494,22 @@ public sealed class SettlementProjectTests(Xunit.Abstractions.ITestOutputHelper 
         {
             await world.AdvanceOneTickAsync();
             await restored.AdvanceOneTickAsync();
-            AssertKnowledgeStaysStored(restored, storedKnowledge);
+            AssertBelongingsStayStored(restored, storedBelongings);
             Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()),
                 PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
         }
     }
 
-    private static void AssertKnowledgeStaysStored(PrivateWorldRuntime world,
-        IReadOnlyDictionary<string, (string Owner, string House)> storedKnowledge)
+    private static void AssertBelongingsStayStored(PrivateWorldRuntime world,
+        IReadOnlyDictionary<string, (string Owner, string House)> storedBelongings)
     {
-        foreach (var (lotId, stored) in storedKnowledge)
+        foreach (var (lotId, stored) in storedBelongings)
         {
             var lot = world.Society.Inventory.GetLot(lotId);
             var house = world.WorldSimulation.Buildings.Single(item => item.InstanceId == stored.House);
             if (lot.OwnerId == stored.Owner && world.Society.GetInhabitant(stored.Owner).HouseholdId == house.HouseholdId)
                 Assert.True(lot.StorageBuildingId == stored.House,
-                    $"Stored knowledge {lotId} was needlessly collected at tick {world.WorldTick}.");
+                    $"Stored {lot.ItemKind} {lotId} was needlessly collected at tick {world.WorldTick}.");
         }
     }
 
