@@ -574,7 +574,7 @@ public partial class Main
                 $"{q.Supplied} / {q.Budget} {GameUiText.ItemName(q.Kind)}")));
             lines.Add($"Provisional work: {project.WorkDone} / {project.WorkRequired} units");
             lines.Add($"Council approval: {project.Approval.Yes} yes / {project.Approval.No} no · {project.Approval.RequiredYes} yes needed");
-            if (project.Blocker is { } blocker) lines.Add("Waiting: " + blocker);
+            if (project.Blocker is { } blocker) lines.Add((project.Stage == "cancelled" ? "Not built: " : "Waiting: ") + blocker);
             if (project.CompletedBuildingId is not null) lines.Add("Built · select the Town Hall on the map for details.");
         }
         return GameUiText.PlainEllipses(string.Join("\n", lines));

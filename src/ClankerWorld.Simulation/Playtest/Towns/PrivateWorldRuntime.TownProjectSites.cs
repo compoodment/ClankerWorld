@@ -16,6 +16,14 @@ public sealed partial class PrivateWorldRuntime
             .Where(project => project.Id != exceptProjectId && project.Stage is not ("completed" or "cancelled"))
             .Select(project => project.Plan.Entrance));
 
+    // Proposed Hall sites, so a second proposal or a household request cannot overlap one while its vote is open.
+    private HashSet<GridPoint> PendingTownProjectSiteTiles() => towns
+        .SelectMany(town => town.Governance?.Proposals ?? [])
+        .Where(proposal => proposal is { Kind: "project", Status: "pending", Project: not null })
+        .SelectMany(proposal => WorldContentSimulationRules.Footprint(TownHallContent.Hall3x4(), proposal.Project!.Site)
+            .Append(proposal.Project.Entrance))
+        .ToHashSet();
+
     private HashSet<GridPoint> TownProjectLandTiles(TownRuntimeState town)
     {
         var claimed = householdLandUseRights.SelectMany(r => r.Tiles)
@@ -35,6 +43,8 @@ public sealed partial class PrivateWorldRuntime
         var legal = TownProjectLandTiles(town);
         if (footprint.Any(p => !legal.Contains(p)))
             return "The full Hall site needs uncontested Town title without a household right or pending land request.";
+        if (projectId is null && footprint.Append(plan.Entrance).Any(PendingTownProjectSiteTiles().Contains))
+            return "Another proposed Town project already uses part of this site.";
         if (!CanPlaceBuilding(hall, plan.Site, out var failure, projectId)) return failure;
         if (plan.Entrance != TownHallContent.Entrance(plan.Site) || !map.IsBuildable(plan.Entrance) ||
             map.Resources.Any(r => r.Position == plan.Entrance) || map.CampObjects.Any(c => c.Position == plan.Entrance) ||
@@ -55,8 +65,11 @@ public sealed partial class PrivateWorldRuntime
         var hall = TownHallContent.Hall3x4();
         if (!worldContent.Buildings.Any(d => d.CanonicalId == hall.CanonicalId)) return;
         var layout = CreateTownLayoutContext(actor, building: hall, forTownProject: true);
+        var proposed = PendingTownProjectSiteTiles();
         foreach (var site in TownLayoutService.RankConstructionSites(layout, hall))
         {
+            if (WorldContentSimulationRules.Footprint(hall, site.Position).Append(TownHallContent.Entrance(site.Position))
+                    .Any(proposed.Contains)) continue;
             var coordinates = site.Position.X.ToString(CultureInfo.InvariantCulture) + "," + site.Position.Y.ToString(CultureInfo.InvariantCulture);
             candidates.Add(new(CivicAction(town.Id, "project", hall.LocalId, coordinates),
                 $"Propose a named Town Hall at ({coordinates}) in {town.Name}, with a provisional budget of 24 wood and 12 stone; put its name in civic_proposal. Council approval creates no goods or private-stock access.", 191));

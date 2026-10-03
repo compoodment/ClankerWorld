@@ -148,7 +148,7 @@ public sealed partial class PrivateWorldRuntime
                 include(worldSimulation.Buildings.FirstOrDefault(building => building.InstanceId == job.BuildingInstanceId)))
             .SelectMany(ExpansionTiles).ToHashSet();
 
-    /// <summary>Free Town-titled land nearest first: no use right, pending request, building, expansion, road or field.</summary>
+    /// <summary>Free Town-titled land nearest first: no use right, pending request, building, expansion, road, field or Town project site.</summary>
     private GridPoint[] RequestableLandNear(TownRuntimeState town, GridPoint from, int count)
     {
         var taken = HouseholdLandHeldByOthers(null);
@@ -156,6 +156,8 @@ public sealed partial class PrivateWorldRuntime
         taken.UnionWith(ExpansionWorkTiles(_ => true));
         taken.UnionWith(RoadAndBridgeTiles());
         taken.UnionWith(fields.Select(field => field.Position));
+        taken.UnionWith(TownProjectProtectedSites());
+        taken.UnionWith(PendingTownProjectSiteTiles());
         return townLandTitles.Where(title => title.TownId == town.Id).SelectMany(title => title.Tiles)
             .Where(tile => map.IsLand(tile) && !taken.Contains(tile)).Distinct()
             .OrderBy(tile => map.FootDistance(from, tile)).ThenBy(tile => tile.Y).ThenBy(tile => tile.X)

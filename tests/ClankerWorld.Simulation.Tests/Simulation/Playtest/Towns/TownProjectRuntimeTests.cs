@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Collections.Concurrent;
 using System.Text.Json;
 using ClankerWorld.Simulation.Cognition;
@@ -234,6 +235,72 @@ public sealed class TownProjectRuntimeTests
         Assert.Contains(scenario.World.HouseholdLandUseRequests, request => request.Id == "request:hall-site");
         Assert.Equal(44, TownProjectScenario.MaterialQuantity(scenario.World.Society.Inventory, TownBorderRules.FirstTownId));
         Assert.DoesNotContain(scenario.World.WorldSimulation.Buildings, building => building.DefinitionId == TownHallContent.Hall3x4().CanonicalId);
+    }
+
+    [Fact]
+    public async Task GrantedHouseholdRightOnAHallSiteCancelsTheProjectAndResidentsClearItsLoads()
+    {
+        using var scenario = await TownProjectScenario.ApprovedAsync(initialTownStock: true);
+        scenario.Policy.Supply = true;
+        scenario.Policy.PersonalSupply = false;
+        await scenario.UntilAsync(() => scenario.Project.Deliveries.Any(delivery => delivery.DeliveredTick is not null), 80);
+        scenario.Policy.Supply = false;
+        var requested = scenario.World.RequestHouseholdLandUse("request:hall-site", TownProjectScenario.Author,
+            TownBorderRules.FirstTownId, WorldContentSimulationRules.Footprint(TownHallContent.Hall3x4(), scenario.Project.Plan.Site).ToArray());
+        Assert.True(requested.Applied, requested.Failure);
+        await scenario.UntilAsync(() => scenario.Project.Stage == "blocked", 4);
+
+        // Granting the request makes the site unusable for good, so the project stops instead of holding the land.
+        scenario.Policy.AcceptLandUse = true;
+        await scenario.UntilAsync(() => scenario.Project.Stage == "cancelled", 160);
+        Assert.Equal("granted", scenario.World.HouseholdLandUseRequests.Single(request => request.Id == "request:hall-site").Status);
+        Assert.NotNull(scenario.Project.Blocker);
+        Assert.All(scenario.Project.Deliveries, delivery => Assert.NotNull(delivery.ReleasedTick));
+        Assert.Contains(scenario.World.ExportState().Events, item => item.Kind == "town_project_cancelled");
+        var saved = PrivateWorldRuntimeCodec.Encode(scenario.World.ExportState());
+        scenario.Reload();
+        Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(scenario.World.ExportState()));
+
+        // Residents take released loads away from the dead site instead of leaving Town goods there.
+        scenario.Policy.AcceptLandUse = false;
+        scenario.Policy.Supply = true;
+        var site = new InventoryGroundPosition(scenario.Project.Plan.Site.X, scenario.Project.Plan.Site.Y);
+        var released = scenario.Project.Deliveries.Count;
+        int Recovered() => scenario.World.ExportState().Events.Count(item => item.Kind == "town_project_material_recovered");
+        await scenario.UntilAsync(() => Recovered() > 0 && !scenario.World.Society.Inventory.Lots.Any(lot =>
+            lot.OwnerId == TownBorderRules.FirstTownId && lot.GroundPosition == site), 80);
+        for (var tick = 0; tick < 60; tick++) Assert.True((await scenario.World.AdvanceOneTickAsync()).Advanced);
+        // A carrier who finds the Warehouse tile occupied may set a load down, but it is not picked straight back up in a loop.
+        Assert.InRange(Recovered(), 1, 2 * released + 2);
+        Assert.DoesNotContain(scenario.World.Society.Inventory.Lots, lot => lot.OwnerId == TownBorderRules.FirstTownId && lot.GroundPosition == site);
+        Assert.Equal(44, TownProjectScenario.MaterialQuantity(scenario.World.Society.Inventory, TownBorderRules.FirstTownId));
+        Assert.DoesNotContain(scenario.World.WorldSimulation.Buildings, building => building.DefinitionId == TownHallContent.Hall3x4().CanonicalId);
+        scenario.World.Validate();
+    }
+
+    [Fact]
+    public async Task APendingHallProposalKeepsItsSiteOutOfOtherHallProposals()
+    {
+        using var scenario = TownProjectScenario.Create(TownProjectScenario.PlayableSeed, new TownProjectPolicy { NoVotes = true });
+        await scenario.UntilAsync(() => scenario.World.Towns[0].Governance!.Proposals.Any(proposal => proposal.Kind == "project"), 40);
+        var proposal = Assert.Single(scenario.World.Towns[0].Governance!.Proposals);
+        var hall = TownHallContent.Hall3x4();
+        var taken = WorldContentSimulationRules.Footprint(hall, proposal.Project!.Site).Append(proposal.Project.Entrance).ToHashSet();
+        bool Overlaps(GridPoint site) => WorldContentSimulationRules.Footprint(hall, site).Append(TownHallContent.Entrance(site)).Any(taken.Contains);
+        GridPoint[] OfferedSites(Func<InhabitantObservation, bool> include) => scenario.Policy.Observations.Where(include)
+            .SelectMany(observation => observation.Candidates)
+            .Where(candidate => candidate.Id.Contains("|project|", StringComparison.Ordinal))
+            .Select(candidate => candidate.Id.Split('|')[4].Split(','))
+            .Select(point => new GridPoint(int.Parse(point[0], CultureInfo.InvariantCulture), int.Parse(point[1], CultureInfo.InvariantCulture)))
+            .Distinct().ToArray();
+        // Ranked Hall sites sit side by side, so neighbours of the chosen site were on offer before the vote opened.
+        Assert.Contains(OfferedSites(observation => observation.WorldTick <= proposal.OpenedTick),
+            site => site != proposal.Project.Site && Overlaps(site));
+        var since = scenario.World.WorldTick;
+        await scenario.UntilAsync(() => scenario.Policy.Observations.Count(observation => observation.WorldTick > since &&
+            observation.Candidates.Any(candidate => candidate.Id.Contains("|propose|", StringComparison.Ordinal))) >= 3, 20);
+        Assert.Equal("pending", Assert.Single(scenario.World.Towns[0].Governance!.Proposals).Status);
+        Assert.DoesNotContain(OfferedSites(observation => observation.WorldTick > since), Overlaps);
     }
 
     [Fact]
@@ -589,6 +656,8 @@ internal sealed class TownProjectPolicy
     internal TaskCompletionSource<bool> DonationStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     internal TaskCompletionSource<bool> ReleaseDonation { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     internal bool HoldVote { get; init; }
+    internal bool AcceptLandUse { get; set; }
+    internal bool NoVotes { get; init; }
     internal TaskCompletionSource<bool> VoteStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     internal TaskCompletionSource<bool> ReleaseVote { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     internal ConcurrentQueue<(string Actor, string Id, long Tick)> Choices { get; } = new();
@@ -611,8 +680,9 @@ internal sealed class TownProjectPolicy
                     candidate.Id is "consume_food" or "collect_shared_food" or "take_food_from_pot" or
                         "make_room_for_food" or "harvest_food" or "seek_food" or "wear_clothing" or "seek_warmth")
                 .OrderBy(candidate => candidate.DeterministicPriority).ThenBy(candidate => candidate.Id, StringComparer.Ordinal)
-                .FirstOrDefault() ?? (!policy.HoldVote || actor == TownProjectScenario.Author
+                .FirstOrDefault() ?? (!policy.NoVotes && (!policy.HoldVote || actor == TownProjectScenario.Author)
                 ? candidates.FirstOrDefault(c => c.Id.Contains("|yes|", StringComparison.Ordinal)) : null) ??
+                (policy.AcceptLandUse ? candidates.FirstOrDefault(c => c.Id.Contains("|accept_land_use|", StringComparison.Ordinal)) : null) ??
                 candidates.FirstOrDefault(c => c.Id.Contains("|read|", StringComparison.Ordinal));
             string? text = null;
             if (selected is null && actor == TownProjectScenario.Author && !policy.Proposed)

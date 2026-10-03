@@ -449,10 +449,10 @@ another Town is finished.
 The first Council-approved Town project is a Town Hall
 ([#767](https://github.com/compoodment/ClankerWorld/issues/767)). Its
 plan binds a name, a 3×4 site, its south entrance and a provisional budget of
-24 wood and 12 stone. Approval uses the current Council's normal majority and
+24 wood and 12 stone. Approval follows the Town's ordinary proposal vote and
 creates no goods. The full footprint needs existing, uncontested Town title,
 without a household use right or pending land request. A Town border alone is
-insufficient; title growth remains separate work.
+not enough; a Council land claim can add title first.
 
 The implemented path lets adult residents who learned the proposal carry
 Town-owned materials from the Warehouse or recover released Town loads.
@@ -463,7 +463,13 @@ stock is not taken. Delivered usable stock is reserved for this exact project.
 Only the full paid budget enables construction, with a provisional target of
 10 work units; a usable hammer helps and illness can slow work. A blocked site
 or missing delivered stock releases unused claims, while the real goods stay
-where they are and retain Town ownership. The Towns page shows the plan,
+where they are and retain Town ownership. A pending household land request on
+the site only pauses the project. A site that can no longer be used, for
+example because the request was granted or the site was taken while the vote
+was open, cancels the project instead of holding its land. Residents can then
+pick up its leftover loads and carry them back to a reachable Town Warehouse.
+A pending Hall proposal's site is not offered for another Hall proposal or as
+free land for a household request. The Towns page shows the plan,
 Council result, supplied materials, work and blocker, even after the vote leaves
 the eight recent results. Completion makes a Town-owned Hall with the approved
 bell-tower drawing and south-facing Road entrance. It becomes the Town's civic

@@ -667,10 +667,13 @@ binding, unsupported or altered payload, invalid times/stages/work, duplicate
 load identities, incorrect custody or quantities, mismatched material claims,
 unpaid completion and a completed building that does not match the approved
 Town, definition, footprint and doorway. Legal site checks use actual Town title
-and existing household rights/requests, independently of the visible border.
-A blocked live site releases unused material claims; the goods retain their
-actual location and Town owner rather than being recreated or returned by a
-counter. A completed Hall remains bound to its original paid receipt history.
+and existing household rights and pending requests, independently of the
+visible border. A blocked live site releases unused material claims; the goods
+retain their actual location and Town owner rather than being recreated or
+returned by a counter. Only a pending household land request keeps a project
+blocked; any other site failure saves it as `cancelled` with its reason and
+released claims, and a cancelled project no longer protects its site. A
+completed Hall remains bound to its original paid receipt history.
 
 Current-format restore and replay must keep partial multi-load supply, consumed
 receipts, shared work and civic knowledge without duplicating approval, stock,
