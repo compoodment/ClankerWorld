@@ -212,7 +212,7 @@ public sealed partial class PrivateWorldRuntime
             return order.Action == "tend_fire" ? "This agent is too young to light a fire." : "This agent needs a caregiver to reach shelter.";
         if (survivalState is null) return "Shelter and fire care are not available in this world yet.";
         if (order.ShelterBinding is not null && !ShelterBindingIsAvailable(instruction.TargetInhabitantId, order))
-            return order.Action == "tend_fire" ? "The bound hearth is unavailable, changed, or already burning." : "The bound shelter is no longer available or permitted.";
+            return order.Action == "tend_fire" ? "The chosen hearth is unavailable, changed, or already burning." : "The chosen shelter is no longer available or permitted.";
         if (order.Action == "tend_fire" && !CanObtainFirewood(instruction.TargetInhabitantId, person))
             return "No usable owned firewood can be carried to the hearth right now.";
         return order.TargetPosition is not null ? "The requested shelter site is not permitted or reachable right now." :
