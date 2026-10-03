@@ -6,6 +6,14 @@ namespace ClankerWorld.Simulation.Playtest;
 /// <summary>Exact Council authorization to file a public case on the Town's behalf.</summary>
 public static class TownLandGovernmentFilingRules
 {
+    public static string Describe(TownLandFilingRequest request) =>
+        "Exact hearing plot: " + TownLandClaimRules.DescribeTiles(request.Tiles) + ". " +
+        "Disagreement: " + request.Statement + " Requested result: " + request.RequestedOutcome.Kind +
+        (request.RequestedOutcome.HouseholdId is { } household ? " for household " + household : "") +
+        (request.RequestedOutcome.Kind is "renew" or "amend"
+            ? request.RequestedOutcome.AgreedEndTick is { } end ? "; agreed end tick " + end.ToString(CultureInfo.InvariantCulture) : "; no agreed end date"
+            : "") + ".";
+
     public static string RequestKey(TownLandFilingRequest request) => "land_hearing:" +
         TownLandHearingRules.Digest(TownLandClaimRules.DescribeTiles(request.Tiles) + "|" +
             request.RequestedOutcome.Kind + "|" + request.RequestedOutcome.HouseholdId + "|" +

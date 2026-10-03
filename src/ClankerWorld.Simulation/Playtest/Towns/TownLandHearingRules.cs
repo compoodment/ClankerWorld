@@ -337,7 +337,7 @@ public static class TownLandHearingRules
             !item.Reads.Any(r => r.AgentId == judge.AgentId && r.Revision == CurrentRevision(item).Number && r.ReadTick >= request.Tick && r.ReadTick <= tick &&
                 r.ReopenRequestIds.Contains(request.Id, StringComparer.Ordinal)))
             throw new InvalidOperationException("An authorized independent judge must inspect and assess the reopening grounds.");
-        if (groundsEstablished && !(request.Kind == "material_evidence" ? MaterialNewEvidence(item, request) : DemonstratedProceduralError(item, request)))
+        if (groundsEstablished && !(request.Kind == "material_evidence" ? MaterialNewEvidence(item, request, state) : DemonstratedProceduralError(item, request)))
             throw new InvalidOperationException("Disagreement or an unsupported allegation does not establish reopening grounds.");
         request = request with { Status = groundsEstablished ? "accepted" : "rejected", AssessedBy = judge, AssessedTick = tick, Assessment = assessment };
         item = item with { ReopenRequests = item.ReopenRequests.Select(r => r.Id == requestId ? request : r).ToArray() };
@@ -349,15 +349,30 @@ public static class TownLandHearingRules
         return Replace(state, item);
     }
 
-    public static bool MaterialNewEvidence(TownLandCase item, TownLandReopenRequest request)
+    public static bool MaterialNewEvidence(TownLandCase item, TownLandReopenRequest request, TownLandHearingState? state = null)
     {
+        if (request.Kind != "material_evidence") return false;
         var ruling = item.Rulings.LastOrDefault(r => r.Tick <= request.Tick);
-        return ruling is not null && request.EvidenceIds.Any(id => item.Evidence.Any(e => e.Id == id &&
-            e.Kind is "record" or "observation" && e.SubmittedTick > ruling.Tick &&
-            !item.Evidence.Any(old => old.SubmittedTick <= ruling.Tick && old.Kind == e.Kind &&
-                old.SourceRecordId == e.SourceRecordId && old.SourceVersion == e.SourceVersion && old.SourceAgentId == e.SourceAgentId &&
-                (e.Kind == "record" || old.ObservedTick == e.ObservedTick))));
+        if (ruling is null) return false;
+        var knownFacts = item.Evidence.Where(e => e.SubmittedTick <= ruling.Tick).ToArray();
+        var priorPermissions = item.Revisions.Single(r => r.Number == ruling.Revision).RightVersions;
+        var cases = state?.Cases ?? [item];
+        var courtPermissions = state?.Adjustments.Where(a => a.Kind == "ruling").SelectMany(a => a.ResultRights).ToArray() ?? [];
+        return request.EvidenceIds.Any(id => item.Evidence.Any(e => e.Id == id && ValidEvidence(e) &&
+            e.Kind is "record" or "observation" && e.SubmittedTick > ruling.Tick && e.SubmittedTick <= request.Tick &&
+            !knownFacts.Any(old => old.Kind == e.Kind && FactText(old.Text) == FactText(e.Text)) &&
+            (e.Kind == "observation" ||
+                !knownFacts.Any(old => old.Kind == "record" && old.SourceRecordId == e.SourceRecordId && old.SourceVersion == e.SourceVersion) &&
+                !priorPermissions.Any(p => p.Id == e.SourceRecordId && p.Version == e.SourceVersion) &&
+                !cases.Any(c => c.Rulings.Any(r => r.Id == e.SourceRecordId)) &&
+                !courtPermissions.Any(r => r.Id == e.SourceRecordId && Version(r) == e.SourceVersion) &&
+                (state is not null || e.SourceRecordId is { } source &&
+                    !source.StartsWith("land-ruling:", StringComparison.Ordinal) && !source.StartsWith("household-use:hearing:", StringComparison.Ordinal)))));
     }
+
+    private static string FactText(string text) => string.Join(' ', new string(text.Normalize(NormalizationForm.FormC)
+        .Select(c => char.IsWhiteSpace(c) || char.IsPunctuation(c) ? ' ' : char.ToUpperInvariant(c)).ToArray())
+        .Split(' ', StringSplitOptions.RemoveEmptyEntries));
 
     public static bool DemonstratedProceduralError(TownLandCase item, TownLandReopenRequest request)
     {

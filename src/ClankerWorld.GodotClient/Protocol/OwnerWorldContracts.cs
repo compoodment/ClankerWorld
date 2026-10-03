@@ -151,6 +151,8 @@ public sealed record OwnerWorldTown(
 }
 
 public sealed record OwnerLandHearingOutcome(string Kind, string? HouseholdId, string? HouseholdName, long? AgreedEndTick);
+public sealed record OwnerLandHearingProposal(IReadOnlyList<OwnerWorldPosition> Tiles,
+    OwnerLandHearingOutcome RequestedOutcome, string Statement);
 public sealed record OwnerLandHearingRightVersion(string Id, string Version, OwnerWorldHouseholdLandUseRight Right);
 public sealed record OwnerLandHearingFiling(string? AgentId, string? AgentName, string Kind, string Text,
     OwnerLandHearingOutcome RequestedOutcome, long Tick, string? AuthorityId);
@@ -210,7 +212,10 @@ public sealed record OwnerTownGovernment(string Declaration, IReadOnlyList<Owner
     OwnerMayoralElection? Election, OwnerMayoralElection? LatestElection, long RetryTick);
 
 public sealed record OwnerCivicProposal(string Id, string Kind, string Text, string Status, int Yes, int No,
-    int RequiredYes, long DeadlineTick);
+    int RequiredYes, long DeadlineTick)
+{
+    public OwnerLandHearingProposal? LandHearingRequest { get; init; }
+}
 public sealed record OwnerCivicCandidate(string Id, string Name, int Votes);
 public sealed record OwnerTownElection(string Id, string Kind, string Stage, int Seats, long DeadlineTick,
     IReadOnlyList<OwnerCivicCandidate> Candidates, IReadOnlyList<string> SettledNames);

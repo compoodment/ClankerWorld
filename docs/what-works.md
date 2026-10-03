@@ -346,8 +346,8 @@ A House that needs more room can request the exact extra tiles for an expansion.
 Construction waits for recorded permission, and rechecks it before completion.
 Town-owned expansions need Town title on their extra tiles. These checks do not
 transfer buildings or goods, and an expired existing right remains recorded
-until a lawful ruling changes it. Hearings, expiry rulings and voluntary
-transfers remain in [#633](https://github.com/compoodment/ClankerWorld/issues/633).
+until a lawful ruling changes it. An agreed expiry opens a review and leaves
+the permission provisional while that review is pending.
 
 Councils can adopt, amend and repeal laws with a named subject and scope:
 formally claimed land (including visitors), a recorded site within that land,
@@ -376,8 +376,25 @@ restores all-adult decisions until lawful succession; land cases wait.
 The Towns page shows the approved arrangement, offices, recent government
 votes, current and last mayoral contests, and the latest sixteen laws with
 scope, version and effective dates. Complete histories stay in the save.
-Land hearings, enforcement and punishment are still separate unfinished work.
-Windows civic pacing and visual checks remain pending.
+
+Affected households and the legitimate Town government can file public land
+hearings. Each affected adult gets a formal response period; actual reading or
+relaying supplies awareness, and only their own answer or explicit waiver can
+close their opportunity early. The file distinguishes allegations, observations
+and inspected records, with sources and the deciding mayor's reasons. A conflicted
+land mayor stands aside for a willing independent adult elected for that case
+only. Without valid authority, the case and existing rights remain pending.
+
+Rulings can confirm, renew, change or end use permissions while preserving Town
+title, households, buildings, crops and goods. Settled cases reopen only on
+material new evidence or a demonstrated procedural error, preserving earlier
+rulings and current rights until a correction. A ruling resolves only the
+covered part of a competing request; remaining tiles stay pending. Towns shows
+active cases, pending rehearing assessments and eight recent settled cases;
+plot and property details show matching cases. Complete history stays saved.
+Wider enforcement and punishment remain unfinished. Windows civic pacing and
+visual checks remain pending; see the unchecked
+[#633 playtest](../playtest/633-land-hearings.md).
 
 An agent belongs to one Town or none, and travel never changes that. Losing a
 home keeps Town membership, the council vote and in-person Warehouse

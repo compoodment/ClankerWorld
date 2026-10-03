@@ -125,12 +125,29 @@ apply an accepted claim twice. Older alpha schemas are refused and preserved;
 no migration is provided.
 
 Schema 59 adds household land request status, separate adult consent, the
-Council proposal link and the adult roster at grant settlement. A grant and its
-rights must retain matching plot coverage, grant time and agreed end date;
+Council proposal link and the adult roster at grant settlement. A grant's
+original rights receipt must retain matching plot coverage, grant time and agreed end date;
 loading rejects missing approval or consent evidence and orphaned Council
 land-use proposals. Closed requests remain history without competing claims.
 Prepared-tick rollback and current-format reload preserve approval progress and
 commit the final grant once. Older alpha schemas are refused without migration.
+
+Schema 60 saves each Town's land-hearing ledger: plot and right-version notice
+revisions, affected parties, public evidence and provenance, explicit responses,
+actual file reads, case-only candidate consent and elections, adjudicator terms,
+rulings and rehearing assessments. Notice publication does not become a receipt,
+and a read records the evidence and rehearing requests actually seen. Original
+grant rights remain available for the Council receipt checks; versioned bounded
+adjustments reproduce current permissions without destroying that receipt.
+Request-resolution pointers identify the ruling and exact tiles decided, leaving
+only unresolved portions as competing claims. Loading validates the case's notice,
+source, read, authority and adjustment links rather than inventing missing evidence.
+
+These records share prepared-tick rollback with permissions, requests, civic
+receipts and events. Current-format reload and continuation retain pending
+windows and rulings without applying a decision twice. Reopening preserves the
+earlier ruling and current rights until a new correction is committed. Older
+alpha schemas are refused and preserved without migration.
 
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.

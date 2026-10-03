@@ -16,7 +16,7 @@ public sealed partial class PrivateWorldRuntime
         if (atBoard && household is not null)
         {
             var affected = householdLandUseRights.Where(right => right.TownId == town.Id && right.HouseholdId == household).SelectMany(right => right.Tiles)
-                .Concat(householdLandUseRequests.Where(request => request.TownId == town.Id && request.HouseholdId == household && request.Status == "pending").SelectMany(request => request.Tiles))
+                .Concat(householdLandUseRequests.Where(request => request.TownId == town.Id && request.HouseholdId == household && request.Status == "pending").SelectMany(TownLandRightsRules.UnresolvedRequestTiles))
                 .Distinct().OrderBy(tile => map.FootDistance(inhabitants[actor].Position, tile)).ThenBy(tile => tile.Y).ThenBy(tile => tile.X).Take(6).ToArray();
             if (affected.Length > 0)
                 candidates.Add(new(CivicAction(town.Id, "hearing_file", choice: household),
@@ -91,7 +91,7 @@ public sealed partial class PrivateWorldRuntime
                              item.Reads.Any(read => read.AgentId == actor && read.Revision == revision.Number &&
                                  read.ReopenRequestIds.Contains(request.Id, StringComparer.Ordinal))))
                 {
-                    var established = request.Kind == "material_evidence" ? TownLandHearingRules.MaterialNewEvidence(item, request) : TownLandHearingRules.DemonstratedProceduralError(item, request);
+                    var established = request.Kind == "material_evidence" ? TownLandHearingRules.MaterialNewEvidence(item, request, hearings) : TownLandHearingRules.DemonstratedProceduralError(item, request);
                     if (established)
                         candidates.Add(new(CivicAction(town.Id, "hearing_assess_reopen", token, request.Id + ":accept"), "Accept independently established grounds and open a fresh hearing; current rights remain until a valid correction. Give reasons in civic_land_hearing.statement. Filed " + request.Kind + " claim: " + request.Reasons, 165));
                     candidates.Add(new(CivicAction(town.Id, "hearing_assess_reopen", token, request.Id + ":reject"), "Reject this reopening request with reasons in civic_land_hearing.statement; keep the old ruling and request in the case history. Filed " + request.Kind + " claim: " + request.Reasons, 166));
@@ -146,9 +146,10 @@ public sealed partial class PrivateWorldRuntime
                 throw new InvalidOperationException("A filing must name a connected plot under this Town's title.");
             if (action == "hearing_propose_town")
             {
+                var filing = new TownLandFilingRequest(tiles, outcome, text);
                 council = TownGovernanceRules.SubmitProposal(council, town.Id, actor, "land_hearing", null,
                     "Authorize this Town land case.", "council:" + council.Revision, TownAdults(town), WorldTick, CivicDay,
-                    landHearingRequest: new TownLandFilingRequest(tiles, outcome, text));
+                    noticeText: TownLandGovernmentFilingRules.Describe(filing), landHearingRequest: filing);
                 return (council, hearings);
             }
             var household = action == "hearing_file" ? HouseholdFor(actor) : null;

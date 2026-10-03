@@ -372,6 +372,8 @@ public sealed record ViewerTown(
 }
 
 public sealed record ViewerLandHearingOutcome(string Kind, string? HouseholdId, string? HouseholdName, long? AgreedEndTick);
+public sealed record ViewerLandHearingProposal(IReadOnlyList<ViewerPosition> Tiles,
+    ViewerLandHearingOutcome RequestedOutcome, string Statement);
 public sealed record ViewerLandHearingRightVersion(string Id, string Version, ViewerHouseholdLandUseRight Right);
 public sealed record ViewerLandHearingFiling(string? AgentId, string? AgentName, string Kind, string Text,
     ViewerLandHearingOutcome RequestedOutcome, long Tick, string? AuthorityId);
@@ -431,7 +433,10 @@ public sealed record ViewerTownGovernment(string Declaration, IReadOnlyList<View
     ViewerMayoralElection? Election, ViewerMayoralElection? LatestElection, long RetryTick);
 
 public sealed record ViewerCivicProposal(string Id, string Kind, string Text, string Status, int Yes, int No,
-    int RequiredYes, long DeadlineTick);
+    int RequiredYes, long DeadlineTick)
+{
+    public ViewerLandHearingProposal? LandHearingRequest { get; init; }
+}
 public sealed record ViewerCivicCandidate(string Id, string Name, int Votes);
 public sealed record ViewerTownElection(string Id, string Kind, string Stage, int Seats, long DeadlineTick,
     IReadOnlyList<ViewerCivicCandidate> Candidates, IReadOnlyList<string> SettledNames);

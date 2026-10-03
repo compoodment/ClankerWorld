@@ -224,7 +224,7 @@ public static class TownLandHearingValidation
             }
             if (request.Status == "accepted")
                 Check(item.Revisions.Any(r => r.PublishedTick == request.AssessedTick) &&
-                    (request.Kind == "material_evidence" ? TownLandHearingRules.MaterialNewEvidence(item, request) : TownLandHearingRules.DemonstratedProceduralError(item, request)),
+                    (request.Kind == "material_evidence" ? TownLandHearingRules.MaterialNewEvidence(item, request, state) : TownLandHearingRules.DemonstratedProceduralError(item, request)),
                     "An accepted reopening needs established grounds and a fresh full hearing notice.");
         }
     }

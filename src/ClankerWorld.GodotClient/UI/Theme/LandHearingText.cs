@@ -79,7 +79,9 @@ public static class LandHearingText
             }
         }
         lines.Add(hearing.Judge is { } judge ? "Adjudicator: " + Judge(judge) + " · assigned " + clock(judge.AssignedTick)
-            : hearing.SettledTick is not null ? "The hearing is settled; each ruling names its adjudicator."
+            : hearing.SettledTick is not null && !hearing.ReopenRequests.Any(request => request.Status == "pending")
+                ? "The hearing is settled; each ruling names its adjudicator."
+            : hearing.SettledTick is not null ? "Waiting for an eligible, willing adjudicator to assess the rehearing request; current rights remain in effect."
             : "Waiting for an eligible, willing adjudicator; existing rights remain protected.");
         foreach (var term in hearing.JudgeHistory)
             lines.Add("Former adjudicator: " + Judge(term.Judge) + " · ended " + clock(term.EndedTick) + " · " + Words(term.Reason));

@@ -16,7 +16,7 @@ public sealed partial class PrivateWorldRuntime
         var householdIds = householdLandUseRights.Where(right => right.TownId == town.Id && right.Tiles.Any(tiles.Contains))
             .Select(right => right.HouseholdId)
             .Concat(householdLandUseRequests.Where(request => request.TownId == town.Id && request.Status == "pending" &&
-                request.Tiles.Any(tiles.Contains)).Select(request => request.HouseholdId))
+                TownLandRightsRules.UnresolvedRequestTiles(request).Any(tiles.Contains)).Select(request => request.HouseholdId))
             .Concat(item is null ? [] : TownLandHearingRules.CurrentRevision(item).Parties
                 .Where(party => party.HouseholdId is not null).Select(party => party.HouseholdId!))
             .Concat(filingHousehold is null ? [] : new[] { filingHousehold });

@@ -836,7 +836,38 @@ construction likewise avoids land other households hold or have asked for, and
 Town buildings avoid all of it. Unaffiliated construction on untitled land keeps its ordinary physical
 rules and creates no title. Losing permission cancels the
 job and releases its materials. Existing expired rights are not silently
-removed; their eventual ruling remains separate land-case work.
+removed; ordinary Town advancement opens an expiry hearing and keeps the old
+permission provisional until a lawful ruling.
+
+`TownRuntimeState.LandHearings` saves each public case's exact plot and right
+versions, affected parties, formal notice and response deadline. Equivalent
+filings join the live case without resetting its clock. Material right changes
+or new affected adults publish a revised notice with a fresh day. Notice
+publication, actual civic receipts and case-file reads are separate records;
+reads identify the evidence and rehearing requests actually available to that
+adult. Physical relays carry only material their source learned. Owner inspection
+does not supply agent knowledge or private memories.
+
+Hearing actions enter through admitted personal-model civic choices. Public
+statements remain allegations; actual nearby observations and inspected rights,
+title, law versions and earlier rulings retain their sources. The current land
+mayor must inspect the file and revalidate authority, conflicts and the response
+window before ruling. A conflicted holder steps aside for a willing independent
+adult elected through the shared civic scheduler for this case only. A valid
+acting judge survives ordinary mayor succession; missing authority leaves the
+case pending. Reopening needs assessed material evidence or a demonstrated
+procedural error, retains earlier rulings and publishes a fresh notice.
+
+Bounded permission adjustments retain original grant receipts and replayable
+before/after rights. A ruling records the exact covered portions of pending
+requests, so resolved tiles stop contributing claims while remaining portions
+stay pending. Town title, membership, buildings, crops and inventory are not
+transferred by a hearing. Owner projection carries all active cases and pending
+rehearing assessments plus eight recent settled cases; complete ledgers remain
+in the checkpoint. Town, plot and property views use public names, sources and
+world clocks. Lifecycle telemetry carries identifiers, status and counts, with
+no statements, model replies or private memories. Wider law enforcement remains
+separate work.
 
 Formal civic acts require an admitted personal-model choice. Built-in decisions,
 failed replies and continued intentions supply no votes or candidate agreement.

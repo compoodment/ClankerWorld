@@ -540,7 +540,13 @@ public partial class Main
         if (council.WillingCandidateNames.Count > 0) lines.Add("Willing candidates: " + string.Join(", ", council.WillingCandidateNames));
         foreach (var proposal in council.Proposals.TakeLast(8))
         {
-            lines.Add($"{Pretty(proposal.Status)} {Pretty(proposal.Kind).ToLowerInvariant()} proposal: {proposal.Text}");
+            lines.Add($"{Pretty(proposal.Status)} {Pretty(proposal.Kind).ToLowerInvariant()} proposal: " +
+                (proposal.LandHearingRequest is { } request ? request.Statement : proposal.Text));
+            if (proposal.LandHearingRequest is { } landCase)
+            {
+                lines.Add("Exact plot: " + string.Join(", ", landCase.Tiles.Select(tile => $"({tile.X}, {tile.Y})")));
+                lines.Add("Requested: " + LandHearingText.Outcome(landCase.RequestedOutcome, DisplayWorldClock));
+            }
             lines.Add($"{proposal.Yes} yes / {proposal.No} no · {proposal.RequiredYes} yes needed" +
                 (proposal.Status == "pending" ? " · closes " + DisplayWorldClock(proposal.DeadlineTick) : ""));
         }

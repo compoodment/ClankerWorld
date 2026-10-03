@@ -197,7 +197,8 @@ public sealed partial class PrivateWorldRuntime
                     proposal.Kind == "admission" && proposal.SubjectId == actor) continue;
                 var plot = proposal.LandClaimTiles is { } tiles ? " Exact tiles: " + TownLandClaimRules.DescribeTiles(tiles) + "." :
                     proposal.Kind == "land_use" && householdLandUseRequests.SingleOrDefault(r => r.Id == proposal.SubjectId) is { } request
-                        ? " " + LandUseTerms(request) : "";
+                        ? " " + LandUseTerms(request) : proposal.LandHearingRequest is { } hearingRequest
+                            ? " " + TownLandGovernmentFilingRules.Describe(hearingRequest) : "";
                 candidates.Add(new(CivicAction(town.Id, "yes", proposal.Id), $"Cast your final yes vote on {voteText} in {town.Name}. {proposal.RequiredYes} yes votes required.{plot}", 165));
                 candidates.Add(new(CivicAction(town.Id, "no", proposal.Id), $"Cast your final no vote on {voteText} in {town.Name}.{plot}", 166));
             }

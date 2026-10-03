@@ -142,7 +142,7 @@ public sealed partial class PrivateWorldRuntime
     private HashSet<GridPoint> HouseholdLandHeldByOthers(string? household) => householdLandUseRights
         .Where(right => right.HouseholdId != household).SelectMany(right => right.Tiles)
         .Concat(householdLandUseRequests.Where(request => request.Status == "pending" && request.HouseholdId != household)
-            .SelectMany(request => request.Tiles))
+            .SelectMany(TownLandRightsRules.UnresolvedRequestTiles))
         .ToHashSet();
 
     private HashSet<GridPoint> BuildingFootprintTiles(Func<PlacedBuilding, bool> include)
@@ -197,7 +197,7 @@ public sealed partial class PrivateWorldRuntime
             ExpansionShapes(building).Any(shape => CanFitExpansion(building, shape.Position, shape.Footprint, out _))) return null;
         var definition = worldContent.Buildings.Single(d => d.CanonicalId == building.DefinitionId);
         var pending = householdLandUseRequests.Where(r => r.Status == "pending" && r.HouseholdId == building.HouseholdId)
-            .SelectMany(r => r.Tiles).ToHashSet();
+            .SelectMany(TownLandRightsRules.UnresolvedRequestTiles).ToHashSet();
         GridPoint[]? offered = null;
         foreach (var shape in ExpansionShapes(building))
         {

@@ -228,7 +228,26 @@ both separately. Candidates personally agree to those specific mandates.
 Residents choose one candidate and may revise their ballot. A tie means another
 vote, never a draw. The term lasts twenty days, and a vacancy needs a new election.
 Pausing stops votes, terms and handovers. The page shows officeholders and vacant
-mandates; land hearings and enforcement have not been implemented yet.
+mandates. Wider law enforcement and punishment are not available yet.
+
+An affected household can ask for a land hearing, and the Town can file through
+its legitimate government. A permission with an agreed end date enters review
+when that date passes; it remains provisional while the case is pending. The
+Towns page shows the plot, affected households, formal response deadline,
+evidence sources and who may decide the case. Publication does not mean a notice
+was read: adults learn it through actual reading or a relay. Each affected adult
+may answer or explicitly waive their own response; silence is neither agreement
+nor evidence against them.
+
+The land mayor may confirm, renew, change or end use permission, recording the
+evidence and reasons. A mayor with a personal or household conflict stands aside;
+residents can elect a willing, independent adult for that case only. A case waits
+if nobody qualifies. A rehearing requires material new evidence or a demonstrated
+procedural error. The old ruling remains recorded and current rights stay in
+effect until a valid correction. These decisions leave Town title, household
+membership, buildings, crops and goods with their holders; they neither evict
+occupants nor grant entry to private buildings. Plot and building details show
+the hearing, and the disputed-land filter marks plots still under review.
 
 ## Pause, settings and controls
 

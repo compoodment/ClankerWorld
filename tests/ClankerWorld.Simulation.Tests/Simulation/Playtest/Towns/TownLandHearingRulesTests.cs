@@ -84,7 +84,8 @@ public sealed class TownLandHearingRulesTests
         state = TownLandCaseJudgeRules.Vote(state, id, TownLandCaseJudgeRules.RoundToken(round), "a", "judge", 1);
         state = TownLandCaseJudgeRules.Vote(state, id, TownLandCaseJudgeRules.RoundToken(round), "b", "other", 1);
         (state, council) = TownLandCaseJudgeRules.Advance(state, council, government, Adults, Households, 10, 10);
-        Assert.Equal(new[] { "judge", "other" }, state.Cases[0].Contest!.TiedCandidates);
+        Assert.Collection(state.Cases[0].Contest!.TiedCandidates,
+            id => Assert.Equal("judge", id), id => Assert.Equal("other", id));
         (state, council) = TownLandCaseJudgeRules.Advance(state, council, government, Adults, Households, 12, 10, ordinaryContestBusy: true);
         Assert.Equal("waiting", state.Cases[0].Contest!.Stage);
         Assert.Empty(state.Cases[0].Contest!.Ballots);
@@ -96,7 +97,10 @@ public sealed class TownLandHearingRulesTests
         (state, council) = TownLandCaseJudgeRules.Advance(state, council, government, Adults, Households, 23, 10);
         var judge = state.Cases[0].Judge!;
         Assert.Equal(("judge", "case_elected"), (judge.AgentId, judge.Kind));
-        Assert.Equal(new[] { "tie", "interrupted", "winner" }, state.Cases[0].ContestHistory[0].Rounds.Select(r => r.Result));
+        Assert.Collection(state.Cases[0].ContestHistory[0].Rounds,
+            roundResult => Assert.Equal("tie", roundResult.Result),
+            roundResult => Assert.Equal("interrupted", roundResult.Result),
+            roundResult => Assert.Equal("winner", roundResult.Result));
         var successor = government with { Offices = [new("land", "b", 24, 124, null, null, "successor-election")] };
         (state, _) = TownLandCaseJudgeRules.Advance(state, council, successor, Adults, Households, 24, 10);
         Assert.Equal(judge, state.Cases[0].Judge);
@@ -173,7 +177,7 @@ public sealed class TownLandHearingRulesTests
         state = TownLandHearingRules.RelayRead(state, fixture.Id, 1, "judge", "other", 11);
         var receipt = state.Cases[0].Reads[^1];
         Assert.Equal("judge", receipt.SourceAgentId);
-        Assert.Equal(new[] { "record:right" }, receipt.EvidenceIds);
+        Assert.Equal("record:right", Assert.Single(receipt.EvidenceIds));
         Assert.DoesNotContain("later", receipt.EvidenceIds);
         Assert.Throws<InvalidOperationException>(() => TownLandHearingRules.RelayRead(state, fixture.Id, 1, "unread", "a", 11));
         Validate(state, fixture.Rights, fixture.Council, 11);
@@ -194,8 +198,9 @@ public sealed class TownLandHearingRulesTests
         TownLandHearingValidation.ValidateRequestResolutions(11, [state], [partial, full]);
         Assert.Equal(Plot, partial.HearingResolutions[0].Tiles);
         Assert.DoesNotContain(new GridPoint(3, 0), partial.HearingResolutions[0].Tiles);
-        Assert.Equal(new[] { "alpha" }, TownLandRightsRules.ClaimantsAt(new(1, 0), rights, [partial, full]));
-        Assert.Equal(new[] { "alpha", "beta" }, TownLandRightsRules.ClaimantsAt(new(3, 0), rights, [partial, full]));
+        Assert.Equal("alpha", Assert.Single(TownLandRightsRules.ClaimantsAt(new(1, 0), rights, [partial, full])));
+        Assert.Collection(TownLandRightsRules.ClaimantsAt(new(3, 0), rights, [partial, full]),
+            id => Assert.Equal("alpha", id), id => Assert.Equal("beta", id));
         Assert.Empty(full.GrantAdults);
         Assert.Empty(full.Consents);
         Assert.Throws<InvalidDataException>(() => TownLandHearingValidation.ValidateRequestResolutions(11, [state],
@@ -240,7 +245,7 @@ public sealed class TownLandHearingRulesTests
         state = TownLandHearingRules.AddEvidence(state, fixture.Id, 1, newEvidence, fixture.Council.Knowledge);
         state = TownLandHearingRules.RequestReopen(state, fixture.Id, "a", "material_evidence", [newEvidence.Id], "New plot evidence", 13);
         var request = state.Cases[0].ReopenRequests[0];
-        Assert.True(TownLandHearingRules.MaterialNewEvidence(state.Cases[0], request));
+        Assert.True(TownLandHearingRules.MaterialNewEvidence(state.Cases[0], request, state));
         state = TownLandHearingRules.AssignJudge(state, fixture.Id, oldRuling.Judge with { AssignedTick = 14 });
         state = TownLandHearingRules.Inspect(state, fixture.Id, 1, "judge", 14);
         state = TownLandHearingRules.Reopen(state, fixture.Id, request.Id, state.Cases[0].Judge!, true, "The new observation warrants a hearing", rights, Parties,
@@ -250,6 +255,106 @@ public sealed class TownLandHearingRulesTests
         Assert.Equal((14L, 24L), (state.Cases[0].Revisions[^1].PublishedTick, state.Cases[0].Revisions[^1].DeadlineTick));
         Assert.Empty(state.Adjustments);
         Assert.Equal(fixture.Rights, rights);
+    }
+
+    [Fact]
+    public void RereadingRecordsAndRepeatingFirsthandFactsCannotEstablishReopeningGrounds()
+    {
+        var fixture = Ready();
+        var priorObservation = new TownLandEvidence("old-observation", 1, "observation", "firsthand", "a", null, null,
+            2, "a", 2, "Two marked boundary posts stand on this plot.");
+        var state = TownLandHearingRules.AddEvidence(fixture.State, fixture.Id, 1, priorObservation, fixture.Council.Knowledge);
+        state = TownLandHearingRules.Inspect(state, fixture.Id, 1, "judge", 10);
+        var rulingResult = TownLandHearingRules.Rule(state, Map(), fixture.Id, 1, state.Cases[0].Judge!, 11,
+            new("confirm"), ["record:right", priorObservation.Id], [], "Preserve the recorded permission", fixture.Rights, Parties, true);
+        state = rulingResult.State;
+        var right = fixture.Rights[0];
+        TownLandEvidence[] repeated =
+        [
+            new("reread-right", 1, "record", "record_inspection", "b", right.Id, TownLandHearingRules.Version(right),
+                12, "b", 12, "A different inspector describes this unchanged permission differently"),
+            new("reread-title", 1, "record", "record_inspection", "b", Title().Id, TownLandHearingRules.RecordVersion(Title()),
+                12, "b", 12, "The recorded permission and end date"),
+            priorObservation with { Id = "later-same-witness", ObservedTick = 12, SubmittedTick = 12 },
+            priorObservation with { Id = "later-other-witness", SourceAgentId = "b", SubmittedByAgentId = "b", ObservedTick = 12,
+                SubmittedTick = 12, Text = "  TWO marked boundary posts stand on this plot.  " },
+            new("new-facts-claim", 1, "allegation", "statement", "b", null, null, 12, "b", 12, "I claim that new facts require a correction")
+        ];
+        foreach (var evidence in repeated)
+        {
+            state = TownLandHearingRules.AddEvidence(state, fixture.Id, 1, evidence, fixture.Council.Knowledge);
+            state = TownLandHearingRules.RequestReopen(state, fixture.Id, "b", "material_evidence", [evidence.Id], "Consider my claimed new grounds", 13);
+            Assert.False(TownLandHearingRules.MaterialNewEvidence(state.Cases[0], state.Cases[0].ReopenRequests[^1], state));
+        }
+        var request = state.Cases[0].ReopenRequests[0];
+        state = TownLandHearingRules.AssignJudge(state, fixture.Id, state.Cases[0].Rulings[0].Judge with { AssignedTick = 14 });
+        state = TownLandHearingRules.Inspect(state, fixture.Id, 1, "judge", 14);
+        Assert.Throws<InvalidOperationException>(() => TownLandHearingRules.Reopen(state, fixture.Id, request.Id, state.Cases[0].Judge!, true,
+            "A reread alone warrants reopening", rulingResult.Rights, Parties, 14, 10, "notice:unused", true));
+        Assert.Equal("settled", state.Cases[0].Status);
+        Assert.Single(state.Cases[0].Revisions);
+        Assert.Equal(fixture.Rights, rulingResult.Rights);
+        Validate(state, rulingResult.Rights, fixture.Council, 14);
+    }
+
+    [Fact]
+    public void TheCourtsOwnRulingAndResultingPermissionCannotBecomeNewMaterialFacts()
+    {
+        var fixture = Ready();
+        var (state, rights) = TownLandHearingRules.Rule(fixture.State, Map(), fixture.Id, 1, fixture.State.Cases[0].Judge!, 11,
+            new("renew", "alpha", 50), ["record:right"], [], "Renew the permission for this plot", fixture.Rights, Parties, true);
+        var ruling = Assert.Single(state.Cases[0].Rulings);
+        var permission = Assert.Single(rights, right => right.Tiles.Contains(new GridPoint(1, 0)));
+        TownLandEvidence[] courtEffects =
+        [
+            new("ruling-receipt", 1, "record", "record_inspection", "b", ruling.Id, TownLandHearingRules.RecordVersion(ruling),
+                12, "b", 12, "The court renewed the noticed permission"),
+            new("result-permission", 1, "record", "record_inspection", "b", permission.Id, TownLandHearingRules.Version(permission),
+                12, "b", 12, "The resulting permission now has an agreed end at fifty")
+        ];
+        foreach (var evidence in courtEffects)
+        {
+            state = TownLandHearingRules.AddEvidence(state, fixture.Id, 1, evidence, fixture.Council.Knowledge);
+            state = TownLandHearingRules.RequestReopen(state, fixture.Id, "b", "material_evidence", [evidence.Id], "I disagree with the court result", 13);
+            var request = state.Cases[0].ReopenRequests[^1];
+            Assert.False(TownLandHearingRules.MaterialNewEvidence(state.Cases[0], request, state));
+            Assert.False(TownLandHearingRules.MaterialNewEvidence(state.Cases[0], request));
+        }
+        Assert.Equal(50, permission.AgreedEndTick);
+        Assert.Equal("settled", state.Cases[0].Status);
+        Validate(state, rights, fixture.Council, 13);
+    }
+
+    [Fact]
+    public void ANewlyRevealedRecordOrChangedFirsthandFactCanEstablishMaterialGrounds()
+    {
+        var fixture = Ready();
+        var priorObservation = new TownLandEvidence("old-observation", 1, "observation", "firsthand", "a", null, null,
+            2, "a", 2, "Two marked boundary posts stand on this plot.");
+        var state = TownLandHearingRules.AddEvidence(fixture.State, fixture.Id, 1, priorObservation, fixture.Council.Knowledge);
+        state = TownLandHearingRules.Inspect(state, fixture.Id, 1, "judge", 10);
+        var rulingResult = TownLandHearingRules.Rule(state, Map(), fixture.Id, 1, state.Cases[0].Judge!, 11,
+            new("confirm"), ["record:right", priorObservation.Id], [], "Preserve the recorded permission", fixture.Rights, Parties, true);
+        state = rulingResult.State;
+        var title = Title();
+        TownLandEvidence[] newFacts =
+        [
+            new("new-title", 1, "record", "record_inspection", "b", title.Id, TownLandHearingRules.RecordVersion(title),
+                12, "b", 12, "The Town formally holds title to the disputed plot"),
+            priorObservation with { Id = "changed-observation", ObservedTick = 12, SubmittedTick = 12,
+                Text = "One marked boundary post stands on this plot." }
+        ];
+        foreach (var evidence in newFacts)
+        {
+            state = TownLandHearingRules.AddEvidence(state, fixture.Id, 1, evidence, fixture.Council.Knowledge);
+            state = TownLandHearingRules.RequestReopen(state, fixture.Id, "b", "material_evidence", [evidence.Id], "Assess the actual new factual material", 13);
+            Assert.True(TownLandHearingRules.MaterialNewEvidence(state.Cases[0], state.Cases[0].ReopenRequests[^1], state));
+        }
+        Validate(state, rulingResult.Rights, fixture.Council, 13);
+        Assert.Equal("settled", state.Cases[0].Status);
+        Assert.Equal("pending", state.Cases[0].ReopenRequests[0].Status);
+        Assert.Single(state.Cases[0].Revisions);
+        Assert.Equal(fixture.Rights, rulingResult.Rights);
     }
 
     [Fact]

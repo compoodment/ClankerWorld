@@ -65,6 +65,9 @@ public sealed class OwnerWorldObservationStore
         {
             var right = item.Revisions.SelectMany(revision => revision.RightVersions)
                 .Concat(town.LandHearings?.OriginalRights ?? [])
+                .Concat((state.HouseholdLandUseRights ?? []).Select(TownLandHearingRules.Snapshot))
+                .Concat((town.LandHearings?.Adjustments ?? []).SelectMany(adjustment => adjustment.ResultRights)
+                    .Select(TownLandHearingRules.Snapshot))
                 .FirstOrDefault(version => version.Id == evidence.SourceRecordId && version.Version == evidence.SourceVersion)?.Right;
             var title = (state.TownLandTitles ?? []).FirstOrDefault(record => record.Id == evidence.SourceRecordId);
             var lawToken = evidence.SourceRecordId?.Split('@', 2);
@@ -132,6 +135,19 @@ public sealed class OwnerWorldObservationStore
                     }).ToArray(),
                 };
             }).ToArray();
+    }
+
+    private static ViewerLandHearingProposal ProjectLandHearingProposal(PrivateWorldRuntimeState state, TownLandFilingRequest request)
+    {
+        var statement = request.Statement;
+        var names = state.Society.Society.Inhabitants.Select(person => (Id: person.Id, Name: person.Name))
+            .Concat(state.Society.Society.Households.Select(household => (Id: household.Id, Name: household.Name)))
+            .Concat((state.Towns ?? []).Select(town => (Id: town.Id, Name: town.Name))).OrderByDescending(item => item.Id.Length);
+        foreach (var name in names) statement = statement.Replace(name.Id, name.Name, StringComparison.Ordinal);
+        var outcome = request.RequestedOutcome;
+        return new(request.Tiles.Select(ToPosition).ToArray(), new(outcome.Kind, outcome.HouseholdId,
+            outcome.HouseholdId is { } householdId ? state.Society.Society.Households.FirstOrDefault(household => household.Id == householdId)?.Name ?? "Unknown household" : null,
+            outcome.AgreedEndTick), statement);
     }
 
     private static string LandRequestApprovalDetail(PrivateWorldRuntimeState state, HouseholdLandUseRequest request, bool disputed)
@@ -520,7 +536,10 @@ public sealed class OwnerWorldObservationStore
                                         ? " Exact tiles: " + TownLandClaimRules.DescribeTiles(landRequest.Tiles) + ". " +
                                             LandRequestApprovalDetail(state, landRequest, landRequest.Tiles.Any(tile => TownLandRightsRules.IsDisputed(tile,
                                                 state.HouseholdLandUseRights ?? [], state.HouseholdLandUseRequests ?? []))) : ""), p.Status,
-                            p.Votes.Count(v => v.Yes), p.Votes.Count(v => !v.Yes), p.RequiredYes, p.DeadlineTick)).ToArray(),
+                            p.Votes.Count(v => v.Yes), p.Votes.Count(v => !v.Yes), p.RequiredYes, p.DeadlineTick)
+                        {
+                            LandHearingRequest = p.LandHearingRequest is { } request ? ProjectLandHearingProposal(state, request) : null,
+                        }).ToArray(),
                         civic.Election is { } election ? ProjectElection(election) : null)
                     {
                         LatestElection = civic.ElectionHistory.Count > 0
