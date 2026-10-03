@@ -48,7 +48,7 @@ public sealed class WorldEventTextTests
             ("inhabitant_removed", id, "died"),
             ("inhabitant_building_proposed", id + ":house", "suggested a new building design"),
             ("instruction_not_understood", id + ":private-instruction-0000000001",
-                "didn't understand your order. For now, orders can only ask them to gather food, eat or find food"),
+                "didn't understand your order. Try a supported task, or use Suggest for broader guidance"),
         };
         foreach (var (kind, detail, action) in cases)
         {

@@ -231,8 +231,24 @@ the normal recipe ownership and storage; ordering them does not make them
 the agent's personal property. Queue, cancellation and save/reload preserve
 the remaining task. Urgent survival pauses unfinished production.
 
+To start household building work, use **Build a Clinic**, **Build a Silo** or
+another supported household building name: House, Farmhouse, Blacksmith,
+Tailor Shop or Store. Add **at (12, 4)** to require that site. Otherwise the
+agent chooses a suitable site under the normal construction rules. The task
+keeps that choice through travel and work. It still needs real materials,
+household access, a legal site and any prerequisite building.
+
+Use **Expand my House** or **Expand my Town Warehouse** for the next supported
+size. Expansion still needs the normal household or Town need, room and
+materials; an order does not bypass those requirements. Each building order
+requests one building or one expansion stage. Repeating requests and larger
+counts are not understood. Progress reaches one only when the building work
+actually finishes. Queue, cancellation and save/reload preserve the task;
+cancelling leaves collected goods in place and releases unused expansion
+materials. Urgent survival pauses the work before it resumes.
+
 An instruction the game cannot understand leaves the current order running.
-Unsupported requests, such as "build a house" or "gather cloth," close as not
+Unsupported requests, such as "build a castle" or "gather cloth," close as not
 understood and appear in the Event Log. Recognized orders follow normal access
 and survival rules. [What works today](what-works.md#agents-and-their-models)
 has the details.
