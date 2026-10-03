@@ -204,8 +204,9 @@ does not change it. An adult with no Town, such as one you add outside the
 border, can walk to a Town's notice place and ask its council for admission. A
 resident can also ask the council to admit an adult nearby who has no Town, and
 that adult chooses whether to accept once they read the approval. Dependent
-children join with their caregiver. Approval gives no household place or access
-to stored goods. The agent's Profile shows their Town, what it lets them do and any
+children join with their caregiver. Once admitted, a resident may collect their
+Town's Warehouse stock in person, but approval never gives a House or household
+place. The agent's Profile shows their Town, what it lets them do and any
 admission in progress, and the Event Log notes approvals, admissions and
 approvals that no longer apply.
 

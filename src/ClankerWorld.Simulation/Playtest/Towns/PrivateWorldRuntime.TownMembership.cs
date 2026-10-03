@@ -1,5 +1,6 @@
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Content;
+using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Society;
 
 namespace ClankerWorld.Simulation.Playtest;
@@ -56,13 +57,30 @@ public sealed partial class PrivateWorldRuntime
         previous.Circumstances == "council:" + state.Revision;
 
     /// <summary>
-    /// An adult with no Town, or one standing in a Town they do not belong to,
-    /// may walk to its notice place; walking registers nothing. Every adult
-    /// without a Town starts outside the borders, so they may set out from anywhere.
+    /// An adult standing in a Town they do not belong to may walk to its notice
+    /// place, and so may an adult with no Town from wherever they can reach it on
+    /// foot: Add Agent inside a border makes a resident, so they usually start
+    /// outside. Walking registers nothing.
     /// </summary>
     private bool MayVisitAsNewcomer(string actor, TownRuntimeState town) =>
         AdultResident(actor) && TownForResident(actor) is var current && current != town.Id &&
-        (current is null || town.BorderTiles.Contains(inhabitants[actor].Position));
+        (current is null ? CanWalkToCivicBoard(actor, town) : town.BorderTiles.Contains(inhabitants[actor].Position));
+
+    /// <summary>Whether a tile close enough to read the Town's notices is reachable on foot.</summary>
+    private bool CanWalkToCivicBoard(string actor, TownRuntimeState town)
+    {
+        if (CivicBoard(town) is not { } board) return false;
+        var position = inhabitants[actor].Position;
+        for (var dy = -ResourceInteractionRange; dy <= ResourceInteractionRange; dy++)
+            for (var dx = -ResourceInteractionRange; dx <= ResourceInteractionRange; dx++)
+            {
+                var tile = new GridPoint(((board.X + dx) % map.Width + map.Width) % map.Width, board.Y + dy);
+                if (map.Contains(tile) && IsWithinInteractionRange(tile, board, ResourceInteractionRange) &&
+                    map.IsReachableOnFoot(position, tile))
+                    return true;
+            }
+        return false;
+    }
 
     private bool MayAcceptAdmission(string actor, TownRuntimeState town, TownAdmissionRecord record) =>
         record.Status == AdmissionApproved && record.SubjectId == actor && AdultResident(actor) &&
@@ -76,8 +94,8 @@ public sealed partial class PrivateWorldRuntime
         var dependents = TownCareGroup(actor, TownForResident(actor)).Length - 1;
         var children = dependents > 0 ? " Your dependent children would join with you." : string.Empty;
         return TownForResident(actor) is { } current
-            ? $"Ask {town.Name}'s council to approve your move from {TownName(current)}. If approved you leave {TownName(current)} and become a resident at once; until then the request grants no membership or stock access.{children}"
-            : $"Ask {town.Name}'s council to approve your admission. If approved you become a resident at once; until then the request grants no membership or stock access. It never gives a House or household place.{children}";
+            ? $"Ask {town.Name}'s council to approve your move from {TownName(current)}. If approved, you leave {TownName(current)} and become a resident at once; until then the request grants no membership or Warehouse access. It never gives a House or household place.{children}"
+            : $"Ask {town.Name}'s council to approve your admission. If approved, you become a resident at once; until then the request grants no membership or Warehouse access. It never gives a House or household place.{children}";
     }
 
     private void AddTownAdmissionCandidates(List<CognitionCandidate> candidates, string actor, TownRuntimeState town)
@@ -148,8 +166,11 @@ public sealed partial class PrivateWorldRuntime
                 else
                 {
                     var record = new TownAdmissionRecord(proposal.Id, subject, AdmissionApproved, WorldTick, TownForResident(subject));
-                    // A newcomer who died or joined this Town while the vote was open has nothing to accept.
-                    var lapse = !AdultResident(subject) ? "unavailable" : record.PreviousTownId == town.Id ? "already_resident" : null;
+                    // Only an adult with no Town can be put forward, so one who died or joined
+                    // a Town while the vote was open has nothing to accept.
+                    var lapse = !AdultResident(subject) ? "unavailable"
+                        : record.PreviousTownId == town.Id ? "already_resident"
+                        : record.PreviousTownId is not null ? "joined_elsewhere" : null;
                     if (lapse is not null) LapseTownAdmission(town.Id, record, lapse);
                     else
                     {

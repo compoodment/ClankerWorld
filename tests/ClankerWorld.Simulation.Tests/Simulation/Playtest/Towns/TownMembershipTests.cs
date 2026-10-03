@@ -330,7 +330,7 @@ public sealed class TownMembershipTests
         Assert.Equal(Alpha, world.Society.GetInhabitant(caregiver).HouseholdId);
         Assert.Contains(model.ObservationsOf(caregiver), observation => observation.Candidates.Any(candidate =>
             candidate.Id == Civic(Second, "admission") + "|" &&
-            candidate.Description.Contains("If approved you leave First Town", StringComparison.Ordinal) &&
+            candidate.Description.Contains("If approved, you leave First Town", StringComparison.Ordinal) &&
             candidate.Description.Contains("Your dependent children would join with you.", StringComparison.Ordinal)));
         world.Validate();
         AssertRoundTrip(world);
@@ -569,6 +569,69 @@ public sealed class TownMembershipTests
         // Walking in registered nothing; only a council vote can admit them.
         Assert.DoesNotContain(world.Towns, item => item.ResidentIds.Contains(newcomer, StringComparer.Ordinal));
         world.Validate();
+    }
+
+    [Fact]
+    public async Task AnAdultWithNoTownIsNotOfferedAWalkToANoticePlaceTheyCannotReach()
+    {
+        var newcomer = NewAgentId();
+        var state = WithTowns(Generated("membership-outside", newcomer), Founders, null);
+        var town = Town(state, First);
+        var board = town.OriginSite!.Value;
+        // Add Agent accepts any buildable tile, including one across water from every Town.
+        var taken = Taken(state);
+        var stranded = state.Map.Tiles.Select(tile => tile.Position)
+            .Where(point => !town.BorderTiles.Contains(point) && state.Map.IsBuildable(point) && !taken.Contains(point) &&
+                state.Map.IsPassable(point) && !state.Map.IsReachableOnFoot(point, board))
+            .OrderBy(point => point.Y).ThenBy(point => point.X).First();
+        var model = new ScriptedModel();
+        model.Scripts[newcomer] = [Civic(First, "visit")];
+        using var world = Reopen(Calm(At(state, stranded, newcomer)), model);
+
+        await AdvanceUntil(world, () => model.ObservationsOf(newcomer).Length > 0);
+
+        Assert.All(model.ObservationsOf(newcomer), observation =>
+            Assert.DoesNotContain(observation.Candidates, candidate => candidate.Id.StartsWith(Civic(First, "visit"), StringComparison.Ordinal)));
+        Assert.Equal(stranded, world.Inhabitants.Single(person => person.InhabitantId == newcomer).Position);
+    }
+
+    [Fact]
+    public async Task ASponsoredApprovalForANewcomerWhoDiedDuringTheVoteLapsesWithoutBeingAnnounced()
+    {
+        var newcomer = NewAgentId();
+        var (sponsor, second, third) = (Founders[0], Founders[1], Founders[2]);
+        var state = WithTowns(Generated("membership-dead-newcomer", newcomer), Founders, null);
+        var town = Town(state, First);
+        var tick = state.Society.Society.WorldTick;
+        var day = state.WorldSystems!.Config.TicksPerDay;
+        var governance = TownGovernanceRules.SubmitProposal(town.Governance!, First, sponsor, "admission", newcomer,
+            $"Admit {NewcomerName}.", $"council:{town.Governance!.Revision}", Founders, tick, day);
+        var proposal = governance.Proposals.Single().Id;
+        governance = TownGovernanceRules.VoteProposal(governance, proposal, sponsor, true, tick);
+        governance = TownGovernanceRules.VoteProposal(governance, proposal, second, true, tick);
+        state = AtNaturalLifeBoundary(state with { Towns = [town with { Governance = governance }] }, newcomer);
+        state = At(Calm(state), Board(state, First), third);
+        var model = new ScriptedModel();
+        using (var dying = Reopen(state, model))
+        {
+            Assert.True((await dying.AdvanceOneTickAsync()).Advanced);
+            Assert.Equal(SocietyInhabitantStatus.Dead, dying.Society.GetInhabitant(newcomer).Status);
+            Assert.Equal("pending", dying.Towns.Single(item => item.Id == First).Governance!.Proposals.Single().Status);
+            state = Paused(dying);
+        }
+
+        // The last yes vote passes the request after the newcomer has died.
+        model.Scripts[third] = [Civic(First, "read"), Civic(First, "yes")];
+        using var world = Reopen(state, model);
+        await AdvanceUntil(world, () => world.Towns.Single(item => item.Id == First).Admissions is { Count: > 0 });
+
+        var record = Assert.Single(world.Towns.Single(item => item.Id == First).Admissions!);
+        Assert.Equal((proposal, "lapsed", "unavailable"), (record.ProposalId, record.Status, record.Reason));
+        var events = world.ExportState().Events;
+        Assert.DoesNotContain(events, item => item.Kind == "town_admission_approved");
+        Assert.Single(events, item => item.Kind == "town_admission_lapsed" && item.Detail == $"{First}|{newcomer}|{proposal}|unavailable");
+        world.Validate();
+        AssertRoundTrip(world);
     }
 
     [Fact]
@@ -922,6 +985,31 @@ public sealed class TownMembershipTests
                         BirthTick = person.BirthTick / old * day,
                         BirthLifeTick = person.BirthLifeTick is { } birth ? birth / old * day : null,
                     }).ToArray(),
+                },
+            },
+        };
+    }
+
+    /// <summary>Ages one agent to the last life tick of the oldest possible day, so they die of old age on the next tick.</summary>
+    private static PrivateWorldRuntimeState AtNaturalLifeBoundary(PrivateWorldRuntimeState state, string actor)
+    {
+        var society = state.Society.Society;
+        var nextLifeTick = society.Config.TicksPerLifecycleAge - 1;
+        var delta = nextLifeTick - society.LifeTickAt(society.WorldTick);
+        var days = society.Config.DayLifecycle!.MaximumDay - 1;
+        return state with
+        {
+            Society = state.Society with
+            {
+                Society = society with
+                {
+                    LifeClock = new SocietyLifeClock(society.LifeClock?.Rate ?? 1, society.WorldTick, nextLifeTick),
+                    Inhabitants = society.Inhabitants.Select(person => person.Id == actor ? person with
+                    {
+                        BirthLifeTick = nextLifeTick + 1 - (days + 1) * society.Config.TicksPerLifecycleAge,
+                        AgeBand = SocietyAgeBand.Elder,
+                        LastLifecycleYearChecked = days,
+                    } : person with { BirthLifeTick = (person.BirthLifeTick ?? person.BirthTick) + delta }).ToArray(),
                 },
             },
         };
