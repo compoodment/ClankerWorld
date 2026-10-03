@@ -1036,6 +1036,8 @@ public sealed partial class ConfigurableDecisionProvider(
         if (route.Provider == PlayerDecisionProviders.Deterministic)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (request.Purpose == AgentConversationPurpose.SurnameChoice)
+                throw new ProviderConversationUnavailableException("The surname conversation needs each partner's selected personal model.");
             return new AgentConversationTurnResponse(
                 request.RequestId,
                 request.ConversationId,
@@ -1064,14 +1066,19 @@ public sealed partial class ConfigurableDecisionProvider(
                 new
                 {
                     role = "system",
-                    content = "Speak as one agent in a bounded shared conversation. Use only your own identity plus the public history included below. Never claim the other person agreed. Do not invent events, private thoughts, promises, ownership, resources or world changes. Return JSON only with utterance (one line, at most 500 characters), disposition (continue or withdraw), and effect (none, or mutual_trust only when allowed). A mutual_trust effect is only a proposal; the host applies it only if both people accept the same wrap-up. Do not include reasoning.",
+                    content = "Speak as one agent in a bounded shared conversation. Use only your own identity plus the public history included below. Never claim the other person agreed. Do not invent events, private thoughts, promises, ownership, resources or world changes. Return JSON only with utterance (one line, at most 500 characters), disposition (continue or withdraw), and effect (one of allowed_effects). Mutual trust and marriage are proposals only: both people must separately accept the same wrap-up. For surname_choice, marriage consent already exists: include surname_choice, exactly one of allowed_surnames, and effect none. Each partner has at most two alternating valid turns; continued disagreement after four turns uses a disclosed seeded draw. A withdrawal suspends that surname session without counting a turn. Do not include reasoning.",
                 },
                 new
                 {
                     role = "user",
                     content = JsonSerializer.Serialize(new
                     {
-                        purpose = request.Purpose == AgentConversationPurpose.WrapUp ? "wrap_up" : "public_turn",
+                        purpose = request.Purpose switch
+                        {
+                            AgentConversationPurpose.WrapUp => "wrap_up",
+                            AgentConversationPurpose.SurnameChoice => "surname_choice",
+                            _ => "public_turn",
+                        },
                         speaker = new
                         {
                             id = request.SpeakerId,
@@ -1085,8 +1092,10 @@ public sealed partial class ConfigurableDecisionProvider(
                             speaker_id = turn.SpeakerId,
                             utterance = turn.Text,
                             is_wrap_up = turn.IsWrapUp,
+                            surname_choice = turn.SurnameChoice,
                         }).ToArray(),
                         allowed_effects = request.AllowedEffects.Select(EffectWireValue).ToArray(),
+                        allowed_surnames = request.AllowedSurnames,
                     }, ConversationJsonOptions),
                 },
             },
@@ -1184,6 +1193,7 @@ public sealed partial class ConfigurableDecisionProvider(
     {
         AgentConversationEffect.None => "none",
         AgentConversationEffect.MutualTrust => "mutual_trust",
+        AgentConversationEffect.Marriage => "marriage",
         _ => throw new InvalidDataException("The conversation effect is not allowed."),
     };
 
@@ -1220,6 +1230,7 @@ public sealed partial class ConfigurableDecisionProvider(
             {
                 "utterance", "disposition", "effect",
             };
+            if (request.Purpose == AgentConversationPurpose.SurnameChoice) allowedFields.Add("surname_choice");
             var seenFields = new HashSet<string>(StringComparer.Ordinal);
             foreach (var field in fields.EnumerateObject())
             {
@@ -1241,12 +1252,22 @@ public sealed partial class ConfigurableDecisionProvider(
             {
                 "none" => AgentConversationEffect.None,
                 "mutual_trust" => AgentConversationEffect.MutualTrust,
+                "marriage" => AgentConversationEffect.Marriage,
                 _ => throw new InvalidDataException("The conversation provider effect is unknown."),
             };
             if (!request.AllowedEffects.Contains(proposedEffect))
                 throw new InvalidDataException("The conversation provider proposed an effect outside the host whitelist.");
             if (outcome == AgentConversationDisposition.Withdraw && proposedEffect != AgentConversationEffect.None)
                 throw new InvalidDataException("A conversation withdrawal cannot carry an effect.");
+
+            string? surnameChoice = null;
+            if (request.Purpose == AgentConversationPurpose.SurnameChoice)
+            {
+                if (!fields.TryGetProperty("surname_choice", out var choice) || choice.ValueKind != JsonValueKind.String ||
+                    !request.AllowedSurnames.Contains(choice.GetString()!, StringComparer.Ordinal))
+                    throw new InvalidDataException("The surname choice is outside the partners' original surnames.");
+                surnameChoice = choice.GetString();
+            }
 
             var response = new AgentConversationTurnResponse(
                 request.RequestId,
@@ -1259,7 +1280,8 @@ public sealed partial class ConfigurableDecisionProvider(
                 proposedEffect,
                 inputTokens,
                 outputTokens,
-                model);
+                model,
+                surnameChoice);
             if (!AgentConversationText.IsValidUtterance(response.Text))
                 throw new InvalidDataException("The conversation provider utterance is outside the host length or text bounds.");
             return response;

@@ -439,7 +439,8 @@ public sealed record ViewerConversationTurn(
     string Text,
     long WorldTick,
     IReadOnlyList<string> ListenerIds,
-    bool IsWrapUp);
+    bool IsWrapUp,
+    string? SurnameChoice = null);
 
 public sealed record ViewerConversation(
     string Id,
@@ -452,7 +453,11 @@ public sealed record ViewerConversation(
     string? Outcome,
     long CreatedTick,
     long LastUpdatedTick,
-    IReadOnlyList<ViewerConversationTurn> Turns);
+    IReadOnlyList<ViewerConversationTurn> Turns)
+{
+    public string Kind { get; init; } = "ordinary";
+    public string? ChosenSurname { get; init; }
+}
 
 public sealed record ViewerWorldSnapshot(
     string WorldId,

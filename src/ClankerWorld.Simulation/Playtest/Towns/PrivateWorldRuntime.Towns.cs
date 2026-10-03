@@ -259,9 +259,22 @@ public sealed partial class PrivateWorldRuntime
                 throw new ArgumentException("Choose a valid name.", nameof(name));
             if (InhabitantNameRules.IsTaken(society.Checkpoint, agentId, name))
                 throw new InhabitantNameTakenException();
-            var result = society.Apply(checkpoint => SocietyFixture.RenameInhabitant(checkpoint, agentId, name));
+            var marriageIndex = marriages.FindIndex(item => item.CompletedTick is not null && AgentMarriageRules.HasParticipant(item, agentId));
+            var result = marriageIndex < 0
+                ? society.Apply(checkpoint => SocietyFixture.RenameInhabitant(checkpoint, agentId, name))
+                : RenameSpouses(marriages[marriageIndex], agentId, name);
             var changed = result.NewEvents is { Count: > 0 };
-            if (changed) AppendEvent("agent_renamed", agentId);
+            if (changed)
+            {
+                if (marriageIndex >= 0)
+                {
+                    var marriage = marriages[marriageIndex];
+                    var surname = InhabitantNameRules.SurnameKey(society.Checkpoint.GetInhabitant(agentId).Name)!;
+                    if (surname != marriage.CurrentSurname)
+                        marriages[marriageIndex] = marriage with { LatestPlayerRename = new AgentMarriageRename(agentId, surname, WorldTick) };
+                }
+                AppendEvent("agent_renamed", agentId);
+            }
             return changed;
         }
         finally { gate.Release(); }

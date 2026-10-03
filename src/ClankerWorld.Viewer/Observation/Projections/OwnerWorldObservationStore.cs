@@ -399,8 +399,12 @@ public sealed class OwnerWorldObservationStore
                             turn.Text,
                             turn.WorldTick,
                             turn.ListenerIds.Take(AgentConversationRules.MaximumListenersPerTurn).ToArray(),
-                            turn.IsWrapUp))
-                        .ToArray()))
+                            turn.IsWrapUp, turn.SurnameChoice))
+                        .ToArray())
+                {
+                    Kind = conversation.Kind == AgentConversationKind.MarriageSurname ? "marriage_surname" : "ordinary",
+                    ChosenSurname = state.Marriages.FirstOrDefault(item => item.SurnameConversationId == conversation.Id)?.ChosenSurname,
+                })
                 .ToArray(),
             Stockpiles = state.Society.Society.Households.Select(household =>
                 new ViewerStockpile(household.Id, (household.Id, household.Name) switch
@@ -943,6 +947,7 @@ public sealed class OwnerWorldObservationStore
                     ? "Waiting for the other inhabitant to accept or decline an exchange."
                     : "An exchange is offered; acceptance or refusal is still undecided.")
                 .Concat(BusinessTradeNotes(state, inhabitant))
+                .Concat(MarriageNotes(state, inhabitant.Id))
                 .Concat(state.Inhabitants.Where(person => person.Parenthood is { } plan &&
                     (person.InhabitantId == inhabitant.Id || plan.PartnerId == inhabitant.Id)).Select(person =>
                     person.Parenthood!.Stage == "preparing" ? ContinuityPlanDue(state, person.InhabitantId, person.Parenthood.PartnerId)
@@ -1147,6 +1152,7 @@ public sealed class OwnerWorldObservationStore
                 ? new ViewerProficiency(practice.Building, practice.Farming, practice.Crafting) : null,
             Skills = ProjectSkills(lastPhysical, state.Society.Society),
             SocialStanding = SocialStandingFor(state, inhabitant.Id, lastPhysical),
+            SocialNotes = MarriageNotes(state, inhabitant.Id).ToArray(),
             FinalWill = estate is { WillStatus: { } status } ? FinalWillFor(state, estate, status) : null,
         };
     }
@@ -1287,6 +1293,10 @@ public sealed class OwnerWorldObservationStore
                 ? relationship.ProposerId == inhabitantId ? "parent" : "child"
                 : relationship.Type == SocietyRelationshipType.Partnership ? "partner" : null))
         .ToArray();
+
+    private static IEnumerable<string> MarriageNotes(PrivateWorldRuntimeState state, string agentId) =>
+        state.Marriages.Where(marriage => AgentMarriageRules.HasParticipant(marriage, agentId))
+            .Select(marriage => AgentMarriageRules.Note(marriage, agentId, state.Society.Society));
 
     private static ViewerPublicIntention ToPublicIntention(
         string candidateId,

@@ -120,18 +120,22 @@ public sealed partial class PrivateWorldRuntime
                         $"conversation_resume:{current.Id}",
                         "Resume the conversation if the other person also agrees.", 45));
                 }
-                result.Add(new CognitionCandidate(
-                    $"conversation_end:{current.Id}",
-                    "End the interrupted conversation without agreement.", 75));
+                if (current.Kind == AgentConversationKind.Ordinary)
+                    result.Add(new CognitionCandidate(
+                        $"conversation_end:{current.Id}",
+                        "End the interrupted conversation without agreement.", 75));
             }
             else if (current.Status == AgentConversationStatus.WrapUp && current.Turns.Any(turn => turn.IsWrapUp))
             {
                 if (!current.WrapUpAcceptedBy.Contains(agentId, StringComparer.Ordinal))
                 {
                     var wrapUp = current.Turns.Single(turn => turn.IsWrapUp);
-                    var effect = current.WrapUpEffect == AgentConversationEffect.MutualTrust
-                        ? "mutual trust: both people trust each other more"
-                        : "none: no world change";
+                    var effect = current.WrapUpEffect switch
+                    {
+                        AgentConversationEffect.MutualTrust => "mutual trust: both people trust each other more",
+                        AgentConversationEffect.Marriage => "marriage: agree to marry and choose a shared surname together",
+                        _ => "none: no world change",
+                    };
                     result.Add(new CognitionCandidate(
                         $"conversation_wrapup_accept:{current.Id}",
                         $"Accept this public wrap-up: \"{wrapUp.Text}\". Proposed effect: {effect}.", 45));
@@ -272,6 +276,7 @@ public sealed partial class PrivateWorldRuntime
     {
         var index = conversations.FindIndex(item => item.Id == conversationId);
         if (index < 0 || !CanContinueConversation(conversations[index]) ||
+            conversations[index].WrapUpEffect == AgentConversationEffect.Marriage && !CanProposeMarriage(conversations[index]) ||
             !AgentConversationRules.TryAcceptWrapUp(conversations[index], participantId, WorldTick,
                 out var accepted, out var newlyAgreed))
             return false;
@@ -281,6 +286,8 @@ public sealed partial class PrivateWorldRuntime
             IncreaseTrust(accepted.InitiatorId, accepted.InviteeId, 1, "accepted_conversation");
             IncreaseTrust(accepted.InviteeId, accepted.InitiatorId, 1, "accepted_conversation");
         }
+        if (newlyAgreed && accepted.WrapUpEffect == AgentConversationEffect.Marriage)
+            StartAcceptedMarriage(accepted);
         checkpointSchemaVersion = StateSchemaVersion;
         AppendEvent(newlyAgreed ? "conversation_agreement_accepted" : "conversation_agreement_pending", conversationId);
         return true;
@@ -307,7 +314,9 @@ public sealed partial class PrivateWorldRuntime
             !society.Checkpoint.Inhabitants.Any(item => item.Id == conversation.InitiatorId && item.Status == SocietyInhabitantStatus.Active) ||
             !society.Checkpoint.Inhabitants.Any(item => item.Id == conversation.InviteeId && item.Status == SocietyInhabitantStatus.Active))
             return false;
-        return IsWithinInteractionRange(first.Position, second.Position, ResourceInteractionRange) &&
+        return (conversation.Kind == AgentConversationKind.MarriageSurname
+                ? IsAcceptedSurnameSession(conversation)
+                : IsWithinInteractionRange(first.Position, second.Position, ResourceInteractionRange)) &&
             !NeedsUrgentFood(first) && !NeedsUrgentWarmth(first) &&
             !NeedsUrgentFood(second) && !NeedsUrgentWarmth(second);
     }
@@ -398,6 +407,7 @@ public sealed partial class PrivateWorldRuntime
             (NeedsUrgentFood(second) || NeedsUrgentWarmth(second));
 
     private bool AreConversationParticipantsTogether(AgentConversation conversation) =>
+        conversation.Kind == AgentConversationKind.MarriageSurname && IsAcceptedSurnameSession(conversation) ||
         inhabitants.TryGetValue(conversation.InitiatorId, out var first) &&
         inhabitants.TryGetValue(conversation.InviteeId, out var second) &&
         IsWithinInteractionRange(first.Position, second.Position, ResourceInteractionRange);
@@ -406,6 +416,7 @@ public sealed partial class PrivateWorldRuntime
     {
         var speakerPosition = inhabitants[speakerId].Position;
         var otherId = speakerId == conversation.InitiatorId ? conversation.InviteeId : conversation.InitiatorId;
+        if (conversation.Kind == AgentConversationKind.MarriageSurname) return [otherId];
         var hearers = society.Checkpoint.Inhabitants
             .Where(item => item.Status == SocietyInhabitantStatus.Active && item.Id != speakerId &&
                 item.AgeBand != SocietyAgeBand.Infant && inhabitants.ContainsKey(item.Id))
@@ -466,6 +477,12 @@ public sealed partial class PrivateWorldRuntime
         }
 
         var listeners = ConversationListeners(current, outcome.Response.SpeakerId);
+        if (current.Kind == AgentConversationKind.MarriageSurname && !IsAcceptedSurnameSession(current))
+        {
+            conversations[index] = AgentConversationRules.Suspend(current, AgentConversationInterruption.Disconnected, worldTick);
+            AppendEvent("conversation_interrupted", $"{current.Id}:separated");
+            return;
+        }
         if (!AgentConversationRules.TryAdmitTurn(current, pending.Request, outcome.Response, listeners,
                 worldTick, society.Checkpoint.RunEpoch, out var admitted, out var appended) || appended is null)
         {
@@ -476,10 +493,21 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
 
+        if (admitted.Kind == AgentConversationKind.MarriageSurname && admitted.Status == AgentConversationStatus.Closed &&
+            !CanCompleteMarriageSurname(admitted))
+        {
+            conversations[index] = AgentConversationRules.Suspend(current, AgentConversationInterruption.ProviderRejected, worldTick);
+            checkpointSchemaVersion = StateSchemaVersion;
+            AppendEvent("marriage_surname_blocked", current.Id);
+            return;
+        }
+
         conversations[index] = admitted;
         checkpointSchemaVersion = StateSchemaVersion;
         ExtractConversationMemoryClaims(appended);
         AppendEvent("conversation_turn_admitted", $"{current.Id}:{appended.Id}");
+        if (admitted.Kind == AgentConversationKind.MarriageSurname && admitted.Status == AgentConversationStatus.Closed)
+            CompleteMarriageSurname(admitted);
     }
 
     private void ExtractConversationMemoryClaims(AgentConversationTurn turn)
@@ -611,7 +639,9 @@ public sealed partial class PrivateWorldRuntime
         var speaker = society.Checkpoint.GetInhabitant(speakerId);
         var other = society.Checkpoint.GetInhabitant(otherId);
         var physical = inhabitants[speakerId];
-        var purpose = conversation.AwaitingWrapUp
+        var purpose = conversation.Kind == AgentConversationKind.MarriageSurname
+            ? AgentConversationPurpose.SurnameChoice
+            : conversation.AwaitingWrapUp
             ? AgentConversationPurpose.WrapUp
             : AgentConversationPurpose.PublicTurn;
         return new AgentConversationTurnRequest(
@@ -629,8 +659,15 @@ public sealed partial class PrivateWorldRuntime
             physical.Aspiration,
             conversation.Turns,
             purpose == AgentConversationPurpose.WrapUp
-                ? [AgentConversationEffect.None, AgentConversationEffect.MutualTrust]
-                : [AgentConversationEffect.None]);
+                ? CanProposeMarriage(conversation)
+                    ? [AgentConversationEffect.None, AgentConversationEffect.MutualTrust, AgentConversationEffect.Marriage]
+                    : [AgentConversationEffect.None, AgentConversationEffect.MutualTrust]
+                : [AgentConversationEffect.None])
+        {
+            AllowedSurnames = purpose == AgentConversationPurpose.SurnameChoice
+                ? AgentMarriageRules.AllowedSurnames(marriages.Single(item => item.SurnameConversationId == conversation.Id))
+                : [],
+        };
     }
 
     private static async Task<ConversationTurnOutcome> RunConversationProviderAsync(

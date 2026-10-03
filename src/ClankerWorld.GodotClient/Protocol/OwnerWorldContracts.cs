@@ -400,7 +400,8 @@ public sealed record OwnerWorldConversationTurn(
     string Text,
     long WorldTick,
     IReadOnlyList<string> ListenerIds,
-    bool IsWrapUp);
+    bool IsWrapUp,
+    string? SurnameChoice = null);
 
 public sealed record OwnerWorldConversation(
     string Id,
@@ -413,7 +414,11 @@ public sealed record OwnerWorldConversation(
     string? Outcome,
     long CreatedTick,
     long LastUpdatedTick,
-    IReadOnlyList<OwnerWorldConversationTurn> Turns);
+    IReadOnlyList<OwnerWorldConversationTurn> Turns)
+{
+    public string Kind { get; init; } = "ordinary";
+    public string? ChosenSurname { get; init; }
+}
 
 public sealed record OwnerWorldAuthoringState(
     bool IsPaused,

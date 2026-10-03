@@ -231,7 +231,8 @@ public sealed record CognitionSelfContext(
     string? EquipmentNote = null, string? ContinuityNote = null, string? DepartureNote = null, string? CivicNote = null,
     string? MedicalCareNote = null, string? TownMembershipNote = null,
     string? ToolMakingRequestNote = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<string>? AllowedChildSurnames = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<string>? AllowedChildSurnames = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? MarriageNote = null);
 
 /// <summary>
 /// An exact owner message addressed to this actor. The authoritative identity
@@ -381,7 +382,7 @@ public sealed record InhabitantObservation(
             self.HouseholdName?.Length > 128 || self.TownName?.Length > 128 || self.HousingNote?.Length > 256 ||
             self.EquipmentNote?.Length > 256 || self.ContinuityNote?.Length > 256 || self.DepartureNote?.Length > 256 ||
             self.CivicNote?.Length > 1024 || self.MedicalCareNote?.Length > 256 || self.TownMembershipNote?.Length > 256 ||
-            self.ToolMakingRequestNote?.Length > 256 ||
+            self.ToolMakingRequestNote?.Length > 256 || self.MarriageNote?.Length > 256 ||
             self.WarmthBasisPoints is < 0 or > 10_000 || self.IllnessBasisPoints is < 0 or > 10_000))
             throw new ArgumentException("Self context must be bounded and owned by the actor.", nameof(Self));
 
@@ -824,6 +825,7 @@ public sealed class JevDecisionProvider : IDecisionProvider
                 departure = request.Observation.Self?.DepartureNote,
                 medical_care = request.Observation.Self?.MedicalCareNote,
                 tool_making_request = request.Observation.Self?.ToolMakingRequestNote,
+                marriage = request.Observation.Self?.MarriageNote,
                 candidates = request.Observation.Candidates.Select(candidate => new
                 {
                     id = candidate.Id,
@@ -1156,6 +1158,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                             civic_notices_learned = self.CivicNote,
                             medical_care = self.MedicalCareNote,
                             tool_making_request = self.ToolMakingRequestNote,
+                            marriage = self.MarriageNote,
                             allowed_child_surnames = request.Observation.NeedsName ? self.AllowedChildSurnames : null,
                             warmth_basis_points = self.WarmthBasisPoints,
                             illness_basis_points = self.IllnessBasisPoints,

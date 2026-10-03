@@ -129,12 +129,13 @@ public static class AgentConversationRules
             return false;
 
         var isWrapUp = conversation.Status == AgentConversationStatus.WrapUp;
+        if (isWrapUp && conversation.Kind != AgentConversationKind.Ordinary) return false;
         if (isWrapUp)
         {
             if (conversation.Turns.Any(turn => turn.IsWrapUp) || conversation.WrapUpAcceptedBy.Count != 0)
                 return false;
         }
-        else if (PublicTurnCount(conversation) >= MaximumPublicTurns || conversation.CurrentSpeakerId is null)
+        else if (PublicTurnCount(conversation) >= TurnLimit(conversation) || conversation.CurrentSpeakerId is null)
         {
             return false;
         }
@@ -174,7 +175,9 @@ public static class AgentConversationRules
             request.ConversationId != conversation.Id ||
             request.SpeakerId != conversation.CurrentSpeakerId ||
             request.WorldTick != conversation.LastUpdatedTick || request.WorldTick > worldTick ||
-            request.Purpose != (conversation.AwaitingWrapUp
+            request.Purpose != (conversation.Kind == AgentConversationKind.MarriageSurname
+                ? AgentConversationPurpose.SurnameChoice
+                : conversation.AwaitingWrapUp
                 ? AgentConversationPurpose.WrapUp
                 : AgentConversationPurpose.PublicTurn) ||
             response.RequestId != request.RequestId ||
@@ -192,6 +195,10 @@ public static class AgentConversationRules
             !AgentConversationText.IsValidUtterance(response.Text) ||
             !IsValidListenerList(listenerIds, conversation, response.SpeakerId))
             return false;
+
+        if (conversation.Kind == AgentConversationKind.MarriageSurname)
+            return TryAdmitSurnameTurn(conversation, request, response, listenerIds, worldTick, out next, out appended);
+        if (response.SurnameChoice is not null) return false;
 
         if (!conversation.AwaitingWrapUp &&
             (response.Effect != AgentConversationEffect.None || PublicTurnCount(conversation) >= MaximumPublicTurns))
@@ -315,6 +322,7 @@ public static class AgentConversationRules
     {
         next = conversation;
         if (conversation.Status != AgentConversationStatus.Suspended ||
+            conversation.Kind == AgentConversationKind.MarriageSurname ||
             worldTick < conversation.LastUpdatedTick ||
             !IsParticipant(conversation, participantId))
             return false;
@@ -448,6 +456,7 @@ public static class AgentConversationRules
             conversation.RunEpoch < 0 || conversation.Revision < 1 || conversation.LastUpdatedTick < conversation.CreatedTick ||
             conversation.LastUpdatedTick > worldTick || !Enum.IsDefined(conversation.Status) ||
             !Enum.IsDefined(conversation.Interruption) || !Enum.IsDefined(conversation.WrapUpEffect) ||
+            !Enum.IsDefined(conversation.Kind) ||
             conversation.Turns.Count > MaximumPublicTurns + MaximumWrapUpTurns ||
             conversation.AcceptedParticipantIds.Distinct(StringComparer.Ordinal).Count() != conversation.AcceptedParticipantIds.Count ||
             conversation.ResumeAcceptedBy.Distinct(StringComparer.Ordinal).Count() != conversation.ResumeAcceptedBy.Count ||
@@ -497,6 +506,14 @@ public static class AgentConversationRules
                     throw new InvalidDataException("The saved public turn sequence is not canonical.");
             }
         }
+
+        if (conversation.Kind == AgentConversationKind.MarriageSurname)
+        {
+            ValidateSurnameConversation(conversation, publicTurns, wrapUps);
+            return;
+        }
+        if (conversation.Turns.Any(turn => turn.SurnameChoice is not null))
+            throw new InvalidDataException("An ordinary conversation cannot contain surname choices.");
 
         if (conversation.Status == AgentConversationStatus.Proposed &&
             (publicTurns.Length != 0 || wrapUps.Length != 0 || conversation.AcceptedParticipantIds.Count != 1 ||
@@ -568,6 +585,70 @@ public static class AgentConversationRules
             (conversation.Status != AgentConversationStatus.Closed || conversation.Outcome != "withdrawn" ||
              conversation.Turns[^1].Disposition != AgentConversationDisposition.Withdraw))
             throw new InvalidDataException("A withdrawn conversation must end at its withdrawal turn.");
+    }
+
+    private static int TurnLimit(AgentConversation conversation) =>
+        conversation.Kind == AgentConversationKind.MarriageSurname ? AgentMarriageRules.MaximumSurnameTurns : MaximumPublicTurns;
+
+    private static bool TryAdmitSurnameTurn(AgentConversation conversation, AgentConversationTurnRequest request,
+        AgentConversationTurnResponse response, IReadOnlyList<string> listenerIds, long worldTick,
+        out AgentConversation next, out AgentConversationTurn? appended)
+    {
+        next = conversation;
+        appended = null;
+        if (conversation.AwaitingWrapUp || conversation.Turns.Count >= AgentMarriageRules.MaximumSurnameTurns ||
+            response.Disposition != AgentConversationDisposition.Continue || response.Effect != AgentConversationEffect.None ||
+            response.SurnameChoice is null || !request.AllowedSurnames.Contains(response.SurnameChoice, StringComparer.Ordinal) ||
+            listenerIds.Count != 1)
+            return false;
+        var turn = new AgentConversationTurn($"{conversation.Id}:turn:{conversation.Turns.Count + 1}",
+            response.SpeakerId, response.Text, worldTick, listenerIds.ToArray(), response.Disposition,
+            SurnameChoice: response.SurnameChoice);
+        var turns = conversation.Turns.Append(turn).ToArray();
+        var agreed = turns.Length >= 2 && turns[^1].SurnameChoice == turns[^2].SurnameChoice;
+        var finished = agreed || turns.Length == AgentMarriageRules.MaximumSurnameTurns;
+        next = conversation with
+        {
+            Turns = turns,
+            Status = finished ? AgentConversationStatus.Closed : AgentConversationStatus.Ready,
+            CurrentSpeakerId = finished ? null : OtherParticipant(conversation, response.SpeakerId),
+            Outcome = finished ? agreed ? "surname_agreed" : "surname_draw" : null,
+            Revision = checked(conversation.Revision + 1),
+            LastUpdatedTick = worldTick,
+            Interruption = AgentConversationInterruption.None,
+        };
+        appended = turn;
+        return true;
+    }
+
+    private static void ValidateSurnameConversation(AgentConversation conversation, AgentConversationTurn[] publicTurns,
+        AgentConversationTurn[] wrapUps)
+    {
+        var count = publicTurns.Length;
+        var agreement = count >= 2 && publicTurns[^1].SurnameChoice == publicTurns[^2].SurnameChoice;
+        if (wrapUps.Length != 0 || count > AgentMarriageRules.MaximumSurnameTurns || conversation.AwaitingWrapUp ||
+            conversation.AcceptedParticipantIds.Count != 2 || conversation.WrapUpAcceptedBy.Count != 0 ||
+            conversation.WrapUpEffect != AgentConversationEffect.None ||
+            publicTurns.Any(turn => turn.Disposition != AgentConversationDisposition.Continue || turn.ListenerIds.Count != 1 ||
+                string.IsNullOrWhiteSpace(turn.SurnameChoice) || turn.SurnameChoice.Length > 128 ||
+                turn.SurnameChoice.Any(char.IsWhiteSpace) || turn.SurnameChoice.Any(char.IsControl)) ||
+            publicTurns.Take(Math.Max(0, count - 1)).Select((turn, index) => (turn, index)).Any(item =>
+                item.index > 0 && item.turn.SurnameChoice == publicTurns[item.index - 1].SurnameChoice) ||
+            conversation.Status is AgentConversationStatus.Proposed or AgentConversationStatus.WrapUp ||
+            conversation.Status != AgentConversationStatus.Closed && (agreement || count == AgentMarriageRules.MaximumSurnameTurns) ||
+            conversation.Status is AgentConversationStatus.Ready or AgentConversationStatus.AwaitingSpeaker &&
+                (conversation.CurrentSpeakerId != NextSpeaker(conversation) || conversation.Interruption != AgentConversationInterruption.None) ||
+            conversation.Status == AgentConversationStatus.Suspended &&
+                (conversation.CurrentSpeakerId is not null || conversation.Interruption == AgentConversationInterruption.None ||
+                 conversation.ResumeAcceptedBy.Count > 1) ||
+            conversation.Status != AgentConversationStatus.Suspended && conversation.Interruption != AgentConversationInterruption.None ||
+            conversation.Status != AgentConversationStatus.Closed && conversation.Outcome is not null ||
+            conversation.Status == AgentConversationStatus.Closed &&
+                (conversation.CurrentSpeakerId is not null || conversation.Outcome is not ("surname_agreed" or "surname_draw" or "participant_unavailable")) ||
+            conversation.Outcome == "surname_agreed" && !agreement ||
+            conversation.Outcome == "surname_draw" && (count != AgentMarriageRules.MaximumSurnameTurns || agreement) ||
+            conversation.Outcome == "participant_unavailable" && (agreement || count == AgentMarriageRules.MaximumSurnameTurns))
+            throw new InvalidDataException("The saved marriage surname conversation is invalid.");
     }
 
     private static AgentConversation Close(AgentConversation conversation, string outcome, long worldTick) =>
