@@ -1131,6 +1131,7 @@ public sealed class OwnerWorldObservationStore
         "repair_equipment" => "repairing personal equipment",
         "collect_material" => "collecting personal materials",
         "collect_food" => "collecting personal food",
+        "collect_equipment" => "collecting personal equipment",
         "store_material" => "storing personal materials in the House",
         "gather_material" => "gathering the ordered material",
         "inspect_material_site" => "checking the ordered material site",

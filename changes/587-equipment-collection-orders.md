@@ -1,0 +1,1 @@
+- Adults and elders can collect their own stored or dropped clothing, carrying aids and tools with orders such as "collect my basket" or "collect two iron knives from (12, 4)". Pickup preserves condition and ownership without equipping or repairing the goods. Quantities, queues, cancellation and progress survive saves; older alpha saves are refused and preserved unchanged.
