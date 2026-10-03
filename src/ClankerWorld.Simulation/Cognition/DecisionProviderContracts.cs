@@ -220,13 +220,15 @@ public sealed record CognitionWillChoice(
 /// <paramref name="HousingNote"/> explains the actor's housing and current House capacity when known.
 /// <paramref name="ContinuityNote"/> explains the low-population continuity rule to a partner it applies to.
 /// <paramref name="DepartureNote"/> summarizes goods to collect or return and paused household work after a departure.
+/// <paramref name="TownMembershipNote"/> states recorded Town membership, its rights and any admission the actor knows of.
 /// </summary>
 public sealed record CognitionSelfContext(
     string OwnerId, string Name, string LifeStage, string Personality, string Aspiration,
     string? HouseholdId, int? WarmthBasisPoints, int? IllnessBasisPoints, string? RecentThought,
     string? HouseholdName = null, string? TownName = null, string? HousingNote = null,
     string? EquipmentNote = null, string? ContinuityNote = null, string? DepartureNote = null, string? CivicNote = null,
-    string? MedicalCareNote = null);
+    string? MedicalCareNote = null, string? TownMembershipNote = null,
+    string? ToolMakingRequestNote = null);
 
 /// <summary>
 /// An exact owner message addressed to this actor. The authoritative identity
@@ -348,7 +350,9 @@ public sealed record InhabitantObservation(
                 !instructionIds.Add(message.InstructionId) ||
                 message.Kind == "must_do" && message.UnderstoodTask is not
                     ("eat one carried food item" or "travel within gathering range of an available food source" or
-                        "gather several food servings from a nearby food source") ||
+                        "gather several food servings from a nearby food source" or
+                        "travel to the exact tile named in this order" or
+                        "accept primary care of the named child through their guardian search") ||
                 message.Kind == "suggestive" && message.UnderstoodTask is not null)
                 throw new ArgumentException("Observer guidance must be bounded, target-owned and uniquely identified.", nameof(ObserverGuidance));
         }
@@ -372,7 +376,8 @@ public sealed record InhabitantObservation(
             self.HouseholdId?.Length > 128 || self.RecentThought?.Length > 160 ||
             self.HouseholdName?.Length > 128 || self.TownName?.Length > 128 || self.HousingNote?.Length > 256 ||
             self.EquipmentNote?.Length > 256 || self.ContinuityNote?.Length > 256 || self.DepartureNote?.Length > 256 ||
-            self.CivicNote?.Length > 1024 || self.MedicalCareNote?.Length > 256 ||
+            self.CivicNote?.Length > 1024 || self.MedicalCareNote?.Length > 256 || self.TownMembershipNote?.Length > 256 ||
+            self.ToolMakingRequestNote?.Length > 256 ||
             self.WarmthBasisPoints is < 0 or > 10_000 || self.IllnessBasisPoints is < 0 or > 10_000))
             throw new ArgumentException("Self context must be bounded and owned by the actor.", nameof(Self));
 
@@ -480,6 +485,8 @@ public sealed record CognitionDecisionRequest(
 /// evidence; the selected ID is still checked against the request's legal
 /// candidate set before it can become an intention.
 /// </summary>
+public sealed record CognitionLandTile(int X, int Y);
+
 public sealed record CognitionDecisionResponse(
     string RequestId,
     string InhabitantId,
@@ -500,8 +507,10 @@ public sealed record CognitionDecisionResponse(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? CivicProposal = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<string>? CivicBallot = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<CognitionObserverReply>? ObserverReplies = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] CognitionWillChoice? Will = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] CognitionWillChoice? Will = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<CognitionLandTile>? CivicLandTiles = null)
 {
+    public const int MaximumCivicLandTiles = 64;
     public const int MaximumPrivateThoughtLength = 160;
     public const int MaximumObserverReplyLength = 160;
     public const int MaximumChosenNameLength = 48;
@@ -577,6 +586,8 @@ public sealed record CognitionDecisionResponse(
             throw new ArgumentOutOfRangeException(nameof(CivicProposal));
         if (ObserverReplies is { Count: > InhabitantObservation.MaximumObserverGuidanceCount })
             throw new ArgumentOutOfRangeException(nameof(ObserverReplies));
+        if (CivicLandTiles is { Count: 0 or > MaximumCivicLandTiles } || CivicLandTiles?.Any(tile => tile is null) == true)
+            throw new ArgumentOutOfRangeException(nameof(CivicLandTiles));
         var observerReplyIds = new HashSet<string>(StringComparer.Ordinal);
         foreach (var reply in ObserverReplies ?? [])
         {
@@ -797,10 +808,12 @@ public sealed class JevDecisionProvider : IDecisionProvider
                 illness_basis_points = request.Observation.Self?.IllnessBasisPoints,
                 household = request.Observation.Self?.HouseholdName,
                 town = request.Observation.Self?.TownName,
+                town_membership = request.Observation.Self?.TownMembershipNote,
                 housing = request.Observation.Self?.HousingNote,
                 continuity = request.Observation.Self?.ContinuityNote,
                 departure = request.Observation.Self?.DepartureNote,
                 medical_care = request.Observation.Self?.MedicalCareNote,
+                tool_making_request = request.Observation.Self?.ToolMakingRequestNote,
                 candidates = request.Observation.Candidates.Select(candidate => new
                 {
                     id = candidate.Id,
@@ -1074,6 +1087,8 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                         "and optional " +
                         "private_thought (one brief, in-character thought of at most 160 characters). " +
                         "For civic proposal actions include civic_proposal, a social-law request of at most 256 characters. " +
+                        "For claim_land actions include civic_land_tiles, an array of 1 to 64 objects with integer x and y coordinates naming one connected plot adjoining the Town's title. The Council must approve it before title changes. " +
+                        "For request_land_use actions include civic_land_tiles for one connected plot already titled to the Town. A household use grant needs Council approval and separate accept_land_use choices from every current adult household member; filing or voting yes supplies no household acceptance. request_expansion_land already names the required plot. " +
                         "For civic ballot actions include civic_ballot, an array of up to the stated number of distinct eligible candidate IDs, or an empty array to abstain. " +
                         "Civic candidates come only from notices you actually read or heard; registration records your own willingness. " +
                         "When needs_name is true, also include chosen_name (your own full name, " +
@@ -1118,12 +1133,14 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                             personality = self.Personality, aspiration = self.Aspiration,
                             household = self.HouseholdName,
                             town = self.TownName,
+                            town_membership = self.TownMembershipNote,
                             housing = self.HousingNote,
                             equipment = self.EquipmentNote,
                             continuity = self.ContinuityNote,
                             departure = self.DepartureNote,
                             civic_notices_learned = self.CivicNote,
                             medical_care = self.MedicalCareNote,
+                            tool_making_request = self.ToolMakingRequestNote,
                             warmth_basis_points = self.WarmthBasisPoints,
                             illness_basis_points = self.IllnessBasisPoints,
                             recent_thought = self.RecentThought,
@@ -1387,7 +1404,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                 privateThought,
                 chosenName,
                 ChosenPersonality: chosenPersonality, ChosenAspiration: chosenAspiration, CivicProposal: civicProposal, CivicBallot: civicBallot,
-                ObserverReplies: observerReplies, Will: will);
+                ObserverReplies: observerReplies, Will: will, CivicLandTiles: ParseCivicLandTiles(answerRoot));
         }
         catch (JsonException exception)
         {
@@ -1401,6 +1418,23 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
         {
             throw new InvalidDataException("The OpenAI-compatible provider returned no choices.", exception);
         }
+    }
+
+    private static CognitionLandTile[]? ParseCivicLandTiles(JsonElement root)
+    {
+        // An empty plot, like an empty ballot, is no request; the chosen action decides what is used.
+        if (!root.TryGetProperty("civic_land_tiles", out var tiles) || tiles.ValueKind == JsonValueKind.Null ||
+            tiles.ValueKind == JsonValueKind.Array && tiles.GetArrayLength() == 0) return null;
+        if (tiles.ValueKind != JsonValueKind.Array || tiles.GetArrayLength() is < 1 or > CognitionDecisionResponse.MaximumCivicLandTiles)
+            throw new InvalidDataException("The provider returned an invalid land plot.");
+        return tiles.EnumerateArray().Select(tile =>
+        {
+            if (tile.ValueKind != JsonValueKind.Object || !tile.TryGetProperty("x", out var x) ||
+                !tile.TryGetProperty("y", out var y) || x.ValueKind != JsonValueKind.Number || y.ValueKind != JsonValueKind.Number ||
+                !x.TryGetInt32(out var column) || !y.TryGetInt32(out var row))
+                throw new InvalidDataException("The provider returned an invalid land coordinate.");
+            return new CognitionLandTile(column, row);
+        }).ToArray();
     }
 
     private static string[]? ParseCivicBallot(JsonElement root)

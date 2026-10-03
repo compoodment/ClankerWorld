@@ -214,32 +214,64 @@ test('a PR reopening during cleanup retains its new reviewer claim and current i
   assert.deepEqual(state.issue.labels, ['priority:p2', 'status:has-pr']);
 });
 
-for (const action of ['edited', 'synchronize']) {
-  test(`a released draft stays findable through ${action} reconciliation`, async () => {
-    const state = scenario({ action, live: { draft: true, labels: [] },
-      issueLabels: ['priority:p2', 'status:has-pr', 'status:needs-pr'] });
-    await state.run();
-    await state.run();
-    assert.deepEqual(new Set(state.issue.labels), new Set(['priority:p2', 'status:has-pr', 'status:needs-pr']));
-  });
+for (const action of ['opened', 'edited', 'synchronize']) {
+  for (const alreadyLinked of [false, true]) {
+    test(`a released draft stays findable through ${action}, already linked: ${alreadyLinked}`, async () => {
+      const state = scenario({ action, live: { draft: true, labels: [] },
+        issueLabels: ['priority:p2', 'status:needs-pr', ...(alreadyLinked ? ['status:has-pr'] : [])] });
+      for (let pass = 0; pass < 2; pass++) {
+        await state.run();
+        assert.deepEqual(new Set(state.issue.labels), new Set(['priority:p2', 'status:has-pr', 'status:needs-pr']));
+      }
+    });
+  }
 }
 
 test('reclaimed drafts and ready handoffs clear the abandoned queue entry', async () => {
-  for (const draft of [true, false]) {
-    const state = scenario({ live: { draft, labels: [] },
-      issueLabels: ['status:has-pr', 'status:needs-pr', ...(draft ? ['status:in-progress'] : [])] });
-    await state.run();
-    assert.ok(!state.issue.labels.includes('status:needs-pr'));
-    assert.equal(state.issue.labels.includes('status:in-progress'), draft);
+  for (const alreadyLinked of [false, true]) {
+    for (const draft of [true, false]) {
+      const state = scenario({ live: { draft, labels: [] },
+        issueLabels: ['status:needs-pr', ...(alreadyLinked ? ['status:has-pr'] : []), ...(draft ? ['status:in-progress'] : [])] });
+      for (let pass = 0; pass < 2; pass++) {
+        await state.run();
+        assert.deepEqual(new Set(state.issue.labels), new Set(['status:has-pr', ...(draft ? ['status:in-progress'] : [])]));
+      }
+    }
   }
 });
 
 test('a late abandoned-draft reconciliation cannot queue an issue held by another ready PR', async () => {
-  const state = scenario({ live: { draft: true, labels: [] },
-    issueLabels: ['status:has-pr', 'status:needs-pr'],
-    otherPrs: [{ number: 26, state: 'open', draft: false, body: 'Closes #4' }] });
-  await state.run();
-  assert.deepEqual(state.issue.labels, ['status:has-pr']);
+  for (const alreadyLinked of [false, true]) {
+    const state = scenario({ live: { draft: true, labels: [] },
+      issueLabels: ['status:needs-pr', ...(alreadyLinked ? ['status:has-pr'] : [])],
+      otherPrs: [{ number: 26, state: 'open', draft: false, body: 'Closes #4' }] });
+    for (let pass = 0; pass < 2; pass++) {
+      await state.run();
+      assert.deepEqual(state.issue.labels, ['status:has-pr']);
+    }
+  }
+});
+
+test('released draft reconciliation respects current issue and PR holds before and after first labeling', async () => {
+  for (const alreadyLinked of [false, true]) {
+    for (const hold of ['status:in-progress', 'status:blocked', 'status:needs-decision', 'status:parked', 'type:decision', 'owner-task']) {
+      const state = scenario({ live: { draft: true, labels: [] },
+        issueLabels: ['status:needs-pr', hold, ...(alreadyLinked ? ['status:has-pr'] : [])] });
+      for (let pass = 0; pass < 2; pass++) {
+        await state.run();
+        assert.deepEqual(new Set(state.issue.labels), new Set([hold, 'status:has-pr']), hold);
+      }
+    }
+    for (const hold of ['status:blocked', 'status:needs-decision']) {
+      const state = scenario({ live: { draft: true, labels: [hold] },
+        issueLabels: ['status:needs-pr', ...(alreadyLinked ? ['status:has-pr'] : [])] });
+      for (let pass = 0; pass < 2; pass++) {
+        await state.run();
+        assert.deepEqual(state.issue.labels, ['status:has-pr'], hold);
+        assert.ok(state.pr.labels.includes(hold));
+      }
+    }
+  }
 });
 
 const priorities = labels => labels.filter(name => name.startsWith('priority:')).sort();
@@ -282,6 +314,12 @@ test('a P0 set by hand stays on a stacked PR that changes no workflow files on m
     events: [labeled('priority:p0', Person)],
     files: ['CONTRIBUTING.md', cognition], compareFiles: [cognition],
   });
+  await state.run();
+  assert.deepEqual(priorities(state.pr.labels), ['priority:p0']);
+});
+
+test('a change to an agent skill is a workflow change', async () => {
+  const state = scenario({ action: 'opened', live: { labels: [] }, files: ['skills/test-audit/SKILL.md'] });
   await state.run();
   assert.deepEqual(priorities(state.pr.labels), ['priority:p0']);
 });
@@ -554,7 +592,7 @@ test('areas stay as they are when no area rule matches the changed files', async
 
 test('process files map to an area, but changelog and playtest files do not', async () => {
   const { areaLabels } = labelPullRequest;
-  for (const file of ['CONTRIBUTING.md', 'AGENTS.md', 'CLAUDE.md', 'docs/development/build-and-test.md', 'docs/development/releasing.md']) {
+  for (const file of ['CONTRIBUTING.md', 'AGENTS.md', 'CLAUDE.md', 'skills/test-audit/SKILL.md', 'docs/development/build-and-test.md', 'docs/development/releasing.md']) {
     assert.deepEqual(areaLabels([file]), ['area:tooling'], file);
   }
   assert.deepEqual(areaLabels(['docs/development/private-server-deployment.md']), ['area:server']);
