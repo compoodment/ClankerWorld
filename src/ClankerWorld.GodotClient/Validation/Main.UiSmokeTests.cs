@@ -872,6 +872,16 @@ public partial class Main
                 if (!worldPreviewStatus.Text.Contains("Met applicable Normal target: mountains", StringComparison.Ordinal) ||
                     worldPreviewStatus.Text.Contains("Both default Balanced trial targets", StringComparison.Ordinal))
                     throw new InvalidOperationException("Preview must name only the applicable Normal target when the other control is Low or High.");
+                SetWorldPreviewStatus(mountainOnlyPreview with
+                {
+                    FailedCandidates = [new OwnerWorldCandidateFailure(0, "no-clearing")],
+                });
+                if (!worldPreviewStatus.Text.Contains("#0: no room for a first Town", StringComparison.Ordinal) ||
+                    worldPreviewStatus.Text.Contains("no-clearing", StringComparison.Ordinal) ||
+                    worldPreviewStatus.Text.IndexOf("#0:", StringComparison.Ordinal) >
+                        worldPreviewStatus.Text.IndexOf("#2 F", StringComparison.Ordinal) ||
+                    worldAcceptUnmetTargets.Visible)
+                    throw new InvalidOperationException("Preview must show failed attempts beside real measurements without requiring acceptance of an unavailable map.");
                 var forestOnly = missedCoverage with
                 {
                     ForestTargetApplicable = true,

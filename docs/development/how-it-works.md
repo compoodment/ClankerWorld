@@ -1470,19 +1470,31 @@ connected-region share as a tie-break; attempt number is the final stable
 tie-break. Connected regions use diagonal neighbors, east/west wrapping when
 enabled, and no north/south wrapping. The tie-break has no minimum region-size
 threshold. Incompatible climate modes have no trial target and use one
-candidate. Coverage is measured and returned for all settings.
+candidate. Coverage is measured and returned for all settings. An attempt with
+no suitable starting clearing is recorded as failed and omitted from coverage
+measurement and ranking; other generated-map validation errors still propagate.
+Successful attempts keep their original numbers, and selection continues
+through the whole bounded set. If no map remains, preview and creation refuse
+without replacing the current world.
 
 Owner world-creation signing uses payload v3 to bind all settings and, for
 Create, the candidate attempt, terrain and map-layer digests, and explicit
 acceptance of unmet trial targets. Preview reports the selected candidate and
-coverage for each attempt. Create reruns the bounded selector, checks those
-signed identities, and builds the world from its selected map. It refuses a
-changed preview or an unaccepted miss. The selected attempt is saved in
+coverage for generated candidates and a separate transient `FailedCandidates`
+list with each unavailable attempt and its bounded `no-clearing` reason. Godot
+shows these together in attempt order without inventing zero coverage for a
+failed map. Older previews that omit the list remain readable. An all-failed
+HTTP refusal carries a recognized generation code which the client maps to a
+fixed, useful message instead of displaying arbitrary server error text.
+Create reruns the bounded selector, checks those signed identities, and builds
+the world from its selected map. It refuses a changed preview or an unaccepted
+miss. The selected attempt is saved in
 `GeographyOptions` with the visibility algorithm version and in the map
-manifest; restore regenerates that attempt without searching again. Unsupported
-Balanced Small/Medium visibility versions are refused rather than replayed with
-different terrain rules. Small and Medium remain the only playable sizes; no
-continent-count control is exposed for them. Existing saved water settings are
+manifest; restore regenerates that attempt strictly without searching again.
+The transient reports do not change signed creation or saved map authority.
+Unsupported Balanced Small/Medium visibility versions are refused rather than
+replayed with different terrain rules. Small and Medium remain the only playable
+sizes; no continent-count control is exposed for them. Existing saved water settings are
 not rewritten.
 
 ## Skills and practical lessons
