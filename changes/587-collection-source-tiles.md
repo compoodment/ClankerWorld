@@ -1,0 +1,1 @@
+- Collection orders can name an exact source tile, such as "collect three wood from (12, 4)". Agents collect only their available personal goods there and wait if those goods move or run out, keeping the target and remaining quantity across saves. Older alpha saves are refused and preserved unchanged.

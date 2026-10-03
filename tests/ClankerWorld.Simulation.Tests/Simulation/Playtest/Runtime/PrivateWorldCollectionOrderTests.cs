@@ -9,7 +9,7 @@ using ClankerWorld.Simulation.World;
 
 namespace ClankerWorld.Simulation.Tests;
 
-public sealed class PrivateWorldCollectionOrderTests
+public sealed partial class PrivateWorldCollectionOrderTests
 {
     private const string Household = "household:camp-alpha";
     private const string House = "first-town-house-a";
@@ -112,7 +112,7 @@ public sealed class PrivateWorldCollectionOrderTests
     [InlineData("collect -2 wood")]
     [InlineData("collect 1.5 wood")]
     [InlineData("collect wood from the Warehouse")]
-    [InlineData("collect wood at (1, 2)")]
+    [InlineData("collect wood at (1,)")]
     [InlineData("collect food")]
     [InlineData("collect cloth")]
     [InlineData("collect iron")]
@@ -307,8 +307,10 @@ public sealed class PrivateWorldCollectionOrderTests
         Assert.Contains(request.ObserverGuidance!, message => message.UnderstoodTask == "collect your own stored or dropped material");
     }
 
-    [Fact]
-    public async Task CollectionOrderCancelledWhileAModelReplyIsHeldCannotCollectAnotherLoad()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CollectionOrderCancelledWhileAModelReplyIsHeldCannotCollectAnotherLoad(bool explicitSource)
     {
         var state = Prepared();
         var actor = Actor(state);
@@ -316,7 +318,9 @@ public sealed class PrivateWorldCollectionOrderTests
         inventory = InventoryFixture.AddLot(inventory, "collect-held-b", "clay", actor, 1, storageBuildingId: House);
         var provider = new CollectionChoices(DecisionProviderKind.LargeLanguageModel, hold: true);
         using var world = PrivateWorldRuntime.Restore(WithInventory(state, inventory), id => id == actor ? provider : new CollectionChoices());
-        var receipt = Submit(world, actor, "held", "keep collecting clay");
+        var source = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == House).Position;
+        var text = "keep collecting clay" + (explicitSource ? $" from ({source.X}, {source.Y})" : "");
+        var receipt = Submit(world, actor, "held", text);
         try
         {
             Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
@@ -333,8 +337,10 @@ public sealed class PrivateWorldCollectionOrderTests
         finally { provider.Release.TrySetResult(true); }
     }
 
-    [Fact]
-    public async Task CollectionOrderCannotTreatSurvivalFoodAsACollectedLoad()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CollectionOrderCannotTreatSurvivalFoodAsACollectedLoad(bool explicitSource)
     {
         var state = Prepared();
         var actor = Actor(state);
@@ -345,7 +351,9 @@ public sealed class PrivateWorldCollectionOrderTests
             Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor ? person with { HungerBasisPoints = 1_000 } : person).ToArray(),
         };
         using var world = Restore(state);
-        var receipt = Submit(world, actor, "survival", "collect clay");
+        var source = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == House).Position;
+        var text = "collect clay" + (explicitSource ? $" from ({source.X}, {source.Y})" : "");
+        var receipt = Submit(world, actor, "survival", text);
         Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         Assert.Equal("interrupted", Order(world, receipt).Status);
         Assert.Equal(0, Order(world, receipt).CompletedUnits);
@@ -367,7 +375,7 @@ public sealed class PrivateWorldCollectionOrderTests
         foreach (var invalid in new[]
         {
             valid with { TargetMaterialKind = "cloth" }, valid with { TargetFoodKind = "berries" },
-            valid with { TargetPosition = new(1, 1) }, valid with { TargetResourceId = "tree" },
+            valid with { TargetPosition = new(10_000_001, 1) }, valid with { TargetResourceId = "tree" },
             valid with { RequestedUnits = 0 }, valid with { CompletedUnits = -1 },
             valid with { ProgressUnit = "harvests" }, valid with { LastEffectId = "collect:personal:unearned" },
             valid with { CompletedUnits = 1, LastEffectId = "gather:material:wrong-action" },

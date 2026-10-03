@@ -169,8 +169,13 @@ internal static class PrivateWorldInstructionOrderParser
             var targetFoodKind = subject.FoodKind;
             var targetResourceId = subject.ResourceId;
             GridPoint? targetPosition = null;
-            var hasLocation = action is "collect_material" or "repair_equipment" or "repair_tool" || (action == "store_material" ? TryReadHomeStorageLocation() :
-                TryReadLocation(action, targetFoodKind, ref targetResourceId, ref targetPosition, materialKind));
+            var hasLocation = action switch
+            {
+                "collect_material" => TryReadCollectionLocation(ref targetPosition),
+                "repair_equipment" or "repair_tool" => true,
+                "store_material" => TryReadHomeStorageLocation(),
+                _ => TryReadLocation(action, targetFoodKind, ref targetResourceId, ref targetPosition, materialKind),
+            };
             if (!hasLocation)
                 return null;
             if (action == "consume_food" && (targetResourceId is not null || targetPosition is not null))
@@ -255,6 +260,14 @@ internal static class PrivateWorldInstructionOrderParser
             if (position != end) return null;
             return new(action, "queued", explicitQuantity ? quantity : 1, 0, "fields", repeat,
                 explicitQuantity, TargetCropKind: crop);
+        }
+
+        private bool TryReadCollectionLocation(ref GridPoint? targetPosition)
+        {
+            if (!ReadWord("from") && !ReadWord("at")) return true;
+            if (!TryReadCoordinate(out var source)) return false;
+            targetPosition = source;
+            return true;
         }
 
         private bool TryReadHomeStorageLocation()
