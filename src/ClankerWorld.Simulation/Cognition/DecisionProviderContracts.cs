@@ -1086,6 +1086,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                         "private_thought (one brief, in-character thought of at most 160 characters). " +
                         "For civic proposal actions include civic_proposal, a social-law request of at most 256 characters. " +
                         "For claim_land actions include civic_land_tiles, an array of 1 to 64 objects with integer x and y coordinates naming one connected plot adjoining the Town's title. The Council must approve it before title changes. " +
+                        "For request_land_use actions include civic_land_tiles for one connected plot already titled to the Town. A household use grant needs Council approval and separate accept_land_use choices from every current adult household member; filing or voting yes supplies no household acceptance. request_expansion_land already names the required plot. " +
                         "For civic ballot actions include civic_ballot, an array of up to the stated number of distinct eligible candidate IDs, or an empty array to abstain. " +
                         "Civic candidates come only from notices you actually read or heard; registration records your own willingness. " +
                         "When needs_name is true, also include chosen_name (your own full name, " +

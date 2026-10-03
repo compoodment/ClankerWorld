@@ -96,9 +96,10 @@ public sealed partial class PrivateWorldRuntime
     private void SaveTownGovernance(TownRuntimeState town, TownGovernanceState updated, TownGovernmentState? government = null)
     {
         government ??= town.Government;
-        if (town.Governance == updated && town.Government == government) return;
         var priorNotices = town.Governance?.Notices.Count ?? 0;
         (town, updated) = ApplyApprovedTownLandClaims(town, updated);
+        updated = ResolveHouseholdLandRequests(town, updated);
+        if (town.Governance == updated && town.Government == government) return;
         SetTown(town with { Governance = updated, Government = government });
         foreach (var notice in updated.Notices.Skip(priorNotices))
             AppendEvent("town_civic_" + notice.Kind, $"{town.Id}|{notice.SubjectId}|{notice.Text}", CivicBoard(town));
@@ -165,6 +166,10 @@ public sealed partial class PrivateWorldRuntime
                     candidates.Add(new(CivicAction(town.Id, "claim_land"), $"Ask {town.Name}'s council to claim a connected plot of adjoining unclaimed land; include its exact coordinates in civic_land_tiles. " +
                         FormattableString.Invariant($"You stand at ({here.X}, {here.Y}); unclaimed tiles beside the Town's land nearest you: {string.Join("; ", nearest.Select(tile => FormattableString.Invariant($"({tile.X}, {tile.Y})")))}. ") +
                         "Existing titles, household rights, buildings and goods stay with their holders.", 190));
+                if (society.Checkpoint.GetInhabitant(actor).HouseholdId is not null && RequestableLandNear(town, here, 6) is { Length: > 0 } free)
+                    candidates.Add(new(CivicAction(town.Id, "request_land_use"), $"Ask {town.Name}'s council for household use of a connected plot of Town-titled land; include exact coordinates in civic_land_tiles. " +
+                        FormattableString.Invariant($"You stand at ({here.X}, {here.Y}); free Town land nearest you: {string.Join("; ", free.Select(tile => FormattableString.Invariant($"({tile.X}, {tile.Y})")))}. ") +
+                        "Filing grants nothing and supplies no household acceptance.", 190));
             }
             else if (NearCivicBoard(actor, town))
             {
@@ -174,6 +179,7 @@ public sealed partial class PrivateWorldRuntime
             else if (CivicBoard(town) is not null && MayVisitAsNewcomer(actor, town))
                 candidates.Add(new(CivicAction(town.Id, "visit"), $"Walk to {town.Name}'s public notice place to read what is posted. Visiting grants no membership.", 175));
             AddTownAdmissionCandidates(candidates, actor, town);
+            AddHouseholdLandCandidates(candidates, actor, town);
             foreach (var proposal in state.Proposals.Where(p => p.Status == "pending" && history.Knows(actor, p.Id)))
             {
                 var draft = town.Government?.LawDrafts.SingleOrDefault(d => d.ProposalId == proposal.Id);
@@ -182,7 +188,9 @@ public sealed partial class PrivateWorldRuntime
                     candidates.Add(new(CivicAction(town.Id, "withdraw_proposal", proposal.Id), $"Withdraw your pending proposal: {voteText}", 190));
                 if (!proposal.Voters.Contains(actor, StringComparer.Ordinal) || proposal.Votes.Any(v => v.AgentId == actor) ||
                     proposal.Kind == "admission" && proposal.SubjectId == actor) continue;
-                var plot = proposal.LandClaimTiles is { } tiles ? " Exact tiles: " + TownLandClaimRules.DescribeTiles(tiles) + "." : "";
+                var plot = proposal.LandClaimTiles is { } tiles ? " Exact tiles: " + TownLandClaimRules.DescribeTiles(tiles) + "." :
+                    proposal.Kind == "land_use" && householdLandUseRequests.SingleOrDefault(r => r.Id == proposal.SubjectId) is { } request
+                        ? " " + LandUseTerms(request) : "";
                 candidates.Add(new(CivicAction(town.Id, "yes", proposal.Id), $"Cast your final yes vote on {voteText} in {town.Name}. {proposal.RequiredYes} yes votes required.{plot}", 165));
                 candidates.Add(new(CivicAction(town.Id, "no", proposal.Id), $"Cast your final no vote on {voteText} in {town.Name}.{plot}", 166));
             }
@@ -267,6 +275,12 @@ public sealed partial class PrivateWorldRuntime
                     (state, government) = ApplyTownLawAction(town, actor, parts[2], parts[3], parts[4], proposalText, state, government);
                     break;
                 case "claim_land": state = SubmitTownLandClaim(town, state, actor, landTiles); break;
+                case "request_land_use": state = SubmitPersonalLandUseRequest(town, state, actor, landTiles); break;
+                case "request_expansion_land": state = SubmitExpansionLandRequest(town, state, actor, parts[3]); break;
+                case "accept_land_use":
+                case "decline_land_use":
+                case "withdraw_land_use":
+                    state = DecideHouseholdLandUse(state, actor, parts[3], parts[2]); break;
                 case "admission":
                     state = TownGovernanceRules.SubmitProposal(state, town.Id, actor, "admission", actor,
                         $"Admit {society.Checkpoint.GetInhabitant(actor).Name} as a Town resident.", "council:" + state.Revision,

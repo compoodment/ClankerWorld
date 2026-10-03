@@ -174,6 +174,8 @@ public sealed class AbandonedWarehouseConsumerTests
                 },
             },
         };
+        state = ExpansionLandFixture.WithRights(state, house, Enumerable.Range(-1, 4).SelectMany(dy =>
+            Enumerable.Range(-1, 4).Select(dx => new GridPoint(site.X + dx, site.Y + dy))));
         using var world = Reload(state);
         var choice = "expand_building:" + house.InstanceId;
         Assert.Contains(Candidates(world, actor), item => item.Id == choice);
