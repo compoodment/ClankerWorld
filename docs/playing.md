@@ -61,7 +61,8 @@ still open normally.
    [More New World options](#more-new-world-options)).
 2. Wait for the preview. Changing an option updates it; **Create World** becomes
    available when the preview for the current choices succeeds.
-3. Create the world. It opens paused. Choose a rough site for its first Town;
+3. Create the world. It opens paused at 06:00 on Spring 1, Year 1, in daylight.
+   Choose a rough site for its first Town;
    greener shading and the hovered tips show nearby food, fertile ground, wood,
    stone and open space for Roads. These are suggestions only: the game checks
    whether the starter layout fits after you choose a site. It then places two
@@ -210,8 +211,8 @@ Every day has a night, from 19:12 to 04:48 on the clock in the top bar, with a
 short dusk and dawn. In a six-minute day that is about 2 min 24 s of night. The
 map turns a gentle dark blue but stays readable; names, agents and panels keep
 their daytime colors. Nights are colder outdoors, so an agent with no clothing,
-shelter or fire loses warmth, and their warmth bar shows it. A new world starts
-at midnight.
+shelter or fire loses warmth, and their warmth bar shows it. New worlds start
+in the morning; loading a saved world keeps its recorded time.
 
 Click bare ground to inspect the recorded facts there. Agents take priority
 when they overlap the pointer. **Event Log** shows important events under a
