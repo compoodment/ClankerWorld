@@ -131,8 +131,7 @@ rules, so explicit source, food, guardian and coordinate targets are refused. Pr
 counts collected loads or exact item quantities, and a bounded committed-move
 receipt prevents replay from duplicating pickup. Unavailable goods and full
 carrying space preserve the remaining task. Older alpha saves are refused and
-preserved without migration. This number is provisional and must remain above
-the storage-order base schema after integration.
+preserved without migration.
 
 Private-world schema 68 adds `repair_equipment` orders with a bounded
 `TargetEquipmentKind` and progress counted in finished repairs. The equipment
