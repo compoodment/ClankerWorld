@@ -782,6 +782,7 @@ public sealed partial class PrivateWorldRuntime
                 CollectEquipment(inhabitantId, state, kind);
             return;
         }
+        if (ApplyHandcartCandidate(inhabitantId, state, candidateId)) return;
         if (candidateId.StartsWith(RepairToolPrefix, StringComparison.Ordinal))
         {
             RepairTool(inhabitantId, state, candidateId[RepairToolPrefix.Length..]);
@@ -1103,6 +1104,7 @@ public sealed partial class PrivateWorldRuntime
             candidates.Add(new CognitionCandidate("harvest_food", "Follow the owner's harvest instruction.", 0, foodSource.Id));
         }
 
+        if (AdultResident(inhabitantId)) AddHandcartCandidates(candidates, inhabitantId, state);
         AddSurvivalCandidates(candidates, inhabitantId, state);
         AddDependentCareCandidates(candidates, inhabitantId);
         AddMedicalCareCandidates(candidates, inhabitantId);
@@ -1206,11 +1208,15 @@ public sealed partial class PrivateWorldRuntime
             var householdWorkstation = recipe.WorkstationBuildingId is { } workstationId &&
                 worldContent.Buildings.Any(definition => definition.CanonicalId == workstationId &&
                     definition.Tags.Any(IsHouseholdBuildingTag));
-            var recipeOwner = ProductionOwnerFor(null, inhabitant.Id);
+            var personalCart = IsHandcartRecipe(recipe);
+            var recipeOwner = personalCart ? inhabitant.Id : ProductionOwnerFor(null, inhabitant.Id);
+            if (personalCart && (!HasCarriedUnreservedQuantities(inhabitant.Id, recipe.Inputs) ||
+                society.Checkpoint.Inventory.Lots.Any(lot => lot.ItemKind == InventoryContainerRules.Handcart && lot.OwnerId == inhabitant.Id)))
+                continue;
             if (!NeedsRecipeOutput(recipe, recipeOwner, inhabitant.Id) || AnotherAgentWaitsForWorkSite(inhabitant.Id, recipe) ||
                 !CanAcquireProjectInputs(recipe.Inputs, recipeOwner, inhabitant.Id) ||
                 !TryFindRecipeSite(recipe, out var siteId, out var position, inhabitant.Id) ||
-                householdWorkstation &&
+                householdWorkstation && !personalCart &&
                 (recipeOwner is null || !HasIngredientsAtBuilding(recipe.Inputs, recipeOwner, siteId)))
             {
                 continue;

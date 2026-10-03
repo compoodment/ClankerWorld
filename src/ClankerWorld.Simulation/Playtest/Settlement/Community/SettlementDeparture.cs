@@ -82,10 +82,24 @@ public sealed partial class PrivateWorldRuntime
         };
         var ownedBuildings = worldSimulation.Buildings.Where(building => building.HouseholdId == householdId)
             .Select(building => building.InstanceId).ToHashSet(StringComparer.Ordinal);
+        // Work for the leaver's own goods, such as their handcart, is not household work
+        // anyone else may finish: it stops, and its reserved materials stay with the leaver.
+        var personalJobs = worldSimulation.ProductionJobs.Where(job => job.WorkerId == actor && job.OwnerId == actor &&
+            ownedBuildings.Contains(job.BuildingInstanceId) && job.State == WorldProductionJobState.Running).ToArray();
+        foreach (var job in personalJobs)
+            ApplyInventoryTransition(inventory =>
+            {
+                foreach (var id in job.InputReservationIds)
+                    if (inventory.Reservations.SingleOrDefault(item => item.Id == id) is { State: InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed })
+                        inventory = InventoryFixture.ReleaseReservation(inventory, id, "personal_work_stopped_on_leaving");
+                return inventory;
+            });
+        var personalJobIds = personalJobs.Select(job => job.JobId).ToHashSet(StringComparer.Ordinal);
         worldSimulation = worldSimulation with
         {
-            ProductionJobs = worldSimulation.ProductionJobs.Select(job => job.WorkerId == actor &&
-                ownedBuildings.Contains(job.BuildingInstanceId) && job.State == WorldProductionJobState.Running
+            ProductionJobs = worldSimulation.ProductionJobs.Select(job => personalJobIds.Contains(job.JobId)
+                ? job with { State = WorldProductionJobState.Cancelled }
+                : job.WorkerId == actor && ownedBuildings.Contains(job.BuildingInstanceId) && job.State == WorldProductionJobState.Running
                 ? job with { State = WorldProductionJobState.Paused, PausedAtTick = WorldTick } : job).ToArray(),
             BuildingExpansions = worldSimulation.BuildingExpansions?.Select(job => job.WorkerId == actor &&
                 job.OwnerId == householdId && job.State == WorldProductionJobState.Running
@@ -110,6 +124,7 @@ public sealed partial class PrivateWorldRuntime
             ApplyInventoryTransition(inventory => InventoryFixture.Relocate(inventory,
                 $"depart-custody:{actor}:{WorldTick}:{lot.Id}", lot.Id, householdId, lot.Quantity, actor));
         }
+        foreach (var job in personalJobs) AppendEvent("recipe_cancelled", $"{job.JobId}:{job.RecipeId}");
         checkpointSchemaVersion = StateSchemaVersion;
         AppendEvent("household_left", $"{actor}|{householdId}|{cause}|{allowance}");
         return true;
@@ -121,7 +136,9 @@ public sealed partial class PrivateWorldRuntime
             .Sum(item => item.Quantity));
 
     private IEnumerable<InventoryLot> PersonalGoodsAwaitingCollection(string actor) => society.Checkpoint.Inventory.Lots.Where(lot =>
+        // A parked handcart stays on the ground with its cargo; its owner pulls it rather than carrying it.
         lot.OwnerId == actor && !PersonalEquipmentRules.IsCarried(lot, actor) && lot.CarrierId is null &&
+        lot.ItemKind != InventoryContainerRules.Handcart &&
         lot.DeliveryBuildingId is null && lot.ContainerLotId is null && PhysicalUnreservedQuantity(lot) > 0 &&
         !(InventoryContainerRules.IsContainer(lot.ItemKind) && HasActiveContainerReservation(society.Checkpoint.Inventory, lot.Id)) &&
         (lot.GroundPosition is not null || lot.StorageBuildingId is { } storageId &&
@@ -159,7 +176,8 @@ public sealed partial class PrivateWorldRuntime
             return reservation.State == InventoryReservationState.Reserved && lot.Quantity >= reservation.Quantity &&
                 lot.ConditionBasisPoints > 0 && lot.FreshnessBasisPoints > 0 &&
                 (lot.OwnerId == building.HouseholdId || lot.OwnerId == actor) &&
-                (lot.StorageBuildingId == buildingId || lot.GroundPosition == site || PersonalEquipmentRules.IsCarried(lot, actor));
+                (lot.StorageBuildingId == buildingId || lot.GroundPosition == site ||
+                 PersonalEquipmentRules.IsPhysicallyCarried(society.Checkpoint.Inventory, lot, actor));
         });
     }
 

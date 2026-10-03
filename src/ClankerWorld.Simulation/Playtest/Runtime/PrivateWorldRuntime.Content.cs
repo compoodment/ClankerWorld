@@ -363,7 +363,11 @@ public sealed partial class PrivateWorldRuntime
                 return ProductionStartResult.Rejected(normalizedRecipeId,
                     "The household workshop must be claimed before production.");
 
-            var onSiteHouseholdRecipe = placed?.HouseholdId is not null && workstation?.Tags.Any(IsHouseholdBuildingTag) == true;
+            var personalCartRecipe = IsHandcartRecipe(recipe);
+            if (personalCartRecipe && !HasCarriedUnreservedQuantities(normalizedWorkerId, recipe.Inputs))
+                return ProductionStartResult.Rejected(normalizedRecipeId,
+                    "Carry the wood, iron fittings and rope to the Blacksmith before building a handcart.");
+            var onSiteHouseholdRecipe = !personalCartRecipe && placed?.HouseholdId is not null && workstation?.Tags.Any(IsHouseholdBuildingTag) == true;
             if (onSiteHouseholdRecipe && !HasIngredientsAtBuilding(recipe.Inputs, worker.HouseholdId!, placed!.InstanceId))
                 return ProductionStartResult.Rejected(normalizedRecipeId,
                     MissingProductionIngredients(recipe, worker.HouseholdId!, placed!.InstanceId));
@@ -384,7 +388,8 @@ public sealed partial class PrivateWorldRuntime
                 ToolProgressionRules.WorkDuration(recipe.DurationTicks, knife.WorkUnits);
             var jobId = $"production-{worldSimulation.NextProductionJobSequence.ToString("D10", System.Globalization.CultureInfo.InvariantCulture)}";
             var completionTick = checked(WorldTick + workDuration);
-            var productionOwner = ProductionOwnerFor(placed, normalizedWorkerId);
+            // A handcart belongs to the adult who builds it, not to the Blacksmith's household.
+            var productionOwner = personalCartRecipe ? normalizedWorkerId : ProductionOwnerFor(placed, normalizedWorkerId);
             IReadOnlyList<string> reservationIds = [];
             ApplyInventoryTransition(inventory =>
             {
@@ -395,7 +400,8 @@ public sealed partial class PrivateWorldRuntime
                     completionTick,
                     productionOwner,
                     out reservationIds,
-                    onSiteHouseholdRecipe ? placed!.InstanceId : null);
+                    onSiteHouseholdRecipe ? placed!.InstanceId : null,
+                    requireCarried: personalCartRecipe);
                 return reserved;
             });
 
