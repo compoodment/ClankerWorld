@@ -232,10 +232,31 @@ public sealed class SettlementSurvivalTests
     {
         var (state, actor, _, point) = await FarmFieldTests.ReadyFarmer("crop-dry-streak");
         state = SettlementWeatherTestFixture.WithWeather(state, WeatherKind.Clear);
-        using var drying = FarmFieldTests.Restore(state);
-        var ticksThroughTwoDays = drying.WorldSystems.Config.TicksPerDay * 2;
-        while (drying.WorldTick < ticksThroughTwoDays)
-            Assert.True((await drying.AdvanceOneTickAsync()).Advanced);
+        // Moisture is derived from three weather days, not accumulated by
+        // private-world ticks. Prepare the idle fixture just before the third
+        // clear day, then cross that boundary through the real runtime.
+        Assert.All(state.Inhabitants, person =>
+        {
+            Assert.Null(person.Project);
+            Assert.Null(person.Exploration);
+        });
+        Assert.Null(Assert.Single(state.Fields!).Work);
+        Assert.Empty(state.WorldSimulation!.ProductionJobs);
+        Assert.Empty(state.WorldSimulation.CropBuilds ?? []);
+        Assert.Empty(state.Survival!.Fires);
+        Assert.Empty(state.Conversations!);
+        var systems = state.WorldSystems!;
+        var calendar = WorldCalendarRules.FromTick(systems.WorldTick, systems.Config);
+        var lastTickBeforeDryDay = systems.WorldTick +
+            (2 - calendar.DayIndex) * systems.Config.TicksPerDay - calendar.TickOfDay - 1;
+        using var society = SocietyWorldRuntime.Restore(state.Society);
+        society.AdvanceTo(lastTickBeforeDryDay);
+        while (systems.WorldTick < lastTickBeforeDryDay)
+            systems = WorldSystemsRules.AdvanceOneTick(systems);
+        state = state with { Society = society.ExportState(), WorldSystems = systems };
+        using var drying = FarmFieldTests.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)));
+        Assert.InRange(WeatherRules.SoilMoistureAt(drying.WorldSystems, point, state.Map.Height), 15, 100);
+        Assert.True((await drying.AdvanceOneTickAsync()).Advanced);
         state = drying.ExportState();
         Assert.InRange(WeatherRules.SoilMoistureAt(state.WorldSystems!, point, state.Map.Height), 0, 14);
         var rawYield = 4 + new LandFertility(state.Map, state.WorldSeed).At(point) / 25;
