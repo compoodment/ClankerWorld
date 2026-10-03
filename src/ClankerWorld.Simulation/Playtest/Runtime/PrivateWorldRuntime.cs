@@ -110,7 +110,8 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     private sealed record PendingHostedDecision(
         CognitionDecisionRequest Request,
         Task<HostedDecisionOutcome> Task,
-        CancellationTokenSource Cancellation);
+        CancellationTokenSource Cancellation,
+        string? DecisionContext);
     private sealed record ConversationTurnOutcome(AgentConversationTurnResponse? Response, Exception? Failure);
     private sealed record PendingConversationTurn(
         AgentConversationTurnRequest Request,

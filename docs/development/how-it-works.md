@@ -151,6 +151,27 @@ every 30 ticks, and idle agents reevaluate when their legal choices change or
 after 300 ticks. A blocked order therefore cannot request a paid model call on
 every tick.
 
+When a hosted decision is still running, a newly queued choice or observer
+message remains pending after its older reply is accepted. The next prepared
+tick refreshes that work against the resulting world before another request
+starts. Ordinary planning waits while the agent is busy talking; pending work
+remains available after the conversation. It also waits for a life-event
+identity reply, then uses the accepted identity in its refreshed observation.
+Ordinary changes to the clock or need values do
+not by themselves request another paid decision. Pending work is kept only for
+a choice the earlier request lacked, a change in urgent hunger or warmth, or new
+observer guidance; choices that merely disappeared leave the accepted reply
+valid. An agent whose reply was accepted takes no extra waiting routine in that
+tick, and pending work with no call in flight is rebuilt before it is sent.
+Work for an order that finished before any reply carrying it was accepted is
+still sent unchanged, so the agent can acknowledge it; a pause, a load or newer
+guidance rebuilds that work without it. A suggestion carried by a reply that is
+set aside because its order has since finished stays open for the next fresh
+request. Pending observations survive
+save/load and are refreshed for the resumed world before dispatch. The usual
+request, provider, conversation and legal-choice checks still reject stale
+replies.
+
 Local order steps can continue while a hosted reply is pending. An accepted
 decision and a local continuation do not execute the same order twice in one
 tick. If local work finishes first, a valid reply to that exact original
