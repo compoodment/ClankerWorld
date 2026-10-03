@@ -791,6 +791,7 @@ public partial class Main
             "store_equipment" => "Storing " + (order.TargetEquipmentKind?.Replace('_', ' ') ?? "equipment"),
             "store_goods" => "Storing " + OrderItemName(order.TargetItemKind),
             "return_borrowed" => "Returning borrowed " + OrderItemName(order.TargetItemKind),
+            "deliver_stock" => "Delivering " + OrderItemName(order.TargetItemKind) + " to " + OrderBuildingName(order.TargetBuildingKind),
             "gather_material" => "Gathering " + (order.TargetMaterialKind?.Replace('_', ' ') ?? "materials"),
             "produce_item" => "Making " + (order.TargetOutputKind is { } output
                 ? GameUiText.ItemName(output).ToLowerInvariant() : "goods"),
@@ -844,9 +845,23 @@ public partial class Main
         "collection_loads" => "loads collected",
         "storage_loads" => "loads stored",
         "return_loads" => "loads returned",
+        "delivery_loads" => "loads delivered",
         "arrivals" => "sites reached",
         "harvests" => "harvest batches",
         _ => unit,
+    };
+
+    private static string OrderBuildingName(string? kind) => kind switch
+    {
+        "house" => "House",
+        "farmhouse" => "Farmhouse",
+        "silo" => "Silo",
+        "blacksmith" => "Blacksmith",
+        "tailor" => "Tailor Shop",
+        "clinic" => "Clinic",
+        "store" => "Store",
+        "warehouse" => "Town Warehouse",
+        _ => "the requested building",
     };
 
     /// <summary>The Profile docks on the left, just below the top bar, and fits its contents.</summary>

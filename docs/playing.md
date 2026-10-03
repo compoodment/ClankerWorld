@@ -186,7 +186,25 @@ suitable fields, stock and tools. Counts mean completed fields, so include
 **fields** when giving a number; **Harvest five potatoes** is not understood.
 A named crop is never replaced with another. Harvests remain on the field
 until carried. Cancel or replace the order to stop the current work and release
-unused planting stock. Named field locations are not supported yet.
+unused planting stock. Add **at (12, 4)** to keep the task on that field tile.
+
+To move supplies for a household or Town, name both the goods and the destination:
+
+- **Haul four grain to my Farmhouse** moves available household farm stock.
+- **Supply two iron to my Blacksmith** supplies inputs the workstation currently needs.
+- **Deliver two berries to my House** shares spare food the agent already carries.
+- **Donate two wood to my Town Warehouse** gives spare carried materials to the Town.
+- **Stock three cloth in my Store** fills the household's shop under its normal stock limits.
+
+Add **at (12, 4)** to require the building's listed tile. The order keeps its
+chosen destination. A plain request delivers one load; a number counts the
+requested goods actually delivered. Pickup and travel earn no progress.
+Demand, carrying space, building capacity and the agent's normal personal
+reserves still apply, so a task can wait before its requested total is reached.
+Filled vessels need space for their whole contents. A water delivery moves a
+whole jug and counts the water delivered; it cannot pour out part of a jug to
+meet a smaller request. Cancelling keeps goods where they actually are,
+including any supplies already picked up for delivery.
 
 To mend worn personal equipment, use **Repair my basket**, **Repair two padded
 coats**, or **Keep repairing basic garments**. Adults and elders can repair basic
@@ -194,7 +212,8 @@ clothing, padded coats, rain cloaks, baskets and sacks. They collect real suppli
 and use their household's House for baskets or Tailor Shop for the other items.
 Only finished repairs count. Missing items, materials, carrying space or a work
 site leaves the task waiting. Queue, cancellation and save/reload also work for
-these orders. Tools, weapons and named work sites are not supported repair targets.
+these orders. Tool orders also accept exact kinds, such as **Repair two iron
+knives**. Weapons and named work sites are not supported repair targets.
 
 To make goods, try **Make two sacks**, **Make rope**, or **Mill flour**. Adults
 and elders use the usual work site, ingredients and tools. A plain request

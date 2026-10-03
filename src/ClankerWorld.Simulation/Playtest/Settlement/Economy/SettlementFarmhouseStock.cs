@@ -25,12 +25,13 @@ public sealed partial class PrivateWorldRuntime
             lot.StorageBuildingId == buildingId || includeDeliveries && lot.DeliveryBuildingId == buildingId)
         .Sum(lot => lot.Quantity));
 
-    private PlacedBuilding? FarmStorageFor(string householdId, string kind)
+    private PlacedBuilding? FarmStorageFor(string householdId, string kind, string? requestedBuildingId = null)
     {
         var farmhouse = FarmhouseForHousehold(householdId);
         var silo = HouseholdBuildingWithTag(householdId, "silo");
         var choices = kind == FarmFieldRules.Grain ? new[] { farmhouse, silo } : new[] { silo, farmhouse };
-        return choices.FirstOrDefault(building => building is not null && FarmStorageFree(building.InstanceId) > 0);
+        return choices.FirstOrDefault(building => building is not null &&
+            (requestedBuildingId is null || building.InstanceId == requestedBuildingId) && FarmStorageFree(building.InstanceId) > 0);
     }
 
     /// <summary>
@@ -39,7 +40,8 @@ public sealed partial class PrivateWorldRuntime
     /// Farmhouse or Silo stays where it is, so this haul never undoes the
     /// flour haul or moves stock between farm buildings.
     /// </summary>
-    private FarmStockChoice? FarmGrainForDelivery(string householdId, string actor)
+    private FarmStockChoice? FarmGrainForDelivery(string householdId, string actor, string? itemKind = null,
+        string? destinationId = null, int maximumQuantity = int.MaxValue)
     {
         var inventory = society.Checkpoint.Inventory;
         foreach (var carrier in inventory.Lots.Where(lot => lot.OwnerId == householdId && lot.CarrierId is null &&
@@ -47,7 +49,8 @@ public sealed partial class PrivateWorldRuntime
                      .OrderBy(lot => lot.GroundPosition is not null ? 0 : 1)
                      .ThenBy(lot => lot.Id, StringComparer.Ordinal))
         {
-            if (FarmFieldRules.IsFarmStock(carrier.ItemKind) && AvailableLotQuantity(carrier) > 0 &&
+            if (FarmFieldRules.IsFarmStock(carrier.ItemKind) && (itemKind is null || carrier.ItemKind == itemKind) &&
+                AvailableLotQuantity(carrier) > 0 &&
                 CanHaulToFarmStorage(new FarmStockChoice(carrier, carrier)))
                 return new FarmStockChoice(carrier, carrier);
 
@@ -56,7 +59,7 @@ public sealed partial class PrivateWorldRuntime
                 continue;
             // An oversized vessel that cannot be hauled does not hide later stock.
             var choice = inventory.Lots.Where(lot => lot.ContainerLotId == carrier.Id &&
-                    FarmFieldRules.IsFarmStock(lot.ItemKind) && AvailableLotQuantity(lot) > 0)
+                    FarmFieldRules.IsFarmStock(lot.ItemKind) && (itemKind is null || lot.ItemKind == itemKind) && AvailableLotQuantity(lot) > 0)
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal)
                 .Select(resource => new FarmStockChoice(carrier, resource))
                 .FirstOrDefault(CanHaulToFarmStorage);
@@ -66,8 +69,8 @@ public sealed partial class PrivateWorldRuntime
         return null;
 
         bool CanHaulToFarmStorage(FarmStockChoice choice) =>
-            FarmStorageFor(householdId, choice.Resource.ItemKind) is { } destination &&
-            PlanFarmStockHaul(actor, destination.InstanceId, choice) is not null;
+            FarmStorageFor(householdId, choice.Resource.ItemKind, destinationId) is { } destination &&
+            PlanFarmStockHaul(actor, destination.InstanceId, choice, maximumQuantity) is not null;
     }
 
     private FarmStockChoice? FarmFlourForHouse(string householdId, string farmhouseId) =>
@@ -98,7 +101,8 @@ public sealed partial class PrivateWorldRuntime
         return null;
     }
 
-    private FarmStockHaulPlan? PlanFarmStockHaul(string actor, string destinationId, FarmStockChoice choice)
+    private FarmStockHaulPlan? PlanFarmStockHaul(string actor, string destinationId, FarmStockChoice choice,
+        int maximumQuantity = int.MaxValue)
     {
         var inventory = society.Checkpoint.Inventory;
         var capacity = Math.Min(HouseHaulLoadQuantity,
@@ -108,7 +112,7 @@ public sealed partial class PrivateWorldRuntime
 
         if (!InventoryContainerRules.IsContainer(choice.Carrier.ItemKind))
         {
-            var quantity = Math.Min(capacity, AvailableLotQuantity(choice.Resource));
+            var quantity = Math.Min(maximumQuantity, Math.Min(capacity, AvailableLotQuantity(choice.Resource)));
             return quantity > 0
                 ? new FarmStockHaulPlan(choice.Carrier, choice.Resource, quantity, quantity, MoveContainerFamily: false)
                 : null;
@@ -117,16 +121,17 @@ public sealed partial class PrivateWorldRuntime
         if (HasActiveContainerReservation(inventory, choice.Carrier.Id))
             return null;
         var familyQuantity = ContainerFamilyQuantity(inventory, choice.Carrier.Id);
-        if (familyQuantity <= capacity)
+        var resourceQuantity = DeliveryResourceQuantity(choice.Carrier, choice.Resource.ItemKind);
+        if (familyQuantity <= capacity && resourceQuantity <= maximumQuantity)
             return new FarmStockHaulPlan(choice.Carrier, choice.Resource, 1,
-                choice.Resource.Quantity, MoveContainerFamily: true);
+                resourceQuantity, MoveContainerFamily: true);
 
         // Only grain and flour have an approved partial-vessel haul. Other
         // oversized families stay intact at their current location.
         if (choice.Resource.ContainerLotId != choice.Carrier.Id || choice.Carrier.ConditionBasisPoints == 0 ||
             choice.Resource.ItemKind is not (FarmFieldRules.Grain or "flour"))
             return null;
-        var takenQuantity = Math.Min(capacity, AvailableLotQuantity(choice.Resource));
+        var takenQuantity = Math.Min(maximumQuantity, Math.Min(capacity, AvailableLotQuantity(choice.Resource)));
         return takenQuantity > 0
             ? new FarmStockHaulPlan(choice.Carrier, choice.Resource, takenQuantity, takenQuantity,
                 MoveContainerFamily: false)
