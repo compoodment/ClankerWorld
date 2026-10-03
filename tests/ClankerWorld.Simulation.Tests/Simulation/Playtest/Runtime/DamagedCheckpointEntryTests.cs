@@ -10,6 +10,8 @@ namespace ClankerWorld.Simulation.Tests;
 /// </summary>
 public sealed class DamagedCheckpointEntryTests
 {
+    private static readonly Lazy<Task<byte[]>> healthyCheckpoint = new(CreateHealthyCheckpoint);
+
     // Every list below threw a null-reference fault on an empty entry before
     // the decoder refused empty entries generically.
     [Theory]
@@ -61,7 +63,10 @@ public sealed class DamagedCheckpointEntryTests
         Assert.Equal(healthy, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
     }
 
-    private static async Task<byte[]> HealthyCheckpoint()
+    // Share only encoded state; each test gets its own bytes and parsed document.
+    private static async Task<byte[]> HealthyCheckpoint() => (await healthyCheckpoint.Value).ToArray();
+
+    private static async Task<byte[]> CreateHealthyCheckpoint()
     {
         using var world = NormalPathWorld.CreateGenerated("damaged-entry", _ => new ActionCoverageRecorder());
         for (var tick = 0; tick < 30; tick++)
