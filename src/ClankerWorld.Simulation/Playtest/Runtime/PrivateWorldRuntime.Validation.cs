@@ -542,7 +542,7 @@ public sealed partial class PrivateWorldRuntime
             order.TargetResourceId is { Length: > 128 } || order.TargetResourceId?.Any(char.IsControl) == true ||
             order.TargetFoodKind is not (null or "berries" or "fruit" or "wild_greens") ||
             !IsFieldOrder(order.Action) && order.TargetCropKind is not null ||
-            order.Action != "repair_equipment" && order.TargetEquipmentKind is not null ||
+            order.Action is not ("repair_equipment" or "repair_tool") && order.TargetEquipmentKind is not null ||
             order.Action is not ("gather_material" or "store_material" or "collect_material") && order.TargetMaterialKind is not null ||
             order.TargetPosition is { X: < -10_000_000 or > 10_000_000 } ||
             order.TargetPosition is { Y: < -10_000_000 or > 10_000_000 } ||
@@ -567,15 +567,16 @@ public sealed partial class PrivateWorldRuntime
                 (order.Status == "finished") == (!order.RepeatUntilCancelled && order.CompletedUnits >= order.RequestedUnits) &&
                 (order.CompletedUnits == 0 ? order.LastEffectId is null : order.LastEffectId?.StartsWith("field:work:", StringComparison.Ordinal) == true);
 
-        if (order.Action == "repair_equipment")
-            return PrivateWorldInstructionOrderParser.IsEquipmentKind(order.TargetEquipmentKind) &&
+        if (order.Action is "repair_equipment" or "repair_tool")
+            return (order.Action == "repair_tool" ? PrivateWorldInstructionOrderParser.IsToolKind(order.TargetEquipmentKind) :
+                    PrivateWorldInstructionOrderParser.IsEquipmentKind(order.TargetEquipmentKind)) &&
                 order.TargetFoodKind is null && order.TargetResourceId is null && order.TargetPosition is null &&
                 order.RequestedUnits is >= 1 and <= 1000 && order.CompletedUnits is >= 0 and <= 1_000_000 &&
                 (order.QuantityIsExplicit || order.RequestedUnits == 1) && order.ProgressUnit == "repairs" &&
                 (order.RepeatUntilCancelled || order.CompletedUnits <= order.RequestedUnits) &&
                 order.Status != "not_understood" &&
                 (order.Status == "finished") == (!order.RepeatUntilCancelled && order.CompletedUnits >= order.RequestedUnits) &&
-                (order.CompletedUnits == 0 ? order.LastEffectId is null : order.LastEffectId?.StartsWith("repair:equipment:", StringComparison.Ordinal) == true);
+                (order.CompletedUnits == 0 ? order.LastEffectId is null : order.LastEffectId?.StartsWith(order.Action == "repair_tool" ? "repair:tool:" : "repair:equipment:", StringComparison.Ordinal) == true);
 
         if (order.Action == "collect_material")
             return PrivateWorldInstructionOrderParser.IsMaterialKind(order.TargetMaterialKind) &&

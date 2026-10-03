@@ -1,0 +1,1 @@
+- Adults and elders can follow orders to repair their own worn wooden, stone and iron tools at their household Blacksmith using real supplies. Quantities count only finished repairs; queues, preparation, cancellation and survival interruptions preserve remaining work across saves. Older alpha saves are refused and preserved unchanged.

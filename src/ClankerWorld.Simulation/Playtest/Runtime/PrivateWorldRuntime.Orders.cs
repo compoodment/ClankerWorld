@@ -19,6 +19,9 @@ public sealed partial class PrivateWorldRuntime
         if (IsFieldOrder(order.Action))
             return FieldOrderCandidateFor(instruction, person);
 
+        if (order.Action == "repair_tool")
+            return ToolRepairOrderCandidateFor(instruction);
+
         if (order.Action == "repair_equipment")
             return RepairOrderCandidateFor(instruction, person);
 
@@ -158,6 +161,9 @@ public sealed partial class PrivateWorldRuntime
             case "work_field":
                 ExecuteFieldOrderStep(instruction, person);
                 return;
+            case "repair_tool":
+                ExecuteToolRepairOrderStep(instruction, person);
+                return;
             case "repair_equipment":
                 ExecuteRepairOrderStep(instruction, person);
                 return;
@@ -292,6 +298,8 @@ public sealed partial class PrivateWorldRuntime
     {
         if (instruction.Order is { } fieldOrder && IsFieldOrder(fieldOrder.Action))
             return FieldOrderBlockedReason(instruction);
+        if (instruction.Order?.Action == "repair_tool")
+            return ToolRepairOrderBlockedReason(instruction);
         if (instruction.Order?.Action == "repair_equipment")
             return RepairOrderBlockedReason(instruction);
         if (instruction.Order?.Action == "collect_material")
