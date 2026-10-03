@@ -178,6 +178,9 @@ public sealed partial class PrivateWorldRuntime
                     proposed.WorldTick,
                     IsConversationTurnProviderCurrent);
                 proposed.CompleteIdentityMoments(completedIdentityMoments, IsIdentityMomentProviderCurrent);
+                if (deferHosted)
+                    proposed.ProcessWillDecisions(completedWills, activeWillIds, inactiveWillReasons,
+                        IsWillDecisionProviderCurrent);
                 CommitPreparedTick(proposed);
                 plannedRoutes = proposed.plannedRoutes;
                 lastTickMilliseconds = tickMilliseconds;
@@ -450,8 +453,7 @@ public sealed partial class PrivateWorldRuntime
             }
 
             assetReservations = reservationPreview;
-            society.AdvanceTo(targetTick);
-            if (deferHosted) await ProcessWillDecisionsAsync(completedWills, activeWillIds, inactiveWillReasons);
+            society.AdvanceTo(targetTick, TownStoresForDueEstates(targetTick));
             var previousClimate = worldSystems.Climate;
             var campPosition = WeatherAnchor;
             var previousCampWeather = WeatherAt(campPosition);
