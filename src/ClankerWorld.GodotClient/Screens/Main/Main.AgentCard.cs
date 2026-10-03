@@ -19,6 +19,7 @@ public partial class Main
     private readonly PanelContainer agentProfilePanel = new();
     private readonly Label quickCardNameLabel = new();
     private readonly Label quickCardActivityLabel = new();
+    private readonly Label quickCardOrderLabel = new();
     private readonly VBoxContainer quickCardMeters = new();
     private readonly PixelMeter quickFullnessMeter = new() { Kind = MeterKind.Fullness, Caption = "Fullness", CaptionWidth = 54 };
     private readonly PixelMeter quickWarmthMeter = new() { Kind = MeterKind.Warmth, Caption = "Warmth", CaptionWidth = 54 };
@@ -30,6 +31,7 @@ public partial class Main
     private readonly Button renameToggleButton = new();
     private readonly HBoxContainer renameRow = new();
     private readonly Label profileActivityLabel = new();
+    private readonly Label profileOrderLabel = new();
     private readonly Button profileFindButton = new();
     private readonly Button profileCloseButton = new();
     private readonly GridContainer profileMeters = new() { Columns = 2 };
@@ -61,10 +63,12 @@ public partial class Main
         BuildQuickCard();
         BuildAgentProfile();
         BuildThoughtsReader();
+        BuildOrdersReader();
         BuildConversationReader();
         uiLayer.AddChild(selectedInhabitantCard);
         uiLayer.AddChild(agentProfilePanel);
         uiLayer.AddChild(thoughtsPanel);
+        uiLayer.AddChild(ordersPanel);
         uiLayer.AddChild(conversationPanel);
     }
 
@@ -91,6 +95,8 @@ public partial class Main
         quickCardActivityLabel.ThemeTypeVariation = "SoftLabel";
         quickCardActivityLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         body.AddChild(quickCardActivityLabel);
+        ConfigureOrderLabel(quickCardOrderLabel);
+        body.AddChild(quickCardOrderLabel);
         quickCardMeters.AddThemeConstantOverride("separation", 3);
         foreach (var meter in new[] { quickFullnessMeter, quickWarmthMeter, quickIllnessMeter })
             quickCardMeters.AddChild(meter);
@@ -169,6 +175,8 @@ public partial class Main
         // Full width under the portrait, so what they are doing rarely wraps.
         profileActivityLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         body.AddChild(profileActivityLabel);
+        ConfigureOrderLabel(profileOrderLabel);
+        body.AddChild(profileOrderLabel);
 
         renameAgentInput.PlaceholderText = "Agent name";
         renameAgentInput.MaxLength = 48;
@@ -307,7 +315,22 @@ public partial class Main
         submitInstructionButton.Pressed += () => _ = SubmitInstructionAsync();
         speakRow.AddChild(submitInstructionButton);
         speakSection.AddChild(speakRow);
-        speakSection.AddChild(new Label { Text = "YOUR MESSAGES", ThemeTypeVariation = "SectionLabel" });
+        // The four newest messages here; every order the world keeps opens in a reader beside the Profile.
+        var messagesRow = new HBoxContainer();
+        messagesRow.AddChild(new Label
+        {
+            Text = "YOUR MESSAGES",
+            ThemeTypeVariation = "SectionLabel",
+            SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        allOrdersButton.Text = "All orders";
+        allOrdersButton.TooltipText = "See all of their current and queued orders and how their latest ones ended.";
+        StyleCompactToggle(allOrdersButton);
+        allOrdersButton.Pressed += OpenOrdersReader;
+        allOrdersButton.Hide();
+        messagesRow.AddChild(allOrdersButton);
+        speakSection.AddChild(messagesRow);
         ConfigureTextPanel(instructionHistory, 105);
         speakSection.AddChild(instructionHistory);
         selectedAgentOverview.AddChild(speakSection);
@@ -380,6 +403,7 @@ public partial class Main
         if (SelectedInhabitant() is not { } inhabitant || agentCardSnapshot is not { } snapshot) return;
         memoriesPanel.Hide();
         familyTreePanel.Hide();
+        ordersPanel.Hide();
         rosterPanel.Hide();
         eventsPanel.Hide();
         worldOverviewPanel.Hide();
@@ -459,7 +483,7 @@ public partial class Main
         modelSettingsButton.Icon = PixelIcons.Themed(PixelGlyph.Key, gold, 1);
         // Compact toggles copy the theme's tab styles, so copy them again for the new palette.
         foreach (var toggle in new Button[] { readThoughtsButton, instructionSuggestButton, instructionOrderButton,
-                     instructionQueueToggle, instructionCancelButton, conversationHistoryButton })
+                     instructionQueueToggle, instructionCancelButton, allOrdersButton, conversationHistoryButton })
             StyleCompactToggle(toggle);
         agentPortraitFrame.AddThemeStyleboxOverride("panel", new StyleBoxFlat
         {
@@ -571,6 +595,7 @@ public partial class Main
             SetPanelText(instructionHistory, string.Empty);
             memoriesPanel.Hide();
             thoughtsPanel.Hide();
+            ordersPanel.Hide();
             selectedInhabitantCard.Hide();
             agentProfilePanel.Hide();
             return;
@@ -657,6 +682,8 @@ public partial class Main
             .Select(factor => factor.Detail));
         if (!isDeceased && !string.IsNullOrWhiteSpace(inhabitant.MedicalCareNote))
             details.Add(inhabitant.MedicalCareNote);
+        if (!isDeceased && Factor("knowledge-writing") is { } writingProgress)
+            details.Add(writingProgress);
         if (!isDeceased && !string.IsNullOrWhiteSpace(inhabitant.ToolMakingRequestNote))
             details.Add(inhabitant.ToolMakingRequestNote);
         if (!isDeceased && inhabitant.Equipment is { } equipment)
@@ -672,6 +699,8 @@ public partial class Main
             if (equipment.RepairItemKind is { } repairItem)
                 details.Add($"Repairing {Pretty(repairItem).ToLowerInvariant()} · {equipment.RepairWorkDone}/{equipment.RepairWorkRequired}");
         }
+        foreach (var cart in snapshot.Handcarts.Where(cart => cart.OwnerId == inhabitant.Id || cart.PullerId == inhabitant.Id))
+            details.Add(GameUiText.HandcartDescription(cart));
         if (!isDeceased && Factor("last-model-choice") is { } lastModelChoice)
             details.Add("Last model choice: " + Sentence(GameUiText.ActivityPhrase(lastModelChoice, null)));
         if (!isDeceased && Factor("model-setup-blocker") == "unsupported_request")
@@ -741,10 +770,12 @@ public partial class Main
         SetPanelText(instructionHistory, recentInstructions.Length == 0
             ? "No messages yet."
             : string.Join("\n\n", recentInstructions));
+        RenderOrderSummary(snapshot, inhabitant, isDeceased);
 
         RenderProfilePeople(snapshot, inhabitant);
         RenderMemoryCards(snapshot, inhabitant);
         RenderThoughtsReader(snapshot, inhabitant);
+        RenderOrdersReader(snapshot, inhabitant);
 
         modelSettingsButton.Disabled = isDeceased || registration is null;
         findAgentButton.Visible = !isDeceased;
@@ -765,7 +796,11 @@ public partial class Main
                 item.Order is { Status: "queued" or "waiting" or "doing" or "interrupted" or "blocked" })
             .OrderBy(item => item.SubmissionSequence).FirstOrDefault();
 
-    private static string InstructionOrderSummary(OwnerWorldInstruction instruction)
+    /// <summary>
+    /// One order's state as the host reports it, such as "Blocked · Eating food ·
+    /// 0/3 food items" followed by why it is held up or was replaced.
+    /// </summary>
+    private static string InstructionOrderSummary(OwnerWorldInstruction instruction, bool includeHeard = true)
     {
         var order = instruction.Order;
         if (order is null)
@@ -777,7 +812,12 @@ public partial class Main
         {
             "consume_food" => "Eating food",
             "harvest_food" => "Gathering food",
+            "gather_material" => "Gathering " + (order.TargetMaterialKind?.Replace('_', ' ') ?? "materials"),
+            "collect_material" => "Collecting " + (order.TargetMaterialKind?.Replace('_', ' ') ?? "materials"),
+            "store_material" => "Storing " + (order.TargetMaterialKind?.Replace('_', ' ') ?? "materials"),
             "seek_food" => "Going to a food site",
+            "move_to" => "Going to a tile",
+            "accept_guardianship" => "Becoming a guardian",
             _ => "Order",
         };
         var units = order.RepeatUntilCancelled
@@ -785,12 +825,11 @@ public partial class Main
             : order.Status is "doing" or "interrupted" or "blocked" or "finished"
                 ? $" · {Math.Min(order.CompletedUnits, order.RequestedUnits)}/{order.RequestedUnits} {ProgressUnitLabel(order.ProgressUnit)}"
                 : string.Empty;
-        var reason = order.Status == "blocked" && !string.IsNullOrWhiteSpace(order.BlockedReason)
+        // Blocked and interrupted orders say why; a cancelled one says if a newer order replaced it.
+        var reason = order.Status is "blocked" or "interrupted" or "cancelled" && !string.IsNullOrWhiteSpace(order.BlockedReason)
             ? $" · {order.BlockedReason}"
-            : order.Status == "interrupted" && !string.IsNullOrWhiteSpace(order.BlockedReason)
-                ? $" · {order.BlockedReason}"
-                : string.Empty;
-        var heard = instruction.ObservedTick is null ? string.Empty : " · Heard by their personal model";
+            : string.Empty;
+        var heard = !includeHeard || instruction.ObservedTick is null ? string.Empty : " · Heard by their personal model";
         var state = order.Status switch
         {
             "queued" => "Queued",
@@ -803,14 +842,21 @@ public partial class Main
             "not_understood" => "Not understood",
             _ => "Waiting",
         };
-        return $"{state} · {task}{units}{reason}{heard}";
+        // The game understood no task in an order it could not act on, so there is none to name.
+        return order.Status == "not_understood" && order.Action == "unknown"
+            ? $"{state}{heard}"
+            : $"{state} · {task}{units}{reason}{heard}";
     }
 
     private static string ProgressUnitLabel(string unit) => unit switch
     {
         "food_items" => "food items",
+        "material_items" => "items",
+        "collection_loads" => "loads collected",
+        "storage_loads" => "loads stored",
         "arrivals" => "sites reached",
         "harvests" => "harvest batches",
+        "guardianships" => "care assignments",
         _ => unit,
     };
 

@@ -1,0 +1,1 @@
+- Agents can follow orders to gather wood, stone, fiber, clay, iron ore, gold ore and diamond using normal tools, carrying limits and resource stock. Orders support quantities, repetition, exact sites, queueing, cancellation and save/reload. Older alpha saves are refused and preserved unchanged because the order state has changed.

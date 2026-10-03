@@ -41,6 +41,12 @@ public sealed partial class PrivateWorldRuntime
             RecordMovementBlocked(inhabitantId, state, "waiting_for_dependent");
             return;
         }
+        if (AttachedHandcart(inhabitantId) is { } heldCart && !CanPullHandcart(heldCart))
+        {
+            ParkHandcart(inhabitantId, "equipment_unusable");
+            RecordMovementBlocked(inhabitantId, state, "cart_unusable");
+            return;
+        }
         var route = FindUnoccupiedRoute(inhabitantId, state.Position, destination, interactionRange);
         if (route.Count < 2)
         {
@@ -49,11 +55,13 @@ public sealed partial class PrivateWorldRuntime
         }
 
         var next = route[1];
+        var travelCost = TravelStepCost(inhabitantId, state.Position, next);
+        MoveAttachedHandcart(inhabitantId, state.Position, next);
         inhabitants[inhabitantId] = state with
         {
             Position = next,
             MoveWaitTicks = 0,
-            TravelCooldownTicks = (RoadStepCost(state.Position, next) + 99) / 100 - 1 +
+            TravelCooldownTicks = (travelCost + 99) / 100 - 1 +
                 SettlementIllnessRules.TravelDelayTicks(state.Survival?.IllnessBasisPoints ?? 0),
         };
         RecordPlannedRoute(inhabitantId, reason, destination, route);
@@ -83,7 +91,53 @@ public sealed partial class PrivateWorldRuntime
         // sharing exception above, and avoid searching an entire map for it.
         if (interactionRange == 0 && origin != destination && occupied.Contains(destination))
             return [];
-        return SharedUnoccupiedRoute(origin, occupied, destination, interactionRange);
+        if (AttachedHandcart(inhabitantId) is null)
+            return SharedUnoccupiedRoute(origin, occupied, destination, interactionRange);
+
+        var open = new PriorityQueue<GridPoint, (int Cost, int Y, int X, int Order)>();
+        var best = new Dictionary<GridPoint, int> { [origin] = 0 };
+        var predecessor = new Dictionary<GridPoint, GridPoint>();
+        var order = 0;
+        open.Enqueue(origin, (0, origin.Y, origin.X, order++));
+
+        while (open.TryDequeue(out var current, out var priority))
+        {
+            if (priority.Cost != best[current])
+                continue;
+            if (IsWithinInteractionRange(current, destination, interactionRange))
+            {
+                var route = new List<GridPoint> { current };
+                while (current != origin)
+                {
+                    current = predecessor[current];
+                    route.Add(current);
+                }
+
+                route.Reverse();
+                return route;
+            }
+
+            foreach (var next in map.FootNeighbors(current))
+            {
+                if (handcartHitches.Any(hitch => hitch.PullerId == inhabitantId) && !LegalHandcartStep(current, next) ||
+                    occupied.Contains(next) ||
+                    map.IsDiagonalFootStep(current, next) &&
+                    (occupied.Contains(new GridPoint(next.X, current.Y)) ||
+                     occupied.Contains(new GridPoint(current.X, next.Y))))
+                {
+                    continue;
+                }
+
+                var cost = checked(priority.Cost + TravelStepCost(inhabitantId, current, next));
+                if (best.TryGetValue(next, out var previous) && previous <= cost)
+                    continue;
+                best[next] = cost;
+                predecessor[next] = current;
+                open.Enqueue(next, (cost, next.Y, next.X, order++));
+            }
+        }
+
+        return [];
     }
 
     private void RecordMovementBlocked(
@@ -95,6 +149,8 @@ public sealed partial class PrivateWorldRuntime
         inhabitants[inhabitantId] = state with { MoveWaitTicks = waitTicks };
         if (waitTicks == 1 || waitTicks % 30 == 0)
         {
+            if (AttachedHandcart(inhabitantId) is not null || reason == "cart_unusable")
+                AppendEvent("handcart_blocked", $"{inhabitantId}:{reason}");
             AppendEvent("movement_blocked", $"{inhabitantId}:{reason}:wait={waitTicks}");
         }
     }

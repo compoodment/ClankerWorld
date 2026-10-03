@@ -30,6 +30,10 @@ public sealed record OwnerWorldPackedMapLayers(int Width, int Height, string Enc
 }
 public sealed record OwnerWorldFarmField(OwnerWorldPosition Position, string HouseholdId, string Stage, string? Crop,
     int Fertility, string? WorkerId, int? WorkRemaining);
+public sealed record OwnerWorldHandcart(string Id, string OwnerId, string OwnerName, OwnerWorldPosition Position,
+    int Capacity, int ConditionPercent, string? PullerId, string? PullerName,
+    IReadOnlyList<OwnerWorldInventoryEntry> Cargo);
+
 public sealed record OwnerWorldGroundStock(OwnerWorldPosition Position, string OwnerId, string Kind, int Quantity);
 
 public sealed record OwnerWorldObject(string Id, string Kind, OwnerWorldPosition Position);
@@ -119,8 +123,8 @@ public sealed record OwnerWorldKnowledgeArtifact(
     string CreatorName,
     IReadOnlyList<OwnerWorldKnowledgeSite> Sites);
 /// <summary>
-/// The world's saved calendar. Season lengths come from the same saved values
-/// the world uses for its seasons; an older host leaves them at zero.
+/// The world's saved calendar. Season lengths and the clock offset come from
+/// the world's saved values; an older host leaves missing values at zero.
 /// </summary>
 public sealed record OwnerWorldCalendarPace(
     int TicksPerDay,
@@ -128,9 +132,11 @@ public sealed record OwnerWorldCalendarPace(
     int SpringDays = 0,
     int SummerDays = 0,
     int AutumnDays = 0,
-    int WinterDays = 0);
+    int WinterDays = 0,
+    int CalendarOffsetTicks = 0);
 public sealed record OwnerFounderSetup(int Required, int Placed, bool Started)
 {
+    public bool RequiresWorldCreation { get; init; }
     public bool CanChooseTownSite { get; init; }
     public bool HasAcceptedTownSite { get; init; }
     public string? LastFounderId { get; init; }
@@ -274,7 +280,9 @@ public sealed record OwnerWorldInstructionOrder(
     string? TargetResourceId = null,
     int? TargetX = null,
     int? TargetY = null,
-    string? BlockedReason = null);
+    string? BlockedReason = null,
+    string? TargetAgentId = null,
+    string? TargetMaterialKind = null);
 
 public sealed record OwnerWorldCognitionEvent(long EventId, long WorldTick, string Kind, string Detail);
 
@@ -442,6 +450,7 @@ public sealed record OwnerWorldSnapshot(
     public bool WrapsEastWest { get; init; }
     public IReadOnlyList<OwnerWorldFarmField> Fields { get; init; } = [];
     public IReadOnlyList<OwnerWorldGroundStock> GroundStocks { get; init; } = [];
+    public IReadOnlyList<OwnerWorldHandcart> Handcarts { get; init; } = [];
     public IReadOnlyList<OwnerWorldStockpile> Stockpiles { get; init; } = [];
     public OwnerWorldCouncil? Council { get; init; }
     public int? LifePaceRate { get; init; }
@@ -493,7 +502,14 @@ public sealed record OwnerWorldEventSlice(
 
 public sealed record OwnerWorldCouncil(string? StewardName, string FoodPolicy, string? ProposedPolicy, int Approvals, int Rejections, int Voters);
 
-public sealed record OwnerWorldReconnectBaseline(OwnerWorldSnapshot Snapshot, OwnerWorldEventSlice Events);
+public sealed record OwnerObserverTimeline(string InstanceId, long Generation)
+{
+    internal bool IsValid => !string.IsNullOrWhiteSpace(InstanceId) && InstanceId.Length <= 128 &&
+        !InstanceId.Any(char.IsControl) && Generation >= 0;
+}
+
+public sealed record OwnerWorldReconnectBaseline(OwnerWorldSnapshot Snapshot, OwnerWorldEventSlice Events,
+    OwnerObserverTimeline? Timeline = null);
 
 public sealed record OwnerWorldReconnect(OwnerWorldHandshake Handshake, OwnerWorldReconnectBaseline Baseline);
 
@@ -555,11 +571,18 @@ public sealed record ManualWorldSave(string Id, string Name, DateTimeOffset Crea
 /// <summary>One version of a world's history; saves from before branches have none.</summary>
 public sealed record SaveBranch(string Id, int Number, string? StartedFromId = null,
     string? StartedFromName = null, long? StartedFromTick = null);
+/// <summary>Where the running world continues on the save timeline: the save it was last
+/// loaded from or saved as, that save's branch, and whether the next save starts a new branch.</summary>
+public sealed record SaveTimelinePosition(string? ContinuedFromId, string? BranchId, bool StartsNewBranch,
+    int? NextBranchNumber = null, long? ContinuedFromTick = null);
 public sealed record ManualSaveLoadReceipt(string LoadedId, string BackupId, long WorldTick);
 public sealed record ManualSaveOverwriteReceipt(ManualWorldSave Saved, string BackupId);
 public sealed record OwnerAutosaveConfigurationAction(bool Enabled, int IntervalMinutes, int RotationCount);
 public sealed record WorldAutosaveSettings(string WorldId, bool Enabled, int IntervalMinutes,
     int RotationCount, DateTimeOffset LastSavedUtc, long LastWorldTick);
+public sealed record OwnerDeveloperEditAction(string WorldId, long ExpectedEventId, string AgentId,
+    string Operation, string Value, int Amount = 0, string? OtherAgentId = null);
+
 public sealed record OwnerLifePaceAction(int Rate);
 public sealed record OwnerJevAssistanceAction(bool Enabled);
 

@@ -246,7 +246,10 @@ public sealed partial class SettlementParenthoodTests
         Assert.Equal(3, fullHome.PermanentResidentCount);
         Assert.Equal(3, fullHome.ResidentLimit);
         Assert.False(fullHome.IsOvercrowded);
+        PositionFamilyFixtureAt(moved, plan.LastTransitionTick + 598);
         moved.Resume();
+        Assert.True((await moved.AdvanceOneTickAsync()).Advanced);
+        Assert.Empty(moved.Society.Births);
         for (var tick = 0; tick < 620 && moved.Society.Births.Count == 0; tick++)
             Assert.True((await moved.AdvanceOneTickAsync()).Advanced);
 
@@ -266,9 +269,11 @@ public sealed partial class SettlementParenthoodTests
         Assert.True(capacity.IsOvercrowded);
         var newborn = moved.Inhabitants.Single(item => item.InhabitantId == birth.ChildId);
         Assert.Equal(HousingBlockers.Overcrowded, newborn.Housing?.Blocker);
-        Assert.Contains(new OwnerWorldObservationStore(moved).GetSnapshot().Inhabitants
+        var housingDetail = Assert.Single(new OwnerWorldObservationStore(moved).GetSnapshot().Inhabitants
             .Single(item => item.Id == birth.ChildId).DecisionFactors,
-            factor => factor.Key == "housing" && factor.Detail.Contains("Housing need", StringComparison.Ordinal));
+            factor => factor.Key == "housing").Detail;
+        Assert.Contains("House overcrowded: 4 residents, 3 places.", housingDetail, StringComparison.Ordinal);
+        Assert.DoesNotContain("No home", housingDetail, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(4, capacity.PermanentResidentCount);
         using var restored = PrivateWorldRuntime.Restore(
             PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(moved.ExportState())), ProviderFor);

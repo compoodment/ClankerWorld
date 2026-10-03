@@ -27,6 +27,15 @@ terrain migration is provided. New saves with default weather store a null
 profile list to select the reduced built-in preset. Explicit profile lists
 keep their configured weather weights.
 
+Private-world schema 60 adds exclusive physical handcart attachments. A cart
+and its cargo are existing inventory lot relationships, with the cart's ground
+position retained while pulled or parked. Loading verifies one cart per puller,
+one puller per cart, living ownership, condition and shared position. In-flight
+crafting and repair inputs use the normal exact inventory reservations. Current
+roundtrips retain loaded parked carts and mid-journey hitches; rollback retains
+the previous physical position and every cargo quantity. Earlier alpha saves
+are refused and preserved; no migration is added.
+
 Private-world schema 31 records an agent's learned skills and each lesson's
 skill instead of a work role. Skills retain their first learning time and
 optional teacher ID, including in deceased profiles. Loading validates those
@@ -100,6 +109,31 @@ unrelated action or a stale order cannot advance a replacement task. Alpha saves
 must use the current checkpoint schema; older saves are refused without
 migration and remain unchanged.
 
+Private-world schema 65 adds material-gathering orders with a distinct
+`TargetMaterialKind`, exact optional source or position, and progress measured
+in harvest batches or material items. Saved progress and the last physical
+harvest receipt are validated together; mixed food/material targets and invalid
+material kinds are refused. Queueing, cancellation, discovery and partial
+quantities retain their state across reload. Older alpha saves are refused and
+preserved unchanged; no migration is added.
+
+Private-world schema 66 adds `store_material` orders using the same bounded
+material target. The destination is the current household House, so source,
+food, guardian and coordinate target fields are refused. Progress counts storage
+loads or exact item quantities and requires a committed personal-relocation receipt
+with a fixed-length identity, even when the inventory lot identifier is long.
+Replay preserves partial storage, queued work and cancellation without moving
+goods again. Older alpha saves are refused and preserved without migration.
+
+Private-world schema 67 adds `collect_material` orders for the same material
+catalogue. Their source is selected through ordinary personal-goods collection
+rules, so explicit source, food, guardian and coordinate targets are refused. Progress
+counts collected loads or exact item quantities, and a bounded committed-move
+receipt prevents replay from duplicating pickup. Unavailable goods and full
+carrying space preserve the remaining task. Older alpha saves are refused and
+preserved without migration. This number is provisional and must remain above
+the storage-order base schema after integration.
+
 Schema 53 saves wills with several heirs. An estate keeps its household
 default beneficiaries and adds, for an accepted will, the named heirs in order,
 the split, the exact quantity of each frozen lot each heir receives, and any
@@ -155,13 +189,13 @@ keeps the earlier groups, and the offers are brought up to date at the end of
 every tick, so a save always matches the households it was made with. Acceptance is
 an explicit adult action that changes the saved current primary caregiver.
 The original search format placed a child only in a completed House with room
-in the same Town. Schema 60 adds the pending physical placement described below.
+in the same Town. Schema 69 adds the pending physical placement described below.
 Loading validates the search stage, times and adult references. Replaying
 from a pending request reaches the same acceptance opportunities and preserves
 the single guardian-needed event. Older alpha saves without this state are
 refused; no migration is added.
 
-Schema 60 saves a dependent's pending guardian placement separately from the
+Schema 69 saves a dependent's pending guardian placement separately from the
 accepted care relationship. It records the caregiver, exact relationship and
 revision, start time, collecting or escorting stage, selected household and
 Town, and the House's instance, definition, placement time and anchor. A
@@ -310,7 +344,7 @@ Store delivery lots survive save/reload without granting customer access to
 private stock. Earlier alpha saves need not load; no shop-state migration is
 provided.
 
-Private-world schema 47 records household departures, their original household, care group and once-only food allocation, plus optional physical inventory custody separate from ownership. Personal House storage retains the personal owner even after membership ends. Reload preserves collection rights, borrowed carried goods, the care group and unfinished housing task without awarding another allowance. Paused private jobs retain the original owners, exact input reservations and pause time. Their reserved workstation or expansion footprint stays occupied; a remaining authorized member can resume at the physical site with the same materials and remaining duration. Unavailable materials cancel the preserved job and release its remaining commitments. Invalid custody, departure records and unavailable carriers are refused. Older alpha checkpoints are refused and preserved; no migration is added.
+Private-world schema 47 records household departures, their original household, care group and once-only food allocation, plus optional physical inventory custody separate from ownership. Personal House storage retains the personal owner even after membership ends. Reload preserves collection rights, borrowed carried goods, the care group and unfinished housing task without awarding another allowance. Paused private jobs retain the original owners, exact input reservations and pause time; a leaver's own cart build is cancelled instead, releasing its carried materials. Their reserved workstation or expansion footprint stays occupied; a remaining authorized member can resume at the physical site with the same materials and remaining duration. Unavailable materials cancel the preserved job and release its remaining commitments. Invalid custody, departure records and unavailable carriers are refused. Older alpha checkpoints are refused and preserved; no migration is added.
 
 Private-world schema 51 lets each living inhabitant record named adult medical
 permissions and an active medicine course. The course binds its patient and
@@ -375,10 +409,18 @@ events untouched; a fresh signed retry can recover without relying on a later
 tick. Resume still requires a started world and valid usage allowance. Other
 recovery paths do not resume time implicitly.
 
-Before a potentially committed create/select/rewind request, the client clears
-its held observation timeline. If the receipt is lost, reconnect starts from a
-fresh baseline while retaining normal regression and terrain-identity checks
-within that timeline. Continue does not resume an uncertain world switch.
+Before a potentially committed create/select/rewind request, the client invalidates
+older observation requests and asks for a fresh baseline. It keeps the last
+confirmed view when the host advertises observer timelines; legacy hosts clear
+the held observation. If the receipt is lost, reconnect starts from a fresh
+baseline while retaining normal regression and terrain-identity checks within
+that timeline. Continue does not resume an uncertain world switch.
+Other connected devices detect that change through transient observer metadata
+and fetch a fresh baseline too, including for same-world rewinds. The runtime
+captures that metadata with the committed state; it is never written into a
+checkpoint and does not change saved world identity or replay. See
+[observer recovery](device-pairing.md#recovering-after-another-device-loads-a-world)
+for ordering, cache and retained-request boundaries.
 
 The internally captured proposed tick can reuse its committed map. External
 loads still validate and regenerate it; this shortcut must not weaken input
@@ -460,8 +502,26 @@ movement always use today's bridge map, with its legal axes, detours and
 blocked-return behavior. These checks use existing timestamps and add no saved
 fields, schema change or migration.
 
+Private-world schema 64 adds a move-out notice to an adult's `Housing` record:
+the current household, original notice tick, fixed deadline and selection
+reason. A pending request to another household is permitted while that notice
+is held. Loading validates the adult, membership, reason and time bounds;
+malformed notices and unsupported earlier schemas are refused and preserved.
+Live care, family and capacity changes may make a notice obsolete, so the
+runtime rechecks them before admission or displacement instead of treating a
+stale notice as authority to move someone.
+
+Current-format roundtrips retain notice deadlines, volunteer replacements,
+housing requests and the ordinary departure's collection rights and once-only
+food allowance. Replacing the selected adult keeps the original notice period;
+pause/load, births and unfinished expansion do not restart it. Replay must
+produce the same cancellation or departure without duplicating events or goods.
+Only completed footprints add resident places. Sole caregivers are protected
+from timed displacement even when their dependent lives in another household.
+No older-save migration or backfill is added.
+
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 59. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 67. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
@@ -483,8 +543,11 @@ consumed-dose progress, selected personal ornaments, and wills with up to
 three named heirs, exact divisions and final words, Town admission records,
 Town laws and government, concrete last-meal names for nourishment and
 dietary variety, bounded tool-making requests linked to ordinary production
-and barter, exact land-claim coordinates on Council proposals, and household
-land requests with their Council proposal and each adult's consent.
+and barter, exact land-claim coordinates on Council proposals, household
+land requests with their Council proposal and each adult's consent, physical
+knowledge writing with exact material reservations and completed-artifact
+receipts, exact-tile movement orders with their destination and arrival
+receipt, overcrowding move-out notices and material-gathering targets and receipts.
 Land records are checked against the saved map, Towns, households and one
 another before load. Building reassignment moves only existing footprint use rights;
 connected remainder plots keep their holder and original grant terms. Split
@@ -518,10 +581,13 @@ for medical permission and consumed-dose progress, schema 52 for selected
 ornaments, schema 53 for wills with several heirs and final words, schema 54
 for Town admission records, schema 55 for Town laws and government, schema
 56 for named last meals, schema 57 for tool-making requests, schema 58 for
-Council land claims, schema 59 for household land grants and schema 60 for
-physical guardian placements record when
-those fields or behaviors were introduced;
-they do not allow an earlier checkpoint schema past the current alpha cutoff.
+Council land claims, schema 59 for household land grants, schema 60 for
+handcart attachments, schema 61 for guardian-order targets, schema 62 for
+physical knowledge writing, schema 63 for exact-tile movement orders and
+schema 64 for overcrowding move-out notices, schema 65 for material orders
+and schema 69 for physical guardian placements
+record when those fields or behaviors were introduced; they do not allow an
+earlier checkpoint schema past the current alpha cutoff.
 
 | Compatibility change | Meaning |
 | --- | --- |
@@ -567,7 +633,13 @@ they do not allow an earlier checkpoint schema past the current alpha cutoff.
 | Schema 57 | Bounded tool-making requests bind their customer, selling household, actual Blacksmith, accepted worker and ordinary production/offer history. Completed work requires exact full input receipts; purchase status must agree with the real inventory offer. Earlier alpha checkpoints are refused and preserved without migration. |
 | Schema 58 | Council proposals may carry the exact connected plot of a land claim; a passed claim and its Town title must agree on Town, tiles and settlement time. Earlier alpha checkpoints are refused and preserved without migration. |
 | Schema 59 | Household land requests keep their status, Council proposal, each adult's separate consent and the adult roster at settlement; a grant and its rights must agree on plot, grant time and end date. Earlier alpha checkpoints are refused and preserved without migration. |
-| Schema 60 | Pending guardian placements retain exact accepted care authority, collecting or escorting progress, a selected House and current blocker. Household and Town membership change together only on valid arrival. Earlier alpha checkpoints are refused and preserved without migration. |
+| Schema 60 | Exclusive physical handcart attachments: one cart per puller and one puller per cart, for a living owner, with cart and puller on the same tile. Cargo stays in ordinary inventory lots inside the cart. Earlier alpha saves are refused and preserved without migration. |
+| Schema 61 | Guardian orders retain the exact target agent separately from food/resource targets. Loading refuses missing or unknown targets, mixed task fields, repetition, and inconsistent completion receipts. The order survives a rename, pause, cancellation and replay. Older alpha saves are refused and preserved without migration. |
+| Schema 62 | Physical knowledge-writing projects retain their author, frozen learned facts, source artifact, work and exact paper/cloth reservations. Completed maps, records and books retain the consumed-material receipts and unique physical lot. Invalid provenance, duplicated inputs and malformed work are refused. Earlier alpha saves are refused and preserved without migration. |
+| Schema 63 | Exact-tile movement orders retain their destination, progress and arrival receipt. Loading refuses missing destinations, mixed food/resource fields, repetition and inconsistent completion. Queues and interrupted trips replay across saves. Older alpha saves are refused and preserved without migration. |
+| Schema 64 | Household move-out notices retain their original notice period, fixed deadline and selection reason alongside pending housing requests. Reload and replacement do not restart notice or duplicate departure goods. Runtime admission and displacement recheck current need and caregiver protection. Earlier alpha saves are refused and preserved without migration. |
+| Schema 65 | Material-gathering orders retain the material kind, exact optional source or position, batch/item progress and physical harvest receipt. Loading rejects mixed food/guardian/material fields and inconsistent progress. Queue, cancellation and partial work replay without duplicate harvests; older alpha saves are refused and preserved without migration. |
+| Schema 69 | Pending guardian placements retain exact accepted care authority, collecting or escorting progress, a selected House and current blocker. Household and Town membership change together only on valid arrival. Earlier alpha checkpoints are refused and preserved without migration. |
 
 ### Tool-making requests
 
@@ -599,9 +671,20 @@ The saved clock/lifecycle values govern old worlds. Restore validates matching
 society/world-system calendar values rather than silently assigning the newest
 playtest pace.
 
+Newly created playable worlds save `CalendarOffsetTicks = 90` with 360 ticks
+per day, placing elapsed tick zero at 06:00 on Spring 1, Year 1. The offset
+must be nonnegative and less than one day. World-systems schema 3 carries a
+nonzero offset, so older readers reject it instead of silently displaying
+midnight. The outer private-world schema is unchanged. Zero-offset worlds
+continue using world-systems schema 2; an absent offset means zero and is
+omitted when writing, preserving their existing clock and canonical bytes.
+Restore uses the saved value, not the new-world default. Ages, setup guards,
+action deadlines and elapsed durations keep using the original world tick;
+calendar dates, daylight and daily allowances use its offset calendar.
+
 Night ([#673](https://github.com/compoodment/ClankerWorld/issues/673)) adds no
-saved field: time of day is derived from the saved tick and ticks per day, so
-the checkpoint schema and every other version stay as they are. A current-schema
+saved darkness field: time of day is derived from the saved tick, ticks per day
+and calendar offset. A current-schema
 save made before night existed loads unchanged; nights, and their chill on
 outdoor warmth, apply from its next tick. Its recorded history is not
 re-simulated. A world saved during dawn reloads at the same darkness and
@@ -631,10 +714,17 @@ carrier's custody; goods carried by the deceased are dropped at their last tile.
 Town shares use the Town's current Warehouse while it can accept them.
 Debts and Town-law conflicts remain separate work. Inheritance does not decide guardianship.
 
-A quantity-one physical map or field record retains its lot ID when inherited.
+A quantity-one physical map, field record or book retains its lot ID when inherited.
 Ownership and location change; its creator, discovery facts and artifact link
 remain. Ordinary divisible stock follows the usual split rules. Inheritance
 does not broadcast the artifact's knowledge to everyone.
+
+Writing projects save their exact learned contents and input reservations;
+reloading does not invent supplies or finish the work. Copies preserve the
+original discoverers and the source artifact while naming the actual writer.
+Each completed artifact has its own quantity-one inventory lot and consumed
+input receipts, so a retry cannot reuse another artifact's payment. Paper
+production uses the ordinary household recipe and reusable-vessel state.
 
 Inventory lot splits leave all actively reserved stock in the original lot,
 including production and barter commitments. Only the unreserved remainder can
@@ -707,6 +797,15 @@ which branch and save the running world continues from. Loading a save moves it
 to that save; every new save moves it to the new save. These are save metadata
 only: checkpoints, events and replay are unchanged.
 
+The owner's client reads the record for the timeline's **You are here** marker
+through the signed `save-timeline` control action
+(`POST /api/v1/owner/saves/timeline`). It answers with the save the running
+world continues from, that save's branch and time, whether the next save starts
+a new branch, and the branch number the next save will use even after deletions.
+The answer comes from the same checks saving uses, so the two cannot
+disagree, and reading it changes nothing. A host from before this action
+answers 404, and the client then leaves the marker out.
+
 A new save continues the recorded branch unless something else on that branch
 has a higher position. Positions advance even while paused and survive deletion
 of intermediate saves, so equal world ticks do not mix separate histories.
@@ -755,6 +854,12 @@ Ordinary imported conditions reserve a conservative half-day storm-free window.
 New worlds start with episode data. Saved episodes resume without rerolling;
 all transitions use the same prior neighbor snapshot.
 
+Custom weather weights retain their saved values, including valid totals up to
+`int.MaxValue`. Climate conversion and episode bonuses use wider arithmetic to
+avoid overflow. Existing episodes and the save format stay unchanged; future
+transitions from extreme profiles use the corrected probabilities. Current
+saves round-trip and continue deterministically under those rules.
+
 Episode version and bounds are validated, including topology against the saved
 map. Episodes arrived with private-save schema 26; episode-bearing world systems use schema 2.
 World-systems schema 1 remains readable, with the absent field omitted when null.
@@ -799,3 +904,25 @@ roots and their digest-addressed chains before removing unreferenced segments.
 Unpublished generations conservatively count as roots. Corrupt roots defer history
 cleanup, preserving other saves. This is ordinary file deletion, not secure disk
 erasure, and does not remove copies in external backups.
+
+## Developer edits
+
+A paused developer edit changes existing need, inventory, skill or partnership
+state and appends one `developer_edit` event whose JSON detail is the complete
+`PrivateWorldDeveloperEdit` command. No checkpoint fields or schema version
+change. Existing save validation still applies to the entire proposed world;
+older readers can load the same state representation, though they do not offer
+the edit UI or describe the new event kind.
+
+The event ID supplies deterministic lot and relationship IDs. Reapplying its
+command to the same paused baseline reproduces the checkpoint; replay tests
+also compare resumed ticks after a save/load roundtrip. The event carries the
+world ID and expected latest event ID. An exact retry found in hot event history
+returns already applied without another grant or event. After history compaction,
+the old event precondition refuses that retry instead of applying it again.
+
+The host writes the validated proposal through the checkpoint's atomic file
+replacement before accepting it in memory. A failed write preserves the live
+state and the prior save, and the original command can be retried. Tests cover
+this rollback, stale/wrong-world refusals, field binding in signed requests,
+and the generated-world path for every supported edit category.

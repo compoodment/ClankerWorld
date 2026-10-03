@@ -23,8 +23,10 @@ public sealed class InvalidHostedDecisionTests
             var usage = new ProviderUsageStore(Path.Combine(directory.FullName, "usage.json"));
             using var handler = new AnswerHandler(candidate, confidence);
             var router = new ConfigurableDecisionProvider(configuration, new ClientFactory(handler), usageStore: usage);
+            // Keep peers from taking shared tools and changing the hosted
+            // agent's choices while this single metered reply is pending.
             using var world = new PrivateWorldRuntime("invalid-hosted-answer", id =>
-                id == "founder-scout" ? router : new DeterministicDecisionProvider());
+                id == "founder-scout" ? router : new ActionCoverageRecorder(chooseIdle: true));
             CognitionAdmissionResult? admission = null;
             for (var tick = 0; tick < 25 && admission is null; tick++)
             {

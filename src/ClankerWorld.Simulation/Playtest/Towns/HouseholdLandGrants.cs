@@ -164,7 +164,7 @@ public sealed partial class PrivateWorldRuntime
 
     private string LandUseTerms(HouseholdLandUseRequest request) =>
         "Exact tiles: " + TownLandClaimRules.DescribeTiles(request.Tiles) + ". " +
-        (request.AgreedEndTick is { } end ? $"Agreed end: world day {end / CivicDay + 1}. " : "No agreed end date. ");
+        (request.AgreedEndTick is { } end ? $"Agreed end: world day {CivicDayNumber(end)}. " : "No agreed end date. ");
 
     private void AddHouseholdLandCandidates(List<CognitionCandidate> candidates, string actor, TownRuntimeState town)
     {
@@ -195,7 +195,11 @@ public sealed partial class PrivateWorldRuntime
         var definition = worldContent.Buildings.Single(d => d.CanonicalId == building.DefinitionId);
         var pending = householdLandUseRequests.Where(r => r.Status == "pending" && r.HouseholdId == building.HouseholdId)
             .SelectMany(r => r.Tiles).ToHashSet();
+        // A footprint whose extra land is free can be granted; one over land another household
+        // holds or has asked for only opens a dispute, so it is offered when no free one fits.
+        var heldByOthers = HouseholdLandHeldByOthers(building.HouseholdId);
         GridPoint[]? offered = null;
+        GridPoint[]? disputed = null;
         foreach (var shape in ExpansionShapes(building))
         {
             if (!CanFitExpansion(building, shape.Position, shape.Footprint, out _, requireLandRights: false)) continue;
@@ -206,9 +210,10 @@ public sealed partial class PrivateWorldRuntime
             if (extra.Length == 0 || extra.Any(tile => !TownLandRightsRules.IsCoveredByTownTitle(tile, building.TownId!, townLandTitles))) continue;
             // One expansion asks the Council once: a pending request for any of its shapes waits to be decided.
             if (extra.Any(pending.Contains)) return null;
-            offered ??= extra;
+            if (extra.Any(heldByOthers.Contains)) disputed ??= extra;
+            else offered ??= extra;
         }
-        return offered;
+        return offered ?? disputed;
     }
 
     private TownGovernanceState SubmitExpansionLandRequest(TownRuntimeState town, TownGovernanceState state, string actor, string buildingId)

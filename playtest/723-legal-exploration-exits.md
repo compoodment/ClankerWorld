@@ -1,0 +1,1 @@
+- Keep other agents beside an explorer so they block the corners of its preferred diagonal exit while another neighboring tile stays open. The explorer should take a legal alternative and record only places it actually reaches; save and load during the outing to check that it continues normally. ([#723](https://github.com/compoodment/ClankerWorld/issues/723))

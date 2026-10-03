@@ -1,6 +1,7 @@
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Kernel;
+using ClankerWorld.Simulation.World;
 
 namespace ClankerWorld.Simulation.Playtest;
 
@@ -15,6 +16,26 @@ public sealed partial class PrivateWorldRuntime
             return null;
         if (order.TargetPosition is { } requestedPosition && !map.Contains(requestedPosition))
             return null;
+
+        if (order.Action == "collect_material")
+            return CollectionOrderCandidateFor(instruction, person);
+
+        if (order.Action == "store_material")
+            return StorageOrderCandidateFor(instruction, person);
+
+        if (order.Action == "gather_material")
+            return MaterialOrderCandidateFor(instruction, person);
+
+        if (order.Action == "move_to" && order.TargetPosition is { } destination)
+            return !MovementOrderNeedsHouseInvitation(instruction.TargetInhabitantId, destination) &&
+                (person.Position == destination ||
+                 map.IsPassable(destination) && map.IsReachableOnFoot(person.Position, destination) &&
+                 FindUnoccupiedRoute(instruction.TargetInhabitantId, person.Position, destination, 0).Count > 0)
+                    ? new CognitionCandidate("move_to", $"Travel to tile ({destination.X}, {destination.Y}).", 0)
+                    : null;
+
+        if (order.Action == "accept_guardianship" && order.TargetAgentId is { } child)
+            return GuardianOrderCandidate(instruction.TargetInhabitantId, child);
 
         if (order.Action == "consume_food")
         {
@@ -138,8 +159,34 @@ public sealed partial class PrivateWorldRuntime
             CancelEquipmentRepair(actor);
             person = inhabitants[actor];
         }
+        if (order.Action == "accept_guardianship")
+        {
+            ExecuteGuardianOrder(instruction, candidate);
+            return;
+        }
         switch (candidate.Id)
         {
+            case "collect_material":
+                ExecuteCollectionOrderStep(instruction, person);
+                return;
+            case "store_material":
+                ExecuteStorageOrderStep(instruction, person);
+                return;
+            case "gather_material":
+            case "inspect_material_site":
+                ExecuteMaterialOrderStep(instruction, person, candidate.Id);
+                return;
+            case "move_to" when order.Action == "move_to" && order.TargetPosition is { } destination:
+                MoveToward(actor, person, destination, "owner_order_move");
+                // Only the tile reached joins the agent's small map memory. Recording
+                // every step of a long walk would fill it and leave no room for what
+                // exploration finds later.
+                if (inhabitants[actor].Position == destination)
+                {
+                    RecordKnowledgeFact(actor, destination);
+                    CreditOrderEffect(instruction, MovementOrderEffectId(destination), 1);
+                }
+                return;
             case "consume_food":
                 if (ConsumeFood(actor, person, order.TargetFoodKind) is { } consumedLotId)
                     CreditOrderEffect(instruction, $"consume:{WorldTick:D10}:{actor}:{consumedLotId}", 1);
@@ -259,6 +306,21 @@ public sealed partial class PrivateWorldRuntime
 
     private string OrderBlockedReason(OwnerQueuedInstruction instruction, PlaytestInhabitantState person)
     {
+        if (instruction.Order?.Action == "collect_material")
+            return CollectionOrderBlockedReason(instruction, person);
+        if (instruction.Order?.Action == "store_material")
+            return StorageOrderBlockedReason(instruction, person);
+        if (instruction.Order?.Action == "gather_material")
+            return MaterialOrderBlockedReason(instruction, person);
+
+        if (instruction.Order?.Action == "move_to")
+            return instruction.Order.TargetPosition is not { } destination || !map.Contains(destination)
+                ? "The requested tile is outside this world."
+                : MovementOrderNeedsHouseInvitation(instruction.TargetInhabitantId, destination)
+                    ? "Waiting for an invitation to enter another household's House."
+                : "No open walking route reaches the requested tile right now.";
+        if (instruction.Order is { Action: "accept_guardianship", TargetAgentId: { } child })
+            return GuardianOrderBlockedReason(instruction.TargetInhabitantId, child);
         if (instruction.Order?.Action == "consume_food")
         {
             if (person.HungerBasisPoints >= ComfortableFullness)
@@ -278,4 +340,14 @@ public sealed partial class PrivateWorldRuntime
             ? "The agent needs to be fed and warm before searching for food."
             : "No suitable food source is known yet.";
     }
+
+    private static string MovementOrderEffectId(GridPoint destination) =>
+        FormattableString.Invariant($"arrival:tile:{destination.X}:{destination.Y}");
+
+    private bool MovementOrderNeedsHouseInvitation(string actor, GridPoint destination) =>
+        BuildingsWithTag("house").Any(house => house.HouseholdId is not null &&
+            house.HouseholdId != society.Checkpoint.GetInhabitant(actor).HouseholdId &&
+            !HasHouseGuestInvitation(actor, house.InstanceId) &&
+            WorldContentSimulationRules.Footprint(
+                worldContent.Buildings.Single(definition => definition.CanonicalId == house.DefinitionId), house).Contains(destination));
 }

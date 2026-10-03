@@ -126,7 +126,8 @@ public sealed record PrivateWorldRuntimeState(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<BusinessTradeState>? BusinessTrades = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementContinuity? Continuity = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<OwnerOrderCancellation>? OrderCancellations = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<ToolMakingRequestState>? ToolMakingRequests = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<ToolMakingRequestState>? ToolMakingRequests = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<HandcartHitch>? HandcartHitches = null);
 
 public sealed record PrivateWorldStepResult(
     bool Advanced,

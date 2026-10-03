@@ -408,9 +408,11 @@ public sealed class GeographyGeneratorTests
         var options = new GeographyOptions("storm-observation", WorldSizePreset.Small);
         var initial = StartedGeneratedWorld(options);
         var systems = initial.WorldSystems!;
+        var calendar = WorldCalendarRules.FromTick(systems.WorldTick, systems.Config);
+        var stormCutoffTick = systems.WorldTick + (long)systems.Config.TicksPerDay * 3 / 4 - calendar.TickOfDay;
         var profiles = Enum.GetValues<SeasonKind>()
             .Select(season => new WeatherProfile(season, 0, 0, 0, 1, 0)).ToArray();
-        using var world = PrivateWorldRuntime.Restore(initial with
+        using var world = FarmFieldTests.Restore(initial with
         {
             WorldSystems = systems with
             {
@@ -419,19 +421,19 @@ public sealed class GeographyGeneratorTests
                 Climate = systems.Climate with { Weather = WeatherKind.Storm },
             },
         });
-        while (world.WorldTick < 269)
+        while (world.WorldTick < stormCutoffTick - 1)
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         Assert.All(new OwnerWorldObservationStore(world).GetSnapshot().WeatherRegions,
             region => Assert.Equal("storm", region.Weather));
 
         var saved = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState()));
-        using var restored = PrivateWorldRuntime.Restore(saved);
+        using var restored = FarmFieldTests.Restore(saved);
         Assert.True((await restored.AdvanceOneTickAsync()).Advanced);
-        Assert.Equal(270, restored.WorldTick);
+        Assert.Equal(stormCutoffTick, restored.WorldTick);
         Assert.All(new OwnerWorldObservationStore(restored).GetSnapshot().WeatherRegions,
             region => Assert.NotEqual("storm", region.Weather));
         Assert.Contains(restored.ExportState().Events,
-            item => item.WorldTick == 270 && item.Kind == "weather_changed");
+            item => item.WorldTick == stormCutoffTick && item.Kind == "weather_changed");
     }
 
     [Fact]
@@ -439,8 +441,7 @@ public sealed class GeographyGeneratorTests
     {
         var options = new GeographyOptions("storm-cover", WorldSizePreset.Small);
         var initial = StartedGeneratedWorld(options);
-        // Worlds start at midnight; measure the storm and its cover by day,
-        // without the night chill on top.
+        // Measure the storm and its cover in full daylight, without night chill.
         using (var waiting = FarmFieldTests.Restore(initial))
         {
             await SettlementWeatherTestFixture.AdvanceToDaylightAsync(waiting);
