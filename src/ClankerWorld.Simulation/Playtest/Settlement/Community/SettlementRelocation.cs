@@ -96,14 +96,26 @@ public sealed partial class PrivateWorldRuntime
         {
             ReconcileRelocation(householdId);
             // A failed exit cancels its notice, so this loop always ends.
-            while (RelocationNotices(householdId).FirstOrDefault(item => item.Notice.DeadlineTick <= WorldTick) is
-                { Id: not null } due)
+            while (NextDueRelocation(householdId) is { } due)
             {
                 if (!DepartHousehold(due.Id, "displaced"))
                     CancelRelocation(due.Id, due.Notice, "not_needed");
                 ReconcileRelocation(householdId);
             }
         }
+    }
+
+    /// <summary>
+    /// The next adult whose notice has run out, in the order selection planned
+    /// the departures. Leaving in another order can change the family majority
+    /// part-way, cancel a planned notice and move out someone who never had one.
+    /// </summary>
+    private (string Id, SettlementRelocation Notice)? NextDueRelocation(string householdId)
+    {
+        var due = RelocationNotices(householdId).Where(item => item.Notice.DeadlineTick <= WorldTick).ToArray();
+        if (due.Length == 0) return null;
+        var planned = RelocationSelection(householdId)?.Chosen.Select(item => item.Id).ToList() ?? [];
+        return due.OrderBy(item => planned.IndexOf(item.Id) is var index and >= 0 ? index : int.MaxValue).First();
     }
 
     private void ReconcileRelocation(string householdId)

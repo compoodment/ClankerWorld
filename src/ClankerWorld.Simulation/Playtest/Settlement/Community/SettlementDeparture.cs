@@ -341,16 +341,17 @@ public sealed partial class PrivateWorldRuntime
     }
 
     /// <summary>
-    /// A House can still grow while an expansion is under way, or when a larger
+    /// A House can still grow while an expansion is running, or when a larger
     /// footprint fits and the household already has the use of its extra land
     /// or could still get it by asking the Council.
     /// </summary>
     private bool HouseCanExpandFurther(PlacedBuilding house) =>
         HouseExpansionUnderWay(house) || HouseCanExpandNow(house) || HouseCanExpandWithLandPermission(house);
 
+    // A paused expansion does not count: nobody may be able to resume it, and the
+    // household must not be left with neither an expansion nor the split.
     private bool HouseExpansionUnderWay(PlacedBuilding house) => (worldSimulation.BuildingExpansions ?? []).Any(job =>
-        job.BuildingInstanceId == house.InstanceId &&
-        job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused);
+        job.BuildingInstanceId == house.InstanceId && job.State == WorldProductionJobState.Running);
 
     private bool HouseCanExpandNow(PlacedBuilding house) =>
         ExpansionShapes(house).Any(shape => CanFitExpansion(house, shape.Position, shape.Footprint, out _));

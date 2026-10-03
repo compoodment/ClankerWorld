@@ -454,20 +454,7 @@ public sealed class HouseRelocationRuntimeTests
     public async Task AFamilyHouseIsToldToSplitOnlyWhenItCannotExpandEvenWithLandPermission()
     {
         // One family of five in a four-place House: nobody can be required to leave.
-        var crowded = Crowded(residents: 5);
-        crowded = crowded with
-        {
-            Society = crowded.Society with
-            {
-                Society = crowded.Society.Society with
-                {
-                    Inhabitants = crowded.Society.Society.Inhabitants.Select(person => person with
-                    {
-                        DomesticFamilyUnitId = "relocation-family:shared",
-                    }).ToArray(),
-                },
-            },
-        };
+        var crowded = WithFamilies(Crowded(residents: 5), _ => "relocation-family:shared");
         var worker = crowded.Society.Society.Inhabitants.Select(person => person.Id).Order(StringComparer.Ordinal).Last();
         var permitted = WithExpandableHouse(crowded, worker);
         var house = permitted.WorldSimulation!.Buildings.Single(building => building.InstanceId == HouseId);
@@ -547,9 +534,88 @@ public sealed class HouseRelocationRuntimeTests
         Assert.Equal(notice, Assert.Single(Noticed(world)).Housing!.Relocation);
         await AdvanceTo(world, notice.DeadlineTick);
         Assert.NotEqual(Household, world.Society.GetInhabitant(actor).HouseholdId);
-        Assert.Equal("displaced",
-            Assert.Single(world.Inhabitants.Single(person => person.InhabitantId == actor).Departures!).Cause);
+        var departure = Assert.Single(world.Inhabitants.Single(person => person.InhabitantId == actor).Departures!);
+        Assert.Equal("displaced", departure.Cause);
+        Assert.Equal(notice.DeadlineTick, departure.Tick);
     }
+
+    [Fact]
+    public async Task DueNoticesLeaveInThePlannedOrderSoNobodyWithoutNoticeIsMovedOut()
+    {
+        // Run a quiet all-family House first, so arrival times can lie in the past.
+        using var quiet = Restore(WithFamilies(Crowded(residents: 8), _ => "relocation-family:shared"));
+        await AdvanceTo(quiet, 6);
+        Assert.Empty(Noticed(quiet));
+        var state = quiet.ExportState();
+        var ids = state.Society.Society.Inhabitants.Select(person => person.Id).Order(StringComparer.Ordinal).ToArray();
+        // Four unrelated adults and a family of four, with no majority. A family member arrived
+        // last, then the unrelated adults in ID order; the fourth unrelated adult arrived before
+        // them and is not needed to make the House fit.
+        var family = ids.Skip(4).ToHashSet(StringComparer.Ordinal);
+        state = WithFamilies(state, id => family.Contains(id) ? "relocation-family:shared" : "relocation-single:" + id);
+        var arrivals = new Dictionary<string, long>(StringComparer.Ordinal)
+        {
+            [ids[7]] = 5,
+            [ids[0]] = 4,
+            [ids[1]] = 3,
+            [ids[2]] = 2,
+            [ids[3]] = 1,
+        };
+        var edges = state.Society.Society.Relationships.ToList();
+        foreach (var id in ids)
+        {
+            var tick = arrivals.GetValueOrDefault(id, 0);
+            var memberships = edges.Where(edge => edge.Type == SocietyRelationshipType.HouseholdMembership &&
+                edge.TargetId == id && edge.HouseholdId == Household &&
+                edge.State == SocietyRelationshipState.Accepted).ToArray();
+            foreach (var edge in memberships)
+                edges[edges.IndexOf(edge)] = edge with { ProposedTick = tick, EffectiveTick = tick };
+            if (memberships.Length == 0 && tick > 0)
+                edges.Add(new SocietyRelationship("relocation-member:" + id, 1, SocietyRelationshipType.HouseholdMembership,
+                    id, id, SocietyRelationshipState.Accepted, SocietyConsentState.Accepted, tick, tick, "public",
+                    Household, [id]));
+        }
+        state = state with
+        {
+            Society = state.Society with
+            {
+                Society = state.Society.Society with
+                {
+                    Relationships = edges.OrderBy(edge => edge.Id, StringComparer.Ordinal).ToArray(),
+                },
+            },
+        };
+
+        using var world = Restore(state);
+        await AdvanceTo(world, 7);
+        var noticed = Noticed(world);
+        Assert.Equal([ids[0], ids[1], ids[2], ids[7]], noticed.Select(person => person.InhabitantId));
+        var deadline = Assert.Single(noticed.Select(person => person.Housing!.Relocation!.DeadlineTick).Distinct());
+        await AdvanceTo(world, deadline);
+
+        // Exactly the four adults who had notice left. Leaving in ID order instead would give the
+        // family the majority after the first exit and move out the adult who never had notice.
+        Assert.Equal([ids[3], ids[4], ids[5], ids[6]],
+            world.Society.GetHousehold(Household).MemberIds.Order(StringComparer.Ordinal));
+        Assert.Empty(Noticed(world));
+        Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "relocation_notice" &&
+            item.Detail.StartsWith(ids[3] + "|", StringComparison.Ordinal));
+    }
+
+    private static PrivateWorldRuntimeState WithFamilies(PrivateWorldRuntimeState state, Func<string, string> family) =>
+        state with
+        {
+            Society = state.Society with
+            {
+                Society = state.Society.Society with
+                {
+                    Inhabitants = state.Society.Society.Inhabitants.Select(person => person with
+                    {
+                        DomesticFamilyUnitId = family(person.Id),
+                    }).ToArray(),
+                },
+            },
+        };
 
     [Theory]
     [InlineData("deadline")]

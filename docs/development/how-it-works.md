@@ -1156,15 +1156,16 @@ residents, family, care or completed capacity. Admission and departure actions
 recheck that eligibility before acting on a saved or delayed choice.
 
 At expiry, each still-eligible adult leaves through the ordinary departure
-transition, rechecking remaining need before the next exit. No location or
+transition, in the order selection planned, rechecking remaining need before
+the next exit. No location or
 inventory is transferred remotely. The once-only food allowance, personal
 collection rights, borrowed goods and paused work retain their existing rules.
 An adult without a new home keeps a visible housing task. An overcrowded House
 with no eligible adult remains blocked while its members arrange expansion or
 a voluntary household split; sole caregivers are never forced out with their
-children. The split is offered only when the House cannot grow: no larger
-footprint fits, or its extra land is neither the household's to use nor free
-Town land it can still ask the Council for. While only that land permission
+children. The split is offered only when the House cannot grow: no expansion
+is running, and either no larger footprint fits or its extra land is neither
+the household's to use nor free Town land it can still ask the Council for. While only that land permission
 is missing, the housing line names it as the next step, and the expansion
 land request prefers a footprint whose extra land no other household holds or
 has asked for. Built-in rules do not found a household while the adult still
