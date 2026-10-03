@@ -79,7 +79,8 @@ public sealed class BusinessTradeTests
                             firstTownAdults, state.Society.Society.WorldTick, state.WorldSystems!.Config.TicksPerDay),
                     },
                     new TownRuntimeState("town:visitor-home", "Visitor Home", "founded", state.Society.Society.WorldTick,
-                        [buyer], [], [visitorHome], visitorHome, TownGovernanceState.Create([buyer]))],
+                        [buyer], [], [visitorHome], visitorHome, TownGovernanceState.Create([buyer]),
+                        TownGovernmentState.Create())],
             };
         }
         var buyerProvider = new ShopProvider("business_shop:");

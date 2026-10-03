@@ -128,7 +128,8 @@ public sealed class FarmFieldTests
     {
         var inventory = state.Society.Society.Inventory;
         foreach (var lot in inventory.Lots.Where(lot => lot.OwnerId == household &&
-            lot.ItemKind is "food" or "berries" or "wild_greens" or "cultivated_greens" or "fruit").ToArray())
+            lot.ItemKind is "food" or "berries" or "wild_greens" or "cultivated_greens" or "fruit" or
+                "simple_meal" or "porridge" or "berry_porridge" or "fruit_porridge" or "bread" or "stew" or "restaurant_meal").ToArray())
         {
             var available = lot.FreshnessBasisPoints == 0 || lot.ConditionBasisPoints == 0 ? 0 : lot.Quantity - inventory.Reservations
                 .Where(reservation => reservation.LotId == lot.Id && reservation.State is

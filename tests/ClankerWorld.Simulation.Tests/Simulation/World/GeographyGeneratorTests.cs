@@ -376,6 +376,13 @@ public sealed class GeographyGeneratorTests
     {
         var options = new GeographyOptions("storm-cover", WorldSizePreset.Small);
         var initial = StartedGeneratedWorld(options);
+        // Worlds start at midnight; measure the storm and its cover by day,
+        // without the night chill on top.
+        using (var waiting = FarmFieldTests.Restore(initial))
+        {
+            await SettlementWeatherTestFixture.AdvanceToDaylightAsync(waiting);
+            initial = waiting.ExportState();
+        }
         var map = initial.Map;
         var camp = map.Resources.Single(item => item.Id == "berry-patch").Position;
         var pair = map.Tiles.Where(tile => map.VegetationAt(tile.Position) == VegetationCover.Forest &&

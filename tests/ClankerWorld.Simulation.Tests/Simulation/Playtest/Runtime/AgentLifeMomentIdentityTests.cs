@@ -303,6 +303,79 @@ public sealed class AgentLifeMomentIdentityTests
         Assert.Contains("older than the minimum supported schema", refused.Message, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RealRouterUsesOnlyTheActorsSelectedModelAndMetersItsOneOpportunity(bool selected)
+    {
+        var directory = Directory.CreateTempSubdirectory("life-moment-routing-");
+        try
+        {
+            var configuration = new ProviderConfigurationStore(Path.Combine(directory.FullName, "providers.json"),
+                new("deterministic", null, null, null, null, null, null));
+            configuration.Configure(new("planning", "openai", "world-default-model", "synthetic-world-key", false));
+            if (selected)
+                configuration.Configure(new("personal", "openai", "agent-life-model", "synthetic-agent-key", false, ActorId));
+            var usage = new ProviderUsageStore(Path.Combine(directory.FullName, "usage.json"));
+            var logger = new RecordingLogger<ConfigurableDecisionProvider>();
+            using var handler = new IdentityHandler();
+            var router = new ConfigurableDecisionProvider(configuration, new ClientFactory(handler), logger, usageStore: usage);
+            using var world = PrivateWorldRuntime.Restore(MidlifeState(), Route(router));
+            await UntilResolved(world);
+            Assert.Equal(selected ? 1 : 0, handler.MomentBodies.Count);
+            Assert.Equal(selected ? 1 : 0, usage.Capture().Attempts);
+            if (selected)
+            {
+                Assert.Equal("agent-life-model", Assert.Single(handler.Models));
+                Assert.Equal("planning", Assert.Single(usage.Capture().Rows).Role);
+            }
+            else AssertKept(world);
+            Assert.DoesNotContain(logger.Messages, message => message.Contains("More willing to take chances", StringComparison.Ordinal) ||
+                message.Contains("Build a lasting home", StringComparison.Ordinal));
+        }
+        finally { directory.Delete(recursive: true); }
+    }
+
+    [Fact]
+    public async Task ReachingUsageCapPausesBeforeTheReplyCanApplyOrRetry()
+    {
+        var directory = Directory.CreateTempSubdirectory("life-moment-usage-cap-");
+        try
+        {
+            var configuration = new ProviderConfigurationStore(Path.Combine(directory.FullName, "providers.json"),
+                new("deterministic", null, null, null, null, null, null));
+            configuration.Configure(new("personal", "openai", "agent-life-model", "synthetic-agent-key", false, ActorId));
+            var usage = new ProviderUsageStore(Path.Combine(directory.FullName, "usage.json"));
+            usage.Configure(new ProviderUsageLimitAction(1));
+            using var handler = new IdentityHandler();
+            var router = new ConfigurableDecisionProvider(configuration, new ClientFactory(handler), usageStore: usage);
+            using var world = PrivateWorldRuntime.Restore(MidlifeState(), Route(router));
+            var paused = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            void PauseAtLimit()
+            {
+                world.Pause();
+                paused.TrySetResult(true);
+            }
+            usage.LimitReached += PauseAtLimit;
+            await world.AdvanceOneTickNonBlockingAsync();
+            // Wait for the real accounting callback to finish pausing. A short
+            // polling window raced the background provider on busy CI runners.
+            await paused.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.True(world.Society.IsPaused);
+            Assert.Single(handler.MomentBodies);
+            Assert.Equal(1, usage.Capture().Attempts);
+            Assert.Equal(Personality, world.Inhabitants.Single(item => item.InhabitantId == ActorId).Personality);
+            Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "agent_identity_revised");
+            Assert.Equal("interrupted", Assert.Single(world.Inhabitants.Single(item => item.InhabitantId == ActorId).IdentityMoments!).Outcome);
+            usage.LimitReached -= PauseAtLimit;
+            world.Resume();
+            for (var tick = 0; tick < 8; tick++) await world.AdvanceOneTickNonBlockingAsync();
+            Assert.Single(handler.MomentBodies);
+            Assert.Equal(1, usage.Capture().Attempts);
+        }
+        finally { directory.Delete(recursive: true); }
+    }
+
     private sealed class ClientFactory(HttpMessageHandler handler) : IHttpClientFactory
     {
         public HttpClient CreateClient(string name) => new(handler, disposeHandler: false);

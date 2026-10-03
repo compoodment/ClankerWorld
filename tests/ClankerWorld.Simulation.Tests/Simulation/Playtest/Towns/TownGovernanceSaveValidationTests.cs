@@ -70,8 +70,18 @@ public sealed class TownGovernanceSaveValidationTests
         foreach (var voter in town.ResidentIds.Take(3))
             governance = TownGovernanceRules.VoteProposal(governance, governance.Proposals[0].Id, voter, true, 0);
         Assert.Equal("passed", governance.Proposals[0].Status);
+        // The subject already lives there, so the passed admission's one outcome is a lapse.
+        var withVote = WithGovernance(state, governance);
+        var healthy = withVote with
+        {
+            Towns = [withVote.Towns![0] with
+            {
+                Admissions = [new(governance.Proposals[0].Id, subject, "lapsed", 0, Reason: "already_resident")],
+            }],
+        };
+        AssertRoundtrips(healthy);
 
-        AssertDamagedCheckpointRefused(WithGovernance(state, governance), saved =>
+        AssertDamagedCheckpointRefused(healthy, saved =>
         {
             var proposal = saved["proposals"]![0]!;
             proposal["requiredYes"] = 1;

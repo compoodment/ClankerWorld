@@ -149,6 +149,8 @@ public sealed class AbandonedWarehouseConsumerTests
                 },
             },
         };
+        state = ExpansionLandFixture.WithRights(state, house, Enumerable.Range(-1, 4).SelectMany(dy =>
+            Enumerable.Range(-1, 4).Select(dx => new GridPoint(site.X + dx, site.Y + dy))));
         using var world = Reload(state);
         var choice = "expand_building:" + house.InstanceId;
         Assert.Contains(Candidates(world, actor), item => item.Id == choice);
@@ -219,7 +221,8 @@ public sealed class AbandonedWarehouseConsumerTests
         var firstTown = state.Towns!.Single(item => item.Id == TownBorderRules.FirstTownId);
         var border = state.Map.Tiles.Select(tile => tile.Position)
             .First(point => state.Map.IsLand(point) && !firstTown.BorderTiles.Contains(point));
-        var quiet = new TownRuntimeState(QuietTown, "Quiet Yard", "founded", state.Society.Society.WorldTick, [], [], [border], Governance: TownGovernanceState.Create([]));
+        var quiet = new TownRuntimeState(QuietTown, "Quiet Yard", "founded", state.Society.Society.WorldTick, [], [], [border], Governance: TownGovernanceState.Create([]),
+            Government: TownGovernmentState.Create());
         var inventory = state.Society.Society.Inventory;
         var removed = inventory.Lots.Where(lot => lot.StorageBuildingId == warehouse.InstanceId ||
                 lot.OwnerId == household && (lot.ItemKind == kind || PersonalEquipmentRules.IsGarment(lot.ItemKind) ||

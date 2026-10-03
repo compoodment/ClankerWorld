@@ -129,9 +129,9 @@ on the owner.
   playtest only when the owner says in chat that the next playtest needs them.
   Add `owner-priority` and a comment naming that playtest.
 - **How we work:** changes to CI, labels, templates, Claude Code settings
-  (`.claude/`), CONTRIBUTING, AGENTS or CLAUDE.md affect every agent, so they
-  are P0.
-- **At most 5 open P0 and 10 open P1 issues.** Count issues only, not pull
+  (`.claude/`), agent skills (`skills/`), CONTRIBUTING, AGENTS or CLAUDE.md
+  affect every agent, so they are P0.
+- **At most 10 open P0 and 20 open P1 issues.** Count issues only, not pull
   requests. When a level is full, the least urgent issue there that the owner
   did not pick, counting the new one, goes down a level; between equals, the
   newest goes down. If the owner picked every other issue at that level, the
@@ -391,6 +391,9 @@ Add a plain-English changelog entry for player-visible gameplay, UI,
 world-runtime, save-compatibility, deployment, packaging or security changes.
 Skip refactors, tests and docs-only edits unless they change an explicit
 supported behavior or operational promise.
+
+If your change makes a waiting entry wrong, edit or delete it in the same pull
+request.
 
 Put the entry in a new file in [changes/](changes/README.md) rather than editing
 [CHANGELOG.md](CHANGELOG.md), so parallel pull requests do not conflict. Start

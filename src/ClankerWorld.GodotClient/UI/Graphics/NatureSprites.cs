@@ -78,8 +78,10 @@ public static class NatureSprites
     };
 
     /// <summary>
-    /// Older camp resources record only a resource kind, not a natural site;
-    /// they borrow the matching site's look, and gathered wood is a log pile.
+    /// Resources that record only a resource kind, not a natural site, such as
+    /// older camp resources and a Town's starting supplies, borrow the matching
+    /// site's look: gathered wood is a log pile, the starting clay deposit by
+    /// fresh water is a clay bank and grain seed grows like a wild seed patch.
     /// </summary>
     public static NatureSprite? ForCampResource(string kind) => kind switch
     {
@@ -87,7 +89,8 @@ public static class NatureSprites
         "construction" => NatureSprite.WoodPile,
         "stone" => NatureSprite.StoneOutcrop,
         "fiber" => NatureSprite.FiberPlant,
-        "seed" => NatureSprite.WildSeedPatch,
+        "seed" or "grain_seed" => NatureSprite.WildSeedPatch,
+        "clay" => NatureSprite.ClayBank,
         "fertile_land" => NatureSprite.FertileSoil,
         _ => null,
     };

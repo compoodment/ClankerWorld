@@ -162,6 +162,53 @@ public sealed class InventoryFixtureTests
     }
 
     [Fact]
+    public void PartialReleaseFreesOnlySelectedUnitsAndKeepsRemainingClaimsUsableAcrossReload()
+    {
+        var inventory = InventoryFixture.CreateGenesis(
+        [
+            new("seeds", "orchard_seed", "owner", 5, 10_000, 10_000, 0),
+            new("wood", "wood", "owner", 2, 10_000, 10_000, 0),
+        ]);
+        inventory = InventoryFixture.Reserve(inventory, "planting", "owner", "seeds", 5, "orchard_replanting", 100);
+        inventory = InventoryFixture.Reserve(inventory, "work", "owner", "wood", 2, "building", 100);
+        var released = InventoryFixture.ReleaseReservationQuantity(inventory, "planting", 2, "food_recovery");
+        Assert.Equal(inventory.Lots, released.Lots);
+        Assert.Equal(inventory.GetReservation("work"), released.GetReservation("work"));
+        Assert.Equal(3, released.GetReservation("planting").Quantity);
+        Assert.Equal(InventoryReservationState.Reserved, released.GetReservation("planting").State);
+
+        var restored = InventoryCheckpointCodec.Decode(InventoryCheckpointCodec.Encode(released));
+        var stored = InventoryFixture.Transfer(restored, "store-seeds", "owner", "household", "seeds", 2,
+            "food_recovery", destinationGroundPosition: new(4, 5));
+        Assert.Equal(3, stored.GetLot("seeds").Quantity);
+        Assert.Equal(5, stored.Lots.Where(lot => lot.ItemKind == "orchard_seed").Sum(lot => lot.Quantity));
+        var beforeRefusal = InventoryCheckpointCodec.Encode(stored);
+        Assert.Throws<InvalidOperationException>(() => InventoryFixture.Transfer(stored, "extra-seed", "owner",
+            "household", "seeds", 1, "food_recovery", destinationGroundPosition: new(4, 5)));
+        Assert.Equal(beforeRefusal, InventoryCheckpointCodec.Encode(stored));
+
+        var planted = InventoryFixture.ConsumeReservation(stored, "planting");
+        Assert.Equal(InventoryReservationState.Completed, planted.GetReservation("planting").State);
+        Assert.Equal(2, planted.Lots.Where(lot => lot.ItemKind == "orchard_seed").Sum(lot => lot.Quantity));
+        Assert.Equal(inventory.GetReservation("work"), planted.GetReservation("work"));
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(0)]
+    [InlineData(6)]
+    public void InvalidPartialReleaseLeavesTheCheckpointUnchanged(int quantity)
+    {
+        var inventory = InventoryFixture.Reserve(InventoryFixture.CreateGenesis(
+            [new("seeds", "orchard_seed", "owner", 5, 10_000, 10_000, 0)]),
+            "planting", "owner", "seeds", 5, "orchard_replanting", 100);
+        var before = InventoryCheckpointCodec.Encode(inventory);
+        Assert.Throws<InvalidOperationException>(() =>
+            InventoryFixture.ReleaseReservationQuantity(inventory, "planting", quantity, "food_recovery"));
+        Assert.Equal(before, InventoryCheckpointCodec.Encode(inventory));
+    }
+
+    [Fact]
     public void ReservationExpiryReleasesOnlyTheReservedQuantity()
     {
         var reserved = InventoryFixture.Reserve(Genesis(), "reserve-1", "alpha", "alpha-berries", 1, "meal", 2);
