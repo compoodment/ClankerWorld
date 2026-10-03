@@ -86,10 +86,10 @@ the same limits a save applies, so an accepted message cannot leave the world
 unable to save.
 
 `ParseInstructionOrder` reads a complete, bounded grammar for eating food,
-seeking a food source, harvesting food and moving to an exact tile. Food harvest
-and food-source travel orders must name food (or a supported food resource);
-explicit resource names must match a
-complete identifier, and food kinds must match that resource. Unsupported
+seeking a food source, harvesting food, gathering supported raw materials and
+moving to an exact tile. Harvest and food-source travel orders must name a
+supported kind or resource; explicit resource names must match a complete
+identifier and the requested kind. Unsupported
 objects or operations, mixed tasks, unknown explicit targets, and invalid
 quantities or leftover words are rejected as not understood rather than mapped
 to a nearby candidate. A recognized order retains the player's original text and the
@@ -98,6 +98,17 @@ the requested physical effect before recording progress. Names in the prompt
 do not create map knowledge. Optional observer replies are tied to the exact
 message ID and stored separately from private thoughts and conversation
 speech. Local deterministic decisions do not mark messages as heard.
+
+Material orders save the requested kind separately from food targets. They use
+known resource facts or observation within normal interaction range; a named
+unobserved site first requires physical travel. Untargeted orders may use normal
+exploration. Gathering uses the existing tool pickup, whole-load capacity,
+inventory, tool-wear and ecology transitions. Only a returned physical harvest
+receipt advances progress. One load is the default; explicit quantities count
+actual output, including a final whole load that exceeds the requested amount.
+Discovery, tool collection and movement never count as harvested goods.
+Only the observed resource site joins map memory; walking there adds no facts,
+so the journey cannot fill the agent's bounded ledger before arrival.
 
 `Move to tile (12, 4)`, `Go to (12, 4)` and `Travel to (12, 4)` create a
 `move_to` order with a saved `TargetPosition` and one arrival. The common
@@ -131,7 +142,7 @@ separate from the strict MustDo grammar.
 
 Recognized MustDo instructions complete only when their requested legal action
 actually progresses. Default gathering counts one harvest; explicit quantities
-count food acquired or consumed. Food-source travel finishes on arrival within
+count goods acquired or food consumed. Food-source travel finishes on arrival within
 interaction range of the requested food site; exact-tile travel requires the
 tile itself. Counted travel is refused.
 An unrelated action, blocked movement or unavailable food leaves the instruction
@@ -466,6 +477,11 @@ Copying needs the source, learned facts and new writing materials; sharing
 does not create another physical copy. Barter transfers the existing lot and
 teaches its recipient, without granting access to unrelated knowledge or
 anyone else's private stock.
+
+Outward scouting checks occupied destinations and both diagonal corner tiles
+before ranking neighboring exits. If no legal outward exit remains, the scout
+uses the existing return path instead of repeatedly targeting a blocked corner.
+Only completed movement adds a visited tile.
 
 If intervening legal movement interrupts outward scouting, a new outward path
 starts at the actual position without inventing missing steps. On the return
@@ -1383,6 +1399,10 @@ New proposals for Shelters, Storehouses, Cooking fires and Stone hearths are
 retired. Existing buildings, projects and recorded proposals remain for old-world
 compatibility. Approved owner building designs stay active but are not household
 kinds, so agents do not plan them; they wait for shared buildings. House fires supply heat. General invention is later Workshop work.
+Fire-tending selects an unlit hearth the adult can reach, using the same
+household access and interaction distance as movement. Selection is repeated
+when tending begins, so changed occupancy can redirect the adult to another
+hearth or leave warmth-seeking available. Fuel is consumed only at the hearth.
 
 Clothing comes from a household's Tailor Shop (`clankerworld-tailor-v1`), which
 replaced the Weaving frame and its "Woven clothing" recipe outright. The shop
@@ -1538,6 +1558,14 @@ seed with a reserved planting unit. An adult carries that seed to legal free
 land and plants a sapling; tree growth, fruiting and the reserve survive reload.
 Ordinary wood-tree seeds remain distinct.
 
+Urgent food recovery first sets down ordinary spare cargo. If that cannot free
+enough carrying room, it may also select the actor's own orchard propagation
+seeds. Their selected planting reservations are released in the same inventory
+transition that stores the seeds with the household, after reaching the House
+or camp pile. Walking, an unavailable destination or a refused transfer does
+not release them. Other reservations, delivery loads and borrowed goods remain
+protected; crafting does not use this exception.
+
 The Godot map draws worked soil and crop growth above the terrain, including
 wrapped map edges; the overview marks field tiles. Fields join the household
 property display, and inspection shows the household, stage, crop, worker and
@@ -1596,7 +1624,9 @@ so the run-on rule does not treat either end as a dead end.
 **Same connected banks.** Two crossings join the same banks only when they
 cross the same river, joined through its water, and each end of one reaches an
 opposite end of the other by walking along that water's shore without crossing
-it. A tributary mouth or a separate stream breaks the shore, so a bridge over a
+it. Each shore step obeys the ordinary foot-movement rules: impassable Peaks
+break the connection, while walkable Mountain terrain does not. A tributary
+mouth or a separate stream breaks the shore, so a bridge over a
 different nearby stream never blocks another. There is no distance limit; the
 comparison examines at most 4,096 river tiles and, if that runs out, does not
 treat the banks as the same. Along one unbranched stretch of river this allows
