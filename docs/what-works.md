@@ -211,9 +211,29 @@ releases them; the order resumes with its remaining repairs when the need passes
 Saving during a repair preserves its work and reservations. A repeating task
 waits for another matching worn item after the current ones are repaired.
 
-Named collection sources, other carrying or storage destinations, farming,
-cooking, crafting, tool or weapon repairs and building orders remain part of
-the unfinished catalogue.
+Field orders cover tilling, planting, tending and harvesting for adults and
+elders whose household has a Farmhouse. Use "till two fields", "plant grain",
+"plant two fields of potatoes", "tend cultivated greens", or "keep harvesting
+fields of grain". With no quantity, one field is the task. Quantities must name
+fields: "harvest five potatoes" is not understood rather than being treated as
+five fields. Grain, potatoes and cultivated greens are supported. An omitted
+crop for tending or harvesting allows any suitable household crop; a named crop
+must match. Named field locations are not understood yet.
+
+Agents use real walking routes and planting stock. Tilling and tending require
+a usable carried hoe; a carried sickle speeds harvesting under the ordinary
+rules. Orders can request work even when the household already has enough food.
+Only completed field work counts, with normal tool wear and seed consumption.
+Harvests stay on the field as household property, with planting stock reserved
+for another cycle. Missing tools, stock, access, suitable fields or routes leave
+the task blocked with a reason. Cancellation or replacement releases unused
+planting stock and removes unfinished tilling; spent tool wear remains. Urgent
+survival interrupts work before its remaining task resumes. Queues, partial
+work, stock reservations and progress survive save/reload.
+
+Named collection sources, other carrying or storage destinations, cooking,
+crafting, tool or weapon repairs and building orders remain part of the
+unfinished catalogue.
 
 A recognized new order replaces the active and queued orders unless **Queue**
 is selected. **Cancel task** stops a waiting or active order. An instruction

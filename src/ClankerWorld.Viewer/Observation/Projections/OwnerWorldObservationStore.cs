@@ -449,7 +449,7 @@ public sealed class OwnerWorldObservationStore
                         order.Action, order.Status, order.RequestedUnits, order.CompletedUnits,
                         order.ProgressUnit, order.RepeatUntilCancelled, order.TargetFoodKind,
                         order.TargetResourceId, order.TargetPosition?.X, order.TargetPosition?.Y,
-                        order.BlockedReason, order.TargetMaterialKind, order.TargetEquipmentKind) : null))
+                        order.BlockedReason, order.TargetMaterialKind, order.TargetEquipmentKind, order.TargetCropKind) : null))
                 .ToArray(),
             Cognition = ToCognition(state),
             ContentPackages = state.Content?.Packages
@@ -1126,6 +1126,7 @@ public sealed class OwnerWorldObservationStore
     {
         "seek_food" => "looking for food",
         "harvest_food" => "gathering food",
+        "work_field" => "working on a household field",
         "repair_equipment" => "repairing personal equipment",
         "collect_material" => "collecting personal materials",
         "store_material" => "storing personal materials in the House",

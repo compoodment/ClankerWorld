@@ -159,6 +159,15 @@ one load; a quantity stops exactly at that number. Full hands or unavailable
 goods leave the task waiting. These orders cover the same seven raw materials;
 requests naming a particular source or destination are not understood yet.
 
+To work on household fields, try **Till two fields**, **Plant grain**,
+**Plant two fields of potatoes**, **Tend cultivated greens**, or **Keep
+harvesting fields of grain**. Adults need a household with a Farmhouse and
+suitable fields, stock and tools. Counts mean completed fields, so include
+**fields** when giving a number; **Harvest five potatoes** is not understood.
+A named crop is never replaced with another. Harvests remain on the field
+until carried. Cancel or replace the order to stop the current work and release
+unused planting stock. Named field locations are not supported yet.
+
 To mend worn personal equipment, use **Repair my basket**, **Repair two padded
 coats**, or **Keep repairing basic garments**. Adults and elders can repair basic
 clothing, padded coats, rain cloaks, baskets and sacks. They collect real supplies

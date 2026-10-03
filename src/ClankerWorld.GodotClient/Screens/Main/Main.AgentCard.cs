@@ -778,6 +778,10 @@ public partial class Main
         {
             "consume_food" => "Eating food",
             "harvest_food" => "Gathering food",
+            "till_field" => "Tilling household fields",
+            "plant_field" => "Planting " + (order.TargetCropKind?.Replace('_', ' ') ?? "crops"),
+            "tend_field" => "Tending " + (order.TargetCropKind?.Replace('_', ' ') ?? "household fields"),
+            "harvest_field" => "Harvesting " + (order.TargetCropKind?.Replace('_', ' ') ?? "household fields"),
             "repair_equipment" => "Repairing " + (order.TargetEquipmentKind?.Replace('_', ' ') ?? "equipment"),
             "collect_material" => "Collecting " + (order.TargetMaterialKind?.Replace('_', ' ') ?? "materials"),
             "store_material" => "Storing " + (order.TargetMaterialKind?.Replace('_', ' ') ?? "materials"),
@@ -816,6 +820,7 @@ public partial class Main
         "food_items" => "food items",
         "material_items" => "items",
         "repairs" => "items repaired",
+        "fields" => "fields completed",
         "collection_loads" => "loads collected",
         "storage_loads" => "loads stored",
         "arrivals" => "sites reached",
