@@ -113,6 +113,25 @@ The first command records each test's duration in
 `tests/ClankerWorld.Simulation.Tests/TestResults/timings.trx`; the second lists
 the tests job 1 would run without timings.
 
+The native Windows storage job also runs the repeated checkpoint-compaction
+test and checks that a refused overwrite preserves the previous checkpoint.
+It uploads the test report as `windows-storage-evidence`. If the repeated-save
+test encounters an I/O failure, that artifact also contains copies of its
+disposable world files and first-failure diagnostics, including any temporary
+checkpoint captured before cleanup. Successful test worlds are deleted. These
+are synthetic test worlds; do not add a player's save directory to the upload
+paths.
+The deliberate lock and read-only controls mark their evidence with
+`ExpectedFailureControl`, so their expected refusals remain distinguishable
+from an unexpected stress-test failure.
+
+To retain the same evidence for a local persistence test, set
+`CLANKERWORLD_CHECKPOINT_DIAGNOSTICS` to an empty disposable directory before
+running `FullyQualifiedName~PrivateWorldStateFileTests`. On I/O failure, the
+tests copy evidence from their uniquely named temporary worlds there. A
+passing rerun does not explain an earlier intermittent access refusal; retain
+the failed report and its diagnostics when investigating one.
+
 Hands-on checks above describe useful verification, not a blanket pre-merge
 playtest gate. Routine owner playtesting may follow merge under
 [Drafts and readiness](../../CONTRIBUTING.md#drafts-and-readiness). Keep pending
