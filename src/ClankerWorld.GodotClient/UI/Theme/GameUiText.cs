@@ -45,6 +45,16 @@ public static class GameUiText
         return quantity.Length == 0 ? title : title + " " + quantity;
     }
 
+    /// <summary>
+    /// Text from an agent's model or the host with each ellipsis character
+    /// (U+2026) spelled as three full stops. The body font draws that character
+    /// at mid-height, as Chinese text does, so game text never uses it.
+    /// </summary>
+    public static string PlainEllipses(string text) => text.Replace(Ellipsis, "...", StringComparison.Ordinal);
+
+    /// <summary>The ellipsis character, written as an escape so searches for it find only mistakes.</summary>
+    public const string Ellipsis = "\u2026";
+
     public static string ToolMakingRequestStatus(string status) => status switch
     {
         "requested" => "Asked the household · no payment taken",
@@ -74,6 +84,8 @@ public static class GameUiText
     {
         Pairing.OwnerAgentNameTakenException =>
             "that full name belongs to another agent. Choose a different name",
+        Pairing.OwnerWorldGenerationException =>
+            "there is no room for a first Town with these settings. Choose another seed or change the terrain settings",
         Pairing.OwnerActionCompatibilityException =>
             "this client and world server need matching updates before making this change. Update both; your device pairing can stay as it is",
         System.Net.Http.HttpRequestException { StatusCode: { } code } => code switch
@@ -133,8 +145,28 @@ public static class GameUiText
         _ => null,
     };
 
+    /// <summary>
+    /// The default date style: the season and its day, such as Autumn 2, Year 1.
+    /// The numeric styles are "dmy", "mdy" and "ymd".
+    /// </summary>
+    public const string SeasonDates = "season";
+
+    private static readonly string[] SeasonNames = ["Spring", "Summer", "Autumn", "Winter"];
+
+    /// <summary>
+    /// Whether dates in this style name the season. That needs the world's
+    /// season lengths; without them, such as from an older host, a season-style
+    /// date falls back to DD-MM-YYYY.
+    /// </summary>
+    public static bool ShowsSeasonDates(OwnerWorldCalendarPace? calendarPace, string dateFormat) =>
+        SeasonDateLengths(calendarPace, dateFormat) is not null;
+
+    /// <summary>
+    /// The one place a world tick becomes the date and time the player reads:
+    /// the top bar, Event Log, saves and every other full date use it.
+    /// </summary>
     public static string FormatWorldClock(long worldTick, bool useTwelveHourClock = false,
-        OwnerWorldCalendarPace? calendarPace = null, string dateFormat = "dmy")
+        OwnerWorldCalendarPace? calendarPace = null, string dateFormat = SeasonDates)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(worldTick);
         var ticksPerDay = calendarPace?.TicksPerDay ?? MinutesPerDay;
@@ -142,7 +174,9 @@ public static class GameUiText
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(ticksPerDay);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(daysPerYear);
         var dayIndex = worldTick / ticksPerDay;
-        var date = FormatWorldDate(dayIndex, daysPerYear, dateFormat);
+        var date = SeasonDateLengths(calendarPace, dateFormat) is { } seasonLengths
+            ? FormatSeasonDate(dayIndex, daysPerYear, seasonLengths)
+            : FormatWorldDate(dayIndex, daysPerYear, dateFormat);
         var minuteOfDay = (int)(((worldTick % ticksPerDay) * MinutesPerDay) / ticksPerDay);
         var hour = minuteOfDay / 60;
         var minute = minuteOfDay % 60;
@@ -150,6 +184,32 @@ public static class GameUiText
         var twelveHour = hour % 12;
         if (twelveHour == 0) twelveHour = 12;
         return $"{date} · {twelveHour}:{minute:00} {(hour < 12 ? "AM" : "PM")}";
+    }
+
+    /// <summary>
+    /// Spring, Summer, Autumn and Winter lengths in days when dates in this
+    /// style name the season; null for a numeric style, or unless the
+    /// calendar's season lengths fill its year exactly.
+    /// </summary>
+    private static int[]? SeasonDateLengths(OwnerWorldCalendarPace? pace, string dateFormat)
+    {
+        if (pace is null || dateFormat is "dmy" or "mdy" or "ymd") return null;
+        int[] lengths = [pace.SpringDays, pace.SummerDays, pace.AutumnDays, pace.WinterDays];
+        return lengths.All(days => days > 0) && lengths.Sum(days => (long)days) == pace.DaysPerYear ? lengths : null;
+    }
+
+    /// <summary>The season and its day, counted the way the world counts seasons, such as Autumn 2, Year 1.</summary>
+    private static string FormatSeasonDate(long dayIndex, int daysPerYear, int[] seasonLengths)
+    {
+        var year = (dayIndex / daysPerYear) + 1;
+        var day = (int)(dayIndex % daysPerYear);
+        var season = 0;
+        while (day >= seasonLengths[season])
+        {
+            day -= seasonLengths[season];
+            season++;
+        }
+        return $"{SeasonNames[season]} {day + 1}, Year {year}";
     }
 
     private static string FormatWorldDate(long dayIndex, int daysPerYear, string dateFormat)
@@ -198,20 +258,24 @@ public static class GameUiText
             "crop_moisture_effect" or "food_harvested" or "food_consumed" or "tree_planted" or "tree_replanted" or "child_born" or
             "inhabitant_removed" or "estate_will_accepted" or "estate_will_default" or
             "partnership_accepted" or "partnership_ended" or "caregiver_assigned" or
+            "continuity_rule_on" or "continuity_rule_off" or
             "medical_care_allowed" or "medical_care_revoked" or
             "medical_treatment_started" or "medical_treatment_completed" or "medical_treatment_interrupted" or
             "empty_vessel_picked_up" or
             "council_policy_adopted" or "settlement_trade_completed" or
             "business_trade_offered" or "business_trade_completed" or "business_trade_cancelled" or
-            "store_stock_collected" or "store_stock_delivered" or
+            "store_stock_collected" or "store_stock_delivered" or "household_delivery_recovered" or
             "tool_request_placed" or "tool_request_accepted" or "tool_request_refused" or "tool_request_withdrawn" or
             "tool_request_ready" or "tool_request_completed" or "tool_request_interrupted" or
             "ornament_worn" or "ornament_removed" or "ornament_given" or
             "inhabitant_building_proposed" or "instruction_not_understood" or "settlement_founded" or "town_founding_started" or
+            "town_civic_council" or "town_civic_election" or "town_civic_runoff" or "town_civic_proposal" or "town_civic_result" or "town_civic_cancelled" or
             "town_resident_joined" or "town_resident_left" or "town_membership_evaluated" or
+            "town_admission_accepted" or "town_admission_approved" or "town_admission_lapsed" or
             "town_building_assigned" or "town_border_expanded" or "town_founded" or "bridge_built" or
             "housing_request_made" or "household_joined" or "housing_request_refused" or "housing_request_expired" or
-            "housing_blocked" or "paused" or "resumed";
+            "housing_blocked" or "household_left" or "household_founded" or "personal_goods_collected" or
+            "household_work_resumed" or "personal_goods_stored" or "borrowed_goods_returned" or "replacement_care_accepted" or "paused" or "resumed" or "model_call_warning";
     }
 
     /// <summary>
@@ -291,21 +355,44 @@ public static class GameUiText
         return string.IsNullOrWhiteSpace(candidateId) ? "taking in the surroundings" : HumanizeIdentifier(candidateId);
     }
 
-    /// <summary>Describes one relationship in plain words for the agent card.</summary>
-    public static string RelationshipSummary(string type, string state, string otherName, string? direction = null)
+    /// <summary>
+    /// The historical profile's will lines: who the agent named and what each
+    /// was left, or that the household inherits, then any final words.
+    /// </summary>
+    public static IReadOnlyList<string> FinalWillLines(string? status, OwnerWorldFinalWill? will)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(type);
-        var summary = type switch
+        var lines = new List<string>();
+        switch (status)
         {
-            "household_membership" => $"Member of {otherName}",
-            "biological_parentage" when direction == "parent" => $"Parent of {otherName}",
-            "biological_parentage" when direction == "child" => $"Child of {otherName}",
-            "partnership" => $"Partnership with {otherName}",
-            _ => $"{char.ToUpperInvariant(type[0])}{type[1..].Replace('_', ' ')} with {otherName}",
-        };
-        return string.Equals(state, "accepted", StringComparison.Ordinal) || string.IsNullOrWhiteSpace(state)
-            ? summary
-            : $"{summary} · {state.Replace('_', ' ')}";
+            case "pending":
+                lines.Add("Final will pending.");
+                break;
+            case "accepted" when will is { Heirs.Count: > 0 }:
+                var names = will.Heirs.Select(heir => heir.Name).ToArray();
+                var joined = names.Length == 1 ? names[0] : string.Join(", ", names[..^1]) + " and " + names[^1];
+                lines.Add(will.Split == "items"
+                    ? $"Final will: belongings left item by item to {joined}."
+                    : names.Length == 1
+                        ? $"Final will: all belongings to {joined}."
+                        : $"Final will: belongings shared equally between {joined}.");
+                foreach (var heir in will.Heirs)
+                {
+                    var goods = heir.Items.Count == 0
+                        ? "nothing listed"
+                        : string.Join(", ", heir.Items.Select(item => $"{item.Quantity} {item.Kind.Replace('_', ' ')}"));
+                    lines.Add($"To {heir.Name}: {goods}");
+                }
+                break;
+            case "default":
+                lines.Add("Personal estate follows household inheritance.");
+                break;
+            default:
+                lines.Add("No current thoughts or activity.");
+                break;
+        }
+        if (will?.FinalWords is { Length: > 0 } words)
+            lines.Add($"Final words: \u201C{words}\u201D");
+        return lines;
     }
 
     public static string HumanizeIdentifier(string value)
@@ -326,7 +413,8 @@ public static class GameUiText
         if (normalized.StartsWith("parent_", StringComparison.Ordinal))
         {
             return normalized.StartsWith("parent_propose:", StringComparison.Ordinal) ? "talk about having a child"
-                : normalized.StartsWith("parent_accept:", StringComparison.Ordinal) ? "agree to have a child" : "decide against having a child";
+                : normalized.StartsWith("parent_accept:", StringComparison.Ordinal) ? "agree to have a child"
+                : normalized.StartsWith("parent_postpone:", StringComparison.Ordinal) ? "put off having a child" : "decide against having a child";
         }
         if (normalized.StartsWith("partner_", StringComparison.Ordinal))
         {
@@ -343,6 +431,23 @@ public static class GameUiText
             return normalized.StartsWith("lesson_decline:", StringComparison.Ordinal) || normalized == "lesson_cancel"
                 ? "turn down or stop a lesson" : "take a lesson";
         }
+        if (normalized.StartsWith("civic|", StringComparison.Ordinal))
+            return normalized.Split('|').ElementAtOrDefault(2) switch
+            {
+                "visit" => "visit the Town notice place",
+                "read" => "read Town notices",
+                "relay" => "relay Town notices",
+                "nominate" => "nominate a council candidate",
+                "request_admission" => "propose a newcomer's admission",
+                "register" or "remainder" => "agree to stand for council",
+                "withdraw_candidate" => "withdraw a candidacy",
+                "propose" => "propose a Town rule",
+                "admission" => "request Town admission",
+                "yes" or "no" => "vote on a Town proposal",
+                "withdraw_proposal" => "withdraw a proposal",
+                "ballot" or "single" => "cast a council election ballot",
+                _ => "take part in Town affairs",
+            };
         if (normalized.StartsWith("council_", StringComparison.Ordinal))
         {
             return normalized.StartsWith("council_propose:", StringComparison.Ordinal) ? "suggest a food rule"

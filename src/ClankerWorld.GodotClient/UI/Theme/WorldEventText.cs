@@ -1,8 +1,15 @@
+using System.Globalization;
+
 namespace ClankerWorld.GodotClient.UI;
 
 /// <summary>Player event descriptions, derived without rewriting accepted history.</summary>
 public static class WorldEventText
 {
+    public const string ContinuityRisk = "The world is at risk of dying out.";
+
+    public static bool OffersNewcomer(OwnerWorldSnapshot? snapshot) =>
+        snapshot is { ContinuityRuleActive: true, FounderSetup.Started: true };
+
     public static string Describe(OwnerWorldEvent worldEvent, OwnerWorldSnapshot? snapshot)
     {
         var parts = worldEvent.Detail.Split(':', StringSplitOptions.RemoveEmptyEntries);
@@ -13,6 +20,8 @@ public static class WorldEventText
             IsLeadingId(worldEvent.Detail, building.InstanceId))?.DisplayName ?? "Building";
         var guestName = snapshot?.Inhabitants.OrderByDescending(person => person.Id.Length).FirstOrDefault(person =>
             worldEvent.Detail.EndsWith(":" + person.Id, StringComparison.Ordinal))?.DisplayName ?? "The guest";
+        var civicTownId = worldEvent.Detail.Split('|', 3)[0];
+        var civicTownName = snapshot?.Towns.FirstOrDefault(town => town.Id == civicTownId)?.Name ?? "A Town";
 
         return worldEvent.Kind switch
         {
@@ -51,7 +60,13 @@ public static class WorldEventText
             "estate_will_default" => "Their belongings went to their household.",
             "partnership_accepted" => "Two agents formed a partnership.",
             "partnership_ended" => "A partnership ended.",
+            "continuity_rule_on" => "The continuity rule is on because fewer than eight people who are not elders are alive. " +
+                "Couples may put off having a child for up to two days but cannot refuse.",
+            "continuity_rule_off" => "The continuity rule is off because eight or more people who are not elders are alive. " +
+                "Couples may decide against having a child again.",
             "caregiver_assigned" => "A child has a new caregiver.",
+            "guardian_needed" => "Needs a guardian. No adult has accepted care yet.",
+            "guardian_assigned" => "An adult accepted care for a child.",
             "medical_care_allowed" => $"{LeadingName(snapshot, worldEvent.Detail)} allowed someone to provide medical care.",
             "medical_care_revoked" => $"{LeadingName(snapshot, worldEvent.Detail)} withdrew permission for medical care.",
             "medical_treatment_started" => $"{LeadingName(snapshot, worldEvent.Detail)} began a course of medicine.",
@@ -77,6 +92,7 @@ public static class WorldEventText
             "store_stock_delivered" => "A load reached the household Store and is now available to sell.",
             "carrying_full" => $"{Name(snapshot, worldEvent.Detail)} cannot carry more; a load needs to be stored or set down.",
             "spare_cargo_stored" => $"{LeadingName(snapshot, worldEvent.Detail)} set down spare supplies for their household to make room in their load.",
+            "household_delivery_recovered" => $"{LeadingName(snapshot, worldEvent.Detail)} returned unusable delivery supplies to their household's pile at camp.",
             "equipment_equipped" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} equipped an item.",
             "equipment_repair_started" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} began repairing an item.",
             "equipment_repaired" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} repaired an item.",
@@ -86,15 +102,34 @@ public static class WorldEventText
             "instruction_not_understood" => $"{Name(snapshot, BeforeLastField(worldEvent.Detail))} didn't understand your order. " +
                 "For now, orders can only ask them to gather food, eat or find food.",
             "settlement_founded" => "A new Town was founded.",
+            "town_civic_law" => $"{civicTownName} recorded a law decision. See the Towns page for its wording and scope.",
+            "town_civic_government" => $"{civicTownName} recorded a resident government decision. See the Towns page for the vote or handover.",
+            "town_civic_mayor" => $"{civicTownName} recorded a mayoral election or office change. See the Towns page for its result.",
+            "town_civic_council" => $"{civicTownName}'s council changed.",
+            "town_civic_election" => $"{civicTownName}'s council election opened.",
+            "town_civic_runoff" => $"{civicTownName}'s council election needs a runoff for tied seats.",
+            "town_civic_proposal" => $"A proposal was submitted to {civicTownName}'s council.",
+            "town_civic_result" => $"{civicTownName}'s council recorded a decision. See the Towns page for its result.",
+            "town_civic_cancelled" => $"An unfinished election in {civicTownName} was cancelled.",
             "town_founding_started" => "Your first Town is being set up.",
-            "town_resident_joined" => $"{ResidentName(snapshot, worldEvent)} joined the first Town.",
-            "town_resident_left" => $"{ResidentName(snapshot, worldEvent)} left the first Town.",
+            "town_resident_joined" => $"{ResidentName(snapshot, worldEvent)} joined {ResidentTownName(snapshot, worldEvent)}.",
+            "town_resident_left" => $"{ResidentName(snapshot, worldEvent)} left {ResidentTownName(snapshot, worldEvent)}.",
             "town_membership_evaluated" => "The new adult is not part of a Town yet.",
+            "town_admission_accepted" => DescribeAdmission(worldEvent.Detail, snapshot),
+            "town_admission_approved" => $"{civicTownName}'s council approved {Name(snapshot, Field(worldEvent.Detail, 1))}'s admission. It takes effect only if they accept.",
+            "town_admission_lapsed" => $"{Name(snapshot, Field(worldEvent.Detail, 1))} did not join {civicTownName}: the approval no longer fits their circumstances.",
             "town_building_assigned" => "A building joined the first Town.",
             "town_border_expanded" => "The first Town border expanded.",
             "town_founded" => "Your first Town is founded.",
             "bridge_built" when parts.Length > 0 && parts[0] == "road" => "A new Road crosses a river on a new bridge.",
             "bridge_built" => "Agents crossed a river here so often that a bridge was built.",
+            "household_work_resumed" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} took over paused household work at its building.",
+            "household_left" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} left their household and may collect their personal belongings.",
+            "household_founded" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} started a household; a House still needs materials and work.",
+            "personal_goods_collected" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} collected their personal belongings.",
+            "personal_goods_stored" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} stored personal belongings while keeping ownership.",
+            "borrowed_goods_returned" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} returned borrowed household goods.",
+            "replacement_care_accepted" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} explicitly accepted primary care of a dependent.",
             "housing_request_made" => $"{LeadingName(snapshot, worldEvent.Detail)} asked {HouseholdAfterAgent(snapshot, worldEvent.Detail)} for a place to live in their House.",
             "household_joined" => $"{LeadingName(snapshot, worldEvent.Detail)} now lives with {HouseholdAfterAgent(snapshot, worldEvent.Detail)}.",
             "housing_request_refused" => $"{HouseholdAfterAgent(snapshot, worldEvent.Detail)} did not agree to let {LeadingName(snapshot, worldEvent.Detail)} move in.",
@@ -102,8 +137,39 @@ public static class WorldEventText
             "housing_blocked" => $"{LeadingName(snapshot, worldEvent.Detail)} has no home: {HousingReason(worldEvent.Detail)}.",
             "paused" => "The world was paused.",
             "resumed" => "The world resumed.",
+            "model_call_warning" => DescribeModelCallWarning(parts),
             _ => $"{GameUiText.HumanizeIdentifier(worldEvent.Kind)}.",
         };
+    }
+
+    /// <summary>A recorded Town admission: who joined, any Town they left and whether dependent children came too.</summary>
+    private static string DescribeAdmission(string detail, OwnerWorldSnapshot? snapshot)
+    {
+        var fields = detail.Split('|');
+        if (fields.Length != 4) return "Someone became a Town resident.";
+        string TownName(string id) => snapshot?.Towns.FirstOrDefault(town => town.Id == id)?.Name ?? "a Town";
+        var text = $"{Name(snapshot, fields[1])} became a resident of {TownName(fields[0])}.";
+        if (fields[2] != "none") text += $" They are no longer a resident of {TownName(fields[2])}.";
+        if (int.TryParse(fields[3], NumberStyles.None, CultureInfo.InvariantCulture, out var members) && members > 1)
+            text += " Their dependent children moved with them.";
+        return text;
+    }
+
+    private static string Field(string detail, int index)
+    {
+        var fields = detail.Split('|');
+        return index < fields.Length ? fields[index] : string.Empty;
+    }
+
+    /// <summary>The installation's one warning at 80% of its model-call limit.</summary>
+    private static string DescribeModelCallWarning(string[] parts)
+    {
+        var count = parts.Length == 4 && parts[0] == "used" && parts[2] == "limit" &&
+            long.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out var used) &&
+            long.TryParse(parts[3], NumberStyles.None, CultureInfo.InvariantCulture, out var limit)
+            ? string.Create(CultureInfo.InvariantCulture, $"{used:N0} of {limit:N0}")
+            : "80% of the limit";
+        return $"Model calls: {count} used across all worlds. Your worlds pause at the limit; raise it in Settings → Game.";
     }
 
     private static string DescribeSkill(string detail, OwnerWorldSnapshot? snapshot)
@@ -140,10 +206,17 @@ public static class WorldEventText
             .FirstOrDefault(person => IsLeadingId(recipientDetail, person.Id))?.DisplayName ?? "someone";
     }
 
+    /// <summary>The Town a resident joined or left, named as the player sees it; agents now move between Towns.</summary>
+    private static string ResidentTownName(OwnerWorldSnapshot? snapshot, OwnerWorldEvent worldEvent) =>
+        ResidentTown(snapshot, worldEvent)?.Name ?? "a Town";
+
+    private static OwnerWorldTown? ResidentTown(OwnerWorldSnapshot? snapshot, OwnerWorldEvent worldEvent) =>
+        snapshot?.Towns.OrderByDescending(item => item.Id.Length)
+            .FirstOrDefault(item => IsLeadingId(worldEvent.Detail, item.Id));
+
     private static string ResidentName(OwnerWorldSnapshot? snapshot, OwnerWorldEvent worldEvent)
     {
-        var town = snapshot?.Towns.OrderByDescending(item => item.Id.Length)
-            .FirstOrDefault(item => IsLeadingId(worldEvent.Detail, item.Id));
+        var town = ResidentTown(snapshot, worldEvent);
         // Older delimiter-free Town IDs use a single field. Current IDs must
         // be matched against the snapshot before reading the resident field.
         var townId = town?.Id ?? worldEvent.Detail.Split(':', 2)[0];

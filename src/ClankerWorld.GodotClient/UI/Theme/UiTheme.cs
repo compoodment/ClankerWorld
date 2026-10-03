@@ -261,6 +261,13 @@ public static class UiTheme
         // The chosen card in a list of worlds or saves.
         theme.SetTypeVariation("InsetPanelSelected", "PanelContainer");
         theme.SetStylebox("panel", "InsetPanelSelected", Box(p.Pressed, p.Ink, 2, contentMargin: 8));
+        // The same three, tighter, for rows in a long list such as the Agents list.
+        theme.SetTypeVariation("InsetRow", "PanelContainer");
+        theme.SetStylebox("panel", "InsetRow", Box(p.Inset, p.InsetEdge, 2, contentMargin: 5));
+        theme.SetTypeVariation("InsetRowHover", "PanelContainer");
+        theme.SetStylebox("panel", "InsetRowHover", Box(p.Field, p.FieldEdge, 2, contentMargin: 5));
+        theme.SetTypeVariation("InsetRowSelected", "PanelContainer");
+        theme.SetStylebox("panel", "InsetRowSelected", Box(p.Pressed, p.Ink, 2, contentMargin: 5));
         // The tray holding a row of linked choice buttons such as Low, Normal and High.
         theme.SetTypeVariation("SegmentedPanel", "PanelContainer");
         theme.SetStylebox("panel", "SegmentedPanel", Box(p.Field, p.FieldEdge, 2, contentMargin: 2));
@@ -509,8 +516,38 @@ public static class UiTheme
         // before the game's theme was applied.
         dialog.AddThemeFontOverride("title_font", UiFonts.Headings);
         dialog.AddThemeFontSizeOverride("title_font_size", UiFonts.Heading * factor);
-        dialog.AddThemeIconOverride("close", PixelIcons.Texture(PixelGlyph.Close, Current.Ink, Current.Ink, factor));
-        dialog.AddThemeIconOverride("close_pressed", PixelIcons.Texture(PixelGlyph.Close, Current.InkMuted, Current.InkMuted, factor));
+        dialog.AddThemeIconOverride("close", BoxedClose(Current, factor, pressed: false));
+        dialog.AddThemeIconOverride("close_pressed", BoxedClose(Current, factor, pressed: true));
+        // Inside the parchment, 6 pixels from its right edge and centred on the title.
+        dialog.AddThemeConstantOverride("close_h_offset", (BoxedCloseSize + 6) * factor);
+        dialog.AddThemeConstantOverride("close_v_offset", (TitleHeight + BoxedCloseSize) * factor / 2);
+    }
+
+    private const int BoxedCloseSize = 22;
+
+    /// <summary>A dialog's close cross on a small raised button face, like the panels' close buttons.</summary>
+    private static ImageTexture BoxedClose(UiPalette p, int factor, bool pressed)
+    {
+        const int Size = BoxedCloseSize;
+        var image = Image.CreateEmpty(Size, Size, false, Image.Format.Rgba8);
+        for (var y = 0; y < Size; y++)
+            for (var x = 0; x < Size; x++)
+            {
+                var edge = x == 0 || y == 0 || x == Size - 1 || y == Size - 1;
+                var color = edge ? p.ButtonEdge
+                    : pressed ? p.Pressed
+                    : y == 1 ? p.ButtonLight
+                    : y >= Size - 3 ? p.ButtonDark
+                    : p.Button;
+                image.SetPixel(x, y, color);
+            }
+        var cross = PixelIcons.Texture(PixelGlyph.Close, p.Ink, p.Ink, 1).GetImage();
+        cross.Convert(Image.Format.Rgba8);
+        // A pressed button's cross moves down a pixel with its face.
+        image.BlendRect(cross, new Rect2I(0, 0, PixelIcons.Grid, PixelIcons.Grid),
+            new Vector2I((Size - PixelIcons.Grid) / 2, (Size - PixelIcons.Grid) / 2 + (pressed ? 1 : 0)));
+        if (factor > 1) image.Resize(Size * factor, Size * factor, Image.Interpolation.Nearest);
+        return ImageTexture.CreateFromImage(image);
     }
 
     private static void SetButton(Theme theme, string type, StyleBox normal, StyleBox hover, StyleBox pressed,
@@ -737,28 +774,48 @@ public static class UiTheme
         return ImageTexture.CreateFromImage(image);
     }
 
-    /// <summary>A pixel on/off switch: a knob sitting left on a plain track, or right on a green one.</summary>
+    /// <summary>
+    /// A pixel on/off switch: a sunken track with rounded ends and a raised
+    /// wooden knob, sitting left on a plain track or right on a green one.
+    /// </summary>
     private static ImageTexture Switch(UiPalette p, bool on, bool disabled)
     {
         const int Width = 36;
         const int Height = 20;
         var image = Image.CreateEmpty(Width, Height, false, Image.Format.Rgba8);
         var edge = on ? p.PrimaryEdge : p.FieldEdge;
-        var fill = on ? p.Primary : p.Field;
+        var fill = on ? p.Primary : p.FieldDisabled;
+        var shadow = on ? p.PrimaryDark : p.PaperEdge;
         for (var y = 0; y < Height; y++)
             for (var x = 0; x < Width; x++)
             {
                 var ex = Math.Min(x, Width - 1 - x);
                 var ey = Math.Min(y, Height - 1 - y);
-                image.SetPixel(x, y, ex < 2 || ey < 2 ? edge : fill);
+                // Rounded ends: leave the outermost corner pixels clear.
+                if (ex + ey < 2) continue;
+                var color = ex < 2 || ey < 2 || ex + ey < 4 ? edge : y == 2 ? shadow : fill;
+                image.SetPixel(x, y, color);
             }
-        var knobLeft = on ? Width - 16 : 4;
-        for (var y = 4; y < Height - 4; y++)
-            for (var x = knobLeft; x < knobLeft + 12; x++)
+        const int KnobWidth = 14;
+        var knobLeft = on ? Width - KnobWidth - 2 : 2;
+        for (var y = 2; y < Height - 2; y++)
+            for (var x = knobLeft; x < knobLeft + KnobWidth; x++)
             {
-                var edgeHere = x == knobLeft || x == knobLeft + 11 || y == 4 || y == Height - 5;
-                image.SetPixel(x, y, on ? p.PrimaryInk : edgeHere ? p.ButtonEdge : p.Button);
+                var kx = Math.Min(x - knobLeft, knobLeft + KnobWidth - 1 - x);
+                var ky = Math.Min(y - 2, Height - 3 - y);
+                if (kx + ky < 1) continue;
+                var color = kx < 1 || ky < 1 ? p.ButtonEdge
+                    : y == 3 ? p.ButtonLight
+                    : y >= Height - 5 ? p.ButtonDark
+                    : p.Button;
+                image.SetPixel(x, y, color);
             }
+        // Two grip lines on the knob.
+        for (var y = 7; y < Height - 7; y++)
+        {
+            image.SetPixel(knobLeft + 5, y, p.ButtonDark);
+            image.SetPixel(knobLeft + 8, y, p.ButtonDark);
+        }
         if (disabled) Fade(image);
         return ImageTexture.CreateFromImage(image);
     }

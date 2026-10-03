@@ -37,6 +37,31 @@ public sealed class OwnerPendingSubmissionStoreTests
     }
 
     [Fact]
+    public void OrderCancellationRoundTripRetainsTheExactWorldBoundRequest()
+    {
+        using var fixture = new PendingStoreFixture();
+        var binding = PendingStoreFixture.CreateBinding();
+        var action = new OwnerOrderCancelAction(
+            "cancel_exact", "camp-alpha", "instruction-42", "world-A");
+
+        Assert.True(fixture.Store.TrySave(OwnerPendingSubmission.ForOrderCancel(binding, action)));
+
+        var loaded = fixture.Store.TryLoad(binding);
+
+        Assert.NotNull(loaded);
+        Assert.False(loaded.IsInstruction);
+        Assert.False(loaded.IsAuthoring);
+        Assert.True(loaded.IsOrderCancel);
+        Assert.Equal("cancel_exact", loaded.LogicalId);
+        Assert.Equal(action, loaded.OrderCancel!.ToAction());
+        Assert.True(loaded.OrderCancel.CanRetryIn("world-A"));
+        Assert.False(loaded.OrderCancel.CanRetryIn("world-B"));
+        Assert.False(loaded.OrderCancel.CanRetryIn(null));
+        Assert.True(fixture.Store.TryClear(loaded));
+        Assert.Null(fixture.Store.TryLoad(binding));
+    }
+
+    [Fact]
     public void AuthoringRoundTripPreservesBatchIdAndAllOperations()
     {
         using var fixture = new PendingStoreFixture();

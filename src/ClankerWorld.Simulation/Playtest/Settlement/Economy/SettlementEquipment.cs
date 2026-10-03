@@ -50,13 +50,14 @@ public sealed partial class PrivateWorldRuntime
 
     private int MissingRepairInputUnits(string actor, InventoryLot item) =>
         PersonalEquipmentRules.RepairMaterials(item.ItemKind).Sum(input => Math.Max(0, input.Amount -
-            society.Checkpoint.Inventory.Lots.Where(lot => PersonalEquipmentRules.IsCarried(lot, actor) &&
+            society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) &&
                 lot.DeliveryBuildingId is null && lot.ItemKind == input.ResourceId).Sum(AvailableLotQuantity)));
 
     private IEnumerable<InventoryLot> PrivateEquipmentSources(string actor) => society.Checkpoint.Inventory.Lots
+        // Borrowed goods, carried by this agent or by another member, are not theirs to take.
         .Where(lot => AvailableLotQuantity(lot) > 0 && lot.DeliveryBuildingId is null &&
-            (PersonalEquipmentRules.IsCarried(lot, actor) || lot.OwnerId == HouseholdFor(actor) &&
-                CanReachSharedItem(actor, lot)))
+            (lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) ||
+                lot.OwnerId == HouseholdFor(actor) && lot.CarrierId is null && CanReachSharedItem(actor, lot)))
         .Concat(AvailableWarehouseStock(actor)).DistinctBy(lot => lot.Id);
 
     private InventoryLot? BetterGarment(string actor)
@@ -82,7 +83,7 @@ public sealed partial class PrivateWorldRuntime
     }
 
     private InventoryLot? WornEquipment(string actor) => society.Checkpoint.Inventory.Lots
-        .Where(lot => lot.Quantity == 1 && PersonalEquipmentRules.IsCarried(lot, actor) &&
+        .Where(lot => lot.Quantity == 1 && lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) &&
             lot.DeliveryBuildingId is null && lot.ConditionBasisPoints <= 4_000 &&
             (PersonalEquipmentRules.IsGarment(lot.ItemKind) || PersonalEquipmentRules.IsCarryAid(lot.ItemKind)) &&
             society.Checkpoint.Inventory.Reservations.All(item => item.LotId != lot.Id || item.State is not
@@ -95,8 +96,8 @@ public sealed partial class PrivateWorldRuntime
 
     private void AddEquipmentCandidates(List<CognitionCandidate> candidates, string actor, PlaytestInhabitantState person)
     {
-        if (WeatherExposure(person.Position) > 0 && BetterGarment(actor) is { } garment)
-            candidates.Add(new("wear_clothing", $"Collect and wear {garment.ItemKind.Replace('_', ' ')} for this weather.", 3));
+        if (OutdoorExposure(person.Position) > 0 && BetterGarment(actor) is { } garment)
+            candidates.Add(new("wear_clothing", $"Collect and wear {garment.ItemKind.Replace('_', ' ')} to keep warm outdoors.", 3));
         if (!AdultResident(actor)) return;
         if (BetterCarryAid(actor) is { } aid)
             candidates.Add(new("equip_carry_aid", $"Equip a {aid.ItemKind} to carry more supplies.", 14));
@@ -104,7 +105,7 @@ public sealed partial class PrivateWorldRuntime
             MissingRepairInputUnits(actor, worn) <= FreeCarryCapacity(actor) &&
             EquipmentRepairSite(actor, worn) is { } site &&
             FindUnoccupiedRoute(actor, person.Position, site.Position, 0).Count > 0 &&
-            PersonalEquipmentRules.RepairMaterials(worn.ItemKind).All(input => HasCarriedItem(actor, input.ResourceId) ||
+            PersonalEquipmentRules.RepairMaterials(worn.ItemKind).All(input => HasCarriedOwnItem(actor, input.ResourceId) ||
                 SharedItem(input.ResourceId, actor) is not null))
             candidates.Add(new("repair_equipment", $"Bring materials to repair the worn {worn.ItemKind.Replace('_', ' ')}.", 12, site.InstanceId));
     }
@@ -170,7 +171,7 @@ public sealed partial class PrivateWorldRuntime
         if (MissingRepairInputUnits(actor, target) > FreeCarryCapacity(actor)) return;
         foreach (var input in PersonalEquipmentRules.RepairMaterials(target.ItemKind))
         {
-            if (!HasCarriedItem(actor, input.ResourceId))
+            if (!HasCarriedOwnItem(actor, input.ResourceId))
             {
                 CollectEquipment(actor, person, input.ResourceId);
                 return;
@@ -187,7 +188,7 @@ public sealed partial class PrivateWorldRuntime
             foreach (var input in PersonalEquipmentRules.RepairMaterials(target.ItemKind))
             {
                 var material = inventory.Lots.OrderBy(lot => lot.Id, StringComparer.Ordinal).First(lot =>
-                    PersonalEquipmentRules.IsCarried(lot, actor) && lot.DeliveryBuildingId is null &&
+                    lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) && lot.DeliveryBuildingId is null &&
                     lot.ItemKind == input.ResourceId && PersonalEquipmentRules.AvailableQuantity(inventory, lot) >= input.Amount);
                 var id = $"repair:{WorldTick}:{actor}:{input.ResourceId}";
                 inventory = InventoryFixture.Reserve(inventory, id, actor, material.Id, input.Amount,
@@ -254,6 +255,8 @@ public sealed partial class PrivateWorldRuntime
         {
             if (person.Equipment?.Repair is not null && !CanContinueEquipmentRepair(person.InhabitantId))
                 CancelEquipmentRepair(person.InhabitantId);
+            // Garments wear in cold or wet weather only. The night chill is
+            // felt as lost warmth, but adds no wear the agreed design did not ask for.
             if (person.Equipment?.Repair?.LotId == person.Equipment?.ClothingLotId ||
                 WeatherExposure(person.Position) == 0 || EquippedGarment(person.InhabitantId) is not { } garment) continue;
             ApplyInventoryTransition(inventory => InventoryFixture.WearSingleUnit(inventory, garment.Id, 10));

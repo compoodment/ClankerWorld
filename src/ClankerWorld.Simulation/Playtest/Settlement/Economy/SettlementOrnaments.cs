@@ -30,8 +30,9 @@ public sealed partial class PrivateWorldRuntime
         inhabitants[actor].Project is { Stage: not ("completed" or "cancelled") } ||
         fields.Any(field => field.Work?.WorkerId == actor);
 
+    // Carrying is not owning: a borrowed or in-transit ornament is never the carrier's own to wear or give.
     private bool IsPersonallyCarriedOrnament(InventoryLot lot, string actor) =>
-        PersonalEquipmentRules.IsOrnament(lot.ItemKind) && PersonalEquipmentRules.IsCarried(lot, actor) &&
+        PersonalEquipmentRules.IsOrnament(lot.ItemKind) && lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) &&
         lot.ContainerLotId is null && lot.DeliveryBuildingId is null && AvailableLotQuantity(lot) > 0;
 
     private IEnumerable<InventoryLot> OrnamentSources(string actor)
@@ -41,7 +42,7 @@ public sealed partial class PrivateWorldRuntime
         return society.Checkpoint.Inventory.Lots.Where(lot => PersonalEquipmentRules.IsOrnament(lot.ItemKind) &&
                 lot.ContainerLotId is null && lot.DeliveryBuildingId is null && AvailableLotQuantity(lot) > 0 &&
                 (IsPersonallyCarriedOrnament(lot, actor) || household is not null && lot.OwnerId == household &&
-                    FreeCarryCapacity(actor) > 0 &&
+                    (lot.CarrierId is null || lot.CarrierId == actor) && FreeCarryCapacity(actor) > 0 &&
                     (lot.StorageBuildingId is null || worldSimulation.Buildings.Any(building =>
                         building.InstanceId == lot.StorageBuildingId && building.HouseholdId == household)) &&
                     (IsWithinInteractionRange(inhabitants[actor].Position, HouseholdStockPosition(lot),
@@ -112,6 +113,22 @@ public sealed partial class PrivateWorldRuntime
                     return true;
                 }
         return true;
+    }
+
+    /// <summary>
+    /// Putting an ornament on needs a fresh admitted choice; only the walk toward the household
+    /// stock that holds it continues between model turns.
+    /// </summary>
+    private void ContinueOrnamentWalk(string actor, string candidate)
+    {
+        if (!candidate.StartsWith(WearOrnamentPrefix, StringComparison.Ordinal) || !LivingOrnamentAdult(actor) ||
+            BusyWithOrnamentIncompatibleWork(actor) || NeedsUrgentFood(inhabitants[actor]) ||
+            NeedsUrgentWarmth(inhabitants[actor])) return;
+        var source = OrnamentSources(actor).FirstOrDefault(lot => OrnamentChoiceId(WearOrnamentPrefix, lot.Id) == candidate);
+        var person = inhabitants[actor];
+        if (source is null || source.OwnerId == actor || IsWithinInteractionRange(person.Position,
+                HouseholdStockPosition(source), HouseholdStockInteractionRange(source))) return;
+        MoveToward(actor, person, HouseholdStockPosition(source), "ornament", HouseholdStockInteractionRange(source));
     }
 
     public OrnamentChangeResult WearOrnament(string actor, string lotId)

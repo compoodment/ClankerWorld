@@ -25,7 +25,9 @@ public sealed partial class PrivateWorldRuntime
             var ordinal = setup.FounderIds.Count + 1;
             var householdId = ordinal <= 2 ? HouseholdId : SecondHouseholdId;
             var name = $"Founder {ordinal}";
-            var founder = SocietyFixture.CreateFounder(founderId, name, config: society.Checkpoint.Config);
+            var config = society.Checkpoint.Config;
+            var founder = SocietyFixture.CreateFounder(founderId, name, config: config,
+                startingAge: SocietyFixture.FounderArrivalAge(config, worldSeed, setup.FounderIds.Count));
             society.Apply(checkpoint => SocietyFixture.PlaceFounder(checkpoint, founder, householdId));
             inhabitants.Add(founderId, new PlaytestInhabitantState(founderId, position, 6_500, 0,
                 "undecided", "find a purpose", IdentityChoicePending: true));
@@ -281,6 +283,8 @@ public sealed partial class PrivateWorldRuntime
                 SetTown(firstTown with { FoundingState = "founded" });
                 AppendEvent("town_founded", $"{firstTown.Id}:residents:{firstTown.ResidentIds.Count}");
             }
+            AdvanceTownGovernance();
+            SettleTownAdmissions();
             if (resume) society.Resume();
             AppendEvent("world_started", "four_founders_ready");
         }
@@ -299,8 +303,10 @@ public sealed partial class PrivateWorldRuntime
         {
             ResidentIds = town.ResidentIds.Append(residentId).Order(StringComparer.Ordinal).ToArray(),
         });
+        AdvanceTownGovernance();
         var updated = towns.Single(item => item.Id == townId);
         AppendEvent("town_resident_joined", $"{updated.Id}:{residentId}:{reason}:residents:{updated.ResidentIds.Count}");
+        SettleTownAdmissions();
     }
 
     private void RemoveTownResident(string residentId)
@@ -309,7 +315,9 @@ public sealed partial class PrivateWorldRuntime
         if (town is null) return;
         var residents = town.ResidentIds.Where(id => id != residentId).ToArray();
         SetTown(town with { ResidentIds = residents });
+        AdvanceTownGovernance();
         AppendEvent("town_resident_left", $"{town.Id}:{residentId}:residents:{residents.Length}");
+        SettleTownAdmissions();
     }
 
     private string? TownForResident(string residentId) => towns

@@ -33,6 +33,7 @@ public sealed record ViewerWorldPreview(ViewerPackedTerrain Terrain, ViewerPosit
     public string? MapLayersDigest { get; init; }
     public GeographyCandidateReport? Coverage { get; init; }
     public IReadOnlyList<GeographyCandidateReport> Candidates { get; init; } = [];
+    public IReadOnlyList<GeographyCandidateFailure> FailedCandidates { get; init; } = [];
 }
 
 public sealed record ViewerMapObject(string Id, string Kind, ViewerPosition Position);
@@ -59,6 +60,20 @@ public sealed record ViewerRoute(
     ViewerPosition? Destination,
     IReadOnlyList<ViewerPosition> Steps,
     string TopologyManifestDigest);
+
+/// <summary>
+/// Developer tools: the route an agent is walking, as the server planned it on
+/// its latest step. <see cref="Steps"/> holds at most the first
+/// <see cref="StepLimit"/> tiles still ahead; <see cref="StepCount"/> counts all of them.
+/// </summary>
+public sealed record ViewerPlannedRoute(
+    string Reason,
+    ViewerPosition Destination,
+    IReadOnlyList<ViewerPosition> Steps,
+    int StepCount)
+{
+    public const int StepLimit = 256;
+}
 
 public sealed record ViewerSpatialKnowledge(
     ViewerPosition CurrentTile,
@@ -114,7 +129,17 @@ public sealed record ViewerAgentKnowledgeArtifact(
     long CreatedTick,
     string CreatorName,
     IReadOnlyList<ViewerKnowledgeSite> Sites);
-public sealed record ViewerCalendarPace(int TicksPerDay, int DaysPerYear);
+/// <summary>
+/// The world's saved calendar, including its season lengths, so the game can
+/// name the season and day of any tick the same way the world does.
+/// </summary>
+public sealed record ViewerCalendarPace(
+    int TicksPerDay,
+    int DaysPerYear,
+    int SpringDays,
+    int SummerDays,
+    int AutumnDays,
+    int WinterDays);
 
 /// <summary>
 /// An inspection projection, never an editable actor record. A founder draft
@@ -133,6 +158,9 @@ public sealed record ViewerInhabitant(
     bool IsDraft)
 {
     public ViewerPublicIntention? PublicIntention { get; init; }
+
+    /// <summary>Developer tools only; null when the agent is not walking anywhere.</summary>
+    public ViewerPlannedRoute? PlannedRoute { get; init; }
 
     public ViewerProject? Project { get; init; }
     public ViewerSurvival? Survival { get; init; }
@@ -157,7 +185,17 @@ public sealed record ViewerInhabitant(
     public IReadOnlyList<ViewerAgentKnowledgeFact> RecentKnowledgeFacts { get; init; } = [];
 
     public IReadOnlyList<ViewerAgentKnowledgeArtifact> KnowledgeArtifacts { get; init; } = [];
+
+    /// <summary>A dead agent's will on their historical profile; null for the living.</summary>
+    public ViewerFinalWill? FinalWill { get; init; }
 }
+
+/// <param name="Status">pending, accepted or default (household inheritance).</param>
+/// <param name="Split">equal or items for an accepted will; otherwise null.</param>
+/// <param name="Heirs">Each named heir and the goods the will leaves them, in the will's order.</param>
+/// <param name="FinalWords">Words the agent left for the people who inherit, if any.</param>
+public sealed record ViewerFinalWill(string Status, string? Split, IReadOnlyList<ViewerWillHeir> Heirs, string? FinalWords);
+public sealed record ViewerWillHeir(string Id, string Name, bool IsTown, IReadOnlyList<ViewerInventoryEntry> Items);
 
 public sealed record ViewerProject(string Label, string Stage, int WorkDone, int WorkRequired, string? Blocker, long StartedTick);
 public sealed record ViewerSurvival(int WarmthBasisPoints, int IllnessBasisPoints, bool HasClothing, bool HasTool,
@@ -184,7 +222,21 @@ public sealed record ViewerInstruction(
     long RunEpoch,
     long SubmissionSequence,
     long? ObservedTick = null,
-    string? ObserverReply = null);
+    string? ObserverReply = null,
+    ViewerInstructionOrder? Order = null);
+
+public sealed record ViewerInstructionOrder(
+    string Action,
+    string Status,
+    int RequestedUnits,
+    int CompletedUnits,
+    string ProgressUnit,
+    bool RepeatUntilCancelled,
+    string? TargetFoodKind = null,
+    string? TargetResourceId = null,
+    int? TargetX = null,
+    int? TargetY = null,
+    string? BlockedReason = null);
 
 public sealed record ViewerCognitionEvent(long EventId, long WorldTick, string Kind, string Detail);
 
@@ -311,7 +363,37 @@ public sealed record ViewerTown(
     long FoundedTick,
     IReadOnlyList<string> ResidentIds,
     IReadOnlyList<string> AssignedBuildingIds,
-    IReadOnlyList<ViewerPosition> BorderTiles);
+    IReadOnlyList<ViewerPosition> BorderTiles)
+{
+    public ViewerTownGovernance? Governance { get; init; }
+    public ViewerTownGovernment? Government { get; init; }
+}
+
+public sealed record ViewerTownLaw(string Id, string Subject, string Rule, string Scope, int SiteTiles, int Version,
+    long AdoptedTick, long? EndedTick)
+{
+    public IReadOnlyList<ViewerPosition> Site { get; init; } = [];
+}
+public sealed record ViewerTownOffice(string Mandate, string? HolderName, long? TermEndTick, string? VacancyReason);
+public sealed record ViewerGovernmentChange(string Id, string Declaration, string Status, int Yes, int No, int RequiredYes,
+    long? DeadlineTick, long? HandoverDeadlineTick, string? Reason);
+public sealed record ViewerMayoralElection(string Id, string Mandates, string Stage, int Round, long? DeadlineTick,
+    IReadOnlyList<ViewerCivicCandidate> Candidates, string? WinnerName, string? Reason);
+public sealed record ViewerTownGovernment(string Declaration, IReadOnlyList<ViewerTownLaw> Laws, int LawCount,
+    IReadOnlyList<ViewerTownOffice> Offices, IReadOnlyList<ViewerGovernmentChange> Changes,
+    ViewerMayoralElection? Election, ViewerMayoralElection? LatestElection, long RetryTick);
+
+public sealed record ViewerCivicProposal(string Id, string Kind, string Text, string Status, int Yes, int No,
+    int RequiredYes, long DeadlineTick);
+public sealed record ViewerCivicCandidate(string Id, string Name, int Votes);
+public sealed record ViewerTownElection(string Id, string Kind, string Stage, int Seats, long DeadlineTick,
+    IReadOnlyList<ViewerCivicCandidate> Candidates, IReadOnlyList<string> SettledNames);
+public sealed record ViewerTownGovernance(string Form, string Fallback, IReadOnlyList<string> MemberNames,
+    long? TermEndTick, long RetryTick, IReadOnlyList<string> WillingCandidateNames,
+    IReadOnlyList<ViewerCivicProposal> Proposals, ViewerTownElection? Election)
+{
+    public ViewerTownElection? LatestElection { get; init; }
+}
 
 public sealed record ViewerTownLandTitle(string Id, string TownId, IReadOnlyList<ViewerPosition> Tiles,
     long RecordedTick);
@@ -381,7 +463,15 @@ public sealed record ViewerWorldSnapshot(
     public ViewerCouncil? Council { get; init; }
     public int? LifePaceRate { get; init; }
     public ViewerCalendarPace? CalendarPace { get; init; }
+    /// <summary>
+    /// How dark the world is now, decided by the host from the world clock:
+    /// 0 in daylight, 10,000 at full night, between them at dusk and dawn.
+    /// Absent for a world without a calendar.
+    /// </summary>
+    public int? DarknessBasisPoints { get; init; }
     public bool? JevEnabled { get; init; }
+    /// <summary>The current saved rule state, independent of retained event history.</summary>
+    public bool? ContinuityRuleActive { get; init; }
     public ViewerFounderSetup? FounderSetup { get; init; }
     public IReadOnlyList<ViewerTown> Towns { get; init; } = [];
     public IReadOnlyList<ViewerTownLandTitle> TownLandTitles { get; init; } = [];
@@ -391,6 +481,8 @@ public sealed record ViewerWorldSnapshot(
     public IReadOnlyList<ViewerBridge> Bridges { get; init; } = [];
     public int WeatherRegionSize { get; init; } = 32;
     public IReadOnlyList<ViewerWeatherRegion> WeatherRegions { get; init; } = [];
+    /// <summary>Developer tools: how long the host took to work out the latest tick; null before one runs.</summary>
+    public double? LastTickMilliseconds { get; init; }
     /// <summary>
     /// The inspectable population projection. <see cref="Actor"/> remains for
     /// backwards-compatible Phase 2 diagnostic clients.

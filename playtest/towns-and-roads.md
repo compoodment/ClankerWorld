@@ -1,7 +1,3 @@
-# Towns and Roads
-
-Merged on 30 September from [#525](https://github.com/compoodment/ClankerWorld/issues/525), [#523](https://github.com/compoodment/ClankerWorld/issues/523), [#524](https://github.com/compoodment/ClankerWorld/issues/524), [#526](https://github.com/compoodment/ClankerWorld/issues/526), [#542](https://github.com/compoodment/ClankerWorld/issues/542), [#527](https://github.com/compoodment/ClankerWorld/issues/527) and [#460](https://github.com/compoodment/ClankerWorld/issues/460).
-
 - Start a new world and choose a Town site. The first Town follows a winding main road with side streets, and its two Houses, Warehouse, Farmhouse and Blacksmith sit along them. ([#525](https://github.com/compoodment/ClankerWorld/issues/525))
 - Try a few different sites before placing founders. Streets bend in 45° steps and take diagonals where the land is clear, no two streets run side by side, and no Road runs under a building. ([#525](https://github.com/compoodment/ClankerWorld/issues/525))
 - Look at where each street ends. It carries on about three tiles past the last building on it, and no side street is left without a building. ([#525](https://github.com/compoodment/ClankerWorld/issues/525))

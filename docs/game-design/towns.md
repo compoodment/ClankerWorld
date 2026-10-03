@@ -2,7 +2,7 @@
 title: Towns, buildings and government
 type: game-design
 status: active
-updated: 2026-10-02
+updated: 2026-10-03
 ---
 
 # Towns, buildings and government
@@ -194,10 +194,11 @@ The household's existing limit of one planned House remains separate from the
 number of people in its family. Splitting into two households does not erase
 parentage or other family relationships. Care during a living adult's departure
 is agreed below. Town affiliation follows the
-[Town membership rules](#town-membership). A child whose last caregiver dies
-follows the
-[agreed guardian rule](agents-and-families.md#starting-agents-families-and-life-stages);
-other guardianship cases still need their own decisions.
+[Town membership rules](#town-membership). When a dependent loses their last
+active primary caregiver, the agreed care sequence is in [Agents and
+families](agents-and-families.md#dependent-care-after-loss-of-the-last-active-primary-caregiver).
+Any move between Towns still follows the admission rules in issue
+[#602](https://github.com/compoodment/ClankerWorld/issues/602).
 
 ### Household goods and departure
 
@@ -238,10 +239,16 @@ other guardianship cases still need their own decisions.
   while that adult continues care. Parentage is unchanged. The overcrowding
   timer still cannot expel a child alone or remove their only caregiver.
 
-Adult departure, personal ownership, limited collection access, the food
-allowance and solo formation are implementation work in
-[#593](https://github.com/compoodment/ClankerWorld/issues/593). Wills and a
-guardian for a child whose last caregiver dies are agreed in [Agents and
+Adult departure, personal ownership, limited physical collection, the once-only
+food allowance, care-group moves and solo formation are implemented through
+[#593](https://github.com/compoodment/ClankerWorld/issues/593). Overcrowding
+notice and relocation selection remain separate work in
+[#599](https://github.com/compoodment/ClankerWorld/issues/599). The agreed
+response to losing a dependent's last active primary caregiver is described in
+[Agents and families](agents-and-families.md#dependent-care-after-loss-of-the-last-active-primary-caregiver).
+Cross-Town moves after accepted care still follow Town admission rules in
+[#602](https://github.com/compoodment/ClankerWorld/issues/602). Wills are agreed
+in [Agents and
 families](agents-and-families.md#starting-agents-families-and-life-stages);
 other guardianship cases remain separate choices in [Agents and
 families](agents-and-families.md#still-to-decide).
@@ -306,6 +313,12 @@ resident counts.
   the completed footprint before acting so a death, departure, expansion or
   new family relationship cannot cause an unnecessary eviction. Continue
   relocating eligible adults only until the remaining residents fit.
+- **A sole caregiver is not given notice, agreed on October 2.** If the only
+  adult who could be asked to leave an overcrowded House is the sole caregiver
+  of a dependent child, nobody gets notice, and the caregiver and child are not
+  given notice together as a group either. The House stays visibly overcrowded
+  with a plan to expand or split, and the caregiver may still choose to leave
+  with the child.
 - **One unpaused world day of notice for displaced adults** is the initial
   trial period. During notice they look for a suitable
   accepting household with room; otherwise they may form their own household
@@ -565,8 +578,31 @@ materials in hand. There is no Town-wide limit on how many of a kind exist
 until playtests show agents overbuilding. Only the household that holds the
 Farmhouse plans a Silo, next to its Farmhouse. The **Workshop is the one
 exception**: a household may plan it, and once it is built the Town holds it.
-Other buildings the Town shares wait for governance. Any Town resident may plan
-the Warehouse's expansion once its stock is nearly full.
+Other shared buildings use the Council-approved Town projects below. Any Town
+resident may still plan the Warehouse's expansion once its stock is nearly full.
+
+### Shared Town projects
+
+**Agreed by the owner on October 2, 2026 ([#760](https://github.com/compoodment/ClankerWorld/issues/760)):**
+an adult Town resident may propose a named shared construction project with
+its site and material budget. The legitimate current Council must approve it
+through the ordinary proposal and majority procedure before residents may
+spend Town materials or start that project. Pending votes follow the Council's
+existing membership and ballot rules; proposing a project grants no permission.
+
+This covers Markets and their Town-owned stalls, Town Halls, Ports and crafting
+communal boats at a Port. Resident adults physically supply and build the
+approved project with real materials. Approval creates no goods, transfers no
+private stock and grants no access to household or personal supplies. Private
+donations need separate consent and the ordinary physical transfer rules.
+
+Permission is bound to the approved project, site and material budget. A
+different site or larger budget needs another approval. Ownership, land rights,
+routes, carrying room, storage, work and reservations still apply. Cancelling
+or blocking a project must preserve its goods and safely release unspent
+reservations. This is a supported construction effect; free-form law text
+cannot execute it. The existing resident rule for Warehouse expansion stays
+in place. Costs, quantities and work times remain provisional for playtesting.
 
 The intended building roles now include House, Warehouse, Workshop,
 Farmhouse, farm fields, an adjacent private farm Silo, optional household-run
@@ -612,28 +648,62 @@ The **Town holds formal title** to land it claims; households hold inspectable
 A plot is a connected group of land tiles and can include empty land. The Town
 border alone does not silently take over another claim or transfer a building,
 its stock or a household's private goods. Physical occupation or model text
-cannot rewrite these records. The first Town begins with a council, not an
-assumed mayor. Residents can later approve creating an elected mayor through
-the protected government-change process. Its creation, term and elections are
-agreed in [The mayor's office and elections](#the-mayors-office-and-elections);
+cannot rewrite these records. Every Town has a Council from founding; its
+initial small Council consists of all adult residents. Land approvals use the
+ordinary Council majority procedure from the start. Residents can later approve
+creating an elected mayor through the protected government-change process.
+Its creation, term and elections are agreed in
+[The mayor's office and elections](#the-mayors-office-and-elections);
 [Land hearings and rulings](#land-hearings-and-rulings) settles adjudication.
 
-**Current implementation, not yet confirmed by computment:** the first
+**Current implementation:** the first
 accepted Town layout records title to the connected land inside its initial
 border, and later border growth makes room for the Town without adding title.
 That follows answer 19A, that a boundary change does not by itself change
 title ([Borders, abandoned Towns and salvage](#borders-abandoned-towns-and-salvage)).
-Starter household use rights cover only the footprints of the buildings
+
+**Agreed by the owner on October 2, 2026
+([#426](https://github.com/compoodment/ClankerWorld/issues/426#issuecomment-5948873459)):**
+a Town may extend its title through an explicit Council-approved claim to
+adjoining unclaimed land. Use the legitimate current Council's ordinary
+[proposal and majority procedure](#council-proposals-and-election-ballots)
+for the named land claim. Proposing a claim or expanding the Town border
+alone grants no title.
+
+Existing titles, household use rights and pending disputes remain intact.
+Approval cannot overwrite another title or settle a dispute without the
+agreed lawful hearing. A new Town title does not transfer private buildings,
+crops, goods or household stock, or automatically grant a household use right.
+
+**Also agreed by the owner on October 2, 2026
+([#426](https://github.com/compoodment/ClankerWorld/issues/426#issuecomment-5956742184)):**
+
+- **Initial household use rights cover building footprints only.** Each
+  household receives the footprints of the buildings assigned to it, with no
+  surrounding empty land included. The shared Warehouse remains Town property.
+- **Expansion onto extra tiles requires a household land request.** The
+  legitimate current Council approves it through the ordinary
+  [proposal and majority procedure](#council-proposals-and-election-ballots).
+  The all-adult Council in a small Town uses that same majority rule.
+- **Legitimate building reassignment moves its footprint use right with the
+  building.** Record the receiving household's footprint right as part of the
+  reassignment, preserving the ownership and dispute safeguards. Town title
+  remains unchanged.
+
+**Current implementation:**
+starter household use rights cover only the footprints of the buildings
 assigned to each household; the shared Warehouse remains Town property.
 Add Agent treats a recorded use right as household property and Town title
 like a Town border; a single pending request gives no household. A household
 building's current owner comes before another household's undisputed use right
-on its footprint, so reassigning a building does not block placement there. A
-field does not, and disputed land is always refused. Whether title grows with
-the Town, how much land comes with a starter use right, and whether reassigning
-a building should move its starter use right remain open. Because new grants
-use existing Town-owned land, the first answer decides where later households
-can receive use rights.
+on its footprint. Reassigning a household building carries its existing
+footprint use right to the new household. The rest of a larger plot stays with
+its holder, even when the footprint splits it into separate plots. Town title
+and grant terms stay unchanged; disputed, expired or differently held rights
+prevent reassignment. A field does not override a use right, and disputed land
+is always refused. These existing rules do not yet implement the agreed
+Council-approved title claims or household land requests. That runtime work
+remains in [#426](https://github.com/compoodment/ClankerWorld/issues/426).
 
 Competing requests are visible as **pending disputes**. While one is pending,
 conflicting formal rights transfers pause; residents are not evicted, goods
@@ -1463,9 +1533,9 @@ these item pipelines. See [combat](agents-and-families.md#combat) and
 **Owner decision on October 2, 2026:** "Defer injury causes; build supplies now."
 This stage makes, stores and trades bandages, but does not create injuries or
 apply bandages to a patient. Medicine uses the existing illness system and
-supports recovery gradually. The Clinic draft implements this scope in the
-normal private-world path; its merge, validation and Windows playtest remain
-tracked in [#565](https://github.com/compoodment/ClankerWorld/issues/565). See
+supports recovery gradually. The Clinic implements this scope in the normal
+private-world path; its Windows playtest is pending, and the later injury stage
+stays tracked in [#565](https://github.com/compoodment/ClankerWorld/issues/565). See
 [current availability](../what-works.md#life-work-and-society).
 
 The first Clinic is a household-held 1×2 building. Trial construction uses
@@ -1564,13 +1634,12 @@ These remain open; they are not new decisions.
    ownership, collection access, the food allowance and care during a living
    adult's departure. [Town membership](#town-membership) settles recorded
    affiliation, homeless residents, ordinary newcomer approval and dependent
-   children. [Borders, abandonment and
-   salvage](#borders-abandoned-towns-and-salvage) settle the empty-Town
-   exception and communal access. The [agreed guardian
-   rule](agents-and-families.md#starting-agents-families-and-life-stages)
-   settles care for a child whose last caregiver dies. Other guardianship
-   cases, private abandoned-property transfers and remaining border
-   assignment/dispute cases stay open.
+   children. [Borders, abandonment and salvage](#borders-abandoned-towns-and-salvage)
+   settle the empty-Town exception and communal access. Cross-Town dependent
+   moves still follow admission rules in issue
+   [#602](https://github.com/compoodment/ClankerWorld/issues/602); private
+   abandoned-property transfers and remaining border assignment or dispute
+   cases stay open.
 
 - **Physical stocks and trade.** Store goods must be transported there and
     stored on site before sale. Decide transport and ownership-transfer details

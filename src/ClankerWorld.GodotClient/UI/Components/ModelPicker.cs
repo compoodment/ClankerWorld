@@ -4,13 +4,13 @@ namespace ClankerWorld.GodotClient.UI;
 
 /// <summary>
 /// Chooses an agent's model from the game's list for a provider, newest at the top,
-/// with a "Type a model name…" choice for any other model. Models the chosen
+/// with a "Type a model name..." choice for any other model. Models the chosen
 /// key can't use are shown but can't be picked. While the list loads, or when
 /// it can't be read, the owner can still keep the current model or type one.
 /// </summary>
 public partial class ModelPicker : VBoxContainer
 {
-    public const string TypeOwnText = "Type a model name…";
+    public const string TypeOwnText = "Type a model name...";
     public const string UnavailableNote = " (not available with this key)";
     public const string ChooseText = "Choose a model";
     private const string TypeOwnId = "\u0001type";
@@ -37,7 +37,7 @@ public partial class ModelPicker : VBoxContainer
         choice.FitToLongestItem = false;
         choice.ClipText = true;
         choice.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-        choice.TooltipText = "The game's models for this provider, newest at the top. Pick Type a model name… for any other model.";
+        choice.TooltipText = "The game's models for this provider, newest at the top. Pick Type a model name... for any other model.";
         choice.ItemSelected += OnItemSelected;
         AddChild(choice);
 
@@ -230,7 +230,7 @@ public partial class ModelPicker : VBoxContainer
             AddModel(item.Model, item.Available ? item.Model : item.Model + UnavailableNote, item.Available);
         if (loading)
         {
-            choice.AddItem("Loading models…");
+            choice.AddItem("Loading models...");
             choice.SetItemDisabled(choice.ItemCount - 1, true);
             choice.SetItemMetadata(choice.ItemCount - 1, string.Empty);
         }

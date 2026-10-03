@@ -77,8 +77,9 @@ public sealed class MedicalTreatmentConsentTests
             state = WithInventory(state, InventoryFixture.AddLot(state.Society.Society.Inventory,
                 "medical-forced-berry", "berries", patient, 1)) with
             {
+                // Below comfortable fullness, so the eat order runs instead of waiting.
                 Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == patient
-                    ? person with { HungerBasisPoints = 9_000 } : person).ToArray(),
+                    ? person with { HungerBasisPoints = 3_000 } : person).ToArray(),
             };
         }
         var choice = new MedicalChoiceProvider("medical_allow:" + caregiver, kind, fail);
@@ -94,11 +95,13 @@ public sealed class MedicalTreatmentConsentTests
             Assert.DoesNotContain(order.InstructionId, world.ExportState().CompletedInstructionIds ?? []);
         }
         Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-        Assert.Contains(choice.Offered, item => item.Id == "medical_allow:" + caregiver);
+        // An active order narrows the choices to the order, so permission cannot be chosen under one.
+        if (mustDo) Assert.DoesNotContain(choice.Offered, item => item.Id == "medical_allow:" + caregiver);
+        else Assert.Contains(choice.Offered, item => item.Id == "medical_allow:" + caregiver);
         if (order is not null)
         {
             Assert.DoesNotContain(world.Society.Inventory.Lots, lot => lot.Id == "medical-forced-berry");
-            Assert.Equal(10_000, Physical(world, patient).HungerBasisPoints);
+            Assert.True(Physical(world, patient).HungerBasisPoints > 3_000);
             Assert.Contains(order.InstructionId, world.ExportState().CompletedInstructionIds!);
             Assert.Contains(world.ExportState().Events, item => item.Kind == "instruction_applied" &&
                 item.Detail == order.InstructionId + ":consume_food");
@@ -139,8 +142,8 @@ public sealed class MedicalTreatmentConsentTests
         Assert.Equal(world.WorldTick, observed.ObservedTick);
         Assert.Equal(replyText, observed.ObserverReply);
         Assert.Contains(receipt.InstructionId, result.CompletedInstructionIds!);
-        Assert.Single(result.Events, item => item.Kind == "instruction_applied" &&
-            item.Detail == receipt.InstructionId + ":" + selected);
+        // Completed suggestions are recorded as completed instructions, not as order events.
+        Assert.DoesNotContain(result.Events, item => item.Kind == "instruction_applied");
 
         var saved = PrivateWorldRuntimeCodec.Encode(result);
         using var replay = Restore(PrivateWorldRuntimeCodec.Decode(saved));
@@ -151,8 +154,7 @@ public sealed class MedicalTreatmentConsentTests
         Assert.Equal(observed, restoredMessage);
         Assert.Equal([caregiver], Physical(replay, patient).MedicalConsent!.CaregiverIds);
         Assert.Single(restored.CompletedInstructionIds!, id => id == receipt.InstructionId);
-        Assert.Single(restored.Events, item => item.Kind == "instruction_applied" &&
-            item.Detail == receipt.InstructionId + ":" + selected);
+        Assert.DoesNotContain(restored.Events, item => item.Kind == "instruction_applied");
         Assert.Single(restored.Events, item => item.Kind == "medical_care_allowed");
         replay.Validate();
     }
@@ -447,6 +449,28 @@ public sealed class MedicalTreatmentConsentTests
                 ? lot with { ItemKind = "bandage" } : lot).ToArray(),
         });
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(forged));
+    }
+
+    [Fact]
+    public async Task BorrowedMedicineIsNeverSpentAsTheCarriersOwnDose()
+    {
+        // A lot carried for someone else, such as a former household's stock, is custody, not ownership.
+        var state = PreparedState();
+        var patient = state.Inhabitants[0].InhabitantId;
+        var owner = state.Inhabitants[1].InhabitantId;
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "borrowed-medicine", "medicine", owner, 1);
+        inventory = inventory with
+        {
+            Lots = inventory.Lots.Select(lot => lot.Id == "borrowed-medicine" ? lot with { CarrierId = patient } : lot).ToArray(),
+        };
+        var choice = new MedicalChoiceProvider("medical_treat:" + patient + ":medicine", DecisionProviderKind.Deterministic);
+        using var world = Restore(WithInventory(state, inventory), patient, choice);
+        Assert.False(world.TreatPatient(patient, patient, "medicine").Applied);
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.DoesNotContain(choice.Offered, candidate => candidate.Id.StartsWith("medical_treat:", StringComparison.Ordinal));
+        Assert.Null(Physical(world, patient).MedicalTreatment);
+        Assert.Equal(1, world.Society.Inventory.GetLot("borrowed-medicine").Quantity);
+        world.Validate();
     }
 
     [Fact]

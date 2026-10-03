@@ -242,12 +242,21 @@ public static class OwnerWorldActionPayload
 
     public static string Instruction(OwnerInstructionAction action) => string.Join(
         '\n',
-        "clankerworld.owner-instruction.v2",
+        action.Queue ? "clankerworld.owner-instruction.v3" : "clankerworld.owner-instruction.v2",
         $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}",
         $"idempotency-key={EncodeRequired(action.IdempotencyKey, nameof(action.IdempotencyKey))}",
         $"target-inhabitant-id={EncodeRequired(action.TargetInhabitantId, nameof(action.TargetInhabitantId))}",
         $"kind={EncodeRequired(action.Kind, nameof(action.Kind))}",
-        $"text={EncodeRequired(action.Text, nameof(action.Text))}");
+        $"text={EncodeRequired(action.Text, nameof(action.Text))}" +
+            (action.Queue ? "\nqueue=true" : string.Empty));
+
+    public static string OrderCancel(OwnerOrderCancelAction action) => string.Join(
+        '\n',
+        "clankerworld.owner-order-cancel.v1",
+        $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}",
+        $"idempotency-key={EncodeRequired(action.IdempotencyKey, nameof(action.IdempotencyKey))}",
+        $"target-inhabitant-id={EncodeRequired(action.TargetInhabitantId, nameof(action.TargetInhabitantId))}",
+        $"order-id={EncodeRequired(action.OrderId, nameof(action.OrderId))}");
 
     public static string Authoring(OwnerAuthoringBatchAction action)
     {

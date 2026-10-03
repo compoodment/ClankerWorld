@@ -16,7 +16,7 @@ public sealed partial class PrivateWorldRuntime
     private sealed record PotFoodChoice(InventoryLot Pot, InventoryLot Food);
 
     private InventoryLot? CarriedContainer(string actor, string kind) => society.Checkpoint.Inventory.Lots
-        .Where(lot => PersonalEquipmentRules.IsCarried(lot, actor) && lot.ItemKind == kind &&
+        .Where(lot => lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) && lot.ItemKind == kind &&
             lot.ContainerLotId is null && lot.DeliveryBuildingId is null)
         .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
 
@@ -128,8 +128,8 @@ public sealed partial class PrivateWorldRuntime
         // Like collecting other household food, a serving follows the Town's
         // food policy, and only food that can be eaten now is offered.
         if (person.HungerBasisPoints < 7_000 && MayCollectSharedFood(actor) &&
-            !inventory.Lots.Any(lot => PersonalEquipmentRules.IsCarried(lot, actor) && lot.ContainerLotId is null &&
-                lot.DeliveryBuildingId is null && IsEdibleFood(lot.ItemKind) &&
+            !inventory.Lots.Any(lot => lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) &&
+                lot.ContainerLotId is null && lot.DeliveryBuildingId is null && IsEdibleFood(lot.ItemKind) &&
                 AvailableLotQuantity(lot) > 0) &&
             FreeCarryCapacity(actor) > 0 &&
             FindFoodInPot(householdId, house.InstanceId) is { } storedFood &&
@@ -332,7 +332,7 @@ public sealed partial class PrivateWorldRuntime
         AppendEvent("food_taken_from_pot", $"{actor}:{choice.Pot.Id}:{choice.Food.Id}:{quantity}");
     }
 
-    private PotFoodChoice? FindFoodInPot(string householdId, string houseId)
+    private PotFoodChoice? FindFoodInPot(string householdId, string houseId, string? requiredItemKind = null)
     {
         var inventory = society.Checkpoint.Inventory;
         return inventory.Lots.Where(lot => lot.OwnerId == householdId &&
@@ -341,6 +341,7 @@ public sealed partial class PrivateWorldRuntime
                 !HasActiveContainerReservation(inventory, lot.Id))
             .OrderBy(lot => lot.Id, StringComparer.Ordinal)
             .Select(pot => inventory.Lots.Where(lot => lot.ContainerLotId == pot.Id &&
+                    (requiredItemKind is null || lot.ItemKind == requiredItemKind) &&
                     IsEdibleFood(lot.ItemKind) && lot.ConditionBasisPoints > 0 &&
                     lot.FreshnessBasisPoints > 0 && AvailableLotQuantity(lot) > 0)
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal)

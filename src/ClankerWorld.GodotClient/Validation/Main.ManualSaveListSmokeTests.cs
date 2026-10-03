@@ -118,7 +118,7 @@ public partial class Main
                 var opening = OpenManualSavesAsync(false, token => { oldToken = token; return delayed.Task; });
                 if (!manualSaveOverlay.Visible || manualSaveCreateButton.Disabled || !manualSaveOverwriteButton.Disabled)
                     throw new InvalidOperationException("Creating a save must stay usable while its list is slow.");
-                if (!manualSaveNewBox.Visible || manualSaveName.Text != DisplayWorldClock(0) || manualSaveList.Placeholder != "Checking saves…")
+                if (!manualSaveNewBox.Visible || manualSaveName.Text != DisplayWorldClock(0) || manualSaveList.Placeholder != "Checking saves...")
                     throw new InvalidOperationException($"A new save must open named after the world's date while the list loads: {manualSaveName.Text}.");
                 if (scenario == "create")
                 {

@@ -115,6 +115,23 @@ public sealed partial class PrivateWorldRuntime
                     $"That household already {verb} a {definition.DisplayName}.");
             }
 
+            var footprint = WorldContentSimulationRules.Footprint(definition, building).ToHashSet();
+            var affectedRights = householdLandUseRights.Where(right => right.Tiles.Any(footprint.Contains)).ToArray();
+            if (!isWarehouse && nextHouseholdId != building.HouseholdId && affectedRights.Length > 0)
+            {
+                if (footprint.Any(tile => TownLandRightsRules.IsDisputed(tile, householdLandUseRights, householdLandUseRequests)))
+                    return BuildingManagementResult.Rejected(instanceId, "Resolve the land dispute before reassigning this building.");
+                if (affectedRights.Any(right => right.AgreedEndTick is { } end && end <= WorldTick))
+                    return BuildingManagementResult.Rejected(instanceId, "Resolve the expired land-use right before reassigning this building.");
+                if (nextHouseholdId is null)
+                    return BuildingManagementResult.Rejected(instanceId, "Choose a household to receive this building and its land-use right.");
+                if (affectedRights.Any(right => right.HouseholdId != building.HouseholdId || right.TownId != building.TownId))
+                    return BuildingManagementResult.Rejected(instanceId, "This building's footprint includes another owner's land-use right.");
+            }
+            var reassignedRights = !isWarehouse && nextHouseholdId is not null && affectedRights.Length > 0
+                ? TownLandRightsRules.ReassignFootprintRights(map, householdLandUseRights, footprint, nextHouseholdId, WorldTick)
+                : householdLandUseRights;
+
             if (isWarehouse && nextTownId is { } reassignedTownId)
             {
                 if (building.TownId is { } previousTownId)
@@ -130,6 +147,7 @@ public sealed partial class PrivateWorldRuntime
                     ? RemoveHouseInvitations(instanceId)
                     : worldSimulation.GuestInvitations,
             };
+            householdLandUseRights = reassignedRights.ToList();
             checkpointSchemaVersion = StateSchemaVersion;
             AppendEvent("building_reassigned", $"{instanceId}:town={nextTownId ?? "none"}:household={nextHouseholdId ?? "none"}");
             return new BuildingManagementResult(true, instanceId, null, nextTownId, nextHouseholdId);
@@ -152,9 +170,12 @@ public sealed partial class PrivateWorldRuntime
                 worldContent.Buildings.Any(candidate => candidate.CanonicalId == other.DefinitionId &&
                     candidate.Tags.Contains("farmhouse", StringComparer.Ordinal))))
             return "Let active field work finish before removing or reassigning this household's last Farmhouse.";
-        if (worldSimulation.ProductionJobs.Any(job => job.BuildingInstanceId == id && job.State == WorldProductionJobState.Running) ||
-            (worldSimulation.CropBuilds ?? []).Any(job => job.BuildingInstanceId == id && job.State == WorldProductionJobState.Running) ||
-            (worldSimulation.BuildingExpansions ?? []).Any(job => job.BuildingInstanceId == id && job.State == WorldProductionJobState.Running))
+        // Work paused by a departure keeps its inputs and site, so it blocks changes like running work.
+        static bool Active(WorldProductionJobState state) =>
+            state is WorldProductionJobState.Running or WorldProductionJobState.Paused;
+        if (worldSimulation.ProductionJobs.Any(job => job.BuildingInstanceId == id && Active(job.State)) ||
+            (worldSimulation.CropBuilds ?? []).Any(job => job.BuildingInstanceId == id && Active(job.State)) ||
+            (worldSimulation.BuildingExpansions ?? []).Any(job => job.BuildingInstanceId == id && Active(job.State)))
             return "Wait for the active work at this building to finish before changing its owner or removing it.";
         if (inhabitants.Values.Any(person => person.Equipment?.Repair?.BuildingId == id))
             return "Finish or cancel the active equipment repair before changing this building's owner or removing it.";
