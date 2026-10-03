@@ -99,7 +99,7 @@ public sealed class BuildingExpansionTests
                 BorderTiles = TownBorderRules.ExpandForBuilding(state.Map, town, site, 2, 2),
             } : town).ToArray(),
         };
-        state = WithExpansionFixtureRights(state, relocated, Enumerable.Range(-1, 3).SelectMany(dy =>
+        state = ExpansionLandFixture.WithRights(state, relocated, Enumerable.Range(-1, 3).SelectMany(dy =>
             Enumerable.Range(-1, 3).Select(dx => new GridPoint(site.X + dx, site.Y + dy))));
         using var clear = PrivateWorldRuntime.Restore(state, _ => new IdleProvider());
         Assert.True(clear.StartBuildingExpansion(actor, house.InstanceId).Applied);
@@ -420,7 +420,7 @@ public sealed class BuildingExpansionTests
                 : town).ToArray(),
         };
         var provider = new IdleProvider("expand_building:" + building.InstanceId);
-        state = WithExpansionFixtureRights(state, building, Enumerable.Range(-1, 3).SelectMany(dy =>
+        state = ExpansionLandFixture.WithRights(state, building, Enumerable.Range(-1, 3).SelectMany(dy =>
             Enumerable.Range(-1, 3).Select(dx => new GridPoint(houseSite.X + dx, houseSite.Y + dy))).Where(state.Map.IsLand));
         using var firstStage = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)),
             id => id == actor ? provider : new IdleProvider());
@@ -1164,7 +1164,7 @@ public sealed class BuildingExpansionTests
                         definition.Width + 2, definition.Height + 2)
                     } : town).ToArray(),
             };
-            candidate = WithExpansionFixtureRights(candidate, placed, envelope);
+            candidate = ExpansionLandFixture.WithRights(candidate, placed, envelope);
             using var probe = PrivateWorldRuntime.Restore(
                 PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(candidate)), _ => new IdleProvider());
             if (!probe.StartBuildingExpansion(actorId, buildingId).Applied) continue;
@@ -1182,33 +1182,6 @@ public sealed class BuildingExpansionTests
         Assert.NotNull(prepared);
         return PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(prepared)),
             _ => new IdleProvider());
-    }
-
-    // Material, storage and construction fixtures begin with recorded permission.
-    // HouseholdLandGrantTests exercises the actual personal request/vote/consent path.
-    private static PrivateWorldRuntimeState WithExpansionFixtureRights(PrivateWorldRuntimeState state,
-        PlacedBuilding building, IEnumerable<GridPoint> envelope)
-    {
-        var tiles = envelope.ToArray();
-        var titles = state.TownLandTitles!.ToList();
-        foreach (var plot in TownLandRightsRules.ConnectedPlots(state.Map,
-                     tiles.Where(tile => !titles.Any(title => title.Tiles.Contains(tile)))))
-            titles.Add(new("title:expansion-fixture:" + titles.Count, building.TownId!, plot, state.Society.Society.WorldTick));
-        var rights = state.HouseholdLandUseRights!.ToList();
-        if (building.HouseholdId is { } household)
-            foreach (var plot in TownLandRightsRules.ConnectedPlots(state.Map,
-                         tiles.Where(tile => !rights.Any(right => right.Tiles.Contains(tile)))))
-                rights.Add(new("use:expansion-fixture:" + rights.Count, building.TownId!, household, plot,
-                    state.Society.Society.WorldTick, "expansion_test_fixture"));
-        return state with
-        {
-            TownLandTitles = titles.OrderBy(t => t.Id, StringComparer.Ordinal).ToArray(),
-            HouseholdLandUseRights = rights.OrderBy(r => r.Id, StringComparer.Ordinal).ToArray(),
-            Towns = state.Towns!.Select(town => town.Id == building.TownId ? town with
-            {
-                BorderTiles = TownLandRightsRules.OrderTiles(town.BorderTiles.Concat(tiles).Distinct()),
-            } : town).ToArray(),
-        };
     }
 
     private static GridPoint FindUnaffiliatedOpenTile(PrivateWorldRuntimeState state)
