@@ -1065,6 +1065,7 @@ public partial class Main
                 await VerifyFirstWorldListAsync();
                 await VerifyWorldActionSelectionAsync();
                 await VerifyNewWorldCompatibilityMessageAsync();
+                await VerifyWorldPreviewRerollAsync();
                 await VerifyAutosaveSettingsOwnershipAsync();
                 await VerifyUiScaleAt1440pAsync(displayWindow);
                 await VerifyManualSaveListOwnershipAsync();
