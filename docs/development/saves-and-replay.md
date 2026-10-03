@@ -2,7 +2,7 @@
 title: Saves and replay
 type: persistence-reference
 status: active
-updated: 2026-10-02
+updated: 2026-10-03
 ---
 
 # Saves and replay
@@ -99,6 +99,14 @@ original owner instructions. Loading validates these records together so an
 unrelated action or a stale order cannot advance a replacement task. Alpha saves
 must use the current checkpoint schema; older saves are refused without
 migration and remain unchanged.
+
+Private-world schema 53 adds material-gathering orders with a distinct
+`TargetMaterialKind`, exact optional source or position, and progress measured
+in harvest batches or material items. Saved progress and the last physical
+harvest receipt are validated together; mixed food/material targets and invalid
+material kinds are refused. Queueing, cancellation, discovery and partial
+quantities retain their state across reload. Older alpha saves are refused and
+preserved unchanged; no migration is added.
 
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
@@ -358,7 +366,7 @@ blocked-return behavior. These checks use existing timestamps and add no saved
 fields, schema change or migration.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 52. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 53. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus

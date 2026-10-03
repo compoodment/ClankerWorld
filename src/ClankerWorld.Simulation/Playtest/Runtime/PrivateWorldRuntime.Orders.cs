@@ -16,6 +16,9 @@ public sealed partial class PrivateWorldRuntime
         if (order.TargetPosition is { } requestedPosition && !map.Contains(requestedPosition))
             return null;
 
+        if (order.Action == "gather_material")
+            return MaterialOrderCandidateFor(instruction, person);
+
         if (order.Action == "consume_food")
         {
             if (person.HungerBasisPoints >= ComfortableFullness)
@@ -140,6 +143,10 @@ public sealed partial class PrivateWorldRuntime
         }
         switch (candidate.Id)
         {
+            case "gather_material":
+            case "inspect_material_site":
+                ExecuteMaterialOrderStep(instruction, person, candidate.Id);
+                return;
             case "consume_food":
                 if (ConsumeFood(actor, person, order.TargetFoodKind) is { } consumedLotId)
                     CreditOrderEffect(instruction, $"consume:{WorldTick:D10}:{actor}:{consumedLotId}", 1);
@@ -259,6 +266,8 @@ public sealed partial class PrivateWorldRuntime
 
     private string OrderBlockedReason(OwnerQueuedInstruction instruction, PlaytestInhabitantState person)
     {
+        if (instruction.Order?.Action == "gather_material")
+            return MaterialOrderBlockedReason(instruction, person);
         if (instruction.Order?.Action == "consume_food")
         {
             if (person.HungerBasisPoints >= ComfortableFullness)

@@ -2,7 +2,7 @@
 title: What works today
 type: product-status
 status: active
-updated: 2026-10-02
+updated: 2026-10-03
 ---
 
 # What works today
@@ -163,6 +163,21 @@ berry-patch", "go to berries at (12, 4)" and "keep gathering food until
 cancelled". Quantities count food actually eaten or gathered; travel finishes
 on arrival at the food source. Eating waits until the agent is hungry enough,
 and a full load blocks gathering with a reason.
+
+Orders also gather wood, stone, plant fiber, clay, iron ore, gold ore and diamond
+through the ordinary material-gathering rules. Adults and elders can take one
+load, a requested quantity, or repeat until cancelled. Quantities count real
+goods; the last whole load may exceed the requested number. A usable tool of
+the required tier and enough carrying space are still needed, including room
+for seeds from a felled tree. Tools wear and sources deplete normally. An agent
+may collect an accessible shared tool before gathering.
+
+Use "gather clay", "gather five wood", "keep gathering stone", or an exact
+resource identifier after "from". "Gather iron ore at (12, 4)" checks that tile
+without choosing a substitute. Unspecified sites use the agent's known or
+nearby observed resources, with ordinary exploration when none is available.
+Unknown explicit sites require travel and observation before gathering. Queue,
+cancellation, urgent survival interruptions and progress survive save/reload.
 
 A recognized new order replaces the active and queued orders unless **Queue**
 is selected. **Cancel task** stops a waiting or active order. An instruction

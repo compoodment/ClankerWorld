@@ -376,6 +376,7 @@ public sealed partial class PrivateWorldRuntime
         "consume_food" => "eat one carried food item",
         "seek_food" => "travel within gathering range of an available food source",
         "harvest_food" => "gather several food servings from a nearby food source",
+        "gather_material" => "gather the requested material from a natural source",
         _ => null,
     };
 

@@ -2,7 +2,7 @@
 title: How the game works
 type: architecture
 status: active
-updated: 2026-10-02
+updated: 2026-10-03
 ---
 
 # How the game works
@@ -85,10 +85,10 @@ error; the world, its message numbering and its save stay unchanged. These are
 the same limits a save applies, so an accepted message cannot leave the world
 unable to save.
 
-`ParseInstructionOrder` reads a complete, bounded food-task grammar: eating food,
-seeking a food source, and harvesting food. Harvest and travel orders must name
-food (or a supported food resource); explicit resource names must match a
-complete identifier, and food kinds must match that resource. Unsupported
+`ParseInstructionOrder` reads a complete, bounded task grammar for eating food,
+seeking a food source, harvesting food, and gathering supported raw materials.
+Harvest and travel orders must name a supported kind or resource; explicit
+resource names must match a complete identifier and the requested kind. Unsupported
 objects or operations, mixed tasks, unknown explicit targets, and invalid
 quantities or leftover words are rejected as not understood rather than mapped
 to a nearby candidate. A recognized order retains the player's original text and the
@@ -97,6 +97,15 @@ the requested physical effect before recording progress. Names in the prompt
 do not create map knowledge. Optional observer replies are tied to the exact
 message ID and stored separately from private thoughts and conversation
 speech. Local deterministic decisions do not mark messages as heard.
+
+Material orders save the requested kind separately from food targets. They use
+known resource facts or observation within normal interaction range; a named
+unobserved site first requires physical travel. Untargeted orders may use normal
+exploration. Gathering uses the existing tool pickup, whole-load capacity,
+inventory, tool-wear and ecology transitions. Only a returned physical harvest
+receipt advances progress. One load is the default; explicit quantities count
+actual output, including a final whole load that exceeds the requested amount.
+Discovery, tool collection and movement never count as harvested goods.
 
 A MustDo with no recognized action is closed when it is submitted: it is added
 to the completed instructions with an `instruction_not_understood` event
@@ -107,7 +116,7 @@ separate from the strict MustDo grammar.
 
 Recognized MustDo instructions complete only when their requested legal action
 actually progresses. Default gathering counts one harvest; explicit quantities
-count food acquired or consumed. Travel finishes only on arrival within
+count goods acquired or food consumed. Travel finishes only on arrival within
 interaction range of the requested food site; counted travel is refused.
 An unrelated action, blocked movement or unavailable food leaves the instruction
 pending, including across reload. A recognized new order replaces outstanding

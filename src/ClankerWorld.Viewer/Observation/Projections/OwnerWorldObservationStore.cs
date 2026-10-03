@@ -449,7 +449,7 @@ public sealed class OwnerWorldObservationStore
                         order.Action, order.Status, order.RequestedUnits, order.CompletedUnits,
                         order.ProgressUnit, order.RepeatUntilCancelled, order.TargetFoodKind,
                         order.TargetResourceId, order.TargetPosition?.X, order.TargetPosition?.Y,
-                        order.BlockedReason) : null))
+                        order.BlockedReason, order.TargetMaterialKind) : null))
                 .ToArray(),
             Cognition = ToCognition(state),
             ContentPackages = state.Content?.Packages
@@ -1126,6 +1126,8 @@ public sealed class OwnerWorldObservationStore
     {
         "seek_food" => "looking for food",
         "harvest_food" => "gathering food",
+        "gather_material" => "gathering the ordered material",
+        "inspect_material_site" => "checking the ordered material site",
         "consume_food" => "eating carried food",
         "safe_idle" => "keeping a safe routine",
         _ => candidateId.Replace('_', ' '),

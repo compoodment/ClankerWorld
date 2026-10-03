@@ -2,7 +2,7 @@
 title: Playing the current game
 type: player-guide
 status: active
-updated: 2026-10-02
+updated: 2026-10-03
 ---
 
 # Playing the current game
@@ -136,8 +136,16 @@ waits until the agent is hungry enough, and gathering needs enough carrying
 space. A recognized new order replaces the current one unless you turn on
 **Queue**. Use **Cancel task** to stop a waiting or active order.
 
+Material orders can gather wood, stone, plant fiber, clay, iron ore, gold ore
+or diamond. For example, use **Gather five wood**, **Keep gathering clay**, or
+**Gather stone at (12, 4)**. One ordinary load is the default; a quantity counts
+the goods actually gathered, and the last whole load may exceed it. Agents use
+their normal tools and carrying space. A named site is checked through travel
+and observation, and an empty or unavailable site leaves the order waiting
+with a reason. These orders are for adults and elders.
+
 An instruction the game cannot understand leaves the current order running.
-Unsupported requests, such as "build a house" or "gather wood," close as not
+Unsupported requests, such as "build a house" or "gather cloth," close as not
 understood and appear in the Event Log. Recognized orders follow normal access
 and survival rules. [What works today](what-works.md#agents-and-their-models)
 has the details.

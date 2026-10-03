@@ -15,7 +15,7 @@ public sealed partial class PrivateWorldRuntimeTests
     [InlineData("be good", false)]
     [InlineData("that was long ago", false)]
     [InlineData("build a house", false)]
-    [InlineData("gather wood", false)]
+    [InlineData("gather wood", true)]
     [InlineData("gather wood at berry-patch", false)]
     [InlineData("go to the Blacksmith", false)]
     [InlineData("gather berries and build a House", false)]
