@@ -105,7 +105,8 @@ public sealed partial class PrivateWorldRuntime
             string? refusal = adults.Length == 0 ? "The household has no living adult signatory." :
                 request.AgreedEndTick is { } end && end <= WorldTick ? "The requested end date has arrived." :
                 request.Consents.Any(c => !c.Accepted && adults.Contains(c.AgentId, StringComparer.Ordinal)) ? "A current adult in the household declined." :
-                proposal is { Status: "rejected" or "cancelled" or "withdrawn" } ? "The Council proposal did not pass." : null;
+                proposal is { Status: "cancelled" } ? "The Council changed before it decided; the household may ask again." :
+                proposal is { Status: "rejected" or "withdrawn" } ? "The Council proposal did not pass." : null;
             if (refusal is not null)
             {
                 request = request with { Status = "rejected", SettledTick = WorldTick };
@@ -135,6 +136,33 @@ public sealed partial class PrivateWorldRuntime
                 householdLandUseRequests = householdLandUseRequests.Select(r => r.Id == request.Id ? request : r).ToList();
         }
         return state;
+    }
+
+    /// <summary>Land other households hold or have asked for; a Town building (null household) avoids all of it.</summary>
+    private HashSet<GridPoint> HouseholdLandHeldByOthers(string? household) => householdLandUseRights
+        .Where(right => right.HouseholdId != household).SelectMany(right => right.Tiles)
+        .Concat(householdLandUseRequests.Where(request => request.Status == "pending" && request.HouseholdId != household)
+            .SelectMany(request => request.Tiles))
+        .ToHashSet();
+
+    private HashSet<GridPoint> BuildingFootprintTiles(Func<PlacedBuilding, bool> include)
+    {
+        var definitions = worldContent.Buildings.ToDictionary(item => item.CanonicalId, StringComparer.Ordinal);
+        return worldSimulation.Buildings.Where(building => include(building) && definitions.ContainsKey(building.DefinitionId))
+            .SelectMany(building => WorldContentSimulationRules.Footprint(definitions[building.DefinitionId], building)).ToHashSet();
+    }
+
+    /// <summary>Free Town-titled land nearest first: no use right, pending request, building, road or field.</summary>
+    private GridPoint[] RequestableLandNear(TownRuntimeState town, GridPoint from, int count)
+    {
+        var taken = HouseholdLandHeldByOthers(null);
+        taken.UnionWith(BuildingFootprintTiles(_ => true));
+        taken.UnionWith(RoadAndBridgeTiles());
+        taken.UnionWith(fields.Select(field => field.Position));
+        return townLandTitles.Where(title => title.TownId == town.Id).SelectMany(title => title.Tiles)
+            .Where(tile => map.IsLand(tile) && !taken.Contains(tile)).Distinct()
+            .OrderBy(tile => map.FootDistance(from, tile)).ThenBy(tile => tile.Y).ThenBy(tile => tile.X)
+            .Take(count).ToArray();
     }
 
     private string LandUseTerms(HouseholdLandUseRequest request) =>
@@ -168,6 +196,9 @@ public sealed partial class PrivateWorldRuntime
         if (building.HouseholdId is null || !MayExpandBuilding(actor, building, out _) ||
             ExpansionShapes(building).Any(shape => CanFitExpansion(building, shape.Position, shape.Footprint, out _))) return null;
         var definition = worldContent.Buildings.Single(d => d.CanonicalId == building.DefinitionId);
+        var pending = householdLandUseRequests.Where(r => r.Status == "pending" && r.HouseholdId == building.HouseholdId)
+            .SelectMany(r => r.Tiles).ToHashSet();
+        GridPoint[]? offered = null;
         foreach (var shape in ExpansionShapes(building))
         {
             if (!CanFitExpansion(building, shape.Position, shape.Footprint, out _, requireLandRights: false)) continue;
@@ -175,11 +206,12 @@ public sealed partial class PrivateWorldRuntime
                 BuildingStorageRules.WithSize(definition, shape.Footprint.Width, shape.Footprint.Height), shape.Position)
                 .Except(WorldContentSimulationRules.Footprint(definition, building))
                 .Where(tile => !householdLandUseRights.Any(right => right.HouseholdId == building.HouseholdId && right.Tiles.Contains(tile))));
-            if (extra.Length == 0 || extra.Any(tile => !TownLandRightsRules.IsCoveredByTownTitle(tile, building.TownId!, townLandTitles)) ||
-                householdLandUseRequests.Any(r => r.Status == "pending" && r.HouseholdId == building.HouseholdId && extra.All(r.Tiles.Contains))) continue;
-            return extra;
+            if (extra.Length == 0 || extra.Any(tile => !TownLandRightsRules.IsCoveredByTownTitle(tile, building.TownId!, townLandTitles))) continue;
+            // One expansion asks the Council once: a pending request for any of its shapes waits to be decided.
+            if (extra.Any(pending.Contains)) return null;
+            offered ??= extra;
         }
-        return null;
+        return offered;
     }
 
     private TownGovernanceState SubmitExpansionLandRequest(TownRuntimeState town, TownGovernanceState state, string actor, string buildingId)

@@ -314,7 +314,7 @@ public sealed partial class PrivateWorldRuntime
         return building.HouseholdId is { } household
             ? householdLandUseRights.Any(right => right.TownId == title.TownId &&
                 right.HouseholdId == household && right.Tiles.Contains(tile))
-            : building.TownId == title.TownId;
+            : building.TownId == title.TownId && !HouseholdLandHeldByOthers(null).Contains(tile);
     }
 
     private static IEnumerable<GridPoint> ExpansionTiles(BuildingExpansionJob job) =>

@@ -41,6 +41,30 @@ public sealed class BuildingExpansionTests
     }
 
     [Fact]
+    public async Task AnExpansionWithAPendingLandRequestOffersNoSecondRequest()
+    {
+        using var prepared = PreparedWorld("first-town-house-a", out var actor, out var house);
+        var state = prepared.ExportState();
+        var provider = new IdleProvider();
+        using var world = PrivateWorldRuntime.Restore(state with
+        {
+            HouseholdLandUseRights = state.HouseholdLandUseRights!.Where(r => r.GrantSource != "expansion_test_fixture").ToArray(),
+        }, id => id == actor ? provider : new IdleProvider());
+        await world.AdvanceOneTickAsync();
+        var offered = Assert.Single(provider.Seen[0].Observation.Candidates,
+            c => c.Id.Contains("|request_expansion_land|", StringComparison.Ordinal));
+        var plot = Regex.Matches(offered.Description, @"\((\d+),\s*(\d+)\)")
+            .Select(match => new GridPoint(int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture),
+                int.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture))).ToArray();
+        Assert.True(world.RequestHouseholdLandUse("first-expansion-land", actor, house.TownId!, plot).Applied);
+        provider.Seen.Clear();
+        for (var tick = 0; tick < 40 && provider.Seen.Count == 0; tick++) await world.AdvanceOneTickAsync();
+        Assert.NotEmpty(provider.Seen);
+        Assert.DoesNotContain(provider.Seen.SelectMany(r => r.Observation.Candidates),
+            c => c.Id.Contains("|request_expansion_land|", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task BuiltInChoicesDoNotStallOnAnExpansionLandRequestTheyCannotExecute()
     {
         using var prepared = PreparedWorld("first-town-house-a", out var actor, out _);
