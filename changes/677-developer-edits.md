@@ -1,0 +1,1 @@
+- Developer tools can edit a selected agent’s needs, carried goods, skills and partnerships while paused. Each accepted change is saved and clearly marked as a Developer edit in the Event Log.

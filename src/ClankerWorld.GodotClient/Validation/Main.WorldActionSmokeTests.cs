@@ -161,6 +161,13 @@ public partial class Main
         public List<OwnerAutosaveConfigurationAction> AutosaveConfigurations { get; } = [];
         /// <summary>The next signed refresh's world, or none to refuse refreshes.</summary>
         public OwnerWorldReconnect? Reconnect { get; set; }
+        public IReadOnlyList<string>? SupportedActionPayloads { get; set; }
+        public OwnerWorldPreview? Preview { get; set; }
+        public CatalogWorld? SelectedWorld { get; set; }
+        public CatalogWorld? CreatedWorld { get; set; }
+        public OwnerWorldReconnect? CreatedObservation { get; set; }
+        public System.Collections.Concurrent.ConcurrentQueue<string> Requests { get; } = new();
+        public System.Collections.Concurrent.ConcurrentQueue<OwnerWorldCreationAction> WorldCreations { get; } = new();
         /// <summary>Full names the host refuses as already taken.</summary>
         public HashSet<string> TakenAgentNames { get; } = new(StringComparer.Ordinal);
         public System.Collections.Concurrent.ConcurrentQueue<OwnerAgentRenameAction> RenameRequests { get; } = new();
@@ -203,11 +210,12 @@ public partial class Main
                     envelope.GetProperty("canonicalProof").GetString()!, envelope.GetProperty("signatureBase64").GetString()!))
                 throw new InvalidOperationException("The smoke host must receive an actual signed owner request.");
             object response;
+            Requests.Enqueue(context.Request.Url!.AbsolutePath);
             switch (context.Request.Url!.AbsolutePath)
             {
                 case OwnerPairingEndpoints.ChallengeIssue:
                     response = new OwnerChallenge(Authority, "smoke-device", Guid.NewGuid().ToString("N"),
-                        "smoke-nonce", DateTimeOffset.UtcNow.AddMinutes(1));
+                        "smoke-nonce", DateTimeOffset.UtcNow.AddMinutes(1), SupportedActionPayloads);
                     break;
                 case OwnerPairingEndpoints.OwnerWorldList:
                     response = Catalog;
@@ -232,9 +240,25 @@ public partial class Main
                 case OwnerPairingEndpoints.OwnerWorldSelect:
                     SelectReceived.TrySetResult(envelope.GetProperty("action").GetProperty("value").GetString()!);
                     await ReleaseSelect.Task.ConfigureAwait(false);
+                    if (SelectedWorld is { } selectedWorld)
+                    {
+                        response = selectedWorld;
+                        break;
+                    }
                     // Stop after recording the signed ID; this check does not claim a live-host playtest.
                     context.Response.StatusCode = (int)HttpStatusCode.Conflict;
                     response = new { error = "Controlled selection refusal." };
+                    break;
+                case OwnerPairingEndpoints.OwnerWorldPreview when Preview is not null:
+                    response = Preview;
+                    break;
+                case OwnerPairingEndpoints.OwnerWorldCreate when CreatedWorld is not null:
+                    WorldCreations.Enqueue(envelope.GetProperty("action").Deserialize<OwnerWorldCreationAction>(JsonOptions)!);
+                    Reconnect = CreatedObservation;
+                    response = CreatedWorld;
+                    break;
+                case OwnerPairingEndpoints.OwnerResume:
+                    response = new OwnerControlReceipt("resume", true, false, 0, 0, 0);
                     break;
                 case OwnerPairingEndpoints.OwnerReconnect when Reconnect is not null:
                     response = Reconnect;

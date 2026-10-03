@@ -51,7 +51,8 @@ public sealed class IslandTreeReplantingTests
                 Climate = state.WorldSystems.Climate with { Weather = WeatherKind.Snow },
             },
         };
-        var local = state.Map.GetResource("tree-136-16");
+        // The actor reaches this local grove after collecting the Town's axe.
+        var local = state.Map.GetResource("grove-tree-141-16");
         Assert.True(TreeGrowthRules.IsWoodTree(local.TreeKind));
         Assert.True(state.Map.IsReachableOnFoot(origin, local.Position));
         Assert.False(state.Map.IsReachableFromCampOnFoot(local.Position));

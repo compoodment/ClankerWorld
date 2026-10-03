@@ -120,6 +120,72 @@ public sealed class SaveBranchTests : IDisposable
     }
 
     [Fact]
+    public async Task TheCurrentPositionSaysWhereTheNextSaveGoes()
+    {
+        Assert.Equal(new SaveTimelinePosition(null, null, true, 1), store.CurrentPosition(WorldId));
+        var flood = store.Create("Before the flood", runtime, []);
+        Assert.Equal(new SaveTimelinePosition(flood.Id, flood.Branch?.Id, false, 1, flood.WorldTick), store.CurrentPosition(WorldId));
+        await PlayAsync();
+        var harvest = store.Create("Big harvest", runtime, []);
+
+        Load(flood);
+        Assert.Equal(new SaveTimelinePosition(flood.Id, flood.Branch?.Id, true, 2, flood.WorldTick), store.CurrentPosition(WorldId));
+        await PlayAsync();
+        var winter = store.Create("Hungry winter", runtime, []);
+        Assert.NotEqual(flood.Branch, winter.Branch);
+        Assert.Equal(new SaveTimelinePosition(winter.Id, winter.Branch?.Id, false, 2, winter.WorldTick), store.CurrentPosition(WorldId));
+
+        Load(harvest);
+        Assert.Equal(new SaveTimelinePosition(harvest.Id, harvest.Branch?.Id, false, 1, harvest.WorldTick), store.CurrentPosition(WorldId));
+        Assert.Equal(harvest.Branch, store.Create("Later", runtime, []).Branch);
+    }
+
+    [Fact]
+    public async Task TheNextBranchNumberSurvivesDeletingTheHighestBranch()
+    {
+        var flood = store.Create("Before the flood", runtime, []);
+        await PlayAsync();
+        store.Create("Big harvest", runtime, []);
+        Load(flood);
+        await PlayAsync();
+        var winter = store.Create("Hungry winter", runtime, []);
+        Assert.Equal(2, winter.Branch?.Number);
+        store.Delete(winter.Id, WorldId, winter.CreatedUtc);
+        Load(flood);
+
+        var position = store.CurrentPosition(WorldId);
+
+        Assert.True(position.StartsNewBranch);
+        Assert.Equal(3, position.NextBranchNumber);
+        Assert.Equal(flood.WorldTick, position.ContinuedFromTick);
+        var next = store.Create("Another winter", runtime, []);
+        Assert.Equal(position.NextBranchNumber, next.Branch?.Number);
+        Assert.Equal(flood.Id, next.Branch?.StartedFromId);
+    }
+
+    [Fact]
+    public async Task ADeletedContinuationKeepsItsTimeAfterRestartWithoutChangingFiles()
+    {
+        var flood = store.Create("Before the flood", runtime, []);
+        await PlayAsync();
+        var harvest = store.Create("Big harvest", runtime, []);
+        store.Delete(harvest.Id, WorldId, harvest.CreatedUtc);
+        var files = Directory.GetFiles(ManualDirectory).ToDictionary(file => file, File.ReadAllBytes);
+        var reopened = new ManualWorldSaveStore(path);
+
+        var position = reopened.CurrentPosition(WorldId);
+
+        Assert.Equal(new SaveTimelinePosition(harvest.Id, harvest.Branch?.Id, false,
+            1, harvest.WorldTick), position);
+        Assert.Equal(files.Keys.Order(StringComparer.Ordinal), Directory.GetFiles(ManualDirectory).Order(StringComparer.Ordinal));
+        foreach (var (file, bytes) in files) Assert.Equal(bytes, File.ReadAllBytes(file));
+        var next = reopened.Create("After deletion", runtime, []);
+        Assert.Equal(flood.Branch, next.Branch);
+        Assert.Equal(position.NextBranchNumber, next.Branch?.Number);
+        Assert.Equal(harvest.BranchPosition + 1, next.BranchPosition);
+    }
+
+    [Fact]
     public async Task BrowsingSavesWithoutPlayingNeedsNoCopyAndStartsNoBranch()
     {
         var flood = store.Create("Before the flood", runtime, []);
