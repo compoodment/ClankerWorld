@@ -238,6 +238,8 @@ public sealed record InhabitantObservation(
                         "make the requested goods at a permitted workstation" or
                         "construct the requested household building at a permitted site" or
                         "complete the requested building's next permitted expansion" or
+                        "reach the requested permitted shelter" or
+                        "light one permitted hearth using your own wood" or
                         "collect your own stored or dropped material" or "collect your own stored or dropped food" or
                         "collect your own stored or dropped equipment" or
                         "collect your own stored or dropped goods" or

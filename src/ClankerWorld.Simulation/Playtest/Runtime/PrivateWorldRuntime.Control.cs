@@ -383,6 +383,8 @@ public sealed partial class PrivateWorldRuntime
 
     private static string? UnderstoodTaskFor(string? candidate) => candidate switch
     {
+        "seek_shelter" => "reach the requested permitted shelter",
+        "tend_fire" => "light one permitted hearth using your own wood",
         "consume_food" => "eat one carried food item",
         "seek_food" => "travel within gathering range of an available food source",
         "harvest_food" => "gather several food servings from a nearby food source",

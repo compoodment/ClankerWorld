@@ -234,6 +234,8 @@ public sealed partial class PrivateWorldRuntime
                 (worldSimulation.ConstructionReceipts ?? []).Any(receipt => receipt.BuildingInstanceId == normalizedInstanceId) ||
                 instructionsByIdempotency.Values.Any(instruction => instruction.Order is { } order &&
                     (order.ExpansionBinding?.BuildingInstanceId == normalizedInstanceId ||
+                     order.ShelterBinding is { } shelter && shelter.BuildingInstanceId == normalizedInstanceId &&
+                         shelter.BuildingPlacedTick == WorldTick ||
                      order.ConstructionInstanceId == normalizedInstanceId && instruction.InstructionId != constructionInstructionId)))
                 return BuildingPlacementResult.Rejected(normalizedInstanceId, normalizedDefinitionId, position,
                     $"Building instance '{normalizedInstanceId}' is reserved for building orders.");
@@ -459,6 +461,10 @@ public sealed partial class PrivateWorldRuntime
             {
                 throw new InvalidOperationException("Content referenced by owner orders requires an explicit migration before removal.");
             }
+            if (instructionsByIdempotency.Values.Any(instruction =>
+                instruction.Order?.ShelterBinding?.DefinitionId is { } definitionId &&
+                !remainingContent.Buildings.Any(definition => definition.CanonicalId == definitionId)))
+                throw new InvalidOperationException("Content referenced by shelter orders requires an explicit migration before removal.");
             var record = contentRegistry.Rollback(packageId, WorldTick, reason);
             worldContent = remainingContent;
             worldSimulation = remainingSimulation;

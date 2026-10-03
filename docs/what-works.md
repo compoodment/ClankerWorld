@@ -379,8 +379,32 @@ planting stock and removes unfinished tilling; spent tool wear remains. Urgent
 survival interrupts work before its remaining task resumes. Queues, partial
 work, stock reservations and progress survive save/reload.
 
-General movement, shelter and guardian orders remain separate catalogue
-work. Named meals and weapon repairs are not supported by these orders yet.
+Shelter orders accept "seek shelter", "take cover" and "shelter in my House",
+with optional exact coordinates. They finish on actual arrival in permitted
+cover, including valid natural cover during a storm. Reaching shelter does
+not claim that warmth has recovered. Household access and storm-guest
+invitations remain authoritative. An agent keeps its selected building or
+natural cover; lost permission or a changed target leaves a visible blocker.
+Own and invited homes are known destinations. Other shelters must be locally
+observable; a supplied distant coordinate is visited and checked on arrival.
+
+Adults can follow "light a fire", "tend the fire" or "light the fire in my
+House", with optional coordinates. These use normal fuel collection,
+ownership, carrying and access rules. Only a real ignition after spending
+one eligible owned wood counts. Borrowed, reserved and delivery-promised wood
+cannot be spent. An already-lit hearth waits until another ignition is
+possible; it is not refuelled or credited as the order's work. Children may
+seek shelter but cannot tend fires. Missing usable known wood leaves the
+fire task blocked until a supply becomes available.
+
+Both actions perform one task. Counts, repetition, durations and "warm up"
+remain unsupported. Urgent food can interrupt either action, while urgent
+cold still allows protective work. Queues, cancellation, travel and completion
+survive save/reload. Finished progress remains recorded after weather changes,
+fire expiry or removal of the building.
+
+General movement and guardian orders remain separate catalogue work. Named
+meals and weapon repairs are not supported by these orders yet.
 
 A recognized new order replaces the active and queued orders unless **Queue**
 is selected. **Cancel task** stops a waiting or active order. An instruction

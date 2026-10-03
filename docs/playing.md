@@ -247,6 +247,23 @@ actually finishes. Queue, cancellation and save/reload preserve the task;
 cancelling leaves collected goods in place and releases unused expansion
 materials. Urgent survival pauses the work before it resumes.
 
+Use **Seek shelter**, **Take cover** or **Shelter in my House** to reach
+permitted cover. Add **at (12, 4)** to require that location. A storm guest
+still needs a current invitation, and natural cover protects only during a
+storm. The task finishes when the agent reaches usable cover; this does not
+mean they have recovered their warmth.
+
+An adult can follow **Light a fire**, **Tend the fire** or **Light the fire in
+my House**, also with an optional location. The agent brings eligible wood
+to an accessible unlit hearth. Progress reaches one only after one real wood
+is consumed and the fire lights. A fire that is already burning earns no
+progress and is not extended by the order. Gather wood first if no usable
+source is known. Both shelter and fire requests
+are single tasks; counts, repetition, durations and **Warm up** are not
+supported. Urgent food can pause either task; urgent cold does not stop the
+agent from seeking protection. Queue, cancellation and save/reload preserve
+the task and its selected destination.
+
 An instruction the game cannot understand leaves the current order running.
 Unsupported requests, such as "build a castle" or "gather cloth," close as not
 understood and appear in the Event Log. Recognized orders follow normal access

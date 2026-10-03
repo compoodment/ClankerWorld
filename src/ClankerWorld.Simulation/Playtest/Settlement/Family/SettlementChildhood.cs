@@ -21,7 +21,7 @@ public sealed partial class PrivateWorldRuntime
         if (age is SocietyAgeBand.Adult or SocietyAgeBand.Elder)
             return !candidate.StartsWith("child_", StringComparison.Ordinal);
         return candidate is "safe_idle" or "consume_food" or "collect_shared_food" or
-            "seek_food" or "harvest_food" or "wear_clothing" or "seek_warmth" ||
+            "seek_food" or "harvest_food" or "wear_clothing" or "seek_warmth" or "seek_shelter" or "inspect_shelter_site" ||
             candidate.StartsWith("guardian_accept:", StringComparison.Ordinal) ||
             candidate.StartsWith("guardian_refuse:", StringComparison.Ordinal) ||
             candidate.StartsWith("guardian_end:", StringComparison.Ordinal) ||

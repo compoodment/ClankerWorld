@@ -82,7 +82,23 @@ public sealed record OwnerInstructionOrder(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] GridPoint? ConstructionPosition = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] long? ConstructionStartedTick = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ConstructionInstanceId = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] OwnerBuildingExpansionBinding? ExpansionBinding = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] OwnerBuildingExpansionBinding? ExpansionBinding = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] OwnerShelterBinding? ShelterBinding = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] OwnerShelterCompletion? ShelterCompletion = null);
+
+public sealed record OwnerShelterBinding(
+    string Kind,
+    GridPoint Position,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? BuildingInstanceId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? DefinitionId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? OwnerId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] GridPoint? BuildingPosition = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] long? BuildingPlacedTick = null);
+
+public sealed record OwnerShelterCompletion(
+    long WorldTick,
+    GridPoint Position,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? FuelReservationId = null);
 
 public sealed record OwnerBuildingExpansionBinding(
     string BuildingInstanceId,
