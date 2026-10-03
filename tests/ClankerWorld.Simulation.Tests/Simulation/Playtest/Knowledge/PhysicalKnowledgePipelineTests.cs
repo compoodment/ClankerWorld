@@ -19,7 +19,13 @@ public sealed class PhysicalKnowledgePipelineTests
         Assert.True((await setup.AdvanceOneTickAsync()).Advanced);
         var state = setup.ExportState();
         var actor = state.Society.Society.Inhabitants.First(person => person.HouseholdId == household).Id;
-        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "paper-water-jug", InventoryContainerRules.WaterJug,
+        // Unrelated starting wood would fill this one-tile House while the
+        // writer fetches its jug. Leave space for the actual paper inputs.
+        var inventory = state.Society.Society.Inventory with
+        {
+            Lots = state.Society.Society.Inventory.Lots.Where(lot => lot.OwnerId != household || lot.ItemKind != "wood").ToArray(),
+        };
+        inventory = InventoryFixture.AddLot(inventory, "paper-water-jug", InventoryContainerRules.WaterJug,
             household, 1, state.Society.Society.WorldTick, storageBuildingId: houseId);
         Assert.DoesNotContain(inventory.Lots, lot => lot.OwnerId == household && lot.ItemKind is "fiber" or "fresh_water" or "paper");
         var provider = new ChoosingProvider(actor, "explore");
@@ -48,7 +54,24 @@ public sealed class PhysicalKnowledgePipelineTests
             }
         }
         var working = world.ExportState();
-        Assert.True(observedFiberDepletion);
+        Assert.True(observedFiberDepletion, JsonSerializer.Serialize(new
+        {
+            working.SchemaVersion,
+            Tick = working.Society.Society.WorldTick,
+            Actor = working.Inhabitants.Single(person => person.InhabitantId == actor),
+            Resident = working.Society.Society.GetInhabitant(actor),
+            Cognition = working.Society.Cognition.Runtimes.Single(runtime => runtime.InhabitantId == actor),
+            Lots = working.Society.Society.Inventory.Lots.Where(lot => lot.OwnerId == household || lot.OwnerId == actor).ToArray(),
+            working.Knowledge,
+            Offered = provider.Offered.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray(),
+            Sources = working.Map.Resources.Where(resource => resource.Kind == "fiber").Select(resource => new
+            {
+                resource.Id,
+                resource.Position,
+                Quantity = working.WorldSystems!.Ecology.GetResource(resource.Id).Quantity,
+            }).Take(20).ToArray(),
+            RecentEvents = working.Events.TakeLast(80).ToArray(),
+        }));
         Assert.Contains(working.Events, item => item.Kind == "material_gathered" &&
             item.Detail.StartsWith(actor + ":fiber:", StringComparison.Ordinal));
         Assert.Contains(working.Events, item => item.Kind == "workstation_supplied" &&
