@@ -392,6 +392,9 @@ world-runtime, save-compatibility, deployment, packaging or security changes.
 Skip refactors, tests and docs-only edits unless they change an explicit
 supported behavior or operational promise.
 
+If your change makes a waiting entry wrong, edit or delete it in the same pull
+request.
+
 Put the entry in a new file in [changes/](changes/README.md) rather than editing
 [CHANGELOG.md](CHANGELOG.md), so parallel pull requests do not conflict. Start
 the file with a `- ` bullet. Name the file after the issue number and the
