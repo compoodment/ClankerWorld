@@ -1120,7 +1120,7 @@ public static class GeneratedCampMapGenerator
                     elevationLevels, surfaceKinds, width, height, starterSites))
                     return new GridPoint(centerX + offsetX, centerY - offsetY);
             }
-        throw new InvalidOperationException("The generated geography has no suitable base-camp clearing.");
+        throw new GeographyClearingUnavailableException();
     }
 
     private static bool TrySite(int left, int top, byte[] hydrologyKinds, byte[] elevationLevels,

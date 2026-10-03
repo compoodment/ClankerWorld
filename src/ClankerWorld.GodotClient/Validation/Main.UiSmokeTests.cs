@@ -872,6 +872,16 @@ public partial class Main
                 if (!worldPreviewStatus.Text.Contains("Met applicable Normal target: mountains", StringComparison.Ordinal) ||
                     worldPreviewStatus.Text.Contains("Both default Balanced trial targets", StringComparison.Ordinal))
                     throw new InvalidOperationException("Preview must name only the applicable Normal target when the other control is Low or High.");
+                SetWorldPreviewStatus(mountainOnlyPreview with
+                {
+                    FailedCandidates = [new OwnerWorldCandidateFailure(0, "no-clearing")],
+                });
+                if (!worldPreviewStatus.Text.Contains("#0: no room for a first Town", StringComparison.Ordinal) ||
+                    worldPreviewStatus.Text.Contains("no-clearing", StringComparison.Ordinal) ||
+                    worldPreviewStatus.Text.IndexOf("#0:", StringComparison.Ordinal) >
+                        worldPreviewStatus.Text.IndexOf("#2 F", StringComparison.Ordinal) ||
+                    worldAcceptUnmetTargets.Visible)
+                    throw new InvalidOperationException("Preview must show failed attempts beside real measurements without requiring acceptance of an unavailable map.");
                 var forestOnly = missedCoverage with
                 {
                     ForestTargetApplicable = true,
@@ -2978,6 +2988,7 @@ public partial class Main
             }
             if (brightest > 0.31f || lit > 900 || flashes > 25)
                 throw new InvalidOperationException($"Lightning must stay soft and rare: peak={brightest}, lit samples={lit}, flashes={flashes}.");
+            await VerifyNightWashAsync(largeMap);
             var startedMap = largeMap with { FounderSetup = null };
             RenderWorldHud(startedMap);
             for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);

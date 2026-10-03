@@ -2,7 +2,7 @@
 title: Releasing
 type: release-policy
 status: active
-updated: 2026-10-02
+updated: 2026-10-03
 ---
 
 # Releasing
@@ -75,8 +75,10 @@ Before publishing:
 
 1. Choose the version and update runtime/package metadata. Run
    `bash scripts/collect-changes.sh` to move the entries waiting in `changes/`
-   into `CHANGELOG.md`, then move the relevant entries into a dated release
-   section, leaving `Unreleased`.
+   into `CHANGELOG.md`; the script requires full Git history. Rename
+   `## Unreleased` to the dated release heading and add a new empty
+   `## Unreleased` above it. Keep each release as one flat list without
+   categories.
 2. Run the applicable build, test and Godot-export gates. The owner also runs
    the [Windows release smoke check](#windows-release-smoke-check) below.
    List every remaining file in `playtest/`, except its README, in the release
@@ -85,8 +87,9 @@ Before publishing:
    Also verify migration and old-save handling when the release promises that
    older saves load.
 4. After merging main into the release branch for the last time, run
-   `bash scripts/collect-changes.sh` again and include those entries in the
-   dated release section. Merge the release changes through the
+   `bash scripts/collect-changes.sh` again. Move every newly collected bullet
+   from `Unreleased` to the start of the dated release section, leaving
+   `Unreleased` empty. Merge the release changes through the
    [contribution review process](../../CONTRIBUTING.md#review-and-merge).
 5. The session that prepared the release fetches main and verifies the reviewed
    release PR's squash commit on GitHub's `origin/main`. Confirm its required
