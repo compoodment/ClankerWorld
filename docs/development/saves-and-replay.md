@@ -127,6 +127,17 @@ carrying space preserve the remaining task. Older alpha saves are refused and
 preserved without migration. This number is provisional and must remain above
 the storage-order base schema after integration.
 
+Private-world schema 56 adds `repair_equipment` orders with a bounded
+`TargetEquipmentKind` and progress counted in finished repairs. The equipment
+work record has an optional `OrderInstructionId`, which must refer to that
+actor's active repair task and match the actual lot kind. Its saved work counter
+and material reservations retain their ordinary validation. Completion credits
+a bounded receipt only after the real repair consumes its inputs. Cancelled or
+replaced orders cannot retain live repair reservations. Replay covers partial
+work, queues, cancellation and exact material costs. Older alpha saves are
+refused and preserved without migration; this version is provisional above the
+collection-order base until integration.
+
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
 Matching parent assignments are disclosed as agreement; when they differ, the
@@ -385,7 +396,7 @@ blocked-return behavior. These checks use existing timestamps and add no saved
 fields, schema change or migration.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 55. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 56. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
