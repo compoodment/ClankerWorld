@@ -174,8 +174,6 @@ jobs:
   windows-checkpoint-investigation:
     runs-on: windows-latest
     timeout-minutes: 120
-    env:
-      CLANKERWORLD_CHECKPOINT_DIAGNOSTICS: ${{ runner.temp }}/checkpoint-investigation/failures
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-dotnet@v5
@@ -202,6 +200,8 @@ jobs:
           </RunSettings>
           '@ | Set-Content (Join-Path $evidence 'diagnostic.runsettings')
       - name: Run the unfiltered native Release suite with four workers and SingleHit coverage
+        env:
+          CLANKERWORLD_CHECKPOINT_DIAGNOSTICS: ${{ runner.temp }}/checkpoint-investigation/failures
         run: dotnet test tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.csproj --configuration Release --no-build --no-restore --settings "${{ runner.temp }}/checkpoint-investigation/diagnostic.runsettings" --collect "XPlat Code Coverage" --logger "trx;LogFileName=full-windows.trx" --results-directory "${{ runner.temp }}/checkpoint-investigation/results"
       - name: Record restored assembly hashes
         if: ${{ !cancelled() }}
