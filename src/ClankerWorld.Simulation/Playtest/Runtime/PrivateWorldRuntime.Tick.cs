@@ -278,10 +278,9 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
+    // Queued work with no call in flight is always rebuilt before dispatch. The
+    // finished-order exception applies only to a reply already in flight.
     private bool IsQueuedObservationReady(InhabitantObservation observation) =>
-        // A completed order may still need its exact original message acknowledged;
-        // applying that reply cannot execute the finished action again.
-        IsFinishedOrderDecisionAwaitingReply(observation) ||
         observation.WorldTick == WorldTick &&
         string.Equals(observation.ConversationChoiceContext,
             ConversationChoiceContextFor(observation.InhabitantId), StringComparison.Ordinal);
@@ -562,9 +561,17 @@ public sealed partial class PrivateWorldRuntime
                             .ToHashSet(StringComparer.Ordinal)
                         : CreateCandidates(id, physical).Select(candidate => candidate.Id)
                             .ToHashSet(StringComparer.Ordinal);
+                    // Choices that merely disappeared leave the accepted reply valid; only a
+                    // choice the request lacked or a change in urgent needs asks the model again.
+                    var requestedIds = request.Observation.Candidates.Select(candidate => candidate.Id)
+                        .ToHashSet(StringComparer.Ordinal);
                     bool? decisionContextChanged = item.DecisionContext is { } previousContext &&
                         physical.LastDecisionContext is { } currentContext
-                        ? !string.Equals(previousContext, currentContext, StringComparison.Ordinal)
+                        ? !string.Equals(previousContext, currentContext, StringComparison.Ordinal) &&
+                            (!previousContext.StartsWith($"{NeedsUrgentFood(physical)}:{NeedsUrgentWarmth(physical)}:", StringComparison.Ordinal) ||
+                             legal.Any(candidate => !requestedIds.Contains(candidate) &&
+                                (!candidate.StartsWith(MedicalAllowPrefix, StringComparison.Ordinal) ||
+                                 physical.Survival is { IllnessBasisPoints: >= 2_500 })))
                         : null;
                     var decision = society.CompleteDeferredCognition(item.Request, outcome.Response,
                         outcome.Failure, legal, decisionContextChanged);
@@ -618,7 +625,8 @@ public sealed partial class PrivateWorldRuntime
             var orderActorsHandledThisTick = ApplyContinuingIntentions(
                 decisions.Select(item => item.InhabitantId), waiting);
             AdvanceMedicalTreatments();
-            if (deferHosted) ApplySafeRoutinesWhileWaiting(waiting, orderActorsHandledThisTick);
+            // An agent whose reply was accepted this tick already acted, even if newer work stays queued.
+            if (deferHosted) ApplySafeRoutinesWhileWaiting(waiting.Except(decisions.Select(item => item.InhabitantId), StringComparer.Ordinal), orderActorsHandledThisTick);
             AdvanceBridgeTraffic();
             SettleGuardianSearches();
             MaintainToolMakingRequests();

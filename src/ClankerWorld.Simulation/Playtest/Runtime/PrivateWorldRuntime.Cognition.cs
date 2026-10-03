@@ -38,8 +38,7 @@ public sealed partial class PrivateWorldRuntime
             .Where(entry => waitingHosted.Contains(entry.InhabitantId) &&
                 entry.Observation.OperativeOrderInstructionId is not null &&
                 IsOrderDecisionObservationCurrent(entry.Observation) &&
-                (!awaitingDispatch.Contains(entry.InhabitantId) ||
-                 IsFinishedOrderDecisionAwaitingReply(entry.Observation)))
+                !awaitingDispatch.Contains(entry.InhabitantId))
             .Select(entry => entry.InhabitantId)
             .ToHashSet(StringComparer.Ordinal);
         var staleOrderDecisions = cognitionState.Queue
