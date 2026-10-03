@@ -85,6 +85,7 @@ public static class WorldEventText
             "store_stock_delivered" => "A load reached the household Store and is now available to sell.",
             "carrying_full" => $"{Name(snapshot, worldEvent.Detail)} cannot carry more; a load needs to be stored or set down.",
             "spare_cargo_stored" => $"{LeadingName(snapshot, worldEvent.Detail)} set down spare supplies for their household to make room in their load.",
+            "household_delivery_recovered" => $"{LeadingName(snapshot, worldEvent.Detail)} returned unusable delivery supplies to their household's pile at camp.",
             "equipment_equipped" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} equipped an item.",
             "equipment_repair_started" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} began repairing an item.",
             "equipment_repaired" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} repaired an item.",
@@ -104,9 +105,12 @@ public static class WorldEventText
             "town_civic_result" => $"{civicTownName}'s council recorded a decision. See the Towns page for its result.",
             "town_civic_cancelled" => $"An unfinished election in {civicTownName} was cancelled.",
             "town_founding_started" => "Your first Town is being set up.",
-            "town_resident_joined" => $"{ResidentName(snapshot, worldEvent)} joined the first Town.",
-            "town_resident_left" => $"{ResidentName(snapshot, worldEvent)} left the first Town.",
+            "town_resident_joined" => $"{ResidentName(snapshot, worldEvent)} joined {ResidentTownName(snapshot, worldEvent)}.",
+            "town_resident_left" => $"{ResidentName(snapshot, worldEvent)} left {ResidentTownName(snapshot, worldEvent)}.",
             "town_membership_evaluated" => "The new adult is not part of a Town yet.",
+            "town_admission_accepted" => DescribeAdmission(worldEvent.Detail, snapshot),
+            "town_admission_approved" => $"{civicTownName}'s council approved {Name(snapshot, Field(worldEvent.Detail, 1))}'s admission. It takes effect only if they accept.",
+            "town_admission_lapsed" => $"{Name(snapshot, Field(worldEvent.Detail, 1))} did not join {civicTownName}: the approval no longer fits their circumstances.",
             "town_building_assigned" => "A building joined the first Town.",
             "town_border_expanded" => "The first Town border expanded.",
             "town_founded" => "Your first Town is founded.",
@@ -129,6 +133,25 @@ public static class WorldEventText
             "model_call_warning" => DescribeModelCallWarning(parts),
             _ => $"{GameUiText.HumanizeIdentifier(worldEvent.Kind)}.",
         };
+    }
+
+    /// <summary>A recorded Town admission: who joined, any Town they left and whether dependent children came too.</summary>
+    private static string DescribeAdmission(string detail, OwnerWorldSnapshot? snapshot)
+    {
+        var fields = detail.Split('|');
+        if (fields.Length != 4) return "Someone became a Town resident.";
+        string TownName(string id) => snapshot?.Towns.FirstOrDefault(town => town.Id == id)?.Name ?? "a Town";
+        var text = $"{Name(snapshot, fields[1])} became a resident of {TownName(fields[0])}.";
+        if (fields[2] != "none") text += $" They are no longer a resident of {TownName(fields[2])}.";
+        if (int.TryParse(fields[3], NumberStyles.None, CultureInfo.InvariantCulture, out var members) && members > 1)
+            text += " Their dependent children moved with them.";
+        return text;
+    }
+
+    private static string Field(string detail, int index)
+    {
+        var fields = detail.Split('|');
+        return index < fields.Length ? fields[index] : string.Empty;
     }
 
     /// <summary>The installation's one warning at 80% of its model-call limit.</summary>
@@ -176,10 +199,17 @@ public static class WorldEventText
             .FirstOrDefault(person => IsLeadingId(recipientDetail, person.Id))?.DisplayName ?? "someone";
     }
 
+    /// <summary>The Town a resident joined or left, named as the player sees it; agents now move between Towns.</summary>
+    private static string ResidentTownName(OwnerWorldSnapshot? snapshot, OwnerWorldEvent worldEvent) =>
+        ResidentTown(snapshot, worldEvent)?.Name ?? "a Town";
+
+    private static OwnerWorldTown? ResidentTown(OwnerWorldSnapshot? snapshot, OwnerWorldEvent worldEvent) =>
+        snapshot?.Towns.OrderByDescending(item => item.Id.Length)
+            .FirstOrDefault(item => IsLeadingId(worldEvent.Detail, item.Id));
+
     private static string ResidentName(OwnerWorldSnapshot? snapshot, OwnerWorldEvent worldEvent)
     {
-        var town = snapshot?.Towns.OrderByDescending(item => item.Id.Length)
-            .FirstOrDefault(item => IsLeadingId(worldEvent.Detail, item.Id));
+        var town = ResidentTown(snapshot, worldEvent);
         // Older delimiter-free Town IDs use a single field. Current IDs must
         // be matched against the snapshot before reading the resident field.
         var townId = town?.Id ?? worldEvent.Detail.Split(':', 2)[0];

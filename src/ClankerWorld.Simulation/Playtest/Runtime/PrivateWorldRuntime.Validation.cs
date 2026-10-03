@@ -91,6 +91,7 @@ public sealed partial class PrivateWorldRuntime
             TownGovernanceValidation.Validate(town, society.Checkpoint, worldSystems.Config.TicksPerDay);
             TownGovernmentValidation.Validate(town, society.Checkpoint, townLandTitles, worldSystems.Config.TicksPerDay);
         }
+        ValidateTownAdmissions(towns, society.Checkpoint, checkpointSchemaVersion);
         ValidateRoads(RoadTiles, map, founderSetup);
         ValidateBridges(Bridges, bridgeTraffic, map, RoadTiles, worldSimulation, worldContent,
             society.Checkpoint, inhabitants.Values);
@@ -387,6 +388,7 @@ public sealed partial class PrivateWorldRuntime
             TownGovernanceValidation.Validate(town, society.Checkpoint, state.WorldSystems!.Config.TicksPerDay);
             TownGovernmentValidation.Validate(town, society.Checkpoint, state.TownLandTitles!, state.WorldSystems!.Config.TicksPerDay);
         }
+        ValidateTownAdmissions(state.Towns ?? [], society.Checkpoint, state.SchemaVersion);
         ValidateLessons(state);
         ValidateHousing(state.Inhabitants, state.Society.Society, state.SchemaVersion);
         ValidateDependentCare(state.Inhabitants, state.Society.Society, state.Towns ?? [], state.SchemaVersion);

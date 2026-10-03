@@ -149,6 +149,13 @@ who may use it, when it was built, which side its door faces, the work in
 progress, a larger storage grid with each item's name, and who is inside or
 lives there. Back (or **Escape**) returns to the small card.
 
+Every day has a night, from 19:12 to 04:48 on the clock in the top bar, with a
+short dusk and dawn. In a six-minute day that is about 2 min 24 s of night. The
+map turns a gentle dark blue but stays readable; names, agents and panels keep
+their daytime colors. Nights are colder outdoors, so an agent with no clothing,
+shelter or fire loses warmth, and their warmth bar shows it. A new world starts
+at midnight.
+
 Click bare ground to inspect the recorded facts there. Agents take priority
 when they overlap the pointer. **Event Log** shows important events under a
 heading for each day, each with an icon for its kind. An event with a known
@@ -190,9 +197,18 @@ An ordinary proposal stays open for one unpaused world day unless its result
 is settled earlier. A four-person council needs three yes votes, and an elected
 three-seat council needs two. Silence supplies no approval. Election ballots
 may change until closing, while cast proposal votes are final. Pausing stops
-these windows and council terms. Passed admission requests are recorded, but
-the separate process for joining a Town has not been connected yet; approval
-alone gives no household place or access to stored goods.
+these windows and council terms.
+
+An agent belongs to one Town or none. Traveling, visiting or losing a home
+does not change it. An adult with no Town, such as one you add outside the
+border, can walk to a Town's notice place and ask its council for admission. A
+resident can also ask the council to admit an adult nearby who has no Town, and
+that adult chooses whether to accept once they read the approval. Dependent
+children join with their caregiver. Once admitted, a resident may collect their
+Town's Warehouse stock in person, but approval never gives a House or household
+place. The agent's Profile shows their Town, what it lets them do and any
+admission in progress, and the Event Log notes approvals, admissions and
+approvals that no longer apply.
 
 Residents can also propose laws as a **subject: rule**, applying to the Town's
 claimed land, a nearby recorded site, or residents wherever they travel. Council

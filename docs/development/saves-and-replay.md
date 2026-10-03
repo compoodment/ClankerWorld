@@ -90,8 +90,8 @@ the exact current contest/proposal and actor authority; cancelled votes cannot
 revive after owner membership changes. Draws use a named world-local PCG stream
 with unbiased selection and save the actual order, so loading does not reroll
 an accepted outcome. Older alpha saves are visibly refused and preserved; no
-migration is provided. Admission approval remains a saved decision for #602 to
-consume separately, with no stock or household-access effect.
+migration is provided. A passed admission changes Town membership at most once
+(schema 54); it never grants stock or household access.
 
 Private-world schema 49 stores recognized food-order targets, progress, retry
 state, cancellation receipts and their exact actor/world identity alongside the
@@ -191,7 +191,7 @@ key removes it from the current store, not backups or the provider account.
 Protected Windows files are not portable key exports. This is protection at
 rest, not protection against software already running as the same user.
 
-Private-world schema 54 adds each founded Town's laws and government record.
+Private-world schema 55 adds each founded Town's laws and government record.
 Law versions bind adoption, amendment and repeal to passed Council proposals,
 with original scope and effective dates. Resident changes save original and
 remaining electorates, final votes, queues, approval and handover deadlines.
@@ -242,6 +242,12 @@ Conversation records use private-world schema 35, following schema 34's fields
 and ground harvest lots. No migration for older alpha saves is added solely to preserve
 compatibility.
 
+Routine history compaction validates the compacted checkpoint without applying
+load transitions. It preserves the live conversation cursor, consent and pending
+turn admission identity. Resume with compaction likewise keeps the conversation's
+existing pause state; only an actual load suspends it as restored and clears
+previous resume choices. A failed checkpoint write leaves the live state unchanged.
+
 Private-world schema 40 saves each inhabitant's explicit domestic family unit
 and primary caregiver, plus the caregiver, intended home and actual birth home
 for an agreed parenthood plan. Birth records retain the caregiver and actual
@@ -290,6 +296,28 @@ ineligible selected unit and preserve intermediate refining, diamond setting,
 gifts and barter. Removing or giving the ornament clears the selection while
 keeping the actual item; death and estate handling retain the property without
 an active selection on an archived profile. Older alpha saves are refused and
+preserved; no migration is added.
+
+Private-world schema 54 adds optional admission records to each Town, one per
+passed admission proposal of that Town. The Town resident lists stay the only
+record of membership; an admission record says what one approval did to them:
+
+- `approved`: a resident asked for the newcomer, and the approval waits for the
+  newcomer to accept. It keeps the newcomer's Town at the time of the vote, and
+  acceptance is refused if that has changed.
+- `admitted`: membership changed. It keeps the Town the newcomer left, if any,
+  and the sorted IDs of the newcomer and the dependent children who moved.
+- `lapsed`: the approval could not be applied, with one of four reasons:
+  `unavailable`, `already_resident`, `affiliation_changed` or `joined_elsewhere`.
+
+A passed admission is settled as soon as the council decision or roster change
+that passed it is saved, so every passed admission has exactly one record and
+reload and replay never apply an approval twice. Loading, and the runtime's own
+state check, refuse a passed admission without a record, a record without a
+matching passed admission proposal, a repeated proposal, an unknown status or
+lapse reason, an unsorted or incomplete moving group, a decision time before the
+vote settled or after the saved world time, and an approval still waiting on
+someone who is already a resident there. Older alpha saves are refused and
 preserved; no migration is added.
 
 Checkpoint decoding enforces declared non-null members and required constructor
@@ -387,7 +415,7 @@ blocked-return behavior. These checks use existing timestamps and add no saved
 fields, schema change or migration.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 54. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 55. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
@@ -407,8 +435,20 @@ guardian-search records with their offered adults, medical permission and
 consumed-dose progress, selected personal ornaments, and wills with up to
 three named heirs, exact divisions and final words.
 Land records are checked against the saved map, Towns, households and one
-another before load. These fields retain their current validation and roundtrip
-behavior.
+another before load. Building reassignment moves only existing footprint use rights;
+connected remainder plots keep their holder and original grant terms. Split
+records get deterministic unique IDs, and whole-plot moves retain their IDs.
+The building and rights change under the same world lock; rejected or stale
+requests change neither. No save-format change or migration is needed.
+
+The food repairs use the existing field, inventory, reservation and delivery
+records; they add no migration or new save fields. New planting claims remain
+active until the work consumes the seed or an interruption releases it. An
+existing current-format finite planting claim may still expire: field
+maintenance then cancels the unfinished planting and retains the unconsumed
+seed. Reload preserves physical food and vessel locations, exact active
+claims and in-flight delivery pointers. Recovery clears those pointers only
+when the real stock is set down; a discarded prepared step does not move it.
 
 The table records earlier schema changes. Its older-save behavior is historical;
 the current loader accepts only the current schema and does not run those
@@ -424,8 +464,8 @@ exchanges, schema 46 for continuity, schema 47 for household departures and
 physical custody, schema 48 for Town councils, schema 49 for food-order
 progress and cancellations, schema 50 for guardian searches, schema 51
 for medical permission and consumed-dose progress, schema 52 for selected
-ornaments, schema 53 for wills with several heirs and final words, and schema 54
-for Town laws and government record when
+ornaments, schema 53 for wills with several heirs and final words, schema 54
+for Town admission records and schema 55 for Town laws and government record when
 those fields or behaviors were
 introduced; they do not allow an earlier checkpoint schema past the
 current alpha cutoff.
@@ -468,7 +508,8 @@ current alpha cutoff.
 | Schema 51 | Named medical permissions and active consumed-dose progress bind to actual completed inventory receipts. Terminal treatment closes its receipt without refund or resurrection; death retains completed consumption history and archived profiles cannot carry active treatment. Earlier alpha saves are refused and preserved without migration. |
 | Schema 52 | An optional exact personally owned, carried ornament lot in the canonical personal equipment record. Wearing supplies no protection or carrying bonus; removal, gifts and death retain actual property while clearing the selection when required. Earlier alpha saves are refused and preserved without migration. |
 | Schema 53 | Wills with one to three named heirs (people or a Town), an equal or item-by-item split, the exact quantity of each frozen lot per heir, and final words; the deceased archive keeps the agent's Town. Divisions must cover every frozen lot exactly. Earlier schemas cannot carry these records. |
-| Schema 54 | Scoped law versions, protected resident government votes and handovers, mayoral consent and rounds, and separate land and governing mandate terms. Earlier alpha schemas are refused and preserved. |
+| Schema 54 | Town admission records tie each passed admission proposal to one outcome: approved and waiting for the newcomer, admitted with the care group that moved, or lapsed with its reason. An approval applies at most once. Earlier alpha saves are refused and preserved without migration. |
+| Schema 55 | Scoped law versions, protected resident government votes and handovers, mayoral consent and rounds, and separate land and governing mandate terms. Earlier alpha schemas are refused and preserved. |
 
 Other compatibility fields remain separate for simulation, envelopes, content,
 assets, generator and network contracts. Change the field whose semantics
@@ -477,6 +518,15 @@ changed; a cosmetic game-version bump is not a migration.
 The saved clock/lifecycle values govern old worlds. Restore validates matching
 society/world-system calendar values rather than silently assigning the newest
 playtest pace.
+
+Night ([#673](https://github.com/compoodment/ClankerWorld/issues/673)) adds no
+saved field: time of day is derived from the saved tick and ticks per day, so
+the checkpoint schema and every other version stay as they are. A current-schema
+save made before night existed loads unchanged; nights, and their chill on
+outdoor warmth, apply from its next tick. Its recorded history is not
+re-simulated. A world saved during dawn reloads at the same darkness and
+advances to the same bytes as the live world, which `SettlementSurvivalTests`
+checks.
 
 ## Pending model work and estates
 

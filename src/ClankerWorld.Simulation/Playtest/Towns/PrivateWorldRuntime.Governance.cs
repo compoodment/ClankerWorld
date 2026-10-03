@@ -152,15 +152,21 @@ public sealed partial class PrivateWorldRuntime
                         !state.Notices.Any(n => n.Kind == "nomination" && n.SubjectId == "nomination:" + actor + "->" + nominee))
                         candidates.Add(new(CivicAction(town.Id, "nominate", nominee),
                             $"Nominate {society.Checkpoint.GetInhabitant(nominee).Name} for full council terms in {town.Name}; they must personally agree before becoming a candidate.", 188));
-                    if (TownForResident(nominee) is null)
+                    if (MayBeSponsoredForAdmission(nominee, town))
                         candidates.Add(new(CivicAction(town.Id, "request_admission", nominee),
-                            $"Ask {town.Name}'s council to approve admission of {society.Checkpoint.GetInhabitant(nominee).Name}, the adult nearby. A request grants no membership or stock access.", 188));
+                            $"Ask {town.Name}'s council to approve admission of {society.Checkpoint.GetInhabitant(nominee).Name}, the adult nearby. A request grants no membership or Warehouse access.", 188));
                 }
                 AddTownLawCandidates(candidates, actor, town);
                 if (town.Government is not null) AddTownGovernmentCandidates(candidates, actor, town);
             }
-            else if (!towns.Any(t => t.ResidentIds.Contains(actor, StringComparer.Ordinal)) && AdultResident(actor) && NearCivicBoard(actor, town))
-                candidates.Add(new(CivicAction(town.Id, "admission"), $"Ask {town.Name}'s council to approve your admission. The request grants no membership or stock access.", 170));
+            else if (NearCivicBoard(actor, town))
+            {
+                if (MayRequestOwnAdmission(actor, town))
+                    candidates.Add(new(CivicAction(town.Id, "admission"), AdmissionRequestText(actor, town), 170));
+            }
+            else if (CivicBoard(town) is not null && MayVisitAsNewcomer(actor, town))
+                candidates.Add(new(CivicAction(town.Id, "visit"), $"Walk to {town.Name}'s public notice place to read what is posted. Visiting grants no membership.", 175));
+            AddTownAdmissionCandidates(candidates, actor, town);
             foreach (var proposal in state.Proposals.Where(p => p.Status == "pending" && history.Knows(actor, p.Id)))
             {
                 var draft = town.Government?.LawDrafts.SingleOrDefault(d => d.ProposalId == proposal.Id);
@@ -196,7 +202,7 @@ public sealed partial class PrivateWorldRuntime
         var parts = candidate.Split('|');
         if (parts.Length != 5 || parts[2] != "visit" || NeedsUrgentWarmth(inhabitants[actor])) return;
         var town = towns.SingleOrDefault(t => t.Id == parts[1]);
-        if (town?.Governance is null || !TownAdults(town).Contains(actor, StringComparer.Ordinal) ||
+        if (town?.Governance is null || !TownAdults(town).Contains(actor, StringComparer.Ordinal) && !MayVisitAsNewcomer(actor, town) ||
             CivicBoard(town) is not { } destination ||
             IsWithinInteractionRange(inhabitants[actor].Position, destination, ResourceInteractionRange)) return;
         MoveToward(actor, inhabitants[actor], destination, "town_notices", ResourceInteractionRange);
@@ -216,6 +222,11 @@ public sealed partial class PrivateWorldRuntime
         var current = new List<CognitionCandidate>();
         AddTownCivicCandidates(current, actor);
         if (!current.Any(c => c.Id == selectedId)) return;
+        if (parts[2] == "accept_admission")
+        {
+            AcceptTownAdmission(actor, town.Id, parts[3]);
+            return;
+        }
         try
         {
             (state, government) = AdvanceCivic(town, state, government);
@@ -268,6 +279,7 @@ public sealed partial class PrivateWorldRuntime
                 state.Notices.Skip(town.Governance.Notices.Count).Select(n => n.Id), WorldTick);
             SaveTownGovernance(town, state, government);
             AppendEvent("town_civic_action", $"{town.Id}|{actor}|{parts[2]}", inhabitants[actor].Position);
+            SettleTownAdmissions();
         }
         catch (InvalidOperationException)
         {

@@ -160,6 +160,40 @@ category/type/tick fields, not raw exceptions or file paths. Do not restart a
 held process before preserving its unsaved state. Filesystem fault injection
 does not establish arbitrary mid-tick rollback or crash durability.
 
+### Time of day and night
+
+Time of day is worked out from the saved tick and the world's saved ticks per
+day; nothing about it is saved. `DaylightRules` follows the 24-hour clock the
+game shows, where a tick's clock minute is its tick of day × 1,440 ÷ ticks per
+day. Night is 40% of every day, the same all year
+([#641](https://github.com/compoodment/ClankerWorld/issues/641)), centred on
+midnight: 19:12 to 04:48. Dusk and dawn each fade over the clock hour centred
+on those times (18:42–19:42 and 04:18–05:18), so the darker half of each fade
+counts as night and night covers exactly 40% of the day. At 360 ticks a day
+that is 144 ticks of night with 15-tick fades. Darkness is reported in basis
+points, 0 in daylight and 10,000 at full night. Tick 0 is midnight, so a new
+world, and its founder setup, starts at night.
+
+Night adds a provisional chill of 15 exposure points per tick at full night,
+faded in and out with the darkness (`NightChillAtFullDarkness`). It is added to
+the weather, climate and season exposure (`OutdoorExposure`), and clothing (35
+for a basic garment when dry), shelter (45) and a lit fire (+90) offset it just
+as they offset weather. The same outdoor exposure decides the choice to put on
+better clothing, the warmth budget for a scouting trip and the preference for
+making garments. Wear on a worn garment still follows the weather alone, so a
+mild night adds no repair work. In mild clear weather a basic garment or any
+shelter cancels the chill; with no protection an agent loses about a fifth of
+their warmth over a night. There are no night-only limits on choices, travel,
+work or conversation, and no sleep or energy. Night does not change weather or
+crops yet, and night length does not vary by season.
+
+The owner snapshot carries `darknessBasisPoints`, decided by the host from the
+same rule. The Godot client's `NightLayer` draws a deep blue wash, at most 40%
+opaque, over the visible map just above the ground, roads, buildings and trees,
+and below map labels, agent markers, weather and panels. It eases between the
+once-a-tick readings, shows a newly opened world's darkness at once, and looks
+the same in both themes. The World Map panel is not darkened.
+
 ## Model inputs, usage and memories
 
 A personal-model request selects one legal candidate, not a free-form dialogue
@@ -647,8 +681,8 @@ screenshot or native playtest.
 Paused founder setup creates one First Town when the owner accepts its five-building
 site. Founders become residents; Start World changes founding state to founded.
 Later placement inside the saved border establishes residence; walking does
-not change it. Children inherit the resident parent's Town; death removes the
-resident. Owned-building placement establishes household membership.
+not change it. A newborn joins its primary caregiver's Town; death removes the
+resident. Joining another Town later needs that Town's council (below). Owned-building placement establishes household membership.
 
 Founders and added adults arrive at a seeded age from day 15 to day 25 in
 day-lifecycle worlds. `SocietyFixture.FounderArrivalAge` orders that range once
@@ -680,8 +714,11 @@ rechecks authority when applying choices. `civic|...` actions let actors visit
 the public notice place, read posted notices, relay them within interaction
 range, nominate another resident, register their own consent and choose proposals
 or ballots. A nomination posts a notice; only the named agent's personal response
-can add agreement. Adults may request their own admission near the notice place,
-and residents may request admission of an unaffiliated adult nearby. The optional
+can add agreement. An adult with no Town, or a resident of another Town, may
+request their own admission at a Town's notice place. An adult with no Town may
+walk there from anywhere, and a resident of another Town from inside its border,
+whenever a tile beside the notice place is reachable on foot. Residents may
+request admission of an unaffiliated adult nearby. The optional
 `civic_proposal` and `civic_ballot` structured response fields are carried only
 through admitted choices. Missing, stale or malformed responses cannot supply
 votes. A generic private thought or another actor naming a candidate supplies
@@ -704,11 +741,44 @@ proposals, the current election and the latest archived election onto the normal
 Godot Towns page. Failed and cancelled outcomes remain visible; the complete
 authoritative proposal and election history stays in the checkpoint. Long Town
 readouts scroll within the available screen height. A passed structured law
-proposal records its scoped wording without creating physical or ownership powers. The
-`AdmissionApproval` result is available for #602; the engine does not perform
-membership, household, care-group or inventory transfers. Bounded civic lifecycle
-telemetry records Town identity and council/vote/status counts without proposal
-text, notices, names or per-read polling noise.
+proposal records its scoped wording without creating physical or ownership
+powers. Bounded civic lifecycle telemetry records Town identity and
+council/vote/status counts without proposal text, notices, names or per-read
+polling noise.
+
+**Town admission** (`PrivateWorldRuntime.TownMembership`). `TownRuntimeState.ResidentIds`
+is the only record of Town membership; household, House and position never
+change it. After every saved council decision, every Town roster change and on
+every tick, `SettleTownAdmissions` reads each Town's passed admission proposals
+and records exactly one `TownAdmissionRecord` per proposal, rereading the Towns
+after every change:
+
+- A request the newcomer made for themselves is their consent, so it is applied
+  at once.
+- A request a resident made is saved as `approved`, and the newcomer is offered
+  an `accept_admission` civic choice once they have learned the result notice.
+  Accepting needs the same Town they had when the council voted, and is not
+  offered while their own request elsewhere is undecided.
+- Applying an admission moves the newcomer and their care group: the living
+  infants, children and adolescents they are primary caregiver for who share
+  their current Town. The group leaves the old Town and joins the new one in the
+  same step, the newcomer's other open approvals lapse as `joined_elsewhere`,
+  and both councils' rosters follow their recorded adult residents.
+- An approval for someone who has died, already lives there or changed Town
+  lapses instead.
+
+An adult has one undecided request of their own at a time. A refused or
+withdrawn request for the same newcomer waits one unpaused world day unless the
+council changed, and the choice is not offered during that wait. An adult with an
+open request or approval may also ask households in that Town to take them in,
+but household admission stays a separate decision and grants no Town membership.
+
+`TownMembershipText` describes recorded membership, the rights it gives (council
+seat or vote, in-person Warehouse collection) and the admission status in one
+bounded line. The agent's `CognitionSelfContext.TownMembershipNote` includes only
+pending, approved, refused or cancelled admissions the agent learned from notices;
+the owner's agent card shows the same line from all records. `town_admission`
+telemetry records the Town, outcome, previous Town and counts only.
 
 `TownGovernmentState` stores scoped law versions, protected resident processes,
 mayoral consent and contests, and separate land/ordinary mandate terms.
@@ -810,9 +880,33 @@ while other farm stock prefers the Silo. Ready-to-eat greens and fruit go to
 the household's House. Neither stock nor ownership moves
 remotely.
 
+Ordinary milling can draw needed household grain from its Silo into its
+Farmhouse. Available and inbound Farmhouse grain reduce the pickup; recipe
+demand, free storage, reservations, carrying room and both walking routes
+still apply. Contained grain uses the existing partial pot-withdrawal rules.
+
+Food selection tests the entire harvest load, including orchard seeds, so a
+nearer oversized harvest does not hide a reachable one that fits. Making
+room uses the permitted household serving or actual harvest size. Accepted
+infant caregivers can collect household food for their dependent without
+needing to be hungry themselves; current care authority, usable food,
+reservations, capacity and real travel are checked again at execution.
+
+House pickup counts the whole vessel family against carrying and destination
+space; loose deliveries keep their four-unit limit. An unusable carried
+delivery leaves ordinary hauling and can offer `recover_household_delivery`.
+Candidate and action both check the current household-owned destination,
+physical load, selected or repaired gear, active family reservations and a
+route to camp. Recovery moves the same stock through the inventory authority,
+clears its delivery pointers and records `household_delivery_recovered`.
+Spoiled contents may be physically withdrawn from an owned usable pot, with
+the existing family, quantity, destination and reservation guards. They
+remain unusable for eating, recipes and new reservations. No agent disposal
+action or player discard control is added.
+
 **Household departure and personal custody** (`SettlementDeparture`). Ordinary decision candidates allow an adult to leave without a vote, store or collect their own goods, return borrowed household tools, explicitly accept replacement care, and found a solo household only when no suitable existing home can currently be asked. Membership exits and admissions include the complete primary-care group. The same completed House-capacity calculation checks all incoming residents; children never apply alone. The displacement transition refuses adults with a moving dependent group, leaving overcrowding eligibility and notice to #599.
 
-`InventoryLot.OwnerId` records property; optional `CarrierId` records physical custody without donation. Personal goods may remain in House storage after departure. `InventoryFixture.Relocate` preserves ownership, condition, provenance and reservations while moving an unreserved quantity. A stored personal lot is collected physically, with carrying limits, under the current household membership or a recorded departure's limited collection right. Borrowed tools retain the lender's owner ID while carried and are returned physically. Shared delivery loads retain their owning household on departure. Shared buildings, stock and job records are never reassigned to the new household. A departing worker's private production and expansion jobs pause with their existing owners and reservations; their previous work plan is retained on the departure record instead of resuming under a new household. A remaining member can take over paused work at its physical site, using the same still-available committed inputs and remaining work time. Private materials held by the former worker are not reassigned; these keep the task blocked. Held reservations keep their exact owner and stock, receive a new deadline only on resumption, and are released if the materials become unusable; canceled job records retain the original property owner.
+`InventoryLot.OwnerId` records property; optional `CarrierId` records physical custody without donation. Personal goods may remain in House storage after departure. `InventoryFixture.Relocate` preserves ownership, condition, provenance and reservations while moving an unreserved quantity. A stored personal lot is collected physically, with carrying limits, under the current household membership or a recorded departure's limited collection right. Recovery from the ground or a former household remains a routine errand. Collecting a map or field record from the current home stays available as a deliberate choice, but ranks below idle for the built-in chooser so it does not immediately retrieve knowledge goods it has just stored. Other goods retain their normal collection priority, so the built-in chooser stores only maps and field records; storing other belongings is a deliberate choice, because routine collection would fetch them straight back. Borrowed tools retain the lender's owner ID while carried and are returned physically. Shared delivery loads retain their owning household on departure. Shared buildings, stock and job records are never reassigned to the new household. A departing worker's private production and expansion jobs pause with their existing owners and reservations; their previous work plan is retained on the departure record instead of resuming under a new household. A remaining member can take over paused work at its physical site, using the same still-available committed inputs and remaining work time. Private materials held by the former worker are not reassigned; these keep the task blocked. Held reservations keep their exact owner and stock, receive a new deadline only on resumption, and are released if the materials become unusable; canceled job records retain the original property owner.
 
 Each departure allocates at most two unreserved ready-to-eat portions once. Ownership changes at allocation while the existing storage/ground location stays fixed. Saved departure records retain the allocation and collection right; retries with no current membership cannot allocate again. Caregiver IDs and ancestry stay unchanged. Dependents follow the caregiver in physical steps, and a traveling caregiver waits when a dependent falls behind. Housing, ownership, collection and care facts use normal personal-model observations and player inspection; no extra acknowledgement request is made.
 
@@ -1123,6 +1217,10 @@ Each authoritative field records its household, crop, stage, work, growth
 times and replanting reserve. Planting reserves and consumes one carried
 grain seed, cultivated-green seed or potato. Moving away, death, lost tools
 or urgent needs cancel unfinished work and release its planting input.
+Field work uses the existing illness cadence. Only a successful work stroke
+advances progress and wears the selected tool. A new planting input claim
+lasts until actual completion or interruption, so illness does not make it
+expire while the worker is still planting.
 Completed harvests remain intact. Fertility and weather affect crop growth
 or yield. Harvesting creates grain, potatoes or cultivated greens on the
 field, and grain and greens also yield two replacement seeds. One usable
@@ -1429,19 +1527,31 @@ connected-region share as a tie-break; attempt number is the final stable
 tie-break. Connected regions use diagonal neighbors, east/west wrapping when
 enabled, and no north/south wrapping. The tie-break has no minimum region-size
 threshold. Incompatible climate modes have no trial target and use one
-candidate. Coverage is measured and returned for all settings.
+candidate. Coverage is measured and returned for all settings. An attempt with
+no suitable starting clearing is recorded as failed and omitted from coverage
+measurement and ranking; other generated-map validation errors still propagate.
+Successful attempts keep their original numbers, and selection continues
+through the whole bounded set. If no map remains, preview and creation refuse
+without replacing the current world.
 
 Owner world-creation signing uses payload v3 to bind all settings and, for
 Create, the candidate attempt, terrain and map-layer digests, and explicit
 acceptance of unmet trial targets. Preview reports the selected candidate and
-coverage for each attempt. Create reruns the bounded selector, checks those
-signed identities, and builds the world from its selected map. It refuses a
-changed preview or an unaccepted miss. The selected attempt is saved in
+coverage for generated candidates and a separate transient `FailedCandidates`
+list with each unavailable attempt and its bounded `no-clearing` reason. Godot
+shows these together in attempt order without inventing zero coverage for a
+failed map. Older previews that omit the list remain readable. An all-failed
+HTTP refusal carries a recognized generation code which the client maps to a
+fixed, useful message instead of displaying arbitrary server error text.
+Create reruns the bounded selector, checks those signed identities, and builds
+the world from its selected map. It refuses a changed preview or an unaccepted
+miss. The selected attempt is saved in
 `GeographyOptions` with the visibility algorithm version and in the map
-manifest; restore regenerates that attempt without searching again. Unsupported
-Balanced Small/Medium visibility versions are refused rather than replayed with
-different terrain rules. Small and Medium remain the only playable sizes; no
-continent-count control is exposed for them. Existing saved water settings are
+manifest; restore regenerates that attempt strictly without searching again.
+The transient reports do not change signed creation or saved map authority.
+Unsupported Balanced Small/Medium visibility versions are refused rather than
+replayed with different terrain rules. Small and Medium remain the only playable
+sizes; no continent-count control is exposed for them. Existing saved water settings are
 not rewritten.
 
 ## Skills and practical lessons

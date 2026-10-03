@@ -438,6 +438,8 @@ public sealed record OwnerWorldSnapshot(
     public OwnerWorldCouncil? Council { get; init; }
     public int? LifePaceRate { get; init; }
     public OwnerWorldCalendarPace? CalendarPace { get; init; }
+    /// <summary>How dark the host says the world is: 0 in daylight, 10,000 at full night.</summary>
+    public int? DarknessBasisPoints { get; init; }
     public bool? JevEnabled { get; init; }
     public bool? ContinuityRuleActive { get; init; }
     public OwnerFounderSetup? FounderSetup { get; init; }
@@ -514,7 +516,9 @@ public sealed record OwnerWorldPreview(OwnerWorldPackedTerrain Terrain, OwnerWor
     public string? MapLayersDigest { get; init; }
     public OwnerWorldCandidateReport? Coverage { get; init; }
     public IReadOnlyList<OwnerWorldCandidateReport> Candidates { get; init; } = [];
+    public IReadOnlyList<OwnerWorldCandidateFailure> FailedCandidates { get; init; } = [];
 }
+public sealed record OwnerWorldCandidateFailure(int Attempt, string Reason);
 public sealed record OwnerWorldCandidateReport(int Attempt, int DryLandTiles, int ForestTiles,
     int MountainTiles, double ForestPercent, double MountainPercent, int ForestRegionCount,
     int LargestForestRegion, int MountainRegionCount, int LargestMountainRegion,

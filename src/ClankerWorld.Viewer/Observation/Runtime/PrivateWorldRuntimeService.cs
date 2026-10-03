@@ -567,6 +567,23 @@ public sealed partial class PrivateWorldRuntimeService(
             }
             return;
         }
+        if (worldEvent.Kind is "town_admission_accepted" or "town_admission_approved" or "town_admission_lapsed")
+        {
+            var fields = worldEvent.Detail.Split('|');
+            var accepted = worldEvent.Kind == "town_admission_accepted";
+            // An approval names the Town, newcomer and proposal; acceptance and lapse add a fourth field.
+            if (fields.Length == (worldEvent.Kind == "town_admission_approved" ? 3 : 4) &&
+                runtime.Towns.FirstOrDefault(t => t.Id == fields[0]) is { } admittingTown)
+            {
+                TownTelemetry.Admission(logger, worldEvent.WorldTick, admittingTown.Id,
+                    accepted ? "admitted" : worldEvent.Kind == "town_admission_approved" ? "awaiting_acceptance" : "lapsed:" + fields[3],
+                    accepted ? fields[2] : "none",
+                    accepted && int.TryParse(fields[3], System.Globalization.NumberStyles.None,
+                        System.Globalization.CultureInfo.InvariantCulture, out var members) ? members : 0,
+                    admittingTown.ResidentIds.Count);
+            }
+            return;
+        }
         if (worldEvent.Kind == "town_layout_site_rejected")
         {
             var fields = worldEvent.Detail.Split('|', StringSplitOptions.None);
