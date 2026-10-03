@@ -160,6 +160,40 @@ category/type/tick fields, not raw exceptions or file paths. Do not restart a
 held process before preserving its unsaved state. Filesystem fault injection
 does not establish arbitrary mid-tick rollback or crash durability.
 
+### Time of day and night
+
+Time of day is worked out from the saved tick and the world's saved ticks per
+day; nothing about it is saved. `DaylightRules` follows the 24-hour clock the
+game shows, where a tick's clock minute is its tick of day × 1,440 ÷ ticks per
+day. Night is 40% of every day, the same all year
+([#641](https://github.com/compoodment/ClankerWorld/issues/641)), centred on
+midnight: 19:12 to 04:48. Dusk and dawn each fade over the clock hour centred
+on those times (18:42–19:42 and 04:18–05:18), so the darker half of each fade
+counts as night and night covers exactly 40% of the day. At 360 ticks a day
+that is 144 ticks of night with 15-tick fades. Darkness is reported in basis
+points, 0 in daylight and 10,000 at full night. Tick 0 is midnight, so a new
+world, and its founder setup, starts at night.
+
+Night adds a provisional chill of 15 exposure points per tick at full night,
+faded in and out with the darkness (`NightChillAtFullDarkness`). It is added to
+the weather, climate and season exposure (`OutdoorExposure`), and clothing (35
+for a basic garment when dry), shelter (45) and a lit fire (+90) offset it just
+as they offset weather. The same outdoor exposure decides the choice to put on
+better clothing, the warmth budget for a scouting trip and the preference for
+making garments. Wear on a worn garment still follows the weather alone, so a
+mild night adds no repair work. In mild clear weather a basic garment or any
+shelter cancels the chill; with no protection an agent loses about a fifth of
+their warmth over a night. There are no night-only limits on choices, travel,
+work or conversation, and no sleep or energy. Night does not change weather or
+crops yet, and night length does not vary by season.
+
+The owner snapshot carries `darknessBasisPoints`, decided by the host from the
+same rule. The Godot client's `NightLayer` draws a deep blue wash, at most 40%
+opaque, over the visible map just above the ground, roads, buildings and trees,
+and below map labels, agent markers, weather and panels. It eases between the
+once-a-tick readings, shows a newly opened world's darkness at once, and looks
+the same in both themes. The World Map panel is not darkened.
+
 ## Model inputs, usage and memories
 
 A personal-model request selects one legal candidate, not a free-form dialogue

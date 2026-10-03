@@ -131,7 +131,7 @@ on the owner.
 - **How we work:** changes to CI, labels, templates, Claude Code settings
   (`.claude/`), CONTRIBUTING, AGENTS or CLAUDE.md affect every agent, so they
   are P0.
-- **At most 5 open P0 and 10 open P1 issues.** Count issues only, not pull
+- **At most 10 open P0 and 20 open P1 issues.** Count issues only, not pull
   requests. When a level is full, the least urgent issue there that the owner
   did not pick, counting the new one, goes down a level; between equals, the
   newest goes down. If the owner picked every other issue at that level, the

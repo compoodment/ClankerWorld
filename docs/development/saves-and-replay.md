@@ -476,6 +476,15 @@ The saved clock/lifecycle values govern old worlds. Restore validates matching
 society/world-system calendar values rather than silently assigning the newest
 playtest pace.
 
+Night ([#673](https://github.com/compoodment/ClankerWorld/issues/673)) adds no
+saved field: time of day is derived from the saved tick and ticks per day, so
+the checkpoint schema and every other version stay as they are. A current-schema
+save made before night existed loads unchanged; nights, and their chill on
+outdoor warmth, apply from its next tick. Its recorded history is not
+re-simulated. A world saved during dawn reloads at the same darkness and
+advances to the same bytes as the live world, which `SettlementSurvivalTests`
+checks.
+
 ## Pending model work and estates
 
 The cognition queue saves unresolved decision points. External HTTP tasks are
