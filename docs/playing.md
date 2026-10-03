@@ -35,19 +35,41 @@ that version mismatch. You can still reconnect to the existing world.
 
 Adults may leave a household without its permission. Their own goods remain theirs even in the old House; collecting them and returning borrowed tools require travel and carrying space. A primary caregiver keeps dependent children with them unless another adult explicitly takes over care. An adult seeks an accepting existing home with room for the whole group first, then may start a household alone and build a House through the usual materials and site rules. Inspect the agent to see membership, goods awaiting collection, borrowed goods, care responsibility and the housing blocker.
 
+When a House is overcrowded, inspect a resident's housing details to see who
+has notice to move out, why, how much time remains and whether expansion is
+under way. Eligible adults get one world day; pausing stops the countdown,
+and saving and loading keep the remaining time. Volunteers go first, then
+the newest eligible arrivals outside the main family. With no family majority,
+the same order applies without favoring a family.
+
+An adult with notice may ask another household with room while still living
+in the old House. Every adult in the new household must agree. If no home is
+ready when notice ends, the adult leaves the old household and keeps seeking
+a home. Only a finished expansion adds places; it can cancel an unnecessary
+notice. Children and their sole caregivers are never forced out, including
+together as a group. Their House stays overcrowded until expansion or a
+voluntary move with care preserved provides enough room.
+
 ## Create your first Town
+
+On a fresh server, **Continue** opens **New World** so you can choose the map
+before placing your first Town. Existing worlds with founders or other work
+still open normally.
 
 1. Choose **New World**. Enter a name and seed and choose Small or Medium. Other
    map options are under **+ More options** (see
    [More New World options](#more-new-world-options)).
 2. Wait for the preview. Changing an option updates it; **Create World** becomes
    available when the preview for the current choices succeeds.
-3. Create the world. It opens paused. Choose a rough site for its first Town;
+3. Create the world. It opens paused at 06:00 on Spring 1, Year 1, in daylight.
+   Choose a rough site for its first Town;
    greener shading and the hovered tips show nearby food, fertile ground, wood,
    stone and open space for Roads. These are suggestions only: the game checks
    whether the starter layout fits after you choose a site. It then places two
    Houses, a Warehouse, Farmhouse, Blacksmith and Roads. You can choose another
-   site before placing the founders.
+   site before placing the founders, including after removing an empty starter
+   Farmhouse or Blacksmith. **Redo Town site** replaces the starter layout and
+   its Roads together.
 4. Configure and place **four starting agents**. Choose each agent's provider,
    key and model. A saved key can be reused, or you can add another for the same
    provider. Then pick the model from the game's short list for that
@@ -115,6 +137,12 @@ with a picture of its ground. **Family** opens their family tree beside the
 Profile, with a portrait for each person and a heart between partners. Click
 someone to open their Profile.
 
+Handcarts appear as small wheeled carts on the map. Hover over one or inspect
+its tile to see its owner, parked or pulled state, condition and actual cargo.
+The owner's agent card also lists their carts. A broken cart keeps its goods;
+its owner can unload here or repair it with carried wood, iron fittings and rope.
+A cart holds loose goods separately from the agent's own carrying limit.
+
 When agents talk, a chat bubble appears above each participant and nearby
 listeners. Click a bubble to see who spoke and whether the conversation is
 finished or interrupted. **Show history** opens the bounded public history
@@ -151,6 +179,28 @@ to the room available; a quantity stops at that exact number. Missing personal
 materials or a full House leaves the task waiting with a reason. Storage orders
 currently cover the same seven raw materials as gathering, for adults and elders.
 
+Use **Move to tile (12, 4)** to send an agent to an exact tile. **Go to (12, 4)**
+and **Travel to (12, 4)** work too. The agent walks there normally and finishes
+only on that tile. An occupied or unreachable destination leaves the order
+blocked with a reason. These are single trips; queue another order for the
+return journey. A destination in another household's House requires an
+invitation. Urgent food or warmth needs can interrupt the trip, then it resumes.
+
+The small card and the Profile show the order the agent is on now: whether it
+is waiting, being done, interrupted or blocked, how far along it is, why it is
+held up, and how many orders are queued after it. With no open order, they
+show how the latest one ended. An order shows as finished only once the work is
+done. **All orders**, beside **Your messages** in the Profile, lists every
+order the world keeps for them: the current one, the queue in the order it will
+be done, and their six latest closed orders. Each shows your words, and any
+reply from the agent is set apart from the game's status.
+
+When a child needs a guardian, an adult can follow **Become guardian for Lina**,
+using the child's full name. The adult still has to be eligible in the current
+guardian search. The order finishes when they accept primary care; moving the
+child into their House still requires room and a shared Town. This order can be
+queued or cancelled like a food task. It cannot replace an existing guardian.
+
 To pick up personal raw materials, use **Collect my wood**, **Collect three
 clay**, or **Keep collecting stone**. Adults and elders walk to their own goods
 in their current or former household's storage, or where they were dropped.
@@ -179,6 +229,13 @@ icons with the amount in the corner. **Details** opens the rest on the left:
 who may use it, when it was built, which side its door faces, the work in
 progress, a larger storage grid with each item's name, and who is inside or
 lives there. Back (or **Escape**) returns to the small card.
+
+Every day has a night, from 19:12 to 04:48 on the clock in the top bar, with a
+short dusk and dawn. In a six-minute day that is about 2 min 24 s of night. The
+map turns a gentle dark blue but stays readable; names, agents and panels keep
+their daytime colors. Nights are colder outdoors, so an agent with no clothing,
+shelter or fire loses warmth, and their warmth bar shows it. New worlds start
+in the morning; loading a saved world keeps its recorded time.
 
 Click bare ground to inspect the recorded facts there. Agents take priority
 when they overlap the pointer. **Event Log** shows important events under a
@@ -221,9 +278,38 @@ An ordinary proposal stays open for one unpaused world day unless its result
 is settled earlier. A four-person council needs three yes votes, and an elected
 three-seat council needs two. Silence supplies no approval. Election ballots
 may change until closing, while cast proposal votes are final. Pausing stops
-these windows and council terms. Passed admission requests are recorded, but
-the separate process for joining a Town has not been connected yet; approval
-alone gives no household place or access to stored goods.
+these windows and council terms.
+
+An agent belongs to one Town or none. Traveling, visiting or losing a home
+does not change it. An adult with no Town, such as one you add outside the
+border, can walk to a Town's notice place and ask its council for admission. A
+resident can also ask the council to admit an adult nearby who has no Town, and
+that adult chooses whether to accept once they read the approval. Dependent
+children join with their caregiver. Once admitted, a resident may collect their
+Town's Warehouse stock in person, but approval never gives a House or household
+place. The agent's Profile shows their Town, what it lets them do and any
+admission in progress, and the Event Log notes approvals, admissions and
+approvals that no longer apply.
+
+Residents can also propose laws as a **subject: rule**, applying to the Town's
+claimed land, a nearby recorded site, or residents wherever they travel. Council
+votes adopt, amend or repeal them. The Towns page shows their scope and effective
+dates. These are social rules: they do not physically prevent violations or
+change who owns a building or its goods.
+
+A resident at the Town's notice place can propose changing government without
+the incumbent's permission.
+The one-day resident vote needs a majority of its opening adult electorate;
+death or departure removes a voter, while travel does not. Approval begins a
+handover of at most three days. The Towns page distinguishes an approved proposal
+from a completed handover and explains a failed transition.
+
+An elected mayor may hold the land mandate, ordinary governing authority, or
+both separately. Candidates personally agree to those specific mandates.
+Residents choose one candidate and may revise their ballot. A tie means another
+vote, never a draw. The term lasts twenty days, and a vacancy needs a new election.
+Pausing stops votes, terms and handovers. The page shows officeholders and vacant
+mandates; land hearings and enforcement have not been implemented yet.
 
 ## Pause, settings and controls
 
@@ -263,6 +349,15 @@ planned it. The panel also holds the aging override, recovery for a request
 whose reply was lost, paused world editing and paired-device management. The
 aging override and world editing need the world paused first.
 
+To set up a test, pause and use **Edit selected agent**. Choose a need and its
+percentage, goods and a quantity, a skill, or another agent for a partnership,
+then press **Apply developer edit**. The server saves accepted changes and
+marks each one **Developer edit** in the Event Log. Goods go into the selected
+agent's carried load; removal protects equipped items, filled vessels, knowledge
+records and reserved or borrowed goods. Starting a partnership requires two
+living, unpartnered adults who are not close relatives. A refused edit leaves the world
+unchanged; refresh the world view before trying again if the world changed.
+
 **Settings → Game → Model calls** shows how many model calls this installation
 has made and sets an optional limit. One count and limit cover all your worlds.
 Every call attempt counts, including failed, retried or abandoned ones; tokens
@@ -276,8 +371,10 @@ or choose **Allow 100 more calls**, then resume separately.
 
 **Save World** creates a named save for the current world. Its name starts as
 the world's date, so **Save** works straight away; type another name first if
-you like. To overwrite a save, choose its card, then **Overwrite**, and confirm;
-typing the same name does not overwrite it. World Settings offers rotating
+you like. The card under the timeline says whether the new save continues a
+branch or starts a new one. To overwrite a save, choose it, then **Overwrite**,
+and confirm; typing the same name does not overwrite it. Autosaves can't be
+overwritten. World Settings offers rotating
 autosaves as well as automatic recovery. **Load World** shows each world as a
 card with a small map of it, when it was last saved and its seed, and marks the
 current world and any it cannot open. Double-click a card, or choose it and
@@ -285,12 +382,21 @@ current world and any it cannot open. Double-click a card, or choose it and
 and Delete are unavailable while another world action finishes.
 
 To go back to an earlier save, choose the current world in Load World and
-**Load a save...**, then pick a save and **Load**. Your world as it was is saved
-first. Playing on from an older save starts a new **branch**, so the saves from
-the first version of events stay as they were. When a world has more than one
-branch, each save card names its branch, such as **Branch 2**, and each branch's
-newest save is marked **Latest**. Saves from before branches existed are listed
-as **Earlier saves**. To load a save of another world, open that world first.
+**Load a save...**, then pick a save and **Load**, or double-click it. Your world
+as it was is saved first. Playing on from an older save starts a new **branch**,
+so the saves from the first version of events stay as they were. To load a save
+of another world, open that world first.
+
+Load Save and Save World open on a **timeline** of the world's saves: a line for
+each branch across the world's days, with the seasons along the top. A new
+branch bends down from the save it grew from. Each branch's newest save has a
+small banner, older saves are open circles and autosaves are small diamonds;
+the key above the timeline shows which is which. **You are here** marks the
+world as it is now, at the end of its branch, or on a dotted **New branch** row
+when your next save will start one. Click a save to see it described
+underneath; the arrow keys also move between saves. **List** shows the saves as
+cards instead, grouped by branch, with tags such as **Branch 2** and **Latest**.
+Saves from before branches existed are shown as **Earlier saves**.
 
 **Quit to Menu** and Main Menu **Quit Game** ask for confirmation. Closing the
 last client stops time and model work after about five seconds. Returning makes

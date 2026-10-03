@@ -5,6 +5,16 @@ namespace ClankerWorld.Simulation.Tests;
 
 internal static class SettlementWeatherTestFixture
 {
+    /// <summary>
+    /// Advances a runtime to the next full daylight, if it is not already there,
+    /// so a fixture about weather alone is not also measuring the night chill.
+    /// </summary>
+    internal static async Task AdvanceToDaylightAsync(PrivateWorldRuntime world)
+    {
+        while (DaylightRules.DarknessBasisPoints(world.WorldSystems) > 0)
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+    }
+
     internal static PrivateWorldRuntimeState WithWeather(PrivateWorldRuntimeState state, WeatherKind weather)
     {
         var systems = state.WorldSystems!;

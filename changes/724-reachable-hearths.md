@@ -1,0 +1,1 @@
+- Cold agents no longer keep trying to tend a hearth blocked by other people. They can use another reachable hearth or seek cover, and keep their wood until they reach a hearth.

@@ -72,7 +72,8 @@ public sealed class OrnamentProductionTests
     [Fact]
     public async Task AnIronPickMinesFiniteRareStockWhichWalksIntoActualOrnamentRecipesAcrossReload()
     {
-        using var generated = NormalPathWorld.CreateGenerated("tool-rare-mining", _ => new Choices([]));
+        // Both finite deposits are near the Smith; the trip still includes walking across a reload.
+        using var generated = NormalPathWorld.CreateGenerated("ornament-near-deposits-350", _ => new Choices([]));
         var state = generated.ExportState();
         var smith = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == Smith);
         var owner = smith.HouseholdId!;

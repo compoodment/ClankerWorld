@@ -45,6 +45,16 @@ public static class GameUiText
         return quantity.Length == 0 ? title : title + " " + quantity;
     }
 
+    public static string HandcartDescription(OwnerWorldHandcart cart)
+    {
+        var cargo = cart.Cargo.Count == 0 ? "Empty" : string.Join(", ",
+            cart.Cargo.Select(item => $"{ItemName(item.Kind)} {item.Quantity}"));
+        var status = cart.ConditionPercent == 0 ? "Broken; unload here or repair with wood, iron fittings and rope" :
+            cart.PullerName is { } puller ? "Pulled by " + puller : "Parked";
+        return $"Handcart · {status}\nOwner: {cart.OwnerName} · Position: {cart.Position.X}, {cart.Position.Y}" +
+            $"\nCondition: {cart.ConditionPercent}% · Cargo: {cart.Cargo.Sum(item => item.Quantity)}/{cart.Capacity} · {cargo}";
+    }
+
     /// <summary>
     /// Text from an agent's model or the host with each ellipsis character
     /// (U+2026) spelled as three full stops. The body font draws that character
@@ -55,11 +65,29 @@ public static class GameUiText
     /// <summary>The ellipsis character, written as an escape so searches for it find only mistakes.</summary>
     public const string Ellipsis = "\u2026";
 
+    public static string ToolMakingRequestStatus(string status) => status switch
+    {
+        "requested" => "Asked the household · no payment taken",
+        "accepted" => "Household accepted · making from its own supplies",
+        "ready" => "Tool ready · payment still to be agreed",
+        "offered" => "Exchange offered · both traders must meet here",
+        "fulfilled" => "Purchased through the agreed exchange",
+        "refused" => "Household refused · nothing taken",
+        "withdrawn" => "Request withdrawn · goods remain household property",
+        "interrupted" => "Request stopped · goods keep their owners",
+        _ => "Status unavailable",
+    };
+
     public static string ItemName(string kind) => kind switch
     {
         "storage_pot" => "Storage pot",
+        "handcart" => "Handcart",
+        "iron_fittings" => "Iron fittings",
         "water_jug" => "Water jug",
         "fresh_water" => "Fresh water",
+        "simple_meal" => "Simple meal",
+        "stew" => "Vegetable stew",
+        "restaurant_meal" => "Restaurant meal",
         "gold_ore" => "Gold ore",
         "gold" => "Refined gold",
         "gold_ornament" => "Gold ornament",
@@ -71,6 +99,8 @@ public static class GameUiText
     {
         Pairing.OwnerAgentNameTakenException =>
             "that full name belongs to another agent. Choose a different name",
+        Pairing.OwnerWorldGenerationException =>
+            "there is no room for a first Town with these settings. Choose another seed or change the terrain settings",
         Pairing.OwnerActionCompatibilityException =>
             "this client and world server need matching updates before making this change. Update both; your device pairing can stay as it is",
         System.Net.Http.HttpRequestException { StatusCode: { } code } => code switch
@@ -158,11 +188,17 @@ public static class GameUiText
         var daysPerYear = calendarPace?.DaysPerYear ?? 365;
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(ticksPerDay);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(daysPerYear);
-        var dayIndex = worldTick / ticksPerDay;
+        var offset = calendarPace?.CalendarOffsetTicks ?? 0;
+        ArgumentOutOfRangeException.ThrowIfNegative(offset);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(offset, ticksPerDay);
+        // Shift the calendar, not elapsed world time. Splitting the raw tick
+        // first keeps even the largest representable tick overflow-safe.
+        var shiftedTickOfDay = worldTick % ticksPerDay + (long)offset;
+        var dayIndex = worldTick / ticksPerDay + shiftedTickOfDay / ticksPerDay;
         var date = SeasonDateLengths(calendarPace, dateFormat) is { } seasonLengths
             ? FormatSeasonDate(dayIndex, daysPerYear, seasonLengths)
             : FormatWorldDate(dayIndex, daysPerYear, dateFormat);
-        var minuteOfDay = (int)(((worldTick % ticksPerDay) * MinutesPerDay) / ticksPerDay);
+        var minuteOfDay = (int)((shiftedTickOfDay % ticksPerDay * MinutesPerDay) / ticksPerDay);
         var hour = minuteOfDay / 60;
         var minute = minuteOfDay % 60;
         if (!useTwelveHourClock) return $"{date} · {hour:00}:{minute:00}";
@@ -235,7 +271,7 @@ public static class GameUiText
     public static bool IsPlayerFacingEvent(string kind)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(kind);
-        return kind is "world_created" or "world_started" or "weather_changed" or "building_placed" or
+        return kind is "developer_edit" or "world_created" or "world_started" or "weather_changed" or "building_placed" or
             "building_expansion_started" or "building_expanded" or "building_expansion_cancelled" or "house_guest_invited" or "house_guest_revoked" or
             "build_started" or "build_completed" or "recipe_started" or "recipe_completed" or
             "field_work_started" or "field_prepared" or "field_planted" or "field_tended" or "field_harvested" or
@@ -249,14 +285,23 @@ public static class GameUiText
             "empty_vessel_picked_up" or
             "council_policy_adopted" or "settlement_trade_completed" or
             "business_trade_offered" or "business_trade_completed" or "business_trade_cancelled" or
-            "store_stock_collected" or "store_stock_delivered" or
+            "store_stock_collected" or "store_stock_delivered" or "household_delivery_recovered" or
+            "agent_knowledge_artifact_created" or "agent_knowledge_artifact_read" or "agent_knowledge_shared" or
+            "agent_knowledge_writing_started" or "agent_knowledge_writing_cancelled" or "agent_knowledge_material_collected" or
+            "agent_knowledge_artifact_collected" or "agent_knowledge_artifact_stored" or
+            "tool_request_placed" or "tool_request_accepted" or "tool_request_refused" or "tool_request_withdrawn" or
+            "tool_request_ready" or "tool_request_completed" or "tool_request_interrupted" or
             "ornament_worn" or "ornament_removed" or "ornament_given" or
             "inhabitant_building_proposed" or "instruction_not_understood" or "settlement_founded" or "town_founding_started" or
             "town_civic_council" or "town_civic_election" or "town_civic_runoff" or "town_civic_proposal" or "town_civic_result" or "town_civic_cancelled" or
             "town_resident_joined" or "town_resident_left" or "town_membership_evaluated" or
-            "town_building_assigned" or "town_border_expanded" or "town_founded" or "bridge_built" or
+            "town_admission_accepted" or "town_admission_approved" or "town_admission_lapsed" or
+            "land_use_requested" or "land_use_granted" or "town_building_assigned" or "town_border_expanded" or "town_land_claimed" or "town_founded" or "bridge_built" or
             "housing_request_made" or "household_joined" or "housing_request_refused" or "housing_request_expired" or
-            "housing_blocked" or "household_left" or "household_founded" or "personal_goods_collected" or
+            "handcart_attached" or "handcart_parked" or "handcart_loaded" or "handcart_unloaded" or
+            "handcart_repaired" or "handcart_transferred" or "handcart_blocked" or
+            "housing_blocked" or "relocation_notice" or "relocation_cancelled" or
+            "household_left" or "household_founded" or "personal_goods_collected" or
             "household_work_resumed" or "personal_goods_stored" or "borrowed_goods_returned" or "replacement_care_accepted" or "paused" or "resumed" or "model_call_warning";
     }
 
@@ -312,6 +357,20 @@ public static class GameUiText
     /// </summary>
     public static string ActivityPhrase(string? candidateId, string? summary)
     {
+        if (candidateId is not null && KnowledgeActionPhrase(candidateId, inProgress: true) is { } knowledgeActivity)
+            return knowledgeActivity;
+        if (candidateId?.StartsWith("tool_request_", StringComparison.Ordinal) == true)
+            return candidateId.Split(':', 2)[0] switch
+            {
+                "tool_request_place" => "asking the Blacksmith to make a tool",
+                "tool_request_visit" => "visiting the Blacksmith to discuss a tool",
+                "tool_request_accept" => "agreeing to make a tool",
+                "tool_request_refuse" => "turning down a tool request",
+                "tool_request_withdraw" => "withdrawing a tool request",
+                "tool_request_collect" => "discussing payment for a finished tool",
+                "tool_request_work" => "working on a requested tool",
+                _ => "considering a tool request",
+            };
         if (candidateId?.StartsWith("wear_ornament:", StringComparison.Ordinal) == true) return "putting on an ornament";
         if (candidateId == "remove_ornament") return "taking off an ornament";
         if (candidateId?.StartsWith("gift_ornament:", StringComparison.Ordinal) == true) return "giving an ornament";
@@ -325,6 +384,46 @@ public static class GameUiText
         return string.IsNullOrWhiteSpace(candidateId) ? "taking in the surroundings" : HumanizeIdentifier(candidateId);
     }
 
+    /// <summary>
+    /// The historical profile's will lines: who the agent named and what each
+    /// was left, or that the household inherits, then any final words.
+    /// </summary>
+    public static IReadOnlyList<string> FinalWillLines(string? status, OwnerWorldFinalWill? will)
+    {
+        var lines = new List<string>();
+        switch (status)
+        {
+            case "pending":
+                lines.Add("Final will pending.");
+                break;
+            case "accepted" when will is { Heirs.Count: > 0 }:
+                var names = will.Heirs.Select(heir => heir.Name).ToArray();
+                var joined = names.Length == 1 ? names[0] : string.Join(", ", names[..^1]) + " and " + names[^1];
+                lines.Add(will.Split == "items"
+                    ? $"Final will: belongings left item by item to {joined}."
+                    : names.Length == 1
+                        ? $"Final will: all belongings to {joined}."
+                        : $"Final will: belongings shared equally between {joined}.");
+                foreach (var heir in will.Heirs)
+                {
+                    var goods = heir.Items.Count == 0
+                        ? "nothing listed"
+                        : string.Join(", ", heir.Items.Select(item => $"{item.Quantity} {item.Kind.Replace('_', ' ')}"));
+                    lines.Add($"To {heir.Name}: {goods}");
+                }
+                break;
+            case "default":
+                lines.Add("Personal estate follows household inheritance.");
+                break;
+            default:
+                lines.Add("No current thoughts or activity.");
+                break;
+        }
+        if (will?.FinalWords is { Length: > 0 } words)
+            lines.Add($"Final words: \u201C{words}\u201D");
+        return lines;
+    }
+
     public static string HumanizeIdentifier(string value)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -333,6 +432,8 @@ public static class GameUiText
         }
 
         var normalized = value.Trim();
+        if (KnowledgeActionPhrase(normalized, inProgress: false) is { } knowledgeAction)
+            return knowledgeAction;
         if (normalized.StartsWith("return_empty_vessel:", StringComparison.Ordinal)) return "bring an empty vessel home";
         if (normalized.StartsWith("guardian_tend:", StringComparison.Ordinal)) return "look after someone who is ill";
         if (normalized.StartsWith("care:", StringComparison.Ordinal)) return "look after a child";
@@ -400,6 +501,7 @@ public static class GameUiText
             {
                 localId = localId[..versionSeparator];
             }
+            if (localId == "house-paper") return "make paper";
             return $"build {HumanizeIdentifier(localId)}";
         }
 
@@ -407,14 +509,15 @@ public static class GameUiText
         {
             "safe_idle" => "take it easy",
             "seek_food" => "find food",
+            "move_to" => "go to a tile",
             "eat_food" => "eat",
             "consume_food" => "eat",
             "collect_shared_food" => "collect food from camp",
             "harvest_food" => "gather food",
+            "gather_material" => "gather materials",
             "repair_equipment" => "repair personal equipment",
             "collect_material" => "collect personal materials",
             "store_material" => "store personal materials",
-            "gather_material" => "gather materials",
             "inspect_material_site" => "look for the requested material",
             "storage_pot" => "storage pot",
             "water_jug" => "water jug",
@@ -440,4 +543,24 @@ public static class GameUiText
         var phrase = string.Join(' ', words.Select(word => word.ToLowerInvariant()));
         return char.ToUpperInvariant(phrase[0]) + phrase[1..];
     }
+
+    private static string? KnowledgeActionPhrase(string candidateId, bool inProgress) => candidateId switch
+    {
+        "knowledge_write:field_record" => inProgress ? "writing a field record" : "write a field record",
+        "knowledge_write:field_map" => inProgress ? "drawing a field map" : "draw a field map",
+        "knowledge_write:book" => inProgress ? "writing a book" : "write a book",
+        "knowledge_continue" => inProgress ? "continuing written work" : "continue written work",
+        "knowledge_materials" => inProgress ? "collecting writing supplies" : "collect writing supplies",
+        _ when candidateId == "knowledge_collect" || candidateId.StartsWith("knowledge_collect:", StringComparison.Ordinal) =>
+            inProgress ? "collecting a written work" : "collect a written work",
+        _ when candidateId == "knowledge_store" || candidateId.StartsWith("knowledge_store:", StringComparison.Ordinal) =>
+            inProgress ? "storing a written work" : "store a written work",
+        _ when candidateId.StartsWith("knowledge_copy:", StringComparison.Ordinal) =>
+            inProgress ? "copying a written work" : "copy a written work",
+        _ when candidateId.StartsWith("knowledge_read:", StringComparison.Ordinal) =>
+            inProgress ? "reading a written work" : "read a written work",
+        _ when candidateId.StartsWith("knowledge_share:", StringComparison.Ordinal) =>
+            inProgress ? "sharing written knowledge" : "share written knowledge",
+        _ => null,
+    };
 }
