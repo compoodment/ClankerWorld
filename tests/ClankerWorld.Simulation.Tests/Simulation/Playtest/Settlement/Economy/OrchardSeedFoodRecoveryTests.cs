@@ -152,6 +152,41 @@ public sealed class OrchardSeedFoodRecoveryTests(OrchardSeedCargoFixture fixture
         world.Validate();
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AHouseholdServingThatAlreadyFitsLeavesEverySeedReserved(bool inPot)
+    {
+        var actor = fixture.Actor;
+        var state = fixture.CreateState();
+        var house = state.WorldSimulation!.Buildings.Single(building => building.HouseholdId == fixture.Household &&
+            state.WorldContent!.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId).Tags.Contains("house"));
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "orchard-household-serving", "food",
+            fixture.Household, 1, storageBuildingId: house.InstanceId);
+        if (inPot)
+        {
+            inventory = InventoryFixture.AddLot(inventory, "orchard-serving-pot", InventoryContainerRules.StoragePot,
+                fixture.Household, 1, storageBuildingId: house.InstanceId);
+            inventory = InventoryFixture.PutIntoContainer(inventory, "orchard-serving-pot-fill", fixture.Household,
+                "orchard-serving-pot", "orchard-household-serving", 1);
+        }
+        var claims = inventory.Reservations.Where(item => item.Purpose == "orchard_replanting").ToArray();
+        var choices = new Choices(["consume_food", "collect_shared_food", "make_room_for_food"]);
+        using var world = Restore(WithInventory(state, inventory), actor, choices);
+        var fullness = world.Inhabitants.Single(person => person.InhabitantId == actor).HungerBasisPoints;
+        await AdvanceUntil(world, () => world.ExportState().Events.Any(item => item.Kind == "food_consumed" &&
+            item.Detail == actor), 60);
+
+        Assert.DoesNotContain("make_room_for_food", choices.Offered);
+        Assert.Empty(Setdowns(world, actor));
+        Assert.All(claims, claim => Assert.Equal(claim, world.Society.Inventory.GetReservation(claim.Id)));
+        Assert.Equal(5, CarriedSeeds(world.Society.Inventory, actor));
+        Assert.True(world.Inhabitants.Single(person => person.InhabitantId == actor).HungerBasisPoints > fullness);
+        if (inPot)
+            Assert.Contains(world.Society.Inventory.Events, item => item.Kind == "container_contents_taken");
+        world.Validate();
+    }
+
     [Fact]
     public async Task UnreachableHouseAndCampCannotReleaseOrRelocateSeeds()
     {
