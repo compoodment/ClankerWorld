@@ -12,7 +12,7 @@ This file deliberately names no versions, test counts, assemblies or slow tests.
 ## 1. Orient
 
 - Read `AGENTS.md`, `CONTRIBUTING.md` and `docs/development/build-and-test.md`. Read the documents that state the contracts tests protect, starting with the core rules in `docs/development/how-it-works.md`, `docs/development/saves-and-replay.md` and `docs/development/device-pairing.md`.
-- Check the working tree, open pull requests and recent merges. Deleting a test conflicts with every open pull request that edits the same file, so leave those files alone or coordinate first.
+- Check the working tree, open pull requests and recent merges. A removal conflicts with an open pull request only where both change the same lines, so don't rule out whole files; check each removal before pushing (section 6).
 - Work in an isolated checkout, such as a `git worktree`, and record its base commit. Keep reports, ledgers and scratch output outside the repository diff.
 - Discover the current setup:
   - the SDK, from `global.json`;
@@ -78,6 +78,13 @@ Judge what the assertions actually detect, not what the name suggests. Prefer a 
 
 Audit by production ownership, so parallel reviewers read distinct lanes: world, kernel, cognition and content in Simulation; the playtest runtime and settlement; Viewer HTTP, control, persistence and providers; the Godot protocol, pairing, client state and UI; documentation and architecture. Read whole test bodies and theory data, the owning implementation and its callers, overlapping suites, CI filters and the relevant Git history before choosing a removal.
 
+**Running the review with several reviewers:**
+- Find each candidate's file from its method declaration, not its class name: a class split across files (`partial`) puts its tests in several files. `remove_tests.py` locates them this way.
+- Give each reviewer its candidates together with the kept tests that overlap each one most, by the share of the candidate's covered lines they also cover. The per-test reports hold this.
+- Reviewers only read. Don't edit the checkout they're reading; try removals in a separate worktree.
+- A reviewer never names another candidate as retained proof, because that one may go too. Once every ledger is in, reconcile: a test kept only because its proof was a candidate in another lane can go if that other test was kept.
+- Expect reviewers to keep a large share of the candidates. Zero unique coverage often still hides a distinct assertion, refusal or edge case.
+
 ## 5. Keep a ledger
 
 Before deleting anything, write one ledger entry per candidate:
@@ -94,8 +101,14 @@ Mark each entry retain, repair, consolidate or delete. Cover every file in scope
 
 ## 6. Remove, then verify
 
-- Remove evidence-backed candidates in coherent batches, one ownership lane at a time. Move any distinct assertion into the test that stays before deleting its duplicate.
-- Delete test support that becomes unused. Change a production seam only when its callers are proven dead and focused checks pass. Never add production changes just to reach a quota.
+- Remove evidence-backed candidates in coherent batches, one ownership lane at a time. Move any distinct assertion into the test that stays before deleting its duplicate. `python skills/test-audit/scripts/remove_tests.py <ledger.json>` removes the methods and theory rows a ledger marks `delete` or `delete_rows`, with their attributes and doc comments.
+- Delete test support that becomes unused. Change a production seam only when its callers are proven dead and focused checks pass. Never add production changes just to reach a quota. To find what the removals freed:
+  - Add a temporary `.editorconfig` beside the test project that raises IDE0051, IDE0052, IDE0060 and IDE0005 to warnings.
+  - Build before and after with `-p:EnforceCodeStyleInBuild=true -p:GenerateDocumentationFile=true -p:TreatWarningsAsErrors=false` and `--no-incremental`.
+  - Clean up only warnings that are new. IDE0005 reports one warning per file however many `using` lines are unnecessary, so repeat until no new warning appears.
+  - Unused private nested types aren't reported, so search for any helper class the reviewers named. Delete test files left without tests.
+  - Remove the temporary `.editorconfig`.
+- Before pushing, check the removals against every open pull request that changes tests. Commit them, then run `git merge-tree --write-tree --name-only HEAD <pr-head>` and the same against the commit before the removals. A file that conflicts only in the first holds a removal that conflicts. Put back those removals, trying them one at a time so the rest can stay. Usually that pull request is changing the test itself, so list the removal in a follow-up issue blocked by it, rather than deleting a test someone is editing.
 - Never weaken assertions, coverage settings, CI routing or a supported contract to meet a number. If the evidence can't support the requested count, stop and report the measured limit.
 - Run the retained sibling tests, then the full Release suite with coverage into `<evidence>/final`, then compare:
 
@@ -105,8 +118,9 @@ Mark each entry retain, repair, consolidate or delete. Cover every file in scope
   ```
 
   The comparator refuses empty reports, malformed counts, test assemblies that report anything other than their linked source, and a changed set of files, lines or branches. It gates total line and branch coverage; `--threshold-scope each` gates every assembly as well. Read "within N%" as at most N percentage points unless told otherwise, and report the relative change too. Read every lost line and branch, not just the totals. Unchanged coverage is necessary evidence, not proof that every behavioral assertion survives.
+- For each lost line, look up in the per-test reports which tests reached it. If a kept test reaches it on its own, the difference is run-to-run variation in a timing-dependent test, and the report should say so. Otherwise restore the removed test that reached it, or explain why losing it is acceptable.
 - Use the collector's summary counters for total branches: Coverlet counts some branches with no mapped source line, and the assembly branch rates in Cobertura are rounded. Don't substitute a sum of visible branch fractions.
-- If the comparator reports a scope change between two builds of identical production code, generated source such as logging is usually ordering differently. Confirm the production and configuration trees are identical, copy the same production DLL and PDB bytes into both test output folders, and repeat both runs with `--no-build`. Record the hashes. Never bypass the scope check.
+- If the comparator reports a scope change between two builds of identical production code, generated source such as logging is usually ordering differently. Confirm the production and configuration trees are identical, copy the same production DLL and PDB bytes into both test output folders, and repeat with `--no-build` every run whose production bytes differ. For example, build the baseline's tests in a worktree at the base commit, copy in the final build's production DLLs and PDBs, and re-run the baseline. Record the hashes. Never bypass the scope check.
 - If instrumentation makes an unmodified test fail on timing, keep the test and investigate. Repeat both full runs with the same documented scheduling, such as `-- xUnit.MaxParallelThreads=4`, rather than dropping cases or relaxing assertions.
 - Where it's unclear whether a retained test really covers a removed one, make a temporary production mutation that the removed test caught. Check that a retained test fails too, then restore the source byte for byte.
 - Run `dotnet format --verify-no-changes --no-restore`, `git diff --check`, and the repository's native Windows and Godot smoke and export gates that apply. Have a reviewer who did not choose the deletions compare them with the retained proof.
@@ -127,3 +141,7 @@ Follow the repository's current review and merge rules. Running an audit does no
 ## Adding or changing a test
 
 Before writing a test, name the externally observable result it checks, a plausible regression it would catch, the proof the suite is missing today, and the production boundary that exercises it. Avoid test-only public hooks when a real boundary works. A bug's regression test should fail with the bug present. Keep each test quick, and start it as close as possible to the moment it checks.
+
+## Changing this skill
+
+Follow [skills/README.md](../README.md). The scripts have regression checks: run `python -m unittest test_audit_tools` in `skills/test-audit/scripts`, and add a check when you change a script's behavior.

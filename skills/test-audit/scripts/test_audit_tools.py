@@ -13,6 +13,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import per_test_coverage as runner
+import remove_tests
 import unique_coverage as unique
 import trx_summary
 
@@ -332,6 +333,73 @@ class MeasurementTests(unittest.TestCase):
         (folder / "coverage.cobertura.xml").write_text("<coverage/>")
         with self.assertRaisesRegex(ValueError, "[Ii]ncomplete|[Uu]nfinished"):
             unique.load(self.out)
+
+
+class RemoveTestsTests(unittest.TestCase):
+    SOURCE = """namespace Example;
+
+public sealed partial class SampleTests
+{
+    /// <summary>Braces in literals and comments must not end the method early.</summary>
+    [Fact]
+    public void Keeps()
+    {
+        Assert.Equal("}", "}");
+    }
+
+    /// <summary>Removed with its comment and attribute.</summary>
+    [Fact]
+    public void Removed()
+    {
+        var text = $"{{ {1} }}" + @"}" + "\\"}"; // }
+        /* } */
+        Assert.Equal('}', '}');
+    }
+
+    [Fact]
+    public void Expression() => Run(() =>
+    {
+        Step();
+    });
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void Rows(int value) => Assert.True(value > 0);
+
+    private static void Run(Action action) => action();
+
+    private static void Step() { }
+}
+"""
+
+    def test_a_removed_method_takes_its_comment_and_attributes_and_nothing_else(self):
+        text = remove_tests.remove_entry(self.SOURCE, {"test": "Example.SampleTests.Removed", "decision": "delete"})
+        self.assertNotIn("Removed", text)
+        self.assertIn("public void Keeps()\n    {\n        Assert.Equal", text)
+        self.assertIn("    }\n\n    [Fact]\n    public void Expression()", text)
+
+    def test_an_expression_body_ends_after_its_lambda_block(self):
+        text = remove_tests.remove_entry(self.SOURCE, {"test": "Example.SampleTests.Expression", "decision": "delete"})
+        self.assertNotIn("Step();", text)
+        self.assertIn("[Theory]", text)
+        self.assertIn("private static void Step() { }", text)
+
+    def test_rows_go_one_at_a_time(self):
+        text = remove_tests.remove_entry(self.SOURCE, {"test": "Example.SampleTests.Rows", "decision": "delete_rows",
+                                                       "rows": ["[InlineData(2)]"]})
+        self.assertIn("[InlineData(1)]", text)
+        self.assertNotIn("[InlineData(2)]", text)
+        self.assertIn("public void Rows(int value)", text)
+
+    def test_a_method_of_a_split_class_is_found_in_its_own_file(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "SampleTests.cs").write_text(self.SOURCE)
+            (root / "SampleTests.More.cs").write_text(
+                "public sealed partial class SampleTests\n{\n    [Fact]\n    public void Elsewhere() { }\n}\n")
+            entry = {"test": "Example.SampleTests.Elsewhere", "decision": "delete", "file": str(root / "SampleTests.cs")}
+            self.assertEqual(root / "SampleTests.More.cs", remove_tests.locate(entry, root))
 
 
 if __name__ == "__main__":
