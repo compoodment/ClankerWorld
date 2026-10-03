@@ -37,48 +37,6 @@ public sealed partial class PrivateWorldRuntime
         return true;
     }
 
-    private void CreateKnowledgeArtifact(string actor, IReadOnlyList<GridPoint> positions)
-    {
-        var facts = positions.Distinct()
-            .Select(position => knowledge.Facts.FirstOrDefault(fact => fact.OwnerId == actor && fact.Position == position))
-            .Where(fact => fact is not null)
-            .Cast<AgentKnowledgeFact>()
-            .Take(AgentKnowledgeRules.MaximumFactsPerArtifact).ToArray();
-        if (facts.Length == 0)
-            return;
-
-        if (FreeCarryCapacity(actor) < 1)
-        {
-            // The discoveries remain personal knowledge even when there is no
-            // room to create their physical, carryable copy.
-            AppendEvent("agent_knowledge_artifact_limited", $"{actor}|carrying_full|{facts.Length}");
-            return;
-        }
-
-        var createdByActor = knowledge.Artifacts.Count(item => item.CreatorId == actor);
-        if (createdByActor >= AgentKnowledgeRules.MaximumArtifactsPerCreator ||
-            knowledge.Artifacts.Count >= AgentKnowledgeRules.MaximumArtifactsInWorld)
-        {
-            AppendEvent("agent_knowledge_artifact_limited", $"{actor}|artifact_cap|{facts.Length}");
-            return;
-        }
-
-        var sequence = knowledge.Artifacts.Count + 1;
-        var kind = facts.Length == 1 ? "field_record" : "field_map";
-        var artifactId = $"knowledge-artifact-{sequence:D6}";
-        var lotId = $"knowledge-lot-{sequence:D6}";
-        var title = facts.Length == 1 ? "Field record · 1 site" : $"Field map · {facts.Length} sites";
-        ApplyInventoryTransition(inventory => InventoryFixture.AddLot(
-            inventory, lotId, kind, actor, 1, WorldTick));
-        knowledge = knowledge with
-        {
-            Artifacts = knowledge.Artifacts.Append(new AgentKnowledgeArtifact(
-                artifactId, actor, lotId, kind, title, WorldTick, facts)).ToArray(),
-        };
-        checkpointSchemaVersion = StateSchemaVersion;
-        AppendEvent("agent_knowledge_artifact_created", $"{actor}|{artifactId}|{kind}|{facts.Length}");
-    }
-
     private void AddKnowledgeCandidates(
         List<CognitionCandidate> candidates,
         string actor,
@@ -87,6 +45,8 @@ public sealed partial class PrivateWorldRuntime
         if (NeedsUrgentWarmth(person))
             return;
 
+        AddKnowledgeWritingCandidates(candidates, actor, person);
+        AddKnowledgeStorageCandidates(candidates, actor, person);
         foreach (var artifact in HeldKnowledgeArtifacts(actor))
         {
             foreach (var target in inhabitants.Values
@@ -100,7 +60,7 @@ public sealed partial class PrivateWorldRuntime
                 var targetName = society.Checkpoint.GetInhabitant(target.InhabitantId).Name;
                 candidates.Add(new CognitionCandidate(
                     KnowledgeSharePrefix + artifact.Id + "|" + target.InhabitantId,
-                    $"Share {artifact.Title} with {targetName}; they can copy sites they do not already know, and you keep your copy.",
+                    $"Share {artifact.Title} with {targetName}; they can learn the written sites they do not already know, and you keep the physical artifact.",
                     52));
             }
         }
@@ -137,7 +97,7 @@ public sealed partial class PrivateWorldRuntime
     private void ReadIfKnowledgeArtifact(string lotId, string sourceAgentId, string recipientId)
     {
         var artifact = knowledge.Artifacts.FirstOrDefault(item => item.LotId == lotId);
-        if (artifact is null)
+        if (artifact is null || !HeldKnowledgeArtifacts(recipientId).Any(item => item.Id == artifact.Id))
             return;
         var learned = LearnArtifactFacts(recipientId, sourceAgentId, artifact, "read");
         if (learned > 0)
@@ -195,7 +155,9 @@ public sealed partial class PrivateWorldRuntime
     private AgentKnowledgeArtifact[] HeldKnowledgeArtifacts(string ownerId)
     {
         var heldLotIds = society.Checkpoint.Inventory.Lots
-            .Where(item => PersonalEquipmentRules.IsCarried(item, ownerId) && item.ItemKind is ("field_map" or "field_record"))
+            .Where(item => item.OwnerId == ownerId && PersonalEquipmentRules.IsCarried(item, ownerId) &&
+                item.DeliveryBuildingId is null && item.ContainerLotId is null &&
+                AgentKnowledgeRules.IsArtifactKind(item.ItemKind) && AvailableLotQuantity(item) == 1)
             .Select(item => item.Id).ToHashSet(StringComparer.Ordinal);
         return knowledge.Artifacts.Where(item => heldLotIds.Contains(item.LotId))
             .OrderBy(item => item.CreatedTick).ThenBy(item => item.Id, StringComparer.Ordinal).ToArray();

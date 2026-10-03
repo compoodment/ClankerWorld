@@ -1,5 +1,5 @@
 // Decides what the Verify workflow (.github/workflows/ci.yml) runs:
-//   node ci-plan.js scope < changed-files   prints code=true, or code=false for a documentation-only change
+//   node ci-plan.js scope < changed-files   prints code= and tests=: whether to run the code checks and the test suite
 //   node ci-plan.js matrix                  prints shards=[1,2,...], one entry per test job
 //   node ci-plan.js plan <timings-dir>      prints filter_1=... and so on, one dotnet test --filter per test job
 //   node ci-plan.js filter <shard>          prints the fixed fallback filter for one test job
@@ -215,16 +215,49 @@ function slowReport(times, limit = SlowTestSeconds, top = 10) {
   return { summary, warnings };
 }
 
-// Main always runs everything; a pull request skips the code checks only when every changed
-// file is documentation. An empty or unreadable list counts as code.
-function changesCode(files) {
+// The test project, and the client folder it compiles a few files from.
+const TestProject = 'tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.csproj';
+const ClientFolder = 'src/ClankerWorld.GodotClient/';
+
+// The repository paths of the files the test project compiles from outside its folder, or null
+// when that can't be known (a wildcard include), so every client file counts as compiled.
+function compiledFiles(projectText) {
+  const files = new Set();
+  for (const [, include] of projectText.matchAll(/<Compile\s+Include="([^"]+)"/g)) {
+    if (/[*?]/.test(include)) return null;
+    files.add(path.posix.normalize(path.posix.join(path.posix.dirname(TestProject), include.replaceAll('\\', '/'))));
+  }
+  return files;
+}
+
+function readCompiledFiles() {
+  try {
+    return compiledFiles(fs.readFileSync(TestProject, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+// What a change needs. Main always runs everything, and an empty or unreadable list counts as
+// everything. A change made only of documentation skips the code checks and the test suite. A
+// change made only of documentation and Godot client files the test project does not compile
+// runs the code checks but skips the test suite: those files can't change a test result.
+function planScope(files, compiled = readCompiledFiles()) {
   const changed = files.map(file => file.trim()).filter(file => file !== '');
-  return changed.length === 0 || !changed.every(isDocumentation);
+  if (changed.length === 0) return { code: true, tests: true };
+  const clientOnly = file => compiled !== null && file.startsWith(ClientFolder) && !compiled.has(file);
+  return {
+    code: !changed.every(isDocumentation),
+    tests: !changed.every(file => isDocumentation(file) || clientOnly(file)),
+  };
 }
 
 function main(args, input) {
   const [command, value] = args;
-  if (command === 'scope') return `code=${changesCode(input.split('\n'))}`;
+  if (command === 'scope') {
+    const { code, tests } = planScope(input.split('\n'));
+    return `code=${code}\ntests=${tests}`;
+  }
   if (command === 'matrix') return `shards=${JSON.stringify(Array.from({ length: shardCount() }, (_, i) => i + 1))}`;
   if (command === 'filter') return testFilter(Number(value));
   throw new Error('Usage: ci-plan.js scope | matrix | plan <timings-dir> | filter <shard> | slow <results-dir>');
@@ -249,5 +282,5 @@ if (require.main === module) {
 
 module.exports = {
   PinnedShards, Cores, SlowTestSeconds, namePart, clause, shardCount, testFilter, parseTrx, readTimings,
-  planShards, planFilters, slowReport, changesCode, main,
+  planShards, planFilters, slowReport, compiledFiles, planScope, main,
 };
