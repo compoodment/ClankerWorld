@@ -497,7 +497,8 @@ public sealed class OwnerWorldObservationStore
             CalendarPace = state.WorldSystems is { } worldSystems
                 ? new ViewerCalendarPace(worldSystems.Config.TicksPerDay, worldSystems.Config.DaysPerYear,
                     worldSystems.Config.SpringDays, worldSystems.Config.SummerDays,
-                    worldSystems.Config.AutumnDays, worldSystems.Config.WinterDays)
+                    worldSystems.Config.AutumnDays, worldSystems.Config.WinterDays,
+                    worldSystems.Config.CalendarOffsetTicks)
                 : null,
             Authoring = new ViewerAuthoringState(
                 state.Society.Society.IsPaused,
@@ -871,7 +872,8 @@ public sealed class OwnerWorldObservationStore
         }
         if (TownMembershipText.Describe(state.Towns ?? [], state.Society.Society, inhabitant.Id,
                 state.WorldSystems!.Config.TicksPerDay,
-                TownMembershipText.TownsWithWarehouse(state.WorldSimulation, state.WorldContent!)) is { } townMembership)
+                TownMembershipText.TownsWithWarehouse(state.WorldSimulation, state.WorldContent!),
+                calendarOffsetTicks: state.WorldSystems.Config.CalendarOffsetTicks) is { } townMembership)
             decisionFactors.Add(new ViewerDecisionFactor("town-membership", townMembership));
         decisionFactors.AddRange(IdentityMomentFactors(physical));
         if (physical.ChildModelSelection is { Provider: { } birthProvider } birthModel)
