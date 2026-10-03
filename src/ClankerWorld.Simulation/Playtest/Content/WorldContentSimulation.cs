@@ -44,6 +44,9 @@ public sealed record WorldProductionJob(
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? OwnerId { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? OrderInstructionId { get; init; }
 }
 
 public sealed record WorldContentSimulationState(

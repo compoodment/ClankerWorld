@@ -2514,6 +2514,33 @@ public partial class Main
                 !renderedMessages.Contains("Suggestion waiting for their personal model\n“You said: Try the sunny riverbank next.”", StringComparison.Ordinal) ||
                 renderedMessages.Split("You said:", StringSplitOptions.None).Length - 1 != 4)
                 throw new InvalidOperationException("Keeping the active task visible must preserve the newest unread suggestion and the four-message history limit.");
+            foreach (var (productionOrder, expectedSummary) in new (OwnerWorldInstructionOrder Order, string Summary)[]
+            {
+                (new("produce_item", "doing", 4, 2, "output_items", false, TargetOutputKind: "cloth"),
+                    "Doing · Making cloth · 2/4 items made"),
+                (new("produce_item", "doing", 2, 1, "production_batches", false, TargetOutputKind: "gold"),
+                    "Doing · Making refined gold · 1/2 batches completed"),
+                (new("produce_item", "blocked", 2, 0, "output_items", false,
+                    BlockedReason: "The House needs clay.", TargetOutputKind: "storage_pot"),
+                    "Blocked · Making storage pot · 0/2 items made · The House needs clay."),
+                (new("produce_item", "doing", 1, 3, "production_batches", true, TargetOutputKind: "cloth"),
+                    "Doing · Making cloth · 3 batches completed so far, repeats until cancelled"),
+            })
+            {
+                RenderSelectedInhabitantCard(occupied with
+                {
+                    Instructions =
+                    [
+                        new OwnerWorldInstruction("message-production-order", founder.Id, "must_do",
+                            "Make the requested goods.", "queued", 0, 0, 1, Order: productionOrder),
+                    ],
+                });
+                renderedMessages = instructionHistory.GetParsedText();
+                if (!renderedMessages.Contains(expectedSummary + "\n“You said: Make the requested goods.”", StringComparison.Ordinal) ||
+                    !instructionCancelButton.Visible)
+                    throw new InvalidOperationException($"Production tasks must show the named goods, actual item or batch progress and any blocker: {renderedMessages}");
+            }
+            RenderSelectedInhabitantCard(queuedOrderSnapshot);
             var alreadyFinished = OrderCancellationResultText(
                 new OwnerOrderControlReceipt("order-private-id", "finished", false, 0, 0));
             var alreadyUnrecognized = OrderCancellationResultText(

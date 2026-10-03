@@ -176,6 +176,22 @@ Only finished repairs count. Missing items, materials, carrying space or a work
 site leaves the task waiting. Queue, cancellation and save/reload also work for
 these orders. Tools, weapons and named work sites are not supported repair targets.
 
+To make goods, try **Make two sacks**, **Make rope**, or **Mill flour**. Adults
+and elders use the usual work site, ingredients and tools. A plain request
+means one recipe batch; an item count must fit the recipe's whole batches.
+For example, **Make two house bandages** uses one batch, while **Make one
+house bandage** is not understood because that recipe makes two. **Make two batches of
+house bandages** makes four. **Keep making rope** repeats until cancelled.
+Cooking names the existing recipe: **Cook household meals**, **Cook camp
+meals**, or **Cook hearty meals**. Their batches make four, four and five
+food items respectively. Use these names to distinguish the recipes.
+Bandages likewise name **house bandages** or **tailor bandages**.
+Add **at (12, 4)** to use only the work site at that tile. Missing stock or an
+unavailable work site leaves the task blocked with a reason. Goods retain
+the normal recipe ownership and storage; ordering them does not make them
+the agent's personal property. Queue, cancellation and save/reload preserve
+the remaining task. Urgent survival pauses unfinished production.
+
 An instruction the game cannot understand leaves the current order running.
 Unsupported requests, such as "build a house" or "gather cloth," close as not
 understood and appear in the Event Log. Recognized orders follow normal access

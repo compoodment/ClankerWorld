@@ -322,6 +322,7 @@ public static class GameUiText
         if (candidateId?.StartsWith("medical_treat:", StringComparison.Ordinal) == true) return "giving medicine";
         if (!string.IsNullOrWhiteSpace(summary) && !summary.Contains(':', StringComparison.Ordinal))
             return summary.Trim();
+        if (candidateId == "produce_item") return "making goods";
         return string.IsNullOrWhiteSpace(candidateId) ? "taking in the surroundings" : HumanizeIdentifier(candidateId);
     }
 
@@ -424,6 +425,7 @@ public static class GameUiText
             "store_material" => "store personal materials",
             "store_equipment" => "store personal equipment",
             "gather_material" => "gather materials",
+            "produce_item" => "make goods",
             "inspect_material_site" => "look for the requested material",
             "storage_pot" => "storage pot",
             "water_jug" => "water jug",

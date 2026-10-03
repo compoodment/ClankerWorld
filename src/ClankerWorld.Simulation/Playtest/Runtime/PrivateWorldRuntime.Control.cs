@@ -123,6 +123,7 @@ public sealed partial class PrivateWorldRuntime
                 completedInstructionIds.Add(instruction.InstructionId);
                 CancelRepairForOrder(instruction);
                 CancelFieldWorkForOrder(instruction);
+                CancelProductionForOrder(instruction);
                 status = "cancelled";
                 AppendEvent("instruction_order_cancelled", $"{instruction.TargetInhabitantId}:{instruction.InstructionId}:owner");
             }
@@ -326,6 +327,7 @@ public sealed partial class PrivateWorldRuntime
             completedInstructionIds.Add(instruction.InstructionId);
             CancelRepairForOrder(instruction);
             CancelFieldWorkForOrder(instruction);
+            CancelProductionForOrder(instruction);
             AppendEvent("instruction_order_cancelled", $"{inhabitantId}:{instruction.InstructionId}:replaced");
         }
         checkpointSchemaVersion = StateSchemaVersion;
@@ -392,12 +394,14 @@ public sealed partial class PrivateWorldRuntime
         "store_material" => "store your own carried material in your House",
         "store_equipment" => "store your own carried equipment in your House",
         "gather_material" => "gather the requested material from a natural source",
+        "produce_item" => "make the requested goods at a permitted workstation",
         _ => null,
     };
 
     private OwnerInstructionOrder? ParseInstructionOrder(string text)
     {
-        return PrivateWorldInstructionOrderParser.Parse(text, map.Resources, FoodKnowledgeKind);
+        return PrivateWorldInstructionOrderParser.Parse(text, map.Resources, FoodKnowledgeKind,
+            PrivateWorldProductionOrderCatalog.Available(worldContent));
     }
 
     // A direct order that names no action the game can carry out is closed
