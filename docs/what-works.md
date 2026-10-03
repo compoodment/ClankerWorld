@@ -510,6 +510,9 @@ and natural storm cover. This is a basic
 version: it has not been checked by hand in the Windows game yet. New Shelters,
 Storehouses,
 Cooking fires and Stone hearths are retired; standing ones in old saves remain.
+Cold adults use hearths they can reach. A blocked hearth does not keep them
+from tending another reachable hearth or seeking natural storm cover; wood
+is used only after they arrive.
 The Weaving frame and its woven clothing are gone. Each starting agent's
 garment waits in their household's House, and new clothing comes only from a
 household's Tailor Shop.
