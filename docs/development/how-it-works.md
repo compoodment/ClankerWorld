@@ -810,9 +810,11 @@ inventory are unchanged. Ordinary law prose cannot execute a land claim.
 
 Household land requests use the same bounded `civic_land_tiles` field for
 already titled land. The choice names the agent's tile and up to six free Town
-tiles nearest first: no use right, pending request, building, road or field.
-Filing refuses tiles the household already holds and buildings with no
-recorded right; another household's recorded right is contested as a dispute.
+tiles nearest first: no use right, pending request, building, expansion, road
+or field.
+Filing refuses tiles the household already holds and other owners' buildings
+and running expansions with no recorded right; another household's recorded
+right is contested as a dispute.
 A nonconflicting request opens an ordinary `land_use`
 Council proposal. Its canonical key includes the household, exact tiles and
 optional agreed end date. Filing posts a notice but supplies no acceptance.
@@ -1123,10 +1125,11 @@ the saved flag and appends `continuity_rule_on` or `continuity_rule_off`
 one.
 
 While the rule is on, an eligible couple is an accepted partnership that
-also passes the ordinary parenthood checks (both adults or elders, both with
-a household, not close kin) where neither partner is a parent or caregiver of
-a living infant. A couple first gets a deadline when it becomes eligible, and
-loses it when it stops being eligible or the rule turns off. Until the
+also passes the ordinary parenthood checks (both adults, since elders cannot
+have children; both with a household; not close kin) where neither partner is
+a parent or caregiver of a living infant. A couple first gets a deadline when
+it becomes eligible, and loses it when it stops being eligible or the rule
+turns off. Until the
 deadline, `parent_postpone:{owner}` replaces both `parent_decline` and
 `parent_cancel`, and moves the plan to the inactive `postponed` stage; refusal
 candidates are neither offered nor applied. A couple held by the rule may

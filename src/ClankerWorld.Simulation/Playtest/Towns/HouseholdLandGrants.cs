@@ -156,11 +156,18 @@ public sealed partial class PrivateWorldRuntime
             .SelectMany(building => WorldContentSimulationRules.Footprint(definitions[building.DefinitionId], building)).ToHashSet();
     }
 
-    /// <summary>Free Town-titled land nearest first: no use right, pending request, building, road or field.</summary>
+    /// <summary>Tiles a running or paused expansion is building on, for the buildings <paramref name="include"/> selects.</summary>
+    private HashSet<GridPoint> ExpansionWorkTiles(Func<PlacedBuilding?, bool> include) =>
+        (worldSimulation.BuildingExpansions ?? []).Where(job => job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused &&
+                include(worldSimulation.Buildings.FirstOrDefault(building => building.InstanceId == job.BuildingInstanceId)))
+            .SelectMany(ExpansionTiles).ToHashSet();
+
+    /// <summary>Free Town-titled land nearest first: no use right, pending request, building, expansion, road or field.</summary>
     private GridPoint[] RequestableLandNear(TownRuntimeState town, GridPoint from, int count)
     {
         var taken = HouseholdLandHeldByOthers(null);
         taken.UnionWith(BuildingFootprintTiles(_ => true));
+        taken.UnionWith(ExpansionWorkTiles(_ => true));
         taken.UnionWith(RoadAndBridgeTiles());
         taken.UnionWith(fields.Select(field => field.Position));
         return townLandTitles.Where(title => title.TownId == town.Id).SelectMany(title => title.Tiles)

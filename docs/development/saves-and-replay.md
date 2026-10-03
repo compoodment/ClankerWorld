@@ -704,6 +704,15 @@ which branch and save the running world continues from. Loading a save moves it
 to that save; every new save moves it to the new save. These are save metadata
 only: checkpoints, events and replay are unchanged.
 
+The owner's client reads the record for the timeline's **You are here** marker
+through the signed `save-timeline` control action
+(`POST /api/v1/owner/saves/timeline`). It answers with the save the running
+world continues from, that save's branch and time, whether the next save starts
+a new branch, and the branch number the next save will use even after deletions.
+The answer comes from the same checks saving uses, so the two cannot
+disagree, and reading it changes nothing. A host from before this action
+answers 404, and the client then leaves the marker out.
+
 A new save continues the recorded branch unless something else on that branch
 has a higher position. Positions advance even while paused and survive deletion
 of intermediate saves, so equal world ticks do not mix separate histories.
