@@ -131,6 +131,7 @@ public sealed record OwnerWorldCalendarPace(
     int WinterDays = 0);
 public sealed record OwnerFounderSetup(int Required, int Placed, bool Started)
 {
+    public bool RequiresWorldCreation { get; init; }
     public bool CanChooseTownSite { get; init; }
     public bool HasAcceptedTownSite { get; init; }
     public string? LastFounderId { get; init; }

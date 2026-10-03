@@ -42,6 +42,10 @@ test alone does not make it available in the game.
 | Developer tools | Available in the game | **F12** opens them in a world without pausing it: the tile's coordinates and facts, frame time, how long the server takes per step of world time, the agent count, jumping to an agent and drawing their planned path, plus the aging override, lost-reply recovery, paused world editing and paired-device management. Logged direct edits are not built yet ([#677](https://github.com/compoodment/ClankerWorld/issues/677)), and there are no time tools such as stepping one tick. The Windows playtest is pending. |
 | Display and interface settings | Available in the game | Themes, window size, weather switches, a 24-hour or 12-hour clock, and dates by season (the default, such as Autumn 2, Year 1) or as DD-MM-YYYY, MM-DD-YYYY or YYYY-MM-DD. A server too old to report season lengths shows numeric dates. The interface grows with the screen in whole steps (100%, 200% at 1080p and 1440p, 300% at 4K) with no setting, and the game always draws at the screen's own resolution. Windows visual and keyboard acceptance is still being checked. |
 
+On a fresh server, Continue opens New World instead of entering the retired
+test camp. The normal map preview and acceptance steps still apply, and saved
+worlds with founders or other progress keep opening normally.
+
 New worlds open paused with no old camp. Choosing the first Town lays a winding
 main road with side streets, then places two Houses, a Warehouse, Farmhouse and
 Blacksmith along them, each with its door facing its packed-dirt Road and a short

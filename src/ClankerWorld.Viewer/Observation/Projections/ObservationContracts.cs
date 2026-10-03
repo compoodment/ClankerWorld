@@ -351,6 +351,8 @@ public sealed record ViewerEvent(long EventId, long WorldTick, string Kind, stri
 
 public sealed record ViewerFounderSetup(int Required, int Placed, bool Started)
 {
+    /// <summary>An untouched bootstrap world should open New World instead of the retired camp.</summary>
+    public bool RequiresWorldCreation { get; init; }
     public bool CanChooseTownSite { get; init; }
     public bool HasAcceptedTownSite { get; init; }
     public string? LastFounderId { get; init; }
