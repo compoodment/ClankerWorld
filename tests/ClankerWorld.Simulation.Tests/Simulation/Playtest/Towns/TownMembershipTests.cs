@@ -933,7 +933,7 @@ public sealed class TownMembershipTests
     private static (PrivateWorldRuntimeState State, string[] Children) WithChildren(PrivateWorldRuntimeState state, string caregiver,
         string otherParent, int count)
     {
-        var society = Partners(state.Society.Society, caregiver, otherParent);
+        var society = ChosenBirthNameTestFixture.NameParent(Partners(state.Society.Society, caregiver, otherParent), caregiver);
         var household = society.GetInhabitant(caregiver).HouseholdId!;
         var children = new List<string>();
         for (var index = 0; index < count; index++)
@@ -941,7 +941,7 @@ public sealed class TownMembershipTests
             var food = society.Inventory.Lots.First(lot => lot.OwnerId == household && lot.ItemKind == "food" && lot.Quantity >= 4);
             var birth = SocietyFixture.CommitBirth(society, new SocietyBirthRequest($"membership-child-{index}", 1, caregiver, otherParent,
                 household, [caregiver, otherParent], [caregiver, otherParent], food.Id, 4, society.WorldTick,
-                ChildName: $"Ari {index + 1}", PrimaryCaregiverId: caregiver));
+                ChildName: ChosenBirthNameTestFixture.ChildName(society, caregiver, $"Ari{index + 1}"), PrimaryCaregiverId: caregiver));
             children.Add(Assert.IsType<string>(birth.CreatedId));
             society = birth.Checkpoint;
         }

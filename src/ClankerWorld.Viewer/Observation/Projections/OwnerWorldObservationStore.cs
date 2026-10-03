@@ -561,7 +561,7 @@ public sealed class OwnerWorldObservationStore
                         order.Action, order.Status, order.RequestedUnits, order.CompletedUnits,
                         order.ProgressUnit, order.RepeatUntilCancelled, order.TargetFoodKind,
                         order.TargetResourceId, order.TargetPosition?.X, order.TargetPosition?.Y,
-                        order.BlockedReason, order.TargetAgentId, order.TargetMaterialKind) : null))
+                        order.BlockedReason, order.TargetAgentId, order.TargetMaterialKind, order.TargetEquipmentKind) : null))
                 .ToArray(),
             Cognition = ToCognition(state),
             ContentPackages = state.Content?.Packages
@@ -895,6 +895,8 @@ public sealed class OwnerWorldObservationStore
         var dependents = SocietyFixture.MovingCareGroup(state.Society.Society, inhabitant.Id).Where(id => id != inhabitant.Id)
             .Select(id => state.Society.Society.GetInhabitant(id).Name).ToArray();
         if (dependents.Length > 0) decisionFactors.Add(new("dependent-care", string.Join(", ", dependents)));
+        var guardianNotes = GuardianCareNotes(state, inhabitant, physical).ToArray();
+        decisionFactors.AddRange(guardianNotes.Select(note => new ViewerDecisionFactor("guardian-care", note)));
         if (HousingDetail(state, inhabitant, physical.Housing) is { } housingDetail)
             decisionFactors.Add(new ViewerDecisionFactor("housing", housingDetail));
         if (state.Knowledge?.WritingProjects.SingleOrDefault(project => project.ActorId == inhabitant.Id) is { } writing)
@@ -988,13 +990,7 @@ public sealed class OwnerWorldObservationStore
                     : person.Parenthood.Stage == "requested" ? "Parenthood proposed; waiting for a separate decision."
                     : person.Parenthood.Stage == "postponed" ? "Parenthood put off for now."
                     : person.Parenthood.Stage == "completed" ? "Caring for a child in the household." : "Parenthood plan withdrawn."))
-                .Concat(physical.GuardianSearch is not null
-                    ? ["Needs a guardian. No adult has accepted care yet; nearby adults may still feed them."]
-                    : inhabitant.AgeBand is SocietyAgeBand.Infant or SocietyAgeBand.Child or SocietyAgeBand.Adolescent &&
-                    !state.Society.Society.Relationships.Any(edge => edge.Type == SocietyRelationshipType.Caregiver &&
-                        edge.State == SocietyRelationshipState.Accepted && edge.TargetId == inhabitant.Id &&
-                        state.Society.Society.GetInhabitant(edge.ProposerId).Status == SocietyInhabitantStatus.Active)
-                    ? ["No active caregiver; household adults may offer support."] : Array.Empty<string>())
+                .Concat(guardianNotes)
                 .Concat(HousingRequestNotes(state, inhabitant))
                 .ToArray(),
         };
@@ -1044,6 +1040,36 @@ public sealed class OwnerWorldObservationStore
                 DirectBarterState.Settled => $"Bought at the {name}: {terms}. The buyer carries the purchase; payment is stored at the shop.",
                 _ => $"Exchange at the {name} cancelled: {trade.CancellationReason}",
             };
+        }
+    }
+
+    /// <summary>Accepted care and a pending move are separate from needing a guardian.</summary>
+    private static IEnumerable<string> GuardianCareNotes(
+        PrivateWorldRuntimeState state, SocietyInhabitant inhabitant, PlaytestInhabitantState physical)
+    {
+        if (physical.GuardianSearch is not null)
+            yield return "Needs a guardian. No adult has accepted care yet; nearby adults may still feed them.";
+        else if (inhabitant.AgeBand is SocietyAgeBand.Infant or SocietyAgeBand.Child or SocietyAgeBand.Adolescent &&
+            !state.Society.Society.Relationships.Any(edge => edge.Type == SocietyRelationshipType.Caregiver &&
+                edge.State == SocietyRelationshipState.Accepted && edge.TargetId == inhabitant.Id &&
+                state.Society.Society.GetInhabitant(edge.ProposerId).Status == SocietyInhabitantStatus.Active))
+            yield return "No active caregiver; household adults may offer support.";
+
+        foreach (var child in state.Inhabitants.OrderBy(person => person.InhabitantId, StringComparer.Ordinal))
+        {
+            if (child.GuardianPlacement is not { } placement ||
+                child.InhabitantId != inhabitant.Id && placement.CaregiverId != inhabitant.Id)
+                continue;
+            var guardianName = state.Society.Society.GetInhabitant(placement.CaregiverId).Name;
+            var childName = state.Society.Society.GetInhabitant(child.InhabitantId).Name;
+            var hasBlocker = !string.IsNullOrWhiteSpace(placement.Blocker);
+            var progress = hasBlocker ? "The move is waiting."
+                : placement.HouseId is null ? "Waiting for a suitable home."
+                : placement.Stage == "escorting" ? $"They are travelling together to {guardianName}'s House."
+                : $"{guardianName} is going to collect {childName}.";
+            var blocker = !hasBlocker
+                ? string.Empty : " " + placement.Blocker!.TrimEnd('.') + ".";
+            yield return $"{guardianName} accepted care for {childName}. {progress}{blocker}";
         }
     }
 
@@ -1340,11 +1366,14 @@ public sealed class OwnerWorldObservationStore
         "move_to" => "walking to the ordered tile",
         "harvest_food" => "gathering food",
         "gather_material" => "gathering the ordered material",
+        "repair_equipment" => "repairing personal equipment",
         "collect_material" => "collecting personal materials",
         "store_material" => "storing personal materials in the House",
         "inspect_material_site" => "checking the ordered material site",
         "consume_food" => "eating carried food",
         "safe_idle" => "keeping a safe routine",
+        _ when candidateId.StartsWith("guardian_relocate:", StringComparison.Ordinal) => "bringing a child home",
+        _ when candidateId.StartsWith("guardian_follow:", StringComparison.Ordinal) => "following their guardian home",
         _ => candidateId.Replace('_', ' '),
     };
 

@@ -192,6 +192,10 @@ public sealed record SocietyInhabitant(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] long? BirthLifeTick = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool NeedsName = false)
 {
+    /// <summary>Whether Name is a chosen identity rather than an unnamed placeholder.</summary>
+    [JsonRequired]
+    public bool HasChosenName { get; init; } = !NeedsName;
+
     /// <summary>The explicit domestic group used for House resident priority, separate from ancestry.</summary>
     public string? DomesticFamilyUnitId { get; init; }
 

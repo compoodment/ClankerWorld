@@ -214,6 +214,43 @@ public sealed partial class PrivateWorldRuntime
         AdvanceTownGovernance();
     }
 
+    /// <summary>
+    /// A dependent joining their accepted guardian follows the guardian's recorded
+    /// Town membership. The caller has already checked arrival and House capacity.
+    /// This changes only rosters; it is not a separate adult admission proposal.
+    /// </summary>
+    private bool MoveDependentToGuardianTown(string child, string guardian)
+    {
+        var person = society.Checkpoint.GetInhabitant(child);
+        var caregiver = society.Checkpoint.GetInhabitant(guardian);
+        if (!inhabitants.ContainsKey(child) || !inhabitants.ContainsKey(guardian) ||
+            person.Status != SocietyInhabitantStatus.Active ||
+            person.AgeBand is not (SocietyAgeBand.Infant or SocietyAgeBand.Child or SocietyAgeBand.Adolescent) ||
+            caregiver.Status != SocietyInhabitantStatus.Active ||
+            caregiver.AgeBand is not (SocietyAgeBand.Adult or SocietyAgeBand.Elder) ||
+            person.PrimaryCaregiverId != guardian || !SocietyFixture.HasActivePrimaryCaregiver(society.Checkpoint, child) ||
+            TownForResident(guardian) is not { } destination)
+            return false;
+        if (TownForResident(child) == destination) return true;
+
+        // Finish both roster updates before governance or admission reconciliation
+        // observes the move. House.TownId is deliberately not a membership source.
+        foreach (var town in towns.ToArray())
+        {
+            if (town.Id == destination)
+                SetTown(town with
+                {
+                    ResidentIds = town.ResidentIds.Append(child).Distinct(StringComparer.Ordinal)
+                        .Order(StringComparer.Ordinal).ToArray(),
+                });
+            else if (town.ResidentIds.Contains(child, StringComparer.Ordinal))
+                SetTown(town with { ResidentIds = town.ResidentIds.Where(id => id != child).ToArray() });
+        }
+        AdvanceTownGovernance();
+        SettleTownAdmissions();
+        return true;
+    }
+
     private void LapseTownAdmission(string townId, TownAdmissionRecord record, string reason)
     {
         SetTownAdmission(townId, record with { Status = AdmissionLapsed, DecidedTick = WorldTick, PreviousTownId = null, MemberIds = null, Reason = reason });
