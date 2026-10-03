@@ -14,7 +14,7 @@ public sealed partial class PrivateWorldConversationTests
             Assert.True(working.StartFieldWork(farmer, point, FarmWorkKind.Till).Accepted);
             state = working.ExportState();
         }
-        var remaining = Assert.Single(state.Fields!).Work!.RemainingTicks;
+        var initialRemaining = Assert.Single(state.Fields!).Work!.RemainingTicks;
         var other = state.Inhabitants.First(person => person.InhabitantId != farmer).InhabitantId;
         state = WithAcceptedFarmConversation(state, farmer, other, "conversation:farmer-resume");
         var speaker = new ConversationProvider(new HashSet<string>([farmer, other], StringComparer.Ordinal));
@@ -22,26 +22,32 @@ public sealed partial class PrivateWorldConversationTests
         using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)),
             id => id == farmer || id == other ? speaker : idle);
         world.Resume();
-        for (var tick = 0; tick < 6 && world.Conversations.Single().Status != AgentConversationStatus.AwaitingSpeaker; tick++)
-        {
-            _ = await world.AdvanceOneTickNonBlockingAsync();
-            await Task.Delay(3);
-        }
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        // Await fresh resume decisions before advancing more work. A farmer who
+        // has agreed may otherwise keep working while the other reply is pending.
+        while (world.Conversations.Single().Status != AgentConversationStatus.AwaitingSpeaker)
+            Assert.True((await world.AdvanceOneTickAsync(deadline.Token)).Advanced);
         Assert.Contains(speaker.PlanningRequests, request => request.Observation.InhabitantId == farmer &&
             request.Observation.Candidates.Any(candidate => candidate.Id == "conversation_resume:conversation:farmer-resume"));
         Assert.Equal(AgentConversationStatus.AwaitingSpeaker, world.Conversations.Single().Status);
-        Assert.Equal(remaining, Assert.Single(world.Fields).Work!.RemainingTicks);
+        var remaining = Assert.Single(world.Fields).Work!.RemainingTicks;
+        Assert.InRange(remaining, 1, initialRemaining);
         for (var tick = 0; tick < 3; tick++)
         {
-            _ = await world.AdvanceOneTickNonBlockingAsync();
-            await Task.Delay(3);
+            Assert.True((await world.AdvanceOneTickNonBlockingAsync(cancellationToken: deadline.Token)).Advanced);
+            await Task.Delay(3, deadline.Token);
             Assert.Equal(remaining, Assert.Single(world.Fields).Work!.RemainingTicks);
         }
 
-        for (var tick = 0; tick < 30 && Assert.Single(world.Fields).Work is not null; tick++)
+        while (Assert.Single(world.Fields).Work is not null)
         {
-            _ = await world.AdvanceOneTickNonBlockingAsync();
-            await Task.Delay(3);
+            // Once closed, wait for ordinary planning too, so elapsed ticks
+            // measure field work rather than thread-pool scheduling.
+            var step = world.Conversations.Single().Status == AgentConversationStatus.Closed
+                ? await world.AdvanceOneTickAsync(deadline.Token)
+                : await world.AdvanceOneTickNonBlockingAsync(cancellationToken: deadline.Token);
+            Assert.True(step.Advanced);
+            await Task.Delay(3, deadline.Token);
             if (world.Conversations.Single().Status is AgentConversationStatus.Ready or
                 AgentConversationStatus.AwaitingSpeaker or AgentConversationStatus.WrapUp)
                 Assert.Equal<int?>(remaining, Assert.Single(world.Fields).Work?.RemainingTicks);

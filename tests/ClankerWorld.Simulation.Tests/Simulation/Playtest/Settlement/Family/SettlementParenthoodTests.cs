@@ -246,7 +246,10 @@ public sealed partial class SettlementParenthoodTests
         Assert.Equal(3, fullHome.PermanentResidentCount);
         Assert.Equal(3, fullHome.ResidentLimit);
         Assert.False(fullHome.IsOvercrowded);
+        PositionFamilyFixtureAt(moved, plan.LastTransitionTick + 598);
         moved.Resume();
+        Assert.True((await moved.AdvanceOneTickAsync()).Advanced);
+        Assert.Empty(moved.Society.Births);
         for (var tick = 0; tick < 620 && moved.Society.Births.Count == 0; tick++)
             Assert.True((await moved.AdvanceOneTickAsync()).Advanced);
 
