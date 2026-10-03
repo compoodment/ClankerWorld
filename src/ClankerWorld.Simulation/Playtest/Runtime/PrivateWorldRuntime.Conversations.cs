@@ -46,6 +46,7 @@ public sealed partial class PrivateWorldRuntime
                         : AgentConversationRules.Suspend(current, AgentConversationInterruption.Restored, WorldTick);
             if (next == current) continue;
             conversations[index] = next;
+            RetainUnavailableSurnameSession(next);
             changed = true;
         }
         if (changed) checkpointSchemaVersion = StateSchemaVersion;
@@ -392,6 +393,7 @@ public sealed partial class PrivateWorldRuntime
 
             if (next == item) continue;
             conversations[index] = next;
+            RetainUnavailableSurnameSession(next);
             checkpointSchemaVersion = StateSchemaVersion;
             AppendEvent(eventKind!, eventDetail!);
         }
@@ -407,7 +409,7 @@ public sealed partial class PrivateWorldRuntime
             (NeedsUrgentFood(second) || NeedsUrgentWarmth(second));
 
     private bool AreConversationParticipantsTogether(AgentConversation conversation) =>
-        conversation.Kind == AgentConversationKind.MarriageSurname && IsAcceptedSurnameSession(conversation) ||
+        conversation.Kind == AgentConversationKind.MarriageSurname ? IsAcceptedSurnameSession(conversation) :
         inhabitants.TryGetValue(conversation.InitiatorId, out var first) &&
         inhabitants.TryGetValue(conversation.InviteeId, out var second) &&
         IsWithinInteractionRange(first.Position, second.Position, ResourceInteractionRange);

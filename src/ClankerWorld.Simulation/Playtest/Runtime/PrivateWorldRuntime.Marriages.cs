@@ -69,6 +69,14 @@ public sealed partial class PrivateWorldRuntime
             AgentMarriageRules.WithSurname(society.Checkpoint.GetInhabitant(agentId).Name, surname).Length <= 48);
     }
 
+    private void RetainUnavailableSurnameSession(AgentConversation session)
+    {
+        if (session.Kind != AgentConversationKind.MarriageSurname || session.Outcome != "participant_unavailable") return;
+        var index = marriages.FindIndex(item => item.SurnameConversationId == session.Id);
+        if (index >= 0 && marriages[index].CompletedTick is null)
+            marriages[index] = marriages[index] with { SurnameReceipt = session };
+    }
+
     private SocietyOperationResult RenameSpouses(AgentMarriage marriage, string agentId, string name)
     {
         var otherId = agentId == marriage.InitiatorId ? marriage.InviteeId : marriage.InitiatorId;

@@ -179,6 +179,7 @@ public partial class Main
         body.AddChild(profileOrderLabel);
 
         renameAgentInput.PlaceholderText = "Agent name";
+        renameAgentInput.TooltipText = "Changing a married agent's surname also updates their spouse.";
         renameAgentInput.MaxLength = 48;
         renameAgentInput.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         renameAgentInput.TextChanged += _ => refusedAgentRename.Forget();

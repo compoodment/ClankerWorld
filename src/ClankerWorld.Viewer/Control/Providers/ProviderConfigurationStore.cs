@@ -1057,6 +1057,8 @@ public sealed partial class ConfigurableDecisionProvider(
         if (!request.AllowedEffects.Contains(AgentConversationEffect.None))
             throw new InvalidDataException("The conversation host supplied an invalid effect whitelist.");
 
+        var purposeWire = PurposeWireValue(request.Purpose);
+
         var payload = new
         {
             model = route.Credential.Model,
@@ -1073,12 +1075,7 @@ public sealed partial class ConfigurableDecisionProvider(
                     role = "user",
                     content = JsonSerializer.Serialize(new
                     {
-                        purpose = request.Purpose switch
-                        {
-                            AgentConversationPurpose.WrapUp => "wrap_up",
-                            AgentConversationPurpose.SurnameChoice => "surname_choice",
-                            _ => "public_turn",
-                        },
+                        purpose = purposeWire,
                         speaker = new
                         {
                             id = request.SpeakerId,
@@ -1128,8 +1125,8 @@ public sealed partial class ConfigurableDecisionProvider(
             timer.Stop();
             if (usageTicket is not null)
                 usageStore!.Finish(usageTicket, "completed", turn.InputTokens, turn.OutputTokens);
-            if (logger is not null)
-                LogConversationCall(logger, "completed", request.Purpose == AgentConversationPurpose.WrapUp ? "wrap_up" : "public_turn",
+            if (logger is not null && logger.IsEnabled(LogLevel.Information))
+                LogConversationCall(logger, "completed", purposeWire,
                     request.PublicHistory.Count + 1,
                     timer.ElapsedMilliseconds, turn.InputTokens, turn.OutputTokens);
             return turn;
@@ -1138,8 +1135,8 @@ public sealed partial class ConfigurableDecisionProvider(
         {
             timer.Stop();
             if (usageTicket is not null) usageStore!.Finish(usageTicket, "abandoned");
-            if (logger is not null)
-                LogConversationCall(logger, "cancelled", request.Purpose == AgentConversationPurpose.WrapUp ? "wrap_up" : "public_turn",
+            if (logger is not null && logger.IsEnabled(LogLevel.Information))
+                LogConversationCall(logger, "cancelled", purposeWire,
                     request.PublicHistory.Count + 1, timer.ElapsedMilliseconds, 0, 0);
             throw;
         }
@@ -1147,8 +1144,8 @@ public sealed partial class ConfigurableDecisionProvider(
         {
             timer.Stop();
             if (usageTicket is not null) usageStore!.Finish(usageTicket, "failed", inputTokens, outputTokens);
-            if (logger is not null)
-                LogConversationCall(logger, "failed", request.Purpose == AgentConversationPurpose.WrapUp ? "wrap_up" : "public_turn",
+            if (logger is not null && logger.IsEnabled(LogLevel.Information))
+                LogConversationCall(logger, "failed", purposeWire,
                     request.PublicHistory.Count + 1, timer.ElapsedMilliseconds, inputTokens, outputTokens);
             throw;
         }
@@ -1195,6 +1192,14 @@ public sealed partial class ConfigurableDecisionProvider(
         AgentConversationEffect.MutualTrust => "mutual_trust",
         AgentConversationEffect.Marriage => "marriage",
         _ => throw new InvalidDataException("The conversation effect is not allowed."),
+    };
+
+    private static string PurposeWireValue(AgentConversationPurpose purpose) => purpose switch
+    {
+        AgentConversationPurpose.PublicTurn => "public_turn",
+        AgentConversationPurpose.WrapUp => "wrap_up",
+        AgentConversationPurpose.SurnameChoice => "surname_choice",
+        _ => throw new InvalidDataException("The conversation purpose is not allowed."),
     };
 
     private static AgentConversationTurnResponse ParseConversationResponse(

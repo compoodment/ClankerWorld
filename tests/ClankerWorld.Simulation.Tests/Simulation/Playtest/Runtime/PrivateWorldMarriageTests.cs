@@ -8,6 +8,7 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed partial class PrivateWorldConversationTests
 {
+    private static readonly string[] MarriageSurnameOptions = ["Ash", "Reed"];
     [Fact]
     public async Task NormalMarriageChoosesSurnameAndPlayerRenameUpdatesBothOrNeither()
     {
@@ -54,6 +55,104 @@ public sealed partial class PrivateWorldConversationTests
         Assert.Equal("Vale", Assert.Single(reloaded.Marriages).CurrentSurname);
     }
 
+    [Fact]
+    public async Task InterruptedSurnameChoiceRetainsTurnsAndOnlyItsAcceptedSessionResumesRemotely()
+    {
+        var first = new MarriagePersonalProvider(InitiatorId) { DisagreeOnSurname = true };
+        var second = new MarriagePersonalProvider(InviteeId) { DisagreeOnSurname = true, SurnameFailuresRemaining = 1 };
+        IDecisionProvider Route(string id) => id == InitiatorId ? first : id == InviteeId ? second : new DeterministicDecisionProvider();
+        using var world = MarriedWorldSetup("interrupted-marriage", Route);
+        await AdvanceMarriageUntil(world, () => world.Conversations.Any(item => item.Kind == AgentConversationKind.MarriageSurname &&
+            item.Status == AgentConversationStatus.Suspended));
+        var interrupted = Assert.Single(world.Conversations, item => item.Kind == AgentConversationKind.MarriageSurname);
+        var originalTurn = Assert.Single(interrupted.Turns);
+        Assert.Null(Assert.Single(world.Marriages).CompletedTick);
+        Assert.Equal(AgentConversationInterruption.ProviderTimedOut, interrupted.Interruption);
+        world.Pause();
+        var saved = world.ExportState();
+        var distantPosition = saved.Inhabitants.Single(item => item.InhabitantId == DistantId).Position;
+        saved = saved with
+        {
+            Inhabitants = saved.Inhabitants.Select(item => item.InhabitantId == InviteeId
+                ? item with { Position = distantPosition } : item).ToArray(),
+        };
+        var callsBeforeLoad = first.TurnRequests.Count + second.TurnRequests.Count;
+        using var reloaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(saved)), Route);
+        Assert.Equal(callsBeforeLoad, first.TurnRequests.Count + second.TurnRequests.Count);
+        Assert.Equal(originalTurn.Id, Assert.Single(reloaded.Conversations, item => item.Id == interrupted.Id).Turns.Single().Id);
+        reloaded.Resume();
+        await AdvanceMarriageUntil(reloaded, () => reloaded.Marriages.Any(item => item.CompletedTick is not null));
+        var completed = Assert.Single(reloaded.Marriages);
+        Assert.True(completed.UsedTieBreak);
+        Assert.Equal(4, completed.SurnameReceipt!.Turns.Count);
+        Assert.Equal(originalTurn.Id, completed.SurnameReceipt.Turns[0].Id);
+        Assert.Contains(completed.ChosenSurname, MarriageSurnameOptions);
+        Assert.Equal(2, completed.SurnameReceipt.Turns.Count(item => item.SpeakerId == InitiatorId));
+        Assert.Equal(2, completed.SurnameReceipt.Turns.Count(item => item.SpeakerId == InviteeId));
+        Assert.Contains(reloaded.ExportState().Events, item => item.Kind == "marriage_surname_draw" && item.Detail.Contains("four turns without agreement", StringComparison.Ordinal));
+        var completedSave = PrivateWorldRuntimeCodec.Encode(reloaded.ExportState());
+        using var replayed = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(completedSave), Route);
+        Assert.Equal(completed.ChosenSurname, Assert.Single(replayed.Marriages).ChosenSurname);
+        Assert.True(Assert.Single(replayed.Marriages).UsedTieBreak);
+
+        var forged = saved with
+        {
+            Marriages = [],
+        };
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(forged));
+    }
+
+    [Fact]
+    public async Task MarriageSaveRefusesForgedConsentSurnamesAndMissingReceipts()
+    {
+        var first = new MarriagePersonalProvider(InitiatorId);
+        var second = new MarriagePersonalProvider(InviteeId);
+        IDecisionProvider Route(string id) => id == InitiatorId ? first : id == InviteeId ? second : new DeterministicDecisionProvider();
+        using var world = MarriedWorldSetup("marriage-save-integrity", Route);
+        await AdvanceMarriageUntil(world, () => world.Marriages.Any(item => item.CompletedTick is not null));
+        var saved = world.ExportState();
+        var marriage = Assert.Single(saved.Marriages);
+        var badRecords = new[]
+        {
+            marriage with { Consent = marriage.Consent with { WrapUpAcceptedBy = [InitiatorId] } },
+            marriage with { ChosenSurname = "Invented" },
+            marriage with { UsedTieBreak = true },
+            marriage with { SurnameReceipt = null },
+            marriage with { PartnershipReceipt = marriage.PartnershipReceipt with { Consent = SocietyConsentState.Pending } },
+            marriage with { LatestPlayerRename = new AgentMarriageRename(ListenerId, "Ash", world.WorldTick) },
+        };
+        foreach (var bad in badRecords)
+            Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(saved with { Marriages = [bad] }));
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(saved with { Marriages = null! }));
+        var wrongNames = saved with
+        {
+            Society = saved.Society with
+            {
+                Society = saved.Society.Society with
+                {
+                    Inhabitants = saved.Society.Society.Inhabitants.Select(item => item.Id == InviteeId
+                        ? item with { Name = "Rowan Reed" } : item).ToArray(),
+                },
+            },
+        };
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(wrongNames));
+        // Completed consent and surname receipts outlive the ordinary 64-conversation window.
+        var compacted = saved with
+        {
+            Conversations = [],
+            Society = saved.Society with
+            {
+                Society = saved.Society.Society with
+                {
+                    Beliefs = (saved.Society.Society.Beliefs ?? []).Select(item => item with { SourceTurnId = null }).ToArray(),
+                }
+            },
+        };
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(compacted)), Route);
+        Assert.Equal("Ash", Assert.Single(restored.Marriages).ChosenSurname);
+        Assert.Equal(2, Assert.Single(restored.Marriages).SurnameReceipt!.Turns.Count);
+    }
+
     private static PrivateWorldRuntime MarriedWorldSetup(string seed, Func<string, IDecisionProvider> route)
     {
         using var setup = NewWorld(seed, route);
@@ -71,6 +170,28 @@ public sealed partial class PrivateWorldConversationTests
         return PrivateWorldRuntime.Restore(state with { Society = state.Society with { Society = accepted.Checkpoint } }, route);
     }
 
+    [Fact]
+    public async Task RejectedMarriageTickKeepsBothNamesAndReusesTheUnadmittedReply()
+    {
+        var first = new MarriagePersonalProvider(InitiatorId);
+        var second = new MarriagePersonalProvider(InviteeId);
+        IDecisionProvider Route(string id) => id == InitiatorId ? first : id == InviteeId ? second : new DeterministicDecisionProvider();
+        using var world = MarriedWorldSetup("marriage-rollback", Route);
+        await AdvanceMarriageUntil(world, () => world.Conversations.Any(item => item.Kind == AgentConversationKind.MarriageSurname &&
+            item.Turns.Count == 1 && item.Status == AgentConversationStatus.AwaitingSpeaker));
+        var before = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        var calls = first.TurnRequests.Count + second.TurnRequests.Count;
+        Assert.False((await world.AdvanceOneTickNonBlockingAsync(() => false)).Advanced);
+        Assert.Equal(before, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+        Assert.Equal("Aster Ash", world.Society.GetInhabitant(InitiatorId).Name);
+        Assert.Equal("Rowan Reed", world.Society.GetInhabitant(InviteeId).Name);
+        Assert.Null(Assert.Single(world.Marriages).CompletedTick);
+        Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+        Assert.Equal(calls, first.TurnRequests.Count + second.TurnRequests.Count);
+        Assert.NotNull(Assert.Single(world.Marriages).CompletedTick);
+        Assert.Equal("Rowan Ash", world.Society.GetInhabitant(InviteeId).Name);
+    }
+
     private static async Task AdvanceMarriageUntil(PrivateWorldRuntime world, Func<bool> finished)
     {
         for (var attempt = 0; attempt < 160 && !finished(); attempt++)
@@ -86,6 +207,8 @@ public sealed partial class PrivateWorldConversationTests
         public DecisionProviderKind Kind => DecisionProviderKind.LargeLanguageModel;
         public long ProviderEpoch => 1;
         public List<AgentConversationTurnRequest> TurnRequests { get; } = [];
+        public bool DisagreeOnSurname { get; init; }
+        public int SurnameFailuresRemaining { get; set; }
         public bool CanSpeakAs(string agentId) => agentId == ownerId;
 
         public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
@@ -111,11 +234,17 @@ public sealed partial class PrivateWorldConversationTests
             request.Validate();
             Assert.Equal(ownerId, request.SpeakerId);
             TurnRequests.Add(request);
+            if (request.Purpose == AgentConversationPurpose.SurnameChoice && SurnameFailuresRemaining > 0)
+            {
+                SurnameFailuresRemaining--;
+                throw new TimeoutException("The surname model timed out.");
+            }
             return ValueTask.FromResult(new AgentConversationTurnResponse(request.RequestId, request.ConversationId,
                 request.Revision, request.RunEpoch, ownerId, "I would like us to share a life together.", AgentConversationDisposition.Continue,
                 request.Purpose == AgentConversationPurpose.WrapUp && request.AllowedEffects.Contains(AgentConversationEffect.Marriage)
                     ? AgentConversationEffect.Marriage : AgentConversationEffect.None,
-                SurnameChoice: request.Purpose == AgentConversationPurpose.SurnameChoice ? "Ash" : null));
+                SurnameChoice: request.Purpose == AgentConversationPurpose.SurnameChoice
+                    ? DisagreeOnSurname && ownerId == InviteeId ? "Reed" : "Ash" : null));
         }
     }
 }

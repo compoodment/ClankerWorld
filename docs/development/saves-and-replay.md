@@ -277,6 +277,23 @@ Conversation records use private-world schema 35, following schema 34's fields
 and ground harvest lots. No migration for older alpha saves is added solely to preserve
 compatibility.
 
+Private-world schema 67 adds required marriage records and conversation kinds.
+Each marriage retains its accepted partnership snapshot and the ordinary
+conversation's separate mutual marriage consent. Its surname session admits
+at most four alternating choices from the two original surnames. Invalid
+replies, failed calls, pause and cancellation admit no turn. A completed
+receipt records the result, completion time and whether the seeded draw was
+used; validation rechecks the draw against the seed and consent identity.
+Receipts survive ordinary conversation compaction, including a pending session
+closed because a participant became unavailable. Active unfinished sessions
+still require both partners' fresh resume choices after loading. Later player
+surname changes retain the original result and record the latest player
+change separately; validation requires both spouse names to match the current
+surname. Tick rollback keeps both names, consent and surname history unchanged
+and can admit the completed reply later without issuing the call again.
+Schema 67 is provisional above parent schema 66 until integration; older alpha
+files are refused and preserved without migration.
+
 Routine history compaction validates the compacted checkpoint without applying
 load transitions. It preserves the live conversation cursor, consent and pending
 turn admission identity. Resume with compaction likewise keeps the conversation's
@@ -494,7 +511,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 66. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 67. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
@@ -556,8 +573,9 @@ for Town admission records, schema 55 for Town laws and government, schema
 Council land claims, schema 59 for household land grants, schema 60 for
 handcart attachments, schema 61 for guardian-order targets, schema 62 for
 physical knowledge writing, schema 63 for exact-tile movement orders,
-schema 64 for overcrowding move-out notices, schema 65 for material orders and
-schema 66 for explicit chosen names and unique first names
+schema 64 for overcrowding move-out notices, schema 65 for material orders,
+schema 66 for explicit chosen names and unique first names, and schema 67 for
+marriage consent and surname sessions
 record when those fields or behaviors were introduced; they do not allow an
 earlier checkpoint schema past the current alpha cutoff.
 
@@ -612,6 +630,7 @@ earlier checkpoint schema past the current alpha cutoff.
 | Schema 64 | Household move-out notices retain their original notice period, fixed deadline and selection reason alongside pending housing requests. Reload and replacement do not restart notice or duplicate departure goods. Runtime admission and displacement recheck current need and caregiver protection. Earlier alpha saves are refused and preserved without migration. |
 | Schema 65 | Material-gathering orders retain the material kind, exact optional source or position, batch/item progress and physical harvest receipt. Loading rejects mixed food/guardian/material fields and inconsistent progress. Queue, cancellation and partial work replay without duplicate harvests; older alpha saves are refused and preserved without migration. |
 | Schema 66 and society/runtime v2 | Required chosen-name markers distinguish temporary labels from chosen identities, even after automatic naming ends. Chosen first names are unique across living and deceased inhabitants. Current-format reload and compaction retain the marker and pending retry; older alpha formats are refused and preserved without inference or migration. |
+| Schema 67 | Required marriage consent receipts and dedicated surname conversations preserve the original surnames, admitted turns and seeded result, including across history compaction. Later player surname changes update both spouses together without rewriting the original decision. |
 
 ### Tool-making requests
 

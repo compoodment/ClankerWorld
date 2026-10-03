@@ -62,7 +62,8 @@ public static class AgentMarriageRules
         var otherId = agentId == marriage.InitiatorId ? marriage.InviteeId : marriage.InitiatorId;
         var other = society.GetInhabitant(otherId).Name;
         return marriage.CompletedTick is null
-            ? $"Marriage agreed with {other}; the shared surname is still undecided."
+            ? $"Marriage agreed with {other}; the shared surname is still undecided." +
+                (marriage.SurnameReceipt?.Outcome == "participant_unavailable" ? " The surname conversation stopped because a participant is unavailable." : string.Empty)
             : $"Married to {other}. Shared surname: {marriage.CurrentSurname}." +
                 (marriage.UsedTieBreak ? " The original surname was chosen by a draw after four turns without agreement." : string.Empty);
     }
