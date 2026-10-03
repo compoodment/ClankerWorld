@@ -1,0 +1,1 @@
+- Agents keep new choices and observer messages that arrive while their model is answering, so an older reply no longer makes an idle agent overlook the changed situation.

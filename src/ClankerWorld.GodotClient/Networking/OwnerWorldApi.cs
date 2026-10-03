@@ -117,6 +117,17 @@ public sealed class OwnerWorldApi
             action, deviceKey, cancellationToken);
     }
 
+    public Task<SaveTimelinePosition> GetSaveTimelinePositionAsync(
+        Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
+        IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken)
+    {
+        var action = new OwnerControlAction("save-timeline");
+        return pairing.SendSignedActionAsync<OwnerControlAction, SaveTimelinePosition>(
+            serverUri, authority, deviceId, OwnerPairingEndpoints.OwnerSaveTimeline,
+            OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.Control("save-timeline"),
+            action, deviceKey, cancellationToken);
+    }
+
     public Task<WorldAutosaveSettings> GetAutosaveSettingsAsync(
         Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
         IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken)
@@ -263,6 +274,12 @@ public sealed class OwnerWorldApi
             serverUri, authority, deviceId, OwnerPairingEndpoints.OwnerAgentRename,
             OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.AgentRename(action),
             action, deviceKey, cancellationToken);
+
+    public Task<OwnerControlReceipt> ApplyDeveloperEditAsync(Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
+        OwnerDeveloperEditAction action, IOwnerDeviceSigner signer, CancellationToken cancellationToken) =>
+        pairing.SendSignedActionAsync<OwnerDeveloperEditAction, OwnerControlReceipt>(serverUri, authority, deviceId,
+            OwnerPairingEndpoints.OwnerDeveloperEdit, OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.DeveloperEdit(action),
+            action, signer, cancellationToken);
 
     public Task<OwnerControlReceipt> SetLifePaceAsync(Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
         int rate, IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken)

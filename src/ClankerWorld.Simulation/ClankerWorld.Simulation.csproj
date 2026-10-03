@@ -1,6 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <InternalsVisibleTo Include="ClankerWorld.Simulation.Tests" />
     <Compile Include="../ClankerWorld.Shared/AgentPlacementRules.cs" Link="Shared/AgentPlacementRules.cs" />
   </ItemGroup>
 </Project>

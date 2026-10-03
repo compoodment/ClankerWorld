@@ -33,7 +33,7 @@ public sealed partial class PrivateWorldRuntime
         {
             var reserve = IsEdibleFood(lot.ItemKind) ? lot.OwnerId == actor ? 2 :
                 2 * society.Checkpoint.GetHousehold(householdId).MemberIds.Count(id => inhabitants.ContainsKey(id)) : 0;
-            var surplus = Math.Max(0, AvailableLotQuantity(lot) - reserve);
+            var surplus = Math.Max(0, (lot.OwnerId == actor ? SpareCarriedQuantity(actor, lot) : AvailableLotQuantity(lot)) - reserve);
             var shelf = inventory.Lots.Where(stock => stock.StorageBuildingId == store.InstanceId &&
                 stock.ItemKind == lot.ItemKind).Sum(stock => stock.Quantity);
             var quantity = Math.Min(Math.Min(surplus, StoreShelfTarget - shelf), Math.Min(HouseHaulLoadQuantity, room));
