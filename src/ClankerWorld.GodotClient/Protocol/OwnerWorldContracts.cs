@@ -213,7 +213,13 @@ public sealed record OwnerWorldInhabitant(
     public IReadOnlyList<OwnerWorldKnowledgeFact> RecentKnowledgeFacts { get; init; } = [];
 
     public IReadOnlyList<OwnerWorldKnowledgeArtifact> KnowledgeArtifacts { get; init; } = [];
+
+    public OwnerWorldFinalWill? FinalWill { get; init; }
 }
+
+/// <summary>A dead agent's will: status, how it divides the estate, each heir's goods and any final words.</summary>
+public sealed record OwnerWorldFinalWill(string Status, string? Split, IReadOnlyList<OwnerWorldWillHeir> Heirs, string? FinalWords);
+public sealed record OwnerWorldWillHeir(string Id, string Name, bool IsTown, IReadOnlyList<OwnerWorldInventoryEntry> Items);
 
 public sealed record OwnerWorldProject(string Label, string Stage, int WorkDone, int WorkRequired, string? Blocker, long StartedTick);
 public sealed record OwnerWorldSurvival(int WarmthBasisPoints, int IllnessBasisPoints, bool HasClothing, bool HasTool,
