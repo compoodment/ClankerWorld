@@ -332,7 +332,8 @@ While the rule is on, a partnered adult couple with no infant may say "not yet"
 to a child, but not refuse: two world days after the rule first applies to them,
 their plan goes ahead as if both had agreed. Preparation still takes time, and
 the birth still needs food; a plan the rule sent ahead waits for food instead
-of expiring. A missing House creates a housing need without stopping the birth. Such a couple may also plan another child once their
+of expiring. A missing House creates a housing need without stopping the
+birth. Such a couple may also plan another child once their
 youngest has left infancy, without waiting for that child to grow up. Each
 partner's own model request explains the rule and how long is left. The rule
 never creates a partnership, and choosing a partner stays voluntary. The

@@ -1,4 +1,2 @@
-# Birth after losing a House
-
-- [ ] During an accepted child plan, empty and remove or reassign the caregiver's House, with no other accessible shelter. Keep enough household food. Save and reload before the birth; confirm the baby appears near the caregiver and the plan completes.
-- [ ] Confirm the baby belongs to the caregiver's household, its card and Event Log show the housing need, and another save/reload keeps one baby and the same need.
+- On the paired world: while a couple's agreed child plan is preparing, empty the caregiver's House, then remove it or reassign it to another household, leaving no other shelter they can use. Keep enough household food. Save and load before the birth. The baby should still be born, next to the caregiver, and the plan should finish. ([#755](https://github.com/compoodment/ClankerWorld/issues/755))
+- On the paired world: after that birth, the baby should belong to the caregiver's household, and its card and the Event Log should show that it needs housing. Save and load again; there should still be one baby with the same housing need. ([#755](https://github.com/compoodment/ClankerWorld/issues/755))
