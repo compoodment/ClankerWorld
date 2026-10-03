@@ -59,6 +59,10 @@ spoken.
 
 ## Create your first Town
 
+On a fresh server, **Continue** opens **New World** so you can choose the map
+before placing your first Town. Existing worlds with founders or other work
+still open normally.
+
 1. Choose **New World**. Enter a name and seed and choose Small or Medium. Other
    map options are under **+ More options** (see
    [More New World options](#more-new-world-options)).
