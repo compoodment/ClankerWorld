@@ -82,7 +82,15 @@ public sealed partial class PrivateWorldRuntime
             .ThenBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
     }
 
-    private InventoryLot? WornEquipment(string actor) => WornEquipmentItems(actor).FirstOrDefault();
+    private InventoryLot? RepairableEquipment(string actor, PlaytestInhabitantState person) =>
+        WornEquipmentItems(actor).FirstOrDefault(lot => CanPrepareEquipmentRepair(actor, person, lot));
+
+    private bool CanPrepareEquipmentRepair(string actor, PlaytestInhabitantState person, InventoryLot lot) =>
+        MissingRepairInputUnits(actor, lot) <= FreeCarryCapacity(actor) &&
+        EquipmentRepairSite(actor, lot) is { } site &&
+        (person.Position == site.Position || FindUnoccupiedRoute(actor, person.Position, site.Position, 0).Count > 0) &&
+        PersonalEquipmentRules.RepairMaterials(lot.ItemKind).All(input => HasCarriedOwnItem(actor, input.ResourceId) ||
+            SharedItem(input.ResourceId, actor) is not null);
 
     private IEnumerable<InventoryLot> WornEquipmentItems(string actor) => society.Checkpoint.Inventory.Lots
         .Where(lot => lot.Quantity == 1 && lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) &&
@@ -103,12 +111,8 @@ public sealed partial class PrivateWorldRuntime
         if (!AdultResident(actor)) return;
         if (BetterCarryAid(actor) is { } aid)
             candidates.Add(new("equip_carry_aid", $"Equip a {aid.ItemKind} to carry more supplies.", 14));
-        if (!NeedsUrgentFood(person) && !NeedsUrgentWarmth(person) && WornEquipment(actor) is { } worn &&
-            MissingRepairInputUnits(actor, worn) <= FreeCarryCapacity(actor) &&
-            EquipmentRepairSite(actor, worn) is { } site &&
-            FindUnoccupiedRoute(actor, person.Position, site.Position, 0).Count > 0 &&
-            PersonalEquipmentRules.RepairMaterials(worn.ItemKind).All(input => HasCarriedOwnItem(actor, input.ResourceId) ||
-                SharedItem(input.ResourceId, actor) is not null))
+        if (!NeedsUrgentFood(person) && !NeedsUrgentWarmth(person) && RepairableEquipment(actor, person) is { } worn &&
+            EquipmentRepairSite(actor, worn) is { } site)
             candidates.Add(new("repair_equipment", $"Bring materials to repair the worn {worn.ItemKind.Replace('_', ' ')}.", 12, site.InstanceId));
     }
 
@@ -168,10 +172,10 @@ public sealed partial class PrivateWorldRuntime
 
     private void RepairEquipment(string actor, PlaytestInhabitantState person, string? requestedLotId = null, string? orderInstructionId = null)
     {
-        var target = requestedLotId is null ? WornEquipment(actor) : WornEquipmentItems(actor).FirstOrDefault(lot => lot.Id == requestedLotId);
+        var target = requestedLotId is null ? RepairableEquipment(actor, person) : WornEquipmentItems(actor).FirstOrDefault(lot => lot.Id == requestedLotId);
         if (!AdultResident(actor) || NeedsUrgentFood(person) || NeedsUrgentWarmth(person) ||
             target is null || EquipmentRepairSite(actor, target) is not { } site) return;
-        if (MissingRepairInputUnits(actor, target) > FreeCarryCapacity(actor)) return;
+        if (!CanPrepareEquipmentRepair(actor, person, target)) return;
         foreach (var input in PersonalEquipmentRules.RepairMaterials(target.ItemKind))
         {
             if (!HasCarriedOwnItem(actor, input.ResourceId))
