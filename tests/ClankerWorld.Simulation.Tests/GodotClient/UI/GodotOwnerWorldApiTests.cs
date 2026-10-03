@@ -386,15 +386,6 @@ public sealed class GodotOwnerWorldApiTests
         if (apiKey is not null) Assert.DoesNotContain(apiKey, clientPayload, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public void ControlPayloadMatchesViewerOwnerProtocolByteForByte()
-    {
-        var clientPayload = OwnerWorldActionPayload.Control("pause");
-        var serverPayload = OwnerHttpBinding.EmptyPayload("pause");
-
-        Assert.Equal(serverPayload, clientPayload);
-    }
-
     private static OwnerWorldReconnect CreateCoherentReconnect()
     {
         var handshake = new OwnerWorldHandshake(

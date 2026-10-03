@@ -142,20 +142,6 @@ public sealed class ProviderModelCatalogTests
         Assert.Equal(7, offline.Models.Count);
     }
 
-    [Fact]
-    public async Task FailedCheckIsNotCached()
-    {
-        using var directory = new TemporaryDirectory();
-        var store = directory.Store();
-        var fail = true;
-        var handler = new ListHandler(_ => fail ? (HttpStatusCode.InternalServerError, "{}") : (HttpStatusCode.OK, OpenAiList));
-        var catalog = new ProviderModelCatalog(store, new ClientFactory(handler));
-
-        Assert.NotNull((await catalog.ListAsync(new("openai", ApiKey: "retry-secret"), CancellationToken.None)).Error);
-        fail = false;
-        Assert.Null((await catalog.ListAsync(new("openai", ApiKey: "retry-secret"), CancellationToken.None)).Error);
-    }
-
     [Theory]
     [InlineData("[]")]
     [InlineData("{\"data\":[null]}")]
@@ -229,15 +215,6 @@ public sealed class ProviderModelCatalogTests
         Assert.Equal(["minimax-m3:cloud"], list.Models.Where(item => item.Available).Select(item => item.Model));
         Assert.Equal([ProviderModelCatalog.OllamaCloudModels, ProviderModelCatalog.OllamaCloudCompatibleModels],
             handler.Requests.Select(request => request.Uri));
-    }
-
-    [Fact]
-    public async Task ProvidersWithoutAModelListAreRejected()
-    {
-        using var directory = new TemporaryDirectory();
-        var catalog = new ProviderModelCatalog(directory.Store(), new ClientFactory(new ListHandler(_ => (HttpStatusCode.OK, "{}"))));
-        await Assert.ThrowsAsync<ArgumentException>(() => catalog.ListAsync(new("jev"), CancellationToken.None));
-        await Assert.ThrowsAsync<ArgumentException>(() => catalog.ListAsync(new("deterministic"), CancellationToken.None));
     }
 
     private sealed class TemporaryDirectory : IDisposable

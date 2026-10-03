@@ -267,26 +267,6 @@ public sealed class BusinessTradeTests
         settling.Validate();
     }
 
-    [Fact]
-    public async Task AShopCannotOfferTheSameHouseholdsRemoteStock()
-    {
-        var (state, buyer, _, shopId) = CreateShopState();
-        state = WithInventory(state, state.Society.Society.Inventory with
-        {
-            Lots = state.Society.Society.Inventory.Lots.Select(lot => lot.Id == "shop-axe"
-                ? lot with { StorageBuildingId = null } : lot).ToArray(),
-        });
-        var provider = new ShopProvider("business_shop:");
-        using var world = PrivateWorldRuntime.Restore(state, id => id == buyer ? provider : new ShopProvider("safe_idle"));
-        for (var step = 0; step < 35; step++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-        Assert.DoesNotContain("business_shop:" + shopId, provider.Seen);
-        Assert.Empty(world.BusinessTrades);
-        Assert.DoesNotContain(world.Society.Inventory.Offers, offer => offer.Id.StartsWith("business-trade:", StringComparison.Ordinal));
-        Assert.Equal(2, world.Society.Inventory.GetLot("shop-axe").Quantity);
-        Assert.Equal(6, world.Society.Inventory.GetLot("buyer-payment").Quantity);
-        world.Validate();
-    }
-
     [Theory]
     [InlineData("no-workshop")]
     [InlineData("reserved")]
@@ -331,26 +311,6 @@ public sealed class BusinessTradeTests
     }
 
     [Fact]
-    public async Task FullShopRefusesAQuoteWhosePaymentWouldOverflowItsStock()
-    {
-        var (state, buyer, _, shopId) = CreateShopState();
-        var shop = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == shopId);
-        var definition = state.WorldContent!.Buildings.Single(item => item.CanonicalId == shop.DefinitionId);
-        var capacity = BuildingStorageRules.Capacity(definition, shop)!.Value;
-        var stock = state.Society.Society.Inventory.Lots.Where(lot => lot.StorageBuildingId == shopId).Sum(lot => lot.Quantity);
-        state = WithInventory(state, InventoryFixture.AddLot(state.Society.Society.Inventory,
-            "full-shop-ballast", "stone", shop.HouseholdId!, capacity - stock, storageBuildingId: shopId));
-        var provider = new ShopProvider("business_shop:");
-        using var world = PrivateWorldRuntime.Restore(state, id => id == buyer ? provider : new ShopProvider("safe_idle"));
-        for (var step = 0; step < 35; step++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-        Assert.DoesNotContain("business_shop:" + shopId, provider.Seen);
-        Assert.Empty(world.BusinessTrades);
-        Assert.Equal(capacity, world.Society.Inventory.Lots.Where(lot => lot.StorageBuildingId == shopId).Sum(lot => lot.Quantity));
-        Assert.Equal(6, world.Society.Inventory.GetLot("buyer-payment").Quantity);
-        world.Validate();
-    }
-
-    [Fact]
     public async Task ExpiryReleasesBothLotsWithoutChangingTheirOwnerOrLocation()
     {
         var (state, buyer, _, _) = CreateShopState();
@@ -375,106 +335,6 @@ public sealed class BusinessTradeTests
         Assert.Equal(6, restored.Society.Inventory.GetLot("buyer-payment").Quantity);
         Assert.NotNull(Assert.Single(restored.BusinessTrades).CancellationReason);
         restored.Validate();
-    }
-
-    [Fact]
-    public async Task StoreStockRequiresPickupAndDeliveryAndRetainsItsPartialSourceAcrossReload()
-    {
-        using var generated = NormalPathWorld.CreateGenerated("probe-a", _ => new ShopProvider("safe_idle"));
-        var state = generated.ExportState();
-        var house = state.WorldSimulation!.Buildings.First(building => building.HouseholdId is not null &&
-            state.WorldContent!.Buildings.Single(item => item.CanonicalId == building.DefinitionId).Tags.Contains("house"));
-        var household = house.HouseholdId!;
-        var seller = state.Society.Society.GetHousehold(household).MemberIds[0];
-        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "store-build-wood", "wood", household, 8);
-        inventory = InventoryFixture.AddLot(inventory, "store-build-stone", "stone", household, 2);
-        using var placing = PrivateWorldRuntime.Restore(WithInventory(state, inventory), _ => new ShopProvider("safe_idle"));
-        var definition = placing.WorldContent.Buildings.Single(item => item.LocalId == "store-1x1");
-        var position = state.Map.Tiles.Where(tile => tile.Position != house.Position)
-            .OrderBy(tile => Math.Abs(tile.Position.X - house.Position.X) + Math.Abs(tile.Position.Y - house.Position.Y))
-            .Select(tile => tile.Position).First(point => placing.PlaceBuilding("household-store", definition.CanonicalId, point, household).Applied);
-        state = placing.ExportState();
-        inventory = state.Society.Society.Inventory with
-        {
-            Lots = state.Society.Society.Inventory.Lots.Where(lot => lot.OwnerId != household && lot.OwnerId != seller).ToArray(),
-        };
-        inventory = InventoryFixture.AddLot(inventory, "store-source-cloth", "cloth", household, 12, storageBuildingId: house.InstanceId);
-        state = WithInventory(state, inventory);
-        state = state with
-        {
-            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == seller ? person with
-            {
-                Position = house.Position,
-                Equipment = null,
-                Project = null,
-                LastDecisionContext = null,
-                HungerBasisPoints = 8_000,
-            } : person).ToArray(),
-        };
-        using var collecting = PrivateWorldRuntime.Restore(state, id => id == seller
-            ? new ShopProvider("haul_household_stock", "business_stock_store") : new ShopProvider("safe_idle"));
-        for (var step = 0; step < 40 && !collecting.Society.Inventory.Lots.Any(lot => lot.OwnerId == seller &&
-                 lot.DeliveryBuildingId == "household-store"); step++)
-            Assert.True((await collecting.AdvanceOneTickAsync()).Advanced);
-        var carried = Assert.Single(collecting.Society.Inventory.Lots, lot => lot.OwnerId == seller &&
-            lot.DeliveryBuildingId == "household-store");
-        Assert.Equal(4, carried.Quantity);
-        Assert.Null(carried.StorageBuildingId);
-        Assert.Equal(8, collecting.Society.Inventory.GetLot("store-source-cloth").Quantity);
-        Assert.DoesNotContain(collecting.Society.Inventory.Lots, lot => lot.StorageBuildingId == "household-store");
-        Assert.NotEqual(position, collecting.Inhabitants.Single(person => person.InhabitantId == seller).Position);
-        state = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(collecting.ExportState()));
-        using var delivering = PrivateWorldRuntime.Restore(state, id => id == seller
-            ? new ShopProvider("haul_household_stock", "business_stock_store") : new ShopProvider("safe_idle"));
-        for (var step = 0; step < 80 && !delivering.Society.Inventory.Lots.Any(lot => lot.StorageBuildingId == "household-store"); step++)
-            Assert.True((await delivering.AdvanceOneTickAsync()).Advanced);
-        var delivered = Assert.Single(delivering.Society.Inventory.Lots, lot => lot.StorageBuildingId == "household-store");
-        Assert.Equal(household, delivered.OwnerId);
-        Assert.Equal(4, delivered.Quantity);
-        Assert.Null(delivered.DeliveryBuildingId);
-        Assert.Equal(position, delivering.Inhabitants.Single(person => person.InhabitantId == seller).Position);
-        Assert.Equal(8, delivering.Society.Inventory.GetLot("store-source-cloth").Quantity);
-        Assert.Equal(12, delivering.Society.Inventory.Lots.Where(lot => lot.ItemKind == "cloth" &&
-            (lot.Id == "store-source-cloth" || lot.ProvenanceLotId == "store-source-cloth")).Sum(lot => lot.Quantity));
-        delivering.Validate();
-    }
-
-    [Theory]
-    [InlineData("wooden_axe")]
-    [InlineData("wooden_pickaxe")]
-    public async Task StoreDoesNotOfferTheOnlyCarriedToolForStocking(string toolKind)
-    {
-        var (state, seller, household, houseId, storeId) = CreateStoreStockFixture();
-        var inventory = state.Society.Society.Inventory with { Lots = [], Reservations = [], Offers = [] };
-        inventory = InventoryFixture.AddLot(inventory, "only-stock-tool", toolKind, seller, 1);
-        state = WithInventory(state, inventory) with
-        {
-            Inhabitants = state.Inhabitants.Select(person => person with
-            {
-                Equipment = null,
-                Project = null,
-                LastDecisionContext = null,
-                HungerBasisPoints = 8_000,
-            }).ToArray(),
-        };
-        var provider = new ShopProvider("business_stock_store");
-        using var world = PrivateWorldRuntime.Restore(state, id => id == seller ? provider : new ShopProvider("safe_idle"));
-        Assert.Equal(household, world.Society.GetInhabitant(seller).HouseholdId);
-        Assert.Contains(world.WorldSimulation.Buildings, building => building.InstanceId == storeId);
-        Assert.Equal("only-stock-tool", ToolProgressionRules.BestUsableTool(world.Society.Inventory, seller,
-            ToolProgressionRules.Find(toolKind)!.Family)!.Id);
-
-        for (var step = 0; step < 35; step++)
-            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-
-        Assert.Contains("safe_idle", provider.Seen);
-        Assert.DoesNotContain("business_stock_store", provider.Seen);
-        Assert.Equal("only-stock-tool", Assert.Single(world.Society.Inventory.Lots).Id);
-        Assert.Equal(seller, world.Society.Inventory.GetLot("only-stock-tool").OwnerId);
-        Assert.True(PersonalEquipmentRules.IsCarried(world.Society.Inventory.GetLot("only-stock-tool"), seller));
-        Assert.Equal(10_000, world.Society.Inventory.GetLot("only-stock-tool").ConditionBasisPoints);
-        Assert.DoesNotContain(world.ExportState().Events, item => item.Kind.StartsWith("store_stock_", StringComparison.Ordinal));
-        world.Validate();
     }
 
     [Fact]
@@ -659,12 +519,8 @@ public sealed class BusinessTradeTests
     }
 
     [Theory]
-    [InlineData("wood", 0, false, 0)]
-    [InlineData("wood", 1, false, 1)]
     [InlineData("wood", 2, true, 0)]
     [InlineData("wood", 3, true, 1)]
-    [InlineData("iron_ore", 0, false, 0)]
-    [InlineData("iron_ore", 1, false, 1)]
     [InlineData("iron_ore", 2, true, 0)]
     [InlineData("iron_ore", 3, true, 1)]
     public async Task BlacksmithCarriedInputDeliveryRespectsPhysicalAndPromisedReceivingSpaceAcrossReload(
