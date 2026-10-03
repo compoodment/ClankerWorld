@@ -554,6 +554,7 @@ public sealed partial class PrivateWorldRuntime
             return PrivateWorldInstructionOrderParser.IsMaterialKind(order.TargetMaterialKind) &&
                 order.TargetFoodKind is null && order.TargetResourceId is null && order.TargetPosition is null &&
                 order.RequestedUnits is >= 1 and <= 1000 && order.CompletedUnits is >= 0 and <= 1_000_000 &&
+                (order.RepeatUntilCancelled || order.CompletedUnits <= order.RequestedUnits) &&
                 order.Status != "not_understood" &&
                 (order.Status == "finished") == (!order.RepeatUntilCancelled && order.CompletedUnits >= order.RequestedUnits) &&
                 (order.QuantityIsExplicit ? order.ProgressUnit == "material_items" : order.ProgressUnit == "storage_loads" && order.RequestedUnits == 1) &&

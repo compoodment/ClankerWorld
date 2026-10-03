@@ -279,6 +279,25 @@ public sealed class PrivateWorldStorageOrderTests
     }
 
     [Fact]
+    public async Task StorageOrderRejectsFinishedProgressBeyondTheExactRequestedQuantity()
+    {
+        var state = Prepared();
+        var actor = Actor(state);
+        state = WithInventory(state, InventoryFixture.AddLot(state.Society.Society.Inventory, "storage-exact", "wood", actor, 2));
+        using var world = Restore(state);
+        var receipt = Submit(world, actor, "exact", "store two wood");
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal("finished", Order(world, receipt).Status);
+        var saved = world.ExportState();
+        var corrupt = saved with
+        {
+            Instructions = saved.Instructions!.Select(item => item.InstructionId == receipt.InstructionId
+                ? item with { Order = item.Order! with { CompletedUnits = 3 } } : item).ToArray(),
+        };
+        Assert.Throws<InvalidDataException>(() => Restore(corrupt));
+    }
+
+    [Fact]
     public async Task StorageOrderNeedsTheActorsOwnHouseAfterDeparture()
     {
         var state = Prepared();
