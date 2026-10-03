@@ -124,11 +124,10 @@ public static class SaveTimelineLayout
             var lane = new SaveTimelineLane(key, lanes.Count, points[0].Branch, points, parent, fork,
                 points[0].Branch?.Number ?? 0, points[0].Branch?.StartedFromTick ?? fork?.WorldTick);
             lanes.Add(lane);
-            var children = groups.Keys.Select(child => (Key: child, Fork: forks[child]))
-                .Where(child => child.Fork is { } childFork && Key(childFork) == key)
-                .Select(child => (child.Key, Fork: (ManualWorldSave?)child.Fork!, Number: groups[child.Key][0].Branch?.Number ?? 0,
-                    Order: PointIndex(child.Fork!)))
-                .ToList();
+            var children = new List<(string Key, ManualWorldSave? Fork, int Number, int Order)>();
+            foreach (var child in groups.Keys)
+                if (forks[child] is { } childFork && Key(childFork) == key)
+                    children.Add((child, childFork, groups[child][0].Branch?.Number ?? 0, PointIndex(childFork)));
             if (position is { StartsNewBranch: true } && unsavedParentKey == key)
                 children.Add((UnsavedKey, unsavedFork, int.MaxValue, unsavedFork is not null ? PointIndex(unsavedFork)
                     : points.Count(point => unsavedOriginTick is { } origin && point.WorldTick <= origin) - 1));
