@@ -153,7 +153,7 @@ public sealed partial class PrivateWorldRuntime
                             $"Nominate {society.Checkpoint.GetInhabitant(nominee).Name} for full council terms in {town.Name}; they must personally agree before becoming a candidate.", 188));
                     if (MayBeSponsoredForAdmission(nominee, town))
                         candidates.Add(new(CivicAction(town.Id, "request_admission", nominee),
-                            $"Ask {town.Name}'s council to approve admission of {society.Checkpoint.GetInhabitant(nominee).Name}, the adult nearby. A request grants no membership or stock access.", 188));
+                            $"Ask {town.Name}'s council to approve admission of {society.Checkpoint.GetInhabitant(nominee).Name}, the adult nearby. A request grants no membership or Warehouse access.", 188));
                 }
                 candidates.Add(new(CivicAction(town.Id, "propose"), $"Submit an ordinary social-law proposal to {town.Name}; include civic_proposal text. It needs the current council's votes and changes no physical rights.", 190));
             }

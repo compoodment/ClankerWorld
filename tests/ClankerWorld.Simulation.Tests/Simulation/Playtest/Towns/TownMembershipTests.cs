@@ -590,8 +590,12 @@ public sealed class TownMembershipTests
 
         await AdvanceUntil(world, () => model.ObservationsOf(newcomer).Length > 0);
 
+        // Not hidden by urgent cold, which removes every civic choice: only the unreachable notice place does.
         Assert.All(model.ObservationsOf(newcomer), observation =>
-            Assert.DoesNotContain(observation.Candidates, candidate => candidate.Id.StartsWith(Civic(First, "visit"), StringComparison.Ordinal)));
+        {
+            Assert.DoesNotContain(observation.Candidates, candidate => candidate.Id == "seek_warmth");
+            Assert.DoesNotContain(observation.Candidates, candidate => candidate.Id.StartsWith(Civic(First, "visit"), StringComparison.Ordinal));
+        });
         Assert.Equal(stranded, world.Inhabitants.Single(person => person.InhabitantId == newcomer).Position);
     }
 

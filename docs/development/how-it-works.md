@@ -715,8 +715,9 @@ the public notice place, read posted notices, relay them within interaction
 range, nominate another resident, register their own consent and choose proposals
 or ballots. A nomination posts a notice; only the named agent's personal response
 can add agreement. An adult with no Town, or a resident of another Town, may
-request their own admission at a Town's notice place, and an adult standing
-inside a Town they do not belong to may walk there to read it. Residents may
+request their own admission at a Town's notice place. An adult with no Town may
+walk there from anywhere, and a resident of another Town from inside its border,
+whenever a tile beside the notice place is reachable on foot. Residents may
 request admission of an unaffiliated adult nearby. The optional
 `civic_proposal` and `civic_ballot` structured response fields are carried only
 through admitted choices. Missing, stale or malformed responses cannot supply
