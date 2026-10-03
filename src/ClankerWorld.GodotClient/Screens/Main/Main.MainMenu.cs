@@ -331,7 +331,7 @@ public partial class Main
         reroll.Pressed += () =>
         {
             worldSeedInput.Text = Guid.NewGuid().ToString("N")[..12];
-            if (!worldMenuBusy) _ = PreviewWorldAsync();
+            InvalidateWorldPreview();
         };
         seedRow.AddChild(reroll);
         worldSizeChoice.AddItem("Small", 0);
