@@ -134,6 +134,11 @@ parts of CONTRIBUTING named in its row and ends at a different point.
 
 What each job adds:
 
+- **Watching pull requests:** a fixing session may watch its own draft, and
+  stops watching when it marks it ready. A reviewer starts watching when it
+  claims a pull request, and stops when it merges, hands it back or its claim
+  lapses. An event on a pull request you no longer own is not a reason to push
+  or comment; if it needs the owner, say so in chat.
 - **Find bugs:** reproduce the problem on current main first, and say whether
   you saw it in the game or in code or tests. Fix it only if asked.
 - **Fix issues:** before you claim, check whether an owner decision outranks
