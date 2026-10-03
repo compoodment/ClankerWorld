@@ -638,7 +638,10 @@ one quarter after climate and latitude adjustments. The removed share goes to
 clear and cloudy weather. Integer weights use four units per old weight point,
 so small weights keep the same exact reduction. Explicit custom weather
 profiles retain their declared weights. Episode neighbor and persistence
-bonuses use the same weight scale. Further tuning remains provisional in
+bonuses use the same weight scale. Custom profile totals may reach
+`int.MaxValue`; climate conversion uses wider intermediate arithmetic, and
+episode weights remain wide through persistence bonuses and storm cooldown.
+These adjustments cannot wrap into negative weights. Further tuning remains provisional in
 [#204](https://github.com/compoodment/ClankerWorld/issues/204).
 Wet neighbors add at most four rain-weight points;
 a reduction to base precipitation weights offsets that bonus. The fixed-seed
