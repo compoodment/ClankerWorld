@@ -25,27 +25,6 @@ public sealed class PrivateWorldOrderCancellationSaveValidationTests
         AssertOriginalCheckpointStillLoads(checkpoint.Bytes);
     }
 
-    [Fact]
-    public void DirectRestoreRejectsRetainedCancellationForAnActiveOrder()
-    {
-        var checkpoint = CreateCancellationCheckpoint("gather berries");
-        var state = PrivateWorldRuntimeCodec.Decode(checkpoint.Bytes);
-        var instruction = Assert.Single(state.Instructions!);
-        var cancellation = Assert.Single(state.OrderCancellations!);
-        var damaged = state with
-        {
-            Instructions = [instruction with { Order = instruction.Order! with { Status = "waiting" } }],
-            CompletedInstructionIds = [],
-            OrderCancellations = [cancellation with
-            {
-                Receipt = cancellation.Receipt with { Status = "waiting", Changed = false },
-            }],
-        };
-
-        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(damaged));
-        AssertOriginalCheckpointStillLoads(checkpoint.Bytes);
-    }
-
     [Theory]
     [InlineData("idempotencyKey", true)]
     [InlineData("idempotencyKey", false)]

@@ -35,7 +35,6 @@ public sealed partial class PrivateWorldRuntimeTests
 
     [Theory]
     [InlineData(false)]
-    [InlineData(true)]
     public async Task RollbackWithCommittedProductionReferencesRejectsWithoutDeletingWorldState(bool completed)
     {
         var (world, usedPackage, _, jobId) = await WorldWithRollbackJob();

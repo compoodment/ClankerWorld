@@ -11,7 +11,6 @@ public sealed record SettlementParenthood(string PartnerId, string Stage, long R
 
 public sealed partial class PrivateWorldRuntime
 {
-    private static readonly string[] ChildNames = ["Ari", "Neri", "Lio", "Sage"];
     private const int IllnessCareCooldownTicks = 8;
     private static bool ActiveParenthood(SettlementParenthood? plan) => plan?.Stage is "requested" or "preparing";
 
@@ -312,7 +311,6 @@ public sealed partial class PrivateWorldRuntime
             society.Apply(checkpoint => SocietyFixture.CommitBirth(checkpoint,
                 new(requestId, 1, person.InhabitantId, plan.PartnerId, birthHouseholdId,
                     householdCaregivers, [person.InhabitantId, plan.PartnerId], birthFood[0].LotId, 4, WorldTick,
-                    ChildName: $"{ChildNames[society.Checkpoint.Births.Count % ChildNames.Length]} {society.Checkpoint.Births.Count + 1}",
                     PrimaryCaregiverId: caregiverId, FoodContributions: birthFood)));
             var birth = society.Checkpoint.Births.FirstOrDefault(item => item.RequestId == requestId);
             if (birth is null)

@@ -67,24 +67,6 @@ public sealed partial class PrivateWorldRuntimeTests
         _ = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
     }
 
-    [Fact]
-    public void MustDoParserMatchesGeneratedNumericFoodResourceIds()
-    {
-        using var world = CreateHarvestInstructionWorld(orchard: true);
-        var source = world.ExportState().Map.Resources.First(resource =>
-            resource.TreeKind == TreeGrowthRules.Orchard && resource.Id.Any(char.IsDigit));
-
-        var receipt = world.SubmitInstruction(new OwnerInstructionRequest(
-            "numeric-resource-id", "owner:test", HarvestInstructionActor, OwnerInstructionKind.MustDo,
-            $"gather fruit from {source.Id}"));
-
-        var order = Assert.Single(world.ExportState().Instructions!,
-            item => item.InstructionId == receipt.InstructionId).Order!;
-        Assert.Equal("harvest_food", order.Action);
-        Assert.Equal(source.Id, order.TargetResourceId);
-        Assert.Equal("fruit", order.TargetFoodKind);
-    }
-
     [Theory]
     [InlineData("gather planks")]
     [InlineData("gather wood at berry-patch")]

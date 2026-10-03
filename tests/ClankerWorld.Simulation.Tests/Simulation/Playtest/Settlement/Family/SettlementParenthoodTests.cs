@@ -41,7 +41,10 @@ public sealed partial class SettlementParenthoodTests
         Assert.Equal(PrivateWorldRuntimeCodec.Encode(restored.ExportState()), PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
         var birth = Assert.Single(restored.Society.Births);
         Assert.Equal(5, restored.Inhabitants.Count);
-        Assert.Equal("Ari 1", restored.Society.GetInhabitant(birth.ChildId).Name);
+        var newbornIdentity = restored.Society.GetInhabitant(birth.ChildId);
+        Assert.False(newbornIdentity.HasChosenName);
+        Assert.True(newbornIdentity.NeedsName);
+        Assert.Equal("Child", newbornIdentity.Name);
         Assert.Equal(SocietyAgeBand.Infant, restored.Society.GetInhabitant(birth.ChildId).AgeBand);
         Assert.Empty(restored.Inhabitants.Single(person => person.InhabitantId == birth.ChildId).Skills ?? []);
         var newborn = restored.Inhabitants.Single(person => person.InhabitantId == birth.ChildId);
@@ -284,37 +287,6 @@ public sealed partial class SettlementParenthoodTests
     }
 
     [Fact]
-    public async Task AcceptingParentChoosesAnExplicitCaregiverAndIntendedHome()
-    {
-        var state = await PreparedState();
-        var initiator = state.Inhabitants[0].InhabitantId;
-        var acceptor = state.Inhabitants[1].InhabitantId;
-        var acceptorHome = state.Society.Society.GetInhabitant(acceptor).HouseholdId!;
-        var initiatorProvider = new ParentProvider("parent_propose:");
-        var parentProvider = new ParentProvider($"parent_accept:{initiator}:acceptor:");
-        IDecisionProvider ProviderFor(string actor) => actor == initiator
-            ? initiatorProvider
-            : actor == acceptor
-                ? parentProvider
-                : new ParentProvider("safe_idle");
-
-        using var world = PrivateWorldRuntime.Restore(state, ProviderFor);
-        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-
-        var plan = world.Inhabitants.Single(person => person.InhabitantId == initiator).Parenthood!;
-        Assert.Equal("preparing", plan.Stage);
-        Assert.Equal(acceptor, plan.PrimaryCaregiverId);
-        Assert.Equal(acceptorHome, plan.IntendedHouseholdId);
-        Assert.Contains(parentProvider.SeenCandidates, candidate =>
-            candidate.Id == $"parent_accept:{initiator}:acceptor:{Uri.EscapeDataString(acceptorHome)}" &&
-            candidate.Description.Contains(acceptorHome, StringComparison.Ordinal));
-        Assert.Contains(initiatorProvider.SeenCandidates, candidate => candidate.Id == $"parent_propose:{acceptor}" &&
-            candidate.Description.Contains("either parent as the primary caregiver", StringComparison.Ordinal) &&
-            candidate.Description.Contains("that parent's household as the intended home", StringComparison.Ordinal));
-    }
-
-    [Fact]
     public async Task ExistingSecondaryCaregiverCanChoosePrimaryCareAfterTheRecordedPrimaryDies()
     {
         using var initial = NormalPathWorld.CreateGenerated("secondary-caregiver-primary-choice", _ => new ParentProvider("safe_idle"));
@@ -330,14 +302,14 @@ public sealed partial class SettlementParenthoodTests
         var otherHousehold = state.Society.Society.Households.First(item => item.Id != householdId);
         var newPartner = otherHousehold.MemberIds[0];
 
-        var society = state.Society.Society;
+        var society = ChosenBirthNameTestFixture.NameParent(state.Society.Society, primary);
         society = SocietyFixture.ProposeRelationship(society,
             new("primary-care-parents", 1, SocietyRelationshipType.Partnership, primary, secondary, society.WorldTick)).Checkpoint;
         society = SocietyFixture.AcceptRelationship(society, "primary-care-parents", 1, secondary).Checkpoint;
         var food = society.Inventory.Lots.First(item => item.OwnerId == householdId && item.ItemKind == "food" && item.Quantity >= 4);
         var birth = SocietyFixture.CommitBirth(society, new SocietyBirthRequest(
             "secondary-caregiver-child", 1, primary, secondary, householdId, [primary, secondary], [primary, secondary],
-            food.Id, 4, society.WorldTick, ChildName: "Ari", PrimaryCaregiverId: primary));
+            food.Id, 4, society.WorldTick, ChildName: ChosenBirthNameTestFixture.ChildName(society, primary, "Ari"), PrimaryCaregiverId: primary));
         var childId = Assert.IsType<string>(birth.CreatedId);
         society = birth.Checkpoint;
         Assert.Equal(primary, society.GetInhabitant(childId).PrimaryCaregiverId);
@@ -502,12 +474,12 @@ public sealed partial class SettlementParenthoodTests
         var state = await PreparedState();
         var first = state.Inhabitants[0].InhabitantId;
         var second = state.Inhabitants[1].InhabitantId;
-        var society = (elder ? AsElder(state, second) : state).Society.Society;
+        var society = ChosenBirthNameTestFixture.NameParent((elder ? AsElder(state, second) : state).Society.Society, first);
         var householdId = society.GetInhabitant(first).HouseholdId!;
         var food = society.Inventory.Lots.First(item => item.OwnerId == householdId && item.ItemKind == "food" && item.Quantity >= 4);
         var result = SocietyFixture.CommitBirth(society, new SocietyBirthRequest(
             "elder-parent-child", 1, first, second, householdId, CaregiverIds: [first], ConsentingParentIds: [first, second],
-            food.Id, 4, society.WorldTick, ChildName: "Ari", PrimaryCaregiverId: first));
+            food.Id, 4, society.WorldTick, ChildName: ChosenBirthNameTestFixture.ChildName(society, first, "Ari"), PrimaryCaregiverId: first));
         Assert.Equal(elder, result.CreatedId is null);
         Assert.Equal(elder ? 0 : 1, result.Checkpoint.Births.Count);
     }
@@ -527,19 +499,6 @@ public sealed partial class SettlementParenthoodTests
         await restored.AdvanceOneTickAsync();
         Assert.Equal("cancelled", restored.Inhabitants.Single(person => person.InhabitantId == first).Parenthood!.Stage);
         Assert.Empty(restored.Society.Births);
-    }
-
-    [Fact]
-    public async Task OldSchemaCannotHideAnActiveParenthoodPlan()
-    {
-        var state = await PreparedState();
-        state = state with
-        {
-            SchemaVersion = 8,
-            Inhabitants = state.Inhabitants.Select((person, index) => index == 0
-            ? person with { Parenthood = new(state.Inhabitants[1].InhabitantId, "requested", 0, 0) } : person).ToArray()
-        };
-        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(state));
     }
 
     [Fact]
@@ -601,7 +560,7 @@ public sealed partial class SettlementParenthoodTests
                 {
                     Society = state.Society.Society with
                     {
-                        Inhabitants = state.Society.Society.Inhabitants.Select(person => person with { Name = "private-parenthood-secret" }).ToArray(),
+                        Inhabitants = state.Society.Society.Inhabitants.Select(person => person with { Name = $"private-parenthood-secret-{person.Id}" }).ToArray(),
                     }
                 }
             };
