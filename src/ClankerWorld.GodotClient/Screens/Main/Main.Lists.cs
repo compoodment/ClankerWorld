@@ -96,12 +96,15 @@ public partial class Main
                 "town_project_approved" or "town_project_resumed"
                 => PixelIcons.Texture(PixelGlyph.Flag, ink, green, 1),
             "town_resident_joined" or "town_resident_left" or "town_membership_evaluated" or "town_building_assigned"
+                or "market_stall_borrowed" or "market_stall_left"
                 => PixelIcons.Texture(PixelGlyph.House, ink, wood, 1),
             "paused" => PixelIcons.Texture(PixelGlyph.Pause, ink, ink, 1),
             "resumed" => PixelIcons.Texture(PixelGlyph.Play, ink, ink, 1),
             "instruction_not_understood" or "inhabitant_building_proposed" => PixelIcons.Texture(PixelGlyph.Speech, ink, UiTheme.Current.Paper, 1),
             "settlement_trade_completed" or "town_project_donated" or "town_project_material_picked_up" or
-                "town_project_material_delivered" or "town_project_material_returned" => PixelIcons.Texture(PixelGlyph.Box, ink, wood, 1),
+                "town_project_material_delivered" or "town_project_material_returned" or "market_stock_delivered" or
+                "market_stock_collected" or "market_trade_offered" or "market_trade_completed" or "market_trade_cancelled"
+                => PixelIcons.Texture(PixelGlyph.Box, ink, wood, 1),
             _ => PixelIcons.Texture(PixelGlyph.Globe, ink, green, 1),
         };
     }

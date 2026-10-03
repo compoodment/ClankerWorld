@@ -425,7 +425,7 @@ public partial class Main
     private void RenderTownList(OwnerWorldSnapshot snapshot)
     {
         var signature = string.Join("\n", snapshot.Towns.Select(town =>
-            $"{town.Id}|{town.Name}|{town.FoundingState}|{town.FoundedTick}|{town.ResidentIds.Count}|{town.BorderTiles.Count}|{ResidentPortraitsKey(snapshot, town)}|{TownCivicText(town, snapshot.WorldTick)}|{TownProjectText(town)}")) +
+            $"{town.Id}|{town.Name}|{town.FoundingState}|{town.FoundedTick}|{town.ResidentIds.Count}|{town.BorderTiles.Count}|{ResidentPortraitsKey(snapshot, town)}|{TownCivicText(town, snapshot.WorldTick)}|{TownProjectText(town)}|{TownMarketText(town)}")) +
             "|" + displayPreferences.DateStyle + "|" + observedCalendarPace + "|" + UiTheme.Current.Name;
         if (renderedTownList == signature) return;
         renderedTownList = signature;
@@ -479,6 +479,13 @@ public partial class Main
                 text.AddChild(new Label
                 {
                     Text = TownProjectText(town),
+                    AutowrapMode = TextServer.AutowrapMode.WordSmart,
+                    CustomMinimumSize = new Vector2(300, 0),
+                });
+            if (town.Markets.Count > 0)
+                text.AddChild(new Label
+                {
+                    Text = TownMarketText(town),
                     AutowrapMode = TextServer.AutowrapMode.WordSmart,
                     CustomMinimumSize = new Vector2(300, 0),
                 });
@@ -573,10 +580,52 @@ public partial class Main
             lines.Add($"Provisional work: {project.WorkDone} / {project.WorkRequired} units");
             lines.Add($"Council approval: {project.Approval.Yes} yes / {project.Approval.No} no · {project.Approval.RequiredYes} yes needed");
             if (project.Blocker is { } blocker) lines.Add("Waiting: " + blocker);
-            if (project.CompletedBuildingId is not null) lines.Add("Built · select the Town Hall on the map for details.");
+            if (project.CompletedBuildingId is not null) lines.Add($"Built · select the {project.DisplayName} on the map for details.");
         }
         return GameUiText.PlainEllipses(string.Join("\n", lines));
     }
+
+    private static string TownMarketText(OwnerWorldTown town)
+    {
+        var lines = new List<string>();
+        foreach (var market in town.Markets)
+        {
+            var name = town.Projects.FirstOrDefault(project => project.Id == market.ProjectId)?.Name ?? "Market";
+            var borrowed = market.RemovedTick is null ? market.Stalls.Count(stall => stall.SellerId is not null) : 0;
+            lines.Add($"{name} · {market.Stalls.Count} stalls built · {borrowed} borrowed");
+            lines.Add(market.RemovedTick is null
+                ? $"Town-owned Market · {market.PlazaWidth} × {market.PlazaHeight} plaza · any Town's adults may trade"
+                : "Market removed · earlier goods retain their recorded owners");
+            foreach (var stall in market.Stalls)
+            {
+                lines.Add(MarketStallText(stall, market.RemovedTick is not null));
+                foreach (var stock in stall.Stock)
+                    lines.Add(MarketStockText(stock));
+                foreach (var trade in stall.Trades)
+                    lines.Add(MarketTradeText(trade));
+            }
+        }
+        return GameUiText.PlainEllipses(string.Join("\n", lines));
+    }
+
+    private static string MarketStallText(OwnerWorldMarketStall stall, bool inactive = false) =>
+        $"Stall {stall.SlotIndex + 1} · " + (inactive ? "inactive" : stall.SellerId is not null
+            ? $"borrowed by {stall.SellerName ?? stall.SellerId}" : "free to borrow");
+
+    private static string MarketStockText(OwnerWorldMarketStock stock) =>
+        $"{stock.Quantity} {GameUiText.ItemName(stock.Kind)} · owner: {stock.OwnerName} · {stock.AvailableQuantity} usable and unreserved";
+
+    private static string MarketTradeText(OwnerWorldMarketTrade trade) =>
+        $"{trade.SellerName} → {trade.BuyerName}: {trade.GoodsQuantity} {GameUiText.ItemName(trade.GoodsKind)} for " +
+        $"{trade.PaymentQuantity} {GameUiText.ItemName(trade.PaymentKind)} · " + (trade.Status switch
+        {
+            "open" when !trade.SellerAccepted || !trade.BuyerAccepted =>
+                (trade.SellerAccepted ? "seller agreed" : "seller decision pending") + " · " +
+                (trade.BuyerAccepted ? "buyer agreed" : "buyer decision pending") + " · meet at the stall",
+            "open" => "waiting for both traders at the stall",
+            "settled" => "completed · buyer carries the purchase",
+            _ => "cancelled · " + (trade.CancellationReason ?? "exchange ended"),
+        });
 
     private static string CivicElectionName(string kind) => kind switch
     {

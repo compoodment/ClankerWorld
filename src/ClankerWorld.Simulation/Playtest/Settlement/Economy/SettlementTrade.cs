@@ -71,10 +71,16 @@ public sealed partial class PrivateWorldRuntime
         }
         if (!TownConstructionCandidateIds.TryParse(project.CandidateId, out var selection))
             return false;
-        var inputs = selection.IsBuilding
-            ? worldContent.Buildings.FirstOrDefault(item => item.CanonicalId == selection.DefinitionId)?.BuildCosts
-            : worldContent.Recipes.FirstOrDefault(item => item.CanonicalId == selection.DefinitionId)?.Inputs;
-        return inputs?.Any(input => input.ResourceId == kind && !HasAvailableQuantities([input]) && owned < input.Amount) == true;
+        var building = selection.IsBuilding
+            ? worldContent.Buildings.FirstOrDefault(item => item.CanonicalId == selection.DefinitionId) : null;
+        var recipe = selection.IsBuilding
+            ? null : worldContent.Recipes.FirstOrDefault(item => item.CanonicalId == selection.DefinitionId);
+        if (building is null && recipe is null) return false;
+        var inputs = building?.BuildCosts ?? recipe!.Inputs;
+        // Match the owners used by the actual construction and recipe choices.
+        // Another household's stock cannot satisfy this actor's production plan.
+        var inputOwner = building is not null ? BuildingConstructionOwner(actor, building) : ProductionOwnerFor(null, actor);
+        return inputs.Any(input => input.ResourceId == kind && !HasAvailableQuantities([input], inputOwner) && owned < input.Amount);
     }
 
     private (InventoryLot Give, InventoryLot Take)? TradeOpportunity(string actor, string other)

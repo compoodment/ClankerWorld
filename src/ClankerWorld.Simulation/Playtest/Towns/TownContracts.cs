@@ -22,6 +22,9 @@ public sealed record TownRuntimeState(
 {
     [JsonRequired]
     public IReadOnlyList<TownConstructionProject> Projects { get; init; } = [];
+
+    [JsonRequired]
+    public IReadOnlyList<TownMarketState> Markets { get; init; } = [];
 }
 
 /// <summary>

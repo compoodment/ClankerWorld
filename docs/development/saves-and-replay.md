@@ -378,8 +378,8 @@ blocked-return behavior. These checks use existing timestamps and add no saved
 fields, schema change or migration.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 54 (the provisional number for the
-Town-project change; recheck against main before merging). The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 55 (the provisional number for the
+Market change; recheck against main before merging). The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
@@ -399,7 +399,8 @@ guardian-search records with their offered adults, medical permission and
 consumed-dose progress, selected personal ornaments, and wills with up to
 three named heirs, exact divisions and final words, plus typed Council-approved
 Town-project plans, shared construction progress and exact physical delivery
-receipts.
+receipts, plus paid Market layouts, stall borrowing, stock receipts and physical
+barter records.
 Land records are checked against the saved map, Towns, households and one
 another before load. These fields retain their current validation and roundtrip
 behavior.
@@ -427,8 +428,9 @@ exchanges, schema 46 for continuity, schema 47 for household departures and
 physical custody, schema 48 for Town councils, schema 49 for food-order
 progress and cancellations, schema 50 for guardian searches, schema 51
 for medical permission and consumed-dose progress, schema 52 for selected
-ornaments, schema 53 for wills with several heirs and final words, and schema 54
-for typed shared Town-project construction record when those fields or behaviors were
+ornaments, schema 53 for wills with several heirs and final words, schema 54
+for typed shared Town-project construction, and schema 55 for paid Markets and
+physical stall trade record when those fields or behaviors were
 introduced; they do not allow an earlier checkpoint schema past the
 current alpha cutoff.
 
@@ -471,6 +473,7 @@ current alpha cutoff.
 | Schema 52 | An optional exact personally owned, carried ornament lot in the canonical personal equipment record. Wearing supplies no protection or carrying bonus; removal, gifts and death retain actual property while clearing the selection when required. Earlier alpha saves are refused and preserved without migration. |
 | Schema 53 | Wills with one to three named heirs (people or a Town), an equal or item-by-item split, the exact quantity of each frozen lot per heir, and final words; the deceased archive keeps the agent's Town. Divisions must cover every frozen lot exactly. Earlier schemas cannot carry these records. |
 | Schema 54 (provisional) | Typed Council project plans and one shared Town construction record per passed proposal, with exact physical load/reservation/release history, work and paid building identity. The first consumer is the Town Hall. Earlier alpha checkpoints are refused and preserved without migration. |
+| Schema 55 (provisional) | Required Market lists bind paid halls and stalls to their completed Town projects, with named borrowing, physical stock receipts and exact inventory barter history. Earlier alpha checkpoints are refused and preserved without migration. |
 
 Other compatibility fields remain separate for simulation, envelopes, content,
 assets, generator and network contracts. Change the field whose semantics
@@ -533,6 +536,51 @@ generated-world gathering and donation, genuine Warehouse loads, intermediate
 restore/replay, discarded prepared ticks, stale votes, retained removal and
 coherently altered receipt/source references. Earlier
 alpha schemas, including 53, are refused visibly and preserved without migration.
+
+## Paid Markets and stall trade
+
+Schema 55 adds a required, non-null `Markets` list to each Town. Each Market
+binds its hall and fixed 7×4 plaza to the completed starter project, which pays
+for exactly two stalls in slots 0 and 4. Each additional stall requires its own
+completed project with the exact definition, slot, site and material budget.
+Loading rejects unpaid or duplicate slots, altered plans, unmatched buildings
+and inconsistent removal history. Approved, partly supplied and completed
+Market construction retains the shared Town project's physical load,
+reservation, consumption and work records.
+
+Named borrowing records bind actual living adults to a paid stall while they
+remain inside the hall-and-plaza area. Stock receipts keep the personal or
+household owner recorded at deposit, physical lot, quantity and occupancy
+identity; live inventory remains authoritative after inheritance or collection.
+Another borrower gains no right to sell those goods. Barter records bind the
+exact inventory offer, named seller and buyer, lots, reservations and outcome.
+Completed or cancelled trades retain their history without requiring spent
+goods to remain live. Loading checks owners, locations, active claims and the
+actual physical occupancy instead of reconstructing authority from a stall's
+current borrower.
+
+Leaving, household change, death or removal ends borrowing and cancels open
+offers. Removed Market buildings keep their paid history and stock receipts,
+so recorded owners can still collect physical leftovers. Current-format
+restore must preserve intermediate construction, borrowing, stock and open
+trades without duplicating goods or approval. `MarketConstructionRuntimeTests`
+covers a generated paid Market and additional stall, personal and household
+stocking and barter, fresh consent, paused-plan ingredient buying, retrieval,
+intermediate restores and malformed state. A buyer added outside all Town land
+retains its independent household and no Town membership; open and settled
+trades reload strictly, and its live and restored continuations remain
+byte-identical after each continuing step.
+
+Planting-stock demand reuses existing fields, inventory and reservations and
+adds no saved field. The seed scenario creates its prepared field through
+actual tilling, buys one grain seed, retains the supplier's remaining unit,
+suppresses another same-kind purchase while the bought unit is held, then
+consumes that exact unit through ordinary planting. Intermediate states reload
+strictly with the same physical lots and claims. Stock, food consumption,
+equipment and phase wakes are controlled test arrangements; title, field
+placement and actor positions are retained from actual work and movement.
+Earlier alpha checkpoints, including schema 54, are refused and preserved
+without migration. The schema number remains provisional until merge.
 
 ## Pending model work and estates
 

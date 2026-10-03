@@ -998,9 +998,60 @@ Store stocking also keeps each adult's best usable work tool. Optional shelf
 restocking waits behind gathering materials needed by household work.
 Rates, the eight-unit shelf target and four-unit carried loads are provisional.
 Blacksmiths can sell real refined iron for another household's tool work.
-Market stalls, tool orders and meals remain tracked in #564 and its domain
-issues; currency remains later work. The Clinic sells actual medicine
-and bandages through the same inventory and physical business authority.
+Commissioned tool orders remain a separate dependency in
+[#762](https://github.com/compoodment/ClankerWorld/pull/762). Flour foods and
+Restaurant meals are covered separately by
+[#693](https://github.com/compoodment/ClankerWorld/pull/693); currency remains
+later work. The Clinic sells actual medicine and bandages through the same
+inventory and physical business authority.
+
+**Markets** use the same inventory authority with separate saved paid-building
+and occupancy records. The Council-approved starter project pays for the 2×2
+hall and only two 1×1 stalls on the fixed 7×4 plaza, in slots 0 and 4. When all
+live stalls are borrowed, another fixed slot may be proposed as a separate
+Council-approved Town project. The provisional starter budget is 24 wood,
+8 stone and 4 fiber with 10 work units; another stall costs 4 wood and 2 fiber
+with 3 work units. General plaza growth has no implementation or agreed rule.
+Physical stock receipts retain the personal or household owner. One named
+active adult borrows a stall while they remain inside the hall-and-plaza area;
+leaving, household change, death or removal ends borrowing and releases
+unfinished offer claims without transferring leftovers.
+
+Loads, borrowing, deposits, collection and barter mutations need a fresh
+accepted, non-fallback personal LLM choice. Continued intentions walk only;
+owner orders do not authorize these mutations. Usable loose surplus, actual
+carrying and stall room, active claims, current household rights and protected
+equipment constrain the offered choices. The provisional one-for-one quote is
+an actual `Inventory.Offers` exchange. Buyers may belong to any Town or have no
+Town membership; walking into the Market and completing a purchase change
+neither their household nor their Town. The named seller accepts only after
+both people meet at the stall. Purchased stock
+becomes the buyer's personal cargo; payment is physically set down as the
+seller's household stock, including payment for personally owned goods. A
+later stall borrower cannot sell an earlier borrower's stock. Its recorded
+owner, or a current member of the owning household, may physically collect it.
+Live inventory ownership remains authoritative after inheritance or collection.
+Customer access remains limited to the named transaction. See the
+[Market save rules](saves-and-replay.md#paid-markets-and-stall-trade) for the
+saved layout, stock and offer checks.
+
+Missing-input demand checks the buyer's actual production owner, keeping each
+household's available materials separate. A nonterminal recipe plan marked
+`RequiresFreshChoice` may choose a Market purchase while remaining paused; an
+actively continuing plan keeps the adult at its work. Resuming the recipe
+still requires its ordinary choice and physical ingredient-delivery rules.
+
+`WantsFieldPlantingStock` reuses the actual field and planting-stock checks for
+grain seed, cultivated-green seed and loose potatoes. The adult must belong to
+a household holding a Farmhouse, have a usable hoe and have no urgent survival
+need or actively continuing project. That household must need food, and the
+adult must be able to reach its idle `Prepared` or `Harvested` field without
+another person's planting claim. A usable personally carried planting unit,
+accessible household stock or that field's reserved replanting lot satisfies
+the same-kind need. The exact one-unit purchase remains personal cargo until
+ordinary field work consumes it; a held unit suppresses further same-kind seed
+quotes even when the seller still has stock. Other goods may still be wanted.
+Demand creates no future seed buffer or access to another household's stores.
 
 **Clinic supplies and illness care** use the normal household building,
 workstation supply, ecology and recipe paths. `clankerworld-care-v1` adds a

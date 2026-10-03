@@ -180,6 +180,154 @@ public partial class Main
             throw new InvalidOperationException("A named item slot must leave room for its name and say what it holds.");
         fruitSlot.Free();
         VerifyBuildingManagementRefresh(baseMap);
+        await VerifyMarketCardsAsync(baseMap);
+    }
+
+    private async Task VerifyMarketCardsAsync(OwnerWorldSnapshot baseMap)
+    {
+        var hall = new OwnerWorldPlacedBuilding("market-ui-hall", "test/market", new(4, 1), 10,
+            "Market", ["market"], 2, 2, "town:first", Entrance: new(5, 3));
+        var north = new OwnerWorldPlacedBuilding("market-ui-north", "test/stall", new(3, 4), 10,
+            "Market stall", ["market_stall"], TownId: "town:first", Entrance: new(3, 3));
+        var south = north with { InstanceId = "market-ui-south", Position = new(3, 5), Entrance = new(3, 6) };
+        var trade = new OwnerWorldMarketTrade("market-ui-offer", "seller:one", "Sam", "household:sam",
+            "Sam's household", "household:sam", "Sam's household", "buyer:two", "Lina",
+            "berries", 2, "wood", 1, "open", null, SellerAccepted: true);
+        var first = new OwnerWorldMarketStall(north.InstanceId, 0, north.Position, "seller:one", "Sam", 11,
+            [new("earlier-grain", null, "seller:earlier", "Sela", "grain", 3, 3),
+                new("current-berries", null, "household:sam", "Sam's household", "berries", 2, 0)], [trade]);
+        var second = new OwnerWorldMarketStall(south.InstanceId, 4, south.Position, null, null, null, [], []);
+        var market = new OwnerWorldMarket("market-ui", "market-project-ui", hall.InstanceId, hall.Position,
+            new(2, 3), 7, 4, [first, second]);
+        var approval = new OwnerCivicProposal("market-approval-ui", "town_project", "Build our Market", "passed", 3, 0, 3, 20);
+        var completed = new OwnerWorldTownProject(market.ProjectId, approval.Id, "First Market", "seller:one", "Sam",
+            hall.DefinitionId, "Market", hall.Position, hall.Entrance!, 2, 2,
+            [new("wood", 24, 24), new("stone", 8, 8), new("fiber", 4, 4)], 10, 10,
+            "completed", null, hall.InstanceId, approval);
+        var extension = completed with
+        {
+            Id = "extra-stall-ui",
+            Name = "Another stall",
+            DefinitionId = north.DefinitionId,
+            DisplayName = "Market stall",
+            Width = 1,
+            Height = 1,
+            Site = new(4, 4),
+            Entrance = new(4, 3),
+            Materials = [new("wood", 4, 0), new("fiber", 2, 0)],
+            WorkDone = 0,
+            WorkRequired = 3,
+            Stage = "supplying",
+            Blocker = "More Town materials are needed",
+            CompletedBuildingId = null,
+        };
+        var town = baseMap.Towns[0] with { Markets = [market], Projects = [completed, extension] };
+        var map = baseMap with
+        {
+            WorldId = "market-ui-world",
+            WorldTick = 30,
+            PackedTerrain = new(12, 10, "terrain-kind-v1", Convert.ToBase64String(new byte[120])),
+            PackedMapLayers = null,
+            MapLayersDigest = null,
+            Tiles = Enumerable.Range(0, 120).Select(index => new OwnerWorldTile(index % 12, index / 12, "meadow")).ToArray(),
+            PlacedBuildings = [hall, north, south],
+            ProductionJobs = [],
+            Towns = [town],
+            Inhabitants = [MarketPerson("seller:one", "Sam", north.Entrance!),
+                MarketPerson("buyer:two", "Lina", south.Entrance!)],
+        };
+        ClearBuildingSelection();
+        RenderMap(map);
+        RenderTownList(map);
+        var labels = TownListText();
+        if (!labels.Contains("2 stalls built · 1 borrowed", StringComparison.Ordinal) ||
+            !labels.Contains("Stall 1 · borrowed by Sam", StringComparison.Ordinal) ||
+            !labels.Contains("Stall 5 · free to borrow", StringComparison.Ordinal) ||
+            !labels.Contains("3 Grain · owner: Sela", StringComparison.Ordinal) ||
+            !labels.Contains("0 / 4 Wood", StringComparison.Ordinal) ||
+            !labels.Contains("0 / 3 units", StringComparison.Ordinal) ||
+            !labels.Contains("More Town materials are needed", StringComparison.Ordinal) ||
+            labels.Contains("8 stalls built", StringComparison.Ordinal) ||
+            BuildingSprites.KindFor(hall.Tags) != BuildingKind.Market ||
+            BuildingSprites.KindFor(north.Tags) != BuildingKind.MarketStall)
+            throw new InvalidOperationException("World Info must show actual paid stalls and preserve earlier stock owners separately from the borrower.");
+
+        SelectBuilding(north.InstanceId);
+        RenderBuildingCard(map);
+        buildingDetailsButton.EmitSignal(BaseButton.SignalName.Pressed);
+        RenderBuildingCard(map);
+        for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        var facts = Facts();
+        if (!facts.Contains("3 Grain · owner: Sela", StringComparison.Ordinal) ||
+            !facts.Contains("Sam → Lina: 2 Berries for 1 Wood", StringComparison.Ordinal) ||
+            !facts.Contains("seller agreed · buyer decision pending", StringComparison.Ordinal) ||
+            !facts.Contains("Goods: Sam's household · payment: Sam's household", StringComparison.Ordinal) ||
+            buildingDetailsStorage.Visible ||
+            !GetViewportRect().Grow(1).Encloses(buildingDetailsPanel.GetGlobalRect()))
+            throw new InvalidOperationException("The stall card must show exact exchange terms and recorded owners without treating private ground goods as Town storage.");
+
+        var agreed = map with
+        {
+            Towns = [town with { Markets = [market with
+            {
+                Stalls = [first with { Trades = [trade with { BuyerAccepted = true }] }, second],
+            }] }],
+        };
+        RenderTownList(agreed);
+        RenderBuildingCard(agreed);
+        if (!Facts().Contains("waiting for both traders at the stall", StringComparison.Ordinal) ||
+            Facts().Contains("buyer decision pending", StringComparison.Ordinal))
+            throw new InvalidOperationException("Both recorded acceptances must refresh the stall from pending consent to the physical meeting.");
+
+        var settled = first with
+        {
+            SellerId = "seller:new",
+            SellerName = "Mika",
+            OccupiedTick = 30,
+            Stock = [first.Stock[0], new("actual-payment", null, "household:sam", "Sam's household", "wood", 1, 1)],
+            Trades = [trade with { Status = "settled" }],
+        };
+        var changed = map with { Towns = [town with { Markets = [market with { Stalls = [settled, second] }] }] };
+        // A changed observation at the same tick must refresh both caches.
+        RenderTownList(changed);
+        RenderBuildingCard(changed);
+        facts = Facts();
+        var quick = string.Join('\n', buildingQuickStatus.FindChildren("*", nameof(Label), owned: false)
+            .OfType<Label>().Select(label => label.Text));
+        if (!TownListText().Contains("borrowed by Mika", StringComparison.Ordinal) ||
+            !facts.Contains("completed · buyer carries the purchase", StringComparison.Ordinal) ||
+            !facts.Contains("1 Wood · owner: Sam's household", StringComparison.Ordinal) ||
+            !facts.Contains("3 Grain · owner: Sela", StringComparison.Ordinal) ||
+            facts.Contains("owner: Mika", StringComparison.Ordinal) ||
+            quick.Contains("1 exchange waiting", StringComparison.Ordinal))
+            throw new InvalidOperationException("A new borrower and settled exchange must refresh without reassigning earlier goods or the seller's payment.");
+
+        var history = changed with
+        {
+            Towns = [town with { Markets = [market with { RemovedTick = 30, Stalls = [settled, second] }] }],
+        };
+        RenderTownList(history);
+        RenderBuildingCard(history);
+        if (!TownListText().Contains("Market removed", StringComparison.Ordinal) ||
+            !Facts().Contains("stalls inactive", StringComparison.Ordinal) ||
+            !Facts().Contains("3 Grain · owner: Sela", StringComparison.Ordinal) ||
+            TownListText().Contains("free to borrow", StringComparison.Ordinal))
+            throw new InvalidOperationException("Inactive Market history must retain goods ownership without advertising borrowing permission.");
+        var description = WorldEventText.Describe(new(1, 30, "market_trade_offered",
+            "town:first|market-ui|market-ui-north|seller:one|buyer:two|market-ui-offer", north.Position),
+            map);
+        if (!description.Contains("Sam", StringComparison.Ordinal) || !description.Contains("Lina", StringComparison.Ordinal) ||
+            !description.Contains("exact terms", StringComparison.Ordinal))
+            throw new InvalidOperationException("Market event descriptions must retain full pipe-delimited trader identities.");
+        ClearBuildingSelection();
+        RenderMap(baseMap);
+        RenderTownList(baseMap);
+
+        string Facts() => string.Join('\n', buildingFacts.GetChildren().OfType<Label>().Select(label => label.Text));
+
+        static OwnerWorldInhabitant MarketPerson(string id, string name, OwnerWorldPosition position) =>
+            new(id, name, "active", position, 8_000, [], [], new("idle", null, null, [], string.Empty),
+                new(position, [position], [position]), false);
     }
 
     private void VerifyBuildingManagementRefresh(OwnerWorldSnapshot baseMap)

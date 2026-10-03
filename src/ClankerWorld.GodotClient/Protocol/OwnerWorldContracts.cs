@@ -146,7 +146,22 @@ public sealed record OwnerWorldTown(
 {
     public OwnerTownGovernance? Governance { get; init; }
     public IReadOnlyList<OwnerWorldTownProject> Projects { get; init; } = [];
+    public IReadOnlyList<OwnerWorldMarket> Markets { get; init; } = [];
 }
+
+public sealed record OwnerWorldMarket(string Id, string ProjectId, string HallBuildingId,
+    OwnerWorldPosition Site, OwnerWorldPosition PlazaPosition, int PlazaWidth, int PlazaHeight,
+    IReadOnlyList<OwnerWorldMarketStall> Stalls, long? RemovedTick = null);
+public sealed record OwnerWorldMarketStall(string BuildingInstanceId, int SlotIndex, OwnerWorldPosition Position,
+    string? SellerId, string? SellerName, long? OccupiedTick,
+    IReadOnlyList<OwnerWorldMarketStock> Stock, IReadOnlyList<OwnerWorldMarketTrade> Trades);
+public sealed record OwnerWorldMarketStock(string LotId, string? ParentLotId, string OwnerId, string OwnerName,
+    string Kind, int Quantity, int AvailableQuantity);
+public sealed record OwnerWorldMarketTrade(string OfferId, string SellerId, string SellerName,
+    string GoodsOwnerId, string GoodsOwnerName, string PaymentOwnerId, string PaymentOwnerName,
+    string BuyerId, string BuyerName, string GoodsKind, int GoodsQuantity, string PaymentKind,
+    int PaymentQuantity, string Status, string? CancellationReason,
+    bool SellerAccepted = false, bool BuyerAccepted = false);
 
 public sealed record OwnerCivicProposal(string Id, string Kind, string Text, string Status, int Yes, int No,
     int RequiredYes, long DeadlineTick)

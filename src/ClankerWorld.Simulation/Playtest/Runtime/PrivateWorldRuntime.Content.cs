@@ -100,7 +100,7 @@ public sealed partial class PrivateWorldRuntime
                 StarterContent.Create(), SettlementContent.Create(), HouseContent.Create(),
                 WarehouseContent.Create(), FarmContent.Create(), BlacksmithContent.Create(),
                 HouseCookingContent.Create(), PotteryContent.Create(), SiloContent.Create(), TailorContent.Create(),
-                BusinessContent.Create(), CareContent.Create(), OrnamentContent.Create(), TownHallContent.Create(),
+                BusinessContent.Create(), CareContent.Create(), OrnamentContent.Create(), TownHallContent.Create(), MarketContent.Create(),
             ];
             foreach (var manifest in manifests)
             {
@@ -221,6 +221,10 @@ public sealed partial class PrivateWorldRuntime
             if (definition.Tags.Contains(TownHallContent.HallTag, StringComparer.Ordinal))
                 return BuildingPlacementResult.Rejected(normalizedInstanceId, normalizedDefinitionId, position,
                     "The Town Hall needs a Council-approved project, delivered materials and completed building work.");
+
+            if (definition.Tags.Any(tag => tag is MarketContent.HallTag or MarketContent.StallTag))
+                return BuildingPlacementResult.Rejected(normalizedInstanceId, normalizedDefinitionId, position,
+                    "A Market or stall needs a Council-approved project, delivered Town materials and completed building work.");
 
             if (worldSimulation.Buildings.Any(item => item.InstanceId == normalizedInstanceId))
             {

@@ -50,7 +50,14 @@ public sealed partial class PrivateWorldRuntime
             roadTiles: roadTiles,
             requiredNeighborTiles: building is not null && HouseholdBuildingKind(building) == "silo" ? SiloNeighborTiles(actor, definitions) : null,
             requiredLandTiles: forTownProject && town is not null ? TownProjectLandTiles(town) : null,
-            requiredEntranceOffset: forTownProject ? new GridPoint(1, 4) : null);
+            requiredEntranceOffset: forTownProject
+                ? building?.Tags.Contains(MarketContent.HallTag, StringComparer.Ordinal) == true ? new GridPoint(1, 2) : new GridPoint(1, 4)
+                : null,
+            requiredFootprintOffsets: forTownProject && building?.Tags.Contains(MarketContent.HallTag, StringComparer.Ordinal) == true
+                ? MarketContent.SiteTiles(new(0, 0)) : null,
+            permittedRoadOffsets: forTownProject && building?.Tags.Contains(MarketContent.HallTag, StringComparer.Ordinal) == true
+                ? MarketContent.PlazaTiles(new(0, 0)).Except(Enumerable.Range(0, MarketContent.MaximumStalls)
+                    .Select(slot => MarketContent.StallSite(new(0, 0), slot))) : null);
     }
 
     /// <summary>A Silo stands near its household's Farmhouse; no Farmhouse means no legal Silo site.</summary>

@@ -90,6 +90,8 @@ public sealed partial class PrivateWorldRuntime
             TownGovernanceValidation.Validate(town, society.Checkpoint, worldSystems.Config.TicksPerDay);
         TownProjectValidation.Validate(towns, society.Checkpoint, map, worldSimulation, worldContent,
             townLandTitles, householdLandUseRights, householdLandUseRequests, fields, RoadTiles, Bridges);
+        ValidatePaidMarkets(towns, society.Checkpoint, map, worldSimulation, worldContent);
+        MarketTradeValidation.Validate(towns, society.Checkpoint, map, worldSimulation, worldContent, WorldTick, inhabitants.Values);
         ValidateRoads(RoadTiles, map, founderSetup);
         ValidateBridges(Bridges, bridgeTraffic, map, RoadTiles, worldSimulation, worldContent,
             society.Checkpoint, inhabitants.Values);
@@ -385,6 +387,8 @@ public sealed partial class PrivateWorldRuntime
             TownGovernanceValidation.Validate(town, society.Checkpoint, state.WorldSystems!.Config.TicksPerDay);
         TownProjectValidation.Validate(state.Towns ?? [], society.Checkpoint, state.Map, state.WorldSimulation!, state.WorldContent!,
             state.TownLandTitles!, state.HouseholdLandUseRights!, state.HouseholdLandUseRequests!, state.Fields!, state.RoadTiles!, state.Bridges!);
+        ValidatePaidMarkets(state.Towns ?? [], society.Checkpoint, state.Map, state.WorldSimulation!, state.WorldContent!);
+        MarketTradeValidation.Validate(state.Towns ?? [], society.Checkpoint, state.Map, state.WorldSimulation!, state.WorldContent!, society.Checkpoint.WorldTick, state.Inhabitants);
         ValidateLessons(state);
         ValidateHousing(state.Inhabitants, state.Society.Society, state.SchemaVersion);
         ValidateDependentCare(state.Inhabitants, state.Society.Society, state.Towns ?? [], state.SchemaVersion);
