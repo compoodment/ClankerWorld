@@ -2,7 +2,7 @@
 title: Saves and replay
 type: persistence-reference
 status: active
-updated: 2026-10-02
+updated: 2026-10-03
 ---
 
 # Saves and replay
@@ -176,6 +176,21 @@ not overwritten with empty state. Unix uses private permissions. Forgetting a
 key removes it from the current store, not backups or the provider account.
 Protected Windows files are not portable key exports. This is protection at
 rest, not protection against software already running as the same user.
+
+Private-world schema 53 adds each founded Town's laws and government record.
+Law versions bind adoption, amendment and repeal to passed Council proposals,
+with original scope and effective dates. Resident changes save original and
+remaining electorates, final votes, queues, approval and handover deadlines.
+Mayoral records save consent for specific mandates, every completed/interrupted
+round, repeated top ties, retries, winners and separate land/ordinary terms.
+
+Loading rejects unsupported arrangements, invented majorities, changed opening
+rosters, malformed ballots, unsupported winners, overlapping mandates and terms
+without a completed election. The approved arrangement must follow a completed
+resident handover. Current-format saves preserve pending windows, accepted
+choices and distinct mandates. Paused and rejected ticks do not advance or
+partly apply civic work; replay does not reroll ties or duplicate authority.
+Older alpha checkpoints are refused and preserved; no migration is added.
 
 ## Commit and restore rules
 
@@ -358,7 +373,7 @@ blocked-return behavior. These checks use existing timestamps and add no saved
 fields, schema change or migration.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 52. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 53. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus

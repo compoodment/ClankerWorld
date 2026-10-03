@@ -7,7 +7,7 @@ namespace ClankerWorld.Simulation.Playtest;
 /// <c>all_adult_council</c> (every adult resident at any population) or
 /// <c>mayor</c> (one elected leader). <see cref="Land"/> says whether the
 /// elected mayor holds the land mandate (<c>mayor</c>) or no office does
-/// (<c>none</c>). One mayor's office holds whichever mandates are declared.
+/// (<c>none</c>). Each mandate has its own term and vacancy record, even when one person holds both.
 /// </summary>
 public sealed record TownArrangement(string Ordinary, string Land);
 
@@ -21,18 +21,20 @@ public sealed record TownGovernmentChange(string Id, string RequestKey, string K
     string AuthorId, string Circumstances, long SubmittedTick, string Status,
     long? OpenedTick, long? DeadlineTick, IReadOnlyList<string> Voters, IReadOnlyList<TownProposalVote> Votes,
     long? ApprovedTick = null, long? HandoverDeadlineTick = null, long? SettledTick = null,
-    string? SuccessorId = null, string? Reason = null);
+    string? SuccessorId = null, string? Reason = null)
+{
+    public IReadOnlyList<string> OpeningVoters { get; init; } = [];
+}
 
 /// <summary>
-/// The elected mayor's office. <see cref="Mandates"/> is <c>land</c>,
-/// <c>ordinary</c> or <c>land+ordinary</c>; the mandates stay distinct even
-/// when one person holds both.
+/// One elected mandate. <see cref="Mandates"/> is <c>land</c> or
+/// <c>ordinary</c>; each has its own term even when one person holds both.
 /// </summary>
 public sealed record TownOffice(string Mandates, string? HolderId, long? TermStartTick, long? TermEndTick,
-    long? VacantSinceTick, string? VacancyReason);
+    long? VacantSinceTick, string? VacancyReason, string? ElectionId = null);
 
 /// <summary>A finished mayoral term and why it ended.</summary>
-public sealed record TownOfficeTerm(string HolderId, string Mandates, long StartTick, long EndTick, string EndReason);
+public sealed record TownOfficeTerm(string HolderId, string Mandates, long StartTick, long EndTick, string EndReason, string ElectionId);
 
 /// <summary>A resident's personal agreement to seek the mayor's office with exactly these mandates.</summary>
 public sealed record TownMayoralConsent(string AgentId, string Mandates, long Tick);
@@ -51,7 +53,14 @@ public sealed record TownMayoralContest(string Id, string Purpose, string Mandat
     string Stage, int Round, long OpenedTick, long? RoundOpenedTick, long? RoundDeadlineTick,
     IReadOnlyList<string> Voters, IReadOnlyList<string> Candidates, IReadOnlyList<TownMayoralBallot> Ballots,
     IReadOnlyList<string> TiedCandidates, int Interruptions, string? WinnerId = null,
-    long? SettledTick = null, string? Reason = null);
+    long? SettledTick = null, string? Reason = null)
+{
+    public IReadOnlyList<TownMayoralRound> Rounds { get; init; } = [];
+}
+
+public sealed record TownMayoralRound(int Number, long OpenedTick, long ClosedTick, string Result,
+    IReadOnlyList<string> Voters, IReadOnlyList<string> Candidates, IReadOnlyList<TownMayoralBallot> Ballots,
+    IReadOnlyList<string> TiedCandidates);
 
 /// <summary>
 /// A Town's laws, protected government-change processes and mayor's office.
@@ -59,18 +68,19 @@ public sealed record TownMayoralContest(string Id, string Purpose, string Mandat
 /// </summary>
 public sealed record TownGovernmentState(TownArrangement Arrangement, long Sequence,
     IReadOnlyList<TownLaw> Laws, IReadOnlyList<TownLawDraft> LawDrafts,
-    IReadOnlyList<TownGovernmentChange> Changes, TownOffice? Office, IReadOnlyList<TownOfficeTerm> OfficeHistory,
+    IReadOnlyList<TownGovernmentChange> Changes, IReadOnlyList<TownOffice> Offices, IReadOnlyList<TownOfficeTerm> OfficeHistory,
     IReadOnlyList<TownMayoralConsent> Consents, TownMayoralContest? Contest, IReadOnlyList<TownMayoralContest> ContestHistory,
     long MayoralRetryTick, string MayoralRetryCircumstances)
 {
     public static TownGovernmentState Create() =>
-        new(TownArrangementRules.Initial, 0, [], [], [], null, [], [], null, [], 0, "");
+        new(TownArrangementRules.Initial, 0, [], [], [], [], [], [], null, [], 0, "");
 }
 
 /// <summary>The supported governing arrangements and their declared authority, selection, tenure and vacancy rules.</summary>
 public static class TownArrangementRules
 {
     public const string Council = "council";
+    public const string ElectedCouncil = "elected_council";
     public const string AllAdultCouncil = "all_adult_council";
     public const string Mayor = "mayor";
     public const string NoOffice = "none";
@@ -82,7 +92,7 @@ public static class TownArrangementRules
     /// <summary>Every supported arrangement. Anything else is visibly unsupported and cannot take effect.</summary>
     public static IReadOnlyList<TownArrangement> Supported { get; } =
     [
-        new(Council, NoOffice), new(Council, Mayor), new(AllAdultCouncil, NoOffice),
+        new(Council, NoOffice), new(Council, Mayor), new(ElectedCouncil, NoOffice), new(ElectedCouncil, Mayor), new(AllAdultCouncil, NoOffice),
         new(AllAdultCouncil, Mayor), new(Mayor, Mayor), new(Mayor, NoOffice),
     ];
 
@@ -128,6 +138,7 @@ public static class TownArrangementRules
     {
         Council => "the Town council (every adult resident; three elected representatives from eight adults, for ten-day terms)",
         AllAdultCouncil => "every adult resident, at any population",
+        ElectedCouncil => "three elected representatives for ten-day terms (every adult resident when there are three or fewer)",
         Mayor => "one elected leader, the mayor",
         _ => "an unsupported authority",
     };

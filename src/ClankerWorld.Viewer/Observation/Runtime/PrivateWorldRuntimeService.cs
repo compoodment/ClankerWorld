@@ -538,6 +538,9 @@ public sealed partial class PrivateWorldRuntimeService(
         if (logger is null) return;
         var civicKind = worldEvent.Kind switch
         {
+            "town_civic_law" => TownCivicTransitionKind.LawRecorded,
+            "town_civic_government" => TownCivicTransitionKind.GovernmentRecorded,
+            "town_civic_mayor" => TownCivicTransitionKind.MayorRecorded,
             "town_civic_council" => TownCivicTransitionKind.CouncilChanged,
             "town_civic_election" => TownCivicTransitionKind.ElectionOpened,
             "town_civic_runoff" => TownCivicTransitionKind.RunoffOpened,
@@ -555,9 +558,12 @@ public sealed partial class PrivateWorldRuntimeService(
                 var proposal = governance.Proposals.FirstOrDefault(p => p.Id == fields[1]);
                 var election = governance.Election?.Id == fields[1] ? governance.Election :
                     governance.ElectionHistory.FirstOrDefault(e => e.Id == fields[1]);
+                var change = civicTown.Government?.Changes.FirstOrDefault(c => c.Id == fields[1]);
+                var mayor = civicTown.Government?.Contest ?? (civicTown.Government?.ContestHistory is { Count: > 0 } history ? history[^1] : null);
                 TownTelemetry.Civic(logger, worldEvent.WorldTick, civicTown.Id, civicTransition,
-                    governance.Form == "representative", governance.Members.Count, proposal?.Status ?? election?.Stage ?? "none",
-                    proposal?.Votes.Count(v => v.Yes) ?? 0, proposal?.Votes.Count(v => !v.Yes) ?? 0, election?.Ballots.Count ?? 0);
+                    governance.Form == "representative", governance.Members.Count, proposal?.Status ?? election?.Stage ?? change?.Status ?? mayor?.Stage ?? "none",
+                    proposal?.Votes.Count(v => v.Yes) ?? change?.Votes.Count(v => v.Yes) ?? 0,
+                    proposal?.Votes.Count(v => !v.Yes) ?? change?.Votes.Count(v => !v.Yes) ?? 0, election?.Ballots.Count ?? mayor?.Ballots.Count ?? 0);
             }
             return;
         }

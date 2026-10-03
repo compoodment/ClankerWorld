@@ -48,7 +48,8 @@ public static class TownGovernanceRules
     }
 
     public static TownGovernanceState Advance(TownGovernanceState state, string townId, string seed,
-        IEnumerable<string> adultResidents, long tick, int ticksPerDay)
+        IEnumerable<string> adultResidents, long tick, int ticksPerDay,
+        bool allowNewElections = true, bool forceRepresentation = false, bool deferFullHandover = false)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(ticksPerDay);
         var adults = Ordered(adultResidents);
@@ -92,7 +93,7 @@ public static class TownGovernanceRules
         }
         if (state.Election is { Stage: "main" or "runoff" } closing && tick >= closing.DeadlineTick)
             state = CloseRound(state, townId, seed, adults, tick, ticksPerDay);
-        if (state.Election is { Stage: "ready" } ready && (ready.Kind != "regular" ||
+        if (!deferFullHandover && state.Election is { Stage: "ready" } ready && (ready.Kind != "regular" ||
             state.TermEndTick is null || tick >= state.TermEndTick))
             state = ready.SettledSeats.Count == Seats
                 ? SeatFullCouncil(state, ready, tick, ticksPerDay)
@@ -107,9 +108,10 @@ public static class TownGovernanceRules
         {
             if (state.Form == "representative" && state.TermEndTick is { } end && tick >= end - ticksPerDay)
                 state = OpenElection(state, townId, adults, tick, ticksPerDay, "regular", end + (long)TermDays * ticksPerDay);
-            else if (state.Form == "representative" && state.Members.Count < Seats && state.TermEndTick is { } remainder)
+            else if (allowNewElections && state.Form == "representative" && state.Members.Count < Seats && state.TermEndTick is { } remainder)
                 state = OpenElection(state, townId, adults, tick, ticksPerDay, "replacement", remainder);
-            else if (state.Form == "all_adult" && (adults.Length >= RepresentationThreshold || state.Fallback == "candidates" && adults.Length > Seats))
+            else if (allowNewElections && (forceRepresentation && state.Form != "representative" && adults.Length > Seats ||
+                state.Form == "all_adult" && (adults.Length >= RepresentationThreshold || state.Fallback == "candidates" && adults.Length > Seats)))
                 state = OpenElection(state, townId, adults, tick, ticksPerDay, "initial", tick + (long)(TermDays + 1) * ticksPerDay);
         }
         foreach (var proposal in state.Proposals.Where(p => p.Status == "pending").ToArray())
@@ -117,7 +119,7 @@ public static class TownGovernanceRules
         return state;
     }
 
-    private static TownGovernanceState ChangeCouncil(TownGovernanceState state, IReadOnlyList<string> members,
+    internal static TownGovernanceState ChangeCouncil(TownGovernanceState state, IReadOnlyList<string> members,
         string form, string fallback, long? termEnd, long tick)
     {
         var ordered = Ordered(members);
@@ -134,7 +136,8 @@ public static class TownGovernanceRules
                 ? p with { Status = "cancelled", SettledTick = tick } : p).ToArray(),
         };
         return Notice(state, "council", "council:" + state.Revision,
-            form == "all_adult" ? "Every recorded living adult resident now sits on the Town council."
+            form == "leader" ? "The elected governing leader now makes ordinary decisions: " + string.Join(", ", ordered)
+                : form == "all_adult" ? "Every recorded living adult resident now sits on the Town council."
                 : "The Town's current representatives are: " + string.Join(", ", ordered), tick);
     }
 
@@ -281,7 +284,7 @@ public static class TownGovernanceRules
             ". They take office when the current term ends, or immediately for the first council.", tick);
     }
 
-    private static TownGovernanceState SeatFullCouncil(TownGovernanceState state, TownElection election, long tick, int day)
+    internal static TownGovernanceState SeatFullCouncil(TownGovernanceState state, TownElection election, long tick, int day)
     {
         var termEnd = tick + (long)TermDays * day;
         state = ChangeCouncil(state, election.SettledSeats, "representative", "none", termEnd, tick);
@@ -298,7 +301,7 @@ public static class TownGovernanceRules
         return state;
     }
 
-    private static TownGovernanceState CancelElection(TownGovernanceState state, long tick, string reason)
+    internal static TownGovernanceState CancelElection(TownGovernanceState state, long tick, string reason)
     {
         if (state.Election is not { } election) return state;
         return ArchiveElection(state, election with { Stage = "cancelled" }, tick, reason);

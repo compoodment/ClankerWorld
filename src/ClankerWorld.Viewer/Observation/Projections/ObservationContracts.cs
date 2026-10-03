@@ -350,7 +350,22 @@ public sealed record ViewerTown(
     IReadOnlyList<ViewerPosition> BorderTiles)
 {
     public ViewerTownGovernance? Governance { get; init; }
+    public ViewerTownGovernment? Government { get; init; }
 }
+
+public sealed record ViewerTownLaw(string Id, string Subject, string Rule, string Scope, int SiteTiles, int Version,
+    long AdoptedTick, long? EndedTick)
+{
+    public IReadOnlyList<ViewerPosition> Site { get; init; } = [];
+}
+public sealed record ViewerTownOffice(string Mandate, string? HolderName, long? TermEndTick, string? VacancyReason);
+public sealed record ViewerGovernmentChange(string Id, string Declaration, string Status, int Yes, int No, int RequiredYes,
+    long? DeadlineTick, long? HandoverDeadlineTick, string? Reason);
+public sealed record ViewerMayoralElection(string Id, string Mandates, string Stage, int Round, long? DeadlineTick,
+    IReadOnlyList<ViewerCivicCandidate> Candidates, string? WinnerName, string? Reason);
+public sealed record ViewerTownGovernment(string Declaration, IReadOnlyList<ViewerTownLaw> Laws, int LawCount,
+    IReadOnlyList<ViewerTownOffice> Offices, IReadOnlyList<ViewerGovernmentChange> Changes,
+    ViewerMayoralElection? Election, ViewerMayoralElection? LatestElection, long RetryTick);
 
 public sealed record ViewerCivicProposal(string Id, string Kind, string Text, string Status, int Yes, int No,
     int RequiredYes, long DeadlineTick);

@@ -145,7 +145,22 @@ public sealed record OwnerWorldTown(
     IReadOnlyList<OwnerWorldPosition> BorderTiles)
 {
     public OwnerTownGovernance? Governance { get; init; }
+    public OwnerTownGovernment? Government { get; init; }
 }
+
+public sealed record OwnerTownLaw(string Id, string Subject, string Rule, string Scope, int SiteTiles, int Version,
+    long AdoptedTick, long? EndedTick)
+{
+    public IReadOnlyList<OwnerWorldPosition> Site { get; init; } = [];
+}
+public sealed record OwnerTownOffice(string Mandate, string? HolderName, long? TermEndTick, string? VacancyReason);
+public sealed record OwnerGovernmentChange(string Id, string Declaration, string Status, int Yes, int No, int RequiredYes,
+    long? DeadlineTick, long? HandoverDeadlineTick, string? Reason);
+public sealed record OwnerMayoralElection(string Id, string Mandates, string Stage, int Round, long? DeadlineTick,
+    IReadOnlyList<OwnerCivicCandidate> Candidates, string? WinnerName, string? Reason);
+public sealed record OwnerTownGovernment(string Declaration, IReadOnlyList<OwnerTownLaw> Laws, int LawCount,
+    IReadOnlyList<OwnerTownOffice> Offices, IReadOnlyList<OwnerGovernmentChange> Changes,
+    OwnerMayoralElection? Election, OwnerMayoralElection? LatestElection, long RetryTick);
 
 public sealed record OwnerCivicProposal(string Id, string Kind, string Text, string Status, int Yes, int No,
     int RequiredYes, long DeadlineTick);

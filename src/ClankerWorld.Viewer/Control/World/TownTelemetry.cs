@@ -23,6 +23,9 @@ internal enum TownCivicTransitionKind
     ProposalOpened,
     DecisionRecorded,
     ElectionCancelled,
+    LawRecorded,
+    GovernmentRecorded,
+    MayorRecorded,
 }
 
 /// <summary>Bounded operational outcomes for authoritative Town state changes.</summary>

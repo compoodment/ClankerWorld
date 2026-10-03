@@ -2,7 +2,7 @@
 title: Playing the current game
 type: player-guide
 status: active
-updated: 2026-10-02
+updated: 2026-10-03
 ---
 
 # Playing the current game
@@ -193,6 +193,25 @@ may change until closing, while cast proposal votes are final. Pausing stops
 these windows and council terms. Passed admission requests are recorded, but
 the separate process for joining a Town has not been connected yet; approval
 alone gives no household place or access to stored goods.
+
+Residents can also propose laws as a **subject: rule**, applying to the Town's
+claimed land, a nearby recorded site, or residents wherever they travel. Council
+votes adopt, amend or repeal them. The Towns page shows their scope and effective
+dates. These are social rules: they do not physically prevent violations or
+change who owns a building or its goods.
+
+A resident can propose changing government without the incumbent's permission.
+The one-day resident vote needs a majority of its opening adult electorate;
+death or departure removes a voter, while travel does not. Approval begins a
+handover of at most three days. The Towns page distinguishes an approved proposal
+from a completed handover and explains a failed transition.
+
+An elected mayor may hold the land mandate, ordinary governing authority, or
+both separately. Candidates personally agree to those specific mandates.
+Residents choose one candidate and may revise their ballot. A tie means another
+vote, never a draw. The term lasts twenty days, and a vacancy needs a new election.
+Pausing stops votes, terms and handovers. The page shows officeholders and vacant
+mandates; land hearings and enforcement have not been implemented yet.
 
 ## Pause, settings and controls
 

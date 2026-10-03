@@ -19,7 +19,8 @@ public static class TownGovernmentValidation
         if (town.Governance is not { } council)
             throw new InvalidDataException("A Town's government record needs its saved council.");
         if (state.Laws is null || state.LawDrafts is null || state.Changes is null || state.OfficeHistory is null ||
-            state.Consents is null || state.ContestHistory is null || state.MayoralRetryCircumstances is null ||
+            state.Consents is null || state.ContestHistory is null || state.Offices is null || state.MayoralRetryCircumstances is null ||
+            state.Laws.Any(l => l is null) || state.Changes.Any(c => c is null) || state.ContestHistory.Any(c => c is null) ||
             !TownArrangementRules.IsSupported(state.Arrangement) || state.Sequence < 0 || state.MayoralRetryTick < 0 ||
             state.MayoralRetryCircumstances.Length > 64)
             throw new InvalidDataException("A Town's saved government record is incomplete or declares an unsupported arrangement.");

@@ -13,8 +13,7 @@ public sealed partial class PrivateWorldRuntime
         TownGovernanceState council, TownGovernmentState government)
     {
         var adults = TownAdults(town);
-        council = TownGovernanceRules.Advance(council, town.Id, worldSeed, adults, WorldTick, CivicDay);
-        return TownLawRules.Enact(council, government, town.Id, town.Name, WorldTick);
+        return TownGovernmentRules.Advance(council, government, town.Id, town.Name, worldSeed, adults, WorldTick, CivicDay);
     }
 
     private void AddTownLawCandidates(List<CognitionCandidate> candidates, string actor, TownRuntimeState town)
@@ -30,7 +29,8 @@ public sealed partial class PrivateWorldRuntime
             candidates.Add(new(CivicAction(town.Id, "propose", SiteToken(here)),
                 $"Propose a law for the claimed land within {TownLawRules.SiteRadius} tiles of where you stand in {town.Name}, visitors included. {format}", 192));
         var history = CivicHistory(town);
-        foreach (var law in town.Government?.Laws.Where(l => TownLawRules.IsInForce(l) && history.Knows(actor, l.Id))
+        foreach (var law in town.Government?.Laws.Where(l => TownLawRules.IsInForce(l) && town.Governance!.Notices.LastOrDefault(n => n.SubjectId == l.Id) is { } latest &&
+                history.Known(actor).Contains(latest.Id))
             .TakeLast(MaximumOfferedLawChanges) ?? [])
         {
             var number = TownLawRules.Number(law.Id).ToString(CultureInfo.InvariantCulture);

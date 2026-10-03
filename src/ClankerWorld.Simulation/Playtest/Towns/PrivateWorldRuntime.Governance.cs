@@ -157,6 +157,7 @@ public sealed partial class PrivateWorldRuntime
                             $"Ask {town.Name}'s council to approve admission of {society.Checkpoint.GetInhabitant(nominee).Name}, the adult nearby. A request grants no membership or stock access.", 188));
                 }
                 AddTownLawCandidates(candidates, actor, town);
+                if (town.Government is not null) AddTownGovernmentCandidates(candidates, actor, town);
             }
             else if (!towns.Any(t => t.ResidentIds.Contains(actor, StringComparer.Ordinal)) && AdultResident(actor) && NearCivicBoard(actor, town))
                 candidates.Add(new(CivicAction(town.Id, "admission"), $"Ask {town.Name}'s council to approve your admission. The request grants no membership or stock access.", 170));
@@ -253,6 +254,10 @@ public sealed partial class PrivateWorldRuntime
                 case "ballot":
                     if (ballot is null) return;
                     state = TownGovernanceRules.VoteElection(state, state.Election!.Id, actor, ballot.Select(ResolveCivicAgentToken).ToArray(), WorldTick); break;
+                case "government_propose" or "government_replace" or "government_yes" or "government_no" or "government_withdraw" or
+                    "mayor_register" or "mayor_withdraw" or "mayor_resign" or "mayor_vote":
+                    (state, government) = ApplyTownGovernmentAction(town, actor, parts[2], parts[3], parts[4], state, government);
+                    break;
                 case "single": state = TownGovernanceRules.VoteElection(state, state.Election!.Id, actor, [parts[4]], WorldTick); break;
             }
             (state, government) = AdvanceCivic(town, state, government);
