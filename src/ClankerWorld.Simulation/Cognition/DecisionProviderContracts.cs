@@ -220,13 +220,14 @@ public sealed record CognitionWillChoice(
 /// <paramref name="HousingNote"/> explains the actor's housing and current House capacity when known.
 /// <paramref name="ContinuityNote"/> explains the low-population continuity rule to a partner it applies to.
 /// <paramref name="DepartureNote"/> summarizes goods to collect or return and paused household work after a departure.
+/// <paramref name="TownMembershipNote"/> states recorded Town membership, its rights and any admission the actor knows of.
 /// </summary>
 public sealed record CognitionSelfContext(
     string OwnerId, string Name, string LifeStage, string Personality, string Aspiration,
     string? HouseholdId, int? WarmthBasisPoints, int? IllnessBasisPoints, string? RecentThought,
     string? HouseholdName = null, string? TownName = null, string? HousingNote = null,
     string? EquipmentNote = null, string? ContinuityNote = null, string? DepartureNote = null, string? CivicNote = null,
-    string? MedicalCareNote = null);
+    string? MedicalCareNote = null, string? TownMembershipNote = null);
 
 /// <summary>
 /// An exact owner message addressed to this actor. The authoritative identity
@@ -372,7 +373,7 @@ public sealed record InhabitantObservation(
             self.HouseholdId?.Length > 128 || self.RecentThought?.Length > 160 ||
             self.HouseholdName?.Length > 128 || self.TownName?.Length > 128 || self.HousingNote?.Length > 256 ||
             self.EquipmentNote?.Length > 256 || self.ContinuityNote?.Length > 256 || self.DepartureNote?.Length > 256 ||
-            self.CivicNote?.Length > 1024 || self.MedicalCareNote?.Length > 256 ||
+            self.CivicNote?.Length > 1024 || self.MedicalCareNote?.Length > 256 || self.TownMembershipNote?.Length > 256 ||
             self.WarmthBasisPoints is < 0 or > 10_000 || self.IllnessBasisPoints is < 0 or > 10_000))
             throw new ArgumentException("Self context must be bounded and owned by the actor.", nameof(Self));
 
@@ -797,6 +798,7 @@ public sealed class JevDecisionProvider : IDecisionProvider
                 illness_basis_points = request.Observation.Self?.IllnessBasisPoints,
                 household = request.Observation.Self?.HouseholdName,
                 town = request.Observation.Self?.TownName,
+                town_membership = request.Observation.Self?.TownMembershipNote,
                 housing = request.Observation.Self?.HousingNote,
                 continuity = request.Observation.Self?.ContinuityNote,
                 departure = request.Observation.Self?.DepartureNote,
@@ -1118,6 +1120,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                             personality = self.Personality, aspiration = self.Aspiration,
                             household = self.HouseholdName,
                             town = self.TownName,
+                            town_membership = self.TownMembershipNote,
                             housing = self.HousingNote,
                             equipment = self.EquipmentNote,
                             continuity = self.ContinuityNote,

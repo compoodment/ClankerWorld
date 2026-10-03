@@ -3712,7 +3712,7 @@ public partial class Main
             foreach (var worldEvent in events) knownEvents[worldEvent.EventId] = worldEvent;
             RenderEventLog();
             string[] expected = ["Rowan gathered food.", "Scout ate.", "Mira was born.", "Aster died.",
-                "Rowan joined the first Town.", "Aster left the first Town."];
+                "Rowan joined First Town.", "Aster left First Town."];
             if (expected.Any(text => !eventLog.GetParsedText().Contains(text, StringComparison.Ordinal)))
                 throw new InvalidOperationException("The Event Log must show full living, deceased and descendant names for normal IDs.");
             snapshot = snapshot with
