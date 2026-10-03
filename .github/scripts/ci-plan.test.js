@@ -5,7 +5,7 @@ const path = require('node:path');
 const { test } = require('node:test');
 const {
   PinnedShards, namePart, shardCount, testFilter, parseTrx, readTimings, planShards, planFilters, slowReport,
-  changesCode, main,
+  compiledFiles, planScope, main,
 } = require('./ci-plan.js');
 
 // The second shard names all of BigTests, but the first shard's BigTests.LongMethod stays there.
@@ -205,13 +205,68 @@ test('the workflow passes each job its planned filter', () => {
   assert.match(workflow, /needs\.scope\.outputs\[format\('filter-\{0\}', matrix\.shard\)\]/);
 });
 
-test('only a change made entirely of documentation skips the code checks', () => {
-  assert.equal(changesCode(['docs/playing.md', 'changes/12-fix.md', 'docs/development/assets/map.png']), false);
-  assert.equal(changesCode(['README.md', 'src/ClankerWorld.Simulation/World.cs']), true);
-  assert.equal(changesCode(['.github/workflows/ci.yml']), true);
-  assert.equal(changesCode(['tests/ClankerWorld.Simulation.Tests/Documentation/DocumentationTests.cs']), true);
-  assert.equal(changesCode([]), true);
-  assert.equal(changesCode(['', '  ']), true);
-  assert.equal(main(['scope'], 'docs/playing.md\nCONTRIBUTING.md\n'), 'code=false');
-  assert.equal(main(['scope'], 'docs/playing.md\nglobal.json\n'), 'code=true');
+test('only a change made entirely of documentation skips the code checks and the test suite', () => {
+  const none = new Set();
+  const plan = files => planScope(files, none);
+  assert.deepEqual(plan(['docs/playing.md', 'changes/12-fix.md', 'docs/development/assets/map.png']),
+    { code: false, tests: false });
+  assert.deepEqual(plan(['README.md', 'src/ClankerWorld.Simulation/World.cs']), { code: true, tests: true });
+  assert.deepEqual(plan(['.github/workflows/ci.yml']), { code: true, tests: true });
+  assert.deepEqual(plan(['tests/ClankerWorld.Simulation.Tests/Documentation/DocumentationTests.cs']),
+    { code: true, tests: true });
+  assert.deepEqual(plan([]), { code: true, tests: true });
+  assert.deepEqual(plan(['', '  ']), { code: true, tests: true });
+});
+
+test('a change to client files the tests do not compile skips only the test suite', () => {
+  const compiled = new Set(['src/ClankerWorld.GodotClient/Protocol/WorldObservationProtocol.cs']);
+  const plan = files => planScope(files, compiled);
+  assert.deepEqual(plan(['src/ClankerWorld.GodotClient/UI/AgentPanel.cs', 'src/ClankerWorld.GodotClient/Main.tscn',
+    'playtest/700-agent-panel.md']), { code: true, tests: false });
+  // A compiled client file, or anything outside the client folder, needs the test suite.
+  assert.deepEqual(plan(['src/ClankerWorld.GodotClient/UI/AgentPanel.cs',
+    'src/ClankerWorld.GodotClient/Protocol/WorldObservationProtocol.cs']), { code: true, tests: true });
+  assert.deepEqual(plan(['src/ClankerWorld.GodotClient/UI/AgentPanel.cs', 'src/ClankerWorld.Viewer/Program.cs']),
+    { code: true, tests: true });
+  assert.deepEqual(plan(['src/ClankerWorld.GodotClient/UI/AgentPanel.cs',
+    'tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.csproj']), { code: true, tests: true });
+  assert.deepEqual(plan(['src/ClankerWorld.GodotClientExtras/Tool.cs']), { code: true, tests: true });
+  // When the compiled files can't be known, every client file counts as compiled.
+  assert.deepEqual(planScope(['src/ClankerWorld.GodotClient/UI/AgentPanel.cs'], null), { code: true, tests: true });
+});
+
+test('the compiled client files come from the test project', () => {
+  const project = `<Project><ItemGroup>
+    <Compile Include="..\\..\\src\\ClankerWorld.GodotClient\\UI\\Theme\\GameUiText.cs" Link="GodotClient\\UI\\Theme\\GameUiText.cs" />
+  </ItemGroup></Project>`;
+  assert.deepEqual([...compiledFiles(project)], ['src/ClankerWorld.GodotClient/UI/Theme/GameUiText.cs']);
+  assert.equal(compiledFiles('<Compile Include="..\\..\\src\\ClankerWorld.GodotClient\\**\\*.cs" />'), null);
+
+  // The real project compiles a few client files, and each one exists.
+  const root = path.join(__dirname, '..', '..');
+  const real = compiledFiles(fs.readFileSync(
+    path.join(root, 'tests', 'ClankerWorld.Simulation.Tests', 'ClankerWorld.Simulation.Tests.csproj'), 'utf8'));
+  assert.ok(real.size > 0);
+  for (const file of real) {
+    assert.ok(file.startsWith('src/ClankerWorld.GodotClient/'), file);
+    assert.ok(fs.existsSync(path.join(root, file)), file);
+  }
+});
+
+test('scope prints whether to run the code checks and the test suite', () => {
+  assert.equal(main(['scope'], 'docs/playing.md\nCONTRIBUTING.md\n'), 'code=false\ntests=false');
+  assert.equal(main(['scope'], 'docs/playing.md\nglobal.json\n'), 'code=true\ntests=true');
+  assert.equal(main(['scope'], 'src/ClankerWorld.GodotClient/Main.tscn\n'), 'code=true\ntests=false');
+  assert.equal(main(['scope'], 'src/ClankerWorld.GodotClient/UI/Theme/GameUiText.cs\n'), 'code=true\ntests=true');
+});
+
+test('the workflow runs the test suite only when scope asks for it', () => {
+  const workflow = fs.readFileSync(path.join(__dirname, '..', 'workflows', 'ci.yml'), 'utf8');
+  assert.match(workflow, /tests: \$\{\{ steps\.plan\.outputs\.tests \}\}/);
+  const job = name => workflow.slice(workflow.indexOf(`\n  ${name}:\n`)).split(/\n  [a-z-]+:\n/)[1];
+  // Anything but an explicit false runs the test suite, so a missing decision can't skip it.
+  assert.match(job('tests'), /if: needs\.scope\.outputs\.tests != 'false'/);
+  assert.match(job('windows-provider-storage'), /if: needs\.scope\.outputs\.tests != 'false'/);
+  assert.match(job('verify'), /if \[ "\$TESTS_NEEDED" = false \]; then test "\$TESTS" = skipped; else test "\$TESTS" = success; fi/);
+  assert.doesNotMatch(workflow, /outputs\.tests == 'true'/);
 });
