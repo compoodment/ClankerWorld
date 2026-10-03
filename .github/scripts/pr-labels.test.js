@@ -286,6 +286,12 @@ test('a P0 set by hand stays on a stacked PR that changes no workflow files on m
   assert.deepEqual(priorities(state.pr.labels), ['priority:p0']);
 });
 
+test('a change to an agent skill is a workflow change', async () => {
+  const state = scenario({ action: 'opened', live: { labels: [] }, files: ['skills/test-audit/SKILL.md'] });
+  await state.run();
+  assert.deepEqual(priorities(state.pr.labels), ['priority:p0']);
+});
+
 test('a PR based on main is not compared again and still gets P0 for workflow files', async () => {
   const state = scenario({ action: 'synchronize', live: { labels: [] }, files: ['AGENTS.md'] });
   await state.run();
@@ -554,7 +560,7 @@ test('areas stay as they are when no area rule matches the changed files', async
 
 test('process files map to an area, but changelog and playtest files do not', async () => {
   const { areaLabels } = labelPullRequest;
-  for (const file of ['CONTRIBUTING.md', 'AGENTS.md', 'CLAUDE.md', 'docs/development/build-and-test.md', 'docs/development/releasing.md']) {
+  for (const file of ['CONTRIBUTING.md', 'AGENTS.md', 'CLAUDE.md', 'skills/test-audit/SKILL.md', 'docs/development/build-and-test.md', 'docs/development/releasing.md']) {
     assert.deepEqual(areaLabels([file]), ['area:tooling'], file);
   }
   assert.deepEqual(areaLabels(['docs/development/private-server-deployment.md']), ['area:server']);

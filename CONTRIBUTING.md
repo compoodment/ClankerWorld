@@ -129,8 +129,8 @@ on the owner.
   playtest only when the owner says in chat that the next playtest needs them.
   Add `owner-priority` and a comment naming that playtest.
 - **How we work:** changes to CI, labels, templates, Claude Code settings
-  (`.claude/`), CONTRIBUTING, AGENTS or CLAUDE.md affect every agent, so they
-  are P0.
+  (`.claude/`), agent skills (`skills/`), CONTRIBUTING, AGENTS or CLAUDE.md
+  affect every agent, so they are P0.
 - **At most 10 open P0 and 20 open P1 issues.** Count issues only, not pull
   requests. When a level is full, the least urgent issue there that the owner
   did not pick, counting the new one, goes down a level; between equals, the
