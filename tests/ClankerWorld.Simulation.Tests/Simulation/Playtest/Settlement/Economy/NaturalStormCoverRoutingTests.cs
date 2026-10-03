@@ -9,11 +9,15 @@ public sealed class NaturalStormCoverRoutingTests
 {
     private const string Actor = "agent:00000000000000000000000000000099";
 
+    // On this seed the actor's nearest forest at (90, 53) lies across water;
+    // (87, 52) is the nearest forest it can walk to.
+    private static readonly GridPoint FirstReachableCover = new(87, 52);
+
     [Theory]
     [InlineData(true)]
     public async Task UnreachableNearestCoverDoesNotHideReachableProtectionAcrossRestart(bool blockFirstReachable)
     {
-        var state = StormState(blockFirstReachable ? [new GridPoint(89, 51)] : []);
+        var state = StormState(blockFirstReachable ? [FirstReachableCover] : []);
         using var world = PrivateWorldRuntime.Restore(state, id => new CoverProvider(id == Actor));
         for (var tick = 0; tick < 6; tick++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         using var restored = PrivateWorldRuntime.Restore(
@@ -26,7 +30,7 @@ public sealed class NaturalStormCoverRoutingTests
         Assert.Equal(0, sheltered.MoveWaitTicks);
         Assert.DoesNotContain(restored.ExportState().Events, item => item.Kind == "movement_blocked" &&
             item.Detail.StartsWith(Actor + ":no_route", StringComparison.Ordinal));
-        if (blockFirstReachable) Assert.NotEqual(new GridPoint(89, 51), sheltered.Position);
+        if (blockFirstReachable) Assert.NotEqual(FirstReachableCover, sheltered.Position);
     }
 
     [Fact]
@@ -49,9 +53,17 @@ public sealed class NaturalStormCoverRoutingTests
         using var setup = new PrivateWorldRuntime(geography.Seed, startPace: WorldStartPace.FounderSetup,
             geographyOptions: geography);
         setup.InitializeFirstTownContent();
-        setup.AcceptFirstTownLayout(new GridPoint(122, 56));
+        var townSite = setup.ExportState().Map.GetResource("berry-patch").Position;
+        setup.AcceptFirstTownLayout(townSite);
+        var townMap = setup.ExportState().Map;
+        var buildingTiles = setup.WorldSimulation.Buildings.SelectMany(building => WorldContentSimulationRules.Footprint(
+            setup.WorldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId), building.Position)).ToHashSet();
+        var founderTiles = townMap.Tiles.Select(tile => tile.Position)
+            .Where(point => townMap.FootDistance(point, townSite) <= 5 && townMap.IsBuildable(point) &&
+                !buildingTiles.Contains(point) && !townMap.Resources.Any(site => site.Position == point))
+            .Take(4).ToArray();
         for (var index = 0; index < 4; index++)
-            setup.PlaceFounder("founder:" + (index + 1).ToString("x32", System.Globalization.CultureInfo.InvariantCulture), new GridPoint(117 + index, 51));
+            setup.PlaceFounder("founder:" + (index + 1).ToString("x32", System.Globalization.CultureInfo.InvariantCulture), founderTiles[index]);
         setup.StartWorld();
         setup.AddAgent(Actor, new GridPoint(88, 55));
         var map = setup.ExportState().Map;
