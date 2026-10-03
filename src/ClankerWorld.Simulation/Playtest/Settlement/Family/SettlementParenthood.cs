@@ -45,8 +45,10 @@ public sealed partial class PrivateWorldRuntime
              IsWithinInteractionRange(caregiver.Position, person.Position, ResourceInteractionRange)));
 
     private bool FamilyResourcesReady(string actor) =>
+        FamilyFoodReady(actor) && AccessibleShelters(actor).Any();
+
+    private bool FamilyFoodReady(string actor) =>
         society.Checkpoint.GetInhabitant(actor).HouseholdId is not null &&
-        AccessibleShelters(actor).Any() &&
         BirthFoodSources(actor)
             .Sum(AvailableLotQuantity) >= society.Checkpoint.Inhabitants.Count(person => person.HouseholdId == HouseholdFor(actor) &&
                 person.Status == SocietyInhabitantStatus.Active) * 2 + 4 &&
@@ -271,7 +273,7 @@ public sealed partial class PrivateWorldRuntime
             {
                 continue;
             }
-            // A plan the continuity rule has sent ahead waits for food and shelter instead of expiring.
+            // A plan the continuity rule has sent ahead waits for food instead of expiring.
             if (!Partners(person.InhabitantId, plan.PartnerId) ||
                 WorldTick - plan.LastTransitionTick > (plan.Stage == "requested" ? 120 : 2_400) &&
                 !ContinuityPlanDue(person.InhabitantId, plan.PartnerId))
@@ -287,14 +289,16 @@ public sealed partial class PrivateWorldRuntime
                 SetParenthood(person.InhabitantId, plan with { Stage = "cancelled" });
                 continue;
             }
-            if (WorldTick - plan.LastTransitionTick < 600 || !FamilyResourcesReady(caregiverId) ||
+            if (WorldTick - plan.LastTransitionTick < 600 || !FamilyFoodReady(caregiverId) ||
                 !ReadyForLesson(person.InhabitantId) || !ReadyForLesson(plan.PartnerId))
             {
                 continue;
             }
-            var shelter = AccessibleShelters(caregiverId).First();
+            // Losing shelter after agreement creates a housing need, not a
+            // blocked birth. Keep the child near their caregiver in that case.
+            var birthPosition = AccessibleShelters(caregiverId).FirstOrDefault()?.Position ?? inhabitants[caregiverId].Position;
             var site = map.Tiles.Where(tile => map.IsBuildable(tile.Position) &&
-                IsWithinInteractionRange(tile.Position, shelter.Position, ResourceInteractionRange) &&
+                IsWithinInteractionRange(tile.Position, birthPosition, ResourceInteractionRange) &&
                 !inhabitants.Values.Any(resident => resident.Position == tile.Position)).Select(tile => (GridPoint?)tile.Position).FirstOrDefault();
             if (site is null)
             {
