@@ -817,6 +817,7 @@ public partial class Main
             VerifyEventLogAgentNames();
             await VerifyNewcomerOfferAsync();
             VerifyOrnamentPresentation();
+            VerifyHandcartInspection();
             VerifyToolMakingPresentation();
             await VerifyMenuBackdropAsync();
             // Tooltips and other windows the engine creates on demand follow the root's filter,
@@ -1060,6 +1061,7 @@ public partial class Main
                 await VerifyUiScaleAt1440pAsync(displayWindow);
                 await VerifyManualSaveListOwnershipAsync();
                 VerifySaveBranchList();
+                await VerifySaveTimelineAsync();
                 windowSizeChoice.Select(1);
                 SetWindowSize(1);
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
