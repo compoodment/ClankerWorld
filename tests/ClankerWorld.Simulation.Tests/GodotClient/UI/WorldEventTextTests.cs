@@ -102,6 +102,39 @@ public sealed class WorldEventTextTests
     }
 
     [Fact]
+    public void TownAdmissionEventsNameTheNewcomerTheirTownsAndAnyChildrenWhoMoved()
+    {
+        var snapshot = Snapshot(Person(AgentId, "Aster")) with
+        {
+            Towns = [new("town:first", "First Town", "founded", 0, [], [], []),
+                new("town:second", "Second Town", "founded", 0, [], [], [])],
+        };
+        var cases = new[]
+        {
+            ("town_admission_accepted", $"town:second|{AgentId}|none|1", "Aster became a resident of Second Town."),
+            ("town_admission_accepted", $"town:second|{AgentId}|town:first|1",
+                "Aster became a resident of Second Town. They are no longer a resident of First Town."),
+            ("town_admission_accepted", $"town:second|{AgentId}|town:first|3",
+                "Aster became a resident of Second Town. They are no longer a resident of First Town. Their dependent children moved with them."),
+            ("town_admission_accepted", $"town:second|{AgentId}|none|2",
+                "Aster became a resident of Second Town. Their dependent children moved with them."),
+            ("town_admission_approved", $"town:second|{AgentId}|town:second:proposal:4",
+                "Second Town's council approved Aster's admission. It takes effect only if they accept."),
+            ("town_admission_lapsed", $"town:first|{AgentId}|town:first:proposal:2|joined_elsewhere",
+                "Aster did not join First Town: the approval no longer fits their circumstances."),
+            ("town_admission_accepted", "town:gone|agent:missing|none|1", "Someone became a resident of a Town."),
+            ("town_admission_accepted", "town:second", "Someone became a Town resident."),
+        };
+        foreach (var (kind, detail, expected) in cases)
+        {
+            Assert.True(GameUiText.IsPlayerFacingEvent(kind));
+            var worldEvent = new OwnerWorldEvent(1, 0, kind, detail);
+            Assert.Equal(expected, WorldEventText.Describe(worldEvent, snapshot));
+            Assert.Equal(detail, worldEvent.Detail);
+        }
+    }
+
+    [Fact]
     public void KnownPrefixesNeverReplaceAnExactDifferentActorIdentity()
     {
         var snapshot = Snapshot(Person("agent", "Wrong prefix"), Person(AgentId, "Aster"),
