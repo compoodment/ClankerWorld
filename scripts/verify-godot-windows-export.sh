@@ -87,7 +87,7 @@ download_verified() {
     mv "${temporary_path}" "${path}"
 }
 
-for command in awk cp curl dotnet file find sha256sum sort tar tr unzip; do
+for command in awk cp curl dotnet file find git grep sed sha256sum sort tar tr unzip; do
     require_command "${command}"
 done
 
@@ -161,6 +161,22 @@ if [[ ! -f "${template_root}/windows_release_x86_64.exe" ]]; then
     exit 1
 fi
 
+# The isolated stage has no .git directory. Keep its assembly identity tied to
+# the source checkout, including when CI checks out a pull-request merge commit.
+build_revision="$(git -C "${repo_root}" rev-parse HEAD)"
+if [[ ! "${build_revision}" =~ ^[0-9a-f]{40}$ ]]; then
+    printf 'Cannot determine the source commit for this export.\n' >&2
+    exit 1
+fi
+build_version="$(dotnet msbuild "${project_file}" -nologo -getProperty:Version)"
+file_version="$(dotnet msbuild "${project_file}" -nologo -target:GetAssemblyVersion -getProperty:FileVersion)"
+if [[ ! "${build_version}" =~ ^[0-9A-Za-z.+-]+$ || ! "${file_version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    printf 'Cannot determine valid assembly version metadata for this export.\n' >&2
+    exit 1
+fi
+build_line="Build ${build_version}+${build_revision:0:7}"
+export SourceRevisionId="${build_revision}"
+
 printf 'Staging Godot client source for an isolated export\n'
 # Godot's self-contained win-x64 publish can otherwise update the source
 # lockfile with a runtime-specific target graph.
@@ -183,6 +199,14 @@ if [[ ! -f "${shared_placement_rules}" ]]; then
 fi
 mkdir -p "${staged_shared_dir}"
 cp "${shared_placement_rules}" "${staged_shared_dir}/AgentPlacementRules.cs"
+cp "${repo_root}/src/ClankerWorld.Shared/BuildInformation.cs" "${staged_shared_dir}/BuildInformation.cs"
+# Godot requires four numeric parts in the PE version fields. Its product name
+# and our manifest carry the readable semantic version and source revision.
+sed -i \
+    -e "s/^application\/file_version=.*/application\/file_version=\"${file_version}\"/" \
+    -e "s/^application\/product_version=.*/application\/product_version=\"${file_version}\"/" \
+    -e "s/^application\/product_name=.*/application\/product_name=\"ClankerWorld ${build_line}\"/" \
+    "${staged_project_dir}/export_presets.cfg"
 
 printf 'Creating temporary Godot C# solution for export\n'
 dotnet new sln --name "ClankerWorld.GodotClient" --output "${staged_project_dir}" --format sln
@@ -206,6 +230,11 @@ if [[ -z "${client_assembly_path}" ]]; then
     exit 1
 fi
 
+if ! grep -a -F -q -- "${build_version}+${build_revision}" "${client_assembly_path}"; then
+    printf 'The exported client assembly does not contain the expected version and source commit.\n' >&2
+    exit 1
+fi
+
 pe_description="$(file -b "${export_exe_path}")"
 if [[ "${pe_description}" != *"PE32+"* || "${pe_description}" != *"x86-64"* ]]; then
     printf 'Exported executable is not a Windows x64 PE file: %s\n' "${pe_description}" >&2
@@ -216,6 +245,9 @@ manifest_path="${output_dir}/manifest.sha256"
 printf 'Writing export manifest\n'
 {
     printf '# ClankerWorld Windows 11 x64 release export\n'
+    printf '# %s\n' "${build_line}"
+    printf '# Source commit: %s\n' "${build_revision}"
+    printf '# Windows file/product version: %s\n' "${file_version}"
     printf '# Godot editor: %s (%s)\n' "${GODOT_ARCHIVE}" "${GODOT_ARCHIVE_SHA256}"
     printf '# Godot .NET templates: %s (%s)\n' "${GODOT_TEMPLATES_ARCHIVE}" "${GODOT_TEMPLATES_SHA256}"
     printf '# Godot template version: %s\n' "${GODOT_TEMPLATE_VERSION}"
