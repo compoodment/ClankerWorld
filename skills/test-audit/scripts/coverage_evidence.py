@@ -67,7 +67,7 @@ def validate_report(path):
                         if metadata is None or not 0 <= float(metadata[1]) <= 100:
                             raise ValueError(f"missing or invalid branch metadata for {key}")
                         covered, valid = int(metadata[2]), int(metadata[3])
-                        if valid == 0 or covered > valid or hits == 0 and covered > 0:
+                        if valid == 0 or covered > valid:
                             raise ValueError(f"invalid branch counts for {key}")
                     elif "condition-coverage" in line.attrib:
                         raise ValueError(f"branch metadata without a branch for {key}")

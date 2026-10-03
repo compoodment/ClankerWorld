@@ -200,6 +200,27 @@ class MeasurementTests(unittest.TestCase):
         self.assertEqual(1, totals["lines_valid"])
         self.assertEqual(1, totals["lines_covered"])
 
+    def test_covered_branches_without_line_hits_remain_valid_and_protect_the_measurement(self):
+        # Coverlet reports this combination for multi-line expressions; the
+        # line's sequence point and its branch points are separate counters.
+        xml = coverage_xml(hits=0).replace('0% (0/2)', '16.66% (1/6)') \
+            .replace('branches-covered="0"', 'branches-covered="1"') \
+            .replace('branches-valid="2"', 'branches-valid="6"')
+        self.assertEqual(0, self.run_measurement(lambda args, **kwargs: self.report(args, xml=xml)))
+        with patch.object(runner.subprocess, "run", side_effect=AssertionError("must resume")):
+            self.assertEqual(0, self.run_measurement(runner.subprocess.run))
+        universe, tests = unique.load(self.out)
+        coverage = unique.Coverage(universe, tests)
+        self.assertEqual(0, coverage.totals()["lines_covered"])
+        self.assertEqual(1, coverage.totals()["branches_covered_at_least"])
+        self.assertEqual((0, 1), coverage.unique(self.method))
+        result = subprocess.run([sys.executable, str(Path(unique.__file__)), str(self.out), "--plan"],
+                                capture_output=True, text=True)
+        self.assertEqual(0, result.returncode, result.stderr)
+        plan = json.loads(result.stdout)
+        self.assertEqual([], plan["zero_loss_removable"])
+        self.assertEqual(1, plan["after_plan"]["branches_covered_at_least"])
+
     def test_differing_reports_are_ambiguous_even_when_each_is_valid(self):
         def command(arguments, **options):
             result = self.report(arguments)

@@ -58,8 +58,8 @@ def read_report(root, universe):
                     universe.branch_totals[index] = max(universe.branch_totals.get(index, 0), int(branch[2]))
                 if int(line.attrib["hits"]) > 0:
                     mask |= 1 << index
-                    if branch and int(branch[1]) > 0:
-                        branches[index] = max(branches.get(index, 0), int(branch[1]))
+                if branch and int(branch[1]) > 0:
+                    branches[index] = max(branches.get(index, 0), int(branch[1]))
     return mask, branches
 
 
