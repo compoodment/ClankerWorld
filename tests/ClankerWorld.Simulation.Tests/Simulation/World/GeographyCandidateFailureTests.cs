@@ -8,6 +8,9 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed class GeographyCandidateFailureTests
 {
+    private static readonly int[] AllAttempts = [0, 1, 2];
+    private static readonly int[] SingleAttempt = [0];
+
     [Theory]
     [InlineData("audit-town-2", 0, 2, 0, 1)]
     [InlineData("audit-town-13", 2, 0, 1, 2)]
@@ -34,7 +37,7 @@ public sealed class GeographyCandidateFailureTests
         attempted.Clear();
         var selection = GeographyCandidateSelector.Select(options, GenerateWithUnavailableClearing);
 
-        Assert.Equal(new[] { 0, 1, 2 }, attempted);
+        Assert.Equal(AllAttempts, attempted);
         Assert.Equal(selectedAttempt, selection.Selected.Attempt);
         Assert.Equal(new[] { firstAvailable, lastAvailable }, selection.Candidates.Select(candidate => candidate.Attempt));
         var unavailable = Assert.Single(selection.FailedCandidates);
@@ -49,7 +52,7 @@ public sealed class GeographyCandidateFailureTests
         Assert.Equal(MapLayerManifestCodec.Digest(direct), MapLayerManifestCodec.Digest(selection.Map));
         attempted.Clear();
         var repeated = GeographyCandidateSelector.Select(options, GenerateWithUnavailableClearing);
-        Assert.Equal(new[] { 0, 1, 2 }, attempted);
+        Assert.Equal(AllAttempts, attempted);
         Assert.Equal(selection.Candidates, repeated.Candidates);
         Assert.Equal(selection.FailedCandidates, repeated.FailedCandidates);
         Assert.Equal(selection.Map.ManifestDigest, repeated.Map.ManifestDigest);
@@ -104,7 +107,7 @@ public sealed class GeographyCandidateFailureTests
         var selected = Assert.Throws<GeographyClearingUnavailableException>(() =>
             GeographyCandidateSelector.Select(options, GenerateWithUnavailableClearing));
         Assert.Equal(direct.Message, selected.Message);
-        Assert.Equal(trialTargetsApplicable ? new[] { 0, 1, 2 } : new[] { 0 }, attempted);
+        Assert.Equal(trialTargetsApplicable ? AllAttempts : SingleAttempt, attempted);
     }
 
     [Fact]
