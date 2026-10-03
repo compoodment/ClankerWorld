@@ -101,6 +101,25 @@ public sealed class MorningWorldStartTests
             restored.Society.Inhabitants.Select(person => (person.BirthTick, person.BirthLifeTick, person.AgeBand)));
     }
 
+    [Fact]
+    public void CivicDeadlineLabelsCountCalendarDaysFromTheMorningStart()
+    {
+        // Ballot, mayoral-round and land-grant deadlines are all told to agents through this day number.
+        using var morning = new PrivateWorldRuntime("morning-civic-days", startPace: WorldStartPace.DecidedPlaytest);
+        Assert.Equal(90, morning.WorldSystems.Config.CalendarOffsetTicks);
+        Assert.Equal(1, morning.CivicDayNumber(0));
+        Assert.Equal(1, morning.CivicDayNumber(269));
+        Assert.Equal(2, morning.CivicDayNumber(270));
+        Assert.Equal(2, morning.CivicDayNumber(360));
+        Assert.Equal(3, morning.CivicDayNumber(630));
+
+        using var legacy = new PrivateWorldRuntime("morning-civic-days-legacy");
+        var day = legacy.WorldSystems.Config.TicksPerDay;
+        Assert.Equal(0, legacy.WorldSystems.Config.CalendarOffsetTicks);
+        Assert.Equal(1, legacy.CivicDayNumber(day - 1));
+        Assert.Equal(2, legacy.CivicDayNumber(day));
+    }
+
     private static void AssertMorning(PrivateWorldRuntime world)
     {
         Assert.Equal(0, world.WorldTick);
