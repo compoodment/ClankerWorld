@@ -343,7 +343,10 @@ Full carriers decline pickups that would add excess cargo. Food harvests need
 room for the whole yield, including orchard seeds. A hungry adult without that
 room first sets down spare supplies for their household, in the House if it
 has room or on the camp pile otherwise. Tools go last; maps, field records,
-worn gear and reserved goods stay carried. Exploring still teaches
+worn gear and reserved goods stay carried. If urgent hunger leaves no other
+way to make enough room, an adult may set down some of their own reserved
+orchard seeds too. Only the seeds actually stored lose their planting reserve;
+the seeds remain household property for later planting. Exploring still teaches
 personal knowledge when there is no room to carry a new map or field record.
 Broken or spoiled spare cargo can also be set down without losing it.
 Before the first House, builders carry their construction materials to the camp

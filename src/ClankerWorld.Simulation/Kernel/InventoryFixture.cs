@@ -383,6 +383,26 @@ public static partial class InventoryFixture
             detail: $"{reservationId}:{purpose}");
     }
 
+    /// <summary>Releases only the requested part of a live claim, retaining protection for its remaining quantity.</summary>
+    public static InventoryCheckpoint ReleaseReservationQuantity(
+        InventoryCheckpoint checkpoint, string reservationId, int quantity, string purpose)
+    {
+        ValidateCheckpoint(checkpoint);
+        ArgumentException.ThrowIfNullOrWhiteSpace(reservationId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(purpose);
+        var reservation = checkpoint.GetReservation(reservationId);
+        if (reservation.State is not (InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed) ||
+            checkpoint.WorldTick > reservation.ExpiryTick || quantity <= 0 || quantity > reservation.Quantity)
+            throw new InvalidOperationException("Only a positive quantity from a live reservation can be released.");
+        if (quantity == reservation.Quantity)
+            return ReleaseReservation(checkpoint, reservationId, $"{purpose}:quantity:{quantity}");
+        var reservations = checkpoint.Reservations.Select(candidate => candidate.Id == reservationId
+            ? candidate with { Quantity = candidate.Quantity - quantity }
+            : candidate).ToArray();
+        return Commit(checkpoint, reservations: reservations, eventKind: "reservation_partly_released",
+            detail: $"{reservationId}:{purpose}:quantity:{quantity}");
+    }
+
     public static InventoryCheckpoint Transfer(
         InventoryCheckpoint checkpoint,
         string transferId,
