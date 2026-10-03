@@ -521,7 +521,7 @@ from timed displacement even when their dependent lives in another household.
 No older-save migration or backfill is added.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 67. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 69. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
