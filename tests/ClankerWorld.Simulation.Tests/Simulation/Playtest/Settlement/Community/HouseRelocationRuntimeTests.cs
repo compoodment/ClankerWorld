@@ -491,10 +491,18 @@ public sealed class HouseRelocationRuntimeTests
                 .OrderBy(right => right.Id, StringComparer.Ordinal).ToArray(),
         };
 
+        // A neighbour holds only the first tile the House would try; the other sides are free.
+        var oneSideTaken = unpermitted with
+        {
+            HouseholdLandUseRights = enclosed.HouseholdLandUseRights!
+                .Where(right => right.GrantSource != "test_grant" || right.Tiles.Contains(around[0])).ToArray(),
+        };
+
         foreach (var (state, next, maySplit) in new[]
                  {
                      (permitted, "Next: expand the House.", false),
                      (unpermitted, "Next: get the Council's land permission and expand the House.", false),
+                     (oneSideTaken, "Next: get the Council's land permission and expand the House.", false),
                      (enclosed, "Next: an adult may start a separate household with their dependents and build a House.", true),
                  })
         {
@@ -505,6 +513,11 @@ public sealed class HouseRelocationRuntimeTests
             var member = world.Society.GetHousehold(Household).MemberIds.First(id => choices.HousingNotes.ContainsKey(id));
             Assert.EndsWith("Nobody can be required to leave. " + next, choices.HousingNotes[member], StringComparison.Ordinal);
             Assert.Equal(maySplit, choices.Offered[member].Contains("household_found", StringComparer.Ordinal));
+            if (state != oneSideTaken) continue;
+            // The land request offered must be one the Council can grant, not the neighbour's tile.
+            var request = Assert.Single(choices.Offered.Values.SelectMany(ids => ids).Distinct(StringComparer.Ordinal),
+                id => id.Contains("|request_expansion_land|", StringComparison.Ordinal));
+            Assert.DoesNotContain($"({around[0].X}, {around[0].Y})", request, StringComparison.Ordinal);
         }
 
         // A House that is already being expanded is not told to split either.

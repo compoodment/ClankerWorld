@@ -1120,11 +1120,14 @@ a voluntary household split; sole caregivers are never forced out with their
 children. The split is offered only when the House cannot grow: no larger
 footprint fits, or its extra land is neither the household's to use nor free
 Town land it can still ask the Council for. While only that land permission
-is missing, the housing line names it as the next step. Built-in rules do not
-found a household while the adult still has a home, so the notice period can
-end in a completed expansion or an accepted request. Agent observations and owner inspection show resident counts, notice
-reason and time, pending requests and expansion state. `relocation_notice` and
-`relocation_cancelled` record changes without repeating them on reload.
+is missing, the housing line names it as the next step, and the expansion
+land request prefers a footprint whose extra land no other household holds or
+has asked for. Built-in rules do not found a household while the adult still
+has a home, so the notice period can end in a completed expansion or an
+accepted request. Agent observations and owner inspection show resident
+counts, notice reason and time, pending requests and expansion state.
+`relocation_notice` and `relocation_cancelled` record changes without
+repeating them on reload.
 
 **Continuity rule** (`SettlementContinuity`). The owner's answer on
 [#654](https://github.com/compoodment/ClankerWorld/issues/654) sets provisional
