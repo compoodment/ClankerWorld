@@ -3,6 +3,7 @@ using ClankerWorld.Simulation.Content;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
+using ClankerWorld.Simulation.Society;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -469,6 +470,52 @@ public sealed class ToolMakingRequestTests
         Assert.Equal(terminalRequest, Assert.Single(withdrawing.ToolMakingRequests));
         Assert.DoesNotContain(withdrawing.WorldContent.Recipes, live => live.CanonicalId == recipe.CanonicalId);
         _ = Roundtrip(withdrawing);
+    }
+
+    [Fact]
+    public async Task AHousemateResumingTheDepartedWorkersToolJobKeepsTheWorldSaveable()
+    {
+        var (state, buyer, seller, shop) = Prepared();
+        using var placing = Restore(state, buyer, seller, new RequestChoices("tool_request_place:"), new RequestChoices());
+        await Until(placing, world => world.ToolMakingRequests.Count == 1, 96);
+        state = Roundtrip(placing);
+        using var making = Restore(state, buyer, seller, new RequestChoices(), new RequestChoices("tool_request_accept:", "tool_request_work:"));
+        await Until(making, world => Assert.Single(world.ToolMakingRequests).JobId is not null, 160);
+        var jobId = Assert.Single(making.ToolMakingRequests).JobId;
+        Assert.True(making.DisplaceAdult(seller));
+        Assert.True((await making.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal(ToolMakingRequestStatus.Interrupted, Assert.Single(making.ToolMakingRequests).Status);
+        Assert.Equal(WorldProductionJobState.Paused, making.WorldSimulation.ProductionJobs.Single(job => job.JobId == jobId).State);
+        state = Roundtrip(making);
+        var housemate = state.Society.Society.GetHousehold(shop.HouseholdId!).MemberIds.First(id => id != seller &&
+            state.Society.Society.GetInhabitant(id).AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder);
+        state = state with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == housemate
+                ? person with { Position = shop.Position, LastDecisionContext = null, Project = null } : person).ToArray(),
+        };
+        var resumer = new RequestChoices("household_resume_work:");
+        using var resuming = PrivateWorldRuntime.Restore(state, actor => actor == housemate ? resumer : new RequestChoices());
+        await Until(resuming, world => world.WorldSimulation.ProductionJobs.Single(job => job.JobId == jobId).WorkerId == housemate, 200);
+        Assert.Equal(ToolMakingRequestStatus.Interrupted, Assert.Single(resuming.ToolMakingRequests).Status);
+        _ = Roundtrip(resuming);
+    }
+
+    [Fact]
+    public async Task ARequestEndsWhenNoAdultIsLeftInTheSellingHousehold()
+    {
+        var (state, buyer, seller, shop) = Prepared();
+        using var placing = Restore(state, buyer, seller, new RequestChoices("tool_request_place:"), new RequestChoices());
+        await Until(placing, world => world.ToolMakingRequests.Count == 1, 96);
+        Assert.Equal(ToolMakingRequestStatus.Requested, Assert.Single(placing.ToolMakingRequests).Status);
+        foreach (var member in placing.Society.GetHousehold(shop.HouseholdId!).MemberIds.ToArray())
+            Assert.True(placing.DisplaceAdult(member));
+        Assert.True((await placing.AdvanceOneTickAsync()).Advanced);
+        var request = Assert.Single(placing.ToolMakingRequests);
+        Assert.Equal(ToolMakingRequestStatus.Interrupted, request.Status);
+        Assert.Null(request.JobId);
+        Assert.Equal(3, placing.Society.Inventory.GetLot("request-payment").Quantity);
+        _ = Roundtrip(placing);
     }
 
     private static ContentPackageManifest CustomToolRecipe(string packageId, string workstation)

@@ -241,7 +241,7 @@ public sealed partial class PrivateWorldRuntime
 
     private void SetToolRequest(ToolMakingRequestState request, string? eventKind = null, string? actor = null)
     {
-        if (request.Blocker is { Length: > 160 } blocker) request = request with { Blocker = blocker[..160] };
+        if (request.Blocker is { Length: > 160 } blocker) request = request with { Blocker = blocker[..160].TrimEnd() };
         var index = toolMakingRequests.FindIndex(item => item.Id == request.Id);
         if (index < 0 || toolMakingRequests[index] == request) return;
         toolMakingRequests[index] = request with { LastTransitionTick = WorldTick };
@@ -260,11 +260,19 @@ public sealed partial class PrivateWorldRuntime
                 lot.OwnerId == request.SellerHouseholdId && lot.StorageBuildingId == request.BuildingInstanceId &&
                 lot.ItemKind == input.ResourceId && lot.FreshnessBasisPoints > 0 && lot.ConditionBasisPoints > 0)
             .Sum(lot => (long)AvailableLotQuantity(lot)) < input.Amount).Select(input => input.ResourceId.Replace('_', ' ')).ToArray();
-        if (missing.Length == 0) return project.Blocker;
+        if (missing.Length == 0) return PublicToolWorkBlocker(project.Blocker);
         return StorageRoomAfterInboundDeliveries(request.BuildingInstanceId) == 0
             ? "Waiting for room at the Blacksmith before more materials can arrive."
             : "Waiting for household materials at the Blacksmith: " + string.Join(", ", missing) + ".";
     }
+
+    // The customer and the shop card see the request's progress, not the worker's own errands or household storage.
+    private static string? PublicToolWorkBlocker(string? projectBlocker) => projectBlocker switch
+    {
+        null => null,
+        WaitingForWorkSiteBlocker => "Waiting for a free work site at the Blacksmith.",
+        _ => "The household is still preparing this work.",
+    };
 
     private void MaintainToolMakingRequests()
     {
@@ -272,11 +280,21 @@ public sealed partial class PrivateWorldRuntime
         {
             var request = original;
             if (ToolMakingRequestRules.IsTerminal(request.Status)) continue;
-            if (!inhabitants.ContainsKey(request.RequesterId) || !AdultResident(request.RequesterId) || ToolRequestShop(request) is null ||
-                !worldContent.Recipes.Any(recipe => recipe.CanonicalId == request.RecipeId && ToolMakingRequestRules.IsToolRecipe(recipe)))
+            if (request.Status == ToolMakingRequestStatus.Offered &&
+                society.Checkpoint.Inventory.Offers.FirstOrDefault(offer => offer.Id == request.OfferId) is { State: DirectBarterState.Settled })
             {
-                CloseToolRequestOffer(request, "The requester or shop is no longer available.");
-                SetToolRequest(request with { Status = ToolMakingRequestStatus.Interrupted, Blocker = "The requester or shop is no longer available." }, "tool_request_interrupted");
+                SetToolRequest(request with { Status = ToolMakingRequestStatus.Fulfilled }, "tool_request_completed");
+                continue;
+            }
+            var unavailable = !inhabitants.ContainsKey(request.RequesterId) || !AdultResident(request.RequesterId) || ToolRequestShop(request) is null ||
+                !worldContent.Recipes.Any(recipe => recipe.CanonicalId == request.RecipeId && ToolMakingRequestRules.IsToolRecipe(recipe)) ||
+                !inhabitants.Keys.Any(seller => AdultResident(seller) && HouseholdFor(seller) == request.SellerHouseholdId);
+            var joinedSeller = !unavailable && HouseholdFor(request.RequesterId) == request.SellerHouseholdId;
+            if (unavailable || joinedSeller)
+            {
+                var reason = joinedSeller ? "The customer joined the household that holds this shop." : "The requester or shop is no longer available.";
+                CloseToolRequestOffer(request, reason);
+                SetToolRequest(request with { Status = ToolMakingRequestStatus.Interrupted, Blocker = reason }, "tool_request_interrupted");
                 continue;
             }
             if (request.Status == ToolMakingRequestStatus.Accepted)
@@ -292,7 +310,7 @@ public sealed partial class PrivateWorldRuntime
                     {
                         JobId = project.JobId,
                         Blocker = project.JobId is null
-                        ? ToolMakingInputBlocker(request, project) : project.Blocker
+                        ? ToolMakingInputBlocker(request, project) : PublicToolWorkBlocker(project.Blocker)
                     };
                 if (request.JobId is { } jobId)
                 {

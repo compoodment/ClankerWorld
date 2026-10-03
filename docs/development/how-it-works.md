@@ -1091,12 +1091,17 @@ it creates no future inventory, advance payment or exclusive customer title.
 An eventual quote uses the existing completed-goods business barter offer and
 its acceptance, meeting, stock-room and exact transfer checks. Withdrawal or
 interruption does not undo work or change the owners of materials and goods.
+A request stops when the customer or the shop becomes unavailable, when no
+adult is left in the selling household, or when the customer joins that
+household. If the worker leaves, the request stops; a housemate may still
+resume the paused job as ordinary household work.
 
 The observation projects at most eight requests per actual building, preferring
 active requests and recent transitions. The relevant customer or household
 member gets a scoped note of at most 256 characters; public blockers are at most
 160. Notes expose request progress, never unrelated private stock or raw model
-dialogue. Owner cards show the requester, existing recipe and current blocker;
+dialogue: the worker's own errands and storage problems appear only as "still
+preparing" or "waiting for a work site". Owner cards show the requester, existing recipe and current blocker;
 the actual building supplies its name.
 
 **Clinic supplies and illness care** use the normal household building,

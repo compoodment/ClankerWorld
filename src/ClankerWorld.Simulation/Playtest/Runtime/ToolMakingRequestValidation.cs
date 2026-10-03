@@ -58,7 +58,9 @@ public sealed partial class PrivateWorldRuntime
             if (request.JobId is { } jobId)
             {
                 var job = simulation.ProductionJobs.FirstOrDefault(job => job.JobId == jobId);
-                if (!accepted || job is null || job.ToolMakingRequestId != request.Id || job.WorkerId != request.WorkerId || job.RecipeId != request.RecipeId ||
+                if (!accepted || job is null || job.ToolMakingRequestId != request.Id ||
+                    // A housemate may resume paused work after the worker leaves; that request has already stopped.
+                    !terminal && job.WorkerId != request.WorkerId || job.RecipeId != request.RecipeId ||
                     job.BuildingInstanceId != request.BuildingInstanceId || job.StartedTick < request.AcceptedTick.GetValueOrDefault() ||
                     !HasCompleteToolMakingInputs(job, recipe, societyState.Inventory) ||
                     job.InputReservationIds.Any(id => !societyState.Inventory.Reservations.Any(receipt => receipt.Id == id &&
