@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using ClankerWorld.Simulation.Cognition;
+using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Society;
 
 namespace ClankerWorld.Simulation.Playtest;
@@ -228,8 +229,11 @@ public sealed partial class PrivateWorldRuntime
         if (!society.Checkpoint.Estates.Any(estate => !estate.Settled && estate.WillStatus == "accepted" &&
                 estate.ExpiryTick <= targetTick && (estate.WillHeirIds ?? []).Any(id => towns.Any(town => town.Id == id))))
             return null;
+        // A Warehouse takes no food, and no handcart, which stays on the ground:
+        // the household path keeps such a cart and its cargo where they are.
+        var refused = new HashSet<string>(WarehouseFoodKinds.Append(InventoryContainerRules.Handcart), StringComparer.Ordinal);
         return towns.Select(town => TownInheritanceWarehouse(town.Id) is { } warehouse
-                ? new SocietyTownStore(town.Id, warehouse.InstanceId, StorageRoom(warehouse.InstanceId), WarehouseFoodKinds)
+                ? new SocietyTownStore(town.Id, warehouse.InstanceId, StorageRoom(warehouse.InstanceId), refused)
                 : null)
             .OfType<SocietyTownStore>().ToArray();
     }

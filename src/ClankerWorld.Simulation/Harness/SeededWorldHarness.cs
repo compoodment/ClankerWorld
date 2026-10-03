@@ -234,21 +234,26 @@ public sealed record SeededMap(
             ? throw new ArgumentOutOfRangeException(nameof(destination), "The foot step is illegal.")
             : checked(FootTravelCost(destination) * (IsDiagonalFootStep(origin, destination) ? 141 : 100) / 100);
 
+    private static readonly (int X, int Y)[] FootNeighborOffsets =
+    [
+        (0, -1), (1, 0), (0, 1), (-1, 0),
+        (1, -1), (1, 1), (-1, 1), (-1, -1),
+    ];
+
     public IEnumerable<GridPoint> FootNeighbors(GridPoint point)
     {
         if (!Contains(point))
             throw new ArgumentOutOfRangeException(nameof(point));
-        var seen = new HashSet<GridPoint>();
-        foreach (var (dx, dy) in new (int X, int Y)[]
-        {
-            (0, -1), (1, 0), (0, 1), (-1, 0),
-            (1, -1), (1, 1), (-1, 1), (-1, -1),
-        })
+        // Route searches call this for every tile they reach. The eight offsets
+        // are always eight different tiles, except across an east/west wrap
+        // narrower than three columns, so only that case needs to skip repeats.
+        var seen = WrapsEastWest && Width < 3 ? new HashSet<GridPoint>() : null;
+        foreach (var (dx, dy) in FootNeighborOffsets)
         {
             var x = point.X + dx;
             if (WrapsEastWest) x = (x % Width + Width) % Width;
             var next = new GridPoint(x, point.Y + dy);
-            if (seen.Add(next) && CanFootStep(point, next))
+            if ((seen is null || seen.Add(next)) && CanFootStep(point, next))
                 yield return next;
         }
     }
@@ -669,6 +674,10 @@ public static class GeneratedCampMapGenerator
         // forested chunk cannot crowd out the map's only iron or gold.
         List<MapResource> geology = GenerateGeologySites(options, geography, objects,
             placed.Concat(distributed).ToArray());
+        // Mountains gather into a few massifs, so make sure the starting
+        // clearing still has stone it can walk to.
+        geology.AddRange(EnsureStoneNearStart(geography, origin, objects,
+            placed.Concat(distributed).Concat(geology).ToArray()));
         List<MapResource> trees = GenerateTrees(options, geography, surfaceKinds, vegetationKinds,
             width, height, objects, placed.Concat(distributed).Concat(geology).ToArray());
         List<MapResource> orchards = GenerateOrchards(options, geography, surfaceKinds, vegetationKinds, width, height, objects,
@@ -1095,6 +1104,65 @@ public static class GeneratedCampMapGenerator
                 return true;
             }
             return false;
+        }
+    }
+
+    private static List<MapResource> EnsureStoneNearStart(GeneratedGeography geography, GridPoint origin,
+        IReadOnlyList<CampObject> camp, IReadOnlyList<MapResource> existing)
+    {
+        // Walk out from the middle of the clearing over dry land, skipping
+        // peaks and water, as far as the stone reach allows.
+        var width = geography.Width;
+        var height = geography.Height;
+        var reach = TerrainPlacementRules.FirstTownStoneReach;
+        var start = new GridPoint(origin.X + CampWidth / 2, origin.Y + CampHeight / 2);
+        var reached = new HashSet<GridPoint> { start };
+        var queue = new Queue<GridPoint>();
+        queue.Enqueue(start);
+        while (queue.TryDequeue(out var current))
+            foreach (var (dx, dy) in new (int X, int Y)[] { (0, -1), (1, 0), (0, 1), (-1, 0) })
+            {
+                var x = current.X + dx;
+                var y = current.Y + dy;
+                if (geography.WrapsEastWest) x = (x % width + width) % width;
+                var next = new GridPoint(x, y);
+                if (x < 0 || x >= width || y < 0 || y >= height || reached.Contains(next) ||
+                    Distance(start, next) > reach) continue;
+                var tile = geography.At(x, y);
+                if (tile.Water != WaterKind.Land || tile.Elevation >= SeededMap.PeakElevationThreshold) continue;
+                reached.Add(next);
+                queue.Enqueue(next);
+            }
+        if (existing.Any(resource => resource.Kind == "stone" && reached.Contains(resource.Position)))
+            return [];
+
+        // Otherwise an outcrop forms on the highest ground in reach, outside
+        // the clearing and in a chunk with room for another site.
+        var occupied = camp.Select(item => item.Position).Concat(existing.Select(item => item.Position)).ToHashSet();
+        var perChunk = existing.GroupBy(item =>
+                (item.Position.X / GeographyGenerator.ChunkSize, item.Position.Y / GeographyGenerator.ChunkSize))
+            .ToDictionary(group => group.Key, group => group.Count());
+        var site = reached
+            .Where(point => !occupied.Contains(point) &&
+                !(point.X >= origin.X && point.X < origin.X + CampWidth &&
+                  point.Y >= origin.Y && point.Y < origin.Y + CampHeight) &&
+                perChunk.GetValueOrDefault((point.X / GeographyGenerator.ChunkSize, point.Y / GeographyGenerator.ChunkSize)) <
+                    TerrainPlacementRules.GeneratedResourcesPerChunk)
+            .OrderByDescending(point => geography.At(point.X, point.Y).Elevation)
+            .ThenBy(point => Distance(start, point))
+            .ThenBy(point => point.Y).ThenBy(point => point.X)
+            .Cast<GridPoint?>()
+            .FirstOrDefault();
+        return site is { } position
+            ? [new MapResource($"geology-stone_outcrop-{position.X}-{position.Y}", "stone", position, false,
+                NaturalObjectKind: "stone_outcrop")]
+            : [];
+
+        int Distance(GridPoint from, GridPoint to)
+        {
+            var horizontal = Math.Abs(from.X - to.X);
+            if (geography.WrapsEastWest) horizontal = Math.Min(horizontal, width - horizontal);
+            return Math.Max(horizontal, Math.Abs(from.Y - to.Y));
         }
     }
 

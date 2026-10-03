@@ -113,6 +113,25 @@ The first command records each test's duration in
 `tests/ClankerWorld.Simulation.Tests/TestResults/timings.trx`; the second lists
 the tests job 1 would run without timings.
 
+The native Windows storage job also runs the repeated checkpoint-compaction
+test and checks that a refused overwrite preserves the previous checkpoint.
+It uploads the test report as `windows-storage-evidence`. If the repeated-save
+test encounters an I/O failure, that artifact also contains copies of its
+disposable world files and first-failure diagnostics, including any temporary
+checkpoint captured before cleanup. Successful test worlds are deleted. These
+are synthetic test worlds; do not add a player's save directory to the upload
+paths.
+The deliberate lock and read-only controls mark their evidence with
+`ExpectedFailureControl`, so their expected refusals remain distinguishable
+from an unexpected stress-test failure.
+
+To retain the same evidence for a local persistence test, set
+`CLANKERWORLD_CHECKPOINT_DIAGNOSTICS` to an empty disposable directory before
+running `FullyQualifiedName~PrivateWorldStateFileTests`. On I/O failure, the
+tests copy evidence from their uniquely named temporary worlds there. A
+passing rerun does not explain an earlier intermittent access refusal; retain
+the failed report and its diagnostics when investigating one.
+
 Hands-on checks above describe useful verification, not a blanket pre-merge
 playtest gate. Routine owner playtesting may follow merge under
 [Drafts and readiness](../../CONTRIBUTING.md#drafts-and-readiness). Keep pending
@@ -139,6 +158,17 @@ applying, then verify that no changes remain.
 SHA-256, builds the scripts and starts the scene headlessly.
 `verify-godot-windows-export.sh` verifies the pinned editor and templates,
 creates an unsigned Windows x64 PE bundle and writes a SHA-256 manifest.
+The export stages tracked files from the checkout's current commit, so commit
+any changes you want in the bundle first. Uncommitted and untracked files stay
+out of the export. It reads the game version from the staged project's MSBuild
+metadata, then passes that commit as `SourceRevisionId` into the staging build.
+It checks that the exported client assembly contains both values. The manifest
+records the build line and full commit. Godot requires four numeric parts in
+Windows file/product version fields, so those use the assembly file version;
+the executable's product name carries the readable version and short commit.
+Local builds get their revision from the SDK's Git integration. A source archive
+without Git metadata must provide `SourceRevisionId` to MSBuild to identify its
+origin; otherwise the game honestly reports `unknown`.
 CI uploads that bundle as an artifact. These checks verify the build and
 export; they do not replace playing the bundle on Windows.
 
