@@ -196,6 +196,19 @@ windows, rulings and transfers without applying a decision twice. Reopening
 preserves the earlier ruling and current rights until a new correction is committed. Older
 alpha schemas are refused and preserved without migration.
 
+Schema 70 adds the required non-land case ledger, protected non-land mandate
+scope and retained-term extension receipts. It saves exact allegations,
+historical conduct and law context, actual observation and communication
+sources, notice and response history, independent adjudicator authority,
+findings, voluntary offers and each contributor's consent. Completion effects
+refer to native physical receipts rather than mutable stock or the event log.
+Loading rejects missing, duplicate, future or inconsistent evidence and
+authority links. Historical records remain meaningful after law changes,
+departure, death, consumption or removal of the physical target. Prepared-tick
+rollback includes these ledgers alongside the actual goods or work. Earlier
+alpha checkpoints are refused and preserved; no inferred case history or
+migration is added.
+
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
 Matching parent assignments are disclosed as agreement; when they differ, the
@@ -597,7 +610,8 @@ Council land claims, schema 59 for household land grants, schema 60 for
 handcart attachments, schema 61 for guardian-order targets, schema 62 for
 physical knowledge writing, schema 63 for exact-tile movement orders and
 schema 64 for overcrowding move-out notices, schema 65 for material orders
-and schema 69 for land hearings and consensual permission transfers
+schema 69 for land hearings and consensual permission transfers, and schema 70
+for non-land hearings and voluntary remedy receipts
 record when those fields or behaviors were introduced; they do not allow an
 earlier checkpoint schema past the current alpha cutoff.
 
@@ -652,6 +666,7 @@ earlier checkpoint schema past the current alpha cutoff.
 | Schema 64 | Household move-out notices retain their original notice period, fixed deadline and selection reason alongside pending housing requests. Reload and replacement do not restart notice or duplicate departure goods. Runtime admission and displacement recheck current need and caregiver protection. Earlier alpha saves are refused and preserved without migration. |
 | Schema 65 | Material-gathering orders retain the material kind, exact optional source or position, batch/item progress and physical harvest receipt. Loading rejects mixed food/guardian/material fields and inconsistent progress. Queue, cancellation and partial work replay without duplicate harvests; older alpha saves are refused and preserved without migration. |
 | Schema 69 | Land hearings and voluntary permission transfers retain notice, evidence, personal consent, authority and closure history. Original grants and bounded adjustments must reproduce current permissions. Earlier alpha saves are refused and preserved without migration. |
+| Schema 70 | Non-land mandate consent, conduct-time law context, public hearings and voluntary remedy agreements retain their sources and real physical completion receipts. Earlier alpha saves are refused and preserved without migration. |
 
 ### Tool-making requests
 

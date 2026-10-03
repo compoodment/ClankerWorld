@@ -95,6 +95,9 @@ public sealed partial class PrivateWorldRuntime
         }
         ValidateTownAdmissions(towns, society.Checkpoint, checkpointSchemaVersion);
         ValidateLandHearings(map, society.Checkpoint, towns, householdLandUseRights, householdLandUseRequests, townLandTitles, worldSystems.Config.TicksPerDay);
+        foreach (var town in towns)
+            TownNonviolentValidation.Validate(map, society.Checkpoint, town, townLandTitles, worldSystems.Config.TicksPerDay);
+        ValidateNonviolentPhysicalState(map, society.Checkpoint, towns, townLandTitles);
         ValidateRoads(RoadTiles, map, founderSetup);
         ValidateBridges(Bridges, bridgeTraffic, map, RoadTiles, worldSimulation, worldContent,
             society.Checkpoint, inhabitants.Values);
@@ -457,6 +460,9 @@ public sealed partial class PrivateWorldRuntime
             state.Society.Society);
         ValidateLandHearings(state.Map, society.Checkpoint, state.Towns ?? [], state.HouseholdLandUseRights!,
             state.HouseholdLandUseRequests!, state.TownLandTitles!, state.WorldSystems!.Config.TicksPerDay);
+        foreach (var town in state.Towns ?? [])
+            TownNonviolentValidation.Validate(state.Map, society.Checkpoint, town, state.TownLandTitles!, state.WorldSystems.Config.TicksPerDay);
+        ValidateNonviolentPhysicalState(state.Map, society.Checkpoint, state.Towns ?? [], state.TownLandTitles!);
         ValidateRoads(state.RoadTiles, state.Map, state.FounderSetup);
         ValidateBridges(state.Bridges, state.BridgeTraffic, travelMap,
             state.RoadTiles, state.WorldSimulation, state.WorldContent, state.Society.Society,

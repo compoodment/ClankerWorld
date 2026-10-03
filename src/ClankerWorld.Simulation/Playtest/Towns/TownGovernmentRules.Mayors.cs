@@ -50,6 +50,14 @@ public static partial class TownGovernmentRules
     private static (TownGovernanceState, TownGovernmentState) EndOffice(TownGovernanceState council,
         TownGovernmentState state, TownOffice office, long tick, string reason)
     {
+        // Ending the base term also ends its added duties. A previously captured iteration
+        // may still contain that dependent office, so ending an already ended term is inert.
+        if (!state.Offices.Any(current => current.Mandates == office.Mandates && current.HolderId == office.HolderId &&
+                current.ElectionId == office.ElectionId && current.HolderId is not null)) return (council, state);
+        if (office.Mandates != "non_land" && state.Offices.SingleOrDefault(current => current.Mandates == "non_land" &&
+                current.HolderId is not null && state.NonLandGrants.Any(grant => grant.Id == current.ElectionId &&
+                    grant.BaseMandate == office.Mandates && grant.BaseElectionId == office.ElectionId)) is { } dependent)
+            (council, state) = EndOffice(council, state, dependent, tick, "The elected term supporting these added duties ended.");
         var ended = Math.Min(tick, office.TermEndTick!.Value);
         state = state with
         {
@@ -60,7 +68,8 @@ public static partial class TownGovernmentRules
         };
         return (Notice(council, "mayor", "office:" + office.Mandates,
             $"{office.HolderId}'s mandate for {TownArrangementRules.MandateLabel(office.Mandates)} ended. {reason} " +
-            (office.Mandates == "land" ? "Land decisions wait for a valid successor." : "Every adult resident makes ordinary decisions until a valid successor takes office."), tick), state);
+            (office.Mandates == "ordinary" ? "Every adult resident makes ordinary decisions until a valid successor takes office."
+                : "Cases under this mandate wait for a valid adjudicator."), tick), state);
     }
 
     private static (TownGovernanceState, TownGovernmentState) AdvanceMayor(TownGovernanceState council,
@@ -68,7 +77,7 @@ public static partial class TownGovernmentRules
     {
         if (state.Contest is { } live)
         {
-            var willing = Willing(state, adults, live.Mandates);
+            var willing = Willing(state, adults, live.Mandates, live.ChangeId);
             var voters = live.Voters.Where(id => Has(adults, id)).ToArray();
             var candidates = live.Candidates.Where(id => Has(willing, id)).ToArray();
             live = live with
@@ -146,7 +155,8 @@ public static partial class TownGovernmentRules
         {
             var handover = ActiveChange(state) is { Status: "handover" } change ? change : null;
             var needed = handover is not null
-                ? Mandates(handover.Target).Where(m => handover.Kind == "replace_mayor" || !state.Offices.Any(o => o.Mandates == m && o.HolderId is not null)).ToArray()
+                ? Mandates(handover.Target).Where(m => !(m == "non_land" && handover.NonLandExtension is not null) &&
+                    (handover.Kind == "replace_mayor" || !state.Offices.Any(o => o.Mandates == m && o.HolderId is not null))).ToArray()
                 : Mandates(state.Arrangement).Where(m => !state.Offices.Any(o => o.Mandates == m && o.HolderId is not null)).ToArray();
             var purpose = handover is not null ? "handover" : "vacancy";
             if (needed.Length == 0)
@@ -162,7 +172,7 @@ public static partial class TownGovernmentRules
             }
             var mandates = string.Join('+', Ordered(needed));
             if (needed.Length > 0 && (tick >= state.MayoralRetryTick ||
-                ElectionCircumstances(state, adults, mandates) != state.MayoralRetryCircumstances))
+                ElectionCircumstances(state, adults, mandates, purpose == "handover" ? handover?.Id : null) != state.MayoralRetryCircumstances))
             {
                 var id = townId + ":mayor:" + (state.Sequence + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
                 state = state with
@@ -177,7 +187,7 @@ public static partial class TownGovernmentRules
         }
         if (!caseElectionActive && state.Contest is { Stage: "waiting" } waiting && council.Election is not { Stage: "main" or "runoff" })
         {
-            var candidates = Willing(state, adults, waiting.Mandates);
+            var candidates = Willing(state, adults, waiting.Mandates, waiting.ChangeId);
             // A tie remains restricted even if every tied candidate later withdraws.
             if (waiting.Rounds.Any(r => r.Result == "tie")) candidates = candidates.Where(id => Has(waiting.TiedCandidates, id)).ToArray();
             waiting = waiting with
@@ -218,7 +228,7 @@ public static partial class TownGovernmentRules
         if (stage == "failed") state = state with
         {
             MayoralRetryTick = tick + day,
-            MayoralRetryCircumstances = ElectionCircumstances(state, adults, contest.Mandates)
+            MayoralRetryCircumstances = ElectionCircumstances(state, adults, contest.Mandates, contest.ChangeId)
         };
         return (Notice(council, "mayor", contest.Id, "Mayoral election " + stage + ". " + reason, tick), state);
     }

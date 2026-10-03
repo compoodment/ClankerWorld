@@ -106,12 +106,14 @@ public sealed partial class PrivateWorldRuntime
 
     private void SaveTownGovernance(TownRuntimeState town, TownGovernanceState updated, TownGovernmentState? government = null)
     {
-        town = town with { LandHearings = towns.Single(current => current.Id == town.Id).LandHearings };
+        var latest = towns.Single(current => current.Id == town.Id);
+        town = town with { LandHearings = latest.LandHearings, Nonviolent = latest.Nonviolent };
         government ??= town.Government;
         var priorNotices = town.Governance?.Notices.Count ?? 0;
         (town, updated) = ApplyApprovedTownLandClaims(town, updated);
         updated = ResolveHouseholdLandRequests(town, updated);
         var priorHearings = town.LandHearings;
+        var priorNonviolent = town.Nonviolent;
         var transferUpdate = AdvanceTownLandTransfers(town with { Governance = updated, Government = government }, updated);
         updated = transferUpdate.Council;
         town = town with { LandHearings = transferUpdate.LandHearings };
@@ -119,7 +121,10 @@ public sealed partial class PrivateWorldRuntime
             updated, government ?? TownGovernmentState.Create());
         updated = hearingUpdate.Council;
         town = town with { LandHearings = hearingUpdate.LandHearings };
-        if (town.Governance == updated && town.Government == government && priorHearings == town.LandHearings) return;
+        var nonviolentUpdate = AdvanceTownNonviolent(town with { Governance = updated, Government = government }, updated, government ?? TownGovernmentState.Create());
+        updated = nonviolentUpdate.Council;
+        town = town with { Nonviolent = nonviolentUpdate.Nonviolent };
+        if (town.Governance == updated && town.Government == government && priorHearings == town.LandHearings && priorNonviolent == town.Nonviolent) return;
         SetTown(town with { Governance = updated, Government = government });
         foreach (var notice in updated.Notices.Skip(priorNotices))
             AppendEvent("town_civic_" + notice.Kind, $"{town.Id}|{notice.SubjectId}|{notice.Text}", CivicBoard(town));
@@ -201,6 +206,8 @@ public sealed partial class PrivateWorldRuntime
             AddTownAdmissionCandidates(candidates, actor, town);
             AddHouseholdLandCandidates(candidates, actor, town);
             AddTownLandHearingCandidates(candidates, actor, town);
+            AddTownNonviolentCandidates(candidates, actor, town);
+            AddNonviolentRemedyCandidates(candidates, actor, town);
             AddTownLandTransferCandidates(candidates, actor, town);
             foreach (var proposal in state.Proposals.Where(p => p.Status == "pending" && history.Knows(actor, p.Id)))
             {
@@ -213,7 +220,8 @@ public sealed partial class PrivateWorldRuntime
                 var plot = proposal.LandClaimTiles is { } tiles ? " Exact tiles: " + TownLandClaimRules.DescribeTiles(tiles) + "." :
                     proposal.Kind == "land_use" && householdLandUseRequests.SingleOrDefault(r => r.Id == proposal.SubjectId) is { } request
                         ? " " + LandUseTerms(request) : proposal.LandHearingRequest is { } hearingRequest
-                            ? " " + TownLandGovernmentFilingRules.Describe(hearingRequest) : "";
+                            ? " " + TownLandGovernmentFilingRules.Describe(hearingRequest) : proposal.NonviolentRequest is { } nonviolentRequest
+                                ? " " + TownNonviolentGovernmentFilingRules.Describe(nonviolentRequest) : "";
                 candidates.Add(new(CivicAction(town.Id, "yes", proposal.Id), $"Cast your final yes vote on {voteText} in {town.Name}. {proposal.RequiredYes} yes votes required.{plot}", 165));
                 candidates.Add(new(CivicAction(town.Id, "no", proposal.Id), $"Cast your final no vote on {voteText} in {town.Name}.{plot}", 166));
             }
@@ -241,14 +249,14 @@ public sealed partial class PrivateWorldRuntime
         var parts = candidate.Split('|');
         if (parts.Length != 5 || parts[2] != "visit" || NeedsUrgentWarmth(inhabitants[actor])) return;
         var town = towns.SingleOrDefault(t => t.Id == parts[1]);
-        if (town?.Governance is null || !TownAdults(town).Contains(actor, StringComparer.Ordinal) && !MayVisitAsNewcomer(actor, town) && !MayVisitLandHearing(actor, town) && !MayVisitLandTransfer(actor, town) ||
+        if (town?.Governance is null || !TownAdults(town).Contains(actor, StringComparer.Ordinal) && !MayVisitAsNewcomer(actor, town) && !MayVisitLandHearing(actor, town) && !MayVisitLandTransfer(actor, town) && !MayVisitNonviolentCase(actor, town) ||
             CivicBoard(town) is not { } destination ||
             IsWithinInteractionRange(inhabitants[actor].Position, destination, ResourceInteractionRange)) return;
         MoveToward(actor, inhabitants[actor], destination, "town_notices", ResourceInteractionRange);
     }
 
     private void ApplyTownCivicCandidate(string actor, string candidate, string? proposalText = null, IReadOnlyList<string>? ballot = null,
-        IReadOnlyList<CognitionLandTile>? landTiles = null, CognitionLandHearingChoice? hearingChoice = null)
+        IReadOnlyList<CognitionLandTile>? landTiles = null, CognitionLandHearingChoice? hearingChoice = null, CognitionNonviolentChoice? nonviolentChoice = null)
     {
         var parts = candidate.Split('|');
         if (parts.Length != 5) return;
@@ -260,7 +268,8 @@ public sealed partial class PrivateWorldRuntime
         var government = town.Government ?? TownGovernmentState.Create();
         // Current authority, live notice knowledge and exact contest IDs are checked again when delayed responses arrive.
         var current = new List<CognitionCandidate>();
-        AddTownCivicCandidates(current, actor);
+        if (ChildResident(actor)) AddChildNonviolentCandidates(current, actor);
+        else AddTownCivicCandidates(current, actor);
         if (!current.Any(c => c.Id == selectedId)) return;
         if (parts[2] == "accept_admission")
         {
@@ -270,7 +279,14 @@ public sealed partial class PrivateWorldRuntime
         try
         {
             (state, government) = AdvanceCivic(town, state, government);
-            if (parts[2].StartsWith("hearing_", StringComparison.Ordinal))
+            if (parts[2].StartsWith("law_case_", StringComparison.Ordinal) || parts[2].StartsWith("remedy_", StringComparison.Ordinal))
+            {
+                var legalUpdate = ApplyTownNonviolentAction(town with { Governance = state, Government = government }, actor, parts[2], parts[3], parts[4], nonviolentChoice, state, government);
+                state = legalUpdate.Council;
+                town = town with { Nonviolent = legalUpdate.Nonviolent };
+                SetTown(town with { Governance = state, Government = government });
+            }
+            else if (parts[2].StartsWith("hearing_", StringComparison.Ordinal))
             {
                 var hearingUpdate = ApplyTownLandHearingAction(town with { Governance = state, Government = government },
                     actor, parts[2], parts[3], parts[4],
@@ -331,7 +347,7 @@ public sealed partial class PrivateWorldRuntime
                 case "ballot":
                     if (ballot is null) return;
                     state = TownGovernanceRules.VoteElection(state, state.Election!.Id, actor, ballot.Select(ResolveCivicAgentToken).ToArray(), WorldTick); break;
-                case "government_propose" or "government_replace" or "government_yes" or "government_no" or "government_withdraw" or
+                case "government_extend_non_land" or "government_accept_non_land" or "government_propose" or "government_replace" or "government_yes" or "government_no" or "government_withdraw" or
                     "mayor_register" or "mayor_withdraw" or "mayor_resign" or "mayor_vote":
                     (state, government) = ApplyTownGovernmentAction(town, actor, parts[2], parts[3], parts[4], state, government);
                     break;

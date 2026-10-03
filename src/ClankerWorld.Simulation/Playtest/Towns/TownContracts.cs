@@ -26,6 +26,9 @@ public sealed record TownRuntimeState(
 {
     [JsonRequired]
     public TownLandHearingState LandHearings { get; init; } = TownLandHearingState.Create();
+
+    [JsonRequired]
+    public TownNonviolentState Nonviolent { get; init; } = TownNonviolentState.Create();
 }
 
 /// <summary>

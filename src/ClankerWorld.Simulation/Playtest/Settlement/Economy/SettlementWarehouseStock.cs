@@ -91,6 +91,8 @@ public sealed partial class PrivateWorldRuntime
         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
             $"warehouse-stock:{WorldTick}:{actor}", actor, warehouse.TownId!, surplus.Id,
             quantity, "town_resources_stored", warehouse.InstanceId));
+        RecordNonviolentGoodsCompletion(actor, surplus, warehouse.TownId!, quantity, warehouse.InstanceId,
+            $"warehouse-stock:{WorldTick}:{actor}", "public_service_goods");
         AppendEvent("town_resources_stored", $"{actor}:{surplus.Id}:{quantity}:{warehouse.InstanceId}");
     }
 }

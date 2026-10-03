@@ -312,6 +312,7 @@ public sealed partial class PrivateWorldRuntime
         }
 
         var repairId = tool.Id;
+        var reservations = new List<string>();
         ApplyInventoryTransition(current =>
         {
             var updated = current;
@@ -322,7 +323,6 @@ public sealed partial class PrivateWorldRuntime
                 updated = InventoryFixture.SplitLot(updated, currentTool.Id, 1, repairId);
             }
 
-            var reservations = new List<string>();
             foreach (var input in materialNeeds)
             {
                 var material = updated.Lots.Where(lot =>
@@ -349,6 +349,8 @@ public sealed partial class PrivateWorldRuntime
 
             return InventoryFixture.RepairSingleUnit(updated, repairId, 10_000, reservations);
         });
+        RecordNonviolentRepairCompletion(actor, tool, repairId,
+            $"repair-tool:{WorldTick}:{actor}:{repairId}", state.Position, reservations);
         AppendEvent("tool_repaired", $"{actor}:{repairId}:{blacksmith.InstanceId}");
     }
 

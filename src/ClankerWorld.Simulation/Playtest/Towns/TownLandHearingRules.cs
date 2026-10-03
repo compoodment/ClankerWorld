@@ -97,7 +97,7 @@ public static class TownLandHearingRules
             p.AdultIds.Any(id => !original.AdultIds.Contains(id, StringComparer.Ordinal)));
 
     public static bool HasNoticeReceipt(TownLandCaseRevision revision, string actor, long tick, IReadOnlyList<TownCivicReceipt> receipts) =>
-        receipts.Any(r => r.AgentId == actor && r.NoticeId == revision.NoticeId && r.LearnedTick >= revision.PublishedTick && r.LearnedTick <= tick);
+        TownHearingProcedure.HasNotice(revision.NoticeId, revision.PublishedTick, actor, tick, receipts);
 
     public static TownLandHearingState Inspect(TownLandHearingState state, string caseId, int revision, string actor, long tick)
     {
@@ -164,15 +164,17 @@ public static class TownLandHearingRules
     public static bool CanCloseResponses(TownLandCase item, IReadOnlyList<TownLandCaseParty> currentParties, long tick)
     {
         var revision = CurrentRevision(item);
-        if (tick >= revision.DeadlineTick) return true;
-        return currentParties.All(p => p.Kind == "household" ? p.AdultIds.Count > 0 && p.AdultIds.All(id =>
-            item.Responses.Any(r => r.Revision == revision.Number && r.PartyId == p.Id && r.AgentId == id && r.Tick <= tick)) :
-            p.RepresentativeId is { } representative && item.Responses.Any(r => r.Revision == revision.Number && r.PartyId == p.Id && r.AgentId == representative && r.Tick <= tick));
+        return TownHearingProcedure.ResponsesClosed(revision.DeadlineTick, tick,
+            currentParties.SelectMany(p => p.Kind == "household" ?
+                (p.AdultIds.Count == 0 ? new string?[] { null } : p.AdultIds.Cast<string?>()).Select(actor => (p.Id, actor)) :
+                new[] { (p.Id, p.RepresentativeId) }),
+            item.Responses.Where(r => r.Revision == revision.Number).Select(r => (r.PartyId, r.AgentId, r.Tick)));
     }
 
     public static bool JudgeConflict(string actor, string? householdId, IReadOnlyList<TownLandCaseParty> parties,
-        IReadOnlySet<string>? directStakeIds = null) => directStakeIds?.Contains(actor) == true ||
-        parties.Any(p => p.HouseholdId is not null && p.HouseholdId == householdId || p.RepresentativeId == actor || p.AdultIds.Contains(actor, StringComparer.Ordinal));
+        IReadOnlySet<string>? directStakeIds = null) => TownHearingProcedure.Conflicted(actor, householdId,
+            parties.SelectMany(p => p.AdultIds.Concat(p.RepresentativeId is { } representative ? new[] { representative } : [])),
+            parties.Select(p => p.HouseholdId), directStakeIds);
 
     public static TownLandHearingState AssignJudge(TownLandHearingState state, string caseId, TownLandCaseJudge judge)
     {
@@ -399,9 +401,7 @@ public static class TownLandHearingRules
                     !source.StartsWith("land-ruling:", StringComparison.Ordinal) && !source.StartsWith("household-use:hearing:", StringComparison.Ordinal)))));
     }
 
-    private static string FactText(string text) => string.Join(' ', new string(text.Normalize(NormalizationForm.FormC)
-        .Select(c => char.IsWhiteSpace(c) || char.IsPunctuation(c) ? ' ' : char.ToUpperInvariant(c)).ToArray())
-        .Split(' ', StringSplitOptions.RemoveEmptyEntries));
+    private static string FactText(string text) => TownHearingProcedure.FactKey(text);
 
     public static bool DemonstratedProceduralError(TownLandCase item, TownLandReopenRequest request)
     {

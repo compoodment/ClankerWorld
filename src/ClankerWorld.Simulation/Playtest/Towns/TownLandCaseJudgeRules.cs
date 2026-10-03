@@ -103,60 +103,13 @@ public static class TownLandCaseJudgeRules
                 contest = new(item.Id + ":judge:" + (item.ContestHistory.Count + 1).ToString(CultureInfo.InvariantCulture), "waiting", 0,
                     tick, null, null, [], [], [], [], 0, []);
             }
-            var voters = contest.Voters.Where(adults.Contains).ToArray();
-            var remainingCandidates = contest.Candidates.Where(candidates.Contains).ToArray();
-            contest = contest with
+            var previousRound = contest.Round;
+            contest = FromNeutral(TownHearingProcedure.AdvanceContest(ToNeutral(contest), adults, candidates, busyForCase, tick, day));
+            if (contest.Stage == "voting" && contest.Round != previousRound)
             {
-                Voters = voters,
-                Candidates = remainingCandidates,
-                Ballots = contest.Ballots.Where(b => voters.Contains(b.AgentId) && remainingCandidates.Contains(b.CandidateId)).ToArray(),
-                TiedCandidates = contest.TiedCandidates.Where(candidates.Contains).ToArray()
-            };
-            if (contest.Stage == "voting" && busyForCase)
-            {
-                contest = SaveRound(contest, tick, "interrupted") with
-                {
-                    Stage = "waiting",
-                    Voters = [],
-                    Candidates = [],
-                    Ballots = [],
-                    RoundOpenedTick = null,
-                    RoundDeadlineTick = null,
-                    Interruptions = contest.Interruptions + 1
-                };
-            }
-            else if (contest.Stage == "voting" && (contest.Candidates.Count == 0 || tick >= contest.RoundDeadlineTick))
-            {
-                var most = contest.Candidates.Select(id => contest.Ballots.Count(b => b.CandidateId == id)).DefaultIfEmpty().Max();
-                var top = TownLandHearingRules.Ordered(contest.Candidates.Where(id => contest.Ballots.Count(b => b.CandidateId == id) == most));
-                if (most == 0)
-                    contest = SaveRound(contest, tick, "failed") with { Stage = "failed", SettledTick = tick, Reason = "No eligible candidate received an actual vote." };
-                else if (top.Length == 1)
-                    contest = SaveRound(contest, tick, "winner") with { Stage = "completed", WinnerId = top[0], SettledTick = tick };
-                else
-                    contest = SaveRound(contest, tick, "tie") with { Stage = "waiting", TiedCandidates = top, Voters = [], Candidates = [], Ballots = [], RoundOpenedTick = null, RoundDeadlineTick = null };
-            }
-            if (contest.Stage == "waiting" && !busyForCase)
-            {
-                var choices = contest.Rounds.Any(r => r.Result == "tie") ? candidates.Where(contest.TiedCandidates.Contains).ToArray() : candidates;
-                contest = contest with
-                {
-                    Stage = "voting",
-                    Round = contest.Round + 1,
-                    RoundOpenedTick = tick,
-                    RoundDeadlineTick = checked(tick + day),
-                    Voters = adults,
-                    Candidates = choices,
-                    Ballots = []
-                };
-                if (choices.Length == 0)
-                    contest = SaveRound(contest, tick, "failed") with { Stage = "failed", SettledTick = tick, Reason = "No willing independent adult resident is available." };
-                else
-                {
-                    council = TownGovernanceRules.PostNotice(council, "land_hearing", RoundToken(contest),
-                        "Choose one willing independent adult to decide this land case only: " + string.Join(", ", choices) + ".", tick);
-                    schedulerBusy = true;
-                }
+                council = TownGovernanceRules.PostNotice(council, "land_hearing", RoundToken(contest),
+                    "Choose one willing independent adult to decide this land case only: " + string.Join(", ", contest.Candidates) + ".", tick);
+                schedulerBusy = true;
             }
             item = item with { Contest = contest };
             if (contest.Stage is "completed" or "failed")
@@ -170,6 +123,13 @@ public static class TownLandCaseJudgeRules
         }
         return (state, council);
     }
+
+    private static TownCaseJudgeContest ToNeutral(TownLandCaseJudgeContest c) =>
+        new(c.Id, c.Stage, c.Round, c.OpenedTick, c.RoundOpenedTick, c.RoundDeadlineTick, c.Voters, c.Candidates,
+            c.Ballots, c.TiedCandidates, c.Interruptions, c.Rounds, c.WinnerId, c.SettledTick, c.Reason);
+    private static TownLandCaseJudgeContest FromNeutral(TownCaseJudgeContest c) =>
+        new(c.Id, c.Stage, c.Round, c.OpenedTick, c.RoundOpenedTick, c.RoundDeadlineTick, c.Voters, c.Candidates,
+            c.Ballots, c.TiedCandidates, c.Interruptions, c.Rounds, c.WinnerId, c.SettledTick, c.Reason);
 
     private static TownLandCaseJudgeContest SaveRound(TownLandCaseJudgeContest contest, long tick, string result) =>
         contest.RoundOpenedTick is not { } opened || contest.Rounds.Any(r => r.Number == contest.Round) ? contest :

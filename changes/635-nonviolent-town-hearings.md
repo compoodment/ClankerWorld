@@ -1,0 +1,1 @@
+- Towns can hear non-land law reports under a separately approved mandate, with sourced evidence, responses, independent judges and voluntary restitution, repair or public service that completes only when the real goods or work arrive.

@@ -11,7 +11,10 @@ public sealed partial class PrivateWorldRuntime
         {
             if (town.Governance is { } council && (town.LandHearings.Cases.Any(landCase => landCase.Status != "settled" ||
                     landCase.ReopenRequests.Any(request => request.Status == "pending")) ||
-                town.LandHearings.Transfers.Any(transfer => transfer.Status == "pending")))
+                town.LandHearings.Transfers.Any(transfer => transfer.Status == "pending") ||
+                town.Nonviolent.Cases.Any(item => item.Status == "pending" || item.ReopenRequests.Any(request => request.Status == "pending")) ||
+                town.Nonviolent.Offers.Any(offer => offer.Status == "pending") ||
+                town.Nonviolent.Agreements.Any(agreement => agreement.Status != "completed" && !TownRemedyRules.IsSuperseded(town.Nonviolent, agreement.Id))))
                 SaveTownGovernance(town, council, town.Government);
         }
     }

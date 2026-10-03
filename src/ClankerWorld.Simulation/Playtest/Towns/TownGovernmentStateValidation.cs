@@ -24,7 +24,7 @@ internal static class TownGovernmentStateValidation
             if (!TownGovernmentValidation.ValidId(change.Id, town.Id + ":government:", state.Sequence) ||
                 !TownArrangementRules.IsSupported(change.Target) || !known.Contains(change.AuthorId) ||
                 change.Kind is not ("arrangement" or "replace_mayor") ||
-                change.RequestKey != change.Kind + ":" + TownArrangementRules.Key(change.Target) ||
+                change.RequestKey != TownGovernmentRules.ChangeRequestKey(change.Kind, change.Target, change.NonLandExtension) ||
                 change.Circumstances is not { Length: 64 } || change.SubmittedTick < 0 || change.SubmittedTick > tick ||
                 change.Status is not ("queued" or "voting" or "handover" or "completed" or "rejected" or "withdrawn" or "cancelled") ||
                 change.Voters is null || change.OpeningVoters is null || change.Votes is null ||
@@ -60,25 +60,27 @@ internal static class TownGovernmentStateValidation
         foreach (var contest in state.ContestHistory.Concat(state.Contest is { } live ? [live] : []))
             ValidateContest(town, state, council, contest, known, adults, tick, day);
         var completed = state.ContestHistory.Where(c => c.Stage == "completed").ToDictionary(c => c.Id, StringComparer.Ordinal);
+        ValidateNonLandGrants(state, council, completed, known, tick, day);
         foreach (var office in state.Offices)
         {
-            if (office.Mandates is not ("land" or "ordinary") ||
+            if (office.Mandates is not ("land" or "ordinary" or "non_land") ||
                 office.HolderId is null && (office.TermStartTick is not null || office.TermEndTick is not null || office.ElectionId is not null ||
                     office.VacantSinceTick is null || office.VacantSinceTick < 0 || office.VacantSinceTick > tick || string.IsNullOrWhiteSpace(office.VacancyReason)) ||
                 office.HolderId is not null && (!adults.Contains(office.HolderId) || office.TermStartTick is null || office.TermStartTick > tick ||
                     office.TermEndTick != office.TermStartTick + (long)TownArrangementRules.MayorTermDays * day || office.TermEndTick <= tick ||
                     office.VacantSinceTick is not null || office.VacancyReason is not null ||
-                    !ValidTerm(completed, office.ElectionId, office.HolderId, office.Mandates, office.TermStartTick.Value)))
+                    !ValidTerm(state, completed, office.ElectionId, office.HolderId, office.Mandates, office.TermStartTick.Value)))
                 Fail("An elected mandate is vacant or must have a valid, unexpired election-backed term.");
         }
         foreach (var term in state.OfficeHistory)
-            if (term.Mandates is not ("land" or "ordinary") || !known.Contains(term.HolderId) || term.StartTick < 0 ||
+            if (term.Mandates is not ("land" or "ordinary" or "non_land") || !known.Contains(term.HolderId) || term.StartTick < 0 ||
                 term.EndTick < term.StartTick || term.EndTick > tick || term.EndTick > term.StartTick + (long)TownArrangementRules.MayorTermDays * day ||
                 string.IsNullOrWhiteSpace(term.EndReason) || term.EndReason.Length > 512 ||
-                !ValidTerm(completed, term.ElectionId, term.HolderId, term.Mandates, term.StartTick))
+                !ValidTerm(state, completed, term.ElectionId, term.HolderId, term.Mandates, term.StartTick))
                 Fail("An archived elected mandate has no valid term or election.");
-        var terms = state.OfficeHistory.Select(o => (o.Mandates, o.StartTick, End: o.EndTick, o.ElectionId))
-            .Concat(state.Offices.Where(o => o.HolderId is not null).Select(o => (o.Mandates, o.TermStartTick!.Value, End: o.TermEndTick!.Value, o.ElectionId!))).ToArray();
+        var terms = state.OfficeHistory.Select(o => (o.Mandates, Start: EffectiveStart(state, o.ElectionId, o.StartTick), End: o.EndTick, o.ElectionId))
+            .Concat(state.Offices.Where(o => o.HolderId is not null).Select(o => (o.Mandates,
+                Start: EffectiveStart(state, o.ElectionId!, o.TermStartTick!.Value), End: o.TermEndTick!.Value, o.ElectionId!))).ToArray();
         foreach (var group in terms.GroupBy(t => t.Mandates))
         {
             var ordered = group.OrderBy(t => t.Item2).ThenBy(t => t.End).ToArray();
@@ -93,9 +95,67 @@ internal static class TownGovernmentStateValidation
             Fail("Ordinary decision authority does not match the approved arrangement and living officeholder.");
     }
 
-    private static bool ValidTerm(Dictionary<string, TownMayoralContest> completed, string? electionId,
-        string holder, string mandate, long start) => electionId is not null && completed.TryGetValue(electionId, out var election) &&
-        election.WinnerId == holder && election.Mandates.Split('+').Contains(mandate) && election.SettledTick == start;
+    private static long EffectiveStart(TownGovernmentState state, string electionId, long start) =>
+        state.NonLandGrants.SingleOrDefault(grant => grant.Id == electionId)?.EffectiveTick ?? start;
+
+    private static bool ValidTerm(TownGovernmentState state, Dictionary<string, TownMayoralContest> completed, string? electionId,
+        string holder, string mandate, long start) => electionId is not null &&
+        (completed.TryGetValue(electionId, out var election) && election.WinnerId == holder &&
+            election.Mandates.Split('+').Contains(mandate) && election.SettledTick == start ||
+         mandate == "non_land" && state.NonLandGrants.Any(grant => grant.Id == electionId &&
+             grant.HolderId == holder && grant.TermStartTick == start));
+
+    private static void ValidateNonLandGrants(TownGovernmentState state, TownGovernanceState council,
+        Dictionary<string, TownMayoralContest> completed, HashSet<string> known, long tick, int day)
+    {
+        foreach (var change in state.Changes.Where(change => change.NonLandExtension is not null))
+        {
+            var extension = change.NonLandExtension!;
+            if (change.Kind != "arrangement" || change.Target.NonLand != TownArrangementRules.Mayor ||
+                extension.BaseMandate is not ("land" or "ordinary") || !known.Contains(extension.HolderId) ||
+                !TownGovernmentRules.Mandates(change.Target).Contains(extension.BaseMandate) ||
+                extension.TermStartTick < 0 || extension.TermStartTick > change.SubmittedTick ||
+                extension.TermEndTick != extension.TermStartTick + (long)TownArrangementRules.MayorTermDays * day ||
+                extension.TermEndTick <= change.SubmittedTick || string.IsNullOrWhiteSpace(extension.BaseElectionId) ||
+                !completed.TryGetValue(extension.BaseElectionId, out var election) || election.WinnerId != extension.HolderId ||
+                election.SettledTick != extension.TermStartTick || !election.Mandates.Split('+').Contains(extension.BaseMandate) ||
+                BaseEnd(state, extension) is not { } ended || ended < change.SubmittedTick ||
+                extension.ConsentTick is { } accepted && (accepted < change.SubmittedTick || accepted > tick || accepted >= extension.TermEndTick ||
+                    accepted > ended || !council.Knowledge.Any(receipt => receipt.AgentId == extension.HolderId && receipt.LearnedTick <= accepted &&
+                        council.Notices.Any(notice => notice.Id == receipt.NoticeId && notice.Kind == "government" &&
+                            (notice.SubjectId == change.Id || notice.SubjectId == TownGovernmentRules.VoteNoticeToken(change))))) ||
+                change.Status == "completed" && (extension.ConsentTick is null ||
+                    !state.NonLandGrants.Any(grant => grant.ChangeId == change.Id)))
+                Fail("Added duties need the exact retained elected term and the named holder's informed personal consent.");
+        }
+        foreach (var grant in state.NonLandGrants)
+        {
+            var change = state.Changes.SingleOrDefault(change => change.Id == grant.ChangeId);
+            var baseEnd = change?.NonLandExtension is { } target ? BaseEnd(state, target) : null;
+            if (change is not { Status: "completed", NonLandExtension: { } extension } ||
+                grant.Id != change.Id + ":non-land" || grant.HolderId != extension.HolderId ||
+                grant.BaseMandate != extension.BaseMandate || grant.BaseElectionId != extension.BaseElectionId ||
+                grant.ConsentTick != extension.ConsentTick || grant.EffectiveTick != change.SettledTick ||
+                grant.EffectiveTick < grant.ConsentTick || grant.EffectiveTick >= grant.TermEndTick ||
+                grant.TermStartTick != extension.TermStartTick || grant.TermEndTick != extension.TermEndTick ||
+                change.SuccessorId != grant.HolderId || baseEnd is null || baseEnd < grant.EffectiveTick)
+                Fail("A non-land grant must preserve the approved extension, consent, handover and original term.");
+            var active = state.Offices.Where(office => office.ElectionId == grant.Id).ToArray();
+            var ended = state.OfficeHistory.Where(term => term.ElectionId == grant.Id).ToArray();
+            if (active.Length + ended.Length != 1 ||
+                active.Any(office => office.Mandates != "non_land" || office.HolderId != grant.HolderId ||
+                    office.TermStartTick != grant.TermStartTick || office.TermEndTick != grant.TermEndTick || baseEnd!.Value <= tick) ||
+                ended.Any(term => term.Mandates != "non_land" || term.HolderId != grant.HolderId ||
+                    term.StartTick != grant.TermStartTick || term.EndTick < grant.EffectiveTick || term.EndTick > baseEnd!.Value))
+                Fail("Added duties must end with their base term and retain exactly one current or historical office record.");
+        }
+    }
+
+    private static long? BaseEnd(TownGovernmentState state, TownNonLandExtension extension) =>
+        state.Offices.SingleOrDefault(office => office.Mandates == extension.BaseMandate && office.HolderId == extension.HolderId &&
+            office.ElectionId == extension.BaseElectionId && office.TermStartTick == extension.TermStartTick)?.TermEndTick ??
+        state.OfficeHistory.SingleOrDefault(term => term.Mandates == extension.BaseMandate && term.HolderId == extension.HolderId &&
+            term.ElectionId == extension.BaseElectionId && term.StartTick == extension.TermStartTick)?.EndTick;
 
     private static void ValidateContest(TownRuntimeState town, TownGovernmentState state, TownGovernanceState council,
         TownMayoralContest contest, HashSet<string> known, HashSet<string> adults, long tick, int day)
@@ -115,6 +175,7 @@ internal static class TownGovernmentStateValidation
                 (contest.Stage != "completed" || c.Status == "completed") && contest.Mandates.Split('+').All(m => TownGovernmentRules.Mandates(c.Target).Contains(m))) ||
             live && contest.Voters.Concat(contest.Candidates).Any(id => !adults.Contains(id)) ||
             live && contest.Candidates.Any(id => !state.Consents.Any(c => c.AgentId == id && c.Mandates == contest.Mandates)) ||
+            live && contest.Candidates.Any(id => !TownGovernmentRules.CanStandForMayoralContest(state, id, contest.Mandates, contest.ChangeId)) ||
             contest.Stage == "voting" && (contest.Round < 1 || contest.RoundOpenedTick is null || contest.RoundOpenedTick > tick ||
                 contest.RoundDeadlineTick != contest.RoundOpenedTick + day || contest.RoundDeadlineTick <= tick ||
                 council.Election is { Stage: "main" or "runoff" } || contest.Candidates.Count == 0) ||
