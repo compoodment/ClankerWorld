@@ -131,7 +131,7 @@ on the owner.
 - **How we work:** changes to CI, labels, templates, Claude Code settings
   (`.claude/`), CONTRIBUTING, AGENTS or CLAUDE.md affect every agent, so they
   are P0.
-- **At most 5 open P0 and 10 open P1 issues.** Count issues only, not pull
+- **At most 10 open P0 and 20 open P1 issues.** Count issues only, not pull
   requests. When a level is full, the least urgent issue there that the owner
   did not pick, counting the new one, goes down a level; between equals, the
   newest goes down. If the owner picked every other issue at that level, the
@@ -369,6 +369,10 @@ Use a short title about the effect, such as
   save may stop loading; do not write migration or old-save code to keep one working.
 - Add meaningful tests for behavior changes, and update existing checks when
   their contract changes. Wording and docs changes need no new tests.
+- Keep each test quick, ideally under a minute on CI: every merge waits for a
+  full CI run, and no run finishes before its slowest test. If CI warns about a
+  slow test you added or changed, make it faster before marking the pull
+  request ready ([how CI runs](docs/development/build-and-test.md#how-ci-runs)).
 - Run the applicable [build and test checks](docs/development/build-and-test.md#which-checks-to-run)
   and put commands and results in the PR, including anything that could not
   run. A passing export is not a Windows playtest.
@@ -387,6 +391,9 @@ Add a plain-English changelog entry for player-visible gameplay, UI,
 world-runtime, save-compatibility, deployment, packaging or security changes.
 Skip refactors, tests and docs-only edits unless they change an explicit
 supported behavior or operational promise.
+
+If your change makes a waiting entry wrong, edit or delete it in the same pull
+request.
 
 Put the entry in a new file in [changes/](changes/README.md) rather than editing
 [CHANGELOG.md](CHANGELOG.md), so parallel pull requests do not conflict. Start
