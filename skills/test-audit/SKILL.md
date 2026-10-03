@@ -137,11 +137,11 @@ The scripts read the ledger as a JSON list of entries with `test` (the fully qua
 
 ### Keep the pull request mergeable
 
-A removal touches every test file it changes, so an audit pull request conflicts with most open pull requests that change tests, and gathers new conflicts while it waits for review.
+An audit changes many test files, so its pull request conflicts with most open pull requests that change tests, and gathers new conflicts while it waits for review.
 
 - Prefer one pull request per ownership lane over one large one. Smaller pull requests are reviewed sooner, conflict less and can merge independently. Run every check above for each.
 - If one waits long enough for main to move under it, refresh it, or ask its reviewer to, rather than letting conflicts pile up:
-  - Merge main in. Where main changed a test the audit removes, keep main's version of the test and drop that removal; where main changed a retained proof, re-read it.
+  - Merge main in. Where main changed a test the audit removes, keep main's version of the test, drop that removal and list it in the follow-up issue to review again. Where main changed a retained proof, read it again.
   - Repeat the open pull request check, the ledger check and the unused-code check against the new main.
   - Measure coverage again on the refreshed head, against main at the same commit, and update the description and the follow-up issue.
   - A pull request marked ready belongs to its reviewer: refresh it yourself only if they or the owner ask.
