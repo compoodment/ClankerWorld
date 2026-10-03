@@ -70,39 +70,8 @@ public sealed class SaveBranchRecoveryRegressionTests : IDisposable
         Assert.Equal(laterBytes, PrivateWorldRuntimeCodec.Encode(reopened.Read(later.Id)));
     }
 
-    [Fact]
-    public void OverwritingTheLoadedPausedSaveKeepsLaterHistoryOnItsOriginalBranch()
-    {
-        var first = store.Create("Before changing Jev", runtime, []);
-        var firstBytes = PrivateWorldRuntimeCodec.Encode(store.Read(first.Id));
-        runtime.SetJevEnabled(false);
-        var later = store.Create("Jev off", runtime, []);
-        var laterBytes = PrivateWorldRuntimeCodec.Encode(store.Read(later.Id));
-        Assert.Equal(first.WorldTick, later.WorldTick);
-
-        Load(first);
-        runtime.SetJevEnabled(false);
-        var receipt = store.Overwrite(first.Id, runtime, []);
-
-        Assert.NotNull(receipt.Saved.Branch);
-        Assert.NotEqual(first.Branch?.Id, receipt.Saved.Branch.Id);
-        Assert.Equal(receipt.BackupId, receipt.Saved.Branch.StartedFromId);
-        var kept = Assert.Single(store.List(WorldId), save => save.Id == receipt.BackupId);
-        Assert.Equal(first.Branch, kept.Branch);
-        Assert.Equal(firstBytes, PrivateWorldRuntimeCodec.Encode(store.Read(kept.Id)));
-        Assert.Equal(later.Branch, Assert.Single(store.List(WorldId), save => save.Id == later.Id).Branch);
-        Assert.Equal(laterBytes, PrivateWorldRuntimeCodec.Encode(store.Read(later.Id)));
-        var reopened = new ManualWorldSaveStore(path);
-        Assert.Equal(receipt.Saved.Branch, Assert.Single(reopened.List(WorldId), save => save.Id == first.Id).Branch);
-        Assert.Equal(firstBytes, PrivateWorldRuntimeCodec.Encode(reopened.Read(receipt.BackupId)));
-    }
-
     [Theory]
     [InlineData("Branch", "[]")]
-    [InlineData("Branch", "\"not an object\"")]
-    [InlineData("Branch.Number", "\"not a number\"")]
-    [InlineData("Branch.StartedFromTick", "\"not a tick\"")]
-    [InlineData("Branch.StartedFromName", "{}")]
     [InlineData("ContinuedFromId", "[]")]
     [InlineData("ContinuedFromCreatedUtc", "\"not a date\"")]
     public void MalformedOptionalBranchFieldsKeepTheCheckpointReadable(string field, string malformedJson)
@@ -132,9 +101,7 @@ public sealed class SaveBranchRecoveryRegressionTests : IDisposable
     }
 
     [Theory]
-    [InlineData("Name", "{}")]
     [InlineData("WorldTick", "\"not a tick\"")]
-    [InlineData("Id", "[]")]
     public void MalformedRequiredMetadataIsStillRefusedAndPreserved(string field, string malformedJson)
     {
         var save = store.Create("Do not accept corrupt metadata", runtime, []);

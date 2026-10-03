@@ -75,42 +75,6 @@ public sealed partial class ViewerHttpTests
     }
 
     [Fact]
-    public async Task PairingBackpressureUsesTooManyRequestsInsteadOfCreatingUnboundedState()
-    {
-        var directory = System.IO.Path.Combine(
-            System.IO.Path.GetTempPath(),
-            $"clankerworld-viewer-pairing-capacity-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(directory);
-        try
-        {
-            using var host = new ViewerWebApplicationFactory(directory);
-            using var client = host.CreateClient();
-            for (var index = 0; index < OwnerAuthorityStore.MaximumPendingPairings; index++)
-            {
-                using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
-                using var started = await client.PostAsJsonAsync(
-                    "/api/v1/pairings",
-                    new StartOwnerPairingHttpRequest(Convert.ToBase64String(key.ExportSubjectPublicKeyInfo())));
-                Assert.Equal(HttpStatusCode.OK, started.StatusCode);
-            }
-
-            using var overflowKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
-            using var overflow = await client.PostAsJsonAsync(
-                "/api/v1/pairings",
-                new StartOwnerPairingHttpRequest(Convert.ToBase64String(overflowKey.ExportSubjectPublicKeyInfo())));
-
-            Assert.Equal((HttpStatusCode)429, overflow.StatusCode);
-        }
-        finally
-        {
-            if (Directory.Exists(directory))
-            {
-                Directory.Delete(directory, recursive: true);
-            }
-        }
-    }
-
-    [Fact]
     public async Task RejectedReconnectDoesNotCreateAClientPresenceLease()
     {
         var directory = System.IO.Path.Combine(

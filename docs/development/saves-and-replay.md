@@ -503,7 +503,7 @@ Only completed footprints add resident places. Sole caregivers are protected
 from timed displacement even when their dependent lives in another household.
 No older-save migration or backfill is added.
 
-Private-world schema 71, society-runtime schema 2 and the standalone
+Private-world schema 70, society-runtime schema 2 and the standalone
 `clankerworld.society/v2` and `clankerworld.society-runtime/v2` envelopes require
 `HasChosenName` for every inhabitant. This separates a chosen identity
 from a temporary label after automatic naming has ended. Loading rejects a
@@ -519,7 +519,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 71. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 70. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
@@ -585,7 +585,7 @@ handcart attachments, schema 61 for guardian-order targets, schema 62 for
 physical knowledge writing, schema 63 for exact-tile movement orders,
 schema 64 for overcrowding move-out notices, schemas 65 to 67 for material
 gathering, storage and collection orders, schema 68 for shared Town-project
-construction and schema 71 for explicit chosen names and unique first names
+construction and schema 70 for explicit chosen names and unique first names
 record when those fields or behaviors were introduced; they do not allow an
 earlier checkpoint schema past the current alpha cutoff.
 
@@ -640,7 +640,7 @@ earlier checkpoint schema past the current alpha cutoff.
 | Schema 64 | Household move-out notices retain their original notice period, fixed deadline and selection reason alongside pending housing requests. Reload and replacement do not restart notice or duplicate departure goods. Runtime admission and displacement recheck current need and caregiver protection. Earlier alpha saves are refused and preserved without migration. |
 | Schema 65 | Material-gathering orders retain the material kind, exact optional source or position, batch/item progress and physical harvest receipt. Loading rejects mixed food/guardian/material fields and inconsistent progress. Queue, cancellation and partial work replay without duplicate harvests; older alpha saves are refused and preserved without migration. |
 | Schema 68 | Typed Council project plans and one shared Town construction record per passed proposal, with exact physical load/reservation/release history, work and paid building identity. The first consumer is the Town Hall. Earlier alpha checkpoints are refused and preserved without migration. |
-| Schema 71 and society/runtime v2 | Required chosen-name markers distinguish temporary labels from chosen identities, even after automatic naming ends. Chosen first names are unique across living and deceased inhabitants. Current-format reload and compaction retain the marker and pending retry; older alpha formats are refused and preserved without inference or migration. |
+| Schema 70 and society/runtime v2 | Required chosen-name markers distinguish temporary labels from chosen identities, even after automatic naming ends. Chosen first names are unique across living and deceased inhabitants. Current-format reload and compaction retain the marker and pending retry; older alpha formats are refused and preserved without inference or migration. |
 
 ### Tool-making requests
 

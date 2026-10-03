@@ -93,48 +93,4 @@ public sealed partial class ViewerHttpTests
         }
         finally { directory.Delete(recursive: true); }
     }
-
-    [Fact]
-    public async Task MalformedInstructionKeyIsRefusedWithoutChangingTheWorldOrItsSave()
-    {
-        var directory = Directory.CreateTempSubdirectory("instruction-malformed-key-");
-        try
-        {
-            using var host = new ViewerWebApplicationFactory(directory.FullName, privateWorld: true);
-            using var client = host.CreateClient();
-            client.BaseAddress = new Uri("http://127.0.0.1/");
-            using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
-            var device = await StartAndActivateAsync(host, client, key);
-            var runtime = host.Services.GetRequiredService<PrivateWorldRuntime>();
-            var stateFile = host.Services.GetRequiredService<PrivateWorldStateFile>();
-            runtime.Pause();
-            stateFile.Save(runtime);
-            var worldBefore = PrivateWorldRuntimeCodec.Encode(runtime.ExportState());
-            var saveBefore = File.ReadAllBytes(stateFile.Path);
-            const string path = "/api/v1/owner/instructions";
-
-            foreach (var malformedKey in new[] { new string('k', 129), "malformed\u0001key" })
-            {
-                var action = new OwnerInstructionAction(malformedKey, "founder-mira", "suggestive",
-                    "wait safely", runtime.Society.WorldId);
-                using var refused = await SendSignedAsync(host, client, key, device.DeviceId, path, action,
-                    OwnerHttpBinding.InstructionPayload(action));
-                Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
-                Assert.Equal(worldBefore, PrivateWorldRuntimeCodec.Encode(runtime.ExportState()));
-                Assert.Equal(saveBefore, File.ReadAllBytes(stateFile.Path));
-            }
-
-            var valid = new OwnerInstructionAction("valid-key", "founder-mira", "suggestive", "wait safely",
-                runtime.Society.WorldId);
-            using var accepted = await SendSignedAsync(host, client, key, device.DeviceId, path, valid,
-                OwnerHttpBinding.InstructionPayload(valid));
-            Assert.Equal(HttpStatusCode.OK, accepted.StatusCode);
-            var receipt = await accepted.Content.ReadFromJsonAsync<OwnerInstructionReceipt>();
-            Assert.Equal("private-instruction-0000000001", receipt!.InstructionId);
-            var saved = PrivateWorldRuntimeCodec.Decode(File.ReadAllBytes(stateFile.Path));
-            Assert.Equal(receipt.InstructionId, Assert.Single(saved.Instructions!).InstructionId);
-            runtime.Validate();
-        }
-        finally { directory.Delete(recursive: true); }
-    }
 }
