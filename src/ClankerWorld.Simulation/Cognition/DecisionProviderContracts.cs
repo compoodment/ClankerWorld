@@ -221,6 +221,8 @@ public sealed record CognitionWillChoice(
 /// <paramref name="ContinuityNote"/> explains the low-population continuity rule to a partner it applies to.
 /// <paramref name="DepartureNote"/> summarizes goods to collect or return and paused household work after a departure.
 /// <paramref name="TownMembershipNote"/> states recorded Town membership, its rights and any admission the actor knows of.
+/// <paramref name="AllowedChildSurnames"/> lists the chosen biological parents' surnames during a child's naming request;
+/// an empty list means no parental surname is available, while null means the childhood restriction does not apply.
 /// </summary>
 public sealed record CognitionSelfContext(
     string OwnerId, string Name, string LifeStage, string Personality, string Aspiration,
@@ -228,7 +230,8 @@ public sealed record CognitionSelfContext(
     string? HouseholdName = null, string? TownName = null, string? HousingNote = null,
     string? EquipmentNote = null, string? ContinuityNote = null, string? DepartureNote = null, string? CivicNote = null,
     string? MedicalCareNote = null, string? TownMembershipNote = null,
-    string? ToolMakingRequestNote = null);
+    string? ToolMakingRequestNote = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<string>? AllowedChildSurnames = null);
 
 /// <summary>
 /// An exact owner message addressed to this actor. The authoritative identity
@@ -384,6 +387,12 @@ public sealed record InhabitantObservation(
             self.ToolMakingRequestNote?.Length > 256 ||
             self.WarmthBasisPoints is < 0 or > 10_000 || self.IllnessBasisPoints is < 0 or > 10_000))
             throw new ArgumentException("Self context must be bounded and owned by the actor.", nameof(Self));
+
+        if (Self?.AllowedChildSurnames is { } surnames &&
+            (surnames.Count > 2 || surnames.Any(surname => string.IsNullOrWhiteSpace(surname) ||
+                surname.Length > 128 || surname.Any(char.IsControl)) ||
+             surnames.Distinct(StringComparer.OrdinalIgnoreCase).Count() != surnames.Count))
+            throw new ArgumentException("Child naming context must contain at most two bounded parental surnames.", nameof(Self));
 
         if (Candidates is null || Candidates.Count == 0)
         {
@@ -1097,9 +1106,14 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                         "Civic candidates come only from notices you actually read or heard; registration records your own willingness. " +
                         "When needs_name is true, also include chosen_name (your own full name, " +
                         "including a given name and family/surname; a middle name is optional; " +
-                        "at most 48 characters). " +
+                        "at most 48 characters). The first name must not already belong to another named agent, living or dead; changing only the surname does not make it available. " +
                         (request.Observation.IsNameRetry
-                            ? "The full name you chose is already taken in this world. Choose a different full name. Do not list or ask for anyone else’s name. "
+                            ? "The first name you chose is already taken in this world. Choose a different first name. Do not list or ask for anyone else’s name. "
+                            : string.Empty) +
+                        (request.Observation.NeedsName && request.Observation.Self?.AllowedChildSurnames is { } childSurnames
+                            ? childSurnames.Count > 0
+                                ? "For this child's name, use one of the biological parents' surnames in self.allowed_child_surnames as the final name; do not invent another surname. "
+                                : "Neither biological parent currently has a chosen surname available. Omit chosen_name and keep the temporary label; do not invent a surname. "
                             : string.Empty) +
                         "When needs_personality or needs_aspiration is true, you may also include " +
                         "chosen_personality and chosen_aspiration respectively, in your own words, " +
@@ -1145,6 +1159,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                             civic_notices_learned = self.CivicNote,
                             medical_care = self.MedicalCareNote,
                             tool_making_request = self.ToolMakingRequestNote,
+                            allowed_child_surnames = request.Observation.NeedsName ? self.AllowedChildSurnames : null,
                             warmth_basis_points = self.WarmthBasisPoints,
                             illness_basis_points = self.IllnessBasisPoints,
                             recent_thought = self.RecentThought,

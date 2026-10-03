@@ -133,7 +133,9 @@ public sealed partial class PrivateWorldRuntime
                 HousingNote(inhabitant.Id), EquipmentNote(inhabitant.Id), ContinuityNote(inhabitant.Id),
                 DepartureNote: DepartureNote(inhabitant.Id), CivicNote: CivicNote(inhabitant.Id),
                 MedicalCareNote: MedicalCareNoteCore(inhabitant.Id), TownMembershipNote: TownMembershipNote(inhabitant.Id),
-                ToolMakingRequestNote: ToolMakingRequestNoteCore(inhabitant.Id));
+                ToolMakingRequestNote: ToolMakingRequestNoteCore(inhabitant.Id),
+                AllowedChildSurnames: inhabitant.NeedsName && InhabitantNameRules.RequiresParentSurname(checkpoint, inhabitant.Id)
+                    ? InhabitantNameRules.AllowedChildSurnames(checkpoint, inhabitant.Id) : null);
             var observation = new InhabitantObservation(
                 inhabitant.Id,
                 WorldTick,
