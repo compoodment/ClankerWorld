@@ -452,8 +452,26 @@ movement always use today's bridge map, with its legal axes, detours and
 blocked-return behavior. These checks use existing timestamps and add no saved
 fields, schema change or migration.
 
+Private-world schema 64 adds a move-out notice to an adult's `Housing` record:
+the current household, original notice tick, fixed deadline and selection
+reason. A pending request to another household is permitted while that notice
+is held. Loading validates the adult, membership, reason and time bounds;
+malformed notices and unsupported earlier schemas are refused and preserved.
+Live care, family and capacity changes may make a notice obsolete, so the
+runtime rechecks them before admission or displacement instead of treating a
+stale notice as authority to move someone.
+
+Current-format roundtrips retain notice deadlines, volunteer replacements,
+housing requests and the ordinary departure's collection rights and once-only
+food allowance. Replacing the selected adult keeps the original notice period;
+pause/load, births and unfinished expansion do not restart it. Replay must
+produce the same cancellation or departure without duplicating events or goods.
+Only completed footprints add resident places. Sole caregivers are protected
+from timed displacement even when their dependent lives in another household.
+No older-save migration or backfill is added.
+
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 63. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 64. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
@@ -477,7 +495,8 @@ dietary variety, bounded tool-making requests linked to ordinary production
 and barter, exact land-claim coordinates on Council proposals, household
 land requests with their Council proposal and each adult's consent, physical
 knowledge writing with exact material reservations and completed-artifact
-receipts, and exact-tile movement orders with their destination and arrival receipt.
+receipts, exact-tile movement orders with their destination and arrival
+receipt, and overcrowding move-out notices.
 Land records are checked against the saved map, Towns, households and one
 another before load. Building reassignment moves only existing footprint use rights;
 connected remainder plots keep their holder and original grant terms. Split
@@ -513,7 +532,8 @@ for Town admission records, schema 55 for Town laws and government, schema
 56 for named last meals, schema 57 for tool-making requests, schema 58 for
 Council land claims, schema 59 for household land grants, schema 60 for
 handcart attachments, schema 61 for guardian-order targets, schema 62 for
-physical knowledge writing and schema 63 for exact-tile movement orders
+physical knowledge writing, schema 63 for exact-tile movement orders and
+schema 64 for overcrowding move-out notices
 record when those fields or behaviors were introduced; they do not allow an
 earlier checkpoint schema past the current alpha cutoff.
 
@@ -565,6 +585,7 @@ earlier checkpoint schema past the current alpha cutoff.
 | Schema 61 | Guardian orders retain the exact target agent separately from food/resource targets. Loading refuses missing or unknown targets, mixed task fields, repetition, and inconsistent completion receipts. The order survives a rename, pause, cancellation and replay. Older alpha saves are refused and preserved without migration. |
 | Schema 62 | Physical knowledge-writing projects retain their author, frozen learned facts, source artifact, work and exact paper/cloth reservations. Completed maps, records and books retain the consumed-material receipts and unique physical lot. Invalid provenance, duplicated inputs and malformed work are refused. Earlier alpha saves are refused and preserved without migration. |
 | Schema 63 | Exact-tile movement orders retain their destination, progress and arrival receipt. Loading refuses missing destinations, mixed food/resource fields, repetition and inconsistent completion. Queues and interrupted trips replay across saves. Older alpha saves are refused and preserved without migration. |
+| Schema 64 | Household move-out notices retain their original notice period, fixed deadline and selection reason alongside pending housing requests. Reload and replacement do not restart notice or duplicate departure goods. Runtime admission and displacement recheck current need and caregiver protection. Earlier alpha saves are refused and preserved without migration. |
 
 ### Tool-making requests
 

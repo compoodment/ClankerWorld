@@ -242,7 +242,7 @@ Any move between Towns still follows the admission rules in issue
 Adult departure, personal ownership, limited physical collection, the once-only
 food allowance, care-group moves and solo formation are implemented through
 [#593](https://github.com/compoodment/ClankerWorld/issues/593). Overcrowding
-notice and relocation selection remain separate work in
+notice and relocation selection are implemented through
 [#599](https://github.com/compoodment/ClankerWorld/issues/599). The agreed
 response to losing a dependent's last active primary caregiver is described in
 [Agents and families](agents-and-families.md#dependent-care-after-loss-of-the-last-active-primary-caregiver).
@@ -371,7 +371,7 @@ and [storage-expansion work](https://github.com/compoodment/ClankerWorld/issues/
 remain their original implementation slices. Resident limits, admission checks,
 birth placement and expansion for more places are implemented in
 [#598](https://github.com/compoodment/ClankerWorld/issues/598). Notice,
-departure and relocation for existing overcrowding remain separate work in
+departure and relocation for existing overcrowding are implemented in
 [#599](https://github.com/compoodment/ClankerWorld/issues/599).
 
 ### Town membership

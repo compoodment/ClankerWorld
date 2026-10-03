@@ -294,7 +294,8 @@ public static class GameUiText
             "housing_request_made" or "household_joined" or "housing_request_refused" or "housing_request_expired" or
             "handcart_attached" or "handcart_parked" or "handcart_loaded" or "handcart_unloaded" or
             "handcart_repaired" or "handcart_transferred" or "handcart_blocked" or
-            "housing_blocked" or "household_left" or "household_founded" or "personal_goods_collected" or
+            "housing_blocked" or "relocation_notice" or "relocation_cancelled" or
+            "household_left" or "household_founded" or "personal_goods_collected" or
             "household_work_resumed" or "personal_goods_stored" or "borrowed_goods_returned" or "replacement_care_accepted" or "paused" or "resumed" or "model_call_warning";
     }
 
