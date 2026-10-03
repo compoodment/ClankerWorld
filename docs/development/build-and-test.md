@@ -158,8 +158,10 @@ applying, then verify that no changes remain.
 SHA-256, builds the scripts and starts the scene headlessly.
 `verify-godot-windows-export.sh` verifies the pinned editor and templates,
 creates an unsigned Windows x64 PE bundle and writes a SHA-256 manifest.
-The export reads the game version from MSBuild and the source commit from the
-actual checkout, then passes `SourceRevisionId` into its isolated staging build.
+The export stages tracked files from the checkout's current commit, so commit
+any changes you want in the bundle first. Uncommitted and untracked files stay
+out of the export. It reads the game version from the staged project's MSBuild
+metadata, then passes that commit as `SourceRevisionId` into the staging build.
 It checks that the exported client assembly contains both values. The manifest
 records the build line and full commit. Godot requires four numeric parts in
 Windows file/product version fields, so those use the assembly file version;

@@ -87,7 +87,7 @@ download_verified() {
     mv "${temporary_path}" "${path}"
 }
 
-for command in awk cp curl dotnet file find git grep sed sha256sum sort tar tr unzip; do
+for command in awk curl dotnet file find git grep sed sha256sum sort tar tr unzip; do
     require_command "${command}"
 done
 
@@ -130,8 +130,6 @@ staged_repo_root="${scratch_root}/repository"
 staged_project_dir="${staged_repo_root}/src/ClankerWorld.GodotClient"
 staged_project_file="${staged_project_dir}/ClankerWorld.GodotClient.csproj"
 staged_solution_path="${staged_project_dir}/ClankerWorld.GodotClient.sln"
-shared_placement_rules="${repo_root}/src/ClankerWorld.Shared/AgentPlacementRules.cs"
-staged_shared_dir="${staged_repo_root}/src/ClankerWorld.Shared"
 
 printf 'Extracting Godot .NET editor\n'
 unzip -q "${editor_archive_path}" -d "${tool_root}"
@@ -161,15 +159,28 @@ if [[ ! -f "${template_root}/windows_release_x86_64.exe" ]]; then
     exit 1
 fi
 
-# The isolated stage has no .git directory. Keep its assembly identity tied to
-# the source checkout, including when CI checks out a pull-request merge commit.
+# Export only committed inputs, so the reported identity also describes the
+# source bytes when the checkout contains uncommitted or untracked edits.
 build_revision="$(git -C "${repo_root}" rev-parse HEAD)"
 if [[ ! "${build_revision}" =~ ^[0-9a-f]{40}$ ]]; then
     printf 'Cannot determine the source commit for this export.\n' >&2
     exit 1
 fi
-build_version="$(dotnet msbuild "${project_file}" -nologo -getProperty:Version)"
-file_version="$(dotnet msbuild "${project_file}" -nologo -target:GetAssemblyVersion -getProperty:FileVersion)"
+printf 'Staging committed Godot client source for an isolated export\n'
+# Godot's self-contained win-x64 publish can otherwise update the source
+# lockfile with a runtime-specific target graph. git archive also excludes
+# generated files and includes no .git directory.
+mkdir -p "${staged_repo_root}"
+git -C "${repo_root}" archive "${build_revision}" \
+    global.json Directory.Build.props src/ClankerWorld.GodotClient \
+    src/ClankerWorld.Shared/AgentPlacementRules.cs \
+    src/ClankerWorld.Shared/BuildInformation.cs | tar -C "${staged_repo_root}" -xf -
+if [[ ! -f "${staged_project_file}" ]]; then
+    printf 'Staged Godot client project file not found: %s\n' "${staged_project_file}" >&2
+    exit 1
+fi
+build_version="$(dotnet msbuild "${staged_project_file}" -nologo -getProperty:Version)"
+file_version="$(dotnet msbuild "${staged_project_file}" -nologo -target:GetAssemblyVersion -getProperty:FileVersion)"
 if [[ ! "${build_version}" =~ ^[0-9A-Za-z.+-]+$ || ! "${file_version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     printf 'Cannot determine valid assembly version metadata for this export.\n' >&2
     exit 1
@@ -177,29 +188,6 @@ fi
 build_line="Build ${build_version}+${build_revision:0:7}"
 export SourceRevisionId="${build_revision}"
 
-printf 'Staging Godot client source for an isolated export\n'
-# Godot's self-contained win-x64 publish can otherwise update the source
-# lockfile with a runtime-specific target graph.
-mkdir -p "${staged_project_dir}"
-for build_file in global.json Directory.Build.props; do
-    if [[ ! -f "${repo_root}/${build_file}" ]]; then
-        printf 'Required build configuration file not found: %s\n' "${repo_root}/${build_file}" >&2
-        exit 1
-    fi
-    cp "${repo_root}/${build_file}" "${staged_repo_root}/${build_file}"
-done
-tar --exclude='./.godot' --exclude='./.godot/*' -C "${project_dir}" -cf - . | tar -C "${staged_project_dir}" -xf -
-if [[ ! -f "${staged_project_file}" ]]; then
-    printf 'Staged Godot client project file not found: %s\n' "${staged_project_file}" >&2
-    exit 1
-fi
-if [[ ! -f "${shared_placement_rules}" ]]; then
-    printf 'Shared agent placement rules not found: %s\n' "${shared_placement_rules}" >&2
-    exit 1
-fi
-mkdir -p "${staged_shared_dir}"
-cp "${shared_placement_rules}" "${staged_shared_dir}/AgentPlacementRules.cs"
-cp "${repo_root}/src/ClankerWorld.Shared/BuildInformation.cs" "${staged_shared_dir}/BuildInformation.cs"
 # Godot requires four numeric parts in the PE version fields. Its product name
 # and our manifest carry the readable semantic version and source revision.
 sed -i \
