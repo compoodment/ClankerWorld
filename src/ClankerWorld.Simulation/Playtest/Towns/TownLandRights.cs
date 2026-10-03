@@ -271,6 +271,7 @@ public sealed partial class PrivateWorldRuntime
             householdLandUseRequests = householdLandUseRequests.OrderBy(item => item.Id, StringComparer.Ordinal).ToList();
             checkpointSchemaVersion = StateSchemaVersion;
             AppendEvent("land_use_requested", $"{requestId}:{townId}:{householdId}:{tiles.Length}");
+            MaintainTownProjects();
             return ExistingLandRequestResult(proposed, isDuplicate: false);
         }
         finally { gate.Release(); }

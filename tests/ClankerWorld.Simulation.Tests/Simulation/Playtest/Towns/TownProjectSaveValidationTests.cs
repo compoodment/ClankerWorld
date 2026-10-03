@@ -10,7 +10,7 @@ public sealed class TownProjectSaveValidationTests
     [Fact]
     public async Task GenuineApprovalReloadsWhileForgedAuthorityScopeAndHistoryAreRefused()
     {
-        using var scenario = await TownProjectScenario.ApprovedAsync("town-project-strict-approval");
+        using var scenario = await TownProjectScenario.ApprovedAsync();
         var healthy = PrivateWorldRuntimeCodec.Encode(scenario.World.ExportState());
         Assert.Equal(healthy, PrivateWorldRuntimeCodec.Encode(PrivateWorldRuntimeCodec.Decode(healthy)));
         foreach (var damage in new[] { "approval", "site", "budget", "duplicate", "work", "typed-payload", "future-transition" })
@@ -41,7 +41,7 @@ public sealed class TownProjectSaveValidationTests
     [Fact]
     public async Task GenuinePhysicalDeliveryReloadsWhileChangedReceiptsOriginsAndGroundAreRefused()
     {
-        using var scenario = await TownProjectScenario.ApprovedAsync("town-project-strict-delivery", initialTownStock: true);
+        using var scenario = await TownProjectScenario.ApprovedAsync(initialTownStock: true);
         scenario.Policy.Supply = true;
         await scenario.UntilAsync(() => scenario.Project.Deliveries.Any(delivery => delivery.DeliveredTick is not null), 120);
         Assert.NotEqual("completed", scenario.Project.Stage);
@@ -83,5 +83,16 @@ public sealed class TownProjectSaveValidationTests
             Assert.Equal(damaged, File.ReadAllBytes(path));
         }
         finally { directory.Delete(recursive: true); }
+    }
+
+    internal static void AssertCompletedSourceCannotChange(PrivateWorldRuntimeState state)
+    {
+        Assert.Equal("completed", Assert.Single(state.Towns![0].Projects).Stage);
+        var healthy = PrivateWorldRuntimeCodec.Encode(state);
+        Assert.Equal(healthy, PrivateWorldRuntimeCodec.Encode(PrivateWorldRuntimeCodec.Decode(healthy)));
+        var damaged = JsonNode.Parse(healthy)!;
+        damaged["state"]!["towns"]![0]!["projects"]![0]!["deliveries"]![0]!["sourceLotId"] = "unrelated-spent-source";
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Decode(Encoding.UTF8.GetBytes(damaged.ToJsonString())));
+        Assert.Equal(healthy, PrivateWorldRuntimeCodec.Encode(state));
     }
 }

@@ -267,7 +267,9 @@ public sealed partial class PrivateWorldRuntime
                 {
                     var quantity = Math.Min(missing, AvailableLotQuantity(lot));
                     yield return new(TownProjectChoiceId(TownProjectDonatePrefix, project.Id, lot.Id,
-                        quantity.ToString(CultureInfo.InvariantCulture)), "donate", town, project, cost.ResourceId, lot, quantity);
+                        quantity.ToString(CultureInfo.InvariantCulture),
+                        inhabitants[actor].Position == project.Plan.Site ? "at-site" : "travel"),
+                        "donate", town, project, cost.ResourceId, lot, quantity);
                 }
             }
         }
@@ -363,7 +365,8 @@ public sealed partial class PrivateWorldRuntime
             destinationGroundPosition: new(choice.Project.Plan.Site.X, choice.Project.Plan.Site.Y)), choice.Town.Id, choice.Project, delivery));
         SetTownProject(choice.Town.Id, choice.Project with
         {
-            Deliveries = choice.Project.Deliveries.Append(delivery).ToArray(), LastTransitionTick = WorldTick,
+            Deliveries = choice.Project.Deliveries.Append(delivery).ToArray(),
+            LastTransitionTick = WorldTick,
         });
         AppendEvent("town_project_donated", $"{actor}:{choice.Project.Id}:{lotId}:{choice.Quantity}:{choice.ItemKind}", choice.Project.Plan.Site);
         return true;
@@ -378,8 +381,7 @@ public sealed partial class PrivateWorldRuntime
     }
 
     private string NextTownProjectDeliveryId(TownConstructionProject project, string actor, string lotId) =>
-        TownProjectChoiceId("town-project-load:", project.Id, actor, lotId,
-            WorldTick.ToString(CultureInfo.InvariantCulture), project.Deliveries.Count.ToString(CultureInfo.InvariantCulture));
+        TownProjectRules.DeliveryId(project.Id, actor, lotId, WorldTick, project.Deliveries.Count);
 
     private static InventoryCheckpoint ReserveTownProjectDelivery(InventoryCheckpoint inventory, string townId,
         TownConstructionProject project, TownProjectDelivery delivery) => InventoryFixture.Reserve(inventory,
@@ -404,7 +406,8 @@ public sealed partial class PrivateWorldRuntime
         var delivery = new TownProjectDelivery(id, actor, lot.Id, movedId, lot.ItemKind, choice.Quantity, WorldTick);
         SetTownProject(choice.Town.Id, choice.Project with
         {
-            Deliveries = choice.Project.Deliveries.Append(delivery).ToArray(), LastTransitionTick = WorldTick,
+            Deliveries = choice.Project.Deliveries.Append(delivery).ToArray(),
+            LastTransitionTick = WorldTick,
         });
         AppendEvent("town_project_material_picked_up", $"{actor}:{choice.Project.Id}:{movedId}:{choice.Quantity}:{choice.ItemKind}", choice.Project.Plan.Site);
     }
@@ -503,7 +506,10 @@ public sealed partial class PrivateWorldRuntime
         };
         SetTownProject(townId, project with
         {
-            Stage = "completed", CompletedBuildingId = id, Blocker = null, LastTransitionTick = WorldTick,
+            Stage = "completed",
+            CompletedBuildingId = id,
+            Blocker = null,
+            LastTransitionTick = WorldTick,
         });
         AssignBuildingToTown(placed, worldContent.Buildings.Single(item => item.CanonicalId == placed.DefinitionId));
         CreditCompletedWork(actor, "building");

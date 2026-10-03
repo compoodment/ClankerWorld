@@ -11,6 +11,11 @@ public sealed partial class PrivateWorldRuntime
         .Where(p => p.Id != exceptProjectId && p.Stage is not ("completed" or "cancelled"))
         .SelectMany(p => WorldContentSimulationRules.Footprint(TownHallContent.Hall3x4(), p.Plan.Site));
 
+    private IEnumerable<GridPoint> TownProjectProtectedSites(string? exceptProjectId = null) =>
+        TownProjectFootprintTiles(exceptProjectId).Concat(towns.SelectMany(town => town.Projects)
+            .Where(project => project.Id != exceptProjectId && project.Stage is not ("completed" or "cancelled"))
+            .Select(project => project.Plan.Entrance));
+
     private HashSet<GridPoint> TownProjectLandTiles(TownRuntimeState town)
     {
         var claimed = householdLandUseRights.SelectMany(r => r.Tiles)

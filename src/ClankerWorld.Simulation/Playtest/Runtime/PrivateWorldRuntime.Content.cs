@@ -433,6 +433,12 @@ public sealed partial class PrivateWorldRuntime
         try
         {
             var manifest = GetContentManifest(packageId);
+            if (towns.SelectMany(town => town.Projects).Any(project => project.Plan.DefinitionId
+                    .StartsWith(manifest.PackageDigest + "/", StringComparison.Ordinal)) ||
+                towns.SelectMany(town => town.Governance?.Proposals ?? []).Any(proposal =>
+                    proposal.Status is "pending" or "passed" && proposal.Project is { } plan &&
+                    plan.DefinitionId.StartsWith(manifest.PackageDigest + "/", StringComparison.Ordinal)))
+                throw new InvalidOperationException("This content is referenced by retained Town construction approvals and material receipts.");
             var remainingSimulation = WorldContentSimulationRules.RemovePackage(worldSimulation, manifest.PackageDigest);
             if (inhabitants.Values.Any(person => person.Project is { } project &&
                 (project.CandidateId.StartsWith($"build:building:{manifest.PackageDigest}/", StringComparison.Ordinal) ||

@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using ClankerWorld.Simulation.Content;
 using ClankerWorld.Simulation.Harness;
@@ -57,6 +58,10 @@ public static class TownProjectRules
         Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(projectId)));
 
     public static string ReservationPurpose(string projectId) => "town-project:" + projectId;
+
+    public static string DeliveryId(string projectId, string actor, string sourceLotId, long tick, int ordinal) =>
+        "town-project-load:" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(
+            new[] { projectId, actor, sourceLotId, tick.ToString(CultureInfo.InvariantCulture), ordinal.ToString(CultureInfo.InvariantCulture) }))));
 
     public static string ProposalText(TownProjectPayload plan) =>
         FormattableString.Invariant($"Build {plan.Name}, a Town Hall at ({plan.Site.X},{plan.Site.Y}), with ") +
