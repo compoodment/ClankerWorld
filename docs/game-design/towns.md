@@ -1387,15 +1387,18 @@ wood-tree seed and orchard seed are distinct; planting potatoes remain potatoes.
 | --- | --- | --- |
 | Flour | 1 grain → 1 flour | Farmhouse; a real intermediate that can be stored, carried and sold separately. |
 | Simple meal | 2 potatoes/greens + 1 wood → 2 meals | House; everyday household cooking, using potatoes, wild greens or cultivated greens. |
-| Porridge | 1 grain + 1 water + 1 wood → 2 servings | House or Restaurant; accessible grain-based nourishment. Berries or fruit may improve a serving. |
+| Porridge | 1 grain + 1 water + 1 wood → 2 servings | House or Restaurant; accessible grain-based nourishment. |
+| Berry or fruit porridge | 1 grain + 1 berries/fruit + 1 water + 1 wood → 2 servings | House or Restaurant; named improved meals that can be eaten or sold. |
 | Bread | 2 flour + 1 water + 1 wood → 2 servings | House or Restaurant; keeps longer and travels well. |
 | Vegetable stew | 1 potato + 1 cultivated greens + 1 water + 1 wood → 2 servings | House or Restaurant; a substantial vegetable meal. |
 | Restaurant meal | 1 bread + 1 cultivated greens + 1 wood → 2 servings | Restaurant; better nourishment and dietary variety, sold on site. |
 
 Harvests stay at their field until collected; they do not appear remotely in a
 Silo. Grain and planting stock enter private farm storage. Ready food goes into
-House or business stock. Dry grain keeps substantially longer than flour,
-bread or cooked meals and supports a winter reserve. Food stays out of the
+House or business stock. Raw grain, potatoes and flour keep their freshness in
+the current trial. Greens, bread and cooked meals spoil, with a usable storage
+pot slowing the loss. These storage and nourishment rules remain provisional.
+Food stays out of the
 communal resource Warehouse.
 
 Farm production responds to population, expected yield and stored reserves.
@@ -1415,7 +1418,7 @@ for other activities; this is not a fixed nutrition or hunger-drain formula.
 | Rope | House crafting; trial 3 fiber → 1 rope. | Sacks, carts, boats and later construction recipes. |
 | Clay | Dig a clay bank and carry clay. | Fired storage pots and water jugs. |
 | Pottery | House crafting; trial 2 clay + 1 wood → 1 vessel. | Reusable storage pots and water jugs, with separate item identities. |
-| Fresh water | Collect from a river or lake with a reusable jug and carry it. | Cooking, medicine-making and animal care. |
+| Fresh water | Collect from a river or lake with a reusable jug and carry it. | Used in current porridge, bread and stew and Clinic medicine-making; animal care remains unfinished. |
 | Gold | Extract gold ore from a gold-bearing outcrop with an iron pickaxe, carry it to the Blacksmith and refine it with fuel. Ore and refined gold remain separate goods. | Ornaments, gifts and trade goods. |
 | Diamond | Extract from a diamond-bearing outcrop with an iron pickaxe. | Trade goods or a stone set into an ornament. |
 
@@ -1441,8 +1444,15 @@ fallbacks, repeated intentions and owner orders do not make those choices.
 A storage pot slows spoilage for the food within its limited capacity, a trial
 8 food. A water jug holds a limited quantity of water, a trial 4 fresh water.
 Both remain after their contents are used; filling, emptying and carrying them
-must preserve the vessel and its goods. Adults dig clay from a finite clay bank
-and make either vessel at a household House.
+must preserve the vessel and its goods. A filled vessel moves as one family
+only when its entire load fits and moving every ingredient leaves the source's
+needed reserve intact. Active claims still prevent its movement.
+Adults dig clay from a finite clay bank
+and make either vessel at a household House. Houses and Restaurants consume
+fresh water from these jugs for porridge,
+bread and stew, leaving the jug ready for refilling. The Clinic also consumes
+delivered fresh water to make medicine and leaves the jug reusable. Animal-care
+consumers remain unfinished.
 
 #### Tools, clothing and transport
 
@@ -1565,6 +1575,19 @@ and sell finished meals; Clinics stock care goods and sell treatment. An
 optional Store receives goods by actual delivery before selling them. Market
 sellers carry goods into their stalls, trade with agents from any Town and
 carry remaining goods away.
+
+The first Restaurant version buys missing inputs for the recipes its household
+needs, with a provisional reserve for two batches. Usable stock already there,
+actual incoming deliveries and supplies an adult can physically collect reduce
+the shortage. Supplying one workplace must preserve the ingredients another
+still needs. An adult pays only with their personally owned carried goods, and
+cannot spend a needed Restaurant ingredient in a way that increases its
+shortage. Restaurant adults may visit ingredient shops in their Town, and
+adult residents may visit its Restaurants for meals. The trip reveals no
+remote private stock. Exact goods and
+terms are checked after arrival, and both traders must meet before settlement.
+The House remains the heating hearth; Restaurant wood is a cooking input.
+Meal prices remain provisional barter terms tied to the recipe.
 
 **Agreed on October 1, 2026:** a seller may use any empty Market stall and keep
 it until they leave. The Town does not assign stalls. Leaving frees the stall

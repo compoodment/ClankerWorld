@@ -191,6 +191,10 @@ public sealed partial class PrivateWorldRuntime
         AppendEvent("house_cooking_content_staged", manifest.PackageId);
     }
 
+    private void StageRestaurantContent() =>
+        StageBuiltInContent(RestaurantContent.PackageId, HouseContent.PackageId, RestaurantContent.Create,
+            "restaurant_content_staged");
+
     private void StagePotteryContent() =>
         StageBuiltInContent(PotteryContent.PackageId, HouseContent.PackageId, PotteryContent.Create,
             "pottery_content_staged");
@@ -373,9 +377,9 @@ public sealed partial class PrivateWorldRuntime
         if (inhabitants[inhabitantId].Project is not
             {
                 Stage: "blocked",
-                Blocker: "Waiting for ingredients at this household building",
                 JobId: null,
-            } project || WorldTick - project.LastTransitionTick < BlockedProjectRetryDelayTicks ||
+            } project || !IsIngredientBlocker(project.Blocker) ||
+            WorldTick - project.LastTransitionTick < BlockedProjectRetryDelayTicks ||
             !TownConstructionCandidateIds.TryParse(project.CandidateId, out var selection) || selection.IsBuilding)
             return false;
 
@@ -615,12 +619,16 @@ public sealed partial class PrivateWorldRuntime
                 definition.Tags.Any(IsHouseholdBuildingTag)) &&
             !HasIngredientsAtBuilding(recipe.Inputs, constructionOwner, recipeBuilding.InstanceId))
         {
-            SetProject(inhabitantId, project with { Stage = "blocked", Blocker = "Waiting for ingredients at this household building" });
+            if (FinishProjectHouseholdDelivery(inhabitantId, state))
+                return;
+            SetProject(inhabitantId, project with { Stage = "blocked", Blocker = MissingProductionIngredients(recipe, constructionOwner, recipeBuilding.InstanceId) });
             return;
         }
         var missing = inputs.FirstOrDefault(input => !HasAvailableQuantities([input], constructionOwner));
         if (missing.Amount > 0)
         {
+            if (FinishProjectHouseholdDelivery(inhabitantId, state))
+                return;
             AcquireProjectInput(inhabitantId, state, missing, constructionOwner);
             return;
         }
@@ -721,6 +729,21 @@ public sealed partial class PrivateWorldRuntime
             TownConstructionCandidateIds.TryParse(waiting.CandidateId, out var selection) && !selection.IsBuilding &&
             worldContent.Recipes.FirstOrDefault(item => item.CanonicalId == selection.DefinitionId) is { } queued &&
             (queued.IsCrop ? recipe.IsCrop : !recipe.IsCrop && queued.WorkstationBuildingId == recipe.WorkstationBuildingId));
+
+    private bool FinishProjectHouseholdDelivery(string actor, PlaytestInhabitantState state)
+    {
+        if (!AdultResident(actor) || society.Checkpoint.GetInhabitant(actor).HouseholdId is not { } householdId ||
+            CarriedHouseDelivery(actor) is not { } carried || carried.OwnerId != actor ||
+            worldSimulation.Buildings.SingleOrDefault(building => building.InstanceId == carried.DeliveryBuildingId &&
+                building.HouseholdId == householdId) is not { } destination ||
+            !CanDeliverHouseDelivery(carried) ||
+            state.Position != destination.Position &&
+                FindUnoccupiedRoute(actor, state.Position, destination.Position, 0).Count == 0)
+            return false;
+        SetProject(actor, state.Project! with { Stage = "delivering", Blocker = "Completing the household supply delivery" });
+        HaulHouseholdStock(actor, inhabitants[actor]);
+        return true;
+    }
 
     private void AcquireProjectInput(string inhabitantId, PlaytestInhabitantState state,
         ContentQuantity input, string constructionOwner)

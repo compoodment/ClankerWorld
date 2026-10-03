@@ -2220,6 +2220,11 @@ public partial class Main
             if (ItemIcons.Has("never-an-item") || Convert.ToBase64String(ItemIcons.Render("never-an-item", 32).GetData()) !=
                     Convert.ToBase64String(ItemIcons.Render("crate", 32).GetData()) || !ItemIcons.Has("wood"))
                 throw new InvalidOperationException("An item without its own icon must show the crate.");
+            foreach (var meal in new[] { "simple_meal", "porridge", "berry_porridge", "fruit_porridge", "stew", "restaurant_meal" })
+                if (!ItemIcons.Has(meal) || !ItemIcons.FitsGrid(meal) || (!ItemIcons.Kinds.Contains(meal) &&
+                    Convert.ToBase64String(ItemIcons.Render(meal, 32).GetData()) !=
+                        Convert.ToBase64String(ItemIcons.Render("food", 32).GetData())))
+                    throw new InvalidOperationException("A concrete meal without distinct art must use the meal icon.");
             if (GameUiText.ItemName("storage_pot") != "Storage pot" ||
                 GameUiText.ItemName("water_jug") != "Water jug" ||
                 GameUiText.ItemName("fresh_water") != "Fresh water")

@@ -559,7 +559,8 @@ public sealed partial class PrivateWorldRuntime
             order.BlockedReason is { Length: > 256 } || order.BlockedReason?.Any(char.IsControl) == true ||
             order.LastEffectId is { Length: > 512 } || order.LastEffectId?.Any(char.IsControl) == true ||
             order.TargetResourceId is { Length: > 128 } || order.TargetResourceId?.Any(char.IsControl) == true ||
-            order.TargetFoodKind is not (null or "berries" or "fruit" or "wild_greens") ||
+            order.TargetFoodKind is not (null or "berries" or "fruit" or "wild_greens") &&
+                (order.Action != "consume_food" || !IsEdibleFood(order.TargetFoodKind)) ||
             order.TargetPosition is { X: < -10_000_000 or > 10_000_000 } ||
             order.TargetPosition is { Y: < -10_000_000 or > 10_000_000 } ||
             order.WaitForDecisionAfterFailure && (order.Status != "blocked" || order.BlockedReason is null) ||
