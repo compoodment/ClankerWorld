@@ -421,7 +421,7 @@ internal sealed class TownProjectScenario : IDisposable
     internal const string Author = "founder:00000000000000000000000000000001";
     internal const string PlayableSeed = "town-project-real-donation";
     internal const string Name = "Communal Hall";
-    internal const string LaterNotice = "Post the next harvest dates at our Hall.";
+    internal const string LaterNotice = "Harvest dates: Post the next harvest dates at our Hall.";
     internal const string WoodStock = "initial-town-wood";
     internal const string StoneStock = "initial-town-stone";
     internal static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -621,7 +621,7 @@ internal sealed class TownProjectPolicy
                 if (selected is not null)
                 {
                     policy.Proposed = true;
-                    text = policy.OrdinaryLaw ? "Build a Communal Hall with all the Town's wood." : TownProjectScenario.Name;
+                    text = policy.OrdinaryLaw ? "Hall: Build a Communal Hall with all the Town's wood." : TownProjectScenario.Name;
                 }
             }
             if (selected is null && actor == TownProjectScenario.Author && policy.LawAfterHall && !policy.LawProposed &&
