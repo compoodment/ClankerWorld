@@ -515,8 +515,12 @@ room for the whole yield, including orchard seeds. A hungry adult can make room
 for one permitted household serving when spare supplies can be set down. An
 accepted caregiver can also make room to feed a hungry infant, even when
 already well fed. The spare supplies go to the House if it has room or to the
-camp pile otherwise. Maps, field records, books, worn gear, gear being repaired and
-reserved goods stay carried. Exploring still teaches
+camp pile otherwise, with tools set down after other ordinary supplies. Maps,
+field records, books, worn gear, gear being repaired and reserved goods stay
+carried. If urgent hunger leaves no other way to make enough room, an adult may
+set down some of their own reserved orchard seeds too. Only the seeds actually
+stored lose their planting reserve; the seeds remain household property for
+later planting. Exploring still teaches
 personal knowledge when there is no paper or room for a written copy.
 Broken or spoiled spare cargo can also be set down without losing it.
 A filled jug moves home as one load when the adult has room for the jug and

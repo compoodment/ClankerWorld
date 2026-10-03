@@ -1,6 +1,7 @@
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Kernel;
+using ClankerWorld.Simulation.World;
 
 namespace ClankerWorld.Simulation.Playtest;
 
@@ -264,14 +265,15 @@ public sealed partial class PrivateWorldRuntime
     /// <summary>
     /// A hungry adult whose load leaves no room for a food pickup may make room
     /// by setting down spare supplies for the household. Maps, field records,
-    /// worn gear, reserved goods and delivery loads stay carried.
+    /// worn gear, work reservations and delivery loads stay carried. Urgent
+    /// food recovery may release only the orchard seeds it actually sets down.
     /// </summary>
     private void AddMakeRoomForFoodCandidate(List<CognitionCandidate> candidates, string actor,
         PlaytestInhabitantState state, int priority)
     {
         if (!AdultResident(actor) || society.Checkpoint.GetInhabitant(actor).HouseholdId is null)
             return;
-        var cargo = SpareCargoForFood(actor, FoodRoomMissing(actor, state));
+        var cargo = FoodRecoveryCargo(actor, state);
         if (cargo.Count == 0 ||
             SpareCargoDestination(actor, state, cargo.Sum(move => move.PhysicalQuantity)) is not { } destination)
             return;
@@ -299,9 +301,17 @@ public sealed partial class PrivateWorldRuntime
         return Math.Max(0, required - FreeCarryCapacity(actor));
     }
 
-    private sealed record SpareCargoMove(InventoryLot Lot, int TransferQuantity, int PhysicalQuantity);
+    private sealed record SpareCargoMove(InventoryLot Lot, int TransferQuantity, int PhysicalQuantity,
+        string? OrchardReservationId = null);
 
     private List<SpareCargoMove> SpareCargoForFood(string actor, int missing, string? protectedLotId = null,
+        params string[] additionallyProtectedLotIds)
+    {
+        var moves = OrdinarySpareCargo(actor, missing, protectedLotId, additionallyProtectedLotIds);
+        return moves.Sum(move => move.PhysicalQuantity) >= missing ? moves : [];
+    }
+
+    private List<SpareCargoMove> OrdinarySpareCargo(string actor, int missing, string? protectedLotId = null,
         params string[] additionallyProtectedLotIds)
     {
         if (missing <= 0) return [];
@@ -331,7 +341,44 @@ public sealed partial class PrivateWorldRuntime
             missing -= physicalQuantity;
             if (missing <= 0) return moves;
         }
+        return moves;
+    }
+
+    private List<SpareCargoMove> FoodRecoveryCargo(string actor, PlaytestInhabitantState state)
+    {
+        var missing = FoodRoomMissing(actor, state);
+        var moves = OrdinarySpareCargo(actor, missing);
+        missing -= moves.Sum(move => move.PhysicalQuantity);
+        if (missing <= 0) return moves;
+        if (!NeedsUrgentFood(state) || PreferredFood(actor, actor).Any()) return [];
+
+        var inventory = society.Checkpoint.Inventory;
+        foreach (var lot in inventory.Lots.OrderBy(lot => lot.Id, StringComparer.Ordinal))
+        {
+            if (OrchardReservationForFood(inventory, actor, lot) is not { } reservation) continue;
+            var quantity = Math.Min(missing, lot.Quantity);
+            moves.Add(new(lot, quantity, quantity, reservation.Id));
+            missing -= quantity;
+            if (missing <= 0) return moves;
+        }
         return [];
+    }
+
+    private InventoryReservation? OrchardReservationForFood(InventoryCheckpoint inventory, string actor, InventoryLot lot)
+    {
+        if (lot.OwnerId != actor || lot.ItemKind != TreeGrowthRules.OrchardSeedItem ||
+            !PersonalEquipmentRules.IsCarried(lot, actor) || lot.ContainerLotId is not null ||
+            lot.DeliveryBuildingId is not null || lot.ConditionBasisPoints <= 0 || lot.FreshnessBasisPoints <= 0 ||
+            PersonalEquipmentRules.IsSelected(inhabitants[actor].Equipment, lot.Id))
+            return null;
+        var claims = inventory.Reservations.Where(reservation => reservation.LotId == lot.Id && reservation.State is
+            InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed or InventoryReservationState.Committed).ToArray();
+        if (claims.Length != 1) return null;
+        var claim = claims[0];
+        return claim.Id == OrchardReplantingPrefix + lot.Id && claim.OwnerId == actor &&
+            claim.Purpose == "orchard_replanting" && claim.ExpiryTick >= WorldTick &&
+            claim.State is (InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed) &&
+            claim.Quantity > 0 && claim.Quantity <= lot.Quantity ? claim : null;
     }
 
     /// <summary>The household House when it has room, otherwise the household's pile at camp.</summary>
@@ -352,7 +399,7 @@ public sealed partial class PrivateWorldRuntime
     {
         if (!AdultResident(actor) || society.Checkpoint.GetInhabitant(actor).HouseholdId is not { } householdId)
             return;
-        var cargo = SpareCargoForFood(actor, FoodRoomMissing(actor, state));
+        var cargo = FoodRecoveryCargo(actor, state);
         StoreSpareCargo(actor, state, householdId, cargo);
     }
 
@@ -371,13 +418,28 @@ public sealed partial class PrivateWorldRuntime
         {
             var lot = move.Lot;
             var quantity = move.TransferQuantity;
-            ApplyInventoryTransition(inventory => lot.OwnerId == householdId
-                ? InventoryFixture.Relocate(inventory, $"spare-cargo:{WorldTick}:{actor}:{lot.Id}", lot.Id, householdId, quantity,
-                    storageBuildingId: destination.StorageBuildingId, groundPosition: destination.StorageBuildingId is null
-                        ? new InventoryGroundPosition(destination.Position.X, destination.Position.Y) : null)
-                : InventoryFixture.Transfer(inventory, $"spare-cargo:{WorldTick}:{actor}:{lot.Id}", actor, householdId, lot.Id, quantity,
-                    "spare_cargo_stored", destination.StorageBuildingId, destinationGroundPosition: destination.StorageBuildingId is null
-                        ? new InventoryGroundPosition(destination.Position.X, destination.Position.Y) : null));
+            ApplyInventoryTransition(inventory =>
+            {
+                if (move.OrchardReservationId is { } reservationId)
+                {
+                    var currentLot = inventory.GetLot(lot.Id);
+                    var reservation = OrchardReservationForFood(inventory, actor, currentLot);
+                    if (!NeedsUrgentFood(state) || PreferredFood(actor, actor).Any() ||
+                        reservation is null || reservation.Id != reservationId)
+                        throw new InvalidOperationException("The orchard seed is no longer available for food recovery.");
+                    var releaseQuantity = Math.Max(0, quantity - (currentLot.Quantity - reservation.Quantity));
+                    if (releaseQuantity > 0)
+                        inventory = InventoryFixture.ReleaseReservationQuantity(inventory, reservationId, releaseQuantity,
+                            "orchard_food_recovery");
+                }
+                return lot.OwnerId == householdId
+                    ? InventoryFixture.Relocate(inventory, $"spare-cargo:{WorldTick}:{actor}:{lot.Id}", lot.Id, householdId, quantity,
+                        storageBuildingId: destination.StorageBuildingId, groundPosition: destination.StorageBuildingId is null
+                            ? new InventoryGroundPosition(destination.Position.X, destination.Position.Y) : null)
+                    : InventoryFixture.Transfer(inventory, $"spare-cargo:{WorldTick}:{actor}:{lot.Id}", actor, householdId, lot.Id, quantity,
+                        "spare_cargo_stored", destination.StorageBuildingId, destinationGroundPosition: destination.StorageBuildingId is null
+                            ? new InventoryGroundPosition(destination.Position.X, destination.Position.Y) : null);
+            });
             AppendEvent("spare_cargo_stored", $"{actor}:{lot.ItemKind}:{quantity}:{destination.StorageBuildingId ?? "camp"}");
         }
         return true;
