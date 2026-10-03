@@ -39,7 +39,18 @@ public sealed partial class PrivateWorldRuntime
                 }
             }
             routeSearches.Insert(0, shared);
-            return shared.Search.RouteTo(destination, interactionRange);
+            try
+            {
+                return shared.Search.RouteTo(destination, interactionRange);
+            }
+            catch
+            {
+                // A search stopped partway through could answer later questions
+                // wrongly, so it is not kept.
+                routeSearches.RemoveAt(0);
+                shared.Search.Dispose();
+                throw;
+            }
         }
     }
 
