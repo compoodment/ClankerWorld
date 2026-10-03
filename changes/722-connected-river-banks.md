@@ -1,0 +1,1 @@
+- Roads reuse an existing bridge when the river widens between connected narrow crossings, instead of building an unnecessary second bridge. Separate tributaries and impassable banks still leave room for needed crossings.
