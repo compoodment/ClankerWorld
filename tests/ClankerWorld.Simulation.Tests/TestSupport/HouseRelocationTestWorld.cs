@@ -128,7 +128,8 @@ internal static class HouseRelocationTestWorld
             Enumerable.Range(-1, 3).SelectMany(dy => Enumerable.Range(-1, 3)
                 .Select(dx => new GridPoint(point.X + dx, point.Y + dy)))
                 .All(tile => state.Map.IsBuildable(tile) && !occupied.Contains(tile)));
-        return WithInventory(state, InventoryFixture.AddLot(state.Society.Society.Inventory,
+        var moved = house with { Position = site, Entrance = null };
+        var relocated = WithInventory(state, InventoryFixture.AddLot(state.Society.Society.Inventory,
             "relocation-expansion-wood", "wood", Household, 8, storageBuildingId: HouseId)) with
         {
             Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == worker
@@ -136,13 +137,17 @@ internal static class HouseRelocationTestWorld
             WorldSimulation = state.WorldSimulation with
             {
                 Buildings = state.WorldSimulation.Buildings.Select(building => building.InstanceId == HouseId
-                    ? building with { Position = site, Entrance = null } : building).ToArray(),
+                    ? moved : building).ToArray(),
             },
             Towns = state.Towns!.Select(town => town.Id == house.TownId ? town with
             {
                 BorderTiles = TownBorderRules.ExpandForBuilding(state.Map, town, site, 2, 2),
             } : town).ToArray(),
         };
+        // Expansion onto extra tiles needs the household's recorded use of that
+        // land; HouseholdLandGrantTests covers the Council request itself.
+        return ExpansionLandFixture.WithRights(relocated, moved, Enumerable.Range(-1, 3).SelectMany(dy =>
+            Enumerable.Range(-1, 3).Select(dx => new GridPoint(site.X + dx, site.Y + dy))));
     }
 
     public static PrivateWorldRuntime Restore(PrivateWorldRuntimeState state, Choices? choices = null) =>
@@ -162,6 +167,7 @@ internal static class HouseRelocationTestWorld
     {
         public ConcurrentDictionary<string, string> Wanted { get; } = new(StringComparer.Ordinal);
         public ConcurrentDictionary<string, string> HousingNotes { get; } = new(StringComparer.Ordinal);
+        public ConcurrentDictionary<string, string[]> Offered { get; } = new(StringComparer.Ordinal);
         public DecisionProviderKind Kind => DecisionProviderKind.Deterministic;
         public long ProviderEpoch => 0;
 
@@ -170,6 +176,7 @@ internal static class HouseRelocationTestWorld
             var observation = request.Observation;
             if (observation.Self?.HousingNote is { } housingNote)
                 HousingNotes[observation.InhabitantId] = housingNote;
+            Offered[observation.InhabitantId] = observation.Candidates.Select(candidate => candidate.Id).ToArray();
             var wanted = Wanted.GetValueOrDefault(observation.InhabitantId, "safe_idle");
             var selected = observation.Candidates.FirstOrDefault(candidate => candidate.Id == wanted) ??
                 observation.Candidates.Single(candidate => candidate.Id == "safe_idle");
