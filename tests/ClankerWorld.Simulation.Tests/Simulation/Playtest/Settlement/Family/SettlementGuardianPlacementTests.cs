@@ -295,11 +295,14 @@ public sealed class SettlementGuardianPlacementTests
         };
         if (fullCarry)
         {
+            // The longest name a child may hold: 48 characters ending in its parents' surname.
+            var surname = state.Society.Society.GetInhabitant(child).Name.Split(' ')[^1];
             state = state with
             {
                 Society = state.Society with
                 {
-                    Society = SocietyFixture.RenameInhabitant(state.Society.Society, child, "Robin " + new string('r', 42)).Checkpoint,
+                    Society = SocietyFixture.RenameInhabitant(state.Society.Society, child,
+                        "Robin" + new string('r', 42 - surname.Length) + " " + surname).Checkpoint,
                 },
             };
         }

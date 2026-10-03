@@ -144,6 +144,9 @@ internal static class GuardianPlacementTestFixture
             inventory = InventoryFixture.AddLot(inventory, "guardian-placement-resident-food", "food", DestinationHousehold, residentChildren * 4,
                 storageBuildingId: oldDestination.InstanceId);
         society = society with { Inventory = inventory };
+        // Children take a chosen name with a parent's surname, and first names are unique in a world.
+        society = ChosenBirthNameTestFixture.NameParent(society, parents[0]);
+        society = ChosenBirthNameTestFixture.NameParent(society, guardians[0]);
         var newborns = new List<(string Id, bool Orphan)>();
         foreach (var orphan in new[] { true, false })
         {
@@ -154,7 +157,8 @@ internal static class GuardianPlacementTestFixture
                     "guardian-placement-" + (orphan ? "orphan-" : "resident-") + index, 1, pair[0], pair[1],
                     orphan ? SourceHousehold : DestinationHousehold, pair, pair,
                     orphan ? "guardian-placement-birth-food" : "guardian-placement-resident-food", 4, society.WorldTick,
-                    ChildName: (orphan ? "Robin " : "Ari ") + index, PrimaryCaregiverId: pair[0]));
+                    ChildName: ChosenBirthNameTestFixture.ChildName(society, pair[0], (orphan ? "Robin" : "Ari") + index),
+                    PrimaryCaregiverId: pair[0]));
                 society = birth.Checkpoint;
                 newborns.Add((Assert.IsType<string>(birth.CreatedId), orphan));
             }
