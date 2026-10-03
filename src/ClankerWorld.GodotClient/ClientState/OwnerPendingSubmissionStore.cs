@@ -8,13 +8,15 @@ namespace ClankerWorld.GodotClient.ClientState;
 /// <summary>
 /// The non-secret identity boundary for one locally retained owner request.
 /// A pending request cannot be replayed against a different world, device key,
-/// or server origin after a pairing changes.
+/// server origin or observed timeline after a pairing or loaded world changes.
 /// </summary>
 public sealed record OwnerPendingSubmissionBinding(
     OwnerAuthorityIdentity Authority,
     string DeviceId,
     string PublicKeyFingerprint,
-    string ServerOrigin)
+    string ServerOrigin,
+    OwnerObserverTimeline? Timeline = null,
+    string? ObservedWorldId = null)
 {
     /// <summary>
     /// Creates a validated, canonical binding. Only HTTPS is accepted remotely;
@@ -24,22 +26,38 @@ public sealed record OwnerPendingSubmissionBinding(
         OwnerAuthorityIdentity authority,
         string deviceId,
         string publicKeyFingerprint,
-        Uri serverOrigin)
+        Uri serverOrigin,
+        OwnerObserverTimeline? timeline = null,
+        string? observedWorldId = null)
     {
         ArgumentNullException.ThrowIfNull(authority);
         ArgumentException.ThrowIfNullOrWhiteSpace(authority.ServerAuthorityId);
         ArgumentException.ThrowIfNullOrWhiteSpace(authority.WorldId);
         ArgumentException.ThrowIfNullOrWhiteSpace(deviceId);
         ArgumentException.ThrowIfNullOrWhiteSpace(publicKeyFingerprint);
+        if (timeline is { IsValid: false }) throw new ArgumentException("The observer timeline is invalid.", nameof(timeline));
+        if (observedWorldId is not null) ArgumentException.ThrowIfNullOrWhiteSpace(observedWorldId);
 
         return new OwnerPendingSubmissionBinding(
             authority,
             deviceId,
             publicKeyFingerprint,
-            CanonicalizeServerOrigin(serverOrigin));
+            CanonicalizeServerOrigin(serverOrigin), timeline, observedWorldId);
     }
 
     internal bool Matches(OwnerPendingSubmissionBinding expected) =>
+        MatchesRegistration(expected) && Timeline == expected.Timeline &&
+        string.Equals(ObservedWorldId, expected.ObservedWorldId, StringComparison.Ordinal);
+
+    public bool CanRetryOnTimeline(OwnerObserverTimeline? timeline) => Timeline == timeline;
+
+    public bool CanRetryIn(string? worldId, OwnerObserverTimeline? timeline) =>
+        !string.IsNullOrWhiteSpace(worldId) && CanRetryOnTimeline(timeline) &&
+        (ObservedWorldId is not null
+            ? string.Equals(ObservedWorldId, worldId, StringComparison.Ordinal)
+            : Timeline is null && timeline is null);
+
+    internal bool MatchesRegistration(OwnerPendingSubmissionBinding expected) =>
         Authority is not null &&
         expected.Authority is not null &&
         string.Equals(Authority.ServerAuthorityId, expected.Authority.ServerAuthorityId, StringComparison.Ordinal) &&
@@ -55,6 +73,8 @@ public sealed record OwnerPendingSubmissionBinding(
             string.IsNullOrWhiteSpace(binding.Authority.WorldId) ||
             string.IsNullOrWhiteSpace(binding.DeviceId) ||
             string.IsNullOrWhiteSpace(binding.PublicKeyFingerprint) ||
+            binding.Timeline is { IsValid: false } ||
+            binding.ObservedWorldId is not null && string.IsNullOrWhiteSpace(binding.ObservedWorldId) ||
             !Uri.TryCreate(binding.ServerOrigin, UriKind.Absolute, out var origin))
         {
             return false;
@@ -287,7 +307,17 @@ public sealed class OwnerPendingSubmissionStore
     /// <paramref name="expectedBinding"/>. Missing, corrupt, stale, or
     /// mismatched records fail closed as <see langword="null"/>.
     /// </summary>
-    public OwnerPendingSubmission? TryLoad(OwnerPendingSubmissionBinding expectedBinding)
+    public OwnerPendingSubmission? TryLoad(OwnerPendingSubmissionBinding expectedBinding) =>
+        TryLoad(expectedBinding, registrationOnly: false);
+
+    /// <summary>
+    /// Loads a record for display and explicit recovery without changing its
+    /// original world or timeline. Retry still requires the complete binding.
+    /// </summary>
+    public OwnerPendingSubmission? TryLoadForRegistration(OwnerPendingSubmissionBinding expectedBinding) =>
+        TryLoad(expectedBinding, registrationOnly: true);
+
+    private OwnerPendingSubmission? TryLoad(OwnerPendingSubmissionBinding expectedBinding, bool registrationOnly)
     {
         ArgumentNullException.ThrowIfNull(expectedBinding);
         if (!OwnerPendingSubmissionBinding.IsValid(expectedBinding) || !File.Exists(path))
@@ -298,7 +328,8 @@ public sealed class OwnerPendingSubmissionStore
         try
         {
             var pending = JsonSerializer.Deserialize<OwnerPendingSubmission>(File.ReadAllText(path), JsonOptions);
-            return pending is { IsValid: true } && pending.Binding.Matches(expectedBinding)
+            return pending is { IsValid: true } &&
+                (registrationOnly ? pending.Binding.MatchesRegistration(expectedBinding) : pending.Binding.Matches(expectedBinding))
                 ? pending
                 : null;
         }

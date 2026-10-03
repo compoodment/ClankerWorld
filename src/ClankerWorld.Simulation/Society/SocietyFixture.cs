@@ -480,7 +480,7 @@ public static partial class SocietyFixture
         };
         next = RemoveRelationshipProjection(next, revoked,
             relationship.Type == SocietyRelationshipType.Caregiver && relationship.State == SocietyRelationshipState.Accepted);
-        if (revoked.Type == SocietyRelationshipType.Partnership)
+        if (revoked.Type == SocietyRelationshipType.Partnership && relationship.State == SocietyRelationshipState.Accepted)
             next = SplitPartnershipFamilyUnit(next, revoked);
         return Commit(next, "relationship_revoked", $"{relationshipId}:{actor}", relationshipId);
     }

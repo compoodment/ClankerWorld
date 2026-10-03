@@ -386,7 +386,7 @@ public static class WeatherRules
         }
         else if (climate is ClimateZone.Cold or ClimateZone.Polar)
         {
-            var shifted = rainWeight * (climate == ClimateZone.Polar ? 4 : 2) / 5;
+            var shifted = (int)((long)rainWeight * (climate == ClimateZone.Polar ? 4 : 2) / 5);
             rainWeight -= shifted;
             snowWeight += shifted;
         }

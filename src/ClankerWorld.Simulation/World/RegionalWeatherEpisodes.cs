@@ -52,7 +52,10 @@ public static class RegionalWeatherRules
         {
             if (tick < previous.EndsAt) return previous;
             var season = WorldCalendarRules.FromTick(tick, state.Config).Season;
-            var weights = WeatherRules.RegionalWeights(season, state.Config, previous.Y, regions.Rows, previous.Climate);
+            // Valid base totals fit in int, but persistence can exceed that
+            // limit before storm cooldown combines weights into Cloudy.
+            var weights = WeatherRules.RegionalWeights(season, state.Config, previous.Y, regions.Rows, previous.Climate)
+                .Select(weight => (long)weight).ToArray();
             // A conservative wet-weight reduction pays for the modest neighbor
             // and persistence bonuses. Distribution evidence accompanies this prototype.
             foreach (var wet in new[] { WeatherKind.Rain, WeatherKind.Storm, WeatherKind.Snow })
@@ -73,7 +76,7 @@ public static class RegionalWeatherRules
                 weights[(int)WeatherKind.Rain] += bonus;
                 weights[(int)WeatherKind.Clear] -= bonus;
             }
-            if (previous.Weather != WeatherKind.Storm && weights[(int)previous.Weather] <= int.MaxValue - 3 * weightScale)
+            if (previous.Weather != WeatherKind.Storm)
                 weights[(int)previous.Weather] += 3 * weightScale;
             if (tick < previous.SevereAllowedAt || state.Config.TicksPerDay < 2)
             {
@@ -81,7 +84,7 @@ public static class RegionalWeatherRules
                 weights[(int)WeatherKind.Storm] = 0;
             }
             var random = Pcg32XshRrV1.Create(state.WorldSeed, FormattableString.Invariant($"weather/episode:{tick}/region:{previous.X},{previous.Y}/choice"));
-            var roll = (long)random.NextUInt() % weights.Sum(weight => (long)weight);
+            var roll = (long)random.NextUInt() % weights.Sum();
             var selected = WeatherKind.Clear;
             foreach (var weather in Enum.GetValues<WeatherKind>())
             {
