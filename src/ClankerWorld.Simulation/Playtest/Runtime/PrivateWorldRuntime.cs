@@ -20,7 +20,7 @@ namespace ClankerWorld.Simulation.Playtest;
 /// </summary>
 public sealed partial class PrivateWorldRuntime : IDisposable
 {
-    public const int StateSchemaVersion = 56;
+    public const int StateSchemaVersion = 57;
     // Founded Towns save laws, protected government changes and the mayor's office from this schema.
     public const int TownGovernmentSchemaVersion = 55;
     public const int ObserverGuidanceSchemaVersion = 41;
@@ -324,6 +324,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         runtime.conversations = state.Conversations!.ToList();
         runtime.conversationBudgets = state.ConversationBudgets!.ToList();
         runtime.businessTrades = state.BusinessTrades!.ToList();
+        runtime.toolMakingRequests = state.ToolMakingRequests!.ToList();
         runtime.ApplyBridgeDecks();
         runtime.assetReservations = WorldAssetReservationLedger.Restore(state.AssetReservations);
         runtime.survivalState = state.Survival;
@@ -483,7 +484,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         conversationBudgets.OrderBy(item => item.AgentId, StringComparer.Ordinal).ToArray(),
         TownLandTitles, HouseholdLandUseRights, HouseholdLandUseRequests, BusinessTrades, continuity,
         orderCancellations.Values.OrderBy(item => item.Receipt.WorldTick)
-            .ThenBy(item => item.IdempotencyKey, StringComparer.Ordinal).ToArray());
+            .ThenBy(item => item.IdempotencyKey, StringComparer.Ordinal).ToArray(), ToolMakingRequests);
 
     private void AppendEvent(string kind, string detail, GridPoint? eventPosition = null)
     {

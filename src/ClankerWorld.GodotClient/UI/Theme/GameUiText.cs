@@ -55,6 +55,19 @@ public static class GameUiText
     /// <summary>The ellipsis character, written as an escape so searches for it find only mistakes.</summary>
     public const string Ellipsis = "\u2026";
 
+    public static string ToolMakingRequestStatus(string status) => status switch
+    {
+        "requested" => "Asked the household · no payment taken",
+        "accepted" => "Household accepted · making from its own supplies",
+        "ready" => "Tool ready · payment still to be agreed",
+        "offered" => "Exchange offered · both traders must meet here",
+        "fulfilled" => "Purchased through the agreed exchange",
+        "refused" => "Household refused · nothing taken",
+        "withdrawn" => "Request withdrawn · goods remain household property",
+        "interrupted" => "Request stopped · goods keep their owners",
+        _ => "Status unavailable",
+    };
+
     public static string ItemName(string kind) => kind switch
     {
         "storage_pot" => "Storage pot",
@@ -255,6 +268,8 @@ public static class GameUiText
             "council_policy_adopted" or "settlement_trade_completed" or
             "business_trade_offered" or "business_trade_completed" or "business_trade_cancelled" or
             "store_stock_collected" or "store_stock_delivered" or "household_delivery_recovered" or
+            "tool_request_placed" or "tool_request_accepted" or "tool_request_refused" or "tool_request_withdrawn" or
+            "tool_request_ready" or "tool_request_completed" or "tool_request_interrupted" or
             "ornament_worn" or "ornament_removed" or "ornament_given" or
             "inhabitant_building_proposed" or "instruction_not_understood" or "settlement_founded" or "town_founding_started" or
             "town_civic_council" or "town_civic_election" or "town_civic_runoff" or "town_civic_proposal" or "town_civic_result" or "town_civic_cancelled" or
@@ -318,6 +333,18 @@ public static class GameUiText
     /// </summary>
     public static string ActivityPhrase(string? candidateId, string? summary)
     {
+        if (candidateId?.StartsWith("tool_request_", StringComparison.Ordinal) == true)
+            return candidateId.Split(':', 2)[0] switch
+            {
+                "tool_request_place" => "asking the Blacksmith to make a tool",
+                "tool_request_visit" => "visiting the Blacksmith to discuss a tool",
+                "tool_request_accept" => "agreeing to make a tool",
+                "tool_request_refuse" => "turning down a tool request",
+                "tool_request_withdraw" => "withdrawing a tool request",
+                "tool_request_collect" => "discussing payment for a finished tool",
+                "tool_request_work" => "working on a requested tool",
+                _ => "considering a tool request",
+            };
         if (candidateId?.StartsWith("wear_ornament:", StringComparison.Ordinal) == true) return "putting on an ornament";
         if (candidateId == "remove_ornament") return "taking off an ornament";
         if (candidateId?.StartsWith("gift_ornament:", StringComparison.Ordinal) == true) return "giving an ornament";

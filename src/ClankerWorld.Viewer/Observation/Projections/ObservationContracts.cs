@@ -166,6 +166,7 @@ public sealed record ViewerInhabitant(
     public ViewerSurvival? Survival { get; init; }
     public ViewerEquipment? Equipment { get; init; }
     public string? MedicalCareNote { get; init; }
+    public string? ToolMakingRequestNote { get; init; }
     public ViewerLesson? Lesson { get; init; }
     public ViewerProficiency? Proficiency { get; init; }
     public IReadOnlyList<ViewerSkill> Skills { get; init; } = [];
@@ -316,8 +317,12 @@ public sealed record ViewerPlacedBuilding(
     bool IsOvercrowded = false)
 {
     public IReadOnlyList<ViewerBusinessTrade> Trades { get; init; } = [];
+    public IReadOnlyList<ViewerToolMakingRequest> ToolMakingRequests { get; init; } = [];
     public bool AllowsHouseholdOwner { get; init; }
 }
+
+public sealed record ViewerToolMakingRequest(string Id, string RequesterName, string RecipeId,
+    string RecipeName, string ItemKind, string Status, string? Blocker, string? OfferId = null);
 
 public sealed record ViewerBusinessTrade(string OfferId, string BuyerName, string GoodsKind, int GoodsQuantity,
     string PaymentKind, int PaymentQuantity, string Status, string? CancellationReason);

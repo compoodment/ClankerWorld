@@ -1140,9 +1140,38 @@ Store stocking also keeps each adult's best usable work tool. Optional shelf
 restocking waits behind gathering materials needed by household work.
 Rates, the eight-unit shelf target and four-unit carried loads are provisional.
 Blacksmiths can sell real refined iron for another household's tool work.
-Market stalls, tool orders and meals remain tracked in #564 and its domain
+Market stalls and meals remain tracked in #564 and its domain
 issues; currency remains later work. The Clinic sells actual medicine
 and bandages through the same inventory and physical business authority.
+
+### Blacksmith tool-making requests
+
+A tool-making request records bounded demand for an existing Blacksmith recipe.
+A customer can have one active request; the world keeps up to 32 active requests
+and 32 terminal records. Placing, accepting, refusing or withdrawing one requires
+a fresh accepted personal-model choice. Jev, fallback, repeating intentions and
+owner orders cannot make those commitments. Routine supply and already accepted
+production continue through the existing household project machinery.
+
+The accepted worker produces with actual household-owned inputs at the named
+Blacksmith and its normal output-space reservations. The finished tool remains
+household property. The request references the real production job and output;
+it creates no future inventory, advance payment or exclusive customer title.
+An eventual quote uses the existing completed-goods business barter offer and
+its acceptance, meeting, stock-room and exact transfer checks. Withdrawal or
+interruption does not undo work or change the owners of materials and goods.
+A request stops when the customer or the shop becomes unavailable, when no
+adult is left in the selling household, or when the customer joins that
+household. If the worker leaves, the request stops; a housemate may still
+resume the paused job as ordinary household work.
+
+The observation projects at most eight requests per actual building, preferring
+active requests and recent transitions. The relevant customer or household
+member gets a scoped note of at most 256 characters; public blockers are at most
+160. Notes expose request progress, never unrelated private stock or raw model
+dialogue: the worker's own errands and storage problems appear only as "still
+preparing" or "waiting for a work site". Owner cards show the requester, existing recipe and current blocker;
+the actual building supplies its name.
 
 **Clinic supplies and illness care** use the normal household building,
 workstation supply, ecology and recipe paths. `clankerworld-care-v1` adds a

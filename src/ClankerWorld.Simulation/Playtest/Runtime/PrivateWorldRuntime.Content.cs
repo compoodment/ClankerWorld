@@ -406,13 +406,14 @@ public sealed partial class PrivateWorldRuntime
                 WorldTick,
                 completionTick,
                 WorldProductionJobState.Running,
-                reservationIds.ToArray(), knife?.ToolLotId)
+                reservationIds.ToArray(), knife?.ToolLotId, ToolMakingRequestJobFor(normalizedWorkerId, recipe, normalizedBuildingId))
             { OwnerId = productionOwner };
             worldSimulation = new WorldContentSimulationState(
                 worldSimulation.Buildings,
                 worldSimulation.ProductionJobs.Append(job).OrderBy(item => item.JobId, StringComparer.Ordinal).ToArray(),
                 checked(worldSimulation.NextProductionJobSequence + 1),
                 worldSimulation.CropBuilds, worldSimulation.BuildingExpansions, worldSimulation.GuestInvitations);
+            BindToolMakingJob(job);
             if (knife is not null)
                 checkpointSchemaVersion = StateSchemaVersion;
             AppendEvent(eventKind,
@@ -432,6 +433,11 @@ public sealed partial class PrivateWorldRuntime
         try
         {
             var manifest = GetContentManifest(packageId);
+            var packageRecipes = manifest.Definitions.Where(definition => definition.Kind == RecipeDefinition.SchemaKind)
+                .Select(definition => definition.CanonicalId(manifest.PackageDigest)).ToHashSet(StringComparer.Ordinal);
+            if (toolMakingRequests.Any(request => !ToolMakingRequestRules.IsTerminal(request.Status) &&
+                    packageRecipes.Contains(request.RecipeId)))
+                throw new InvalidOperationException("Content referenced by active tool requests requires an explicit migration before removal.");
             var remainingSimulation = WorldContentSimulationRules.RemovePackage(worldSimulation, manifest.PackageDigest);
             if (inhabitants.Values.Any(person => person.Project is { } project &&
                 (project.CandidateId.StartsWith($"build:building:{manifest.PackageDigest}/", StringComparison.Ordinal) ||

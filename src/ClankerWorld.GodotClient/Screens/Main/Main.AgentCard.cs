@@ -657,6 +657,8 @@ public partial class Main
             .Select(factor => factor.Detail));
         if (!isDeceased && !string.IsNullOrWhiteSpace(inhabitant.MedicalCareNote))
             details.Add(inhabitant.MedicalCareNote);
+        if (!isDeceased && !string.IsNullOrWhiteSpace(inhabitant.ToolMakingRequestNote))
+            details.Add(inhabitant.ToolMakingRequestNote);
         if (!isDeceased && inhabitant.Equipment is { } equipment)
         {
             details.Add($"Cargo: {equipment.CarriedQuantity}/{equipment.Capacity}" +

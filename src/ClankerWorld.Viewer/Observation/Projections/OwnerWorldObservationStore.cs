@@ -584,6 +584,7 @@ public sealed class OwnerWorldObservationStore
                     residentCapacity?.IsOvercrowded ?? false)
                     {
                         Trades = BusinessTradesAt(state, item.InstanceId),
+                        ToolMakingRequests = ToolMakingRequestsAt(state, item.InstanceId),
                         AllowsHouseholdOwner = definition?.Tags.Any(HouseholdBuildingKinds.IsKindTag) == true,
                     };
                 })
@@ -866,6 +867,8 @@ public sealed class OwnerWorldObservationStore
                     inventory.Any(item => item.Kind == "tool" && item.Quantity > 0), survival.NutritionBasisPoints, survival.LastMealKind) : null,
             Equipment = EquipmentFor(state, physical),
             MedicalCareNote = inhabitant.Status == SocietyInhabitantStatus.Active ? MedicalCareRules.Note(physical) : null,
+            ToolMakingRequestNote = inhabitant.Status == SocietyInhabitantStatus.Active
+                ? ToolMakingRequestRules.Note(state.ToolMakingRequests ?? [], inhabitant.Id, inhabitant.HouseholdId) : null,
             Lesson = physical.Lesson is { } lesson ? new ViewerLesson(
                 state.Society.Society.GetInhabitant(lesson.TeacherId).Name, lesson.Skill.ToString().ToLowerInvariant(),
                 lesson.Stage, lesson.Progress, 20) : null,
@@ -904,6 +907,16 @@ public sealed class OwnerWorldObservationStore
         state.Continuity?.Couples.Any(couple => couple.DeadlineTick <= state.Society.Society.WorldTick &&
             (couple.FirstPartnerId == owner && couple.SecondPartnerId == partner ||
              couple.FirstPartnerId == partner && couple.SecondPartnerId == owner)) == true;
+
+    private static ViewerToolMakingRequest[] ToolMakingRequestsAt(PrivateWorldRuntimeState state, string building) =>
+        (state.ToolMakingRequests ?? []).Where(request => request.BuildingInstanceId == building)
+            .OrderBy(request => ToolMakingRequestRules.IsTerminal(request.Status))
+            .ThenByDescending(request => request.LastTransitionTick).ThenBy(request => request.Id, StringComparer.Ordinal).Take(8)
+            .Select(request => new ViewerToolMakingRequest(request.Id,
+                state.Society.Society.GetInhabitant(request.RequesterId).Name, request.RecipeId,
+                state.WorldContent?.Recipes.FirstOrDefault(recipe => recipe.CanonicalId == request.RecipeId)?.DisplayName
+                    ?? request.ItemKind.Replace('_', ' '),
+                request.ItemKind, request.Status.ToString().ToLowerInvariant(), request.Blocker, request.OfferId)).ToArray();
     private static ViewerBusinessTrade[] BusinessTradesAt(PrivateWorldRuntimeState state, string buildingId) =>
         (state.BusinessTrades ?? []).Where(trade => trade.BuildingInstanceId == buildingId)
             .OrderByDescending(trade => state.Society.Society.Inventory.GetOffer(trade.OfferId).State == DirectBarterState.Open)
