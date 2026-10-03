@@ -72,7 +72,7 @@ public sealed partial class PrivateWorldRuntime
         var text = string.Create(CultureInfo.InvariantCulture,
             $"Claim {tiles!.Length} land tiles adjoining {town.Name}, starting at ({first.X}, {first.Y}).");
         return TownGovernanceRules.SubmitProposal(state, town.Id, actor, "land_claim", null, text,
-            "council:" + state.Revision, TownAdults(town), WorldTick, CivicDay, tiles);
+            "council:" + state.Revision, TownAdults(town), WorldTick, CivicDay, landClaimTiles: tiles);
     }
 
     private (TownRuntimeState Town, TownGovernanceState Governance) ApplyApprovedTownLandClaims(

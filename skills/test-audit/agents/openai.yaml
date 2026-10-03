@@ -1,0 +1,4 @@
+interface:
+  display_name: "Test audit"
+  short_description: "Find and remove redundant ClankerWorld tests with coverage proof"
+  default_prompt: "Use $test-audit to review ClankerWorld tests and remove redundant cases while keeping independent contracts and measured coverage."

@@ -140,7 +140,7 @@ internal static class PrivateWorldInstructionOrderParser
             if (action == "seek_food" && hasExplicitQuantity)
                 return null;
 
-            var subject = TryReadFoodSubject();
+            var subject = TryReadFoodSubject(action == "consume_food");
             if (!subject.Present && (action != "consume_food" || hasExplicitQuantity))
                 return null;
 
@@ -261,7 +261,7 @@ internal static class PrivateWorldInstructionOrderParser
             return true;
         }
 
-        private FoodSubject TryReadFoodSubject()
+        private FoodSubject TryReadFoodSubject(bool includeCookedFood)
         {
             var subjectStart = position;
             if (ReadWord("the") || ReadWord("a") || ReadWord("an") || ReadWord("some"))
@@ -273,7 +273,7 @@ internal static class PrivateWorldInstructionOrderParser
                 }
             }
 
-            var category = ReadFoodCategory();
+            var category = ReadFoodCategory(includeCookedFood);
             var resource = MatchResourceAlias(position);
             if (resource.Present && (category.TokensConsumed == 0 ||
                     resource.TokensConsumed > category.TokensConsumed))
@@ -300,12 +300,28 @@ internal static class PrivateWorldInstructionOrderParser
             return default;
         }
 
-        private FoodSubject ReadFoodCategory()
+        private FoodSubject ReadFoodCategory(bool includeCookedFood)
         {
             if (position >= tokens.Count || tokens[position].Kind != TokenKind.Word)
                 return default;
 
             var word = tokens[position].Value;
+            if (includeCookedFood)
+            {
+                if (position + 1 < tokens.Count)
+                {
+                    if (word is "berry" or "fruit" && IsWord(position + 1, "porridge"))
+                        return new FoodSubject(true, word + "_porridge", null, 2);
+                    if (word is "simple" or "restaurant" && IsWord(position + 1, "meal"))
+                        return new FoodSubject(true, word + "_meal", null, 2);
+                    if (word == "vegetable" && IsWord(position + 1, "stew"))
+                        return new FoodSubject(true, "stew", null, 2);
+                    if (word == "cultivated" && IsWord(position + 1, "greens"))
+                        return new FoodSubject(true, "cultivated_greens", null, 2);
+                }
+                if (word is "porridge" or "bread" or "stew")
+                    return new FoodSubject(true, word, null, 1);
+            }
             if (word is "berry" or "berries")
                 return new FoodSubject(true, "berries", null, 1);
             if (word == "fruit")

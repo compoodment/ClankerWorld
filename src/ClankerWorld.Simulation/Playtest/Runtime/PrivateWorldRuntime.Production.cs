@@ -165,6 +165,10 @@ public sealed partial class PrivateWorldRuntime
         return false;
     }
 
+    private static bool IsGenericFoodRecipe(RecipeDefinition recipe) =>
+        recipe.Inputs.Any(input => input.ResourceId == "food") &&
+        recipe.Outputs.Any(output => output.ResourceId == "food");
+
     private bool HasAvailableQuantities(IReadOnlyList<ContentQuantity> quantities, string? ownerId = null)
     {
         var inventory = society.Checkpoint.Inventory;
@@ -353,6 +357,20 @@ public sealed partial class PrivateWorldRuntime
         }
 
         return current;
+    }
+
+    private const string MissingHouseholdIngredientsPrefix = "The household building needs ";
+
+    private static bool IsIngredientBlocker(string? blocker) =>
+        blocker == "Waiting for ingredients at this household building" ||
+        blocker?.StartsWith(MissingHouseholdIngredientsPrefix, StringComparison.Ordinal) == true;
+
+    private string MissingProductionIngredients(RecipeDefinition recipe, string owner, string buildingId)
+    {
+        var missing = recipe.Inputs.First(input => !HasIngredientsAtBuilding([input], owner, buildingId));
+        var available = society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == owner &&
+                lot.StorageBuildingId == buildingId && lot.ItemKind == missing.ResourceId).Sum(AvailableLotQuantity);
+        return $"{MissingHouseholdIngredientsPrefix}{missing.Amount - available} {missing.ResourceId.Replace('_', ' ')} in its on-site stock. Bring it here before starting work.";
     }
 
     private bool HasIngredientsAtBuilding(IReadOnlyList<ContentQuantity> inputs,

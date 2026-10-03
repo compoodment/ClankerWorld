@@ -267,7 +267,7 @@ public sealed class BuildingExpansionTests
             restored.Society.Inventory.GetReservation(id).State));
         Assert.Equal(initial.Society.Society.Inventory.Lots.Where(lot => lot.ItemKind == "wood").Sum(lot => lot.Quantity) - 5,
             restored.Society.Inventory.Lots.Where(lot => lot.ItemKind == "wood").Sum(lot => lot.Quantity));
-        Assert.All(initial.Society.Society.Inventory.Lots.Where(lot => lot.StorageBuildingId == building.InstanceId), lot =>
+        Assert.All(initial.Society.Society.Inventory.Lots.Where(lot => lot.StorageBuildingId == building.InstanceId && lot.ItemKind != "potatoes"), lot =>
         {
             var actual = restored.Society.Inventory.GetLot(lot.Id);
             Assert.Equal(lot.OwnerId, actual.OwnerId);
@@ -1045,6 +1045,8 @@ public sealed class BuildingExpansionTests
         var inventory = state.Society.Society.Inventory;
         inventory = InventoryFixture.AddLot(inventory, "expansion-wood", "wood", building.HouseholdId ?? building.TownId!,
             building.HouseholdId is null ? 210 : householdWood, storageBuildingId: building.InstanceId);
+        if (building.HouseholdId is not null)
+            inventory = InventoryFixture.AddLot(inventory, "expansion-potatoes", "potatoes", building.HouseholdId, 2, storageBuildingId: building.InstanceId);
         if (building.HouseholdId is null)
             inventory = InventoryFixture.AddLot(inventory, "expansion-stone", "stone", building.TownId!, 8, storageBuildingId: building.InstanceId);
         var probeInventory = inventory;

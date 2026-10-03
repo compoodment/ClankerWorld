@@ -18,11 +18,12 @@ public static partial class TownGovernanceValidation
             p.Status == SocietyInhabitantStatus.Active && p.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder)).ToHashSet(StringComparer.Ordinal);
         if (state.Members is null || state.Candidates is null || state.Proposals is null ||
             state.ElectionHistory is null || state.Notices is null || state.Knowledge is null ||
-            state.Form is not ("all_adult" or "representative") || state.Fallback is not ("initial" or "none" or "demographic" or "candidates") ||
+            state.Form is not ("all_adult" or "representative" or "leader") || state.Fallback is not ("initial" or "none" or "demographic" or "candidates" or "arrangement") ||
             state.Revision < 0 || state.Sequence < 0 || state.RetryTick < 0 || state.RetryCircumstances is null ||
             state.RetryCircumstances.Length > 64 || !Unique(state.Members) || state.Members.Any(id => !adults.Contains(id)) ||
             state.Form == "all_adult" && !adults.SetEquals(state.Members) ||
             state.Form == "representative" && (state.Members.Count > TownGovernanceRules.Seats || state.TermEndTick is null) ||
+            state.Form == "leader" && (state.Members.Count != 1 || state.TermEndTick is not null) ||
             state.TermEndTick is < 0 || state.Candidates.Any(c => c is null || !adults.Contains(c.AgentId) ||
                 !c.FullTerm && c.RemainderTermEndTick is null || c.RemainderTermEndTick is < 0) ||
             !Unique(state.Candidates.Select(c => c.AgentId)) || state.Proposals.Any(p => p is null) ||
@@ -89,7 +90,8 @@ public static partial class TownGovernanceValidation
         {
             var notice = state.Notices[index];
             if (notice.Id != "notice:" + (index + 1).ToString(CultureInfo.InvariantCulture) || string.IsNullOrWhiteSpace(notice.SubjectId) ||
-                notice.Kind is not ("council" or "candidate" or "nomination" or "election" or "runoff" or "result" or "proposal" or "cancelled") ||
+                notice.Kind is not ("council" or "candidate" or "nomination" or "election" or "runoff" or "result" or "proposal" or "cancelled" or
+                    "law" or "government" or "mayor") ||
                 string.IsNullOrWhiteSpace(notice.Text) || notice.Text.Length > 32768 || notice.PostedTick < 0 || notice.PostedTick > tick)
                 throw new InvalidDataException("A saved Town civic notice is invalid.");
         }

@@ -251,6 +251,7 @@ public sealed class WorldSelectionCoordinator(
                 MapLayersDigest = MapLayerManifestCodec.Digest(map),
                 Coverage = selection.Selected,
                 Candidates = selection.Candidates,
+                FailedCandidates = selection.FailedCandidates,
             };
         }
     }

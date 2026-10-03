@@ -115,7 +115,7 @@ public sealed class TownLandClaimTests
 
         TownGovernanceState Submit(TownGovernanceState governance, GridPoint[] tiles) =>
             TownGovernanceRules.SubmitProposal(governance, town.Id, town.ResidentIds[0], "land_claim", null,
-                "Claim adjoining land.", "same", town.ResidentIds, 0, initial.WorldSystems!.Config.TicksPerDay, tiles);
+                "Claim adjoining land.", "same", town.ResidentIds, 0, initial.WorldSystems!.Config.TicksPerDay, landClaimTiles: tiles);
     }
 
     [Fact]
@@ -146,11 +146,11 @@ public sealed class TownLandClaimTests
             proposal.DeadlineTick, initial.WorldSystems!.Config.TicksPerDay);
         Assert.Equal("rejected", governance.Proposals[0].Status);
         Assert.Throws<InvalidOperationException>(() => TownGovernanceRules.SubmitProposal(town.Governance!, town.Id,
-            "outsider", "land_claim", null, "Claim adjoining land.", "same", town.ResidentIds, 0, 10, plot));
+            "outsider", "land_claim", null, "Claim adjoining land.", "same", town.ResidentIds, 0, 10, landClaimTiles: plot));
 
         TownGovernanceState Submit(TownGovernanceState state, GridPoint[] tiles) =>
             TownGovernanceRules.SubmitProposal(state, town.Id, town.ResidentIds[0], "land_claim", null,
-                "Claim adjoining land.", "same", town.ResidentIds, 0, initial.WorldSystems!.Config.TicksPerDay, tiles);
+                "Claim adjoining land.", "same", town.ResidentIds, 0, initial.WorldSystems!.Config.TicksPerDay, landClaimTiles: tiles);
     }
 
     [Fact]

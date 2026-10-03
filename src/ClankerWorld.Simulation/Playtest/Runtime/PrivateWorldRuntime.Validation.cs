@@ -19,6 +19,7 @@ public sealed partial class PrivateWorldRuntime
         ValidateBeliefEventSources(society.Checkpoint.Beliefs ?? [], events, eventHistoryFloor);
         society.Validate();
         ValidateBusinessTrades(BusinessTrades, society.Checkpoint, map, WorldTick);
+        ValidateToolMakingRequests(ToolMakingRequests, worldSimulation, worldContent, society.Checkpoint, inhabitants.Values, BusinessTrades, WorldTick);
         ValidateMedicalCare(inhabitants.Values, deceasedInhabitants.Values, society.Checkpoint);
         contentRegistry.Validate();
         worldContent.Validate();
@@ -32,7 +33,7 @@ public sealed partial class PrivateWorldRuntime
         WorldContentSimulationRules.Validate(worldSimulation, worldContent, map, WorldTick);
         ValidateBuildingExpansionState(worldSimulation, worldContent, society.Checkpoint, map, checkpointSchemaVersion);
         ValidatePhysicalInventoryLocations(society.Checkpoint.Inventory, worldSimulation, worldContent,
-            society.Checkpoint.Inhabitants, map);
+            society.Checkpoint.Inhabitants, map, society.Checkpoint.Estates);
         ValidateFarmFields(fields.ToArray(), map, worldSeed, society.Checkpoint, worldSimulation, worldContent, RoadAndBridgeTiles().ToArray());
         if (worldSimulation.Buildings.Any(building => building.HouseholdId is { } householdId &&
             !society.Checkpoint.Households.Any(household => household.Id == householdId)))
@@ -87,14 +88,18 @@ public sealed partial class PrivateWorldRuntime
         TownLandRightsRules.ValidateRecords(map, WorldTick, towns, townLandTitles,
             householdLandUseRights, householdLandUseRequests, society.Checkpoint);
         foreach (var town in towns)
+        {
             TownGovernanceValidation.Validate(town, society.Checkpoint, worldSystems.Config.TicksPerDay);
+            TownGovernmentValidation.Validate(town, society.Checkpoint, townLandTitles, worldSystems.Config.TicksPerDay);
+        }
+        ValidateTownAdmissions(towns, society.Checkpoint, checkpointSchemaVersion);
         ValidateRoads(RoadTiles, map, founderSetup);
         ValidateBridges(Bridges, bridgeTraffic, map, RoadTiles, worldSimulation, worldContent,
             society.Checkpoint, inhabitants.Values);
         if (!RiverBridgeRules.SameDecks(map.BridgeDecks, RiverBridgeRules.Decks(bridges)))
             throw new InvalidDataException("The passable bridge decks do not match the saved bridges.");
         ValidatePlantedTrees();
-        ValidateDeceasedArchive(deceasedInhabitants.Values, society.Checkpoint, map, bridges, checkpointSchemaVersion);
+        ValidateDeceasedArchive(deceasedInhabitants.Values, society.Checkpoint, map, bridges, checkpointSchemaVersion, towns);
         AgentKnowledgeRules.Validate(knowledge, map, society.Checkpoint, WorldTick);
         ValidateHousing(inhabitants.Values, society.Checkpoint, checkpointSchemaVersion);
         ValidateDependentCare(inhabitants.Values, society.Checkpoint, towns, checkpointSchemaVersion);
@@ -242,11 +247,24 @@ public sealed partial class PrivateWorldRuntime
 
     private static void ValidatePhysicalInventoryLocations(InventoryCheckpoint inventory,
         WorldContentSimulationState simulation, DeclarativeWorldContentState content,
-        IReadOnlyList<SocietyInhabitant> inhabitants, SeededMap map)
+        IReadOnlyList<SocietyInhabitant> inhabitants, SeededMap map, IReadOnlyList<SocietyEstate> estates)
     {
         var buildings = simulation.Buildings.ToDictionary(item => item.InstanceId, StringComparer.Ordinal);
         var definitions = content.Buildings.ToDictionary(item => item.CanonicalId, StringComparer.Ordinal);
         var people = inhabitants.ToDictionary(item => item.Id, StringComparer.Ordinal);
+        var heldEstates = estates.Where(estate => !estate.Settled)
+            .ToDictionary(estate => estate.Id, StringComparer.Ordinal);
+        bool HasEstateStorage(InventoryLot lot)
+        {
+            if (heldEstates.TryGetValue(lot.OwnerId, out var estate))
+                return people.ContainsKey(estate.DeceasedId) && (estate.FrozenLots ?? []).Any(frozen =>
+                    frozen.LotId == lot.Id && frozen.ItemKind == lot.ItemKind && frozen.Quantity == lot.Quantity &&
+                    frozen.StorageBuildingId == lot.StorageBuildingId);
+            return lot.OwnerId == "settlement:communal" && estates.Where(item => item.Settled)
+                .SelectMany(item => item.FrozenLots ?? []).Any(frozen =>
+                    (frozen.LotId == lot.Id || frozen.LotId == lot.ProvenanceLotId) && frozen.ItemKind == lot.ItemKind &&
+                    frozen.Quantity >= lot.Quantity && frozen.StorageBuildingId == lot.StorageBuildingId);
+        }
         foreach (var lot in inventory.Lots)
         {
             if (lot.CarrierId is { } carrierId && (!people.TryGetValue(carrierId, out var custodian) ||
@@ -260,7 +278,8 @@ public sealed partial class PrivateWorldRuntime
                 if (!buildings.TryGetValue(storageId, out var storage) ||
                     !definitions.TryGetValue(storage.DefinitionId, out var definition) ||
                     !(storage.HouseholdId == lot.OwnerId && definition.Tags.Any(IsHouseholdBuildingTag) ||
-                      people.ContainsKey(lot.OwnerId) && storage.HouseholdId is not null && definition.Tags.Contains("house", StringComparer.Ordinal) ||
+                      (people.ContainsKey(lot.OwnerId) || HasEstateStorage(lot)) && storage.HouseholdId is not null &&
+                      definition.Tags.Contains("house", StringComparer.Ordinal) ||
                       storage.TownId == lot.OwnerId && storage.HouseholdId is null && !WarehouseFoodKinds.Contains(lot.ItemKind) &&
                       definition.Tags.Contains("warehouse", StringComparer.Ordinal)))
                     throw new InvalidDataException($"Inventory lot '{lot.Id}' has an invalid building storage location.");
@@ -360,13 +379,18 @@ public sealed partial class PrivateWorldRuntime
         ValidateBeliefEventSources(state.Society.Society.Beliefs ?? [], state.Events, state.EventHistoryFloor);
         ValidateConversationState(state, society.Checkpoint);
         ValidateBusinessTrades(state.BusinessTrades, society.Checkpoint, state.Map, society.Checkpoint.WorldTick);
+        ValidateToolMakingRequests(state.ToolMakingRequests, state.WorldSimulation, state.WorldContent, society.Checkpoint, state.Inhabitants, state.BusinessTrades!, society.Checkpoint.WorldTick);
         ValidateMedicalCare(state);
         AgentKnowledgeRules.Validate(state.Knowledge, travelMap, society.Checkpoint,
             society.Checkpoint.WorldTick);
         ValidateSurvival(state);
         ValidateCouncil(state);
         foreach (var town in state.Towns ?? [])
+        {
             TownGovernanceValidation.Validate(town, society.Checkpoint, state.WorldSystems!.Config.TicksPerDay);
+            TownGovernmentValidation.Validate(town, society.Checkpoint, state.TownLandTitles!, state.WorldSystems!.Config.TicksPerDay);
+        }
+        ValidateTownAdmissions(state.Towns ?? [], society.Checkpoint, state.SchemaVersion);
         ValidateLessons(state);
         ValidateHousing(state.Inhabitants, state.Society.Society, state.SchemaVersion);
         ValidateDependentCare(state.Inhabitants, state.Society.Society, state.Towns ?? [], state.SchemaVersion);
@@ -409,7 +433,7 @@ public sealed partial class PrivateWorldRuntime
         ValidateBuildingExpansionState(state.WorldSimulation, state.WorldContent, state.Society.Society,
             state.Map, state.SchemaVersion);
         ValidatePhysicalInventoryLocations(state.Society.Society.Inventory, state.WorldSimulation,
-            state.WorldContent, state.Society.Society.Inhabitants, state.Map);
+            state.WorldContent, state.Society.Society.Inhabitants, state.Map, state.Society.Society.Estates);
         ValidateFarmFields(state.Fields!.ToArray(), state.Map, state.WorldSeed, state.Society.Society,
             state.WorldSimulation, state.WorldContent, state.RoadTiles.Concat(
                 state.Bridges.SelectMany(bridge => bridge.Entrances)).ToArray());
@@ -437,7 +461,8 @@ public sealed partial class PrivateWorldRuntime
         {
             throw new InvalidDataException("The saved private-world populations disagree.");
         }
-        ValidateDeceasedArchive(state.DeceasedInhabitants ?? [], state.Society.Society, travelMap, state.Bridges, state.SchemaVersion);
+        ValidateDeceasedArchive(state.DeceasedInhabitants ?? [], state.Society.Society, travelMap, state.Bridges,
+            state.SchemaVersion, state.Towns ?? []);
         foreach (var inhabitant in state.Inhabitants)
         {
             if (inhabitant.Project is { } project)
@@ -536,7 +561,8 @@ public sealed partial class PrivateWorldRuntime
             order.BlockedReason is { Length: > 256 } || order.BlockedReason?.Any(char.IsControl) == true ||
             order.LastEffectId is { Length: > 512 } || order.LastEffectId?.Any(char.IsControl) == true ||
             order.TargetResourceId is { Length: > 128 } || order.TargetResourceId?.Any(char.IsControl) == true ||
-            order.TargetFoodKind is not (null or "berries" or "fruit" or "wild_greens") ||
+            order.TargetFoodKind is not (null or "berries" or "fruit" or "wild_greens") &&
+                (order.Action != "consume_food" || !IsEdibleFood(order.TargetFoodKind)) ||
             order.TargetPosition is { X: < -10_000_000 or > 10_000_000 } ||
             order.TargetPosition is { Y: < -10_000_000 or > 10_000_000 } ||
             order.WaitForDecisionAfterFailure && (order.Status != "blocked" || order.BlockedReason is null) ||
@@ -631,11 +657,25 @@ public sealed partial class PrivateWorldRuntime
         SocietyCheckpoint society,
         SeededMap map,
         IEnumerable<BridgeState> bridges,
-        int schemaVersion)
+        int schemaVersion,
+        IReadOnlyList<TownRuntimeState> towns)
     {
+        var townIds = towns.Select(item => item.Id).ToHashSet(StringComparer.Ordinal);
+        // A will may name only a Town that exists; the society layer cannot see Towns.
+        if (society.Estates.Any(estate => (estate.WillHeirIds ?? []).Any(id =>
+                id.StartsWith("town:", StringComparison.Ordinal) && !townIds.Contains(id))))
+            throw new InvalidDataException("A will names a Town that does not exist.");
+        if (schemaVersion < WillHeirsSchemaVersion && (archive.Any(person => person.TownId is not null) ||
+            society.Estates.Any(estate => estate.WillHeirIds is not null || estate.FinalWords is not null)))
+            throw new InvalidDataException($"Wills with several heirs or final words require private-world schema {WillHeirsSchemaVersion}.");
         var archived = archive.ToArray();
         if (archived.Select(item => item.InhabitantId).Distinct(StringComparer.Ordinal).Count() != archived.Length)
             throw new InvalidDataException("The deceased inhabitant archive contains duplicate identities.");
+        var archivedById = archived.ToDictionary(item => item.InhabitantId, StringComparer.Ordinal);
+        if (society.Estates.Any(estate => (estate.WillHeirIds ?? []).Any(id =>
+                id.StartsWith("town:", StringComparison.Ordinal) &&
+                (!archivedById.TryGetValue(estate.DeceasedId, out var person) || person.TownId != id))))
+            throw new InvalidDataException("A will names a Town other than the deceased person's Town.");
         var deceasedById = society.Inhabitants
             .Where(item => item.Status == SocietyInhabitantStatus.Dead)
             .ToDictionary(item => item.Id, StringComparer.Ordinal);
@@ -649,7 +689,8 @@ public sealed partial class PrivateWorldRuntime
                 person.AgeAtDeath < 0 || person.LastPhysical.InhabitantId != person.InhabitantId ||
                 !deathMap.IsPassable(person.LastPhysical.Position) ||
                 person.LastPhysical.HungerBasisPoints is < 0 or > 10_000 ||
-                person.LastPhysical.Equipment?.OrnamentLotId is not null)
+                person.LastPhysical.Equipment?.OrnamentLotId is not null ||
+                person.TownId is { } townId && !townIds.Contains(townId))
                 throw new InvalidDataException("The deceased inhabitant archive contains an invalid final state.");
             ValidatePrivateThoughts(person.LastPhysical.RecentThoughts, person.DeathTick);
             AgentIdentityMoment.Validate(person.LastPhysical.IdentityMoments, person.DeathTick, schemaVersion);
