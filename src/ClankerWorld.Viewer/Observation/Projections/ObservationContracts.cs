@@ -240,7 +240,8 @@ public sealed record ViewerInstructionOrder(
     string? TargetResourceId = null,
     int? TargetX = null,
     int? TargetY = null,
-    string? BlockedReason = null);
+    string? BlockedReason = null,
+    string? TargetAgentId = null);
 
 public sealed record ViewerCognitionEvent(long EventId, long WorldTick, string Kind, string Detail);
 
