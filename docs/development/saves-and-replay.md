@@ -125,6 +125,15 @@ with a fixed-length identity, even when the inventory lot identifier is long.
 Replay preserves partial storage, queued work and cancellation without moving
 goods again. Older alpha saves are refused and preserved without migration.
 
+Private-world schema 67 adds `collect_material` orders for the same material
+catalogue. Their source is selected through ordinary personal-goods collection
+rules, so explicit source, food, guardian and coordinate targets are refused. Progress
+counts collected loads or exact item quantities, and a bounded committed-move
+receipt prevents replay from duplicating pickup. Unavailable goods and full
+carrying space preserve the remaining task. Older alpha saves are refused and
+preserved without migration. This number is provisional and must remain above
+the storage-order base schema after integration.
+
 Schema 53 saves wills with several heirs. An estate keeps its household
 default beneficiaries and adds, for an accepted will, the named heirs in order,
 the split, the exact quantity of each frozen lot each heir receives, and any
@@ -495,7 +504,7 @@ from timed displacement even when their dependent lives in another household.
 No older-save migration or backfill is added.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 66. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 67. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus

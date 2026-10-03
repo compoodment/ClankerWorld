@@ -201,6 +201,14 @@ guardian search. The order finishes when they accept primary care; moving the
 child into their House still requires room and a shared Town. This order can be
 queued or cancelled like a food task. It cannot replace an existing guardian.
 
+To pick up personal raw materials, use **Collect my wood**, **Collect three
+clay**, or **Keep collecting stone**. Adults and elders walk to their own goods
+in their current or former household's storage, or where they were dropped.
+They keep ownership and use normal carrying space. A plain request collects
+one load; a quantity stops exactly at that number. Full hands or unavailable
+goods leave the task waiting. These orders cover the same seven raw materials;
+requests naming a particular source or destination are not understood yet.
+
 An instruction the game cannot understand leaves the current order running.
 Unsupported requests, such as "build a house" or "gather cloth," close as not
 understood and appear in the Event Log. Recognized orders follow normal access

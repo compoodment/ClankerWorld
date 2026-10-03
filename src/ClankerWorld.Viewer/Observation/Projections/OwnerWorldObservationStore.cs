@@ -1306,6 +1306,7 @@ public sealed class OwnerWorldObservationStore
         "move_to" => "walking to the ordered tile",
         "harvest_food" => "gathering food",
         "gather_material" => "gathering the ordered material",
+        "collect_material" => "collecting personal materials",
         "store_material" => "storing personal materials in the House",
         "inspect_material_site" => "checking the ordered material site",
         "consume_food" => "eating carried food",

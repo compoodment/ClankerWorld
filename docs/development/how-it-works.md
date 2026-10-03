@@ -91,7 +91,7 @@ unable to save.
 
 `ParseInstructionOrder` reads a complete, bounded grammar for eating food,
 seeking a food source, harvesting food, gathering supported raw materials,
-storing personal raw materials and moving to an exact tile. Harvest and food-source travel orders must name a
+storing or collecting personal raw materials and moving to an exact tile. Harvest and food-source travel orders must name a
 supported kind or resource; explicit resource names must match a complete
 identifier and the requested kind. Unsupported
 objects or operations, mixed tasks, unknown explicit targets, and invalid
@@ -149,6 +149,17 @@ limit the final relocation to the remaining amount. Repetition keeps waiting
 for further personal material or space until cancelled. The destination is the
 agent's current household House; named foreign buildings and map coordinates
 are not recognized storage targets.
+
+Collection orders use `PersonalGoodsAwaitingCollection` and the shared
+`CollectPersonalGoods` action. The actor must own the lot, which cannot be
+carried, reserved in full, promised for delivery or inside another container.
+Storage must belong to the current household or one recorded in that actor's
+departures. Ground lots use normal pickup range. The nearest reachable eligible
+lot is chosen, with stable identity ordering for ties; an explicit source is
+not yet recognized. Physical pickup preserves ownership, condition, provenance
+and reserved portions, with the final quantity capped by carrying space and
+the requested remainder. Only the committed relocation earns progress, using
+a bounded hashed receipt. Former-household collection grants no other access.
 
 A MustDo with no recognized action is closed when it is submitted: it is added
 to the completed instructions with an `instruction_not_understood` event
