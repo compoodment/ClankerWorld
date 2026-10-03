@@ -303,6 +303,27 @@ vote, never a draw. The term lasts twenty days, and a vacancy needs a new electi
 Pausing stops votes, terms and handovers. The page shows officeholders and vacant
 mandates; land hearings and enforcement have not been implemented yet.
 
+An adult resident can propose a named Town Hall on clear Town-titled land, and
+the Council votes through the same process as an ordinary proposal. In
+**World Info → Towns**, its plan shows the site and entrance, exact budget and
+Council result. An approved project also shows delivered materials, construction
+progress and anything blocking it. Council approval supplies no building or
+materials by itself.
+
+Residents must learn the proposal from notices or a nearby relay before helping.
+They carry available Town materials in real loads and work at the approved site.
+If they gather new wood or stone, those goods stay personal until their own model
+freshly chooses to donate them. **Speak → Suggest** may ask an adult to consider
+helping or donating; an Order cannot give away their goods. After completion,
+select the Hall for its project and payment details. Agents read civic notices
+there, with the same nearby learning and relay rules as before. A blocked project
+keeps its materials as Town property and releases unused claims rather than
+building for free. If its site can no longer be used, the Town stops the
+project and the Towns page says why; its leftover materials stay Town
+property where they are. See [What works today](what-works.md#life-work-and-society)
+for this first version's limits and provisional amounts. Its
+[hands-on checklist](../playtest/767-town-projects.md) remains pending.
+
 ## Pause, settings and controls
 
 The pause button pauses or resumes time. **Menu** opens the Pause Menu and keeps

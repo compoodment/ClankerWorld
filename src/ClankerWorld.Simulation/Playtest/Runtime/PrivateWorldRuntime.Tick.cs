@@ -455,6 +455,7 @@ public sealed partial class PrivateWorldRuntime
             StageSiloContent();
             StageTailorContent();
             StageCareContent();
+            StageBuiltInContent(TownHallContent.PackageId, HouseContent.PackageId, TownHallContent.Create, "town_hall_content_staged");
             StageBuiltInContent(KnowledgeContent.PackageId, HouseContent.PackageId, KnowledgeContent.Create, "knowledge_content_staged");
             StageBuiltInContent(BusinessContent.PackageId, HouseContent.PackageId, BusinessContent.Create, "business_content_staged");
             var readyPackages = contentRegistry.GetActivationCandidates(targetTick);
@@ -543,6 +544,7 @@ public sealed partial class PrivateWorldRuntime
             AdvanceSettlementCouncil();
             AdvanceTownGovernance();
             SettleTownAdmissions();
+            MaintainTownProjects();
             MaintainLessons();
             MaintainPartnerships();
             MaintainHousing();
@@ -638,6 +640,7 @@ public sealed partial class PrivateWorldRuntime
             if (deferHosted) ApplySafeRoutinesWhileWaiting(waiting.Except(decisions.Select(item => item.InhabitantId), StringComparer.Ordinal), orderActorsHandledThisTick);
             AdvanceBridgeTraffic();
             SettleGuardianSearches();
+            MaintainTownProjects();
             MaintainToolMakingRequests();
             MaintainKnowledgeWriting();
 

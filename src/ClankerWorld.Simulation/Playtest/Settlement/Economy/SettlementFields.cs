@@ -95,7 +95,7 @@ public sealed partial class PrivateWorldRuntime
 
     private bool FarmableFreeTile(GridPoint position)
     {
-        if (!fertility.CanFarm(position) || fields.Any(field => field.Position == position) ||
+        if (!fertility.CanFarm(position) || fields.Any(field => field.Position == position) || TownProjectProtectedSites().Contains(position) ||
             RoadAndBridgeTiles().Contains(position) || map.CampObjects.Any(item => item.Position == position) ||
             (worldSimulation.BuildingExpansions ?? []).Any(job => (job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused) && ExpansionTiles(job).Contains(position)) ||
             map.Resources.Any(item => item.Position == position)) return false;
