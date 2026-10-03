@@ -160,9 +160,12 @@ internal static class PrivateWorldInstructionOrderParser
             if (action == "repair_equipment" && equipmentKind is null) return null;
             if (IsToolKind(equipmentKind)) action = "repair_tool";
             var materialKind = action is "harvest_food" or "store_material" or "collect_material" ? TryReadMaterialSubject() : null;
-            if (action is "store_material" or "collect_material" && materialKind is null) return null;
+            if (action == "store_material" && materialKind is null) return null;
             if (materialKind is not null && action == "harvest_food") action = "gather_material";
-            var subject = materialKind is null && equipmentKind is null ? TryReadFoodSubject() : default;
+            var subject = materialKind is null && equipmentKind is null
+                ? action == "collect_material" ? TryReadCollectionFoodSubject() : TryReadFoodSubject()
+                : default;
+            if (action == "collect_material" && subject.Present) action = "collect_food";
             if (materialKind is null && equipmentKind is null && !subject.Present && (action != "consume_food" || hasExplicitQuantity))
                 return null;
 
@@ -171,7 +174,7 @@ internal static class PrivateWorldInstructionOrderParser
             GridPoint? targetPosition = null;
             var hasLocation = action switch
             {
-                "collect_material" => TryReadCollectionLocation(ref targetPosition),
+                "collect_material" or "collect_food" => TryReadCollectionLocation(ref targetPosition),
                 "repair_equipment" or "repair_tool" => true,
                 "store_material" => TryReadHomeStorageLocation(),
                 _ => TryReadLocation(action, targetFoodKind, ref targetResourceId, ref targetPosition, materialKind),
@@ -211,6 +214,7 @@ internal static class PrivateWorldInstructionOrderParser
                     "gather_material" => hasExplicitQuantity ? "material_items" : "harvests",
                     "store_material" => hasExplicitQuantity ? "material_items" : "storage_loads",
                     "collect_material" => hasExplicitQuantity ? "material_items" : "collection_loads",
+                    "collect_food" => hasExplicitQuantity ? "food_items" : "collection_loads",
                     "repair_equipment" or "repair_tool" => "repairs",
                     _ => "food_items",
                 },
@@ -437,6 +441,31 @@ internal static class PrivateWorldInstructionOrderParser
             }
 
             return true;
+        }
+
+        private FoodSubject TryReadCollectionFoodSubject()
+        {
+            var start = position;
+            _ = TryReadAnyWord("the", "a", "some");
+            string? kind;
+            if (TryReadAnyWord("berry", "berries")) kind = "berries";
+            else if (ReadWord("fruit")) kind = "fruit";
+            else if (IsWord(position, "wild", "cultivated") && IsWord(position + 1, "greens"))
+            {
+                kind = tokens[position].Value == "wild" ? "wild_greens" : "cultivated_greens";
+                position += 2;
+            }
+            else if (ReadWord("food"))
+            {
+                kind = null;
+                _ = TryReadAnyWord("item", "items", "piece", "pieces", "serving", "servings");
+            }
+            else
+            {
+                position = start;
+                return default;
+            }
+            return new FoodSubject(true, kind, null, position - start);
         }
 
         private FoodSubject TryReadFoodSubject()

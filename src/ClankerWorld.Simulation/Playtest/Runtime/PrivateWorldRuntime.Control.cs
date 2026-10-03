@@ -387,6 +387,7 @@ public sealed partial class PrivateWorldRuntime
         "repair_tool" => "repair your own worn tool",
         "repair_equipment" => "repair your own worn clothing or carrying aid",
         "collect_material" => "collect your own stored or dropped material",
+        "collect_food" => "collect your own stored or dropped food",
         "store_material" => "store your own carried material in your House",
         "gather_material" => "gather the requested material from a natural source",
         _ => null,

@@ -113,7 +113,7 @@ public sealed partial class PrivateWorldCollectionOrderTests
     [InlineData("collect 1.5 wood")]
     [InlineData("collect wood from the Warehouse")]
     [InlineData("collect wood at (1,)")]
-    [InlineData("collect food")]
+    [InlineData("collect gold")]
     [InlineData("collect cloth")]
     [InlineData("collect iron")]
     [InlineData("keep collect wood")]
@@ -129,21 +129,29 @@ public sealed partial class PrivateWorldCollectionOrderTests
     }
 
     [Theory]
-    [InlineData("household-owned")]
-    [InlineData("another-person")]
-    [InlineData("reserved")]
-    [InlineData("promised")]
-    [InlineData("carried")]
-    [InlineData("other-carrier")]
-    [InlineData("foreign-house")]
-    [InlineData("wrong-kind")]
-    public async Task CollectionOrderCannotUseUnavailableGoods(string boundary)
+    [InlineData("household-owned", false)]
+    [InlineData("household-owned", true)]
+    [InlineData("another-person", false)]
+    [InlineData("another-person", true)]
+    [InlineData("reserved", false)]
+    [InlineData("reserved", true)]
+    [InlineData("promised", false)]
+    [InlineData("promised", true)]
+    [InlineData("carried", false)]
+    [InlineData("carried", true)]
+    [InlineData("other-carrier", false)]
+    [InlineData("other-carrier", true)]
+    [InlineData("foreign-house", false)]
+    [InlineData("foreign-house", true)]
+    [InlineData("wrong-kind", false)]
+    [InlineData("wrong-kind", true)]
+    public async Task CollectionOrderCannotUseUnavailableGoods(string boundary, bool food)
     {
         var state = Prepared();
         var actor = Actor(state);
         var other = state.Inhabitants.First(person => person.InhabitantId != actor).InhabitantId;
         var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "collect-boundary",
-            boundary == "wrong-kind" ? "stone" : "wood", boundary == "household-owned" ? Household :
+            boundary == "wrong-kind" ? "stone" : food ? "fruit" : "wood", boundary == "household-owned" ? Household :
             boundary == "another-person" ? other : actor, 2,
             storageBuildingId: boundary is "carried" or "other-carrier" or "promised" ? null :
                 boundary == "foreign-house" ? "first-town-house-b" : House);
@@ -158,11 +166,11 @@ public sealed partial class PrivateWorldCollectionOrderTests
         if (boundary == "reserved")
             inventory = InventoryFixture.Reserve(inventory, "collect-reserved", actor, "collect-boundary", 2, "other_work", 120);
         using var world = Restore(WithInventory(state, inventory));
-        var receipt = Submit(world, actor, "blocked", "collect wood");
+        var receipt = Submit(world, actor, "blocked", food ? "collect food" : "collect wood");
         Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         Assert.Equal("blocked", Order(world, receipt).Status);
         Assert.Equal(0, Order(world, receipt).CompletedUnits);
-        Assert.Contains("No matching personal material", Order(world, receipt).BlockedReason, StringComparison.Ordinal);
+        Assert.Contains(food ? "No matching personal food" : "No matching personal material", Order(world, receipt).BlockedReason, StringComparison.Ordinal);
         Assert.Equal(inventory.GetLot("collect-boundary") with { LastProcessedTick = world.WorldTick }, world.Society.Inventory.GetLot("collect-boundary"));
         Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "personal_goods_collected");
         using var restored = Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState())));
@@ -190,36 +198,42 @@ public sealed partial class PrivateWorldCollectionOrderTests
         world.Validate();
     }
 
-    [Fact]
-    public async Task CollectionOrderPicksUpDroppedGoodsAndPreservesPartialReservations()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CollectionOrderPicksUpDroppedGoodsAndPreservesPartialReservations(bool food)
     {
         var state = Prepared();
+        var kind = food ? "fruit" : "fiber";
         var actor = Actor(state);
         var position = state.Inhabitants.Single(person => person.InhabitantId == actor).Position;
-        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "collect-ground", "fiber", actor, 3,
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "collect-ground", kind, actor, 3,
             groundPosition: new(position.X, position.Y));
         inventory = InventoryFixture.Reserve(inventory, "collect-held", actor, "collect-ground", 1, "other_work", 120);
         using var world = Restore(WithInventory(state, inventory));
-        var receipt = Submit(world, actor, "ground", "collect fiber");
+        var receipt = Submit(world, actor, "ground", $"collect {kind}");
         Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         Assert.Equal("finished", Order(world, receipt).Status);
         Assert.Equal(1, world.Society.Inventory.GetLot("collect-ground").Quantity);
         Assert.NotNull(world.Society.Inventory.GetLot("collect-ground").GroundPosition);
-        Assert.Equal(2, world.Society.Inventory.Lots.Where(lot => lot.ItemKind == "fiber" && lot.OwnerId == actor &&
+        Assert.Equal(2, world.Society.Inventory.Lots.Where(lot => lot.ItemKind == kind && lot.OwnerId == actor &&
             PersonalEquipmentRules.IsCarried(lot, actor)).Sum(lot => lot.Quantity));
         Assert.Equal(InventoryReservationState.Reserved, world.Society.Inventory.Reservations.Single(item => item.Id == "collect-held").State);
         world.Validate();
     }
 
-    [Fact]
-    public async Task CollectionOrderHonorsCarryingSpaceThenResumesItsRemainingQuantity()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CollectionOrderHonorsCarryingSpaceThenResumesItsRemainingQuantity(bool food)
     {
         var state = Prepared();
+        var kind = food ? "fruit" : "wood";
         var actor = Actor(state);
         var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "collect-fill", "stone", actor, 7);
-        inventory = InventoryFixture.AddLot(inventory, "collect-limited", "wood", actor, 3, storageBuildingId: House);
+        inventory = InventoryFixture.AddLot(inventory, "collect-limited", kind, actor, 3, storageBuildingId: House);
         using var world = Restore(WithInventory(state, inventory));
-        var receipt = Submit(world, actor, "limited", "collect three wood");
+        var receipt = Submit(world, actor, "limited", $"collect three {kind}");
         Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         Assert.Equal(1, Order(world, receipt).CompletedUnits);
         Assert.True((await world.AdvanceOneTickAsync()).Advanced);
@@ -252,10 +266,13 @@ public sealed partial class PrivateWorldCollectionOrderTests
         Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
     }
 
-    [Fact]
-    public async Task CollectionOrderDoesNotGiveChildrenAdultCollectionWork()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CollectionOrderDoesNotGiveChildrenAdultCollectionWork(bool food)
     {
         var state = Prepared();
+        var kind = food ? "fruit" : "wood";
         var actor = Actor(state);
         var checkpoint = state.Society.Society;
         var birth = checkpoint.LifeTickAt(checkpoint.WorldTick) - 4 * checkpoint.Config.TicksPerLifecycleAge;
@@ -281,9 +298,9 @@ public sealed partial class PrivateWorldCollectionOrderTests
                     checkpoint.GetInhabitant(id).AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder)),
             }).ToArray(),
         };
-        state = WithInventory(state, InventoryFixture.AddLot(state.Society.Society.Inventory, "collect-child", "wood", actor, 1, storageBuildingId: House));
+        state = WithInventory(state, InventoryFixture.AddLot(state.Society.Society.Inventory, "collect-child", kind, actor, 1, storageBuildingId: House));
         using var world = Restore(state);
-        var receipt = Submit(world, actor, "child", "collect wood");
+        var receipt = Submit(world, actor, "child", $"collect {kind}");
         Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         Assert.Equal("blocked", Order(world, receipt).Status);
         Assert.Contains("too young", Order(world, receipt).BlockedReason, StringComparison.Ordinal);
@@ -291,35 +308,41 @@ public sealed partial class PrivateWorldCollectionOrderTests
         world.Validate();
     }
 
-    [Fact]
-    public async Task CollectionOrderUsesOnePersonalDecisionAcrossSeveralLoads()
-    {
-        var state = Prepared();
-        var actor = Actor(state);
-        var inventory = state.Society.Society.Inventory;
-        for (var index = 0; index < 3; index++) inventory = InventoryFixture.AddLot(inventory, $"collect-model-{index}", "clay", actor, 1, storageBuildingId: House);
-        var provider = new CollectionChoices(DecisionProviderKind.LargeLanguageModel);
-        using var world = PrivateWorldRuntime.Restore(WithInventory(state, inventory), id => id == actor ? provider : new CollectionChoices());
-        var receipt = Submit(world, actor, "model", "keep collecting clay");
-        for (var tick = 0; tick < 3; tick++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-        Assert.Equal(3, Order(world, receipt).CompletedUnits);
-        var request = Assert.Single(provider.Requests, item => item.OperativeOrderInstructionId == receipt.InstructionId);
-        Assert.Contains(request.ObserverGuidance!, message => message.UnderstoodTask == "collect your own stored or dropped material");
-    }
-
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task CollectionOrderCancelledWhileAModelReplyIsHeldCannotCollectAnotherLoad(bool explicitSource)
+    public async Task CollectionOrderUsesOnePersonalDecisionAcrossSeveralLoads(bool food)
     {
         var state = Prepared();
+        var kind = food ? "fruit" : "clay";
         var actor = Actor(state);
-        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "collect-held-a", "clay", actor, 1, storageBuildingId: House);
-        inventory = InventoryFixture.AddLot(inventory, "collect-held-b", "clay", actor, 1, storageBuildingId: House);
+        var inventory = state.Society.Society.Inventory;
+        for (var index = 0; index < 3; index++) inventory = InventoryFixture.AddLot(inventory, $"collect-model-{index}", kind, actor, 1, storageBuildingId: House);
+        var provider = new CollectionChoices(DecisionProviderKind.LargeLanguageModel);
+        using var world = PrivateWorldRuntime.Restore(WithInventory(state, inventory), id => id == actor ? provider : new CollectionChoices());
+        var receipt = Submit(world, actor, "model", $"keep collecting {kind}");
+        for (var tick = 0; tick < 3; tick++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal(3, Order(world, receipt).CompletedUnits);
+        var request = Assert.Single(provider.Requests, item => item.OperativeOrderInstructionId == receipt.InstructionId);
+        Assert.Contains(request.ObserverGuidance!, message => message.UnderstoodTask == (food ? "collect your own stored or dropped food" : "collect your own stored or dropped material"));
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task CollectionOrderCancelledWhileAModelReplyIsHeldCannotCollectAnotherLoad(bool explicitSource, bool food)
+    {
+        var state = Prepared();
+        var kind = food ? "fruit" : "clay";
+        var actor = Actor(state);
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "collect-held-a", kind, actor, 1, storageBuildingId: House);
+        inventory = InventoryFixture.AddLot(inventory, "collect-held-b", kind, actor, 1, storageBuildingId: House);
         var provider = new CollectionChoices(DecisionProviderKind.LargeLanguageModel, hold: true);
         using var world = PrivateWorldRuntime.Restore(WithInventory(state, inventory), id => id == actor ? provider : new CollectionChoices());
         var source = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == House).Position;
-        var text = "keep collecting clay" + (explicitSource ? $" from ({source.X}, {source.Y})" : "");
+        var text = $"keep collecting {kind}" + (explicitSource ? $" from ({source.X}, {source.Y})" : "");
         var receipt = Submit(world, actor, "held", text);
         try
         {
@@ -338,21 +361,24 @@ public sealed partial class PrivateWorldCollectionOrderTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task CollectionOrderCannotTreatSurvivalFoodAsACollectedLoad(bool explicitSource)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task CollectionOrderCannotTreatSurvivalFoodAsACollectedLoad(bool explicitSource, bool food)
     {
         var state = Prepared();
+        var kind = food ? "fruit" : "clay";
         var actor = Actor(state);
         var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "collect-urgent-food", "berries", actor, 1);
-        inventory = InventoryFixture.AddLot(inventory, "collect-after-food", "clay", actor, 2, storageBuildingId: House);
+        inventory = InventoryFixture.AddLot(inventory, "collect-after-food", kind, actor, 2, storageBuildingId: House);
         state = WithInventory(state, inventory) with
         {
             Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor ? person with { HungerBasisPoints = 1_000 } : person).ToArray(),
         };
         using var world = Restore(state);
         var source = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == House).Position;
-        var text = "collect clay" + (explicitSource ? $" from ({source.X}, {source.Y})" : "");
+        var text = $"collect {kind}" + (explicitSource ? $" from ({source.X}, {source.Y})" : "");
         var receipt = Submit(world, actor, "survival", text);
         Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         Assert.Equal("interrupted", Order(world, receipt).Status);
@@ -389,14 +415,17 @@ public sealed partial class PrivateWorldCollectionOrderTests
         }
     }
 
-    [Fact]
-    public async Task CollectionOrderRejectsFinishedProgressBeyondTheExactRequestedQuantity()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CollectionOrderRejectsFinishedProgressBeyondTheExactRequestedQuantity(bool food)
     {
         var state = Prepared();
+        var kind = food ? "fruit" : "wood";
         var actor = Actor(state);
-        state = WithInventory(state, InventoryFixture.AddLot(state.Society.Society.Inventory, "collect-exact", "wood", actor, 2, storageBuildingId: House));
+        state = WithInventory(state, InventoryFixture.AddLot(state.Society.Society.Inventory, "collect-exact", kind, actor, 2, storageBuildingId: House));
         using var world = Restore(state);
-        var receipt = Submit(world, actor, "exact", "collect two wood");
+        var receipt = Submit(world, actor, "exact", $"collect two {kind}");
         Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         Assert.Equal("finished", Order(world, receipt).Status);
         var saved = world.ExportState();
@@ -466,7 +495,7 @@ public sealed partial class PrivateWorldCollectionOrderTests
                 await Release.Task;
                 Returned.TrySetResult(true);
             }
-            var selected = request.Observation.Candidates.Any(candidate => candidate.Id == "collect_material") ? "collect_material" : "safe_idle";
+            var selected = request.Observation.Candidates.FirstOrDefault(candidate => candidate.Id is "collect_material" or "collect_food")?.Id ?? "safe_idle";
             return new CognitionDecisionResponse(request.RequestId, request.Observation.InhabitantId,
                 Kind, request.ProviderEpoch, request.Observation.RunEpoch, request.Observation.DecisionGeneration,
                 request.Observation.ObservationDigest, selected, 1, new Dictionary<string, double> { [selected] = 1 });

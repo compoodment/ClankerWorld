@@ -784,6 +784,7 @@ public partial class Main
             "harvest_field" => "Harvesting " + (order.TargetCropKind?.Replace('_', ' ') ?? "household fields"),
             "repair_equipment" or "repair_tool" => "Repairing " + (order.TargetEquipmentKind?.Replace('_', ' ') ?? "equipment"),
             "collect_material" => "Collecting " + (order.TargetMaterialKind?.Replace('_', ' ') ?? "materials"),
+            "collect_food" => "Collecting " + (order.TargetFoodKind?.Replace('_', ' ') ?? "food"),
             "store_material" => "Storing " + (order.TargetMaterialKind?.Replace('_', ' ') ?? "materials"),
             "gather_material" => "Gathering " + (order.TargetMaterialKind?.Replace('_', ' ') ?? "materials"),
             "seek_food" => "Going to a food site",
