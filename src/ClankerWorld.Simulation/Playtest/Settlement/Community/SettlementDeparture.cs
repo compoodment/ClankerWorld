@@ -263,12 +263,7 @@ public sealed partial class PrivateWorldRuntime
         if (society.Checkpoint.GetInhabitant(actor).HouseholdId is { } home && HouseForHousehold(home) is { } house &&
             StorageRoom(house.InstanceId) > 0)
         {
-            foreach (var lot in society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == actor &&
-                         PersonalEquipmentRules.IsCarried(lot, actor) && lot.DeliveryBuildingId is null && lot.ContainerLotId is null &&
-                         // Worn clothing, the carry aid, a worn ornament and a tool under repair stay with the adult.
-                         !PersonalEquipmentRules.IsSelected(inhabitants[actor].Equipment, lot.Id) &&
-                         !IsEdibleFood(lot.ItemKind) && PhysicalUnreservedQuantity(lot) > 0 &&
-                         VesselFits(lot, StorageRoom(house.InstanceId))).OrderBy(lot => lot.Id, StringComparer.Ordinal))
+            foreach (var lot in PersonalStorageLots(actor, house.InstanceId))
                 candidates.Add(new("household_store_personal:" + lot.Id, $"Store your own {lot.ItemKind.Replace('_', ' ')} in your House while keeping personal ownership.", 95));
         }
         foreach (var child in society.Checkpoint.Inhabitants.Where(person => person.Status == SocietyInhabitantStatus.Active &&
@@ -308,17 +303,19 @@ public sealed partial class PrivateWorldRuntime
             if (result.CreatedId is not null) AppendEvent("replacement_care_accepted", $"{actor}|{child}");
             return;
         }
+        if (candidate.StartsWith("household_store_personal:", StringComparison.Ordinal))
+        {
+            StorePersonalGoods(actor, candidate["household_store_personal:".Length..]);
+            return;
+        }
         var collect = candidate.StartsWith("household_collect:", StringComparison.Ordinal);
-        var store = candidate.StartsWith("household_store_personal:", StringComparison.Ordinal);
         var returnBorrowed = candidate.StartsWith("household_return:", StringComparison.Ordinal);
-        if (!collect && !store && !returnBorrowed) return;
-        var lotId = candidate[(collect ? "household_collect:".Length : store ? "household_store_personal:".Length : "household_return:".Length)..];
+        if (!collect && !returnBorrowed) return;
+        var lotId = candidate[(collect ? "household_collect:".Length : "household_return:".Length)..];
         var lot = society.Checkpoint.Inventory.Lots.FirstOrDefault(item => item.Id == lotId);
         if (lot is null) return;
         if (collect && !PersonalGoodsAwaitingCollection(actor).Any(item => item.Id == lotId)) return;
         if (returnBorrowed && !BorrowedGoods(actor).Any(item => item.Id == lotId)) return;
-        if (store && (lot.OwnerId != actor || lot.ContainerLotId is not null || !PersonalEquipmentRules.IsCarried(lot, actor) ||
-                      PersonalEquipmentRules.IsSelected(inhabitants[actor].Equipment, lot.Id))) return;
         var house = collect ? null : HouseForHousehold(returnBorrowed ? lot.OwnerId : HouseholdFor(actor));
         if (!collect && house is null) return;
         var destination = collect ? HouseholdStockPosition(lot) : house!.Position;
@@ -337,7 +334,7 @@ public sealed partial class PrivateWorldRuntime
         ApplyInventoryTransition(inventory => InventoryFixture.Relocate(inventory,
             $"personal:{actor}:{WorldTick}:{lot.Id}", lot.Id, lot.OwnerId, quantity,
             collect ? actor : null, collect ? null : house!.InstanceId));
-        AppendEvent(collect ? "personal_goods_collected" : returnBorrowed ? "borrowed_goods_returned" : "personal_goods_stored",
+        AppendEvent(collect ? "personal_goods_collected" : "borrowed_goods_returned",
             $"{actor}|{lot.ItemKind}|{quantity}|{lot.OwnerId}");
     }
 

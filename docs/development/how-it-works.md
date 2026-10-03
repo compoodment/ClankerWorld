@@ -86,7 +86,8 @@ the same limits a save applies, so an accepted message cannot leave the world
 unable to save.
 
 `ParseInstructionOrder` reads a complete, bounded task grammar for eating food,
-seeking a food source, harvesting food, and gathering supported raw materials.
+seeking a food source, harvesting food, gathering supported raw materials, and
+storing personal raw materials in the current household House.
 Harvest and travel orders must name a supported kind or resource; explicit
 resource names must match a complete identifier and the requested kind. Unsupported
 objects or operations, mixed tasks, unknown explicit targets, and invalid
@@ -106,6 +107,18 @@ inventory, tool-wear and ecology transitions. Only a returned physical harvest
 receipt advances progress. One load is the default; explicit quantities count
 actual output, including a final whole load that exceeds the requested amount.
 Discovery, tool collection and movement never count as harvested goods.
+
+Storage orders reuse the material-kind catalogue and normal personal-storage
+eligibility. `StorePersonalGoods` serves both ordinary choices and orders: it
+walks to the House entrance, then uses `InventoryFixture.Relocate` to preserve
+ownership, condition and provenance. Reserved goods, promised deliveries,
+container contents, food and selected equipment are excluded. Only a committed
+relocation receipt advances the order; walking and survival actions earn no
+storage progress. Default tasks count one stored lot, while explicit quantities
+limit the final relocation to the remaining amount. Repetition keeps waiting
+for further personal material or space until cancelled. The destination is the
+agent's current household House; named foreign buildings and map coordinates
+are not recognized storage targets.
 
 A MustDo with no recognized action is closed when it is submitted: it is added
 to the completed instructions with an `instruction_not_understood` event

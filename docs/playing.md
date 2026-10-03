@@ -144,6 +144,13 @@ their normal tools and carrying space. A named site is checked through travel
 and observation, and an empty or unavailable site leaves the order waiting
 with a reason. These orders are for adults and elders.
 
+To put carried raw materials away, use **Store wood**, **Store five clay in my
+House**, or **Keep storing stone**. The agent walks to its household's House
+and keeps ownership of the goods. A plain request stores one carried lot, up
+to the room available; a quantity stops at that exact number. Missing personal
+materials or a full House leaves the task waiting with a reason. Storage orders
+currently cover the same seven raw materials as gathering, for adults and elders.
+
 An instruction the game cannot understand leaves the current order running.
 Unsupported requests, such as "build a house" or "gather cloth," close as not
 understood and appear in the Event Log. Recognized orders follow normal access

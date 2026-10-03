@@ -108,6 +108,15 @@ material kinds are refused. Queueing, cancellation, discovery and partial
 quantities retain their state across reload. Older alpha saves are refused and
 preserved unchanged; no migration is added.
 
+Private-world schema 54 adds `store_material` orders using the same bounded
+material target. The destination is the current household House, so source,
+food and coordinate target fields are refused. Progress counts storage loads
+or exact item quantities and requires a committed personal-relocation receipt.
+Replay preserves partial storage, queued work and cancellation without moving
+goods again. Older alpha saves are refused and preserved without migration.
+This number is provisional until merge and must remain above the material-order
+base schema after integration.
+
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
 Matching parent assignments are disclosed as agreement; when they differ, the
@@ -366,7 +375,7 @@ blocked-return behavior. These checks use existing timestamps and add no saved
 fields, schema change or migration.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 53. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 54. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus

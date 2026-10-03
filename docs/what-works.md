@@ -179,6 +179,17 @@ nearby observed resources, with ordinary exploration when none is available.
 Unknown explicit sites require travel and observation before gathering. Queue,
 cancellation, urgent survival interruptions and progress survive save/reload.
 
+Adults and elders can also store their own carried raw materials in their
+household's House: "store wood", "store five clay in my House", or "keep storing
+stone". Storage preserves personal ownership. A default task puts away one
+available lot, limited by House space; an explicit quantity counts goods actually
+stored and stops exactly at the requested number. Borrowed, reserved and
+promised delivery goods are unavailable to these orders. Walking earns no
+progress. Missing goods, a missing House, full storage or a blocked route leaves
+the task waiting with a reason. Queueing, cancellation and interrupted progress
+survive reload. Other carrying and storage destinations, farming, cooking,
+crafting, repair and building orders remain part of the unfinished catalogue.
+
 A recognized new order replaces the active and queued orders unless **Queue**
 is selected. **Cancel task** stops a waiting or active order. An instruction
 the game cannot understand preserves the current task and its queue. Explicit
