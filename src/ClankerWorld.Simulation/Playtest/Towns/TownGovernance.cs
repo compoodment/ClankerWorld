@@ -389,7 +389,7 @@ public static class TownGovernanceRules
         return learned.Count == 0 ? state : state with { Knowledge = state.Knowledge.Concat(learned).ToArray() };
     }
 
-    /// <summary>An approval for #602 to consume; this record itself grants no membership or goods access.</summary>
+    /// <summary>The latest passed admission for a subject; only the runtime's admission settlement turns it into membership.</summary>
     public static TownProposal? AdmissionApproval(TownGovernanceState state, string subjectId) =>
         state.Proposals.LastOrDefault(p => p.Kind == "admission" && p.SubjectId == subjectId && p.Status == "passed");
 }

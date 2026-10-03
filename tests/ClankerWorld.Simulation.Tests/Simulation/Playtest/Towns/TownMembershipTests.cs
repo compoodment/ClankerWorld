@@ -544,6 +544,34 @@ public sealed class TownMembershipTests
     }
 
     [Fact]
+    public async Task AnAdultWithNoTownOutsideEveryBorderCanWalkToTheNoticePlaceAndAsk()
+    {
+        var newcomer = NewAgentId();
+        var state = WithTowns(Generated("membership-outside", newcomer), Founders, null);
+        var town = Town(state, First);
+        var board = town.OriginSite!.Value;
+        // Add Agent inside a border makes a resident, so an adult with no Town starts outside every border.
+        var taken = Taken(state);
+        var start = state.Map.Tiles.Select(tile => tile.Position)
+            .Where(point => !town.BorderTiles.Contains(point) && state.Map.IsBuildable(point) && !taken.Contains(point) &&
+                state.Map.IsReachableOnFoot(point, board))
+            .OrderBy(point => state.Map.FootDistance(point, board)).ThenBy(point => point.Y).ThenBy(point => point.X).First();
+        var model = new ScriptedModel();
+        model.Scripts[newcomer] = [Civic(First, "visit"), Civic(First, "admission")];
+        using var world = Reopen(Calm(At(state, start, newcomer)), model);
+
+        await AdvanceUntil(world, () => world.Towns.Single(item => item.Id == First).Governance!.Proposals
+            .Any(proposal => proposal is { Kind: "admission", Status: "pending" } && proposal.SubjectId == newcomer), 80);
+
+        Assert.Contains(model.ObservationsOf(newcomer)[0].Candidates, candidate => candidate.Id == Civic(First, "visit") + "|");
+        Assert.Equal("visit", world.ExportState().Events.First(item => item.Kind == "town_civic_action" &&
+            item.Detail.StartsWith($"{First}|{newcomer}|", StringComparison.Ordinal)).Detail.Split('|')[2]);
+        // Walking in registered nothing; only a council vote can admit them.
+        Assert.DoesNotContain(world.Towns, item => item.ResidentIds.Contains(newcomer, StringComparer.Ordinal));
+        world.Validate();
+    }
+
+    [Fact]
     public async Task RefusedRequestWaitsADayAndTheApplicantLearnsOnlyFromTheResultNotice()
     {
         var applicant = NewAgentId();
@@ -588,7 +616,8 @@ public sealed class TownMembershipTests
         society = society with
         {
             WorldTick = 5,
-            Inhabitants = society.Inhabitants.Select(person => person.Id == child ? person with { AgeBand = SocietyAgeBand.Child } : person).ToArray(),
+            Inhabitants = society.Inhabitants.Select(person => person.Id == child
+                ? person with { AgeBand = SocietyAgeBand.Child, PrimaryCaregiverId = resident } : person).ToArray(),
         };
         var first = new TownRuntimeState(First, "First Town", "founded", 0, [child, resident], [], [new(0, 0)], new(0, 0),
             TownGovernanceState.Create([resident]));
@@ -608,6 +637,13 @@ public sealed class TownMembershipTests
         Assert.Equal("Town: resident of Second Town · may vote in its council elections, housed or not; it has no Warehouse yet",
             Describe(voter, second with { Governance = council with { Form = "representative" } }));
         Assert.Equal("Town: resident of First Town with their primary caregiver · council rights begin at adulthood", Describe(child));
+        // A guardian from another Town does not move the child, so the line does not claim they share it.
+        var guardedElsewhere = society with
+        {
+            Inhabitants = society.Inhabitants.Select(person => person.Id == child ? person with { PrimaryCaregiverId = voter } : person).ToArray(),
+        };
+        Assert.Equal("Town: resident of First Town · council rights begin at adulthood",
+            TownMembershipText.Describe([first, second], guardedElsewhere, child, day, new HashSet<string>([First], StringComparer.Ordinal)));
         Assert.Null(Describe("agent:missing"));
         var homelessChild = society with
         {

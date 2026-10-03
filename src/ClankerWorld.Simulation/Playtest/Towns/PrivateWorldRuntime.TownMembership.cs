@@ -55,10 +55,14 @@ public sealed partial class PrivateWorldRuntime
         WorldTick < settled + CivicDay && previous.CouncilRevision == state.Revision &&
         previous.Circumstances == "council:" + state.Revision;
 
-    /// <summary>An adult standing in a Town they do not belong to may walk to its notice place; walking registers nothing.</summary>
+    /// <summary>
+    /// An adult with no Town, or one standing in a Town they do not belong to,
+    /// may walk to its notice place; walking registers nothing. Every adult
+    /// without a Town starts outside the borders, so they may set out from anywhere.
+    /// </summary>
     private bool MayVisitAsNewcomer(string actor, TownRuntimeState town) =>
-        AdultResident(actor) && TownForResident(actor) != town.Id &&
-        town.BorderTiles.Contains(inhabitants[actor].Position);
+        AdultResident(actor) && TownForResident(actor) is var current && current != town.Id &&
+        (current is null || town.BorderTiles.Contains(inhabitants[actor].Position));
 
     private bool MayAcceptAdmission(string actor, TownRuntimeState town, TownAdmissionRecord record) =>
         record.Status == AdmissionApproved && record.SubjectId == actor && AdultResident(actor) &&
@@ -72,8 +76,8 @@ public sealed partial class PrivateWorldRuntime
         var dependents = TownCareGroup(actor, TownForResident(actor)).Length - 1;
         var children = dependents > 0 ? " Your dependent children would join with you." : string.Empty;
         return TownForResident(actor) is { } current
-            ? $"Ask {town.Name}'s council to approve your move from {TownName(current)}. If approved you leave {TownName(current)}; the request grants no membership or stock access.{children}"
-            : $"Ask {town.Name}'s council to approve your admission. The request grants no membership or stock access.{children}";
+            ? $"Ask {town.Name}'s council to approve your move from {TownName(current)}. If approved you leave {TownName(current)} and become a resident at once; until then the request grants no membership or stock access.{children}"
+            : $"Ask {town.Name}'s council to approve your admission. If approved you become a resident at once; until then the request grants no membership or stock access. It never gives a House or household place.{children}";
     }
 
     private void AddTownAdmissionCandidates(List<CognitionCandidate> candidates, string actor, TownRuntimeState town)
@@ -143,9 +147,15 @@ public sealed partial class PrivateWorldRuntime
                     ApplyTownAdmission(town.Id, proposal.Id, subject, approved: null);
                 else
                 {
-                    SetTownAdmission(town.Id, new TownAdmissionRecord(proposal.Id, subject, AdmissionApproved, WorldTick,
-                        TownForResident(subject)));
-                    AppendEvent("town_admission_approved", $"{town.Id}|{subject}|{proposal.Id}");
+                    var record = new TownAdmissionRecord(proposal.Id, subject, AdmissionApproved, WorldTick, TownForResident(subject));
+                    // A newcomer who died or joined this Town while the vote was open has nothing to accept.
+                    var lapse = !AdultResident(subject) ? "unavailable" : record.PreviousTownId == town.Id ? "already_resident" : null;
+                    if (lapse is not null) LapseTownAdmission(town.Id, record, lapse);
+                    else
+                    {
+                        SetTownAdmission(town.Id, record);
+                        AppendEvent("town_admission_approved", $"{town.Id}|{subject}|{proposal.Id}");
+                    }
                 }
                 return true;
             }
@@ -300,7 +310,9 @@ public static class TownMembershipText
         var text = home is null
             ? adult ? "Town: none · no council vote or Warehouse access; a Town council must approve admission at its notice place"
                 : "Town: none · follows their primary caregiver's Town"
-            : !adult ? $"Town: resident of {home.Name} with their primary caregiver · council rights begin at adulthood"
+            : !adult ? person.PrimaryCaregiverId is { } caregiver && home.ResidentIds.Contains(caregiver, StringComparer.Ordinal)
+                ? $"Town: resident of {home.Name} with their primary caregiver · council rights begin at adulthood"
+                : $"Town: resident of {home.Name} · council rights begin at adulthood"
             : townsWithWarehouse.Contains(home.Id)
                 ? $"Town: resident of {home.Name} · may {council} and collect its Warehouse stock in person, housed or not"
                 : $"Town: resident of {home.Name} · may {council}, housed or not; it has no Warehouse yet";
