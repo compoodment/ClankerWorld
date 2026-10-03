@@ -3,6 +3,9 @@
 import contextlib
 import io
 import json
+import shutil
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -12,6 +15,18 @@ from unittest.mock import patch
 import per_test_coverage as runner
 import unique_coverage as unique
 import trx_summary
+
+
+def coverage_xml(hits=1, branch=True):
+    covered = int(hits > 0)
+    branches = 2 if branch else 0
+    detail = f' branch="true" condition-coverage="{covered * 50}% ({covered}/2)"' if branch else ''
+    return f'''<coverage lines-covered="{covered}" lines-valid="1"
+        branches-covered="{covered if branch else 0}" branches-valid="{branches}">
+        <packages><package name="Example" branch-rate="{covered / 2 if branch else 0}">
+        <classes><class name="Example" filename="src/Example.cs"><lines>
+        <line number="1" hits="{hits}"{detail}/>
+        </lines></class></classes></package></packages></coverage>'''
 
 
 class TrxSummaryTests(unittest.TestCase):
@@ -90,10 +105,130 @@ class MeasurementTests(unittest.TestCase):
             return runner.main()
 
     @staticmethod
-    def report(command, returncode=0):
+    def report(command, returncode=0, xml=None):
         folder = Path(command[command.index("--results-directory") + 1])
-        (folder / "coverage.cobertura.xml").write_text("<coverage/>")
+        (folder / "coverage.cobertura.xml").write_text(coverage_xml() if xml is None else xml)
         return SimpleNamespace(returncode=returncode, stdout="test output", stderr="")
+
+    def test_invalid_reports_cannot_issue_or_reuse_receipts_or_enter_a_plan(self):
+        valid = coverage_xml()
+        cases = {
+            "empty": "<coverage/>",
+            "malformed XML": "<coverage>",
+            "wrong root": valid.replace("coverage ", "report ", 1).replace("</coverage>", "</report>"),
+            "no lines": valid.replace('<line number="1" hits="1" branch="true" condition-coverage="50% (1/2)"/>', ''),
+            "missing filename": valid.replace('filename="src/Example.cs"', ''),
+            "invalid line number": valid.replace('number="1"', 'number="0"'),
+            "negative hits": valid.replace('hits="1"', 'hits="-1"'),
+            "noninteger hits": valid.replace('hits="1"', 'hits="one"'),
+            "missing branch counts": valid.replace('condition-coverage="50% (1/2)"', ''),
+            "invalid branch counts": valid.replace('50% (1/2)', '50% (3/2)'),
+            "invalid branch flag": valid.replace('branch="true"', 'branch="perhaps"'),
+            "nonfinite rate": valid.replace('branch-rate="0.5"', 'branch-rate="NaN"'),
+            "missing aggregate": valid.replace('lines-valid="1"', ''),
+            "inconsistent aggregate": valid.replace('lines-valid="1"', 'lines-valid="2"'),
+            "negative aggregate": valid.replace('branches-valid="2"', 'branches-valid="-2"'),
+            "too few aggregate branches": valid.replace('branches-valid="2"', 'branches-valid="1"'),
+            "conflicting duplicate": valid.replace('</lines>', '<line number="1" hits="0"/></lines>'),
+        }
+        for name, xml in cases.items():
+            with self.subTest(name=name):
+                self.assertEqual(1, self.run_measurement(lambda args, **kwargs: self.report(args, xml=xml)))
+                folder = self.out / runner.slug(self.method)
+                self.assertFalse((folder / "completion.json").exists())
+                log = (folder / "run.log").read_text()
+                self.assertIn(str(folder / "coverage.cobertura.xml"), log)
+                self.assertIn("rerun per_test_coverage.py", log)
+                # A receipt from an older runner must not bless invalid XML.
+                (folder / "completion.json").write_text(json.dumps({"method": self.method, "success": True}))
+                self.assertFalse(runner.completed_measurement(folder, self.method))
+                with self.assertRaisesRegex(ValueError, "Invalid.*rerun per_test_coverage.py"):
+                    unique.load(self.out)
+
+    def test_invalid_resumed_report_is_remeasured_then_resumes_normally(self):
+        self.assertEqual(0, self.run_measurement(lambda args, **kwargs: self.report(args)))
+        folder = self.out / runner.slug(self.method)
+        (folder / "coverage.cobertura.xml").write_text("<coverage/>")
+        calls = []
+
+        def command(arguments, **options):
+            calls.append(arguments)
+            return self.report(arguments)
+
+        self.assertEqual(0, self.run_measurement(command))
+        self.assertEqual(0, self.run_measurement(command))
+        self.assertEqual(1, len(calls))
+        universe, tests = unique.load(self.out)
+        self.assertEqual(1, unique.Coverage(universe, tests).totals()["lines_covered"])
+
+    def test_differing_reports_are_ambiguous_even_when_each_is_valid(self):
+        def command(arguments, **options):
+            result = self.report(arguments)
+            folder = Path(arguments[arguments.index("--results-directory") + 1]) / "another-run"
+            folder.mkdir()
+            (folder / "coverage.cobertura.xml").write_text(coverage_xml(hits=0))
+            return result
+
+        self.assertEqual(1, self.run_measurement(command))
+        folder = self.out / runner.slug(self.method)
+        self.assertFalse((folder / "completion.json").exists())
+        self.assertIn("differing", (folder / "run.log").read_text())
+        (folder / "completion.json").write_text(json.dumps({"method": self.method, "success": True}))
+        self.assertFalse(runner.completed_measurement(folder, self.method))
+        with self.assertRaisesRegex(ValueError, "found 2.*rerun"):
+            unique.load(self.out)
+
+    def test_identical_collector_attachment_copies_are_one_valid_measurement(self):
+        calls = []
+
+        def command(arguments, **options):
+            calls.append(arguments)
+            result = self.report(arguments)
+            folder = Path(arguments[arguments.index("--results-directory") + 1])
+            attachment = folder / "_host_timestamp" / "In" / "host"
+            attachment.mkdir(parents=True)
+            shutil.copyfile(folder / "coverage.cobertura.xml", attachment / "coverage.cobertura.xml")
+            return result
+
+        self.assertEqual(0, self.run_measurement(command))
+        self.assertEqual(0, self.run_measurement(command))
+        self.assertEqual(1, len(calls))
+        universe, tests = unique.load(self.out)
+        self.assertEqual(1, unique.Coverage(universe, tests).totals()["lines_covered"])
+
+    def test_measured_zero_hits_branchless_and_unmapped_branches_remain_valid(self):
+        cases = [coverage_xml(hits=0), coverage_xml(hits=0, branch=False),
+                 coverage_xml().replace('branches-covered="1" branches-valid="2"',
+                                        'branches-covered="2" branches-valid="4"'),
+                 coverage_xml().replace('</lines>',
+                     '<line number="1" hits="1" branch="true" condition-coverage="50% (1/2)"/></lines>'),
+                 coverage_xml().replace('</packages>', '<package name="Empty"><classes/></package></packages>')]
+        for xml in cases:
+            with self.subTest(xml=xml):
+                folder = self.out / runner.slug(self.method)
+                if folder.exists():
+                    (folder / "completion.json").unlink()
+                self.assertEqual(0, self.run_measurement(lambda args, **kwargs: self.report(args, xml=xml)))
+                self.assertTrue(runner.completed_measurement(folder, self.method))
+                universe, tests = unique.load(self.out)
+                totals = unique.Coverage(universe, tests).totals()
+                self.assertEqual(1, totals["lines_valid"])
+                self.assertEqual(int('hits="1"' in xml), totals["lines_covered"])
+
+    def test_planner_cli_refuses_empty_report_with_actionable_error(self):
+        self.out.mkdir()
+        (self.out / "methods.json").write_text(json.dumps([self.method]))
+        folder = self.out / runner.slug(self.method)
+        folder.mkdir()
+        (folder / "completion.json").write_text(json.dumps({"method": self.method, "success": True}))
+        (folder / "coverage.cobertura.xml").write_text("<coverage/>")
+        result = subprocess.run([sys.executable, str(Path(unique.__file__)), str(self.out), "--plan"],
+                                capture_output=True, text=True)
+        self.assertNotEqual(0, result.returncode)
+        self.assertEqual("", result.stdout)
+        self.assertIn(str(folder / "coverage.cobertura.xml"), result.stderr)
+        self.assertIn("rerun per_test_coverage.py", result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
 
     def test_failed_measurement_with_report_is_retried_then_success_can_resume(self):
         calls = []

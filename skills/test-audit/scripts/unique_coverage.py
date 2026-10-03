@@ -28,7 +28,7 @@ import xml.etree.ElementTree as ET
 from collections import defaultdict
 from pathlib import Path
 
-from per_test_coverage import completed_measurement, slug
+from per_test_coverage import completed_report, slug
 
 
 def source_key(filename, sources=()):
@@ -53,9 +53,8 @@ class Universe:
         return self.ids[key]
 
 
-def read_report(path, universe):
+def read_report(root, universe):
     mask, branches = 0, {}
-    root = ET.parse(path).getroot()
     sources = [item.text for item in root.iterfind("./sources/source") if item.text]
     for package in root.iterfind("./packages/package"):
         for cls in package.iterfind("./classes/class"):
@@ -82,10 +81,7 @@ def load(folder):
         raise ValueError(f"Incomplete per-test evidence: {folder}; invalid methods.json")
     for name in sorted(set(methods)):
         directory = folder / slug(name)
-        reports = sorted(directory.rglob("coverage.cobertura.xml"))
-        if not completed_measurement(directory, name):
-            raise ValueError(f"Incomplete per-test measurement: {directory}; rerun per_test_coverage.py")
-        tests[name] = read_report(reports[0], universe)
+        tests[name] = read_report(completed_report(directory, name), universe)
     if not tests:
         raise SystemExit(f"No per-test coverage reports under {folder}")
     return universe, tests
@@ -178,7 +174,10 @@ def main():
     parser.add_argument("--table", type=Path, help="write a per-test TSV here")
     args = parser.parse_args()
 
-    universe, tests = load(args.reports)
+    try:
+        universe, tests = load(args.reports)
+    except ValueError as error:
+        parser.error(str(error))
     durations = read_durations(args.timings)
     coverage = Coverage(universe, tests)
     result = {"measured_tests": len(tests), "baseline": coverage.totals()}
