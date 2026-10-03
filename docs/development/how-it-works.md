@@ -89,7 +89,7 @@ unable to save.
 seeking a food source, harvesting food, gathering supported raw materials, and
 storing personal raw materials in the current household House, and collecting
 personal raw materials from existing eligible storage or ground lots, and
-repairing supported personal clothing and carrying aids.
+repairing supported personal clothing and carrying aids, and household field work.
 Harvest and travel orders must name a supported kind or resource; explicit
 resource names must match a complete identifier and the requested kind. Unsupported
 objects or operations, mixed tasks, unknown explicit targets, and invalid
@@ -146,6 +146,19 @@ inputs before starting their own work. Cancellation or replacement releases
 reservations immediately. Survival interruption follows ordinary repair rules:
 release unused inputs and restart unfinished work when the order can resume.
 Save/reload retains a running repair's work counter and exact reservations.
+
+Field orders use `till_field`, `plant_field`, `tend_field` and `harvest_field`,
+with an optional `TargetCropKind` limited to the three existing crops. Explicit
+quantities require the word "field" or "fields" and count finished work sites.
+Selection uses household access, physical routes, usable tools and actual
+planting stock without the ordinary food-demand preference. It never substitutes
+a different named crop. `ApplyFieldCandidate` performs normal walking and stock
+collection; `StartFieldWorkCore` binds new work to the instruction. Only a
+completed result from `ContinueFarmWork` credits a bounded receipt. Cancellation
+releases unused seed reservations and removes a partly tilled field. Ordinary
+work retains its existing priorities and behavior; urgent survival cancels the
+current work under normal field rules and the order resumes its remaining count.
+Saved work must match the actor's active instruction, action and crop.
 Validation refuses links to another agent, task or equipment kind.
 
 A MustDo with no recognized action is closed when it is submitted: it is added
