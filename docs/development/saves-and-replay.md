@@ -632,6 +632,12 @@ Ordinary imported conditions reserve a conservative half-day storm-free window.
 New worlds start with episode data. Saved episodes resume without rerolling;
 all transitions use the same prior neighbor snapshot.
 
+Custom weather weights retain their saved values, including valid totals up to
+`int.MaxValue`. Climate conversion and episode bonuses use wider arithmetic to
+avoid overflow. Existing episodes and the save format stay unchanged; future
+transitions from extreme profiles use the corrected probabilities. Current
+saves round-trip and continue deterministically under those rules.
+
 Episode version and bounds are validated, including topology against the saved
 map. Episodes arrived with private-save schema 26; episode-bearing world systems use schema 2.
 World-systems schema 1 remains readable, with the absent field omitted when null.
