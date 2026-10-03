@@ -84,7 +84,7 @@ public sealed class GeographyCandidateFailureTests
     {
         // Attempt 1 is playable but misses the forest target. A saved map is
         // regenerated directly, even when another candidate would rank better.
-        var options = Options("audit-town-2") with { CandidateAttempt = 1 };
+        var options = Options("audit-town-0") with { CandidateAttempt = 1 };
         var map = GeographyCandidateSelector.GenerateCandidate(options);
         Assert.True(MapAcceptance.Validate(map, allowEmptyCamp: true).IsValid);
         Assert.False(GeographyCandidateSelector.Measure(options, map).MeetsTargets);

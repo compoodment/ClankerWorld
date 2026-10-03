@@ -18,11 +18,11 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class TownBridgeRuntimeTests
 {
     private const string GrowthSeed = "town-bridge-8";
-    private static readonly GridPoint GrowthTownSite = new(47, 42);
-    private static readonly GridPoint GrowthBuildingSite = new(50, 44);
-    private const string GrowthBridgeId = "bridge-50-45-ew-2";
-    private static readonly GridPoint RunOnTownSite = new(45, 44);
-    private static readonly GridPoint RunOnBuildingSite = new(50, 43);
+    private static readonly GridPoint GrowthTownSite = new(45, 42);
+    private static readonly GridPoint GrowthBuildingSite = new(53, 41);
+    private const string GrowthBridgeId = "bridge-51-42-ew-2";
+    private static readonly GridPoint RunOnTownSite = new(45, 42);
+    private static readonly GridPoint RunOnBuildingSite = new(50, 41);
     private const string RunOnBridgeId = "bridge-51-42-ew-2";
     private const string GrowthBuildingId = "bridge-growth";
     private static readonly JsonSerializerOptions GodotJsonOptions = new(JsonSerializerDefaults.Web);
