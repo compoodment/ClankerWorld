@@ -86,8 +86,8 @@ the same limits a save applies, so an accepted message cannot leave the world
 unable to save.
 
 `ParseInstructionOrder` reads a complete, bounded grammar for eating food,
-seeking a food source, harvesting food, gathering supported raw materials and
-moving to an exact tile. Harvest and food-source travel orders must name a
+seeking a food source, harvesting food, gathering supported raw materials,
+storing personal raw materials and moving to an exact tile. Harvest and food-source travel orders must name a
 supported kind or resource; explicit resource names must match a complete
 identifier and the requested kind. Unsupported
 objects or operations, mixed tasks, unknown explicit targets, and invalid
@@ -132,6 +132,19 @@ the existing dependent-care transition. Completion requires the actual primary
 care assignment. A search that closes first leaves the order blocked rather
 than replacing its accepted guardian. Queue, cancellation, stale-response
 checks and urgent survival interruptions use the common order lifecycle.
+
+Storage orders reuse the material-kind catalogue and normal personal-storage
+eligibility. `StorePersonalGoods` serves both ordinary choices and orders: it
+walks to the House entrance, then uses `InventoryFixture.Relocate` to preserve
+ownership, condition and provenance. Reserved goods, promised deliveries,
+container contents, food and selected equipment are excluded. Only a committed
+relocation receipt advances the order; its identity is hashed to a fixed length
+because split inventory identifiers can grow. Walking and survival actions earn
+no storage progress. Default tasks count one stored lot, while explicit quantities
+limit the final relocation to the remaining amount. Repetition keeps waiting
+for further personal material or space until cancelled. The destination is the
+agent's current household House; named foreign buildings and map coordinates
+are not recognized storage targets.
 
 A MustDo with no recognized action is closed when it is submitted: it is added
 to the completed instructions with an `instruction_not_understood` event
@@ -1166,7 +1179,10 @@ a home.
 provides three permanent-resident places per footprint tile, or four per tile
 when one explicitly recorded domestic family unit has at least two residents
 and a strict majority of the House's residents. The unit is saved separately
-from ancestry; traveling residents and infants count, dead people and invited
+from ancestry. A partnership changes these units only when it is accepted or
+when an accepted partnership ends. Withdrawing, refusing or expiring an
+unaccepted proposal leaves each person's existing unit and the resulting
+House limit alone. Traveling residents and infants count, dead people and invited
 storm guests do not. Joining a household is offered only when the proposed
 resident fits after their arrival is counted. The server checks again after
 unanimous admission, and Add Agent checks the selected household property
@@ -1628,8 +1644,12 @@ Road tiles, the building's entrance and new bridges are then committed together
 in the same tick, and the border grows around the new Road tiles on both banks.
 If there is no legal side street, nothing changes and a `town_road_unconnected`
 event records the reason (`no_entrance`, `route_unavailable` or
-`redundant_crossing`). A bridge with Road at both ends joins its two streets,
-so the run-on rule does not treat either end as a dead end.
+`redundant_crossing`). A bridge with Road at both ends counts as a link between
+them when finding street ends. If that bridge is an end's only link, its
+canonical entrance order supplies the outward heading for the run-on. This
+keeps the street heading away from the river across the east/west world seam,
+including on narrow wrapped maps. The same clearance and three-tile frontage
+checks apply.
 
 **Same connected banks.** Two crossings join the same banks only when they
 cross the same river, joined through its water, and each end of one reaches an
