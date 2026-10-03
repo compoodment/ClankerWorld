@@ -83,7 +83,8 @@ public static partial class TownGovernmentRules
                 (council, state) = ArchiveContest(council, state, "cancelled", "The creating transition is no longer active.", adults, tick, day);
             else if (live.Stage == "ready" && (live.WinnerId is null || !Has(willing, live.WinnerId)))
                 (council, state) = ArchiveContest(council, state, "failed", "The selected successor is no longer eligible or willing.", adults, tick, day);
-            else if (live.Stage == "voting" && council.Election is not null)
+            // Only a council election that is still voting interrupts; seats waiting for a handover do not.
+            else if (live.Stage == "voting" && council.Election is { Stage: "main" or "runoff" })
             {
                 live = SaveRound(live, tick, "interrupted") with
                 {
@@ -174,7 +175,7 @@ public static partial class TownGovernmentRules
                     $"An election is due for {TownArrangementRules.MandateLabel(mandates)}. Adult residents must personally agree to stand for these mandates; Council candidacy is not mayoral consent.", tick);
             }
         }
-        if (state.Contest is { Stage: "waiting" } waiting && council.Election is null)
+        if (state.Contest is { Stage: "waiting" } waiting && council.Election is not { Stage: "main" or "runoff" })
         {
             var candidates = Willing(state, adults, waiting.Mandates);
             // A tie remains restricted even if every tied candidate later withdraws.

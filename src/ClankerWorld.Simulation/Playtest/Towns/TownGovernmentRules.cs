@@ -145,6 +145,10 @@ public static partial class TownGovernmentRules
         var changesOrdinaryAuthority = handover is not null && handover.Target.Ordinary != state.Arrangement.Ordinary;
         var targetNeedsCouncil = changesOrdinaryAuthority && NeedsElectedCouncil(handover!.Target, adults.Length);
         var currentNeedsCouncil = state.Arrangement.Ordinary is TownArrangementRules.Council or TownArrangementRules.ElectedCouncil;
+        // Whether the current arrangement elects or keeps representatives without this change: its own
+        // threshold, a seated representative council kept above three adults, or one retrying for candidates.
+        var currentElectsCouncil = currentNeedsCouncil && (NeedsElectedCouncil(state.Arrangement, adults.Length) ||
+            adults.Length > TownGovernanceRules.Seats && (council.Form == "representative" || council.Fallback == "candidates"));
         var leader = GoverningOffice(state);
         if (state.Arrangement.Ordinary == TownArrangementRules.Mayor)
             council = TownGovernanceRules.ChangeCouncil(council, leader?.HolderId is { } holder ? [holder] : adults,
@@ -153,10 +157,17 @@ public static partial class TownGovernmentRules
             council = TownGovernanceRules.ChangeCouncil(council, adults, "all_adult", "arrangement", null, tick);
         // A ready winner waiting for this handover must not hold back the council election it also needs.
         var holdOtherElections = state.Contest is { Stage: "voting" } or { Stage: "ready", Purpose: not "handover" };
+        // Representatives the current arrangement would not elect wait for the handover to complete.
+        var deferFullHandover = targetNeedsCouncil && !currentElectsCouncil;
+        var fallbackBefore = council.Fallback;
         council = TownGovernanceRules.Advance(council, townId, seed, adults, tick, day,
             allowNewElections: (currentNeedsCouncil || targetNeedsCouncil) && !holdOtherElections,
             forceRepresentation: targetNeedsCouncil || state.Arrangement.Ordinary == TownArrangementRules.ElectedCouncil,
-            deferFullHandover: targetNeedsCouncil && !currentNeedsCouncil);
+            deferFullHandover: deferFullHandover);
+        // A failed election forced by this handover must not leave the council retrying for
+        // candidates: residents never approved that representation.
+        if (deferFullHandover && council.Fallback == "candidates" && fallbackBefore != "candidates")
+            council = TownGovernanceRules.ChangeCouncil(council, council.Members, council.Form, fallbackBefore, council.TermEndTick, tick);
         (council, state) = TownLawRules.Enact(council, state, townId, townName, tick);
 
         (council, state) = AdvanceMayor(council, state, townId, adults, tick, day);
@@ -198,13 +209,8 @@ public static partial class TownGovernmentRules
                 state = Replace(state, handover with { Status = "cancelled", SettledTick = tick, Reason = "No valid successor was ready within three days." });
                 if (state.Contest?.ChangeId == handover.Id)
                     (council, state) = ArchiveContest(council, state, "cancelled", "The creating government transition expired.", adults, tick, day);
-                if (targetNeedsCouncil && !NeedsElectedCouncil(state.Arrangement, adults.Length))
-                {
+                if (deferFullHandover)
                     council = TownGovernanceRules.CancelElection(council, tick, "The creating government transition expired.");
-                    // A failed forced election left the council waiting for candidates; that office was never approved.
-                    if (council is { Form: "all_adult", Fallback: "candidates" })
-                        council = TownGovernanceRules.ChangeCouncil(council, adults, "all_adult", "arrangement", null, tick);
-                }
                 council = Notice(council, "government", handover.Id, "Government handover cancelled: no valid successor was ready within three days. Existing lawful authority remains.", tick);
             }
         }

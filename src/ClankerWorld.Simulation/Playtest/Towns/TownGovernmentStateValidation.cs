@@ -116,7 +116,8 @@ internal static class TownGovernmentStateValidation
             live && contest.Voters.Concat(contest.Candidates).Any(id => !adults.Contains(id)) ||
             live && contest.Candidates.Any(id => !state.Consents.Any(c => c.AgentId == id && c.Mandates == contest.Mandates)) ||
             contest.Stage == "voting" && (contest.Round < 1 || contest.RoundOpenedTick is null || contest.RoundOpenedTick > tick ||
-                contest.RoundDeadlineTick != contest.RoundOpenedTick + day || contest.RoundDeadlineTick <= tick || council.Election is not null || contest.Candidates.Count == 0) ||
+                contest.RoundDeadlineTick != contest.RoundOpenedTick + day || contest.RoundDeadlineTick <= tick ||
+                council.Election is { Stage: "main" or "runoff" } || contest.Candidates.Count == 0) ||
             contest.Stage == "waiting" && (contest.RoundOpenedTick is not null || contest.RoundDeadlineTick is not null ||
                 contest.Voters.Count > 0 || contest.Candidates.Count > 0 || contest.Ballots.Count > 0) ||
             !live && (contest.SettledTick is null || contest.SettledTick < contest.OpenedTick || contest.SettledTick > tick) ||
