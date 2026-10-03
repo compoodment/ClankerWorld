@@ -42,6 +42,10 @@ test alone does not make it available in the game.
 | Developer tools | Available in the game | **F12** opens them in a world without pausing it: the tile's coordinates and facts, frame time, how long the server takes per step of world time, the agent count, jumping to an agent and drawing their planned path, plus the aging override, lost-reply recovery, paused world editing and paired-device management. While paused, **Edit selected agent** sets fullness, warmth, illness or nutrition, gives/removes carried goods, adds/removes skills, and starts/ends partnerships; each accepted change is saved and marked **Developer edit** in the Event Log. There are no time tools such as stepping one tick. The Windows playtest is pending. |
 | Display and interface settings | Available in the game | Themes, window size, weather switches, a 24-hour or 12-hour clock, and dates by season (the default, such as Autumn 2, Year 1) or as DD-MM-YYYY, MM-DD-YYYY or YYYY-MM-DD. A server too old to report season lengths shows numeric dates. The interface grows with the screen in whole steps (100%, 200% at 1080p and 1440p, 300% at 4K) with no setting, and the game always draws at the screen's own resolution. Windows visual and keyboard acceptance is still being checked. |
 
+On a fresh server, Continue opens New World instead of entering the retired
+test camp. The normal map preview and acceptance steps still apply, and saved
+worlds with founders or other progress keep opening normally.
+
 New worlds open paused with no old camp. Choosing the first Town lays a winding
 main road with side streets, then places two Houses, a Warehouse, Farmhouse and
 Blacksmith along them, each with its door facing its packed-dirt Road and a short
@@ -521,6 +525,9 @@ and natural storm cover. This is a basic
 version: it has not been checked by hand in the Windows game yet. New Shelters,
 Storehouses,
 Cooking fires and Stone hearths are retired; standing ones in old saves remain.
+Cold adults use hearths they can reach. A blocked hearth does not keep them
+from tending another reachable hearth or seeking natural storm cover; wood
+is used only after they arrive.
 The Weaving frame and its woven clothing are gone. Each starting agent's
 garment waits in their household's House, and new clothing comes only from a
 household's Tailor Shop.
@@ -613,7 +620,9 @@ running on past a door crosses a river up to two tiles wide on a new bridge.
 Households can plan new buildings, whose streets may need a bridge; the
 starting layout keeps its streets on dry land. No bridge is added where one already joins the same river
 banks and agents can walk along both banks to reach it. Peaks that block either
-bank can leave room for another needed crossing. Road links between Towns are unfinished, and bridges have not been
+bank can leave room for another needed crossing. A wider stretch between narrow
+crossings does not cause an extra bridge when both banks still connect to the
+existing one. Road links between Towns are unfinished, and bridges have not been
 checked in hands-on Windows play.
 
 Resources can deplete or regrow. Each tile holds at most one tree. Wood trees
