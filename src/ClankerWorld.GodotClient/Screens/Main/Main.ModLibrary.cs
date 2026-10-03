@@ -75,7 +75,7 @@ public partial class Main
             text.AddThemeConstantOverride("separation", 2);
             text.AddChild(new Label
             {
-                Text = package.DisplayName ?? GameUiText.HumanizeIdentifier(package.PackageId),
+                Text = GameUiText.PlainEllipses(package.DisplayName ?? GameUiText.HumanizeIdentifier(package.PackageId)),
                 ThemeTypeVariation = "HeadingLabel",
                 AutowrapMode = TextServer.AutowrapMode.WordSmart,
                 CustomMinimumSize = new Vector2(200, 0),

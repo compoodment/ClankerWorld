@@ -131,7 +131,7 @@ on the owner.
 - **How we work:** changes to CI, labels, templates, Claude Code settings
   (`.claude/`), CONTRIBUTING, AGENTS or CLAUDE.md affect every agent, so they
   are P0.
-- **At most 5 open P0 and 10 open P1 issues.** Count issues only, not pull
+- **At most 10 open P0 and 20 open P1 issues.** Count issues only, not pull
   requests. When a level is full, the least urgent issue there that the owner
   did not pick, counting the new one, goes down a level; between equals, the
   newest goes down. If the owner picked every other issue at that level, the
@@ -162,10 +162,9 @@ is:issue is:open label:"status:needs-pr" -label:"type:decision" -label:owner-tas
 
 Take the highest priority first: add `label:"priority:p0"` to the search, then
 p1, p2 and p3, and take the first result, which is the oldest issue at that
-level. Before you claim it, read its comments and look for pull requests that
-name it, open or merged (search `is:pr <number>`): an open one may already be
-doing the work, and a merged one may mean main already fixes it. If main
-already fixes it, name the commit and close the issue.
+level. Before you claim it, check that the work is still needed and that
+nobody else is already doing it
+([how](#check-for-duplicates-and-stale-work)).
 
 If the issue also has `status:has-pr`, an earlier draft was abandoned: continue
 that pull request's branch rather than starting again. If the draft also
@@ -176,6 +175,40 @@ are taking it over, fetch its latest head before each push, and never
 force-push. If a push is rejected because the branch moved, read its newest
 comments first: if another session has claimed the work since, stop and leave
 it to them; otherwise merge the new commits in before you continue.
+
+Merge main into an abandoned draft before anything else. If it no longer fits
+current main, for example because most of it conflicts or the code it changes
+has been rewritten, start a fresh branch from main instead. Carry over what
+still applies, open a new draft that closes the same issues, name the new
+branch in your claim comment, and close the old draft with a comment naming
+the new one ([after closing without merging](#review-and-merge)).
+
+### Check for duplicates and stale work
+
+Many sessions file and fix issues at once, so by the time you reach an issue it
+may already be done, filed twice or out of date. Before you claim an issue:
+
+- **Read its comments and the pull requests that name it**, open or merged
+  (search `is:pr <number>`).
+- **Check it against current main.** Reproduce a bug on current main, in the
+  game or with a test. For a feature, read the code and docs it names to see
+  whether it is already there: a pull request may have done it without naming
+  the issue.
+- **Search open issues and pull requests by topic**, with a few words from its
+  title and the features or files it names, not only by its number.
+
+Then act on what you find:
+
+| You find | Do this |
+| --- | --- |
+| Main already does it | Close the issue as completed with a comment naming the commit or pull request. If only part is done, comment with what remains and carry on with the rest. |
+| A bug you can't reproduce on main | Comment with what you tried. Close it as not planned, unless it describes an intermittent failure; anyone who sees it again reopens it with the new evidence. |
+| Another open issue covers the same work | Keep the one that is further along: claimed, with a pull request, or with more detail; between equals, the older one. Copy anything useful from the other into it, keep the higher priority, and close the other as a duplicate. Never close an issue another session holds; comment on both instead. |
+| An open pull request already does the work | Comment on the issue and the pull request, linking them, and pick other work. If that pull request should close the issue, ask its author or reviewer in a comment to add `Closes #<number>`. |
+| The description no longer matches main | Update it to current main before you start, with a comment saying what changed. If the design itself is in question, ask the owner ([how](AGENTS.md#ask-the-owner-in-chat)) and add `status:needs-decision`. |
+
+Record what you checked in your claim comment, in a line such as "Checked
+against main 1a2b3c4: still broken; no other issue or pull request covers it."
 
 ### Claim an issue
 
@@ -304,7 +337,9 @@ remains on the issue and pull request, not in a second tracker.
    ([how](#link-issues-from-the-pull-request)). If no issue is needed, such as
    for a direct owner request, say so.
 2. Read the relevant game-design, current-feature and developer pages.
-3. Check open pull requests for overlap and name any you find. To build on an
+3. Check open pull requests and recent merges for overlap and name any you
+   find; if one already makes your change, stop
+   ([how](#check-for-duplicates-and-stale-work)). To build on an
    unmerged pull request #A, branch from its branch, set your pull request's
    base to that branch and fill in the template's **Stacked on** line. While
    stacked, bring in newer main only by merging your base branch. When #A
@@ -334,6 +369,10 @@ Use a short title about the effect, such as
   save may stop loading; do not write migration or old-save code to keep one working.
 - Add meaningful tests for behavior changes, and update existing checks when
   their contract changes. Wording and docs changes need no new tests.
+- Keep each test quick, ideally under a minute on CI: every merge waits for a
+  full CI run, and no run finishes before its slowest test. If CI warns about a
+  slow test you added or changed, make it faster before marking the pull
+  request ready ([how CI runs](docs/development/build-and-test.md#how-ci-runs)).
 - Run the applicable [build and test checks](docs/development/build-and-test.md#which-checks-to-run)
   and put commands and results in the PR, including anything that could not
   run. A passing export is not a Windows playtest.
@@ -352,6 +391,9 @@ Add a plain-English changelog entry for player-visible gameplay, UI,
 world-runtime, save-compatibility, deployment, packaging or security changes.
 Skip refactors, tests and docs-only edits unless they change an explicit
 supported behavior or operational promise.
+
+If your change makes a waiting entry wrong, edit or delete it in the same pull
+request.
 
 Put the entry in a new file in [changes/](changes/README.md) rather than editing
 [CHANGELOG.md](CHANGELOG.md), so parallel pull requests do not conflict. Start
@@ -438,6 +480,16 @@ Several reviewers may be merging at the same time, so:
   label alone and pick another. Pull requests missing from that search are
   stacked or wait on another pull request; if that one is ready and unclaimed,
   review it instead.
+- **Check it isn't a duplicate.** Before you review in depth, check that main
+  or another open pull request doesn't already make the same change. If main
+  has it, close the pull request with a comment naming the commit
+  ([after closing without merging](#review-and-merge)), and close or update
+  its issues ([how](#check-for-duplicates-and-stale-work)). If another open
+  pull request makes it, comment on both. Review the one that is further
+  along: more complete, already reviewed, or the older between equals. Hand
+  the other back to draft with a comment saying which pull request it
+  duplicates, so its author decides; if another reviewer holds it, comment
+  instead. If it isn't clear which to keep, ask the owner in chat.
 - **One review claim at a time.** A claim is not a place in the queue. Take a
   second pull request only while the first waits on CI or for its merging
   turn.

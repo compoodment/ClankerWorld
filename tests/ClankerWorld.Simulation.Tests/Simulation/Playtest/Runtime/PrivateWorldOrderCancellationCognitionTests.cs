@@ -94,10 +94,14 @@ public sealed partial class PrivateWorldRuntimeTests
             var position = CancellationActorPosition(world.ExportState());
             CancelTravelOrder(world, order.InstructionId, "cancel-unreturned-travel");
 
-            for (var tick = 0; tick < 5; tick++)
+            // The ordinary request starts on a background task, so a slow runner may
+            // need a few more ticks; the agent must stay put on every one of them.
+            for (var tick = 0; tick < 5 || tick < 60 &&
+                     !provider.Requests.Any(request => request.OperativeOrderInstructionId is null); tick++)
             {
                 Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
                 Assert.Equal(position, CancellationActorPosition(world.ExportState()));
+                if (tick >= 5) await Task.Delay(10);
             }
 
             Assert.False(provider.Returned.Task.IsCompleted);
@@ -147,6 +151,15 @@ public sealed partial class PrivateWorldRuntimeTests
             {
                 Assert.True((await resumeWorld.AdvanceOneTickNonBlockingAsync()).Advanced);
                 if (tick >= 5) await Task.Delay(10);
+            }
+
+            // The resumed request starts in the background; wait for its actual
+            // epoch while continuing ticks, without releasing the obsolete reply.
+            for (var tick = 0; tick < 200 &&
+                 !provider.Requests.Any(request => request.RunEpoch != originalRequest.RunEpoch); tick++)
+            {
+                await Task.Delay(25);
+                Assert.True((await resumeWorld.AdvanceOneTickNonBlockingAsync()).Advanced);
             }
 
             var freshRequest = Assert.Single(provider.Requests, request => request.RunEpoch != originalRequest.RunEpoch);
