@@ -95,9 +95,9 @@ public sealed class WorldEventTextTests
         {
             Towns = [new(townId, "First Town", "founded", 0, [], [], [])],
         };
-        Assert.Equal("Aster joined the first Town.", WorldEventText.Describe(
+        Assert.Equal("Aster joined First Town.", WorldEventText.Describe(
             new(1, 0, "town_resident_joined", $"{townId}:{actorId}:child_joined:residents:4"), snapshot));
-        Assert.Equal("Aster left the first Town.", WorldEventText.Describe(
+        Assert.Equal("Aster left First Town.", WorldEventText.Describe(
             new(2, 1, "town_resident_left", $"{townId}:{actorId}:residents:3"), snapshot));
     }
 
@@ -114,7 +114,7 @@ public sealed class WorldEventTextTests
         Assert.Equal("Someone died.", WorldEventText.Describe(new(2, 0, "inhabitant_removed", AgentId + ":unknown-child"), snapshot));
         Assert.Equal("Child suggested a new building design.", WorldEventText.Describe(
             new(3, 0, "inhabitant_building_proposed", "legacy-parent:child:house"), snapshot));
-        Assert.Equal("Child joined the first Town.", WorldEventText.Describe(
+        Assert.Equal("Child joined First Town.", WorldEventText.Describe(
             new(4, 0, "town_resident_joined", "town:first:legacy-parent:child:child_joined:residents:1"), snapshot));
     }
 

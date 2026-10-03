@@ -101,8 +101,8 @@ public static class WorldEventText
             "town_civic_result" => $"{civicTownName}'s council recorded a decision. See the Towns page for its result.",
             "town_civic_cancelled" => $"An unfinished election in {civicTownName} was cancelled.",
             "town_founding_started" => "Your first Town is being set up.",
-            "town_resident_joined" => $"{ResidentName(snapshot, worldEvent)} joined the first Town.",
-            "town_resident_left" => $"{ResidentName(snapshot, worldEvent)} left the first Town.",
+            "town_resident_joined" => $"{ResidentName(snapshot, worldEvent)} joined {ResidentTownName(snapshot, worldEvent)}.",
+            "town_resident_left" => $"{ResidentName(snapshot, worldEvent)} left {ResidentTownName(snapshot, worldEvent)}.",
             "town_membership_evaluated" => "The new adult is not part of a Town yet.",
             "town_admission_accepted" => DescribeAdmission(worldEvent.Detail, snapshot),
             "town_admission_approved" => $"{civicTownName}'s council approved {Name(snapshot, Field(worldEvent.Detail, 1))}'s admission. It takes effect only if they accept.",
@@ -195,10 +195,17 @@ public static class WorldEventText
             .FirstOrDefault(person => IsLeadingId(recipientDetail, person.Id))?.DisplayName ?? "someone";
     }
 
+    /// <summary>The Town a resident joined or left, named as the player sees it; agents now move between Towns.</summary>
+    private static string ResidentTownName(OwnerWorldSnapshot? snapshot, OwnerWorldEvent worldEvent) =>
+        ResidentTown(snapshot, worldEvent)?.Name ?? "a Town";
+
+    private static OwnerWorldTown? ResidentTown(OwnerWorldSnapshot? snapshot, OwnerWorldEvent worldEvent) =>
+        snapshot?.Towns.OrderByDescending(item => item.Id.Length)
+            .FirstOrDefault(item => IsLeadingId(worldEvent.Detail, item.Id));
+
     private static string ResidentName(OwnerWorldSnapshot? snapshot, OwnerWorldEvent worldEvent)
     {
-        var town = snapshot?.Towns.OrderByDescending(item => item.Id.Length)
-            .FirstOrDefault(item => IsLeadingId(worldEvent.Detail, item.Id));
+        var town = ResidentTown(snapshot, worldEvent);
         // Older delimiter-free Town IDs use a single field. Current IDs must
         // be matched against the snapshot before reading the resident field.
         var townId = town?.Id ?? worldEvent.Detail.Split(':', 2)[0];
