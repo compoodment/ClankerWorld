@@ -149,6 +149,13 @@ who may use it, when it was built, which side its door faces, the work in
 progress, a larger storage grid with each item's name, and who is inside or
 lives there. Back (or **Escape**) returns to the small card.
 
+Every day has a night, from 19:12 to 04:48 on the clock in the top bar, with a
+short dusk and dawn. In a six-minute day that is about 2 min 24 s of night. The
+map turns a gentle dark blue but stays readable; names, agents and panels keep
+their daytime colors. Nights are colder outdoors, so an agent with no clothing,
+shelter or fire loses warmth, and their warmth bar shows it. A new world starts
+at midnight.
+
 Click bare ground to inspect the recorded facts there. Agents take priority
 when they overlap the pointer. **Event Log** shows important events under a
 heading for each day, each with an icon for its kind. An event with a known
