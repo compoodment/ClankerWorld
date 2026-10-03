@@ -402,7 +402,7 @@ public sealed partial class PrivateWorldRuntime
                 orderActorsHandledThisTick.Add(inhabitant.Id);
                 var orderCandidate = OrderCandidateFor(order, state);
                 var urgentCandidate = NeedsUrgentFood(state) || NeedsUrgentWarmth(state)
-                    ? UrgentSurvivalCandidateFor(inhabitant.Id, state)
+                    ? UrgentSurvivalCandidateFor(inhabitant.Id, state, order)
                     : null;
                 if (ShouldInterruptOrder(state, order, orderCandidate, urgentCandidate))
                 {
@@ -537,7 +537,7 @@ public sealed partial class PrivateWorldRuntime
             {
                 var orderCandidate = OrderCandidateFor(order, state);
                 var urgentCandidate = NeedsUrgentFood(state) || NeedsUrgentWarmth(state)
-                    ? UrgentSurvivalCandidateFor(decision.InhabitantId, state)
+                    ? UrgentSurvivalCandidateFor(decision.InhabitantId, state, order)
                     : null;
                 if (ShouldInterruptOrder(state, order, orderCandidate, urgentCandidate))
                 {
@@ -1164,10 +1164,7 @@ public sealed partial class PrivateWorldRuntime
         var safeIdle = candidates.Single(item => item.Id == "safe_idle");
         var urgent = NeedsUrgentFood(state) || NeedsUrgentWarmth(state);
         var urgentCandidate = urgent
-            ? candidates.Where(candidate => IsSurvivalCandidate(candidate.Id))
-                .OrderBy(candidate => candidate.DeterministicPriority)
-                .ThenBy(candidate => candidate.Id, StringComparer.Ordinal)
-                .FirstOrDefault()
+            ? SelectOrderSurvivalCandidate(candidates, state, order)
             : null;
         var taskCandidate = OrderCandidateFor(order, state);
         if (ShouldInterruptOrder(state, order, taskCandidate, urgentCandidate))
@@ -1180,6 +1177,8 @@ public sealed partial class PrivateWorldRuntime
 
         var selected = candidates.Where(item => item.Id == taskCandidate.Id ||
             urgent && IsSurvivalCandidate(item.Id)).ToList();
+        if (IsShelterOrder(order.Order!.Action))
+            selected.RemoveAll(item => item.Id == taskCandidate.Id);
         if (selected.All(item => item.Id != taskCandidate.Id)) selected.Add(taskCandidate);
         if (selected.All(item => item.Id != safeIdle.Id)) selected.Add(safeIdle);
         return selected;

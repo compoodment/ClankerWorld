@@ -4,7 +4,7 @@ using ClankerWorld.Simulation.Harness;
 namespace ClankerWorld.Simulation.Playtest;
 
 /// <summary>
-/// Parses only supported food, inventory, repair, field, production and building orders.
+/// Parses only supported food, inventory, repair, field, production, building and shelter orders.
 /// Every token must belong to one of these forms; unconsumed text is not guessed.
 /// </summary>
 internal static class PrivateWorldInstructionOrderParser
@@ -146,6 +146,8 @@ internal static class PrivateWorldInstructionOrderParser
             var repeatPrefix = keepPrefix || ReadWord("repeat") || ReadWord("repeatedly");
 
             var actionStart = position;
+            if (TryReadShelterOrder(end, repeatPrefix) is { } shelterOrder) return shelterOrder;
+            position = actionStart;
             if (TryReadBuildingOrder(end, repeatPrefix) is { } buildingOrder) return buildingOrder;
             position = actionStart;
             if (TryReadDeliveryOrder(end, repeatPrefix, keepPrefix) is { } deliveryOrder) return deliveryOrder;
@@ -243,6 +245,52 @@ internal static class PrivateWorldInstructionOrderParser
                 targetPosition,
                 TargetMaterialKind: materialKind,
                 TargetEquipmentKind: equipmentKind);
+        }
+
+        private OwnerInstructionOrder? TryReadShelterOrder(int end, bool repeat)
+        {
+            if (repeat) return null;
+            string action;
+            var requiresHouse = false;
+            if (ReadWord("seek"))
+            {
+                if (!ReadWord("shelter")) return null;
+                action = "seek_shelter";
+            }
+            else if (ReadWord("take"))
+            {
+                if (!ReadWord("cover")) return null;
+                action = "seek_shelter";
+            }
+            else if (ReadWord("shelter"))
+            {
+                action = "seek_shelter";
+                requiresHouse = true;
+            }
+            else if (TryReadAnyWord("light", "tend"))
+            {
+                _ = TryReadAnyWord("a", "the");
+                if (!ReadWord("fire")) return null;
+                action = "tend_fire";
+            }
+            else return null;
+            string? buildingKind = null;
+            if (ReadWord("in"))
+            {
+                if (!ReadWord("my") || !ReadWord("house")) return null;
+                buildingKind = "house";
+            }
+            if (requiresHouse && buildingKind is null) return null;
+            GridPoint? targetPosition = null;
+            if (ReadWord("at"))
+            {
+                if (!TryReadCoordinate(out var requested)) return null;
+                targetPosition = requested;
+            }
+            if (!ReadWord("now")) _ = ReadWord("please");
+            if (position != end) return null;
+            return new(action, "queued", 1, 0, action == "seek_shelter" ? "shelters" : "fires", false,
+                TargetPosition: targetPosition, TargetBuildingKind: buildingKind);
         }
 
         private OwnerInstructionOrder? TryReadBuildingOrder(int end, bool repeat)

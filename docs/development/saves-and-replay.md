@@ -265,6 +265,16 @@ pauses remain replayable. This version is provisional above the delivery-order
 base until integration. Older alpha checkpoints are refused and preserved
 without migration.
 
+Private-world schema 69 adds shelter target bindings and completion records.
+Building targets pin identity, definition, owner, anchor and placement time;
+natural cover pins its actual destination. Shelter completion records the
+arrival time and position. Fire completion also references the unique actual
+completed one-wood fuel reservation. Validation checks action-specific shapes
+and payment evidence without requiring historical cover, permission or a fire
+to remain available forever. Unfinished targets are revalidated when work
+continues. This version is provisional above the building-order base; older
+alpha checkpoints are refused and preserved without migration.
+
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
 Matching parent assignments are disclosed as agreement; when they differ, the
