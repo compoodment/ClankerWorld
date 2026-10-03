@@ -35,6 +35,8 @@ jobs:
       filter-2: ${{ steps.split.outputs.filter_2 }}
       filter-3: ${{ steps.split.outputs.filter_3 }}
       filter-4: ${{ steps.split.outputs.filter_4 }}
+      filter-5: ${{ steps.split.outputs.filter_5 }}
+      filter-6: ${{ steps.split.outputs.filter_6 }}
     steps:
       - uses: actions/checkout@v5
         with:

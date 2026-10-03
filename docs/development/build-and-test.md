@@ -66,8 +66,8 @@ when every part of the Verify workflow passes:
 - **scope** decides which of the other jobs the change needs.
 - **checks** runs the workflow-script tests and the label list, the Godot
   client check, `dotnet format` and the Windows export.
-- **tests (1)** to **tests (4)** split the Release test suite between them, so
-  it runs on four machines at once.
+- **tests (1)** to **tests (6)** split the Release test suite between them, so
+  it runs on six machines at once.
 
 A pull request that changes only documentation (Markdown files and anything
 under `docs/`) runs the workflow-script checks and the documentation tests on
