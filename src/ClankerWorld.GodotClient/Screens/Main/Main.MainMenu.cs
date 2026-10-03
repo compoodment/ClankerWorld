@@ -204,6 +204,16 @@ public partial class Main
             return;
         }
 
+        if (observationSession.Current?.Baseline.Snapshot.FounderSetup?.RequiresWorldCreation == true)
+        {
+            ShowMainMenu();
+            resumeWorldOnContinue = false;
+            OpenWorldMenu(create: true);
+            // Load World still holds its action guard until this entry call returns.
+            if (isOwnerAction) _ = RefreshWorldPreviewAfterChangeAsync(worldPreviewRevision);
+            return;
+        }
+
         mainMenuOverlay.Hide();
         // Title-screen notices such as "continue from Main Menu" are stale here.
         statusToast.Hide();
