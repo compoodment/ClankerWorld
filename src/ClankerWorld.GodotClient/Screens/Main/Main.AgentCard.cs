@@ -810,6 +810,7 @@ public partial class Main
             "consume_food" => "Eating food",
             "harvest_food" => "Gathering food",
             "gather_material" => "Gathering " + (order.TargetMaterialKind?.Replace('_', ' ') ?? "materials"),
+            "collect_material" => "Collecting " + (order.TargetMaterialKind?.Replace('_', ' ') ?? "materials"),
             "store_material" => "Storing " + (order.TargetMaterialKind?.Replace('_', ' ') ?? "materials"),
             "seek_food" => "Going to a food site",
             "move_to" => "Going to a tile",
@@ -848,6 +849,7 @@ public partial class Main
     {
         "food_items" => "food items",
         "material_items" => "items",
+        "collection_loads" => "loads collected",
         "storage_loads" => "loads stored",
         "arrivals" => "sites reached",
         "harvests" => "harvest batches",

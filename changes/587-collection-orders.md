@@ -1,0 +1,1 @@
+- Adults and elders can follow orders to collect their own stored or dropped raw materials, including personal goods left in a former household. Physical pickup respects ownership, reservations and carrying space; exact quantities, queueing, cancellation and saved progress count only goods actually collected. Older alpha saves are refused and preserved unchanged.
