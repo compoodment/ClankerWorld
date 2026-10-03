@@ -2,7 +2,7 @@
 title: Towns, buildings and government
 type: game-design
 status: active
-updated: 2026-10-02
+updated: 2026-10-03
 ---
 
 # Towns, buildings and government
@@ -639,28 +639,60 @@ The **Town holds formal title** to land it claims; households hold inspectable
 A plot is a connected group of land tiles and can include empty land. The Town
 border alone does not silently take over another claim or transfer a building,
 its stock or a household's private goods. Physical occupation or model text
-cannot rewrite these records. The first Town begins with a council, not an
-assumed mayor. Residents can later approve creating an elected mayor through
-the protected government-change process. Its creation, term and elections are
-agreed in [The mayor's office and elections](#the-mayors-office-and-elections);
+cannot rewrite these records. Every Town has a Council from founding; its
+initial small Council consists of all adult residents. Land approvals use the
+ordinary Council majority procedure from the start. Residents can later approve
+creating an elected mayor through the protected government-change process.
+Its creation, term and elections are agreed in
+[The mayor's office and elections](#the-mayors-office-and-elections);
 [Land hearings and rulings](#land-hearings-and-rulings) settles adjudication.
 
-**Current implementation, not yet confirmed by computment:** the first
+**Current implementation:** the first
 accepted Town layout records title to the connected land inside its initial
 border, and later border growth makes room for the Town without adding title.
 That follows answer 19A, that a boundary change does not by itself change
 title ([Borders, abandoned Towns and salvage](#borders-abandoned-towns-and-salvage)).
-Starter household use rights cover only the footprints of the buildings
+
+**Agreed by the owner on October 2, 2026
+([#426](https://github.com/compoodment/ClankerWorld/issues/426#issuecomment-5948873459)):**
+a Town may extend its title through an explicit Council-approved claim to
+adjoining unclaimed land. Use the legitimate current Council's ordinary
+[proposal and majority procedure](#council-proposals-and-election-ballots)
+for the named land claim. Proposing a claim or expanding the Town border
+alone grants no title.
+
+Existing titles, household use rights and pending disputes remain intact.
+Approval cannot overwrite another title or settle a dispute without the
+agreed lawful hearing. A new Town title does not transfer private buildings,
+crops, goods or household stock, or automatically grant a household use right.
+
+**Also agreed by the owner on October 2, 2026
+([#426](https://github.com/compoodment/ClankerWorld/issues/426#issuecomment-5956742184)):**
+
+- **Initial household use rights cover building footprints only.** Each
+  household receives the footprints of the buildings assigned to it, with no
+  surrounding empty land included. The shared Warehouse remains Town property.
+- **Expansion onto extra tiles requires a household land request.** The
+  legitimate current Council approves it through the ordinary
+  [proposal and majority procedure](#council-proposals-and-election-ballots).
+  The all-adult Council in a small Town uses that same majority rule.
+- **Legitimate building reassignment moves its footprint use right with the
+  building.** Record the receiving household's footprint right as part of the
+  reassignment, preserving the ownership and dispute safeguards. Town title
+  remains unchanged.
+
+**Current implementation:**
+starter household use rights cover only the footprints of the buildings
 assigned to each household; the shared Warehouse remains Town property.
 Add Agent treats a recorded use right as household property and Town title
 like a Town border; a single pending request gives no household. A household
 building's current owner comes before another household's undisputed use right
 on its footprint, so reassigning a building does not block placement there. A
-field does not, and disputed land is always refused. Whether title grows with
-the Town, how much land comes with a starter use right, and whether reassigning
-a building should move its starter use right remain open. Because new grants
-use existing Town-owned land, the first answer decides where later households
-can receive use rights.
+field does not, and disputed land is always refused. These existing foundation
+and placement rules do not yet implement the agreed Council-approved title
+claims, household land requests or movement of footprint use rights with
+building reassignment. That runtime work remains in
+[#426](https://github.com/compoodment/ClankerWorld/issues/426).
 
 Competing requests are visible as **pending disputes**. While one is pending,
 conflicting formal rights transfers pause; residents are not evicted, goods
