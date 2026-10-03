@@ -1608,6 +1608,27 @@ rule is on in a started world, even when the transition event has left bounded
 history. The link opens the existing Add Agent controls and rechecks the current
 snapshot when clicked; it neither places an agent nor asks for a paid model call.
 
+## Developer edits
+
+The F12 panel submits one signed `POST /api/v1/owner/developer-edit` command for
+the selected agent. The signature binds the world ID, expected latest event ID,
+agent, operation, value, amount and optional other agent. The host shares the
+world-selection mutation gate, then the runtime checks that the world is paused
+and the observation is current. Changes are prepared on an isolated checkpoint,
+fully validated, and persisted before the live runtime accepts them. Failed
+validation or persistence leaves the prior world unchanged.
+
+Needs use whole percentages from 0 to 100. Goods use the bounded list in
+`PrivateWorldRuntime.DeveloperGoods`, quantities from 1 to 100 and the existing
+carrying limit. Removal consumes unreserved personal carried goods, excluding
+equipped items, delivery goods, knowledge records and vessels with contents.
+Skills use the four existing learned skills. Relationship edits start or end
+partnerships with the existing age, availability and close-kin constraints;
+parentage, guardianship and household membership retain their lifecycle rules.
+Every accepted command appends a player-facing `developer_edit` event containing
+the complete command, including its world and observation precondition.
+See [Saves and replay](saves-and-replay.md#developer-edits) for retries and replay.
+
 ## Developer tools readouts
 
 Developer tools (**F12** in the Godot client) read two diagnostics from the owner
