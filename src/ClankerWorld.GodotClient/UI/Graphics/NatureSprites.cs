@@ -31,6 +31,17 @@ public enum NatureSprite : byte
     Cactus,
     CactusTall,
     CactusPad,
+    HerbPatch,
+    BerryBushPicked,
+    WildGreensPicked,
+    FiberPlantHarvested,
+    ReedsHarvested,
+    HerbPatchPicked,
+    StoneOutcropDepleted,
+    IronOutcropDepleted,
+    GoldOutcropDepleted,
+    DiamondOutcropDepleted,
+    ClayBankDepleted,
 }
 
 /// <summary>
@@ -44,7 +55,7 @@ public enum NatureSprite : byte
 /// earlier provisional drawing with a darker disc behind the shape. The desert
 /// cacti from the third review are drawn by <see cref="CactusSprites"/>.
 /// </summary>
-public static class NatureSprites
+public static partial class NatureSprites
 {
     private static readonly int SpriteCount = Enum.GetValues<NatureSprite>().Length;
     private static readonly Dictionary<int, Image> Images = [];
@@ -54,12 +65,29 @@ public static class NatureSprites
     /// <summary>The sprite for a terrain-layer tree code, as listed in <see cref="TreeArtManifest"/>.</summary>
     public static NatureSprite? ForTree(byte code) => TreeArtManifest.ForCode(code)?.Sprite;
 
-    /// <summary>Natural-object codes and stages used by the terrain layer; stage 1 is depleted, 2 regrowing.</summary>
-    public static NatureSprite? ForNaturalObject(byte kind, byte stage) => stage switch
+    /// <summary>The stable local code for a natural-site kind supplied by the host.</summary>
+    public static byte NaturalObjectCode(string? kind) => kind switch
     {
-        1 => NatureSprite.Depleted,
-        2 => NatureSprite.Regrowing,
-        _ => kind switch
+        "berry_bush" => 1,
+        "wild_greens" => 2,
+        "fiber_plant" => 3,
+        "reeds" => 4,
+        "stone_outcrop" => 5,
+        "wild_seed_patch" => 6,
+        "fertile_soil" => 7,
+        "iron_outcrop" => 8,
+        "gold_outcrop" => 9,
+        "diamond_outcrop" => 10,
+        "clay_bank" => 11,
+        "fallen_wood" => 12,
+        "medicinal_herb_patch" => 13,
+        _ => 0,
+    };
+
+    /// <summary>Natural-object codes and stages used by the terrain layer; stage 1 is depleted, 2 renewable and spent.</summary>
+    public static NatureSprite? ForNaturalObject(byte kind, byte stage)
+    {
+        NatureSprite? available = kind switch
         {
             1 => NatureSprite.BerryBush,
             2 => NatureSprite.WildGreens,
@@ -73,8 +101,29 @@ public static class NatureSprites
             10 => NatureSprite.DiamondOutcrop,
             11 => NatureSprite.ClayBank,
             12 => NatureSprite.WoodPile,
+            13 => NatureSprite.HerbPatch,
             _ => null,
-        },
+        };
+        return stage is 1 or 2 ? SpentSprite(available, stage == 2) : available;
+    }
+
+    /// <summary>Map and tile cards select the same site art from the observed availability and renewal facts.</summary>
+    public static NatureSprite? ForNaturalObject(string? kind, bool spent, bool renewable) =>
+        ForNaturalObject(NaturalObjectCode(kind), spent ? renewable ? (byte)2 : (byte)1 : (byte)0);
+
+    private static NatureSprite SpentSprite(NatureSprite? available, bool renewable) => available switch
+    {
+        NatureSprite.BerryBush => NatureSprite.BerryBushPicked,
+        NatureSprite.WildGreens => NatureSprite.WildGreensPicked,
+        NatureSprite.FiberPlant => NatureSprite.FiberPlantHarvested,
+        NatureSprite.Reeds => NatureSprite.ReedsHarvested,
+        NatureSprite.HerbPatch => NatureSprite.HerbPatchPicked,
+        NatureSprite.StoneOutcrop => NatureSprite.StoneOutcropDepleted,
+        NatureSprite.IronOutcrop => NatureSprite.IronOutcropDepleted,
+        NatureSprite.GoldOutcrop => NatureSprite.GoldOutcropDepleted,
+        NatureSprite.DiamondOutcrop => NatureSprite.DiamondOutcropDepleted,
+        NatureSprite.ClayBank => NatureSprite.ClayBankDepleted,
+        _ => renewable ? NatureSprite.Regrowing : NatureSprite.Depleted,
     };
 
     /// <summary>
@@ -89,8 +138,13 @@ public static class NatureSprites
         "fiber" => NatureSprite.FiberPlant,
         "seed" => NatureSprite.WildSeedPatch,
         "fertile_land" => NatureSprite.FertileSoil,
+        "medicinal_herbs" => NatureSprite.HerbPatch,
         _ => null,
     };
+
+    /// <summary>Uses the same spent-state art for kind-only resources on the map and tile card.</summary>
+    public static NatureSprite? ForCampResource(string kind, bool spent, bool renewable) =>
+        ForCampResource(kind) is { } available ? spent ? SpentSprite(available, renewable) : available : null;
 
     public static int AtlasTileSize(int drawnTileSize) => drawnTileSize >= 24 ? 32 : 16;
 
@@ -229,7 +283,11 @@ public static class NatureSprites
         NatureSprite.OrchardFruiting or NatureSprite.OrchardPicked or NatureSprite.BerryBush or NatureSprite.WildGreens or
         NatureSprite.FiberPlant or NatureSprite.StoneOutcrop or NatureSprite.IronOutcrop or NatureSprite.GoldOutcrop or
         NatureSprite.ClayBank or NatureSprite.ConiferStump or NatureSprite.ConiferSapling or NatureSprite.Reeds or
-        NatureSprite.DiamondOutcrop or NatureSprite.Regrowing or NatureSprite.Depleted;
+        NatureSprite.DiamondOutcrop or NatureSprite.Regrowing or NatureSprite.Depleted or NatureSprite.HerbPatch or
+        NatureSprite.BerryBushPicked or NatureSprite.WildGreensPicked or NatureSprite.FiberPlantHarvested or
+        NatureSprite.ReedsHarvested or NatureSprite.HerbPatchPicked or NatureSprite.StoneOutcropDepleted or
+        NatureSprite.IronOutcropDepleted or NatureSprite.GoldOutcropDepleted or NatureSprite.DiamondOutcropDepleted or
+        NatureSprite.ClayBankDepleted;
 
     /// <summary>Draws an approved sprite into its atlas cell.</summary>
     private static void PaintApproved(Layers layers, NatureSprite sprite)
@@ -247,7 +305,7 @@ public static class NatureSprites
                 Orchard(layers, sprite);
                 layers.Compose(OrchardCanopy.Edge);
                 break;
-            case NatureSprite.BerryBush: BerryBush(layers); layers.Compose(Bush.Edge); break;
+            case NatureSprite.BerryBush: BerryBush(layers, true); layers.Compose(Bush.Edge); break;
             case NatureSprite.WildGreens: WildGreens(layers); layers.Compose(Canopy.Edge); break;
             case NatureSprite.FiberPlant: FiberPlant(layers); layers.Compose(Fiber.Edge, outline: false); break;
             case NatureSprite.StoneOutcrop: Outcrop(layers, Ore.None); layers.Compose(Rock.Edge); break;
@@ -258,8 +316,19 @@ public static class NatureSprites
             // Like the conifer, the 16 px sapling draws its own edge star so its points stay apart.
             case NatureSprite.ConiferSapling: ConiferSapling(layers); layers.Compose(Needle.Edge, outline: layers.Fine); break;
             // Reed blades carry their own south-east edge copy, like the fibre plant, so they stay slender.
-            case NatureSprite.Reeds: Reeds(layers); layers.Compose(Reed.Edge, outline: false); break;
+            case NatureSprite.Reeds: Reeds(layers, harvested: false); layers.Compose(Reed.Edge, outline: false); break;
             case NatureSprite.DiamondOutcrop: Outcrop(layers, Ore.Diamond); layers.Compose(Slate.Edge); break;
+            case NatureSprite.HerbPatch: HerbPatch(layers); layers.Compose(Canopy.Edge); break;
+            case NatureSprite.BerryBushPicked: BerryBush(layers, false); layers.Compose(Bush.Edge); break;
+            case NatureSprite.WildGreensPicked: WildGreensPicked(layers); layers.Compose(Canopy.Edge); break;
+            case NatureSprite.FiberPlantHarvested: FiberPlantHarvested(layers); layers.Compose(Fiber.Edge, outline: false); break;
+            case NatureSprite.ReedsHarvested: Reeds(layers, harvested: true); layers.Compose(Reed.Edge, outline: false); break;
+            case NatureSprite.HerbPatchPicked: HerbPatchPicked(layers); layers.Compose(Canopy.Edge); break;
+            case NatureSprite.StoneOutcropDepleted: Rubble(layers, Boulders, Ore.None); layers.Compose(Rock.Edge); break;
+            case NatureSprite.IronOutcropDepleted: Rubble(layers, IronGravel, Ore.Iron); layers.Compose(Iron.Edge); break;
+            case NatureSprite.GoldOutcropDepleted: Rubble(layers, Rock, Ore.Gold); layers.Compose(Rock.Edge); break;
+            case NatureSprite.DiamondOutcropDepleted: Rubble(layers, Slate, Ore.Diamond); layers.Compose(Slate.Edge); break;
+            case NatureSprite.ClayBankDepleted: ClayPit(layers); layers.Compose(Bank.Edge); break;
             case NatureSprite.Regrowing: Regrowing(layers); layers.Compose(Canopy.Edge); break;
             case NatureSprite.Depleted: BareGround(layers); layers.Compose(Soil.Edge); break;
             default: throw new ArgumentOutOfRangeException(nameof(sprite), sprite, "Not an approved sprite.");
@@ -611,14 +680,22 @@ public static class NatureSprites
     }
 
     /// <summary>Berry bush: a dark lobed bush lit from the north-west, with berries that stay visible at 16 px.</summary>
-    private static void BerryBush(Layers s)
+    private static void BerryBush(Layers s, bool berries)
     {
         s.Shadow(17, 20, 10, 7);
         s.Lobed(16, 17, 9.5f, Bush.Shade, 9, 4, 0.14f);
         s.Lobed(15.2f, 16.2f, 8.6f, Bush.Base, 9, 4, 0.14f);
         s.Lobed(14, 15, 5, Bush.Highlight, 6, 5, 0.14f);
         foreach (var (x, y) in new[] { (20, 14), (12, 19), (18, 21), (22, 18), (15, 12), (10, 15) })
-            Mark(s, x, y, Berry.Base, Berry.Light, dash16: true);
+        {
+            if (berries) Mark(s, x, y, Berry.Base, Berry.Light, dash16: true);
+            else if (s.Fine)
+            {
+                // A bare stalk: a short brown twig, lit at its north-west end, where the berries hung.
+                s.Canvas.Dot(x - 1, y - 1, Timber.Light);
+                s.Canvas.Dot(x, y, Timber.Shade);
+            }
+        }
     }
 
     /// <summary>Wild greens: a rosette of broad leaves, the ones toward the light in the light step, with pale veins.</summary>
@@ -931,7 +1008,7 @@ public static class NatureSprites
     /// leaning toward the light are lighter. At 16 px each head is a brown
     /// pixel over an edge pixel.
     /// </summary>
-    private static void Reeds(Layers s)
+    private static void Reeds(Layers s, bool harvested)
     {
         var c = s.Canvas;
         // Clump bases and their stems: angle (radians clockwise from east, -1.57 is north), length, and whether a head tops it.
@@ -953,7 +1030,7 @@ public static class NatureSprites
                     var (angle, length, _) = stems[i];
                     // At 16 px only the first two stems of each clump stay, so the rest do not merge.
                     if (!s.Fine && i >= 2) continue;
-                    ReedStem(s, pass, root, angle, length);
+                    ReedStem(s, pass, root, angle, harvested ? 3 + i % 2 : length);
                 }
             }
         // The tuft at the foot of each clump.
@@ -966,8 +1043,14 @@ public static class NatureSprites
         foreach (var (root, stems) in clumps)
             foreach (var (angle, length, head) in stems)
             {
-                if (!head) continue;
                 var dir = Vector2.FromAngle(angle);
+                if (harvested)
+                {
+                    // A pale cut end on each stub.
+                    if (s.Fine) c.Dot(root.X + dir.X * 3.4f, root.Y + dir.Y * 3.4f, Reed.Highlight);
+                    continue;
+                }
+                if (!head) continue;
                 var at = root + dir * (length - 2.6f);
                 if (!s.Fine)
                 {
