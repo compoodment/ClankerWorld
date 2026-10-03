@@ -23,7 +23,22 @@ public sealed partial class PrivateWorldRuntime
             .OrderByDescending(fact => fact.LearnedTick).ThenBy(fact => fact.Id, StringComparer.Ordinal).ToArray();
         if (source is not null)
         {
-            var copied = source.Facts.Select(fact => learned.FirstOrDefault(item => AgentKnowledgeRules.SameDiscovery(item, fact))).ToArray();
+            // A reader may already know a site firsthand or through another
+            // discoverer. Copy the held source's account without replacing that
+            // personal ledger entry or inventing knowledge of an unknown site.
+            var copied = source.Facts.Select(fact =>
+            {
+                var known = learned.FirstOrDefault(item => AgentKnowledgeRules.SameSiteKnowledge(item, fact));
+                return known is null ? null : fact with
+                {
+                    Id = known.Id,
+                    OwnerId = actor,
+                    LearnedTick = WorldTick,
+                    Acquisition = "read",
+                    SourceAgentId = source.CreatorId,
+                    SourceArtifactId = source.Id,
+                };
+            }).ToArray();
             return copied.Any(fact => fact is null) ? [] : copied.Cast<AgentKnowledgeFact>().ToArray();
         }
         return learned.Take(kind == "field_record" ? 1 : AgentKnowledgeRules.MaximumFactsPerArtifact).ToArray();

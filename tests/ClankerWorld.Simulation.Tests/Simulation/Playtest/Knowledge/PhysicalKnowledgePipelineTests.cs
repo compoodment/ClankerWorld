@@ -401,6 +401,126 @@ public sealed class PhysicalKnowledgePipelineTests
         Assert.Equal(PrivateWorldRuntimeCodec.Encode(final), PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
     }
 
+    [Fact]
+    public async Task CopyingKnownSitesKeepsFirsthandKnowledgeAndSourceProvenanceAcrossReload()
+    {
+        var (state, author) = await LearnByExploring("physical-copy-overlap");
+        using var writing = PrivateWorldRuntime.Restore(WithInventory(state, AddWritingSupplies(state, author, 2, 1)), _ =>
+            new ChoosingProvider(author, "knowledge_write:book", "knowledge_continue"));
+        await AdvanceUntil(writing, () => writing.ExportState().Knowledge!.Artifacts.Count == 1, 64);
+        var written = writing.ExportState();
+        var original = Assert.Single(written.Knowledge!.Artifacts);
+        var reader = written.Inhabitants.First(person => person.InhabitantId != author).InhabitantId;
+        var overlap = original.Facts.First(fact => written.Inhabitants.All(person =>
+            person.InhabitantId == reader || person.Position != fact.Position)).Position;
+        // Observe one of the same sites through a real outing, before receiving
+        // the book. The reader's firsthand discovery must never be overwritten.
+        using var exploring = PrivateWorldRuntime.Restore(written with
+        {
+            Inhabitants = written.Inhabitants.Select(person => person.InhabitantId == reader
+                ? person with { Position = overlap, HungerBasisPoints = 9_500 } : person).ToArray(),
+        }, _ => new ChoosingProvider(reader, "explore"));
+        _ = exploring.SubmitInstruction(new OwnerInstructionRequest("explore-copy-overlap", "owner:test", reader,
+            OwnerInstructionKind.Suggestive, "Explore the site where you are standing."));
+        await AdvanceUntil(exploring, () => exploring.Knowledge.Facts.Any(fact =>
+            fact.OwnerId == reader && fact.Position == overlap), 32);
+        var explored = exploring.ExportState();
+        var firsthand = Assert.Single(explored.Knowledge!.Facts, fact => fact.OwnerId == reader && fact.Position == overlap);
+        Assert.Equal((reader, "firsthand"), (firsthand.DiscovererId, firsthand.Acquisition));
+        Assert.Contains(original.Facts, fact => !explored.Knowledge.Facts.Any(known =>
+            known.OwnerId == reader && known.Position == fact.Position));
+
+        var inventory = InventoryFixture.Transfer(explored.Society.Society.Inventory, "give-overlapping-book",
+            author, reader, original.LotId, 1, "give the actual written book");
+        inventory = InventoryFixture.AddLot(inventory, "overlap-copy-paper", "paper", reader, 2, inventory.WorldTick);
+        inventory = InventoryFixture.AddLot(inventory, "overlap-copy-cloth", "cloth", reader, 1, inventory.WorldTick);
+        var copyCandidate = "knowledge_copy:" + original.Id;
+        var provider = new ChoosingProvider(reader, copyCandidate, "knowledge_continue");
+        using var copying = PrivateWorldRuntime.Restore(WithInventory(explored, inventory), _ => provider);
+        _ = copying.SubmitInstruction(new OwnerInstructionRequest("copy-before-reading", "owner:test", reader,
+            OwnerInstructionKind.Suggestive, "Copy the book using your supplies."));
+        Assert.True((await copying.AdvanceOneTickAsync()).Advanced);
+        Assert.DoesNotContain(copyCandidate, provider.Offered);
+        Assert.Empty(copying.Knowledge.WritingProjects);
+        Assert.Equal((2, 1), (CarriedQuantity(copying.ExportState(), reader, "paper"),
+            CarriedQuantity(copying.ExportState(), reader, "cloth")));
+
+        provider.Prefixes = ["knowledge_read:" + original.Id];
+        _ = copying.SubmitInstruction(new OwnerInstructionRequest("read-overlapping-book", "owner:test", reader,
+            OwnerInstructionKind.Suggestive, "Read the other sites in this book."));
+        await AdvanceUntil(copying, () => original.Facts.All(fact => copying.Knowledge.Facts.Any(known =>
+            known.OwnerId == reader && known.Position == fact.Position)), 32);
+        var learned = copying.ExportState();
+        Assert.Equal(FactIdentity(firsthand), FactIdentity(Assert.Single(learned.Knowledge!.Facts,
+            fact => fact.OwnerId == reader && fact.Position == overlap)));
+
+        provider.Prefixes = [copyCandidate, "knowledge_continue"];
+        _ = copying.SubmitInstruction(new OwnerInstructionRequest("copy-after-reading", "owner:test", reader,
+            OwnerInstructionKind.Suggestive, "Make a paid copy of the book."));
+        await AdvanceUntil(copying, () => copying.Knowledge.WritingProjects.Count == 1, 32);
+        var pending = copying.ExportState();
+        var project = Assert.Single(pending.Knowledge!.WritingProjects);
+        Assert.Equal(original.Id, project.SourceArtifactId);
+        Assert.All(project.Facts, fact =>
+        {
+            Assert.Equal((reader, author, original.Id, "read"),
+                (fact.OwnerId, fact.DiscovererId, fact.SourceArtifactId, fact.Acquisition));
+            Assert.Equal(author, fact.SourceAgentId);
+        });
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(pending with
+        {
+            Knowledge = pending.Knowledge with
+            {
+                Facts = pending.Knowledge.Facts.Where(fact => fact.OwnerId != reader || fact.Position != overlap).ToArray(),
+            },
+        }));
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(pending with
+        {
+            Knowledge = pending.Knowledge with
+            {
+                Facts = pending.Knowledge.Facts.Select(fact => fact.OwnerId == reader && fact.Position == overlap
+                    ? fact with { ResourceKinds = fact.ResourceKinds.Count == 0 ? ["fiber"] : [] } : fact).ToArray(),
+            },
+        }));
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(pending with
+        {
+            Knowledge = pending.Knowledge with
+            {
+                WritingProjects = [project with
+                {
+                    Facts = project.Facts.Select(fact => fact.Position == overlap
+                        ? fact with { DiscovererId = reader } : fact).ToArray(),
+                }],
+            },
+        }));
+
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(pending)), _ =>
+            new ChoosingProvider(reader, copyCandidate, "knowledge_continue"));
+        for (var tick = 0; tick < 16; tick++)
+        {
+            Assert.True((await copying.AdvanceOneTickAsync()).Advanced);
+            Assert.True((await restored.AdvanceOneTickAsync()).Advanced);
+        }
+        var final = copying.ExportState();
+        var copy = Assert.Single(final.Knowledge!.Artifacts, artifact => artifact.Id != original.Id);
+        Assert.Equal(original.Id, copy.SourceArtifactId);
+        Assert.Equal(original.Facts.Select(fact => (fact.Position, fact.DiscovererId, fact.Terrain, string.Join(',', fact.ResourceKinds))),
+            copy.Facts.Select(fact => (fact.Position, fact.DiscovererId, fact.Terrain, string.Join(',', fact.ResourceKinds))));
+        var preserved = Assert.Single(final.Knowledge.Facts, fact => fact.OwnerId == reader && fact.Position == overlap);
+        Assert.Equal(FactIdentity(firsthand), FactIdentity(preserved));
+        Assert.Equal((firsthand.Id, firsthand.LearnedTick), (preserved.Id, preserved.LearnedTick));
+        Assert.NotEqual(original.LotId, copy.LotId);
+        Assert.Equal((reader, 1), (final.Society.Society.Inventory.GetLot(copy.LotId).OwnerId,
+            final.Society.Society.Inventory.GetLot(copy.LotId).Quantity));
+        Assert.Empty(final.Knowledge.WritingProjects);
+        Assert.Equal((0, 0), (CarriedQuantity(final, reader, "paper"), CarriedQuantity(final, reader, "cloth")));
+        Assert.All(project.MaterialReservationIds, id => Assert.Equal(InventoryReservationState.Completed,
+            final.Society.Society.Inventory.GetReservation(id).State));
+        Assert.Equal(PrivateWorldRuntimeCodec.Encode(final), PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+        copying.Validate();
+        restored.Validate();
+    }
+
     private static async Task<(PrivateWorldRuntimeState State, string Actor)> LearnByExploring(string seed)
     {
         using var initial = new PrivateWorldRuntime(seed);
