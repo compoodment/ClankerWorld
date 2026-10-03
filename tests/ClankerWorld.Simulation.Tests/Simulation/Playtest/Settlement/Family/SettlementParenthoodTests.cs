@@ -456,6 +456,59 @@ public sealed partial class SettlementParenthoodTests
         }
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public async Task EldersCannotPlanAChildOrBeHeldByTheContinuityRule(int elderIndex)
+    {
+        var state = await PreparedState();
+        var first = state.Inhabitants[0].InhabitantId;
+        state = AsElder(state, state.Inhabitants[elderIndex].InhabitantId);
+        var proposer = new ParentProvider("parent_propose:");
+        using var world = PrivateWorldRuntime.Restore(state, actor => actor == first ? proposer : new ParentProvider("parent_accept:"));
+        for (var tick = 0; tick < 4; tick++) await world.AdvanceOneTickAsync();
+        Assert.DoesNotContain(proposer.SeenCandidates, item => item.Id.StartsWith("parent_propose:", StringComparison.Ordinal));
+        Assert.All(world.Inhabitants, person => Assert.Null(person.Parenthood));
+        Assert.Empty(world.Society.Births);
+        var continuity = world.ExportState().Continuity!;
+        Assert.True(continuity.Active);
+        Assert.Empty(continuity.Couples);
+    }
+
+    [Fact]
+    public async Task BecomingAnElderEndsAPlanBeforeTheBirth()
+    {
+        var state = await PreparedState();
+        var first = state.Inhabitants[0].InhabitantId;
+        var second = state.Inhabitants[1].InhabitantId;
+        using var world = PrivateWorldRuntime.Restore(state, actor => new ParentProvider(actor == first ? "parent_propose:" : "parent_accept:"));
+        await world.AdvanceOneTickAsync();
+        await world.AdvanceOneTickAsync();
+        Assert.Equal("preparing", world.Inhabitants.Single(person => person.InhabitantId == first).Parenthood!.Stage);
+        using var restored = PrivateWorldRuntime.Restore(AsElder(world.ExportState(), second), _ => new ParentProvider("safe_idle"));
+        await restored.AdvanceOneTickAsync();
+        Assert.Equal("cancelled", restored.Inhabitants.Single(person => person.InhabitantId == first).Parenthood!.Stage);
+        Assert.Empty(restored.Society.Births);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SocietyRefusesABirthWithAnElderParent(bool elder)
+    {
+        var state = await PreparedState();
+        var first = state.Inhabitants[0].InhabitantId;
+        var second = state.Inhabitants[1].InhabitantId;
+        var society = (elder ? AsElder(state, second) : state).Society.Society;
+        var householdId = society.GetInhabitant(first).HouseholdId!;
+        var food = society.Inventory.Lots.First(item => item.OwnerId == householdId && item.ItemKind == "food" && item.Quantity >= 4);
+        var result = SocietyFixture.CommitBirth(society, new SocietyBirthRequest(
+            "elder-parent-child", 1, first, second, householdId, CaregiverIds: [first], ConsentingParentIds: [first, second],
+            food.Id, 4, society.WorldTick, ChildName: "Ari", PrimaryCaregiverId: first));
+        Assert.Equal(elder, result.CreatedId is null);
+        Assert.Equal(elder ? 0 : 1, result.Checkpoint.Births.Count);
+    }
+
     [Fact]
     public async Task EndingPartnershipCancelsPreparation()
     {
@@ -601,6 +654,31 @@ public sealed partial class SettlementParenthoodTests
                     WeatherProfiles = Enum.GetValues<SeasonKind>().Select(season => new WeatherProfile(season, 1, 0, 0, 0, 0)).ToArray(),
                 },
                 Climate = state.WorldSystems.Climate with { Weather = WeatherKind.Clear },
+            },
+        };
+    }
+
+    /// <summary>Ages one agent into the elder stage, keeping their saved birth, age and stage consistent.</summary>
+    private static PrivateWorldRuntimeState AsElder(PrivateWorldRuntimeState state, string id)
+    {
+        var society = state.Society.Society;
+        var config = society.Config;
+        var age = Enumerable.Range(0, 1_000).First(years => config.AgeBandAt(years) == SocietyAgeBand.Elder);
+        var birth = society.LifeTickAt(society.WorldTick) - age * config.TicksPerLifecycleAge;
+        return state with
+        {
+            Society = state.Society with
+            {
+                Society = society with
+                {
+                    Inhabitants = society.Inhabitants.Select(person => person.Id == id ? person with
+                    {
+                        BirthTick = birth,
+                        BirthLifeTick = society.LifeClock is null ? null : birth,
+                        AgeBand = SocietyAgeBand.Elder,
+                        LastLifecycleYearChecked = age,
+                    } : person).ToArray(),
+                },
             },
         };
     }

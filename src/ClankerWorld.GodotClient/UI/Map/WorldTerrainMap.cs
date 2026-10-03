@@ -15,12 +15,6 @@ public sealed class WorldTerrainMap
     private TerrainStyle[]? styles;
     private bool[]? hills;
 
-    // Mirrors the simulation's TerrainPlacementRules hill band and mountain
-    // height, which this client project cannot reference directly.
-    private const byte MountainElevation = 215;
-    private const byte HillMinimumElevation = 190;
-    private const int HillReach = 3;
-
     private WorldTerrainMap(int width, int height, byte[] terrain, byte[]? climate = null,
         byte[]? elevation = null, byte[]? hydrology = null, byte[]? surface = null,
         byte[]? vegetation = null, bool wrapsEastWest = false, byte[]? fertility = null)
@@ -163,52 +157,15 @@ public sealed class WorldTerrainMap
 
     /// <summary>
     /// Whether the tile is in the hill band at a mountain's base: dry land
-    /// below mountain height but at least 190 high, within three tiles of a
-    /// mountain or peak. Hills are drawn over the ground; they walk like grass.
+    /// below mountain height but at least 190 high, within a reach that widens
+    /// with the size of the massif (<see cref="HillBand"/>). Hills are drawn
+    /// over the ground; they walk like grass.
     /// </summary>
     public bool IsHillAt(int x, int y)
     {
         if (!HasMapLayers || x < 0 || y < 0 || x >= Width || y >= Height) return false;
-        hills ??= ComputeHills();
+        hills ??= HillBand.Classify(elevation!, hydrology!, Width, Height, WrapsEastWest);
         return hills[y * Width + x];
-    }
-
-    private bool[] ComputeHills()
-    {
-        // Breadth-first distance, in eight-direction steps, from every
-        // mountain or peak, stopping at the hill band's reach.
-        var length = Width * Height;
-        var distance = new int[length];
-        Array.Fill(distance, int.MaxValue);
-        var queue = new Queue<int>();
-        for (var index = 0; index < length; index++)
-            if (hydrology![index] == 0 && elevation![index] >= MountainElevation)
-            {
-                distance[index] = 0;
-                queue.Enqueue(index);
-            }
-        var result = new bool[length];
-        while (queue.TryDequeue(out var current))
-        {
-            var next = distance[current] + 1;
-            if (next > HillReach) continue;
-            for (var dy = -1; dy <= 1; dy++)
-                for (var dx = -1; dx <= 1; dx++)
-                {
-                    var nearY = current / Width + dy;
-                    var nearX = current % Width + dx;
-                    if ((dx == 0 && dy == 0) || nearY < 0 || nearY >= Height) continue;
-                    if (WrapsEastWest) nearX = (nearX % Width + Width) % Width;
-                    else if (nearX < 0 || nearX >= Width) continue;
-                    var near = nearY * Width + nearX;
-                    if (distance[near] <= next) continue;
-                    distance[near] = next;
-                    queue.Enqueue(near);
-                    result[near] = hydrology![near] == 0 &&
-                        elevation![near] is >= HillMinimumElevation and < MountainElevation;
-                }
-        }
-        return result;
     }
 
     /// <summary>

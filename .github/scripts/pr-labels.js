@@ -36,8 +36,9 @@
 //   changes none of the issue's labels.
 //   Once the PR is ready for review (not a draft), the issue's claim label
 //   status:in-progress is removed too, so the issue shows only status:has-pr.
-//   A released draft's issue (status:needs-pr next to status:has-pr) stays in
-//   the queue until someone claims it or a PR closing it is ready for review.
+//   An already queued, released draft's issue stays in the queue, including
+//   when status:has-pr is first added, until someone claims or holds it or a
+//   PR closing it is ready for review.
 //   When a closing PR goes back to draft and neither the issue
 //   (status:in-progress, status:blocked, status:needs-decision, status:parked)
 //   nor the PR (status:needs-decision, status:blocked) is held, and the issue
@@ -77,7 +78,7 @@ const Priorities = ['priority:p0', 'priority:p1', 'priority:p2', 'priority:p3'];
 const DefaultPriority = 'priority:p2';
 // Changes to CI, labels, templates or the contribution rules affect every
 // agent, so they are P0.
-const WorkflowPaths = ['.github/', '.claude/', 'CONTRIBUTING.md', 'AGENTS.md', 'CLAUDE.md'];
+const WorkflowPaths = ['.github/', '.claude/', 'skills/', 'CONTRIBUTING.md', 'AGENTS.md', 'CLAUDE.md'];
 const WorkflowPriority = 'priority:p0';
 // The actor GitHub records for labels this workflow writes with its token.
 const LabelBot = 'github-actions[bot]';
@@ -198,6 +199,7 @@ const AreaRules = {
   'area:tooling': [
     '.github/',
     '.claude/',
+    'skills/',
     'scripts/',
     'global.json',
     'Directory.Build.props',
@@ -498,19 +500,20 @@ async function applyPullRequestLabels({ github, context, core, pr, previousBodie
     await github.rest.issues.addLabels({ ...repo, issue_number: number, labels: [HasPr] });
     const liveIssue = await openIssue(github, repo, number);
     const liveNames = labelNames(liveIssue?.labels);
+    const queueable = pr.draft && liveIssue !== null && !prHeld &&
+      !liveNames.some(name => HeldStatuses.includes(name)) &&
+      !liveNames.some(name => NotQueueable.includes(name));
     // A ready PR sent back to draft leaves an issue nobody holds (its claim
     // ended when the PR was marked ready). Put it back in the queue next to
     // status:has-pr, so any fixing agent can claim it and continue the branch.
     // wentBackToDraft: an earlier pass of this run saw the PR ready, so another
     // run's hand-back may have been undone by this run's ready-state pass.
-    const handedBack = (action === 'converted_to_draft' || wentBackToDraft) && pr.draft && liveIssue !== null && !prHeld &&
-      !liveNames.some(name => HeldStatuses.includes(name)) &&
-      !liveNames.some(name => NotQueueable.includes(name));
+    const handedBack = (action === 'converted_to_draft' || wentBackToDraft) && queueable;
     // A released draft keeps its queue entry until someone claims the issue,
     // a closing PR becomes ready or the draft is held. Edits and synchronize
-    // events alone must not hide unclaimed work again.
-    const abandoned = pr.draft && !prHeld && (handedBack ||
-      issueLabels.includes(HasPr) && liveNames.includes(Ready) && !liveNames.includes(InProgress));
+    // events alone must not hide unclaimed work again. The first labeling run
+    // may arrive after release, before the issue has ever had status:has-pr.
+    const abandoned = queueable && (handedBack || liveNames.includes(Ready));
     const open = abandoned ? await github.paginate(github.rest.pulls.list, { ...repo, state: 'open', per_page: 100 }) : [];
     const readyClosing = open.some(other => !other.draft && closingIssueNumbers(other.body, repoName).has(number));
     if (handedBack && !readyClosing) {

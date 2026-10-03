@@ -88,10 +88,24 @@ public sealed partial class PrivateWorldRuntime
         };
         var ownedBuildings = worldSimulation.Buildings.Where(building => building.HouseholdId == householdId)
             .Select(building => building.InstanceId).ToHashSet(StringComparer.Ordinal);
+        // Work for the leaver's own goods, such as their handcart, is not household work
+        // anyone else may finish: it stops, and its reserved materials stay with the leaver.
+        var personalJobs = worldSimulation.ProductionJobs.Where(job => job.WorkerId == actor && job.OwnerId == actor &&
+            ownedBuildings.Contains(job.BuildingInstanceId) && job.State == WorldProductionJobState.Running).ToArray();
+        foreach (var job in personalJobs)
+            ApplyInventoryTransition(inventory =>
+            {
+                foreach (var id in job.InputReservationIds)
+                    if (inventory.Reservations.SingleOrDefault(item => item.Id == id) is { State: InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed })
+                        inventory = InventoryFixture.ReleaseReservation(inventory, id, "personal_work_stopped_on_leaving");
+                return inventory;
+            });
+        var personalJobIds = personalJobs.Select(job => job.JobId).ToHashSet(StringComparer.Ordinal);
         worldSimulation = worldSimulation with
         {
-            ProductionJobs = worldSimulation.ProductionJobs.Select(job => job.WorkerId == actor &&
-                ownedBuildings.Contains(job.BuildingInstanceId) && job.State == WorldProductionJobState.Running
+            ProductionJobs = worldSimulation.ProductionJobs.Select(job => personalJobIds.Contains(job.JobId)
+                ? job with { State = WorldProductionJobState.Cancelled }
+                : job.WorkerId == actor && ownedBuildings.Contains(job.BuildingInstanceId) && job.State == WorldProductionJobState.Running
                 ? job with { State = WorldProductionJobState.Paused, PausedAtTick = WorldTick } : job).ToArray(),
             BuildingExpansions = worldSimulation.BuildingExpansions?.Select(job => job.WorkerId == actor &&
                 job.OwnerId == householdId && job.State == WorldProductionJobState.Running
@@ -116,6 +130,7 @@ public sealed partial class PrivateWorldRuntime
             ApplyInventoryTransition(inventory => InventoryFixture.Relocate(inventory,
                 $"depart-custody:{actor}:{WorldTick}:{lot.Id}", lot.Id, householdId, lot.Quantity, actor));
         }
+        foreach (var job in personalJobs) AppendEvent("recipe_cancelled", $"{job.JobId}:{job.RecipeId}");
         checkpointSchemaVersion = StateSchemaVersion;
         AppendEvent("household_left", $"{actor}|{householdId}|{cause}|{allowance}");
         return true;
@@ -127,7 +142,9 @@ public sealed partial class PrivateWorldRuntime
             .Sum(item => item.Quantity));
 
     private IEnumerable<InventoryLot> PersonalGoodsAwaitingCollection(string actor) => society.Checkpoint.Inventory.Lots.Where(lot =>
+        // A parked handcart stays on the ground with its cargo; its owner pulls it rather than carrying it.
         lot.OwnerId == actor && !PersonalEquipmentRules.IsCarried(lot, actor) && lot.CarrierId is null &&
+        lot.ItemKind != InventoryContainerRules.Handcart &&
         lot.DeliveryBuildingId is null && lot.ContainerLotId is null && PhysicalUnreservedQuantity(lot) > 0 &&
         !(InventoryContainerRules.IsContainer(lot.ItemKind) && HasActiveContainerReservation(society.Checkpoint.Inventory, lot.Id)) &&
         (lot.GroundPosition is not null || lot.StorageBuildingId is { } storageId &&
@@ -165,7 +182,8 @@ public sealed partial class PrivateWorldRuntime
             return reservation.State == InventoryReservationState.Reserved && lot.Quantity >= reservation.Quantity &&
                 lot.ConditionBasisPoints > 0 && lot.FreshnessBasisPoints > 0 &&
                 (lot.OwnerId == building.HouseholdId || lot.OwnerId == actor) &&
-                (lot.StorageBuildingId == buildingId || lot.GroundPosition == site || PersonalEquipmentRules.IsCarried(lot, actor));
+                (lot.StorageBuildingId == buildingId || lot.GroundPosition == site ||
+                 PersonalEquipmentRules.IsPhysicallyCarried(society.Checkpoint.Inventory, lot, actor));
         });
     }
 
@@ -245,6 +263,9 @@ public sealed partial class PrivateWorldRuntime
         foreach (var job in cancelledExpansions) AppendEvent("building_expansion_cancelled", $"{job.BuildingInstanceId}:{job.JobId}:Paused expansion materials are no longer available.");
     }
 
+    /// <summary>Maps and field records are the belongings the built-in chooser stores at home and leaves there.</summary>
+    private static bool KeptAtHomeByRoutine(string itemKind) => itemKind is "field_map" or "field_record";
+
     private void AddDepartureCandidates(List<CognitionCandidate> candidates, string actor)
     {
         if (!AdultResident(actor) || !ReadyForBriefInteraction(actor)) return;
@@ -264,7 +285,18 @@ public sealed partial class PrivateWorldRuntime
         {
             foreach (var lot in PersonalGoodsAwaitingCollection(actor).Where(lot => VesselFits(lot, FreeCarryCapacity(actor)))
                          .OrderBy(lot => lot.Id, StringComparer.Ordinal))
-                candidates.Add(new("household_collect:" + lot.Id, $"Physically collect your own {lot.ItemKind.Replace('_', ' ')}; other household stock remains private.", 20));
+            {
+                var knowledgeAtHome = KeptAtHomeByRoutine(lot.ItemKind) &&
+                    lot.StorageBuildingId is { } storageId &&
+                    worldSimulation.Buildings.Any(building => building.InstanceId == storageId &&
+                        building.HouseholdId == society.Checkpoint.GetInhabitant(actor).HouseholdId);
+                // Knowledge safely stored at home is not a recovery errand.
+                // Keep collection available to a deliberate choice without
+                // making the built-in chooser undo its own storage next tick.
+                candidates.Add(new("household_collect:" + lot.Id,
+                    $"Physically collect your own {lot.ItemKind.Replace('_', ' ')}; other household stock remains private.",
+                    knowledgeAtHome ? 110 : 20));
+            }
         }
         foreach (var lot in BorrowedGoods(actor).OrderBy(lot => lot.Id, StringComparer.Ordinal))
             if (lot.OwnerId != society.Checkpoint.GetInhabitant(actor).HouseholdId && HouseForHousehold(lot.OwnerId) is { } ownerHouse &&
@@ -278,7 +310,10 @@ public sealed partial class PrivateWorldRuntime
                          !PersonalEquipmentRules.IsSelected(inhabitants[actor].Equipment, lot.Id) &&
                          !IsEdibleFood(lot.ItemKind) && PhysicalUnreservedQuantity(lot) > 0 &&
                          VesselFits(lot, StorageRoom(house.InstanceId))).OrderBy(lot => lot.Id, StringComparer.Ordinal))
-                candidates.Add(new("household_store_personal:" + lot.Id, $"Store your own {lot.ItemKind.Replace('_', ' ')} in your House while keeping personal ownership.", 95));
+                candidates.Add(new("household_store_personal:" + lot.Id, $"Store your own {lot.ItemKind.Replace('_', ' ')} in your House while keeping personal ownership.",
+                    // The built-in chooser collects other stored belongings at once,
+                    // so it puts away only what it then leaves at home.
+                    KeptAtHomeByRoutine(lot.ItemKind) ? 95 : 110));
         }
         foreach (var child in society.Checkpoint.Inhabitants.Where(person => person.Status == SocietyInhabitantStatus.Active &&
                      person.AgeBand is SocietyAgeBand.Infant or SocietyAgeBand.Child or SocietyAgeBand.Adolescent &&

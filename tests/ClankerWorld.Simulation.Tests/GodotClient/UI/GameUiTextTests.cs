@@ -21,6 +21,7 @@ public sealed class GameUiTextTests
     [InlineData("housing_blocked", true)]
     [InlineData("relocation_notice", true)]
     [InlineData("relocation_cancelled", true)]
+    [InlineData("household_delivery_recovered", true)]
     [InlineData("housing_answer_recorded", false)]
     [InlineData("housing_request_cancelled", false)]
     [InlineData("model_call_warning", true)]

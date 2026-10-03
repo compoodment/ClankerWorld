@@ -16,6 +16,9 @@ public sealed partial class PrivateWorldRuntime
         if (order.TargetPosition is { } requestedPosition && !map.Contains(requestedPosition))
             return null;
 
+        if (order.Action == "accept_guardianship" && order.TargetAgentId is { } child)
+            return GuardianOrderCandidate(instruction.TargetInhabitantId, child);
+
         if (order.Action == "consume_food")
         {
             if (person.HungerBasisPoints >= ComfortableFullness)
@@ -121,7 +124,7 @@ public sealed partial class PrivateWorldRuntime
             .FirstOrDefault();
 
     private static bool IsSurvivalCandidate(string candidateId) => candidateId is
-        "consume_food" or "collect_shared_food" or "take_food_from_pot" or "make_room_for_food" or
+        "consume_food" or "collect_shared_food" or "take_food_from_pot" or "make_room_for_food" or "recover_household_delivery" or
         "harvest_food" or "seek_food" or "wear_clothing" or "tend_fire" or "seek_warmth";
 
     private void ExecuteOrderStep(
@@ -137,6 +140,11 @@ public sealed partial class PrivateWorldRuntime
         {
             CancelEquipmentRepair(actor);
             person = inhabitants[actor];
+        }
+        if (order.Action == "accept_guardianship")
+        {
+            ExecuteGuardianOrder(instruction, candidate);
+            return;
         }
         switch (candidate.Id)
         {
@@ -259,6 +267,8 @@ public sealed partial class PrivateWorldRuntime
 
     private string OrderBlockedReason(OwnerQueuedInstruction instruction, PlaytestInhabitantState person)
     {
+        if (instruction.Order is { Action: "accept_guardianship", TargetAgentId: { } child })
+            return GuardianOrderBlockedReason(instruction.TargetInhabitantId, child);
         if (instruction.Order?.Action == "consume_food")
         {
             if (person.HungerBasisPoints >= ComfortableFullness)

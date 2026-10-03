@@ -88,8 +88,10 @@ public sealed partial class PrivateWorldRuntime
 
     /// <summary>
     /// Households this adult may ask now: they hold a House in the adult's
-    /// Town, have room for the adult's whole care group, have an adult who can
-    /// answer, and did not refuse recently. An adult with no household asks,
+    /// Town, or in a Town whose admission the adult has asked for or been
+    /// approved for, have room for the adult's whole care group, have an
+    /// adult who can answer, and did not refuse recently. Household and Town
+    /// admission stay separate decisions. An adult with no household asks,
     /// and so does a member with a move-out notice from an overcrowded House;
     /// how an adult leaves or changes a household follows the agreed departure
     /// and care-group rules.
@@ -107,7 +109,8 @@ public sealed partial class PrivateWorldRuntime
         var town = TownForResident(actor);
         foreach (var household in society.Checkpoint.Households.OrderBy(item => item.Id, StringComparer.Ordinal))
         {
-            if (household.Id == current || HouseForHousehold(household.Id) is not { } house || house.TownId != town ||
+            if (household.Id == current || HouseForHousehold(household.Id) is not { } house ||
+                house.TownId != town && !HasOpenAdmission(actor, house.TownId) ||
                 !CanFitCareGroup(household.Id, actor) ||
                 HouseholdAdults(household.Id).Length == 0 ||
                 housing?.Refusals?.Any(refusal => refusal.HouseholdId == household.Id &&

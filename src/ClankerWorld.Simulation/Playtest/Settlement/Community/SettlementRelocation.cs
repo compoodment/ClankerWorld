@@ -19,7 +19,7 @@ public sealed record SettlementRelocation(string HouseholdId, long NoticeTick, l
 /// </summary>
 public sealed partial class PrivateWorldRuntime
 {
-    public const int RelocationSchemaVersion = 53;
+    public const int RelocationSchemaVersion = 62;
     private const string HouseholdVolunteerCandidate = "household_volunteer";
 
     /// <summary>One unpaused world day of notice, measured in world ticks.</summary>
