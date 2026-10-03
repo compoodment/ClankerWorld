@@ -22,6 +22,20 @@ public enum BuildingGlow : byte
 /// <summary>One building's lights: where it stands, which way it faces and what is lit.</summary>
 public readonly record struct BuildingLight(Rect2I Footprint, BuildingKind Kind, BuildingDoor Door, BuildingGlow Glow);
 
+/// <summary>Mockup styles for a street lantern that agents build beside a Road.</summary>
+public enum LanternStyle : byte
+{
+    /// <summary>A square glass lantern on top of a wooden post.</summary>
+    Post,
+    /// <summary>A round stone pillar with an open flame in a bowl.</summary>
+    Stone,
+    /// <summary>A post at the roadside with an arm that hangs a lantern over the Road.</summary>
+    Hanging,
+}
+
+/// <summary>A street lantern on one edge of a Road tile.</summary>
+public readonly record struct StreetLantern(Vector2I Tile, DoorSide Edge, LanternStyle Style);
+
 /// <summary>
 /// Warm light on the ground around lit buildings at night. Roofs never glow:
 /// light comes out of windows and doors onto the ground beside the walls, so
@@ -67,6 +81,7 @@ public partial class NightLightsLayer : Control
     private WorldTerrainLayer? source;
     private NightLayer? night;
     private IReadOnlyList<BuildingLight> lights = [];
+    private IReadOnlyList<StreetLantern> lanterns = [];
     private Rect2 drawnCamera;
     private int drawnTileSize;
     private float drawnDarkness;
@@ -93,18 +108,26 @@ public partial class NightLightsLayer : Control
         QueueRedraw();
     }
 
+    /// <summary>Street lanterns, drawn by day too and lit at night.</summary>
+    public void SetLanterns(IReadOnlyList<StreetLantern> next)
+    {
+        lanterns = next;
+        QueueRedraw();
+    }
+
     public override void _Process(double delta)
     {
         if (source is null || night is null || !IsVisibleInTree()) return;
         var darkness = night.ShownDarkness;
-        var flickers = darkness > 0 && lights.Any(light => (light.Glow & (BuildingGlow.Fire | BuildingGlow.Forge)) != 0);
+        var flickers = darkness > 0 && (lanterns.Any(lantern => lantern.Style == LanternStyle.Stone) ||
+            lights.Any(light => (light.Glow & (BuildingGlow.Fire | BuildingGlow.Forge)) != 0));
         if (flickers && (flickerClock += delta) >= FlickerSeconds)
         {
             flickerClock = 0;
             flickerStep++;
             QueueRedraw();
         }
-        if (darkness != drawnDarkness || (darkness > 0 &&
+        if (darkness != drawnDarkness || ((darkness > 0 || lanterns.Count > 0) &&
             (source.VisibleTiles != drawnCamera || source.TileSize != drawnTileSize)))
             QueueRedraw();
     }
@@ -112,21 +135,110 @@ public partial class NightLightsLayer : Control
     public override void _Draw()
     {
         drawnDarkness = night?.ShownDarkness ?? 0;
-        if (source?.World is null || drawnDarkness <= 0 || lights.Count == 0) return;
+        if (source?.World is null || (lanterns.Count == 0 && (drawnDarkness <= 0 || lights.Count == 0))) return;
         drawnCamera = source.VisibleTiles;
         drawnTileSize = source.TileSize;
         var stride = source.Stride;
+        var snap = BuildingSprites.AtlasTileSize(source.TileSize) == 16 ? 2 : 1;
         var visible = new Rect2I((Vector2I)drawnCamera.Position.Floor() - Vector2I.One * 2,
             (Vector2I)drawnCamera.Size.Ceil() + Vector2I.One * 4);
-        foreach (var light in lights)
+        if (drawnDarkness > 0)
+            foreach (var light in lights)
+            {
+                if (light.Glow == BuildingGlow.None || !light.Footprint.Intersects(visible)) continue;
+                var origin = new Vector2(light.Footprint.Position.X, light.Footprint.Position.Y) * stride;
+                if (source.TileSize < WorldTerrainLayer.SpriteTileMinimum)
+                    DrawSpeck(light, origin, stride);
+                else
+                    DrawBuilding(light, new Pen(this, origin, stride / 32f, drawnDarkness, snap));
+            }
+        if (source.TileSize < WorldTerrainLayer.SpriteTileMinimum) return;
+        var shown = lanterns.Where(lantern => visible.HasPoint(lantern.Tile)).ToArray();
+        // All glows first, then every lantern over them, so no pool paints over a neighbouring post.
+        foreach (var lantern in shown)
+            if (drawnDarkness > 0)
+                LanternGlow(lantern, new Pen(this, new Vector2(lantern.Tile.X, lantern.Tile.Y) * stride, stride / 32f, drawnDarkness, snap));
+        foreach (var lantern in shown)
+            LanternSprite(lantern, new Pen(this, new Vector2(lantern.Tile.X, lantern.Tile.Y) * stride, stride / 32f, drawnDarkness, snap));
+    }
+
+    /// <summary>Where a lantern's post stands and where its light hangs, in the Road tile's 32-unit space.</summary>
+    private static (Vector2 Post, Vector2 Light) LanternSpots(StreetLantern lantern)
+    {
+        var (post, inward) = lantern.Edge switch
         {
-            if (light.Glow == BuildingGlow.None || !light.Footprint.Intersects(visible)) continue;
-            var origin = new Vector2(light.Footprint.Position.X, light.Footprint.Position.Y) * stride;
-            if (source.TileSize < WorldTerrainLayer.SpriteTileMinimum)
-                DrawSpeck(light, origin, stride);
-            else
-                DrawBuilding(light, new Pen(this, origin, stride / 32f, drawnDarkness,
-                    BuildingSprites.AtlasTileSize(source.TileSize) == 16 ? 2 : 1));
+            DoorSide.North => (new Vector2(16, 4), new Vector2(0, 1)),
+            DoorSide.East => (new Vector2(28, 16), new Vector2(-1, 0)),
+            DoorSide.West => (new Vector2(4, 16), new Vector2(1, 0)),
+            _ => (new Vector2(16, 28), new Vector2(0, -1)),
+        };
+        return (post, lantern.Style == LanternStyle.Hanging ? post + inward * 8 : post);
+    }
+
+    private void LanternGlow(StreetLantern lantern, Pen pen)
+    {
+        var (_, light) = LanternSpots(lantern);
+        if (lantern.Style == LanternStyle.Stone)
+            pen.SoftPool(light.X, light.Y, 20, Ember, Flicker(new Rect2I(lantern.Tile, Vector2I.One), 2));
+        else
+            pen.SoftPool(light.X, light.Y, 24, Lamp, 0);
+    }
+
+    private static readonly Color Iron = new("2A2420");
+    private static readonly Color IronCap = new("3E3630");
+    private static readonly Color GlassLit = new("FFD27A");
+    private static readonly Color GlassHot = new("FFF1C4");
+    private static readonly Color GlassDark = new("8E948C");
+    private static readonly Color GlassShine = new("B9BEB5");
+    private static readonly Color Stone = new("8D8A83");
+    private static readonly Color StoneEdge = new("4A4743");
+    private static readonly Color StoneLight = new("B2AFA7");
+    private static readonly Color Soot = new("2E2A27");
+    private static readonly Color FlameHot = new("FFE9A8");
+    private static readonly Color FlameBody = new("FFA444");
+    private static readonly Color Wood = new("6B4A2E");
+    private static readonly Color WoodEdge = new("2C1E12");
+
+    /// <summary>
+    /// The lantern itself, seen straight from above: a lit lantern's glass
+    /// shines, everything else takes the night tint like the ground around it.
+    /// </summary>
+    private void LanternSprite(StreetLantern lantern, Pen pen)
+    {
+        var (post, light) = LanternSpots(lantern);
+        var lit = drawnDarkness > 0.05f;
+        Color Night(Color color) => color.Lerp(NightLayer.Wash, NightLayer.FullNightAlpha * drawnDarkness);
+        switch (lantern.Style)
+        {
+            case LanternStyle.Post:
+                pen.Solid(post.X - 3, post.Y - 3, 6, 6, Night(Iron));
+                pen.Solid(post.X - 2, post.Y - 2, 4, 4, lit ? GlassLit : Night(GlassDark));
+                if (!lit) pen.Solid(post.X - 2, post.Y - 2, 1, 1, Night(GlassShine));
+                pen.Solid(post.X - 1, post.Y - 1, 2, 2, Night(IronCap));
+                break;
+            case LanternStyle.Stone:
+                pen.SolidDisc(post.X, post.Y, 4.5f, Night(StoneEdge));
+                pen.SolidDisc(post.X, post.Y, 3.5f, Night(Stone));
+                pen.Solid(post.X - 3, post.Y - 2, 1, 2, Night(StoneLight));
+                pen.Solid(post.X - 2, post.Y - 3, 2, 1, Night(StoneLight));
+                pen.Solid(post.X - 1.5f, post.Y - 1.5f, 3, 3, Night(Soot));
+                if (lit)
+                {
+                    pen.Solid(post.X - 1, post.Y - 1, 2, 2, FlameBody);
+                    pen.Solid(post.X - 1, post.Y - 1, 1, 1, FlameHot);
+                }
+                break;
+            default:
+                var arm = light - post;
+                var step = arm.Normalized();
+                for (var k = 1; k < (int)arm.Length(); k++)
+                    pen.Solid(post.X + step.X * k - 0.5f, post.Y + step.Y * k - 0.5f, 1, 1, Night(Iron));
+                pen.Solid(post.X - 2, post.Y - 2, 4, 4, Night(WoodEdge));
+                pen.Solid(post.X - 1, post.Y - 1, 2, 2, Night(Wood));
+                pen.Solid(light.X - 2.5f, light.Y - 2.5f, 5, 5, Night(Iron));
+                pen.Solid(light.X - 1.5f, light.Y - 1.5f, 3, 3, lit ? GlassLit : Night(GlassDark));
+                pen.Solid(light.X - 0.5f, light.Y - 0.5f, 1, 1, lit ? GlassHot : Night(IronCap));
+                break;
         }
     }
 
@@ -267,11 +379,51 @@ public partial class NightLightsLayer : Control
             }
         }
 
+        /// <summary>A solid art-pixel rectangle, drawn as it is rather than as light.</summary>
+        public void Solid(float x, float y, float width, float height, Color color) =>
+            layer.DrawRect(new Rect2(origin + new Vector2(Snap(x), Snap(y)) * unit,
+                new Vector2(Math.Max(snap, Snap(width)), Math.Max(snap, Snap(height))) * unit), color with { A = 1 });
+
+        /// <summary>A solid stepped disc, for round stonework.</summary>
+        public void SolidDisc(float x, float y, float radius, Color color)
+        {
+            var cx = Snap(x);
+            var cy = Snap(y);
+            for (var k = -Snap(radius); k < radius; k += snap)
+            {
+                var t = (k + snap / 2f) / radius;
+                var width = Snap(radius * MathF.Sqrt(Math.Max(0, 1 - t * t)) * 2);
+                if (width > 0) Solid(cx - width / 2, cy + k, width, snap, color);
+            }
+        }
+
         /// <summary>A lantern's flame: one solid warm art pixel.</summary>
         public void Flame(float x, float y) =>
             layer.DrawRect(new Rect2(origin + new Vector2(Snap(x), Snap(y)) * unit, Vector2.One * snap * unit), FlameColor);
 
-        private float Snap(float value) => MathF.Round(value / snap) * snap;
+        /// <summary>
+        /// A wide pool that fades over five steps, for a street lantern
+        /// lighting the Road around it.
+        /// </summary>
+        public void SoftPool(float x, float y, float radius, Color color, int flicker)
+        {
+            var cx = Snap(x);
+            var cy = Snap(y);
+            const int rings = 5;
+            for (var step = 0; step < rings; step++)
+            {
+                var r = Math.Max(snap, radius * (rings - step) / rings + flicker);
+                var strength = 0.36f * MathF.Pow((step + 1) / (float)rings, 1.4f);
+                for (var k = -Snap(r); k < r; k += snap)
+                {
+                    var t = (k + snap / 2f) / r;
+                    var width = Snap(r * MathF.Sqrt(Math.Max(0, 1 - t * t)) * 2);
+                    if (width > 0) Fill(new Rect2(cx - width / 2, cy + k, width, snap), color, strength);
+                }
+            }
+        }
+
+        private float Snap(float value) => MathF.Floor(value / snap + 0.5f) * snap;
 
         private void Fill(Rect2 units, Color color, float alpha) =>
             layer.DrawRect(new Rect2(origin + units.Position * unit, units.Size * unit), color with { A = Math.Min(1, alpha * darkness) });

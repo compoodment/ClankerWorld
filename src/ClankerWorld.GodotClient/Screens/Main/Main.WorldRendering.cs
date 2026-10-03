@@ -121,6 +121,7 @@ public partial class Main
         worldOverview.SetFields(snapshot.Fields);
         terrainLayer.SetBuildings(snapshot.PlacedBuildings, snapshot.Objects);
         nightLightsLayer.SetLights(BuildingLights(snapshot));
+        nightLightsLayer.SetLanterns(MockedStreetLanterns(snapshot));
         worldOverview.SetRoads([.. snapshot.RoadTiles, .. snapshot.Bridges.SelectMany(bridge => bridge.Span)]);
         ApplyMapFilters(snapshot);
         var mapWidth = terrainMap.Width;
