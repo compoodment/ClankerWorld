@@ -205,10 +205,17 @@ public sealed class SocietyWorldRuntime : IDisposable
 
     public SocietyCognitionDispatchResult? CompleteDeferredCognition(
         CognitionDecisionRequest request, CognitionDecisionResponse? response, string? failure,
-        IReadOnlySet<string> legalCandidateIds)
+        IReadOnlySet<string> legalCandidateIds, bool? decisionContextChanged = null)
     {
         gate.Wait();
-        try { return cognition.CompleteDeferred(request, response, failure, society.RunEpoch, legalCandidateIds); }
+        try { return cognition.CompleteDeferred(request, response, failure, society.RunEpoch, legalCandidateIds, decisionContextChanged); }
+        finally { gate.Release(); }
+    }
+
+    internal void CompleteQueuedIdentityChoice(string inhabitantId, string personality, string aspiration)
+    {
+        gate.Wait();
+        try { cognition.CompleteQueuedIdentityChoice(inhabitantId, society.GetInhabitant(inhabitantId).Name, personality, aspiration); }
         finally { gate.Release(); }
     }
 

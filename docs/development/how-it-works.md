@@ -2,7 +2,7 @@
 title: How the game works
 type: architecture
 status: active
-updated: 2026-10-02
+updated: 2026-10-03
 ---
 
 # How the game works
@@ -126,6 +126,15 @@ requests until a personal-model result is accepted. After the fresh request,
 every 30 ticks, and idle agents reevaluate when their legal choices change or
 after 300 ticks. A blocked order therefore cannot request a paid model call on
 every tick.
+
+When a hosted decision is still running, a newly queued choice or observer
+message remains pending after its older reply is accepted. The next request
+uses that newer observation. Ordinary changes to the clock or need values do
+not by themselves request another paid decision; the existing decision-context
+rules still decide when the situation has changed. Pending observations survive
+save/load and are refreshed for the resumed world before dispatch. The usual
+request, provider, conversation and legal-choice checks still reject stale
+replies.
 
 Local order steps can continue while a hosted reply is pending. An accepted
 decision and a local continuation do not execute the same order twice in one

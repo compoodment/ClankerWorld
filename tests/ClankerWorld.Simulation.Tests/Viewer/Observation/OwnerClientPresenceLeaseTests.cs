@@ -66,8 +66,10 @@ public sealed class OwnerClientPresenceLeaseTests
             var presence = new OwnerClientPresenceLease(TimeSpan.FromMinutes(1));
             var provider = new ThrowingHostedProvider();
             var logger = new RecordingLogger<PrivateWorldRuntimeService>();
+            // Keep the hosted choices stable while checking one failure;
+            // peers taking shared tools would legitimately queue another call.
             using var runtime = new PrivateWorldRuntime("hosted-log", id =>
-                id == actorId ? provider : new DeterministicDecisionProvider(),
+                id == actorId ? provider : new ActionCoverageRecorder(chooseIdle: true),
                 startPace: actorId.Contains(':') ? WorldStartPace.FounderSetup : WorldStartPace.Legacy);
             if (actorId.Contains(':'))
             {

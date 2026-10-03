@@ -23,6 +23,10 @@ public sealed partial class PrivateWorldRuntime
                 SocietyCognitionScheduler.NameRetryTriggerId, StringComparer.Ordinal))
             .Select(entry => entry.InhabitantId)
             .ToHashSet(StringComparer.Ordinal);
+        var staleRunDecisions = cognitionState.Queue
+            .Where(entry => entry.Observation.RunEpoch != society.Checkpoint.RunEpoch)
+            .Select(entry => entry.InhabitantId)
+            .ToHashSet(StringComparer.Ordinal);
         var waitingHosted = society.PendingHostedInhabitantIds();
         var waitingOrderDecisions = cognitionState.Queue
             .Where(entry => waitingHosted.Contains(entry.InhabitantId) &&
@@ -56,6 +60,7 @@ public sealed partial class PrivateWorldRuntime
                 continue;
             if (FarmWorkFor(inhabitant.Id) is not null && operativeOrder is null &&
                 !NeedsUrgentFood(physical) && !NeedsUrgentWarmth(physical) &&
+                !staleRunDecisions.Contains(inhabitant.Id) &&
                 !ShouldDispatchConversationChoice(inhabitant.Id))
                 continue;
             if (operativeOrder is not null && physical.Project is { Stage: not ("completed" or "cancelled") } orderedProject)
@@ -89,6 +94,7 @@ public sealed partial class PrivateWorldRuntime
             }
             var current = runtimes[inhabitant.Id].CurrentIntention;
             if (!namingRetries.Contains(inhabitant.Id) && !staleOrderDecisions.Contains(inhabitant.Id) &&
+                !staleRunDecisions.Contains(inhabitant.Id) &&
                 !NeedsCognition(inhabitant.Id, current, candidates, conversationChoiceContext))
             {
                 continue;

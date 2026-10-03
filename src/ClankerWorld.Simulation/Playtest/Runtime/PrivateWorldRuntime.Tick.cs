@@ -262,7 +262,8 @@ public sealed partial class PrivateWorldRuntime
                         CognitionProviderFailures.FromException(exception, cancellation.Token));
                 }
             });
-            pendingHosted.Add(preview.InhabitantId, new PendingHostedDecision(preview.Request, task, cancellation));
+            pendingHosted.Add(preview.InhabitantId, new PendingHostedDecision(preview.Request, task, cancellation,
+                inhabitants[preview.InhabitantId].LastDecisionContext));
             RecordModelAttempt(preview.InhabitantId, "waiting");
             AppendEvent("hosted_decision_started", preview.InhabitantId);
         }
@@ -540,8 +541,12 @@ public sealed partial class PrivateWorldRuntime
                             .ToHashSet(StringComparer.Ordinal)
                         : CreateCandidates(id, physical).Select(candidate => candidate.Id)
                             .ToHashSet(StringComparer.Ordinal);
+                    bool? decisionContextChanged = item.DecisionContext is { } previousContext &&
+                        physical.LastDecisionContext is { } currentContext
+                        ? !string.Equals(previousContext, currentContext, StringComparison.Ordinal)
+                        : null;
                     var decision = society.CompleteDeferredCognition(item.Request, outcome.Response,
-                        outcome.Failure, legal);
+                        outcome.Failure, legal, decisionContextChanged);
                     if (decision is not null)
                     {
                         RecordModelCompletion(id, decision.Admission, outcome.Failure);
@@ -564,6 +569,8 @@ public sealed partial class PrivateWorldRuntime
                         if (outcome.Response is { } response)
                             ApplyChosenNameOutcome(item.Request, response, decision.Admission);
                         CloseUnresolvedNameRetry(item.Request);
+                        if (physical.IdentityChoicePending && inhabitants[id] is { IdentityChoicePending: false } identified)
+                            society.CompleteQueuedIdentityChoice(id, identified.Personality, identified.Aspiration);
                         deferredDecisions.Add(decision);
                         AppendEvent("hosted_decision_completed", $"{id}:{decision.Admission.Outcome}");
                     }
