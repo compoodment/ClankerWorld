@@ -242,7 +242,7 @@ public sealed class HandcartRuntimeTests
             {
                 RegionalWeather = null,
                 Config = state.WorldSystems.Config with
-                { TicksPerDay = 1, DaysPerYear = 4, SpringDays = 1, SummerDays = 1, AutumnDays = 1, WinterDays = 1 },
+                { TicksPerDay = 1, CalendarOffsetTicks = 0, DaysPerYear = 4, SpringDays = 1, SummerDays = 1, AutumnDays = 1, WinterDays = 1 },
             },
             Inhabitants = state.Inhabitants.Select(person => person with
             { HungerBasisPoints = 10_000, Project = null, LastDecisionContext = null }).ToArray(),
