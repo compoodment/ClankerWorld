@@ -122,7 +122,7 @@ public sealed partial class PrivateWorldRuntimeTests
     [InlineData(true)]
     public async Task PausedHeldTravelOrderRefreshesItsPersonalRequestInTheResumedEpoch(bool reload)
     {
-        var provider = new CancellationPlanningProvider(holdFirstOrder: true);
+        var provider = new CancellationPlanningProvider(holdFirstOrder: true, holdFreshOrder: true);
         using var world = CreateCancellationTravelWorld(provider);
         var order = SubmitCancellationTravelOrder(world, "paused-held-travel");
         PrivateWorldRuntime? restored = null;
@@ -144,19 +144,41 @@ public sealed partial class PrivateWorldRuntimeTests
                 resumeWorld = restored;
             }
             resumeWorld.Resume();
-            // The fresh request starts on a background task, so a slow runner
-            // may need a few more ticks before the provider sees it.
-            for (var tick = 0; tick < 5 || tick < 60 &&
-                     !provider.Requests.Any(request => request.RunEpoch != originalRequest.RunEpoch); tick++)
+            // Dispatch does not establish admission. Hold the resumed response
+            // so this boundary is exercised on both fast and loaded runners.
+            var dispatchWait = System.Diagnostics.Stopwatch.StartNew();
+            while (!provider.FreshStarted.Task.IsCompleted && dispatchWait.Elapsed < TimeSpan.FromSeconds(5))
             {
                 Assert.True((await resumeWorld.AdvanceOneTickNonBlockingAsync()).Advanced);
-                if (tick >= 5) await Task.Delay(10);
+                await Task.Delay(10);
+            }
+            Assert.True(provider.FreshStarted.Task.IsCompleted, "The resumed order request was not dispatched.");
+
+            // The resumed request starts in the background; wait for its actual
+            // epoch while continuing ticks, without releasing the obsolete reply.
+            for (var tick = 0; tick < 200 &&
+                 !provider.Requests.Any(request => request.RunEpoch != originalRequest.RunEpoch); tick++)
+            {
+                await Task.Delay(25);
+                Assert.True((await resumeWorld.AdvanceOneTickNonBlockingAsync()).Advanced);
             }
 
             var freshRequest = Assert.Single(provider.Requests, request => request.RunEpoch != originalRequest.RunEpoch);
             Assert.Equal(resumeWorld.Society.RunEpoch, freshRequest.RunEpoch);
             Assert.Equal(order.InstructionId, freshRequest.OperativeOrderInstructionId);
             Assert.Contains(freshRequest.ObserverGuidance!, message => message.InstructionId == order.InstructionId);
+            Assert.Null(Assert.Single(resumeWorld.ExportState().Instructions!,
+                instruction => instruction.InstructionId == order.InstructionId).ObservedTick);
+            provider.ReleaseFresh.TrySetResult(true);
+            await provider.FreshReturned.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            var admissionWait = System.Diagnostics.Stopwatch.StartNew();
+            while (Assert.Single(resumeWorld.ExportState().Instructions!,
+                       instruction => instruction.InstructionId == order.InstructionId).ObservedTick is null &&
+                   admissionWait.Elapsed < TimeSpan.FromSeconds(5))
+            {
+                await Task.Delay(10);
+                Assert.True((await resumeWorld.AdvanceOneTickNonBlockingAsync()).Advanced);
+            }
             Assert.NotNull(Assert.Single(resumeWorld.ExportState().Instructions!,
                 instruction => instruction.InstructionId == order.InstructionId).ObservedTick);
             Assert.Equal(2, provider.Requests.Count);
@@ -166,6 +188,7 @@ public sealed partial class PrivateWorldRuntimeTests
         finally
         {
             provider.Release.TrySetResult(true);
+            provider.ReleaseFresh.TrySetResult(true);
             restored?.Dispose();
         }
     }
@@ -223,7 +246,8 @@ public sealed partial class PrivateWorldRuntimeTests
     private static OwnerInstructionOrder CancellationOrder(PrivateWorldRuntimeState state, string orderId) =>
         Assert.Single(state.Instructions!, instruction => instruction.InstructionId == orderId).Order!;
 
-    private sealed class CancellationPlanningProvider(bool holdFirstOrder = false, string orderCandidate = "seek_food") : IDecisionProvider
+    private sealed class CancellationPlanningProvider(bool holdFirstOrder = false, string orderCandidate = "seek_food",
+        bool holdFreshOrder = false) : IDecisionProvider
     {
         public DecisionProviderKind Kind => DecisionProviderKind.LargeLanguageModel;
         public long ProviderEpoch => 1;
@@ -231,6 +255,9 @@ public sealed partial class PrivateWorldRuntimeTests
         public TaskCompletionSource<bool> Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource<bool> Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource<bool> Returned { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<bool> FreshStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<bool> ReleaseFresh { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<bool> FreshReturned { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public async ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request,
             CancellationToken cancellationToken = default)
@@ -244,6 +271,12 @@ public sealed partial class PrivateWorldRuntimeTests
                 // A new valid request must not depend on this obsolete reply.
                 await Release.Task;
                 Returned.TrySetResult(true);
+            }
+            else if (holdFreshOrder && request.Observation.OperativeOrderInstructionId is not null)
+            {
+                FreshStarted.TrySetResult(true);
+                await ReleaseFresh.Task;
+                FreshReturned.TrySetResult(true);
             }
             return HostedResponse(request, Kind, ProviderEpoch,
                 request.Observation.OperativeOrderInstructionId is null ? "safe_idle" : orderCandidate);

@@ -85,7 +85,8 @@ public sealed partial class PrivateWorldRuntime
     {
         var placed = worldSimulation.Buildings.SingleOrDefault(building => building.InstanceId == blacksmithId);
         if (placed is null) return [];
-        return worldContent.Recipes.Where(recipe => recipe.WorkstationBuildingId == placed.DefinitionId)
+        // A handcart is built only from what its builder carries, so the Blacksmith keeps no stock for it.
+        return worldContent.Recipes.Where(recipe => recipe.WorkstationBuildingId == placed.DefinitionId && !IsHandcartRecipe(recipe))
             .SelectMany(recipe => recipe.Inputs)
             .GroupBy(input => input.ResourceId, StringComparer.Ordinal)
             .Select(group => (ItemKind: group.Key, Target: checked(group.Max(input => input.Amount) * 2)))
@@ -182,7 +183,7 @@ public sealed partial class PrivateWorldRuntime
             if (stocked + incoming >= target) continue;
             var personal = inventory.Lots
                 .Where(lot => lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) && lot.DeliveryBuildingId is null &&
-                    lot.ContainerLotId is null && lot.ItemKind == kind && AvailableLotQuantity(lot) > 0 &&
+                    lot.ContainerLotId is null && lot.ItemKind == kind && SpareCarriedQuantity(actor, lot) > 0 &&
                     !PersonalEquipmentRules.IsSelected(inhabitants[actor].Equipment, lot.Id))
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
             if (personal is not null) return personal;
@@ -343,7 +344,7 @@ public sealed partial class PrivateWorldRuntime
                 .Sum(AvailableLotQuantity);
             var targetPersonal = BlacksmithInputTarget(blacksmith.InstanceId, input.ItemKind);
             var personalQuantity = Math.Min(targetPersonal - stockedPersonal - incomingPersonal,
-                Math.Min(room, Math.Min(HouseHaulLoadQuantity, AvailableLotQuantity(input))));
+                Math.Min(room, Math.Min(HouseHaulLoadQuantity, SpareCarriedQuantity(actor, input))));
             if (personalQuantity <= 0) return;
             ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
                 $"smith-input-delivery:{WorldTick}:{actor}", actor, householdId, input.Id,
