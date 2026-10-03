@@ -121,7 +121,7 @@ public sealed partial class PrivateWorldRuntime
             .FirstOrDefault();
 
     private static bool IsSurvivalCandidate(string candidateId) => candidateId is
-        "consume_food" or "collect_shared_food" or "take_food_from_pot" or "make_room_for_food" or
+        "consume_food" or "collect_shared_food" or "take_food_from_pot" or "make_room_for_food" or "recover_household_delivery" or
         "harvest_food" or "seek_food" or "wear_clothing" or "tend_fire" or "seek_warmth";
 
     private void ExecuteOrderStep(
