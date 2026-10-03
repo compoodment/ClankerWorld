@@ -817,6 +817,7 @@ public partial class Main
             VerifyEventLogAgentNames();
             await VerifyNewcomerOfferAsync();
             VerifyOrnamentPresentation();
+            VerifyHandcartInspection();
             VerifyToolMakingPresentation();
             await VerifyMenuBackdropAsync();
             // Tooltips and other windows the engine creates on demand follow the root's filter,
