@@ -34,7 +34,6 @@ public enum LitDesign : byte
     MarketStall,
     TownHall,
     Port,
-    Campfire,
 }
 
 /// <summary>Street lantern styles agents build beside Roads.</summary>
@@ -102,9 +101,6 @@ public static class NightLightShapes
         switch (plan.Design)
         {
             case LitDesign.Silo or LitDesign.MarketStall:
-                break;
-            case LitDesign.Campfire:
-                pen.Pool(new Vector2(16, 16), 20, 4, Fire, 0.34f, flicker: true, clip: false);
                 break;
             case LitDesign.Warehouse:
                 // No windows: a lantern on the wall by the loading doors, lit while someone fetches or stores goods.

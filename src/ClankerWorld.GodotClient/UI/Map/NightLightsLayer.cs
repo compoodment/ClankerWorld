@@ -9,7 +9,7 @@ public readonly record struct BuildingLight(Rect2I Footprint, LightPlan Plan, bo
     public bool Shines => Plan.Design switch
     {
         LitDesign.Silo or LitDesign.MarketStall => false,
-        LitDesign.Campfire or LitDesign.Port => true,
+        LitDesign.Port => true,
         _ => Occupied || Working,
     };
 }
@@ -170,7 +170,7 @@ public partial class NightLightsLayer : Control
     {
         var origin = new Vector2(building.Footprint.Position.X, building.Footprint.Position.Y) * stride;
         var size = new Vector2(building.Footprint.Size.X, building.Footprint.Size.Y) * stride;
-        var color = building.Plan.Design is LitDesign.Campfire || building.Working ? NightLightShapes.Fire : NightLightShapes.Lamp;
+        var color = building.Working ? NightLightShapes.Fire : NightLightShapes.Lamp;
         DrawRect(new Rect2(origin - Vector2.One * stride * 0.5f, size + Vector2.One * stride), color with { A = 0.12f * drawnDarkness });
         DrawRect(new Rect2(origin, size), color with { A = 0.26f * drawnDarkness });
     }

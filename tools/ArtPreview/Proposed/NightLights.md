@@ -49,7 +49,6 @@ in the game yet.
   forecourt. The bell tower stays dark.
 - **Port:** the lantern on the T-head burns every night so boats can find the
   Port; the shed lights while someone is in it.
-- **Campfire:** burns every night.
 - **Street lanterns:** B, a stone lamp with an open flame that flickers, and
   C, a post with an arm that hangs a glass lantern over the Road, whose light
   drifts gently. Agents build them; they need no fuel and light themselves at

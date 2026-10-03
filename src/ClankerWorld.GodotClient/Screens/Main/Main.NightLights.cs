@@ -39,9 +39,6 @@ public partial class Main
             if (mock?.TryGetValue($"{kind}{index}", out var forced) == true) (occupied, busy) = forced;
             lights.Add(new BuildingLight(footprint, new LightPlan(design, roof, yard, door.Side, middle), occupied, busy));
         }
-        foreach (var item in snapshot.Objects.Where(item => BuildingSprites.KindForObject(item.Kind) == BuildingKind.Hearth))
-            lights.Add(new BuildingLight(new Rect2I(item.Position.X, item.Position.Y, 1, 1),
-                new LightPlan(LitDesign.Campfire, new Rect2(), null, DoorSide.South, 16), false, false));
         return lights;
     }
 

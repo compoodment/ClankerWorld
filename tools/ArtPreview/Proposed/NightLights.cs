@@ -67,16 +67,6 @@ public sealed class NightLightsProposal : IArtProposal
                 "Day · night, nobody in · night, in use. " + sample.Note);
         }
 
-        // The campfire burns every night.
-        {
-            var ground = Grass(3, 3);
-            Sheet.Blend(ground, BuildingSprites.Render(BuildingKind.Hearth, 1, 1, 32), 32, 32);
-            var fire = NightLightShapes.Building(new LightPlan(LitDesign.Campfire, new Rect2(), null, DoorSide.South, 16), false, false, true, 0.5f, 7)
-                .Select(cell => (new Vector2(32, 32), cell)).ToList();
-            yield return new(Family, "Campfire", Triptych(Compose(ground, fire, 0), Compose(ground, fire, 1), Compose(ground, fire, 1)),
-                "Day · night · night. A campfire burns every night, with a ragged, flickering pool.");
-        }
-
         // The two street lanterns the owner chose, on a Road.
         foreach (var (style, id, note) in new[]
         {
