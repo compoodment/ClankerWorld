@@ -89,7 +89,9 @@ public partial class Main
                 "town_project_worked" or "town_project_completed"
                 => PixelIcons.Texture(PixelGlyph.Hammer, ink, wood, 1),
             "tree_planted" or "tree_replanted" or "crop_moisture_effect" => PixelIcons.Texture(PixelGlyph.Leaf, ink, green, 1),
-            "child_born" or "partnership_accepted" or "partnership_ended" or "caregiver_assigned"
+            "child_born" or "partnership_accepted" or "partnership_ended" or "caregiver_assigned" or
+                "guardian_needed" or "guardian_assigned" or "guardian_placement_pending" or
+                "guardian_placement_completed" or "guardian_placement_cancelled"
                 => PixelIcons.Texture(PixelGlyph.Heart, pink, pink, 1),
             "inhabitant_removed" or "estate_will_accepted" or "estate_will_default" => PixelIcons.Texture(PixelGlyph.Grave, ink, stone, 1),
             "town_founded" or "settlement_founded" or "town_founding_started" or "town_border_expanded" or

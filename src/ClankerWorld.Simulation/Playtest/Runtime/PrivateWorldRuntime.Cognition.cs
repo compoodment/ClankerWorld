@@ -70,7 +70,7 @@ public sealed partial class PrivateWorldRuntime
                 !NeedsUrgentFood(physical) && !NeedsUrgentWarmth(physical) &&
                 !staleRunDecisions.Contains(inhabitant.Id) &&
                 !awaitingDispatch.Contains(inhabitant.Id) &&
-                !ShouldDispatchConversationChoice(inhabitant.Id))
+                !ShouldDispatchConversationChoice(inhabitant.Id) && GuardianPlacementCandidate(inhabitant.Id) is null)
                 continue;
             if (operativeOrder is not null && physical.Project is { Stage: not ("completed" or "cancelled") } orderedProject)
             {
@@ -130,7 +130,7 @@ public sealed partial class PrivateWorldRuntime
                 physical.RecentThoughts is { Count: > 0 } thoughts ? thoughts[^1].Text : null,
                 checkpoint.Households.SingleOrDefault(item => item.Id == inhabitant.HouseholdId)?.Name,
                 towns.SingleOrDefault(item => item.ResidentIds.Contains(inhabitant.Id, StringComparer.Ordinal))?.Name,
-                HousingNote(inhabitant.Id), EquipmentNote(inhabitant.Id), ContinuityNote(inhabitant.Id),
+                GuardianPlacementModelNote(inhabitant.Id), EquipmentNote(inhabitant.Id), ContinuityNote(inhabitant.Id),
                 DepartureNote: DepartureNote(inhabitant.Id), CivicNote: CivicNote(inhabitant.Id),
                 MedicalCareNote: MedicalCareNoteCore(inhabitant.Id), TownMembershipNote: TownMembershipNote(inhabitant.Id),
                 ToolMakingRequestNote: ToolMakingRequestNoteCore(inhabitant.Id),
@@ -353,7 +353,9 @@ public sealed partial class PrivateWorldRuntime
 
     private static string GuardianCandidateContext(IEnumerable<CognitionCandidate> candidates)
     {
-        var ids = candidates.Where(candidate => candidate.Id.StartsWith("guardian_accept:", StringComparison.Ordinal))
+        var ids = candidates.Where(candidate => (candidate.Id.StartsWith("guardian_accept:", StringComparison.Ordinal) ||
+            candidate.Id.StartsWith("guardian_relocate:", StringComparison.Ordinal) ||
+            candidate.Id.StartsWith("guardian_follow:", StringComparison.Ordinal)))
             .Select(candidate => Convert.ToBase64String(Encoding.UTF8.GetBytes(candidate.Id))
                 .TrimEnd('=').Replace('+', '-').Replace('/', '_'))
             .Order(StringComparer.Ordinal).ToArray();
@@ -363,7 +365,9 @@ public sealed partial class PrivateWorldRuntime
     private static bool HasNewGuardianCandidate(string? lastDecisionContext, IEnumerable<CognitionCandidate> candidates)
     {
         var previouslyOffered = GuardianCandidateContextFromLastDecision(lastDecisionContext);
-        return candidates.Where(candidate => candidate.Id.StartsWith("guardian_accept:", StringComparison.Ordinal))
+        return candidates.Where(candidate => (candidate.Id.StartsWith("guardian_accept:", StringComparison.Ordinal) ||
+            candidate.Id.StartsWith("guardian_relocate:", StringComparison.Ordinal) ||
+            candidate.Id.StartsWith("guardian_follow:", StringComparison.Ordinal)))
             .Select(candidate => Convert.ToBase64String(Encoding.UTF8.GetBytes(candidate.Id))
                 .TrimEnd('=').Replace('+', '-').Replace('/', '_'))
             .Any(candidate => !previouslyOffered.Contains(candidate));
@@ -407,6 +411,7 @@ public sealed partial class PrivateWorldRuntime
                 continue;
             }
             var order = PendingInstructionFor(inhabitant.Id);
+            if (order is null && ContinueGuardianPlacement(inhabitant.Id)) continue;
             if (pendingHosted.Contains(inhabitant.Id) && order is null)
                 continue;
             if (IsConversationBusy(inhabitant.Id))
@@ -512,7 +517,7 @@ public sealed partial class PrivateWorldRuntime
         foreach (var id in waitingIds.OrderBy(item => item, StringComparer.Ordinal))
         {
             if (!inhabitants.TryGetValue(id, out var state)) continue;
-            if (handledOrders.Contains(id)) continue;
+            if (handledOrders.Contains(id) || HasGuardianPlacementTask(id) && guardianPlacementActions.Contains(id)) continue;
             if (PendingInstructionFor(id) is not null) continue;
             if (!NeedsUrgentFood(state) && !NeedsUrgentWarmth(state))
                 continue;
@@ -546,6 +551,7 @@ public sealed partial class PrivateWorldRuntime
             return;
         var pendingInstruction = PendingInstructionFor(decision.InhabitantId);
         var candidateId = decision.Admission.Intention.CandidateId;
+        if (candidateId != "safe_idle") guardianPlacementActions.Add(decision.InhabitantId);
         if (decision.Admission.Intention.OperativeOrderInstructionId != pendingInstruction?.InstructionId)
         {
             AppendEvent("instruction_order_stale_decision", decision.InhabitantId);
@@ -662,6 +668,7 @@ public sealed partial class PrivateWorldRuntime
         string candidateId,
         bool reportIdle)
     {
+        if (candidateId != "safe_idle") guardianPlacementActions.Add(inhabitantId);
         if (IsOrnamentCandidate(candidateId)) return;
         if (candidateId.StartsWith(ToolRequestPrefix, StringComparison.Ordinal))
         {
@@ -675,6 +682,13 @@ public sealed partial class PrivateWorldRuntime
                 AppendEvent("conversation_action_rejected", $"{inhabitantId}:{candidateId.Split(':')[0]}");
             else if (inhabitants[inhabitantId].Equipment?.Repair is not null)
                 CancelEquipmentRepair(inhabitantId);
+            return;
+        }
+        if (TryApplyGuardianPlacementCandidate(inhabitantId, candidateId)) return;
+        // An explicit withdrawal of care must not turn into continued field work.
+        if (candidateId.StartsWith("guardian_end:", StringComparison.Ordinal) && HasGuardianPlacementTask(inhabitantId))
+        {
+            ApplyDependentCareCandidate(inhabitantId, candidateId);
             return;
         }
         if (!AgePermitsCandidate(inhabitantId, candidateId))
@@ -1149,6 +1163,7 @@ public sealed partial class PrivateWorldRuntime
         if (AdultResident(inhabitantId)) AddHandcartCandidates(candidates, inhabitantId, state);
         AddSurvivalCandidates(candidates, inhabitantId, state);
         AddDependentCareCandidates(candidates, inhabitantId);
+        if (GuardianPlacementCandidate(inhabitantId) is { } placementCandidate) candidates.Add(placementCandidate);
         AddMedicalCareCandidates(candidates, inhabitantId);
         if (AdultResident(inhabitantId))
         {

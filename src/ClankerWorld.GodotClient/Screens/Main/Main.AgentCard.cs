@@ -711,6 +711,9 @@ public partial class Main
             if (project.Blocker is not null) details.Add(project.Blocker);
         }
         if (role is not null and not "unassigned") details.Add($"Role: {Pretty(role)}");
+        if (!isDeceased)
+            details.AddRange(inhabitant.DecisionFactors.Where(factor => factor.Key == "guardian-care")
+                .Select(factor => factor.Detail));
         if (Factor("housing") is { } housing && !isDeceased) details.Add(housing);
         if (Factor("town-membership") is { } townMembership && !isDeceased) details.Add(townMembership);
         if (inhabitant.Lesson is { } lesson)
