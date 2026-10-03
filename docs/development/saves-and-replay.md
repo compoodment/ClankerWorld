@@ -118,6 +118,15 @@ goods again. Older alpha saves are refused and preserved without migration.
 This number is provisional until merge and must remain above the material-order
 base schema after integration.
 
+Private-world schema 55 adds `collect_material` orders for the same material
+catalogue. Their source is selected through ordinary personal-goods collection
+rules, so explicit source, food and coordinate targets are refused. Progress
+counts collected loads or exact item quantities, and a bounded committed-move
+receipt prevents replay from duplicating pickup. Unavailable goods and full
+carrying space preserve the remaining task. Older alpha saves are refused and
+preserved without migration. This number is provisional and must remain above
+the storage-order base schema after integration.
+
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
 Matching parent assignments are disclosed as agreement; when they differ, the
@@ -376,7 +385,7 @@ blocked-return behavior. These checks use existing timestamps and add no saved
 fields, schema change or migration.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 54. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 55. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus

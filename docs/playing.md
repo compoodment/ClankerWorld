@@ -151,6 +151,14 @@ to the room available; a quantity stops at that exact number. Missing personal
 materials or a full House leaves the task waiting with a reason. Storage orders
 currently cover the same seven raw materials as gathering, for adults and elders.
 
+To pick up personal raw materials, use **Collect my wood**, **Collect three
+clay**, or **Keep collecting stone**. Adults and elders walk to their own goods
+in their current or former household's storage, or where they were dropped.
+They keep ownership and use normal carrying space. A plain request collects
+one load; a quantity stops exactly at that number. Full hands or unavailable
+goods leave the task waiting. These orders cover the same seven raw materials;
+requests naming a particular source or destination are not understood yet.
+
 An instruction the game cannot understand leaves the current order running.
 Unsupported requests, such as "build a house" or "gather cloth," close as not
 understood and appear in the Event Log. Recognized orders follow normal access
