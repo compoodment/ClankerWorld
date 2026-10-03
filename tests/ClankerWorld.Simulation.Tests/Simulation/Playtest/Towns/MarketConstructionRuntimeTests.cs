@@ -11,7 +11,7 @@ public sealed class MarketConstructionRuntimeTests
     private static readonly int[] ExpectedStarterSlots = [0, 4];
 
     [Fact]
-    public async Task GeneratedPersonalTurnsGatherDonateAndBuildOnlyTwoPaidMarketStallsAcrossReload()
+    public async Task GeneratedResidentsBuildPaidMarketsAndStallsBeforeLocalTradesAcrossReload()
     {
         var policy = new TownProjectPolicy
         {
@@ -178,8 +178,14 @@ public sealed class MarketConstructionRuntimeTests
         MarketObservationTests.AssertProjection(scenario.World);
         scenario.World.Validate();
 
+        await MarketAdditionalStallScenario.AssertRealBorrowingEnablesOnlyAnApprovedPaidThirdStallAsync(
+            scenario.World.ExportState());
+
         // Separate controlled stock fixtures reuse this genuinely paid boundary;
         // their axes/payment additions do not claim a natural crafting pipeline.
+        await MarketFreshConsentScenario.AssertFreshArrivalConsentAsync(scenario.World);
+        await MarketPausedPlanTradeScenario.AssertPausedBandageBuyerTradesWithoutBorrowingAlphaStockAsync(
+            scenario.World.ExportState());
         await MarketTradeScenario.AssertPipelineAsync(scenario.World);
     }
 

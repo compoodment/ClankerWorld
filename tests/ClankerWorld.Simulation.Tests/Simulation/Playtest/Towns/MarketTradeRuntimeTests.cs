@@ -98,12 +98,39 @@ internal static class MarketTradeScenario
         var offer = offering.Society.Inventory.GetOffer(trade.OfferId);
         Assert.Equal(DirectBarterState.Open, offer.State);
         Assert.Equal(new[] { buyer }, offer.AcceptedBy);
+        Assert.Equal(stockOwner, offer.FirstPartyId);
+        Assert.Equal(buyer, offer.SecondPartyId);
+        Assert.Equal(buyer, trade.BuyerId);
         Assert.Equal(stockOwner, trade.GoodsOwnerId);
         Assert.Equal(household, trade.PaymentOwnerId);
         Assert.Equal(deposit.LotId, offer.FirstLotId);
-        Assert.Equal("market-buyer-payment", offer.SecondLotId);
         Assert.Equal(1, offer.FirstQuantity);
         Assert.Equal(1, offer.SecondQuantity);
+        // Controlled wood stock is one payment option. The actual buyer may instead
+        // offer a legitimate spare garment, so bind conservation to the exact offer.
+        var offeredPayment = offering.Society.Inventory.GetLot(offer.SecondLotId);
+        Assert.Equal(buyer, offeredPayment.OwnerId);
+        Assert.Equal(trade.PaymentKind, offeredPayment.ItemKind);
+        Assert.NotEqual(trade.GoodsKind, offeredPayment.ItemKind);
+        Assert.True(PersonalEquipmentRules.IsCarried(offeredPayment, buyer));
+        Assert.Null(offeredPayment.GroundPosition);
+        Assert.Null(offeredPayment.StorageBuildingId);
+        Assert.True(MarketTradeRules.IsLoose(offeredPayment));
+        Assert.True(offeredPayment.ConditionBasisPoints > 0 && offeredPayment.FreshnessBasisPoints > 0);
+        Assert.False(PersonalEquipmentRules.IsSelected(offering.Inhabitants.Single(person => person.InhabitantId == buyer).Equipment,
+            offeredPayment.Id));
+        Assert.False(offeredPayment.ItemKind is "field_map" or "field_record");
+        var paymentClaim = Assert.Single(offering.Society.Inventory.Reservations, claim => claim.LotId == offeredPayment.Id &&
+            claim.State is InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed or InventoryReservationState.Committed);
+        Assert.Equal("barter:" + offer.Id, paymentClaim.Purpose);
+        Assert.Equal(offer.SecondQuantity, paymentClaim.Quantity);
+        var withoutThisOffer = offering.Society.Inventory with
+        {
+            Reservations = offering.Society.Inventory.Reservations.Where(claim => claim.Purpose != "barter:" + offer.Id).ToArray(),
+        };
+        Assert.Equal(offeredPayment.Quantity, MarketTradeRules.AvailableQuantity(withoutThisOffer, offeredPayment));
+        Assert.DoesNotContain(offeredPayment.Id, ToolProgressionRules.All.Select(tool => tool.Family).Distinct()
+            .Select(family => ToolProgressionRules.BestUsableTool(withoutThisOffer, buyer, family)?.Id));
         Assert.Equal(3, MarketTradeRules.AvailableQuantity(offering.Society.Inventory, offering.Society.Inventory.GetLot(deposit.LotId)));
         Assert.All(offering.Society.Inventory.Reservations.Where(claim => claim.Purpose == "barter:" + offer.Id),
             claim => Assert.Equal(InventoryReservationState.Reserved, claim.State));
@@ -122,10 +149,13 @@ internal static class MarketTradeScenario
             }).ToArray()
         };
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(forged));
-        var woodBefore = Total(offering.Society.Inventory, "wood");
+        await MarketFreshConsentScenario.AssertAutomaticDepartureAsync(pending, offer.Id);
+        var paymentKindBefore = Total(offering.Society.Inventory, trade.PaymentKind);
         var axesBefore = Total(offering.Society.Inventory, "wooden_axe");
         var settling = phases.Resume("accept", PrivateWorldRuntimeCodec.Decode(bytes));
         await UntilAsync(settling, () => settling.Society.Inventory.GetOffer(offer.Id).State == DirectBarterState.Settled, policy);
+        Assert.Equal(new[] { stockOwner, buyer }.Order(StringComparer.Ordinal),
+            settling.Society.Inventory.GetOffer(offer.Id).AcceptedBy);
         var purchased = settling.Society.Inventory.Lots.Single(lot => lot.ProvenanceLotId == deposit.LotId &&
             lot.OwnerId == buyer && lot.ItemKind == "wooden_axe");
         Assert.Equal(1, purchased.Quantity);
@@ -134,11 +164,14 @@ internal static class MarketTradeScenario
         var paymentReceipt = settling.Towns[0].Markets[0].StockReceipts.Single(receipt => receipt.TradeOfferId == offer.Id);
         var payment = settling.Society.Inventory.GetLot(paymentReceipt.LotId);
         Assert.Equal(household, payment.OwnerId);
+        Assert.Equal(trade.PaymentKind, payment.ItemKind);
         Assert.Equal(1, payment.Quantity);
         Assert.Null(payment.CarrierId);
+        Assert.Null(payment.StorageBuildingId);
         Assert.Equal(deposited.GroundPosition, payment.GroundPosition);
-        Assert.Equal(3, settling.Society.Inventory.GetLot("market-buyer-payment").Quantity);
-        Assert.Equal(woodBefore, Total(settling.Society.Inventory, "wood"));
+        Assert.Equal(offeredPayment.Quantity - offer.SecondQuantity,
+            settling.Society.Inventory.Lots.Where(lot => lot.Id == offeredPayment.Id && lot.OwnerId == buyer).Sum(lot => lot.Quantity));
+        Assert.Equal(paymentKindBefore, Total(settling.Society.Inventory, trade.PaymentKind));
         Assert.Equal(axesBefore, Total(settling.Society.Inventory, "wooden_axe"));
         MarketObservationTests.AssertProjection(settling);
         settling.Validate();
@@ -166,8 +199,9 @@ internal static class MarketTradeScenario
         Assert.Single(leaving.Towns[0].Markets[0].Trades);
         Assert.DoesNotContain(policy.Seen.Where(item => item.Actor == buyer && item.Tick > newOccupancy.StartedTick),
             item => item.Id.StartsWith("market_buy:", StringComparison.Ordinal));
-        leaving = phases.Resume("retrieve");
         var retriever = personalStock ? seller : successor;
+        policy.Retriever = retriever;
+        leaving = phases.Resume("retrieve");
         var carriedBefore = leaving.Society.Inventory.Lots.Where(lot => lot.OwnerId == stockOwner &&
             PersonalEquipmentRules.IsCarried(lot, retriever) && lot.ItemKind == "wooden_axe").Sum(lot => lot.Quantity);
         await UntilAsync(leaving, () => leaving.Society.Inventory.Lots.Where(lot => lot.OwnerId == stockOwner &&
@@ -281,6 +315,7 @@ internal static class MarketTradeScenario
         internal string Seller { get; } = seller;
         internal string Buyer { get; } = buyer;
         internal string Successor { get; } = successor;
+        internal string Retriever { get; set; } = seller;
         internal string StallId { get; } = stallId;
         internal string Mode { get; set; } = "stock";
         internal ConcurrentQueue<(string Actor, string Id, long Tick)> Seen { get; } = new();
@@ -306,7 +341,7 @@ internal static class MarketTradeScenario
                     "accept" when actor == policy.Seller => local.FirstOrDefault(candidate => candidate.Id.StartsWith("market_continue:", StringComparison.Ordinal)),
                     "leave" when actor == policy.Seller => local.FirstOrDefault(candidate => candidate.Id.StartsWith("market_leave:", StringComparison.Ordinal)),
                     "successor" when actor == policy.Successor => local.FirstOrDefault(candidate => candidate.Id.StartsWith("market_borrow:", StringComparison.Ordinal)),
-                    "retrieve" when actor == policy.Seller || actor == policy.Successor => local.FirstOrDefault(candidate =>
+                    "retrieve" when actor == policy.Retriever => local.FirstOrDefault(candidate =>
                         candidate.Id.StartsWith("market_collect:", StringComparison.Ordinal) && candidate.Description.Contains("wooden_axe", StringComparison.Ordinal)),
                     _ => null,
                 };

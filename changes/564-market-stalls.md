@@ -1,0 +1,4 @@
+- Councils can approve a Town-owned Market with a hall, fixed packed-earth plaza and two starter stalls. Residents must deliver real Town materials and finish the work; further stalls need their own approval and payment when existing stalls are borrowed.
+- Adults can carry their own or their household's surplus to a borrowed Market stall and trade exact goods with buyers from any Town. Both people meet at the stall and choose the exchange. Purchases become the buyer's personal cargo; payment stays with the seller's household. Leaving frees the stall while leftover goods keep their recorded owner.
+- Market cards show paid stalls, borrowers, goods, owners and exchange progress. The map draws only built stalls with the approved hall, awnings and packed-earth plaza. Windows playtesting is pending.
+- Saves retain paid Market construction, stall use, stock receipts and actual barter history. Older alpha saves are refused and preserved without migration.

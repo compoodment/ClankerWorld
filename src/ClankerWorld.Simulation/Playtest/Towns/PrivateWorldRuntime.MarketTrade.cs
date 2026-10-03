@@ -20,7 +20,7 @@ public sealed partial class PrivateWorldRuntime
     private bool ReadyForMarket(string actor) => MarketAdult(actor) &&
         !NeedsUrgentFood(inhabitants[actor]) && !NeedsUrgentWarmth(inhabitants[actor]) &&
         !IsConversationBusy(actor) && inhabitants[actor].Equipment?.Repair is null &&
-        inhabitants[actor].Project is not { Stage: not ("completed" or "cancelled") } &&
+        !(inhabitants[actor].Project is { Stage: not ("completed" or "cancelled") } project && !project.RequiresFreshChoice) &&
         CarriedHouseDelivery(actor) is null && !fields.Any(field => field.Work?.WorkerId == actor);
 
     private void SetMarket(string townId, TownMarketState market)
