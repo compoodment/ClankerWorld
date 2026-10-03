@@ -574,7 +574,8 @@ public sealed partial class ViewerHttpTests
                 using var timeline = await SendSignedAsync(host, client, key, device.DeviceId,
                     "/api/v1/owner/saves/timeline", timelineAction, OwnerHttpBinding.EmptyPayload("save-timeline"));
                 Assert.Equal(HttpStatusCode.OK, timeline.StatusCode);
-                Assert.Equal(new SaveTimelinePosition(branched?.Id, branched?.Branch?.Id, false),
+                Assert.Equal(new SaveTimelinePosition(branched?.Id, branched?.Branch?.Id, false,
+                    branched?.Branch?.Number, branched?.WorldTick),
                     await timeline.Content.ReadFromJsonAsync<SaveTimelinePosition>());
                 Assert.Contains(providers.CaptureRuntimeConfiguration().Assignments ?? [],
                     item => item.InhabitantId == "founder:checkpoint" && item.CredentialSlotId == slotId);

@@ -554,7 +554,8 @@ public sealed record SaveBranch(string Id, int Number, string? StartedFromId = n
     string? StartedFromName = null, long? StartedFromTick = null);
 /// <summary>Where the running world continues on the save timeline: the save it was last
 /// loaded from or saved as, that save's branch, and whether the next save starts a new branch.</summary>
-public sealed record SaveTimelinePosition(string? ContinuedFromId, string? BranchId, bool StartsNewBranch);
+public sealed record SaveTimelinePosition(string? ContinuedFromId, string? BranchId, bool StartsNewBranch,
+    int? NextBranchNumber = null, long? ContinuedFromTick = null);
 public sealed record ManualSaveLoadReceipt(string LoadedId, string BackupId, long WorldTick);
 public sealed record ManualSaveOverwriteReceipt(ManualWorldSave Saved, string BackupId);
 public sealed record OwnerAutosaveConfigurationAction(bool Enabled, int IntervalMinutes, int RotationCount);

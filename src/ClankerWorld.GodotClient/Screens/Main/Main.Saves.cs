@@ -311,7 +311,7 @@ public partial class Main
     }
 
     /// <summary>Whether Load Save or Save World is drawing its timeline rather than the list.</summary>
-    private bool ManualSaveTimelineShown => !manualSaveShowsList && listedManualSaves.Length > 0;
+    private bool ManualSaveTimelineShown => !manualSaveShowsList && allListedManualSaves.Length > 0;
 
     /// <summary>
     /// Shows the timeline or the list. The panel is wide enough for the timeline,
@@ -320,7 +320,7 @@ public partial class Main
     private void ApplyManualSaveView()
     {
         var timeline = ManualSaveTimelineShown;
-        var switchable = listedManualSaves.Length > 0;
+        var switchable = allListedManualSaves.Length > 0;
         manualSaveViewRow.Visible = switchable;
         manualSaveKey.Visible = timeline;
         manualSaveViewLabel.Visible = switchable && !timeline;
@@ -455,8 +455,11 @@ public partial class Main
         var from = position.ContinuedFromId is { } id ? allListedManualSaves.FirstOrDefault(save => save.Id == id) : null;
         var playing = from is null ? string.Empty : $"Playing on from \"{(from.IsAutosave ? "Autosave" : from.Name)}\". ";
         var next = manualSaveLoadMode ? "Your next save" : "Your new save";
+        var newBranch = position.NextBranchNumber is > 0
+            ? $"Branch {position.NextBranchNumber.Value.ToString(CultureInfo.InvariantCulture)}"
+            : "a new branch";
         return lane.IsUnsaved
-            ? $"{playing}{next} starts Branch {lane.ColorNumber.ToString(CultureInfo.InvariantCulture)}, and your other saves stay as they are."
+            ? $"{playing}{next} starts {newBranch}, and your other saves stay as they are."
             : $"{playing}{next} continues {lane.Title}.";
     }
 
@@ -598,7 +601,7 @@ public partial class Main
     /// </summary>
     private void RenderManualSaveTimeline()
     {
-        if (listedManualSaves.Length > 0)
+        if (allListedManualSaves.Length > 0)
             manualSaveTimeline.Show(allListedManualSaves, listedTimelinePosition, SaveTimelineCalendar.From(observedCalendarPace),
                 observationSession.Current?.Baseline.Snapshot.WorldTick ?? allListedManualSaves.Max(save => save.WorldTick),
                 ManualSaveTimelineWidth() - ManualSaveCardFrame(), manualSaveLoadMode ? null : save => !save.IsAutosave);
@@ -665,7 +668,7 @@ public partial class Main
         var name = manualSaveName.Text.Trim();
         if (name.Length is < 1 or > 80 || name.Any(char.IsControl))
         {
-            manualSaveStatus.Text = "Give the save a name (1–80 characters).";
+            SetStatus("Give the save a name (1–80 characters).", good: false);
             return;
         }
         if (!TryGetOwner(out var authority, out var deviceId, out var signer)) return;

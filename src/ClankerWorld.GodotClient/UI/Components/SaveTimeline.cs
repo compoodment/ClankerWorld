@@ -49,7 +49,7 @@ public sealed record SaveTimelineCalendar(int TicksPerDay, int DaysPerYear, IRea
 /// branch grew from, drawn on <see cref="Parent"/>'s row.
 /// </summary>
 public sealed record SaveTimelineLane(string Key, int Index, SaveBranch? Branch, IReadOnlyList<ManualWorldSave> Points,
-    SaveTimelineLane? Parent, ManualWorldSave? ForkSave, int ColorNumber)
+    SaveTimelineLane? Parent, ManualWorldSave? ForkSave, int ColorNumber, long? OriginTick = null, bool NumberKnown = true)
 {
     public bool IsUnsaved => Key == SaveTimelineLayout.UnsavedKey;
 
@@ -84,13 +84,29 @@ public static class SaveTimelineLayout
             StringComparer.Ordinal);
         var byId = new Dictionary<string, ManualWorldSave>(StringComparer.Ordinal);
         foreach (var save in saves) byId.TryAdd(save.Id, save);
-        // A branch whose first save names a missing or same-branch start is drawn as a row of its own.
-        ManualWorldSave? ForkOf(string key) =>
-            key.Length > 0 && groups[key][0].Branch?.StartedFromId is { } from &&
-            byId.TryGetValue(from, out var fork) && Key(fork) != key ? fork : null;
+        // A slot can be overwritten. Only attach a branch to the original
+        // version witnessed by its saved provenance, rather than its replacement.
+        ManualWorldSave? ForkOf(string key)
+        {
+            if (key.Length == 0 || groups[key][0].Branch is not { StartedFromId: { } from } branch ||
+                !byId.TryGetValue(from, out var fork) || Key(fork) == key ||
+                (fork.Branch?.Number ?? 0) >= branch.Number ||
+                branch.StartedFromTick is { } tick && fork.WorldTick != tick)
+                return null;
+            return groups[key].Any(point => point.ContinuedFromId == from &&
+                point.ContinuedFromCreatedUtc == fork.CreatedUtc) ? fork : null;
+        }
+        var forks = groups.Keys.ToDictionary(key => key, ForkOf, StringComparer.Ordinal);
         var unsavedFork = position is { StartsNewBranch: true, ContinuedFromId: { } continued } &&
             byId.TryGetValue(continued, out var found) ? found : null;
-        var nextNumber = saves.Select(save => save.Branch?.Number ?? 0).DefaultIfEmpty(0).Max() + 1;
+        if (unsavedFork is not null && position is { } running &&
+            (running.ContinuedFromTick is { } tick && unsavedFork.WorldTick != tick ||
+                Key(unsavedFork) != (running.BranchId ?? string.Empty)))
+            unsavedFork = null;
+        var unsavedOriginTick = position?.ContinuedFromTick ?? unsavedFork?.WorldTick;
+        var unsavedParentKey = position?.BranchId ?? (unsavedFork is null ? null : Key(unsavedFork));
+        var nextNumber = position?.NextBranchNumber is { } authoritativeNumber && authoritativeNumber > 0 ? authoritativeNumber
+            : saves.Select(save => save.Branch?.Number ?? 0).DefaultIfEmpty(0).Max() + 1;
         int PointIndex(ManualWorldSave save) => Array.FindIndex(groups[Key(save)], point => point.Id == save.Id);
 
         var lanes = new List<SaveTimelineLane>();
@@ -100,27 +116,36 @@ public static class SaveTimelineLayout
             if (!placed.Add(key)) return;
             if (key == UnsavedKey)
             {
-                lanes.Add(new SaveTimelineLane(key, lanes.Count, null, [], parent, fork, nextNumber));
+                lanes.Add(new SaveTimelineLane(key, lanes.Count, null, [], parent, fork, nextNumber, unsavedOriginTick,
+                    position?.NextBranchNumber is > 0));
                 return;
             }
             var points = groups[key];
             var lane = new SaveTimelineLane(key, lanes.Count, points[0].Branch, points, parent, fork,
-                points[0].Branch?.Number ?? 0);
+                points[0].Branch?.Number ?? 0, points[0].Branch?.StartedFromTick ?? fork?.WorldTick);
             lanes.Add(lane);
-            var children = groups.Keys.Select(child => (Key: child, Fork: ForkOf(child)))
+            var children = groups.Keys.Select(child => (Key: child, Fork: forks[child]))
                 .Where(child => child.Fork is { } childFork && Key(childFork) == key)
-                .Select(child => (child.Key, Fork: child.Fork!, Number: groups[child.Key][0].Branch?.Number ?? 0))
+                .Select(child => (child.Key, Fork: (ManualWorldSave?)child.Fork!, Number: groups[child.Key][0].Branch?.Number ?? 0,
+                    Order: PointIndex(child.Fork!)))
                 .ToList();
-            if (unsavedFork is not null && Key(unsavedFork) == key) children.Add((UnsavedKey, unsavedFork, int.MaxValue));
-            foreach (var child in children.OrderByDescending(child => PointIndex(child.Fork))
+            if (position is { StartsNewBranch: true } && unsavedParentKey == key)
+                children.Add((UnsavedKey, unsavedFork, int.MaxValue, unsavedFork is not null ? PointIndex(unsavedFork)
+                    : points.Count(point => unsavedOriginTick is { } origin && point.WorldTick <= origin) - 1));
+            foreach (var child in children.OrderByDescending(child => child.Order)
                 .ThenByDescending(child => child.Number))
                 Place(child.Key, lane, child.Fork);
         }
         var order = groups.Keys.OrderBy(key => key.Length == 0 ? 0 : 1)
             .ThenBy(key => groups[key][0].Branch?.Number ?? 0).ThenBy(key => key, StringComparer.Ordinal).ToArray();
-        foreach (var key in order.Where(key => ForkOf(key) is null)) Place(key, null, null);
+        foreach (var key in order.Where(key => forks[key] is null)) Place(key, null, null);
         // Damaged records could make branches start from each other; they still get rows.
         foreach (var key in order) Place(key, null, null);
+        if (position is { StartsNewBranch: true }) Place(UnsavedKey, null, unsavedFork);
+        else if (position is { BranchId: { } branchId, NextBranchNumber: { } continuingNumber } continuing &&
+            continuingNumber > 0 && !groups.ContainsKey(branchId))
+            lanes.Add(new SaveTimelineLane(branchId, lanes.Count, new SaveBranch(branchId, continuingNumber),
+                [], null, null, continuingNumber, continuing.ContinuedFromTick));
         return [.. lanes];
     }
 
@@ -238,8 +263,8 @@ public partial class SaveTimeline : PanelContainer
             SaveChosen?.Invoke(id);
             if (activate) SaveActivated?.Invoke(id);
         };
-        rows.Resized += () => rows.ViewWidth = scroll.Size.X;
-        scroll.Resized += () => rows.ViewWidth = scroll.Size.X;
+        rows.Resized += () => rows.ViewWidth = ViewSize().X;
+        scroll.Resized += () => rows.ViewWidth = ViewSize().X;
     }
 
     /// <summary>The drawn rows, for the smoke checks to click on.</summary>
@@ -267,7 +292,9 @@ public partial class SaveTimeline : PanelContainer
         rows.CanChoose = canChoose;
         rows.SelectedId = null;
         // Fit the whole history when it is short; a long one scrolls, newest in view.
-        var days = saves.Select(save => calendar.Day(save.WorldTick)).Append(calendar.Day(nowTick)).ToArray();
+        var days = saves.Select(save => calendar.Day(save.WorldTick))
+            .Concat(lanes.Where(lane => lane.OriginTick is not null).Select(lane => calendar.Day(lane.OriginTick!.Value)))
+            .Append(calendar.Day(nowTick)).ToArray();
         var span = Math.Max(1, MathF.Ceiling(days.Max()) - MathF.Floor(days.Min()) + 1);
         // The rows' share of the width: less the names, the divider and this panel's frame.
         var visible = width - NamesWidth - 8 - GetThemeStylebox("panel").GetMinimumSize().X;
@@ -282,10 +309,16 @@ public partial class SaveTimeline : PanelContainer
 
     private void ShowOpening()
     {
+        var view = ViewSize();
+        rows.ViewWidth = view.X;
         if (opening is not { } point) return;
-        scroll.ScrollHorizontal = (int)Math.Max(0, point.X - scroll.Size.X * 0.6f);
-        scroll.ScrollVertical = (int)Math.Max(0, point.Y - scroll.Size.Y / 2);
+        scroll.ScrollHorizontal = (int)Math.Max(0, point.X - view.X * 0.6f);
+        scroll.ScrollVertical = (int)Math.Max(0, point.Y - (view.Y + SaveTimelineRows.Ruler + 3) / 2);
     }
+
+    private Vector2 ViewSize() => scroll.Size - new Vector2(
+        scroll.GetVScrollBar().Visible ? scroll.GetVScrollBar().Size.X : 0,
+        scroll.GetHScrollBar().Visible ? scroll.GetHScrollBar().Size.Y : 0);
 
     /// <summary>Limits the whole timeline's height, frame included; more branches than fit scroll.</summary>
     public void SetMaximumHeight(float height)
@@ -314,11 +347,29 @@ public partial class SaveTimeline : PanelContainer
         if (rows.PointPosition(id) is not { } point) return;
         Callable.From(() =>
         {
-            var view = scroll.Size;
-            if (point.X - 40 < scroll.ScrollHorizontal || point.X + 140 > scroll.ScrollHorizontal + view.X)
-                scroll.ScrollHorizontal = (int)Math.Max(0, point.X - view.X / 2);
-            if (point.Y - 40 < scroll.ScrollVertical + SaveTimelineRows.Ruler || point.Y + 30 > scroll.ScrollVertical + view.Y)
-                scroll.ScrollVertical = (int)Math.Max(0, point.Y - view.Y / 2);
+            var view = ViewSize();
+            var left = point.X - 40;
+            var right = point.X + 40;
+            var top = point.Y - 32;
+            var bottom = point.Y + 18;
+            if (rows.TagArea(id) is { } tag)
+            {
+                left = Math.Min(left, tag.Position.X - 8);
+                right = Math.Max(right, tag.End.X + 8);
+                top = Math.Min(top, tag.Position.Y - 2);
+                bottom = Math.Max(bottom, tag.End.Y + 2);
+                // Crowded saves can have a tag well past their shared point.
+                // When both cannot fit, keep the selected save's name in view.
+                if (right - left > view.X)
+                {
+                    left = tag.Position.X - 8;
+                    right = tag.End.X + 8;
+                }
+            }
+            if (left < scroll.ScrollHorizontal || right > scroll.ScrollHorizontal + view.X)
+                scroll.ScrollHorizontal = (int)Math.Max(0, (left + right - view.X) / 2);
+            if (top < scroll.ScrollVertical + SaveTimelineRows.Ruler + 3 || bottom > scroll.ScrollVertical + view.Y)
+                scroll.ScrollVertical = (int)Math.Max(0, (top + bottom - view.Y - SaveTimelineRows.Ruler - 3) / 2);
         }).CallDeferred();
     }
 }
@@ -362,7 +413,7 @@ public partial class SaveTimelineNames : Control
                 DrawRect(badge, color);
                 DrawRect(badge, color.Darkened(0.35f), filled: false, width: 1);
             }
-            if (lane.Branch is { } branch || lane.IsUnsaved)
+            if (lane.Branch is not null || lane.IsUnsaved && lane.NumberKnown)
             {
                 var digit = lane.ColorNumber.ToString(CultureInfo.InvariantCulture);
                 var w = font.GetStringSize(digit, HorizontalAlignment.Left, -1, size).X;
@@ -380,6 +431,7 @@ public partial class SaveTimelineNames : Control
     private static string CountText(SaveTimelineLane lane)
     {
         if (lane.IsUnsaved) return "Not saved yet";
+        if (lane.Points.Count == 0) return "No saves";
         var saves = lane.Points.Count(save => !save.IsAutosave);
         var autosaves = lane.Points.Count - saves;
         return saves > 0
@@ -398,6 +450,7 @@ public partial class SaveTimelineRows : Control
     private const float TagTextWidth = 170;
     private readonly List<(Rect2 Area, string Id)> hits = [];
     private readonly Dictionary<string, Vector2> points = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, (Rect2 Area, string Text)> tags = new(StringComparer.Ordinal);
     private readonly Dictionary<string, ImageTexture> sprites = new(StringComparer.Ordinal);
     private float firstDay;
 
@@ -421,6 +474,7 @@ public partial class SaveTimelineRows : Control
         MouseFilter = MouseFilterEnum.Stop;
         FocusEntered += QueueRedraw;
         FocusExited += QueueRedraw;
+        ThemeChanged += Refresh;
     }
 
     public static float LaneY(int lane) => MathF.Floor(Ruler + 8 + lane * LaneHeight + LaneHeight / 2);
@@ -428,17 +482,22 @@ public partial class SaveTimelineRows : Control
     public void Refresh()
     {
         var days = Lanes.SelectMany(lane => lane.Points).Select(save => Calendar.Day(save.WorldTick))
+            .Concat(Lanes.Where(lane => lane.OriginTick is not null).Select(lane => Calendar.Day(lane.OriginTick!.Value)))
             .Append(Calendar.Day(NowTick)).ToArray();
         firstDay = MathF.Floor(days.Min()) - 0.5f;
         var lastDay = MathF.Ceiling(days.Max());
-        CustomMinimumSize = new Vector2(MathF.Ceiling(24 + (lastDay - firstDay) * PixelsPerDay + EndRoom),
-            Ruler + 8 + Lanes.Count * LaneHeight);
         LayoutPoints();
+        var tagEnd = LayoutTags();
+        CustomMinimumSize = new Vector2(MathF.Ceiling(Math.Max(24 + (lastDay - firstDay) * PixelsPerDay + EndRoom, tagEnd + 8)),
+            Ruler + 8 + Lanes.Count * LaneHeight);
         QueueRedraw();
     }
 
     /// <summary>Where a save's point is drawn, or null when it is not on the timeline.</summary>
     public Vector2? PointPosition(string id) => points.TryGetValue(id, out var point) ? point : null;
+
+    /// <summary>The name tag used by drawing and by scrolling the selected save into view.</summary>
+    internal Rect2? TagArea(string id) => tags.TryGetValue(id, out var tag) ? tag.Area : null;
 
     private float X(float day) => MathF.Floor(16 + (day - firstDay) * PixelsPerDay);
 
@@ -448,6 +507,44 @@ public partial class SaveTimelineRows : Control
         foreach (var lane in Lanes)
             foreach (var save in lane.Points)
                 points[save.Id] = new Vector2(X(Calendar.Day(save.WorldTick)), LaneY(lane.Index));
+    }
+
+    private float LayoutTags()
+    {
+        tags.Clear();
+        var font = GetThemeFont("font", "Label");
+        var size = GetThemeFontSize("font_size", "Label");
+        var forkIds = Lanes.Where(lane => lane.ForkSave is not null).Select(lane => lane.ForkSave!.Id)
+            .ToHashSet(StringComparer.Ordinal);
+        float Measure(string text) => font.GetStringSize(text, HorizontalAlignment.Left, -1, size).X;
+        var end = 0f;
+        foreach (var lane in Lanes)
+        {
+            var aboveEnd = float.MinValue;
+            var belowEnd = float.MinValue;
+            foreach (var save in lane.Points.Where(save => !save.IsAutosave))
+            {
+                var point = points[save.Id];
+                var latest = lane.IsLatest(save);
+                var tagX = forkIds.Contains(save.Id) ? point.X + 8 : point.X - 6;
+                var below = tagX > belowEnd + 4;
+                var aboveX = latest ? point.X + 12 : tagX;
+                var above = !below && aboveX > aboveEnd + 4;
+                if (above) tagX = aboveX;
+                if (!below && !above)
+                {
+                    below = true;
+                    tagX = belowEnd + 6;
+                }
+                var text = SaveTimelineLayout.Shorten(save.Name, TagTextWidth, Measure);
+                var area = TagRect(font, size, text, new Vector2(tagX, below ? point.Y + 9 : point.Y - 31));
+                tags[save.Id] = (area, text);
+                if (below) belowEnd = area.End.X;
+                else aboveEnd = area.End.X;
+                end = Math.Max(end, area.End.X);
+            }
+        }
+        return end;
     }
 
     public override string _GetTooltip(Vector2 atPosition)
@@ -504,13 +601,17 @@ public partial class SaveTimelineRows : Control
     // A click chooses the nearest point or the tag it falls on.
     private string? Hit(Vector2 at)
     {
+        // The calendar is painted over the scrolling rows and owns this area.
+        if (at.Y < ViewTop + Ruler + 3) return null;
         string? best = null;
         var bestDistance = float.MaxValue;
         foreach (var (area, id) in hits)
         {
             if (!area.HasPoint(at)) continue;
             var distance = area.GetCenter().DistanceSquaredTo(at);
-            if (distance < bestDistance)
+            // Equal-time points overlap. The last drawn point is on top, so it
+            // must also win an equal-distance hit; the tags still expose each save.
+            if (distance <= bestDistance)
             {
                 best = id;
                 bestDistance = distance;
@@ -527,8 +628,8 @@ public partial class SaveTimelineRows : Control
         var size = GetThemeFontSize("font_size", "Label");
         DrawSeasonWash(p);
         // The new branch's dotted bend goes under any branch that left the same save.
-        if (NowLane is { IsUnsaved: true, ForkSave: { } fork, Parent: { } parent } lane)
-            Corner(SaveTimelineLayout.BranchColor(lane.ColorNumber), X(Calendar.Day(fork.WorldTick)), LaneY(parent.Index), LaneY(lane.Index), dotted: true);
+        if (NowLane is { IsUnsaved: true, OriginTick: { } originTick, Parent: { } parent } lane)
+            Corner(SaveTimelineLayout.BranchColor(lane.ColorNumber), X(Calendar.Day(originTick)), LaneY(parent.Index), LaneY(lane.Index), dotted: true);
         DrawBranches();
         DrawNow(p, font, size);
         DrawSaves(p, font, size);
@@ -621,11 +722,15 @@ public partial class SaveTimelineRows : Control
             var y = LaneY(lane.Index);
             var startX = X(Calendar.Day(lane.Points[0].WorldTick));
             var endX = X(Calendar.Day(lane.Points[^1].WorldTick));
-            if (lane.ForkSave is { } fork && lane.Parent is { } parent)
+            if (lane.OriginTick is { } originTick)
             {
-                var forkX = X(Calendar.Day(fork.WorldTick));
-                Corner(color, forkX, LaneY(parent.Index), y, dotted: false);
-                startX = forkX + Radius;
+                var forkX = X(Calendar.Day(originTick));
+                if (lane.Parent is { } parent)
+                {
+                    Corner(color, forkX, LaneY(parent.Index), y, dotted: false);
+                    startX = forkX + Radius;
+                }
+                else startX = forkX;
             }
             if (endX > startX)
             {
@@ -662,8 +767,9 @@ public partial class SaveTimelineRows : Control
     {
         if (NowLane is not { } lane) return null;
         if (lane.IsUnsaved)
-            return lane.ForkSave is { } fork && lane.Parent is not null ? X(Calendar.Day(fork.WorldTick)) + Radius : null;
-        return lane.Points.Count > 0 ? X(Calendar.Day(lane.Points[^1].WorldTick)) + 10 : null;
+            return X(Calendar.Day(lane.OriginTick ?? NowTick)) + (lane.Parent is not null ? Radius : 0);
+        return lane.Points.Count > 0 ? X(Calendar.Day(lane.Points[^1].WorldTick)) + 10
+            : X(Calendar.Day(lane.OriginTick ?? NowTick));
     }
 
     /// <summary>The You are here marker's centre, or null when the timeline marks nothing.</summary>
@@ -695,16 +801,11 @@ public partial class SaveTimelineRows : Control
 
     private void DrawSaves(UiPalette p, Font font, int size)
     {
-        var forkIds = Lanes.Where(lane => lane.ForkSave is not null).Select(lane => lane.ForkSave!.Id)
-            .ToHashSet(StringComparer.Ordinal);
-        float Measure(string text) => font.GetStringSize(text, HorizontalAlignment.Left, -1, size).X;
         (float X, float Y, int Half)? chosen = null;
         foreach (var lane in Lanes)
         {
             var color = SaveTimelineLayout.BranchColor(lane.ColorNumber);
             var y = LaneY(lane.Index);
-            var aboveEnd = float.MinValue;
-            var belowEnd = float.MinValue;
             foreach (var save in lane.Points)
             {
                 var x = X(Calendar.Day(save.WorldTick));
@@ -725,26 +826,10 @@ public partial class SaveTimelineRows : Control
                 if (latest) DrawBanner(this, p, color, x, y, Sprite);
                 if (selected) chosen = (x, y, 12);
 
-                // The name in a small tag: below the line first, above when that side is taken,
-                // starting just past a branch that grows down from this point.
-                var tagX = forkIds.Contains(save.Id) ? x + 8 : x - 6;
-                var below = tagX > belowEnd + 4;
-                // Above the line, the newest save's name starts past its banner.
-                var aboveX = latest ? x + 12 : tagX;
-                var above = !below && aboveX > aboveEnd + 4;
-                if (above) tagX = aboveX;
-                if (!below && !above)
-                {
-                    // Both sides taken: sit just after the tag below, still whole.
-                    below = true;
-                    tagX = belowEnd + 6;
-                }
-                var text = SaveTimelineLayout.Shorten(save.Name, TagTextWidth, Measure);
-                var rect = Tag(font, size, text, new Vector2(tagX, below ? y + 9 : y - 31),
+                var tag = tags[save.Id];
+                var rect = Tag(font, size, tag.Text, tag.Area.Position,
                     selected ? p.Ember : p.Paper, selected ? p.EmberInk : p.Ink, selected ? p.EmberDark : p.PaperEdge);
                 if (choosable) hits.Add((rect, save.Id));
-                if (below) belowEnd = rect.End.X;
-                else aboveEnd = rect.End.X;
             }
         }
         if (chosen is { } mark) Brackets(p, mark.X, mark.Y, mark.Half);
@@ -754,14 +839,16 @@ public partial class SaveTimelineRows : Control
 
     private Rect2 Tag(Font font, int size, string text, Vector2 at, Color fill, Color ink, Color edge)
     {
-        var width = font.GetStringSize(text, HorizontalAlignment.Left, -1, size).X + 10;
-        var rect = new Rect2(MathF.Floor(at.X), MathF.Floor(at.Y), MathF.Ceiling(width), 17);
+        var rect = TagRect(font, size, text, at);
         DrawRect(rect, fill);
         DrawRect(rect, edge, filled: false, width: 1);
         DrawRect(new Rect2(rect.Position.X + 1, rect.End.Y, rect.Size.X - 1, 1), edge with { A = 0.5f });
         DrawString(font, new Vector2(rect.Position.X + 5, rect.Position.Y + 13), text, HorizontalAlignment.Left, -1, size, ink);
         return rect;
     }
+
+    private static Rect2 TagRect(Font font, int size, string text, Vector2 at) =>
+        new(MathF.Floor(at.X), MathF.Floor(at.Y), MathF.Ceiling(font.GetStringSize(text, HorizontalAlignment.Left, -1, size).X + 10), 17);
 
     /// <summary>Pixel corner marks around the chosen save.</summary>
     private void Brackets(UiPalette p, float x, float y, int half)

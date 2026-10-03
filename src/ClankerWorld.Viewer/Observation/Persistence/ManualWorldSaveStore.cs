@@ -28,7 +28,8 @@ public sealed record SaveTimelineRestorePoint(string WorldId, byte[]? Bytes);
 /// Where the running world's history continues: the save it was last loaded from
 /// or saved as, that save's branch, and whether the next save starts a new branch.
 /// </summary>
-public sealed record SaveTimelinePosition(string? ContinuedFromId, string? BranchId, bool StartsNewBranch);
+public sealed record SaveTimelinePosition(string? ContinuedFromId, string? BranchId, bool StartsNewBranch,
+    int? NextBranchNumber = null, long? ContinuedFromTick = null);
 
 /// <summary>
 /// Owner-only named checkpoints for the currently active world. Opaque IDs,
@@ -284,8 +285,11 @@ public sealed class ManualWorldSaveStore
         lock (gate)
         {
             var timeline = ReadTimeline(worldId);
+            var worldSaves = List(worldId);
+            var continuing = ContinuingBranch(timeline, worldSaves);
             return new SaveTimelinePosition(timeline?.ContinuedFromId, timeline?.Branch?.Id,
-                ContinuingBranch(timeline, List(worldId)) is null);
+                continuing is null, continuing?.Number ?? NextBranchNumber(timeline, worldSaves),
+                timeline?.ContinuedFromTick);
         }
     }
 
@@ -299,8 +303,7 @@ public sealed class ManualWorldSaveStore
     {
         if (ContinuingBranch(timeline, worldSaves) is { } current)
             return current;
-        var number = Math.Max(timeline?.LastBranchNumber ?? 0,
-            worldSaves.Select(save => save.Branch?.Number ?? 0).DefaultIfEmpty(0).Max()) + 1;
+        var number = NextBranchNumber(timeline, worldSaves);
         var started = timeline?.ContinuedFromId is { } fromId
             ? new SaveBranch(Guid.NewGuid().ToString("N"), number, fromId, timeline.ContinuedFromName,
                 timeline.ContinuedFromTick)
@@ -319,6 +322,10 @@ public sealed class ManualWorldSaveStore
             save.BranchPosition > timeline.ContinuedFromBranchPosition)
             ? current
             : null;
+
+    private static int NextBranchNumber(Timeline? timeline, IReadOnlyList<ManualWorldSave> worldSaves) =>
+        Math.Max(timeline?.LastBranchNumber ?? 0,
+            worldSaves.Select(save => save.Branch?.Number ?? 0).DefaultIfEmpty(0).Max()) + 1;
 
     private static long NextBranchPosition(SaveBranch branch, Timeline? timeline) =>
         branch.Id == timeline?.Branch?.Id ? checked(timeline.ContinuedFromBranchPosition + 1) : 1;
