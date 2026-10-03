@@ -276,11 +276,13 @@ public sealed partial class PrivateWorldRuntime
         var home = society.Checkpoint.GetInhabitant(actor).HouseholdId;
         if (home is not null)
             candidates.Add(new("household_leave", "Leave your household without a vote; keep responsibility for your dependent children and collect your personal belongings physically.", 115));
+        // Built-in rules never give up a home early: the notice period is time to find room
+        // or finish an expansion, and the deadline moves the adult out when neither happens.
         if (inhabitants[actor].Housing?.Request is null && MayFoundHousehold(actor) && !AskableHouseholds(actor).Any())
             candidates.Add(new("household_found", home is null
                     ? "Start your own household with your dependent children. A House still needs a legal site, materials and work."
                     : "Move out of your overcrowded House and start your own household with your dependent children. A House still needs a legal site, materials and work.",
-                home is null || HoldsRelocationNotice(actor) ? 19 : 104));
+                home is null ? 19 : 104));
         if (FreeCarryCapacity(actor) > 0)
         {
             foreach (var lot in PersonalGoodsAwaitingCollection(actor).Where(lot => VesselFits(lot, FreeCarryCapacity(actor)))
@@ -339,12 +341,16 @@ public sealed partial class PrivateWorldRuntime
     }
 
     /// <summary>
-    /// A House can still grow when a larger footprint fits and the household
-    /// already has the use of its extra land, or could still get it by asking
-    /// the Council.
+    /// A House can still grow while an expansion is under way, or when a larger
+    /// footprint fits and the household already has the use of its extra land
+    /// or could still get it by asking the Council.
     /// </summary>
     private bool HouseCanExpandFurther(PlacedBuilding house) =>
-        HouseCanExpandNow(house) || HouseCanExpandWithLandPermission(house);
+        HouseExpansionUnderWay(house) || HouseCanExpandNow(house) || HouseCanExpandWithLandPermission(house);
+
+    private bool HouseExpansionUnderWay(PlacedBuilding house) => (worldSimulation.BuildingExpansions ?? []).Any(job =>
+        job.BuildingInstanceId == house.InstanceId &&
+        job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused);
 
     private bool HouseCanExpandNow(PlacedBuilding house) =>
         ExpansionShapes(house).Any(shape => CanFitExpansion(house, shape.Position, shape.Footprint, out _));

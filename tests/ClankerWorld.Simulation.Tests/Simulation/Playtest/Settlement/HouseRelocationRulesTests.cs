@@ -171,6 +171,33 @@ public sealed class HouseRelocationRulesTests
     }
 
     [Fact]
+    public void AFamilyThatBecomesTheMajorityDuringSelectionIsProtectedFromThenOn()
+    {
+        var residents = Enumerable.Range(1, 10).Select(index => Resident($"a{index:D2}", "family-a"))
+            .Concat(Enumerable.Range(1, 10).Select(index => Resident($"s{index:D2}"))).ToArray();
+        // Two unrelated adults arrived last, then a family member, then two more unrelated adults.
+        var adults = residents.Select(person => new HouseRelocationRules.Adult(person.Id, person.Id switch
+        {
+            "s10" => 200,
+            "s09" => 190,
+            "a10" => 180,
+            "s08" => 170,
+            "s07" => 160,
+            _ => 1,
+        }, true));
+
+        Assert.Null(HouseRelocationRules.DominantFamily(residents));
+        var selection = HouseRelocationRules.Select(residents, adults, 2, 2);
+
+        Assert.Equal(["s10", "s09", "s08", "s07"], selection.Chosen.Select(item => item.Id));
+        Assert.Equal(HouseRelocationRules.LatestArrival, selection.Chosen[0].Reason);
+        Assert.All(selection.Chosen.Skip(1), item =>
+            Assert.Equal(HouseRelocationRules.LatestUnrelatedArrival, item.Reason));
+        Assert.True(selection.Fits);
+        Assert.Equal(16, selection.Remaining.ResidentCount);
+    }
+
+    [Fact]
     public void VolunteerIsSkippedWhenLeavingWouldEraseTheNewFamilyBonusWithoutReducingCrowding()
     {
         var residents = new[]

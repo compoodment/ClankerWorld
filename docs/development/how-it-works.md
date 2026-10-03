@@ -1095,7 +1095,9 @@ Selection uses the completed House footprint and active permanent residents.
 Volunteers come first, then existing notices and the latest eligible arrivals,
 with ordinal agent IDs breaking equal arrival times. Forced selection protects
 the dominant domestic family; when no family has a majority, the arrival order
-does not favor a family. Sole caregivers are ineligible for the notice timer,
+does not favor a family. The majority is checked again after each selected
+departure, so a family that gains it part-way is protected from then on.
+Sole caregivers are ineligible for the notice timer,
 including when their dependent lives elsewhere. Capacity is recalculated after
 each proposed departure, and a departure that would not reduce overcrowding is
 skipped. Selection stops when the remaining residents fit.
@@ -1118,7 +1120,9 @@ a voluntary household split; sole caregivers are never forced out with their
 children. The split is offered only when the House cannot grow: no larger
 footprint fits, or its extra land is neither the household's to use nor free
 Town land it can still ask the Council for. While only that land permission
-is missing, the housing line names it as the next step. Agent observations and owner inspection show resident counts, notice
+is missing, the housing line names it as the next step. Built-in rules do not
+found a household while the adult still has a home, so the notice period can
+end in a completed expansion or an accepted request. Agent observations and owner inspection show resident counts, notice
 reason and time, pending requests and expansion state. `relocation_notice` and
 `relocation_cancelled` record changes without repeating them on reload.
 

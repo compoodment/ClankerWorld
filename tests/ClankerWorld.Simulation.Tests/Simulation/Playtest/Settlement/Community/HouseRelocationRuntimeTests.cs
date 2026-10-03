@@ -506,6 +506,36 @@ public sealed class HouseRelocationRuntimeTests
             Assert.EndsWith("Nobody can be required to leave. " + next, choices.HousingNotes[member], StringComparison.Ordinal);
             Assert.Equal(maySplit, choices.Offered[member].Contains("household_found", StringComparer.Ordinal));
         }
+
+        // A House that is already being expanded is not told to split either.
+        var building = new Choices();
+        using var expanding = Restore(permitted, building);
+        var started = expanding.StartBuildingExpansion(worker, HouseId);
+        Assert.True(started.Applied, started.Failure);
+        await AdvanceTo(expanding, 2);
+        var resident = expanding.Society.GetHousehold(Household).MemberIds
+            .First(id => id != worker && building.HousingNotes.ContainsKey(id));
+        Assert.Contains("Next: finish the expansion.", building.HousingNotes[resident], StringComparison.Ordinal);
+        Assert.DoesNotContain("household_found", building.Offered[resident]);
+    }
+
+    [Fact]
+    public async Task BuiltInRulesKeepANoticedAdultHomeUntilTheDeadline()
+    {
+        // Nobody can be asked for a place, so only the deadline moves the adult out:
+        // built-in rules must not found a household with no House as soon as notice arrives.
+        using var world = PrivateWorldRuntime.Restore(
+            PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(Crowded(day: 120))));
+        await AdvanceTo(world, 1);
+        var actor = Assert.Single(Noticed(world)).InhabitantId;
+        var notice = world.Inhabitants.Single(person => person.InhabitantId == actor).Housing!.Relocation!;
+        await AdvanceTo(world, notice.DeadlineTick - 1);
+        Assert.Equal(Household, world.Society.GetInhabitant(actor).HouseholdId);
+        Assert.Equal(notice, Assert.Single(Noticed(world)).Housing!.Relocation);
+        await AdvanceTo(world, notice.DeadlineTick);
+        Assert.NotEqual(Household, world.Society.GetInhabitant(actor).HouseholdId);
+        Assert.Equal("displaced",
+            Assert.Single(world.Inhabitants.Single(person => person.InhabitantId == actor).Departures!).Cause);
     }
 
     [Theory]

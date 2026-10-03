@@ -7,6 +7,7 @@ namespace ClankerWorld.Simulation.Playtest;
 /// Volunteers come first, then the most recently admitted eligible adult who is
 /// not part of the House's dominant family (any adult when no family is the
 /// majority), with the lower ordinal ID first when arrival times are equal.
+/// The dominant family is the one among the residents still remaining.
 /// Only an adult who would leave no dependent behind is eligible: a sole
 /// caregiver and their children are never selected by the notice timer.
 /// Selection stops as soon as the remaining residents fit the completed
@@ -44,7 +45,6 @@ public static class HouseRelocationRules
         var capacity = HouseResidentCapacityRules.Calculate(remaining, footprintWidth, footprintHeight);
         if (!capacity.IsOvercrowded) return new([], capacity);
 
-        var dominant = DominantFamily(remaining);
         var units = remaining.ToDictionary(person => person.Id, person => person.DomesticFamilyUnitId, StringComparer.Ordinal);
         var known = adults.Where(adult => units.ContainsKey(adult.Id)).ToArray();
         var ordered = known.Where(adult => adult.NoticeReason == Volunteer)
@@ -57,6 +57,8 @@ public static class HouseRelocationRules
         var chosen = new List<SelectedAdult>();
         foreach (var adult in ordered)
         {
+            // Each departure can give a family the majority; it is protected from then on.
+            var dominant = DominantFamily(remaining);
             var volunteer = adult.NoticeReason == Volunteer;
             if (!adult.MovesAlone || !volunteer && dominant is not null && units[adult.Id] == dominant)
                 continue;
