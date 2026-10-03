@@ -351,16 +351,24 @@ public sealed class AgentLifeMomentIdentityTests
             using var handler = new IdentityHandler();
             var router = new ConfigurableDecisionProvider(configuration, new ClientFactory(handler), usageStore: usage);
             using var world = PrivateWorldRuntime.Restore(MidlifeState(), Route(router));
-            usage.LimitReached += world.Pause;
+            var paused = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            void PauseAtLimit()
+            {
+                world.Pause();
+                paused.TrySetResult(true);
+            }
+            usage.LimitReached += PauseAtLimit;
             await world.AdvanceOneTickNonBlockingAsync();
-            for (var attempt = 0; attempt < 30 && !world.Society.IsPaused; attempt++) await Task.Delay(10);
+            // Wait for the real accounting callback to finish pausing. A short
+            // polling window raced the background provider on busy CI runners.
+            await paused.Task.WaitAsync(TimeSpan.FromSeconds(10));
             Assert.True(world.Society.IsPaused);
             Assert.Single(handler.MomentBodies);
             Assert.Equal(1, usage.Capture().Attempts);
             Assert.Equal(Personality, world.Inhabitants.Single(item => item.InhabitantId == ActorId).Personality);
             Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "agent_identity_revised");
             Assert.Equal("interrupted", Assert.Single(world.Inhabitants.Single(item => item.InhabitantId == ActorId).IdentityMoments!).Outcome);
-            usage.LimitReached -= world.Pause;
+            usage.LimitReached -= PauseAtLimit;
             world.Resume();
             for (var tick = 0; tick < 8; tick++) await world.AdvanceOneTickNonBlockingAsync();
             Assert.Single(handler.MomentBodies);

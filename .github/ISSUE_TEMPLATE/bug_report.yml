@@ -34,7 +34,7 @@ body:
     id: build
     attributes:
       label: Build or commit
-      description: The game version or the commit hash.
+      description: The build line shown in Settings (version and commit), or the commit hash.
     validations:
       required: true
   - type: dropdown
