@@ -19,7 +19,7 @@ namespace ArtPreview.Proposed.Buildings;
 /// feature per kind (B1 to B7).
 /// </para>
 /// <para>
-/// Market, Market stall, Town Hall, Port, Restaurant and Clinic are
+/// Market, Market stall, Town Hall and Port are
 /// agreed but have no <see cref="BuildingKind"/> yet, so they are drawn
 /// through the private <see cref="Design"/> list and only yielded for review.
 /// </para>
@@ -230,6 +230,8 @@ public sealed class BuildingsProposal : IArtProposal, IArtSetProvider
             : BuildingSprites.Render(kind, width, height, tilePixels, door);
     }
 
+    internal static bool HasApprovedDrawing(BuildingKind kind) => DesignFor(kind) is not null;
+
     private static Design? DesignFor(BuildingKind kind) => kind switch
     {
         BuildingKind.House => Design.House,
@@ -241,6 +243,8 @@ public sealed class BuildingsProposal : IArtProposal, IArtSetProvider
         BuildingKind.Store => Design.Store,
         BuildingKind.Workshop => Design.Workshop,
         BuildingKind.Generic => Design.Generic,
+        BuildingKind.Clinic => Design.Clinic,
+        BuildingKind.Restaurant => Design.Restaurant,
         _ => null,
     };
 
