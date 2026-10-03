@@ -585,7 +585,6 @@ public partial class Main
         var deathTick = Factor("death-tick");
         var deathCause = Factor("death-cause");
         var willStatus = Factor("will-status");
-        var willHeir = Factor("will-heir");
         var role = Factor("role");
         var isDeceased = IsDeceased(inhabitant);
         var waitingForDecision = inhabitant.DecisionFactors.Any(factor => factor.Key == "decision-pending");
@@ -691,13 +690,7 @@ public partial class Main
             details.Add($"Practice · Building {practice.Building}/30 · Farming {practice.Farming}/30 · Crafting {practice.Crafting}/30");
         if (isDeceased)
         {
-            details.Add(willStatus switch
-            {
-                "accepted" => $"Final will: personal estate to {willHeir}.",
-                "pending" => "Final will pending.",
-                "default" => "Personal estate follows household inheritance.",
-                _ => "No current thoughts or activity.",
-            });
+            details.AddRange(GameUiText.FinalWillLines(willStatus, inhabitant.FinalWill));
         }
         else if (!waitingForDecision)
         {

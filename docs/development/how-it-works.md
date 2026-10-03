@@ -1019,12 +1019,10 @@ paused world advances no treatment time. See [saves and replay](saves-and-replay
 Automated checks cover this path; the
 [Windows playtest](../../playtest/565-clinic-care.md) is still pending.
 
-Death archives the last physical state and frozen age, then removes the active
-actor. Existing personal inventory can be frozen in estate escrow. One bounded
-post-death model decision can choose a living heir for the whole estate; society
-checks the frozen lots and recipient. Failed/interrupted choices use the default
-household path. Settlement applies once. See [saves and replay](saves-and-replay.md)
-for pending-will restore behavior.
+Death archives the last physical state, frozen age and the Town the agent lived
+in, then removes the active actor. Existing personal inventory is frozen in
+estate escrow, and `SocietyEstate.BeneficiaryIds` records the household default.
+[Wills](#wills) explains the final will and how the estate is divided.
 
 New proposals for Shelters, Storehouses, Cooking fires and Stone hearths are
 retired. Existing buildings, projects and recorded proposals remain for old-world
@@ -1050,6 +1048,61 @@ delivers what they carry, picks up the household's spare stock from its House
 or Silo (the existing delivery step then carries it in), or gathers from a
 reachable source. Stock already set aside at another workstation is left
 alone.
+
+### Wills
+
+An estate with frozen lots and an agent with a personal model gets exactly one
+post-death request (`PrivateWorldRuntime.Wills`). Its `CognitionWillContext`
+offers the frozen lots as `item:1`… keys (at most 24, in lot-ID order) and up to
+sixteen living people as `will:heir:{id}` keys, family and household first, plus
+`will:town:{id}` for the archived Town when it has a Warehouse of its own. The
+candidates are `will:household` and, when anyone may inherit, `will:heirs`.
+The model's reply (`CognitionWillChoice`) is untrusted: the response must match
+the request, epochs and digest; the runtime maps only offered keys back to
+heirs and lots; and `SocietyFixture.ResolveWill` checks that every heir is a
+living person other than the deceased or an offered Town, that there are one
+to three distinct heirs, and that every listed lot is still frozen in this
+estate. Anything else resolves to the household default.
+
+`ResolveWill` stores the exact division as `WillBequests` (lot, heir,
+quantity). "items" gives each listed lot whole to its heir. Every other lot,
+and every lot under "equal", is divided equally: each heir gets the same whole
+number of units, and the units left over go one at a time to the heirs in the
+order the will names them, continuing from where the previous lot's leftovers
+stopped. Lots are taken in lot-ID order, so each lot's parts always sum to its
+frozen quantity. A storage pot or water jug counts as one unit, and its contents
+always go with it to the same heir; only top-level lots are offered to the
+model, with a vessel's contents described beside it.
+
+Settlement runs once, when the escrow expires and no will is pending. A
+living person heir, including a child, owns their part without automatically
+carrying it. Ground lots keep their tile, stored lots retain their recorded
+storage, and goods held by a living carrier remain in that carrier's custody.
+Goods carried by the deceased are dropped at their last tile. A Town heir's
+part goes to its Warehouse as Town stock while the Warehouse has
+room and stores that kind; the runtime passes each Town's Warehouse, free room
+and refused kinds (food) as `SocietyTownStore`. Whatever the will cannot
+deliver (a share for an heir who has since died, food or goods beyond the room)
+follows the household default: an equal split between the living household
+beneficiaries, with the first in ID order taking leftovers, or communal stock
+when none remain. A vessel and its contents move as one family and keep their
+lot IDs: the Town takes a family only when the Warehouse accepts every kind in
+it and has room for all of it, otherwise the family follows the household
+default, where vessels rotate between the living beneficiaries. A quantity-one
+map or field record keeps its lot ID.
+
+Final words are optional with either outcome. `CognitionWillChoice.NormalizeFinalWords`
+turns control and invisible formatting characters into spaces, collapses
+spaces, and refuses text over 80 characters or containing markup characters
+(`< > [ ] { }` and backticks). The HTTP provider parser drops unusable words
+before admission; a directly supplied typed reply with invalid words is refused.
+An admitted reply keeps its words even when its division falls back. At settlement
+each living person who receives goods gets the private memory
+`final-words:{estate}:{heir}` ("Name's final words were: '…'"). The owner sees
+the words on the historical profile through
+`ViewerFinalWill`; events, logs and telemetry carry only IDs, the split and heir
+counts, never the words. See [saves and replay](saves-and-replay.md) for
+pending-will restore behavior.
 
 ## Fertility and household fields
 

@@ -326,6 +326,46 @@ public static class GameUiText
         return string.IsNullOrWhiteSpace(candidateId) ? "taking in the surroundings" : HumanizeIdentifier(candidateId);
     }
 
+    /// <summary>
+    /// The historical profile's will lines: who the agent named and what each
+    /// was left, or that the household inherits, then any final words.
+    /// </summary>
+    public static IReadOnlyList<string> FinalWillLines(string? status, OwnerWorldFinalWill? will)
+    {
+        var lines = new List<string>();
+        switch (status)
+        {
+            case "pending":
+                lines.Add("Final will pending.");
+                break;
+            case "accepted" when will is { Heirs.Count: > 0 }:
+                var names = will.Heirs.Select(heir => heir.Name).ToArray();
+                var joined = names.Length == 1 ? names[0] : string.Join(", ", names[..^1]) + " and " + names[^1];
+                lines.Add(will.Split == "items"
+                    ? $"Final will: belongings left item by item to {joined}."
+                    : names.Length == 1
+                        ? $"Final will: all belongings to {joined}."
+                        : $"Final will: belongings shared equally between {joined}.");
+                foreach (var heir in will.Heirs)
+                {
+                    var goods = heir.Items.Count == 0
+                        ? "nothing listed"
+                        : string.Join(", ", heir.Items.Select(item => $"{item.Quantity} {item.Kind.Replace('_', ' ')}"));
+                    lines.Add($"To {heir.Name}: {goods}");
+                }
+                break;
+            case "default":
+                lines.Add("Personal estate follows household inheritance.");
+                break;
+            default:
+                lines.Add("No current thoughts or activity.");
+                break;
+        }
+        if (will?.FinalWords is { Length: > 0 } words)
+            lines.Add($"Final words: \u201C{words}\u201D");
+        return lines;
+    }
+
     public static string HumanizeIdentifier(string value)
     {
         if (string.IsNullOrWhiteSpace(value))

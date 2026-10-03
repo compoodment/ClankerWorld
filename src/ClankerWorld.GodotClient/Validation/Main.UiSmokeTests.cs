@@ -3362,10 +3362,13 @@ public partial class Main
                 throw new InvalidOperationException("An empty roster must show its summary without an empty list box.");
             var formerPosition = new OwnerWorldPosition(2, 2);
             var deceased = new OwnerWorldInhabitant("agent:00000000000000000000000000000098", "Mira", "dead", formerPosition,
-                5_000, [], [new("age-band", "elder"), new("death-tick", "1")],
+                5_000, [], [new("age-band", "elder"), new("death-tick", "1"), new("will-status", "accepted")],
                 new OwnerWorldRoute("deceased", null, null, [], string.Empty),
                 new OwnerWorldSpatialKnowledge(formerPosition, [formerPosition], [formerPosition]), false)
             {
+                FinalWill = new OwnerWorldFinalWill("accepted", "items",
+                    [new("living-parent", "Rowan", false, [new("seed", 3)]), new("town:first", "First Town", true, [new("wood", 4)])],
+                    "Keep the orchard going."),
                 RecentPrivateThoughts = [new OwnerWorldPrivateThought(1, "I hope Rowan remembers our garden.")],
                 RecentMemories = [new OwnerWorldAgentMemory(1, "living-parent", "Rowan",
                     "I hid the garden tools where Rowan cannot see them.", "private")],
@@ -3393,6 +3396,24 @@ public partial class Main
                 !selectedActorSummaryLabel.Text.Contains("Dead", StringComparison.Ordinal) ||
                 !ShowsGlyph(profileCloseButton, PixelGlyph.Close) || renameAgentInput.Text != "Mira")
                 throw new InvalidOperationException("A deceased inhabitant must open straight to a historical Profile without appearing as a living map actor.");
+            if (!inhabitantDetails.Visible ||
+                !inhabitantDetails.Text.Contains("Final will: belongings left item by item to Rowan and First Town.", StringComparison.Ordinal) ||
+                !inhabitantDetails.Text.Contains("To Rowan: 3 seed", StringComparison.Ordinal) ||
+                !inhabitantDetails.Text.Contains("To First Town: 4 wood", StringComparison.Ordinal) ||
+                !inhabitantDetails.Text.Contains("Final words: \u201CKeep the orchard going.\u201D", StringComparison.Ordinal) ||
+                inhabitantDetails.Text.Contains("town:first", StringComparison.Ordinal))
+                throw new InvalidOperationException("A historical Profile must show the final will's heirs, their goods and the final words.");
+            // Model text remains plain even if a malformed snapshot contains formatting tags.
+            var taggedWords = "[b]Keep the orchard going.[/b]";
+            var taggedSnapshot = historicalSnapshot with
+            {
+                Inhabitants = [deceased with { FinalWill = deceased.FinalWill! with { FinalWords = taggedWords } }],
+            };
+            RenderSelectedInhabitantCard(taggedSnapshot);
+            if (inhabitantDetails.BbcodeEnabled ||
+                !inhabitantDetails.GetParsedText().Contains(taggedWords, StringComparison.Ordinal))
+                throw new InvalidOperationException("Final words must render as plain text without applying formatting from the model.");
+            RenderSelectedInhabitantCard(historicalSnapshot);
             if (!privateThoughtHistory.Text.Contains("I hope Rowan remembers our garden.", StringComparison.Ordinal) ||
                 !thoughtsHeading.Text.Contains("HISTORICAL", StringComparison.Ordinal) ||
                 !thoughtsReaderText.GetParsedText().Contains("I hope Rowan remembers our garden.", StringComparison.Ordinal) ||
@@ -3630,7 +3651,7 @@ public partial class Main
             await VerifyRefusedAgentRenameAsync();
             VerifyAgentTextEllipses();
             VerifyPlainEllipses("after every panel has been shown");
-            GD.Print("UI checks passed: startup Main Menu and settings, compact in-world pause menu and read-only Mod Library, confirmed quit, World Info Towns page, resource hover, square tile hover and agent priority, agent facings, walk steps and activity frames, bounded marker hitboxes at zoom, building footprints, mountain relief chunks drawn off the main thread, soft snow edges and desert cacti, camera-bounded large terrain and regional weather, zoom, middle-drag, WASD, overview navigation, Event Log jumps without pop-ups, keyboard shortcuts and the F1 controls list, Developer tools on F12 with readouts, agent jumps and planned paths, private thoughts, memories, deceased inspection, family tree and refused agent renames.");
+            GD.Print("UI checks passed: startup Main Menu and settings, compact in-world pause menu and read-only Mod Library, confirmed quit, World Info Towns page, resource hover, square tile hover and agent priority, agent facings, walk steps and activity frames, bounded marker hitboxes at zoom, building footprints, mountain relief chunks drawn off the main thread, soft snow edges and desert cacti, camera-bounded large terrain and regional weather, zoom, middle-drag, WASD, overview navigation, Event Log jumps without pop-ups, keyboard shortcuts and the F1 controls list, Developer tools on F12 with readouts, agent jumps and planned paths, private thoughts, memories, deceased inspection with final wills, family tree and refused agent renames.");
             GetTree().Quit();
         }
         catch (Exception exception)

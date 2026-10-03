@@ -647,7 +647,7 @@ public sealed partial class PrivateWorldRuntimeService(
     private static string EstateWillReason(PlaytestWorldEvent worldEvent, string estateId, string outcome)
     {
         if (outcome == "started") return "decision_dispatch_attempted";
-        if (outcome == "accepted") return "valid_heir_selected";
+        if (outcome == "accepted") return "valid_will_accepted";
         if (outcome != "default" || !worldEvent.Detail.StartsWith(estateId + ":", StringComparison.Ordinal))
             return "unspecified";
 
