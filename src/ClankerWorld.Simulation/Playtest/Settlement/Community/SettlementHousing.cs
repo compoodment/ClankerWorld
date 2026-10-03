@@ -219,6 +219,10 @@ public sealed partial class PrivateWorldRuntime
 
     private void ResolveHousingRequest(string actor)
     {
+        // Care, family or a completed expansion can change between answers,
+        // including earlier in this decision batch. Cancel stale notices first.
+        if (inhabitants.TryGetValue(actor, out var applicant) && applicant.Housing is { Request: not null, Relocation: { } notice })
+            ReconcileRelocation(notice.HouseholdId);
         if (!inhabitants.TryGetValue(actor, out var state) || state.Housing is not { Request: { } request } housing)
             return;
         var living = HouseholdAdults(request.HouseholdId);

@@ -30,13 +30,16 @@ public sealed partial class PrivateWorldRuntime
     public bool DisplaceAdult(string actor)
     {
         gate.Wait();
-        try { return inhabitants.ContainsKey(actor) && MovingCareGroup(actor).Count == 1 && DepartHousehold(actor, "displaced"); }
+        try { return inhabitants.ContainsKey(actor) && !HasDependentInPrimaryCare(actor) && DepartHousehold(actor, "displaced"); }
         finally { gate.Release(); }
     }
 
     private bool DepartHousehold(string actor, string cause)
     {
         if (!AdultResident(actor) || society.Checkpoint.GetInhabitant(actor).HouseholdId is not { } householdId)
+            return false;
+        if (cause == "displaced" && (HasDependentInPrimaryCare(actor) ||
+            HoldsRelocationNotice(actor) && !MayRelocateFromHousehold(actor)))
             return false;
         var group = MovingCareGroup(actor);
         var sharedProject = inhabitants[actor].Project;
@@ -294,7 +297,7 @@ public sealed partial class PrivateWorldRuntime
     private bool MayFoundHousehold(string actor)
     {
         if (society.Checkpoint.GetInhabitant(actor).HouseholdId is not { } home) return true;
-        if (HoldsRelocationNotice(actor)) return true;
+        if (MayRelocateFromHousehold(actor)) return true;
         return HouseResidentCapacity(home) is { IsOvercrowded: true } && HouseForHousehold(home) is { } house &&
             !HouseCanExpandFurther(house);
     }
@@ -309,14 +312,14 @@ public sealed partial class PrivateWorldRuntime
             ResumePausedHouseholdWork(actor, candidate["household_resume_work:".Length..]);
             return;
         }
-        if (candidate == "household_leave") { DepartHousehold(actor, HoldsRelocationNotice(actor) ? "displaced" : "voluntary"); return; }
+        if (candidate == "household_leave") { DepartHousehold(actor, MayRelocateFromHousehold(actor) ? "displaced" : "voluntary"); return; }
         if (candidate == "household_found")
         {
             if (!AdultResident(actor) || !MayFoundHousehold(actor) ||
                 inhabitants[actor].Housing?.Request is not null || AskableHouseholds(actor).Any()) return;
             // Splitting from an overcrowded House is an ordinary departure first.
             if (society.Checkpoint.GetInhabitant(actor).HouseholdId is not null &&
-                !DepartHousehold(actor, HoldsRelocationNotice(actor) ? "displaced" : "voluntary")) return;
+                !DepartHousehold(actor, MayRelocateFromHousehold(actor) ? "displaced" : "voluntary")) return;
             var householdId = $"household:solo:{actor}:{WorldTick}";
             var group = MovingCareGroup(actor);
             society.Apply(checkpoint => SocietyFixture.CreateHousehold(checkpoint, householdId,

@@ -34,6 +34,11 @@ public sealed partial class PrivateWorldRuntime
     private IEnumerable<SocietyInhabitant> ActiveResidents(string householdId) => society.Checkpoint.Inhabitants
         .Where(person => person.Status == SocietyInhabitantStatus.Active && person.HouseholdId == householdId);
 
+    // A guardian remains responsible even when their dependent lives in another House.
+    private bool HasDependentInPrimaryCare(string actor) => society.Checkpoint.Inhabitants.Any(person =>
+        person.Status == SocietyInhabitantStatus.Active && person.PrimaryCaregiverId == actor &&
+        person.AgeBand is SocietyAgeBand.Infant or SocietyAgeBand.Child or SocietyAgeBand.Adolescent);
+
     private HouseRelocationRules.Selection? RelocationSelection(string householdId, string? volunteerId = null)
     {
         if (HouseForHousehold(householdId) is not { } house) return null;
@@ -48,9 +53,9 @@ public sealed partial class PrivateWorldRuntime
                     ? relocation : null;
                 return person.Id == volunteerId && notice is null
                     ? new HouseRelocationRules.Adult(person.Id, AdmittedTick(person.Id, householdId),
-                        MovingCareGroup(person.Id).Count == 1, HouseRelocationRules.Volunteer, WorldTick)
+                        !HasDependentInPrimaryCare(person.Id), HouseRelocationRules.Volunteer, WorldTick)
                     : new HouseRelocationRules.Adult(person.Id, AdmittedTick(person.Id, householdId),
-                        MovingCareGroup(person.Id).Count == 1, notice?.Reason, notice?.NoticeTick);
+                        !HasDependentInPrimaryCare(person.Id), notice?.Reason, notice?.NoticeTick);
             });
         return HouseRelocationRules.Select(residents, adults, definition.Width, definition.Height);
     }
@@ -71,7 +76,8 @@ public sealed partial class PrivateWorldRuntime
     /// </summary>
     private bool MayRelocateFromHousehold(string actor) =>
         inhabitants.TryGetValue(actor, out var person) && person.Housing?.Relocation is { } notice &&
-        society.Checkpoint.GetInhabitant(actor).HouseholdId == notice.HouseholdId;
+        society.Checkpoint.GetInhabitant(actor).HouseholdId == notice.HouseholdId &&
+        RelocationSelection(notice.HouseholdId)?.Chosen.Any(item => item.Id == actor) == true;
 
     private void SetRelocation(string actor, SettlementRelocation? notice) =>
         SetHousing(actor, (inhabitants[actor].Housing ?? new()) with { Relocation = notice });
@@ -104,12 +110,16 @@ public sealed partial class PrivateWorldRuntime
     {
         var selection = RelocationSelection(householdId);
         var chosen = (selection?.Chosen ?? []).ToDictionary(item => item.Id, item => item.Reason, StringComparer.Ordinal);
+        // A changed care/family situation replaces a selected adult, not the
+        // overcrowding case. Keep each replaced notice's original deadline.
+        var replaced = new Queue<SettlementRelocation>(RelocationNotices(householdId)
+            .Where(item => !chosen.ContainsKey(item.Id)).Select(item => item.Notice));
         foreach (var (id, notice) in RelocationNotices(householdId).ToArray())
         {
             if (chosen.ContainsKey(id) && society.Checkpoint.GetInhabitant(id).HouseholdId == householdId) continue;
             var reason = selection is null ? "no_house"
                 : selection.Chosen.Count == 0 && !HouseResidentCapacity(householdId)!.IsOvercrowded ? "room"
-                : MovingCareGroup(id).Count > 1 ? "care"
+                : HasDependentInPrimaryCare(id) ? "care"
                 : notice.Reason != HouseRelocationRules.Volunteer &&
                   HouseRelocationRules.DominantFamily(ActiveResidents(householdId).ToArray()) is { } dominant &&
                   society.Checkpoint.GetInhabitant(id).DomesticFamilyUnitId == dominant ? "family"
@@ -120,8 +130,9 @@ public sealed partial class PrivateWorldRuntime
         foreach (var item in selection?.Chosen ?? [])
         {
             if (inhabitants[item.Id].Housing?.Relocation is not null) continue;
-            var deadline = checked(WorldTick + RelocationNoticeTicks);
-            SetRelocation(item.Id, new(householdId, WorldTick, deadline, item.Reason));
+            var deadline = replaced.TryDequeue(out var prior) ? prior.DeadlineTick : checked(WorldTick + RelocationNoticeTicks);
+            var noticeTick = deadline - RelocationNoticeTicks;
+            SetRelocation(item.Id, new(householdId, noticeTick, deadline, item.Reason));
             AppendEvent("relocation_notice", $"{item.Id}|{householdId}|{item.Reason}|" +
                 deadline.ToString(CultureInfo.InvariantCulture));
         }
@@ -174,25 +185,33 @@ public sealed partial class PrivateWorldRuntime
     private string RelocationNote(string actor, string householdId, HouseResidentCapacityRules.Capacity capacity)
     {
         var house = HouseForHousehold(householdId)!;
-        var expansion = (worldSimulation.BuildingExpansions ?? []).Any(job => job.BuildingInstanceId == house.InstanceId &&
-            job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused)
-            ? " Expansion under way; no places until it is finished." : string.Empty;
+        var expansionJob = (worldSimulation.BuildingExpansions ?? []).FirstOrDefault(job => job.BuildingInstanceId == house.InstanceId &&
+            job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused);
+        var expansion = expansionJob?.State switch
+        {
+            WorldProductionJobState.Running => " Expansion under way; no places until it finishes.",
+            WorldProductionJobState.Paused => " Expansion paused; no places until it finishes.",
+            _ => string.Empty,
+        };
         var counts = $"House overcrowded: {capacity.ResidentCount}/{capacity.Limit} places.";
         if (inhabitants[actor].Housing?.Relocation is { } notice)
         {
             var why = notice.Reason switch
             {
                 HouseRelocationRules.Volunteer => "you volunteered",
-                HouseRelocationRules.LatestUnrelatedArrival => "latest arrival outside the main family",
-                _ => "latest arrival; no family is a majority",
+                HouseRelocationRules.LatestUnrelatedArrival => "you were the latest arrival outside the majority family",
+                _ => "you were the latest arrival with no family majority",
             };
-            return $"{counts} You must move out in about {HoursLeft(notice.DeadlineTick)} hours ({why}). " +
-                "Ask a household with room or start your own." + expansion;
+            var nextStep = inhabitants[actor].Housing?.Request is not null
+                ? "Waiting for a household's admission answers."
+                : "Ask a household with room or start your own.";
+            return $"{counts} You must move out in about {HoursLeft(notice.DeadlineTick)} hours ({why}). " + nextStep + expansion;
         }
         var notices = RelocationNotices(householdId).Count();
         if (notices > 0)
             return $"{counts} {notices} adult{(notices == 1 ? " has" : "s have")} notice to move out." + expansion;
-        var next = expansion.Length > 0 ? "finish the expansion"
+        var next = expansionJob?.State == WorldProductionJobState.Paused ? "resume the expansion"
+            : expansion.Length > 0 ? "finish the expansion"
             : HouseCanExpandFurther(house) ? "expand the House"
             : "an adult may start a separate household with their dependents and build a House";
         return $"{counts} Nobody can be required to leave. Next: {next}." + expansion;

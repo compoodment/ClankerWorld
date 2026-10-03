@@ -22,8 +22,8 @@ public static class HouseRelocationRules
 
     /// <summary>
     /// An adult resident's facts for selection. <paramref name="MovesAlone"/> is
-    /// false while they are primary caregiver of a dependent in the same
-    /// household. An existing notice keeps its place in the order.
+    /// false while they are primary caregiver of any dependent, including one
+    /// living elsewhere. An existing notice keeps its place in the order.
     /// </summary>
     public sealed record Adult(string Id, long AdmittedTick, bool MovesAlone,
         string? NoticeReason = null, long? NoticeTick = null);

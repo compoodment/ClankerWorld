@@ -391,6 +391,7 @@ public sealed partial class PrivateWorldRuntimeService(
                 foreach (var worldEvent in result.Events.Where(item => item.Kind is "housing_request_made" or
                              "housing_answer_recorded" or "household_joined" or "housing_request_refused" or
                              "housing_request_expired" or "housing_request_cancelled" or "housing_blocked" or
+                             "relocation_notice" or "relocation_cancelled" or
                              "household_left" or "household_founded" or "personal_goods_collected" or "personal_goods_stored" or
                              "borrowed_goods_returned" or "replacement_care_accepted" or "household_work_resumed"))
                 {
