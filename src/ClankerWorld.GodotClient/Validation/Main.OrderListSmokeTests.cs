@@ -180,6 +180,13 @@ public partial class Main
                 if (quickCardOrderLabel.Text != line || quickCardOrderLabel.ThemeTypeVariation != style || !quickCardOrderLabel.Visible)
                     throw new InvalidOperationException($"A {status} order must read \"{line}\" on the quick card: {quickCardOrderLabel.Text}");
             }
+            // Guardian orders now share the same host list, and need a useful task name too.
+            var guardian = Order(1, "Become guardian for Lina.", "blocked", "accept_guardianship",
+                requested: 1, reason: "Waiting to be asked by the child's guardian search.");
+            guardian = guardian with { Order = guardian.Order! with { ProgressUnit = "guardianships" } };
+            RenderSelectedInhabitantCard(snapshot with { Instructions = [guardian] });
+            if (quickCardOrderLabel.Text != "Order: Blocked · Becoming a guardian · 0/1 care assignments · Waiting to be asked by the child's guardian search.")
+                throw new InvalidOperationException($"Guardian orders need their own task name and progress wording: {quickCardOrderLabel.Text}");
             RenderSelectedInhabitantCard(snapshot with { Instructions = [] });
             if (quickCardOrderLabel.Visible || allOrdersButton.Visible)
                 throw new InvalidOperationException("An agent with no orders must show no order line and no All orders button.");

@@ -808,6 +808,7 @@ public partial class Main
             "consume_food" => "Eating food",
             "harvest_food" => "Gathering food",
             "seek_food" => "Going to a food site",
+            "accept_guardianship" => "Becoming a guardian",
             _ => "Order",
         };
         var units = order.RepeatUntilCancelled
@@ -843,6 +844,7 @@ public partial class Main
         "food_items" => "food items",
         "arrivals" => "sites reached",
         "harvests" => "harvest batches",
+        "guardianships" => "care assignments",
         _ => unit,
     };
 
