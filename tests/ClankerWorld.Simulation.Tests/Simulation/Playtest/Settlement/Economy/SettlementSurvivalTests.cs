@@ -300,6 +300,13 @@ public sealed class SettlementSurvivalTests
                     Inventory = InventoryFixture.AddLot(state.Society.Society.Inventory,
                         "recovery-coat", "clothing", recoveringId, 1),
                 },
+                // Nor may a saved intention, such as a building project chosen
+                // during the autonomous run, start that walk again.
+                Cognition = state.Society.Cognition with
+                {
+                    Runtimes = state.Society.Cognition.Runtimes.Select(runtime => runtime.InhabitantId == recoveringId
+                        ? runtime with { CurrentIntention = null } : runtime).ToArray(),
+                },
             },
             Survival = state.Survival! with { Fires = [new CampFireState(heater.InstanceId, world.WorldTick + 120)] },
         };
