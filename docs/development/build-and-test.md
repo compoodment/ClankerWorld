@@ -63,7 +63,7 @@ The Protect main ruleset requires three checks: `verify`,
 `windows-documentation` and `windows-provider-storage`. `verify` passes only
 when every part of the Verify workflow passes:
 
-- **scope** decides whether the change touches code.
+- **scope** decides which of the other jobs the change needs.
 - **checks** runs the workflow-script tests and the label list, the Godot
   client check, `dotnet format` and the Windows export.
 - **tests (1)** to **tests (4)** split the Release test suite between them, so
@@ -72,6 +72,14 @@ when every part of the Verify workflow passes:
 A pull request that changes only documentation (Markdown files and anything
 under `docs/`) runs the workflow-script checks and the documentation tests on
 Linux and Windows, and skips the rest, including `windows-provider-storage`.
+
+A pull request that changes only documentation and Godot client files also
+runs the Godot client check, `dotnet format` and the Windows export, and skips
+the test jobs and `windows-provider-storage`. The test project compiles only
+the client files its `<Compile Include>` lines name, so no other client file
+can change a test result. A change to one of those files, to anything under
+`tests/`, or to anything outside the client folder runs everything.
+
 Pushes to main always run everything. A newer push to a pull request cancels
 its older run.
 
@@ -104,6 +112,25 @@ dotnet test tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.cs
 The first command records each test's duration in
 `tests/ClankerWorld.Simulation.Tests/TestResults/timings.trx`; the second lists
 the tests job 1 would run without timings.
+
+The native Windows storage job also runs the repeated checkpoint-compaction
+test and checks that a refused overwrite preserves the previous checkpoint.
+It uploads the test report as `windows-storage-evidence`. If the repeated-save
+test encounters an I/O failure, that artifact also contains copies of its
+disposable world files and first-failure diagnostics, including any temporary
+checkpoint captured before cleanup. Successful test worlds are deleted. These
+are synthetic test worlds; do not add a player's save directory to the upload
+paths.
+The deliberate lock and read-only controls mark their evidence with
+`ExpectedFailureControl`, so their expected refusals remain distinguishable
+from an unexpected stress-test failure.
+
+To retain the same evidence for a local persistence test, set
+`CLANKERWORLD_CHECKPOINT_DIAGNOSTICS` to an empty disposable directory before
+running `FullyQualifiedName~PrivateWorldStateFileTests`. On I/O failure, the
+tests copy evidence from their uniquely named temporary worlds there. A
+passing rerun does not explain an earlier intermittent access refusal; retain
+the failed report and its diagnostics when investigating one.
 
 Hands-on checks above describe useful verification, not a blanket pre-merge
 playtest gate. Routine owner playtesting may follow merge under

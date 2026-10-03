@@ -177,6 +177,10 @@ Use the [documentation guide](docs/README.md) to choose the right page.
 | Change owner access or device credentials | [Device pairing](docs/development/device-pairing.md) |
 | Build, check or package a change | [Build and test](docs/development/build-and-test.md) |
 | Prepare an explicitly requested release | [Releasing](docs/development/releasing.md) |
+| Review, prune or add tests | [Test audit skill](skills/test-audit/SKILL.md) |
+
+The [skills folder](skills/README.md) holds step-by-step guides for jobs that
+come up again and again. When your task matches one, follow its `SKILL.md`.
 
 ## Report your result
 
