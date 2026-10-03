@@ -23,6 +23,12 @@ public sealed partial class PrivateWorldRuntime
 
     private static bool IsHandcartRecipe(RecipeDefinition recipe) => recipe.Outputs.Any(output => output.ResourceId == InventoryContainerRules.Handcart);
 
+    private RecipeDefinition? HouseholdHandcartRecipe(string? household) =>
+        household is not null && BlacksmithForHousehold(household) is { } blacksmith
+            ? worldContent.Recipes.FirstOrDefault(recipe =>
+                recipe.WorkstationBuildingId == blacksmith.DefinitionId && IsHandcartRecipe(recipe))
+            : null;
+
     /// <summary>
     /// The cart recipe while the actor may build their own cart: no cart yet, none being built, and every
     /// material either carried already or in stock they may collect, so they do not gather part of a set that
@@ -30,9 +36,9 @@ public sealed partial class PrivateWorldRuntime
     /// </summary>
     private RecipeDefinition? HandcartToBuild(string actor)
     {
-        var recipe = worldContent.Recipes.FirstOrDefault(IsHandcartRecipe);
         var household = society.Checkpoint.GetInhabitant(actor).HouseholdId;
-        if (recipe is null || household is null || !AdultResident(actor) || BlacksmithForHousehold(household) is null ||
+        var recipe = HouseholdHandcartRecipe(household);
+        if (recipe is null || household is null || !AdultResident(actor) ||
             society.Checkpoint.Inventory.Lots.Any(lot => lot.ItemKind == InventoryContainerRules.Handcart && lot.OwnerId == actor) ||
             worldSimulation.ProductionJobs.Any(job => job.WorkerId == actor && job.RecipeId == recipe.CanonicalId &&
                 job.State == WorldProductionJobState.Running))
@@ -70,7 +76,7 @@ public sealed partial class PrivateWorldRuntime
     private int SpareCarriedQuantity(string actor, InventoryLot lot)
     {
         var kept = lot.OwnerId == actor && ToolProgressionRules.IsTopLevelCarriedLot(lot, actor) &&
-            worldContent.Recipes.FirstOrDefault(IsHandcartRecipe) is { } cart
+            HouseholdHandcartRecipe(society.Checkpoint.GetInhabitant(actor).HouseholdId) is { } cart
             ? cart.Inputs.Where(input => input.ResourceId == lot.ItemKind).Sum(input => input.Amount) : 0;
         if (kept == 0 || HandcartToBuild(actor) is null) return AvailableLotQuantity(lot);
         return Math.Min(AvailableLotQuantity(lot), Math.Max(0, CarriedMaterialQuantity(actor, lot.ItemKind) - kept));
