@@ -88,6 +88,7 @@ public sealed partial class PrivateWorldRuntime
             householdLandUseRights, householdLandUseRequests, society.Checkpoint);
         foreach (var town in towns)
             TownGovernanceValidation.Validate(town, society.Checkpoint, worldSystems.Config.TicksPerDay);
+        ValidateTownAdmissions(towns, society.Checkpoint, checkpointSchemaVersion);
         ValidateRoads(RoadTiles, map, founderSetup);
         ValidateBridges(Bridges, bridgeTraffic, map, RoadTiles, worldSimulation, worldContent,
             society.Checkpoint, inhabitants.Values);

@@ -275,9 +275,10 @@ record of membership; an admission record says what one approval did to them:
 - `lapsed`: the approval could not be applied, with one of four reasons:
   `unavailable`, `already_resident`, `affiliation_changed` or `joined_elsewhere`.
 
-Because a proposal has at most one record, reload and replay never apply an
-approval twice. A passed admission with no record yet is settled on the next
-tick, as it would have been before the save. Loading refuses a record without a
+A passed admission is settled as soon as the council decision or roster change
+that passed it is saved, so every passed admission has exactly one record and
+reload and replay never apply an approval twice. Loading, and the runtime's own
+state check, refuse a passed admission without a record, a record without a
 matching passed admission proposal, a repeated proposal, an unknown status or
 lapse reason, an unsorted or incomplete moving group, a decision time before the
 vote settled or after the saved world time, and an approval still waiting on

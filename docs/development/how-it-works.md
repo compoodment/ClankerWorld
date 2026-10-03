@@ -712,9 +712,10 @@ without proposal text, notices, names or per-read polling noise.
 
 **Town admission** (`PrivateWorldRuntime.TownMembership`). `TownRuntimeState.ResidentIds`
 is the only record of Town membership; household, House and position never
-change it. After each civic action and on every tick, `SettleTownAdmissions`
-reads each Town's passed admission proposals and records one
-`TownAdmissionRecord` per proposal, rereading the Towns after every change:
+change it. After every saved council decision, every Town roster change and on
+every tick, `SettleTownAdmissions` reads each Town's passed admission proposals
+and records exactly one `TownAdmissionRecord` per proposal, rereading the Towns
+after every change:
 
 - A request the newcomer made for themselves is their consent, so it is applied
   at once.

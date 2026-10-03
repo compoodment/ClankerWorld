@@ -93,15 +93,28 @@ public sealed partial class PrivateWorldRuntime
         SettleTownAdmissions();
     }
 
+    private bool settlingTownAdmissions;
+
     /// <summary>
     /// Records each newly passed admission once and lapses approvals that no
-    /// longer fit. Runs after the council's decision is saved, rereading the
-    /// Towns after every change, so a delayed or duplicate approval cannot add
-    /// a dead or already admitted person or leave anyone in two Towns.
+    /// longer fit. Runs after every saved council decision and roster change,
+    /// rereading the Towns after every change, so a delayed or duplicate
+    /// approval cannot add a dead or already admitted person or leave anyone in
+    /// two Towns, and every saved passed admission has its one outcome record.
     /// </summary>
     private void SettleTownAdmissions()
     {
-        while (SettleNextTownAdmission()) { }
+        // Applying an admission changes rosters; the running loop picks up anything that changes.
+        if (settlingTownAdmissions) return;
+        settlingTownAdmissions = true;
+        try
+        {
+            while (SettleNextTownAdmission()) { }
+        }
+        finally
+        {
+            settlingTownAdmissions = false;
+        }
     }
 
     private bool SettleNextTownAdmission()
@@ -215,10 +228,13 @@ public sealed partial class PrivateWorldRuntime
         var townIds = savedTowns.Select(town => town.Id).ToHashSet(StringComparer.Ordinal);
         foreach (var town in savedTowns)
         {
-            if (town.Admissions is not { } records) continue;
+            var records = town.Admissions ?? [];
             var proposals = (town.Governance?.Proposals ?? []).ToDictionary(proposal => proposal.Id, StringComparer.Ordinal);
-            if (schemaVersion < TownAdmissionSchemaVersion ||
-                records.Select(record => record?.ProposalId).Distinct(StringComparer.Ordinal).Count() != records.Count)
+            // Each passed admission is settled as soon as it passes, so it has exactly one outcome record.
+            if ((town.Admissions is not null && schemaVersion < TownAdmissionSchemaVersion) ||
+                records.Select(record => record?.ProposalId).Distinct(StringComparer.Ordinal).Count() != records.Count ||
+                proposals.Values.Any(proposal => proposal is { Kind: "admission", Status: "passed" } &&
+                    !records.Any(record => record?.ProposalId == proposal.Id)))
                 throw new InvalidDataException("A Town's saved admission records are invalid.");
             foreach (var record in records)
             {
