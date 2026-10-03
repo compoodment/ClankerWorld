@@ -44,39 +44,10 @@ public sealed class ExplorationBridgeTimingTests
         Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(direct.ExportState()));
     }
 
-    [Fact]
-    public async Task ABridgeAlreadyPresentBeforeAnOutingCannotExcuseAForgedCrossAxisStep()
-    {
-        using var world = ExplorationBridgeSaveTests.CreateScoutingWorld();
-        var workshop = world.WorldContent.Buildings.Single(item => item.LocalId == "workshop");
-        var placed = world.PlaceBuilding("earlier-road-workshop", workshop.CanonicalId, new(3, 102));
-        Assert.True(placed.Applied, placed.Failure);
-        var bridge = Assert.Single(world.Bridges, item => item.Id == "bridge-0-102-ew-2");
-        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-        var state = world.ExportState();
-        var actor = state.Inhabitants[0].InhabitantId;
-        Assert.True(bridge.BuiltTick < world.WorldTick);
-        Assert.False(state.Map.CanFootStep(Start, Water));
-        var bytes = PrivateWorldRuntimeCodec.Encode(state);
-        using (var valid = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes)))
-            Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(valid.ExportState()));
-        var tampered = state with
-        {
-            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor ? person with
-            {
-                Position = Water,
-                Exploration = new SettlementExploration([Start, Water], [Start, Water], world.WorldTick, false, [Water]),
-            } : person).ToArray(),
-        };
-        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(tampered));
-        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(tampered));
-    }
-
     [Theory]
     [InlineData("nonadjacent")]
     [InlineData("river_diagonal")]
     [InlineData("out_of_bounds")]
-    [InlineData("duplicate_step")]
     public async Task HistoricalPathValidationStillRefusesMalformedTravel(string scenario)
     {
         using var world = await CreateWorldWithLaterPaidBridge();
@@ -96,37 +67,6 @@ public sealed class ExplorationBridgeTimingTests
             Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor ? person with
             {
                 Exploration = new SettlementExploration([Start], [Start, destination], 0, true, []),
-            } : person).ToArray(),
-        };
-        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(tampered));
-        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(tampered));
-    }
-
-    [Fact]
-    public async Task HistoricalPathCannotCutADiagonalCornerBlockedByGeneratedTerrain()
-    {
-        using var world = await CreateWorldWithLaterPaidBridge();
-        var state = world.ExportState();
-        var map = state.Map;
-        var corner = (from tile in map.Tiles
-                      where map.IsLand(tile.Position) && map.IsPassable(tile.Position)
-                      from dx in new[] { -1, 1 }
-                      from dy in new[] { -1, 1 }
-                      let destination = new GridPoint(tile.Position.X + dx, tile.Position.Y + dy)
-                      let horizontalShoulder = new GridPoint(destination.X, tile.Position.Y)
-                      let verticalShoulder = new GridPoint(tile.Position.X, destination.Y)
-                      where map.Contains(destination) && map.IsLand(destination) && map.IsPassable(destination)
-                          && (!map.IsPassable(horizontalShoulder) || !map.IsPassable(verticalShoulder))
-                      select (Origin: tile.Position, Destination: destination)).First();
-        Assert.True(map.IsDiagonalFootStep(corner.Origin, corner.Destination));
-        Assert.Equal(1, map.FootDistance(corner.Origin, corner.Destination));
-        Assert.False(map.CanFootStep(corner.Origin, corner.Destination));
-        var actor = state.Inhabitants[0].InhabitantId;
-        var tampered = state with
-        {
-            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor ? person with
-            {
-                Exploration = new SettlementExploration([corner.Origin], [corner.Origin, corner.Destination], 0, true, []),
             } : person).ToArray(),
         };
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(tampered));

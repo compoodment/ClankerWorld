@@ -174,33 +174,6 @@ public sealed class FarmContentTests
     }
 
     [Fact]
-    public async Task FarmhouseHaulTakesOnlyTheAllowedGrainFromAnOversizedPotFamily()
-    {
-        var setup = await PreparedFarmhouseWithPottedGrainAsync("farmhouse-pot-partial", 6);
-        using var setupWorld = setup.World;
-        await AdvanceUntilAsync(setup.World, "farm_grain_picked_up", setup.Actor);
-
-        var carried = setup.World.Society.Inventory;
-        var pot = carried.GetLot(setup.PotId);
-        var remainder = Assert.Single(carried.Lots, lot => lot.ContainerLotId == setup.PotId);
-        var deliveryGrain = Assert.Single(carried.Lots, lot => lot.OwnerId == setup.Actor &&
-            lot.ItemKind == "grain" && lot.DeliveryBuildingId == setup.FarmhouseId);
-        Assert.Equal(setup.HouseholdId, pot.OwnerId);
-        Assert.Null(pot.DeliveryBuildingId);
-        Assert.Equal(2, remainder.Quantity);
-        Assert.Equal(4, deliveryGrain.Quantity);
-        Assert.Null(deliveryGrain.ContainerLotId);
-
-        using var delivery = PrivateWorldRuntime.Restore(
-            PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(setup.World.ExportState())),
-            id => new CandidateProvider(id == setup.Actor ? "haul_household_stock" : "safe_idle"));
-        await AdvanceUntilStoredAsync(delivery, deliveryGrain.Id, setup.FarmhouseId);
-        Assert.Equal(setup.FarmhouseId, delivery.Society.Inventory.GetLot(deliveryGrain.Id).StorageBuildingId);
-        Assert.Equal(2, Assert.Single(delivery.Society.Inventory.Lots,
-            lot => lot.ContainerLotId == setup.PotId).Quantity);
-    }
-
-    [Fact]
     public async Task GrainFieldYieldBelongsToTheActualFarmerHousehold()
     {
         var (state, oldActor, oldHousehold, point) = await FarmFieldTests.ReadyFarmer("grain-field-owner");

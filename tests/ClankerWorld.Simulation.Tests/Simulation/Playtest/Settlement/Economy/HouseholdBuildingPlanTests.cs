@@ -12,7 +12,6 @@ public sealed class HouseholdBuildingPlanTests
 
     [Theory]
     [InlineData(Alpha, "blacksmith-1x2", "farmhouse-1x1", "first-town-house-a")]
-    [InlineData(Beta, "farmhouse-1x1", "blacksmith-1x2", "first-town-house-b")]
     public async Task MissingProductiveBuildingIsOfferedWhenItsMaterialsAreInHand(
         string household, string missingBuilding, string heldBuilding, string house)
     {

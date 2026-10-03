@@ -51,7 +51,9 @@ public sealed partial class PrivateWorldRuntime
         var entrances = footprint.SelectMany(point => map.FootNeighbors(point)
                 .Where(next => !map.IsDiagonalFootStep(point, next)))
             .Where(point => !occupied.Contains(point) && map.IsBuildable(point) &&
-                WorldContentSimulationRules.IsEntrance(buildingDesign, building.Position, point))
+                WorldContentSimulationRules.IsEntrance(buildingDesign, building.Position, point) &&
+                (!buildingDesign.Tags.Contains(TownHallContent.HallTag, StringComparer.Ordinal) ||
+                 point == TownHallContent.Entrance(building.Position)))
             .Distinct().OrderBy(point => point.Y).ThenBy(point => point.X).ToArray();
         if (entrances.Length == 0)
         {
