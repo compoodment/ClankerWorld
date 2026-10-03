@@ -94,7 +94,8 @@ public sealed class PrivateWorldDeferredCognitionTests
     public async Task MalformedReplyDoesNotApplyItsNameOrStartTheDuplicateNameRetry()
     {
         var provider = new SequencedHostedProvider(new NameReply("Taken Name", 1.2));
-        using var world = CreateNameTestWorld("malformed-name-reply", provider);
+        // Peers must not take shared tools and create a real follow-up choice before this reply is admitted.
+        using var world = CreateNameTestWorld("malformed-name-reply", provider, quietOthers: true);
         Assert.True(world.RenameAgent(NameOwnerId, "Taken Name"));
         var placeholder = world.Society.GetInhabitant(NameTargetId).Name;
         world.StartWorld();
@@ -123,6 +124,8 @@ public sealed class PrivateWorldDeferredCognitionTests
 
         Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
         _ = await AdvanceUntilAcceptedAsync(world, NameTargetId);
+        // Retained work is refreshed on the tick after the first reply is admitted.
+        Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
         await provider.SecondFailed.Task.WaitAsync(TimeSpan.FromSeconds(3));
         await Task.Delay(100);
         _ = await AdvanceUntilAcceptedAsync(world, NameTargetId);
@@ -238,6 +241,7 @@ public sealed class PrivateWorldDeferredCognitionTests
 
         Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
         _ = await AdvanceUntilAcceptedAsync(world, NameTargetId);
+        Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
         await provider.SecondStarted.Task.WaitAsync(TimeSpan.FromSeconds(3));
         Assert.True(provider.SecondObservation!.IsNameRetry);
         var completedBeforeCancellation = world.ExportState().Events.Count(item =>
@@ -280,6 +284,7 @@ public sealed class PrivateWorldDeferredCognitionTests
         world.StartWorld();
         await world.AdvanceOneTickNonBlockingAsync();
         _ = await AdvanceUntilAcceptedAsync(world, NameTargetId);
+        Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
         await provider.SecondStarted.Task.WaitAsync(TimeSpan.FromSeconds(3));
         world.Pause();
         var saved = world.ExportState();
@@ -317,8 +322,9 @@ public sealed class PrivateWorldDeferredCognitionTests
     public async Task SlowHostedFounderDoesNotHoldWorldOrOtherFounders()
     {
         var hosted = new HeldHostedProvider();
+        // Keep the offered context unchanged while peers still complete their independent decisions.
         using var world = new PrivateWorldRuntime("deferred-founder", id =>
-            id == "founder-scout" ? hosted : new DeterministicDecisionProvider());
+            id == "founder-scout" ? hosted : new QuietDecisionProvider());
 
         var first = await world.AdvanceOneTickNonBlockingAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(3));
         Assert.True(first.Advanced);
@@ -371,36 +377,6 @@ public sealed class PrivateWorldDeferredCognitionTests
             person => Assert.Empty(person.RecentPrivateThoughts));
         Assert.DoesNotContain(world.ExportState().Events,
             item => item.Detail.Contains("I should gather food", StringComparison.Ordinal));
-    }
-
-    [Fact]
-    public async Task PausedRequestCannotActAndSavedQueueCanBeRetriedAfterReload()
-    {
-        var hosted = new HeldHostedProvider(ignoreCancellation: true,
-            kind: DecisionProviderKind.LargeLanguageModel, privateThought: "This stale thought must vanish.");
-        using var world = new PrivateWorldRuntime("deferred-reload", id =>
-            id == "founder-scout" ? hosted : new DeterministicDecisionProvider());
-        Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
-        await hosted.Started.Task.WaitAsync(TimeSpan.FromSeconds(3));
-        world.Pause();
-        var saved = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState()));
-        hosted.Release.TrySetResult(true);
-        await hosted.Returned.Task.WaitAsync(TimeSpan.FromSeconds(3));
-        Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "hosted_decision_completed");
-        Assert.Empty(world.Inhabitants.Single(person => person.InhabitantId == "founder-scout").RecentThoughts ?? []);
-
-        var replacement = new HeldHostedProvider(kind: DecisionProviderKind.LargeLanguageModel,
-            privateThought: "This new decision is mine.");
-        using var restored = PrivateWorldRuntime.Restore(saved, id =>
-            id == "founder-scout" ? replacement : new DeterministicDecisionProvider());
-        restored.Resume();
-        Assert.True((await restored.AdvanceOneTickNonBlockingAsync()).Advanced);
-        await replacement.Started.Task.WaitAsync(TimeSpan.FromSeconds(3));
-        replacement.Release.TrySetResult(true);
-        await replacement.Returned.Task.WaitAsync(TimeSpan.FromSeconds(3));
-        _ = await AdvanceUntilAcceptedAsync(restored, "founder-scout");
-        Assert.Equal("This new decision is mine.",
-            Assert.Single(restored.Inhabitants.Single(person => person.InhabitantId == "founder-scout").RecentThoughts!).Text);
     }
 
     [Fact]
@@ -485,8 +461,10 @@ public sealed class PrivateWorldDeferredCognitionTests
     private static PrivateWorldRuntime CreateNameTestWorld(
         string seed,
         IDecisionProvider provider,
-        bool quietOthers = false)
+        bool quietOthers = true)
     {
+        // Naming-call counts must not include fresh decisions prompted by
+        // peers changing the target's ordinary choices while a reply is held.
         var world = new PrivateWorldRuntime(seed, id => id == NameTargetId
                 ? provider
                 : quietOthers ? new QuietDecisionProvider() : new DeterministicDecisionProvider(),

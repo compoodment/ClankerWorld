@@ -16,16 +16,17 @@ public partial class Main
         }
 
         var accepted = false;
+        var generation = observationSession.RequestGeneration;
         await RunOwnerActionAsync(async () =>
         {
-            var receipt = await ownerApi.SetPausedAsync(
-                ResolveWorldUri(), authority, deviceId, paused, signer, CancellationToken.None);
+            var receipt = await AwaitCurrentWorldResultAsync(ownerApi.SetPausedAsync(
+                ResolveWorldUri(), authority, deviceId, paused, signer, CancellationToken.None));
             accepted = true;
             return receipt.Changed
                 ? paused ? "World paused" : "World resumed"
                 : $"The world was already {(paused ? "paused" : "running")}";
         }, waitForTurn: true);
-        return accepted;
+        return accepted && IsCurrentWorldRequest(generation);
     }
 
     private async Task SubmitInstructionAsync()
@@ -72,8 +73,8 @@ public partial class Main
         var completed = false;
         await RunOwnerActionAsync(async () =>
         {
-            await ownerApi.SubmitInstructionAsync(
-                ResolveWorldUri(), authority, deviceId, action, signer, CancellationToken.None);
+            await AwaitCurrentWorldResultAsync(ownerApi.SubmitInstructionAsync(
+                ResolveWorldUri(), authority, deviceId, action, signer, CancellationToken.None));
             completed = true;
             instructionText.Text = string.Empty;
             return InstructionSubmissionResultText(action.Kind, action.Queue);
@@ -109,8 +110,8 @@ public partial class Main
         var completed = false;
         await RunOwnerActionAsync(async () =>
         {
-            var receipt = await ownerApi.CancelOrderAsync(
-                ResolveWorldUri(), authority, deviceId, action, signer, CancellationToken.None);
+            var receipt = await AwaitCurrentWorldResultAsync(ownerApi.CancelOrderAsync(
+                ResolveWorldUri(), authority, deviceId, action, signer, CancellationToken.None));
             completed = true;
             return OrderCancellationResultText(receipt);
         });
@@ -164,8 +165,8 @@ public partial class Main
         var completed = false;
         await RunOwnerActionAsync(async () =>
         {
-            var receipt = await ownerApi.SubmitAuthoringAsync(
-                ResolveWorldUri(), authority, deviceId, batch, signer, CancellationToken.None);
+            var receipt = await AwaitCurrentWorldResultAsync(ownerApi.SubmitAuthoringAsync(
+                ResolveWorldUri(), authority, deviceId, batch, signer, CancellationToken.None));
             completed = true;
             return receipt.Applied
                 ? $"applied {operation.Kind} at revision {receipt.Revision}"
@@ -195,8 +196,8 @@ public partial class Main
         var action = new OwnerPairingApprovalAction(pairingId, pairingCode);
         await RunOwnerActionAsync(async () =>
         {
-            var approval = await ownerApi.ApprovePairingAsync(
-                ResolveWorldUri(), authority, deviceId, action, signer, CancellationToken.None);
+            var approval = await AwaitCurrentWorldResultAsync(ownerApi.ApprovePairingAsync(
+                ResolveWorldUri(), authority, deviceId, action, signer, CancellationToken.None));
             pairingApprovalCode.Text = string.Empty;
             return $"approved pending device {approval.DeviceId}; it must still activate its own Windows key";
         });
@@ -225,8 +226,8 @@ public partial class Main
         var action = new OwnerDeviceManagementAction(targetDeviceId);
         await RunOwnerActionAsync(async () =>
         {
-            var revoked = await ownerApi.RevokeDeviceAsync(
-                ResolveWorldUri(), authority, deviceId, action, signer, CancellationToken.None);
+            var revoked = await AwaitCurrentWorldResultAsync(ownerApi.RevokeDeviceAsync(
+                ResolveWorldUri(), authority, deviceId, action, signer, CancellationToken.None));
             revokeDeviceId.Text = string.Empty;
             return $"revoked device {revoked.DeviceId}";
         });
@@ -242,8 +243,8 @@ public partial class Main
 
         await RunOwnerActionAsync(async () =>
         {
-            pairedDevices = await ownerApi.ListDevicesAsync(
-                ResolveWorldUri(), authority, deviceId, signer, CancellationToken.None);
+            pairedDevices = await AwaitCurrentWorldResultAsync(ownerApi.ListDevicesAsync(
+                ResolveWorldUri(), authority, deviceId, signer, CancellationToken.None));
             RenderPairedDevices();
             return $"loaded {pairedDevices.Length} paired device record(s)";
         });
@@ -270,7 +271,7 @@ public partial class Main
         var rate = lifePaceChoice.GetSelectedId();
         await RunOwnerActionAsync(async () =>
         {
-            _ = await ownerApi.SetLifePaceAsync(ResolveWorldUri(), authority, deviceId, rate, signer, CancellationToken.None);
+            _ = await AwaitCurrentWorldResultAsync(ownerApi.SetLifePaceAsync(ResolveWorldUri(), authority, deviceId, rate, signer, CancellationToken.None));
             return "life pace saved; current ages preserved, future aging changed";
         });
     }
@@ -280,7 +281,7 @@ public partial class Main
         if (!TryGetOwner(out var authority, out var deviceId, out var signer)) return;
         await RunOwnerActionAsync(async () =>
         {
-            _ = await ownerApi.SetJevAssistanceAsync(ResolveWorldUri(), authority, deviceId, enabled, signer, CancellationToken.None);
+            _ = await AwaitCurrentWorldResultAsync(ownerApi.SetJevAssistanceAsync(ResolveWorldUri(), authority, deviceId, enabled, signer, CancellationToken.None));
             return enabled ? "Jev assistance enabled for this world" : "Jev assistance disabled for this world";
         });
     }
@@ -300,6 +301,7 @@ public partial class Main
         }
         if (!TryGetOwner(out var authority, out var deviceId, out var signer)) return;
         var worldId = snapshot.WorldId;
+        var generation = observationSession.RequestGeneration;
         await RunOwnerActionAsync(async () =>
         {
             // Hold the attempt while the host decides: a refresh in the meantime
@@ -307,8 +309,8 @@ public partial class Main
             refusedAgentRename.Remember(worldId, agentId, attempted);
             try
             {
-                var result = await ownerApi.RenameAgentAsync(ResolveWorldUri(), authority, deviceId,
-                    new OwnerAgentRenameAction(agentId, name), signer, CancellationToken.None);
+                var result = await AwaitCurrentWorldResultAsync(ownerApi.RenameAgentAsync(ResolveWorldUri(), authority, deviceId,
+                    new OwnerAgentRenameAction(agentId, name), signer, CancellationToken.None));
                 renamingAgentId = null;
                 refusedAgentRename.Forget();
                 renameRow.Hide();
@@ -316,6 +318,7 @@ public partial class Main
             }
             catch (OwnerAgentNameTakenException) when (selectedInhabitantId == agentId &&
                 renamingAgentId == agentId && renameRow.Visible && renameAgentInput.Text == attempted &&
+                IsCurrentWorldRequest(generation) &&
                 observationSession.Current?.Baseline.Snapshot.WorldId == worldId)
             {
                 // The field keeps the refused name until the player changes or
@@ -324,7 +327,7 @@ public partial class Main
             }
             catch
             {
-                refusedAgentRename.Forget();
+                if (IsCurrentWorldRequest(generation)) refusedAgentRename.Forget();
                 throw;
             }
         });
@@ -335,7 +338,8 @@ public partial class Main
         out string deviceId,
         out IOwnerDeviceSigner signer)
     {
-        if (!registeredEndpointInvalid && registration is not null && deviceKey is not null)
+        if (!observationSession.AwaitingFreshBaseline && !registeredEndpointInvalid &&
+            registration is not null && deviceKey is not null)
         {
             authority = registration.Authority;
             deviceId = registration.DeviceId;
@@ -400,12 +404,20 @@ public partial class Main
         RefreshWorldMenuAvailability();
         if (!IsCurrentAutosaveSettingsContext()) CancelAutosaveSettingsRead();
         var paired = !registeredEndpointInvalid && registration is not null && deviceKey is not null;
-        worldSettingsCategoryButton.Disabled = !paired || !isInWorld || returnToMainMenu;
+        worldSettingsCategoryButton.Disabled = !paired || !isInWorld || returnToMainMenu ||
+            observationSession.AwaitingFreshBaseline;
+        menuResumeButton.Disabled = observationSession.AwaitingFreshBaseline;
+        menuSaveWorldButton.Disabled = observationSession.AwaitingFreshBaseline || isOwnerAction;
+        menuQuitToMainButton.Disabled = observationSession.AwaitingFreshBaseline || isOwnerAction;
         var snapshot = observationSession.Current?.Baseline.Snapshot;
         var paused = snapshot?.Authoring?.IsPaused == true;
         var selected = snapshot?.Inhabitants.FirstOrDefault(item =>
             string.Equals(item.Id, selectedInhabitantId, StringComparison.Ordinal));
-        var actionDisabled = !paired || isOwnerAction || pendingSubmission is not null;
+        var actionDisabled = !paired || isOwnerAction || pendingSubmission is not null ||
+            observationSession.AwaitingFreshBaseline;
+        buildingManagementApply.Disabled = actionDisabled || buildingManagementChoice.ItemCount == 0;
+        buildingManagementChoice.Disabled = actionDisabled;
+        buildingRemoveButton.Disabled = actionDisabled;
         saveApiKeyButton.Disabled = actionDisabled;
         apiKeyProviderChoice.Disabled = actionDisabled;
         apiKeyLabelInput.Editable = !actionDisabled;
@@ -456,6 +468,7 @@ public partial class Main
         submitInstructionButton.Disabled = actionDisabled || selected is null || selected.IsDraft || infantSelected || deceasedSelected;
         submitInstructionButton.TooltipText = deceasedSelected ? "Historical profiles cannot receive instructions." :
             infantSelected ? "Direct care through an adult caregiver." : "Send an instruction to this agent.";
+        RenderDeveloperEdits(snapshot, actionDisabled);
         submitAuthoringButton.Disabled = actionDisabled || !paused;
         authoringKind.Disabled = actionDisabled || !paused;
         authoringId.Editable = !actionDisabled && paused;
@@ -470,9 +483,7 @@ public partial class Main
         instructionCancelButton.Disabled = actionDisabled || deceasedSelected;
         instructionText.Editable = !actionDisabled && !deceasedSelected;
         RenderPendingSubmission();
-        retryPendingSubmissionButton.Disabled = !paired || isOwnerAction || pendingSubmission is null ||
-            pendingSubmission.Instruction is { } retainedInstruction && !retainedInstruction.CanRetryIn(snapshot?.WorldId) ||
-            pendingSubmission?.OrderCancel is { } retainedCancellation && !retainedCancellation.CanRetryIn(snapshot?.WorldId);
+        retryPendingSubmissionButton.Disabled = !paired || isOwnerAction || !CanRetryPendingSubmission(pendingSubmission);
         forgetPendingSubmissionButton.Disabled = isPairingOperation || isOwnerAction || isRefreshing;
         pairingApprovalId.Editable = !actionDisabled;
         pairingApprovalCode.Editable = !actionDisabled;

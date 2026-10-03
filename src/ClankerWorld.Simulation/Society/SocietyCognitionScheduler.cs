@@ -1,6 +1,7 @@
 using ClankerWorld.Simulation.Cognition;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace ClankerWorld.Simulation.Society;
@@ -101,7 +102,9 @@ public sealed class SocietyCognitionScheduler
                 TriggerIds = existing.TriggerIds.Concat(entry.TriggerIds)
                     .Distinct(StringComparer.Ordinal)
                     .OrderBy(item => item, StringComparer.Ordinal).ToArray(),
-                Observation = entry.Observation,
+                // A naming retry can reuse the completed request's older
+                // observation while adding its trigger to newer queued work.
+                Observation = LatestObservation(existing.Observation, entry.Observation),
             };
             queue[queue.IndexOf(existing)] = merged;
             AppendEvent(entry.EnqueuedTick, "cognition_trigger_coalesced", entry.InhabitantId);
@@ -118,6 +121,11 @@ public sealed class SocietyCognitionScheduler
         AppendEvent(entry.EnqueuedTick, "cognition_queued", entry.ScheduleId);
         return true;
     }
+
+    private static InhabitantObservation LatestObservation(InhabitantObservation previous, InhabitantObservation incoming) =>
+        (incoming.RunEpoch, incoming.DecisionGeneration, incoming.WorldTick)
+            .CompareTo((previous.RunEpoch, previous.DecisionGeneration, previous.WorldTick)) >= 0
+            ? incoming : previous;
 
     /// <summary>
     /// Reconciles cognition runtimes with the authoritative lifecycle set.
@@ -164,7 +172,10 @@ public sealed class SocietyCognitionScheduler
         for (var index = queue.Count - 1; index >= 0; index--)
         {
             var entry = queue[index];
-            if (!named.Contains(entry.InhabitantId) || !entry.TriggerIds.Contains(NameRetryTriggerId, StringComparer.Ordinal))
+            // A completed naming call may leave newer ordinary work queued,
+            // including after its consumed retry trigger has been removed.
+            if (!named.Contains(entry.InhabitantId) || !entry.Observation.NeedsName &&
+                !entry.TriggerIds.Contains(NameRetryTriggerId, StringComparer.Ordinal))
                 continue;
             var remaining = entry.TriggerIds.Where(trigger => trigger != NameRetryTriggerId).ToArray();
             if (remaining.Length == 0) queue.RemoveAt(index);
@@ -191,15 +202,27 @@ public sealed class SocietyCognitionScheduler
 
     public ValueTask<IReadOnlyList<SocietyCognitionDispatchResult>> DispatchDeterministicAsync(
         CancellationToken cancellationToken = default) =>
-        DispatchEligibleAsync(entry => runtimes[entry.InhabitantId].ProviderKindFor(entry.Observation) ==
+        DispatchDeterministicAsync(null, null, cancellationToken);
+
+    internal ValueTask<IReadOnlyList<SocietyCognitionDispatchResult>> DispatchDeterministicAsync(
+        IReadOnlySet<string>? excludedInhabitantIds, Func<InhabitantObservation, bool>? observationIsCurrent,
+        CancellationToken cancellationToken) =>
+        DispatchEligibleAsync(entry => excludedInhabitantIds?.Contains(entry.InhabitantId) != true &&
+            (observationIsCurrent?.Invoke(entry.Observation) ?? true) &&
+            runtimes[entry.InhabitantId].ProviderKindFor(entry.Observation) ==
             DecisionProviderKind.Deterministic, cancellationToken);
 
     public IReadOnlyList<SocietyDeferredCognitionRequest> PreviewHostedRequests(
-        IReadOnlySet<string> excludedInhabitantIds)
+        IReadOnlySet<string> excludedInhabitantIds) =>
+        PreviewHostedRequests(excludedInhabitantIds, null);
+
+    internal IReadOnlyList<SocietyDeferredCognitionRequest> PreviewHostedRequests(
+        IReadOnlySet<string> excludedInhabitantIds, Func<InhabitantObservation, bool>? observationIsCurrent)
     {
         ArgumentNullException.ThrowIfNull(excludedInhabitantIds);
         var selected = OrderedQueue()
             .Where(entry => !excludedInhabitantIds.Contains(entry.InhabitantId) &&
+                (observationIsCurrent?.Invoke(entry.Observation) ?? true) &&
                 runtimes[entry.InhabitantId].ProviderKindFor(ObservationFor(entry)) != DecisionProviderKind.Deterministic)
             .Take(maxDispatchPerCycle)
             .ToArray();
@@ -231,12 +254,40 @@ public sealed class SocietyCognitionScheduler
 
     public long CurrentProviderEpoch(string inhabitantId) => GetRuntime(inhabitantId).ProviderEpoch;
 
+    internal void CompleteQueuedIdentityChoice(string inhabitantId, string name, string personality, string aspiration)
+    {
+        var index = queue.FindIndex(entry => entry.InhabitantId == inhabitantId);
+        if (index < 0) return;
+        var entry = queue[index];
+        var self = entry.Observation.Self is { } previousSelf
+            ? previousSelf with { Name = name, Personality = personality, Aspiration = aspiration }
+            : null;
+        if (!entry.Observation.NeedsPersonality && !entry.Observation.NeedsAspiration &&
+            entry.Observation.Self == self)
+            return;
+        var identity = JsonSerializer.Serialize(new[]
+        {
+            "clankerworld.queued-identity/v1", entry.Observation.ObservationDigest, name, personality, aspiration,
+        });
+        queue[index] = entry with
+        {
+            Observation = entry.Observation with
+            {
+                NeedsPersonality = false,
+                NeedsAspiration = false,
+                Self = self,
+                ObservationDigest = $"sha256:{Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(identity)))}",
+            },
+        };
+    }
+
     public SocietyCognitionDispatchResult? CompleteDeferred(
         CognitionDecisionRequest originalRequest,
         CognitionDecisionResponse? response,
         string? failure,
         long currentRunEpoch,
-        IReadOnlySet<string> legalCandidateIds)
+        IReadOnlySet<string> legalCandidateIds,
+        bool? decisionContextChanged = null)
     {
         ArgumentNullException.ThrowIfNull(originalRequest);
         var inhabitantId = originalRequest.Observation.InhabitantId;
@@ -262,7 +313,25 @@ public sealed class SocietyCognitionScheduler
         CognitionAdmissionResult admission = response is null
             ? runtime.FailRequest(issued.RequestId, failure ?? "provider_failure")
             : runtime.ApplyResponse(response);
-        queue.Remove(entry);
+        // Routine refreshes change ticks, hunger and digests while a reply is
+        // held. Only a changed decision context or new guidance needs another
+        // call. The host can supply its existing context policy; standalone
+        // scheduler callers retain newly offered candidate identities, not
+        // choices that have only disappeared or changed order.
+        var hasNewChoices = decisionContextChanged ??
+            !originalRequest.Observation.Candidates.Select(candidate => candidate.Id)
+                .ToHashSet(StringComparer.Ordinal)
+                .IsSupersetOf(currentRequest.Observation.Candidates.Select(candidate => candidate.Id));
+        var hasNewGuidance = (currentRequest.Observation.ObserverGuidance ?? [])
+            .Any(message => !(originalRequest.Observation.ObserverGuidance ?? []).Contains(message));
+        if (!hasNewChoices && !hasNewGuidance)
+            queue.Remove(entry);
+        else if (originalRequest.Observation.IsNameRetry)
+        {
+            var remaining = entry.TriggerIds.Where(trigger => trigger != NameRetryTriggerId).ToArray();
+            if (remaining.Length == 0) queue.Remove(entry);
+            else queue[queue.IndexOf(entry)] = entry with { TriggerIds = remaining };
+        }
         AppendEvent(entry.Observation.WorldTick,
             admission.Accepted ? "cognition_dispatched" : "cognition_dispatch_rejected",
             $"{inhabitantId}:{admission.Outcome}");

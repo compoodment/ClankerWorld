@@ -100,7 +100,8 @@ public sealed partial class PrivateWorldRuntime
                 StarterContent.Create(), SettlementContent.Create(), HouseContent.Create(),
                 WarehouseContent.Create(), FarmContent.Create(), BlacksmithContent.Create(),
                 HouseCookingContent.Create(), PotteryContent.Create(), SiloContent.Create(), TailorContent.Create(),
-                BusinessContent.Create(), CareContent.Create(), OrnamentContent.Create(), TownHallContent.Create(), MarketContent.Create(),
+                RestaurantContent.Create(), BusinessContent.Create(), CareContent.Create(), OrnamentContent.Create(), TownHallContent.Create(),
+                KnowledgeContent.Create(), MarketContent.Create(),
             ];
             foreach (var manifest in manifests)
             {
@@ -331,6 +332,9 @@ public sealed partial class PrivateWorldRuntime
             {
                 return ProductionStartResult.Rejected(normalizedRecipeId, "The recipe is not active.");
             }
+            if (IsGenericFoodRecipe(recipe))
+                return ProductionStartResult.Rejected(normalizedRecipeId,
+                    "Cook named ingredients at your household House or Restaurant.");
             if (recipe.Outputs.Any(output => output.ResourceId == "bedding"))
                 return ProductionStartResult.Rejected(normalizedRecipeId, "Bedding production was retired with sleep.");
             if (recipe.IsCrop)
@@ -367,10 +371,14 @@ public sealed partial class PrivateWorldRuntime
                 return ProductionStartResult.Rejected(normalizedRecipeId,
                     "The household workshop must be claimed before production.");
 
-            var onSiteHouseholdRecipe = placed?.HouseholdId is not null && workstation?.Tags.Any(IsHouseholdBuildingTag) == true;
+            var personalCartRecipe = IsHandcartRecipe(recipe);
+            if (personalCartRecipe && !HasCarriedUnreservedQuantities(normalizedWorkerId, recipe.Inputs))
+                return ProductionStartResult.Rejected(normalizedRecipeId,
+                    "Carry the wood, iron fittings and rope to the Blacksmith before building a handcart.");
+            var onSiteHouseholdRecipe = !personalCartRecipe && placed?.HouseholdId is not null && workstation?.Tags.Any(IsHouseholdBuildingTag) == true;
             if (onSiteHouseholdRecipe && !HasIngredientsAtBuilding(recipe.Inputs, worker.HouseholdId!, placed!.InstanceId))
                 return ProductionStartResult.Rejected(normalizedRecipeId,
-                    "The household building lacks the required ingredients in its on-site stock.");
+                    MissingProductionIngredients(recipe, worker.HouseholdId!, placed!.InstanceId));
 
             if (!inhabitants.TryGetValue(normalizedWorkerId, out var physical) || physical.Position != workPosition)
             {
@@ -388,7 +396,8 @@ public sealed partial class PrivateWorldRuntime
                 ToolProgressionRules.WorkDuration(recipe.DurationTicks, knife.WorkUnits);
             var jobId = $"production-{worldSimulation.NextProductionJobSequence.ToString("D10", System.Globalization.CultureInfo.InvariantCulture)}";
             var completionTick = checked(WorldTick + workDuration);
-            var productionOwner = ProductionOwnerFor(placed, normalizedWorkerId);
+            // A handcart belongs to the adult who builds it, not to the Blacksmith's household.
+            var productionOwner = personalCartRecipe ? normalizedWorkerId : ProductionOwnerFor(placed, normalizedWorkerId);
             IReadOnlyList<string> reservationIds = [];
             ApplyInventoryTransition(inventory =>
             {
@@ -399,7 +408,8 @@ public sealed partial class PrivateWorldRuntime
                     completionTick,
                     productionOwner,
                     out reservationIds,
-                    onSiteHouseholdRecipe ? placed!.InstanceId : null);
+                    onSiteHouseholdRecipe ? placed!.InstanceId : null,
+                    requireCarried: personalCartRecipe);
                 return reserved;
             });
 
@@ -411,13 +421,14 @@ public sealed partial class PrivateWorldRuntime
                 WorldTick,
                 completionTick,
                 WorldProductionJobState.Running,
-                reservationIds.ToArray(), knife?.ToolLotId)
+                reservationIds.ToArray(), knife?.ToolLotId, ToolMakingRequestJobFor(normalizedWorkerId, recipe, normalizedBuildingId))
             { OwnerId = productionOwner };
             worldSimulation = new WorldContentSimulationState(
                 worldSimulation.Buildings,
                 worldSimulation.ProductionJobs.Append(job).OrderBy(item => item.JobId, StringComparer.Ordinal).ToArray(),
                 checked(worldSimulation.NextProductionJobSequence + 1),
                 worldSimulation.CropBuilds, worldSimulation.BuildingExpansions, worldSimulation.GuestInvitations);
+            BindToolMakingJob(job);
             if (knife is not null)
                 checkpointSchemaVersion = StateSchemaVersion;
             AppendEvent(eventKind,
@@ -443,6 +454,11 @@ public sealed partial class PrivateWorldRuntime
                     proposal.Status is "pending" or "passed" && proposal.Project is { } plan &&
                     plan.DefinitionId.StartsWith(manifest.PackageDigest + "/", StringComparison.Ordinal)))
                 throw new InvalidOperationException("This content is referenced by retained Town construction approvals and material receipts.");
+            var packageRecipes = manifest.Definitions.Where(definition => definition.Kind == RecipeDefinition.SchemaKind)
+                .Select(definition => definition.CanonicalId(manifest.PackageDigest)).ToHashSet(StringComparer.Ordinal);
+            if (toolMakingRequests.Any(request => !ToolMakingRequestRules.IsTerminal(request.Status) &&
+                    packageRecipes.Contains(request.RecipeId)))
+                throw new InvalidOperationException("Content referenced by active tool requests requires an explicit migration before removal.");
             var remainingSimulation = WorldContentSimulationRules.RemovePackage(worldSimulation, manifest.PackageDigest);
             if (inhabitants.Values.Any(person => person.Project is { } project &&
                 (project.CandidateId.StartsWith($"build:building:{manifest.PackageDigest}/", StringComparison.Ordinal) ||

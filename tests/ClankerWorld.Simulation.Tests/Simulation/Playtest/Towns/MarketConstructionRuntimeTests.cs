@@ -20,7 +20,7 @@ public sealed class MarketConstructionRuntimeTests
         };
         // This is an ordinary selectable first-Town site on the unchanged generated map.
         using var scenario = TownProjectScenario.Create(TownProjectScenario.PlayableSeed, policy,
-            roughTownSite: new GridPoint(109, 52));
+            roughTownSite: new GridPoint(108, 53));
         var initial = scenario.World.ExportState();
         var townId = Assert.Single(initial.Towns!).Id;
         var ledger = new GatheringLedger(initial);

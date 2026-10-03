@@ -16,25 +16,34 @@ public sealed partial class PrivateWorldRuntime
             .Where(project => project.Id != exceptProjectId && project.Stage is not ("completed" or "cancelled"))
             .Select(project => project.Plan.Entrance));
 
-    private HashSet<GridPoint> TownProjectLandTiles(TownRuntimeState town)
+    // Proposed project sites, so a second proposal or a household request cannot overlap one while its vote is open.
+    private HashSet<GridPoint> PendingTownProjectSiteTiles() => towns
+        .SelectMany(town => town.Governance?.Proposals ?? [])
+        .Where(proposal => proposal is { Kind: "project", Status: "pending", Project: not null })
+        .SelectMany(proposal => TownProjectRules.Footprint(proposal.Project!).Append(proposal.Project!.Entrance))
+        .ToHashSet();
+
+    private HashSet<GridPoint> TownProjectLandTiles(TownRuntimeState town, bool ignorePendingRequests = false)
     {
         var claimed = householdLandUseRights.SelectMany(r => r.Tiles)
-            .Concat(householdLandUseRequests.SelectMany(r => r.Tiles))
+            .Concat(householdLandUseRequests.Where(r => r.Status == "pending" && !ignorePendingRequests).SelectMany(r => r.Tiles))
             .Concat(townLandTitles.Where(t => t.TownId != town.Id).SelectMany(t => t.Tiles)).ToHashSet();
         return townLandTitles.Where(t => t.TownId == town.Id).SelectMany(t => t.Tiles)
             .Where(p => !claimed.Contains(p)).ToHashSet();
     }
 
     private string? TownProjectSiteFailure(TownRuntimeState town, TownProjectPayload plan,
-        string? projectId = null, string? actor = null)
+        string? projectId = null, string? actor = null, bool ignorePendingRequests = false)
     {
         var definition = TownProjectRules.DefinitionFor(plan.DefinitionId);
         if (definition is null || !worldContent.Buildings.Any(d => d.CanonicalId == plan.DefinitionId))
             return "The Town building content is no longer available.";
         var footprint = TownProjectRules.Footprint(plan).ToArray();
-        var legal = TownProjectLandTiles(town);
+        var legal = TownProjectLandTiles(town, ignorePendingRequests);
         if (footprint.Any(p => !legal.Contains(p)))
             return "The full project site needs uncontested Town title without a household right or pending land request.";
+        if (projectId is null && footprint.Append(plan.Entrance).Any(PendingTownProjectSiteTiles().Contains))
+            return "Another proposed Town project already uses part of this site.";
         if (definition.Tags.Contains(MarketContent.StallTag, StringComparer.Ordinal) && MarketForStallPlan(town, plan) is null)
             return "An additional stall needs an unused slot in this Town's paid, usable Market.";
         if (definition.Tags.Contains(MarketContent.HallTag, StringComparer.Ordinal) && town.Markets
@@ -87,6 +96,7 @@ public sealed partial class PrivateWorldRuntime
             foreach (var site in TownLayoutService.RankConstructionSites(layout, definition, TownLayoutService.MaximumCandidateLimit))
             {
                 var plan = PlanFor(town, definition, site.Position, definition.DisplayName);
+                // The site check also refuses a site that overlaps another proposal whose vote is still open.
                 if (plan is null || TownProjectSiteFailure(town, plan, actor: actor) is not null) continue;
                 AddTownProjectProposalCandidate(candidates, town, definition, site.Position);
                 if (++offered == TownLayoutService.DefaultCandidateLimit) break;

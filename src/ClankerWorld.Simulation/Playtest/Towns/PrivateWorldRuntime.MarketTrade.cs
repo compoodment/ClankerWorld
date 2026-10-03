@@ -82,7 +82,7 @@ public sealed partial class PrivateWorldRuntime
     }
 
     private bool ProtectedMarketItem(string actor, InventoryLot lot) =>
-        lot.ItemKind is "field_map" or "field_record" ||
+        AgentKnowledgeRules.IsArtifactKind(lot.ItemKind) ||
         PersonalEquipmentRules.IsSelected(inhabitants[actor].Equipment, lot.Id) ||
         BestUsableToolIds(society.Checkpoint.Inventory, actor).Contains(lot.Id);
 

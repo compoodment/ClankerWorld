@@ -51,7 +51,7 @@ public sealed class TownGovernanceStaleRoundTests
             }).ToArray(),
             WorldSystems = RegionalWeatherRules.Initialize(initial.WorldSystems! with
             {
-                Config = initial.WorldSystems.Config with { TicksPerDay = Day },
+                Config = initial.WorldSystems.Config with { TicksPerDay = Day, CalendarOffsetTicks = 0 },
                 RegionalWeather = null,
             }, initial.Map),
             Society = initial.Society with

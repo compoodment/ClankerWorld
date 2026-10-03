@@ -66,9 +66,18 @@ public sealed partial class PrivateWorldRuntime
         }
         return SiloGrainForFarmhouse(householdId, actor);
 
-        bool CanHaulToFarmStorage(FarmStockChoice choice) =>
-            FarmStorageFor(householdId, choice.Resource.ItemKind) is { } destination &&
-            PlanFarmStockHaul(actor, destination.InstanceId, choice) is not null;
+        bool CanHaulToFarmStorage(FarmStockChoice choice)
+        {
+            if (FarmStorageFor(householdId, choice.Resource.ItemKind) is not { } destination ||
+                PlanFarmStockHaul(actor, destination.InstanceId, choice) is null)
+                return false;
+            var source = HouseholdStockPosition(choice.Carrier);
+            var range = HouseholdStockInteractionRange(choice.Carrier);
+            var position = inhabitants[actor].Position;
+            return (IsWithinInteractionRange(position, source, range) ||
+                    FindUnoccupiedRoute(actor, position, source, range).Count > 0) &&
+                FindUnoccupiedRoute(actor, source, destination.Position, 0).Count > 0;
+        }
     }
 
     private FarmStockChoice? SiloGrainForFarmhouse(string householdId, string actor)

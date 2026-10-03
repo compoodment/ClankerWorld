@@ -96,8 +96,9 @@ public partial class Main
 
     private async Task RefreshWorldSettingsAsync()
     {
+        var generation = observationSession.RequestGeneration;
         await RefreshAutosaveSettingsAsync();
-        await RefreshProviderConfigurationAsync();
+        if (IsCurrentWorldRequest(generation)) await RefreshProviderConfigurationAsync();
     }
 
     private void BuildPairingPanel()
@@ -347,6 +348,11 @@ public partial class Main
 
         gameSettingsContent.AddThemeConstantOverride("separation", 8);
         worldSettingsContent.AddThemeConstantOverride("separation", 8);
+        gameSettingsContent.AddChild(SettingsBox("Build", new Label
+        {
+            Text = BuildInformation.Display,
+            TooltipText = "Source commit: " + BuildInformation.SourceRevision,
+        }));
         themeChoice.AddItem("Light", (int)UiThemeChoice.Light);
         themeChoice.AddItem("Dark", (int)UiThemeChoice.Dark);
         themeChoice.AddItem("Match system", (int)UiThemeChoice.System);
@@ -556,7 +562,7 @@ public partial class Main
     /// </summary>
     private void FitFloatingPanelsToContents()
     {
-        foreach (var panel in HudPanels().Append(memoriesPanel).Append(thoughtsPanel).Append(conversationPanel).Append(selectedTilePanel).Append(agentProfilePanel)
+        foreach (var panel in HudPanels().Append(memoriesPanel).Append(thoughtsPanel).Append(ordersPanel).Append(conversationPanel).Append(selectedTilePanel).Append(agentProfilePanel)
                      .Append(buildingQuickCard).Append(buildingDetailsPanel))
             panel.MinimumSizeChanged += () => panel.Size = panel.GetCombinedMinimumSize();
     }
