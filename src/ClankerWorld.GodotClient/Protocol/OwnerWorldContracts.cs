@@ -30,6 +30,10 @@ public sealed record OwnerWorldPackedMapLayers(int Width, int Height, string Enc
 }
 public sealed record OwnerWorldFarmField(OwnerWorldPosition Position, string HouseholdId, string Stage, string? Crop,
     int Fertility, string? WorkerId, int? WorkRemaining);
+public sealed record OwnerWorldHandcart(string Id, string OwnerId, string OwnerName, OwnerWorldPosition Position,
+    int Capacity, int ConditionPercent, string? PullerId, string? PullerName,
+    IReadOnlyList<OwnerWorldInventoryEntry> Cargo);
+
 public sealed record OwnerWorldGroundStock(OwnerWorldPosition Position, string OwnerId, string Kind, int Quantity);
 
 public sealed record OwnerWorldObject(string Id, string Kind, OwnerWorldPosition Position);
@@ -275,7 +279,8 @@ public sealed record OwnerWorldInstructionOrder(
     string? TargetResourceId = null,
     int? TargetX = null,
     int? TargetY = null,
-    string? BlockedReason = null);
+    string? BlockedReason = null,
+    string? TargetAgentId = null);
 
 public sealed record OwnerWorldCognitionEvent(long EventId, long WorldTick, string Kind, string Detail);
 
@@ -443,6 +448,7 @@ public sealed record OwnerWorldSnapshot(
     public bool WrapsEastWest { get; init; }
     public IReadOnlyList<OwnerWorldFarmField> Fields { get; init; } = [];
     public IReadOnlyList<OwnerWorldGroundStock> GroundStocks { get; init; } = [];
+    public IReadOnlyList<OwnerWorldHandcart> Handcarts { get; init; } = [];
     public IReadOnlyList<OwnerWorldStockpile> Stockpiles { get; init; } = [];
     public OwnerWorldCouncil? Council { get; init; }
     public int? LifePaceRate { get; init; }

@@ -25,6 +25,10 @@ public sealed record ViewerPackedMapLayers(int Width, int Height, string Encodin
 }
 public sealed record ViewerFarmField(ViewerPosition Position, string HouseholdId, string Stage, string? Crop,
     int Fertility, string? WorkerId, int? WorkRemaining);
+public sealed record ViewerHandcart(string Id, string OwnerId, string OwnerName, ViewerPosition Position,
+    int Capacity, int ConditionPercent, string? PullerId, string? PullerName,
+    IReadOnlyList<ViewerInventoryEntry> Cargo);
+
 public sealed record ViewerGroundStock(ViewerPosition Position, string OwnerId, string Kind, int Quantity);
 public sealed record ViewerWorldPreview(ViewerPackedTerrain Terrain, ViewerPosition Camp,
     string ManifestDigest, int ResourceSites = 0)
@@ -236,7 +240,8 @@ public sealed record ViewerInstructionOrder(
     string? TargetResourceId = null,
     int? TargetX = null,
     int? TargetY = null,
-    string? BlockedReason = null);
+    string? BlockedReason = null,
+    string? TargetAgentId = null);
 
 public sealed record ViewerCognitionEvent(long EventId, long WorldTick, string Kind, string Detail);
 
@@ -464,6 +469,7 @@ public sealed record ViewerWorldSnapshot(
     public bool WrapsEastWest { get; init; }
     public IReadOnlyList<ViewerFarmField> Fields { get; init; } = [];
     public IReadOnlyList<ViewerGroundStock> GroundStocks { get; init; } = [];
+    public IReadOnlyList<ViewerHandcart> Handcarts { get; init; } = [];
     public IReadOnlyList<ViewerStockpile> Stockpiles { get; init; } = [];
     public ViewerCouncil? Council { get; init; }
     public int? LifePaceRate { get; init; }

@@ -32,6 +32,7 @@ public sealed partial class PrivateWorldRuntime
         ValidateAssetReservationsAgainstActivePackages();
         WorldContentSimulationRules.Validate(worldSimulation, worldContent, map, WorldTick);
         ValidateBuildingExpansionState(worldSimulation, worldContent, society.Checkpoint, map, checkpointSchemaVersion);
+        ValidateHandcarts(handcartHitches, society.Checkpoint.Inventory, inhabitants.Values.ToArray(), map);
         ValidatePhysicalInventoryLocations(society.Checkpoint.Inventory, worldSimulation, worldContent,
             society.Checkpoint.Inhabitants, map, society.Checkpoint.Estates);
         ValidateFarmFields(fields.ToArray(), map, worldSeed, society.Checkpoint, worldSimulation, worldContent, RoadAndBridgeTiles().ToArray());
@@ -333,6 +334,8 @@ public sealed partial class PrivateWorldRuntime
         // New worlds can only be created at these sizes, so any other saved size is damage.
         if (state.Geography is { Size: not (WorldSizePreset.Small or WorldSizePreset.Medium) })
             throw new InvalidDataException("Only Small and Medium worlds can be loaded.");
+        if (state.HandcartHitches is null)
+            throw new InvalidDataException("The current private-world checkpoint is missing cart attachments.");
         // A map from an older terrain generator cannot be rebuilt; refuse it
         // by name rather than as a mismatched regeneration.
         if (state.Geography is { } geography &&
@@ -437,6 +440,7 @@ public sealed partial class PrivateWorldRuntime
             state.Society.Society.WorldTick);
         ValidateBuildingExpansionState(state.WorldSimulation, state.WorldContent, state.Society.Society,
             state.Map, state.SchemaVersion);
+        ValidateHandcarts(state.HandcartHitches, state.Society.Society.Inventory, state.Inhabitants, travelMap);
         ValidatePhysicalInventoryLocations(state.Society.Society.Inventory, state.WorldSimulation,
             state.WorldContent, state.Society.Society.Inhabitants, state.Map, state.Society.Society.Estates);
         ValidateFarmFields(state.Fields!.ToArray(), state.Map, state.WorldSeed, state.Society.Society,
@@ -516,7 +520,7 @@ public sealed partial class PrivateWorldRuntime
                 instruction.Kind == OwnerInstructionKind.Suggestive && instruction.Order is not null ||
                 instruction.Kind == OwnerInstructionKind.MustDo && instruction.Order is null ||
                 instruction.Order is { } order && !IsValidSavedOrder(order, instruction, completedInstructionIds,
-                    checkpoint.WorldTick))
+                    people))
                 throw new InvalidDataException("The saved owner instruction or observer response is invalid.");
         }
 
@@ -556,7 +560,7 @@ public sealed partial class PrivateWorldRuntime
         OwnerInstructionOrder order,
         OwnerQueuedInstruction instruction,
         IReadOnlyList<string> completedInstructionIds,
-        long worldTick)
+        HashSet<string> people)
     {
         var knownStatus = order.Status is "queued" or "waiting" or "doing" or "interrupted" or "blocked" or
             "finished" or "cancelled" or "not_understood";
@@ -578,9 +582,18 @@ public sealed partial class PrivateWorldRuntime
         if (order.Action == "unknown")
             return order.Status == "not_understood" && order.RequestedUnits == 0 && order.CompletedUnits == 0 &&
                 order.ProgressUnit == "none" && !order.RepeatUntilCancelled && order.TargetFoodKind is null &&
-                order.TargetResourceId is null && order.TargetPosition is null && order.LastEffectId is null;
+                order.TargetResourceId is null && order.TargetPosition is null && order.LastEffectId is null &&
+                order.TargetAgentId is null;
 
-        if (order.Action is not ("consume_food" or "seek_food" or "harvest_food") ||
+        if (order.Action == "accept_guardianship")
+            return order.TargetAgentId is { } child && people.Contains(child) && child != instruction.TargetInhabitantId &&
+                order.RequestedUnits == 1 && order.CompletedUnits is 0 or 1 &&
+                (order.Status == "finished") == (order.CompletedUnits == 1) && order.Status != "not_understood" &&
+                order.ProgressUnit == "guardianships" && !order.RepeatUntilCancelled && !order.QuantityIsExplicit &&
+                order.TargetFoodKind is null && order.TargetResourceId is null && order.TargetPosition is null &&
+                order.LastEffectId == (order.CompletedUnits == 1 ? GuardianOrderEffectId(instruction.TargetInhabitantId, child) : null);
+
+        if (order.TargetAgentId is not null || order.Action is not ("consume_food" or "seek_food" or "harvest_food") ||
             order.RequestedUnits is < 1 or > 1000 || order.CompletedUnits is < 0 or > 1_000_000 ||
             order.Status == "finished" && (order.RepeatUntilCancelled || order.CompletedUnits < order.RequestedUnits) ||
             order.Action == "consume_food" && order.ProgressUnit != "food_items" ||

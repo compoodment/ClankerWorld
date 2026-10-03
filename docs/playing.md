@@ -119,6 +119,12 @@ with a picture of its ground. **Family** opens their family tree beside the
 Profile, with a portrait for each person and a heart between partners. Click
 someone to open their Profile.
 
+Handcarts appear as small wheeled carts on the map. Hover over one or inspect
+its tile to see its owner, parked or pulled state, condition and actual cargo.
+The owner's agent card also lists their carts. A broken cart keeps its goods;
+its owner can unload here or repair it with carried wood, iron fittings and rope.
+A cart holds loose goods separately from the agent's own carrying limit.
+
 When agents talk, a chat bubble appears above each participant and nearby
 listeners. Click a bubble to see who spoke and whether the conversation is
 finished or interrupted. **Show history** opens the bounded public history
@@ -139,6 +145,12 @@ berries at (12, 4)". "Keep gathering food" continues until cancelled. Eating
 waits until the agent is hungry enough, and gathering needs enough carrying
 space. A recognized new order replaces the current one unless you turn on
 **Queue**. Use **Cancel task** to stop a waiting or active order.
+
+When a child needs a guardian, an adult can follow **Become guardian for Lina**,
+using the child's full name. The adult still has to be eligible in the current
+guardian search. The order finishes when they accept primary care; moving the
+child into their House still requires room and a shared Town. This order can be
+queued or cancelled like a food task. It cannot replace an existing guardian.
 
 An instruction the game cannot understand leaves the current order running.
 Unsupported requests, such as "build a house" or "gather wood," close as not

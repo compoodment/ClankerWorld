@@ -817,6 +817,7 @@ public partial class Main
             VerifyEventLogAgentNames();
             await VerifyNewcomerOfferAsync();
             VerifyOrnamentPresentation();
+            VerifyHandcartInspection();
             VerifyToolMakingPresentation();
             await VerifyMenuBackdropAsync();
             // Tooltips and other windows the engine creates on demand follow the root's filter,
@@ -2250,6 +2251,12 @@ public partial class Main
                 BuildingSprites.KindForObject("cooking") != BuildingKind.Hearth ||
                 BuildingSprites.KindForObject("path") != BuildingKind.Path ||
                 NatureSprites.ForCampResource("construction") != NatureSprite.WoodPile ||
+                // A Town's starting supplies carry no natural site; none may fall back to a bare marker.
+                NatureSprites.ForCampResource("stone") != NatureSprite.StoneOutcrop ||
+                NatureSprites.ForCampResource("fiber") != NatureSprite.FiberPlant ||
+                NatureSprites.ForCampResource("seed") != NatureSprite.WildSeedPatch ||
+                NatureSprites.ForCampResource("clay") != NatureSprite.ClayBank ||
+                NatureSprites.ForCampResource("grain_seed") != NatureSprite.WildSeedPatch ||
                 NatureSprites.ForCampResource("iron_ore") is not null ||
                 BuildingSprites.KindForObject("resource") is not null)
                 throw new InvalidOperationException("Buildings and camp objects must pick their art family from their recorded tags and kinds.");
