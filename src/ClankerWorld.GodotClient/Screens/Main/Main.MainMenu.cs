@@ -783,6 +783,7 @@ public partial class Main
         worldCreateButton.Disabled = true;
         worldPreview.Hide();
         worldPreviewStatus.Text = "Updating the preview...";
+        worldPreviewStatus.TooltipText = string.Empty;
         if (refresh && worldMenuOverlay.Visible && worldMenuColumns.Visible)
             _ = RefreshWorldPreviewAfterChangeAsync(revision);
     }

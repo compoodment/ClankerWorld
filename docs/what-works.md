@@ -57,11 +57,11 @@ dry land and try at most three deterministic maps for the Normal settings. The
 preview describes the selected map in plain words, such as "Plenty of forest
 and some mountain ranges". Its tooltip gives the measured shares of every
 playable map tried and lists, in the order tried, attempts that have no room
-for a first Town. Create World makes that exact map. If no attempted map has
-room, it asks the player to try another seed or change the settings. If the
-map has less or more forest or mountains than a balanced world, the preview
-says so, and Create World stays unavailable until the player ticks **Keep this
-map anyway** or changes the seed. Uniform Dry and
+for a first Town. Create World makes the selected map exactly. If no attempted
+map has room, it asks the player to try another seed or change the settings.
+If the selected map has less or more forest or mountains than a balanced
+world, the preview says so, and Create World stays unavailable until the
+player ticks **Keep this map anyway** or changes the seed. Uniform Dry and
 polar-only settings do not use those trial bands; each band applies only while
 its own forest or mountain control is Normal. This is connected to the normal
 owner/server path; the current measurements are

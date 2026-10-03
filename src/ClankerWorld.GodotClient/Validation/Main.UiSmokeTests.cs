@@ -908,6 +908,8 @@ public partial class Main
                     worldPreviewStatus.MouseFilter == MouseFilterEnum.Ignore || worldAcceptUnmetTargets.Visible)
                     throw new InvalidOperationException("A map with no balance to aim for must show its measurements only in the tooltip, with no acceptance box.");
                 InvalidateWorldPreview(refresh: false);
+                if (worldPreviewStatus.TooltipText.Length != 0)
+                    throw new InvalidOperationException("Clearing the preview must also clear the last map's measurements from its tooltip.");
                 var preset = CurrentWorldOptions();
                 worldForestChoice.Select(0);
                 if (SameGeneration(preset, CurrentWorldOptions()))
