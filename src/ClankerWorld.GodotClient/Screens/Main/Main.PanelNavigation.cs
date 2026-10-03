@@ -144,7 +144,9 @@ public partial class Main
         menuPauseConfirmed = false;
         if (observationSession.Current is not null)
         {
-            menuPauseConfirmed = await SetPausedAsync(paused: true);
+            var generation = observationSession.RequestGeneration;
+            var confirmed = await SetPausedAsync(paused: true);
+            if (IsCurrentWorldRequest(generation)) menuPauseConfirmed = confirmed;
         }
     }
 
