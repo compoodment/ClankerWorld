@@ -24,23 +24,23 @@ public sealed partial class PrivateWorldRuntime
             .Append(proposal.Project.Entrance))
         .ToHashSet();
 
-    private HashSet<GridPoint> TownProjectLandTiles(TownRuntimeState town)
+    private HashSet<GridPoint> TownProjectLandTiles(TownRuntimeState town, bool ignorePendingRequests = false)
     {
         var claimed = householdLandUseRights.SelectMany(r => r.Tiles)
-            .Concat(householdLandUseRequests.Where(r => r.Status == "pending").SelectMany(r => r.Tiles))
+            .Concat(householdLandUseRequests.Where(r => r.Status == "pending" && !ignorePendingRequests).SelectMany(r => r.Tiles))
             .Concat(townLandTitles.Where(t => t.TownId != town.Id).SelectMany(t => t.Tiles)).ToHashSet();
         return townLandTitles.Where(t => t.TownId == town.Id).SelectMany(t => t.Tiles)
             .Where(p => !claimed.Contains(p)).ToHashSet();
     }
 
     private string? TownProjectSiteFailure(TownRuntimeState town, TownProjectPayload plan,
-        string? projectId = null, string? actor = null)
+        string? projectId = null, string? actor = null, bool ignorePendingRequests = false)
     {
         if (!worldContent.Buildings.Any(d => d.CanonicalId == plan.DefinitionId))
             return "The Town Hall content is no longer available.";
         var hall = TownHallContent.Hall3x4();
         var footprint = WorldContentSimulationRules.Footprint(hall, plan.Site).ToArray();
-        var legal = TownProjectLandTiles(town);
+        var legal = TownProjectLandTiles(town, ignorePendingRequests);
         if (footprint.Any(p => !legal.Contains(p)))
             return "The full Hall site needs uncontested Town title without a household right or pending land request.";
         if (projectId is null && footprint.Append(plan.Entrance).Any(PendingTownProjectSiteTiles().Contains))

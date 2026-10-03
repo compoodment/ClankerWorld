@@ -117,10 +117,12 @@ public sealed partial class PrivateWorldRuntime
         AppendEvent("town_project_cancelled", $"{town.Id}:{project.Id}:{reason}", project.Plan.Site);
     }
 
-    private bool TownProjectWaitsForLandRequest(TownConstructionProject project)
+    // Wait only when a pending household request is the site's sole problem; it may still be refused.
+    private bool TownProjectWaitsForLandRequest(TownRuntimeState town, TownConstructionProject project)
     {
         var footprint = WorldContentSimulationRules.Footprint(TownHallContent.Hall3x4(), project.Plan.Site).ToHashSet();
-        return householdLandUseRequests.Any(request => request.Status == "pending" && request.Tiles.Any(footprint.Contains));
+        return householdLandUseRequests.Any(request => request.Status == "pending" && request.Tiles.Any(footprint.Contains)) &&
+            TownProjectSiteFailure(town, project.Plan, project.Id, ignorePendingRequests: true) is null;
     }
 
     private void MaintainTownProjects()
@@ -146,7 +148,7 @@ public sealed partial class PrivateWorldRuntime
                 {
                     // Only a pending household request can still be refused. Any other failure, such as a
                     // granted use right or a site taken during the vote, would hold the site forever.
-                    if (TownProjectWaitsForLandRequest(project)) BlockTownProject(town, project, failure);
+                    if (TownProjectWaitsForLandRequest(town, project)) BlockTownProject(town, project, failure);
                     else CancelTownProject(town, project, failure);
                     continue;
                 }
@@ -311,16 +313,17 @@ public sealed partial class PrivateWorldRuntime
                             lot.GroundPosition is not { } ground || PhysicalUnreservedQuantity(lot) != lot.Quantity ||
                             FreeCarryCapacity(actor) < lot.Quantity ||
                             !CanWalkForTownProject(actor, inhabitants[actor].Position, new(ground.X, ground.Y)) ||
-                            // Only when a Warehouse can take it; otherwise the carrier would just set it down again.
-                            !WarehousesForTown(town.Id).Any(item => StorageRoomAfterInboundDeliveries(item.InstanceId) > 0 &&
-                                CanWalkForTownProject(actor, new(ground.X, ground.Y), item.Position))) continue;
+                            // Only when a Warehouse has room; otherwise the carrier would just set it down again.
+                            !WarehousesForTown(town.Id).Any(item => StorageRoomAfterInboundDeliveries(item.InstanceId) > 0)) continue;
                         yield return new(TownProjectChoiceId(TownProjectReturnPrefix, project.Id, lot.Id, "recover"),
                             "recover", town, project, lot.ItemKind, lot, lot.Quantity, delivery);
                         continue;
                     }
                     if (lot.CarrierId != actor) continue;
-                    var warehouse = WarehousesForTown(town.Id).FirstOrDefault(item => StorageRoomAfterInboundDeliveries(item.InstanceId) > 0 &&
-                        CanWalkForTownProject(actor, inhabitants[actor].Position, item.Position));
+                    // A Warehouse tile someone is standing on is only a wait; set the load down only when none has room.
+                    var withRoom = WarehousesForTown(town.Id).Where(item => StorageRoomAfterInboundDeliveries(item.InstanceId) > 0).ToArray();
+                    var warehouse = withRoom.FirstOrDefault(item => CanWalkForTownProject(actor, inhabitants[actor].Position, item.Position)) ??
+                        withRoom.FirstOrDefault();
                     if (warehouse is null)
                     {
                         yield return new(TownProjectChoiceId(TownProjectReturnPrefix, project.Id, lot.Id, "ground"),

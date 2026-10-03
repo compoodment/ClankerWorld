@@ -200,6 +200,7 @@ public sealed partial class PrivateWorldRuntime
         // A footprint whose extra land is free can be granted; one over land another household
         // holds or has asked for only opens a dispute, so it is offered when no free one fits.
         var heldByOthers = HouseholdLandHeldByOthers(building.HouseholdId);
+        var proposedHalls = PendingTownProjectSiteTiles();
         GridPoint[]? offered = null;
         GridPoint[]? disputed = null;
         foreach (var shape in ExpansionShapes(building))
@@ -209,7 +210,8 @@ public sealed partial class PrivateWorldRuntime
                 BuildingStorageRules.WithSize(definition, shape.Footprint.Width, shape.Footprint.Height), shape.Position)
                 .Except(WorldContentSimulationRules.Footprint(definition, building))
                 .Where(tile => !householdLandUseRights.Any(right => right.HouseholdId == building.HouseholdId && right.Tiles.Contains(tile))));
-            if (extra.Length == 0 || extra.Any(tile => !TownLandRightsRules.IsCoveredByTownTitle(tile, building.TownId!, townLandTitles))) continue;
+            if (extra.Length == 0 || extra.Any(tile => !TownLandRightsRules.IsCoveredByTownTitle(tile, building.TownId!, townLandTitles)) ||
+                extra.Any(proposedHalls.Contains)) continue;
             // One expansion asks the Council once: a pending request for any of its shapes waits to be decided.
             if (extra.Any(pending.Contains)) return null;
             if (extra.Any(heldByOthers.Contains)) disputed ??= extra;
