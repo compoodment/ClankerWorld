@@ -231,6 +231,16 @@ reload and replay. This version is provisional above the equipment-storage
 base until integration; older alpha checkpoints are refused and preserved
 without migration.
 
+Private-world schema 66 adds exact personal-goods and borrowed-return orders.
+`TargetItemKind` is separate from gathering and repair subjects. Storage and
+return tasks save the selected House identity, household owner and position;
+returns also save their source lot. The destination binding is complete or absent,
+and incompatible actions, subjects, quantities and receipts are refused.
+Finite progress, queued work and cancellation survive reload without switching
+House or changing ownership. This version is provisional above the production-order
+base until integration; older alpha checkpoints are refused and preserved
+without migration.
+
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
 Matching parent assignments are disclosed as agreement; when they differ, the

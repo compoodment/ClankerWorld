@@ -13,6 +13,7 @@ public sealed partial class PrivateWorldRuntime
         var actor = instruction.TargetInhabitantId;
         if (!ReadyForBriefInteraction(actor) || FreeCarryCapacity(actor) <= 0) return null;
         var lot = CollectionOrderGoods(instruction)
+            .Where(item => VesselFits(item, FreeCarryCapacity(actor)))
             .OrderBy(item => map.FootDistance(person.Position, HouseholdStockPosition(item)))
             .ThenBy(item => item.Id, StringComparer.Ordinal)
             .FirstOrDefault(item =>
@@ -33,6 +34,7 @@ public sealed partial class PrivateWorldRuntime
                 "collect_food" => IsEdibleFood(lot.ItemKind) &&
                     (instruction.Order.TargetFoodKind is null || lot.ItemKind == instruction.Order.TargetFoodKind),
                 "collect_equipment" => lot.ItemKind == instruction.Order.TargetEquipmentKind,
+                "collect_goods" => lot.ItemKind == instruction.Order.TargetItemKind,
                 _ => lot.ItemKind == instruction.Order.TargetMaterialKind,
             }) &&
             (instruction.Order.TargetPosition is null || HouseholdStockPosition(lot) == instruction.Order.TargetPosition));
@@ -61,6 +63,7 @@ public sealed partial class PrivateWorldRuntime
         {
             "collect_food" => "food",
             "collect_equipment" => "equipment",
+            "collect_goods" => "goods",
             _ => "material",
         };
 
@@ -79,6 +82,8 @@ public sealed partial class PrivateWorldRuntime
             return instruction.Order.TargetPosition is not null
                 ? $"No matching personal {goods} is available at the requested tile; goods must be your own and not reserved or promised for delivery."
                 : $"No matching personal {goods} is available to collect; goods must be your own and not reserved or promised for delivery.";
+        if (!CollectionOrderGoods(instruction).Any(lot => VesselFits(lot, FreeCarryCapacity(actor))))
+            return "The vessel and all its contents must fit together; make more carrying space first.";
         if (!ReadyForBriefInteraction(actor))
             return $"The agent needs warmth before collecting {pluralGoods}.";
         return $"No open walking route reaches the agent's personal {goods} right now.";

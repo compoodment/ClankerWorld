@@ -146,6 +146,8 @@ internal static class PrivateWorldInstructionOrderParser
             position = actionStart;
             if (TryReadFieldOrder(end, repeatPrefix, keepPrefix) is { } fieldOrder) return fieldOrder;
             position = actionStart;
+            if (TryReadCustodyOrder(end, repeatPrefix, keepPrefix) is { } custodyOrder) return custodyOrder;
+            position = actionStart;
 
             if (!TryReadAction(out var action, out var actionVerb))
                 return null;
@@ -182,7 +184,7 @@ internal static class PrivateWorldInstructionOrderParser
             {
                 "collect_material" or "collect_food" or "collect_equipment" => TryReadCollectionLocation(ref targetPosition),
                 "repair_equipment" or "repair_tool" => true,
-                "store_material" or "store_equipment" => TryReadHomeStorageLocation(),
+                "store_material" or "store_equipment" => TryReadHomeStorageLocation(ref targetPosition),
                 _ => TryReadLocation(action, targetFoodKind, ref targetResourceId, ref targetPosition, materialKind),
             };
             if (!hasLocation)
@@ -233,6 +235,89 @@ internal static class PrivateWorldInstructionOrderParser
                 targetPosition,
                 TargetMaterialKind: materialKind,
                 TargetEquipmentKind: equipmentKind);
+        }
+
+        private OwnerInstructionOrder? TryReadCustodyOrder(int end, bool repeat, bool keep)
+        {
+            var action = TryReadAnyWord("collect", "collects", "collecting") ? "collect_goods" :
+                TryReadAnyWord("store", "stores", "storing") ? "store_goods" :
+                TryReadAnyWord("return", "returns", "returning") ? "return_borrowed" : null;
+            if (action is null || keep && !tokens[position - 1].Value.EndsWith("ing", StringComparison.Ordinal)) return null;
+            if (action != "return_borrowed") _ = ReadWord("my");
+            var explicitQuantity = TryReadQuantity(out var quantity);
+            if (!explicitQuantity && (ReadWord("a") || ReadWord("an")))
+            {
+                explicitQuantity = true;
+                quantity = 1;
+            }
+            if (!explicitQuantity) quantity = 1;
+            if (action == "return_borrowed" && !ReadWord("borrowed")) return null;
+            var itemKind = action == "return_borrowed"
+                ? TryReadReturnSubject()
+                : TryReadCustodySubject();
+            if (itemKind is null) return null;
+            GridPoint? targetPosition = null;
+            var validLocation = action switch
+            {
+                "collect_goods" => TryReadCollectionLocation(ref targetPosition),
+                "store_goods" => TryReadHomeStorageLocation(ref targetPosition),
+                _ => TryReadReturnLocation(ref targetPosition),
+            };
+            if (!validLocation) return null;
+            if (ReadWord("until"))
+            {
+                if (!ReadWord("cancelled") && !ReadWord("canceled")) return null;
+                repeat = true;
+            }
+            if (!ReadWord("now")) _ = ReadWord("please");
+            if (position != end) return null;
+            var progress = explicitQuantity ? "goods_items" : action switch
+            {
+                "collect_goods" => "collection_loads",
+                "store_goods" => "storage_loads",
+                _ => "return_loads",
+            };
+            return new(action, "queued", quantity, 0, progress, repeat, explicitQuantity,
+                TargetPosition: targetPosition, TargetItemKind: itemKind);
+        }
+
+        private string? TryReadReturnSubject()
+        {
+            var start = position;
+            var selected = TryReadCustodySubject();
+            var end = position;
+            position = start;
+            var material = TryReadMaterialSubject();
+            if (material is not null && position > end) { selected = material; end = position; }
+            position = start;
+            var equipment = TryReadEquipmentSubject();
+            if (equipment is not null && position > end) { selected = equipment; end = position; }
+            // The full noun wins: diamond ornaments, iron ore and iron knives
+            // cannot be truncated to a shorter subject from another catalogue.
+            position = end;
+            return selected;
+        }
+
+        private string? TryReadCustodySubject()
+        {
+            var start = position;
+            if (!ReadWord("the")) _ = ReadWord("some");
+            var match = PrivateWorldCustodyOrderCatalog.All.SelectMany(goods => goods.Names
+                    .Select(name => (goods.ItemKind, Tokens: name.Split(' '))))
+                .Where(item => item.Tokens.Select((word, index) => IsWord(position + index, word)).All(value => value))
+                .OrderByDescending(item => item.Tokens.Length).FirstOrDefault();
+            if (match.ItemKind is null) { position = start; return null; }
+            position += match.Tokens.Length;
+            return match.ItemKind;
+        }
+
+        private bool TryReadReturnLocation(ref GridPoint? targetPosition)
+        {
+            if (ReadWord("to") && (!ReadWord("its") || !ReadWord("house"))) return false;
+            if (!ReadWord("at")) return true;
+            if (!TryReadCoordinate(out var destination)) return false;
+            targetPosition = destination;
+            return true;
         }
 
         private OwnerInstructionOrder? TryReadProductionOrder(int end, bool repeat, bool keep)
@@ -356,12 +441,21 @@ internal static class PrivateWorldInstructionOrderParser
             return true;
         }
 
-        private bool TryReadHomeStorageLocation()
+        private bool TryReadHomeStorageLocation(ref GridPoint? targetPosition)
         {
-            if (!ReadWord("in") && !ReadWord("at")) return true;
-            if (ReadWord("home")) return true;
-            if (!ReadWord("my") && !ReadWord("your") && !ReadWord("the")) return false;
-            return ReadWord("house");
+            var directCoordinate = ReadWord("at");
+            if (!directCoordinate && !ReadWord("in")) return true;
+            if (directCoordinate && TryReadCoordinate(out var direct))
+            {
+                targetPosition = direct;
+                return true;
+            }
+            if (!ReadWord("home") &&
+                ((!ReadWord("my") && !ReadWord("your") && !ReadWord("the")) || !ReadWord("house"))) return false;
+            if (!ReadWord("at")) return true;
+            if (!TryReadCoordinate(out var destination)) return false;
+            targetPosition = destination;
+            return true;
         }
 
         private string? TryReadEquipmentSubject()

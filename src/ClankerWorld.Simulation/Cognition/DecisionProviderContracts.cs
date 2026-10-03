@@ -233,9 +233,11 @@ public sealed record InhabitantObservation(
                         "gather several food servings from a nearby food source" or
                         "gather the requested material from a natural source" or "store your own carried material in your House" or
                         "store your own carried equipment in your House" or
+                        "store your own carried goods in your House" or "return borrowed goods to their owning household's House" or
                         "make the requested goods at a permitted workstation" or
                         "collect your own stored or dropped material" or "collect your own stored or dropped food" or
                         "collect your own stored or dropped equipment" or
+                        "collect your own stored or dropped goods" or
                         "till a field for your household" or "plant the requested crop in your household field" or
                 "tend your household crop" or "harvest your household crop" or "repair your own worn clothing or carrying aid" or "repair your own worn tool") ||
                 message.Kind == "suggestive" && message.UnderstoodTask is not null)

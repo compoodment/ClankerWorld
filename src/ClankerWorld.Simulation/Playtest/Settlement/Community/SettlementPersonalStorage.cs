@@ -1,4 +1,5 @@
 using ClankerWorld.Simulation.Kernel;
+using ClankerWorld.Simulation.Harness;
 
 namespace ClankerWorld.Simulation.Playtest;
 
@@ -14,13 +15,17 @@ public sealed partial class PrivateWorldRuntime
             !IsEdibleFood(lot.ItemKind) && PhysicalUnreservedQuantity(lot) > 0 &&
             VesselFits(lot, StorageRoom(houseId))).OrderBy(lot => lot.Id, StringComparer.Ordinal);
 
-    private PersonalStorageEffect? StorePersonalGoods(string actor, string lotId, int maximumQuantity = int.MaxValue)
+    private PersonalStorageEffect? StorePersonalGoods(string actor, string lotId, int maximumQuantity = int.MaxValue,
+        string? requiredHouseId = null, string? requiredHouseholdId = null, GridPoint? requiredPosition = null)
     {
         if (!AdultResident(actor) || !ReadyForBriefInteraction(actor) || maximumQuantity <= 0 ||
             HouseForHousehold(HouseholdFor(actor)) is not { } house || StorageRoom(house.InstanceId) <= 0)
             return null;
+        if (requiredHouseId is not null && (house.InstanceId != requiredHouseId ||
+            house.HouseholdId != requiredHouseholdId || house.Position != requiredPosition)) return null;
         var lot = PersonalStorageLots(actor, house.InstanceId).FirstOrDefault(item => item.Id == lotId);
         if (lot is null) return null;
+        if (requiredHouseId is not null) InterruptOrdinaryFieldWorkForCustody(actor, lotId);
         var person = inhabitants[actor];
         if (!IsWithinInteractionRange(person.Position, house.Position, 1))
         {
