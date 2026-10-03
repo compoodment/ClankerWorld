@@ -357,6 +357,8 @@ public sealed record ViewerEvent(long EventId, long WorldTick, string Kind, stri
 
 public sealed record ViewerFounderSetup(int Required, int Placed, bool Started)
 {
+    /// <summary>An untouched bootstrap world should open New World instead of the retired camp.</summary>
+    public bool RequiresWorldCreation { get; init; }
     public bool CanChooseTownSite { get; init; }
     public bool HasAcceptedTownSite { get; init; }
     public string? LastFounderId { get; init; }
@@ -542,11 +544,14 @@ public sealed record ViewerCouncil(string? StewardName, string FoodPolicy, strin
 public sealed record ViewerEventSlice(long SnapshotTick, long AfterEventId, IReadOnlyList<ViewerEvent> Events,
     long EventHistoryFloor = 0, bool ResetRequired = false);
 
+public sealed record ViewerObserverTimeline(string InstanceId, long Generation);
+
 /// <summary>
 /// A reconnect response is one server-side capture, not a race between a
 /// client's separate snapshot and event-history requests.
 /// </summary>
-public sealed record ViewerReconnectBaseline(ViewerWorldSnapshot Snapshot, ViewerEventSlice Events);
+public sealed record ViewerReconnectBaseline(ViewerWorldSnapshot Snapshot, ViewerEventSlice Events,
+    ViewerObserverTimeline? Timeline = null);
 
 /// <summary>
 /// Owns the static deterministic sample exposed by the first browser slice.

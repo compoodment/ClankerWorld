@@ -378,6 +378,8 @@ public sealed partial class PrivateWorldRuntime
         "seek_food" => "travel within gathering range of an available food source",
         "harvest_food" => "gather several food servings from a nearby food source",
         "gather_material" => "gather the requested material from a natural source",
+        "collect_material" => "collect your own stored or dropped material",
+        "store_material" => "store your own carried material in your House",
         "accept_guardianship" => "accept primary care of the named child through their guardian search",
         _ => null,
     };

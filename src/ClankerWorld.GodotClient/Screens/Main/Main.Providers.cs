@@ -23,8 +23,8 @@ public partial class Main
 
         await RunOwnerActionAsync(async () =>
         {
-            providerConfiguration = await ownerApi.GetProviderStatusAsync(
-                ResolveWorldUri(), authority, deviceId, signer, CancellationToken.None);
+            providerConfiguration = await AwaitCurrentWorldResultAsync(ownerApi.GetProviderStatusAsync(
+                ResolveWorldUri(), authority, deviceId, signer, CancellationToken.None));
             PopulateCognitionTargets();
             PopulateProviderChoices(ActiveProviderForSelectedRole());
             PopulateCredentialChoices();
@@ -66,8 +66,8 @@ public partial class Main
         if (!TryGetOwner(out var authority, out var deviceId, out var signer)) return;
         try
         {
-            var status = await ownerApi.GetUsageStatusAsync(ResolveWorldUri(), authority, deviceId,
-                signer, CancellationToken.None);
+            var status = await AwaitCurrentWorldResultAsync(ownerApi.GetUsageStatusAsync(ResolveWorldUri(), authority, deviceId,
+                signer, CancellationToken.None));
             usageReads++;
             usageStatus = status;
             RenderUsageStatus();
@@ -135,8 +135,8 @@ public partial class Main
             new OwnerUsageLimitAction(cap);
         await RunOwnerActionAsync(async () =>
         {
-            var status = await ownerApi.ConfigureUsageLimitAsync(ResolveWorldUri(), authority, deviceId,
-                action, signer, CancellationToken.None);
+            var status = await AwaitCurrentWorldResultAsync(ownerApi.ConfigureUsageLimitAsync(ResolveWorldUri(), authority, deviceId,
+                action, signer, CancellationToken.None));
             usageReads++;
             usageStatus = status;
             RenderUsageStatus();
@@ -149,6 +149,7 @@ public partial class Main
 
     private async Task SaveProviderConfigurationAsync()
     {
+        var generation = observationSession.RequestGeneration;
         if (!TryGetOwner(out var authority, out var deviceId, out var signer))
         {
             SetStatus("Connect this device before setting up agent models.", good: false);
@@ -186,22 +187,26 @@ public partial class Main
         {
             await RunOwnerActionAsync(async () =>
             {
-                providerConfiguration = await ownerApi.ConfigureProviderAsync(
-                    ResolveWorldUri(), authority, deviceId, action, signer, CancellationToken.None);
+                providerConfiguration = await AwaitCurrentWorldResultAsync(ownerApi.ConfigureProviderAsync(
+                    ResolveWorldUri(), authority, deviceId, action, signer, CancellationToken.None));
                 PopulateCredentialChoices();
                 return $"{ProviderDisplayName(provider)} will handle {RoleDisplayName(role).ToLowerInvariant()} at the agent's next model choice";
             });
         }
         finally
         {
-            cognitionApiKeyInput.Text = string.Empty;
-            cognitionCredentialLabelInput.Text = string.Empty;
-            RenderProviderConfiguration();
+            if (IsCurrentWorldRequest(generation))
+            {
+                cognitionApiKeyInput.Text = string.Empty;
+                cognitionCredentialLabelInput.Text = string.Empty;
+                RenderProviderConfiguration();
+            }
         }
     }
 
     private async Task ForgetProviderCredentialAsync()
     {
+        var generation = observationSession.RequestGeneration;
         if (!TryGetOwner(out var authority, out var deviceId, out var signer))
         {
             SetStatus("Connect this device before changing keys.", good: false);
@@ -224,12 +229,15 @@ public partial class Main
             ForgetCredential: true);
         await RunOwnerActionAsync(async () =>
         {
-            providerConfiguration = await ownerApi.ConfigureProviderAsync(
-                ResolveWorldUri(), authority, deviceId, action, signer, CancellationToken.None);
+            providerConfiguration = await AwaitCurrentWorldResultAsync(ownerApi.ConfigureProviderAsync(
+                ResolveWorldUri(), authority, deviceId, action, signer, CancellationToken.None));
             return $"forgot the saved {ProviderDisplayName(provider)} key";
         });
-        cognitionApiKeyInput.Text = string.Empty;
-        RenderProviderConfiguration();
+        if (IsCurrentWorldRequest(generation))
+        {
+            cognitionApiKeyInput.Text = string.Empty;
+            RenderProviderConfiguration();
+        }
     }
 
     private async Task DeleteCredentialSlotAsync()
@@ -256,8 +264,8 @@ public partial class Main
 
         await RunOwnerActionAsync(async () =>
         {
-            providerConfiguration = await ownerApi.DeleteCredentialSlotAsync(
-                ResolveWorldUri(), authority, deviceId, slotId, signer, CancellationToken.None);
+            providerConfiguration = await AwaitCurrentWorldResultAsync(ownerApi.DeleteCredentialSlotAsync(
+                ResolveWorldUri(), authority, deviceId, slotId, signer, CancellationToken.None));
             PopulateCredentialChoices();
             RenderProviderConfiguration();
             return $"deleted saved key {slot.Label}";
@@ -750,8 +758,10 @@ public partial class Main
     /// </summary>
     private async Task OpenWorldModelSettingsAsync()
     {
+        var generation = observationSession.RequestGeneration;
         CloseAgentModelEditor();
         if (!gameMenuPanel.Visible) await ToggleGameMenuAsync();
+        if (!IsCurrentWorldRequest(generation)) return;
         ShowSettingsSection(worldSpecific: true);
         RenderProviderConfiguration();
         // The page opens at its top; bring the box into view once it is laid out.
