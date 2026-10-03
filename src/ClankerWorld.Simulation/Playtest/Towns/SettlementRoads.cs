@@ -50,7 +50,7 @@ public sealed partial class PrivateWorldRuntime
         var occupied = RoadBlockedTiles();
         var entrances = footprint.SelectMany(point => map.FootNeighbors(point)
                 .Where(next => !map.IsDiagonalFootStep(point, next)))
-            .Where(point => !occupied.Contains(point) && map.IsBuildable(point) &&
+            .Where(point => (!occupied.Contains(point) || roadTiles.Contains(point)) && map.IsBuildable(point) &&
                 WorldContentSimulationRules.IsEntrance(buildingDesign, building.Position, point))
             .Distinct().OrderBy(point => point.Y).ThenBy(point => point.X).ToArray();
         if (entrances.Length == 0)
@@ -151,8 +151,7 @@ public sealed partial class PrivateWorldRuntime
         var (dx, dy) = TownStreets.Directions[direction];
         if (dx != 0 && dy != 0 || !RiverBridgeRules.TryFindCrossing(map, from, dx, dy, out var crossing))
             return null;
-        var far = crossing!.EntranceA == from ? crossing.EntranceB : crossing.EntranceA;
-        if (occupied.Contains(far) || pending.Any(item => item.Span.Intersect(crossing.Span).Any()) ||
+        if (crossing!.Entrances.Any(occupied.Contains) || pending.Any(item => item.Span.Intersect(crossing.Span).Any()) ||
             RiverBridgeRules.IsRedundant(map, crossing, existing.Concat(pending)))
             return null;
         return crossing;
