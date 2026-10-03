@@ -300,7 +300,7 @@ public sealed class PrivateWorldToolRepairOrderTests
                 state.Map.IsReachableOnFoot(house.Position, resource.Position))
             .OrderBy(resource => state.Map.FootDistance(house.Position, resource.Position)).First();
         var inventory = AddTool(state.Society.Society.Inventory, actor, "target", "wooden_axe");
-        inventory = InventoryFixture.AddLot(inventory, "harvest-tool", "wooden_axe", actor, 1);
+        inventory = InventoryFixture.AddLot(inventory, "z-harvest-tool", "wooden_axe", actor, 1);
         inventory = InventoryFixture.AddLot(inventory, "ballast", "fiber", actor, 14);
         inventory = InventoryFixture.AddLot(inventory, "basket", "basket", actor, 1);
         if (!gather) inventory = InventoryFixture.AddLot(inventory, "shared-wood", "wood", household, 1, storageBuildingId: house.InstanceId);
@@ -326,8 +326,8 @@ public sealed class PrivateWorldToolRepairOrderTests
         Assert.Equal(0, Order(world, receipt).CompletedUnits);
         Assert.Equal(3_000, world.Society.Inventory.GetLot("target").ConditionBasisPoints);
         Assert.Equal(actor, world.Society.Inventory.GetLot("target").OwnerId);
-        Assert.Equal(actor, world.Society.Inventory.GetLot("harvest-tool").OwnerId);
-        Assert.Equal(gather ? 8_000 : 10_000, world.Society.Inventory.GetLot("harvest-tool").ConditionBasisPoints);
+        Assert.Equal(actor, world.Society.Inventory.GetLot("z-harvest-tool").OwnerId);
+        Assert.Equal(gather ? 8_000 : 10_000, world.Society.Inventory.GetLot("z-harvest-tool").ConditionBasisPoints);
         Assert.Equal(14, world.Society.Inventory.Lots.Where(lot => lot.ItemKind == "fiber").Sum(lot => lot.Quantity));
         Assert.Contains(world.ExportState().Events, item => item.Kind == "spare_cargo_stored");
         using var resumed = Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState())));
