@@ -98,7 +98,7 @@ public static class GameUiText
     public static string FriendlyFailure(Exception exception) => exception switch
     {
         Pairing.OwnerAgentNameTakenException =>
-            "that full name belongs to another agent. Choose a different name",
+            "that first name belongs to another agent. Choose a different first name",
         Pairing.OwnerWorldGenerationException =>
             "there is no room for a first Town with these settings. Choose another seed or change the terrain settings",
         Pairing.OwnerActionCompatibilityException =>
@@ -521,6 +521,7 @@ public static class GameUiText
             "collect_shared_food" => "collect food from camp",
             "harvest_food" => "gather food",
             "gather_material" => "gather materials",
+            "repair_equipment" => "repair personal equipment",
             "collect_material" => "collect personal materials",
             "store_material" => "store personal materials",
             "inspect_material_site" => "look for the requested material",

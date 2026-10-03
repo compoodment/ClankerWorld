@@ -59,6 +59,13 @@ notice. Children and their sole caregivers are never forced out, including
 together as a group. Their House stays overcrowded until expansion or a
 voluntary move with care preserved provides enough room.
 
+To rename an agent, open their **Profile**. The first name must be unused by
+any other living or deceased agent in the world; changing the surname alone
+does not free a taken first name. You can keep the selected agent's own first
+name. A child's chosen surname must come from a biological parent. Temporary
+names do not reserve first names, and renaming leaves past conversations as
+spoken.
+
 ## Create your first Town
 
 On a fresh server, **Continue** opens **New World** so you can choose the map
@@ -217,6 +224,14 @@ They keep ownership and use normal carrying space. A plain request collects
 one load; a quantity stops exactly at that number. Full hands or unavailable
 goods leave the task waiting. These orders cover the same seven raw materials;
 requests naming a particular source or destination are not understood yet.
+
+To mend worn personal equipment, use **Repair my basket**, **Repair two padded
+coats**, or **Keep repairing basic garments**. Adults and elders can repair basic
+clothing, padded coats, rain cloaks, baskets and sacks. They collect real supplies
+and use their household's House for baskets or Tailor Shop for the other items.
+Only finished repairs count. Missing items, materials, carrying space or a work
+site leaves the task waiting. Queue, cancellation and save/reload also work for
+these orders. Tools, weapons and named work sites are not supported repair targets.
 
 An instruction the game cannot understand leaves the current order running.
 Unsupported requests, such as "build a house" or "gather cloth," close as not
