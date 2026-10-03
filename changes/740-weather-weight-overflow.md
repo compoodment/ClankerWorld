@@ -1,0 +1,1 @@
+- Large custom weather weights now keep the intended rain and snow chances in cold regions, and storm cooldown no longer selects clear skies because adjusted weights overflow.
