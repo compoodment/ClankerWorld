@@ -8,10 +8,13 @@ public sealed partial class PrivateWorldRuntime
     private (TownGovernanceState Council, TownLandHearingState LandHearings) AdvanceLandHearingJudges(
         TownRuntimeState town, TownGovernanceState council, TownGovernmentState government, TownLandHearingState hearings)
     {
-        hearings = hearings with { Cases = hearings.Cases.Select(item => item with
+        hearings = hearings with
         {
-            DirectStakeIds = LandHearingDirectStakes(item).Order(StringComparer.Ordinal).ToArray(),
-        }).ToArray() };
+            Cases = hearings.Cases.Select(item => item with
+            {
+                DirectStakeIds = LandHearingDirectStakes(item).Order(StringComparer.Ordinal).ToArray(),
+            }).ToArray()
+        };
         var parties = hearings.Cases.ToDictionary(item => item.Id,
             item => (IReadOnlyList<TownLandCaseParty>)LandHearingParties(town, TownLandHearingRules.CurrentRevision(item).Tiles, item),
             StringComparer.Ordinal);

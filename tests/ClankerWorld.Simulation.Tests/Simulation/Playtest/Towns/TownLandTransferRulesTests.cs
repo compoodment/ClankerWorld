@@ -234,12 +234,18 @@ public sealed class TownLandTransferRulesTests
         Assert.Throws<InvalidDataException>(() => Validate(missing, rights, council, 3));
         var invented = completed with { Transfers = [completed.Transfers[0] with { Receipt = completed.Transfers[0].Receipt! with { AdjustmentId = "invented" } }] };
         Assert.Throws<InvalidDataException>(() => Validate(invented, rights, council, 3));
-        var extended = completed with { Adjustments = [completed.Adjustments[0] with
-            { ResultRights = completed.Adjustments[0].ResultRights.Select(right => right with { AgreedEndTick = 500 }).ToArray() }] };
+        var extended = completed with
+        {
+            Adjustments = [completed.Adjustments[0] with
+            { ResultRights = completed.Adjustments[0].ResultRights.Select(right => right with { AgreedEndTick = 500 }).ToArray() }]
+        };
         Assert.Throws<InvalidDataException>(() => Validate(extended, rights, council, 3));
-        var expiredClosure = completed with { Transfers = [completed.Transfers[0] with
+        var expiredClosure = completed with
+        {
+            Transfers = [completed.Transfers[0] with
             { SettledTick = 80, Receipt = completed.Transfers[0].Receipt! with { Tick = 80 } }],
-            Adjustments = [completed.Adjustments[0] with { Tick = 80 }] };
+            Adjustments = [completed.Adjustments[0] with { Tick = 80 }]
+        };
         Assert.Throws<InvalidDataException>(() => Validate(expiredClosure, rights, council, 80));
     }
 

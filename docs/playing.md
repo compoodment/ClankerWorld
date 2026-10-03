@@ -230,6 +230,17 @@ vote, never a draw. The term lasts twenty days, and a vacancy needs a new electi
 Pausing stops votes, terms and handovers. The page shows officeholders and vacant
 mandates. Wider law enforcement and punishment are not available yet.
 
+An adult in an affected household can propose transferring an exact plot of
+recorded use permission to another household. Every current adult in all giving
+and receiving households must learn the published terms and personally accept;
+proposing, reading and silence supply no acceptance. A new adult joining while
+it is pending must accept too. This ordinary transfer needs no Council or mayor
+approval. It preserves the original grant date and any agreed end date, and
+moves only use permission. Town title, membership, buildings, crops, goods and
+private-building access stay unchanged. Expired, disputed or under-review land
+cannot use this route. Town, plot and property details show the exact terms,
+names, dates and each household's acceptance progress.
+
 An affected household can ask for a land hearing, and the Town can file through
 its legitimate government. A permission with an agreed end date enters review
 when that date passes; it remains provisional while the case is pending. The
@@ -238,6 +249,9 @@ evidence sources and who may decide the case. Publication does not mean a notice
 was read: adults learn it through actual reading or a relay. Each affected adult
 may answer or explicitly waive their own response; silence is neither agreement
 nor evidence against them.
+The page separates the parties named when the notice was published from current
+adult responders and the Town's current authorized representative. Each ruling
+keeps the parties who were represented when it was made.
 
 The land mayor may confirm, renew, change or end use permission, recording the
 evidence and reasons. A mayor with a personal or household conflict stands aside;

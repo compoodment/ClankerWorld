@@ -50,7 +50,8 @@ public sealed partial class PrivateWorldRuntime
                 council = TownGovernanceRules.LearnNotice(council, actor, request.NoticeId, WorldTick);
                 LandTransferEvent("read", currentTown, request, actor, "learned");
                 break;
-            case "land_transfer_accept": case "land_transfer_decline":
+            case "land_transfer_accept":
+            case "land_transfer_decline":
                 var parties = LandTransferParties(request);
                 var party = parties.Single(item => CivicAgentToken(item.HouseholdId) == choice && item.AdultIds.Contains(actor, StringComparer.Ordinal));
                 var response = action == "land_transfer_accept" ? "accept" : "decline";

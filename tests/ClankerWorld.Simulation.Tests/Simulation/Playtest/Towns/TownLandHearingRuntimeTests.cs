@@ -220,8 +220,19 @@ public sealed class TownLandHearingRuntimeTests
         Membership = state.Society.Society.Inhabitants.OrderBy(person => person.Id, StringComparer.Ordinal)
             .Select(person => new { person.Id, person.HouseholdId }),
         Lots = state.Society.Society.Inventory.Lots.OrderBy(lot => lot.Id, StringComparer.Ordinal)
-            .Select(lot => new { lot.Id, lot.ItemKind, lot.OwnerId, lot.Quantity, lot.ProvenanceLotId,
-                lot.StorageBuildingId, lot.DeliveryBuildingId, lot.ContainerLotId, lot.GroundPosition, lot.CarrierId })
+            .Select(lot => new
+            {
+                lot.Id,
+                lot.ItemKind,
+                lot.OwnerId,
+                lot.Quantity,
+                lot.ProvenanceLotId,
+                lot.StorageBuildingId,
+                lot.DeliveryBuildingId,
+                lot.ContainerLotId,
+                lot.GroundPosition,
+                lot.CarrierId
+            })
     });
 
     private static void AssertMalformedHearingSavesRefused(byte[] encoded)

@@ -92,13 +92,16 @@ public sealed partial class PrivateWorldRuntime
             var known = LandTransferKnownHouseholds(actor, town).Where(target => target.Id != household).ToArray();
             var own = householdLandUseRights.Where(right => right.TownId == town.Id && right.HouseholdId == household &&
                 (right.AgreedEndTick is null || right.AgreedEndTick > WorldTick)).OrderBy(right => right.Id, StringComparer.Ordinal).ToArray();
-            if (own.Any(right => known.Any(target => TownLandTransferRules.CanPropose(town.LandHearings, map, town.Id, actor,
-                    right.Tiles, target.Id, householdLandUseRights, TownLandTransferRules.PartiesFor(householdLandUseRights,
-                        right.Tiles, target.Id, LandTransferAdultHouseholds()), householdLandUseRequests, WorldTick))))
+            var adultHouseholds = LandTransferAdultHouseholds();
+            var eligible = known.Select(target => (Target: target, Tiles: TownLandRightsRules.OrderTiles(own.SelectMany(right => right.Tiles).Distinct()
+                .Where(tile => TownLandTransferRules.CanPropose(town.LandHearings, map, town.Id, actor, [tile], target.Id,
+                    householdLandUseRights, TownLandTransferRules.PartiesFor(householdLandUseRights, [tile], target.Id, adultHouseholds),
+                    householdLandUseRequests, WorldTick))))).Where(option => option.Tiles.Length > 0).ToArray();
+            if (eligible.Length > 0)
                 candidates.Add(new(CivicAction(town.Id, "land_transfer_propose", household, LandTransferSourceToken(town, household)),
                     "Propose transferring only an exact connected plot of existing household permission. Supply exact civic_land_tiles and civic_land_hearing.household_id from these known beneficiary households: " +
-                    string.Join("; ", known.Select(target => target.Name + "=" + target.Id)) +
-                    ". Recorded source plots: " + string.Join("; ", own.Select(right => TownLandClaimRules.DescribeTiles(right.Tiles))) +
+                    string.Join("; ", eligible.Select(option => option.Target.Name + "=" + option.Target.Id)) +
+                    ". Eligible source coordinates by beneficiary: " + string.Join("; ", eligible.Select(option => option.Target.Id + ": " + TownLandClaimRules.DescribeTiles(option.Tiles))) +
                     ". Existing terms remain; every current adult in each source and beneficiary household must separately learn and accept. Proposing gives no consent, title, building, goods or membership.", 185));
         }
         foreach (var request in town.LandHearings.Transfers.Where(request => request.Status == "pending"))

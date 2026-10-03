@@ -127,9 +127,9 @@ public sealed class TownLandHearingHeldReplyTests
         {
             HouseholdLandUseRights = rights.Select(right => right.Id == ending.Id ? right with { AgreedEndTick = 1 } : right).ToArray(),
             Inhabitants = state.Inhabitants.Select(person => person with
-                { Position = state.Towns![0].OriginSite!.Value, HungerBasisPoints = 8_000 }).ToArray(),
+            { Position = state.Towns![0].OriginSite!.Value, HungerBasisPoints = 8_000 }).ToArray(),
             WorldSystems = RegionalWeatherRules.Initialize(state.WorldSystems! with
-                { Config = state.WorldSystems.Config with { TicksPerDay = Day }, RegionalWeather = null }, state.Map),
+            { Config = state.WorldSystems.Config with { TicksPerDay = Day }, RegionalWeather = null }, state.Map),
             Society = state.Society with
             {
                 Society = society with

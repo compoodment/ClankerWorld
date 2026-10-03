@@ -176,7 +176,8 @@ public sealed partial class PrivateWorldRuntime
                     new(LandHearingEvidenceId(item, actor, "allegation", statement), revision.Number, "allegation", "statement",
                         actor, null, null, WorldTick, actor, WorldTick, statement), council.Knowledge);
                 break;
-            case "hearing_answer": case "hearing_waive":
+            case "hearing_answer":
+            case "hearing_waive":
                 hearings = TownLandHearingRules.Respond(hearings, item.Id, revision.Number, actor,
                     action == "hearing_answer" ? "answer" : "waive", action == "hearing_waive" ? "I waive only my own response opportunity." : LandHearingText(hearingChoice?.Statement ?? proposalText),
                     WorldTick, council.Knowledge, parties, partyId: parties.Single(party => CivicAgentToken(party.Id) == choice).Id);
@@ -206,8 +207,12 @@ public sealed partial class PrivateWorldRuntime
                     var resolvedRequest = householdLandUseRequests.Single(candidate => candidate.Id == resolution.RequestId);
                     var resolutions = resolvedRequest.HearingResolutions.Append(resolution).ToArray();
                     var covered = resolvedRequest.Tiles.All(tile => resolutions.Any(receipt => receipt.Tiles.Contains(tile)));
-                    resolvedRequest = resolvedRequest with { HearingResolutions = resolutions, Status = covered ? "hearing_resolved" : "pending",
-                        SettledTick = covered ? WorldTick : null };
+                    resolvedRequest = resolvedRequest with
+                    {
+                        HearingResolutions = resolutions,
+                        Status = covered ? "hearing_resolved" : "pending",
+                        SettledTick = covered ? WorldTick : null
+                    };
                     householdLandUseRequests = householdLandUseRequests.Select(current => current.Id == resolvedRequest.Id ? resolvedRequest : current).ToList();
                     if (resolvedRequest.CouncilProposalId is { } proposalId)
                         council = TownGovernanceRules.CancelLandUseProposal(council, proposalId, WorldTick);

@@ -7,7 +7,7 @@ namespace ClankerWorld.Simulation.Playtest;
 public static class TownLandTransferRules
 {
     public static string TermsToken(TownLandTransferRequest request) => request.Id + ":" + TownLandHearingRules.RecordVersion(new
-        { request.TownId, request.TargetHouseholdId, request.Tiles, request.RightVersions });
+    { request.TownId, request.TargetHouseholdId, request.Tiles, request.RightVersions });
 
     public static IReadOnlyList<TownLandTransferParty> PartiesFor(IEnumerable<HouseholdLandUseRight> rights,
         IReadOnlyList<GridPoint> tiles, string targetHouseholdId, IReadOnlyDictionary<string, string?> adultHouseholds) =>
@@ -107,8 +107,13 @@ public static class TownLandTransferRules
             var originals = state.OriginalRights.Concat(adjustment.PriorRights.Where(right => !produced.Contains(right.Id) &&
                 !state.OriginalRights.Any(original => original.Id == right.Id))).OrderBy(right => right.Id, StringComparer.Ordinal).ToArray();
             state = state with { Sequence = state.Sequence + 1, OriginalRights = originals, Adjustments = state.Adjustments.Append(adjustment).ToArray() };
-            state = Replace(state, request with { Status = "transferred", SettledTick = tick, Reason = null,
-                Receipt = new(adjustment.Id, tick, CopyParties(parties)) });
+            state = Replace(state, request with
+            {
+                Status = "transferred",
+                SettledTick = tick,
+                Reason = null,
+                Receipt = new(adjustment.Id, tick, CopyParties(parties))
+            });
             rights = after;
         }
         return (state, rights);

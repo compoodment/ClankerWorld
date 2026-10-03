@@ -51,8 +51,14 @@ public static class TownLandCaseJudgeRules
         if (contest is not { Stage: "voting" } || RoundToken(contest) != token || tick >= contest.RoundDeadlineTick ||
             !contest.Voters.Contains(actor, StringComparer.Ordinal) || !contest.Candidates.Contains(candidate, StringComparer.Ordinal))
             throw new InvalidOperationException("This case ballot is stale or ineligible.");
-        return Replace(state, item with { Contest = contest with { Ballots = contest.Ballots.Where(b => b.AgentId != actor)
-            .Append(new(actor, candidate)).OrderBy(b => b.AgentId, StringComparer.Ordinal).ToArray() } });
+        return Replace(state, item with
+        {
+            Contest = contest with
+            {
+                Ballots = contest.Ballots.Where(b => b.AgentId != actor)
+            .Append(new(actor, candidate)).OrderBy(b => b.AgentId, StringComparer.Ordinal).ToArray()
+            }
+        });
     }
 
     public static (TownLandHearingState State, TownGovernanceState Council) Advance(TownLandHearingState state,
@@ -99,13 +105,25 @@ public static class TownLandCaseJudgeRules
             }
             var voters = contest.Voters.Where(adults.Contains).ToArray();
             var remainingCandidates = contest.Candidates.Where(candidates.Contains).ToArray();
-            contest = contest with { Voters = voters, Candidates = remainingCandidates,
+            contest = contest with
+            {
+                Voters = voters,
+                Candidates = remainingCandidates,
                 Ballots = contest.Ballots.Where(b => voters.Contains(b.AgentId) && remainingCandidates.Contains(b.CandidateId)).ToArray(),
-                TiedCandidates = contest.TiedCandidates.Where(candidates.Contains).ToArray() };
+                TiedCandidates = contest.TiedCandidates.Where(candidates.Contains).ToArray()
+            };
             if (contest.Stage == "voting" && busyForCase)
             {
-                contest = SaveRound(contest, tick, "interrupted") with { Stage = "waiting", Voters = [], Candidates = [], Ballots = [],
-                    RoundOpenedTick = null, RoundDeadlineTick = null, Interruptions = contest.Interruptions + 1 };
+                contest = SaveRound(contest, tick, "interrupted") with
+                {
+                    Stage = "waiting",
+                    Voters = [],
+                    Candidates = [],
+                    Ballots = [],
+                    RoundOpenedTick = null,
+                    RoundDeadlineTick = null,
+                    Interruptions = contest.Interruptions + 1
+                };
             }
             else if (contest.Stage == "voting" && (contest.Candidates.Count == 0 || tick >= contest.RoundDeadlineTick))
             {
@@ -121,8 +139,16 @@ public static class TownLandCaseJudgeRules
             if (contest.Stage == "waiting" && !busyForCase)
             {
                 var choices = contest.Rounds.Any(r => r.Result == "tie") ? candidates.Where(contest.TiedCandidates.Contains).ToArray() : candidates;
-                contest = contest with { Stage = "voting", Round = contest.Round + 1, RoundOpenedTick = tick,
-                    RoundDeadlineTick = checked(tick + day), Voters = adults, Candidates = choices, Ballots = [] };
+                contest = contest with
+                {
+                    Stage = "voting",
+                    Round = contest.Round + 1,
+                    RoundOpenedTick = tick,
+                    RoundDeadlineTick = checked(tick + day),
+                    Voters = adults,
+                    Candidates = choices,
+                    Ballots = []
+                };
                 if (choices.Length == 0)
                     contest = SaveRound(contest, tick, "failed") with { Stage = "failed", SettledTick = tick, Reason = "No willing independent adult resident is available." };
                 else
@@ -147,8 +173,11 @@ public static class TownLandCaseJudgeRules
 
     private static TownLandCaseJudgeContest SaveRound(TownLandCaseJudgeContest contest, long tick, string result) =>
         contest.RoundOpenedTick is not { } opened || contest.Rounds.Any(r => r.Number == contest.Round) ? contest :
-            contest with { Rounds = contest.Rounds.Append(new(contest.Round, opened, tick, result,
-                contest.Voters, contest.Candidates, contest.Ballots, contest.TiedCandidates)).ToArray() };
+            contest with
+            {
+                Rounds = contest.Rounds.Append(new(contest.Round, opened, tick, result,
+                contest.Voters, contest.Candidates, contest.Ballots, contest.TiedCandidates)).ToArray()
+            };
 
     internal static TownLandCase CancelContest(TownLandCase item, long tick, string reason)
     {

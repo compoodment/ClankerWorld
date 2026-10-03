@@ -11,7 +11,10 @@ public sealed class TownLandHearingGrantHistoryTests
     private static readonly GridPoint[] HearingPlot = [new(1, 0), new(2, 0)];
     private static readonly IReadOnlyDictionary<string, string?> Households = new Dictionary<string, string?>
     {
-        ["alpha-adult"] = "alpha", ["beta-adult"] = "beta", ["judge"] = "neutral", ["other"] = "other-household",
+        ["alpha-adult"] = "alpha",
+        ["beta-adult"] = "beta",
+        ["judge"] = "neutral",
+        ["other"] = "other-household",
     };
     private static readonly TownLandCaseParty[] Parties =
     [new("alpha", "household", "alpha", "town", ["alpha-adult"]), new("beta", "household", "beta", "town", ["beta-adult"])];
@@ -29,14 +32,18 @@ public sealed class TownLandHearingGrantHistoryTests
         foreach (var voter in Adults.Take(3)) council = TownGovernanceRules.VoteProposal(council, proposalId, voter, true, 0);
         request = request with
         {
-            CouncilProposalId = proposalId, Status = "granted", SettledTick = 0,
-            Consents = [new("alpha-adult", true, 0)], GrantAdults = ["alpha-adult"],
+            CouncilProposalId = proposalId,
+            Status = "granted",
+            SettledTick = 0,
+            Consents = [new("alpha-adult", true, 0)],
+            GrantAdults = ["alpha-adult"],
         };
         var original = new HouseholdLandUseRight(HouseholdLandGrantRules.RightId(request.Id), "town", "alpha",
             GrantPlot, 0, HouseholdLandGrantRules.GrantSource(request.Id), 30);
         var title = new TownLandTitleRecord("title", "town", GrantPlot, 0);
         var map = new SeededMap(8, 2, 0,
-            (from y in Enumerable.Range(0, 2) from x in Enumerable.Range(0, 8)
+            (from y in Enumerable.Range(0, 2)
+             from x in Enumerable.Range(0, 8)
              select new TerrainTile(new(x, y), TerrainKind.Meadow)).ToArray(), [], [], "grant-history-fixture");
         var government = TownGovernmentState.Create() with
         {
@@ -64,7 +71,8 @@ public sealed class TownLandHearingGrantHistoryTests
         var moved = TownLandRightsRules.ReassignFootprintRights(map, endedRights, new HashSet<GridPoint> { new(0, 0) }, "beta", 12);
         hearings = TownLandHearingRules.RecordBuildingTransfer(hearings, map, "house", [new(0, 0)], "beta", endedRights, moved, 12);
         var town = new TownRuntimeState("town", "Town", "founded", 0, Adults, [], GrantPlot,
-            Governance: council, Government: government) { LandHearings = hearings };
+            Governance: council, Government: government)
+        { LandHearings = hearings };
 
         // These are the production validators, composed across the grant and court ledgers.
         HouseholdLandGrantRules.Validate(12, [town], moved, [request], Adults.ToHashSet(StringComparer.Ordinal));

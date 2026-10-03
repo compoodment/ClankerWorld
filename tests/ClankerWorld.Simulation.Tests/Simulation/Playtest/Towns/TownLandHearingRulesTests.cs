@@ -9,7 +9,7 @@ public sealed class TownLandHearingRulesTests
     private static readonly GridPoint[] Plot = [new(1, 0), new(2, 0)];
     private static readonly string[] Adults = ["a", "b", "judge", "other"];
     private static readonly IReadOnlyDictionary<string, string?> Households = new Dictionary<string, string?>
-        { ["a"] = "alpha", ["b"] = "beta", ["judge"] = "neutral", ["other"] = "other-household" };
+    { ["a"] = "alpha", ["b"] = "beta", ["judge"] = "neutral", ["other"] = "other-household" };
     private static readonly TownLandCaseParty[] Parties =
         [new("alpha", "household", "alpha", "town", ["a"]), new("beta", "household", "beta", "town", ["b"])];
 
@@ -141,11 +141,17 @@ public sealed class TownLandHearingRulesTests
         Assert.Equal(new[] { original }, baseline);
         Assert.Equal(JsonSerializer.Serialize(moved), JsonSerializer.Serialize(TownLandHearingRules.ApplyAdjustments(state, baseline)));
         Validate(state, moved, fixture.Council, 12);
-        var damaged = state with { Adjustments = state.Adjustments.Select(a => a.Kind == "ruling" ?
-            a with { PriorRights = a.PriorRights.Select(r => r with { Version = new string('0', 64) }).ToArray() } : a).ToArray() };
+        var damaged = state with
+        {
+            Adjustments = state.Adjustments.Select(a => a.Kind == "ruling" ?
+            a with { PriorRights = a.PriorRights.Select(r => r with { Version = new string('0', 64) }).ToArray() } : a).ToArray()
+        };
         Assert.Throws<InvalidDataException>(() => Validate(damaged, moved, fixture.Council, 12));
-        var fabricated = state with { Adjustments = state.Adjustments.Select(a => a.Kind == "building_transfer" ?
-            a with { ResultRights = a.ResultRights.Select(r => r with { AgreedEndTick = 90 }).ToArray() } : a).ToArray() };
+        var fabricated = state with
+        {
+            Adjustments = state.Adjustments.Select(a => a.Kind == "building_transfer" ?
+            a with { ResultRights = a.ResultRights.Select(r => r with { AgreedEndTick = 90 }).ToArray() } : a).ToArray()
+        };
         Assert.Throws<InvalidDataException>(() => Validate(fabricated, moved, fixture.Council, 12));
     }
 
@@ -372,8 +378,11 @@ public sealed class TownLandHearingRulesTests
             new("title-proof", 1, "record", "record_inspection", "a", title.Id, TownLandHearingRules.RecordVersion(title), 1, "a", 1, "Recorded Town title"), council.Knowledge);
         var ended = version with { EndedTick = 5, EndedByProposalId = "proposal:amend" };
         Assert.Equal(evidence.SourceVersion, TownLandHearingRules.LawVersion(ended));
-        var government = Government() with { Laws = [new("law", [ended,
-            new(2, "Use", "Amended wording", "jurisdiction", [], "proposal:amend", 5)])] };
+        var government = Government() with
+        {
+            Laws = [new("law", [ended,
+            new(2, "Use", "Amended wording", "jurisdiction", [], "proposal:amend", 5)])]
+        };
         TownLandHearingValidation.Validate(Map(), 6, "town", state, [Right()],
             [title, new("claim-title", "town", [new(6, 0)], 5)], Adults.ToHashSet(), Households.Values.OfType<string>().ToHashSet(), council, 10, government);
         var damaged = state with { Cases = [state.Cases[0] with { Evidence = state.Cases[0].Evidence.Select(e => e.Id == "law-proof" ? e with { SourceVersion = "invented" } : e).ToArray() }] };
@@ -389,7 +398,7 @@ public sealed class TownLandHearingRulesTests
         (from y in Enumerable.Range(0, 2) from x in Enumerable.Range(0, 8) select new TerrainTile(new(x, y), TerrainKind.Meadow)).ToArray(), [], [], "hearing-fixture");
     private static TownLandTitleRecord Title() => new("title", "town", [new(0, 0), new(1, 0), new(2, 0), new(3, 0)], 0);
     private static TownGovernmentState Government() => TownGovernmentState.Create() with
-        { Arrangement = new("council", "mayor"), Offices = [new("land", "a", 0, 100, null, null, "mayor-election")] };
+    { Arrangement = new("council", "mayor"), Offices = [new("land", "a", 0, 100, null, null, "mayor-election")] };
     private static TownGovernanceState Council(string caseId)
     {
         var council = TownGovernanceRules.PostNotice(TownGovernanceState.Create(Adults), "land_hearing", caseId + ":1", "Formal plot hearing", 0);

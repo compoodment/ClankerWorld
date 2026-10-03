@@ -101,7 +101,7 @@ public sealed class TownLandCasePartySuccessionTests
 
     private static SocietyInhabitant Person(string id, string household) =>
         new(id, id, 0, SocietyInhabitantStatus.Active, SocietyAgeBand.Adult, 10_000, household, null, SocietyWorkRole.Unassigned, 0);
-    private static IReadOnlyDictionary<string, IReadOnlyList<TownLandCaseParty>> ForCase(string id, IReadOnlyList<TownLandCaseParty> parties) =>
+    private static Dictionary<string, IReadOnlyList<TownLandCaseParty>> ForCase(string id, IReadOnlyList<TownLandCaseParty> parties) =>
         new Dictionary<string, IReadOnlyList<TownLandCaseParty>>(StringComparer.Ordinal) { [id] = parties };
     private static void Validate(TownLandHearingState state, TownGovernanceState council, TownGovernmentState government,
         IReadOnlyList<TownLandCaseParty> parties, long tick)

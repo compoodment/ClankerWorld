@@ -142,11 +142,24 @@ adjustments reproduce current permissions without destroying that receipt.
 Request-resolution pointers identify the ruling and exact tiles decided, leaving
 only unresolved portions as competing claims. Loading validates the case's notice,
 source, read, authority and adjustment links rather than inventing missing evidence.
+Notice party snapshots remain historical; current response standing is derived
+from the captured world, while each ruling retains its actual closure parties.
+
+The same ledger saves voluntary transfer requests with immutable exact plots,
+right versions, published party rosters and terms. Actual notice receipts remain
+separate from individual accept or decline responses and their contemporaneous
+household rosters. A completed transfer retains its final adult rosters and
+exact permission-adjustment receipt. Loading validates that completion against
+every required adult's informed acceptance and the unchanged original grant terms; incomplete,
+declined, withdrawn or invalidated transfers cannot carry a completed adjustment.
+Pending consent requirements are derived from living adults, so a new adult must
+personally accept before completion. These records preserve original Council
+grant receipts without transferring title or physical property.
 
 These records share prepared-tick rollback with permissions, requests, civic
 receipts and events. Current-format reload and continuation retain pending
-windows and rulings without applying a decision twice. Reopening preserves the
-earlier ruling and current rights until a new correction is committed. Older
+windows, rulings and transfers without applying a decision twice. Reopening
+preserves the earlier ruling and current rights until a new correction is committed. Older
 alpha schemas are refused and preserved without migration.
 
 Schema 33 records a child's personal-model role at birth, provider endpoint, model

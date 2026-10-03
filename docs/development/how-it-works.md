@@ -841,6 +841,23 @@ job and releases its materials. Existing expired rights are not silently
 removed; ordinary Town advancement opens an expiry hearing and keeps the old
 permission provisional until a lawful ruling.
 
+`TownRuntimeState.LandHearings.Transfers` records voluntary transfers of exact
+existing permission plots. Published right versions, terms and party snapshots
+are immutable. Every current active adult or elder in every source and receiving
+household needs an actual notice receipt and a separate admitted personal-model
+acceptance. Filing and reading supply no acceptance. Added adults must learn and
+accept too; consent belongs to the exact household, so moving households cannot
+reuse it for a different party. No routine Council or mayor approval is required.
+Expiry, changed source rights, disputed claims and open hearings block completion.
+A decline or withdrawal closes the request without transferring permission.
+Completion stores the actual final party roster and one replayable bounded
+adjustment, preserving original grant terms and all outside pieces. Title,
+membership, buildings, crops, inventory and private-building access stay intact.
+Owner projection distinguishes current pending rosters from completed-transfer
+rosters, showing names, clocks, actual awareness and accepted adult counts. All
+pending transfers and eight recent closed ones are projected; the full ledger
+remains saved.
+
 `TownRuntimeState.LandHearings` saves each public case's exact plot and right
 versions, affected parties, formal notice and response deadline. Equivalent
 filings join the live case without resetting its clock. Material right changes
@@ -849,6 +866,12 @@ publication, actual civic receipts and case-file reads are separate records;
 reads identify the evidence and rehearing requests actually available to that
 adult. Physical relays carry only material their source learned. Owner inspection
 does not supply agent knowledge or private memories.
+Notice revisions retain their published party snapshots. The shared pure
+`TownLandCasePartyRules.CurrentParties` derives current adult responders and Town
+representation from the same captured rights, request masks, inhabitants, civic
+authority and clock used by the runtime. Death, departure and succession update
+current standing without rewriting the original notice. Owner views label these
+roles separately, and each ruling projects its actual closure party roster.
 
 Hearing actions enter through admitted personal-model civic choices. Public
 statements remain allegations; actual nearby observations and inspected rights,
