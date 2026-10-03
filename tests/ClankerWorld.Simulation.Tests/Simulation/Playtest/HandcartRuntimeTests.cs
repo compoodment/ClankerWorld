@@ -382,7 +382,7 @@ public sealed class HandcartRuntimeTests
 
     [Theory]
     [InlineData("haul_smith_input", "smith_input_delivered", 2)]
-    [InlineData("supply_workstation:wood", "workstation_supplied", 0)]
+    [InlineData("supply_workstation:wood", "workstation_supplied", 1)]
     public async Task HouseholdHaulsLeaveABuildersCartMaterialsWithThem(string haul, string delivered, int extraWood)
     {
         using var setup = NormalPathWorld.CreateGenerated("cart-materials-kept", _ => new CartChooser("safe_idle"));
@@ -390,10 +390,8 @@ public sealed class HandcartRuntimeTests
         var smith = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == "first-town-blacksmith");
         var actor = state.Society.Society.Inhabitants.First(person => person.HouseholdId == smith.HouseholdId).Id;
         var inventory = state.Society.Society.Inventory;
-        inventory = InventoryFixture.AddLot(inventory, "kept-wood", "wood", actor, 4);
-        inventory = InventoryFixture.AddLot(inventory, "kept-rope", "rope", actor, 1);
-        if (extraWood > 0)
-            inventory = InventoryFixture.AddLot(inventory, "extra-wood", "wood", actor, extraWood);
+        inventory = InventoryFixture.AddLot(inventory, "cart-wood", "wood", actor, 4 + extraWood);
+        inventory = InventoryFixture.AddLot(inventory, "cart-rope", "rope", actor, 1);
         inventory = InventoryFixture.AddLot(inventory, "stock-fittings", "iron_fittings", smith.HouseholdId!, 2,
             groundPosition: new(smith.Position.X, smith.Position.Y));
         // Household hauls once took a builder's carried cart wood into stock, and the builder
@@ -401,26 +399,21 @@ public sealed class HandcartRuntimeTests
         var chooser = new CartChooser(haul);
         using var world = PrivateWorldRuntime.Restore(AtPosition(state, actor, smith.Position, inventory),
             id => id == actor ? chooser : new CartChooser("safe_idle"));
+        int Carried(string kind) => world.Society.Inventory.Lots.Where(lot => lot.OwnerId == actor && lot.ItemKind == kind &&
+            ToolProgressionRules.IsTopLevelCarriedLot(lot, actor)).Sum(lot => lot.Quantity);
         await Until(world, () => chooser.Offered.Contains("collect_handcart_material:iron_fittings") &&
             chooser.Offered.Contains(haul), 20);
         // Wood beyond the cart's set still goes where it is needed.
-        if (extraWood > 0)
-            await Until(world, () => world.ExportState().Events.Any(item => item.Kind == delivered &&
-                item.Detail.Contains($":extra-wood:{extraWood}:", StringComparison.Ordinal)));
+        await Until(world, () => Carried("wood") == 4);
+        Assert.Contains(world.ExportState().Events, item => item.Kind == delivered && item.Detail.Contains(":cart-wood:", StringComparison.Ordinal));
         for (var tick = 0; tick < 30; tick++)
         {
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
             world.Validate();
         }
 
-        Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == delivered &&
-            item.Detail.Contains(":kept-", StringComparison.Ordinal));
-        foreach (var (lotId, quantity) in new[] { ("kept-wood", 4), ("kept-rope", 1) })
-        {
-            var lot = world.Society.Inventory.GetLot(lotId);
-            Assert.Equal(quantity, lot.Quantity);
-            Assert.True(ToolProgressionRules.IsTopLevelCarriedLot(lot, actor) && lot.OwnerId == actor);
-        }
+        Assert.Equal(4, Carried("wood"));
+        Assert.Equal(1, Carried("rope"));
     }
 
     [Fact]

@@ -1290,9 +1290,10 @@ the untouched remainder's original location and reservations.
 Crafting uses the Blacksmith's handcart recipe with the adult worker's carried
 wood, fittings and rope. An adult collects them from household or Town
 Warehouse stock only while the whole set is carried or in that stock, and the
-Blacksmith, Store and workstation supply hauls and the Blacksmith's make-room
-step leave the carried set with them rather than returning it to stock. Exact inputs are reserved through the production job;
-the personal cart appears on the work site's ground after completion. Repair
+Blacksmith, Store and workstation supply hauls leave the carried set with them
+rather than returning it to stock. Exact inputs are reserved through the
+production job; the personal cart appears on the work site's ground after
+completion. Repair
 consumes three carried material reservations atomically. Unloading can retain
 damaged goods on the ground and works after the cart breaks. Property transfer
 and inheritance keep the entire cart/cargo family at its existing position.

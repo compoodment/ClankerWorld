@@ -78,6 +78,16 @@ public sealed partial class SettlementParenthoodTests
             {
                 Inhabitants = adultState.Inhabitants.Select(person => person.InhabitantId != childId &&
                     person.Project?.JobId is null ? person with { Project = null, LastDecisionContext = null } : person).ToArray(),
+                // Nor may an intention saved then, such as hauling to the Blacksmith,
+                // carry off this task's wood before the adult chooses the task.
+                Society = adultState.Society with
+                {
+                    Cognition = adultState.Society.Cognition with
+                    {
+                        Runtimes = adultState.Society.Cognition.Runtimes
+                            .Select(runtime => runtime with { CurrentIntention = null }).ToArray(),
+                    },
+                },
             };
             var household = grown.HouseholdId!;
             var inventory = InventoryFixture.AddLot(adultState.Society.Society.Inventory,

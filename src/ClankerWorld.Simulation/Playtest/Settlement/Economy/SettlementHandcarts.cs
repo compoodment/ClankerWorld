@@ -65,13 +65,6 @@ public sealed partial class PrivateWorldRuntime
         return false;
     }
 
-    /// <summary>Carried lots a would-be cart builder keeps for the cart; making room sets other cargo down first.</summary>
-    private string[] KeptHandcartLotIds(string actor) => HandcartToBuild(actor) is { } recipe
-        ? society.Checkpoint.Inventory.Lots.Where(lot => ToolProgressionRules.IsTopLevelCarriedLot(lot, actor) &&
-                lot.OwnerId == actor && recipe.Inputs.Any(input => input.ResourceId == lot.ItemKind))
-            .Select(lot => lot.Id).ToArray()
-        : [];
-
     // A would-be cart builder keeps the materials they carry for it. Household hauls take only what is
     // beyond that, or they would return it to stock as fast as the builder collects it from there.
     private int SpareCarriedQuantity(string actor, InventoryLot lot)
