@@ -60,6 +60,11 @@ internal static partial class OwnerEndpoints
                 return Results.Ok(entry);
             }
             catch (ArgumentException exception) { return Results.BadRequest(new { error = exception.Message }); }
+            catch (GeographyClearingUnavailableException)
+            {
+                return Results.Conflict(new OwnerControlFailure("no_playable_candidate",
+                    "There is no room for a first Town with these settings."));
+            }
             catch (InvalidOperationException exception) { return Results.Conflict(new { error = exception.Message }); }
         });
 
@@ -82,6 +87,11 @@ internal static partial class OwnerEndpoints
                 return Results.BadRequest(new { error = "World seed, size, or water choice is invalid." });
             try { return Results.Ok(services.GetRequiredService<WorldSelectionCoordinator>().Preview(options!)); }
             catch (ArgumentException exception) { return Results.BadRequest(new { error = exception.Message }); }
+            catch (GeographyClearingUnavailableException)
+            {
+                return Results.Conflict(new OwnerControlFailure("no_playable_candidate",
+                    "There is no room for a first Town with these settings."));
+            }
             catch (InvalidOperationException exception) { return Results.Conflict(new { error = exception.Message }); }
         });
 

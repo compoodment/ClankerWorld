@@ -105,12 +105,26 @@ public sealed class AgentIdentityChoiceTests
 
     private sealed class IdentityReplyHandler(string? personality = "Patient and curious", string? aspiration = "Explore the riverbanks") : HttpMessageHandler
     {
-        public List<string> Bodies { get; } = [];
+        private readonly List<string> bodies = [];
+
+        // Requests arrive on background tasks while the test reads, so it reads a copy.
+        public IReadOnlyList<string> Bodies
+        {
+            get
+            {
+                lock (bodies) return [.. bodies];
+            }
+        }
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
-            Bodies.Add(await request.Content!.ReadAsStringAsync(cancellationToken));
-            var first = Bodies.Count == 1;
+            var body = await request.Content!.ReadAsStringAsync(cancellationToken);
+            bool first;
+            lock (bodies)
+            {
+                bodies.Add(body);
+                first = bodies.Count == 1;
+            }
             var answer = JsonSerializer.Serialize(new
             {
                 selected_candidate_id = "safe_idle",

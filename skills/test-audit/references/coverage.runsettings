@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Coverage settings for test audits. Every ClankerWorld.* assembly is measured,
+  so a new production project is included without editing this file. Test code
+  is excluded by path; what remains of the test assembly is the production
+  source it links (its <Compile Include> items). The test SDK's generated entry
+  point is excluded by package path, whatever its version. SingleHit records
+  only whether each location ran, which keeps long simulation loops fast.
+-->
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat Code Coverage">
+        <Configuration>
+          <Format>cobertura</Format>
+          <SingleHit>true</SingleHit>
+          <Include>[ClankerWorld.*]*</Include>
+          <IncludeTestAssembly>true</IncludeTestAssembly>
+          <ExcludeByFile>**/tests/**/*.cs,**/microsoft.net.test.sdk/**/*.cs</ExcludeByFile>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>

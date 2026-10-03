@@ -1,0 +1,3 @@
+- Open Settings from the Main Menu and from a paused world. Check that the Build line shows the client version and seven commit characters, and its tooltip shows the full commit. Include the line in a report. ([#730](https://github.com/compoodment/ClankerWorld/issues/730))
+- Open Developer tools with F12 and check that the same client Build line is readable at the interface size Windows chooses. ([#730](https://github.com/compoodment/ClankerWorld/issues/730))
+- In the exported Windows executable's Properties, check that the product name includes the version and short commit, and compare it with the export's `manifest.sha256` and Settings. The numeric file/product version fields use four numbers. ([#730](https://github.com/compoodment/ClankerWorld/issues/730))
