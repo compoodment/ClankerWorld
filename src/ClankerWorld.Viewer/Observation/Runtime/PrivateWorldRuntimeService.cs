@@ -336,6 +336,8 @@ public sealed partial class PrivateWorldRuntimeService(
                         worldEvent.Kind is not ("town_resources_stored" or "town_resource_collected") &&
                         project?.Blocker is not null);
                 }
+                foreach (var worldEvent in result.Events.Where(item => item.Kind.StartsWith("handcart_", StringComparison.Ordinal)))
+                    HandcartTelemetry.Record(logger, worldEvent, runtime.Society.Inventory, actors);
                 foreach (var worldEvent in result.Events.Where(item => item.Kind == "survival_condition_changed"))
                 {
                     var actor = EventActor(worldEvent.Detail);

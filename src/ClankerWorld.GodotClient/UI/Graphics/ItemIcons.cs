@@ -12,7 +12,7 @@ namespace ClankerWorld.GodotClient.UI;
 /// counted. The set is the complete catalogue the owner approved in the art
 /// review, so many icons are
 /// for agreed items the simulation does not make yet, such as milk, the
-/// weapons, the handcart and the coin; they wait here until it does.
+/// weapons and the coin; they wait here until it does.
 /// </summary>
 public static class ItemIcons
 {
