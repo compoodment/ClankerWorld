@@ -45,6 +45,7 @@ public sealed partial class PrivateWorldRuntime
             int baselineOrderCancellationCount;
             IReadOnlyDictionary<string, PlaytestPlannedRoute> routesBefore;
             PendingHostedDecision[] completed = [];
+            IReadOnlySet<string> activeHostedIds = new HashSet<string>(StringComparer.Ordinal);
             PendingWillDecision[] completedWills = [];
             PendingConversationTurn[] completedConversationTurns = [];
             PendingIdentityMoment[] completedIdentityMoments = [];
@@ -94,6 +95,7 @@ public sealed partial class PrivateWorldRuntime
                         }
                     }
                     completed = pendingHosted.Values.Where(item => item.Task.IsCompleted).ToArray();
+                    activeHostedIds = pendingHosted.Keys.ToHashSet(StringComparer.Ordinal);
                     completedWills = pendingWills.Values.Where(item => item.Task.IsCompleted).ToArray();
                     activeWillIds = pendingWills.Keys.ToArray();
                     inactiveWillReasons = new Dictionary<string, string>(pendingWillCancellationReasons, StringComparer.Ordinal);
@@ -125,7 +127,7 @@ public sealed partial class PrivateWorldRuntime
                 maxCognitionDispatchPerCycle,
                 trustedPreparedState: true);
             proposed.previousPlannedRoutes = routesBefore;
-            var result = await proposed.AdvancePreparedTickAsync(deferHosted, completed, completedWills,
+            var result = await proposed.AdvancePreparedTickAsync(deferHosted, completed, activeHostedIds, completedWills,
                 activeWillIds, inactiveWillReasons, completedConversationTurns, cancellationToken).ConfigureAwait(false);
             var tickMilliseconds = Math.Round(System.Diagnostics.Stopwatch.GetElapsedTime(tickStarted).TotalMilliseconds, 1);
             await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -178,6 +180,9 @@ public sealed partial class PrivateWorldRuntime
                     proposed.WorldTick,
                     IsConversationTurnProviderCurrent);
                 proposed.CompleteIdentityMoments(completedIdentityMoments, IsIdentityMomentProviderCurrent);
+                if (deferHosted)
+                    proposed.ProcessWillDecisions(completedWills, activeWillIds, inactiveWillReasons,
+                        IsWillDecisionProviderCurrent);
                 CommitPreparedTick(proposed);
                 plannedRoutes = proposed.plannedRoutes;
                 lastTickMilliseconds = tickMilliseconds;
@@ -211,7 +216,8 @@ public sealed partial class PrivateWorldRuntime
                     foreach (var id in inactiveWillReasons.Keys)
                         pendingWillCancellationReasons.Remove(id);
                     if (commitPermitted is null || commitPermitted()) StartWillDecisions();
-                    if (commitPermitted is null || commitPermitted()) StartHostedDecisions();
+                    if (commitPermitted is null || commitPermitted())
+                        StartHostedDecisions(completed.Select(item => item.Request.Observation.InhabitantId));
                 }
                 else
                 {
@@ -237,12 +243,18 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
-    private void StartHostedDecisions()
+    private void StartHostedDecisions(IEnumerable<string> completedIds)
     {
         var capacity = Math.Max(0, maxCognitionDispatchPerCycle - pendingHosted.Count);
         if (capacity == 0) return;
-        foreach (var preview in society.PreviewHostedRequests(pendingHosted.Keys.Concat(pendingIdentityMoments.Keys)
-                     .ToHashSet(StringComparer.Ordinal)).Take(capacity))
+        // Applying a reply can change its actor's choices. Refresh any retained
+        // work in the next prepared tick before spending another model call.
+        var excluded = pendingHosted.Keys.Concat(pendingIdentityMoments.Keys).Concat(completedIds)
+            .Concat(inhabitants.Keys.Where(id => IsConversationBusy(id) && !ShouldDispatchConversationChoice(id)))
+            .ToHashSet(StringComparer.Ordinal);
+        // A turn or another participant's decision can change the conversation
+        // after this tick's observation was queued. Defer it before batching.
+        foreach (var preview in society.PreviewHostedRequests(excluded, IsQueuedObservationReady).Take(capacity))
         {
             var cancellation = new CancellationTokenSource();
             var task = Task.Run(async () =>
@@ -259,11 +271,20 @@ public sealed partial class PrivateWorldRuntime
                         CognitionProviderFailures.FromException(exception, cancellation.Token));
                 }
             });
-            pendingHosted.Add(preview.InhabitantId, new PendingHostedDecision(preview.Request, task, cancellation));
+            pendingHosted.Add(preview.InhabitantId, new PendingHostedDecision(preview.Request, task, cancellation,
+                inhabitants[preview.InhabitantId].LastDecisionContext));
             RecordModelAttempt(preview.InhabitantId, "waiting");
             AppendEvent("hosted_decision_started", preview.InhabitantId);
         }
     }
+
+    // Queued work with no call in flight is rebuilt before dispatch, except an
+    // order that finished before the model ever saw it: its exact message is still sent.
+    private bool IsQueuedObservationReady(InhabitantObservation observation) =>
+        IsUndeliveredFinishedOrderDecision(observation) ||
+        observation.WorldTick == WorldTick &&
+        string.Equals(observation.ConversationChoiceContext,
+            ConversationChoiceContextFor(observation.InhabitantId), StringComparison.Ordinal);
 
     private void CancelPendingHosted(string inhabitantId, bool underRuntimeGate = true)
     {
@@ -296,6 +317,7 @@ public sealed partial class PrivateWorldRuntime
         map = proposed.map;
         fertility = proposed.fertility;
         fields = proposed.fields;
+        handcartHitches = proposed.handcartHitches;
         geographyOptions = proposed.geographyOptions;
         contentRegistry = proposed.contentRegistry;
         worldSystems = proposed.worldSystems;
@@ -331,6 +353,7 @@ public sealed partial class PrivateWorldRuntime
         conversations = proposed.conversations;
         conversationBudgets = proposed.conversationBudgets;
         businessTrades = proposed.businessTrades;
+        toolMakingRequests = proposed.toolMakingRequests;
         roadBridgeDecks = proposed.roadBridgeDecks;
         nextInstructionSequence = proposed.nextInstructionSequence;
     }
@@ -400,7 +423,7 @@ public sealed partial class PrivateWorldRuntime
     }
 
     private async ValueTask<PrivateWorldStepResult> AdvancePreparedTickAsync(
-        bool deferHosted, IReadOnlyList<PendingHostedDecision> completed,
+        bool deferHosted, IReadOnlyList<PendingHostedDecision> completed, IReadOnlySet<string> activeHostedIds,
         IReadOnlyList<PendingWillDecision> completedWills, IReadOnlyList<string> activeWillIds,
         IReadOnlyDictionary<string, string> inactiveWillReasons,
         IReadOnlyList<PendingConversationTurn> completedConversationTurns,
@@ -423,10 +446,12 @@ public sealed partial class PrivateWorldRuntime
             StageBlacksmithContent();
             StageOrnamentContent();
             StageHouseCookingContent();
+            StageRestaurantContent();
             StagePotteryContent();
             StageSiloContent();
             StageTailorContent();
             StageCareContent();
+            StageBuiltInContent(KnowledgeContent.PackageId, HouseContent.PackageId, KnowledgeContent.Create, "knowledge_content_staged");
             StageBuiltInContent(BusinessContent.PackageId, HouseContent.PackageId, BusinessContent.Create, "business_content_staged");
             var readyPackages = contentRegistry.GetActivationCandidates(targetTick);
             var reservationPreview = WorldAssetReservationLedger.Restore(
@@ -450,8 +475,7 @@ public sealed partial class PrivateWorldRuntime
             }
 
             assetReservations = reservationPreview;
-            society.AdvanceTo(targetTick);
-            if (deferHosted) await ProcessWillDecisionsAsync(completedWills, activeWillIds, inactiveWillReasons);
+            society.AdvanceTo(targetTick, TownStoresForDueEstates(targetTick));
             var previousClimate = worldSystems.Climate;
             var campPosition = WeatherAnchor;
             var previousCampWeather = WeatherAt(campPosition);
@@ -506,22 +530,26 @@ public sealed partial class PrivateWorldRuntime
             AdvanceMedicalTreatments();
             MaintainSettlementTrades();
             MaintainBusinessTrades();
+            MaintainToolMakingRequests();
             DrainNeeds();
             AdvanceMedicalTreatments();
             RemoveDeadPhysicalState();
+            ReconcileHandcartHitches();
             CancelFieldWorkForUnavailableWorkers();
             AdvanceSettlementCouncil();
             AdvanceTownGovernance();
+            SettleTownAdmissions();
             MaintainLessons();
             MaintainPartnerships();
             MaintainHousing();
+            MaintainRelocation();
             MaintainMovingCareGroups();
             MaintainParenthood();
             MaintainContinuity();
             MaintainDependentCare();
             DiscoverIdentityMoments();
             UpdateConversationsForTick(targetTick);
-            EnqueueDueCognition();
+            EnqueueDueCognition(activeHostedIds);
             var deferredDecisions = new List<SocietyCognitionDispatchResult>();
             if (deferHosted)
             {
@@ -538,8 +566,20 @@ public sealed partial class PrivateWorldRuntime
                             .ToHashSet(StringComparer.Ordinal)
                         : CreateCandidates(id, physical).Select(candidate => candidate.Id)
                             .ToHashSet(StringComparer.Ordinal);
+                    // Choices that merely disappeared leave the accepted reply valid; only a
+                    // choice the request lacked or a change in urgent needs asks the model again.
+                    var requestedIds = request.Observation.Candidates.Select(candidate => candidate.Id)
+                        .ToHashSet(StringComparer.Ordinal);
+                    bool? decisionContextChanged = item.DecisionContext is { } previousContext &&
+                        physical.LastDecisionContext is { } currentContext
+                        ? !string.Equals(previousContext, currentContext, StringComparison.Ordinal) &&
+                            (!previousContext.StartsWith($"{NeedsUrgentFood(physical)}:{NeedsUrgentWarmth(physical)}:", StringComparison.Ordinal) ||
+                             legal.Any(candidate => !requestedIds.Contains(candidate) &&
+                                (!candidate.StartsWith(MedicalAllowPrefix, StringComparison.Ordinal) ||
+                                 physical.Survival is { IllnessBasisPoints: >= 2_500 })))
+                        : null;
                     var decision = society.CompleteDeferredCognition(item.Request, outcome.Response,
-                        outcome.Failure, legal);
+                        outcome.Failure, legal, decisionContextChanged);
                     if (decision is not null)
                     {
                         RecordModelCompletion(id, decision.Admission, outcome.Failure);
@@ -562,6 +602,8 @@ public sealed partial class PrivateWorldRuntime
                         if (outcome.Response is { } response)
                             ApplyChosenNameOutcome(item.Request, response, decision.Admission);
                         CloseUnresolvedNameRetry(item.Request);
+                        if (physical.IdentityChoicePending && inhabitants[id] is { IdentityChoicePending: false } identified)
+                            society.CompleteQueuedIdentityChoice(id, identified.Personality, identified.Aspiration);
                         deferredDecisions.Add(decision);
                         AppendEvent("hosted_decision_completed", $"{id}:{decision.Admission.Outcome}");
                     }
@@ -573,7 +615,10 @@ public sealed partial class PrivateWorldRuntime
                 }
             }
             var dispatch = deferHosted
-                ? await society.DispatchDeterministicCognitionAsync(cancellationToken).ConfigureAwait(false)
+                ? await society.DispatchDeterministicCognitionAsync(
+                    activeHostedIds.Concat(inhabitants.Keys.Where(id =>
+                            IsConversationBusy(id) && !ShouldDispatchConversationChoice(id)))
+                        .ToHashSet(StringComparer.Ordinal), IsQueuedObservationReady, cancellationToken).ConfigureAwait(false)
                 : await society.DispatchCognitionAsync(cancellationToken).ConfigureAwait(false);
             var decisions = deferredDecisions.Concat(dispatch.Decisions)
                 .OrderBy(item => item.InhabitantId, StringComparer.Ordinal).ToArray();
@@ -585,9 +630,12 @@ public sealed partial class PrivateWorldRuntime
             var orderActorsHandledThisTick = ApplyContinuingIntentions(
                 decisions.Select(item => item.InhabitantId), waiting);
             AdvanceMedicalTreatments();
-            if (deferHosted) ApplySafeRoutinesWhileWaiting(waiting, orderActorsHandledThisTick);
+            // An agent whose reply was accepted this tick already acted, even if newer work stays queued.
+            if (deferHosted) ApplySafeRoutinesWhileWaiting(waiting.Except(decisions.Select(item => item.InhabitantId), StringComparer.Ordinal), orderActorsHandledThisTick);
             AdvanceBridgeTraffic();
             SettleGuardianSearches();
+            MaintainToolMakingRequests();
+            MaintainKnowledgeWriting();
 
             AppendEvent("tick_advanced", targetTick.ToString(System.Globalization.CultureInfo.InvariantCulture));
             var newEvents = events.Skip(startingEvent).ToArray();

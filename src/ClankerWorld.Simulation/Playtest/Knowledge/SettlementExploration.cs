@@ -48,7 +48,7 @@ public sealed partial class PrivateWorldRuntime
         // Shelter at the starting tile is not protection carried along on the outing.
         return map.FootNeighbors(person.Position).Where(map.IsPassable).All(next =>
         {
-            var loss = Math.Max(0, WeatherExposure(next) - ClothingProtection(person.InhabitantId, next));
+            var loss = Math.Max(0, OutdoorExposure(next) - ClothingProtection(person.InhabitantId, next));
             var stepTicks = (RoadStepCost(person.Position, next) + 99) / 100 +
                 SettlementIllnessRules.TravelDelayTicks(condition.IllnessBasisPoints);
             return loss == 0 || condition.WarmthBasisPoints - loss * stepTicks * ExplorationStepsPerOuting * 2 >= UrgentWarmth;
@@ -140,7 +140,6 @@ public sealed partial class PrivateWorldRuntime
     {
         if (exploration.OutingPath.Count == 1 && person.Position == exploration.OutingPath[0])
         {
-            CreateKnowledgeArtifact(actor, exploration.OutingDiscoveries ?? []);
             inhabitants[actor] = person with
             {
                 Exploration = exploration with
@@ -168,7 +167,6 @@ public sealed partial class PrivateWorldRuntime
             };
         else if (moved.MoveWaitTicks >= 30)
         {
-            CreateKnowledgeArtifact(actor, exploration.OutingDiscoveries ?? []);
             inhabitants[actor] = moved with
             {
                 Exploration = exploration with
