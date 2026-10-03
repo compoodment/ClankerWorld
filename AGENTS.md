@@ -21,8 +21,9 @@ any change to a shared rule in CONTRIBUTING only.
   state instead of trusting old notes.
 - The rules change often, and you read them only when your session starts,
   from your checkout. At the start, run `git fetch origin` and
-  `git diff HEAD origin/main -- AGENTS.md CONTRIBUTING.md CLAUDE.md`; if it
-  shows changes, read main's versions (`git show origin/main:CONTRIBUTING.md`).
+  `git diff HEAD origin/main -- AGENTS.md CONTRIBUTING.md CLAUDE.md skills/`;
+  if it shows changes, read main's versions
+  (`git show origin/main:CONTRIBUTING.md`).
   Note `git rev-parse --short origin/main`, and before each new issue or review
   claim fetch again and diff from that commit. If anything changed, follow the
   new rules from then on and note the new commit.
@@ -151,8 +152,9 @@ What each job adds:
   reviewing it (a second only while the first waits on CI or its merging
   turn). Fix what you find yourself, push each fix as it builds, take
   your turn for the final run with `status:merging`, and check main's CI after
-  each merge. Follow the [review-merge skill](skills/review-merge/SKILL.md)
-  to keep two pull requests moving, so the merging turn is never idle.
+  each merge. The [review-merge skill](skills/review-merge/SKILL.md) shows
+  how to review your next pull request while the first waits, so the merging
+  turn is never idle.
 - **Owner requests:** the owner asks you directly for something, such as a
   change to how the repository works or a set of decisions. It needs no issue
   or claim; say so in the pull request. Turn agreed work into Implementation

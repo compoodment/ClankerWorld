@@ -6,9 +6,10 @@ description: Review and merge ClankerWorld pull requests as fast as the rules al
 # Review and merge
 
 This skill gets a ready pull request onto main with as little waiting as
-possible. It adds no rules. [CONTRIBUTING](../../CONTRIBUTING.md#review-and-merge)
-sets what a merge needs, [AGENTS](../../AGENTS.md) sets your job and how you
-sign, and an owner instruction applies as those pages describe. Read the
+possible. [CONTRIBUTING](../../CONTRIBUTING.md#review-and-merge) sets what a
+merge needs, [AGENTS](../../AGENTS.md) sets your job and how you sign, and an
+owner instruction applies as those pages describe. Where this skill differs
+from them, they win; the rest is advice for doing the job quickly. Read the
 current rules, toolchain and CI timings from the repository each time instead
 of carrying them over from an earlier session. Run commands from the
 repository root.
@@ -35,8 +36,9 @@ repository root.
   Keep other people's work. Use a separate worktree for each pull request you
   claim.
 - Read CONTRIBUTING and AGENTS in full at the start, and note the main commit
-  you read them from. Before each new claim, fetch main and diff the guidance
-  against that commit; read only what changed.
+  you read them from. Before each new claim, fetch main and diff
+  `AGENTS.md CONTRIBUTING.md CLAUDE.md skills/` against that commit; read
+  only what changed.
 - Decide your session signature ([signing](../../AGENTS.md#sign-your-comments)).
   For each pull request, find which sessions authored it: an author, or an
   author's subagent, can't give it the independent review.
@@ -44,8 +46,9 @@ repository root.
   [Build and test](../../docs/development/build-and-test.md#toolchain). Share
   downloads and package caches between worktrees.
 - If `git fetch` fails to authenticate, this repository is public: try an
-  anonymous HTTPS read for that one command, with credential helpers turned
-  off. Check separately that your GitHub tools can do the writes you need. If
+  anonymous read for that one command, with credential helpers turned off,
+  such as `git -c credential.helper= fetch https://github.com/compoodment/ClankerWorld.git main`.
+  Check separately that your GitHub tools can do the writes you need. If
   a route is broken, spend a few minutes on it, then report what is missing.
   Never print credentials.
 
@@ -63,12 +66,13 @@ reviewed, green pull request is ready the moment the turn frees.
 3. **Take the turn for the first** once its CI is green and main merges into
    it cleanly. Its final run is the last catch-up with main, CI on that head,
    and the merge.
-4. **Hand the turn straight on.** The moment the first merges, the turn is
-   free. If your second is green and main merges into it cleanly, take the
-   turn for it at once: merge main in, push and let its CI run while main's CI
-   runs on your first merge. Merge the second only after main's CI on the
-   first has passed. If main's CI fails instead, release the turn and follow
-   the real-break steps in CONTRIBUTING.
+4. **Take the turn again for your second.** The moment the first merges, the
+   turn is free. If your second is green and main merges into it cleanly,
+   take the turn for it at once, with the usual search, label, comment and
+   second search: merge main in, push and let its CI run while main's CI runs
+   on your first merge. Merge the second only once main's CI has passed too.
+   If main's CI fails, follow CONTRIBUTING's flaky-test or real-break steps;
+   on a real break, release the turn so the revert or fix can go first.
 5. **Follow through on the first** (section 7) while the second's CI runs.
    The second is now your first; claim a new second when it starts waiting.
 6. **Repeat** until nothing ready is left, the owner says stop, or you hit a
@@ -80,7 +84,7 @@ reviewed, green pull request is ready the moment the turn frees.
 | Your pushed head waits for CI | Finish the review and any fix checks; start your second review. |
 | Your head is green, but another pull request holds the turn | Keep reviewing your second; watch for the turn to free. |
 | You hold the turn | Merge main in, check what changed, push, wait for CI, merge. |
-| You just merged; main's CI is running on it | Take the turn for your next green pull request and start its final run; do the follow-through; don't merge again until main's CI passes. |
+| You just merged; main's CI is running on it | Take the turn for your next green pull request and start its final run; do the follow-through; merge again only once main's CI passes. |
 
 Ways to keep the turn from stalling:
 
@@ -125,10 +129,10 @@ current head, readiness and any existing claim.
   in through merges apart from the feature, so you don't review them again.
   Note the head you reviewed.
 - Check behavior as well as whether it merges: the server deciding world
-  changes, model output treated as untrusted, who physically holds and
-  reserves things, cancellation, and saves and replay where the change touches
-  them. The [documentation guide](../../docs/README.md) shows where each
-  contract is written. Check docs, issue scope and the changelog entry as they
+  changes, model output treated as untrusted, which agent or household holds
+  or has reserved each item, cancellation, and saves and replay where the
+  change touches them. The [documentation guide](../../docs/README.md) shows
+  where each contract is written. Check docs, issue scope and the changelog entry as they
   apply.
 - For a large change, read independent parts at the same time with read-only
   subagents. They belong to your session, so they don't affect who counts as
@@ -193,8 +197,8 @@ doesn't cover a new push, and a passing export is not a Windows playtest.
   again and again.
 - Tell the owner what you are actually waiting on: CI queueing, tests running,
   or another reviewer's turn.
-- Never cancel and restart CI to look busy, and never push just to keep a
-  claim.
+- Never cancel and restart CI to look busy, and never push an empty or
+  pointless commit to keep a claim. A real catch-up with main is a fine push.
 
 ## 7. Merge and follow through
 
@@ -221,9 +225,10 @@ doesn't cover a new push, and a passing export is not a Windows playtest.
 
 ## 8. Report
 
-- For each pull request: the squash commit, how long it took from claim to
-  merge, and what it mostly waited on (review, fixes, CI, the turn, or main's
-  CI).
+- Report each merge as [AGENTS](../../AGENTS.md#report-your-result) asks: the
+  squash commit, its issues closed and main's CI result. Add how long it took
+  from claim to merge, and what it mostly waited on (review, fixes, CI, the
+  turn, or main's CI).
 - Give a full timing breakdown only when the owner asks, or when you are
   working out why merging is slow. Then separate active work from waiting,
   and don't add up waits that overlapped.

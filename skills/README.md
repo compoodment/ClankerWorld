@@ -32,10 +32,14 @@ instruction from the owner. Run its commands from the repository root.
 - Put helper scripts in `scripts/` and supporting files in `references/`. An
   optional `agents/openai.yaml` sets how Codex shows the skill.
 - Link the new folder from `.claude/skills/` and `.agents/skills/`, so Claude
-  Code and Codex list it: from the repository root, run
-  `ln -s ../../skills/<name> .claude/skills/<name>` and the same for
+  Code and Codex list it: from the repository root, in a Linux or macOS shell,
+  run `ln -s ../../skills/<name> .claude/skills/<name>` and the same for
   `.agents/skills/`. Add a row to the table above and to the
   [AGENTS.md](../AGENTS.md#find-the-right-source) source table.
+- Git for Windows checks links out as small text files unless symbolic links
+  are turned on (`git config core.symlinks true`, which needs Windows
+  Developer Mode). Without them, Claude Code and Codex on that checkout don't
+  list the skills, and agents find them through AGENTS.md instead.
 - A skill changes how agents work, so a change to this folder follows the
   same rules as a change to AGENTS.md: it is P0 and needs review like any
   other pull request.

@@ -6,6 +6,14 @@ const { test } = require('node:test');
 // Claude Code lists skills from .claude/skills/ and Codex from .agents/skills/;
 // each skill lives once in skills/ and both folders link to it.
 const root = path.join(__dirname, '..', '..');
+
+// A checkout without symbolic links, as Git for Windows makes by default, stores each link as a
+// small file holding its target.
+function linkTarget(link) {
+  const target = fs.lstatSync(link).isSymbolicLink() ? fs.readlinkSync(link) : fs.readFileSync(link, 'utf8');
+  return target.trim().replaceAll('\\', '/');
+}
+
 const skills = fs.readdirSync(path.join(root, 'skills'), { withFileTypes: true })
   .filter(entry => entry.isDirectory())
   .map(entry => entry.name);
@@ -26,9 +34,7 @@ test('Claude Code and Codex find every skill, and only skills that exist', () =>
     const links = fs.readdirSync(path.join(root, folder)).sort();
     assert.deepEqual(links, [...skills].sort(), folder);
     for (const name of links) {
-      const link = path.join(root, folder, name);
-      assert.ok(fs.lstatSync(link).isSymbolicLink(), `${folder}/${name} should be a link`);
-      assert.equal(fs.readlinkSync(link), `../../skills/${name}`, `${folder}/${name}`);
+      assert.equal(linkTarget(path.join(root, folder, name)), `../../skills/${name}`, `${folder}/${name}`);
     }
   }
 });
