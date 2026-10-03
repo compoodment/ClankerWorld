@@ -201,8 +201,7 @@ these windows and council terms. Passed admission requests are recorded, but
 the separate process for joining a Town has not been connected yet; approval
 alone gives no household place or access to stored goods.
 
-The Town Hall project is under verification in this branch. In its implemented
-flow, an adult resident proposes a named Hall on clear Town-titled land, and
+An adult resident can propose a named Town Hall on clear Town-titled land, and
 the Council votes through the same process as an ordinary proposal. In
 **World Info → Towns**, its plan shows the site and entrance, exact budget and
 Council result. An approved project also shows delivered materials, construction

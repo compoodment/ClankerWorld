@@ -503,6 +503,9 @@ original passed proposal in that Town's full canonical governance ledger.
 The records retain the approval tick, stage, work done, last transition, blocker,
 completed building ID and every actual load's contributor, source and resulting
 lot IDs, quantity, pickup/delivery times, exact reservation and release history.
+Each material receipt keeps the identity derived from its exact delivery. The
+normal owner removal command records a completed Hall's removal time while
+retaining the consumed receipts; a missing Hall without that record is refused.
 The supplied query counts usable Town-owned stock reserved on the approved
 ground site, or that project's completed consumption receipts. Carried promises,
 expired or released claims and cumulative deliveries whose goods are no longer
@@ -525,8 +528,10 @@ donations or the Hall. Discarding a prepared tick must leave no transfer,
 reservation, progress, building or event. Late replies must recheck the current
 project, actor authority and physical goods. Approval in the owner observation
 comes from the complete proposal ledger even after it leaves the eight recent
-results. Normal runtime, malformed-save, replay and rollback verification for
-this change are still pending; these requirements are not a test result. Earlier
+results. `TownProjectRuntimeTests` and `TownProjectSaveValidationTests` cover
+generated-world gathering and donation, genuine Warehouse loads, intermediate
+restore/replay, discarded prepared ticks, stale votes, retained removal and
+coherently altered receipt/source references. Earlier
 alpha schemas, including 53, are refused visibly and preserved without migration.
 
 ## Pending model work and estates

@@ -90,9 +90,21 @@ public sealed class TownProjectSaveValidationTests
         Assert.Equal("completed", Assert.Single(state.Towns![0].Projects).Stage);
         var healthy = PrivateWorldRuntimeCodec.Encode(state);
         Assert.Equal(healthy, PrivateWorldRuntimeCodec.Encode(PrivateWorldRuntimeCodec.Decode(healthy)));
-        var damaged = JsonNode.Parse(healthy)!;
-        damaged["state"]!["towns"]![0]!["projects"]![0]!["deliveries"]![0]!["sourceLotId"] = "unrelated-spent-source";
-        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Decode(Encoding.UTF8.GetBytes(damaged.ToJsonString())));
-        Assert.Equal(healthy, PrivateWorldRuntimeCodec.Encode(state));
+        foreach (var damage in new[] { "source", "receipt-identity" })
+        {
+            var damaged = JsonNode.Parse(healthy)!;
+            var delivery = damaged["state"]!["towns"]![0]!["projects"]![0]!["deliveries"]![0]!;
+            if (damage == "source") delivery["sourceLotId"] = "unrelated-spent-source";
+            else
+            {
+                var originalReceipt = delivery["reservationId"]!.GetValue<string>();
+                var receipt = damaged["state"]!["society"]!["society"]!["inventory"]!["reservations"]!.AsArray()
+                    .Single(item => item!["id"]!.GetValue<string>() == originalReceipt)!;
+                receipt["id"] = "unrelated-completed-receipt";
+                delivery["reservationId"] = "unrelated-completed-receipt";
+            }
+            Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Decode(Encoding.UTF8.GetBytes(damaged.ToJsonString())));
+            Assert.Equal(healthy, PrivateWorldRuntimeCodec.Encode(state));
+        }
     }
 }

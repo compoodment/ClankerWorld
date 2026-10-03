@@ -59,7 +59,9 @@ public sealed class TownProjectRuntimeTests
         }
         scenario.Policy.ReleaseDonation.TrySetResult(true);
 
-        await scenario.UntilAsync(() => scenario.Project.Stage == "completed", 360);
+        // The generated world's loose-wood trips, seed storage and final forest load
+        // need real travel time before the residents can perform the paid work.
+        await scenario.UntilAsync(() => scenario.Project.Stage == "completed", 420);
         AssertPaidHall(scenario);
         Assert.Contains(scenario.Project.Deliveries, delivery => delivery.SourceLotId == carried.Id &&
             delivery.ContributorId == traveler.Actor && delivery.DeliveredTick is not null);
@@ -435,6 +437,20 @@ internal sealed class TownProjectScenario : IDisposable
         policy.HallCompleted = () => World.Towns[0].Projects.Any(project => project.Stage == "completed");
         policy.ActorAtSite = actor => World.Towns[0].Projects.Count == 1 &&
             World.Inhabitants.Single(person => person.InhabitantId == actor).Position == Project.Plan.Site;
+        policy.MaterialStillNeeded = material => World.Towns[0].Projects.Count == 1 &&
+            Project.Plan.Budget.Single(cost => cost.ResourceId == material).Amount >
+            TownProjectRules.DeliveredQuantity(Project, World.Towns[0].Id, World.Society.Inventory, material);
+        policy.MayStoreSpareTool = lotId =>
+        {
+            if (World.Towns[0].Projects.Count != 1) return false;
+            var lot = World.Society.Inventory.Lots.FirstOrDefault(item => item.Id == lotId);
+            return (lot is null ? null : ToolProgressionRules.Find(lot.ItemKind)?.Family) switch
+            {
+                ToolFamily.Axe => policy.MaterialStillNeeded?.Invoke("wood") == false,
+                ToolFamily.Pickaxe => policy.MaterialStillNeeded?.Invoke("stone") == false,
+                _ => false,
+            };
+        };
         InitialLayerDigest = MapLayerManifestCodec.Digest(world.ExportState().Map) ??
             throw new InvalidOperationException("A normal generated fixture must retain all independent map layers.");
     }
@@ -495,10 +511,38 @@ internal sealed class TownProjectScenario : IDisposable
             }
         }
         Assert.True(reached(), $"Phase not reached by tick {World.WorldTick}: " +
-            JsonSerializer.Serialize(World.Towns[0].Projects, JsonOptions) + " Choices: " +
+            JsonSerializer.Serialize(World.Towns[0].Projects.Select(project => new
+            {
+                project.Plan.Name,
+                project.Stage,
+                project.WorkDone,
+                project.LastTransitionTick,
+                Wood = project.Deliveries.Where(delivery => delivery.ItemKind == "wood" && delivery.ReleasedTick is null).Sum(delivery => delivery.Quantity),
+                Stone = project.Deliveries.Where(delivery => delivery.ItemKind == "stone" && delivery.ReleasedTick is null).Sum(delivery => delivery.Quantity),
+                project.Blocker,
+            }), JsonOptions) + " Choices: " +
             string.Join(", ", Policy.Choices.TakeLast(12).Select(choice => choice.Id)) + " Offers: " +
-            string.Join("; ", Policy.Observations.TakeLast(4).Select(observation => observation.InhabitantId + ":" +
-                string.Join(",", observation.Candidates.Select(candidate => candidate.Id)))));
+            string.Join("; ", Policy.Observations.TakeLast(4).Select(observation => observation.InhabitantId +
+                $" fullness={observation.HungerBasisPoints} warmth={observation.Self?.WarmthBasisPoints}:" +
+                string.Join(",", observation.Candidates.Select(candidate => candidate.Id)))) + " Carry: " +
+            JsonSerializer.Serialize(World.Inhabitants.Select(person => new
+            {
+                person.InhabitantId,
+                person.Position,
+                Quantity = PersonalEquipmentRules.CarriedQuantity(World.Society.Inventory, person.InhabitantId, person.Equipment),
+                Capacity = PersonalEquipmentRules.Capacity(World.Society.Inventory, person.InhabitantId, person.Equipment),
+                Lots = World.Society.Inventory.Lots.Where(lot =>
+                    PersonalEquipmentRules.IsPhysicallyCarried(World.Society.Inventory, lot, person.InhabitantId)).Select(lot => new
+                    {
+                        lot.Id,
+                        lot.ItemKind,
+                        lot.OwnerId,
+                        lot.CarrierId,
+                        lot.Quantity,
+                        lot.ConditionBasisPoints,
+                        Selected = PersonalEquipmentRules.IsSelected(person.Equipment, lot.Id),
+                    }),
+            }), JsonOptions));
     }
 
     internal (string Actor, string LotId)? DonationTraveler()
@@ -539,6 +583,8 @@ internal sealed class TownProjectPolicy
     internal bool LawProposed { get; set; }
     internal Func<bool>? HallCompleted { get; set; }
     internal Func<string, bool>? ActorAtSite { get; set; }
+    internal Func<string, bool>? MaterialStillNeeded { get; set; }
+    internal Func<string, bool>? MayStoreSpareTool { get; set; }
     internal string? HoldDonationForActor { get; set; }
     internal TaskCompletionSource<bool> DonationStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     internal TaskCompletionSource<bool> ReleaseDonation { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -560,7 +606,12 @@ internal sealed class TownProjectPolicy
             var observation = request.Observation;
             policy.Observations.Enqueue(observation);
             var candidates = observation.Candidates;
-            var selected = (!policy.HoldVote || actor == TownProjectScenario.Author
+            // Use offered ordinary maintenance before cold or hunger prevents real work.
+            var selected = candidates.Where(candidate => candidate.DeterministicPriority <= 5 &&
+                    candidate.Id is "consume_food" or "collect_shared_food" or "take_food_from_pot" or
+                        "make_room_for_food" or "harvest_food" or "seek_food" or "wear_clothing" or "seek_warmth")
+                .OrderBy(candidate => candidate.DeterministicPriority).ThenBy(candidate => candidate.Id, StringComparer.Ordinal)
+                .FirstOrDefault() ?? (!policy.HoldVote || actor == TownProjectScenario.Author
                 ? candidates.FirstOrDefault(c => c.Id.Contains("|yes|", StringComparison.Ordinal)) : null) ??
                 candidates.FirstOrDefault(c => c.Id.Contains("|read|", StringComparison.Ordinal));
             string? text = null;
@@ -581,13 +632,19 @@ internal sealed class TownProjectPolicy
             }
             if (selected is null && policy.Supply)
             {
-                // Real starter tools, collected by separate people so a whole harvest fits.
-                if (policy.CollectTools)
+                var workerMaterial = actor switch
                 {
-                    var tool = actor switch
+                    "founder:00000000000000000000000000000002" => "wood",
+                    TownProjectScenario.Author => "stone",
+                    _ => null,
+                };
+                // Real starter tools, collected by separate people so a whole harvest fits.
+                if (policy.CollectTools && workerMaterial is not null && policy.MaterialStillNeeded?.Invoke(workerMaterial) == true)
+                {
+                    var tool = workerMaterial switch
                     {
-                        "founder:00000000000000000000000000000002" => "collect_wooden_axe",
-                        "founder:00000000000000000000000000000003" => "collect_wooden_pickaxe",
+                        "wood" => "collect_wooden_axe",
+                        "stone" => "collect_wooden_pickaxe",
                         _ => null,
                     };
                     selected = candidates.FirstOrDefault(candidate => candidate.Id == tool);
@@ -597,10 +654,19 @@ internal sealed class TownProjectPolicy
                 {
                     if (selected is not null) break;
                     if (!policy.PersonalSupply && prefix is "town_project_donate:" or "town_project_gather:") continue;
-                    selected = candidates.FirstOrDefault(c => c.Id.StartsWith(prefix, StringComparison.Ordinal));
+                    // Keep the wood worker from acquiring a pickaxe merely because stone sorts first.
+                    selected = prefix == "town_project_gather:" && policy.CollectTools
+                        ? candidates.FirstOrDefault(c => workerMaterial is not null && c.Id.StartsWith(prefix, StringComparison.Ordinal) &&
+                            c.Description.StartsWith($"Gather personal {workerMaterial} ", StringComparison.Ordinal))
+                        : candidates.FirstOrDefault(c => c.Id.StartsWith(prefix, StringComparison.Ordinal));
                     if (selected is not null) break;
                 }
             }
+            if (selected is null && policy.Supply && policy.PersonalSupply)
+                selected = candidates.FirstOrDefault(candidate =>
+                    candidate.Id.StartsWith("household_store_personal:", StringComparison.Ordinal) &&
+                    (candidate.Id.Contains("tree-seed:", StringComparison.Ordinal) ||
+                     policy.MayStoreSpareTool?.Invoke(candidate.Id["household_store_personal:".Length..]) == true));
             selected ??= candidates.FirstOrDefault(c => c.Id.Contains("|visit|", StringComparison.Ordinal));
             selected ??= candidates.Single(c => c.Id == "safe_idle");
             policy.Choices.Enqueue((actor, selected.Id, observation.WorldTick));
