@@ -19,7 +19,12 @@ public sealed partial class PrivateWorldRuntime
         (item.Kind is "child_cared_for" or "dependent_cared_for") && item.Detail == dependent &&
         item.WorldTick > WorldTick - IllnessCareCooldownTicks);
 
-    private bool Partners(string actor, string other) => AdultResident(actor) && AdultResident(other) && !CloseKin(actor, other) &&
+    // Only adults can have children; elders cannot (the owner's answer of October 2).
+    private bool CanHaveChildren(string actor) => inhabitants.ContainsKey(actor) &&
+        society.Checkpoint.GetInhabitant(actor).AgeBand == SocietyAgeBand.Adult;
+
+    // A couple who may plan a child, keep a plan going and be held by the continuity rule.
+    private bool Partners(string actor, string other) => CanHaveChildren(actor) && CanHaveChildren(other) && !CloseKin(actor, other) &&
         society.Checkpoint.GetInhabitant(actor).HouseholdId is not null &&
         society.Checkpoint.GetInhabitant(other).HouseholdId is not null &&
         Partnerships(actor).Any(item => item.State == SocietyRelationshipState.Accepted &&

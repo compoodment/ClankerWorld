@@ -200,6 +200,11 @@ everything that is available in the current build. See [what works today](../wha
   becomes visibly overcrowded instead. The caregiver and birth home are saved
   with the plan and birth record. Other pregnancy timing and detailed childcare
   rules remain open.
+- **Elders cannot have children, agreed on October 2:** only adults can plan
+  or have a child. A plan in progress ends if either partner becomes an elder
+  before the birth, and the continuity rule holds only couples who can have
+  children. This answer is about having children; partnerships and caring for
+  children are unchanged.
 - **The first continuity rule, agreed on October 1
   ([#654](https://github.com/compoodment/ClankerWorld/issues/654)):** the rule
   is on while the world has **fewer than eight living agents who are not
