@@ -143,7 +143,7 @@ public sealed class CareProductionTests(ITestOutputHelper output)
     [InlineData("storage-room")]
     public async Task ClinicSupplyMovesTheWholeFilledJugOnlyWithActualRoomAndUnreservedContentsAcrossReload(string boundary)
     {
-        var state = WithClinic("care-whole-jug-supply");
+        var state = WithHouseCookingWaterReserve(WithClinic("care-whole-jug-supply"));
         var actor = AlphaActor(state);
         state = Stock(state, "care-supply-herbs", CareContent.MedicinalHerbs, Alpha, 4, Clinic);
         state = Stock(state, "care-supply-fuel", "wood", Alpha, 2, Clinic);
@@ -198,6 +198,7 @@ public sealed class CareProductionTests(ITestOutputHelper output)
             if (boundary == "reserved-water")
                 Assert.Equal(InventoryReservationState.Reserved,
                     world.Society.Inventory.GetReservation("care-supply-water-reserved").State);
+            AssertHouseCookingWaterReserve(world);
             var unchanged = PrivateWorldRuntimeCodec.Encode(world.ExportState());
             using var refusalReload = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(unchanged), _ => new Preferred([]));
             Assert.Equal(unchanged, PrivateWorldRuntimeCodec.Encode(refusalReload.ExportState()));
@@ -242,13 +243,15 @@ public sealed class CareProductionTests(ITestOutputHelper output)
             item.Detail == $"{actor}:care-supply-jug:1:{Clinic}");
         Assert.Contains(world.ExportState().Events, item => item.Kind == "household_stock_delivered" &&
             item.Detail.Contains("care-supply-jug", StringComparison.Ordinal));
+        AssertHouseCookingWaterReserve(world);
+        AssertHouseCookingWaterReserve(restored);
         Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
     }
 
     [Fact]
     public async Task OrdinarySupplyWalksFromTheRealHerbPatchAndCarriesFreshWaterHomeToTheClinicBeforeProducingMedicine()
     {
-        var state = WithClinic("care-normal-supply");
+        var state = WithHouseCookingWaterReserve(WithClinic("care-normal-supply"));
         var actor = AlphaActor(state);
         state = Stock(state, "care-pottery-clay", "clay", Alpha, 2, House);
         state = Stock(state, "care-pottery-fuel", "wood", Alpha, 1, House);
@@ -343,8 +346,41 @@ public sealed class CareProductionTests(ITestOutputHelper output)
                     world.Society.Inventory.GetLot(completed.JobId + ":output:00").StorageBuildingId,
                     world.Society.Inventory.GetLot(completed.JobId + ":output:00").Quantity));
             Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(restored!.ExportState()));
+            AssertHouseCookingWaterReserve(world);
+            AssertHouseCookingWaterReserve(restored);
         }
         finally { restored?.Dispose(); }
+    }
+
+    private static PrivateWorldRuntimeState WithHouseCookingWaterReserve(PrivateWorldRuntimeState state)
+    {
+        // One water input is already claimed and two remain usable for House
+        // meals. Its content claim holds this separate jug here, so the Clinic
+        // cases exercise their original jug and capacity/claim boundary.
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory,
+            "care-house-reserve-jug", InventoryContainerRules.WaterJug, Alpha, 1,
+            storageBuildingId: House);
+        inventory = InventoryFixture.AddLot(inventory, "care-house-reserve-water",
+            InventoryContainerRules.FreshWater, Alpha, 3, storageBuildingId: House,
+            containerLotId: "care-house-reserve-jug");
+        inventory = InventoryFixture.Reserve(inventory, "care-house-reserve-water-claim", Alpha,
+            "care-house-reserve-water", 1, "house_cooking", state.Society.Society.WorldTick + 1_000);
+        return WithInventory(state, inventory);
+    }
+
+    private static void AssertHouseCookingWaterReserve(PrivateWorldRuntime world)
+    {
+        var jug = world.Society.Inventory.GetLot("care-house-reserve-jug");
+        var water = world.Society.Inventory.GetLot("care-house-reserve-water");
+        Assert.Equal((InventoryContainerRules.WaterJug, Alpha, House, (string?)null, 1, 10_000),
+            (jug.ItemKind, jug.OwnerId, jug.StorageBuildingId, jug.DeliveryBuildingId,
+                jug.Quantity, jug.ConditionBasisPoints));
+        Assert.Equal((InventoryContainerRules.FreshWater, Alpha, House, (string?)null, "care-house-reserve-jug", 3),
+            (water.ItemKind, water.OwnerId, water.StorageBuildingId, water.DeliveryBuildingId,
+                water.ContainerLotId, water.Quantity));
+        var claim = world.Society.Inventory.GetReservation("care-house-reserve-water-claim");
+        Assert.Equal((Alpha, "care-house-reserve-water", 1, InventoryReservationState.Reserved),
+            (claim.OwnerId, claim.LotId, claim.Quantity, claim.State));
     }
 
     private static PrivateWorldRuntimeState WithClinic(string seed)

@@ -336,6 +336,8 @@ public sealed partial class PrivateWorldRuntimeService(
                         worldEvent.Kind is not ("town_resources_stored" or "town_resource_collected") &&
                         project?.Blocker is not null);
                 }
+                foreach (var worldEvent in result.Events.Where(item => item.Kind.StartsWith("handcart_", StringComparison.Ordinal)))
+                    HandcartTelemetry.Record(logger, worldEvent, runtime.Society.Inventory, actors);
                 foreach (var worldEvent in result.Events.Where(item => item.Kind == "survival_condition_changed"))
                 {
                     var actor = EventActor(worldEvent.Detail);
@@ -538,11 +540,14 @@ public sealed partial class PrivateWorldRuntimeService(
         if (logger is null) return;
         var civicKind = worldEvent.Kind switch
         {
+            "town_civic_law" => TownCivicTransitionKind.LawRecorded,
+            "town_civic_government" => TownCivicTransitionKind.GovernmentRecorded,
+            "town_civic_mayor" => TownCivicTransitionKind.MayorRecorded,
             "town_civic_council" => TownCivicTransitionKind.CouncilChanged,
             "town_civic_election" => TownCivicTransitionKind.ElectionOpened,
             "town_civic_runoff" => TownCivicTransitionKind.RunoffOpened,
             "town_civic_proposal" => TownCivicTransitionKind.ProposalOpened,
-            "town_civic_result" => TownCivicTransitionKind.DecisionRecorded,
+            "town_civic_result" or "town_civic_land_use" or "land_use_granted" or "town_land_claimed" => TownCivicTransitionKind.DecisionRecorded,
             "town_civic_cancelled" => TownCivicTransitionKind.ElectionCancelled,
             _ => (TownCivicTransitionKind?)null,
         };
@@ -555,9 +560,29 @@ public sealed partial class PrivateWorldRuntimeService(
                 var proposal = governance.Proposals.FirstOrDefault(p => p.Id == fields[1]);
                 var election = governance.Election?.Id == fields[1] ? governance.Election :
                     governance.ElectionHistory.FirstOrDefault(e => e.Id == fields[1]);
+                var change = civicTown.Government?.Changes.FirstOrDefault(c => c.Id == fields[1]);
+                var mayor = civicTown.Government?.Contest ?? (civicTown.Government?.ContestHistory is { Count: > 0 } history ? history[^1] : null);
                 TownTelemetry.Civic(logger, worldEvent.WorldTick, civicTown.Id, civicTransition,
-                    governance.Form == "representative", governance.Members.Count, proposal?.Status ?? election?.Stage ?? "none",
-                    proposal?.Votes.Count(v => v.Yes) ?? 0, proposal?.Votes.Count(v => !v.Yes) ?? 0, election?.Ballots.Count ?? 0);
+                    governance.Form == "representative", governance.Members.Count, proposal?.Status ?? election?.Stage ?? change?.Status ?? mayor?.Stage ?? "none",
+                    proposal?.Votes.Count(v => v.Yes) ?? change?.Votes.Count(v => v.Yes) ?? 0,
+                    proposal?.Votes.Count(v => !v.Yes) ?? change?.Votes.Count(v => !v.Yes) ?? 0, election?.Ballots.Count ?? mayor?.Ballots.Count ?? 0);
+            }
+            return;
+        }
+        if (worldEvent.Kind is "town_admission_accepted" or "town_admission_approved" or "town_admission_lapsed")
+        {
+            var fields = worldEvent.Detail.Split('|');
+            var accepted = worldEvent.Kind == "town_admission_accepted";
+            // An approval names the Town, newcomer and proposal; acceptance and lapse add a fourth field.
+            if (fields.Length == (worldEvent.Kind == "town_admission_approved" ? 3 : 4) &&
+                runtime.Towns.FirstOrDefault(t => t.Id == fields[0]) is { } admittingTown)
+            {
+                TownTelemetry.Admission(logger, worldEvent.WorldTick, admittingTown.Id,
+                    accepted ? "admitted" : worldEvent.Kind == "town_admission_approved" ? "awaiting_acceptance" : "lapsed:" + fields[3],
+                    accepted ? fields[2] : "none",
+                    accepted && int.TryParse(fields[3], System.Globalization.NumberStyles.None,
+                        System.Globalization.CultureInfo.InvariantCulture, out var members) ? members : 0,
+                    admittingTown.ResidentIds.Count);
             }
             return;
         }

@@ -39,7 +39,7 @@ public sealed partial class PrivateWorldRuntime
                 candidates.Add(new CognitionCandidate(
                     TownConstructionCandidateIds.Building(definition.CanonicalId, site.Position),
                     $"Plan {definition.DisplayName} at ({site.Position.X}, {site.Position.Y}): {description}",
-                    20 + rank,
+                    20 + rank + HouseholdBuildingKinds.PlanOrder(HouseholdBuildingKind(definition)),
                     $"build-site:{site.Position.X},{site.Position.Y}"));
             }
         }

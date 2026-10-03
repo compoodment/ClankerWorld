@@ -103,6 +103,8 @@ public sealed record DirectBarterProposal(
 /// <summary>Current physical containers and provisional playtest capacity limits.</summary>
 public static class InventoryContainerRules
 {
+    public const string Handcart = "handcart";
+    public const int HandcartCapacity = 32;
     public const string StoragePot = "storage_pot";
     public const string WaterJug = "water_jug";
     public const string FreshWater = "fresh_water";
@@ -113,12 +115,14 @@ public static class InventoryContainerRules
     {
         "food", "berries", "wild_greens", "fruit", "grain", "flour", "potato", "potatoes",
         "greens", "cultivated_greens", "bread", "porridge", "stew",
+        "simple_meal", "berry_porridge", "fruit_porridge", "restaurant_meal",
     };
 
-    public static bool IsContainer(string itemKind) => itemKind is StoragePot or WaterJug;
+    public static bool IsContainer(string itemKind) => itemKind is StoragePot or WaterJug or Handcart;
 
     public static int Capacity(string itemKind) => itemKind switch
     {
+        Handcart => HandcartCapacity,
         StoragePot => StoragePotCapacity,
         WaterJug => WaterJugCapacity,
         _ => throw new InvalidOperationException($"'{itemKind}' is not a container."),
@@ -126,6 +130,7 @@ public static class InventoryContainerRules
 
     public static bool Allows(string containerKind, string contentKind) => containerKind switch
     {
+        Handcart => !IsContainer(contentKind) && contentKind != FreshWater,
         StoragePot => FoodKinds.Contains(contentKind),
         WaterJug => contentKind == FreshWater,
         _ => false,
@@ -243,10 +248,12 @@ public static partial class InventoryFixture
         long targetTick,
         int freshnessLossPerTick,
         IReadOnlySet<string>? itemKinds = null,
-        IReadOnlySet<string>? protectedOwnerIds = null)
+        IReadOnlySet<string>? protectedOwnerIds = null,
+        IReadOnlyDictionary<string, int>? itemFreshnessLossPerTick = null)
     {
         ValidateCheckpoint(checkpoint);
-        if (targetTick < checkpoint.WorldTick || freshnessLossPerTick < 0)
+        if (targetTick < checkpoint.WorldTick || freshnessLossPerTick < 0 ||
+            itemFreshnessLossPerTick?.Values.Any(rate => rate < 0) == true)
         {
             throw new ArgumentOutOfRangeException(nameof(targetTick));
         }
@@ -260,19 +267,22 @@ public static partial class InventoryFixture
                 return lot;
             }
 
-            var rate = itemKinds is not null && !itemKinds.Contains(lot.ItemKind) ? 0 : freshnessLossPerTick;
-            var elapsedAtRate = elapsed;
+            var rate = itemKinds is not null && !itemKinds.Contains(lot.ItemKind) ? 0
+                : itemFreshnessLossPerTick?.GetValueOrDefault(lot.ItemKind, freshnessLossPerTick) ?? freshnessLossPerTick;
+            var cadence = 1;
             if (lot.ContainerLotId is { } containerId &&
                 checkpoint.Lots.Any(container => container.Id == containerId && container.ItemKind == InventoryContainerRules.StoragePot))
             {
                 // Use a stable two-tick cadence so a one-point-per-tick decay
                 // rate still decays at half speed instead of truncating to zero.
-                elapsedAtRate = targetTick / 2 - lot.LastProcessedTick / 2;
+                cadence = 2;
             }
             if (protectedOwnerIds?.Contains(lot.OwnerId) == true)
             {
-                rate /= 2;
+                if (rate % 2 == 0) rate /= 2;
+                else cadence *= 2;
             }
+            var elapsedAtRate = targetTick / cadence - lot.LastProcessedTick / cadence;
             var freshnessLoss = checked(elapsedAtRate * rate);
             var freshness = freshnessLoss >= lot.FreshnessBasisPoints
                 ? 0
@@ -445,7 +455,9 @@ public static partial class InventoryFixture
                 CarrierId = null,
                 StorageBuildingId = destinationStorageBuildingId,
                 DeliveryBuildingId = destinationDeliveryBuildingId,
-                GroundPosition = lot.Id == source.Id ? destinationGroundPosition : null,
+                GroundPosition = lot.Id == source.Id
+                    ? destinationGroundPosition ?? (source.ItemKind == InventoryContainerRules.Handcart ? source.GroundPosition : null)
+                    : null,
             })
                 .ToDictionary(lot => lot.Id, StringComparer.Ordinal);
             return Commit(
@@ -1058,6 +1070,9 @@ public static partial class InventoryFixture
         {
             if (InventoryContainerRules.IsContainer(lot.ItemKind) && (lot.Quantity != 1 || lot.ContainerLotId is not null))
                 throw new InvalidDataException($"Reusable vessel lot '{lot.Id}' must be a single top-level item.");
+            if (lot.ItemKind == InventoryContainerRules.Handcart &&
+                (lot.GroundPosition is null || lot.StorageBuildingId is not null || lot.DeliveryBuildingId is not null))
+                throw new InvalidDataException($"Handcart lot '{lot.Id}' must have a physical ground position.");
             if (lot.ItemKind == InventoryContainerRules.FreshWater && lot.ContainerLotId is null)
                 throw new InvalidDataException($"Fresh water lot '{lot.Id}' must be contained in a water jug.");
             if (lot.ContainerLotId is not { } containerId) continue;
