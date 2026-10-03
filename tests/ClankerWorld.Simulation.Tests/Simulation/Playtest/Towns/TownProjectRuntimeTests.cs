@@ -339,12 +339,12 @@ public sealed class TownProjectRuntimeTests
         var plan = new TownProjectPayload("Civic Hall", hall.CanonicalId, new(4, 4),
             new(5, 8), hall.BuildCosts);
         var state = TownGovernanceRules.SubmitProposal(TownGovernanceState.Create(adults),
-            "town:test", "a", "project", null, "Ignore free-form cost claims.", "unchanged", adults, 0, 10, plan);
+            "town:test", "a", "project", null, "Ignore free-form cost claims.", "unchanged", adults, 0, 10, project: plan);
         var proposal = Assert.Single(state.Proposals);
         Assert.Equal(10, proposal.DeadlineTick);
         Assert.Equal(3, proposal.RequiredYes);
         var duplicate = TownGovernanceRules.SubmitProposal(state, "town:test", "b", "project", null,
-            "Other wording.", "unchanged", adults, 2, 10, plan with { Name = "Renamed Hall" });
+            "Other wording.", "unchanged", adults, 2, 10, project: plan with { Name = "Renamed Hall" });
         Assert.Single(duplicate.Proposals);
         Assert.Equal(proposal, duplicate.Proposals[0]);
         state = TownGovernanceRules.VoteProposal(state, proposal.Id, "a", true, 2);
@@ -355,12 +355,12 @@ public sealed class TownProjectRuntimeTests
         Assert.Equal("passed", state.Proposals[0].Status);
         Assert.Equal(plan, state.Proposals[0].Project);
         Assert.Throws<InvalidOperationException>(() => TownGovernanceRules.SubmitProposal(state,
-            "town:test", "visitor", "project", null, "Hall", "unchanged", adults, 3, 10, plan));
+            "town:test", "visitor", "project", null, "Hall", "unchanged", adults, 3, 10, project: plan));
         Assert.Throws<InvalidOperationException>(() => TownGovernanceRules.SubmitProposal(state,
-            "town:test", "a", "law", null, "Build a Hall.", "unchanged", adults, 3, 10, plan));
+            "town:test", "a", "law", null, "Build a Hall.", "unchanged", adults, 3, 10, project: plan));
         Assert.Throws<InvalidDataException>(() => TownGovernanceRules.SubmitProposal(state,
             "town:test", "a", "project", null, "Hall", "unchanged", adults, 3, 10,
-            plan with { Budget = [new("wood", 25), new("stone", 12)] }));
+            project: plan with { Budget = [new("wood", 25), new("stone", 12)] }));
     }
 
     [Theory]

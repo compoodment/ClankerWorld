@@ -143,7 +143,8 @@ public static class TownProjectValidation
     {
         var footprint = WorldContentSimulationRules.Footprint(TownHallContent.Hall3x4(), project.Plan.Site).ToHashSet();
         var title = titles.Where(item => item.TownId == town.Id).SelectMany(item => item.Tiles).ToHashSet();
-        var claimed = rights.SelectMany(item => item.Tiles).Concat(requests.SelectMany(item => item.Tiles))
+        var claimed = rights.SelectMany(item => item.Tiles)
+            .Concat(requests.Where(item => item.Status == "pending").SelectMany(item => item.Tiles))
             .Concat(titles.Where(item => item.TownId != town.Id).SelectMany(item => item.Tiles)).ToHashSet();
         var occupied = map.Resources.Select(item => item.Position).Concat(map.CampObjects.Select(item => item.Position))
             .Concat(fields.Select(item => item.Position))

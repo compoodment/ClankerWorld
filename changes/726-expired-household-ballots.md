@@ -1,0 +1,1 @@
+- An expired household food-policy vote can no longer pass because a nonapproving voter dies afterward. A majority reached on the deadline still counts.

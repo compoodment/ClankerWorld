@@ -19,7 +19,7 @@ public sealed partial class PrivateWorldRuntime
         .Sum(reservation => reservation.Quantity);
 
     private InventoryLot? CarriedPlantingSeed(string actor, string kind) => society.Checkpoint.Inventory.Lots
-        .Where(lot => lot.OwnerId == actor && lot.ItemKind == kind && lot.GroundPosition is null &&
+        .Where(lot => lot.OwnerId == actor && lot.ItemKind == kind && lot.ContainerLotId is null && lot.GroundPosition is null &&
             lot.StorageBuildingId is null && lot.DeliveryBuildingId is null && PlantingSeedQuantity(lot) > 0)
         .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
 

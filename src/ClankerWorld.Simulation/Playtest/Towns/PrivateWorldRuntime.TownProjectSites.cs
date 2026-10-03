@@ -19,7 +19,7 @@ public sealed partial class PrivateWorldRuntime
     private HashSet<GridPoint> TownProjectLandTiles(TownRuntimeState town)
     {
         var claimed = householdLandUseRights.SelectMany(r => r.Tiles)
-            .Concat(householdLandUseRequests.SelectMany(r => r.Tiles))
+            .Concat(householdLandUseRequests.Where(r => r.Status == "pending").SelectMany(r => r.Tiles))
             .Concat(townLandTitles.Where(t => t.TownId != town.Id).SelectMany(t => t.Tiles)).ToHashSet();
         return townLandTitles.Where(t => t.TownId == town.Id).SelectMany(t => t.Tiles)
             .Where(p => !claimed.Contains(p)).ToHashSet();

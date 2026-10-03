@@ -95,7 +95,8 @@ public partial class Main
             "town_founded" or "settlement_founded" or "town_founding_started" or "town_border_expanded" or
                 "town_project_approved" or "town_project_resumed"
                 => PixelIcons.Texture(PixelGlyph.Flag, ink, green, 1),
-            "town_resident_joined" or "town_resident_left" or "town_membership_evaluated" or "town_building_assigned"
+            "town_resident_joined" or "town_resident_left" or "town_membership_evaluated" or "town_building_assigned" or
+                "town_admission_accepted" or "town_admission_approved" or "town_admission_lapsed"
                 => PixelIcons.Texture(PixelGlyph.House, ink, wood, 1),
             "paused" => PixelIcons.Texture(PixelGlyph.Pause, ink, ink, 1),
             "resumed" => PixelIcons.Texture(PixelGlyph.Play, ink, ink, 1),
