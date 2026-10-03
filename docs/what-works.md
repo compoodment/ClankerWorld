@@ -173,9 +173,21 @@ The agent card's **Speak to them** box sends a message as a **Suggest** or an
 the agent's planning model containing the exact words; a queued order reaches it when that order
 becomes active. Any brief reply comes in the same response, without a separate
 acknowledgement request. Order steps do not cause requests every tick.
-The card keeps them under **Your messages** and shows whether the model heard
-them, whether an order is still open, and any short reply separately from
-private thoughts.
+The Profile keeps the four newest under **Your messages** and shows whether the
+model heard them, whether an order is still open, and any short reply
+separately from private thoughts.
+
+The quick card and the Profile name the agent's current order with its status
+as the host reports it: queued, waiting, doing, interrupted or blocked, with
+progress, the host's reason when it is held up and how many orders wait after
+it. With no open order they show how the latest order ended: finished,
+cancelled (saying when a newer order replaced it) or not understood. Finished
+appears only after the host records the work as done, never when a message is
+accepted or a model hears it. **All orders** in the Profile opens a reader with
+every open order, in the order they will be done, and the agent's six latest
+closed orders, which closed suggestions no longer push out. The game draws
+both from the host's snapshot and keeps no order list of its own, so after a
+reconnect or reload they show what the host holds.
 
 Orders currently cover eating carried food, collecting accessible household
 food to eat, going to a known food source or discovering one through ordinary
@@ -207,8 +219,9 @@ does not stop the agent from following its task or handling an urgent need.
 Deterministic local choices do not claim the model heard a message, and
 suggestions do not block recognized orders. Hands-on Windows paired-client
 checks remain pending in the
-[playtest list](../playtest/586-observer-guidance.md) and the
-[food-order checklist](../playtest/587-food-orders.md).
+[playtest list](../playtest/586-observer-guidance.md), the
+[food-order checklist](../playtest/587-food-orders.md) and the
+[order list checklist](../playtest/589-order-cards.md).
 
 Thoughts, memories, beliefs and explored map facts belong to the individual
 agent. The player can inspect mistakes and where a belief came from. Jev can

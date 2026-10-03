@@ -26,6 +26,7 @@ public partial class Main
             familyTreePanel.Hide();
             memoriesPanel.Hide();
             thoughtsPanel.Hide();
+            ordersPanel.Hide();
             ClearTileSelection();
             ClearBuildingSelection();
         }
