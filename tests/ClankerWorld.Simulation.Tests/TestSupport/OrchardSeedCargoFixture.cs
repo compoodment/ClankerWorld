@@ -12,7 +12,7 @@ public sealed class OrchardSeedCargoFixture : IAsyncLifetime
 
     public string Actor { get; private set; } = string.Empty;
     public string Household { get; private set; } = string.Empty;
-    public string BasketLotId => "food-recovery-basket";
+    private const string BasketLotId = "food-recovery-basket";
     public IReadOnlyList<string> SeedLotIds { get; private set; } = [];
 
     public PrivateWorldRuntimeState CreateState() => PrivateWorldRuntimeCodec.Decode(
