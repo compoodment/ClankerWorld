@@ -23,7 +23,7 @@ public sealed class StreetLanternRuntimeTests
     {
         using var scenario = StreetLanternScenario.Create(style);
         var definition = style == "stone" ? StreetLanternContent.Stone() : StreetLanternContent.Hanging();
-        ContentQuantity[] expected = style == "stone" ? [new("stone", 4)] : [new("wood", 4), new("iron", 1)];
+        ContentQuantity[] expected = style == "stone" ? [new("stone", 4)] : [new("iron", 1), new("wood", 4)];
         var roads = scenario.World.RoadTiles.ToArray();
         var privateProperty = PrivateBuildingMaterials(scenario.World);
         var unpaid = scenario.World.PlaceBuilding("unpaid-street-lantern", definition.CanonicalId, new(0, 0));
