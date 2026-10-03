@@ -224,12 +224,15 @@ An agent belongs to one Town or none. Traveling, visiting or losing a home
 does not change it. An adult with no Town, such as one you add outside the
 border, can walk to a Town's notice place and ask its council for admission. A
 resident can also ask the council to admit an adult nearby who has no Town, and
-that adult chooses whether to accept once they read the approval. Dependent
-children join with their caregiver. Once admitted, a resident may collect their
-Town's Warehouse stock in person, but approval never gives a House or household
-place. The agent's Profile shows their Town, what it lets them do and any
-admission in progress, and the Event Log notes approvals, admissions and
-approvals that no longer apply.
+that adult chooses whether to accept once they read the approval. They have
+one unpaused world day from the council's approval to accept; the Profile shows
+the deadline as a world date and time. An unaccepted approval expires, and
+someone may ask the council again later. A newcomer who made their own request
+joins as soon as it passes. Dependent children join with their caregiver. Once
+admitted, a resident may collect their Town's Warehouse stock in person, but
+approval never gives a House or household place. The agent's Profile shows
+their Town, what it lets them do and their admission status, and the Event Log
+notes approvals, admissions and approvals that no longer apply.
 
 Residents can also propose laws as a **subject: rule**, applying to the Town's
 claimed land, a nearby recorded site, or residents wherever they travel. Council
