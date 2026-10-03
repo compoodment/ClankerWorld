@@ -4,7 +4,7 @@ using ClankerWorld.Simulation.Harness;
 namespace ClankerWorld.Simulation.Playtest;
 
 /// <summary>
-/// Parses only the direct food, material-gathering and personal-storage orders that the runtime can execute.
+/// Parses only the direct food, material-gathering, personal-storage and collection orders that the runtime can execute.
 /// Every token must belong to one of these forms; unconsumed text is not guessed.
 /// </summary>
 internal static class PrivateWorldInstructionOrderParser
@@ -137,17 +137,18 @@ internal static class PrivateWorldInstructionOrderParser
             if (!TryReadAction(out var action, out var actionVerb))
                 return null;
 
-            if (keepPrefix && action is not ("harvest_food" or "consume_food" or "store_material"))
+            if (keepPrefix && action is not ("harvest_food" or "consume_food" or "store_material" or "collect_material"))
                 return null;
-            if (keepPrefix && actionVerb is not ("gathering" or "harvesting" or "eating" or "storing"))
+            if (keepPrefix && actionVerb is not ("gathering" or "harvesting" or "eating" or "storing" or "collecting"))
                 return null;
 
+            _ = action == "collect_material" && ReadWord("my");
             var hasExplicitQuantity = TryReadQuantity(out var requestedUnits);
             if (action == "seek_food" && hasExplicitQuantity)
                 return null;
 
-            var materialKind = action is "harvest_food" or "store_material" ? TryReadMaterialSubject() : null;
-            if (action == "store_material" && materialKind is null) return null;
+            var materialKind = action is "harvest_food" or "store_material" or "collect_material" ? TryReadMaterialSubject() : null;
+            if (action is "store_material" or "collect_material" && materialKind is null) return null;
             if (materialKind is not null && action == "harvest_food") action = "gather_material";
             var subject = materialKind is null ? TryReadFoodSubject() : default;
             if (materialKind is null && !subject.Present && (action != "consume_food" || hasExplicitQuantity))
@@ -156,8 +157,8 @@ internal static class PrivateWorldInstructionOrderParser
             var targetFoodKind = subject.FoodKind;
             var targetResourceId = subject.ResourceId;
             GridPoint? targetPosition = null;
-            var hasLocation = action == "store_material" ? TryReadHomeStorageLocation() :
-                TryReadLocation(action, targetFoodKind, ref targetResourceId, ref targetPosition, materialKind);
+            var hasLocation = action == "collect_material" || (action == "store_material" ? TryReadHomeStorageLocation() :
+                TryReadLocation(action, targetFoodKind, ref targetResourceId, ref targetPosition, materialKind));
             if (!hasLocation)
                 return null;
             if (action == "consume_food" && (targetResourceId is not null || targetPosition is not null))
@@ -192,6 +193,7 @@ internal static class PrivateWorldInstructionOrderParser
                     "harvest_food" when !hasExplicitQuantity => "harvests",
                     "gather_material" => hasExplicitQuantity ? "material_items" : "harvests",
                     "store_material" => hasExplicitQuantity ? "material_items" : "storage_loads",
+                    "collect_material" => hasExplicitQuantity ? "material_items" : "collection_loads",
                     _ => "food_items",
                 },
                 repeat,
@@ -239,6 +241,13 @@ internal static class PrivateWorldInstructionOrderParser
         {
             action = "";
             verb = "";
+            if (TryReadAnyWord("collect", "collects", "collecting"))
+            {
+                action = "collect_material";
+                verb = tokens[position - 1].Value;
+                return true;
+            }
+
             if (TryReadAnyWord("store", "stores", "storing"))
             {
                 action = "store_material";

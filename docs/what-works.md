@@ -187,8 +187,19 @@ stored and stops exactly at the requested number. Borrowed, reserved and
 promised delivery goods are unavailable to these orders. Walking earns no
 progress. Missing goods, a missing House, full storage or a blocked route leaves
 the task waiting with a reason. Queueing, cancellation and interrupted progress
-survive reload. Other carrying and storage destinations, farming, cooking,
-crafting, repair and building orders remain part of the unfinished catalogue.
+survive reload.
+
+Personal collection orders cover the same seven raw materials: "collect my
+wood", "collect three clay", or "keep collecting stone". Adults and elders
+walk to their own available goods in current or former household storage, or
+on the ground, and physically pick them up. Household or other people's goods,
+reserved portions and promised deliveries remain unavailable. A default task
+collects one load within carrying space; quantities stop exactly at the requested
+amount. Travel earns no progress, full hands leave the task waiting, and
+queueing, cancellation and partial progress survive reload. Collection grants
+no renewed household membership or private-stock access. Named sources and
+other carrying or storage destinations, farming, cooking, crafting, repair and
+building orders remain part of the unfinished catalogue.
 
 A recognized new order replaces the active and queued orders unless **Queue**
 is selected. **Cancel task** stops a waiting or active order. An instruction
