@@ -412,6 +412,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         foreach (var id in pendingConversationTurns.Keys.ToArray()) CancelPendingConversationTurn(id,
             AgentConversationInterruption.Disconnected, underRuntimeGate: false);
         society.Dispose();
+        ReleaseRouteSearches();
         gate.Dispose();
         tickGate.Dispose();
     }

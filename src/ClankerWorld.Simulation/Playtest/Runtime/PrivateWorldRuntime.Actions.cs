@@ -80,49 +80,7 @@ public sealed partial class PrivateWorldRuntime
         // sharing exception above, and avoid searching an entire map for it.
         if (interactionRange == 0 && origin != destination && occupied.Contains(destination))
             return [];
-        var open = new PriorityQueue<GridPoint, (int Cost, int Y, int X, int Order)>();
-        var best = new Dictionary<GridPoint, int> { [origin] = 0 };
-        var predecessor = new Dictionary<GridPoint, GridPoint>();
-        var order = 0;
-        open.Enqueue(origin, (0, origin.Y, origin.X, order++));
-
-        while (open.TryDequeue(out var current, out var priority))
-        {
-            if (priority.Cost != best[current])
-                continue;
-            if (IsWithinInteractionRange(current, destination, interactionRange))
-            {
-                var route = new List<GridPoint> { current };
-                while (current != origin)
-                {
-                    current = predecessor[current];
-                    route.Add(current);
-                }
-
-                route.Reverse();
-                return route;
-            }
-
-            foreach (var next in map.FootNeighbors(current))
-            {
-                if (occupied.Contains(next) ||
-                    map.IsDiagonalFootStep(current, next) &&
-                    (occupied.Contains(new GridPoint(next.X, current.Y)) ||
-                     occupied.Contains(new GridPoint(current.X, next.Y))))
-                {
-                    continue;
-                }
-
-                var cost = checked(priority.Cost + RoadStepCost(current, next));
-                if (best.TryGetValue(next, out var previous) && previous <= cost)
-                    continue;
-                best[next] = cost;
-                predecessor[next] = current;
-                open.Enqueue(next, (cost, next.Y, next.X, order++));
-            }
-        }
-
-        return [];
+        return SharedUnoccupiedRoute(origin, occupied, destination, interactionRange);
     }
 
     private void RecordMovementBlocked(
