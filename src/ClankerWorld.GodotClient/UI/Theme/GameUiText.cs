@@ -98,7 +98,7 @@ public static class GameUiText
     public static string FriendlyFailure(Exception exception) => exception switch
     {
         Pairing.OwnerAgentNameTakenException =>
-            "that full name belongs to another agent. Choose a different name",
+            "that first name belongs to another agent. Choose a different first name",
         Pairing.OwnerWorldGenerationException =>
             "there is no room for a first Town with these settings. Choose another seed or change the terrain settings",
         Pairing.OwnerActionCompatibilityException =>

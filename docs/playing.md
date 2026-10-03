@@ -50,6 +50,13 @@ notice. Children and their sole caregivers are never forced out, including
 together as a group. Their House stays overcrowded until expansion or a
 voluntary move with care preserved provides enough room.
 
+To rename an agent, open their **Profile**. The first name must be unused by
+any other living or deceased agent in the world; changing the surname alone
+does not free a taken first name. You can keep the selected agent's own first
+name. A child's chosen surname must come from a biological parent. Temporary
+names do not reserve first names, and renaming leaves past conversations as
+spoken.
+
 ## Create your first Town
 
 1. Choose **New World**. Enter a name and seed and choose Small or Medium. Other

@@ -41,7 +41,10 @@ public sealed partial class SettlementParenthoodTests
         Assert.Equal(PrivateWorldRuntimeCodec.Encode(restored.ExportState()), PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
         var birth = Assert.Single(restored.Society.Births);
         Assert.Equal(5, restored.Inhabitants.Count);
-        Assert.Equal("Ari 1", restored.Society.GetInhabitant(birth.ChildId).Name);
+        var newbornIdentity = restored.Society.GetInhabitant(birth.ChildId);
+        Assert.False(newbornIdentity.HasChosenName);
+        Assert.True(newbornIdentity.NeedsName);
+        Assert.Equal("Child", newbornIdentity.Name);
         Assert.Equal(SocietyAgeBand.Infant, restored.Society.GetInhabitant(birth.ChildId).AgeBand);
         Assert.Empty(restored.Inhabitants.Single(person => person.InhabitantId == birth.ChildId).Skills ?? []);
         var newborn = restored.Inhabitants.Single(person => person.InhabitantId == birth.ChildId);
@@ -327,14 +330,14 @@ public sealed partial class SettlementParenthoodTests
         var otherHousehold = state.Society.Society.Households.First(item => item.Id != householdId);
         var newPartner = otherHousehold.MemberIds[0];
 
-        var society = state.Society.Society;
+        var society = ChosenBirthNameTestFixture.NameParent(state.Society.Society, primary);
         society = SocietyFixture.ProposeRelationship(society,
             new("primary-care-parents", 1, SocietyRelationshipType.Partnership, primary, secondary, society.WorldTick)).Checkpoint;
         society = SocietyFixture.AcceptRelationship(society, "primary-care-parents", 1, secondary).Checkpoint;
         var food = society.Inventory.Lots.First(item => item.OwnerId == householdId && item.ItemKind == "food" && item.Quantity >= 4);
         var birth = SocietyFixture.CommitBirth(society, new SocietyBirthRequest(
             "secondary-caregiver-child", 1, primary, secondary, householdId, [primary, secondary], [primary, secondary],
-            food.Id, 4, society.WorldTick, ChildName: "Ari", PrimaryCaregiverId: primary));
+            food.Id, 4, society.WorldTick, ChildName: ChosenBirthNameTestFixture.ChildName(society, primary, "Ari"), PrimaryCaregiverId: primary));
         var childId = Assert.IsType<string>(birth.CreatedId);
         society = birth.Checkpoint;
         Assert.Equal(primary, society.GetInhabitant(childId).PrimaryCaregiverId);
@@ -499,12 +502,12 @@ public sealed partial class SettlementParenthoodTests
         var state = await PreparedState();
         var first = state.Inhabitants[0].InhabitantId;
         var second = state.Inhabitants[1].InhabitantId;
-        var society = (elder ? AsElder(state, second) : state).Society.Society;
+        var society = ChosenBirthNameTestFixture.NameParent((elder ? AsElder(state, second) : state).Society.Society, first);
         var householdId = society.GetInhabitant(first).HouseholdId!;
         var food = society.Inventory.Lots.First(item => item.OwnerId == householdId && item.ItemKind == "food" && item.Quantity >= 4);
         var result = SocietyFixture.CommitBirth(society, new SocietyBirthRequest(
             "elder-parent-child", 1, first, second, householdId, CaregiverIds: [first], ConsentingParentIds: [first, second],
-            food.Id, 4, society.WorldTick, ChildName: "Ari", PrimaryCaregiverId: first));
+            food.Id, 4, society.WorldTick, ChildName: ChosenBirthNameTestFixture.ChildName(society, first, "Ari"), PrimaryCaregiverId: first));
         Assert.Equal(elder, result.CreatedId is null);
         Assert.Equal(elder ? 0 : 1, result.Checkpoint.Births.Count);
     }
@@ -598,7 +601,7 @@ public sealed partial class SettlementParenthoodTests
                 {
                     Society = state.Society.Society with
                     {
-                        Inhabitants = state.Society.Society.Inhabitants.Select(person => person with { Name = "private-parenthood-secret" }).ToArray(),
+                        Inhabitants = state.Society.Society.Inhabitants.Select(person => person with { Name = $"private-parenthood-secret-{person.Id}" }).ToArray(),
                     }
                 }
             };
