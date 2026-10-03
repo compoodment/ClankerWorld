@@ -50,7 +50,7 @@ public sealed class MultiHeirWillAdmissionTests
                 handler.CollisionKey);
 
         var saved = world.ExportState();
-        Assert.Equal(53, saved.SchemaVersion);
+        Assert.Equal(PrivateWorldRuntime.StateSchemaVersion, saved.SchemaVersion);
         using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
             PrivateWorldRuntimeCodec.Encode(saved)));
         var restoredEstate = Assert.Single(restored.Society.Estates);

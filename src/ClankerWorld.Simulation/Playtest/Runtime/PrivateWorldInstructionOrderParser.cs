@@ -4,7 +4,7 @@ using ClankerWorld.Simulation.Harness;
 namespace ClankerWorld.Simulation.Playtest;
 
 /// <summary>
-/// Parses only the small set of direct food orders that the runtime can execute.
+/// Parses only the direct food and movement orders that the runtime can execute.
 /// Every token must belong to one of these forms; unconsumed text is not guessed.
 /// </summary>
 internal static class PrivateWorldInstructionOrderParser
@@ -136,11 +136,21 @@ internal static class PrivateWorldInstructionOrderParser
             if (keepPrefix && actionVerb is not ("gathering" or "harvesting" or "eating"))
                 return null;
 
+            if (action == "seek_food" && TryReadCoordinate(out var destination))
+            {
+                if (repeatPrefix) return null;
+                if (!ReadWord("now")) _ = ReadWord("please");
+                return position == end
+                    ? new OwnerInstructionOrder("move_to", "queued", 1, 0, "arrivals", false,
+                        TargetPosition: destination)
+                    : null;
+            }
+
             var hasExplicitQuantity = TryReadQuantity(out var requestedUnits);
             if (action == "seek_food" && hasExplicitQuantity)
                 return null;
 
-            var subject = TryReadFoodSubject();
+            var subject = TryReadFoodSubject(action == "consume_food");
             if (!subject.Present && (action != "consume_food" || hasExplicitQuantity))
                 return null;
 
@@ -261,7 +271,7 @@ internal static class PrivateWorldInstructionOrderParser
             return true;
         }
 
-        private FoodSubject TryReadFoodSubject()
+        private FoodSubject TryReadFoodSubject(bool includeCookedFood)
         {
             var subjectStart = position;
             if (ReadWord("the") || ReadWord("a") || ReadWord("an") || ReadWord("some"))
@@ -273,7 +283,7 @@ internal static class PrivateWorldInstructionOrderParser
                 }
             }
 
-            var category = ReadFoodCategory();
+            var category = ReadFoodCategory(includeCookedFood);
             var resource = MatchResourceAlias(position);
             if (resource.Present && (category.TokensConsumed == 0 ||
                     resource.TokensConsumed > category.TokensConsumed))
@@ -300,12 +310,28 @@ internal static class PrivateWorldInstructionOrderParser
             return default;
         }
 
-        private FoodSubject ReadFoodCategory()
+        private FoodSubject ReadFoodCategory(bool includeCookedFood)
         {
             if (position >= tokens.Count || tokens[position].Kind != TokenKind.Word)
                 return default;
 
             var word = tokens[position].Value;
+            if (includeCookedFood)
+            {
+                if (position + 1 < tokens.Count)
+                {
+                    if (word is "berry" or "fruit" && IsWord(position + 1, "porridge"))
+                        return new FoodSubject(true, word + "_porridge", null, 2);
+                    if (word is "simple" or "restaurant" && IsWord(position + 1, "meal"))
+                        return new FoodSubject(true, word + "_meal", null, 2);
+                    if (word == "vegetable" && IsWord(position + 1, "stew"))
+                        return new FoodSubject(true, "stew", null, 2);
+                    if (word == "cultivated" && IsWord(position + 1, "greens"))
+                        return new FoodSubject(true, "cultivated_greens", null, 2);
+                }
+                if (word is "porridge" or "bread" or "stew")
+                    return new FoodSubject(true, word, null, 1);
+            }
             if (word is "berry" or "berries")
                 return new FoodSubject(true, "berries", null, 1);
             if (word == "fruit")
@@ -411,8 +437,9 @@ internal static class PrivateWorldInstructionOrderParser
         {
             coordinate = default;
             var start = position;
+            var tilePrefix = ReadWord("tile");
             var parenthesized = ReadToken("(");
-            _ = ReadWord("tile");
+            if (!tilePrefix) _ = ReadWord("tile");
 
             if (!TryReadSignedInteger(out var x))
             {
