@@ -154,6 +154,27 @@ public sealed class TownLandClaimTests
     }
 
     [Fact]
+    public async Task TheClaimChoiceNamesTilesAModelCanSubmitWithoutSeeingTheMap()
+    {
+        using var source = NormalPathWorld.CreateGenerated("council-land-claim", _ => new ActionCoverageRecorder(chooseIdle: true));
+        var initial = source.ExportState();
+        var town = initial.Towns![0];
+        var origin = town.OriginSite!.Value;
+        var reader = new DescribedPlotProvider(town.ResidentIds[0]);
+        using var world = PrivateWorldRuntime.Restore(initial with
+        {
+            Inhabitants = initial.Inhabitants.Select(p => p with { Position = origin }).ToArray(),
+        }, _ => reader);
+        await Until(world, () => world.Towns[0].Governance!.Proposals.Count == 1);
+        var description = reader.Description!;
+        Assert.Contains(FormattableString.Invariant($"You stand at ({origin.X}, {origin.Y})"), description, StringComparison.Ordinal);
+        var listed = DescribedPlotProvider.ListedTiles(description);
+        Assert.InRange(listed.Length, 1, 6);
+        Assert.All(listed, tile => Assert.True(TownLandClaimRules.CanClaim(initial.Map, town, [tile], initial.TownLandTitles!)));
+        Assert.Equal([listed[0]], Assert.Single(world.Towns[0].Governance!.Proposals).LandClaimTiles);
+    }
+
+    [Fact]
     public void ClaimAdjacencyAndConnectivityWrapEastWestButNotNorthSouth()
     {
         var tiles = Enumerable.Range(0, 3).SelectMany(y => Enumerable.Range(0, 5)
@@ -194,6 +215,32 @@ public sealed class TownLandClaimTests
         public GridPoint[]? Plot { get; set; }
         public string? ProposalId { get; init; }
         public HashSet<string> Voters { get; } = new(StringComparer.Ordinal);
+    }
+
+    // Reads the claim choice's text the way a model must: it has no map grid, only the listed coordinates.
+    private sealed class DescribedPlotProvider(string author) : IDecisionProvider
+    {
+        public string? Description { get; private set; }
+        public DecisionProviderKind Kind => DecisionProviderKind.LargeLanguageModel;
+        public long ProviderEpoch => 1;
+
+        public static GridPoint[] ListedTiles(string description) => System.Text.RegularExpressions.Regex
+            .Matches(description[description.IndexOf("nearest you:", StringComparison.Ordinal)..], @"\((-?\d+), (-?\d+)\)")
+            .Select(match => new GridPoint(int.Parse(match.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture),
+                int.Parse(match.Groups[2].Value, System.Globalization.CultureInfo.InvariantCulture))).ToArray();
+
+        public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
+        {
+            var o = request.Observation;
+            var claim = o.InhabitantId == author && Description is null
+                ? o.Candidates.FirstOrDefault(c => c.Id.Contains("|claim_land|", StringComparison.Ordinal)) : null;
+            var selected = claim ?? o.Candidates.Single(c => c.Id == "safe_idle");
+            Description ??= claim?.Description;
+            return ValueTask.FromResult(new CognitionDecisionResponse(request.RequestId, o.InhabitantId, Kind, ProviderEpoch,
+                o.RunEpoch, o.DecisionGeneration, o.ObservationDigest, selected.Id, 1,
+                o.Candidates.ToDictionary(c => c.Id, c => c.Id == selected.Id ? 1d : 0d, StringComparer.Ordinal),
+                CivicLandTiles: claim is null ? null : [.. ListedTiles(claim.Description).Take(1).Select(tile => new CognitionLandTile(tile.X, tile.Y))]));
+        }
     }
 
     private sealed class ClaimProvider(ClaimChoices choices) : IDecisionProvider

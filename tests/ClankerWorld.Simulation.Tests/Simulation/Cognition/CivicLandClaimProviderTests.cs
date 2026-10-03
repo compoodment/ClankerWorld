@@ -12,6 +12,7 @@ public sealed class CivicLandClaimProviderTests
     [Theory]
     [InlineData(null, 0)]
     [InlineData("null", 0)]
+    [InlineData("[]", 0)]
     [InlineData("[{\"x\":4,\"y\":5},{\"x\":5,\"y\":5}]", 2)]
     public async Task AdmittedClaimPreservesExactCoordinatesAndAnAbsentPayloadIsNotAPlot(string? payload, int count)
     {
@@ -27,7 +28,6 @@ public sealed class CivicLandClaimProviderTests
     }
 
     [Theory]
-    [InlineData("[]")]
     [InlineData("{}")]
     [InlineData("[null]")]
     [InlineData("[7]")]

@@ -159,8 +159,12 @@ public sealed partial class PrivateWorldRuntime
                 }
                 AddTownLawCandidates(candidates, actor, town);
                 if (town.Government is not null) AddTownGovernmentCandidates(candidates, actor, town);
-                if (townLandTitles.Any(title => title.TownId == town.Id))
-                    candidates.Add(new(CivicAction(town.Id, "claim_land"), $"Ask {town.Name}'s council to claim a connected plot of adjoining unclaimed land; include its exact coordinates in civic_land_tiles. Existing titles, household rights, buildings and goods stay with their holders.", 190));
+                var here = inhabitants[actor].Position;
+                // The model sees no map grid, so name real claimable tiles it can choose from.
+                if (TownLandClaimRules.ClaimableNear(map, town, townLandTitles, here, 6) is { Length: > 0 } nearest)
+                    candidates.Add(new(CivicAction(town.Id, "claim_land"), $"Ask {town.Name}'s council to claim a connected plot of adjoining unclaimed land; include its exact coordinates in civic_land_tiles. " +
+                        FormattableString.Invariant($"You stand at ({here.X}, {here.Y}); unclaimed tiles beside the Town's land nearest you: {TownLandClaimRules.DescribeTiles(nearest)}. ") +
+                        "Existing titles, household rights, buildings and goods stay with their holders.", 190));
             }
             else if (NearCivicBoard(actor, town))
             {

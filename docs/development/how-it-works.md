@@ -727,7 +727,10 @@ optional.
 
 An adult resident may submit a land claim with up to 64 exact tile coordinates
 in one connected plot adjoining the Town's recorded title. This is a bounded
-provider payload, not permission to rewrite title. The server rejects water,
+provider payload, not permission to rewrite title. Because the model sees no
+map grid, the claim choice names the agent's own tile and up to six unclaimed
+tiles beside the Town's title, nearest first. An empty `civic_land_tiles` array,
+like an empty ballot, is no plot. The server rejects water,
 off-map, duplicate, disconnected and already titled tiles. The saved proposal
 uses the ordinary Council majority and notice-reading rules; its identity
 comes from the canonical coordinates, so reordering them does not open another

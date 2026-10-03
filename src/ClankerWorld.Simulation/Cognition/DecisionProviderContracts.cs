@@ -1419,7 +1419,9 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
 
     private static CognitionLandTile[]? ParseCivicLandTiles(JsonElement root)
     {
-        if (!root.TryGetProperty("civic_land_tiles", out var tiles) || tiles.ValueKind == JsonValueKind.Null) return null;
+        // An empty plot, like an empty ballot, is no request; the chosen action decides what is used.
+        if (!root.TryGetProperty("civic_land_tiles", out var tiles) || tiles.ValueKind == JsonValueKind.Null ||
+            tiles.ValueKind == JsonValueKind.Array && tiles.GetArrayLength() == 0) return null;
         if (tiles.ValueKind != JsonValueKind.Array || tiles.GetArrayLength() is < 1 or > CognitionDecisionResponse.MaximumCivicLandTiles)
             throw new InvalidDataException("The provider returned an invalid land plot.");
         return tiles.EnumerateArray().Select(tile =>
