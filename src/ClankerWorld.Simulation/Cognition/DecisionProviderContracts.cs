@@ -483,6 +483,8 @@ public sealed record CognitionDecisionRequest(
 /// evidence; the selected ID is still checked against the request's legal
 /// candidate set before it can become an intention.
 /// </summary>
+public sealed record CognitionLandTile(int X, int Y);
+
 public sealed record CognitionDecisionResponse(
     string RequestId,
     string InhabitantId,
@@ -503,8 +505,10 @@ public sealed record CognitionDecisionResponse(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? CivicProposal = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<string>? CivicBallot = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<CognitionObserverReply>? ObserverReplies = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] CognitionWillChoice? Will = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] CognitionWillChoice? Will = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<CognitionLandTile>? CivicLandTiles = null)
 {
+    public const int MaximumCivicLandTiles = 64;
     public const int MaximumPrivateThoughtLength = 160;
     public const int MaximumObserverReplyLength = 160;
     public const int MaximumChosenNameLength = 48;
@@ -580,6 +584,8 @@ public sealed record CognitionDecisionResponse(
             throw new ArgumentOutOfRangeException(nameof(CivicProposal));
         if (ObserverReplies is { Count: > InhabitantObservation.MaximumObserverGuidanceCount })
             throw new ArgumentOutOfRangeException(nameof(ObserverReplies));
+        if (CivicLandTiles is { Count: 0 or > MaximumCivicLandTiles } || CivicLandTiles?.Any(tile => tile is null) == true)
+            throw new ArgumentOutOfRangeException(nameof(CivicLandTiles));
         var observerReplyIds = new HashSet<string>(StringComparer.Ordinal);
         foreach (var reply in ObserverReplies ?? [])
         {
@@ -1079,6 +1085,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                         "and optional " +
                         "private_thought (one brief, in-character thought of at most 160 characters). " +
                         "For civic proposal actions include civic_proposal, a social-law request of at most 256 characters. " +
+                        "For claim_land actions include civic_land_tiles, an array of 1 to 64 objects with integer x and y coordinates naming one connected plot adjoining the Town's title. The Council must approve it before title changes. " +
                         "For civic ballot actions include civic_ballot, an array of up to the stated number of distinct eligible candidate IDs, or an empty array to abstain. " +
                         "Civic candidates come only from notices you actually read or heard; registration records your own willingness. " +
                         "When needs_name is true, also include chosen_name (your own full name, " +
@@ -1394,7 +1401,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                 privateThought,
                 chosenName,
                 ChosenPersonality: chosenPersonality, ChosenAspiration: chosenAspiration, CivicProposal: civicProposal, CivicBallot: civicBallot,
-                ObserverReplies: observerReplies, Will: will);
+                ObserverReplies: observerReplies, Will: will, CivicLandTiles: ParseCivicLandTiles(answerRoot));
         }
         catch (JsonException exception)
         {
@@ -1408,6 +1415,23 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
         {
             throw new InvalidDataException("The OpenAI-compatible provider returned no choices.", exception);
         }
+    }
+
+    private static CognitionLandTile[]? ParseCivicLandTiles(JsonElement root)
+    {
+        // An empty plot, like an empty ballot, is no request; the chosen action decides what is used.
+        if (!root.TryGetProperty("civic_land_tiles", out var tiles) || tiles.ValueKind == JsonValueKind.Null ||
+            tiles.ValueKind == JsonValueKind.Array && tiles.GetArrayLength() == 0) return null;
+        if (tiles.ValueKind != JsonValueKind.Array || tiles.GetArrayLength() is < 1 or > CognitionDecisionResponse.MaximumCivicLandTiles)
+            throw new InvalidDataException("The provider returned an invalid land plot.");
+        return tiles.EnumerateArray().Select(tile =>
+        {
+            if (tile.ValueKind != JsonValueKind.Object || !tile.TryGetProperty("x", out var x) ||
+                !tile.TryGetProperty("y", out var y) || x.ValueKind != JsonValueKind.Number || y.ValueKind != JsonValueKind.Number ||
+                !x.TryGetInt32(out var column) || !y.TryGetInt32(out var row))
+                throw new InvalidDataException("The provider returned an invalid land coordinate.");
+            return new CognitionLandTile(column, row);
+        }).ToArray();
     }
 
     private static string[]? ParseCivicBallot(JsonElement root)

@@ -701,9 +701,17 @@ footprint use right to the new household. The rest of a larger plot stays with
 its holder, even when the footprint splits it into separate plots. Town title
 and grant terms stay unchanged; disputed, expired or differently held rights
 prevent reassignment. A field does not override a use right, and disputed land
-is always refused. These existing rules do not yet implement the agreed
-Council-approved title claims or household land requests. That runtime work
-remains in [#426](https://github.com/compoodment/ClankerWorld/issues/426).
+is always refused.
+
+The October 2 owner answers on
+[#426](https://github.com/compoodment/ClankerWorld/issues/426#issuecomment-5956742184)
+settle title growth through Council-approved claims to adjoining unclaimed
+land. These claims now run through ordinary Council proposals: an adult names
+one connected plot, councillors learn its notice and vote, and the server
+rechecks the plot before recording title. Existing claims, household rights,
+structures and private goods are preserved. A border change alone still gives
+no title. Household land requests for expansion onto additional tiles remain
+in [#426](https://github.com/compoodment/ClankerWorld/issues/426).
 
 Competing requests are visible as **pending disputes**. While one is pending,
 conflicting formal rights transfers pause; residents are not evicted, goods
@@ -721,7 +729,7 @@ the final decision on disputes and what happens when an agreed period ends.
 These rules do not imply automatic confiscation or unilateral household
 transfers. Evidence, hearings, outcomes and conflicts of interest follow the
 agreed [case procedure](#land-hearings-and-rulings). Disputed land is striped
-on the map, and inspecting a tile lists each household's claim. Approval,
+on the map, and inspecting a tile lists each household's claim. Household grants,
 consent, transfer and case actions are not built yet
 ([what works today](../what-works.md)).
 
