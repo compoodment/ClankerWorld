@@ -870,20 +870,26 @@ public partial class Main
                     Coverage = mountainOnly,
                     Candidates = [mountainOnly],
                 };
+                // The preview is described in words; exact shares stay in its tooltip.
+                bool PlainWords() => !worldPreviewStatus.Text.Contains('%', StringComparison.Ordinal) &&
+                    !worldPreviewStatus.Text.Contains("Candidate", StringComparison.Ordinal) &&
+                    !worldPreviewStatus.Text.Contains("target", StringComparison.OrdinalIgnoreCase);
                 SetWorldPreviewStatus(mountainOnlyPreview);
-                if (!worldPreviewStatus.Text.Contains("Met applicable Normal target: mountains", StringComparison.Ordinal) ||
-                    worldPreviewStatus.Text.Contains("Both default Balanced trial targets", StringComparison.Ordinal))
-                    throw new InvalidOperationException("Preview must name only the applicable Normal target when the other control is Low or High.");
+                if (!worldPreviewStatus.Text.StartsWith("Some forest and some mountain ranges, on 100 tiles of land.", StringComparison.Ordinal) ||
+                    worldPreviewStatus.Text.Contains("balanced", StringComparison.Ordinal) || !PlainWords() ||
+                    !worldPreviewStatus.TooltipText.Contains("A balanced world has 20–40% forest and 5–12% mountains", StringComparison.Ordinal) ||
+                    worldPreviewStatus.TooltipText.Contains("maps tried", StringComparison.Ordinal) ||
+                    worldAcceptUnmetTargets.Visible)
+                    throw new InvalidOperationException($"A map that meets the balance it aims for must be described plainly: {worldPreviewStatus.Text}");
                 SetWorldPreviewStatus(mountainOnlyPreview with
                 {
                     FailedCandidates = [new OwnerWorldCandidateFailure(0, "no-clearing")],
                 });
-                if (!worldPreviewStatus.Text.Contains("#0: no room for a first Town", StringComparison.Ordinal) ||
-                    worldPreviewStatus.Text.Contains("no-clearing", StringComparison.Ordinal) ||
-                    worldPreviewStatus.Text.IndexOf("#0:", StringComparison.Ordinal) >
-                        worldPreviewStatus.Text.IndexOf("#2 F", StringComparison.Ordinal) ||
+                if (!worldPreviewStatus.TooltipText.Contains("Closest of 2 maps tried: no room for a first Town; 15% forest, 10% mountains.", StringComparison.Ordinal) ||
+                    worldPreviewStatus.TooltipText.Contains("no-clearing", StringComparison.Ordinal) ||
+                    worldPreviewStatus.Text.Contains("no room", StringComparison.Ordinal) || !PlainWords() ||
                     worldAcceptUnmetTargets.Visible)
-                    throw new InvalidOperationException("Preview must show failed attempts beside real measurements without requiring acceptance of an unavailable map.");
+                    throw new InvalidOperationException($"The tooltip must list a failed attempt in the order tried, beside real measurements, without requiring acceptance of an unavailable map: {worldPreviewStatus.TooltipText}");
                 var forestOnly = missedCoverage with
                 {
                     ForestTargetApplicable = true,
@@ -892,16 +898,18 @@ public partial class Main
                     MountainTargetMet = false,
                 };
                 SetWorldPreviewStatus(mountainOnlyPreview with { Coverage = forestOnly, Candidates = [forestOnly] });
-                if (!worldPreviewStatus.Text.Contains("Missed: Forest 15.0%", StringComparison.Ordinal) ||
-                    !worldPreviewStatus.Text.Contains("Candidate results:", StringComparison.Ordinal))
-                    throw new InvalidOperationException("Preview must name a missed Normal target and candidate results when only forest is targeted.");
+                if (!worldPreviewStatus.Text.Contains("It has less forest than a balanced world.", StringComparison.Ordinal) ||
+                    !PlainWords() || !worldAcceptUnmetTargets.Visible)
+                    throw new InvalidOperationException($"A map with too little forest must say so and offer to keep it: {worldPreviewStatus.Text}");
                 var noTargets = mountainOnly with { MountainTargetApplicable = false, MountainTargetMet = false };
                 SetWorldPreviewStatus(mountainOnlyPreview with { Coverage = noTargets, Candidates = [noTargets] });
-                if (!worldPreviewStatus.Text.Contains("No trial targets apply", StringComparison.Ordinal) ||
-                    !worldPreviewStatus.Text.Contains($"{15d:F1}% forest and {10d:F1}% mountains", StringComparison.Ordinal) ||
-                    worldAcceptUnmetTargets.Visible)
-                    throw new InvalidOperationException("Preview without targets must show measured coverage without an acceptance gate.");
+                if (worldPreviewStatus.Text.Contains("balanced", StringComparison.Ordinal) || !PlainWords() ||
+                    worldPreviewStatus.TooltipText != "Forest 15% and mountains 10% of the land." ||
+                    worldPreviewStatus.MouseFilter == MouseFilterEnum.Ignore || worldAcceptUnmetTargets.Visible)
+                    throw new InvalidOperationException("A map with no balance to aim for must show its measurements only in the tooltip, with no acceptance box.");
                 InvalidateWorldPreview(refresh: false);
+                if (worldPreviewStatus.TooltipText.Length != 0)
+                    throw new InvalidOperationException("Clearing the preview must also clear the last map's measurements from its tooltip.");
                 var preset = CurrentWorldOptions();
                 worldForestChoice.Select(0);
                 if (SameGeneration(preset, CurrentWorldOptions()))
