@@ -401,6 +401,15 @@ Land records are checked against the saved map, Towns, households and one
 another before load. These fields retain their current validation and roundtrip
 behavior.
 
+The food repairs use the existing field, inventory, reservation and delivery
+records; they add no migration or new save fields. New planting claims remain
+active until the work consumes the seed or an interruption releases it. An
+existing current-format finite planting claim may still expire: field
+maintenance then cancels the unfinished planting and retains the unconsumed
+seed. Reload preserves physical food and vessel locations, exact active
+claims and in-flight delivery pointers. Recovery clears those pointers only
+when the real stock is set down; a discarded prepared step does not move it.
+
 The table records earlier schema changes. Its older-save behavior is historical;
 the current loader accepts only the current schema and does not run those
 migrations or backfills.
