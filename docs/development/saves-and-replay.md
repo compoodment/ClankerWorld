@@ -133,7 +133,7 @@ receipt prevents replay from duplicating pickup. Unavailable goods and full
 carrying space preserve the remaining task. Older alpha saves are refused and
 preserved without migration.
 
-Private-world schema 68 adds `repair_equipment` orders with a bounded
+Private-world schema 69 adds `repair_equipment` orders with a bounded
 `TargetEquipmentKind` and progress counted in finished repairs. The equipment
 work record has an optional `OrderInstructionId`, which must refer to that
 actor's active repair task and match the actual lot kind. Its saved work counter
@@ -513,7 +513,7 @@ from timed displacement even when their dependent lives in another household.
 No older-save migration or backfill is added.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 68. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 69. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
@@ -578,9 +578,9 @@ Council land claims, schema 59 for household land grants, schema 60 for
 handcart attachments, schema 61 for guardian-order targets, schema 62 for
 physical knowledge writing, schema 63 for exact-tile movement orders,
 schema 64 for overcrowding move-out notices, schemas 65 to 67 for material
-gathering, storage and collection orders and schema 68 for shared
-Town-project construction record when those fields or behaviors were
-introduced; they do not allow an earlier checkpoint schema past the current
+gathering, storage and collection orders, schema 68 for shared
+Town-project construction and schema 69 for equipment-repair orders record
+when those fields or behaviors were introduced; they do not allow an earlier checkpoint schema past the current
 alpha cutoff.
 
 | Compatibility change | Meaning |
@@ -634,6 +634,7 @@ alpha cutoff.
 | Schema 64 | Household move-out notices retain their original notice period, fixed deadline and selection reason alongside pending housing requests. Reload and replacement do not restart notice or duplicate departure goods. Runtime admission and displacement recheck current need and caregiver protection. Earlier alpha saves are refused and preserved without migration. |
 | Schema 65 | Material-gathering orders retain the material kind, exact optional source or position, batch/item progress and physical harvest receipt. Loading rejects mixed food/guardian/material fields and inconsistent progress. Queue, cancellation and partial work replay without duplicate harvests; older alpha saves are refused and preserved without migration. |
 | Schema 68 | Typed Council project plans and one shared Town construction record per passed proposal, with exact physical load/reservation/release history, work and paid building identity. The first consumer is the Town Hall. Earlier alpha checkpoints are refused and preserved without migration. |
+| Schema 69 | Equipment-repair orders retain the equipment kind and progress in finished repairs, and an in-progress repair names the order it belongs to. Loading refuses mixed target fields, unearned progress and a repair bound to another order or item kind. Queue, cancellation and partial work replay without duplicate material costs; older alpha saves are refused and preserved without migration. |
 
 ### Tool-making requests
 
