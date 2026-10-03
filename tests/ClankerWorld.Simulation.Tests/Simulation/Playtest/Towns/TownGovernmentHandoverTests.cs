@@ -92,6 +92,9 @@ public sealed class TownGovernmentHandoverTests
         }
         Assert.Equal("cancelled", town.Government.Changes[^1].Status);
         Assert.Equal(TownArrangementRules.Initial, town.Government.Arrangement);
+        // The lapse cancels the waiting election too, so it is never seated afterwards.
+        for (var tick = Day * 3 + 1; tick <= Day * 6; tick++) town.Advance(tick);
+        Assert.Null(town.Council.Election);
         Assert.Equal("all_adult", town.Council.Form);
     }
 
