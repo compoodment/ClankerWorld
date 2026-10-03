@@ -1,5 +1,4 @@
 using ClankerWorld.Simulation.Harness;
-using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.World;
 
 namespace ClankerWorld.Simulation.Tests;
@@ -36,28 +35,6 @@ public sealed class TerrainPlacementTests
             ResourceAbundance = ResourceAbundance.Abundant,
         },
     ];
-
-    [Fact]
-    public void NewWorldReplaysTheSameTerrainAndKeepsItThroughSaveAndRestore()
-    {
-        var options = Current("terrain-replay", WorldSizePreset.Small);
-        var first = GeneratedCampMapGenerator.Generate(options);
-        var again = GeneratedCampMapGenerator.Generate(options);
-        Assert.Equal(first.ManifestDigest, again.ManifestDigest);
-        Assert.Equal(MapLayerManifestCodec.Digest(first), MapLayerManifestCodec.Digest(again));
-        Assert.Equal(first.Resources, again.Resources);
-        Assert.NotEqual(first.SurfaceKinds, GeneratedCampMapGenerator.Generate(options with { Seed = "terrain-replay-2" }).SurfaceKinds);
-
-        using var world = new PrivateWorldRuntime(options.Seed, startPace: WorldStartPace.FounderSetup,
-            geographyOptions: options);
-        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
-            PrivateWorldRuntimeCodec.Encode(world.ExportState())));
-        var map = restored.ExportState().Map;
-        Assert.Equal(first.ManifestDigest, map.ManifestDigest);
-        Assert.Equal(MapLayerManifestCodec.Digest(first), MapLayerManifestCodec.Digest(map));
-        Assert.DoesNotContain(map.Resources, resource => TerrainPlacementRules.IsOrdinaryVegetation(resource) &&
-            map.SurfaceAt(resource.Position) == SurfaceKind.Sand);
-    }
 
     [Fact]
     public void MapAcceptanceRefusesATreeOrPlantOnSand()

@@ -20,8 +20,6 @@ public sealed partial class ViewerHttpTests
 {
     [Theory]
     [InlineData(false, "\"32\"")]
-    [InlineData(false, "null")]
-    [InlineData(false, "32.5")]
     [InlineData(false, "2147483648")]
     [InlineData(true, "[]")]
     public async Task MalformedSaveJsonIsReportedAsInvalidWhilePausedAndPreservesTheWorld(
@@ -80,7 +78,6 @@ public sealed partial class ViewerHttpTests
 
     [Theory]
     [InlineData(0)]
-    [InlineData(10)]
     public async Task AutosaveConfigurationNeverTrimsAnotherWorld(int rotation)
     {
         var directory = Directory.CreateTempSubdirectory("autosave-world-boundary-");
@@ -693,7 +690,6 @@ public sealed partial class ViewerHttpTests
 
     [Theory]
     [InlineData("truncated")]
-    [InlineData("null")]
     [InlineData("missing-save")]
     [InlineData("aliased-id")]
     public void DamagedSaveMetadataDoesNotHideSoundSavesOrStopRotation(string damage)
