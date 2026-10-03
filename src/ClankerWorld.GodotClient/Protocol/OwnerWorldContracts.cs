@@ -501,7 +501,14 @@ public sealed record OwnerWorldEventSlice(
 
 public sealed record OwnerWorldCouncil(string? StewardName, string FoodPolicy, string? ProposedPolicy, int Approvals, int Rejections, int Voters);
 
-public sealed record OwnerWorldReconnectBaseline(OwnerWorldSnapshot Snapshot, OwnerWorldEventSlice Events);
+public sealed record OwnerObserverTimeline(string InstanceId, long Generation)
+{
+    internal bool IsValid => !string.IsNullOrWhiteSpace(InstanceId) && InstanceId.Length <= 128 &&
+        !InstanceId.Any(char.IsControl) && Generation >= 0;
+}
+
+public sealed record OwnerWorldReconnectBaseline(OwnerWorldSnapshot Snapshot, OwnerWorldEventSlice Events,
+    OwnerObserverTimeline? Timeline = null);
 
 public sealed record OwnerWorldReconnect(OwnerWorldHandshake Handshake, OwnerWorldReconnectBaseline Baseline);
 

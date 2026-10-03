@@ -46,6 +46,7 @@ public partial class Main
     private bool autosaveSettingsLoaded;
     private string? autosaveSettingsWorldId;
     private OwnerDeviceRegistration? autosaveSettingsRegistration;
+    private long autosaveSettingsGeneration;
     private CancellationTokenSource? autosaveSettingsCancellation;
 
     private void BuildAutosaveSettings()
@@ -84,6 +85,7 @@ public partial class Main
     private bool IsCurrentAutosaveSettingsContext() =>
         settingsPanel.IsVisibleInTree() && worldSettingsContent.IsVisibleInTree() &&
         autosaveSettingsWorldId is not null &&
+        IsCurrentWorldRequest(autosaveSettingsGeneration) &&
         autosaveSettingsWorldId == observationSession.Current?.Baseline.Snapshot.WorldId &&
         ReferenceEquals(autosaveSettingsRegistration, registration);
 
@@ -108,6 +110,7 @@ public partial class Main
         autosaveSettingsCancellation = read;
         autosaveSettingsWorldId = readWorldId;
         autosaveSettingsRegistration = registration;
+        autosaveSettingsGeneration = observationSession.RequestGeneration;
         autosaveSettingsStatus.Text = "Loading this world's autosave settings...";
         RefreshControlAvailability();
         bool IsCurrentRead() => ReferenceEquals(autosaveSettingsCancellation, read) &&
@@ -151,8 +154,8 @@ public partial class Main
             autosaveIntervalChoice.GetSelectedId(), autosaveRotationChoice.GetSelectedId());
         await RunOwnerActionAsync(async () =>
         {
-            var updated = await ownerApi.ConfigureAutosaveAsync(ResolveWorldUri(), authority,
-                deviceId, action, signer, CancellationToken.None);
+            var updated = await AwaitCurrentWorldResultAsync(ownerApi.ConfigureAutosaveAsync(ResolveWorldUri(), authority,
+                deviceId, action, signer, CancellationToken.None));
             autosaveSettingsStatus.Text = updated.Enabled
                 ? $"Autosave every {updated.IntervalMinutes} minutes; " +
                   (updated.RotationCount == 0 ? "keep latest only." : $"keep {updated.RotationCount} copies.")
@@ -492,7 +495,8 @@ public partial class Main
     private void RefreshManualSaveAvailability()
     {
         var selected = manualSaveList.GetSelectedItems();
-        var valid = !isOwnerAction && selected.Length == 1 && selected[0] >= 0 && selected[0] < listedManualSaves.Length;
+        var valid = !isOwnerAction && !observationSession.AwaitingFreshBaseline &&
+            selected.Length == 1 && selected[0] >= 0 && selected[0] < listedManualSaves.Length;
         if (selected.Length == 0 && manualSaveTimeline.SelectedId is not null)
         {
             manualSaveTimeline.Select(null);
@@ -501,7 +505,7 @@ public partial class Main
         manualSaveLoadButton.Disabled = !manualSaveLoadMode || !valid;
         manualSaveOverwriteButton.Disabled = manualSaveLoadMode || !valid || listedManualSaves[selected[0]].IsAutosave;
         manualSaveDeleteButton.Disabled = !valid;
-        manualSaveCreateButton.Disabled = isOwnerAction || manualSaveLoadMode;
+        manualSaveCreateButton.Disabled = isOwnerAction || manualSaveLoadMode || observationSession.AwaitingFreshBaseline;
     }
 
     /// <summary>
@@ -523,10 +527,12 @@ public partial class Main
         manualSaveListCancellation = read;
         var readWorldId = observationSession.Current?.Baseline.Snapshot.WorldId;
         var readRegistration = registration;
+        var readGeneration = observationSession.RequestGeneration;
         pendingDeletion = null;
         listedSaveWorldId = readWorldId;
         ShowManualSavePanel(loadMode);
         bool IsCurrentRead() => ReferenceEquals(manualSaveListCancellation, read) &&
+            IsCurrentWorldRequest(readGeneration) &&
             manualSaveOverlay.Visible && ReferenceEquals(registration, readRegistration) &&
             readWorldId == observationSession.Current?.Baseline.Snapshot.WorldId;
         fetchPosition ??= fetch is not null ? _ => Task.FromResult<SaveTimelinePosition?>(null)
@@ -674,8 +680,8 @@ public partial class Main
         if (!TryGetOwner(out var authority, out var deviceId, out var signer)) return;
         await RunOwnerActionAsync(async () =>
         {
-            var saved = await ownerApi.CreateManualSaveAsync(ResolveWorldUri(), authority,
-                deviceId, name, signer, CancellationToken.None);
+            var saved = await AwaitCurrentWorldResultAsync(ownerApi.CreateManualSaveAsync(ResolveWorldUri(), authority,
+                deviceId, name, signer, CancellationToken.None));
             manualSaveOverlay.Hide();
             manualSaveName.Text = string.Empty;
             return "World saved.";
@@ -700,8 +706,8 @@ public partial class Main
         if (id is null || !TryGetOwner(out var authority, out var deviceId, out var signer)) return;
         await RunOwnerActionAsync(async () =>
         {
-            var receipt = await ownerApi.OverwriteManualSaveAsync(ResolveWorldUri(), authority,
-                deviceId, id, signer, CancellationToken.None);
+            var receipt = await AwaitCurrentWorldResultAsync(ownerApi.OverwriteManualSaveAsync(ResolveWorldUri(), authority,
+                deviceId, id, signer, CancellationToken.None));
             manualSaveOverlay.Hide();
             return $"Saved over {receipt.Saved.Name}. The old version is kept as a recovery copy.";
         });
@@ -727,18 +733,15 @@ public partial class Main
         var save = listedManualSaves[selected[0]];
         await RunOwnerActionAsync(async () =>
         {
-            await ownerApi.SetPausedAsync(ResolveWorldUri(), authority, deviceId, true,
-                signer, CancellationToken.None);
+            await AwaitCurrentWorldResultAsync(ownerApi.SetPausedAsync(ResolveWorldUri(), authority, deviceId, true,
+                signer, CancellationToken.None));
             // A lost response cannot tell us whether the host committed the
             // rewind. Reconnect from zero either way, instead of rejecting a
             // valid older world as a regressing observation.
-            observationSession.ResetAfterLoad();
-            knownEvents.Clear();
-            var loaded = await ownerApi.LoadManualSaveAsync(ResolveWorldUri(), authority,
-                deviceId, save.Id, signer, CancellationToken.None);
-            selectedInhabitantId = null;
-            ClearBuildingSelection();
-            renderedMapSnapshot = null;
+            // A pulse may accept the fresh baseline before the load receipt.
+            // This explicit transition still needs to finish closing its menus.
+            await observationSession.ChangeTimelineAsync(() => ownerApi.LoadManualSaveAsync(ResolveWorldUri(), authority,
+                deviceId, save.Id, signer, CancellationToken.None));
             manualSaveOverlay.Hide();
             worldMenuOverlay.Hide();
             mainMenuOverlay.Hide();
@@ -775,6 +778,7 @@ public partial class Main
 
     private async Task DeleteConfirmedAsync()
     {
+        var generation = observationSession.RequestGeneration;
         var action = pendingDeletion;
         pendingDeletion = null;
         if (action is null || !TryGetOwner(out var authority, out var deviceId, out var signer)) return;
@@ -783,10 +787,11 @@ public partial class Main
         worldDeleteButton.Disabled = true;
         await RunOwnerActionAsync(async () =>
         {
-            var receipt = await ownerApi.DeleteAsync(ResolveWorldUri(), authority, deviceId,
-                action, signer, CancellationToken.None);
+            var receipt = await AwaitCurrentWorldResultAsync(ownerApi.DeleteAsync(ResolveWorldUri(), authority, deviceId,
+                action, signer, CancellationToken.None));
             if (action.Kind == "save") await OpenManualSavesAsync(manualSaveLoadMode);
             else await RefreshWorldListAsync();
+            if (!IsCurrentWorldRequest(generation)) throw new ObsoleteWorldRequestException();
             return receipt.CleanupComplete ? "Permanently deleted." :
                 "Deleted. Some history could not be cleaned up; other saves were preserved.";
         });
