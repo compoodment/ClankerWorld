@@ -854,6 +854,13 @@ implements all-adult and representative councils from recorded living adult
 residents, independently of geometry and household affiliation. A separate
 `SettlementCouncil` remains the household-food steward prototype.
 
+Household food-policy ballots last 120 ticks and can pass through their saved
+`ExpiryTick`, inclusive, with a strict majority of the remaining eligible
+electorate. After that tick, resolution closes the ballot without changing the
+food policy, even if a death reduces the number of approvals needed. Resolution
+records its tick and adopted or rejected event, then clears the pending ballot;
+save/load preserves the original deadline and votes.
+
 The civic engine keeps final proposal votes, continuing candidate agreements,
 opening voter/candidate lists, latest election ballots, cutoff runoffs, settled
 seats, fair draw order, ten-day terms and retry snapshots. A failed election may
@@ -1079,7 +1086,10 @@ household planning and ownership rules, with 1×1 and 1×2 footprints.
 Harvests remain household-owned lots on their actual field tile. An adult
 carries a load of at most four raw crops or planting items to the household's Farmhouse or Silo.
 Each holds a provisional 96 items, counting deliveries already on their way;
-pickup and delivery both check remaining space. Grain prefers the Farmhouse,
+pickup and delivery both check remaining space. Source selection checks the
+adult's route to each pile or vessel and the route from there to farm storage;
+an earlier blocked source does not hide later reachable stock. The same checks
+run again when the hauling action executes. Grain prefers the Farmhouse,
 while other farm stock prefers the Silo. Ready-to-eat greens and fruit go to
 the household's House. Neither stock nor ownership moves
 remotely.
@@ -1396,6 +1406,10 @@ New proposals for Shelters, Storehouses, Cooking fires and Stone hearths are
 retired. Existing buildings, projects and recorded proposals remain for old-world
 compatibility. Approved owner building designs stay active but are not household
 kinds, so agents do not plan them; they wait for shared buildings. House fires supply heat. General invention is later Workshop work.
+Fire-tending selects an unlit hearth the adult can reach, using the same
+household access and interaction distance as movement. Selection is repeated
+when tending begins, so changed occupancy can redirect the adult to another
+hearth or leave warmth-seeking available. Fuel is consumed only at the hearth.
 
 Clothing comes from a household's Tailor Shop (`clankerworld-tailor-v1`), which
 replaced the Weaving frame and its "Woven clothing" recipe outright. The shop
