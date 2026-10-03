@@ -75,26 +75,35 @@ Linux and Windows, and skips the rest, including `windows-provider-storage`.
 Pushes to main always run everything. A newer push to a pull request cancels
 its older run.
 
-[.github/scripts/ci-plan.js](../../.github/scripts/ci-plan.js) decides which
-tests each job runs. Its `PinnedShards` list names the slowest test classes and
-methods for the first three jobs. A test runs in the first job whose list names
-it, and the last job runs every test no entry names, so a new or renamed test
-always runs exactly once. Tests in one class run one after another, so a slow
-class is split across jobs, and a job holding a long class keeps to four
-classes so that each starts at once on the runner's four cores.
+The test jobs split the tests by how long each took in main's latest green run,
+so new slow tests spread out on their own and nobody needs to rebalance them by
+hand. Each test job uploads its durations as a `test-timings-<job>` artifact;
+**scope** downloads main's latest set and
+[.github/scripts/ci-plan.js](../../.github/scripts/ci-plan.js) plans the split:
 
-Each test job uploads its durations as a `test-timings-<job>` artifact. When
-one test job takes much longer than the others, read those timings, move
-entries between jobs, and list what each job would run:
+- xUnit runs four test classes at once on a runner's four cores, and a class's
+  tests one after another. A class too long for one job is split by method.
+- A test runs in the first job whose filter names it, and the last job runs
+  every test no filter names, so a test that is new since main's run, or
+  renamed, still runs exactly once.
+- If main's timings can't be read, the split falls back to the fixed one in
+  `PinnedShards`.
+
+No run can finish before its slowest single test. Each test job lists its ten
+slowest tests in the run summary and warns about any test over five minutes.
+Aim for under a minute per test: start a test close to the moment it checks,
+in the smallest world that shows the behavior.
+
+To time tests locally, or list what a job would run under the fixed split:
 
 ```bash
 dotnet test tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.csproj --configuration Release --logger "trx;LogFileName=timings.trx"
 dotnet test tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.csproj --configuration Release --no-build --list-tests --filter "$(node .github/scripts/ci-plan.js filter 1)"
 ```
 
-The first command records each test's duration locally in
+The first command records each test's duration in
 `tests/ClankerWorld.Simulation.Tests/TestResults/timings.trx`; the second lists
-the tests job 1 would run.
+the tests job 1 would run without timings.
 
 The native Windows storage job also runs the repeated checkpoint-compaction
 test and checks that a refused overwrite preserves the previous checkpoint.

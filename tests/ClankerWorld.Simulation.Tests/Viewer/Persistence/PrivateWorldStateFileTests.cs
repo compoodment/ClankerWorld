@@ -37,10 +37,14 @@ public sealed class PrivateWorldStateFileTests(ITestOutputHelper output)
         BlockedWindowsCheckpointPreservesBytesAndRecovers(readOnly: false);
 
     [WindowsSaveFact]
+    public Task WindowsReaderAllowingDeleteSharingPreservesCheckpointUntilReleased() =>
+        BlockedWindowsCheckpointPreservesBytesAndRecovers(readOnly: false, allowDeleteSharing: true);
+
+    [WindowsSaveFact]
     public Task WindowsReadOnlyCheckpointPreservesBytesUntilAttributeIsRemoved() =>
         BlockedWindowsCheckpointPreservesBytesAndRecovers(readOnly: true);
 
-    private async Task BlockedWindowsCheckpointPreservesBytesAndRecovers(bool readOnly)
+    private async Task BlockedWindowsCheckpointPreservesBytesAndRecovers(bool readOnly, bool allowDeleteSharing = false)
     {
         using var evidence = new CheckpointIoTestEvidence("clankerworld-checkpoint-blocked-", output.WriteLine,
             expectedFailureControl: true);
@@ -51,18 +55,21 @@ public sealed class PrivateWorldStateFileTests(ITestOutputHelper output)
         var unsavedBytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
         Assert.NotEqual(previousBytes, unsavedBytes);
         var originalAttributes = File.GetAttributes(file.Path);
-        using (var reader = readOnly ? null : new FileStream(file.Path, FileMode.Open, FileAccess.Read, FileShare.Read))
+        var sharing = FileShare.Read | (allowDeleteSharing ? FileShare.Delete : FileShare.None);
+        using (var reader = readOnly ? null : new FileStream(file.Path, FileMode.Open, FileAccess.Read, sharing))
         {
             try
             {
                 if (readOnly) File.SetAttributes(file.Path, originalAttributes | FileAttributes.ReadOnly);
-                var failure = Record.Exception(() => evidence.Observe(readOnly ? "read-only-destination" : "reader-denies-delete",
-                    world.WorldTick, () => file.Save(world)));
+                var operation = readOnly ? "read-only-destination" : allowDeleteSharing ? "reader-allows-delete" : "reader-denies-delete";
+                var failure = Record.Exception(() => evidence.Observe(operation, world.WorldTick, () => file.Save(world)));
                 Assert.NotNull(failure);
                 Assert.True(failure is IOException or UnauthorizedAccessException, failure?.ToString() ?? "Expected native replacement refusal.");
                 Assert.Same(failure, evidence.FirstChanceFailure);
                 Assert.Same(failure, evidence.EscapingFailure);
-                Assert.Equal(readOnly ? unchecked((int)0x80070005) : unchecked((int)0x80070020), failure!.HResult);
+                // MoveFileEx replacement refuses an open destination even when the reader
+                // shares deletion. Native Windows controls report access denied in all three cases.
+                Assert.Equal(unchecked((int)0x80070005), failure!.HResult);
                 Assert.Equal(previousBytes, File.ReadAllBytes(file.Path));
                 Assert.Equal(unsavedBytes, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
                 using var prior = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(previousBytes));
@@ -74,28 +81,6 @@ public sealed class PrivateWorldStateFileTests(ITestOutputHelper output)
         evidence.Observe("save-after-release", world.WorldTick, () => file.Save(world));
         using var restored = evidence.Observe("strict-reload", world.WorldTick, () => file.LoadOrCreate("checkpoint-blocked"));
         Assert.Equal(unsavedBytes, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
-        evidence.Complete();
-    }
-
-    [WindowsSaveFact]
-    public async Task WindowsReaderAllowingDeleteSharingDoesNotBlockCheckpointReplacement()
-    {
-        using var evidence = new CheckpointIoTestEvidence("clankerworld-checkpoint-readable-", output.WriteLine);
-        var file = new PrivateWorldStateFile(evidence.CheckpointPath);
-        using var world = evidence.Observe("initial-create", null, () => file.LoadOrCreate("checkpoint-readable"));
-        var previousBytes = File.ReadAllBytes(file.Path);
-        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-        var updatedBytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
-        using (var reader = new FileStream(file.Path, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete))
-        {
-            evidence.Observe("reader-allows-delete", world.WorldTick, () => file.Save(world));
-            Assert.Equal(updatedBytes, File.ReadAllBytes(file.Path));
-            using var oldContents = new MemoryStream();
-            reader.CopyTo(oldContents);
-            Assert.Equal(previousBytes, oldContents.ToArray());
-        }
-        using var restored = evidence.Observe("strict-reload", world.WorldTick, () => file.LoadOrCreate("checkpoint-readable"));
-        Assert.Equal(updatedBytes, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
         evidence.Complete();
     }
 
