@@ -96,17 +96,25 @@ check and the listed model names have been tested against recorded sample
 replies, not yet against live provider accounts. Jev can be switched on or off
 for a paused world.
 When a personal model names a new agent, it gets a stable first-letter hint to
-encourage varied names. If the chosen full name matches another agent's name
-after Unicode normalization, case folding and whitespace cleanup, the game
-asks once more without showing the other name. Deceased agents still count.
-If the second answer is unavailable or also taken, the person keeps the
-placeholder name until the player changes it.
+encourage varied names. Each chosen first name is unique across the world,
+including deceased agents. Different surnames, capitalization or spacing do
+not make a taken first name available. The game asks once more after a
+collision, without showing anyone else's name. If the second answer is
+unavailable or also taken, the person keeps the placeholder until the player
+changes it. Temporary names never reserve a first name, even after automatic
+naming ends.
 
-Player renames follow the same rule: a full name held by another living or
-deceased agent is refused. The Profile explains that the name is taken and
+Player renames follow the same rule. An agent may keep their own first name
+while changing the rest of their name. The Profile explains that the name is taken and
 keeps the name field open with your attempt in it until you change it, close
 it or choose another agent. This makes no model request. Renaming keeps the
 same person and leaves past spoken lines as they were.
+
+A newborn starts with a temporary name. A chosen child's name must use one
+biological parent's surname and an unused first name. The player can name the
+child in Profile; automatic naming waits until the child is old enough for
+ordinary personal-model calls. Later parent renames do not change a child's
+existing name.
 
 A child's personal model is recorded at birth from the parents' explicit
 personal assignments. When those differ, the parent who began the family plan

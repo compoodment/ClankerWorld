@@ -193,9 +193,10 @@ public sealed partial class SettlementParenthoodTests
         var inventory = InventoryFixture.AddLot(checkpoint.Inventory, "guardian-priority-birth-food", "food",
             childHousehold, 4, storageBuildingId: originHouse.InstanceId);
         checkpoint = checkpoint with { Inventory = inventory };
+        checkpoint = ChosenBirthNameTestFixture.NameParent(checkpoint, parents[0]);
         var birth = SocietyFixture.CommitBirth(checkpoint, new SocietyBirthRequest("guardian-priority-birth", 1,
             parents[0], parents[1], childHousehold, parents, parents, "guardian-priority-birth-food", 4,
-            checkpoint.WorldTick, ChildName: "Orphan", PrimaryCaregiverId: parents[0]));
+            checkpoint.WorldTick, ChildName: ChosenBirthNameTestFixture.ChildName(checkpoint, parents[0], "Orphan"), PrimaryCaregiverId: parents[0]));
         var child = Assert.IsType<string>(birth.CreatedId);
         checkpoint = birth.Checkpoint;
         var grandparent = new SocietyRelationship("guardian-search-grandparent", 1,
@@ -552,7 +553,7 @@ public sealed partial class SettlementParenthoodTests
                 {
                     Society = state.Society.Society with
                     {
-                        Inhabitants = state.Society.Society.Inhabitants.Select(person => person with { Name = "private-care-secret" }).ToArray(),
+                        Inhabitants = state.Society.Society.Inhabitants.Select(person => person with { Name = $"private-care-secret-{person.Id}" }).ToArray(),
                     }
                 }
             };
@@ -586,11 +587,20 @@ public sealed partial class SettlementParenthoodTests
         var state = await PreparedState();
         var first = state.Inhabitants[0].InhabitantId;
         var second = state.Inhabitants[1].InhabitantId;
+        state = state with
+        {
+            Society = state.Society with
+            {
+                Society = ChosenBirthNameTestFixture.NameParent(state.Society.Society, first),
+            },
+        };
         using var world = PrivateWorldRuntime.Restore(state, actor => new ParentProvider(actor == first ? "parent_propose:" : "parent_accept:"));
         for (var tick = 0; tick < 605; tick++) await world.AdvanceOneTickAsync();
         state = world.ExportState();
         var child = Assert.Single(state.Society.Society.Births).ChildId;
         using var society = SocietyWorldRuntime.Restore(state.Society);
+        society.Apply(checkpoint => SocietyFixture.RenameInhabitant(checkpoint, child,
+            ChosenBirthNameTestFixture.ChildName(checkpoint, first, "Orphan")));
         society.Apply(checkpoint => SocietyFixture.Kill(checkpoint, first, SocietyDeathCause.Accident, checkpoint.WorldTick));
         society.Apply(checkpoint => SocietyFixture.Kill(checkpoint, second, SocietyDeathCause.Accident, checkpoint.WorldTick));
         var societyState = society.ExportState();

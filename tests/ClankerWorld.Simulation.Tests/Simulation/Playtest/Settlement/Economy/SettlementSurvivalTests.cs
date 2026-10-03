@@ -89,7 +89,7 @@ public sealed class SettlementSurvivalTests
             {
                 Society = society.Checkpoint with
                 {
-                    Inhabitants = society.Checkpoint.Inhabitants.Select(person => person with { Name = "sk-private-production-test" }).ToArray(),
+                    Inhabitants = society.Checkpoint.Inhabitants.Select(person => person with { Name = $"sk-private-production-test-{person.Id}" }).ToArray(),
                 },
             },
             Inhabitants = state.Inhabitants.Where(person => person.InhabitantId != worker.InhabitantId).ToArray(),
