@@ -129,8 +129,8 @@ on the owner.
   playtest only when the owner says in chat that the next playtest needs them.
   Add `owner-priority` and a comment naming that playtest.
 - **How we work:** changes to CI, labels, templates, Claude Code settings
-  (`.claude/`), agent skills (`skills/`), CONTRIBUTING, AGENTS or CLAUDE.md
-  affect every agent, so they are P0.
+  (`.claude/`), agent skills (`skills/` and the `.agents/` links to it),
+  CONTRIBUTING, AGENTS or CLAUDE.md affect every agent, so they are P0.
 - **At most 10 open P0 and 20 open P1 issues.** Count issues only, not pull
   requests. When a level is full, the least urgent issue there that the owner
   did not pick, counting the new one, goes down a level; between equals, the
@@ -492,7 +492,9 @@ Several reviewers may be merging at the same time, so:
   instead. If it isn't clear which to keep, ask the owner in chat.
 - **One review claim at a time.** A claim is not a place in the queue. Take a
   second pull request only while the first waits on CI or for its merging
-  turn.
+  turn, and review it in that time, so it is ready when the first merges. The
+  [review-merge skill](skills/review-merge/SKILL.md) shows how to keep the
+  merging turn busy this way.
 - **Priority decides what you claim, not when you merge.** Once your pull
   request passes the checks below, merge it. Don't hold it back for
   higher-priority pull requests that are still in review. Wait only for a pull
@@ -534,8 +536,10 @@ Several reviewers may be merging at the same time, so:
   comment, and search again; if another pull request also has the label, the
   one whose `status:merging` comment came first keeps the turn, and the other
   removes its label and waits. Remove the label when you merge, when CI fails
-  or when you stop. A merging turn is not a claim: one taken more than 60
-  minutes ago has lapsed, and anyone may remove the label with a comment.
+  or when you stop. The turn is free the moment a pull request merges, so the
+  next one may start its final run while main's CI runs on that merge. A
+  merging turn is not a claim: one taken more than 30 minutes ago has lapsed,
+  and anyone may remove the label with a comment.
 - **Version numbers go to whoever merges first.** A save-format, schema or
   other version number in an unmerged pull request is provisional, and nobody
   reserves one, in a comment or anywhere else. Git merges two identical number
@@ -577,17 +581,19 @@ request's page, reopen those pull requests and change their base to main.
 After merging:
 
 - Fetch main and confirm the squash commit is there. Wait for main's CI on it
-  before you merge anything else; you may start your next review meanwhile. If
-  it fails:
+  before you merge anything else. Meanwhile you may start your next review, or
+  take the merging turn for your next pull request and start its final run.
+  If main's CI fails:
   - **Known flaky test:** if only one test failed and it has an open Bug issue
     for intermittent failures, add the run link to that issue and carry on. If
     you think a test is flaky but it has no such issue, re-run the failed job
     if you can and open a P1 Bug with both runs; if you can't re-run it, treat
     it as a real break.
   - **Real break:** whoever merged the first failing commit owns it as a P0,
-    even if others have merged since. Comment on that pull request, then open
-    a pull request that reverts its squash commit, or a fix if that is quicker,
-    with `priority:p0` and the failing run's link. A pure revert may be merged
+    even if others have merged since. Release any merging turn you took
+    meanwhile. Comment on that pull request, then open a pull request that
+    reverts its squash commit, or a fix if that is quicker, with
+    `priority:p0` and the failing run's link. A pure revert may be merged
     by its author once its CI passes. When a revert merges, reopen each issue
     the reverted pull request closed, with `status:needs-pr` and a comment
     naming the revert, the failing run and the branch to continue from. Until main is green, nobody merges main
