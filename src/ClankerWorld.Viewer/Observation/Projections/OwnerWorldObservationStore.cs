@@ -629,12 +629,14 @@ public sealed class OwnerWorldObservationStore
     // Every open message stays visible. Closed messages are bounded to each
     // agent's newest few, whether or not a personal model heard them: an order
     // the game could not act on, or one done by local rules, still belongs on
-    // the card. Newest means latest submitted, the order the card reads them in.
+    // the card. Orders and suggestions are bounded separately, so heard
+    // suggestions never push the latest finished orders off the card. Newest
+    // means latest submitted, the order the card reads them in.
     private static OwnerQueuedInstruction[] ProjectPrivateInstructions(
         PrivateWorldRuntimeState state,
         HashSet<string> completedInstructionIds) =>
         (state.Instructions ?? [])
-            .GroupBy(instruction => instruction.TargetInhabitantId, StringComparer.Ordinal)
+            .GroupBy(instruction => (instruction.TargetInhabitantId, instruction.Kind))
             .SelectMany(group =>
             {
                 var pending = group.Where(instruction => !completedInstructionIds.Contains(instruction.InstructionId));
@@ -835,6 +837,13 @@ public sealed class OwnerWorldObservationStore
         if (dependents.Length > 0) decisionFactors.Add(new("dependent-care", string.Join(", ", dependents)));
         if (HousingDetail(state, inhabitant, physical.Housing) is { } housingDetail)
             decisionFactors.Add(new ViewerDecisionFactor("housing", housingDetail));
+        if (state.Knowledge?.WritingProjects.SingleOrDefault(project => project.ActorId == inhabitant.Id) is { } writing)
+        {
+            var kind = writing.Kind.Replace('_', ' ');
+            var action = writing.SourceArtifactId is not null ? "Copying" : writing.Kind == "field_map" ? "Drawing" : "Writing";
+            decisionFactors.Add(new ViewerDecisionFactor("knowledge-writing",
+                $"{action} a {kind} · {writing.WorkDone}/{writing.WorkRequired}"));
+        }
         if (TownMembershipText.Describe(state.Towns ?? [], state.Society.Society, inhabitant.Id,
                 state.WorldSystems!.Config.TicksPerDay,
                 TownMembershipText.TownsWithWarehouse(state.WorldSimulation, state.WorldContent!)) is { } townMembership)

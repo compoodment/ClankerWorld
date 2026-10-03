@@ -54,11 +54,14 @@ second holds the Blacksmith. The player presses Start World explicitly.
 
 Default Balanced Small/Medium previews measure forests and mountains against
 dry land and try at most three deterministic maps for the Normal settings. The
-preview shows each playable candidate's coverage, lists attempts that have no
-room for a first Town, and creates the exact selected map. If no attempted map
-has room, it asks the player to try another seed or change the settings.
-If a selected map misses a target, Create World stays unavailable until the
-player accepts the displayed result or changes the seed. Uniform Dry and
+preview describes the selected map in plain words, such as "Plenty of forest
+and some mountain ranges". Its tooltip gives the measured shares of every
+playable map tried and lists, in the order tried, attempts that have no room
+for a first Town. Create World makes the selected map exactly. If no attempted
+map has room, it asks the player to try another seed or change the settings.
+If the selected map has less or more forest or mountains than a balanced
+world, the preview says so, and Create World stays unavailable until the
+player ticks **Keep this map anyway** or changes the seed. Uniform Dry and
 polar-only settings do not use those trial bands; each band applies only while
 its own forest or mountain control is Normal. This is connected to the normal
 owner/server path; the current measurements are
@@ -170,9 +173,21 @@ The agent card's **Speak to them** box sends a message as a **Suggest** or an
 the agent's planning model containing the exact words; a queued order reaches it when that order
 becomes active. Any brief reply comes in the same response, without a separate
 acknowledgement request. Order steps do not cause requests every tick.
-The card keeps them under **Your messages** and shows whether the model heard
-them, whether an order is still open, and any short reply separately from
-private thoughts.
+The Profile keeps the four newest under **Your messages** and shows whether the
+model heard them, whether an order is still open, and any short reply
+separately from private thoughts.
+
+The quick card and the Profile name the agent's current order with its status
+as the host reports it: queued, waiting, doing, interrupted or blocked, with
+progress, the host's reason when it is held up and how many orders wait after
+it. With no open order they show how the latest order ended: finished,
+cancelled (saying when a newer order replaced it) or not understood. Finished
+appears only after the host records the work as done, never when a message is
+accepted or a model hears it. **All orders** in the Profile opens a reader with
+every open order, in the order they will be done, and the agent's six latest
+closed orders, which closed suggestions no longer push out. The game draws
+both from the host's snapshot and keeps no order list of its own, so after a
+reconnect or reload they show what the host holds.
 
 Orders currently cover eating carried food, collecting accessible household
 food to eat, going to a known food source or discovering one through ordinary
@@ -204,8 +219,9 @@ does not stop the agent from following its task or handling an urgent need.
 Deterministic local choices do not claim the model heard a message, and
 suggestions do not block recognized orders. Hands-on Windows paired-client
 checks remain pending in the
-[playtest list](../playtest/586-observer-guidance.md) and the
-[food-order checklist](../playtest/587-food-orders.md).
+[playtest list](../playtest/586-observer-guidance.md), the
+[food-order checklist](../playtest/587-food-orders.md) and the
+[order list checklist](../playtest/589-order-cards.md).
 
 Thoughts, memories, beliefs and explored map facts belong to the individual
 agent. The player can inspect mistakes and where a belief came from. Jev can
@@ -230,7 +246,7 @@ summaries remain unfinished.
 | Clay, pottery and water | Basic version | A household can dig finite clay and make storage pots and water jugs at its House. A pot holds up to 8 food and slows spoilage; hungry household children, adolescents and adults, and caregivers feeding an infant, take ready-to-eat servings from it. A jug holds up to 4 fresh water, which an adult can collect from a reachable riverbank or lakeshore and return to the House. Collecting a jug requires carrying room for the jug, its contents and some water. The Clinic uses delivered fresh water to make medicine, leaving the jug reusable. The related [empty-vessel return fix](https://github.com/compoodment/ClankerWorld/issues/749) carries empty household pots and jugs from workstations back to the House; automated checks cover its return and reuse. Porridge, bread and stew also consume fresh water while leaving the jug reusable. Empty jugs at Houses or Restaurants can be collected and refilled. Animal care remains unfinished. |
 | Building new buildings | Basic version | A household plans a House, Farmhouse, Blacksmith, Silo, Tailor Shop, Clinic, Restaurant or optional Store it does not hold yet, one of each, once it has the materials in hand. It gathers missing materials first. Only a household holding a Farmhouse builds a Silo, within two tiles of it; farm stock reaches either building in carried loads. New shared Town buildings are not offered yet. |
 | House resident places, expansion and guests | Basic version | A House gives three resident places per tile, or four when one recorded domestic family unit is at least two people and a strict majority. Travelers and infants count; dead people and invited storm guests do not. A full House can be expanded for more places when the work completes. Add Agent and unanimous household admission check the House's room before adding someone to a household that holds one. Birth still completes into the primary caregiver's current household and can make it overcrowded; the building card and agent context show the count and limit. Existing overcrowding gives eligible adults one unpaused world day to move, with volunteers first and sole caregivers protected; notices, requests and expansion progress appear in agent inspection. Adult household members may also expand a nearly full House for storage; adult Town residents may expand a nearly full Warehouse from 2×2 to 2×3. Expansion keeps identity, stock and cooking jobs, reserves materials and cancels safely if space or permission changes. Any adult household member may invite or revoke a named storm guest. Guests cannot use House stock or cooking. Storage limits, costs and work time are trial values. |
-| Local exploration and physical maps | Basic version | Short outings record personal knowledge and can produce a map or field record to share or barter. Purposeful distant exploration is unfinished. |
+| Local exploration and physical knowledge goods | Basic version | Short outings record personal knowledge. A House makes paper from real fiber and jug-carried water; adults use paper to write field records and maps, or paper and cloth to bind books. Reading, sharing and trading teach only their actual contents to the recipient. Copies cost fresh materials. Purposeful distant exploration is unfinished. |
 | Trade, relationships, conversations and teaching | Basic version | One-for-one barter, where both people must meet and have room for what they receive, positive trust, accepted/refused partnerships, and bounded public conversations with mutual consent for a structured trust effect. Close biological relatives cannot become partners or plan a child together: parents and children, grandparents and grandchildren, full or half siblings, and aunts or uncles with their nieces or nephews. First cousins can; shared households and caregiving do not count as kinship. Each agent has at most two conversation starts or acceptances per world day; this and the six-turn limit are provisional. Adults can ask a free, healthy agent with a saved skill for a practical lesson; the learner keeps the skill, teacher and time, and the agent card shows them. Skills currently change no access or work speed. Pricing, currency, conflict and broader group dialogue remain unfinished. |
 | Household shops | Basic version | Adults can offer exact goods for goods kept at a nearby Farmhouse, Blacksmith, Tailor Shop, Clinic, Restaurant or Store. Both traders meet there before anything changes hands. The buyer carries the purchase; payment goes into household stock at that shop. Buyers can seek better tool tiers, clothing that protects them better in the current weather or medicine for an observed illness. Store goods must be carried in first. The building card shows the terms and progress; cancelled offers release both lots. Buying grants no access to private stock, cooking, treatment or household membership. A customer may ask a Blacksmith household for a tool before it is stocked. The household may accept or refuse; accepted work uses its own real materials, and a finished tool is purchased through the usual physical barter. No payment, price promise or future ownership is created by the request. Request status and any missing-input or storage blocker appear on the Blacksmith and relevant agent cards; [its Windows checklist](../playtest/564-tool-making.md) is pending. Market stalls remain unfinished in [#564](https://github.com/compoodment/ClankerWorld/issues/564). Restaurant adults buy missing ingredients and customers buy meals after walking to a shop in their own Town. Its [Windows checklist](../playtest/561-concrete-meals.md) is pending. Barter rates and shelf sizes are provisional. |
 | Clinic supplies and illness care | Basic version | Reachable renewable herb patches supply a household-held 1×2 Clinic. It makes medicine from herbs, wood and water in a reusable jug; a House or Tailor Shop cuts cloth into bandages. One real medicine dose reduces illness gradually. Adults choose named caregivers through a fresh accepted personal-model decision and may revoke permission; self-care and a dependent's accepted caregiver use their existing authority. Jev, failed replies, repeated intentions and owner orders cannot grant adult permission. Interrupted treatment stops without refunding the spent dose. Saving keeps permission and progress; pausing stops recovery time. Injury causes and bandage treatment remain deferred. Automated checks cover this path; [the Windows playtest](../playtest/565-clinic-care.md) remains pending. |
@@ -490,9 +506,9 @@ room for the whole yield, including orchard seeds. A hungry adult can make room
 for one permitted household serving when spare supplies can be set down. An
 accepted caregiver can also make room to feed a hungry infant, even when
 already well fed. The spare supplies go to the House if it has room or to the
-camp pile otherwise. Maps, field records, worn gear, gear being repaired and
+camp pile otherwise. Maps, field records, books, worn gear, gear being repaired and
 reserved goods stay carried. Exploring still teaches
-personal knowledge when there is no room to carry a new map or field record.
+personal knowledge when there is no paper or room for a written copy.
 Broken or spoiled spare cargo can also be set down without losing it.
 A filled jug moves home as one load when the adult has room for the jug and
 all its contents and the House has space. Loose household deliveries keep

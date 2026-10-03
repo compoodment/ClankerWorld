@@ -136,6 +136,27 @@ every 30 ticks, and idle agents reevaluate when their legal choices change or
 after 300 ticks. A blocked order therefore cannot request a paid model call on
 every tick.
 
+When a hosted decision is still running, a newly queued choice or observer
+message remains pending after its older reply is accepted. The next prepared
+tick refreshes that work against the resulting world before another request
+starts. Ordinary planning waits while the agent is busy talking; pending work
+remains available after the conversation. It also waits for a life-event
+identity reply, then uses the accepted identity in its refreshed observation.
+Ordinary changes to the clock or need values do
+not by themselves request another paid decision. Pending work is kept only for
+a choice the earlier request lacked, a change in urgent hunger or warmth, or new
+observer guidance; choices that merely disappeared leave the accepted reply
+valid. An agent whose reply was accepted takes no extra waiting routine in that
+tick, and pending work with no call in flight is rebuilt before it is sent.
+Work for an order that finished before any reply carrying it was accepted is
+still sent unchanged, so the agent can acknowledge it; a pause, a load or newer
+guidance rebuilds that work without it. A suggestion carried by a reply that is
+set aside because its order has since finished stays open for the next fresh
+request. Pending observations survive
+save/load and are refreshed for the resumed world before dispatch. The usual
+request, provider, conversation and legal-choice checks still reject stale
+replies.
+
 Local order steps can continue while a hosted reply is pending. An accepted
 decision and a local continuation do not execute the same order twice in one
 tick. If local work finishes first, a valid reply to that exact original
@@ -148,14 +169,19 @@ starting a step. A provider fallback leaves the order blocked for a bounded
 normal retry; it cannot strand the task permanently on `safe_idle`.
 
 The owner snapshot sends every open message, plus the six most recently
-submitted closed messages for each agent, whether or not a personal model heard
-them. An order the game could not act on, or one carried out by local rules,
-therefore still appears on the agent card as closed and not heard. The card
-shows up to four messages per agent, newest first by submission but always
-preferring open messages over closed ones, then lists them in the order they
-were sent. Newer closed messages therefore cannot hide an order that is still
-waiting. The save keeps
-every message; only the snapshot is bounded.
+submitted closed orders and, separately, the six most recently submitted closed
+suggestions for each agent, whether or not a personal model heard them. An
+order the game could not act on, or one carried out by local rules, therefore
+still appears on the agent card as closed and not heard, and heard suggestions
+cannot push the latest closed orders out. **Your messages** shows up to four
+messages per agent, newest first by submission but always preferring open
+messages over closed ones, then lists them in the order they were sent. Newer
+closed messages therefore cannot hide an order that is still waiting. The
+card's order line and the **All orders** reader read the same snapshot: the
+oldest open order is the current one, the other open orders follow in
+submission order, and closed orders come newest first. The client keeps no
+order list of its own. The save keeps every message; only the snapshot is
+bounded.
 
 Pause, quit and loss of presence cancel external work without inventing an
 answer. Restore can retry a still-relevant saved decision. Synchronous fixture
@@ -402,9 +428,28 @@ previously unassessed records; only linked salience/confidence values are saved.
 It adds no separate paid request or generated prose. Local retrieval works with
 Jev off. Automatic experience capture and narrative summarization are unfinished.
 
-Exploration can create a one-site field record or a map of up to nine sites.
-Sharing nearby or bartering teaches only those sites to the recipient, retaining
-the discoverer and source agent. It does not grant access to unrelated knowledge.
+Exploration records personal knowledge; it does not create free inventory.
+Households make paper at an authorized House from physically delivered fiber
+and fresh water in a reusable jug. The provisional batch uses two fiber and
+one water to make two paper in sixteen work ticks, leaving the jug intact.
+
+An adult can write a one-site field record, draw a map or bind a book from
+facts they have actually learned. The provisional writing costs are one paper
+and four work ticks for a record, one paper and six work ticks for a map, or
+two paper, one cloth and twelve work ticks for a book. Each artifact holds at
+most nine sites. Writing reserves real personal materials and creates one
+distinct physical lot only when the work completes. Saved progress and
+material reservations survive temporary interruptions and reload. If the
+writer or copying source becomes unavailable, or the artifact limit is
+reached, the unfinished work releases its unused supplies. The agent's Profile
+shows the writing or copying progress.
+
+Reading or sharing a held artifact teaches only its recorded sites to the
+actual recipient, retaining the original discoverer and the source artifact.
+Copying needs the source, learned facts and new writing materials; sharing
+does not create another physical copy. Barter transfers the existing lot and
+teaches its recipient, without granting access to unrelated knowledge or
+anyone else's private stock.
 
 If intervening legal movement interrupts outward scouting, a new outward path
 starts at the actual position without inventing missing steps. On the return

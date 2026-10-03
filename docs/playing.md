@@ -157,6 +157,15 @@ waits until the agent is hungry enough, and gathering needs enough carrying
 space. A recognized new order replaces the current one unless you turn on
 **Queue**. Use **Cancel task** to stop a waiting or active order.
 
+The small card and the Profile show the order the agent is on now: whether it
+is waiting, being done, interrupted or blocked, how far along it is, why it is
+held up, and how many orders are queued after it. With no open order, they
+show how the latest one ended. An order shows as finished only once the work is
+done. **All orders**, beside **Your messages** in the Profile, lists every
+order the world keeps for them: the current one, the queue in the order it will
+be done, and their six latest closed orders. Each shows your words, and any
+reply from the agent is set apart from the game's status.
+
 When a child needs a guardian, an adult can follow **Become guardian for Lina**,
 using the child's full name. The adult still has to be eligible in the current
 guardian search. The order finishes when they accept primary care; moving the
