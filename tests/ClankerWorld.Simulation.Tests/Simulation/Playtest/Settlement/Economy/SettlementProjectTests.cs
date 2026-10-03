@@ -451,10 +451,16 @@ public sealed class SettlementProjectTests(Xunit.Abstractions.ITestOutputHelper 
         var provider = new ObservingProvider();
         using var world = new PrivateWorldRuntime("living-settlement", _ => provider);
         world.StageStarterContent();
+        var storedBelongings = new Dictionary<string, (string Owner, string House, string Kind)>();
         for (var tick = 0; tick < 1000; tick++)
         {
             await world.AdvanceOneTickAsync();
+            AssertBelongingsStayStored(world, storedBelongings);
+            foreach (var lot in world.Society.Inventory.Lots.Where(lot => lot.StorageBuildingId is not null &&
+                         world.Society.Inhabitants.Any(person => person.Id == lot.OwnerId)))
+                storedBelongings.TryAdd(lot.Id, (lot.OwnerId, lot.StorageBuildingId!, lot.ItemKind));
         }
+        Assert.Contains(storedBelongings.Values, stored => stored.Kind is "field_map" or "field_record");
         var state = world.ExportState();
         Assert.DoesNotContain(state.Map.CampObjects, item => item.Kind == "bedroll");
         Assert.DoesNotContain(world.WorldContent.Recipes,
@@ -483,6 +489,29 @@ public sealed class SettlementProjectTests(Xunit.Abstractions.ITestOutputHelper 
         Assert.NotNull(snapshot.Council?.StewardName);
         using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)));
         Assert.Equal(PrivateWorldRuntimeCodec.Encode(state), PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+        for (var tick = 0; tick < 3; tick++)
+        {
+            await world.AdvanceOneTickAsync();
+            await restored.AdvanceOneTickAsync();
+            AssertBelongingsStayStored(restored, storedBelongings);
+            Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()),
+                PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+        }
+    }
+
+    private static void AssertBelongingsStayStored(PrivateWorldRuntime world,
+        IReadOnlyDictionary<string, (string Owner, string House, string Kind)> storedBelongings)
+    {
+        foreach (var (lotId, stored) in storedBelongings)
+        {
+            // A lot used up or a House removed since storage is no longer at home.
+            var lot = world.Society.Inventory.Lots.SingleOrDefault(item => item.Id == lotId);
+            var house = world.WorldSimulation.Buildings.SingleOrDefault(item => item.InstanceId == stored.House);
+            if (lot is not null && house is not null && lot.OwnerId == stored.Owner &&
+                world.Society.GetInhabitant(stored.Owner).HouseholdId == house.HouseholdId)
+                Assert.True(lot.StorageBuildingId == stored.House,
+                    $"Stored {lot.ItemKind} {lotId} was needlessly collected at tick {world.WorldTick}.");
+        }
     }
 
     private sealed class ObservingProvider : IDecisionProvider

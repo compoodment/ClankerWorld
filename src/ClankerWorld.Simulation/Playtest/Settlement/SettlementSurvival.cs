@@ -67,6 +67,11 @@ public sealed partial class PrivateWorldRuntime
     // Provisional routine and outing reserves, not owner-approved balance.
     private const int RoutineFoodSeekFullness = 4_500;
     private const int OutingFullnessReserve = 3_000;
+    // Provisional balance (#641, #673): how much colder full night is than
+    // the same weather by day, in the per-tick exposure units weather uses.
+    // Dusk and dawn fade it in and out. Shelter, clothing and fire offset it
+    // exactly as they offset weather.
+    private const int NightChillAtFullDarkness = 15;
 
     private static bool NeedsUrgentFood(PlaytestInhabitantState person) => person.HungerBasisPoints < UrgentFullness;
 
@@ -84,7 +89,7 @@ public sealed partial class PrivateWorldRuntime
         var heat = AccessibleHeatingBuildings(person.InhabitantId).Any(building => IsFireLit(building) &&
             IsWithinInteractionRange(person.Position, building.Position,
                 building.HouseholdId is null ? 2 : 0)) ? 90 : 0;
-        var loss = Math.Max(0, WeatherExposure(person.Position) - protection);
+        var loss = Math.Max(0, OutdoorExposure(person.Position) - protection);
         return -loss + heat + (loss == 0 ? 20 : 0);
     }
 
@@ -99,6 +104,10 @@ public sealed partial class PrivateWorldRuntime
 
     private WeatherKind WeatherAt(GridPoint position) => WeatherRules.At(worldSystems, position, map.Height,
         WeatherRules.RegionClimate(map, position));
+
+    /// <summary>The cold of being outdoors here now: weather, climate and season, plus night.</summary>
+    private int OutdoorExposure(GridPoint position) => WeatherExposure(position) +
+        NightChillAtFullDarkness * DaylightRules.DarknessBasisPoints(worldSystems) / DaylightRules.FullDarkness;
 
     private int WeatherExposure(GridPoint position) => WeatherAt(position) switch
     {
