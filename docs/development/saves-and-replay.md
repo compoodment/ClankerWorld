@@ -100,6 +100,20 @@ unrelated action or a stale order cannot advance a replacement task. Alpha saves
 must use the current checkpoint schema; older saves are refused without
 migration and remain unchanged.
 
+Schema 53 saves wills with several heirs. An estate keeps its household
+default beneficiaries and adds, for an accepted will, the named heirs in order,
+the split, the exact quantity of each frozen lot each heir receives, and any
+final words. Frozen lots retain their original building storage when present,
+so escrow and communal inheritance cannot claim an unrelated House as storage.
+The deceased archive records the Town the agent lived in. Loading
+checks that only an accepted will has heirs and a division, that the division
+covers every frozen lot exactly with no other lots, that a held vessel's
+contents go to the vessel's heir, that person heirs are known agents and Town
+heirs existing Towns, and that final words are already normalized. Final words
+become private memories only at settlement, so a current-format save taken
+between the will and settlement replays the same transfers and memories. Older
+schemas carrying these records are refused; no migration is added.
+
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
 Matching parent assignments are disclosed as agreement; when they differ, the
@@ -358,7 +372,7 @@ blocked-return behavior. These checks use existing timestamps and add no saved
 fields, schema change or migration.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 52. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 53. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
@@ -375,10 +389,20 @@ physical shop exchanges beside their exact inventory offers,
 the continuity rule's state with each eligible couple's deadline, food-order
 targets, progress, retry state and cancellation receipts, staged
 guardian-search records with their offered adults, medical permission and
-consumed-dose progress, and selected personal ornaments.
+consumed-dose progress, selected personal ornaments, and wills with up to
+three named heirs, exact divisions and final words.
 Land records are checked against the saved map, Towns, households and one
 another before load. These fields retain their current validation and roundtrip
 behavior.
+
+The food repairs use the existing field, inventory, reservation and delivery
+records; they add no migration or new save fields. New planting claims remain
+active until the work consumes the seed or an interruption releases it. An
+existing current-format finite planting claim may still expire: field
+maintenance then cancels the unfinished planting and retains the unconsumed
+seed. Reload preserves physical food and vessel locations, exact active
+claims and in-flight delivery pointers. Recovery clears those pointers only
+when the real stock is set down; a discarded prepared step does not move it.
 
 The table records earlier schema changes. Its older-save behavior is historical;
 the current loader accepts only the current schema and does not run those
@@ -393,8 +417,9 @@ identity, schema 44 for Town land records, schema 45 for physical shop
 exchanges, schema 46 for continuity, schema 47 for household departures and
 physical custody, schema 48 for Town councils, schema 49 for food-order
 progress and cancellations, schema 50 for guardian searches, schema 51
-for medical permission and consumed-dose progress and schema 52 for selected
-ornaments record when those fields or behaviors were
+for medical permission and consumed-dose progress, schema 52 for selected
+ornaments and schema 53 for wills with several heirs and final words record when
+those fields or behaviors were
 introduced; they do not allow an earlier checkpoint schema past the
 current alpha cutoff.
 
@@ -435,6 +460,7 @@ current alpha cutoff.
 | Schema 50 | Staged dependent-guardian searches with their current stage, timing and offered adults, so consent remains ordered and replayable. Older builds refuse the checkpoint rather than infer or discard a search. |
 | Schema 51 | Named medical permissions and active consumed-dose progress bind to actual completed inventory receipts. Terminal treatment closes its receipt without refund or resurrection; death retains completed consumption history and archived profiles cannot carry active treatment. Earlier alpha saves are refused and preserved without migration. |
 | Schema 52 | An optional exact personally owned, carried ornament lot in the canonical personal equipment record. Wearing supplies no protection or carrying bonus; removal, gifts and death retain actual property while clearing the selection when required. Earlier alpha saves are refused and preserved without migration. |
+| Schema 53 | Wills with one to three named heirs (people or a Town), an equal or item-by-item split, the exact quantity of each frozen lot per heir, and final words; the deceased archive keeps the agent's Town. Divisions must cover every frozen lot exactly. Earlier schemas cannot carry these records. |
 
 Other compatibility fields remain separate for simulation, envelopes, content,
 assets, generator and network contracts. Change the field whose semantics
@@ -451,15 +477,21 @@ not save authority. Pause or shutdown cancels them; a restored still-relevant
 decision may be retried and incur another attempt.
 
 The post-death will path is intentionally different: it freezes personally owned
-lot IDs/kinds/quantities in estate escrow. A cancellable final choice runs outside
+lot IDs/kinds/quantities and their original building storage in estate escrow.
+A cancellable final choice runs outside
 the death tick. Validate the living recipient and still-escrowed frozen lots.
 Death cancels only open barter offers through the ordinary cancellation
 transition, releasing both parties' reservations. Completed trades and unrelated
 surviving reservations remain.
 A persisted pending will is not reissued on restore; interrupted work resolves
 to the household default on the next active tick. Failure/deadline does likewise.
-Estate settlement waits for the pending will and commits once. Per-lot bequests,
-debts, minors and inheritance-law policy remain open.
+Estate settlement waits for the pending will and commits once. An accepted will
+may divide lots between up to three heirs, including children or the deceased
+person's Town. Positive personal recipients alone receive its final words.
+Inheritance changes ownership while retaining ground, House storage or a living
+carrier's custody; goods carried by the deceased are dropped at their last tile.
+Town shares use the Town's current Warehouse while it can accept them.
+Debts, Town-law conflicts and guardianship remain separate work.
 
 A quantity-one physical map or field record retains its lot ID when inherited.
 Ownership and location change; its creator, discovery facts and artifact link
