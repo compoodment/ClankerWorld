@@ -380,8 +380,10 @@ public sealed class HandcartRuntimeTests
         Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
     }
 
-    [Fact]
-    public async Task BlacksmithHaulsLeaveABuildersCartMaterialsWithThem()
+    [Theory]
+    [InlineData("haul_smith_input", "smith_input_delivered", 2)]
+    [InlineData("supply_workstation:wood", "workstation_supplied", 0)]
+    public async Task HouseholdHaulsLeaveABuildersCartMaterialsWithThem(string haul, string delivered, int extraWood)
     {
         using var setup = NormalPathWorld.CreateGenerated("cart-materials-kept", _ => new CartChooser("safe_idle"));
         var state = setup.ExportState();
@@ -390,21 +392,28 @@ public sealed class HandcartRuntimeTests
         var inventory = state.Society.Society.Inventory;
         inventory = InventoryFixture.AddLot(inventory, "kept-wood", "wood", actor, 4);
         inventory = InventoryFixture.AddLot(inventory, "kept-rope", "rope", actor, 1);
+        if (extraWood > 0)
+            inventory = InventoryFixture.AddLot(inventory, "extra-wood", "wood", actor, extraWood);
         inventory = InventoryFixture.AddLot(inventory, "stock-fittings", "iron_fittings", smith.HouseholdId!, 2,
             groundPosition: new(smith.Position.X, smith.Position.Y));
-        // The Blacksmith once took a builder's carried cart wood into its stock, and the builder
+        // Household hauls once took a builder's carried cart wood into stock, and the builder
         // collected it back for the cart, round and round, so neither the cart nor anything else got done.
-        var chooser = new CartChooser("haul_smith_input");
+        var chooser = new CartChooser(haul);
         using var world = PrivateWorldRuntime.Restore(AtPosition(state, actor, smith.Position, inventory),
             id => id == actor ? chooser : new CartChooser("safe_idle"));
-        await Until(world, () => chooser.Offered.Contains("collect_handcart_material:iron_fittings"), 20);
-        for (var tick = 0; tick < 20; tick++)
+        await Until(world, () => chooser.Offered.Contains("collect_handcart_material:iron_fittings") &&
+            chooser.Offered.Contains(haul), 20);
+        // Wood beyond the cart's set still goes where it is needed.
+        if (extraWood > 0)
+            await Until(world, () => world.ExportState().Events.Any(item => item.Kind == delivered &&
+                item.Detail.Contains($":extra-wood:{extraWood}:", StringComparison.Ordinal)));
+        for (var tick = 0; tick < 30; tick++)
         {
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
             world.Validate();
         }
 
-        Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "smith_input_delivered" &&
+        Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == delivered &&
             item.Detail.Contains(":kept-", StringComparison.Ordinal));
         foreach (var (lotId, quantity) in new[] { ("kept-wood", 4), ("kept-rope", 1) })
         {

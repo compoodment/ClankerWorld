@@ -47,13 +47,16 @@ public sealed partial class PrivateWorldRuntime
         WarehousesForTown(townId).Any(item => item.InstanceId == warehouse.InstanceId);
 
     private IEnumerable<InventoryLot> AvailableWarehouseStock(string actor, string? itemKind = null) =>
+        WarehouseStockLots(actor, itemKind).Where(lot => CanReachSharedItem(actor, lot));
+
+    /// <summary>Town Warehouse stock the actor may collect, before checking for a route to it.</summary>
+    private IEnumerable<InventoryLot> WarehouseStockLots(string actor, string? itemKind = null) =>
         WarehousesAccessibleTo(actor).Where(warehouse => MayCollectWarehouseStock(actor, warehouse))
             .SelectMany(warehouse => society.Checkpoint.Inventory.Lots.Where(lot =>
                 lot.OwnerId == warehouse.TownId && lot.StorageBuildingId == warehouse.InstanceId &&
                 lot.DeliveryBuildingId is null && lot.ContainerLotId is null &&
                 (itemKind is null || lot.ItemKind == itemKind) &&
-                AvailableLotQuantity(lot) > 0))
-            .Where(lot => CanReachSharedItem(actor, lot));
+                AvailableLotQuantity(lot) > 0));
 
     private InventoryLot? PersonalWarehouseSurplus(string actor) => society.Checkpoint.Inventory.Lots
         .Where(lot => lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) &&

@@ -25,33 +25,52 @@ public sealed partial class PrivateWorldRuntime
 
     /// <summary>
     /// The cart recipe while the actor may build their own cart: no cart yet, none being built, and every
-    /// material either carried already or in stock they may collect, so nobody holds on to a set they cannot finish.
+    /// material either carried already or in stock they may collect, so they do not gather part of a set that
+    /// nothing in the world could complete.
     /// </summary>
     private RecipeDefinition? HandcartToBuild(string actor)
     {
         var recipe = worldContent.Recipes.FirstOrDefault(IsHandcartRecipe);
         var household = society.Checkpoint.GetInhabitant(actor).HouseholdId;
-        return recipe is not null && household is not null && AdultResident(actor) && BlacksmithForHousehold(household) is not null &&
-            !society.Checkpoint.Inventory.Lots.Any(lot => lot.ItemKind == InventoryContainerRules.Handcart && lot.OwnerId == actor) &&
-            !worldSimulation.ProductionJobs.Any(job => job.WorkerId == actor && job.RecipeId == recipe.CanonicalId &&
-                job.State == WorldProductionJobState.Running) &&
-            recipe.Inputs.All(input => HasOrMayCollect(actor, household, input.ResourceId, input.Amount))
-            ? recipe : null;
+        if (recipe is null || household is null || !AdultResident(actor) || BlacksmithForHousehold(household) is null ||
+            society.Checkpoint.Inventory.Lots.Any(lot => lot.ItemKind == InventoryContainerRules.Handcart && lot.OwnerId == actor) ||
+            worldSimulation.ProductionJobs.Any(job => job.WorkerId == actor && job.RecipeId == recipe.CanonicalId &&
+                job.State == WorldProductionJobState.Running))
+            return null;
+        var shortfall = recipe.Inputs.Select(input => (Kind: input.ResourceId, Missing: input.Amount -
+                CarriedMaterialQuantity(actor, input.ResourceId) - HouseholdMaterialQuantity(household, input.ResourceId)))
+            .Where(item => item.Missing > 0).ToArray();
+        // Town Warehouse stock needs a route, so it is counted last: first without routes, then one route per Warehouse.
+        return shortfall.All(item => WarehouseStockLots(actor, item.Kind).Sum(AvailableLotQuantity) >= item.Missing) &&
+            shortfall.All(item => ReachableWarehouseStockCovers(actor, item.Kind, item.Missing)) ? recipe : null;
     }
 
     private int CarriedMaterialQuantity(string actor, string kind) => society.Checkpoint.Inventory.Lots
         .Where(lot => ToolProgressionRules.IsTopLevelCarriedLot(lot, actor) && lot.OwnerId == actor && lot.ItemKind == kind)
         .Sum(AvailableLotQuantity);
 
-    private bool HasOrMayCollect(string actor, string household, string kind, int amount)
+    private int HouseholdMaterialQuantity(string household, string kind) => society.Checkpoint.Inventory.Lots
+        .Where(lot => lot.OwnerId == household && lot.CarrierId is null && lot.ContainerLotId is null && lot.ItemKind == kind)
+        .Sum(AvailableLotQuantity);
+
+    private bool ReachableWarehouseStockCovers(string actor, string kind, int missing)
     {
-        var missing = amount - CarriedMaterialQuantity(actor, kind);
-        if (missing <= 0) return true;
-        var stock = society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == household && lot.CarrierId is null &&
-            lot.ContainerLotId is null && lot.ItemKind == kind).Sum(AvailableLotQuantity);
-        // Town Warehouse stock is checked last: reaching it needs a route.
-        return stock >= missing || stock + AvailableWarehouseStock(actor, kind).Sum(AvailableLotQuantity) >= missing;
+        var found = 0;
+        foreach (var warehouse in WarehouseStockLots(actor, kind).GroupBy(lot => lot.StorageBuildingId, StringComparer.Ordinal))
+        {
+            if (!CanReachSharedItem(actor, warehouse.First())) continue;
+            found += warehouse.Sum(AvailableLotQuantity);
+            if (found >= missing) return true;
+        }
+        return false;
     }
+
+    /// <summary>Carried lots a would-be cart builder keeps for the cart; making room sets other cargo down first.</summary>
+    private string[] KeptHandcartLotIds(string actor) => HandcartToBuild(actor) is { } recipe
+        ? society.Checkpoint.Inventory.Lots.Where(lot => ToolProgressionRules.IsTopLevelCarriedLot(lot, actor) &&
+                lot.OwnerId == actor && recipe.Inputs.Any(input => input.ResourceId == lot.ItemKind))
+            .Select(lot => lot.Id).ToArray()
+        : [];
 
     // A would-be cart builder keeps the materials they carry for it. Household hauls take only what is
     // beyond that, or they would return it to stock as fast as the builder collects it from there.

@@ -241,7 +241,7 @@ public sealed partial class PrivateWorldRuntime
             return false;
         var missing = checked(plan.Quantity + plan.TreeSeedQuantity) - FreeCarryCapacity(actor);
         return missing > 0 && StoreSpareCargo(actor, state, householdId,
-            SpareCargoForFood(actor, missing, plan.ToolLotId));
+            SpareCargoForFood(actor, missing, plan.ToolLotId, KeptHandcartLotIds(actor)));
     }
 
     private bool CanMakeRoomForBlacksmithHarvest(string actor, PlaytestInhabitantState state,
@@ -250,7 +250,8 @@ public sealed partial class PrivateWorldRuntime
         if (ProjectMaterialHarvest(actor, itemKind, source) is not { } plan)
             return false;
         var cargo = SpareCargoForFood(actor,
-            checked(plan.Quantity + plan.TreeSeedQuantity) - FreeCarryCapacity(actor), plan.ToolLotId);
+            checked(plan.Quantity + plan.TreeSeedQuantity) - FreeCarryCapacity(actor), plan.ToolLotId,
+            KeptHandcartLotIds(actor));
         return cargo.Count > 0 && SpareCargoDestination(actor, state,
             cargo.Sum(move => move.PhysicalQuantity)) is not null;
     }

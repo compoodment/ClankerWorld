@@ -61,7 +61,7 @@ public sealed partial class PrivateWorldRuntime
                     .Select(lot => lot.ContainerLotId is { } containerId
                         ? inventory.GetLot(containerId) : lot)
                     .Where(lot => PersonalEquipmentRules.IsCarried(lot, actor) &&
-                        lot.DeliveryBuildingId is null && deliveryRoom > 0 && AvailableLotQuantity(lot) > 0 &&
+                        lot.DeliveryBuildingId is null && deliveryRoom > 0 && SpareCarriedQuantity(actor, lot) > 0 &&
                         (!InventoryContainerRules.IsContainer(lot.ItemKind) ||
                          ContainerFamilyQuantity(inventory, lot.Id) <= deliveryRoom) &&
                         (!InventoryContainerRules.IsContainer(lot.ItemKind) ||
@@ -151,7 +151,7 @@ public sealed partial class PrivateWorldRuntime
             var room = WorkstationDeliveryRoom(currentInventory, building.InstanceId);
             var quantity = InventoryContainerRules.IsContainer(carried.ItemKind)
                 ? ContainerFamilyQuantity(currentInventory, carried.Id) <= room ? 1 : 0
-                : Math.Min(room, Math.Min(need.Missing, AvailableLotQuantity(carried)));
+                : Math.Min(room, Math.Min(need.Missing, SpareCarriedQuantity(actor, carried)));
             if (quantity <= 0) return;
             ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
                 $"workstation-supply:{WorldTick}:{actor}", actor, householdId, carried.Id, quantity,
