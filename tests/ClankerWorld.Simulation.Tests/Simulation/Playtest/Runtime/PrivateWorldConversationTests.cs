@@ -733,7 +733,7 @@ public sealed partial class PrivateWorldConversationTests
                     candidate.Id.StartsWith("conversation_wrapup_accept:", StringComparison.Ordinal)))
                 return new ValueTask<CognitionDecisionResponse>(WaitForPlanningCancellationAsync(cancellationToken));
             var selected = observation.Candidates.FirstOrDefault(candidate =>
-                observation.InhabitantId == InitiatorId && candidate.Id == $"talk:{InviteeId}") ??
+                !EndSuspendedConversations && observation.InhabitantId == InitiatorId && candidate.Id == $"talk:{InviteeId}") ??
                 observation.Candidates.FirstOrDefault(candidate => EndSuspendedConversations &&
                     candidate.Id.StartsWith("conversation_end:", StringComparison.Ordinal)) ??
                 observation.Candidates.FirstOrDefault(candidate =>

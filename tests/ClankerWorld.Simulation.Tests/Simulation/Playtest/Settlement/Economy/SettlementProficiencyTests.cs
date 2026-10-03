@@ -33,7 +33,7 @@ public sealed class SettlementProficiencyTests
                 Society = state.Society.Society with
                 {
                     Inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "practice-tool", "wooden_hammer", actor.InhabitantId, 1),
-                    Inhabitants = state.Society.Society.Inhabitants.Select(person => person with { Name = "sk-private-practice-name" }).ToArray(),
+                    Inhabitants = state.Society.Society.Inhabitants.Select(person => person with { Name = $"sk-private-practice-name-{person.Id}" }).ToArray(),
                 }
             },
             Inhabitants = state.Inhabitants.Select(person => person == actor ? person with
