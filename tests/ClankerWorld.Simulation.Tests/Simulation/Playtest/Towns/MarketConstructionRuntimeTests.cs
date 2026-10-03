@@ -186,6 +186,8 @@ public sealed class MarketConstructionRuntimeTests
         await MarketFreshConsentScenario.AssertFreshArrivalConsentAsync(scenario.World);
         await MarketPausedPlanTradeScenario.AssertPausedBandageBuyerTradesWithoutBorrowingAlphaStockAsync(
             scenario.World.ExportState());
+        await MarketSeedTradeScenario.AssertOneMissingSeedIsBoughtAndPlantedWithoutOverbuyAsync(
+            scenario.World.ExportState());
         await MarketTradeScenario.AssertPipelineAsync(scenario.World);
     }
 

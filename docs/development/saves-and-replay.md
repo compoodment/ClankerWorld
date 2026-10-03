@@ -565,7 +565,20 @@ so recorded owners can still collect physical leftovers. Current-format
 restore must preserve intermediate construction, borrowing, stock and open
 trades without duplicating goods or approval. `MarketConstructionRuntimeTests`
 covers a generated paid Market and additional stall, personal and household
-stocking and barter, retrieval, intermediate restores and malformed state.
+stocking and barter, fresh consent, paused-plan ingredient buying, retrieval,
+intermediate restores and malformed state. A buyer added outside all Town land
+retains its independent household and no Town membership; open and settled
+trades reload strictly, and its live and restored continuations remain
+byte-identical after each continuing step.
+
+Planting-stock demand reuses existing fields, inventory and reservations and
+adds no saved field. The seed scenario creates its prepared field through
+actual tilling, buys one grain seed, retains the supplier's remaining unit,
+suppresses another same-kind purchase while the bought unit is held, then
+consumes that exact unit through ordinary planting. Intermediate states reload
+strictly with the same physical lots and claims. Stock, food consumption,
+equipment and phase wakes are controlled test arrangements; title, field
+placement and actor positions are retained from actual work and movement.
 Earlier alpha checkpoints, including schema 54, are refused and preserved
 without migration. The schema number remains provisional until merge.
 

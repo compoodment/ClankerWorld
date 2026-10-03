@@ -91,6 +91,8 @@ internal static class MarketTradeScenario
         Assert.Equal(seller, stocking.Society.Inventory.GetLot("market-seller-best-axe").OwnerId);
         MarketObservationTests.AssertProjection(stocking);
         AssertDepositTamperRefused(stocking.ExportState(), deposit, personalStock ? household : seller);
+        if (personalStock)
+            await MarketNonTownBuyerScenario.AssertAsync(stocking, seller, stall.BuildingId);
         var offering = phases.Resume("offer");
         await UntilAsync(offering, () => offering.Towns[0].Markets[0].Trades.Count == 1, policy);
         var offeredMarket = offering.Towns[0].Markets[0];

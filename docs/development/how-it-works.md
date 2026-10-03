@@ -999,10 +999,11 @@ restocking waits behind gathering materials needed by household work.
 Rates, the eight-unit shelf target and four-unit carried loads are provisional.
 Blacksmiths can sell real refined iron for another household's tool work.
 Commissioned tool orders remain a separate dependency in
-[#762](https://github.com/compoodment/ClankerWorld/pull/762); Restaurant meals,
-seed-purchase demand and later currency rules remain unfinished. The Clinic
-sells actual medicine and bandages through the same inventory and physical
-business authority.
+[#762](https://github.com/compoodment/ClankerWorld/pull/762). Flour foods and
+Restaurant meals are covered separately by
+[#693](https://github.com/compoodment/ClankerWorld/pull/693); currency remains
+later work. The Clinic sells actual medicine and bandages through the same
+inventory and physical business authority.
 
 **Markets** use the same inventory authority with separate saved paid-building
 and occupancy records. The Council-approved starter project pays for the 2×2
@@ -1021,8 +1022,10 @@ accepted, non-fallback personal LLM choice. Continued intentions walk only;
 owner orders do not authorize these mutations. Usable loose surplus, actual
 carrying and stall room, active claims, current household rights and protected
 equipment constrain the offered choices. The provisional one-for-one quote is
-an actual `Inventory.Offers` exchange. Buyers may belong to any Town. The named
-seller accepts only after both people meet at the stall. Purchased stock
+an actual `Inventory.Offers` exchange. Buyers may belong to any Town or have no
+Town membership; walking into the Market and completing a purchase change
+neither their household nor their Town. The named seller accepts only after
+both people meet at the stall. Purchased stock
 becomes the buyer's personal cargo; payment is physically set down as the
 seller's household stock, including payment for personally owned goods. A
 later stall borrower cannot sell an earlier borrower's stock. Its recorded
@@ -1031,6 +1034,24 @@ Live inventory ownership remains authoritative after inheritance or collection.
 Customer access remains limited to the named transaction. See the
 [Market save rules](saves-and-replay.md#paid-markets-and-stall-trade) for the
 saved layout, stock and offer checks.
+
+Missing-input demand checks the buyer's actual production owner, keeping each
+household's available materials separate. A nonterminal recipe plan marked
+`RequiresFreshChoice` may choose a Market purchase while remaining paused; an
+actively continuing plan keeps the adult at its work. Resuming the recipe
+still requires its ordinary choice and physical ingredient-delivery rules.
+
+`WantsFieldPlantingStock` reuses the actual field and planting-stock checks for
+grain seed, cultivated-green seed and loose potatoes. The adult must belong to
+a household holding a Farmhouse, have a usable hoe and have no urgent survival
+need or actively continuing project. That household must need food, and the
+adult must be able to reach its idle `Prepared` or `Harvested` field without
+another person's planting claim. A usable personally carried planting unit,
+accessible household stock or that field's reserved replanting lot satisfies
+the same-kind need. The exact one-unit purchase remains personal cargo until
+ordinary field work consumes it; a held unit suppresses further same-kind seed
+quotes even when the seller still has stock. Other goods may still be wanted.
+Demand creates no future seed buffer or access to another household's stores.
 
 **Clinic supplies and illness care** use the normal household building,
 workstation supply, ecology and recipe paths. `clankerworld-care-v1` adds a
