@@ -8,6 +8,8 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed partial class PrivateWorldConversationTests
 {
+    private static readonly string[] PendingConversationFixtureFields = ["pendingHosted", "pendingConversationTurns"];
+
     [Fact]
     public async Task NewGuidanceWaitsForCurrentChoicesAfterAnOlderReplyStartsAConversation()
     {
@@ -63,7 +65,7 @@ public sealed partial class PrivateWorldConversationTests
     {
         // Only this test advances the world. Wait for its actual fake-provider
         // tasks between ticks so neither admission nor call counts depend on sleep.
-        var tasks = new[] { "pendingHosted", "pendingConversationTurns" }.SelectMany(fieldName =>
+        var tasks = PendingConversationFixtureFields.SelectMany(fieldName =>
         {
             var field = typeof(PrivateWorldRuntime).GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
             var pending = Assert.IsAssignableFrom<IDictionary>(field!.GetValue(world));
