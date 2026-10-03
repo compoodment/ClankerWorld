@@ -117,6 +117,14 @@ material kinds are refused. Queueing, cancellation, discovery and partial
 quantities retain their state across reload. Older alpha saves are refused and
 preserved unchanged; no migration is added.
 
+Private-world schema 66 introduces crude House tool behavior. The two new
+item kinds keep ownership, physical custody, condition and reservations in
+ordinary inventory lots; their recipes use existing saved projects and
+production jobs. Current saves resume supply, paid work and tool use without
+duplicating output or wear. The separate House-tools content package keeps
+the existing House identity. Older alpha checkpoints are refused and left
+unchanged; there is no migration or inferred tool history.
+
 Schema 53 saves wills with several heirs. An estate keeps its household
 default beneficiaries and adds, for an accepted will, the named heirs in order,
 the split, the exact quantity of each frozen lot each heir receives, and any
@@ -479,7 +487,7 @@ from timed displacement even when their dependent lives in another household.
 No older-save migration or backfill is added.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 65. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 66. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
@@ -541,9 +549,10 @@ for Town admission records, schema 55 for Town laws and government, schema
 Council land claims, schema 59 for household land grants, schema 60 for
 handcart attachments, schema 61 for guardian-order targets, schema 62 for
 physical knowledge writing, schema 63 for exact-tile movement orders and
-schema 64 for overcrowding move-out notices and schema 65 for material orders
-record when those fields or behaviors were introduced; they do not allow an
-earlier checkpoint schema past the current alpha cutoff.
+schema 64 for overcrowding move-out notices, schema 65 for material orders
+and schema 66 for crude House tools record when those fields or behaviors were
+introduced; they do not allow an earlier checkpoint schema past the current
+alpha cutoff.
 
 | Compatibility change | Meaning |
 | --- | --- |
@@ -595,6 +604,7 @@ earlier checkpoint schema past the current alpha cutoff.
 | Schema 63 | Exact-tile movement orders retain their destination, progress and arrival receipt. Loading refuses missing destinations, mixed food/resource fields, repetition and inconsistent completion. Queues and interrupted trips replay across saves. Older alpha saves are refused and preserved without migration. |
 | Schema 64 | Household move-out notices retain their original notice period, fixed deadline and selection reason alongside pending housing requests. Reload and replacement do not restart notice or duplicate departure goods. Runtime admission and displacement recheck current need and caregiver protection. Earlier alpha saves are refused and preserved without migration. |
 | Schema 65 | Material-gathering orders retain the material kind, exact optional source or position, batch/item progress and physical harvest receipt. Loading rejects mixed food/guardian/material fields and inconsistent progress. Queue, cancellation and partial work replay without duplicate harvests; older alpha saves are refused and preserved without migration. |
+| Schema 66 | Crude House tools use ordinary saved inventory, projects and production jobs, with their own content package and tool tier. Supply, paid work, ownership, condition and extraction continue across reload without duplicate output or wear. Older alpha saves are refused and preserved without migration. |
 
 ### Tool-making requests
 

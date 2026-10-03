@@ -3,6 +3,7 @@ using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Content;
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
+using ClankerWorld.Simulation.Society;
 
 namespace ClankerWorld.Simulation.Tests;
 
@@ -442,6 +443,14 @@ public sealed class WorkstationSourceReserveTests
                 PersonalEquipmentRules.AvailableQuantity(inventory, lot), "independent-existing-work", long.MaxValue);
             claims.Add(id);
         }
+        // These controls isolate cooking reserves. Give each adult usable shared
+        // tools after the independent claims, so bootstrapping adds no wood demand.
+        var adults = state.Society.Society.Inhabitants.Count(person => person.HouseholdId == household &&
+            person.Status == SocietyInhabitantStatus.Active && person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder);
+        inventory = InventoryFixture.AddLot(inventory, "reserve-fixture-axes", "wooden_axe", household, adults,
+            storageBuildingId: house.InstanceId);
+        inventory = InventoryFixture.AddLot(inventory, "reserve-fixture-picks", "wooden_pickaxe", household, adults,
+            storageBuildingId: house.InstanceId);
         // Provision the other real recipe inputs so these are transport/retention controls,
         // rather than a test of which missing ingredient is ranked first.
         foreach (var site in new[] { house, restaurant })

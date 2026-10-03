@@ -242,13 +242,14 @@ public sealed partial class ViewerHttpTests
                 Assert.True(runtime.Society.IsPaused);
                 Assert.Empty(runtime.Inhabitants);
                 Assert.Equal(0, runtime.WorldTick);
-                Assert.Equal(15, runtime.Content.Packages.Count);
+                Assert.Equal(16, runtime.Content.Packages.Count);
                 Assert.Contains(runtime.Content.Packages, package => package.Manifest.PackageId == PotteryContent.PackageId);
                 Assert.Contains(runtime.Content.Packages, package => package.Manifest.PackageId == RestaurantContent.PackageId);
                 Assert.Contains(runtime.Content.Packages, package => package.Manifest.PackageId == BusinessContent.PackageId);
                 Assert.Contains(runtime.Content.Packages, package => package.Manifest.PackageId == CareContent.PackageId);
                 Assert.Contains(runtime.Content.Packages, package => package.Manifest.PackageId == OrnamentContent.PackageId);
                 Assert.Contains(runtime.Content.Packages, package => package.Manifest.PackageId == KnowledgeContent.PackageId);
+                Assert.Contains(runtime.Content.Packages, package => package.Manifest.PackageId == HouseToolsContent.PackageId);
                 Assert.All(runtime.Content.Packages, package =>
                     Assert.Equal(ContentPackageLifecycle.Active, package.Lifecycle));
                 Assert.Contains(runtime.WorldContent.Buildings, building => building.LocalId == "house-1x1");
@@ -346,9 +347,6 @@ public sealed partial class ViewerHttpTests
                 var olderDocument = JsonNode.Parse(originalBytes)!.AsObject();
                 var olderState = olderDocument["state"]!.AsObject();
                 olderState["schemaVersion"] = PrivateWorldRuntime.StateSchemaVersion - 1;
-                olderState.Remove("bridges");
-                olderState.Remove("bridgeTraffic");
-                olderState["map"]!.AsObject().Remove("bridgeDecks");
                 var olderBytes = Encoding.UTF8.GetBytes(olderDocument.ToJsonString());
                 File.WriteAllBytes(firstPath, olderBytes);
                 using var olderList = await SendSignedAsync(host, client, key, device.DeviceId,
@@ -428,7 +426,7 @@ public sealed partial class ViewerHttpTests
             Assert.Contains(restoredCatalog.Worlds, world => world.Id == generatedId);
             var restoredRuntime = restarted.Services.GetRequiredService<PrivateWorldRuntime>();
             Assert.Equal(WorldSizePreset.Small, restoredRuntime.ExportState().Geography?.Size);
-            Assert.Equal(15, restoredRuntime.Content.Packages.Count);
+            Assert.Equal(16, restoredRuntime.Content.Packages.Count);
             Assert.Contains(restoredRuntime.Content.Packages, package => package.Manifest.PackageId == PotteryContent.PackageId);
             Assert.Contains(restoredRuntime.Content.Packages, package => package.Manifest.PackageId == RestaurantContent.PackageId);
             Assert.Contains(restoredRuntime.WorldContent.Buildings, building => building.LocalId == "restaurant-1x2");
@@ -436,6 +434,7 @@ public sealed partial class ViewerHttpTests
             Assert.Contains(restoredRuntime.Content.Packages, package => package.Manifest.PackageId == CareContent.PackageId);
             Assert.Contains(restoredRuntime.Content.Packages, package => package.Manifest.PackageId == OrnamentContent.PackageId);
             Assert.Contains(restoredRuntime.Content.Packages, package => package.Manifest.PackageId == KnowledgeContent.PackageId);
+            Assert.Contains(restoredRuntime.Content.Packages, package => package.Manifest.PackageId == HouseToolsContent.PackageId);
             Assert.Contains(restoredRuntime.WorldContent.Buildings, building => building.LocalId == "store-1x1");
             Assert.Equal(5, restoredRuntime.WorldSimulation.Buildings.Count);
             Assert.NotEmpty(restoredRuntime.RoadTiles);

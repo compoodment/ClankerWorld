@@ -97,7 +97,7 @@ public sealed partial class PrivateWorldRuntime
                 throw new InvalidOperationException("Initial content is available only to a fresh paused generated world.");
             ContentPackageManifest[] manifests =
             [
-                StarterContent.Create(), SettlementContent.Create(), HouseContent.Create(),
+                StarterContent.Create(), SettlementContent.Create(), HouseContent.Create(), HouseToolsContent.Create(),
                 WarehouseContent.Create(), FarmContent.Create(), BlacksmithContent.Create(),
                 HouseCookingContent.Create(), PotteryContent.Create(), SiloContent.Create(), TailorContent.Create(),
                 RestaurantContent.Create(), BusinessContent.Create(), CareContent.Create(), OrnamentContent.Create(),

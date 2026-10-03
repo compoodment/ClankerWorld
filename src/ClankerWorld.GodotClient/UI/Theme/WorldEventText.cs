@@ -65,6 +65,7 @@ public static class WorldEventText
             "build_completed" => $"{ThingAt(1)} is ready.",
             "recipe_started" => $"Work began on {ThingAt(1)}.",
             "recipe_completed" => $"{ThingAt(1)} was finished.",
+            "house_tool_made" => $"{Name(snapshot, Field(worldEvent.Detail, 0))} made a {GameUiText.ItemName(Field(worldEvent.Detail, 1)).ToLowerInvariant()}.",
             "field_work_started" => $"{LeadingName(snapshot, worldEvent.Detail)} started work on a field.",
             "field_prepared" => $"{LeadingName(snapshot, worldEvent.Detail)} prepared a field.",
             "field_planted" => $"{LeadingName(snapshot, worldEvent.Detail)} planted {ThingAt(parts.Length - 1).ToLowerInvariant()}.",

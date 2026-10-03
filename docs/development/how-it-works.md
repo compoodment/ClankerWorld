@@ -1810,6 +1810,22 @@ LargeLanguageModel response whose exact offered target is still valid at
 admission. Jev, continuing intentions and MustDo cannot select them. Gift
 recipients come from locally observable people rather than a remote world scan.
 
+`HouseToolsContent` adds two recipes at the existing House without changing
+its building identity. Each crude wooden axe or pickaxe uses three wood held
+at that House, with a recipe duration of 24 ticks. Ordinary household supply
+brings the wood; once one batch is available, making a needed tool takes precedence over
+stocking another batch. Demand is bounded by active adult household members
+and counts usable family tools, including borrowed household tools and better
+tiers, plus work already committed. These are provisional balance values.
+
+Crude tools occupy tier zero: four wood or stone per extraction and 4,000
+condition basis points lost per successful use, compared with six and 2,000
+for the Blacksmith's wooden tools. Only tree/wood and stone entry gates accept
+the new tier; ore thresholds are unchanged. Existing collection, reservations,
+capacity, ecology and single-unit wear rules still apply. Completed House work
+emits `house_tool_made` with the exact worker and item kind for readable Event
+Log text. The generic item icon remains until crude-tool art is approved.
+
 The Blacksmith makes wooden, stone and iron tools from actual inputs, refines
 iron ore into separate refined iron, and repairs one carried worn tool at a
 time. Repair consumes the recipe materials carried by that tool's owner; it

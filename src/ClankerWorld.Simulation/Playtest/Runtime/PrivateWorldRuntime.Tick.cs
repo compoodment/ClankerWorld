@@ -441,6 +441,7 @@ public sealed partial class PrivateWorldRuntime
             var targetTick = checked(WorldTick + 1);
             StageSettlementContent();
             StageHouseContent();
+            StageBuiltInContent(HouseToolsContent.PackageId, HouseContent.PackageId, HouseToolsContent.Create, "house_tools_content_staged");
             StageWarehouseContent();
             StageFarmContent();
             StageBlacksmithContent();

@@ -85,7 +85,7 @@ public partial class Main
         {
             "weather_changed" => PixelIcons.Weather(worldEvent.Detail.Split(':').LastOrDefault() ?? "clear", 1),
             "food_harvested" or "food_consumed" => PixelIcons.Texture(PixelGlyph.Basket, ink, food, 1),
-            "build_started" or "build_completed" or "building_placed" or "recipe_started" or "recipe_completed" or "bridge_built"
+            "build_started" or "build_completed" or "building_placed" or "recipe_started" or "recipe_completed" or "house_tool_made" or "bridge_built"
                 => PixelIcons.Texture(PixelGlyph.Hammer, ink, wood, 1),
             "tree_planted" or "tree_replanted" or "crop_moisture_effect" => PixelIcons.Texture(PixelGlyph.Leaf, ink, green, 1),
             "child_born" or "partnership_accepted" or "partnership_ended" or "caregiver_assigned"
