@@ -211,6 +211,44 @@ public sealed partial class PrivateWorldRuntimeTests
     }
 
     [Fact]
+    public async Task MovementOrderWaitsForAHouseInvitationAndRetainsItAcrossReload()
+    {
+        var initial = MovementOrderState();
+        var actorHousehold = initial.Society.Society.GetInhabitant(HarvestInstructionActor).HouseholdId;
+        var house = initial.WorldSimulation!.Buildings.First(building =>
+            building.InstanceId.StartsWith("first-town-house-", StringComparison.Ordinal) && building.HouseholdId != actorHousehold);
+        var inviter = initial.Society.Society.GetHousehold(house.HouseholdId!).MemberIds[0];
+        var otherBuildings = initial.WorldSimulation.Buildings.Select(building => building.Position).ToHashSet();
+        var origin = initial.Map.FootNeighbors(house.Position).First(point =>
+            initial.Map.IsPassable(point) && !otherBuildings.Contains(point));
+        var free = initial.Map.Tiles.Select(tile => tile.Position).Where(point =>
+            initial.Map.IsPassable(point) && !otherBuildings.Contains(point) && point != origin &&
+            initial.Map.FootDistance(point, house.Position) > 3).Take(initial.Inhabitants.Count).ToArray();
+        initial = initial with
+        {
+            Inhabitants = initial.Inhabitants.Select((person, index) => person with
+            {
+                Position = person.InhabitantId == HarvestInstructionActor ? origin : free[index],
+            }).ToArray(),
+        };
+        using var world = RestoreMovementWorld(initial);
+        var receipt = SubmitMovementOrder(world, "visit-house", house.Position);
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal(origin, CancellationActorPosition(world.ExportState()));
+        var order = CancellationOrder(world.ExportState(), receipt.InstructionId);
+        Assert.Equal("blocked", order.Status);
+        Assert.Contains("invitation", order.BlockedReason, StringComparison.Ordinal);
+        Assert.True(world.SetHouseGuestInvitation(inviter, house.InstanceId, HarvestInstructionActor, invited: true).Applied);
+        using var restored = RestoreMovementWorld(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState())));
+        for (var tick = 0; tick < 10 && CancellationOrder(restored.ExportState(), receipt.InstructionId).Status != "finished"; tick++)
+            Assert.True((await restored.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal("finished", CancellationOrder(restored.ExportState(), receipt.InstructionId).Status);
+        Assert.Equal(house.Position, CancellationActorPosition(restored.ExportState()));
+        Assert.Equal(actorHousehold, restored.Society.GetInhabitant(HarvestInstructionActor).HouseholdId);
+        restored.Validate();
+    }
+
+    [Fact]
     public async Task MovementOrdersAllowChildrenWhoCanAlreadyWalk()
     {
         const int age = 4;

@@ -140,7 +140,8 @@ Use **Move to tile (12, 4)** to send an agent to an exact tile. **Go to (12, 4)*
 and **Travel to (12, 4)** work too. The agent walks there normally and finishes
 only on that tile. An occupied or unreachable destination leaves the order
 blocked with a reason. These are single trips; queue another order for the
-return journey. Urgent food or warmth needs can interrupt the trip, then it resumes.
+return journey. A destination in another household's House requires an
+invitation. Urgent food or warmth needs can interrupt the trip, then it resumes.
 
 An instruction the game cannot understand leaves the current order running.
 Unsupported requests, such as "build a house" or "gather wood," close as not

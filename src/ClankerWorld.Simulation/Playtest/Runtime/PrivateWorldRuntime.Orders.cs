@@ -1,6 +1,7 @@
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Kernel;
+using ClankerWorld.Simulation.World;
 
 namespace ClankerWorld.Simulation.Playtest;
 
@@ -17,8 +18,9 @@ public sealed partial class PrivateWorldRuntime
             return null;
 
         if (order.Action == "move_to" && order.TargetPosition is { } destination)
-            return person.Position == destination ||
-                map.IsPassable(destination) && FindUnoccupiedRoute(instruction.TargetInhabitantId, person.Position, destination, 0).Count > 0
+            return !MovementOrderNeedsHouseInvitation(instruction.TargetInhabitantId, destination) &&
+                (person.Position == destination ||
+                 map.IsPassable(destination) && FindUnoccupiedRoute(instruction.TargetInhabitantId, person.Position, destination, 0).Count > 0)
                     ? new CognitionCandidate("move_to", $"Travel to tile ({destination.X}, {destination.Y}).", 0)
                     : null;
 
@@ -276,6 +278,8 @@ public sealed partial class PrivateWorldRuntime
         if (instruction.Order?.Action == "move_to")
             return instruction.Order.TargetPosition is not { } destination || !map.Contains(destination)
                 ? "The requested tile is outside this world."
+                : MovementOrderNeedsHouseInvitation(instruction.TargetInhabitantId, destination)
+                    ? "Waiting for an invitation to enter this household's House."
                 : "No open walking route reaches the requested tile right now.";
         if (instruction.Order?.Action == "consume_food")
         {
@@ -299,4 +303,11 @@ public sealed partial class PrivateWorldRuntime
 
     private static string MovementOrderEffectId(GridPoint destination) =>
         FormattableString.Invariant($"arrival:tile:{destination.X}:{destination.Y}");
+
+    private bool MovementOrderNeedsHouseInvitation(string actor, GridPoint destination) =>
+        BuildingsWithTag("house").Any(house => house.HouseholdId is not null &&
+            house.HouseholdId != society.Checkpoint.GetInhabitant(actor).HouseholdId &&
+            !HasHouseGuestInvitation(actor, house.InstanceId) &&
+            WorldContentSimulationRules.Footprint(
+                worldContent.Buildings.Single(definition => definition.CanonicalId == house.DefinitionId), house).Contains(destination));
 }

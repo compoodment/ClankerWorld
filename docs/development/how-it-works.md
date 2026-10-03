@@ -102,7 +102,8 @@ speech. Local deterministic decisions do not mark messages as heard.
 `Move to tile (12, 4)`, `Go to (12, 4)` and `Travel to (12, 4)` create a
 `move_to` order with a saved `TargetPosition` and one arrival. The common
 unoccupied-route finder and `MoveToward` enforce walking rules, occupancy,
-travel cooldowns and illness delays. An unavailable destination stays blocked;
+travel cooldowns and illness delays. House destinations check current household
+membership or a saved guest invitation. An unavailable destination stays blocked;
 it is never substituted. The order completes only when the actor occupies the
 exact target tile. Repetition, quantities and extra task words are rejected.
 Completed steps record bounded firsthand facts only for the actor's actual
