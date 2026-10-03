@@ -112,8 +112,8 @@ public sealed class SocietyWorldRuntime : IDisposable
         }
     }
 
-    public SocietyOperationResult AdvanceTo(long targetTick) =>
-        Apply(checkpoint => SocietyFixture.AdvanceTo(checkpoint, targetTick));
+    public SocietyOperationResult AdvanceTo(long targetTick, IReadOnlyList<SocietyTownStore>? townStores = null) =>
+        Apply(checkpoint => SocietyFixture.AdvanceTo(checkpoint, targetTick, townStores));
 
     public SocietyOperationResult Pause() => Apply(SocietyFixture.Pause);
 
