@@ -632,7 +632,10 @@ public sealed partial class PrivateWorldRuntime
                 ObserverReply = observerReply,
             };
             checkpointSchemaVersion = StateSchemaVersion;
+            // A reply for an order that has since finished is set aside as stale,
+            // so a suggestion it carried stays open for the next fresh request.
             if (instruction.Kind == OwnerInstructionKind.Suggestive &&
+                admission.Intention.OperativeOrderInstructionId == PendingInstructionFor(inhabitantId)?.InstructionId &&
                 completedInstructionIds.Add(instruction.InstructionId))
                 completedSuggestions.Add(instruction.InstructionId);
         }

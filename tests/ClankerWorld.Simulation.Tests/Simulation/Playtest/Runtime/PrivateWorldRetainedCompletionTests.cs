@@ -193,6 +193,57 @@ public sealed partial class PrivateWorldRuntimeTests
         }
     }
 
+    [Fact]
+    public async Task ASuggestionCarriedWithAFinishedOrderReachesALaterFreshRequest()
+    {
+        var actorProvider = new ImmediateOrderReplyProvider();
+        var blocker = new HoldingProvider();
+        using var setup = CreateKnownBerryOrderWorld(_ => new DeterministicDecisionProvider());
+        var state = setup.ExportState();
+        var farStand = FarFromBerries(state, 7, 40);
+        state = state with
+        {
+            Inhabitants = state.Inhabitants.Select(item => item.InhabitantId == HarvestInstructionActor
+                ? item with { Position = farStand, HungerBasisPoints = 10_000 }
+                : item).ToArray(),
+        };
+        var blockerId = state.Society.Society.Inhabitants
+            .Where(item => item.Id != HarvestInstructionActor && item.AgeBand != ClankerWorld.Simulation.Society.SocietyAgeBand.Infant)
+            .Select(item => item.Id).OrderBy(item => item, StringComparer.Ordinal).First();
+        using var world = PrivateWorldRuntime.Restore(state, id => id == HarvestInstructionActor
+            ? actorProvider
+            : id == blockerId ? blocker : new DeterministicDecisionProvider(), maxCognitionDispatchPerCycle: 1);
+        for (var tick = 0; tick < 400 && !blocker.Started.Task.IsCompleted; tick++)
+        {
+            Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+            await Task.Delay(5);
+        }
+        Assert.True(blocker.Started.Task.IsCompleted);
+        var callsBefore = actorProvider.CallCount;
+        var order = world.SubmitInstruction(new OwnerInstructionRequest("queued-harvest-with-suggestion", "owner:test",
+            HarvestInstructionActor, OwnerInstructionKind.MustDo, "gather 2 berries from berry-patch"));
+        Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+        var suggestion = world.SubmitInstruction(new OwnerInstructionRequest("suggestion-with-queued-order", "owner:test",
+            HarvestInstructionActor, OwnerInstructionKind.Suggestive, "Rest a little afterwards."));
+        for (var tick = 0; tick < 80 && Assert.Single(world.ExportState().Instructions!,
+                 item => item.InstructionId == order.InstructionId).Order!.Status != "finished"; tick++)
+            Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+        Assert.Equal(callsBefore, actorProvider.CallCount);
+
+        blocker.Release.TrySetResult(true);
+        for (var tick = 0; tick < 12; tick++)
+        {
+            Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+            await Task.Delay(20);
+        }
+        var requests = actorProvider.Requests.Skip(callsBefore).ToArray();
+        Assert.Contains(requests, request => request.OperativeOrderInstructionId == order.InstructionId &&
+            request.ObserverGuidance?.Any(message => message.InstructionId == suggestion.InstructionId) == true);
+        Assert.Contains(requests, request => request.OperativeOrderInstructionId is null &&
+            request.ObserverGuidance?.Any(message => message.InstructionId == suggestion.InstructionId) == true);
+        Assert.Contains(suggestion.InstructionId, world.ExportState().CompletedInstructionIds ?? []);
+    }
+
     private static GridPoint FarFromBerries(PrivateWorldRuntimeState state, int nearest, int farthest)
     {
         var source = state.Map.Resources.Single(item => item.Id == "berry-patch");
