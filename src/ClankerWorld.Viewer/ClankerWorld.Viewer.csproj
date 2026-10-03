@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <ItemGroup>
+    <InternalsVisibleTo Include="ClankerWorld.Simulation.Tests" />
     <Compile Include="../ClankerWorld.Shared/BuildInformation.cs" Link="Shared/BuildInformation.cs" />
     <ProjectReference Include="..\ClankerWorld.Simulation\ClankerWorld.Simulation.csproj" />
   </ItemGroup>

@@ -203,6 +203,9 @@ public sealed class PotteryContentTests
         };
         foreach (var recipeLocalId in new[] { "storage-pot", "water-jug" })
         {
+            // The saved supplier intention can send the worker back to the bank.
+            // Each direct production phase begins with its worker at the House.
+            productionState = SetActorCondition(productionState, actor, 10_000, house.Position);
             using var current = PrivateWorldRuntime.Restore(productionState, _ => new IdleProvider());
             var recipe = current.WorldContent.Recipes.Single(item => item.LocalId == recipeLocalId);
             var started = current.StartProduction(recipe.CanonicalId, house.InstanceId, actor);
