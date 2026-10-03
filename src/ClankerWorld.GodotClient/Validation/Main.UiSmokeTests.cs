@@ -2157,7 +2157,7 @@ public partial class Main
                 foreach (var kind in Enum.GetValues<BuildingKind>())
                     foreach (var (footprintWidth, footprintHeight) in new[] { (1, 1), (2, 1), (1, 2), (2, 2) })
                     {
-                        var roof = BuildingSprites.Render(kind, footprintWidth, footprintHeight, tilePixels);
+                        using var roof = BuildingSprites.Render(kind, footprintWidth, footprintHeight, tilePixels);
                         var covered = 0;
                         for (var by = 0; by < roof.GetHeight(); by++)
                             for (var bx = 0; bx < roof.GetWidth(); bx++)

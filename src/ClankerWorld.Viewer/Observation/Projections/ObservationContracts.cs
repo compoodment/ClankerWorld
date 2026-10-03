@@ -243,7 +243,8 @@ public sealed record ViewerInstructionOrder(
     int? TargetY = null,
     string? BlockedReason = null,
     string? TargetAgentId = null,
-    string? TargetMaterialKind = null);
+    string? TargetMaterialKind = null,
+    string? TargetEquipmentKind = null);
 
 public sealed record ViewerCognitionEvent(long EventId, long WorldTick, string Kind, string Detail);
 
@@ -375,6 +376,7 @@ public sealed record ViewerTown(
     IReadOnlyList<ViewerPosition> BorderTiles)
 {
     public ViewerTownGovernance? Governance { get; init; }
+    public IReadOnlyList<ViewerTownProject> Projects { get; init; } = [];
     public ViewerTownGovernment? Government { get; init; }
     public IReadOnlyList<ViewerTownLandHearing> LandHearings { get; init; } = [];
     public int LandHearingCount { get; init; }
@@ -462,7 +464,18 @@ public sealed record ViewerCivicProposal(string Id, string Kind, string Text, st
     int RequiredYes, long DeadlineTick)
 {
     public ViewerLandHearingProposal? LandHearingRequest { get; init; }
+    public ViewerTownProjectPlan? Project { get; init; }
 }
+public sealed record ViewerTownProjectBudget(string Kind, int Quantity);
+public sealed record ViewerTownProjectPlan(string Name, string ProposerId, string ProposerName,
+    string DefinitionId, string DisplayName, ViewerPosition Site, ViewerPosition Entrance,
+    int Width, int Height, IReadOnlyList<ViewerTownProjectBudget> Budget);
+public sealed record ViewerTownProjectMaterial(string Kind, int Budget, int Supplied);
+public sealed record ViewerTownProject(string Id, string ProposalId, string Name,
+    string ProposerId, string ProposerName, string DefinitionId, string DisplayName,
+    ViewerPosition Site, ViewerPosition Entrance, int Width, int Height,
+    IReadOnlyList<ViewerTownProjectMaterial> Materials, int WorkDone, int WorkRequired,
+    string Stage, string? Blocker, string? CompletedBuildingId, ViewerCivicProposal Approval);
 public sealed record ViewerCivicCandidate(string Id, string Name, int Votes);
 public sealed record ViewerTownElection(string Id, string Kind, string Stage, int Seats, long DeadlineTick,
     IReadOnlyList<ViewerCivicCandidate> Candidates, IReadOnlyList<string> SettledNames);

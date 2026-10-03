@@ -441,6 +441,7 @@ public sealed partial class PrivateWorldRuntime
                 return new PrivateWorldStepResult(false, "paused", WorldTick, [], []);
             }
 
+            guardianPlacementActions.Clear();
             var startingEvent = events.Count;
             var targetTick = checked(WorldTick + 1);
             StageSettlementContent();
@@ -455,6 +456,7 @@ public sealed partial class PrivateWorldRuntime
             StageSiloContent();
             StageTailorContent();
             StageCareContent();
+            StageBuiltInContent(TownHallContent.PackageId, HouseContent.PackageId, TownHallContent.Create, "town_hall_content_staged");
             StageBuiltInContent(KnowledgeContent.PackageId, HouseContent.PackageId, KnowledgeContent.Create, "knowledge_content_staged");
             StageBuiltInContent(BusinessContent.PackageId, HouseContent.PackageId, BusinessContent.Create, "business_content_staged");
             var readyPackages = contentRegistry.GetActivationCandidates(targetTick);
@@ -543,6 +545,7 @@ public sealed partial class PrivateWorldRuntime
             AdvanceSettlementCouncil();
             AdvanceTownGovernance();
             SettleTownAdmissions();
+            MaintainTownProjects();
             MaintainLessons();
             MaintainPartnerships();
             MaintainHousing();
@@ -551,6 +554,7 @@ public sealed partial class PrivateWorldRuntime
             MaintainParenthood();
             MaintainContinuity();
             MaintainDependentCare();
+            ReconcileGuardianPlacements();
             DiscoverIdentityMoments();
             UpdateConversationsForTick(targetTick);
             RefreshTownLandHearings();
@@ -637,8 +641,12 @@ public sealed partial class PrivateWorldRuntime
             AdvanceMedicalTreatments();
             // An agent whose reply was accepted this tick already acted, even if newer work stays queued.
             if (deferHosted) ApplySafeRoutinesWhileWaiting(waiting.Except(decisions.Select(item => item.InhabitantId), StringComparer.Ordinal), orderActorsHandledThisTick);
+            ReconcileGuardianPlacements();
+            AdvanceGuardianPlacementFollowers(orderActorsHandledThisTick);
             AdvanceBridgeTraffic();
             SettleGuardianSearches();
+            ReconcileGuardianPlacements();
+            MaintainTownProjects();
             MaintainToolMakingRequests();
             RefreshTownLandHearings();
             MaintainKnowledgeWriting();

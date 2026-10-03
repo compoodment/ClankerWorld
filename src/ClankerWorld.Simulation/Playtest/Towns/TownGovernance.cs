@@ -9,7 +9,10 @@ public sealed record TownProposal(string Id, string RequestKey, string Kind, str
     string Text, string Circumstances, long CouncilRevision, long OpenedTick, long DeadlineTick,
     IReadOnlyList<string> Voters, int RequiredYes, IReadOnlyList<TownProposalVote> Votes,
     string Status = "pending", long? SettledTick = null, IReadOnlyList<GridPoint>? LandClaimTiles = null,
-    TownLandFilingRequest? LandHearingRequest = null);
+    TownLandFilingRequest? LandHearingRequest = null)
+{
+    public TownProjectPayload? Project { get; init; }
+}
 public sealed record TownElectionBallot(string AgentId, IReadOnlyList<string> Choices);
 public sealed record TownElection(string Id, string Kind, string Stage, long OpenedTick, long DeadlineTick,
     long TermEndTick, int Seats, IReadOnlyList<string> Voters, IReadOnlyList<string> Candidates,
@@ -319,9 +322,14 @@ public static class TownGovernanceRules
     public static TownGovernanceState SubmitProposal(TownGovernanceState state, string townId, string actor,
         string kind, string? subject, string text, string circumstances, IEnumerable<string> adults, long tick, int day,
         string? requestKey = null, string? noticeText = null, IReadOnlyList<GridPoint>? landClaimTiles = null,
-        HouseholdLandUseRequest? landUseRequest = null, TownLandFilingRequest? landHearingRequest = null)
+        HouseholdLandUseRequest? landUseRequest = null, TownLandFilingRequest? landHearingRequest = null, TownProjectPayload? project = null)
     {
-        if (kind is not ("law" or "admission" or "land_claim" or "land_use" or "land_hearing") || text.Trim().Length is < 1 or > MaximumProposalText || text.Any(char.IsControl) ||
+        if (kind == "project")
+        {
+            TownProjectRules.ValidatePayload(project);
+            text = TownProjectRules.ProposalText(project!);
+        }
+        if (kind is not ("law" or "admission" or "land_claim" or "land_use" or "land_hearing" or "project") || text.Trim().Length is < 1 or > MaximumProposalText || text.Any(char.IsControl) ||
             kind is "law" or "land_claim" or "land_use" or "land_hearing" && !Has(adults, actor) || kind == "admission" && actor != subject && !Has(adults, actor) ||
             kind == "land_use" && (landUseRequest is null || subject != landUseRequest.Id || townId != landUseRequest.TownId) ||
             kind != "land_use" && landUseRequest is not null ||
@@ -330,8 +338,16 @@ public static class TownGovernanceRules
             kind == "land_hearing" && (subject is not null || !TownLandGovernmentFilingRules.IsValid(landHearingRequest, tick)) ||
             kind != "land_hearing" && landHearingRequest is not null)
             throw new InvalidOperationException("Only an adult resident or the newcomer requesting admission may submit this proposal.");
+        if (kind == "project")
+        {
+            if (!Has(adults, actor) || subject is not null)
+                throw new InvalidOperationException("Only an adult resident may propose a shared Town project.");
+        }
+        else if (project is not null)
+            throw new InvalidOperationException("Construction authority requires a typed Town project proposal.");
         // Structured law proposals supply their own key so scope and the affected law decide equivalence.
         var key = kind == "land_hearing" ? TownLandGovernmentFilingRules.RequestKey(landHearingRequest!) :
+            kind == "project" ? TownProjectRules.RequestKey(project!) :
             kind == "land_use" ? HouseholdLandGrantRules.RequestKey(landUseRequest!) :
             kind == "land_claim" ? TownLandClaimRules.RequestKey(landClaimTiles!) : requestKey ?? (kind == "admission" ? "admission:" + subject : "law:" + string.Join(' ', text.Split(' ', StringSplitOptions.RemoveEmptyEntries)).ToUpperInvariant());
         if (state.Proposals.Any(p => p.RequestKey == key && p.Status == "pending")) return state;
@@ -343,7 +359,8 @@ public static class TownGovernanceRules
         var proposal = new TownProposal(id, key, kind, actor, subject, text.Trim(), circumstances, state.Revision,
             tick, tick + day, state.Members.ToArray(), state.Form == "representative" ? 2 : state.Members.Count / 2 + 1, [],
             LandClaimTiles: landClaimTiles is null ? null : TownLandRightsRules.OrderTiles(landClaimTiles),
-            LandHearingRequest: landHearingRequest);
+            LandHearingRequest: landHearingRequest)
+        { Project = project };
         state = state with { Sequence = state.Sequence + 1, Proposals = state.Proposals.Append(proposal).ToArray() };
         return Notice(state, "proposal", id, $"{kind} proposal by {actor}: {noticeText ?? text.Trim()} " +
             $"Needs {proposal.RequiredYes} yes votes by tick {proposal.DeadlineTick}. A cast vote is final.", tick);

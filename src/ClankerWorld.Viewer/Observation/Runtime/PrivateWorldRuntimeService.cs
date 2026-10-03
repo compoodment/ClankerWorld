@@ -384,6 +384,7 @@ public sealed partial class PrivateWorldRuntimeService(
                              "parenthood_requested" or "parenthood_preparing" or "parenthood_cancelled" or "parenthood_completed" or
                              "parenthood_postponed" or "continuity_rule_on" or "continuity_rule_off" or "continuity_plan_proceeded" or
                              "child_born" or "child_cared_for" or "guardian_needed" or "guardian_assigned" or
+                             "guardian_placement_pending" or "guardian_placement_completed" or "guardian_placement_cancelled" or
                              "primary_caregiver_assigned" or "caregiver_proposed" or "caregiver_assigned" or
                              "caregiver_accepted" or "caregiver_refused" or "caregiver_proposal_expired" or "caregiver_ended" or
                              "dependent_cared_for"))

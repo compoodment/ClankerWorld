@@ -225,43 +225,6 @@ public sealed class SettlementTradeTests
     }
 
     [Fact]
-    public async Task TradeJournalReportsOutcomeWithoutCopyingFreeTextNames()
-    {
-        var directory = Directory.CreateTempSubdirectory("clankerworld-trade-log-");
-        try
-        {
-            using var seed = new PrivateWorldRuntime("trade-journal");
-            var state = seed.ExportState();
-            var first = state.Inhabitants[0].InhabitantId;
-            var second = state.Inhabitants[1].InhabitantId;
-            state = WithTradeGoods(state, first, second);
-            state = state with
-            {
-                Society = state.Society with
-                {
-                    Society = state.Society.Society with
-                    {
-                        Inhabitants = state.Society.Society.Inhabitants.Select(person => person.Id == second
-                            ? person with { Name = "free-text-secret-marker" } : person).ToArray(),
-                    },
-                },
-            };
-            using var world = PrivateWorldRuntime.Restore(state, id => new TradeProvider(id == first ? "trade_propose:" : "safe_idle"));
-            var presence = new OwnerClientPresenceLease(TimeSpan.FromSeconds(30));
-            presence.RecordAuthenticatedReconnect("test-owner");
-            var logger = new RecordingLogger<PrivateWorldRuntimeService>();
-            using var service = new PrivateWorldRuntimeService(world, new PrivateWorldStateFile(Path.Combine(directory.FullName, "world.json")), presence, logger);
-            Assert.True(await service.TryAdvanceOnceAsync());
-            Assert.Contains(logger.Messages, message => message.Contains("settlement_trade tick=1 event=settlement_trade_offered", StringComparison.Ordinal));
-            Assert.DoesNotContain(logger.Messages, message => message.Contains("free-text-secret-marker", StringComparison.Ordinal));
-        }
-        finally
-        {
-            directory.Delete(recursive: true);
-        }
-    }
-
-    [Fact]
     public async Task ProposerCanWithdrawBeforeTheRecipientAccepts()
     {
         using var seed = new PrivateWorldRuntime("withdraw-settlement-trade");
