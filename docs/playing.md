@@ -47,7 +47,9 @@ Adults may leave a household without its permission. Their own goods remain thei
    stone and open space for Roads. These are suggestions only: the game checks
    whether the starter layout fits after you choose a site. It then places two
    Houses, a Warehouse, Farmhouse, Blacksmith and Roads. You can choose another
-   site before placing the founders.
+   site before placing the founders, including after removing an empty starter
+   Farmhouse or Blacksmith. **Redo Town site** replaces the starter layout and
+   its Roads together.
 4. Configure and place **four starting agents**. Choose each agent's provider,
    key and model. A saved key can be reused, or you can add another for the same
    provider. Then pick the model from the game's short list for that
@@ -288,6 +290,15 @@ turn on **Show planned path** to draw the route they are walking, as the server
 planned it. The panel also holds the aging override, recovery for a request
 whose reply was lost, paused world editing and paired-device management. The
 aging override and world editing need the world paused first.
+
+To set up a test, pause and use **Edit selected agent**. Choose a need and its
+percentage, goods and a quantity, a skill, or another agent for a partnership,
+then press **Apply developer edit**. The server saves accepted changes and
+marks each one **Developer edit** in the Event Log. Goods go into the selected
+agent's carried load; removal protects equipped items, filled vessels, knowledge
+records and reserved or borrowed goods. Starting a partnership requires two
+living, unpartnered adults who are not close relatives. A refused edit leaves the world
+unchanged; refresh the world view before trying again if the world changed.
 
 **Settings → Game → Model calls** shows how many model calls this installation
 has made and sets an optional limit. One count and limit cover all your worlds.
