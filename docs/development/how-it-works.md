@@ -719,11 +719,25 @@ request their own admission at a Town's notice place. An adult with no Town may
 walk there from anywhere, and a resident of another Town from inside its border,
 whenever a tile beside the notice place is reachable on foot. Residents may
 request admission of an unaffiliated adult nearby. The optional
-`civic_proposal` and `civic_ballot` structured response fields are carried only
+`civic_proposal`, `civic_ballot` and `civic_land_tiles` structured response fields are carried only
 through admitted choices. Missing, stale or malformed responses cannot supply
 votes. A generic private thought or another actor naming a candidate supplies
 neither agreement nor approval. No polling provider calls are added, and Jev is
 optional.
+
+An adult resident may submit a land claim with up to 64 exact tile coordinates
+in one connected plot adjoining the Town's recorded title. This is a bounded
+provider payload, not permission to rewrite title. Because the model sees no
+map grid, the claim choice names the agent's own tile and up to six unclaimed
+tiles beside the Town's title, nearest first. An empty `civic_land_tiles` array
+is no plot rather than a malformed reply. The server rejects water,
+off-map, duplicate, disconnected and already titled tiles. The saved proposal
+uses the ordinary Council majority and notice-reading rules; its identity
+comes from the canonical coordinates, so reordering them does not open another
+ballot. A successful vote rechecks the whole plot, records title and includes
+those tiles in the Town border in the same prepared tick. An overlapping claim
+that is no longer eligible is cancelled. Household rights, structures and
+inventory are unchanged. Ordinary law prose cannot execute a land claim.
 
 Formal civic acts require an admitted personal-model choice. Built-in decisions,
 failed replies and continued intentions supply no votes or candidate agreement.

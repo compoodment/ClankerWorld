@@ -114,6 +114,16 @@ become private memories only at settlement, so a current-format save taken
 between the will and settlement replays the same transfers and memories. Older
 schemas carrying these records are refused; no migration is added.
 
+Schema 58 adds exact land-claim coordinates to Council proposals. A passed
+claim and its title record must agree on Town, tiles and settlement time;
+loading refuses a claim title without approval or a passed claim without its
+title. Pending, refused and cancelled claims hold no title. Proposal identity
+uses ordered coordinates, and title identity is derived from the proposal ID.
+Prepared-tick rollback removes votes, titles and border changes together;
+continuing a current-format checkpoint preserves the vote window and cannot
+apply an accepted claim twice. Older alpha schemas are refused and preserved;
+no migration is provided.
+
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
 Matching parent assignments are disclosed as agreement; when they differ, the
@@ -415,7 +425,7 @@ blocked-return behavior. These checks use existing timestamps and add no saved
 fields, schema change or migration.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 57. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 58. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
@@ -435,8 +445,8 @@ guardian-search records with their offered adults, medical permission and
 consumed-dose progress, selected personal ornaments, and wills with up to
 three named heirs, exact divisions and final words, Town admission records,
 Town laws and government, concrete last-meal names for nourishment and
-dietary variety, and bounded tool-making requests linked to ordinary production
-and barter.
+dietary variety, bounded tool-making requests linked to ordinary production
+and barter, and exact land-claim coordinates on Council proposals.
 Land records are checked against the saved map, Towns, households and one
 another before load. Building reassignment moves only existing footprint use rights;
 connected remainder plots keep their holder and original grant terms. Split
@@ -469,7 +479,8 @@ progress and cancellations, schema 50 for guardian searches, schema 51
 for medical permission and consumed-dose progress, schema 52 for selected
 ornaments, schema 53 for wills with several heirs and final words, schema 54
 for Town admission records, schema 55 for Town laws and government, schema
-56 for named last meals and schema 57 for tool-making requests record when
+56 for named last meals, schema 57 for tool-making requests and schema 58 for
+Council land claims record when
 those fields or behaviors were introduced;
 they do not allow an earlier checkpoint schema past the current alpha cutoff.
 
@@ -515,6 +526,7 @@ they do not allow an earlier checkpoint schema past the current alpha cutoff.
 | Schema 55 | Scoped law versions, protected resident government votes and handovers, mayoral consent and rounds, and separate land and governing mandate terms. Earlier alpha schemas are refused and preserved. |
 | Schema 56 | An agent's last meal keeps its concrete name, such as porridge, bread, stew or a Restaurant meal, for nourishment and dietary variety. Running House and Restaurant cooking keeps its exact inputs, reusable water jugs and outputs through reload. Earlier alpha checkpoints are refused and preserved; no migration is added. |
 | Schema 57 | Bounded tool-making requests bind their customer, selling household, actual Blacksmith, accepted worker and ordinary production/offer history. Completed work requires exact full input receipts; purchase status must agree with the real inventory offer. Earlier alpha checkpoints are refused and preserved without migration. |
+| Schema 58 | Council proposals may carry the exact connected plot of a land claim; a passed claim and its Town title must agree on Town, tiles and settlement time. Earlier alpha checkpoints are refused and preserved without migration. |
 
 ### Tool-making requests
 

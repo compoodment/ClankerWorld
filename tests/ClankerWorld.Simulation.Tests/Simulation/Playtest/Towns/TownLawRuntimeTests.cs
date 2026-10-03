@@ -154,7 +154,7 @@ public sealed class TownLawRuntimeTests
         using var updated = PrivateWorldRuntime.Restore(initial with { Towns = [town with { Governance = council, Government = government }] });
         var before = PrivateWorldRuntimeCodec.Encode(updated.ExportState());
         typeof(PrivateWorldRuntime).GetMethod("ApplyTownCivicCandidate", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
-            .Invoke(updated, [adults[0], stale, null, null]);
+            .Invoke(updated, [adults[0], stale, null, null, null]);
         Assert.Equal(before, PrivateWorldRuntimeCodec.Encode(updated.ExportState()));
     }
 
