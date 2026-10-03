@@ -4,7 +4,7 @@ using ClankerWorld.Simulation.Harness;
 namespace ClankerWorld.Simulation.Playtest;
 
 /// <summary>
-/// Parses only the direct food, material-gathering, personal-storage, collection, equipment-repair and field-work orders that the runtime can execute.
+/// Parses only supported food, gathering, storage, collection, repair, field and production orders.
 /// Every token must belong to one of these forms; unconsumed text is not guessed.
 /// </summary>
 internal static class PrivateWorldInstructionOrderParser
@@ -38,14 +38,15 @@ internal static class PrivateWorldInstructionOrderParser
     public static OwnerInstructionOrder? Parse(
         string text,
         IReadOnlyList<MapResource> resources,
-        Func<MapResource, string> foodKnowledgeKind)
+        Func<MapResource, string> foodKnowledgeKind,
+        IReadOnlyList<ProductionOrderRecipe>? productionRecipes = null)
     {
         ArgumentNullException.ThrowIfNull(text);
         ArgumentNullException.ThrowIfNull(resources);
         ArgumentNullException.ThrowIfNull(foodKnowledgeKind);
 
         return TryTokenize(text, out var tokens)
-            ? new OrderParser(tokens, resources, foodKnowledgeKind).Parse()
+            ? new OrderParser(tokens, resources, foodKnowledgeKind, productionRecipes ?? []).Parse()
             : null;
     }
 
@@ -121,7 +122,8 @@ internal static class PrivateWorldInstructionOrderParser
     private sealed class OrderParser(
         IReadOnlyList<Token> tokens,
         IReadOnlyList<MapResource> resources,
-        Func<MapResource, string> foodKnowledgeKind)
+        Func<MapResource, string> foodKnowledgeKind,
+        IReadOnlyList<ProductionOrderRecipe> productionRecipes)
     {
         private int position;
 
@@ -140,6 +142,8 @@ internal static class PrivateWorldInstructionOrderParser
             var repeatPrefix = keepPrefix || ReadWord("repeat") || ReadWord("repeatedly");
 
             var actionStart = position;
+            if (TryReadProductionOrder(end, repeatPrefix, keepPrefix) is { } productionOrder) return productionOrder;
+            position = actionStart;
             if (TryReadFieldOrder(end, repeatPrefix, keepPrefix) is { } fieldOrder) return fieldOrder;
             position = actionStart;
 
@@ -229,6 +233,74 @@ internal static class PrivateWorldInstructionOrderParser
                 targetPosition,
                 TargetMaterialKind: materialKind,
                 TargetEquipmentKind: equipmentKind);
+        }
+
+        private OwnerInstructionOrder? TryReadProductionOrder(int end, bool repeat, bool keep)
+        {
+            if (position >= end || tokens[position].Kind != TokenKind.Word) return null;
+            var word = tokens[position].Value;
+            var verb = word switch
+            {
+                "make" or "makes" or "making" => "make",
+                "craft" or "crafts" or "crafting" => "craft",
+                "cook" or "cooks" or "cooking" => "cook",
+                "mill" or "mills" or "milling" => "mill",
+                "refine" or "refines" or "refining" => "refine",
+                "sew" or "sews" or "sewing" => "sew",
+                "weave" or "weaves" or "weaving" => "weave",
+                "twist" or "twists" or "twisting" => "twist",
+                "cut" or "cuts" or "cutting" => "cut",
+                "prepare" or "prepares" or "preparing" => "prepare",
+                _ => null,
+            };
+            if (verb is null || keep && !word.EndsWith("ing", StringComparison.Ordinal)) return null;
+            position++;
+            var explicitQuantity = TryReadQuantity(out var quantity);
+            if (!explicitQuantity)
+            {
+                if (ReadWord("a") || ReadWord("an")) { quantity = 1; explicitQuantity = true; }
+                else _ = ReadWord("the");
+            }
+            var batches = TryReadAnyWord("batch", "batches");
+            if (batches && !ReadWord("of")) return null;
+            if (!explicitQuantity) quantity = 1;
+
+            var matches = new List<(ProductionOrderRecipe Recipe, int Tokens)>();
+            foreach (var recipe in productionRecipes.Where(recipe => recipe.Verbs.Contains(verb, StringComparer.Ordinal)))
+            {
+                IEnumerable<string> subjects = recipe.Subjects;
+                if (verb == "mill" && recipe.OutputKind == "flour")
+                    subjects = subjects.Concat(["grain", "grain into flour"]);
+                foreach (var subject in subjects)
+                    if (TryTokenize(subject, out var alias) && MatchesTokens(position, alias))
+                        matches.Add((recipe, alias.Count));
+            }
+            if (matches.Count == 0) return null;
+            var longest = matches.Max(match => match.Tokens);
+            var recipes = matches.Where(match => match.Tokens == longest)
+                .Select(match => match.Recipe).DistinctBy(recipe => recipe.Recipe.CanonicalId, StringComparer.Ordinal).ToArray();
+            // A count must never silently select another recipe with a more convenient yield.
+            if (recipes.Length != 1) return null;
+            var selected = recipes[0];
+            position += longest;
+            var progress = batches || !explicitQuantity ? "production_batches" : "output_items";
+            if (progress == "output_items" && quantity % selected.OutputQuantity != 0) return null;
+            GridPoint? targetPosition = null;
+            if (ReadWord("at"))
+            {
+                if (!TryReadCoordinate(out var point)) return null;
+                targetPosition = point;
+            }
+            if (ReadWord("until"))
+            {
+                if (!ReadWord("cancelled") && !ReadWord("canceled")) return null;
+                repeat = true;
+            }
+            if (!ReadWord("now")) _ = ReadWord("please");
+            if (position != end) return null;
+            return new("produce_item", "queued", quantity, 0, progress, repeat, explicitQuantity,
+                TargetPosition: targetPosition, TargetRecipeId: selected.Recipe.CanonicalId,
+                TargetOutputKind: selected.OutputKind);
         }
 
         private OwnerInstructionOrder? TryReadFieldOrder(int end, bool repeat, bool keep)

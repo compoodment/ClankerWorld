@@ -311,7 +311,8 @@ public sealed partial class PrivateWorldRuntime
         string recipeId,
         string buildingInstanceId,
         string workerId,
-        string eventKind)
+        string eventKind,
+        string? orderInstructionId = null)
     {
         try
         {
@@ -404,7 +405,7 @@ public sealed partial class PrivateWorldRuntime
                 completionTick,
                 WorldProductionJobState.Running,
                 reservationIds.ToArray(), knife?.ToolLotId)
-            { OwnerId = productionOwner };
+            { OwnerId = productionOwner, OrderInstructionId = orderInstructionId };
             worldSimulation = new WorldContentSimulationState(
                 worldSimulation.Buildings,
                 worldSimulation.ProductionJobs.Append(job).OrderBy(item => item.JobId, StringComparer.Ordinal).ToArray(),

@@ -219,6 +219,18 @@ condition survive reload and rollback. This version is provisional above the
 cultivated-greens-order base until integration; older alpha checkpoints are
 refused and preserved without migration.
 
+Private-world schema 65 adds `produce_item` orders with an exact recipe and
+output kind, an optional requested site, and the selected building, project
+start and production-job identities. A production job's optional
+`OrderInstructionId` records which order started it; matching a recipe and
+start time alone cannot adopt an unrelated job. Progress counts finished output
+items or whole batches. Loading validates recipe yields, cross-record ownership and
+job references, pause state and completion receipts together. Queued work,
+partial progress, cancellation and survival pauses retain their state through
+reload and replay. This version is provisional above the equipment-storage
+base until integration; older alpha checkpoints are refused and preserved
+without migration.
+
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
 Matching parent assignments are disclosed as agreement; when they differ, the
