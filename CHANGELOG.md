@@ -39,8 +39,6 @@ release yet. Newer changes that are not collected here yet are in
 - Personal models receive their own saved name, life stage, personality, aspiration, household, survival condition and most recent private thought; unknown conditions stay unknown.
 - A failed active recovery write holds the in-memory world paused and retries saving without advancing or resuming paid work; other tick faults halt for inspection.
 
-### Added
-
 - The Main Menu now opens on a pixel-art valley instead of a plain brown screen: snowy mountains, patchwork fields, a winding river and two small Towns with a Farmhouse, Warehouse, Blacksmith and Houses. Clouds drift, chimney smoke curls up, birds fly past and the river sparkles. With the Dark theme it becomes dusk, with twinkling stars, glowing windows and lanterns, a flickering forge, fireflies and the moon on the river. The scene stays behind Main Menu Settings, New World and Load World, and holds still once you are in a world.
 - World selection and named checkpoint loading verify required history segments before replacing the healthy active world. Missing or corrupted archive chains remain recoverable without becoming the active save.
 - Simultaneous lesson refusal and student cancellation safely preserve the terminal lesson instead of halting world advancement.
@@ -336,8 +334,6 @@ release yet. Newer changes that are not collected here yet are in
   Maps view shows their knowledge and held artifacts. Schema-21 and schema-22
   saves load with an empty knowledge ledger and migrate to schema 23.
 
-### Changed
-
 - Choosing an agent's model no longer means typing its exact name. In Add an
   agent and in an agent's Model settings, the key is chosen first, and the
   model comes from the game's own short list, newest at the top: GPT-6.1 Sol,
@@ -499,8 +495,6 @@ release yet. Newer changes that are not collected here yet are in
   worn edge and a lighter center. Agents appear as small top-down people with a
   stable look per person and different sprites for infants, children, adults
   and elders; hovering or selecting one rings them and shows their name.
-
-### Fixed
 
 - The Quit Game icon shows its whole arrow; the tip was cut off at the edge.
 - The unread count on the Events button is no longer half hidden under the
@@ -678,8 +672,6 @@ release yet. Newer changes that are not collected here yet are in
   plain wording, and several developer-style messages read as ordinary
   sentences. The agent list shows Fullness instead of Hunger, because 100%
   means well fed and the old label read backwards.
-
-### Added
 
 - World Settings now shows installation-lifetime paid-model attempt and known
   token totals by provider/model. An optional call-attempt cap pauses the world
@@ -1112,8 +1104,6 @@ release yet. Newer changes that are not collected here yet are in
   pipeline that tests the simulation, starts the Godot client, exports Windows,
   and uploads the resulting artifact.
 
-### Changed
-
 - Main Menu, New World, save and load, founder setup, filter and Mod Library
   text now uses short, plain sentences. Save lists and messages show the
   in-world date and time instead of tick numbers, and error and confirmation
@@ -1173,8 +1163,6 @@ release yet. Newer changes that are not collected here yet are in
   someone who is ill" or "offer a trade". Resource tips say "Grows back" or
   "Does not grow back".
 
-### Fixed
-
 - An unavailable or low-confidence model now leaves its agent on the explicit
   safe-idle fallback instead of silently choosing the highest-priority legal
   action. Pending instructions are retained rather than marked completed by
@@ -1199,8 +1187,6 @@ release yet. Newer changes that are not collected here yet are in
   produce the same observation state.
 - Fixed the game viewport so it scales to the display without making the whole
   play screen scrollable or reserving a permanent right-hand sidebar.
-
-### Security
 
 - Stored paired-owner signing keys as non-exportable Windows CNG keys and
   required explicit pairing approval before owner capabilities are granted.

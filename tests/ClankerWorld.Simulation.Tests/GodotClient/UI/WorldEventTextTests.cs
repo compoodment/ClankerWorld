@@ -47,6 +47,8 @@ public sealed class WorldEventTextTests
             ("child_born", id, "was born"),
             ("inhabitant_removed", id, "died"),
             ("inhabitant_building_proposed", id + ":house", "suggested a new building design"),
+            ("household_delivery_recovered", id + ":spoiled-greens:4:camp-alpha",
+                "returned unusable delivery supplies to their household's pile at camp"),
             ("instruction_not_understood", id + ":private-instruction-0000000001",
                 "didn't understand your order. For now, orders can only ask them to gather food, eat or find food"),
         };

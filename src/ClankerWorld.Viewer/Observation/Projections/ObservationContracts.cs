@@ -33,6 +33,7 @@ public sealed record ViewerWorldPreview(ViewerPackedTerrain Terrain, ViewerPosit
     public string? MapLayersDigest { get; init; }
     public GeographyCandidateReport? Coverage { get; init; }
     public IReadOnlyList<GeographyCandidateReport> Candidates { get; init; } = [];
+    public IReadOnlyList<GeographyCandidateFailure> FailedCandidates { get; init; } = [];
 }
 
 public sealed record ViewerMapObject(string Id, string Kind, ViewerPosition Position);
@@ -183,7 +184,17 @@ public sealed record ViewerInhabitant(
     public IReadOnlyList<ViewerAgentKnowledgeFact> RecentKnowledgeFacts { get; init; } = [];
 
     public IReadOnlyList<ViewerAgentKnowledgeArtifact> KnowledgeArtifacts { get; init; } = [];
+
+    /// <summary>A dead agent's will on their historical profile; null for the living.</summary>
+    public ViewerFinalWill? FinalWill { get; init; }
 }
+
+/// <param name="Status">pending, accepted or default (household inheritance).</param>
+/// <param name="Split">equal or items for an accepted will; otherwise null.</param>
+/// <param name="Heirs">Each named heir and the goods the will leaves them, in the will's order.</param>
+/// <param name="FinalWords">Words the agent left for the people who inherit, if any.</param>
+public sealed record ViewerFinalWill(string Status, string? Split, IReadOnlyList<ViewerWillHeir> Heirs, string? FinalWords);
+public sealed record ViewerWillHeir(string Id, string Name, bool IsTown, IReadOnlyList<ViewerInventoryEntry> Items);
 
 public sealed record ViewerProject(string Label, string Stage, int WorkDone, int WorkRequired, string? Blocker, long StartedTick);
 public sealed record ViewerSurvival(int WarmthBasisPoints, int IllnessBasisPoints, bool HasClothing, bool HasTool,
@@ -432,6 +443,12 @@ public sealed record ViewerWorldSnapshot(
     public ViewerCouncil? Council { get; init; }
     public int? LifePaceRate { get; init; }
     public ViewerCalendarPace? CalendarPace { get; init; }
+    /// <summary>
+    /// How dark the world is now, decided by the host from the world clock:
+    /// 0 in daylight, 10,000 at full night, between them at dusk and dawn.
+    /// Absent for a world without a calendar.
+    /// </summary>
+    public int? DarknessBasisPoints { get; init; }
     public bool? JevEnabled { get; init; }
     /// <summary>The current saved rule state, independent of retained event history.</summary>
     public bool? ContinuityRuleActive { get; init; }

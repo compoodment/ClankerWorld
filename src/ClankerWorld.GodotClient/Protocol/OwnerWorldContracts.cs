@@ -209,7 +209,13 @@ public sealed record OwnerWorldInhabitant(
     public IReadOnlyList<OwnerWorldKnowledgeFact> RecentKnowledgeFacts { get; init; } = [];
 
     public IReadOnlyList<OwnerWorldKnowledgeArtifact> KnowledgeArtifacts { get; init; } = [];
+
+    public OwnerWorldFinalWill? FinalWill { get; init; }
 }
+
+/// <summary>A dead agent's will: status, how it divides the estate, each heir's goods and any final words.</summary>
+public sealed record OwnerWorldFinalWill(string Status, string? Split, IReadOnlyList<OwnerWorldWillHeir> Heirs, string? FinalWords);
+public sealed record OwnerWorldWillHeir(string Id, string Name, bool IsTown, IReadOnlyList<OwnerWorldInventoryEntry> Items);
 
 public sealed record OwnerWorldProject(string Label, string Stage, int WorkDone, int WorkRequired, string? Blocker, long StartedTick);
 public sealed record OwnerWorldSurvival(int WarmthBasisPoints, int IllnessBasisPoints, bool HasClothing, bool HasTool,
@@ -417,6 +423,8 @@ public sealed record OwnerWorldSnapshot(
     public OwnerWorldCouncil? Council { get; init; }
     public int? LifePaceRate { get; init; }
     public OwnerWorldCalendarPace? CalendarPace { get; init; }
+    /// <summary>How dark the host says the world is: 0 in daylight, 10,000 at full night.</summary>
+    public int? DarknessBasisPoints { get; init; }
     public bool? JevEnabled { get; init; }
     public bool? ContinuityRuleActive { get; init; }
     public OwnerFounderSetup? FounderSetup { get; init; }
@@ -493,7 +501,9 @@ public sealed record OwnerWorldPreview(OwnerWorldPackedTerrain Terrain, OwnerWor
     public string? MapLayersDigest { get; init; }
     public OwnerWorldCandidateReport? Coverage { get; init; }
     public IReadOnlyList<OwnerWorldCandidateReport> Candidates { get; init; } = [];
+    public IReadOnlyList<OwnerWorldCandidateFailure> FailedCandidates { get; init; } = [];
 }
+public sealed record OwnerWorldCandidateFailure(int Attempt, string Reason);
 public sealed record OwnerWorldCandidateReport(int Attempt, int DryLandTiles, int ForestTiles,
     int MountainTiles, double ForestPercent, double MountainPercent, int ForestRegionCount,
     int LargestForestRegion, int MountainRegionCount, int LargestMountainRegion,

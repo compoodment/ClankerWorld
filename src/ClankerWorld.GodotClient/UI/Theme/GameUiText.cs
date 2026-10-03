@@ -71,6 +71,8 @@ public static class GameUiText
     {
         Pairing.OwnerAgentNameTakenException =>
             "that full name belongs to another agent. Choose a different name",
+        Pairing.OwnerWorldGenerationException =>
+            "there is no room for a first Town with these settings. Choose another seed or change the terrain settings",
         Pairing.OwnerActionCompatibilityException =>
             "this client and world server need matching updates before making this change. Update both; your device pairing can stay as it is",
         System.Net.Http.HttpRequestException { StatusCode: { } code } => code switch
@@ -249,7 +251,7 @@ public static class GameUiText
             "empty_vessel_picked_up" or
             "council_policy_adopted" or "settlement_trade_completed" or
             "business_trade_offered" or "business_trade_completed" or "business_trade_cancelled" or
-            "store_stock_collected" or "store_stock_delivered" or
+            "store_stock_collected" or "store_stock_delivered" or "household_delivery_recovered" or
             "ornament_worn" or "ornament_removed" or "ornament_given" or
             "inhabitant_building_proposed" or "instruction_not_understood" or "settlement_founded" or "town_founding_started" or
             "town_civic_council" or "town_civic_election" or "town_civic_runoff" or "town_civic_proposal" or "town_civic_result" or "town_civic_cancelled" or
@@ -323,6 +325,46 @@ public static class GameUiText
         if (!string.IsNullOrWhiteSpace(summary) && !summary.Contains(':', StringComparison.Ordinal))
             return summary.Trim();
         return string.IsNullOrWhiteSpace(candidateId) ? "taking in the surroundings" : HumanizeIdentifier(candidateId);
+    }
+
+    /// <summary>
+    /// The historical profile's will lines: who the agent named and what each
+    /// was left, or that the household inherits, then any final words.
+    /// </summary>
+    public static IReadOnlyList<string> FinalWillLines(string? status, OwnerWorldFinalWill? will)
+    {
+        var lines = new List<string>();
+        switch (status)
+        {
+            case "pending":
+                lines.Add("Final will pending.");
+                break;
+            case "accepted" when will is { Heirs.Count: > 0 }:
+                var names = will.Heirs.Select(heir => heir.Name).ToArray();
+                var joined = names.Length == 1 ? names[0] : string.Join(", ", names[..^1]) + " and " + names[^1];
+                lines.Add(will.Split == "items"
+                    ? $"Final will: belongings left item by item to {joined}."
+                    : names.Length == 1
+                        ? $"Final will: all belongings to {joined}."
+                        : $"Final will: belongings shared equally between {joined}.");
+                foreach (var heir in will.Heirs)
+                {
+                    var goods = heir.Items.Count == 0
+                        ? "nothing listed"
+                        : string.Join(", ", heir.Items.Select(item => $"{item.Quantity} {item.Kind.Replace('_', ' ')}"));
+                    lines.Add($"To {heir.Name}: {goods}");
+                }
+                break;
+            case "default":
+                lines.Add("Personal estate follows household inheritance.");
+                break;
+            default:
+                lines.Add("No current thoughts or activity.");
+                break;
+        }
+        if (will?.FinalWords is { Length: > 0 } words)
+            lines.Add($"Final words: \u201C{words}\u201D");
+        return lines;
     }
 
     public static string HumanizeIdentifier(string value)
