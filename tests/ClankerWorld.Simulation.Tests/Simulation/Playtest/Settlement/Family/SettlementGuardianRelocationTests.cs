@@ -125,7 +125,7 @@ public sealed partial class SettlementParenthoodTests
                     ResidentIds = firstTown.ResidentIds.Except(otherResidents, StringComparer.Ordinal).ToArray(),
                     AssignedBuildingIds = firstTown.AssignedBuildingIds.Except(otherBuildings, StringComparer.Ordinal).ToArray(),
                 }, new TownRuntimeState(otherTownId, "Other Town", "founded", 0, otherResidents, otherBuildings,
-                    firstTown.BorderTiles, destinationHouse.Position)],
+                    firstTown.BorderTiles, destinationHouse.Position, Government: TownGovernmentState.Create())],
                 WorldSimulation = state.WorldSimulation with
                 {
                     Buildings = state.WorldSimulation.Buildings.Select(building => otherBuildings.Contains(building.InstanceId,

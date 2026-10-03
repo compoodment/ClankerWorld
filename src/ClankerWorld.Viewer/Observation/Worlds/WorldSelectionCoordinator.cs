@@ -21,8 +21,26 @@ public sealed class WorldSelectionCoordinator(
     Func<string, IDecisionProvider> providerFactory)
 {
     private readonly object gate = providers.WorldMutationGate;
+    private readonly Func<GeographyOptions, GeographyCandidateSelection> selectGeographyCandidates =
+        GeographyCandidateSelector.Select;
     // Concurrent because WarmUp adds results without the world-mutation gate.
     private readonly ConcurrentDictionary<string, CachedCheckpoint> checkedCheckpoints = new(StringComparer.Ordinal);
+
+    internal WorldSelectionCoordinator(
+        WorldCatalogStore catalog,
+        PrivateWorldRuntime runtime,
+        PrivateWorldStateFile stateFile,
+        ProviderConfigurationStore providers,
+        WorldAutosaveStore autosave,
+        WorldJevPolicy jevPolicy,
+        ILogger<WorldSelectionCoordinator> logger,
+        Func<string, IDecisionProvider> providerFactory,
+        Func<GeographyOptions, GeographyCandidateSelection> selectCandidates)
+        : this(catalog, runtime, stateFile, providers, autosave, jevPolicy, logger, providerFactory)
+    {
+        ArgumentNullException.ThrowIfNull(selectCandidates);
+        selectGeographyCandidates = selectCandidates;
+    }
 
     private sealed record CachedCheckpoint(string WorldId, string Seed, string Digest,
         string? HistoryArchiveHead, bool Restorable, WorldThumbnail? Thumbnail);
@@ -238,7 +256,7 @@ public sealed class WorldSelectionCoordinator(
             // Preview is read-only. The title screen can preview a new map while
             // the currently selected world is running or waiting for a client;
             // Create and Select still require a confirmed pause.
-            var selection = GeographyCandidateSelector.Select(geography);
+            var selection = selectGeographyCandidates(geography);
             var map = selection.Map;
             // The preview contract retains a suggested passable area for older
             // clients, but fresh maps have no placed camp or Town at this site.
@@ -251,6 +269,7 @@ public sealed class WorldSelectionCoordinator(
                 MapLayersDigest = MapLayerManifestCodec.Digest(map),
                 Coverage = selection.Selected,
                 Candidates = selection.Candidates,
+                FailedCandidates = selection.FailedCandidates,
             };
         }
     }
@@ -266,7 +285,7 @@ public sealed class WorldSelectionCoordinator(
             RequirePaused();
             // Regenerate the bounded selection once so the signed create action
             // can be checked against the exact preview identity.
-            var selection = GeographyCandidateSelector.Select(geography with { CandidateAttempt = 0 });
+            var selection = selectGeographyCandidates(geography with { CandidateAttempt = 0 });
             if (candidateAttempt != selection.Map.GenerationAttempt ||
                 !string.Equals(expectedManifestDigest, selection.Map.ManifestDigest, StringComparison.Ordinal) ||
                 !string.Equals(expectedMapLayersDigest, MapLayerManifestCodec.Digest(selection.Map), StringComparison.Ordinal))

@@ -873,8 +873,12 @@ public partial class Main
                 var outcome = candidate.MeetsTargets
                     ? "meets applicable targets"
                     : "misses " + string.Join(", ", candidate.UnmetTargets);
-                return $"#{candidate.Attempt} F {candidate.ForestPercent:F1}% / M {candidate.MountainPercent:F1}% ({outcome})";
-            }));
+                return (candidate.Attempt, Text: $"#{candidate.Attempt} F {candidate.ForestPercent:F1}% / M {candidate.MountainPercent:F1}% ({outcome})");
+            }).Concat(result.FailedCandidates.Select(candidate => (candidate.Attempt,
+                Text: candidate.Reason == "no-clearing"
+                    ? $"#{candidate.Attempt}: no room for a first Town"
+                    : $"#{candidate.Attempt}: unavailable")))
+                .OrderBy(candidate => candidate.Attempt).Select(candidate => candidate.Text));
             if (coverage.MeetsTargets)
             {
                 var targetWord = targetNames.Count == 1 ? "target" : "targets";

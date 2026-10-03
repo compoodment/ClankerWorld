@@ -207,7 +207,7 @@ public sealed class TownLandRightsTests
     }
 
     [Fact]
-    public void ReassignedBuildingPlacesAddedAgentsWithItsNewOwnerWhileDisputesStayRefused()
+    public async Task ReassignedBuildingMovesItsFootprintRightAndReplaysWhileDisputesStayRefused()
     {
         var world = WithoutBuildingStock(CreateStartedTown("town-land-rights-reassign"), "first-town-blacksmith");
         try
@@ -220,20 +220,36 @@ public sealed class TownLandRightsTests
                 .First(point => world.Inhabitants.All(person => person.Position != point));
             const string addedAgent = "agent:00000000000000000000000000000093";
             world.ValidateAgentPlacement(addedAgent, tile, previousOwner, TownBorderRules.FirstTownId);
+            var before = world.ExportState();
+            var footprint = WorldContentSimulationRules.Footprint(definition, blacksmith).ToHashSet();
+            var previousTiles = world.HouseholdLandUseRights.SelectMany(right =>
+                right.Tiles.Select(point => (point, right.HouseholdId))).ToDictionary(item => item.point, item => item.HouseholdId);
 
             var reassigned = world.ReassignBuilding(blacksmith.InstanceId, blacksmith.TownId, previousOwner, null, nextOwner);
             Assert.True(reassigned.Applied, reassigned.Failure);
-            // The starter use right stays with the previous household; the building's
-            // current owner still decides an added agent's household on its footprint.
-            Assert.Contains(world.HouseholdLandUseRights, right =>
-                right.HouseholdId == previousOwner && right.Tiles.Contains(tile));
+            Assert.All(world.HouseholdLandUseRights, right => Assert.All(right.Tiles, point =>
+                Assert.Equal(footprint.Contains(point) ? nextOwner : previousTiles[point], right.HouseholdId)));
+            Assert.Equal(previousTiles.Count, world.HouseholdLandUseRights.Sum(right => right.Tiles.Count));
+            Assert.Equal(before.TownLandTitles, world.TownLandTitles);
+            Assert.Equal(before.Society.Society.Inventory, world.Society.Inventory);
+            Assert.Equal(before.Inhabitants, world.ExportState().Inhabitants);
             world.ValidateAgentPlacement(addedAgent, tile, nextOwner, TownBorderRules.FirstTownId);
 
             var saved = PrivateWorldRuntimeCodec.Encode(world.ExportState());
             using var reloaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved));
+            Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
             reloaded.ValidateAgentPlacement(addedAgent, tile, nextOwner, TownBorderRules.FirstTownId);
+            var stale = reloaded.ReassignBuilding(blacksmith.InstanceId, blacksmith.TownId, previousOwner, null, nextOwner);
+            Assert.False(stale.Applied);
+            Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
+            for (var tick = 0; tick < 2; tick++)
+            {
+                Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+                Assert.True((await reloaded.AdvanceOneTickAsync()).Advanced);
+                Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
+            }
 
-            var requester = reloaded.Society.Inhabitants.First(person => person.HouseholdId == nextOwner).Id;
+            var requester = reloaded.Society.Inhabitants.First(person => person.HouseholdId == previousOwner).Id;
             var request = reloaded.RequestHouseholdLandUse("request:reassigned", requester,
                 TownBorderRules.FirstTownId, [tile]);
             Assert.True(request.Applied, request.Failure);
@@ -245,6 +261,74 @@ public sealed class TownLandRightsTests
         {
             world.Dispose();
         }
+    }
+
+    [Theory]
+    [InlineData("disputed")]
+    [InlineData("foreign-right")]
+    [InlineData("no-household")]
+    [InlineData("expired")]
+    public void ReassignmentCannotEraseDisputedOrForeignRightsOrDropTheirHolder(string boundary)
+    {
+        using var initial = WithoutBuildingStock(CreateStartedTown("town-land-rights-boundaries"), "first-town-blacksmith");
+        var state = initial.ExportState();
+        var building = initial.WorldSimulation.Buildings.Single(item => item.InstanceId == "first-town-blacksmith");
+        var nextOwner = building.HouseholdId == "household:camp-alpha" ? "household:camp-beta" : "household:camp-alpha";
+        var tile = building.Position;
+        if (boundary is "foreign-right" or "expired")
+            state = state with
+            {
+                HouseholdLandUseRights = state.HouseholdLandUseRights!.Select(right => right.Tiles.Contains(tile)
+                    ? boundary == "foreign-right" ? right with { HouseholdId = nextOwner }
+                        : right with { AgreedEndTick = state.Society.Society.WorldTick }
+                    : right).ToArray(),
+            };
+        using var world = PrivateWorldRuntime.Restore(state);
+        if (boundary == "disputed")
+        {
+            var requester = world.Society.Inhabitants.First(person => person.HouseholdId == nextOwner).Id;
+            var request = world.RequestHouseholdLandUse("request:before-transfer", requester, building.TownId!, [tile]);
+            Assert.True(request.Applied, request.Failure);
+            Assert.True(request.IsDisputed);
+        }
+        var before = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        var rejected = world.ReassignBuilding(building.InstanceId, building.TownId, building.HouseholdId,
+            null, boundary == "no-household" ? null : nextOwner);
+        Assert.False(rejected.Applied);
+        Assert.Contains(boundary switch
+        {
+            "disputed" => "dispute",
+            "foreign-right" => "another owner's",
+            "expired" => "expired",
+            _ => "receive this building",
+        }, rejected.Failure, StringComparison.Ordinal);
+        Assert.Equal(before, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+        using var reloaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(before));
+        Assert.Equal(before, PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
+    }
+
+    [Fact]
+    public void ADisputeAtAnotherBuildingDoesNotBlockAnUnrelatedFootprintTransfer()
+    {
+        using var world = WithoutBuildingStock(WithoutBuildingStock(
+            CreateStartedTown("town-land-rights-unrelated"), "first-town-blacksmith"), "first-town-farmhouse");
+        var smith = world.WorldSimulation.Buildings.Single(item => item.InstanceId == "first-town-blacksmith");
+        var farm = world.WorldSimulation.Buildings.Single(item => item.InstanceId == "first-town-farmhouse");
+        var requester = world.Society.Inhabitants.First(person => person.HouseholdId == farm.HouseholdId).Id;
+        var request = world.RequestHouseholdLandUse("request:smith-dispute", requester, smith.TownId!, [smith.Position]);
+        Assert.True(request.Applied, request.Failure);
+        Assert.True(request.IsDisputed);
+        var titles = world.TownLandTitles;
+
+        var moved = world.ReassignBuilding(farm.InstanceId, farm.TownId, farm.HouseholdId, null, smith.HouseholdId);
+
+        Assert.True(moved.Applied, moved.Failure);
+        Assert.Equal(smith.HouseholdId, Assert.Single(world.HouseholdLandUseRights,
+            right => right.Tiles.Contains(farm.Position)).HouseholdId);
+        Assert.True(TownLandRightsRules.IsDisputed(smith.Position, world.HouseholdLandUseRights, world.HouseholdLandUseRequests));
+        Assert.Equal(request.Request, Assert.Single(world.HouseholdLandUseRequests));
+        Assert.Equal(titles, world.TownLandTitles);
+        world.Validate();
     }
 
     private static PrivateWorldRuntime WithoutBuildingStock(PrivateWorldRuntime world, string buildingId)
