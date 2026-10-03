@@ -28,6 +28,12 @@ internal enum TownCivicTransitionKind
     MayorRecorded,
 }
 
+internal enum TownLandHearingTransitionKind
+{
+    Opened, NoticePublished, EvidenceAdded, ResponseRecorded, JudgeConsent,
+    JudgeElection, JudgeAssigned, Ruling, ReopenRequested, Reopened, Inspected, Relayed, Rejected,
+}
+
 /// <summary>Bounded operational outcomes for authoritative Town state changes.</summary>
 internal static partial class TownTelemetry
 {
@@ -60,6 +66,18 @@ internal static partial class TownTelemetry
         Message = "town_admission tick={WorldTick} town={TownId} outcome={Outcome} previous_town={PreviousTownId} members={Members} residents={Residents}")]
     private static partial void LogTownAdmission(ILogger logger, long worldTick, string townId, string outcome,
         string previousTownId, int members, int residents);
+
+    /// <summary>Public case identity and bounded outcomes only; no statements, evidence text or model payloads.</summary>
+    public static void LandHearing(ILogger logger, long worldTick, string townId, string caseId,
+        TownLandHearingTransitionKind transition, string status, int revision, int parties, int evidence,
+        int responses, int rulings) =>
+        LogLandHearing(logger, worldTick, townId, caseId, transition, status, revision, parties, evidence, responses, rulings);
+
+    [LoggerMessage(EventId = 2296, Level = LogLevel.Information,
+        Message = "town_land_hearing tick={WorldTick} town={TownId} case={CaseId} transition={Transition} status={Status} revision={Revision} parties={Parties} evidence={Evidence} responses={Responses} rulings={Rulings}")]
+    private static partial void LogLandHearing(ILogger logger, long worldTick, string townId, string caseId,
+        TownLandHearingTransitionKind transition, string status, int revision, int parties, int evidence,
+        int responses, int rulings);
 
     public static void SiteRejected(ILogger logger, long worldTick, string townId, string inhabitantId,
         string buildingId, int x, int y, string reason)

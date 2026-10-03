@@ -527,6 +527,7 @@ public sealed partial class PrivateWorldRuntime
             MaintainDependentCare();
             DiscoverIdentityMoments();
             UpdateConversationsForTick(targetTick);
+            RefreshTownLandHearings();
             EnqueueDueCognition();
             var deferredDecisions = new List<SocietyCognitionDispatchResult>();
             if (deferHosted)

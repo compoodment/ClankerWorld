@@ -367,6 +367,53 @@ public sealed record ViewerTown(
 {
     public ViewerTownGovernance? Governance { get; init; }
     public ViewerTownGovernment? Government { get; init; }
+    public IReadOnlyList<ViewerTownLandHearing> LandHearings { get; init; } = [];
+    public int LandHearingCount { get; init; }
+}
+
+public sealed record ViewerLandHearingOutcome(string Kind, string? HouseholdId, string? HouseholdName, long? AgreedEndTick);
+public sealed record ViewerLandHearingRightVersion(string Id, string Version, ViewerHouseholdLandUseRight Right);
+public sealed record ViewerLandHearingFiling(string? AgentId, string? AgentName, string Kind, string Text,
+    ViewerLandHearingOutcome RequestedOutcome, long Tick, string? AuthorityId);
+public sealed record ViewerLandHearingParty(string Id, string Kind, string Name,
+    IReadOnlyList<string> AdultIds, IReadOnlyList<string> AdultNames, string? RepresentativeId,
+    string? RepresentativeName, IReadOnlyList<string> NoticeAwareAdultIds);
+public sealed record ViewerLandHearingResponse(int Revision, string PartyId, string AgentId, string AgentName,
+    string Kind, string Text, long Tick);
+public sealed record ViewerLandHearingJudge(string AgentId, string AgentName, string Kind, string AuthorityId, long AssignedTick);
+public sealed record ViewerLandHearingJudgeTerm(ViewerLandHearingJudge Judge, long EndedTick, string Reason);
+public sealed record ViewerLandHearingEvidence(string Id, int Revision, string Kind, string Acquisition,
+    string SourceAgentId, string SourceAgentName, string? SourceRecordId, string? SourceVersion, long ObservedTick,
+    string SubmittedByAgentId, string SubmittedByName, long SubmittedTick, string Text)
+{
+    public ViewerHouseholdLandUseRight? PermissionRecord { get; init; }
+    public ViewerTownLandTitle? TitleRecord { get; init; }
+    public string? RecordPartyName { get; init; }
+    public int? LawVersion { get; init; }
+}
+public sealed record ViewerLandHearingRead(int Revision, string AgentId, string AgentName, long ReadTick,
+    IReadOnlyList<string> EvidenceIds, string? SourceAgentId, string? SourceAgentName)
+{
+    public IReadOnlyList<string> ReopenRequestIds { get; init; } = [];
+}
+public sealed record ViewerLandHearingRuling(string Id, int Revision, ViewerLandHearingJudge Judge, long Tick,
+    ViewerLandHearingOutcome Outcome, IReadOnlyList<ViewerPosition> Tiles, IReadOnlyList<string> EvidenceIds, IReadOnlyList<string> LawIds,
+    string Reasons, IReadOnlyList<string> AdjustmentIds);
+public sealed record ViewerLandHearingReopenRequest(string Id, string AgentId, string AgentName, long Tick,
+    string Kind, IReadOnlyList<string> EvidenceIds, string Reasons, string Status,
+    ViewerLandHearingJudge? AssessedBy, long? AssessedTick, string? Assessment);
+public sealed record ViewerLandHearingElection(string Id, string Stage, int Round, long? DeadlineTick,
+    IReadOnlyList<ViewerCivicCandidate> Candidates, string? WinnerName, string? Reason);
+public sealed record ViewerTownLandHearing(string Id, string Kind, string Status, long FiledTick, long? SettledTick,
+    int Revision, IReadOnlyList<ViewerPosition> Tiles, IReadOnlyList<ViewerLandHearingRightVersion> RightVersions,
+    string NoticeId, long PublishedTick, long DeadlineTick,
+    ViewerLandHearingOutcome RequestedOutcome, IReadOnlyList<ViewerLandHearingFiling> Filings, IReadOnlyList<ViewerLandHearingParty> Parties,
+    IReadOnlyList<ViewerLandHearingEvidence> Evidence, IReadOnlyList<ViewerLandHearingResponse> Responses,
+    IReadOnlyList<ViewerLandHearingRuling> Rulings, ViewerLandHearingJudge? Judge, IReadOnlyList<ViewerLandHearingJudgeTerm> JudgeHistory,
+    ViewerLandHearingElection? JudgeElection, ViewerLandHearingElection? LatestJudgeElection,
+    IReadOnlyList<ViewerLandHearingReopenRequest> ReopenRequests)
+{
+    public IReadOnlyList<ViewerLandHearingRead> Reads { get; init; } = [];
 }
 
 public sealed record ViewerTownLaw(string Id, string Subject, string Rule, string Scope, int SiteTiles, int Version,

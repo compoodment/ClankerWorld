@@ -64,7 +64,7 @@ public static partial class TownGovernmentRules
     }
 
     private static (TownGovernanceState, TownGovernmentState) AdvanceMayor(TownGovernanceState council,
-        TownGovernmentState state, string townId, string[] adults, long tick, int day)
+        TownGovernmentState state, string townId, string[] adults, long tick, int day, bool caseElectionActive)
     {
         if (state.Contest is { } live)
         {
@@ -175,7 +175,7 @@ public static partial class TownGovernmentRules
                     $"An election is due for {TownArrangementRules.MandateLabel(mandates)}. Adult residents must personally agree to stand for these mandates; Council candidacy is not mayoral consent.", tick);
             }
         }
-        if (state.Contest is { Stage: "waiting" } waiting && council.Election is not { Stage: "main" or "runoff" })
+        if (!caseElectionActive && state.Contest is { Stage: "waiting" } waiting && council.Election is not { Stage: "main" or "runoff" })
         {
             var candidates = Willing(state, adults, waiting.Mandates);
             // A tie remains restricted even if every tied candidate later withdraws.

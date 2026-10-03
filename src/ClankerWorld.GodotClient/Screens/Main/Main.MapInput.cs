@@ -329,6 +329,38 @@ public partial class Main
             lines.Add($"Pending use request: {claimant} · {request.ApprovalDetail}");
             landFacts.Add(("Use request", claimant + " · " + request.ApprovalDetail));
         }
+        foreach (var hearing in LandHearingText.ForInspection(snapshot.Towns.SelectMany(item => item.LandHearings)
+                     .Where(item => item.Tiles.Any(point => point.X == tile.X && point.Y == tile.Y))))
+        {
+            var summary = LandHearingText.Summary(hearing);
+            lines.Add(summary);
+            landFacts.Add(("Case", summary));
+            var notice = LandHearingText.NoticeSummary(hearing, DisplayWorldClock);
+            lines.Add(notice);
+            landFacts.Add(("Formal notice", notice));
+            if (hearing.Judge is { } judge)
+            {
+                var authority = judge.AgentName + (judge.Kind == "case_elected" ? " · this case only" : " · land mayor");
+                landFacts.Add(("Adjudicator", authority));
+                lines.Add("Adjudicator: " + authority);
+            }
+            else if (hearing.SettledTick is null || hearing.ReopenRequests.Any(request => request.Status == "pending"))
+            {
+                landFacts.Add(("Adjudicator", "Waiting for a valid independent adjudicator"));
+                lines.Add("Adjudicator: waiting for a valid independent adjudicator");
+            }
+            if (hearing.Rulings.Count > 0)
+            {
+                var outcome = LandHearingText.Outcome(hearing.Rulings[^1].Outcome, DisplayWorldClock);
+                landFacts.Add(("Latest ruling", outcome));
+                lines.Add("Latest ruling: " + outcome);
+            }
+            if (hearing.Kind == "expiry" && hearing.SettledTick is null)
+            {
+                landFacts.Add(("Use permission", "Previous permission remains provisional during review"));
+                lines.Add("Previous permission remains provisional during review");
+            }
+        }
         var landClaimants = useRights.Select(right => right.HouseholdId)
             .Concat(useRequests.Select(request => request.HouseholdId))
             .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();

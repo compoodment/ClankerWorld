@@ -273,10 +273,12 @@ public partial class WorldTerrainLayer : Control
         QueueRedraw();
     }
 
-    public void SetDisputedLand(IReadOnlyList<OwnerWorldHouseholdLandUseRequest> requests)
+    public void SetDisputedLand(IReadOnlyList<OwnerWorldHouseholdLandUseRequest> requests,
+        IReadOnlyList<OwnerTownLandHearing>? hearings = null)
     {
         ArgumentNullException.ThrowIfNull(requests);
         var next = requests.SelectMany(request => request.DisputedTiles)
+            .Concat((hearings ?? []).Where(hearing => hearing.SettledTick is null).SelectMany(hearing => hearing.Tiles))
             .Select(point => new Vector2I(point.X, point.Y)).ToHashSet();
         if (next.SetEquals(disputedLandTiles)) return;
         disputedLandTiles.Clear();

@@ -337,6 +337,15 @@ public partial class Main
             facts.Add(("Storage", $"{building.StoredQuantity} / {capacity} items"));
         if (building.Tags?.Any(tag => tag is "farmhouse" or "blacksmith" or "tailor" or "store" or "restaurant" or "clinic") == true)
             facts.Add(("Customers", "May trade here; household stock and other uses remain private"));
+        foreach (var hearing in LandHearingText.ForInspection(snapshot.Towns.SelectMany(item => item.LandHearings).Where(item =>
+                     item.Tiles.Any(tile => tile.X >= building.Position.X && tile.X < building.Position.X + building.Width &&
+                         tile.Y >= building.Position.Y && tile.Y < building.Position.Y + building.Height))))
+        {
+            facts.Add(("Land hearing", LandHearingText.Summary(hearing)));
+            if (hearing.Rulings.Count > 0)
+                facts.Add(("Use permission", LandHearingText.Outcome(hearing.Rulings[^1].Outcome, DisplayWorldClock)));
+            facts.Add(("Private property", "This hearing does not change the building's owner or access"));
+        }
         foreach (var request in building.ToolMakingRequests)
             facts.Add((request.RequesterName + " · " + request.RecipeName,
                 GameUiText.ToolMakingRequestStatus(request.Status) +

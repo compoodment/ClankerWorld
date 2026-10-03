@@ -20,22 +20,29 @@ public static class HouseholdLandGrantRules
 
     public static bool IsAvailable(HouseholdLandUseRequest request, IReadOnlyList<HouseholdLandUseRight> rights,
         IReadOnlyList<HouseholdLandUseRequest> requests) =>
-        !rights.Any(right => right.Tiles.Any(request.Tiles.Contains)) &&
+        request.HearingResolutions.Count == 0 && !rights.Any(right => right.Tiles.Any(request.Tiles.Contains)) &&
         !requests.Any(other => other.Status == "pending" && other.HouseholdId != request.HouseholdId &&
-            other.Tiles.Any(request.Tiles.Contains));
+            other.Tiles.Any(tile => request.Tiles.Contains(tile) && !other.HearingResolutions.Any(resolution => resolution.Tiles.Contains(tile))));
 
     public static void Validate(long tick, IReadOnlyList<TownRuntimeState> towns,
         IReadOnlyList<HouseholdLandUseRight> rights, IReadOnlyList<HouseholdLandUseRequest> requests,
         IReadOnlySet<string> knownAgents)
     {
+        IReadOnlyList<HouseholdLandUseRight> receiptRights = rights;
+        foreach (var town in towns)
+        {
+            if (town.LandHearings is null)
+                throw new InvalidDataException("Saved Town hearing history must be present.");
+            receiptRights = TownLandHearingRules.OriginalGrantRights(town.LandHearings, receiptRights);
+        }
         foreach (var request in requests)
         {
             var council = towns.Single(t => t.Id == request.TownId).Governance;
             var proposal = council?.Proposals.SingleOrDefault(p => p.Id == request.CouncilProposalId);
-            if (request.Status is not ("pending" or "granted" or "rejected" or "withdrawn") ||
+            if (request.Status is not ("pending" or "granted" or "rejected" or "withdrawn" or "hearing_resolved") ||
                 request.Status == "pending" && request.SettledTick is not null ||
                 request.Status != "pending" && (request.SettledTick is null || request.SettledTick < request.RequestedTick || request.SettledTick > tick) ||
-                request.Consents is null || request.GrantAdults is null ||
+                request.Consents is null || request.GrantAdults is null || request.HearingResolutions is null ||
                 request.Consents.Any(c => c is null || !knownAgents.Contains(c.AgentId) || c.Tick < request.RequestedTick ||
                     c.Tick > (request.SettledTick ?? tick) || council is null ||
                     !council.Knowledge.Any(k => k.AgentId == c.AgentId && k.LearnedTick <= c.Tick &&
@@ -46,7 +53,7 @@ public static class HouseholdLandGrantRules
                     proposal.AuthorId != request.RequestedByAgentId || proposal.OpenedTick < request.RequestedTick) ||
                 request.Status != "granted" && request.GrantAdults.Count != 0)
                 throw new InvalidDataException("A saved household land request has invalid approval or consent history.");
-            var grants = rights.Where(right => right.GrantSource == GrantSource(request.Id)).ToArray();
+            var grants = receiptRights.Where(right => right.GrantSource == GrantSource(request.Id)).ToArray();
             if (request.Status == "granted")
             {
                 if (proposal is not { Status: "passed" } || proposal.SettledTick > request.SettledTick ||
@@ -61,7 +68,8 @@ public static class HouseholdLandGrantRules
             else if (grants.Length != 0)
                 throw new InvalidDataException("An unfinished or refused land request cannot supply a use right.");
         }
-        if (rights.Any(right => right.GrantSource.StartsWith(GrantPrefix, StringComparison.Ordinal) &&
+        TownLandHearingValidation.ValidateRequestResolutions(tick, towns.Select(town => town.LandHearings).ToArray(), requests);
+        if (receiptRights.Any(right => right.GrantSource.StartsWith(GrantPrefix, StringComparison.Ordinal) &&
                 !requests.Any(request => request.Status == "granted" && GrantSource(request.Id) == right.GrantSource)) ||
             towns.Any(town => town.Governance?.Proposals.Any(proposal => proposal.Kind == "land_use" &&
                 !requests.Any(request => request.TownId == town.Id && request.CouncilProposalId == proposal.Id &&
@@ -75,7 +83,8 @@ public sealed partial class PrivateWorldRuntime
     private TownGovernanceState OpenLandUseProposal(TownRuntimeState town, TownGovernanceState state,
         ref HouseholdLandUseRequest request)
     {
-        if (request.CouncilProposalId is not null || !HouseholdLandGrantRules.IsAvailable(request, householdLandUseRights, householdLandUseRequests) ||
+        if (request.CouncilProposalId is not null || HasOpenLandHearingPlot(town.Id, request.Tiles) ||
+            !HouseholdLandGrantRules.IsAvailable(request, householdLandUseRights, householdLandUseRequests) ||
             !TownAdults(town).Contains(request.RequestedByAgentId, StringComparer.Ordinal)) return state;
         var text = $"Grant household use of {request.Tiles.Count} land tile(s); every current adult in the household must separately accept.";
         state = TownGovernanceRules.SubmitProposal(state, town.Id, request.RequestedByAgentId, "land_use", request.Id,
@@ -90,6 +99,7 @@ public sealed partial class PrivateWorldRuntime
         foreach (var saved in householdLandUseRequests.Where(r => r.TownId == town.Id && r.Status == "pending").ToArray())
         {
             var request = saved;
+            if (HasOpenLandHearingPlot(town.Id, request.Tiles) || request.HearingResolutions.Count != 0) continue;
             var adults = HouseholdAdults(request.HouseholdId);
             var proposal = state.Proposals.SingleOrDefault(p => p.Id == request.CouncilProposalId);
             string? refusal = adults.Length == 0 ? "The household has no living adult signatory." :

@@ -545,6 +545,10 @@ public partial class Main
                 (proposal.Status == "pending" ? " · closes " + DisplayWorldClock(proposal.DeadlineTick) : ""));
         }
         if (town.Government is { } government) AddGovernmentText(lines, government, tick);
+        if (town.LandHearingCount > town.LandHearings.Count)
+            lines.Add($"Showing {town.LandHearings.Count} active or recent land hearings of {town.LandHearingCount}.");
+        foreach (var hearing in town.LandHearings)
+            lines.AddRange(LandHearingText.Details(hearing, DisplayWorldClock, town.Government?.Laws));
         // Proposals are written by agents' models, which may use the font's mid-height ellipsis.
         return GameUiText.PlainEllipses(string.Join("\n", lines));
     }
@@ -555,7 +559,7 @@ public partial class Main
         foreach (var office in government.Offices)
             lines.Add(office.HolderName is { } holder ? $"{holder}: {office.Mandate}; term ends " + DisplayWorldClock(office.TermEndTick!.Value)
                 : $"Vacant: {office.Mandate}. {office.VacancyReason}");
-        if (government.Offices.Count > 0) lines.Add("Land hearings and enforcement are not available yet; an office grants no ownership.");
+        if (government.Offices.Count > 0) lines.Add("A land mayor may decide use-permission hearings. Wider law enforcement remains unavailable; an office grants no ownership.");
         foreach (var change in government.Changes)
         {
             lines.Add($"{Pretty(change.Status)} resident proposal: {change.Declaration}");

@@ -276,6 +276,9 @@ public static class GameUiText
             "town_resident_joined" or "town_resident_left" or "town_membership_evaluated" or
             "town_admission_accepted" or "town_admission_approved" or "town_admission_lapsed" or
             "land_use_requested" or "land_use_granted" or "town_building_assigned" or "town_border_expanded" or "town_land_claimed" or "town_founded" or "bridge_built" or
+            "town_civic_land_hearing" or "land_case_opened" or "land_case_notice" or "land_case_evidence" or "land_case_response" or
+            "land_case_judge_consent" or "land_case_judge_election" or "land_case_judge_assigned" or "land_case_ruling" or
+            "land_case_reopen_requested" or "land_case_reopened" or "land_case_inspected" or "land_case_relayed" or "land_case_rejected" or
             "housing_request_made" or "household_joined" or "housing_request_refused" or "housing_request_expired" or
             "housing_blocked" or "household_left" or "household_founded" or "personal_goods_collected" or
             "household_work_resumed" or "personal_goods_stored" or "borrowed_goods_returned" or "replacement_care_accepted" or "paused" or "resumed" or "model_call_warning";
