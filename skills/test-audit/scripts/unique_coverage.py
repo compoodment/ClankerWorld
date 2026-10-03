@@ -6,7 +6,7 @@ test, the lines and branches it covers and how many of them no other test
 covers. It can then:
 
   --plan        list tests that can go one after another without losing any
-                line or branch, cheapest proof first (fewest unique lines, then
+                line or mapped branch, cheapest proof first (fewest unique lines, then
                 the slowest), skipping any test in --keep;
   --remove FILE simulate removing the tests listed in FILE and report the
                 coverage left and the lines lost.
@@ -15,8 +15,10 @@ Line coverage is exact. Cobertura gives only a count of branches taken per
 line, not which ones, so a branch union is estimated as the most any single
 remaining test took on that line: a lower bound. Removal risk uses an upper
 bound on branches the candidate could cover exclusively, so partial counts
-alone cannot prove zero loss. Confirm any plan with a full-suite coverage run and
-compare_coverage.py.
+alone cannot prove zero loss. These estimates cover source-mapped branches;
+Coverlet's additional unmapped branches cannot be attributed here. Confirm any
+plan with a full-suite coverage run and compare_coverage.py, which also checks
+the collector's total branch counts.
 """
 
 import argparse
