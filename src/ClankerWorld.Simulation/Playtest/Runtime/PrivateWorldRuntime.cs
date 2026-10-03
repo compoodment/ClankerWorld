@@ -20,7 +20,7 @@ namespace ClankerWorld.Simulation.Playtest;
 /// </summary>
 public sealed partial class PrivateWorldRuntime : IDisposable
 {
-    public const int StateSchemaVersion = 61;
+    public const int StateSchemaVersion = 69;
     // Founded Towns save laws, protected government changes and the mayor's office from this schema.
     public const int TownGovernmentSchemaVersion = 55;
     public const int ObserverGuidanceSchemaVersion = 41;
@@ -110,7 +110,8 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     private sealed record PendingHostedDecision(
         CognitionDecisionRequest Request,
         Task<HostedDecisionOutcome> Task,
-        CancellationTokenSource Cancellation);
+        CancellationTokenSource Cancellation,
+        string? DecisionContext);
     private sealed record ConversationTurnOutcome(AgentConversationTurnResponse? Response, Exception? Failure);
     private sealed record PendingConversationTurn(
         AgentConversationTurnRequest Request,

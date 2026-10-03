@@ -257,7 +257,7 @@ public sealed class OwnerWorldObservationStore
 
     public ViewerHandshake GetOwnerHandshake() => new(
         new ProtocolVersion(Major: 1, Minor: 1),
-        privateRuntime is null ? OwnerServerCapabilities.ToArray() : [.. OwnerServerCapabilities, "owner-life-pace.v1", "owner-jev-assistance.v1", "owner-building-design.v1", "owner-terrain-delta.v1"],
+        privateRuntime is null ? OwnerServerCapabilities.ToArray() : [.. OwnerServerCapabilities, "owner-life-pace.v1", "owner-jev-assistance.v1", "owner-building-design.v1", "owner-terrain-delta.v1", "owner-observation-timeline.v1"],
         OwnerClientCapabilities.ToArray());
 
     public ViewerWorldSnapshot GetSnapshot()
@@ -294,7 +294,7 @@ public sealed class OwnerWorldObservationStore
     {
         if (privateRuntime is not null)
         {
-            var (state, diagnostics) = privateRuntime.ExportStateWithDiagnostics();
+            var (state, diagnostics, timeline) = privateRuntime.ExportObservation();
             var privateSnapshot = ToSnapshot(state, diagnostics, knownTerrainWorldId, knownTerrainDigest,
                 knownMapLayersDigest);
             return new ViewerReconnectBaseline(
@@ -305,7 +305,8 @@ public sealed class OwnerWorldObservationStore
                     state.Events
                         .Where(worldEvent => worldEvent.EventId > afterEventId)
                         .Select(ToEvent)
-                        .ToArray(), state.EventHistoryFloor, afterEventId < state.EventHistoryFloor));
+                        .ToArray(), state.EventHistoryFloor, afterEventId < state.EventHistoryFloor),
+                new ViewerObserverTimeline(timeline.InstanceId, timeline.Generation));
         }
 
         var capture = ownerRuntime!.Capture(afterEventId);
@@ -395,6 +396,29 @@ public sealed class OwnerWorldObservationStore
                             worldEvent.Detail))
                         .ToArray()),
         };
+    }
+
+    private static bool RequiresWorldCreation(PrivateWorldRuntimeState state)
+    {
+        // This is a presentation decision about the captured save, not a new
+        // world or a save migration. Keep any authored work accessible, even
+        // when its founders or buildings have since been removed.
+        return state.Geography is null &&
+            state.FounderSetup is { Started: false, FounderIds.Count: 0 } &&
+            state.Society.Society is { WorldTick: 0, IsPaused: true, Inhabitants.Count: 0, EventHistoryFloor: 0 } &&
+            state.Inhabitants.Count == 0 && state.DeceasedInhabitants is null or { Count: 0 } &&
+            state.Content is { Packages.Count: 0, Events.Count: 0 } &&
+            state.WorldContent is { Buildings.Count: 0, Recipes.Count: 0 } &&
+            state.WorldSimulation is { Buildings.Count: 0, ProductionJobs.Count: 0 } simulation &&
+            simulation.CropBuilds is null or { Count: 0 } &&
+            simulation.BuildingExpansions is null or { Count: 0 } &&
+            simulation.GuestInvitations is null or { Count: 0 } &&
+            state.Fields is null or { Count: 0 } && state.RoadTiles is null or { Count: 0 } &&
+            state.Bridges is null or { Count: 0 } && state.Instructions is null or { Count: 0 } &&
+            state.EventHistoryFloor == 0 && state.HistoryArchiveHead is null &&
+            state.Events.All(item => item.Kind is "world_created" or "town_founding_started" or "continuity_rule_on" or "paused") &&
+            state.Society.Society.Events.All(item => item.Kind is "household_created" or "paused") &&
+            state.Society.Society.Inventory.Events.Count == 0;
     }
 
     private static ViewerWorldSnapshot ToSnapshot(PrivateWorldRuntimeState state, PrivateWorldDiagnostics diagnostics,
@@ -556,6 +580,7 @@ public sealed class OwnerWorldObservationStore
             FounderSetup = state.FounderSetup is { } setup
                 ? new ViewerFounderSetup(PrivateWorldRuntime.RequiredFounders, setup.FounderIds.Count, setup.Started)
                 {
+                    RequiresWorldCreation = RequiresWorldCreation(state),
                     CanChooseTownSite = state.Geography is not null && !setup.Started && setup.FounderIds.Count == 0,
                     HasAcceptedTownSite = (state.Towns ?? []).Any(town => town.OriginSite is not null),
                     LastFounderId = !setup.Started && setup.FounderIds.Count > 0
@@ -641,7 +666,8 @@ public sealed class OwnerWorldObservationStore
             CalendarPace = state.WorldSystems is { } worldSystems
                 ? new ViewerCalendarPace(worldSystems.Config.TicksPerDay, worldSystems.Config.DaysPerYear,
                     worldSystems.Config.SpringDays, worldSystems.Config.SummerDays,
-                    worldSystems.Config.AutumnDays, worldSystems.Config.WinterDays)
+                    worldSystems.Config.AutumnDays, worldSystems.Config.WinterDays,
+                    worldSystems.Config.CalendarOffsetTicks)
                 : null,
             Authoring = new ViewerAuthoringState(
                 state.Society.Society.IsPaused,
@@ -670,7 +696,7 @@ public sealed class OwnerWorldObservationStore
                         order.Action, order.Status, order.RequestedUnits, order.CompletedUnits,
                         order.ProgressUnit, order.RepeatUntilCancelled, order.TargetFoodKind,
                         order.TargetResourceId, order.TargetPosition?.X, order.TargetPosition?.Y,
-                        order.BlockedReason) : null))
+                        order.BlockedReason, order.TargetAgentId, order.TargetMaterialKind) : null))
                 .ToArray(),
             Cognition = ToCognition(state),
             ContentPackages = state.Content?.Packages
@@ -798,12 +824,14 @@ public sealed class OwnerWorldObservationStore
     // Every open message stays visible. Closed messages are bounded to each
     // agent's newest few, whether or not a personal model heard them: an order
     // the game could not act on, or one done by local rules, still belongs on
-    // the card. Newest means latest submitted, the order the card reads them in.
+    // the card. Orders and suggestions are bounded separately, so heard
+    // suggestions never push the latest finished orders off the card. Newest
+    // means latest submitted, the order the card reads them in.
     private static OwnerQueuedInstruction[] ProjectPrivateInstructions(
         PrivateWorldRuntimeState state,
         HashSet<string> completedInstructionIds) =>
         (state.Instructions ?? [])
-            .GroupBy(instruction => instruction.TargetInhabitantId, StringComparer.Ordinal)
+            .GroupBy(instruction => (instruction.TargetInhabitantId, instruction.Kind))
             .SelectMany(group =>
             {
                 var pending = group.Where(instruction => !completedInstructionIds.Contains(instruction.InstructionId));
@@ -1002,11 +1030,19 @@ public sealed class OwnerWorldObservationStore
         var dependents = SocietyFixture.MovingCareGroup(state.Society.Society, inhabitant.Id).Where(id => id != inhabitant.Id)
             .Select(id => state.Society.Society.GetInhabitant(id).Name).ToArray();
         if (dependents.Length > 0) decisionFactors.Add(new("dependent-care", string.Join(", ", dependents)));
-        if (HousingDetail(state, physical.Housing) is { } housingDetail)
+        if (HousingDetail(state, inhabitant, physical.Housing) is { } housingDetail)
             decisionFactors.Add(new ViewerDecisionFactor("housing", housingDetail));
+        if (state.Knowledge?.WritingProjects.SingleOrDefault(project => project.ActorId == inhabitant.Id) is { } writing)
+        {
+            var kind = writing.Kind.Replace('_', ' ');
+            var action = writing.SourceArtifactId is not null ? "Copying" : writing.Kind == "field_map" ? "Drawing" : "Writing";
+            decisionFactors.Add(new ViewerDecisionFactor("knowledge-writing",
+                $"{action} a {kind} · {writing.WorkDone}/{writing.WorkRequired}"));
+        }
         if (TownMembershipText.Describe(state.Towns ?? [], state.Society.Society, inhabitant.Id,
                 state.WorldSystems!.Config.TicksPerDay,
-                TownMembershipText.TownsWithWarehouse(state.WorldSimulation, state.WorldContent!)) is { } townMembership)
+                TownMembershipText.TownsWithWarehouse(state.WorldSimulation, state.WorldContent!),
+                calendarOffsetTicks: state.WorldSystems.Config.CalendarOffsetTicks) is { } townMembership)
             decisionFactors.Add(new ViewerDecisionFactor("town-membership", townMembership));
         decisionFactors.AddRange(IdentityMomentFactors(physical));
         if (physical.ChildModelSelection is { Provider: { } birthProvider } birthModel)
@@ -1146,9 +1182,12 @@ public sealed class OwnerWorldObservationStore
         }
     }
 
-    /// <summary>Why an adult has no home, in player terms; null when they have one.</summary>
-    private static string? HousingDetail(PrivateWorldRuntimeState state, SettlementHousing? housing)
+    /// <summary>The current housing need, including overcrowding and a saved move-out notice.</summary>
+    private static string? HousingDetail(PrivateWorldRuntimeState state, SocietyInhabitant inhabitant,
+        SettlementHousing? housing)
     {
+        if (housing is not null && (housing.Relocation is not null || housing.Blocker == HousingBlockers.Overcrowded))
+            return OvercrowdedHousingDetail(state, inhabitant, housing);
         if (housing?.Blocker is not { } blocker)
             return null;
         var asked = housing.Request is { } request
@@ -1161,9 +1200,57 @@ public sealed class OwnerWorldObservationStore
             HousingBlockers.NoAuthorizedHome => "No home. The household holds no House yet and can plan one.",
             HousingBlockers.MissingMaterials => "No home. The household holds no House and lacks the materials to build one.",
             HousingBlockers.NoLegalSite => "No home. The household has the materials for a House but no legal site to build it.",
-            HousingBlockers.Overcrowded => "Housing need. The House has more residents than places; nobody is moved out.",
             _ => null,
         };
+    }
+
+    private static string OvercrowdedHousingDetail(PrivateWorldRuntimeState state, SocietyInhabitant inhabitant,
+        SettlementHousing housing)
+    {
+        var society = state.Society.Society;
+        var house = state.WorldSimulation!.Buildings.FirstOrDefault(building =>
+            inhabitant.HouseholdId is not null && building.HouseholdId == inhabitant.HouseholdId &&
+            state.WorldContent!.Buildings.Any(definition => definition.CanonicalId == building.DefinitionId &&
+                definition.Tags.Contains("house", StringComparer.Ordinal)));
+        var counts = "Housing need.";
+        var construction = string.Empty;
+        if (house is not null)
+        {
+            var definition = state.WorldContent!.Buildings.Single(item => item.CanonicalId == house.DefinitionId);
+            var capacity = HouseResidentCapacityRules.Calculate(society.Inhabitants.Where(person =>
+                    person.HouseholdId == inhabitant.HouseholdId),
+                house.Footprint?.Width ?? definition.Width, house.Footprint?.Height ?? definition.Height);
+            counts = $"{(capacity.IsOvercrowded ? "House overcrowded" : "House")}: {capacity.ResidentCount} residents, {capacity.Limit} places.";
+            construction = (state.WorldSimulation.BuildingExpansions ?? [])
+                .LastOrDefault(job => job.BuildingInstanceId == house.InstanceId)?.State switch
+            {
+                WorldProductionJobState.Running => " Expansion is under way; it adds places only when finished.",
+                WorldProductionJobState.Paused => " Expansion is paused; it adds places only when finished.",
+                WorldProductionJobState.Cancelled => " The last expansion was cancelled.",
+                _ => string.Empty,
+            };
+        }
+        if (housing.Relocation is { } notice)
+        {
+            var hours = (long)Math.Ceiling(Math.Max(0, notice.DeadlineTick - society.WorldTick) *
+                24d / state.WorldSystems!.Config.TicksPerDay);
+            var reason = notice.Reason switch
+            {
+                HouseRelocationRules.Volunteer => "Volunteered to move",
+                HouseRelocationRules.LatestUnrelatedArrival => "Notice issued as the most recent arrival outside the main family",
+                _ => "Notice issued as the most recent arrival when no family had a majority",
+            };
+            var next = housing.Request is { } request
+                ? $" Asked the {society.Households.FirstOrDefault(item => item.Id == request.HouseholdId)?.Name ?? "other"} household; every adult member must agree."
+                : " Seek an accepting household with room or start a household and build a House.";
+            return $"{counts} Move-out notice: about {hours} world {(hours == 1 ? "hour" : "hours")} left. {reason}." +
+                next + construction;
+        }
+        var notices = state.Inhabitants.Count(person => person.Housing?.Relocation is { } relocation &&
+            relocation.HouseholdId == inhabitant.HouseholdId);
+        return counts + (notices > 0
+            ? $" {notices} {(notices == 1 ? "adult has" : "adults have")} notice to move out; completed expansion may let them stay."
+            : " Nobody has notice to move out. Seek a feasible expansion or a voluntary household split that preserves dependent care.") + construction;
     }
 
     /// <summary>Requests to live in this adult's House that they must answer, or have answered.</summary>
@@ -1385,7 +1472,12 @@ public sealed class OwnerWorldObservationStore
     private static string PublicIntentionSummary(string candidateId) => candidateId switch
     {
         "seek_food" => "looking for food",
+        "move_to" => "walking to the ordered tile",
         "harvest_food" => "gathering food",
+        "gather_material" => "gathering the ordered material",
+        "collect_material" => "collecting personal materials",
+        "store_material" => "storing personal materials in the House",
+        "inspect_material_site" => "checking the ordered material site",
         "consume_food" => "eating carried food",
         "safe_idle" => "keeping a safe routine",
         _ => candidateId.Replace('_', ' '),

@@ -134,8 +134,8 @@ public sealed record ViewerAgentKnowledgeArtifact(
     string CreatorName,
     IReadOnlyList<ViewerKnowledgeSite> Sites);
 /// <summary>
-/// The world's saved calendar, including its season lengths, so the game can
-/// name the season and day of any tick the same way the world does.
+/// The world's saved calendar, including its season lengths and clock offset,
+/// so the game names the season and day of any tick the same way the world does.
 /// </summary>
 public sealed record ViewerCalendarPace(
     int TicksPerDay,
@@ -143,7 +143,8 @@ public sealed record ViewerCalendarPace(
     int SpringDays,
     int SummerDays,
     int AutumnDays,
-    int WinterDays);
+    int WinterDays,
+    int CalendarOffsetTicks = 0);
 
 /// <summary>
 /// An inspection projection, never an editable actor record. A founder draft
@@ -240,7 +241,9 @@ public sealed record ViewerInstructionOrder(
     string? TargetResourceId = null,
     int? TargetX = null,
     int? TargetY = null,
-    string? BlockedReason = null);
+    string? BlockedReason = null,
+    string? TargetAgentId = null,
+    string? TargetMaterialKind = null);
 
 public sealed record ViewerCognitionEvent(long EventId, long WorldTick, string Kind, string Detail);
 
@@ -355,6 +358,8 @@ public sealed record ViewerEvent(long EventId, long WorldTick, string Kind, stri
 
 public sealed record ViewerFounderSetup(int Required, int Placed, bool Started)
 {
+    /// <summary>An untouched bootstrap world should open New World instead of the retired camp.</summary>
+    public bool RequiresWorldCreation { get; init; }
     public bool CanChooseTownSite { get; init; }
     public bool HasAcceptedTownSite { get; init; }
     public string? LastFounderId { get; init; }
@@ -595,11 +600,14 @@ public sealed record ViewerCouncil(string? StewardName, string FoodPolicy, strin
 public sealed record ViewerEventSlice(long SnapshotTick, long AfterEventId, IReadOnlyList<ViewerEvent> Events,
     long EventHistoryFloor = 0, bool ResetRequired = false);
 
+public sealed record ViewerObserverTimeline(string InstanceId, long Generation);
+
 /// <summary>
 /// A reconnect response is one server-side capture, not a race between a
 /// client's separate snapshot and event-history requests.
 /// </summary>
-public sealed record ViewerReconnectBaseline(ViewerWorldSnapshot Snapshot, ViewerEventSlice Events);
+public sealed record ViewerReconnectBaseline(ViewerWorldSnapshot Snapshot, ViewerEventSlice Events,
+    ViewerObserverTimeline? Timeline = null);
 
 /// <summary>
 /// Owns the static deterministic sample exposed by the first browser slice.

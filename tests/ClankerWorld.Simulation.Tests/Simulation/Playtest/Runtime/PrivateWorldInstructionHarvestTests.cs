@@ -86,7 +86,7 @@ public sealed partial class PrivateWorldRuntimeTests
     }
 
     [Theory]
-    [InlineData("gather wood")]
+    [InlineData("gather planks")]
     [InlineData("gather wood at berry-patch")]
     [InlineData("go to the Blacksmith")]
     [InlineData("gather berries and build a House")]

@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 
 namespace ClankerWorld.GodotClient.UI;
 
@@ -6,6 +7,31 @@ namespace ClankerWorld.GodotClient.UI;
 public static class WorldEventText
 {
     public const string ContinuityRisk = "The world is at risk of dying out.";
+
+    private static string DescribeDeveloperEdit(string detail, OwnerWorldSnapshot? snapshot)
+    {
+        try
+        {
+            var edit = JsonSerializer.Deserialize<OwnerDeveloperEditAction>(detail);
+            if (edit is null || string.IsNullOrWhiteSpace(edit.AgentId) || string.IsNullOrWhiteSpace(edit.Operation) ||
+                string.IsNullOrWhiteSpace(edit.Value)) return "Developer edit.";
+            var name = Name(snapshot, edit.AgentId);
+            var value = GameUiText.HumanizeIdentifier(edit.Value).ToLowerInvariant();
+            var change = edit.Operation switch
+            {
+                "set_need" => $"{name}'s {value} set to {edit.Amount}%",
+                "give_goods" => $"{name} received {edit.Amount} {value}",
+                "remove_goods" => $"removed {edit.Amount} {value} from {name}",
+                "add_skill" => $"added {value} skill to {name}",
+                "remove_skill" => $"removed {value} skill from {name}",
+                "start_partnership" => $"started a partnership between {name} and {Name(snapshot, edit.OtherAgentId ?? "")}",
+                "end_partnership" => $"ended the partnership between {name} and {Name(snapshot, edit.OtherAgentId ?? "")}",
+                _ => "saved a change",
+            };
+            return "Developer edit: " + change + ".";
+        }
+        catch (JsonException) { return "Developer edit."; }
+    }
 
     public static bool OffersNewcomer(OwnerWorldSnapshot? snapshot) =>
         snapshot is { ContinuityRuleActive: true, FounderSetup.Started: true };
@@ -25,6 +51,7 @@ public static class WorldEventText
 
         return worldEvent.Kind switch
         {
+            "developer_edit" => DescribeDeveloperEdit(worldEvent.Detail, snapshot),
             "world_created" => "A new world has begun.",
             "world_started" => "Time has started in this world.",
             "weather_changed" when parts.Length >= 2 => $"The weather changed to {ThingAt(1)}.",
@@ -104,10 +131,14 @@ public static class WorldEventText
             "equipment_repair_started" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} began repairing an item.",
             "equipment_repaired" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} repaired an item.",
             "equipment_repair_interrupted" => "Repair stopped; its unused materials are available again.",
+            "agent_knowledge_artifact_created" or "agent_knowledge_artifact_read" or "agent_knowledge_shared" or
+                "agent_knowledge_writing_started" or "agent_knowledge_writing_cancelled" or "agent_knowledge_material_collected" or
+                "agent_knowledge_artifact_collected" or "agent_knowledge_artifact_stored" =>
+                DescribeWrittenKnowledge(worldEvent, snapshot),
             "skill_learned" => DescribeSkill(worldEvent.Detail, snapshot),
             "inhabitant_building_proposed" => $"{LeadingName(snapshot, worldEvent.Detail)} suggested a new building design.",
             "instruction_not_understood" => $"{Name(snapshot, BeforeLastField(worldEvent.Detail))} didn't understand your order. " +
-                "For now, orders can only ask them to gather food, eat or find food.",
+                "For now, orders can only ask them to gather food, eat, find food, go to a tile or become a child's guardian.",
             "settlement_founded" => "A new Town was founded.",
             "town_civic_law" => $"{civicTownName} recorded a law decision. See the Towns page for its wording and scope.",
             "town_civic_government" => $"{civicTownName} recorded a resident government decision. See the Towns page for the vote or handover.",
@@ -142,7 +173,7 @@ public static class WorldEventText
             "bridge_built" when parts.Length > 0 && parts[0] == "road" => "A new Road crosses a river on a new bridge.",
             "bridge_built" => "Agents crossed a river here so often that a bridge was built.",
             "household_work_resumed" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} took over paused household work at its building.",
-            "household_left" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} left their household and may collect their personal belongings.",
+            "household_left" => DescribeHouseholdDeparture(snapshot, worldEvent.Detail),
             "household_founded" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} started a household; a House still needs materials and work.",
             "personal_goods_collected" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} collected their personal belongings.",
             "personal_goods_stored" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} stored personal belongings while keeping ownership.",
@@ -152,6 +183,12 @@ public static class WorldEventText
             "household_joined" => $"{LeadingName(snapshot, worldEvent.Detail)} now lives with {HouseholdAfterAgent(snapshot, worldEvent.Detail)}.",
             "housing_request_refused" => $"{HouseholdAfterAgent(snapshot, worldEvent.Detail)} did not agree to let {LeadingName(snapshot, worldEvent.Detail)} move in.",
             "housing_request_expired" => $"{HouseholdAfterAgent(snapshot, worldEvent.Detail)} did not answer {LeadingName(snapshot, worldEvent.Detail)}'s request to move in.",
+            "relocation_notice" => DescribeRelocationNotice(snapshot, worldEvent.Detail),
+            "relocation_cancelled" => DescribeRelocationCancellation(snapshot, worldEvent.Detail),
+            "housing_blocked" when worldEvent.Detail.EndsWith(":overcrowded", StringComparison.Ordinal) =>
+                $"{LeadingName(snapshot, worldEvent.Detail)}'s House is overcrowded: it has more residents than places.",
+            "housing_blocked" when worldEvent.Detail.EndsWith(":awaiting_answer", StringComparison.Ordinal) =>
+                $"{LeadingName(snapshot, worldEvent.Detail)} is waiting for every adult in the other household to agree to the move.",
             "housing_blocked" => $"{LeadingName(snapshot, worldEvent.Detail)} has no home: {HousingReason(worldEvent.Detail)}.",
             "paused" => "The world was paused.",
             "resumed" => "The world resumed.",
@@ -217,6 +254,43 @@ public static class WorldEventText
         };
     }
 
+    private static string DescribeHouseholdDeparture(OwnerWorldSnapshot? snapshot, string detail)
+    {
+        var fields = detail.Split('|');
+        var actor = Name(snapshot, fields[0]);
+        return fields.Length > 2 && fields[2] == "displaced"
+            ? $"{actor} moved out because their House was overcrowded and may collect their personal belongings."
+            : $"{actor} left their household and may collect their personal belongings.";
+    }
+
+    private static string DescribeRelocationNotice(OwnerWorldSnapshot? snapshot, string detail)
+    {
+        var fields = detail.Split('|');
+        var actor = Name(snapshot, fields[0]);
+        return (fields.Length > 2 ? fields[2] : string.Empty) switch
+        {
+            "volunteer" => $"{actor} volunteered to move out of their overcrowded House.",
+            "latest_unrelated_arrival" => $"{actor} has notice to move out of their overcrowded House as its most recent arrival outside the main family.",
+            "latest_arrival" => $"{actor} has notice to move out of their overcrowded House as its most recent arrival; no family has a majority.",
+            _ => $"{actor} has notice to move out of their overcrowded House.",
+        };
+    }
+
+    private static string DescribeRelocationCancellation(OwnerWorldSnapshot? snapshot, string detail)
+    {
+        var fields = detail.Split('|');
+        var reason = (fields.Length > 2 ? fields[2] : string.Empty) switch
+        {
+            "room" => "the House now has enough places",
+            "care" => "their dependent children still need their care",
+            "family" => "the household's family arrangements changed",
+            "replaced" => "another adult volunteered to move instead",
+            "no_house" => "the household no longer holds that House",
+            _ => "the household's housing needs changed",
+        };
+        return $"{Name(snapshot, fields[0])}'s move-out notice was cancelled: {reason}.";
+    }
+
     /// <summary>A recorded Town admission: who joined, any Town they left and whether dependent children came too.</summary>
     private static string DescribeAdmission(string detail, OwnerWorldSnapshot? snapshot)
     {
@@ -254,6 +328,30 @@ public static class WorldEventText
             return "An agent learned a skill.";
         var source = fields[2] == "work" ? "by doing the work" : "from " + Name(snapshot, fields[2]);
         return $"{Name(snapshot, fields[0])} learned {fields[1]} {source}.";
+    }
+
+    private static string DescribeWrittenKnowledge(OwnerWorldEvent worldEvent, OwnerWorldSnapshot? snapshot)
+    {
+        var fields = worldEvent.Detail.Split('|');
+        var author = Name(snapshot, fields[0]);
+        var recipient = Name(snapshot, fields.ElementAtOrDefault(1) ?? string.Empty);
+        return worldEvent.Kind switch
+        {
+            "agent_knowledge_artifact_read" => $"{recipient} learned about places from a written work.",
+            "agent_knowledge_shared" => $"{author} shared written knowledge with {recipient}.",
+            "agent_knowledge_artifact_collected" => $"{author} picked up a written work.",
+            "agent_knowledge_artifact_stored" => $"{author} stored a written work.",
+            "agent_knowledge_writing_started" => $"{author} started work on a {GameUiText.ItemName(fields.ElementAtOrDefault(1) ?? "record").ToLowerInvariant()}.",
+            "agent_knowledge_writing_cancelled" => $"{author} stopped writing; the unused materials are available again.",
+            "agent_knowledge_material_collected" => $"{author} collected writing supplies.",
+            _ => fields.ElementAtOrDefault(2) switch
+            {
+                "field_map" => $"{author} finished drawing a field map.",
+                "field_record" => $"{author} finished writing a field record.",
+                "book" => $"{author} finished writing a book.",
+                _ => $"{author} finished a written work.",
+            },
+        };
     }
 
     private static string Name(OwnerWorldSnapshot? snapshot, string id) =>
