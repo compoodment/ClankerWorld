@@ -96,8 +96,9 @@ public partial class Main
 
     private async Task RefreshWorldSettingsAsync()
     {
+        var generation = observationSession.RequestGeneration;
         await RefreshAutosaveSettingsAsync();
-        await RefreshProviderConfigurationAsync();
+        if (IsCurrentWorldRequest(generation)) await RefreshProviderConfigurationAsync();
     }
 
     private void BuildPairingPanel()

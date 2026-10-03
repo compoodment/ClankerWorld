@@ -307,6 +307,12 @@ Before a potentially committed create/select/rewind request, the client clears
 its held observation timeline. If the receipt is lost, reconnect starts from a
 fresh baseline while retaining normal regression and terrain-identity checks
 within that timeline. Continue does not resume an uncertain world switch.
+Other connected devices detect that change through transient observer metadata
+and fetch a fresh baseline too, including for same-world rewinds. The runtime
+captures that metadata with the committed state; it is never written into a
+checkpoint and does not change saved world identity or replay. See
+[observer recovery](device-pairing.md#recovering-after-another-device-loads-a-world)
+for ordering, cache and retained-request boundaries.
 
 The internally captured proposed tick can reuse its committed map. External
 loads still validate and regenerate it; this shortcut must not weaken input

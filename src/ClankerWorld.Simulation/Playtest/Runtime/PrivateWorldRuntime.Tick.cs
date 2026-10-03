@@ -357,12 +357,14 @@ public sealed partial class PrivateWorldRuntime
                 // Loading never resumes a world implicitly, even if the saved
                 // checkpoint was taken while it was running.
                 restored.Pause();
+                var nextObserverGeneration = checked(observerGeneration + 1);
                 foreach (var id in pendingHosted.Keys.ToArray()) CancelPendingHosted(id);
                 foreach (var id in pendingWills.Keys.ToArray()) CancelPendingWill(id);
                 CancelIdentityMoments();
                 foreach (var id in pendingConversationTurns.Keys.ToArray())
                     CancelPendingConversationTurn(id, AgentConversationInterruption.OwnerPaused, suspendCurrent: false);
                 CommitPreparedTick(restored);
+                observerGeneration = nextObserverGeneration;
                 // Routes and timing described the world as it was; the next tick measures again.
                 plannedRoutes = new(StringComparer.Ordinal);
                 lastTickMilliseconds = null;
@@ -387,12 +389,14 @@ public sealed partial class PrivateWorldRuntime
                 using var restored = Restore(checkpoint, providerFactory,
                     maxCognitionDispatchPerCycle);
                 restored.Pause();
+                var nextObserverGeneration = checked(observerGeneration + 1);
                 foreach (var id in pendingHosted.Keys.ToArray()) CancelPendingHosted(id);
                 foreach (var id in pendingWills.Keys.ToArray()) CancelPendingWill(id);
                 CancelIdentityMoments();
                 foreach (var id in pendingConversationTurns.Keys.ToArray())
                     CancelPendingConversationTurn(id, AgentConversationInterruption.OwnerPaused, suspendCurrent: false);
                 CommitPreparedTick(restored);
+                observerGeneration = nextObserverGeneration;
                 // Routes and timing described the world as it was; the next tick measures again.
                 plannedRoutes = new(StringComparer.Ordinal);
                 lastTickMilliseconds = null;

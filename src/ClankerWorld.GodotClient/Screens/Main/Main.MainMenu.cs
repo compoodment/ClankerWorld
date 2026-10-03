@@ -197,7 +197,7 @@ public partial class Main
         mainMenuContinueButton.Disabled = true;
         var previousRefreshCount = successfulRefreshCount;
         await RefreshAsync();
-        if (successfulRefreshCount == previousRefreshCount)
+        if (successfulRefreshCount == previousRefreshCount || observationSession.AwaitingFreshBaseline)
         {
             RefreshMainMenuAvailability();
             SetMainMenuStatus("Could not reach your world. Check your connection and try Continue again.");
@@ -250,14 +250,17 @@ public partial class Main
 
     private async void QuitToMainMenu()
     {
-        if (isQuittingToMenu) return;
+        var generation = observationSession.RequestGeneration;
+        if (isQuittingToMenu || !IsCurrentWorldRequest(generation)) return;
         isQuittingToMenu = true;
         try
         {
             // Require a confirmed pause before stopping owner polling on the title screen.
             if (!menuPauseConfirmed)
             {
-                menuPauseConfirmed = await SetPausedAsync(paused: true);
+                var confirmed = await SetPausedAsync(paused: true);
+                if (!IsCurrentWorldRequest(generation)) return;
+                menuPauseConfirmed = confirmed;
                 if (!menuPauseConfirmed)
                 {
                     SetStatus("Could not confirm the pause. Try Quit to Menu again when the host is reachable.", good: false);
@@ -687,7 +690,7 @@ public partial class Main
     private void RefreshWorldMenuAvailability()
     {
         var disabled = worldMenuBusy || isOwnerAction || worldListRequest.IsLoading ||
-            registeredEndpointInvalid || registration is null || deviceKey is null;
+            registeredEndpointInvalid || registration is null || deviceKey is null || observationSession.AwaitingFreshBaseline;
         var world = SelectedListedWorld();
         worldSelectButton.Disabled = disabled || world is null || world.Compatibility == "incompatible";
         // Saves load into the open world, so another world must be opened first.
@@ -707,8 +710,11 @@ public partial class Main
 
     private async Task RunWorldMenuActionAsync(Func<Task> action)
     {
+        var generation = observationSession.RequestGeneration;
+        if (!IsCurrentWorldRequest(generation)) return;
         await ownerActionGate.RunAsync(async () =>
         {
+            if (!IsCurrentWorldRequest(generation)) return;
             worldMenuBusy = true;
             isOwnerAction = true;
             refreshCancellation?.Cancel();
@@ -787,10 +793,12 @@ public partial class Main
 
     private async Task RefreshWorldPreviewAfterChangeAsync(int revision)
     {
+        var generation = observationSession.RequestGeneration;
         await ToSignal(GetTree().CreateTimer(0.3), SceneTreeTimer.SignalName.Timeout);
         while (worldMenuBusy && IsInsideTree() && worldMenuOverlay.Visible && revision == worldPreviewRevision)
             await ToSignal(GetTree().CreateTimer(0.1), SceneTreeTimer.SignalName.Timeout);
-        if (!IsInsideTree() || !worldMenuOverlay.Visible || !worldMenuColumns.Visible || revision != worldPreviewRevision ||
+        if (!IsCurrentWorldRequest(generation) || !IsInsideTree() || !worldMenuOverlay.Visible ||
+            !worldMenuColumns.Visible || revision != worldPreviewRevision ||
             SameGeneration(previewedWorldOptions, CurrentWorldOptions()))
             return;
         await PreviewWorldAsync();
@@ -798,6 +806,7 @@ public partial class Main
 
     private async Task PreviewWorldAsync()
     {
+        var generation = observationSession.RequestGeneration;
         if (worldMenuBusy || isOwnerAction || !TryGetOwner(out var authority, out var deviceId, out var signer)) return;
         var action = CurrentWorldOptions();
         if (action.Name.Length is < 1 or > 80 || action.Seed.Length is < 1 or > 100 ||
@@ -816,7 +825,7 @@ public partial class Main
         {
             var result = await ownerApi.PreviewWorldAsync(ResolveWorldUri(), authority,
                 deviceId, action, signer, CancellationToken.None);
-            if (!SameGeneration(action, CurrentWorldOptions()))
+            if (!IsCurrentWorldRequest(generation) || !SameGeneration(action, CurrentWorldOptions()))
             {
                 return;
             }
@@ -830,7 +839,7 @@ public partial class Main
         }
         catch (Exception exception)
         {
-            if (SameGeneration(action, CurrentWorldOptions()))
+            if (IsCurrentWorldRequest(generation) && SameGeneration(action, CurrentWorldOptions()))
             {
                 InvalidateWorldPreview(refresh: false);
                 worldPreviewStatus.Text = "Could not preview map: " + FriendlyFailure(exception);
@@ -931,14 +940,15 @@ public partial class Main
             worldMenuStatus.Text = "Generating world...";
             try
             {
-                await ownerApi.SetPausedAsync(ResolveWorldUri(), authority, deviceId, true,
-                    signer, CancellationToken.None);
+                await AwaitCurrentWorldResultAsync(ownerApi.SetPausedAsync(ResolveWorldUri(), authority, deviceId, true,
+                    signer, CancellationToken.None));
                 resumeWorldOnContinue = false;
                 await observationSession.ChangeTimelineAsync(() => ownerApi.CreateWorldAsync(ResolveWorldUri(), authority, deviceId,
                     createAction, signer, CancellationToken.None));
                 worldMenuOverlay.Hide();
                 await EnterWorldAsync();
             }
+            catch (ObsoleteWorldRequestException) { }
             catch (Exception exception)
             {
                 worldMenuStatus.Text = "Could not create world: " + FriendlyFailure(exception);
@@ -960,14 +970,15 @@ public partial class Main
             worldMenuStatus.Text = "Opening world...";
             try
             {
-                await ownerApi.SetPausedAsync(server, authority, deviceId, true,
-                    signer, CancellationToken.None);
+                await AwaitCurrentWorldResultAsync(ownerApi.SetPausedAsync(server, authority, deviceId, true,
+                    signer, CancellationToken.None));
                 resumeWorldOnContinue = false;
                 await observationSession.ChangeTimelineAsync(() => ownerApi.SelectWorldAsync(server, authority, deviceId,
                     worldId, signer, CancellationToken.None));
                 worldMenuOverlay.Hide();
                 await EnterWorldAsync();
             }
+            catch (ObsoleteWorldRequestException) { }
             catch (Exception exception)
             {
                 worldMenuStatus.Text = "Could not open world: " + FriendlyFailure(exception);

@@ -469,13 +469,14 @@ public partial class Main
             isWarehouse ? target : null, isWarehouse || string.IsNullOrEmpty(target) ? null : target,
             WorldId: snapshot.WorldId);
         OwnerBuildingManagementResult? result = null;
+        var generation = observationSession.RequestGeneration;
         await RunOwnerActionAsync(async () =>
         {
-            result = await ownerApi.ReassignBuildingAsync(ResolveWorldUri(), authority, deviceId, action,
-                signer, CancellationToken.None);
+            result = await AwaitCurrentWorldResultAsync(ownerApi.ReassignBuildingAsync(ResolveWorldUri(), authority, deviceId, action,
+                signer, CancellationToken.None));
             return result.Applied ? "Building owner changed" : result.Failure ?? "The building could not be reassigned.";
         });
-        if (result is { } changed)
+        if (IsCurrentWorldRequest(generation) && result is { } changed)
             SetStatus(changed.Applied ? "Building owner changed" : changed.Failure ?? "The building could not be reassigned.",
                 good: changed.Applied);
     }
@@ -510,14 +511,15 @@ public partial class Main
         }
 
         OwnerBuildingManagementResult? result = null;
+        var generation = observationSession.RequestGeneration;
         await RunOwnerActionAsync(async () =>
         {
-            result = await ownerApi.RemoveBuildingAsync(ResolveWorldUri(), authority, deviceId,
+            result = await AwaitCurrentWorldResultAsync(ownerApi.RemoveBuildingAsync(ResolveWorldUri(), authority, deviceId,
                 action,
-                signer, CancellationToken.None);
+                signer, CancellationToken.None));
             return result.Applied ? "Building removed" : result.Failure ?? "The building could not be removed.";
         });
-        if (result is not { } removed) return;
+        if (!IsCurrentWorldRequest(generation) || result is not { } removed) return;
         SetStatus(removed.Applied ? "Building removed" : removed.Failure ?? "The building could not be removed.",
             good: removed.Applied);
         if (removed.Applied && buildingCardSnapshot?.WorldId == worldId && selectedBuildingId == action.InstanceId)

@@ -61,7 +61,7 @@ public sealed class OwnerWorldObservationStore
 
     public ViewerHandshake GetOwnerHandshake() => new(
         new ProtocolVersion(Major: 1, Minor: 1),
-        privateRuntime is null ? OwnerServerCapabilities.ToArray() : [.. OwnerServerCapabilities, "owner-life-pace.v1", "owner-jev-assistance.v1", "owner-building-design.v1", "owner-terrain-delta.v1"],
+        privateRuntime is null ? OwnerServerCapabilities.ToArray() : [.. OwnerServerCapabilities, "owner-life-pace.v1", "owner-jev-assistance.v1", "owner-building-design.v1", "owner-terrain-delta.v1", "owner-observation-timeline.v1"],
         OwnerClientCapabilities.ToArray());
 
     public ViewerWorldSnapshot GetSnapshot()
@@ -98,7 +98,7 @@ public sealed class OwnerWorldObservationStore
     {
         if (privateRuntime is not null)
         {
-            var (state, diagnostics) = privateRuntime.ExportStateWithDiagnostics();
+            var (state, diagnostics, timeline) = privateRuntime.ExportObservation();
             var privateSnapshot = ToSnapshot(state, diagnostics, knownTerrainWorldId, knownTerrainDigest,
                 knownMapLayersDigest);
             return new ViewerReconnectBaseline(
@@ -109,7 +109,8 @@ public sealed class OwnerWorldObservationStore
                     state.Events
                         .Where(worldEvent => worldEvent.EventId > afterEventId)
                         .Select(ToEvent)
-                        .ToArray(), state.EventHistoryFloor, afterEventId < state.EventHistoryFloor));
+                        .ToArray(), state.EventHistoryFloor, afterEventId < state.EventHistoryFloor),
+                new ViewerObserverTimeline(timeline.InstanceId, timeline.Generation));
         }
 
         var capture = ownerRuntime!.Capture(afterEventId);
