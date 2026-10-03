@@ -251,6 +251,12 @@ internal static class PrivateWorldInstructionOrderParser
                 if (requiresCrop && crop is null || action == "plant_field" && crop is null) return null;
             }
             if (!hasField && (explicitQuantity || crop is null)) return null;
+            GridPoint? targetPosition = null;
+            if (ReadWord("at"))
+            {
+                if (!TryReadCoordinate(out var target)) return null;
+                targetPosition = target;
+            }
             if (ReadWord("until"))
             {
                 if (!ReadWord("cancelled") && !ReadWord("canceled")) return null;
@@ -259,7 +265,7 @@ internal static class PrivateWorldInstructionOrderParser
             if (!ReadWord("now")) _ = ReadWord("please");
             if (position != end) return null;
             return new(action, "queued", explicitQuantity ? quantity : 1, 0, "fields", repeat,
-                explicitQuantity, TargetCropKind: crop);
+                explicitQuantity, TargetPosition: targetPosition, TargetCropKind: crop);
         }
 
         private bool TryReadCollectionLocation(ref GridPoint? targetPosition)

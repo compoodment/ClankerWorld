@@ -170,13 +170,16 @@ with an optional `TargetCropKind` limited to the three existing crops. Explicit
 quantities require the word "field" or "fields" and count finished work sites.
 Selection uses household access, physical routes, usable tools and actual
 planting stock without the ordinary food-demand preference. It never substitutes
-a different named crop. `ApplyFieldCandidate` performs normal walking and stock
+a different named crop. An optional `TargetPosition` filters both new tilling
+sites and existing fields; it never redirects unfinished quantities to another
+tile. `ApplyFieldCandidate` performs normal walking and stock
 collection; `StartFieldWorkCore` binds new work to the instruction. Only a
 completed result from `ContinueFarmWork` credits a bounded receipt. Cancellation
 releases unused seed reservations and removes a partly tilled field. Ordinary
 work retains its existing priorities and behavior; urgent survival cancels the
 current work under normal field rules and the order resumes its remaining count.
-Saved work must match the actor's active instruction, action and crop.
+Saved work must match the actor's active instruction, action, crop and any
+explicit tile.
 Validation refuses links to another agent, task or equipment kind.
 
 A MustDo with no recognized action is closed when it is submitted: it is added

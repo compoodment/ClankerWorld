@@ -139,7 +139,8 @@ work, queues, cancellation and exact material costs. Older alpha saves are
 refused and preserved without migration; this version is provisional above the
 collection-order base until integration.
 
-Private-world schema 57 adds field orders and their optional `TargetCropKind`.
+Private-world schema 57 adds field orders and their optional `TargetCropKind`;
+schema 60 adds an optional exact tile below.
 `FarmFieldWork.OrderInstructionId` binds work to its actor's active field order.
 Restoration validates that link, action, crop, work time and ordinary seed/tool
 state; a cancelled, queued, unrelated or missing instruction cannot retain bound
@@ -165,6 +166,15 @@ work, travel, partial pickup, cancellation and reload. Runtime selection and
 execution both recheck the lot's current position along with ordinary personal
 collection permissions, so moved or depleted goods cannot redirect the order.
 This version is provisional above the tool-repair-order base and must be
+reconciled above its integrated base before merge. Older alpha saves are refused
+and preserved unchanged without migration.
+
+Private-world schema 60 allows the existing bounded `TargetPosition` on field
+orders. A saved running field job must be at that tile as well as matching the
+order's actor, action and crop. Queueing, partial work, exact progress and seed
+reservations survive pause and reload; a rejected tick cannot leave work or
+progress behind. An unavailable target waits without selecting another field.
+This version is provisional above the collection-source base and must be
 reconciled above its integrated base before merge. Older alpha saves are refused
 and preserved unchanged without migration.
 
@@ -426,7 +436,7 @@ blocked-return behavior. These checks use existing timestamps and add no saved
 fields, schema change or migration.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 59. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 60. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus

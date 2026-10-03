@@ -33,11 +33,13 @@ public sealed partial class PrivateWorldRuntime
             ToolProgressionRules.PlanWork(society.Checkpoint.Inventory, actor, ToolFamily.Hoe) is null) return null;
         if (kind == FarmWorkKind.Till)
             return NearbyFarmTiles(farmhouse.Position).Where(FarmableFreeTile)
+                .Where(point => order.TargetPosition is null || point == order.TargetPosition)
                 .OrderBy(point => map.FootDistance(person.Position, point))
                 .ThenByDescending(point => fertility.At(point))
                 .ThenBy(point => point.Y).ThenBy(point => point.X)
                 .Cast<GridPoint?>().FirstOrDefault(point => CanWalkToFieldOrderSite(actor, person.Position, point!.Value));
         return fields.Where(field => field.HouseholdId == household && field.Work is null &&
+                (order.TargetPosition is null || field.Position == order.TargetPosition) &&
                 (kind == FarmWorkKind.Plant ? field.Stage is FarmFieldStage.Prepared or FarmFieldStage.Harvested :
                     (order.TargetCropKind is null || field.Crop == order.TargetCropKind) &&
                     (kind == FarmWorkKind.Tend ? field.Stage == FarmFieldStage.Growing && !field.Tended : field.Stage == FarmFieldStage.Ready)))
@@ -92,11 +94,21 @@ public sealed partial class PrivateWorldRuntime
     {
         var actor = instruction.TargetInhabitantId;
         if (!AgePermitsCandidate(actor, instruction.Order!.Action)) return "This agent is too young to work on fields.";
+        if (instruction.Order.TargetPosition is { } target && !map.Contains(target))
+            return "The requested tile is outside this world.";
         if (FarmhouseForHousehold(HouseholdFor(actor)) is null) return "The agent needs a household with a Farmhouse.";
         var kind = FieldOrderKind(instruction.Order.Action);
         if (kind is FarmWorkKind.Till or FarmWorkKind.Tend &&
             ToolProgressionRules.PlanWork(society.Checkpoint.Inventory, actor, ToolFamily.Hoe) is null)
             return "Carry a usable hoe for this field work.";
+        if (instruction.Order.TargetPosition is not null)
+            return kind switch
+            {
+                FarmWorkKind.Till => "The requested tile needs free farmable land near the household's Farmhouse and an open walking route.",
+                FarmWorkKind.Plant => "Planting at the requested tile needs a prepared household field, usable planting stock, carrying space and open walking routes.",
+                FarmWorkKind.Tend => "No available household field at the requested tile has the requested crop ready for tending along an open walking route.",
+                _ => "No available household field at the requested tile has the requested crop ready to harvest along an open walking route.",
+            };
         return kind switch
         {
             FarmWorkKind.Till => "No open walking route reaches free farmable land near the household's Farmhouse.",
@@ -125,6 +137,7 @@ public sealed partial class PrivateWorldRuntime
             if (instruction is null || instruction.InstructionId != orderId || instruction.Order is not { } task ||
                 !IsFieldOrder(task.Action) || task.Status == "queued" || FieldOrderKind(task.Action) != work.Kind ||
                 work.LastWorkedTick < instruction.SubmittedTick ||
+                task.TargetPosition is { } target && target != field.Position ||
                 task.TargetCropKind is { } crop && crop != (work.Kind == FarmWorkKind.Plant ? work.Crop : field.Crop))
                 throw new InvalidDataException("The saved field work does not belong to its active order.");
         }
