@@ -687,12 +687,14 @@ assigned to each household; the shared Warehouse remains Town property.
 Add Agent treats a recorded use right as household property and Town title
 like a Town border; a single pending request gives no household. A household
 building's current owner comes before another household's undisputed use right
-on its footprint, so reassigning a building does not block placement there. A
-field does not, and disputed land is always refused. These existing foundation
-and placement rules do not yet implement the agreed Council-approved title
-claims, household land requests or movement of footprint use rights with
-building reassignment. That runtime work remains in
-[#426](https://github.com/compoodment/ClankerWorld/issues/426).
+on its footprint. Reassigning a household building carries its existing
+footprint use right to the new household. The rest of a larger plot stays with
+its holder, even when the footprint splits it into separate plots. Town title
+and grant terms stay unchanged; disputed, expired or differently held rights
+prevent reassignment. A field does not override a use right, and disputed land
+is always refused. These existing rules do not yet implement the agreed
+Council-approved title claims or household land requests. That runtime work
+remains in [#426](https://github.com/compoodment/ClankerWorld/issues/426).
 
 Competing requests are visible as **pending disputes**. While one is pending,
 conflicting formal rights transfers pause; residents are not evicted, goods
