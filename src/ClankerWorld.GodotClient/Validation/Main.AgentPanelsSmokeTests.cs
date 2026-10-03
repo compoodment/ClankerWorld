@@ -55,6 +55,30 @@ public partial class Main
             if (!profileActivityLabel.Text.Contains("Model: Ready", StringComparison.Ordinal) ||
                 !inhabitantDetails.Text.Contains("Jev made their latest choice.", StringComparison.Ordinal))
                 throw new InvalidOperationException($"A choice Jev made must be said plainly: {profileActivityLabel.Text} / {inhabitantDetails.Text}");
+            var approvalDeadline = snapshot.WorldTick + (snapshot.CalendarPace?.TicksPerDay ?? 1_440);
+            var approval = new OwnerWorldDecisionFactor("town-membership", "Town: none · First Town's council approved admission; not accepted yet")
+            {
+                AcceptanceDeadlineTick = approvalDeadline,
+            };
+            RenderSelectedInhabitantCard(snapshot with
+            {
+                Inhabitants = [mira with { DecisionFactors = [.. mira.DecisionFactors, approval] }, rowan, pip],
+            });
+            var (deadlineDate, deadlineTime) = SplitClock(DisplayWorldClock(approvalDeadline));
+            if (!inhabitantDetails.Text.Contains("Acceptance deadline:", StringComparison.Ordinal) ||
+                !inhabitantDetails.Text.Contains(deadlineDate, StringComparison.Ordinal) ||
+                !inhabitantDetails.Text.Contains(deadlineTime, StringComparison.Ordinal) ||
+                !inhabitantDetails.Text.Contains("Paused time does not count", StringComparison.Ordinal))
+                throw new InvalidOperationException("An admission approval must show its public acceptance deadline as a world date and time.");
+            RenderSelectedInhabitantCard(snapshot with
+            {
+                Inhabitants = [mira with { DecisionFactors = [.. mira.DecisionFactors,
+                    new("town-membership", "Town: none · First Town's admission approval expired without acceptance; ask again")] }, rowan, pip],
+            });
+            if (!inhabitantDetails.Text.Contains("expired without acceptance", StringComparison.Ordinal) ||
+                inhabitantDetails.Text.Contains("Acceptance deadline:", StringComparison.Ordinal) ||
+                inhabitantDetails.Text.Contains("not accepted yet", StringComparison.Ordinal))
+                throw new InvalidOperationException("A lapsed admission must show its reason without a pending approval or acceptance deadline.");
             // At 200% on this small window, four messages make the Profile taller than the screen:
             // its details scroll inside it and the panel stays on screen.
             var factor = uiLayer.Factor;

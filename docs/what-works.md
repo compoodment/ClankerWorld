@@ -396,12 +396,18 @@ Town's council for admission at its notice place; an adult inside a Town they
 don't belong to can walk there to read it. A passed request made by the
 newcomer admits them straight away. A resident may also ask the council to
 admit an adult nearby who has no Town; once it passes, the newcomer must accept
-before anything changes. Their dependent children join with them. Each agent has
+before anything changes. Approval lasts one unpaused world day from the council's
+decision, and the Profile shows its acceptance deadline. An unaccepted approval
+expires with a reason; someone may ask again later through the ordinary council
+rules. Their dependent children join with them. Each agent has
 one request of their own open at a time, and a refused request waits a day
 before it is offered again. An admitted resident may collect their Town's
 Warehouse stock in person, but approval never gives a House or household place;
-an adult waiting on a Town's approval may ask its households to take them in. The agent's profile and model context show their Town, its
-rights and any admission they have heard about from notices. Moving from one
+an adult waiting on a Town's approval may ask its households to take them in.
+The agent's Profile and model context show their Town and its rights.
+The Profile shows public admission status and its deadline; the
+agent's model only learns admission status from notices they read or were told.
+The approval, lapse and admission events name what happened. Moving from one
 Town to another, with the old Town left in the same step, works in saves that
 hold several Towns, but normal play has only the first Town until founding
 another Town is finished.

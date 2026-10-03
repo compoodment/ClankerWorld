@@ -56,7 +56,12 @@ public sealed record ViewerActor(
 
 public sealed record ViewerInventoryEntry(string Kind, int Quantity);
 
-public sealed record ViewerDecisionFactor(string Key, string Detail);
+public sealed record ViewerDecisionFactor(string Key, string Detail)
+{
+    /// <summary>Derived deadline for the sponsored admission approval shown in this row.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public long? AcceptanceDeadlineTick { get; init; }
+}
 
 public sealed record ViewerRoute(
     string Status,
