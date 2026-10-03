@@ -462,8 +462,13 @@ public sealed class PersonalEquipmentTests
         Assert.Equal(2_000, world.Society.Inventory.GetLot(coatId).ConditionBasisPoints);
 
         provider.ReleaseHeldTurn();
-        for (var tick = 0; tick < 24 && Assert.Single(world.Conversations).Status != AgentConversationStatus.Closed; tick++)
-            Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+        using var completionDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        while (Assert.Single(world.Conversations).Status != AgentConversationStatus.Closed)
+        {
+            // Held responses resume asynchronously; give them time to reach a later tick's admission.
+            await Task.Delay(10, completionDeadline.Token);
+            Assert.True((await world.AdvanceOneTickNonBlockingAsync(cancellationToken: completionDeadline.Token)).Advanced);
+        }
         var completedConversation = Assert.Single(world.Conversations);
         Assert.Equal(AgentConversationStatus.Closed, completedConversation.Status);
         Assert.Equal("agreed", completedConversation.Outcome);
