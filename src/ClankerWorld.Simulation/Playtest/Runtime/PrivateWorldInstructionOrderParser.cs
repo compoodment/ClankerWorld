@@ -164,7 +164,7 @@ internal static class PrivateWorldInstructionOrderParser
             if (action == "store_material" && materialKind is null) return null;
             if (materialKind is not null && action == "harvest_food") action = "gather_material";
             var subject = materialKind is null && equipmentKind is null
-                ? action == "collect_material" ? TryReadCollectionFoodSubject() : TryReadFoodSubject()
+                ? action == "collect_material" ? TryReadCollectionFoodSubject() : TryReadFoodSubject(allowCultivatedGreens: action == "consume_food")
                 : default;
             if (action == "collect_material" && subject.Present) action = "collect_food";
             if (materialKind is null && equipmentKind is null && !subject.Present && (action != "consume_food" || hasExplicitQuantity))
@@ -470,7 +470,7 @@ internal static class PrivateWorldInstructionOrderParser
             return new FoodSubject(true, kind, null, position - start);
         }
 
-        private FoodSubject TryReadFoodSubject()
+        private FoodSubject TryReadFoodSubject(bool allowCultivatedGreens)
         {
             var subjectStart = position;
             if (ReadWord("the") || ReadWord("a") || ReadWord("an") || ReadWord("some"))
@@ -482,7 +482,7 @@ internal static class PrivateWorldInstructionOrderParser
                 }
             }
 
-            var category = ReadFoodCategory();
+            var category = ReadFoodCategory(allowCultivatedGreens);
             var resource = MatchResourceAlias(position);
             if (resource.Present && (category.TokensConsumed == 0 ||
                     resource.TokensConsumed > category.TokensConsumed))
@@ -509,7 +509,7 @@ internal static class PrivateWorldInstructionOrderParser
             return default;
         }
 
-        private FoodSubject ReadFoodCategory()
+        private FoodSubject ReadFoodCategory(bool allowCultivatedGreens)
         {
             if (position >= tokens.Count || tokens[position].Kind != TokenKind.Word)
                 return default;
@@ -521,6 +521,8 @@ internal static class PrivateWorldInstructionOrderParser
                 return new FoodSubject(true, "fruit", null, 1);
             if (word == "wild" && position + 1 < tokens.Count && IsWord(position + 1, "greens"))
                 return new FoodSubject(true, "wild_greens", null, 2);
+            if (allowCultivatedGreens && word == "cultivated" && IsWord(position + 1, "greens"))
+                return new FoodSubject(true, "cultivated_greens", null, 2);
             if (word == "food")
             {
                 var count = position + 1 < tokens.Count &&

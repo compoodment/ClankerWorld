@@ -102,6 +102,13 @@ do not create map knowledge. Optional observer replies are tied to the exact
 message ID and stored separately from private thoughts and conversation
 speech. Local deterministic decisions do not mark messages as heard.
 
+Eating orders recognize exact cultivated greens alongside berries, fruit and
+wild greens. That subject is enabled for consumption without adding a wild
+resource alias for cultivated crops. Normal carried/shared-food eligibility,
+fullness and consumption apply. Collecting household food earns no eating
+progress; only a consumed item does. A multi-item task waits between meals
+when the agent is full, retaining its target and remaining quantity.
+
 Material orders save the requested kind separately from food targets. They use
 known resource facts or observation within normal interaction range; a named
 unobserved site first requires physical travel. Untargeted orders may use normal

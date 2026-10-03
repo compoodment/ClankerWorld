@@ -158,11 +158,13 @@ private thoughts.
 Orders currently cover eating carried food, collecting accessible household
 food to eat, going to a known food source or discovering one through ordinary
 exploration, and gathering berries, fruit or wild greens from a matching source.
-Examples include "eat 3 berries", "gather two berries", "gather berries from
+Examples include "eat 3 berries", "eat cultivated greens", "gather two berries", "gather berries from
 berry-patch", "go to berries at (12, 4)" and "keep gathering food until
 cancelled". Quantities count food actually eaten or gathered; travel finishes
 on arrival at the food source. Eating waits until the agent is hungry enough,
-and a full load blocks gathering with a reason.
+and a full load blocks gathering with a reason. Eating can name berries, fruit,
+wild greens or cultivated greens exactly; a different available kind does not
+substitute for that target. Urgent survival can still interrupt the task.
 
 Orders also gather wood, stone, plant fiber, clay, iron ore, gold ore and diamond
 through the ordinary material-gathering rules. Adults and elders can take one

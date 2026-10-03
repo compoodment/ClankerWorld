@@ -200,6 +200,15 @@ reload and rollback. This version is provisional above the food-collection
 base until integration; older alpha checkpoints are refused and preserved
 without migration.
 
+Private-world schema 63 permits `cultivated_greens` as an exact
+`consume_food` target, in addition to its existing personal-collection use.
+The same eating action, quantities, receipts and lifecycle are retained;
+saved travel and wild-harvest actions cannot use that food kind. Fullness
+waits, partial consumption, queues and cancellation preserve the target across
+reload and rollback. This version is provisional above the equipment-collection
+base until integration; older alpha checkpoints are refused and preserved
+without migration.
+
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
 Matching parent assignments are disclosed as agreement; when they differ, the
@@ -458,7 +467,7 @@ blocked-return behavior. These checks use existing timestamps and add no saved
 fields, schema change or migration.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 62. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 63. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus

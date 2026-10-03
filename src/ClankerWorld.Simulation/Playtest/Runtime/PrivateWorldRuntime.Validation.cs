@@ -541,7 +541,7 @@ public sealed partial class PrivateWorldRuntime
             order.LastEffectId is { Length: > 512 } || order.LastEffectId?.Any(char.IsControl) == true ||
             order.TargetResourceId is { Length: > 128 } || order.TargetResourceId?.Any(char.IsControl) == true ||
             order.TargetFoodKind is not (null or "berries" or "fruit" or "wild_greens") &&
-                !(order.Action == "collect_food" && order.TargetFoodKind == "cultivated_greens") ||
+                !(order.Action is "collect_food" or "consume_food" && order.TargetFoodKind == "cultivated_greens") ||
             !IsFieldOrder(order.Action) && order.TargetCropKind is not null ||
             order.Action is not ("repair_equipment" or "repair_tool" or "collect_equipment") && order.TargetEquipmentKind is not null ||
             order.Action is not ("gather_material" or "store_material" or "collect_material") && order.TargetMaterialKind is not null ||
