@@ -155,4 +155,65 @@ jobs:
       - name: Restore locked test dependencies
         run: dotnet restore tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.csproj --locked-mode
       - name: Verify native protected storage and checkpoint recovery
-        run: dotnet test tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.csproj --configuration Release --no-restore --filter "FullyQualifiedName~ProviderConfigurationStoreTests|FullyQualifiedName~PairedOwnerCanConfigureHostedCognitionWithoutEchoingOrSavingTheKeyInTheWorld|FullyQualifiedName~OnlySignedOwnerCanDeleteUnusedNamedCredentialSlot|FullyQualifiedName~ManualSaveGenerationTests|FullyQualifiedName~ResumeRequiresDurableCheckpointEvenOnRetry|FullyQualifiedName~ResumeCheckpointTests|FullyQualifiedName~Deletion"
+        env:
+          CLANKERWORLD_CHECKPOINT_DIAGNOSTICS: ${{ runner.temp }}/checkpoint-evidence
+        run: dotnet test tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.csproj --configuration Release --no-restore --filter "FullyQualifiedName~ProviderConfigurationStoreTests|FullyQualifiedName~PairedOwnerCanConfigureHostedCognitionWithoutEchoingOrSavingTheKeyInTheWorld|FullyQualifiedName~OnlySignedOwnerCanDeleteUnusedNamedCredentialSlot|FullyQualifiedName~ManualSaveGenerationTests|FullyQualifiedName~ResumeRequiresDurableCheckpointEvenOnRetry|FullyQualifiedName~ResumeCheckpointTests|FullyQualifiedName~PrivateWorldStateFileTests|FullyQualifiedName~Deletion" --logger "trx;LogFileName=windows-storage.trx" --results-directory "${{ runner.temp }}/windows-storage-results"
+      - name: Upload native storage test results and checkpoint failure evidence
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-storage-evidence
+          path: |
+            ${{ runner.temp }}/windows-storage-results
+            ${{ runner.temp }}/checkpoint-evidence
+          include-hidden-files: true
+          retention-days: 14
+          if-no-files-found: warn
+
+  # Draft investigation only: remove after recording the native full-suite control for #778.
+  windows-checkpoint-investigation:
+    runs-on: windows-latest
+    timeout-minutes: 120
+    env:
+      CLANKERWORLD_CHECKPOINT_DIAGNOSTICS: ${{ runner.temp }}/checkpoint-investigation/failures
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.401
+      - name: Restore and build the exact native diagnostic baseline
+        run: |
+          dotnet restore tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.csproj --locked-mode
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet build tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.csproj --configuration Release --no-restore
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $evidence = Join-Path $env:RUNNER_TEMP 'checkpoint-investigation'
+          New-Item -ItemType Directory -Force $evidence | Out-Null
+          git rev-parse HEAD | Set-Content (Join-Path $evidence 'commit.txt')
+          dotnet --info | Set-Content (Join-Path $evidence 'dotnet-info.txt')
+          [System.Environment]::OSVersion.ToString() | Set-Content (Join-Path $evidence 'windows-version.txt')
+          Get-Volume | Select-Object DriveLetter, FileSystem, FileSystemLabel, HealthStatus | ConvertTo-Json | Set-Content (Join-Path $evidence 'volumes.json')
+          $assemblies = @('ClankerWorld.Simulation.dll', 'ClankerWorld.Simulation.pdb', 'ClankerWorld.Viewer.dll', 'ClankerWorld.Viewer.pdb', 'ClankerWorld.Simulation.Tests.dll', 'ClankerWorld.Simulation.Tests.pdb')
+          Get-ChildItem tests/ClankerWorld.Simulation.Tests/bin/Release/net10.0 -File | Where-Object { $_.Name -in $assemblies } | Get-FileHash -Algorithm SHA256 | ConvertTo-Json | Set-Content (Join-Path $evidence 'assembly-hashes-before.json')
+          @'
+          <RunSettings>
+            <xUnit><MaxParallelThreads>4</MaxParallelThreads></xUnit>
+            <DataCollectionRunSettings><DataCollectors><DataCollector friendlyName="XPlat Code Coverage"><Configuration><SingleHit>true</SingleHit></Configuration></DataCollector></DataCollectors></DataCollectionRunSettings>
+          </RunSettings>
+          '@ | Set-Content (Join-Path $evidence 'diagnostic.runsettings')
+      - name: Run the unfiltered native Release suite with four workers and SingleHit coverage
+        run: dotnet test tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.csproj --configuration Release --no-build --no-restore --settings "${{ runner.temp }}/checkpoint-investigation/diagnostic.runsettings" --collect "XPlat Code Coverage" --logger "trx;LogFileName=full-windows.trx" --results-directory "${{ runner.temp }}/checkpoint-investigation/results"
+      - name: Record restored assembly hashes
+        if: ${{ !cancelled() }}
+        run: |
+          $assemblies = @('ClankerWorld.Simulation.dll', 'ClankerWorld.Simulation.pdb', 'ClankerWorld.Viewer.dll', 'ClankerWorld.Viewer.pdb', 'ClankerWorld.Simulation.Tests.dll', 'ClankerWorld.Simulation.Tests.pdb')
+          Get-ChildItem tests/ClankerWorld.Simulation.Tests/bin/Release/net10.0 -File | Where-Object { $_.Name -in $assemblies } | Get-FileHash -Algorithm SHA256 | ConvertTo-Json | Set-Content (Join-Path $env:RUNNER_TEMP 'checkpoint-investigation/assembly-hashes-after.json')
+      - name: Upload the native investigation evidence
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-checkpoint-investigation
+          path: ${{ runner.temp }}/checkpoint-investigation
+          include-hidden-files: true
+          retention-days: 14
+          if-no-files-found: error
