@@ -138,7 +138,7 @@ public static class WorldEventText
             "skill_learned" => DescribeSkill(worldEvent.Detail, snapshot),
             "inhabitant_building_proposed" => $"{LeadingName(snapshot, worldEvent.Detail)} suggested a new building design.",
             "instruction_not_understood" => $"{Name(snapshot, BeforeLastField(worldEvent.Detail))} didn't understand your order. " +
-                "For now, orders can only ask them to gather food, eat or find food.",
+                "For now, orders can only ask them to gather food, eat, find food, go to a tile or become a child's guardian.",
             "settlement_founded" => "A new Town was founded.",
             "town_civic_law" => $"{civicTownName} recorded a law decision. See the Towns page for its wording and scope.",
             "town_civic_government" => $"{civicTownName} recorded a resident government decision. See the Towns page for the vote or handover.",
@@ -166,7 +166,7 @@ public static class WorldEventText
             "bridge_built" when parts.Length > 0 && parts[0] == "road" => "A new Road crosses a river on a new bridge.",
             "bridge_built" => "Agents crossed a river here so often that a bridge was built.",
             "household_work_resumed" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} took over paused household work at its building.",
-            "household_left" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} left their household and may collect their personal belongings.",
+            "household_left" => DescribeHouseholdDeparture(snapshot, worldEvent.Detail),
             "household_founded" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} started a household; a House still needs materials and work.",
             "personal_goods_collected" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} collected their personal belongings.",
             "personal_goods_stored" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} stored personal belongings while keeping ownership.",
@@ -176,12 +176,55 @@ public static class WorldEventText
             "household_joined" => $"{LeadingName(snapshot, worldEvent.Detail)} now lives with {HouseholdAfterAgent(snapshot, worldEvent.Detail)}.",
             "housing_request_refused" => $"{HouseholdAfterAgent(snapshot, worldEvent.Detail)} did not agree to let {LeadingName(snapshot, worldEvent.Detail)} move in.",
             "housing_request_expired" => $"{HouseholdAfterAgent(snapshot, worldEvent.Detail)} did not answer {LeadingName(snapshot, worldEvent.Detail)}'s request to move in.",
+            "relocation_notice" => DescribeRelocationNotice(snapshot, worldEvent.Detail),
+            "relocation_cancelled" => DescribeRelocationCancellation(snapshot, worldEvent.Detail),
+            "housing_blocked" when worldEvent.Detail.EndsWith(":overcrowded", StringComparison.Ordinal) =>
+                $"{LeadingName(snapshot, worldEvent.Detail)}'s House is overcrowded: it has more residents than places.",
+            "housing_blocked" when worldEvent.Detail.EndsWith(":awaiting_answer", StringComparison.Ordinal) =>
+                $"{LeadingName(snapshot, worldEvent.Detail)} is waiting for every adult in the other household to agree to the move.",
             "housing_blocked" => $"{LeadingName(snapshot, worldEvent.Detail)} has no home: {HousingReason(worldEvent.Detail)}.",
             "paused" => "The world was paused.",
             "resumed" => "The world resumed.",
             "model_call_warning" => DescribeModelCallWarning(parts),
             _ => $"{GameUiText.HumanizeIdentifier(worldEvent.Kind)}.",
         };
+    }
+
+    private static string DescribeHouseholdDeparture(OwnerWorldSnapshot? snapshot, string detail)
+    {
+        var fields = detail.Split('|');
+        var actor = Name(snapshot, fields[0]);
+        return fields.Length > 2 && fields[2] == "displaced"
+            ? $"{actor} moved out because their House was overcrowded and may collect their personal belongings."
+            : $"{actor} left their household and may collect their personal belongings.";
+    }
+
+    private static string DescribeRelocationNotice(OwnerWorldSnapshot? snapshot, string detail)
+    {
+        var fields = detail.Split('|');
+        var actor = Name(snapshot, fields[0]);
+        return (fields.Length > 2 ? fields[2] : string.Empty) switch
+        {
+            "volunteer" => $"{actor} volunteered to move out of their overcrowded House.",
+            "latest_unrelated_arrival" => $"{actor} has notice to move out of their overcrowded House as its most recent arrival outside the main family.",
+            "latest_arrival" => $"{actor} has notice to move out of their overcrowded House as its most recent arrival; no family has a majority.",
+            _ => $"{actor} has notice to move out of their overcrowded House.",
+        };
+    }
+
+    private static string DescribeRelocationCancellation(OwnerWorldSnapshot? snapshot, string detail)
+    {
+        var fields = detail.Split('|');
+        var reason = (fields.Length > 2 ? fields[2] : string.Empty) switch
+        {
+            "room" => "the House now has enough places",
+            "care" => "their dependent children still need their care",
+            "family" => "the household's family arrangements changed",
+            "replaced" => "another adult volunteered to move instead",
+            "no_house" => "the household no longer holds that House",
+            _ => "the household's housing needs changed",
+        };
+        return $"{Name(snapshot, fields[0])}'s move-out notice was cancelled: {reason}.";
     }
 
     /// <summary>A recorded Town admission: who joined, any Town they left and whether dependent children came too.</summary>

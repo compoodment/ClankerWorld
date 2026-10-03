@@ -35,6 +35,21 @@ that version mismatch. You can still reconnect to the existing world.
 
 Adults may leave a household without its permission. Their own goods remain theirs even in the old House; collecting them and returning borrowed tools require travel and carrying space. A primary caregiver keeps dependent children with them unless another adult explicitly takes over care. An adult seeks an accepting existing home with room for the whole group first, then may start a household alone and build a House through the usual materials and site rules. Inspect the agent to see membership, goods awaiting collection, borrowed goods, care responsibility and the housing blocker.
 
+When a House is overcrowded, inspect a resident's housing details to see who
+has notice to move out, why, how much time remains and whether expansion is
+under way. Eligible adults get one world day; pausing stops the countdown,
+and saving and loading keep the remaining time. Volunteers go first, then
+the newest eligible arrivals outside the main family. With no family majority,
+the same order applies without favoring a family.
+
+An adult with notice may ask another household with room while still living
+in the old House. Every adult in the new household must agree. If no home is
+ready when notice ends, the adult leaves the old household and keeps seeking
+a home. Only a finished expansion adds places; it can cancel an unnecessary
+notice. Children and their sole caregivers are never forced out, including
+together as a group. Their House stays overcrowded until expansion or a
+voluntary move with care preserved provides enough room.
+
 ## Create your first Town
 
 1. Choose **New World**. Enter a name and seed and choose Small or Medium. Other
@@ -143,6 +158,13 @@ berries at (12, 4)". "Keep gathering food" continues until cancelled. Eating
 waits until the agent is hungry enough, and gathering needs enough carrying
 space. A recognized new order replaces the current one unless you turn on
 **Queue**. Use **Cancel task** to stop a waiting or active order.
+
+Use **Move to tile (12, 4)** to send an agent to an exact tile. **Go to (12, 4)**
+and **Travel to (12, 4)** work too. The agent walks there normally and finishes
+only on that tile. An occupied or unreachable destination leaves the order
+blocked with a reason. These are single trips; queue another order for the
+return journey. A destination in another household's House requires an
+invitation. Urgent food or warmth needs can interrupt the trip, then it resumes.
 
 The small card and the Profile show the order the agent is on now: whether it
 is waiting, being done, interrupted or blocked, how far along it is, why it is

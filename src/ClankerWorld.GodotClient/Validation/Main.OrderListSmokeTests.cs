@@ -187,6 +187,13 @@ public partial class Main
             RenderSelectedInhabitantCard(snapshot with { Instructions = [guardian] });
             if (quickCardOrderLabel.Text != "Order: Blocked · Becoming a guardian · 0/1 care assignments · Waiting to be asked by the child's guardian search.")
                 throw new InvalidOperationException($"Guardian orders need their own task name and progress wording: {quickCardOrderLabel.Text}");
+            // So do orders to walk to an exact tile.
+            var movement = Order(1, "Move to tile (12, 4).", "blocked", "move_to",
+                requested: 1, reason: "No open walking route reaches the requested tile right now.");
+            movement = movement with { Order = movement.Order! with { ProgressUnit = "arrivals", TargetX = 12, TargetY = 4 } };
+            RenderSelectedInhabitantCard(snapshot with { Instructions = [movement] });
+            if (quickCardOrderLabel.Text != "Order: Blocked · Going to a tile · 0/1 sites reached · No open walking route reaches the requested tile right now.")
+                throw new InvalidOperationException($"Movement orders need their own task name: {quickCardOrderLabel.Text}");
             RenderSelectedInhabitantCard(snapshot with { Instructions = [] });
             if (quickCardOrderLabel.Visible || allOrdersButton.Visible)
                 throw new InvalidOperationException("An agent with no orders must show no order line and no All orders button.");
