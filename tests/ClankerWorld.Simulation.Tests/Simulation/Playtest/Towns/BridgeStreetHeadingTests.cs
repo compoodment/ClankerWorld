@@ -150,7 +150,7 @@ public sealed class BridgeStreetHeadingTests
     [Fact]
     public async Task PlacingADoorAtTheEastSeamBridgeEntranceExtendsOntoClearLandAndReplaysAfterReload()
     {
-        var geography = new GeographyOptions("street-seam-audit-8", WorldSizePreset.Small,
+        var geography = new GeographyOptions("street-seam-audit-10", WorldSizePreset.Small,
             WaterPercent: 50, HydrologyVersion: 1);
         using var setup = new PrivateWorldRuntime(geography.Seed,
             _ => new ActionCoverageRecorder(chooseIdle: true),
