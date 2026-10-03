@@ -191,6 +191,21 @@ key removes it from the current store, not backups or the provider account.
 Protected Windows files are not portable key exports. This is protection at
 rest, not protection against software already running as the same user.
 
+Private-world schema 55 adds each founded Town's laws and government record.
+Law versions bind adoption, amendment and repeal to passed Council proposals,
+with original scope and effective dates. Resident changes save original and
+remaining electorates, final votes, queues, approval and handover deadlines.
+Mayoral records save consent for specific mandates, every completed/interrupted
+round, repeated top ties, retries, winners and separate land/ordinary terms.
+
+Loading rejects unsupported arrangements, invented majorities, changed opening
+rosters, malformed ballots, unsupported winners, overlapping mandates and terms
+without a completed election. The approved arrangement must follow a completed
+resident handover. Current-format saves preserve pending windows, accepted
+choices and distinct mandates. Paused and rejected ticks do not advance or
+partly apply civic work; replay does not reroll ties or duplicate authority.
+Older alpha checkpoints are refused and preserved; no migration is added.
+
 ## Commit and restore rules
 
 Canonical state is the accepted state used by the simulation. A replay checks
@@ -400,7 +415,7 @@ blocked-return behavior. These checks use existing timestamps and add no saved
 fields, schema change or migration.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 55. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 56. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
@@ -419,7 +434,8 @@ targets, progress, retry state and cancellation receipts, staged
 guardian-search records with their offered adults, medical permission and
 consumed-dose progress, selected personal ornaments, and wills with up to
 three named heirs, exact divisions and final words, Town admission records,
-and concrete last-meal names for nourishment and dietary variety.
+Town laws and government, and concrete last-meal names for nourishment and
+dietary variety.
 Land records are checked against the saved map, Towns, households and one
 another before load. Building reassignment moves only existing footprint use rights;
 connected remainder plots keep their holder and original grant terms. Split
@@ -451,9 +467,9 @@ physical custody, schema 48 for Town councils, schema 49 for food-order
 progress and cancellations, schema 50 for guardian searches, schema 51
 for medical permission and consumed-dose progress, schema 52 for selected
 ornaments, schema 53 for wills with several heirs and final words, schema 54
-for Town admission records, and schema 55 for named last meals record when
-those fields or behaviors were introduced; they do not allow an earlier
-checkpoint schema past the current alpha cutoff.
+for Town admission records, schema 55 for Town laws and government, and schema
+56 for named last meals record when those fields or behaviors were introduced;
+they do not allow an earlier checkpoint schema past the current alpha cutoff.
 
 | Compatibility change | Meaning |
 | --- | --- |
@@ -494,7 +510,8 @@ checkpoint schema past the current alpha cutoff.
 | Schema 52 | An optional exact personally owned, carried ornament lot in the canonical personal equipment record. Wearing supplies no protection or carrying bonus; removal, gifts and death retain actual property while clearing the selection when required. Earlier alpha saves are refused and preserved without migration. |
 | Schema 53 | Wills with one to three named heirs (people or a Town), an equal or item-by-item split, the exact quantity of each frozen lot per heir, and final words; the deceased archive keeps the agent's Town. Divisions must cover every frozen lot exactly. Earlier schemas cannot carry these records. |
 | Schema 54 | Town admission records tie each passed admission proposal to one outcome: approved and waiting for the newcomer, admitted with the care group that moved, or lapsed with its reason. An approval applies at most once. Earlier alpha saves are refused and preserved without migration. |
-| Schema 55 | An agent's last meal keeps its concrete name, such as porridge, bread, stew or a Restaurant meal, for nourishment and dietary variety. Running House and Restaurant cooking keeps its exact inputs, reusable water jugs and outputs through reload. Earlier alpha checkpoints are refused and preserved; no migration is added. |
+| Schema 55 | Scoped law versions, protected resident government votes and handovers, mayoral consent and rounds, and separate land and governing mandate terms. Earlier alpha schemas are refused and preserved. |
+| Schema 56 | An agent's last meal keeps its concrete name, such as porridge, bread, stew or a Restaurant meal, for nourishment and dietary variety. Running House and Restaurant cooking keeps its exact inputs, reusable water jugs and outputs through reload. Earlier alpha checkpoints are refused and preserved; no migration is added. |
 
 Other compatibility fields remain separate for simulation, envelopes, content,
 assets, generator and network contracts. Change the field whose semantics

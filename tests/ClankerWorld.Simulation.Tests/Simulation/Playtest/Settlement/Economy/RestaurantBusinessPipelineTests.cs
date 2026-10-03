@@ -383,7 +383,7 @@ public sealed class RestaurantBusinessPipelineTests
             {
                 Towns = [first with { ResidentIds = remaining, Governance = TownGovernanceState.Create(remaining) },
                     new("town:meal-customer", "Customer Town", "founded", 0, [fixture.Customer], [], [secondSite], secondSite,
-                        TownGovernanceState.Create([fixture.Customer]))],
+                        TownGovernanceState.Create([fixture.Customer]), TownGovernmentState.Create())],
             };
         }
         fixture = fixture with { State = initial };

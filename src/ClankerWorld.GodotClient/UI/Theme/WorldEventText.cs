@@ -95,6 +95,9 @@ public static class WorldEventText
             "instruction_not_understood" => $"{Name(snapshot, BeforeLastField(worldEvent.Detail))} didn't understand your order. " +
                 "For now, orders can only ask them to gather food, eat or find food.",
             "settlement_founded" => "A new Town was founded.",
+            "town_civic_law" => $"{civicTownName} recorded a law decision. See the Towns page for its wording and scope.",
+            "town_civic_government" => $"{civicTownName} recorded a resident government decision. See the Towns page for the vote or handover.",
+            "town_civic_mayor" => $"{civicTownName} recorded a mayoral election or office change. See the Towns page for its result.",
             "town_civic_council" => $"{civicTownName}'s council changed.",
             "town_civic_election" => $"{civicTownName}'s council election opened.",
             "town_civic_runoff" => $"{civicTownName}'s council election needs a runoff for tied seats.",

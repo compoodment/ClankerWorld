@@ -1314,6 +1314,20 @@ public partial class Main
                 civicLabels.Contains("tick", StringComparison.OrdinalIgnoreCase) || civicLabels.Contains("candidate-", StringComparison.Ordinal) ||
                 civicLabels.Contains("representative", StringComparison.Ordinal) && !civicLabels.Contains("elected representatives", StringComparison.Ordinal))
                 throw new InvalidOperationException("Normal Town council rows must use world clocks and names rather than internal counters or IDs.");
+            var governmentTown = civicTown with
+            {
+                Government = new OwnerTownGovernment("Ordinary decisions: the elected Council. Land decisions: the elected mayor.",
+                    [new("law-1", "Grove", "Leave the saplings.", "site", 5, 2, 3_600, null)], 1,
+                    [new("land disputes and permission expiries", "Mira Vale", 10_800, null)],
+                    [new("change-1", "Every adult resident makes ordinary decisions.", "handover", 3, 0, 3, 3_600, 4_680, null)],
+                    new("mayor-1", "land disputes and permission expiries", "voting", 2, 3_960,
+                        [new("candidate-1", "Nia Moss", 2)], null, null), null, 0),
+            };
+            Render(sample with { WorldTick = 3_600, Towns = [governmentTown] }, []);
+            foreach (var phrase in new[] { "Approved government:", "Mira Vale: land disputes", "handover due by",
+                         "Mayoral election: Voting", "round 2", "Law: Grove", "recorded site (5 land tiles)", "Version 2", "Land hearings and enforcement are not available yet" })
+                if (!TownListText().Contains(phrase, StringComparison.Ordinal))
+                    throw new InvalidOperationException("The Town page must show actual law scope, government handovers and separate office authority: " + phrase);
             var revisedCivicTown = civicTown with
             {
                 Governance = civicTown.Governance! with

@@ -327,8 +327,34 @@ proposals. The scrolling Towns page shows current councillors, candidates,
 election totals, the latest completed, failed or cancelled election, and eight
 recent pending, passed, rejected or cancelled proposals.
 
-A passed law proposal records approval; broader law powers, jurisdiction and
-enforcement remain unfinished ([#631](https://github.com/compoodment/ClankerWorld/issues/631)).
+Councils can adopt, amend and repeal laws with a named subject and scope:
+formally claimed land (including visitors), a recorded site within that land,
+or an explicit duty of residents wherever they travel. Earlier wordings remain
+saved, and laws apply only from adoption. A law never blocks a physical action,
+creates goods or changes ownership.
+
+Any adult resident can initiate a protected government-change vote at the
+Town's notice place. It needs
+more than half the remaining opening electorate to approve within one day;
+cast votes are final. Equivalent proposals share the window and different
+proposals queue. Approval gives at most three days to seat a valid successor,
+while lawful incumbents continue. Supported arrangements include all adults,
+elected representatives and one elected governing leader. Ordinary laws cannot
+remove the protected resident vote or invent new powers.
+
+Residents can create an elected land mayor without a population gate. Each
+mandate lasts twenty days, with renewal voting one day before expiry. Mayor
+candidacy needs separate personal agreement. Each resident chooses one willing
+candidate; tied leaders face further votes, never a draw. Scheduled Council
+elections interrupt mayoral voting and discard its unfinished ballots. Death,
+resignation, departure and expiry create vacancies. Land and ordinary governing
+mandates stay separate, even when one person holds both. A governing vacancy
+restores all-adult decisions until lawful succession; land cases wait.
+
+The Towns page shows the approved arrangement, offices, recent government
+votes, current and last mayoral contests, and the latest sixteen laws with
+scope, version and effective dates. Complete histories stay in the save.
+Land hearings, enforcement and punishment are still separate unfinished work.
 Windows civic pacing and visual checks remain pending.
 
 An agent belongs to one Town or none, and travel never changes that. Losing a
