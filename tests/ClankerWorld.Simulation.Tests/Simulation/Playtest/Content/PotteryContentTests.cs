@@ -506,6 +506,7 @@ public sealed class PotteryContentTests
         Assert.True(placed?.Applied, "A reachable test workstation should fit beside the household House.");
 
         var state = SetActorCondition(setup.ExportState(), actor, 10_000, sourceHouse.Position);
+        Assert.Empty(state.Knowledge!.Facts);
         var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, jugId,
             InventoryContainerRules.WaterJug, householdId, 1, state.Society.Society.WorldTick,
             storageBuildingId: sourceHouseId);
@@ -513,7 +514,10 @@ public sealed class PotteryContentTests
                      building.HouseholdId == householdId && building.InstanceId != shopId))
         {
             var definition = setup.WorldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
-            foreach (var input in setup.WorldContent.Recipes.Where(recipe => recipe.WorkstationBuildingId == definition.CanonicalId)
+            // No learned facts means no paper demand. Keep this fixture's tested
+            // jug as its only water source while buffering unrelated work inputs.
+            foreach (var input in setup.WorldContent.Recipes.Where(recipe => recipe.WorkstationBuildingId == definition.CanonicalId &&
+                         !recipe.Tags.Contains("knowledge", StringComparer.Ordinal))
                          .SelectMany(recipe => recipe.Inputs).GroupBy(item => item.ResourceId))
                 inventory = InventoryFixture.AddLot(inventory,
                     $"supply-fixture-buffer:{building.InstanceId}:{input.Key}", input.Key, householdId,

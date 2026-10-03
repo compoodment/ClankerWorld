@@ -41,9 +41,9 @@ public sealed class PhysicalKnowledgePipelineTests
             foreach (var gathered in step.Events.Where(item => item.Kind == "material_gathered" &&
                          item.Detail.StartsWith(actor + ":fiber:", StringComparison.Ordinal)))
             {
-                var resource = Assert.Single(before.Map.Resources, item => item.Kind == "fiber" && item.Position == gathered.Position);
-                Assert.True(world.ExportState().WorldSystems!.Ecology.GetResource(resource.Id).Quantity <
-                    before.WorldSystems!.Ecology.GetResource(resource.Id).Quantity);
+                var afterEcology = world.ExportState().WorldSystems!.Ecology;
+                Assert.Single(before.Map.Resources, resource => resource.Kind == "fiber" &&
+                    afterEcology.GetResource(resource.Id).Quantity < before.WorldSystems!.Ecology.GetResource(resource.Id).Quantity);
                 observedFiberDepletion = true;
             }
         }
@@ -267,7 +267,10 @@ public sealed class PhysicalKnowledgePipelineTests
         }));
         var selfSourcedFacts = artifact.Facts.Select(fact => fact with
         {
-            Acquisition = "read", SourceArtifactId = artifact.Id, SourceAgentId = actor, LearnedTick = artifact.CreatedTick,
+            Acquisition = "read",
+            SourceArtifactId = artifact.Id,
+            SourceAgentId = actor,
+            LearnedTick = artifact.CreatedTick,
         }).ToArray();
         var cyclic = artifact with { SourceArtifactId = artifact.Id, Facts = selfSourcedFacts };
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(final with

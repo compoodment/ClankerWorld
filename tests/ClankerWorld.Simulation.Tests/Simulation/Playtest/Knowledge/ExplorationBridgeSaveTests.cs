@@ -128,7 +128,7 @@ public sealed class ExplorationBridgeSaveTests(ITestOutputHelper output)
             });
             Assert.DoesNotContain(result.Society.Society.Inventory.Lots,
                 lot => lot.ItemKind is "field_record" or "field_map" or "book");
-            output.WriteLine($"Actual terminal={terminal.Kind}; discoveries={returned.OutingDiscoveries.Count}; learned facts preserved without creating physical goods.");
+            output.WriteLine($"Actual terminal={terminal.Kind}; discoveries={returned.OutingDiscoveries!.Count}; learned facts preserved without creating physical goods.");
             Assert.Equal(PrivateWorldRuntimeCodec.Encode(result), PrivateWorldRuntimeCodec.Encode(recovery.ExportState()));
         }
         finally

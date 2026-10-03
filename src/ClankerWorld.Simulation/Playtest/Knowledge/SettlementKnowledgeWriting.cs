@@ -166,7 +166,7 @@ public sealed partial class PrivateWorldRuntime
 
     private bool HasLiveWritingInputs(AgentKnowledgeWritingProject project) => project.Materials.All(input =>
         society.Checkpoint.Inventory.Reservations.FirstOrDefault(item => item.Id == input.ReservationId) is
-            { State: InventoryReservationState.Reserved } reservation && reservation.OwnerId == project.ActorId &&
+        { State: InventoryReservationState.Reserved } reservation && reservation.OwnerId == project.ActorId &&
         society.Checkpoint.Inventory.Lots.FirstOrDefault(item => item.Id == input.LotId) is { } lot &&
         lot.OwnerId == project.ActorId && lot.ItemKind == input.ItemKind && lot.Quantity >= input.Quantity &&
         lot.ConditionBasisPoints > 0 && lot.FreshnessBasisPoints > 0 && lot.ContainerLotId is null &&
@@ -207,7 +207,9 @@ public sealed partial class PrivateWorldRuntime
             Artifacts = knowledge.Artifacts.Append(new AgentKnowledgeArtifact(
                 artifactId, actor, lotId, project.Kind, title, WorldTick, project.Facts)
             {
-                WritingProjectId = project.Id, Materials = project.Materials, SourceArtifactId = project.SourceArtifactId,
+                WritingProjectId = project.Id,
+                Materials = project.Materials,
+                SourceArtifactId = project.SourceArtifactId,
             }).ToArray(),
         };
         checkpointSchemaVersion = StateSchemaVersion;
