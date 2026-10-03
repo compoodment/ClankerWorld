@@ -82,14 +82,16 @@ public sealed partial class PrivateWorldRuntime
             .ThenBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
     }
 
-    private InventoryLot? WornEquipment(string actor) => society.Checkpoint.Inventory.Lots
+    private InventoryLot? WornEquipment(string actor) => WornEquipmentItems(actor).FirstOrDefault();
+
+    private IEnumerable<InventoryLot> WornEquipmentItems(string actor) => society.Checkpoint.Inventory.Lots
         .Where(lot => lot.Quantity == 1 && lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) &&
             lot.DeliveryBuildingId is null && lot.ConditionBasisPoints <= 4_000 &&
             (PersonalEquipmentRules.IsGarment(lot.ItemKind) || PersonalEquipmentRules.IsCarryAid(lot.ItemKind)) &&
             society.Checkpoint.Inventory.Reservations.All(item => item.LotId != lot.Id || item.State is not
                 (InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed or InventoryReservationState.Committed)))
         .OrderBy(lot => lot.Id == inhabitants[actor].Equipment?.CarryAidLotId ? 0 : 1)
-        .ThenBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
+        .ThenBy(lot => lot.Id, StringComparer.Ordinal);
 
     private PlacedBuilding? EquipmentRepairSite(string actor, InventoryLot lot) =>
         HouseholdBuildingWithTag(HouseholdFor(actor), lot.ItemKind == "basket" ? "house" : "tailor");
@@ -164,10 +166,11 @@ public sealed partial class PrivateWorldRuntime
         repair.MaterialReservationIds.All(id => society.Checkpoint.Inventory.GetReservation(id) is
         { State: InventoryReservationState.Reserved } reservation && reservation.ExpiryTick >= WorldTick);
 
-    private void RepairEquipment(string actor, PlaytestInhabitantState person)
+    private void RepairEquipment(string actor, PlaytestInhabitantState person, string? requestedLotId = null, string? orderInstructionId = null)
     {
+        var target = requestedLotId is null ? WornEquipment(actor) : WornEquipmentItems(actor).FirstOrDefault(lot => lot.Id == requestedLotId);
         if (!AdultResident(actor) || NeedsUrgentFood(person) || NeedsUrgentWarmth(person) ||
-            WornEquipment(actor) is not { } target || EquipmentRepairSite(actor, target) is not { } site) return;
+            target is null || EquipmentRepairSite(actor, target) is not { } site) return;
         if (MissingRepairInputUnits(actor, target) > FreeCarryCapacity(actor)) return;
         foreach (var input in PersonalEquipmentRules.RepairMaterials(target.ItemKind))
         {
@@ -200,16 +203,16 @@ public sealed partial class PrivateWorldRuntime
         inhabitants[actor] = inhabitants[actor] with
         {
             Equipment = (person.Equipment ?? new PersonalEquipment()) with
-            { Repair = new(target.Id, site.InstanceId, WorldTick, 0, ids.ToArray()) },
+            { Repair = new(target.Id, site.InstanceId, WorldTick, 0, ids.ToArray(), orderInstructionId) },
         };
         checkpointSchemaVersion = StateSchemaVersion;
         AppendEvent("equipment_repair_started", $"{actor}|{target.Id}|{site.InstanceId}");
     }
 
-    private void ContinueEquipmentRepair(string actor)
+    private EquipmentRepairWork? ContinueEquipmentRepair(string actor)
     {
         var person = inhabitants[actor];
-        if (person.Equipment?.Repair is not { } repair) return;
+        if (person.Equipment?.Repair is not { } repair) return null;
         if (!CanContinueEquipmentRepair(actor) ||
             worldSimulation.Buildings.FirstOrDefault(item => item.InstanceId == repair.BuildingId) is not { } site ||
             site.HouseholdId != HouseholdFor(actor) || person.Position != site.Position ||
@@ -219,19 +222,20 @@ public sealed partial class PrivateWorldRuntime
             { State: InventoryReservationState.Reserved } reservation || reservation.ExpiryTick < WorldTick))
         {
             CancelEquipmentRepair(actor);
-            return;
+            return null;
         }
-        if (!SettlementIllnessRules.AllowsWork(actor, WorldTick, person.Survival?.IllnessBasisPoints ?? 0)) return;
+        if (!SettlementIllnessRules.AllowsWork(actor, WorldTick, person.Survival?.IllnessBasisPoints ?? 0)) return null;
         var progress = repair.WorkDone + 1;
         if (progress < PersonalEquipmentRules.RepairWorkTicks)
         {
             inhabitants[actor] = person with { Equipment = person.Equipment with { Repair = repair with { WorkDone = progress } } };
-            return;
+            return null;
         }
         ApplyInventoryTransition(inventory => InventoryFixture.RepairSingleUnit(inventory, repair.LotId, 6_000, repair.MaterialReservationIds));
         inhabitants[actor] = inhabitants[actor] with { Equipment = person.Equipment with { Repair = null } };
         GainSkill(actor, SettlementSkillKind.Crafting);
         AppendEvent("equipment_repaired", $"{actor}|{repair.LotId}");
+        return repair;
     }
 
     private void CancelEquipmentRepair(string actor)

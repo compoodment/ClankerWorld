@@ -41,9 +41,22 @@ public sealed class FoodRoutingTests
         using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)),
             _ => new FoodProvider());
         for (var tick = 0; tick < 20; tick++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        var checkpoint = world.ExportState();
         using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
-            PrivateWorldRuntimeCodec.Encode(world.ExportState())), _ => new FoodProvider());
-        for (var tick = 0; tick < 180; tick++) Assert.True((await restored.AdvanceOneTickAsync()).Advanced);
+            PrivateWorldRuntimeCodec.Encode(checkpoint)), _ => new FoodProvider());
+        var harvested = checkpoint.Events.Any(item => item.Kind == "food_harvested" &&
+            item.Detail.StartsWith(Actor + ":", StringComparison.Ordinal));
+        // Keep the route and reload, then stop once the hungry actor has both
+        // harvested and recovered. The remaining budget is only a failure bound.
+        for (var tick = 0; tick < 180; tick++)
+        {
+            var step = await restored.AdvanceOneTickAsync();
+            Assert.True(step.Advanced);
+            harvested |= step.Events.Any(item => item.Kind == "food_harvested" &&
+                item.Detail.StartsWith(Actor + ":", StringComparison.Ordinal));
+            if (harvested && restored.Inhabitants.Single(person => person.InhabitantId == Actor).HungerBasisPoints > 1_800)
+                break;
+        }
         restored.Validate();
         var result = restored.ExportState();
         Assert.Contains(result.Events, item => item.Kind == "food_harvested" && item.Detail.StartsWith(Actor + ":", StringComparison.Ordinal));

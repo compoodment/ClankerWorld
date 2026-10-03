@@ -91,7 +91,9 @@ unable to save.
 
 `ParseInstructionOrder` reads a complete, bounded grammar for eating food,
 seeking a food source, harvesting food, gathering supported raw materials,
-storing or collecting personal raw materials and moving to an exact tile. Harvest and food-source travel orders must name a
+storing or collecting personal raw materials, repairing supported personal
+clothing and carrying aids, and moving to an exact tile. Harvest and
+food-source travel orders must name a
 supported kind or resource; explicit resource names must match a complete
 identifier and the requested kind. Unsupported
 objects or operations, mixed tasks, unknown explicit targets, and invalid
@@ -160,6 +162,20 @@ not yet recognized. Physical pickup preserves ownership, condition, provenance
 and reserved portions, with the final quantity capped by carrying space and
 the requested remainder. Only the committed relocation earns progress, using
 a bounded hashed receipt. Former-household collection grants no other access.
+
+Repair orders save a separate `TargetEquipmentKind` for basic clothing, padded
+coats, rain cloaks, baskets or sacks. The parser refuses other equipment and
+explicit sites. Orders filter the normal worn-item rules by this exact kind,
+collect real materials through `CollectEquipment`, then use `RepairEquipment`
+and `ContinueEquipmentRepair`. Ordinary item preference remains unchanged.
+A repair work record links to the active instruction; only the returned completed
+repair advances its item count, with a bounded receipt derived from the actor,
+start time and lot identity. New orders release any previous repair's unspent
+inputs before starting their own work. Cancellation or replacement releases
+reservations immediately. Survival interruption follows ordinary repair rules:
+release unused inputs and restart unfinished work when the order can resume.
+Save/reload retains a running repair's work counter and exact reservations.
+Validation refuses links to another agent, task or equipment kind.
 
 A MustDo with no recognized action is closed when it is submitted: it is added
 to the completed instructions with an `instruction_not_understood` event

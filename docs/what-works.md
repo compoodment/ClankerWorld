@@ -261,9 +261,23 @@ reserved portions and promised deliveries remain unavailable. A default task
 collects one load within carrying space; quantities stop exactly at the requested
 amount. Travel earns no progress, full hands leave the task waiting, and
 queueing, cancellation and partial progress survive reload. Collection grants
-no renewed household membership or private-stock access. Named sources and
-other carrying or storage destinations, farming, cooking, crafting, repair and
-building orders remain part of the unfinished catalogue.
+no renewed household membership or private-stock access.
+
+Repair orders cover personally owned, carried basic clothing, padded coats,
+rain cloaks, baskets and sacks that are worn enough for the ordinary repair
+rules. For example, "repair my basket", "repair two padded coats", or "keep
+repairing basic garments". Adults and elders collect available materials and
+work at their household's House for baskets or Tailor Shop for the other items.
+Eight steps finish one repair and consume its reserved materials. Walking,
+collecting supplies and starting a job earn no repair progress. Cancel or
+replace an order to release unused materials immediately. Urgent survival also
+releases them; the order resumes with its remaining repairs when the need passes.
+Saving during a repair preserves its work and reservations. A repeating task
+waits for another matching worn item after the current ones are repaired.
+
+Named collection sources, other carrying or storage destinations, farming,
+cooking, crafting, tool or weapon repairs and building orders remain part of
+the unfinished catalogue.
 
 A recognized new order replaces the active and queued orders unless **Queue**
 is selected. **Cancel task** stops a waiting or active order. An instruction

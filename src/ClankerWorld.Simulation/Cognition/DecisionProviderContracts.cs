@@ -357,6 +357,7 @@ public sealed record InhabitantObservation(
                         "gather the requested material from a natural source" or
                         "collect your own stored or dropped material" or
                         "store your own carried material in your House" or
+                        "repair your own worn clothing or carrying aid" or
                         "travel to the exact tile named in this order" or
                         "accept primary care of the named child through their guardian search") ||
                 message.Kind == "suggestive" && message.UnderstoodTask is not null)
