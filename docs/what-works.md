@@ -214,6 +214,19 @@ repair also considers the next worn item when the preferred one lacks materials,
 carrying space or a reachable private work site. When both can proceed, the
 equipped carry aid still comes first.
 
+Tool repair orders name a supported material and tool, such as "repair my
+wooden axe", "repair two stone pickaxes", or "keep repairing iron knives".
+Adults and elders prepare real supplies, walk to their household's Blacksmith
+and repair their own carried tools. Only finished repairs count; pickup,
+gathering and travel earn no progress. Worn wooden, stone and iron axes and
+pickaxes, wooden and iron hoes and sickles, wooden and stone hammers, and iron
+knives are supported. Fully broken tools need replacement. Borrowed, reserved,
+stored and promised tools are unavailable to these personal orders. The agent
+may put spare cargo in household storage to make room for supplies, preserving
+the tool being repaired and any tools needed to gather materials. Cancellation
+keeps already collected goods and spent gathering wear. Quantities, queues,
+survival interruptions and preparation survive save/reload.
+
 Field orders cover tilling, planting, tending and harvesting for adults and
 elders whose household has a Farmhouse. Use "till two fields", "plant grain",
 "plant two fields of potatoes", "tend cultivated greens", or "keep harvesting
@@ -235,7 +248,7 @@ survival interrupts work before its remaining task resumes. Queues, partial
 work, stock reservations and progress survive save/reload.
 
 Named collection sources, other carrying or storage destinations, cooking,
-crafting, tool or weapon repairs and building orders remain part of the
+crafting, weapon repairs and building orders remain part of the
 unfinished catalogue.
 
 A recognized new order replaces the active and queued orders unless **Queue**

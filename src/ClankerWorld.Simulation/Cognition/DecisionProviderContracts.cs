@@ -233,7 +233,7 @@ public sealed record InhabitantObservation(
                         "gather several food servings from a nearby food source" or
                         "gather the requested material from a natural source" or "store your own carried material in your House" or
                         "collect your own stored or dropped material" or "till a field for your household" or "plant the requested crop in your household field" or
-                "tend your household crop" or "harvest your household crop" or "repair your own worn clothing or carrying aid") ||
+                "tend your household crop" or "harvest your household crop" or "repair your own worn clothing or carrying aid" or "repair your own worn tool") ||
                 message.Kind == "suggestive" && message.UnderstoodTask is not null)
                 throw new ArgumentException("Observer guidance must be bounded, target-owned and uniquely identified.", nameof(ObserverGuidance));
         }

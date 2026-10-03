@@ -170,37 +170,36 @@ public sealed partial class PrivateWorldRuntime
 
     private void AddToolRepairCandidates(List<CognitionCandidate> candidates, string actor)
     {
+        foreach (var tool in RepairableTools(actor))
+        {
+            var householdId = society.Checkpoint.GetInhabitant(actor).HouseholdId!;
+            var blacksmith = HouseholdBuildingWithTag(householdId, "blacksmith")!;
+            candidates.Add(new CognitionCandidate(RepairToolPrefix + tool.Id,
+                $"Repair the worn {tool.ItemKind.Replace('_', ' ')} at the household Blacksmith.", 23,
+                blacksmith.InstanceId));
+        }
+    }
+
+    private InventoryLot[] RepairableTools(string actor)
+    {
         if (!AdultResident(actor) || society.Checkpoint.GetInhabitant(actor).HouseholdId is not { } householdId ||
             HouseholdBuildingWithTag(householdId, "blacksmith") is not { } blacksmith ||
             !inhabitants.TryGetValue(actor, out var state))
-            return;
+            return [];
 
         var inventory = society.Checkpoint.Inventory;
-        // The agent repairs their own tools and their household's borrowed ones, always with
-        // their own materials: other households' goods are not theirs to spend.
-        var candidateTools = inventory.Lots.Where(lot => ToolProgressionRules.IsTopLevelCarriedLot(lot, actor) &&
+        // Ordinary repair includes borrowed household tools; personal orders filter ownership further.
+        var tools = inventory.Lots.Where(lot => ToolProgressionRules.IsTopLevelCarriedLot(lot, actor) &&
                 (lot.OwnerId == actor || lot.OwnerId == householdId) &&
                 ToolProgressionRules.Find(lot.ItemKind) is not null &&
                 lot.ConditionBasisPoints < 10_000 && UnreservedQuantity(inventory, lot) > 0)
             .OrderBy(lot => lot.Id, StringComparer.Ordinal)
-            .Select(tool => (Tool: tool, Materials: ToolProgressionRules.RepairMaterials(tool.ItemKind)))
-            .ToArray();
-
-        if (candidateTools.Length == 0)
-            return;
-        var repairableTools = candidateTools.Where(item => item.Materials.Count > 0 &&
-                CanPrepareRepairInputs(actor, item.Tool.Id, item.Materials))
-            .ToArray();
-        if (repairableTools.Length == 0 || !IsWithinInteractionRange(state.Position, blacksmith.Position, 0) &&
+            .Where(tool => ToolProgressionRules.RepairMaterials(tool.ItemKind) is { Count: > 0 } materials &&
+                CanPrepareRepairInputs(actor, tool.Id, materials)).ToArray();
+        if (tools.Length == 0 || !IsWithinInteractionRange(state.Position, blacksmith.Position, 0) &&
             FindUnoccupiedRoute(actor, state.Position, blacksmith.Position, 0).Count == 0)
-            return;
-
-        foreach (var item in repairableTools)
-        {
-            candidates.Add(new CognitionCandidate(RepairToolPrefix + item.Tool.Id,
-                $"Repair the worn {item.Tool.ItemKind.Replace('_', ' ')} at the household Blacksmith.", 23,
-                blacksmith.InstanceId));
-        }
+            return [];
+        return tools;
     }
 
     private bool CanPrepareRepairInputs(string actor, string repairToolId,
@@ -269,7 +268,7 @@ public sealed partial class PrivateWorldRuntime
             SpareCargoForFood(actor, missing, harvestToolId ?? repairToolId, protectedMaterials));
     }
 
-    private void RepairTool(string actor, PlaytestInhabitantState state, string lotId)
+    private string? RepairTool(string actor, PlaytestInhabitantState state, string lotId)
     {
         var inventory = society.Checkpoint.Inventory;
         var tool = inventory.Lots.FirstOrDefault(lot => lot.Id == lotId &&
@@ -280,7 +279,7 @@ public sealed partial class PrivateWorldRuntime
         var householdId = society.Checkpoint.GetInhabitant(actor).HouseholdId;
         var blacksmith = householdId is null ? null : HouseholdBuildingWithTag(householdId, "blacksmith");
         if (tool is null || blacksmith is null)
-            return;
+            return null;
 
         var materialNeeds = ToolProgressionRules.RepairMaterials(tool.ItemKind);
         foreach (var input in materialNeeds)
@@ -289,26 +288,26 @@ public sealed partial class PrivateWorldRuntime
             if (SharedItem(input.ResourceId, actor) is not null)
             {
                 if (MakeRoomForToolRepairInput(actor, state, lotId, input.Amount, null, materialNeeds))
-                    return;
+                    return null;
                 CollectEquipment(actor, state, input.ResourceId);
-                return;
+                return null;
             }
             if (MaterialSource(input.ResourceId, actor) is { } source)
             {
                 if (ProjectMaterialHarvest(actor, input.ResourceId, source) is { } plan &&
                     MakeRoomForToolRepairInput(actor, state, lotId,
                         checked(plan.Quantity + plan.TreeSeedQuantity), plan.ToolLotId, materialNeeds))
-                    return;
+                    return null;
                 GatherProjectMaterial(actor, state, input.ResourceId, source);
-                return;
+                return null;
             }
-            return;
+            return null;
         }
 
         if (state.Position != blacksmith.Position)
         {
             MoveToward(actor, state, blacksmith.Position, "repair_tool", 0);
-            return;
+            return null;
         }
 
         var repairId = tool.Id;
@@ -350,6 +349,7 @@ public sealed partial class PrivateWorldRuntime
             return InventoryFixture.RepairSingleUnit(updated, repairId, 10_000, reservations);
         });
         AppendEvent("tool_repaired", $"{actor}:{repairId}:{blacksmith.InstanceId}");
+        return repairId;
     }
 
     private bool HasCarriedMaterial(string actor, string itemKind, int quantity) =>

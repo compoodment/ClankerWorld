@@ -148,6 +148,15 @@ harvest ownership. This version is provisional above the repair-order base and
 must be reconciled above its integrated base before merge. Older alpha saves
 are refused and preserved unchanged without migration.
 
+Private-world schema 58 adds `repair_tool` orders using the existing
+`TargetEquipmentKind` field. Validation restricts the action to supported tool
+kinds and repair counts. Only a completed inventory repair earns a bounded
+`repair:tool:` receipt. Replay covers partly completed quantities, preparation,
+queues and cancellation without charging the materials twice. This version is
+provisional above the field-order base and must be reconciled above its
+integrated base before merge. Older alpha saves are refused and preserved
+unchanged without migration.
+
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
 Matching parent assignments are disclosed as agreement; when they differ, the
@@ -406,7 +415,7 @@ blocked-return behavior. These checks use existing timestamps and add no saved
 fields, schema change or migration.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 57. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 58. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
