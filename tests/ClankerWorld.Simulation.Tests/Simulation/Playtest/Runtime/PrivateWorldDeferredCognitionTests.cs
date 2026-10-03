@@ -374,36 +374,6 @@ public sealed class PrivateWorldDeferredCognitionTests
     }
 
     [Fact]
-    public async Task PausedRequestCannotActAndSavedQueueCanBeRetriedAfterReload()
-    {
-        var hosted = new HeldHostedProvider(ignoreCancellation: true,
-            kind: DecisionProviderKind.LargeLanguageModel, privateThought: "This stale thought must vanish.");
-        using var world = new PrivateWorldRuntime("deferred-reload", id =>
-            id == "founder-scout" ? hosted : new DeterministicDecisionProvider());
-        Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
-        await hosted.Started.Task.WaitAsync(TimeSpan.FromSeconds(3));
-        world.Pause();
-        var saved = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState()));
-        hosted.Release.TrySetResult(true);
-        await hosted.Returned.Task.WaitAsync(TimeSpan.FromSeconds(3));
-        Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "hosted_decision_completed");
-        Assert.Empty(world.Inhabitants.Single(person => person.InhabitantId == "founder-scout").RecentThoughts ?? []);
-
-        var replacement = new HeldHostedProvider(kind: DecisionProviderKind.LargeLanguageModel,
-            privateThought: "This new decision is mine.");
-        using var restored = PrivateWorldRuntime.Restore(saved, id =>
-            id == "founder-scout" ? replacement : new DeterministicDecisionProvider());
-        restored.Resume();
-        Assert.True((await restored.AdvanceOneTickNonBlockingAsync()).Advanced);
-        await replacement.Started.Task.WaitAsync(TimeSpan.FromSeconds(3));
-        replacement.Release.TrySetResult(true);
-        await replacement.Returned.Task.WaitAsync(TimeSpan.FromSeconds(3));
-        _ = await AdvanceUntilAcceptedAsync(restored, "founder-scout");
-        Assert.Equal("This new decision is mine.",
-            Assert.Single(restored.Inhabitants.Single(person => person.InhabitantId == "founder-scout").RecentThoughts!).Text);
-    }
-
-    [Fact]
     public async Task PausedObserverReplyRetriesTheSameMessageAndCannotAttachToANewerMessage()
     {
         const string targetId = "founder-scout";

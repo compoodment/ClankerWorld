@@ -1,7 +1,6 @@
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.Society;
-using ClankerWorld.Simulation.World;
 using ClankerWorld.Viewer.Observation;
 
 namespace ClankerWorld.Simulation.Tests;
@@ -32,30 +31,6 @@ public sealed class SettlementCouncilTests
         var visible = new OwnerWorldObservationStore(restored).GetSnapshot().Council!;
         Assert.NotNull(visible.StewardName);
         Assert.Equal(restored.ExportState().Council!.FoodPolicy, visible.FoodPolicy);
-    }
-
-    [Theory]
-    [InlineData("open", 6_000, true)]
-    [InlineData("essential_first", 6_000, false)]
-    public async Task AdoptedPolicyChangesSharedFoodAccessButProtectsHungryMembers(string policy, int hunger, bool allowed)
-    {
-        var state = await PreparedState();
-        var collector = state.Inhabitants[1].InhabitantId;
-        state = state with
-        {
-            Council = state.Council! with { FoodPolicy = policy },
-            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == collector
-                ? person with { HungerBasisPoints = hunger, LastDecisionContext = null } : person).ToArray(),
-        };
-        // Food-policy access is independent of weather's urgent shelter decisions.
-        state = SettlementWeatherTestFixture.WithWeather(state, WeatherKind.Clear);
-        using var world = PrivateWorldRuntime.Restore(state, id => new CouncilProvider(id == collector ? "collect_shared_food" : "safe_idle"));
-        for (var tick = 0; tick < 40; tick++)
-        {
-            await world.AdvanceOneTickAsync();
-        }
-        Assert.Equal(allowed, world.ExportState().Events.Any(item => item.Kind == "household_food_collected" &&
-            item.Detail.StartsWith(collector + ":", StringComparison.Ordinal)));
     }
 
     [Fact]

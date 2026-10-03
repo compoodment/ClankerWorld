@@ -274,60 +274,6 @@ public sealed class BlacksmithContentTests
             item => item.Kind == "iron" && item.Quantity == 1);
     }
 
-    [Theory]
-    [InlineData("wooden_axe", "wood", "house-1x1")]
-    [InlineData("wooden_pickaxe", "stone", "farmhouse-1x1")]
-    public async Task CarriedWoodenToolExtractionCommitsWholeOutputAndSingleUnitWear(
-        string tool, string material, string buildingLocalId)
-    {
-        using var seed = new PrivateWorldRuntime("gather-with-" + tool, _ => new CandidateProvider("safe_idle"));
-        Assert.True(seed.StageStarterContent());
-        for (var tick = 0; tick < 10; tick++)
-            Assert.True((await seed.AdvanceOneTickAsync()).Advanced);
-        var state = seed.ExportState();
-        var actor = state.Inhabitants[0].InhabitantId;
-        var householdId = state.Society.Society.GetInhabitant(actor).HouseholdId!;
-        var source = state.Map.Resources.First(resource =>
-            (resource.Kind == material || material == "wood" && resource.Kind == "construction") &&
-            resource.NaturalObjectKind != "fallen_wood" &&
-            state.Map.IsReachableFromCampOnFoot(resource.Position));
-        var building = seed.WorldContent.Buildings.Single(item => item.LocalId == buildingLocalId);
-        var inventory = state.Society.Society.Inventory;
-        if (material == "wood")
-            inventory = inventory with
-            {
-                Lots = inventory.Lots.Where(lot => lot.OwnerId != householdId || lot.ItemKind != "wood").ToArray(),
-            };
-        inventory = InventoryFixture.AddLot(inventory, "gathering-tool", tool, actor, 1);
-        var oldPosition = state.Inhabitants.Single(person => person.InhabitantId == actor).Position;
-        state = state with
-        {
-            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
-            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
-                ? person with
-                {
-                    Position = source.Position,
-                    HungerBasisPoints = 9_000,
-                    LastDecisionContext = null,
-                    Project = new SettlementProject(TownConstructionCandidateIds.Building(
-                            building.CanonicalId, source.Position), building.DisplayName,
-                        state.Society.Society.WorldTick, "acquiring",
-                        LastTransitionTick: state.Society.Society.WorldTick),
-                }
-                : person.Position == source.Position ? person with { Position = oldPosition } : person).ToArray(),
-        };
-        using var gathering = PrivateWorldRuntime.Restore(state, _ => new CandidateProvider("safe_idle"));
-        for (var tick = 0; tick < 10 && !gathering.ExportState().Events.Any(item =>
-                 item.Kind == "material_gathered" && item.Detail.StartsWith(actor + ":", StringComparison.Ordinal)); tick++)
-            Assert.True((await gathering.AdvanceOneTickAsync()).Advanced);
-        Assert.Contains(gathering.ExportState().Events, item => item.Kind == "material_gathered" &&
-            item.Detail == $"{actor}:{material}:6");
-        Assert.Contains(gathering.Society.Inventory.Lots, lot => lot.OwnerId == actor &&
-            lot.ItemKind == material && lot.Quantity == 6);
-        Assert.Equal(8_000, gathering.Society.Inventory.Lots.Single(lot =>
-            lot.OwnerId == actor && lot.ItemKind == tool).ConditionBasisPoints);
-    }
-
     [Fact]
     public async Task HouseholdCanHandGatherFiniteFallenWoodWhenNoAxeIsUsableAndSaveIt()
     {

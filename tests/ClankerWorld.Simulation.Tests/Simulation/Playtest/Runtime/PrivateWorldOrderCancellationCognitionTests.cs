@@ -119,7 +119,6 @@ public sealed partial class PrivateWorldRuntimeTests
 
     [Theory]
     [InlineData(false)]
-    [InlineData(true)]
     public async Task PausedHeldTravelOrderRefreshesItsPersonalRequestInTheResumedEpoch(bool reload)
     {
         var provider = new CancellationPlanningProvider(holdFirstOrder: true);

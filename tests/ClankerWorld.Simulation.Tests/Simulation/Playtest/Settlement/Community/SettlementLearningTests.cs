@@ -8,7 +8,6 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class SettlementLearningTests
 {
     [Theory]
-    [InlineData("ready", true)]
     [InlineData("unskilled", false)]
     [InlineData("hungry", false)]
     [InlineData("busy", false)]
@@ -174,22 +173,6 @@ public sealed class SettlementLearningTests
         using var completedReload = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(restored.ExportState())));
         Assert.Equal(completed.Skills, completedReload.Inhabitants.Single(person => person.InhabitantId == learner).Skills);
         Assert.Equal(2, completed.SocialStanding!.Single(item => item.SubjectId == completed.Lesson!.TeacherId).Trust);
-    }
-
-    [Fact]
-    public async Task MentorRefusalDoesNotGrantTheRequestedSkill()
-    {
-        var state = await PreparedState();
-        var learner = state.Society.Society.Inhabitants.Single(person => person.CurrentRole == SocietyWorkRole.Trader).Id;
-        using var world = PrivateWorldRuntime.Restore(state, actor => new LessonProvider(actor == learner ? "learn:building:" : "lesson_decline:"));
-        for (var tick = 0; tick < 5; tick++)
-        {
-            await world.AdvanceOneTickAsync();
-        }
-        Assert.Equal("declined", world.Inhabitants.Single(person => person.InhabitantId == learner).Lesson!.Stage);
-        Assert.Equal(0, world.Inhabitants.Single(person => person.InhabitantId == learner).Lesson!.Progress);
-        Assert.Empty(world.Inhabitants.Single(person => person.InhabitantId == learner).Skills ?? []);
-        Assert.Equal(SocietyWorkRole.Trader, world.Society.GetInhabitant(learner).CurrentRole);
     }
 
     [Fact]

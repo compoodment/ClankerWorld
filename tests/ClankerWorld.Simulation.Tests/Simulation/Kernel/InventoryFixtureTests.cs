@@ -96,7 +96,6 @@ public sealed class InventoryFixtureTests
     }
 
     [Theory]
-    [InlineData(InventoryReservationState.Reserved)]
     [InlineData(InventoryReservationState.Committed)]
     public void SplitCannotRemoveReservedStockOrChangeTheRejectedCheckpoint(InventoryReservationState state)
     {

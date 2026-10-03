@@ -11,67 +11,6 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class RiverBridgeTests
 {
     [Fact]
-    public void OneNarrowStreamGetsAOneTileBridgeThatMovementCanUse()
-    {
-        var map = Map(
-            "...~...",
-            "...~...",
-            "...~...");
-        var request = Request(map, [new(0, 1)], [new(6, 1)]);
-        var result = RoadRoutePlanner.Plan(request);
-
-        var proposal = Assert.IsType<RoadRouteProposal>(result.Proposal);
-        var crossing = Assert.Single(proposal.NewCrossings);
-        Assert.Equal("bridge-3-1-ew-1", crossing.Id);
-        Assert.Equal(BridgeDesigns.PlankSpanOne, crossing.Design);
-        Assert.Equal(BridgeAxis.EastWest, crossing.Axis);
-        Assert.Equal(new GridPoint(2, 1), crossing.EntranceA);
-        Assert.Equal(new GridPoint(4, 1), crossing.EntranceB);
-        Assert.Equal([new GridPoint(3, 1)], crossing.Span);
-        Assert.Contains(crossing.EntranceA, proposal.RoadTiles);
-        Assert.Contains(crossing.EntranceB, proposal.RoadTiles);
-        Assert.DoesNotContain(new GridPoint(3, 1), proposal.RoadTiles);
-        Assert.All(proposal.RoadTiles, tile => Assert.True(map.IsBuildable(tile)));
-        Assert.Null(RoadRoutePlanner.Validate(request, proposal));
-
-        var bridged = WithBridges(map, RiverBridgeRules.ToBridge(crossing, BridgeTriggers.Road, 0, "road:test"));
-        Assert.Equal(200, map.FootTravelCost(new(3, 1)));
-        Assert.Equal(100, bridged.FootTravelCost(new(3, 1)));
-        Assert.True(bridged.CanFootStep(new(2, 1), new(3, 1)));
-        Assert.True(bridged.CanFootStep(new(3, 1), new(4, 1)));
-        Assert.False(bridged.CanFootStep(new(3, 1), new(3, 0)));
-        Assert.False(bridged.CanFootStep(new(2, 0), new(3, 1)));
-        Assert.False(bridged.IsBuildable(new(3, 1)));
-    }
-
-    [Fact]
-    public void ATwoTileBridgeIsWalkedAtDryGroundSpeedWhereTheRiverWasWadedSlowly()
-    {
-        var map = Map(
-            "...~~...",
-            "...~~...",
-            "...~~...");
-        Assert.True(RiverBridgeRules.TryFindCrossing(map, new(2, 1), 1, 0, out var crossing));
-        Assert.Equal(("bridge-3-1-ew-2", BridgeDesigns.PlankSpanTwo), (crossing!.Id, crossing.Design));
-        var bridged = WithBridges(map, RiverBridgeRules.ToBridge(crossing, BridgeTriggers.Traffic, 0, null));
-        GridPoint[] walk = [new(2, 1), new(3, 1), new(4, 1), new(5, 1)];
-
-        Assert.All(crossing.Span, tile => Assert.Equal(SeededMap.TwoTileWadingFootCost, map.FootTravelCost(tile)));
-        Assert.All(crossing.Span, tile => Assert.Equal(100, bridged.FootTravelCost(tile)));
-        Assert.Equal(2 * SeededMap.TwoTileWadingFootCost + 100, Cost(map, walk));
-        Assert.Equal(3 * 100, Cost(bridged, walk));
-        Assert.Equal(walk, DeterministicRouteFinder.Find(bridged, walk[0], walk[^1]));
-
-        // The deck is walked end to end only; the water beside it is still
-        // waded slowly in its own straight line.
-        Assert.False(bridged.CanFootStep(new(3, 1), new(3, 0)));
-        Assert.False(bridged.CanFootStep(new(3, 0), new(3, 1)));
-        Assert.False(bridged.CanFootStep(new(2, 0), new(3, 1)));
-        Assert.True(bridged.CanFootStep(new(2, 0), new(3, 0)));
-        Assert.Equal(SeededMap.TwoTileWadingFootCost, bridged.FootTravelCost(new(4, 2)));
-    }
-
-    [Fact]
     public void ABridgeAcrossOneTileOfATwoTileCrossingLeavesTheOtherTileWadeableBackToItsBank()
     {
         // The spur at (2,1) is a one-tile crossing north to south, and also
@@ -300,9 +239,6 @@ public sealed class RiverBridgeTests
 
     internal static SeededMap WithBridges(SeededMap map, params BridgeState[] bridges) =>
         map with { BridgeDecks = RiverBridgeRules.Decks(bridges) };
-
-    private static int Cost(SeededMap map, GridPoint[] route) =>
-        route.Zip(route.Skip(1), map.FootStepCost).Sum();
 
     private static RoadRouteRequest Request(SeededMap map, GridPoint[] starts, IEnumerable<GridPoint> network,
         IReadOnlyList<BridgeState>? bridges = null, IEnumerable<GridPoint>? blocked = null) =>

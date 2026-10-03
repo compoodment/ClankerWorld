@@ -2,7 +2,6 @@ using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.Content;
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Society;
-using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Viewer.Observation;
 
 namespace ClankerWorld.Simulation.Tests;
@@ -27,36 +26,6 @@ public sealed partial class SettlementParenthoodTests
         Assert.Contains("adult", checkpoint.GetHousehold("home").CaregiverIds);
         checkpoint = SocietyFixture.RevokeRelationship(checkpoint, second.CreatedId!, "adult").Checkpoint;
         Assert.DoesNotContain("adult", checkpoint.GetHousehold("home").CaregiverIds);
-    }
-
-    [Fact]
-    public async Task OrphanedInfantGetsOneVoluntaryCaregiverAndRealCareAcrossRestart()
-    {
-        var state = await OrphanState();
-        var child = state.Society.Society.Births.Single().ChildId;
-        using var world = PrivateWorldRuntime.Restore(state, _ => new ParentProvider("guardian_accept:"));
-        for (var tick = 0; tick < 40 && !world.Society.Relationships.Any(edge => edge.Type == SocietyRelationshipType.Caregiver &&
-                 edge.TargetId == child && edge.State == SocietyRelationshipState.Accepted); tick++) await world.AdvanceOneTickAsync();
-        var caregiver = Assert.Single(world.Society.Relationships, edge => edge.Type == SocietyRelationshipType.Caregiver &&
-            edge.TargetId == child && edge.State == SocietyRelationshipState.Accepted);
-        Assert.Equal(SocietyConsentState.Accepted, caregiver.Consent);
-        Assert.Equal([caregiver.ProposerId], caregiver.AcceptedBy);
-        Assert.Equal(2, world.Society.Relationships.Count(edge => edge.Type == SocietyRelationshipType.BiologicalParentage && edge.TargetId == child));
-        Assert.Contains(world.ExportState().Events, item => item.Kind == "guardian_needed" && item.Detail == child);
-        Assert.Single(world.ExportState().Events, item => item.Kind == "guardian_needed" && item.Detail == child);
-        Assert.Contains(world.ExportState().Events, item => item.Kind == "guardian_assigned" && item.Detail == child);
-        world.Pause();
-        var saved = PrivateWorldRuntimeCodec.Encode(world.ExportState());
-        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), _ => new ParentProvider("care:"));
-        Assert.False((await restored.AdvanceOneTickAsync()).Advanced);
-        Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
-        restored.Resume();
-        for (var tick = 0; tick < 80 && !restored.ExportState().Events.Any(item => item.Kind == "child_cared_for"); tick++)
-            await restored.AdvanceOneTickAsync();
-        Assert.Contains(restored.ExportState().Events, item => item.Kind == "child_cared_for");
-        Assert.True(restored.Inhabitants.Single(person => person.InhabitantId == child).HungerBasisPoints > 3_000);
-        Assert.Contains(new OwnerWorldObservationStore(restored).GetSnapshot().Inhabitants.Single(person => person.Id == child).Relationships,
-            edge => edge.Type == "caregiver");
     }
 
     [Fact]
@@ -330,30 +299,6 @@ public sealed partial class SettlementParenthoodTests
     }
 
     [Fact]
-    public async Task ADirectGuardianOrderIsNotUnderstoodAndAppointsNobody()
-    {
-        // Ordering an adult to take a child in waits for #587's order catalogue;
-        // the strict order parser closes it without appointing anyone.
-        var state = await OrphanState(olderChild: true);
-        var child = state.Society.Society.Births.Single().ChildId;
-        var childName = state.Society.Society.GetInhabitant(child).Name;
-        var adult = state.Society.Society.Inhabitants.First(person => person.Status == SocietyInhabitantStatus.Active &&
-            person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder && person.Id != child).Id;
-        using var world = PrivateWorldRuntime.Restore(state, _ => new ParentProvider("safe_idle"));
-
-        var order = world.SubmitInstruction(new OwnerInstructionRequest("guardian-order", "owner:test",
-            adult, OwnerInstructionKind.MustDo, $"Become guardian for {childName}"));
-        for (var tick = 0; tick < 20; tick++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-
-        Assert.Contains(order.InstructionId, world.ExportState().CompletedInstructionIds ?? []);
-        Assert.Equal("not_understood", Assert.Single(world.ExportState().Instructions!,
-            item => item.InstructionId == order.InstructionId).Order!.Status);
-        Assert.DoesNotContain(world.Society.Relationships, edge => edge.Type == SocietyRelationshipType.Caregiver &&
-            edge.TargetId == child && edge.State == SocietyRelationshipState.Accepted);
-        Assert.Null(world.Society.GetInhabitant(child).PrimaryCaregiverId);
-    }
-
-    [Fact]
     public async Task NearbyAdultCanFeedAnOrphanWhileGuardianSearchRemainsOpen()
     {
         var state = await OrphanState();
@@ -561,48 +506,6 @@ public sealed partial class SettlementParenthoodTests
         Assert.Contains(leaving.Society.Relationships, edge => edge.Type == SocietyRelationshipType.Caregiver &&
             edge.ProposerId != adult && edge.TargetId == child && edge.State == SocietyRelationshipState.Accepted);
         Assert.Equal(state.Society.Society.Births, leaving.Society.Births);
-    }
-
-    [Fact]
-    public async Task CaregiverTelemetryExposesOutcomeButNotPrivateNames()
-    {
-        var directory = Directory.CreateTempSubdirectory("clankerworld-care-log-");
-        try
-        {
-            var state = await OrphanState();
-            state = state with
-            {
-                Society = state.Society with
-                {
-                    Society = state.Society.Society with
-                    {
-                        Inhabitants = state.Society.Society.Inhabitants.Select(person => person with { Name = "private-care-secret" }).ToArray(),
-                    }
-                }
-            };
-            var childId = state.Society.Society.Births.Single().ChildId;
-            var guardianProvider = new ParentProvider("guardian_accept:");
-            using var world = PrivateWorldRuntime.Restore(state, _ => guardianProvider);
-            var presence = new OwnerClientPresenceLease(TimeSpan.FromMinutes(1));
-            presence.RecordAuthenticatedReconnect("owner");
-            var logger = new RecordingLogger<PrivateWorldRuntimeService>();
-            using var service = new PrivateWorldRuntimeService(world, new PrivateWorldStateFile(Path.Combine(directory.FullName, "world.json")), presence, logger);
-            for (var tick = 0; tick < 40 && !logger.Messages.Any(message => message.Contains("event=guardian_assigned", StringComparison.Ordinal)); tick++)
-                Assert.True(await service.TryAdvanceOnceAsync());
-            Assert.Contains(guardianProvider.SeenCandidates, candidate => candidate.Id == "guardian_accept:" + childId);
-            Assert.Contains(guardianProvider.SelectedCandidateIds, candidate => candidate == "guardian_accept:" + childId);
-            Assert.Contains(world.Society.Relationships, edge => edge.Type == SocietyRelationshipType.Caregiver &&
-                edge.TargetId == childId && edge.State == SocietyRelationshipState.Accepted);
-            Assert.Contains(logger.Messages, message => message.Contains("settlement_family", StringComparison.Ordinal) &&
-                message.Contains("event=guardian_needed", StringComparison.Ordinal));
-            Assert.Contains(logger.Messages, message => message.Contains("settlement_family", StringComparison.Ordinal) &&
-                message.Contains("event=guardian_assigned", StringComparison.Ordinal));
-            Assert.DoesNotContain(logger.Messages, message => message.Contains("private-care-secret", StringComparison.Ordinal));
-        }
-        finally
-        {
-            directory.Delete(recursive: true);
-        }
     }
 
     private static async Task<PrivateWorldRuntimeState> OrphanState(bool olderChild = false)

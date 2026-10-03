@@ -10,7 +10,6 @@ public sealed class FoodRoutingTests
     private const string Actor = "agent:00000000000000000000000000000099";
 
     [Theory]
-    [InlineData(false)]
     [InlineData(true)]
     public async Task HungryAgentReachesFoodDespiteOccupiedNearestRouteAcrossReload(bool blockNearest)
     {

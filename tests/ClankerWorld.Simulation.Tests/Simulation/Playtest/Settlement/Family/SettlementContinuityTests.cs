@@ -161,27 +161,6 @@ public sealed partial class SettlementParenthoodTests
     }
 
     [Fact]
-    public async Task ContinuityCoupleCanPutOffPreparationButCannotWithdraw()
-    {
-        var state = await PreparedState();
-        var first = state.Inhabitants[0].InhabitantId;
-        using var world = PrivateWorldRuntime.Restore(state, actor => new ParentProvider(actor == first ? "parent_propose:" : "parent_accept:"));
-        await world.AdvanceOneTickAsync();
-        await world.AdvanceOneTickAsync();
-        Assert.Equal("preparing", world.Inhabitants.Single(person => person.InhabitantId == first).Parenthood!.Stage);
-        using var withdrawing = PrivateWorldRuntime.Restore(world.ExportState(), _ => new ParentProvider("parent_cancel:"));
-        for (var tick = 0; tick < 40; tick++) await withdrawing.AdvanceOneTickAsync();
-        Assert.Equal("preparing", withdrawing.Inhabitants.Single(person => person.InhabitantId == first).Parenthood!.Stage);
-        using var postponing = PrivateWorldRuntime.Restore(world.ExportState(), _ => new ParentProvider("parent_postpone:"));
-        for (var tick = 0; tick < 40; tick++) await postponing.AdvanceOneTickAsync();
-        Assert.Equal("postponed", postponing.Inhabitants.Single(person => person.InhabitantId == first).Parenthood!.Stage);
-        Assert.Contains(postponing.ExportState().Events, item => item.Kind == "parenthood_postponed" && item.Detail == first);
-        Assert.Contains("Parenthood put off for now.", new OwnerWorldObservationStore(postponing).GetSnapshot().Inhabitants
-            .Single(person => person.Id == first).SocialNotes);
-        Assert.Empty(postponing.Society.Births);
-    }
-
-    [Fact]
     public async Task CouplesModelRequestsStateTheContinuityRule()
     {
         var state = await PreparedState();

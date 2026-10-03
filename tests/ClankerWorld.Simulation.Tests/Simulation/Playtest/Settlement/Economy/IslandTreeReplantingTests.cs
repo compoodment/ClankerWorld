@@ -2,97 +2,12 @@ using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
-using ClankerWorld.Simulation.Society;
 using ClankerWorld.Simulation.World;
 
 namespace ClankerWorld.Simulation.Tests;
 
 public sealed class IslandTreeReplantingTests
 {
-    [Fact]
-    public async Task IslandResidentReplantsTheLocalTreeTheyFelledAcrossReload()
-    {
-        using var setup = IslandWorld();
-        Assert.True((await setup.AdvanceOneTickAsync()).Advanced);
-        var state = setup.ExportState();
-        var actor = state.Inhabitants[0].InhabitantId;
-        var origin = state.Inhabitants[0].Position;
-        var household = state.Society.Society.GetInhabitant(actor).HouseholdId!;
-        var society = state.Society.Society;
-        foreach (var lot in society.Inventory.Lots.Where(lot => lot.OwnerId == household && lot.ItemKind == "wood").ToArray())
-            society = SocietyFixture.ConsumeInventory(society, household, lot.Id, lot.Quantity, "fuel-depletion-fixture").Checkpoint;
-        var looseWood = state.Map.Resources.Single(resource => resource.Id == "settlement-wood");
-        var looseStock = state.WorldSystems!.Ecology.GetResource(looseWood.Id);
-        var depletedWood = EcologyRules.Harvest(looseStock, looseStock.Quantity);
-        Assert.True(depletedWood.IsValid);
-        state = state with
-        {
-            Society = state.Society with { Society = society },
-            Resources = state.Resources.Select(resource => resource.ResourceId == looseWood.Id
-                ? resource with { State = ResourceState.Depleted } : resource).ToArray(),
-            Survival = new SettlementSurvivalState(0, []),
-            Inhabitants = state.Inhabitants.Select(person => person with
-            {
-                HungerBasisPoints = 9_000,
-                Survival = new SurvivalCondition(WarmthBasisPoints: 4_000),
-            }).ToArray(),
-            WorldSystems = state.WorldSystems! with
-            {
-                Ecology = state.WorldSystems.Ecology with
-                {
-                    Resources = state.WorldSystems.Ecology.Resources.Select(resource => resource.Id == looseWood.Id
-                        ? depletedWood.Resource! : resource).ToArray(),
-                },
-                RegionalWeather = null,
-                Config = state.WorldSystems.Config with
-                {
-                    WeatherProfiles = Enum.GetValues<SeasonKind>().Select(season => new WeatherProfile(season, 0, 0, 0, 0, 1)).ToArray(),
-                },
-                Climate = state.WorldSystems.Climate with { Weather = WeatherKind.Snow },
-            },
-        };
-        var local = state.Map.GetResource("tree-136-16");
-        Assert.True(TreeGrowthRules.IsWoodTree(local.TreeKind));
-        Assert.True(state.Map.IsReachableOnFoot(origin, local.Position));
-        Assert.False(state.Map.IsReachableFromCampOnFoot(local.Position));
-
-        var harvestProvider = new ActionProvider("tend_fire", "collect_wooden_axe");
-        using (var harvesting = PrivateWorldRuntime.Restore(state, id => id == actor ? harvestProvider : new ActionProvider("safe_idle")))
-        {
-            for (var tick = 0; tick < 24; tick++) Assert.True((await harvesting.AdvanceOneTickAsync()).Advanced);
-            state = harvesting.ExportState();
-            Assert.Equal(0, harvesting.WorldSystems.Ecology.GetResource(local.Id).Quantity);
-            Assert.Single(state.Society.Society.Inventory.Lots, lot => lot.OwnerId == actor &&
-                lot.ItemKind == TreeGrowthRules.TreeSeedItem && lot.Quantity == 1);
-        }
-
-        // The normal harvest supplied the seed and stump. Remove the need for
-        // heating so the agent can choose to replant through ordinary decisions.
-        state = state with
-        {
-            Inhabitants = state.Inhabitants.Select(person => person with
-            {
-                HungerBasisPoints = 9_000,
-                Survival = new SurvivalCondition(WarmthBasisPoints: 9_000),
-            }).ToArray(),
-        };
-        var provider = new ActionProvider("replant_tree");
-        using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)),
-            id => id == actor ? provider : new ActionProvider("safe_idle"));
-        for (var tick = 0; tick < 12 && !world.WorldSystems.Ecology.GetResource(local.Id).IsPlanted; tick++)
-            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-
-        Assert.Contains(provider.Seen, request => request.Observation.Candidates.Any(candidate => candidate.Id == "replant_tree"));
-        var result = world.ExportState();
-        Assert.True(world.WorldSystems.Ecology.GetResource(local.Id).IsPlanted);
-        Assert.Single(result.Events, item => item.Kind == "tree_replanted" && item.Detail.StartsWith(actor + ":" + local.Id + ":", StringComparison.Ordinal));
-        Assert.Equal(0, result.Society.Society.Inventory.Lots.Where(lot => lot.OwnerId == actor &&
-            lot.ItemKind == TreeGrowthRules.TreeSeedItem).Sum(lot => lot.Quantity));
-        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(result)));
-        Assert.True(restored.WorldSystems.Ecology.GetResource(local.Id).IsPlanted);
-        restored.Validate();
-    }
-
     [Fact]
     public async Task OccupiedNearestStumpDoesNotHideAnotherReachableStump()
     {

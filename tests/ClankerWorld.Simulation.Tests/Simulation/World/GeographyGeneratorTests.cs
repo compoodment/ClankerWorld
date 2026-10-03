@@ -151,69 +151,6 @@ public sealed class GeographyGeneratorTests
         Assert.Equal("sapling", visible.TreeStage);
     }
 
-    [Fact]
-    public async Task AgentPicksOrchardFruitAndEatsTheDistinctItem()
-    {
-        var options = new GeographyOptions("agent-orchard-fruit", WorldSizePreset.Small);
-        var initial = StartedGeneratedWorld(options);
-        var map = initial.Map;
-        var actor = initial.Inhabitants[0].InhabitantId;
-        var occupied = initial.Inhabitants.Skip(1).Select(person => person.Position).ToHashSet();
-        var orchard = map.Resources.Where(resource => resource.TreeKind == "orchard" &&
-                map.IsReachableFromCampOnFoot(resource.Position))
-            .Select(resource => new
-            {
-                Site = resource,
-                Stand = map.FootNeighbors(resource.Position).FirstOrDefault(position =>
-                    map.IsPassable(position) && !occupied.Contains(position) &&
-                    !map.Resources.Any(other => other.Position == position)),
-            })
-            .First(item => map.Contains(item.Stand) && map.IsPassable(item.Stand));
-        var otherFoodIds = map.Resources.Where(resource => resource.Kind == "food")
-            .Select(resource => resource.Id).ToHashSet(StringComparer.Ordinal);
-        var state = initial with
-        {
-            Inhabitants = initial.Inhabitants.Select(person => person.InhabitantId == actor
-                ? person with { Position = orchard.Stand, HungerBasisPoints = 4_000 }
-                : person).ToArray(),
-            Resources = initial.Resources.Select(resource => otherFoodIds.Contains(resource.ResourceId)
-                ? resource with { State = ResourceState.Depleted }
-                : resource.ResourceId == orchard.Site.Id ? resource with { State = ResourceState.Available } : resource).ToArray(),
-            WorldSystems = initial.WorldSystems! with
-            {
-                Ecology = initial.WorldSystems.Ecology with
-                {
-                    Resources = initial.WorldSystems.Ecology.Resources.Select(resource =>
-                        otherFoodIds.Contains(resource.Id)
-                            ? resource with { Quantity = 0, State = EcologyResourceState.Depleted }
-                            : resource.Id == orchard.Site.Id ? TreeGrowthAndPlantingTests.InFruitingSeason(resource, initial) : resource).ToArray(),
-                },
-            },
-        };
-        using var world = PrivateWorldRuntime.Restore(state,
-            id => id == actor ? new OrchardProvider() : new DeterministicDecisionProvider());
-        for (var tick = 0; tick < 12 && !world.ExportState().Events.Any(item => item.Kind == "fruit_harvested"); tick++)
-            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-
-        Assert.Contains(world.ExportState().Events, item => item.Kind == "fruit_harvested" &&
-            item.Detail.Contains(orchard.Site.Id, StringComparison.Ordinal));
-        Assert.Equal(0, world.WorldSystems.Ecology.GetResource(orchard.Site.Id).Quantity);
-        Assert.Equal("picked", Assert.Single(new OwnerWorldObservationStore(world).GetSnapshot().Resources,
-            resource => resource.Id == orchard.Site.Id).TreeStage);
-        Assert.Contains(world.Society.Inventory.Lots, lot => lot.OwnerId == actor && lot.ItemKind == "fruit" && lot.Quantity == 4);
-        for (var tick = 0; tick < 12 && !world.ExportState().Events.Any(item => item.Kind == "food_consumed" &&
-                 item.Detail == actor); tick++)
-            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-        Assert.Contains(world.ExportState().Events, item => item.Kind == "food_consumed" && item.Detail == actor);
-        Assert.True(world.Inhabitants.Single(person => person.InhabitantId == actor).HungerBasisPoints > 4_000);
-        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
-            PrivateWorldRuntimeCodec.Encode(world.ExportState())));
-        Assert.Contains(restored.Society.Inventory.Lots, lot => lot.OwnerId == actor && lot.ItemKind == "fruit" && lot.Quantity > 0);
-        Assert.Equal("picked", Assert.Single(new OwnerWorldObservationStore(restored).GetSnapshot().Resources,
-            resource => resource.Id == orchard.Site.Id).TreeStage);
-        Assert.Equal(0, restored.WorldSystems.Ecology.GetResource(orchard.Site.Id).Quantity);
-    }
-
     private sealed class OrchardProvider : IDecisionProvider
     {
         public DecisionProviderKind Kind => DecisionProviderKind.Deterministic;

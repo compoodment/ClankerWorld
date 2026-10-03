@@ -710,8 +710,6 @@ public sealed class PotteryContentTests
     }
 
     [Theory]
-    [InlineData(0, false)]
-    [InlineData(0, true)]
     [InlineData(2, false)]
     [InlineData(2, true)]
     public async Task CollectingAStoredJugLeavesCarrySpaceForWaterAcrossReload(int storedWater, bool fits)

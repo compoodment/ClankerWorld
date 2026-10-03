@@ -105,6 +105,8 @@ public sealed partial class SettlementParenthoodTests
             Assert.Equal(acceptor, postponed.PrimaryCaregiverId);
             Assert.Equal(acceptorHome, postponed.IntendedHouseholdId);
             Assert.Contains(putOff.SeenCandidates, candidate => candidate.Id == "parent_postpone:" + initiator);
+            Assert.Contains("Parenthood put off for now.", new OwnerWorldObservationStore(world).GetSnapshot().Inhabitants
+                .Single(person => person.Id == initiator).SocialNotes);
             world.Pause();
             var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
             using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes),

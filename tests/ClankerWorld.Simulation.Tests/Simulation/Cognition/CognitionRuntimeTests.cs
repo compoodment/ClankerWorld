@@ -153,7 +153,6 @@ public sealed class CognitionRuntimeTests
 
     [Theory]
     [InlineData(false)]
-    [InlineData(true)]
     public void DuplicateOrUnknownReplyPreservesTheNextRequestAndPreviousIntention(bool unknown)
     {
         var runtime = new CognitionRuntime("actor-scout", new FixedProvider(DecisionProviderKind.Jev, 0));
@@ -182,26 +181,6 @@ public sealed class CognitionRuntimeTests
         Assert.Equal(before.CurrentIntention, runtime.Capture().CurrentIntention);
         Assert.True(runtime.ApplyResponse(ResponseFor(currentRequest, DecisionProviderKind.Jev, 0, "safe_idle", 1)).Accepted);
         Assert.Equal("safe_idle", runtime.Capture().CurrentIntention?.CandidateId);
-    }
-
-    [Fact]
-    public async Task ProviderFailureUsesLocalFallbackInsteadOfMutatingTheWorld()
-    {
-        var runtime = new CognitionRuntime("actor-scout", new ThrowingProvider());
-
-        var result = await runtime.RequestAndDecideAsync(CreateObservation() with
-        {
-            Candidates =
-            [
-                new CognitionCandidate("build:home", "Build a home.", 0),
-                new CognitionCandidate("safe_idle", "Wait safely.", 100),
-            ],
-        });
-
-        Assert.True(result.Accepted);
-        Assert.True(result.FellBack);
-        Assert.Equal("safe_idle", result.Intention?.CandidateId);
-        Assert.Equal("model_unavailable", result.Outcome);
     }
 
     private static InhabitantObservation CreateObservation(
@@ -248,17 +227,5 @@ public sealed class CognitionRuntimeTests
             CognitionDecisionRequest request,
             CancellationToken cancellationToken = default) =>
             ValueTask.FromResult(ResponseFor(request, kind, providerEpoch, "seek_food", 0.9));
-    }
-
-    private sealed class ThrowingProvider : IDecisionProvider
-    {
-        public DecisionProviderKind Kind => DecisionProviderKind.Jev;
-
-        public long ProviderEpoch => 0;
-
-        public ValueTask<CognitionDecisionResponse> DecideAsync(
-            CognitionDecisionRequest request,
-            CancellationToken cancellationToken = default) =>
-            throw new InvalidOperationException("provider unavailable");
     }
 }

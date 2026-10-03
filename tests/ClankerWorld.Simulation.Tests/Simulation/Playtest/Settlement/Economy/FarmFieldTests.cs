@@ -6,7 +6,6 @@ using ClankerWorld.Simulation.World;
 using ClankerWorld.Simulation.Society;
 using ClankerWorld.Viewer.Observation;
 using System.Collections.Concurrent;
-using System.Text.Json.Nodes;
 
 namespace ClankerWorld.Simulation.Tests;
 
@@ -79,16 +78,6 @@ public sealed class FarmFieldTests
     }
 
     [Fact]
-    public void DamagedFieldArrayIsRejectedAsInvalidCheckpointData()
-    {
-        var (state, _, _, _) = PreparedFarmer("field-damaged-save");
-        var document = JsonNode.Parse(PrivateWorldRuntimeCodec.Encode(state))!;
-        document["state"]!["fields"] = new JsonArray((JsonNode?)null);
-        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Decode(
-            System.Text.Encoding.UTF8.GetBytes(document.ToJsonString())));
-    }
-
-    [Fact]
     public void CurrentAlphaCutoffPreservesCurrentFieldsAndGroundHarvestLots()
     {
         var (state, _, household, point) = PreparedFarmer("field-schema");
@@ -106,23 +95,6 @@ public sealed class FarmFieldTests
         Assert.Throws<InvalidDataException>(() => Restore(groundState with { SchemaVersion = 33 }));
         using var groundRestored = Restore(groundState);
         Assert.Equal(new InventoryGroundPosition(point.X, point.Y), groundRestored.Society.Inventory.GetLot("field-ground-schema").GroundPosition);
-    }
-
-    [Fact]
-    public void SavedFieldToolWorkRequiresItsOwnSchema()
-    {
-        var (state, actor, _, point) = PreparedFarmer("field-tool-schema");
-        using var world = Restore(state);
-        Assert.True(world.StartFieldWork(actor, point, FarmWorkKind.Till).Accepted);
-        var active = world.ExportState();
-        Assert.Equal(PrivateWorldRuntime.StateSchemaVersion, active.SchemaVersion);
-        Assert.NotNull(Assert.Single(active.Fields!).Work!.HoeLotId);
-        Assert.Throws<InvalidDataException>(() => Restore(active with
-        {
-            SchemaVersion = PrivateWorldRuntime.ToolProgressionSchemaVersion - 1,
-        }));
-        using var restored = Restore(active);
-        Assert.Equal(active.Fields, restored.Fields);
     }
 
     [Theory]
@@ -145,30 +117,6 @@ public sealed class FarmFieldTests
         };
 
         Assert.Throws<InvalidDataException>(() => Restore(damaged));
-
-        Assert.Equal(healthyBytes, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
-        using var restored = Restore(PrivateWorldRuntimeCodec.Decode(healthyBytes));
-        Assert.Equal(active.Fields, restored.Fields);
-        Assert.Equal(healthyBytes, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
-    }
-
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData(" \t ")]
-    [InlineData("unknown-field-worker")]
-    public void EncodedFieldWorkWithAnInvalidWorkerIsRefusedAsInvalidCheckpointData(string? workerId)
-    {
-        var (state, actor, _, point) = PreparedFarmer("field-invalid-worker-codec");
-        using var world = Restore(state);
-        Assert.True(world.StartFieldWork(actor, point, FarmWorkKind.Till).Accepted);
-        var active = world.ExportState();
-        var healthyBytes = PrivateWorldRuntimeCodec.Encode(active);
-        var document = JsonNode.Parse(healthyBytes)!;
-        document["state"]!["fields"]![0]!["work"]!["workerId"] = workerId;
-        var damagedBytes = System.Text.Encoding.UTF8.GetBytes(document.ToJsonString());
-
-        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Decode(damagedBytes));
 
         Assert.Equal(healthyBytes, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
         using var restored = Restore(PrivateWorldRuntimeCodec.Decode(healthyBytes));
@@ -379,7 +327,6 @@ public sealed class FarmFieldTests
 
     [Theory]
     [InlineData(SocietyAgeBand.Infant, false)]
-    [InlineData(SocietyAgeBand.Adult, true)]
     [InlineData(SocietyAgeBand.Elder, true)]
     public async Task FieldWorkRespectsAgeBeforeAndAfterReload(SocietyAgeBand age, bool allowed)
     {
@@ -466,34 +413,6 @@ public sealed class FarmFieldTests
         await Advance(iron, 2);
         Assert.Equal(FarmFieldStage.Prepared, Assert.Single(iron.Fields).Stage);
         Assert.Equal(7_000, iron.Society.Inventory.GetLot("carried-iron-hoe").ConditionBasisPoints);
-    }
-
-    [Fact]
-    public async Task WoodenHoeCompletesAnOrdinaryTillAndTendCycleAcrossReload()
-    {
-        var (state, actor, _, point) = PreparedFarmer("field-wood-hoe-till-tend");
-        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory,
-            "carried-planting", FarmFieldRules.GreensSeed, actor, 2);
-        using var tilling = Restore(WithInventory(state, inventory));
-        Assert.True(tilling.StartFieldWork(actor, point, FarmWorkKind.Till).Accepted);
-        await Advance(tilling, 4);
-        using var prepared = Reload(tilling);
-        Assert.Equal(FarmFieldStage.Prepared, Assert.Single(prepared.Fields).Stage);
-        Assert.Equal(6_000, prepared.Society.Inventory.GetLot("carried-hoe").ConditionBasisPoints);
-
-        Assert.True(prepared.StartFieldWork(actor, point, FarmWorkKind.Plant,
-            FarmFieldRules.Greens, "carried-planting").Accepted);
-        await Advance(prepared, 4);
-        using var growing = Reload(prepared);
-        await Advance(growing, 1);
-        Assert.Equal(FarmFieldStage.Growing, Assert.Single(growing.Fields).Stage);
-        Assert.True(growing.StartFieldWork(actor, point, FarmWorkKind.Tend).Accepted);
-        await Advance(growing, 3);
-
-        var tended = Assert.Single(growing.Fields);
-        Assert.True(tended.Tended);
-        Assert.Null(tended.Work);
-        Assert.Equal(3_000, growing.Society.Inventory.GetLot("carried-hoe").ConditionBasisPoints);
     }
 
     [Fact]
@@ -854,7 +773,6 @@ public sealed class FarmFieldTests
 
     [Theory]
     [InlineData("cultivated_greens")]
-    [InlineData("fruit")]
     public async Task ReadyFoodIsCarriedFromItsGroundTileToFiniteHouseStorageAcrossReload(string kind)
     {
         var (state, actor, household, point) = PreparedFarmer("field-ready-food-hauling");

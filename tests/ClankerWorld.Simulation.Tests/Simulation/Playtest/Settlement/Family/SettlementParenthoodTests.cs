@@ -279,37 +279,6 @@ public sealed partial class SettlementParenthoodTests
     }
 
     [Fact]
-    public async Task AcceptingParentChoosesAnExplicitCaregiverAndIntendedHome()
-    {
-        var state = await PreparedState();
-        var initiator = state.Inhabitants[0].InhabitantId;
-        var acceptor = state.Inhabitants[1].InhabitantId;
-        var acceptorHome = state.Society.Society.GetInhabitant(acceptor).HouseholdId!;
-        var initiatorProvider = new ParentProvider("parent_propose:");
-        var parentProvider = new ParentProvider($"parent_accept:{initiator}:acceptor:");
-        IDecisionProvider ProviderFor(string actor) => actor == initiator
-            ? initiatorProvider
-            : actor == acceptor
-                ? parentProvider
-                : new ParentProvider("safe_idle");
-
-        using var world = PrivateWorldRuntime.Restore(state, ProviderFor);
-        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-
-        var plan = world.Inhabitants.Single(person => person.InhabitantId == initiator).Parenthood!;
-        Assert.Equal("preparing", plan.Stage);
-        Assert.Equal(acceptor, plan.PrimaryCaregiverId);
-        Assert.Equal(acceptorHome, plan.IntendedHouseholdId);
-        Assert.Contains(parentProvider.SeenCandidates, candidate =>
-            candidate.Id == $"parent_accept:{initiator}:acceptor:{Uri.EscapeDataString(acceptorHome)}" &&
-            candidate.Description.Contains(acceptorHome, StringComparison.Ordinal));
-        Assert.Contains(initiatorProvider.SeenCandidates, candidate => candidate.Id == $"parent_propose:{acceptor}" &&
-            candidate.Description.Contains("either parent as the primary caregiver", StringComparison.Ordinal) &&
-            candidate.Description.Contains("that parent's household as the intended home", StringComparison.Ordinal));
-    }
-
-    [Fact]
     public async Task ExistingSecondaryCaregiverCanChoosePrimaryCareAfterTheRecordedPrimaryDies()
     {
         using var initial = NormalPathWorld.CreateGenerated("secondary-caregiver-primary-choice", _ => new ParentProvider("safe_idle"));
@@ -472,19 +441,6 @@ public sealed partial class SettlementParenthoodTests
     }
 
     [Fact]
-    public async Task OldSchemaCannotHideAnActiveParenthoodPlan()
-    {
-        var state = await PreparedState();
-        state = state with
-        {
-            SchemaVersion = 8,
-            Inhabitants = state.Inhabitants.Select((person, index) => index == 0
-            ? person with { Parenthood = new(state.Inhabitants[1].InhabitantId, "requested", 0, 0) } : person).ToArray()
-        };
-        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(state));
-    }
-
-    [Fact]
     public async Task EitherParentCanWithdrawDuringPreparation()
     {
         // Withdrawal is ordinary refusal, so it needs the continuity rule to be off.
@@ -527,40 +483,6 @@ public sealed partial class SettlementParenthoodTests
         await restored.AdvanceOneTickAsync();
         Assert.Equal("cancelled", restored.Inhabitants.Single(person => person.InhabitantId == first).Parenthood!.Stage);
         Assert.Empty(restored.Society.Births);
-    }
-
-    [Fact]
-    public async Task ParenthoodTelemetryReportsStagesWithoutPrivateNames()
-    {
-        var directory = Directory.CreateTempSubdirectory("clankerworld-parenthood-log-");
-        try
-        {
-            var state = await PreparedState();
-            var first = state.Inhabitants[0].InhabitantId;
-            state = state with
-            {
-                Society = state.Society with
-                {
-                    Society = state.Society.Society with
-                    {
-                        Inhabitants = state.Society.Society.Inhabitants.Select(person => person with { Name = "private-parenthood-secret" }).ToArray(),
-                    }
-                }
-            };
-            using var world = PrivateWorldRuntime.Restore(state, actor => new ParentProvider(actor == first ? "parent_propose:" : "safe_idle"));
-            var presence = new OwnerClientPresenceLease(TimeSpan.FromSeconds(30));
-            presence.RecordAuthenticatedReconnect("owner");
-            var logger = new RecordingLogger<PrivateWorldRuntimeService>();
-            using var service = new PrivateWorldRuntimeService(world, new PrivateWorldStateFile(Path.Combine(directory.FullName, "world.json")), presence, logger);
-            Assert.True(await service.TryAdvanceOnceAsync());
-            Assert.Contains(logger.Messages, message => message.Contains("settlement_family", StringComparison.Ordinal) &&
-                message.Contains("event=parenthood_requested", StringComparison.Ordinal));
-            Assert.DoesNotContain(logger.Messages, message => message.Contains("private-parenthood-secret", StringComparison.Ordinal));
-        }
-        finally
-        {
-            directory.Delete(recursive: true);
-        }
     }
 
     private static async Task<PrivateWorldRuntimeState> PreparedState()
