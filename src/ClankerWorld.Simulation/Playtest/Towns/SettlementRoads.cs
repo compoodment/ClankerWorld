@@ -46,6 +46,9 @@ public sealed partial class PrivateWorldRuntime
         if (building.TownId is null) return laid;
         var buildingDesign = BuildingStorageRules.EffectiveDefinition(
             worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId), building);
+        // A lantern's Road edge is part of its paid Council approval. It is a
+        // fitting beside an existing street, not a door that grows or turns it.
+        if (StreetLanternContent.IsLantern(building.DefinitionId)) return laid;
         var footprint = WorldContentSimulationRules.Footprint(buildingDesign, building).ToHashSet();
         var occupied = RoadBlockedTiles();
         var entrances = footprint.SelectMany(point => map.FootNeighbors(point)
@@ -123,7 +126,8 @@ public sealed partial class PrivateWorldRuntime
         var crossings = new List<RiverCrossing>();
         var existing = bridges.Select(RiverBridgeRules.ToCrossing).ToArray();
         var working = roadTiles.ToHashSet();
-        var doors = worldSimulation.Buildings.Where(item => item.Entrance is not null)
+        var doors = worldSimulation.Buildings.Where(item => item.Entrance is not null &&
+                !StreetLanternContent.IsLantern(item.DefinitionId))
             .Select(item => item.Entrance!.Value).ToHashSet();
         var ordered = working.OrderBy(point => point.Y).ThenBy(point => point.X).ToArray();
         var streets = new TownStreets(map, occupied, ordered);

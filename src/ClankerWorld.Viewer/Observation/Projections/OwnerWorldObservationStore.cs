@@ -448,7 +448,10 @@ public sealed class OwnerWorldObservationStore
                 inhabitantsById.GetValueOrDefault(proposerId)?.Name ?? proposerId,
                 plan.DefinitionId, definition.DisplayName, ToPosition(plan.Site), ToPosition(plan.Entrance),
                 definition.Width, definition.Height,
-                plan.Budget.Select(q => new ViewerTownProjectBudget(q.ResourceId, q.Amount)).ToArray());
+                plan.Budget.Select(q => new ViewerTownProjectBudget(q.ResourceId, q.Amount)).ToArray())
+            {
+                Tags = definition.Tags.ToArray(),
+            };
         }
         ViewerCivicProposal ProjectProposal(TownProposal proposal) => new(proposal.Id, proposal.Kind,
             proposal.Text, proposal.Status, proposal.Votes.Count(v => v.Yes), proposal.Votes.Count(v => !v.Yes),
@@ -467,7 +470,10 @@ public sealed class OwnerWorldObservationStore
                     q.ResourceId, q.Amount, TownProjectRules.DeliveredQuantity(project, town.Id,
                         state.Society.Society.Inventory, q.ResourceId))).ToArray(),
                 project.WorkDone, TownProjectRules.RequiredWork(project.Plan), project.Stage, project.Blocker,
-                project.CompletedBuildingId, ProjectProposal(approval));
+                project.CompletedBuildingId, ProjectProposal(approval))
+            {
+                Tags = plan.Tags,
+            };
         }
         string MarketOwnerName(string id) => inhabitantsById.GetValueOrDefault(id)?.Name ??
             state.Society.Society.Households.FirstOrDefault(household => household.Id == id)?.Name ??

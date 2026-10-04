@@ -184,7 +184,7 @@ public partial class Main
             else if (mouse.Pressed && mouse.ButtonIndex == MouseButton.Left)
             {
                 var tile = TileAtCanvas(mouse.Position, snapshot);
-                if (MapContains(snapshot, tile.X, tile.Y) && BuildingAt(snapshot, tile) is { } building)
+                if (MapContains(snapshot, tile.X, tile.Y) && BuildingAt(snapshot, tile, mouse.Position) is { } building)
                 {
                     // A building opens its own card instead of the tile's.
                     SelectBuilding(building.InstanceId);

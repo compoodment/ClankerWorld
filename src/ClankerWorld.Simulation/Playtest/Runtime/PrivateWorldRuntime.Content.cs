@@ -101,7 +101,7 @@ public sealed partial class PrivateWorldRuntime
                 WarehouseContent.Create(), FarmContent.Create(), BlacksmithContent.Create(),
                 HouseCookingContent.Create(), PotteryContent.Create(), SiloContent.Create(), TailorContent.Create(),
                 RestaurantContent.Create(), BusinessContent.Create(), CareContent.Create(), OrnamentContent.Create(), TownHallContent.Create(),
-                KnowledgeContent.Create(), MarketContent.Create(),
+                KnowledgeContent.Create(), MarketContent.Create(), StreetLanternContent.Create(),
                 FarmhouseVariantContent.Create(), BlacksmithVariantContent.Create(), TailorVariantContent.Create(),
                 ClinicVariantContent.Create(), RestaurantVariantContent.Create(),
             ];
@@ -221,9 +221,12 @@ public sealed partial class PrivateWorldRuntime
                     $"Building definition '{normalizedDefinitionId}' is not active.");
             }
 
-            if (definition.Tags.Contains(TownHallContent.HallTag, StringComparer.Ordinal))
+            if (definition.Tags.Contains(TownHallContent.HallTag, StringComparer.Ordinal) ||
+                StreetLanternContent.IsLantern(definition.CanonicalId))
                 return BuildingPlacementResult.Rejected(normalizedInstanceId, normalizedDefinitionId, position,
-                    "The Town Hall needs a Council-approved project, delivered materials and completed building work.");
+                    StreetLanternContent.IsLantern(definition.CanonicalId)
+                        ? $"{definition.DisplayName} needs a Council-approved project, delivered materials and completed building work."
+                        : "The Town Hall needs a Council-approved project, delivered materials and completed building work.");
 
             if (definition.Tags.Any(tag => tag is MarketContent.HallTag or MarketContent.StallTag))
                 return BuildingPlacementResult.Rejected(normalizedInstanceId, normalizedDefinitionId, position,

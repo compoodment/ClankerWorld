@@ -239,7 +239,7 @@ public sealed partial class ViewerHttpTests
                 Assert.True(runtime.Society.IsPaused);
                 Assert.Empty(runtime.Inhabitants);
                 Assert.Equal(0, runtime.WorldTick);
-                Assert.Equal(22, runtime.Content.Packages.Count);
+                Assert.Equal(23, runtime.Content.Packages.Count);
                 AssertBuildingVariantPackagesActive(runtime);
                 Assert.Contains(runtime.Content.Packages, package => package.Manifest.PackageId == PotteryContent.PackageId);
                 Assert.Contains(runtime.Content.Packages, package => package.Manifest.PackageId == RestaurantContent.PackageId);
@@ -247,6 +247,7 @@ public sealed partial class ViewerHttpTests
                 Assert.Contains(runtime.Content.Packages, package => package.Manifest.PackageId == CareContent.PackageId);
                 Assert.Contains(runtime.Content.Packages, package => package.Manifest.PackageId == OrnamentContent.PackageId);
                 Assert.Contains(runtime.Content.Packages, package => package.Manifest.PackageId == TownHallContent.PackageId);
+                Assert.Contains(runtime.Content.Packages, package => package.Manifest.PackageId == StreetLanternContent.PackageId);
                 Assert.Contains(runtime.Content.Packages, package => package.Manifest.PackageId == KnowledgeContent.PackageId);
                 Assert.Contains(runtime.Content.Packages, package => package.Manifest.PackageId == MarketContent.PackageId);
                 Assert.All(runtime.Content.Packages, package =>
@@ -259,6 +260,8 @@ public sealed partial class ViewerHttpTests
                 Assert.Contains(runtime.WorldContent.Buildings, building => building.LocalId == "restaurant-1x2");
                 Assert.Contains(runtime.WorldContent.Buildings, building => building.LocalId == "store-1x1");
                 Assert.Contains(runtime.WorldContent.Buildings, building => building.LocalId == "town-hall-3x4");
+                Assert.Contains(runtime.WorldContent.Buildings, building => building.CanonicalId == StreetLanternContent.Stone().CanonicalId);
+                Assert.Contains(runtime.WorldContent.Buildings, building => building.CanonicalId == StreetLanternContent.Hanging().CanonicalId);
                 Assert.Equal(WorldSizePreset.Small, runtime.ExportState().Geography?.Size);
                 Assert.Equal(256, runtime.ExportState().Map.Width);
                 Assert.Equal(GeographyGenerator.CurrentHydrologyVersion, runtime.ExportState().Geography!.HydrologyVersion);
@@ -429,8 +432,9 @@ public sealed partial class ViewerHttpTests
             Assert.Contains(restoredCatalog.Worlds, world => world.Id == generatedId);
             var restoredRuntime = restarted.Services.GetRequiredService<PrivateWorldRuntime>();
             Assert.Equal(WorldSizePreset.Small, restoredRuntime.ExportState().Geography?.Size);
-            Assert.Equal(22, restoredRuntime.Content.Packages.Count);
+            Assert.Equal(23, restoredRuntime.Content.Packages.Count);
             Assert.Contains(restoredRuntime.Content.Packages, package => package.Manifest.PackageId == TownHallContent.PackageId);
+            Assert.Contains(restoredRuntime.Content.Packages, package => package.Manifest.PackageId == StreetLanternContent.PackageId);
             AssertBuildingVariantPackagesActive(restoredRuntime);
             Assert.Contains(restoredRuntime.Content.Packages, package => package.Manifest.PackageId == MarketContent.PackageId);
             Assert.Contains(restoredRuntime.Content.Packages, package => package.Manifest.PackageId == PotteryContent.PackageId);
@@ -441,6 +445,8 @@ public sealed partial class ViewerHttpTests
             Assert.Contains(restoredRuntime.Content.Packages, package => package.Manifest.PackageId == OrnamentContent.PackageId);
             Assert.Contains(restoredRuntime.Content.Packages, package => package.Manifest.PackageId == KnowledgeContent.PackageId);
             Assert.Contains(restoredRuntime.WorldContent.Buildings, building => building.LocalId == "store-1x1");
+            Assert.Contains(restoredRuntime.WorldContent.Buildings, building => building.CanonicalId == StreetLanternContent.Stone().CanonicalId);
+            Assert.Contains(restoredRuntime.WorldContent.Buildings, building => building.CanonicalId == StreetLanternContent.Hanging().CanonicalId);
             Assert.Equal(5, restoredRuntime.WorldSimulation.Buildings.Count);
             Assert.NotEmpty(restoredRuntime.RoadTiles);
             var selectedOld = restarted.Services.GetRequiredService<WorldSelectionCoordinator>()
