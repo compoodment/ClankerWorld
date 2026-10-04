@@ -7,6 +7,8 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed partial class PrivateWorldStorageOrderTests
 {
     [Theory]
+    [InlineData("crude_wooden_axe", "store my crude wooden axe")]
+    [InlineData("crude_wooden_pickaxe", "store crude wooden pickaxes")]
     [InlineData("clothing", "store basic garments")]
     [InlineData("padded_coat", "store my padded coats at home")]
     [InlineData("basket", "please store baskets in my House now")]
