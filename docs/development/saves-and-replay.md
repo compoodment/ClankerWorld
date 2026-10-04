@@ -253,15 +253,15 @@ partial pickups retain their state across replay and rollback. This version
 follows admission schema 78 and field-location schema 77. Older alpha
 checkpoints are refused and preserved without migration.
 
-Private-world schema 81 adds `collect_equipment` using the existing exact
+Private-world schema 82 adds `collect_equipment` using the existing exact
 `TargetEquipmentKind` and optional source tile. Only the five supported garment
 and carrying-aid kinds or 13 tool kinds are accepted. These tasks use
 `equipment_items` for explicit quantities or `collection_loads` for default
 pickups, with bounded personal-pickup receipts. Validation refuses mixed target
 categories, unsupported equipment, wrong units and unearned progress. Physical
 condition, source, queued work, remaining quantity and cancellation survive
-reload and rollback. This version is provisional above the food-collection
-base until integration; older alpha checkpoints are refused and preserved
+reload and rollback. This version follows Council-election schema 81, food-collection schema 80
+and lantern schema 79. Older alpha checkpoints are refused and preserved
 without migration.
 
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
@@ -653,7 +653,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 81. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 82. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
