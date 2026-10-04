@@ -13,9 +13,9 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed partial class ViewerHttpTests
 {
     [Theory]
-    [InlineData("Élodie Vale")]
-    [InlineData("  e\u0301LODIE\u00a0  Vale  ")]
-    public async Task SignedPlayerRenameExplainsCollisionAndAllowsAnotherName(string duplicate)
+    [InlineData("Élodie Lake")]
+    [InlineData("  e\u0301LODIE\u00a0  Lake  ")]
+    public async Task SignedPlayerRenameExplainsFirstNameCollisionAndAllowsAnotherName(string duplicate)
     {
         var directory = Directory.CreateTempSubdirectory("player-rename-http-");
         try
@@ -43,24 +43,25 @@ public sealed partial class ViewerHttpTests
                 uri, authority, device.DeviceId, new Client.OwnerAgentRenameAction(second, duplicate), signer, default));
             Assert.Equal(HttpStatusCode.Conflict, failure.StatusCode);
             Assert.Contains("another agent", Client.GameUiText.FriendlyFailure(failure), StringComparison.Ordinal);
-            Assert.Contains("Choose a different name", Client.GameUiText.FriendlyFailure(failure), StringComparison.Ordinal);
+            Assert.Contains("Choose a different first name", Client.GameUiText.FriendlyFailure(failure), StringComparison.Ordinal);
             Assert.Equal(before, PrivateWorldRuntimeCodec.Encode(runtime.ExportState()));
             Assert.Equal(diskBefore, File.ReadAllBytes(file.Path));
             var renamed = await api.RenameAgentAsync(uri, authority, device.DeviceId,
-                new Client.OwnerAgentRenameAction(second, "Élodie Lake"), signer, default);
+                new Client.OwnerAgentRenameAction(second, "Marin Lake"), signer, default);
             Assert.True(renamed.Changed);
             var retry = await api.RenameAgentAsync(uri, authority, device.DeviceId,
-                new Client.OwnerAgentRenameAction(second, "Élodie Lake"), signer, default);
+                new Client.OwnerAgentRenameAction(second, "Marin Lake"), signer, default);
             Assert.False(retry.Changed);
             using var restored = file.LoadOrCreate(runtime.ExportState().WorldSeed);
-            Assert.Equal("Élodie Lake", restored.Society.GetInhabitant(second).Name);
+            Assert.Equal("Marin Lake", restored.Society.GetInhabitant(second).Name);
+            Assert.True(restored.Society.GetInhabitant(second).HasChosenName);
             Assert.Equal(second, restored.Society.GetInhabitant(second).Id);
         }
         finally { directory.Delete(recursive: true); }
     }
 
     [Fact]
-    public async Task ConcurrentSignedRenamesCannotClaimTheSameFullName()
+    public async Task ConcurrentSignedRenamesCannotClaimTheSameFirstNameWithDifferentSurnames()
     {
         var directory = Directory.CreateTempSubdirectory("player-rename-race-");
         try
@@ -71,13 +72,14 @@ public sealed partial class ViewerHttpTests
             var device = await StartAndActivateAsync(host, client, key);
             var runtime = host.Services.GetRequiredService<PrivateWorldRuntime>();
             var ids = new[] { "founder:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "founder:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" };
+            var names = new[] { "Shared Vale", "Shared Lake" };
             runtime.PlaceFounder(ids[0], new(0, 0));
             runtime.PlaceFounder(ids[1], new(1, 2));
             const string path = "/api/v1/owner/agents/rename";
             var envelopes = new List<OwnerSignedHttpRequest<OwnerAgentRenameAction>>();
-            foreach (var id in ids)
+            for (var index = 0; index < ids.Length; index++)
             {
-                var action = new OwnerAgentRenameAction(id, "Shared Name");
+                var action = new OwnerAgentRenameAction(ids[index], names[index]);
                 envelopes.Add(await CreateSignedRequestAsync(host, client, key, device.DeviceId,
                     path, action, OwnerHttpBinding.AgentRenamePayload(action)));
             }
@@ -87,10 +89,16 @@ public sealed partial class ViewerHttpTests
                 Assert.Single(responses, response => response.StatusCode == HttpStatusCode.OK);
                 var rejected = Assert.Single(responses, response => response.StatusCode == HttpStatusCode.Conflict);
                 Assert.Equal("name_taken", (await rejected.Content.ReadFromJsonAsync<OwnerControlFailure>())!.Code);
-                Assert.Single(runtime.Society.Inhabitants, person => person.Name == "Shared Name");
+                var winner = Array.FindIndex(responses, response => response.StatusCode == HttpStatusCode.OK);
+                var chosen = Assert.Single(runtime.Society.Inhabitants, person => person.HasChosenName);
+                Assert.Equal(ids[winner], chosen.Id);
+                Assert.Equal(names[winner], chosen.Name);
+                Assert.False(runtime.Society.GetInhabitant(ids[1 - winner]).HasChosenName);
+                Assert.True(runtime.Society.GetInhabitant(ids[1 - winner]).NeedsName);
                 using var restored = host.Services.GetRequiredService<PrivateWorldStateFile>()
                     .LoadOrCreate(runtime.ExportState().WorldSeed);
-                Assert.Single(restored.Society.Inhabitants, person => person.Name == "Shared Name");
+                Assert.Equal(chosen, Assert.Single(restored.Society.Inhabitants, person => person.HasChosenName));
+                Assert.False(restored.Society.GetInhabitant(ids[1 - winner]).HasChosenName);
             }
             finally { foreach (var response in responses) response.Dispose(); }
         }

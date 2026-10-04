@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Content;
 
@@ -6,7 +7,8 @@ namespace ClankerWorld.Simulation.Playtest;
 /// <summary>
 /// Authoritative first-Town prototype state. Identity, membership and the
 /// border are world facts; wrapped seams and overlapping Town claims are not
-/// modeled yet.
+/// modeled yet. <see cref="ResidentIds"/> is the only record of Town
+/// membership: household, House residence and position never change it.
 /// </summary>
 public sealed record TownRuntimeState(
     string Id,
@@ -17,7 +19,40 @@ public sealed record TownRuntimeState(
     IReadOnlyList<string> AssignedBuildingIds,
     IReadOnlyList<GridPoint> BorderTiles,
     GridPoint? OriginSite = null,
-    TownGovernanceState? Governance = null);
+    TownGovernanceState? Governance = null,
+    TownGovernmentState? Government = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    IReadOnlyList<TownAdmissionRecord>? Admissions = null)
+{
+    [JsonRequired]
+    public TownLandHearingState LandHearings { get; init; } = TownLandHearingState.Create();
+
+    [JsonRequired]
+    public IReadOnlyList<TownConstructionProject> Projects { get; init; } = [];
+
+    [JsonRequired]
+    public IReadOnlyList<TownMarketState> Markets { get; init; } = [];
+}
+
+/// <summary>
+/// What one passed admission proposal did to recorded membership. The council
+/// proposal holds the votes; this record holds the newcomer's own acceptance
+/// and the care group that actually moved, so an approval applies at most once.
+/// </summary>
+/// <param name="Status"><c>approved</c> waits for the newcomer to accept a request
+/// someone else made; <c>admitted</c> changed membership; <c>lapsed</c> could not
+/// be applied (see <paramref name="Reason"/>).</param>
+/// <param name="PreviousTownId">For <c>approved</c>, the newcomer's Town when the
+/// council approved; for <c>admitted</c>, the Town the care group left. Null means none.</param>
+/// <param name="MemberIds">For <c>admitted</c>, the newcomer and the dependent children who moved with them.</param>
+public sealed record TownAdmissionRecord(
+    string ProposalId,
+    string SubjectId,
+    string Status,
+    long DecidedTick,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? PreviousTownId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<string>? MemberIds = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Reason = null);
 
 /// <summary>
 /// A Town's border keeps about <see cref="SpareTileMargin"/> tiles of spare
