@@ -1,0 +1,1 @@
+- Adults and elders can follow orders to till, plant, tend and harvest their household's fields, using real seeds, tools and work. Quantities count completed fields and named crops are respected. Cancellation releases unused planting stock; queues and partial work survive save/reload. Older alpha saves are refused and preserved unchanged.

@@ -11,7 +11,7 @@ switch (command)
         Baseline.Run(Path.Combine(outRoot, "baseline"));
         break;
     case "proposed":
-        Proposals.Run(Path.Combine(outRoot, "proposed"));
+        Proposals.Run(Path.Combine(outRoot, "proposed"), args.Length > 2 ? args[2] : null);
         break;
     case "scene":
         SceneRunner.Run(Path.Combine(outRoot, "scene"));
@@ -20,7 +20,7 @@ switch (command)
         ArtContractChecks.Run();
         break;
     default:
-        Console.Error.WriteLine("usage: baseline|proposed|scene <out dir> | check");
+        Console.Error.WriteLine("usage: baseline|proposed|scene <out dir> [proposal family] | check");
         return 2;
 }
 return 0;
@@ -250,12 +250,13 @@ public interface IArtProposal
 
 static class Proposals
 {
-    public static void Run(string root)
+    public static void Run(string root, string? family = null)
     {
         Directory.CreateDirectory(root);
         var proposals = typeof(IArtProposal).Assembly.GetTypes()
             .Where(type => typeof(IArtProposal).IsAssignableFrom(type) && !type.IsAbstract && !type.IsInterface)
             .Select(type => (IArtProposal)Activator.CreateInstance(type)!)
+            .Where(proposal => family is null || proposal.Family == family)
             .OrderBy(proposal => proposal.Family)
             .ToList();
         var index = new List<object>();

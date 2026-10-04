@@ -358,6 +358,11 @@ public sealed record InhabitantObservation(
                         "collect your own stored or dropped material" or
                         "store your own carried material in your House" or
                         "repair your own worn clothing or carrying aid" or
+                        "repair your own worn tool" or
+                        "till a field for your household" or
+                        "plant the requested crop in your household field" or
+                        "tend your household crop" or
+                        "harvest your household crop" or
                         "travel to the exact tile named in this order" or
                         "accept primary care of the named child through their guardian search") ||
                 message.Kind == "suggestive" && message.UnderstoodTask is not null)

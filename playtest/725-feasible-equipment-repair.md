@@ -1,0 +1,3 @@
+- Give an adult a worn equipped basket and padded coat, plus cloth but no available rope. At their household Tailor Shop, check that ordinary choices repair the coat and consume one cloth without changing the equipped items. ([#725](https://github.com/compoodment/ClankerWorld/issues/725))
+- Make fiber and rope available too. Check that ordinary choices prefer the basket, walk to the household House and consume its inputs before repairing the coat. ([#725](https://github.com/compoodment/ClankerWorld/issues/725))
+- Save during either repair and reload. Check that the same item finishes, the material charge happens once and the basket and coat remain equipped. ([#725](https://github.com/compoodment/ClankerWorld/issues/725))
