@@ -44,6 +44,8 @@ public sealed partial class PrivateWorldRuntime
         {
             if (field is not null || !FarmableFreeTile(position))
                 return new(false, "This land cannot be tilled: choose free farmable land.");
+            if (HouseholdLandHeldByOthers(householdId).Contains(position))
+                return new(false, "This land is held or requested by another household.");
             field = new(position, householdId, FarmFieldStage.Preparing);
         }
         else if (field is null || field.HouseholdId != householdId || field.Work is not null)

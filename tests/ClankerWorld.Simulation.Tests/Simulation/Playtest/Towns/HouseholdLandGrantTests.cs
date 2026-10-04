@@ -7,7 +7,7 @@ using ClankerWorld.Viewer.Observation;
 
 namespace ClankerWorld.Simulation.Tests;
 
-public sealed class HouseholdLandGrantTests
+public sealed partial class HouseholdLandGrantTests
 {
     [Fact]
     public async Task CouncilMajorityAndEveryAdultsSeparateAcceptanceSurviveRollbackAndReload()
