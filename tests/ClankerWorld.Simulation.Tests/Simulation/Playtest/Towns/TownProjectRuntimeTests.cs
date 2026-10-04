@@ -341,6 +341,15 @@ public sealed class TownProjectRuntimeTests
     {
         var policy = new TownProjectPolicy { HoldVote = true };
         using var scenario = TownProjectScenario.Create(TownProjectScenario.PlayableSeed, policy, initialTownStock: true);
+        // Settle model-driven proposal and notice reading before deferring the vote.
+        await scenario.UntilAsync(() =>
+        {
+            var council = scenario.World.Towns[0].Governance!;
+            return council.Proposals.Any(proposal => proposal.Kind == "project" && proposal.Status == "pending" &&
+                council.Notices.Any(notice => notice.SubjectId == proposal.Id &&
+                    council.Knowledge.Any(receipt => receipt.AgentId == TownProjectScenario.Author && receipt.NoticeId == notice.Id)));
+        }, 80);
+        policy.ArmHeldVote = true;
         for (var tick = 0; tick < 80 && !policy.VoteStarted.Task.IsCompleted; tick++)
         {
             await scenario.World.AdvanceOneTickNonBlockingAsync();
@@ -361,6 +370,8 @@ public sealed class TownProjectRuntimeTests
         scenario.World.AddAgent("agent:00000000000000000000000000000099", site);
         Assert.Equal("cancelled", scenario.World.Towns[0].Governance!.Proposals[0].Status);
         policy.ReleaseVote.TrySetResult(true);
+        var lateReply = await policy.VoteReturned.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(DecisionProviderKind.LargeLanguageModel, lateReply.Provider);
         for (var tick = 0; tick < 8; tick++)
         {
             await scenario.World.AdvanceOneTickNonBlockingAsync();
@@ -651,10 +662,12 @@ internal sealed class TownProjectPolicy
     internal TaskCompletionSource<bool> DonationStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     internal TaskCompletionSource<bool> ReleaseDonation { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     internal bool HoldVote { get; init; }
+    internal bool ArmHeldVote { get; set; }
     internal bool AcceptLandUse { get; set; }
     internal bool NoVotes { get; init; }
     internal TaskCompletionSource<bool> VoteStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     internal TaskCompletionSource<bool> ReleaseVote { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    internal TaskCompletionSource<CognitionDecisionResponse> VoteReturned { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     internal ConcurrentQueue<(string Actor, string Id, long Tick)> Choices { get; } = new();
     internal ConcurrentQueue<InhabitantObservation> Observations { get; } = new();
 
@@ -675,7 +688,7 @@ internal sealed class TownProjectPolicy
                     candidate.Id is "consume_food" or "collect_shared_food" or "take_food_from_pot" or
                         "make_room_for_food" or "harvest_food" or "seek_food" or "wear_clothing" or "seek_warmth")
                 .OrderBy(candidate => candidate.DeterministicPriority).ThenBy(candidate => candidate.Id, StringComparer.Ordinal)
-                .FirstOrDefault() ?? (!policy.NoVotes && (!policy.HoldVote || actor == TownProjectScenario.Author)
+                .FirstOrDefault() ?? (!policy.NoVotes && (!policy.HoldVote || policy.ArmHeldVote && actor == TownProjectScenario.Author)
                 ? candidates.FirstOrDefault(c => c.Id.Contains("|yes|", StringComparison.Ordinal)) : null) ??
                 (policy.AcceptLandUse ? candidates.FirstOrDefault(c => c.Id.Contains("|accept_land_use|", StringComparison.Ordinal)) : null) ??
                 candidates.FirstOrDefault(c => c.Id.Contains("|read|", StringComparison.Ordinal));
@@ -749,10 +762,13 @@ internal sealed class TownProjectPolicy
                 // Deliberately ignore cancellation so admission must reject the old Council reply.
                 await policy.ReleaseVote.Task;
             }
-            return new CognitionDecisionResponse(request.RequestId, observation.InhabitantId,
+            var response = new CognitionDecisionResponse(request.RequestId, observation.InhabitantId,
                 Kind, ProviderEpoch, observation.RunEpoch, observation.DecisionGeneration, observation.ObservationDigest,
                 selected.Id, 1, candidates.ToDictionary(c => c.Id, c => c.Id == selected.Id ? 1d : 0d, StringComparer.Ordinal),
                 CivicProposal: text);
+            if (policy.HoldVote && actor == TownProjectScenario.Author && selected.Id.Contains("|yes|", StringComparison.Ordinal))
+                policy.VoteReturned.TrySetResult(response);
+            return response;
         }
     }
 }
