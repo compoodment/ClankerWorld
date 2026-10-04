@@ -1590,6 +1590,7 @@ public sealed class OwnerWorldObservationStore
         "repair_tool" => "repairing a personal tool",
         "repair_equipment" => "repairing personal equipment",
         "collect_material" => "collecting personal materials",
+        "collect_food" => "collecting personal food",
         "store_material" => "storing personal materials in the House",
         "inspect_material_site" => "checking the ordered material site",
         "consume_food" => "eating carried food",

@@ -242,6 +242,17 @@ reservations survive pause and reload; a rejected tick cannot leave work or
 progress behind. An unavailable target waits without selecting another field.
 Older alpha saves are refused and preserved unchanged without migration.
 
+Private-world schema 80 adds `collect_food` orders using the existing
+`TargetFoodKind` and optional `TargetPosition` fields. Food targets are generic
+or one of berries, fruit, wild greens and cultivated greens. They use
+`food_items` for exact quantities or `collection_loads` for default pickups,
+with the same bounded `collect:personal:` receipts as material collection.
+Validation refuses mixed material, equipment, crop or resource targets, wrong
+progress units and unearned receipts. Queues, interruptions, cancellation and
+partial pickups retain their state across replay and rollback. This version
+follows admission schema 78 and field-location schema 77. Older alpha
+checkpoints are refused and preserved without migration.
+
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
 Matching parent assignments are disclosed as agreement; when they differ, the
@@ -351,7 +362,7 @@ choices and distinct mandates. Paused and rejected ticks do not advance or
 partly apply civic work; replay does not reroll ties or duplicate authority.
 Older alpha checkpoints are refused and preserved; no migration is added.
 
-Private-world schema 80 records the exact initial Council election forced by a
+Private-world schema 81 records the exact initial Council election forced by a
 protected government change, or an explicit null when it forced none. The field
 is required in the current format. Loading rejects missing or cross-Town
 elections, duplicate ownership, unrelated renewal/replacement elections and
@@ -631,7 +642,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 80. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 81. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
@@ -703,7 +714,7 @@ schema 69 for equipment-repair orders, schema 70 for explicit chosen names and
 unique first names, schema 71 for physical guardian placements, schema 75
 for paid Markets and physical stall trade, schema 76 for land hearings and
 consensual permission transfers, schema 78 for sponsored admission approval
-expiry, and schema 80 for elections forced by government changes record when
+expiry, and schema 81 for elections forced by government changes record when
 those fields or behaviors were introduced; they do not allow an earlier
 checkpoint schema past the current alpha cutoff.
 
@@ -765,7 +776,7 @@ checkpoint schema past the current alpha cutoff.
 | Schema 79 | Paid stone and hanging street lanterns reuse the Town project ledger. The exact immutable definition, one-tile roadside site and adjacent Road tile bind their style and edge; altered budgets, geometry, receipts or orphan fixtures are refused. Earlier alpha saves are refused and preserved without migration. |
 | Schema 76 | Land hearings and voluntary permission transfers retain notice, evidence, personal consent, authority and closure history. Original grants and bounded adjustments must reproduce current permissions. Earlier alpha saves are refused and preserved without migration. |
 | Schema 78 | A sponsored admission approval expires one unpaused world day after its passed proposal settled, with `acceptance_expired` recorded when no acceptance occurred. The deadline uses saved world time and the original council decision, so pause and reload do not restart it. Earlier alpha saves are refused and preserved without migration. |
-| Schema 80 | A protected government change records the exact initial Council election it forced, including failed attempts. Current-format saves require the explicit nullable link and validate its Town, ownership and lifecycle. Ordinary elections remain independent; earlier alpha saves are refused and preserved without migration. |
+| Schema 81 | A protected government change records the exact initial Council election it forced, including failed attempts. Current-format saves require the explicit nullable link and validate its Town, ownership and lifecycle. Ordinary elections remain independent; earlier alpha saves are refused and preserved without migration. |
 
 ### Tool-making requests
 

@@ -22,12 +22,15 @@ public sealed partial class PrivateWorldRuntime
                 return IsWithinInteractionRange(person.Position, destination, range) ||
                     FindUnoccupiedRoute(actor, person.Position, destination, range).Count > 0;
             });
-        return lot is null ? null : new("collect_material", "Walk to your own stored or dropped material and pick it up within your carrying limit.", 0, lot.Id);
+        return lot is null ? null : new(instruction.Order!.Action,
+            $"Walk to your own stored or dropped {CollectionOrderGoodsName(instruction.Order)} and pick it up within your carrying limit.", 0, lot.Id);
     }
 
     private IEnumerable<InventoryLot> CollectionOrderGoods(OwnerQueuedInstruction instruction) =>
         PersonalGoodsAwaitingCollection(instruction.TargetInhabitantId).Where(lot =>
-            lot.ItemKind == instruction.Order!.TargetMaterialKind &&
+            (instruction.Order!.Action == "collect_food"
+                ? IsEdibleFood(lot.ItemKind) && (instruction.Order.TargetFoodKind is null || lot.ItemKind == instruction.Order.TargetFoodKind)
+                : lot.ItemKind == instruction.Order.TargetMaterialKind) &&
             (instruction.Order.TargetPosition is null || HouseholdStockPosition(lot) == instruction.Order.TargetPosition));
 
     private void ExecuteCollectionOrderStep(OwnerQueuedInstruction instruction, PlaytestInhabitantState person)
@@ -49,21 +52,26 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
+    private static string CollectionOrderGoodsName(OwnerInstructionOrder order) =>
+        order.Action == "collect_food" ? "food" : "material";
+
     private string CollectionOrderBlockedReason(OwnerQueuedInstruction instruction, PlaytestInhabitantState person)
     {
         var actor = instruction.TargetInhabitantId;
-        if (!AgePermitsCandidate(actor, "collect_material"))
-            return "This agent is too young to collect stored materials.";
+        var goods = CollectionOrderGoodsName(instruction.Order!);
+        var pluralGoods = instruction.Order!.Action == "collect_food" ? "food" : "materials";
+        if (!AgePermitsCandidate(actor, instruction.Order.Action))
+            return $"This agent is too young to collect stored {pluralGoods}.";
         if (instruction.Order!.TargetPosition is { } target && !map.Contains(target))
             return "The requested tile is outside this world.";
         if (FreeCarryCapacity(actor) <= 0)
-            return "Carrying space is full; make room before collecting more materials.";
+            return $"Carrying space is full; make room before collecting more {pluralGoods}.";
         if (!CollectionOrderGoods(instruction).Any())
             return instruction.Order.TargetPosition is not null
-                ? "No matching personal material is available at the requested tile; goods must be your own and not reserved or promised for delivery."
-                : "No matching personal material is available to collect; goods must be your own and not reserved or promised for delivery.";
+                ? $"No matching personal {goods} is available at the requested tile; goods must be your own and not reserved or promised for delivery."
+                : $"No matching personal {goods} is available to collect; goods must be your own and not reserved or promised for delivery.";
         if (!ReadyForBriefInteraction(actor))
-            return "The agent needs warmth before collecting materials.";
-        return "No open walking route reaches the agent's personal material right now.";
+            return $"The agent needs warmth before collecting {pluralGoods}.";
+        return $"No open walking route reaches the agent's personal {goods} right now.";
     }
 }
