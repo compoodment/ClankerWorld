@@ -13,7 +13,7 @@ namespace ClankerWorld.Simulation.Playtest;
 
 public sealed partial class PrivateWorldRuntime
 {
-    private void EnqueueDueCognition()
+    private void EnqueueDueCognition(IReadOnlySet<string> activeHostedIds)
     {
         var cognitionState = society.Capture().Cognition;
         var runtimes = cognitionState.Runtimes
@@ -23,11 +23,23 @@ public sealed partial class PrivateWorldRuntime
                 SocietyCognitionScheduler.NameRetryTriggerId, StringComparer.Ordinal))
             .Select(entry => entry.InhabitantId)
             .ToHashSet(StringComparer.Ordinal);
+        var staleRunDecisions = cognitionState.Queue
+            .Where(entry => entry.Observation.RunEpoch != society.Checkpoint.RunEpoch)
+            .Select(entry => entry.InhabitantId)
+            .ToHashSet(StringComparer.Ordinal);
+        // Retained work has already advanced LastDecisionContext. Once its
+        // earlier call ends, rebuild it even if the ordinary cadence is quiet.
+        var awaitingDispatch = cognitionState.Queue
+            .Where(entry => !activeHostedIds.Contains(entry.InhabitantId))
+            .Select(entry => entry.InhabitantId)
+            .ToHashSet(StringComparer.Ordinal);
         var waitingHosted = society.PendingHostedInhabitantIds();
         var waitingOrderDecisions = cognitionState.Queue
             .Where(entry => waitingHosted.Contains(entry.InhabitantId) &&
                 entry.Observation.OperativeOrderInstructionId is not null &&
-                IsOrderDecisionObservationCurrent(entry.Observation))
+                IsOrderDecisionObservationCurrent(entry.Observation) &&
+                (!awaitingDispatch.Contains(entry.InhabitantId) ||
+                 IsUndeliveredFinishedOrderDecision(entry.Observation)))
             .Select(entry => entry.InhabitantId)
             .ToHashSet(StringComparer.Ordinal);
         var staleOrderDecisions = cognitionState.Queue
@@ -56,7 +68,9 @@ public sealed partial class PrivateWorldRuntime
                 continue;
             if (FarmWorkFor(inhabitant.Id) is not null && operativeOrder is null &&
                 !NeedsUrgentFood(physical) && !NeedsUrgentWarmth(physical) &&
-                !ShouldDispatchConversationChoice(inhabitant.Id))
+                !staleRunDecisions.Contains(inhabitant.Id) &&
+                !awaitingDispatch.Contains(inhabitant.Id) &&
+                !ShouldDispatchConversationChoice(inhabitant.Id) && GuardianPlacementCandidate(inhabitant.Id) is null)
                 continue;
             if (operativeOrder is not null && physical.Project is { Stage: not ("completed" or "cancelled") } orderedProject)
             {
@@ -89,6 +103,8 @@ public sealed partial class PrivateWorldRuntime
             }
             var current = runtimes[inhabitant.Id].CurrentIntention;
             if (!namingRetries.Contains(inhabitant.Id) && !staleOrderDecisions.Contains(inhabitant.Id) &&
+                !staleRunDecisions.Contains(inhabitant.Id) &&
+                !awaitingDispatch.Contains(inhabitant.Id) &&
                 !NeedsCognition(inhabitant.Id, current, candidates, conversationChoiceContext))
             {
                 continue;
@@ -114,10 +130,12 @@ public sealed partial class PrivateWorldRuntime
                 physical.RecentThoughts is { Count: > 0 } thoughts ? thoughts[^1].Text : null,
                 checkpoint.Households.SingleOrDefault(item => item.Id == inhabitant.HouseholdId)?.Name,
                 towns.SingleOrDefault(item => item.ResidentIds.Contains(inhabitant.Id, StringComparer.Ordinal))?.Name,
-                HousingNote(inhabitant.Id), EquipmentNote(inhabitant.Id), ContinuityNote(inhabitant.Id),
+                GuardianPlacementModelNote(inhabitant.Id), EquipmentNote(inhabitant.Id), ContinuityNote(inhabitant.Id),
                 DepartureNote: DepartureNote(inhabitant.Id), CivicNote: CivicNote(inhabitant.Id),
                 MedicalCareNote: MedicalCareNoteCore(inhabitant.Id), TownMembershipNote: TownMembershipNote(inhabitant.Id),
-                ToolMakingRequestNote: ToolMakingRequestNoteCore(inhabitant.Id));
+                ToolMakingRequestNote: ToolMakingRequestNoteCore(inhabitant.Id),
+                AllowedChildSurnames: inhabitant.NeedsName && InhabitantNameRules.RequiresParentSurname(checkpoint, inhabitant.Id)
+                    ? InhabitantNameRules.AllowedChildSurnames(checkpoint, inhabitant.Id) : null);
             var observation = new InhabitantObservation(
                 inhabitant.Id,
                 WorldTick,
@@ -210,6 +228,10 @@ public sealed partial class PrivateWorldRuntime
         observation.RunEpoch == society.Checkpoint.RunEpoch &&
         (observation.OperativeOrderInstructionId == PendingInstructionFor(observation.InhabitantId)?.InstructionId ||
             IsFinishedOrderDecisionAwaitingReply(observation));
+
+    private bool IsUndeliveredFinishedOrderDecision(InhabitantObservation observation) =>
+        IsFinishedOrderDecisionAwaitingReply(observation) && instructionsByIdempotency.Values.Any(item =>
+            item.InstructionId == observation.OperativeOrderInstructionId && item.ObservedTick is null);
 
     private bool IsFinishedOrderDecisionAwaitingReply(InhabitantObservation observation)
     {
@@ -331,7 +353,9 @@ public sealed partial class PrivateWorldRuntime
 
     private static string GuardianCandidateContext(IEnumerable<CognitionCandidate> candidates)
     {
-        var ids = candidates.Where(candidate => candidate.Id.StartsWith("guardian_accept:", StringComparison.Ordinal))
+        var ids = candidates.Where(candidate => (candidate.Id.StartsWith("guardian_accept:", StringComparison.Ordinal) ||
+            candidate.Id.StartsWith("guardian_relocate:", StringComparison.Ordinal) ||
+            candidate.Id.StartsWith("guardian_follow:", StringComparison.Ordinal)))
             .Select(candidate => Convert.ToBase64String(Encoding.UTF8.GetBytes(candidate.Id))
                 .TrimEnd('=').Replace('+', '-').Replace('/', '_'))
             .Order(StringComparer.Ordinal).ToArray();
@@ -341,7 +365,9 @@ public sealed partial class PrivateWorldRuntime
     private static bool HasNewGuardianCandidate(string? lastDecisionContext, IEnumerable<CognitionCandidate> candidates)
     {
         var previouslyOffered = GuardianCandidateContextFromLastDecision(lastDecisionContext);
-        return candidates.Where(candidate => candidate.Id.StartsWith("guardian_accept:", StringComparison.Ordinal))
+        return candidates.Where(candidate => (candidate.Id.StartsWith("guardian_accept:", StringComparison.Ordinal) ||
+            candidate.Id.StartsWith("guardian_relocate:", StringComparison.Ordinal) ||
+            candidate.Id.StartsWith("guardian_follow:", StringComparison.Ordinal)))
             .Select(candidate => Convert.ToBase64String(Encoding.UTF8.GetBytes(candidate.Id))
                 .TrimEnd('=').Replace('+', '-').Replace('/', '_'))
             .Any(candidate => !previouslyOffered.Contains(candidate));
@@ -385,6 +411,7 @@ public sealed partial class PrivateWorldRuntime
                 continue;
             }
             var order = PendingInstructionFor(inhabitant.Id);
+            if (order is null && ContinueGuardianPlacement(inhabitant.Id)) continue;
             if (pendingHosted.Contains(inhabitant.Id) && order is null)
                 continue;
             if (IsConversationBusy(inhabitant.Id))
@@ -457,6 +484,12 @@ public sealed partial class PrivateWorldRuntime
                     ContinueTownCivicVisit(inhabitant.Id, intention.CandidateId);
                 continue;
             }
+            if (IsTownProjectDonationCandidate(intention.CandidateId))
+            {
+                if (intention.Provider == DecisionProviderKind.LargeLanguageModel)
+                    ContinueTownProjectDonationWalk(inhabitant.Id, intention.CandidateId);
+                continue;
+            }
             if (IsOrnamentCandidate(intention.CandidateId))
             {
                 if (intention.Provider == DecisionProviderKind.LargeLanguageModel)
@@ -484,7 +517,7 @@ public sealed partial class PrivateWorldRuntime
         foreach (var id in waitingIds.OrderBy(item => item, StringComparer.Ordinal))
         {
             if (!inhabitants.TryGetValue(id, out var state)) continue;
-            if (handledOrders.Contains(id)) continue;
+            if (handledOrders.Contains(id) || HasGuardianPlacementTask(id) && guardianPlacementActions.Contains(id)) continue;
             if (PendingInstructionFor(id) is not null) continue;
             if (!NeedsUrgentFood(state) && !NeedsUrgentWarmth(state))
                 continue;
@@ -518,6 +551,7 @@ public sealed partial class PrivateWorldRuntime
             return;
         var pendingInstruction = PendingInstructionFor(decision.InhabitantId);
         var candidateId = decision.Admission.Intention.CandidateId;
+        if (candidateId != "safe_idle") guardianPlacementActions.Add(decision.InhabitantId);
         if (decision.Admission.Intention.OperativeOrderInstructionId != pendingInstruction?.InstructionId)
         {
             AppendEvent("instruction_order_stale_decision", decision.InhabitantId);
@@ -561,6 +595,11 @@ public sealed partial class PrivateWorldRuntime
                 if (!decision.Admission.FellBack && decision.Admission.Intention.Provider == DecisionProviderKind.LargeLanguageModel)
                     ApplyTownCivicCandidate(decision.InhabitantId, candidateId, decision.Admission.CivicProposal,
                         decision.Admission.CivicBallot, decision.Admission.CivicLandTiles);
+            }
+            else if (IsTownProjectDonationCandidate(candidateId))
+            {
+                if (!decision.Admission.FellBack && decision.Admission.Intention.Provider == DecisionProviderKind.LargeLanguageModel)
+                    ApplyTownProjectDonation(decision.InhabitantId, candidateId);
             }
             else if (!ApplyToolMakingRequestDecision(decision))
                 ApplyCandidate(decision.InhabitantId, state, candidateId, reportIdle: true);
@@ -612,7 +651,10 @@ public sealed partial class PrivateWorldRuntime
                 ObserverReply = observerReply,
             };
             checkpointSchemaVersion = StateSchemaVersion;
+            // A reply for an order that has since finished is set aside as stale,
+            // so a suggestion it carried stays open for the next fresh request.
             if (instruction.Kind == OwnerInstructionKind.Suggestive &&
+                admission.Intention.OperativeOrderInstructionId == PendingInstructionFor(inhabitantId)?.InstructionId &&
                 completedInstructionIds.Add(instruction.InstructionId))
                 completedSuggestions.Add(instruction.InstructionId);
         }
@@ -626,6 +668,7 @@ public sealed partial class PrivateWorldRuntime
         string candidateId,
         bool reportIdle)
     {
+        if (candidateId != "safe_idle") guardianPlacementActions.Add(inhabitantId);
         if (IsOrnamentCandidate(candidateId)) return;
         if (candidateId.StartsWith(ToolRequestPrefix, StringComparison.Ordinal))
         {
@@ -639,6 +682,13 @@ public sealed partial class PrivateWorldRuntime
                 AppendEvent("conversation_action_rejected", $"{inhabitantId}:{candidateId.Split(':')[0]}");
             else if (inhabitants[inhabitantId].Equipment?.Repair is not null)
                 CancelEquipmentRepair(inhabitantId);
+            return;
+        }
+        if (TryApplyGuardianPlacementCandidate(inhabitantId, candidateId)) return;
+        // An explicit withdrawal of care must not turn into continued field work.
+        if (candidateId.StartsWith("guardian_end:", StringComparison.Ordinal) && HasGuardianPlacementTask(inhabitantId))
+        {
+            ApplyDependentCareCandidate(inhabitantId, candidateId);
             return;
         }
         if (!AgePermitsCandidate(inhabitantId, candidateId))
@@ -695,6 +745,12 @@ public sealed partial class PrivateWorldRuntime
         if (candidateId.StartsWith("civic|", StringComparison.Ordinal))
         {
             // Civic choices execute only through the personal admission path above.
+            return;
+        }
+        if (IsTownProjectDonationCandidate(candidateId)) return;
+        if (IsTownProjectCandidate(candidateId))
+        {
+            ApplyTownProjectCandidate(inhabitantId, state, candidateId);
             return;
         }
         if (candidateId.StartsWith("council_", StringComparison.Ordinal))
@@ -782,6 +838,7 @@ public sealed partial class PrivateWorldRuntime
                 CollectEquipment(inhabitantId, state, kind);
             return;
         }
+        if (ApplyHandcartCandidate(inhabitantId, state, candidateId)) return;
         if (candidateId.StartsWith(RepairToolPrefix, StringComparison.Ordinal))
         {
             RepairTool(inhabitantId, state, candidateId[RepairToolPrefix.Length..]);
@@ -792,6 +849,13 @@ public sealed partial class PrivateWorldRuntime
             GatherRareMaterial(inhabitantId, state, candidateId[RareMiningPrefix.Length..]);
             return;
         }
+        if (candidateId == "knowledge_continue" || candidateId.StartsWith(KnowledgeWritePrefix, StringComparison.Ordinal) ||
+            candidateId.StartsWith(KnowledgeCopyPrefix, StringComparison.Ordinal) || candidateId.StartsWith(KnowledgeReadPrefix, StringComparison.Ordinal))
+        {
+            ApplyKnowledgeWritingCandidate(inhabitantId, state, candidateId);
+            return;
+        }
+        if (ApplyKnowledgeStorageCandidate(inhabitantId, state, candidateId)) return;
         if (candidateId.StartsWith(KnowledgeSharePrefix, StringComparison.Ordinal))
         {
             ApplyKnowledgeShare(inhabitantId, state, candidateId);
@@ -1096,8 +1160,10 @@ public sealed partial class PrivateWorldRuntime
             candidates.Add(new CognitionCandidate("harvest_food", "Follow the owner's harvest instruction.", 0, foodSource.Id));
         }
 
+        if (AdultResident(inhabitantId)) AddHandcartCandidates(candidates, inhabitantId, state);
         AddSurvivalCandidates(candidates, inhabitantId, state);
         AddDependentCareCandidates(candidates, inhabitantId);
+        if (GuardianPlacementCandidate(inhabitantId) is { } placementCandidate) candidates.Add(placementCandidate);
         AddMedicalCareCandidates(candidates, inhabitantId);
         if (AdultResident(inhabitantId))
         {
@@ -1136,6 +1202,8 @@ public sealed partial class PrivateWorldRuntime
             AddTradeCandidates(candidates, inhabitantId);
             AddCouncilCandidates(candidates, inhabitantId);
             AddTownCivicCandidates(candidates, inhabitantId);
+            AddTownProjectCandidates(candidates, inhabitantId);
+            AddTownProjectDonationCandidates(candidates, inhabitantId);
             AddLearningCandidates(candidates, inhabitantId);
             AddExplorationCandidate(candidates, inhabitantId, state);
         }
@@ -1199,11 +1267,15 @@ public sealed partial class PrivateWorldRuntime
             var householdWorkstation = recipe.WorkstationBuildingId is { } workstationId &&
                 worldContent.Buildings.Any(definition => definition.CanonicalId == workstationId &&
                     definition.Tags.Any(IsHouseholdBuildingTag));
-            var recipeOwner = ProductionOwnerFor(null, inhabitant.Id);
+            var personalCart = IsHandcartRecipe(recipe);
+            var recipeOwner = personalCart ? inhabitant.Id : ProductionOwnerFor(null, inhabitant.Id);
+            if (personalCart && (!HasCarriedUnreservedQuantities(inhabitant.Id, recipe.Inputs) ||
+                society.Checkpoint.Inventory.Lots.Any(lot => lot.ItemKind == InventoryContainerRules.Handcart && lot.OwnerId == inhabitant.Id)))
+                continue;
             if (!NeedsRecipeOutput(recipe, recipeOwner, inhabitant.Id) || AnotherAgentWaitsForWorkSite(inhabitant.Id, recipe) ||
                 !CanAcquireProjectInputs(recipe.Inputs, recipeOwner, inhabitant.Id) ||
                 !TryFindRecipeSite(recipe, out var siteId, out var position, inhabitant.Id) ||
-                householdWorkstation &&
+                householdWorkstation && !personalCart &&
                 (recipeOwner is null || !HasIngredientsAtBuilding(recipe.Inputs, recipeOwner, siteId)))
             {
                 continue;

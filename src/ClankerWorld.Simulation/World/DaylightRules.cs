@@ -1,8 +1,8 @@
 namespace ClankerWorld.Simulation.World;
 
 /// <summary>
-/// Time of day, derived only from the saved world tick and the world's saved
-/// calendar; nothing about it is saved. Night follows the seasons (agreed on
+/// Time of day, derived from the saved world tick and calendar configuration;
+/// nothing about it is saved. Night follows the seasons (agreed on
 /// October 3, replacing #641's same-all-year night): it is 30% of the day on
 /// the first day of summer, 50% on the first day of winter and 40% on the
 /// first days of spring and autumn, changing evenly from day to day in
@@ -89,8 +89,8 @@ public static class DaylightRules
     public static int DarknessBasisPoints(WorldSystemsState state)
     {
         ArgumentNullException.ThrowIfNull(state);
-        var ticksPerDay = state.Config.TicksPerDay;
-        return DarknessBasisPoints(state.WorldTick, ticksPerDay,
-            NightShare(state.Config, state.WorldTick / ticksPerDay));
+        var calendar = WorldCalendarRules.FromTick(state.WorldTick, state.Config);
+        return DarknessBasisPoints(calendar.TickOfDay, state.Config.TicksPerDay,
+            NightShare(state.Config, calendar.DayIndex));
     }
 }

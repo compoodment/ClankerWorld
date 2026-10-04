@@ -11,6 +11,8 @@ internal static partial class OwnerEndpoints
 {
     private static void MapRuntimeControl(WebApplication app, bool isPrivateWorld)
     {
+        MapDeveloperEdits(app, isPrivateWorld);
+
         app.MapPost("/api/v1/owner/control/life-pace", (
             OwnerSignedHttpRequest<OwnerLifePaceAction> request,
             OwnerRequestAuthorizer authorizer,

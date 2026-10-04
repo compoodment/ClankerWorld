@@ -254,10 +254,10 @@ public sealed partial class PrivateWorldRuntime
                 throw new ArgumentException("Choose an agent in this world.", nameof(agentId));
             ArgumentNullException.ThrowIfNull(name);
             var existing = society.Checkpoint.GetInhabitant(agentId);
-            if (existing.Name == name.Trim() && !existing.NeedsName) return false;
+            if (existing.Name == name.Trim() && existing.HasChosenName && !existing.NeedsName) return false;
             if (InhabitantNameRules.CanonicalKey(name) is null)
                 throw new ArgumentException("Choose a valid name.", nameof(name));
-            if (existing.Name != name.Trim() && InhabitantNameRules.IsTaken(society.Checkpoint, agentId, name))
+            if (InhabitantNameRules.IsTaken(society.Checkpoint, agentId, name))
                 throw new InhabitantNameTakenException();
             var result = society.Apply(checkpoint => SocietyFixture.RenameInhabitant(checkpoint, agentId, name));
             var changed = result.NewEvents is { Count: > 0 };

@@ -16,7 +16,7 @@ public sealed partial class SettlementParenthoodTests
         try
         {
             var observations = new System.Collections.Concurrent.ConcurrentDictionary<string, string>();
-            var state = await PreparedState();
+            var state = await PreparedGenerationState();
             world = PrivateWorldRuntime.Restore(state, _ => new GenerationProvider(observations));
             world.Pause();
             world.SetLifePace(1_460);
@@ -25,7 +25,9 @@ public sealed partial class SettlementParenthoodTests
             string? childId = null;
             var careSeen = false;
             var restarts = 0;
-            for (var tick = 0; tick < 12_000; tick++)
+            var positionedBirth = false;
+            var positionedAges = new HashSet<SocietyAgeBand>();
+            for (var tick = 0; tick < 1_200; tick++)
             {
                 var step = await world.AdvanceOneTickAsync();
                 careSeen |= step.Events.Any(item => item.Kind == "child_cared_for");
@@ -38,20 +40,55 @@ public sealed partial class SettlementParenthoodTests
                     var physical = world.Inhabitants.Single(person => person.InhabitantId == childId);
                     if (child.AgeBand == SocietyAgeBand.Adult && physical.Skills?.Count > 0)
                         break;
+                    if (careSeen && child.AgeBand != SocietyAgeBand.Adult && !positionedAges.Contains(child.AgeBand))
+                    {
+                        positionedAges.Add(child.AgeBand);
+                        if (child.AgeBand is SocietyAgeBand.Child or SocietyAgeBand.Adolescent)
+                        {
+                            // Retain real archived history and two restarts without
+                            // spending thousands of ticks on unrelated settlement life.
+                            if (restarts == 0)
+                                for (var pause = 0; pause <= PrivateWorldHistory.CompactionThreshold / 2; pause++)
+                                {
+                                    world.Pause();
+                                    world.Resume();
+                                }
+                            world.Pause();
+                            file.Save(world);
+                            world.Dispose();
+                            world = file.LoadOrCreate(state.WorldSeed);
+                            Assert.True(world.Society.IsPaused);
+                            world.Resume();
+                            restarts++;
+                        }
+                        var nextAge = child.AgeBand switch
+                        {
+                            SocietyAgeBand.Infant => world.Society.Config.InfantYears,
+                            SocietyAgeBand.Child => world.Society.Config.ChildYears,
+                            SocietyAgeBand.Adolescent => world.Society.Config.AdultYears,
+                            _ => throw new InvalidOperationException("Unexpected life stage before adult work."),
+                        };
+                        PositionChildBeforeAge(world, childId, nextAge);
+                    }
+                }
+                else if (!positionedBirth && world.Inhabitants.FirstOrDefault(person => person.Parenthood?.Stage == "preparing")
+                         is { Parenthood: { } plan })
+                {
+                    PositionFamilyFixtureAt(world, plan.LastTransitionTick + 599);
+                    positionedBirth = true;
                 }
                 if (tick % 256 == 0) file.Save(world);
-                if (tick is 2_000 or 5_000)
-                {
-                    world.Pause();
-                    file.Save(world);
-                    world.Dispose();
-                    world = file.LoadOrCreate(state.WorldSeed);
-                    Assert.True(world.Society.IsPaused);
-                    world.Resume();
-                    restarts++;
-                }
             }
-            Assert.NotNull(childId);
+            Assert.True(childId is not null,
+                $"No child was born by tick {world.WorldTick}. Family plans=" +
+                System.Text.Json.JsonSerializer.Serialize(world.Inhabitants.Select(person => new
+                {
+                    person.InhabitantId,
+                    person.Parenthood,
+                    HouseholdId = world.Society.GetInhabitant(person.InhabitantId).HouseholdId,
+                })));
+            Assert.Equal(new[] { SocietyAgeBand.Infant, SocietyAgeBand.Child, SocietyAgeBand.Adolescent },
+                positionedAges.Order().ToArray());
             var grown = world.Society.GetInhabitant(childId);
             Assert.Equal(SocietyAgeBand.Adult, grown.AgeBand);
             Assert.Equal(SocietyWorkRole.Unassigned, grown.CurrentRole);
@@ -83,6 +120,16 @@ public sealed partial class SettlementParenthoodTests
                     // family choices; reconsider even an unchanged idle context.
                     LastDecisionContext = null,
                 }).ToArray(),
+                // Nor may an intention saved then, such as hauling to the Blacksmith,
+                // carry off this task's wood before the adult chooses the task.
+                Society = adultState.Society with
+                {
+                    Cognition = adultState.Society.Cognition with
+                    {
+                        Runtimes = adultState.Society.Cognition.Runtimes
+                            .Select(runtime => runtime with { CurrentIntention = null }).ToArray(),
+                    },
+                },
             };
             var household = grown.HouseholdId!;
             var inventory = InventoryFixture.AddLot(adultState.Society.Society.Inventory,
@@ -156,6 +203,36 @@ public sealed partial class SettlementParenthoodTests
             world?.Dispose();
             directory.Delete(recursive: true);
         }
+    }
+
+    private static async Task<PrivateWorldRuntimeState> PreparedGenerationState()
+    {
+        var state = await PreparedState();
+        using var setup = PrivateWorldRuntime.Restore(state, _ => new ParentProvider("safe_idle"));
+        var house = setup.WorldContent.Buildings.Single(building => building.Tags.Contains("house", StringComparer.Ordinal));
+        var household = state.Society.Society.Households.Single();
+        var site = state.Map.Tiles.First(tile => WorldContentSimulationRules.Fits(state.Map,
+            state.WorldSimulation!.Buildings.Select(building => (building,
+                state.WorldContent!.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId))),
+            BuildingStorageRules.WithSize(house, 2, 1), tile.Position)).Position;
+        Assert.True(setup.PlaceBuilding("generation-house", house.CanonicalId, site, household.Id).Applied);
+        state = setup.ExportState();
+        var worker = household.MemberIds[0];
+        state = FarmFieldTests.WithInventory(state, InventoryFixture.AddLot(state.Society.Society.Inventory,
+            "generation-expansion-wood", "wood", household.Id, 4, storageBuildingId: "generation-house")) with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == worker
+                ? person with { Position = site, LastDecisionContext = null } : person).ToArray(),
+        };
+        // Complete a paid expansion before family life starts: four founders
+        // and their child need more than the first House's three places.
+        using var expanded = PrivateWorldRuntime.Restore(state, _ => new ParentProvider("safe_idle"));
+        var expansion = expanded.StartBuildingExpansion(worker, "generation-house");
+        Assert.True(expansion.Applied, expansion.Failure);
+        for (var tick = 0; tick < 20; tick++) Assert.True((await expanded.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal(WorldProductionJobState.Completed, Assert.Single(expanded.WorldSimulation.BuildingExpansions!).State);
+        Assert.All(expanded.Inhabitants, person => Assert.Null(person.Housing?.Relocation));
+        return expanded.ExportState();
     }
 
     private sealed class AdultWorkProvider(string actor, string recipe,

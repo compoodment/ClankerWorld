@@ -613,9 +613,9 @@ public sealed partial class PrivateWorldRuntime
             }
             recipeBuilding = worldSimulation.Buildings.FirstOrDefault(item => item.InstanceId == recipeSite);
         }
-        var constructionOwner = recipe is not null ? ProductionOwnerFor(recipeBuilding, inhabitantId)
+        var constructionOwner = recipe is not null ? IsHandcartRecipe(recipe) ? inhabitantId : ProductionOwnerFor(recipeBuilding, inhabitantId)
             : BuildingConstructionOwner(inhabitantId, building!);
-        if (recipe is not null && recipeBuilding?.HouseholdId is not null &&
+        if (recipe is not null && !IsHandcartRecipe(recipe) && recipeBuilding?.HouseholdId is not null &&
             worldContent.Buildings.Any(definition => definition.CanonicalId == recipeBuilding.DefinitionId &&
                 definition.Tags.Any(IsHouseholdBuildingTag)) &&
             !HasIngredientsAtBuilding(recipe.Inputs, constructionOwner, recipeBuilding.InstanceId))
@@ -842,7 +842,7 @@ public sealed partial class PrivateWorldRuntime
         return plan is null ? int.MaxValue : checked(plan.Quantity + plan.TreeSeedQuantity);
     }
 
-    private void GatherProjectMaterial(string inhabitantId, PlaytestInhabitantState state, string itemKind,
+    private MaterialGatherEffect? GatherProjectMaterial(string inhabitantId, PlaytestInhabitantState state, string itemKind,
         MapResource source, bool useHarvestBonus = true, string? deliveryBuildingId = null)
     {
         var ecology = worldSystems.Ecology.GetResource(source.Id);
@@ -850,22 +850,22 @@ public sealed partial class PrivateWorldRuntime
         if (plan is null)
         {
             CollectToolForGathering(inhabitantId, state, itemKind, source);
-            return;
+            return null;
         }
         if (!IsWithinInteractionRange(state.Position, source.Position, ResourceInteractionRange))
         {
             MoveToward(inhabitantId, inhabitants[inhabitantId], source.Position, "materials", ResourceInteractionRange);
-            return;
+            return null;
         }
         if (FreeCarryCapacity(inhabitantId) < checked(plan.Quantity + plan.TreeSeedQuantity))
         {
             AppendEvent("carrying_full", inhabitantId);
-            return;
+            return null;
         }
         var harvest = EcologyRules.Harvest(ecology, 1);
         if (!harvest.IsValid || harvest.Resource is null)
         {
-            return;
+            return null;
         }
         var harvested = source.TreeKind is not null && harvest.Resource.Quantity == 0 && source.IsRenewable
             ? harvest.Resource with
@@ -896,6 +896,7 @@ public sealed partial class PrivateWorldRuntime
             // start a new tree elsewhere.
             AppendEvent("tree_seed_collected", $"{inhabitantId}:{source.Id}:{plan.TreeSeedQuantity}");
         }
+        return new MaterialGatherEffect($"material:{WorldTick}:{inhabitantId}", itemKind, plan.Quantity, source.Id);
     }
 
     private static InventoryCheckpoint MarkBuildingMaterialDelivery(InventoryCheckpoint inventory, string lotId,

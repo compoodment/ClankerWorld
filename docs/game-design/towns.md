@@ -242,7 +242,7 @@ Any move between Towns still follows the admission rules in issue
 Adult departure, personal ownership, limited physical collection, the once-only
 food allowance, care-group moves and solo formation are implemented through
 [#593](https://github.com/compoodment/ClankerWorld/issues/593). Overcrowding
-notice and relocation selection remain separate work in
+notice and relocation selection are implemented through
 [#599](https://github.com/compoodment/ClankerWorld/issues/599). The agreed
 response to losing a dependent's last active primary caregiver is described in
 [Agents and families](agents-and-families.md#dependent-care-after-loss-of-the-last-active-primary-caregiver).
@@ -371,7 +371,7 @@ and [storage-expansion work](https://github.com/compoodment/ClankerWorld/issues/
 remain their original implementation slices. Resident limits, admission checks,
 birth placement and expansion for more places are implemented in
 [#598](https://github.com/compoodment/ClankerWorld/issues/598). Notice,
-departure and relocation for existing overcrowding remain separate work in
+departure and relocation for existing overcrowding are implemented in
 [#599](https://github.com/compoodment/ClankerWorld/issues/599).
 
 ### Town membership
@@ -404,6 +404,17 @@ departure and relocation for existing overcrowding remain separate work in
   resident. Children gain no adult council or voting rights before adulthood.
   The household still needs agreement and places for the complete care group;
   Town approval creates no free House, private access or extra resident places.
+
+**Agreed by the owner on October 3, 2026
+([#871](https://github.com/compoodment/ClankerWorld/issues/871)):** when a
+resident asks the council to admit an adult nearby who has no Town, the
+council's approval waits **one unpaused world day** for the newcomer to accept.
+If they have not accepted by then, the approval lapses; paused time does not
+count. Anyone may ask the council again later through the ordinary proposal
+rules. There is no separate decline choice. An adult's own request is
+unaffected: it admits them as soon as it passes. The runtime change is
+tracked in [#887](https://github.com/compoodment/ClankerWorld/issues/887);
+until then an unaccepted approval stays open.
 
 The separately agreed New World and Add Agent placement rules still initialize
 Town membership: the first four agents belong to the first Town, and confirmed
@@ -603,6 +614,16 @@ or blocking a project must preserve its goods and safely release unspent
 reservations. This is a supported construction effect; free-form law text
 cannot execute it. The existing resident rule for Warehouse expansion stays
 in place. Costs, quantities and work times remain provisional for playtesting.
+
+**Street lanterns, agreed by the owner on October 3, 2026:** agents build
+street lanterns beside Roads; the map does not place them by itself. A lantern
+needs **no fuel**: once built it lights itself at dusk and goes out at dawn.
+There are two designs, a round **stone lamp** with an open flame and a
+**hanging lantern** on a roadside post with an arm over the Road
+([look](interface-and-art.md#pixel-art-and-generated-images)). Still open:
+what each costs, whether a lantern needs the Council's approval as a shared
+Town project, and where lanterns stand. A suggestion is stone lamps at Road
+junctions and hanging lanterns every few tiles along a Road.
 
 The intended building roles now include House, Warehouse, Workshop,
 Farmhouse, farm fields, an adjacent private farm Silo, optional household-run
@@ -1505,6 +1526,23 @@ Baskets and sacks use one equipped carrying slot. A handcart is a visible
 object that an agent pulls, parks, repairs and transfers ownership of. Worn
 clothing still does not change the agent's map sprite. Exact carrying amounts,
 cart movement costs, protection and repair quantities are tuned in playtests.
+
+The handcart trial uses 1 refined iron to make 2 fittings, then 4 carried wood,
+2 carried fittings and 1 carried rope at a household Blacksmith to build one
+personal cart. Its 32 cargo units are separate from the puller's carried load.
+The owner must reach it to attach, load, unload, park, repair or give it away.
+Loading household goods still requires that household's permission and physical
+pickup. Giving a parked cart transfers that cart and its contents together,
+without changing access to any other property. Carts carry loose goods;
+filled pots and jugs remain separate carried vessels in this trial.
+
+A pulled cart follows cardinal legal foot routes and avoids unroaded mountains.
+Road travel has the ordinary foot movement cost and less cart wear; other
+routes take an extra movement wait. A broken cart stops at its last position
+with its load intact. Unloading can move goods into the owner's available
+carrying space or set them down as owned ground goods, including when the cart
+or contents are damaged. One carried wood, fitting and rope repair the cart
+where it stands. These recipes, limits and rates remain provisional.
 
 The current equipment trial allows 8 cargo units without an aid, 16 with a
 basket and 24 with a sack. The equipped garment and aid each occupy their own

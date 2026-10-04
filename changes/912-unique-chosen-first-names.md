@@ -1,0 +1,1 @@
+- Chosen first names are unique across living and deceased agents, even with different surnames. Temporary names stay available until deliberately chosen. Children use a biological parent's surname. Older alpha saves are refused and preserved because the new format records whether each name was chosen.

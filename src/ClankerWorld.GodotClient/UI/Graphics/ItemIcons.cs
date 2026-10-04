@@ -12,7 +12,7 @@ namespace ClankerWorld.GodotClient.UI;
 /// counted. The set is the complete catalogue the owner approved in the art
 /// review, so many icons are
 /// for agreed items the simulation does not make yet, such as milk, the
-/// weapons, the handcart and the coin; they wait here until it does.
+/// weapons and the coin; they wait here until it does.
 /// </summary>
 public static class ItemIcons
 {
@@ -1343,15 +1343,19 @@ public static class ItemIcons
 
     /// <summary>
     /// Simulation item kinds shown with an approved icon kept under the art
-    /// review's name: the storage pot uses the clay pot, fresh water uses
-    /// the water drop, and meals without distinct art use the food icon.
+    /// review's name. A simple meal uses the approved plate; named porridges
+    /// without distinct art still use the food icon.
     /// A kind's own art takes precedence over these mappings.
     /// </summary>
     private static readonly Dictionary<string, string> DrawnAs = new(StringComparer.Ordinal)
     {
         ["storage_pot"] = "clay_pot",
         ["fresh_water"] = "water",
-        ["simple_meal"] = "food",
+        ["potatoes"] = "potato",
+        ["cultivated_green_seed"] = "green_seed",
+        ["medicinal_herbs"] = "herbs",
+        ["diamond_ornament"] = "ornament",
+        ["simple_meal"] = "meal",
         ["berry_porridge"] = "food",
         ["fruit_porridge"] = "food",
         ["gold_ore"] = "gold",
