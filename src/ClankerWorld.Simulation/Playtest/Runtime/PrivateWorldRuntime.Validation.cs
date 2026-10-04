@@ -44,6 +44,8 @@ public sealed partial class PrivateWorldRuntime
             instructionsByIdempotency.Values, WorldTick);
         ValidateExpansionOrderBindings(worldSimulation, worldContent, society.Checkpoint, towns,
             instructionsByIdempotency.Values, WorldTick);
+        ValidateShelterOrderBindings(worldSimulation, worldContent, society.Checkpoint,
+            instructionsByIdempotency.Values, WorldTick);
         if (worldSimulation.Buildings.Any(building => building.HouseholdId is { } householdId &&
             !society.Checkpoint.Households.Any(household => household.Id == householdId)))
             throw new InvalidDataException("A House references a missing household.");
@@ -469,6 +471,8 @@ public sealed partial class PrivateWorldRuntime
             state.Instructions ?? [], state.Society.Society.WorldTick);
         ValidateExpansionOrderBindings(state.WorldSimulation, state.WorldContent, society.Checkpoint, state.Towns,
             state.Instructions ?? [], state.Society.Society.WorldTick);
+        ValidateShelterOrderBindings(state.WorldSimulation, state.WorldContent, society.Checkpoint,
+            state.Instructions ?? [], state.Society.Society.WorldTick);
         ValidateBuildingExpansionState(state.WorldSimulation, state.WorldContent, state.Society.Society,
             state.Map, state.SchemaVersion);
         ValidateHandcarts(state.HandcartHitches, state.Society.Society.Inventory, state.Inhabitants, travelMap);
@@ -612,10 +616,11 @@ public sealed partial class PrivateWorldRuntime
             order.Action is not ("collect_goods" or "store_goods" or "return_borrowed" or "deliver_stock") && order.TargetItemKind is not null ||
             order.Action != "deliver_stock" && (order.DeliveryPurpose is not null ||
                 order.DeliveryRoute is not null || order.DeliveryLotId is not null || order.DeliveryQuantity is not null) ||
-            order.Action is not ("deliver_stock" or "construct_building" or "expand_building") && order.TargetBuildingKind is not null ||
+            order.Action is not ("deliver_stock" or "construct_building" or "expand_building" or "seek_shelter" or "tend_fire") && order.TargetBuildingKind is not null ||
             order.Action != "construct_building" && (order.TargetDefinitionId is not null || order.ConstructionOwnerId is not null ||
                 order.ConstructionPosition is not null || order.ConstructionStartedTick is not null || order.ConstructionInstanceId is not null) ||
             order.Action != "expand_building" && order.ExpansionBinding is not null ||
+            order.Action is not ("seek_shelter" or "tend_fire") && (order.ShelterBinding is not null || order.ShelterCompletion is not null) ||
             !IsValidCustodyBindingShape(order) ||
             order.TargetFoodKind is not (null or "berries" or "fruit" or "wild_greens") &&
                 (order.Action != "consume_food" || !IsEdibleFood(order.TargetFoodKind)) &&
@@ -635,6 +640,9 @@ public sealed partial class PrivateWorldRuntime
                 order.ProgressUnit == "none" && !order.RepeatUntilCancelled && order.TargetFoodKind is null &&
                 order.TargetResourceId is null && order.TargetPosition is null && order.LastEffectId is null &&
                 order.TargetAgentId is null;
+
+        if (order.Action is "seek_shelter" or "tend_fire")
+            return IsValidShelterOrderShape(order, instruction, worldTick);
 
         if (order.Action is "construct_building" or "expand_building")
         {
@@ -822,7 +830,50 @@ public sealed partial class PrivateWorldRuntime
         return true;
     }
 
-    private static bool IsValidProductionBindingId(string id) => id.Length is > 0 and <= 512 &&
+    private static bool IsValidShelterOrderShape(OwnerInstructionOrder order, OwnerQueuedInstruction instruction, long worldTick)
+    {
+        var seeking = order.Action == "seek_shelter";
+        if (order.TargetAgentId is not null || order.TargetBuildingKind is not (null or "house") || order.TargetFoodKind is not null ||
+            order.TargetResourceId is not null || order.RequestedUnits != 1 || order.CompletedUnits is < 0 or > 1 ||
+            order.RepeatUntilCancelled || order.QuantityIsExplicit || order.ProgressUnit != (seeking ? "shelters" : "fires") ||
+            order.Status == "not_understood" || (order.Status == "finished") != (order.CompletedUnits == 1) ||
+            (order.CompletedUnits == 0 ? order.LastEffectId is not null :
+                !IsValidCustodyReceipt(order.LastEffectId, seeking ? "shelter:arrival:" : "shelter:fire:")))
+            return false;
+        if (order.ShelterBinding is not { } binding)
+            return order.CompletedUnits == 0 && order.ShelterCompletion is null;
+        if (!IsBoundedShelterPosition(binding.Position) ||
+            order.TargetPosition is { } requested && requested != binding.Position ||
+            order.TargetBuildingKind == "house" && (binding.Kind != "building" || binding.OwnerId is null))
+            return false;
+        if (binding.Kind == "natural")
+        {
+            if (!seeking || binding.BuildingInstanceId is not null || binding.DefinitionId is not null ||
+                binding.OwnerId is not null || binding.BuildingPosition is not null || binding.BuildingPlacedTick is not null)
+                return false;
+        }
+        else if (binding.Kind == "building")
+        {
+            if (binding.BuildingInstanceId is not { } buildingId || !IsValidProductionBindingId(buildingId) ||
+                binding.DefinitionId is not { } definitionId || !IsValidProductionBindingId(definitionId) ||
+                binding.OwnerId is { } ownerId && !IsValidProductionBindingId(ownerId) ||
+                binding.BuildingPosition is not { } anchor || !IsBoundedShelterPosition(anchor) ||
+                binding.BuildingPlacedTick is not { } placed || placed < 0 || placed > worldTick)
+                return false;
+        }
+        else return false;
+        if (order.ShelterCompletion is not { } completion) return order.CompletedUnits == 0;
+        return order.CompletedUnits == 1 && completion.WorldTick >= instruction.SubmittedTick && completion.WorldTick <= worldTick &&
+            (binding.BuildingPlacedTick is null || binding.BuildingPlacedTick <= completion.WorldTick) &&
+            IsBoundedShelterPosition(completion.Position) &&
+            (seeking ? completion.Position == binding.Position && completion.FuelReservationId is null :
+                !string.IsNullOrWhiteSpace(completion.FuelReservationId));
+    }
+
+    private static bool IsBoundedShelterPosition(GridPoint position) =>
+        position.X is >= -10_000_000 and <= 10_000_000 && position.Y is >= -10_000_000 and <= 10_000_000;
+
+    private static bool IsValidProductionBindingId(string id) => id.Length > 0 &&
         id == id.Trim() && !id.Any(char.IsControl);
 
     private static bool IsValidCustodyBindingShape(OwnerInstructionOrder order)

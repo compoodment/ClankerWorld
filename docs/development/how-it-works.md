@@ -320,6 +320,26 @@ by the same agent chooses a fresh, deterministic instance identity when its
 previous identity belongs to retained order history. It still pays the normal
 cost and cannot satisfy the earlier order.
 
+Shelter orders use `seek_shelter` for one protected arrival and `tend_fire`
+for one real ignition. Their saved binding pins a natural-cover position or
+the exact building, owner, anchor and placement generation. Own and invited
+homes are known targets; other buildings must be locally observable. An
+explicit distant coordinate is approached before its shelter facts are
+inspected. Natural cover uses the existing bounded local search.
+
+Arrival requires live native coverage and permission at the actor's actual
+position; it does not certify warmth recovery. Ignition uses native fuel
+acquisition and consumption, then records the newly created completed
+`heating_fuel` reservation for one owned wood. Each fire completion has its
+own reservation. Gathering uses known or locally observable wood; an absent
+usable supply leaves the task blocked. Historical completion survives weather
+changes, fuel expiry or building removal; unfinished work rechecks the bound
+target and access.
+Food survival can interrupt these tasks, but cold does not suppress the
+protective action. Children may seek shelter; tending fires remains adult
+work. The parser refuses quantities, repetition, durations and recovery
+promises unsupported by these single-task adapters.
+
 Production orders use `produce_item` and retain the exact recipe, output kind,
 chosen work site and owned project/job identity. The job's optional
 `OrderInstructionId` proves that the instruction started it. The bounded catalogue resolves

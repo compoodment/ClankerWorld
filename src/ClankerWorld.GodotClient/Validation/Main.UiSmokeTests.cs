@@ -2714,6 +2714,32 @@ public partial class Main
                     instructionCancelButton.Visible == (buildingOrder.Status == "finished"))
                     throw new InvalidOperationException($"Building tasks must show their building, completion, blocker and cancellation state: {renderedMessages}");
             }
+            foreach (var (shelterOrder, expectedSummary) in new (OwnerWorldInstructionOrder Order, string Summary)[]
+            {
+                (new("seek_shelter", "doing", 1, 0, "shelters", false, TargetBuildingKind: "house"),
+                    "Doing · Seeking shelter in their House · 0/1 shelters reached"),
+                (new("seek_shelter", "blocked", 1, 0, "shelters", false,
+                    BlockedReason: "The requested cover is no longer available."),
+                    "Blocked · Seeking shelter · 0/1 shelters reached · The requested cover is no longer available."),
+                (new("tend_fire", "interrupted", 1, 0, "fires", false, TargetBuildingKind: "house"),
+                    "Interrupted · Lighting a fire in their House · 0/1 fires lit"),
+                (new("tend_fire", "finished", 1, 1, "fires", false),
+                    "Finished · Lighting a fire · 1/1 fires lit"),
+            })
+            {
+                RenderSelectedInhabitantCard(occupied with
+                {
+                    Instructions =
+                    [
+                        new OwnerWorldInstruction("message-shelter-order", founder.Id, "must_do",
+                            "Complete the requested shelter task.", "queued", 0, 0, 1, Order: shelterOrder),
+                    ],
+                });
+                renderedMessages = instructionHistory.GetParsedText();
+                if (!renderedMessages.Contains(expectedSummary + "\n“You said: Complete the requested shelter task.”", StringComparison.Ordinal) ||
+                    instructionCancelButton.Visible == (shelterOrder.Status == "finished"))
+                    throw new InvalidOperationException($"Shelter tasks must show their actual arrival or ignition progress, blocker and cancellation state: {renderedMessages}");
+            }
             RenderSelectedInhabitantCard(queuedOrderSnapshot);
             var alreadyFinished = OrderCancellationResultText(
                 new OwnerOrderControlReceipt("order-private-id", "finished", false, 0, 0));

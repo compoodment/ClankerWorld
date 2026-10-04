@@ -325,6 +325,16 @@ survives later building removal; unfinished work, cancellation and survival
 pauses remain replayable. This version follows delivery-order schema 88. Older alpha checkpoints are
 refused and preserved without migration.
 
+Private-world schema 90 adds shelter target bindings and completion records.
+Building targets pin identity, definition, owner, anchor and placement time;
+natural cover pins its actual destination. Shelter completion records the
+arrival time and position. Fire completion also references the unique actual
+completed one-wood fuel reservation. Validation checks action-specific shapes
+and payment evidence without requiring historical cover, permission or a fire
+to remain available forever. Unfinished targets are revalidated when work
+continues. This version follows building-order schema 89; older alpha checkpoints are
+refused and preserved without migration.
+
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
 Matching parent assignments are disclosed as agreement; when they differ, the
@@ -735,7 +745,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 89. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 90. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus

@@ -487,6 +487,10 @@ public sealed partial class PrivateWorldRuntime
                 instruction.Order is { Action: "produce_item" or "deliver_stock" or "construct_building" or "expand_building" } order &&
                 !IsValidSavedOrder(order, instruction, completed, people, WorldTick, remainingContent)))
                 throw new InvalidOperationException("Content referenced by owner orders requires an explicit migration before removal.");
+            if (instructionsByIdempotency.Values.Any(instruction =>
+                instruction.Order?.ShelterBinding?.DefinitionId is { } definitionId &&
+                !remainingContent.Buildings.Any(definition => definition.CanonicalId == definitionId)))
+                throw new InvalidOperationException("Content referenced by shelter orders requires an explicit migration before removal.");
             var record = contentRegistry.Rollback(packageId, WorldTick, reason);
             worldContent = remainingContent;
             worldSimulation = remainingSimulation;

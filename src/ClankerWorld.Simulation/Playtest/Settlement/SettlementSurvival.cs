@@ -314,36 +314,43 @@ public sealed partial class PrivateWorldRuntime
         return carried is not null && ToolProgressionRules.Find(carried.ItemKind)!.Tier >= requested.Tier;
     }
 
+    private sealed record FireFuelEffect(string BuildingId, string FuelReservationId);
+
     private void TendFire(string actor, PlaytestInhabitantState person)
     {
         var building = ReachableUnlitHearth(actor, person);
-        if (building is null || survivalState is null)
-        {
-            return;
-        }
+        if (building is not null) _ = TendFireAt(actor, person, building);
+    }
+
+    private FireFuelEffect? TendFireAt(string actor, PlaytestInhabitantState person, PlacedBuilding building)
+    {
+        if (survivalState is null || IsFireLit(building) ||
+            !AccessibleHeatingBuildings(actor).Any(item => item.InstanceId == building.InstanceId))
+            return null;
         if (!HasCarriedOwnItem(actor, "wood"))
         {
             if (SharedItem("wood", actor) is not null)
-            {
                 CollectEquipment(actor, person, "wood");
-            }
             else if (MaterialSource("wood", actor) is { } source)
-            {
                 GatherProjectMaterial(actor, person, "wood", source);
-            }
-            return;
+            return null;
         }
         var interactionRange = building.HouseholdId is null ? ResourceInteractionRange : 0;
         if (!IsWithinInteractionRange(person.Position, building.Position, interactionRange))
         {
             MoveToward(actor, person, building.Position, "fuel_fire", interactionRange);
-            return;
+            return null;
         }
         var fuel = society.Checkpoint.Inventory.Lots.First(lot => lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) &&
             lot.DeliveryBuildingId is null && lot.ContainerLotId is null && lot.ItemKind == "wood" && AvailableLotQuantity(lot) > 0);
-        society.Apply(checkpoint => ClankerWorld.Simulation.Society.SocietyFixture.ConsumeInventory(checkpoint, actor, fuel.Id, 1, "heating_fuel"));
+        var previousReservations = society.Checkpoint.Inventory.Reservations.Select(item => item.Id).ToHashSet(StringComparer.Ordinal);
+        var result = society.Apply(checkpoint => ClankerWorld.Simulation.Society.SocietyFixture.ConsumeInventory(checkpoint, actor, fuel.Id, 1, "heating_fuel"));
+        var payment = result.Checkpoint.Inventory.Reservations.Single(item => !previousReservations.Contains(item.Id) &&
+            item.OwnerId == actor && item.LotId == fuel.Id && item.Quantity == 1 && item.Purpose == "heating_fuel" &&
+            item.State == InventoryReservationState.Completed && item.ExpiryTick == WorldTick);
         survivalState = survivalState with { Fires = survivalState.Fires.Append(new CampFireState(building.InstanceId, WorldTick + 120)).ToArray() };
         AppendEvent("fire_fuelled", building.InstanceId);
+        return new FireFuelEffect(building.InstanceId, payment.Id);
     }
 
     private IEnumerable<PlacedBuilding> ReachableWarmthDestinations(string actor, PlaytestInhabitantState person) =>

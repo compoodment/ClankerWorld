@@ -835,6 +835,8 @@ public partial class Main
             "deliver_stock" => "Delivering " + OrderItemName(order.TargetItemKind) + " to " + OrderBuildingName(order.TargetBuildingKind),
             "construct_building" => "Building " + OrderBuildingName(order.TargetBuildingKind),
             "expand_building" => "Expanding " + OrderBuildingName(order.TargetBuildingKind),
+            "seek_shelter" => order.TargetBuildingKind == "house" ? "Seeking shelter in their House" : "Seeking shelter",
+            "tend_fire" => order.TargetBuildingKind == "house" ? "Lighting a fire in their House" : "Lighting a fire",
             "produce_item" => "Making " + (order.TargetOutputKind is { } output
                 ? GameUiText.ItemName(output).ToLowerInvariant() : "goods"),
             "seek_food" => "Going to a food site",
@@ -894,6 +896,8 @@ public partial class Main
         "delivery_loads" => "loads delivered",
         "buildings" => "buildings finished",
         "expansions" => "expansions finished",
+        "shelters" => "shelters reached",
+        "fires" => "fires lit",
         "arrivals" => "sites reached",
         "harvests" => "harvest batches",
         "guardianships" => "care assignments",

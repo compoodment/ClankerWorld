@@ -25,6 +25,8 @@ public sealed partial class PrivateWorldRuntime
         (worldSimulation.ConstructionReceipts ?? []).Any(receipt => receipt.BuildingInstanceId == instanceId) ||
         instructionsByIdempotency.Values.Any(instruction => instruction.Order is { } order &&
             (order.ExpansionBinding?.BuildingInstanceId == instanceId ||
+             order.ShelterBinding is { } shelter && shelter.BuildingInstanceId == instanceId &&
+                 shelter.BuildingPlacedTick == WorldTick ||
              order.ConstructionInstanceId == instanceId && instruction.InstructionId != constructionInstructionId));
 
     private static string ConstructionOrderReceipt(string instanceId) =>
