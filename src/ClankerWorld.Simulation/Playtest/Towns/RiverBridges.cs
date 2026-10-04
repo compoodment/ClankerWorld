@@ -80,6 +80,13 @@ public static class RiverBridgeRules
     /// </summary>
     public const int MaximumBankSearchTiles = 4_096;
 
+    /// <summary>
+    /// How far from the connecting water the widening search follows a river.
+    /// A wider reach has its far shore close by; a branch followed to a distant
+    /// source would join banks that only meet around that source.
+    /// </summary>
+    public const int MaximumWideningReach = 8;
+
     private static readonly (int X, int Y)[] Cardinal = [(0, -1), (1, 0), (0, 1), (-1, 0)];
 
     private static readonly (int X, int Y)[] Surrounding =
@@ -194,6 +201,19 @@ public static class RiverBridgeRules
             foreach (var next in Around(map, tile, Surrounding))
                 if (map.IsRiverWater(next)) channel.Add(next);
         }
+        if (SharesShore(map, channel, first, second)) return true;
+
+        // A wider reach can hide its far shore outside that thin strip. The
+        // crossing spans cut off water beyond either end, and the search stays
+        // near the connecting water: going around distant headwaters must not
+        // join the banks of separate tributaries.
+        return TryExpandChannel(map, path, first.Span.Concat(second.Span), out channel) &&
+            SharesShore(map, channel, first, second);
+    }
+
+    private static bool SharesShore(SeededMap map, HashSet<GridPoint> channel,
+        RiverCrossing first, RiverCrossing second)
+    {
         var shore = new HashSet<GridPoint>();
         foreach (var tile in channel)
             foreach (var next in Around(map, tile, Surrounding))
@@ -203,6 +223,32 @@ public static class RiverBridgeRules
         var fromB = ShoreWalk(map, shore, first.EntranceB);
         return fromA.Contains(second.EntranceA) && fromB.Contains(second.EntranceB) ||
             fromA.Contains(second.EntranceB) && fromB.Contains(second.EntranceA);
+    }
+
+    private static bool TryExpandChannel(SeededMap map, IReadOnlyList<GridPoint> path,
+        IEnumerable<GridPoint> ends, out HashSet<GridPoint> channel)
+    {
+        channel = ends.ToHashSet();
+        var queue = new Queue<(GridPoint Tile, int Reach)>();
+        foreach (var tile in path)
+        {
+            if (channel.Contains(tile)) continue;
+            if (channel.Count >= MaximumBankSearchTiles) return false;
+            channel.Add(tile);
+            queue.Enqueue((tile, 0));
+        }
+        while (queue.TryDequeue(out var current))
+        {
+            if (current.Reach >= MaximumWideningReach) continue;
+            foreach (var next in Around(map, current.Tile, Cardinal))
+            {
+                if (!map.IsRiverWater(next) || channel.Contains(next)) continue;
+                if (channel.Count >= MaximumBankSearchTiles) return false;
+                channel.Add(next);
+                queue.Enqueue((next, current.Reach + 1));
+            }
+        }
+        return true;
     }
 
     private static bool TryFindChannel(SeededMap map, IReadOnlyList<GridPoint> from,
@@ -244,7 +290,7 @@ public static class RiverBridgeRules
         queue.Enqueue(start);
         while (queue.TryDequeue(out var current))
             foreach (var next in Around(map, current, Cardinal))
-                if (shore.Contains(next) && reached.Add(next))
+                if (shore.Contains(next) && map.CanFootStep(current, next) && reached.Add(next))
                     queue.Enqueue(next);
         return reached;
     }

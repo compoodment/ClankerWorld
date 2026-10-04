@@ -1,5 +1,22 @@
 # Item icons
 
+## Integration after the October 1 review
+
+The approved drawings now follow these playable item names: `potatoes` uses
+`potato`, `cultivated_green_seed` uses `green_seed`, `medicinal_herbs` uses
+`herbs`, `diamond_ornament` uses `ornament`, and `simple_meal` uses `meal`.
+These are name mappings; the approved pixels and the simulation's item names
+stay the same.
+
+The notes below preserve the October 1 approval history. Since that review,
+the simulation has separated raw `gold_ore`, refined `gold`, plain
+`gold_ornament` and diamond-set `diamond_ornament`. The raw nuggets still fit
+gold ore. Distinct refined-gold and plain-ring drawings wait on
+[#793](https://github.com/compoodment/ClankerWorld/issues/793); berry and fruit
+porridge drawings wait on
+[#794](https://github.com/compoodment/ClankerWorld/issues/794). The existing
+diamond-set ring and plain meal plate already have approved drawings.
+
 ## Round 2
 
 You approved every round-1 icon except grain. This round redraws grain and

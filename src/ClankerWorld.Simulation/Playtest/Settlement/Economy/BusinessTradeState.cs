@@ -29,7 +29,8 @@ public static class BusinessRules
         "restaurant" => itemKind is "porridge" or "berry_porridge" or "fruit_porridge" or
             "bread" or "stew" or "restaurant_meal",
         "clinic" => itemKind is "bandage" or "medicine",
-        "store" => itemKind is not ("field_map" or "field_record" or "fresh_water" or "storage_pot" or "water_jug" or "iron"),
+        "store" => !AgentKnowledgeRules.IsArtifactKind(itemKind) &&
+            itemKind is not ("fresh_water" or "storage_pot" or "water_jug" or "iron"),
         _ => false,
     };
 

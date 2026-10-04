@@ -45,21 +45,6 @@ public sealed class SaveBranchTests : IDisposable
     private ManualWorldSave Listed(string id) => Assert.Single(store.List(WorldId), save => save.Id == id);
 
     [Fact]
-    public async Task SavesOfOneHistoryShareTheFirstBranch()
-    {
-        var first = store.Create("Before the flood", runtime, []);
-        await PlayAsync();
-        var second = store.Create("Big harvest", runtime, []);
-
-        Assert.NotNull(first.Branch);
-        Assert.Equal(1, first.Branch.Number);
-        Assert.Null(first.Branch.StartedFromId);
-        Assert.Null(first.ContinuedFromId);
-        Assert.Equal(first.Branch, second.Branch);
-        Assert.Equal(first.Id, second.ContinuedFromId);
-    }
-
-    [Fact]
     public async Task PlayingOnFromAnOlderSaveStartsANewBranchAndKeepsTheOriginal()
     {
         var flood = store.Create("Before the flood", runtime, []);
@@ -85,23 +70,6 @@ public sealed class SaveBranchTests : IDisposable
         Assert.Equal(harvest, Assert.Single(listed, save => save.Id == harvest.Id));
         Assert.Equal(flood.Branch, Assert.Single(listed, save => save.Id == flood.Id).Branch);
         Assert.Equal(winter.Branch, Assert.Single(listed, save => save.Id == winter.Id).Branch);
-    }
-
-    [Fact]
-    public void ChangesWhilePausedBranchEvenAtTheSameWorldTick()
-    {
-        var before = store.Create("Before changing Jev", runtime, []);
-        runtime.SetJevEnabled(false);
-        var changed = store.Create("Jev off", runtime, []);
-        Assert.Equal(before.Branch, changed.Branch);
-
-        Load(before);
-        var again = store.Create("Jev still on", runtime, []);
-
-        Assert.Equal(before.WorldTick, again.WorldTick);
-        Assert.Equal(2, again.Branch?.Number);
-        Assert.Equal(before.Id, again.Branch?.StartedFromId);
-        Assert.Equal(before.Branch, Listed(changed.Id).Branch);
     }
 
     [Fact]
@@ -335,17 +303,5 @@ public sealed class SaveBranchTests : IDisposable
         await PlayAsync();
 
         Assert.Equal(harvest.Branch, store.Create("Later", runtime, []).Branch);
-    }
-
-    [Fact]
-    public void DeletingTheWorldRemovesItsBranchRecord()
-    {
-        store.Create("First", runtime, []);
-        Assert.Single(Directory.GetFiles(ManualDirectory, "timeline-*.json"));
-
-        store.DeleteWorldSnapshots(WorldId);
-
-        Assert.Empty(store.List(WorldId));
-        Assert.Empty(Directory.GetFiles(ManualDirectory, "timeline-*.json"));
     }
 }

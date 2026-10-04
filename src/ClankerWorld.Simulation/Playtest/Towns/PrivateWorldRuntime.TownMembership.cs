@@ -214,6 +214,43 @@ public sealed partial class PrivateWorldRuntime
         AdvanceTownGovernance();
     }
 
+    /// <summary>
+    /// A dependent joining their accepted guardian follows the guardian's recorded
+    /// Town membership. The caller has already checked arrival and House capacity.
+    /// This changes only rosters; it is not a separate adult admission proposal.
+    /// </summary>
+    private bool MoveDependentToGuardianTown(string child, string guardian)
+    {
+        var person = society.Checkpoint.GetInhabitant(child);
+        var caregiver = society.Checkpoint.GetInhabitant(guardian);
+        if (!inhabitants.ContainsKey(child) || !inhabitants.ContainsKey(guardian) ||
+            person.Status != SocietyInhabitantStatus.Active ||
+            person.AgeBand is not (SocietyAgeBand.Infant or SocietyAgeBand.Child or SocietyAgeBand.Adolescent) ||
+            caregiver.Status != SocietyInhabitantStatus.Active ||
+            caregiver.AgeBand is not (SocietyAgeBand.Adult or SocietyAgeBand.Elder) ||
+            person.PrimaryCaregiverId != guardian || !SocietyFixture.HasActivePrimaryCaregiver(society.Checkpoint, child) ||
+            TownForResident(guardian) is not { } destination)
+            return false;
+        if (TownForResident(child) == destination) return true;
+
+        // Finish both roster updates before governance or admission reconciliation
+        // observes the move. House.TownId is deliberately not a membership source.
+        foreach (var town in towns.ToArray())
+        {
+            if (town.Id == destination)
+                SetTown(town with
+                {
+                    ResidentIds = town.ResidentIds.Append(child).Distinct(StringComparer.Ordinal)
+                        .Order(StringComparer.Ordinal).ToArray(),
+                });
+            else if (town.ResidentIds.Contains(child, StringComparer.Ordinal))
+                SetTown(town with { ResidentIds = town.ResidentIds.Where(id => id != child).ToArray() });
+        }
+        AdvanceTownGovernance();
+        SettleTownAdmissions();
+        return true;
+    }
+
     private void LapseTownAdmission(string townId, TownAdmissionRecord record, string reason)
     {
         SetTownAdmission(townId, record with { Status = AdmissionLapsed, DecidedTick = WorldTick, PreviousTownId = null, MemberIds = null, Reason = reason });
@@ -247,7 +284,8 @@ public sealed partial class PrivateWorldRuntime
         var known = towns.Where(town => town.Governance is not null).ToDictionary(town => town.Id, CivicHistory, StringComparer.Ordinal);
         return TownMembershipText.Describe(towns, society.Checkpoint, actor, CivicDay,
             TownMembershipText.TownsWithWarehouse(worldSimulation, worldContent),
-            (town, kind, subject) => known.TryGetValue(town.Id, out var history) && history.Knows(actor, kind, subject));
+            (town, kind, subject) => known.TryGetValue(town.Id, out var history) && history.Knows(actor, kind, subject),
+            worldSystems.Config.CalendarOffsetTicks);
     }
 
     private static void ValidateTownAdmissions(IReadOnlyList<TownRuntimeState> savedTowns, SocietyCheckpoint society, int schemaVersion)
@@ -313,8 +351,10 @@ public static class TownMembershipText
 
     /// <param name="knows">Whether this reader learned a Town notice of the given kind and subject; the owner sees all,
     /// an agent only what they read or were told.</param>
+    /// <param name="calendarOffsetTicks">The world's saved clock offset, so day numbers match its calendar.</param>
     public static string? Describe(IReadOnlyList<TownRuntimeState> towns, SocietyCheckpoint society, string agentId,
-        int ticksPerDay, IReadOnlySet<string> townsWithWarehouse, Func<TownRuntimeState, string, string, bool>? knows = null)
+        int ticksPerDay, IReadOnlySet<string> townsWithWarehouse, Func<TownRuntimeState, string, string, bool>? knows = null,
+        int calendarOffsetTicks = 0)
     {
         ArgumentNullException.ThrowIfNull(towns);
         ArgumentNullException.ThrowIfNull(society);
@@ -339,16 +379,18 @@ public static class TownMembershipText
             : townsWithWarehouse.Contains(home.Id)
                 ? $"Town: resident of {home.Name} · may {council} and collect its Warehouse stock in person, housed or not"
                 : $"Town: resident of {home.Name} · may {council}, housed or not; it has no Warehouse yet";
-        if (adult && AdmissionStatus(towns, agentId, home?.Id, society.WorldTick, ticksPerDay, knows) is { } status)
+        if (adult && AdmissionStatus(towns, agentId, home?.Id, society.WorldTick, ticksPerDay, calendarOffsetTicks, knows) is { } status)
             text += " · " + status;
         return text.Length > MaximumLength ? text[..MaximumLength] : text;
     }
 
     private static string? AdmissionStatus(IReadOnlyList<TownRuntimeState> towns, string agentId, string? homeId,
-        long worldTick, int ticksPerDay, Func<TownRuntimeState, string, string, bool> knows)
+        long worldTick, int ticksPerDay, int calendarOffsetTicks, Func<TownRuntimeState, string, string, bool> knows)
     {
         var day = Math.Max(1, ticksPerDay);
-        string Day(long tick) => "world day " + (tick / day + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        // Calendar days, as WorldCalendarRules counts them: the offset moves midnight, not elapsed time.
+        string Day(long tick) => "world day " +
+            (tick / day + (tick % day + calendarOffsetTicks) / day + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
         foreach (var town in towns.OrderBy(item => item.Id, StringComparer.Ordinal))
             if (town.Governance?.Proposals.FirstOrDefault(proposal => proposal.Kind == "admission" &&
                     proposal.SubjectId == agentId && proposal.Status == "pending") is { } pending && knows(town, "proposal", pending.Id))
