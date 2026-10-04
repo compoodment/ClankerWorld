@@ -455,7 +455,7 @@ public sealed class PrivateWorldCustodyOrderTests
         var saved = world.ExportState();
         Assert.NotEqual("unknown", Order(world, receipt).Action);
         using var valid = Restore(saved);
-        Assert.Equal(world.ExportStateJson(), valid.ExportStateJson());
+        Assert.Equal(PrivateWorldRuntimeCodec.Encode(saved), PrivateWorldRuntimeCodec.Encode(valid.ExportState()));
         var corrupt = saved with
         {
             Instructions = saved.Instructions!.Select(item => item.InstructionId == receipt.InstructionId
