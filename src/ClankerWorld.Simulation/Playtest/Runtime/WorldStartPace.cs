@@ -18,8 +18,9 @@ internal static class WorldStartPaceRules
         WorldStartPace.Legacy => WorldSystemsConfig.Default,
         WorldStartPace.DecidedPlaytest or WorldStartPace.FounderSetup => WorldSystemsConfig.Default with
         {
-            ContractVersion = 2,
+            ContractVersion = 3,
             TicksPerDay = 360,
+            CalendarOffsetTicks = 90,
             DaysPerYear = 40,
             SpringDays = 10,
             SummerDays = 10,

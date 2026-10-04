@@ -1,0 +1,1 @@
+- Adults and elders can follow orders to store their own carried raw materials in their House, preserving personal ownership. Exact quantities, repetition, queueing, cancellation and save/reload count only goods actually put away; missing goods or storage space leaves the task waiting. Older alpha saves are refused and preserved unchanged.

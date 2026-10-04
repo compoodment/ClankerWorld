@@ -6,7 +6,7 @@ namespace ClankerWorld.Simulation.Tests;
 internal static class SettlementWeatherTestFixture
 {
     /// <summary>
-    /// Worlds start at midnight. Advances a runtime to the next full daylight
+    /// Advances a runtime to the next full daylight, if it is not already there,
     /// so a fixture about weather alone is not also measuring the night chill.
     /// </summary>
     internal static async Task AdvanceToDaylightAsync(PrivateWorldRuntime world)

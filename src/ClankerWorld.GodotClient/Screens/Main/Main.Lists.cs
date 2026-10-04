@@ -85,21 +85,29 @@ public partial class Main
         {
             "weather_changed" => PixelIcons.Weather(worldEvent.Detail.Split(':').LastOrDefault() ?? "clear", 1),
             "food_harvested" or "food_consumed" => PixelIcons.Texture(PixelGlyph.Basket, ink, food, 1),
-            "build_started" or "build_completed" or "building_placed" or "recipe_started" or "recipe_completed" or "bridge_built"
+            "build_started" or "build_completed" or "building_placed" or "recipe_started" or "recipe_completed" or "bridge_built" or
+                "town_project_worked" or "town_project_completed" or "market_built" or "market_stall_built"
                 => PixelIcons.Texture(PixelGlyph.Hammer, ink, wood, 1),
             "tree_planted" or "tree_replanted" or "crop_moisture_effect" => PixelIcons.Texture(PixelGlyph.Leaf, ink, green, 1),
-            "child_born" or "partnership_accepted" or "partnership_ended" or "caregiver_assigned"
+            "child_born" or "partnership_accepted" or "partnership_ended" or "caregiver_assigned" or
+                "guardian_needed" or "guardian_assigned" or "guardian_placement_pending" or
+                "guardian_placement_completed" or "guardian_placement_cancelled"
                 => PixelIcons.Texture(PixelGlyph.Heart, pink, pink, 1),
             "inhabitant_removed" or "estate_will_accepted" or "estate_will_default" => PixelIcons.Texture(PixelGlyph.Grave, ink, stone, 1),
-            "town_founded" or "settlement_founded" or "town_founding_started" or "town_border_expanded"
+            "town_founded" or "settlement_founded" or "town_founding_started" or "town_border_expanded" or
+                "town_project_approved" or "town_project_resumed"
                 => PixelIcons.Texture(PixelGlyph.Flag, ink, green, 1),
             "town_resident_joined" or "town_resident_left" or "town_membership_evaluated" or "town_building_assigned" or
-                "town_admission_accepted" or "town_admission_approved" or "town_admission_lapsed"
+                "town_admission_accepted" or "town_admission_approved" or "town_admission_lapsed" or
+                "market_stall_borrowed" or "market_stall_left"
                 => PixelIcons.Texture(PixelGlyph.House, ink, wood, 1),
             "paused" => PixelIcons.Texture(PixelGlyph.Pause, ink, ink, 1),
             "resumed" => PixelIcons.Texture(PixelGlyph.Play, ink, ink, 1),
             "instruction_not_understood" or "inhabitant_building_proposed" => PixelIcons.Texture(PixelGlyph.Speech, ink, UiTheme.Current.Paper, 1),
-            "settlement_trade_completed" => PixelIcons.Texture(PixelGlyph.Box, ink, wood, 1),
+            "settlement_trade_completed" or "town_project_donated" or "town_project_material_picked_up" or
+                "town_project_material_delivered" or "town_project_material_returned" or "market_stock_loaded" or "market_stock_delivered" or
+                "market_stock_collected" or "market_trade_offered" or "market_trade_completed" or "market_trade_cancelled"
+                => PixelIcons.Texture(PixelGlyph.Box, ink, wood, 1),
             _ => PixelIcons.Texture(PixelGlyph.Globe, ink, green, 1),
         };
     }

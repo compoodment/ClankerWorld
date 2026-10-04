@@ -1220,6 +1220,9 @@ public sealed class ItemsProposal : IArtProposal, IArtSetProvider
     /// <summary>Every item kind in the catalogue, drawn or kept, in sheet order.</summary>
     public static IReadOnlyList<string> Kinds => Drawings.Select(entry => entry.Kind).ToArray();
 
+    /// <summary>True when parity checks can use proposal pixels rather than the current-client fallback.</summary>
+    internal static bool HasApprovedDrawing(string kind) => ByKind.TryGetValue(kind, out var art) && !art.KeepsCurrent;
+
     /// <summary>
     /// The outlined 16 × 16 icon for <paramref name="kind"/>. Kinds this
     /// proposal keeps or does not list come from the game's current

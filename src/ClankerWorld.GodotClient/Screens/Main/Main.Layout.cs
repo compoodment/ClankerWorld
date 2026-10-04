@@ -96,8 +96,9 @@ public partial class Main
 
     private async Task RefreshWorldSettingsAsync()
     {
+        var generation = observationSession.RequestGeneration;
         await RefreshAutosaveSettingsAsync();
-        await RefreshProviderConfigurationAsync();
+        if (IsCurrentWorldRequest(generation)) await RefreshProviderConfigurationAsync();
     }
 
     private void BuildPairingPanel()
@@ -152,6 +153,11 @@ public partial class Main
         nightLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         nightLayer.Follow(terrainLayer);
         mapStage.AddChild(nightLayer);
+
+        // Lit windows, doors and fires warm the ground back up through the wash.
+        nightLightsLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        nightLightsLayer.Follow(terrainLayer, nightLayer);
+        mapStage.AddChild(nightLightsLayer);
 
         objectLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         objectLayer.MouseFilter = Control.MouseFilterEnum.Ignore;

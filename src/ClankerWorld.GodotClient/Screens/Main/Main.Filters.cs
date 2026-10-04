@@ -46,7 +46,7 @@ public partial class Main
 
         disputedLandFilter.TooltipText = "Stripe land with conflicting household claims.";
         disputedLandFilter.Toggled += _ => ApplyMapFiltersFromCurrentSnapshot();
-        body.AddChild(FilterRow(disputedLandFilter, FilterLook.Dispute, "Disputed land", "Red stripes where households' claims overlap"));
+        body.AddChild(FilterRow(disputedLandFilter, FilterLook.Dispute, "Disputed land", "Red stripes where claims overlap or permission is under review"));
         AddClosablePanelContents(filtersPanel, "Map filters", body);
         filtersPanel.CustomMinimumSize = new Vector2(320, 0);
         filtersPanel.ZIndex = 85;
@@ -88,6 +88,7 @@ public partial class Main
             ? snapshot.HouseholdLandUseRights : [], householdLandUseFilter.ButtonPressed || ShowsPlacementOverlays
             ? snapshot.HouseholdLandUseRequests : []);
         terrainLayer.SetDisputedLand(disputedLandFilter.ButtonPressed || ShowsPlacementOverlays
-            ? snapshot.HouseholdLandUseRequests : []);
+            ? snapshot.HouseholdLandUseRequests : [], disputedLandFilter.ButtonPressed || ShowsPlacementOverlays
+            ? snapshot.Towns.SelectMany(town => town.LandHearings).ToArray() : []);
     }
 }

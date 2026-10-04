@@ -405,6 +405,16 @@ departure and relocation for existing overcrowding are implemented in
   The household still needs agreement and places for the complete care group;
   Town approval creates no free House, private access or extra resident places.
 
+**Agreed by the owner on October 3, 2026
+([#871](https://github.com/compoodment/ClankerWorld/issues/871)):** when a
+resident asks the council to admit an adult nearby who has no Town, the
+council's approval waits **one unpaused world day** for the newcomer to accept.
+If they have not accepted by then, the approval lapses; paused time does not
+count. Anyone may ask the council again later through the ordinary proposal
+rules. There is no separate decline choice. An adult's own request is
+unaffected: it admits them as soon as it passes. The implementation is tracked
+in [#887](https://github.com/compoodment/ClankerWorld/issues/887).
+
 The separately agreed New World and Add Agent placement rules still initialize
 Town membership: the first four agents belong to the first Town, and confirmed
 Add Agent placement uses the recorded household property/Town precedence. Those
@@ -590,8 +600,8 @@ through the ordinary proposal and majority procedure before residents may
 spend Town materials or start that project. Pending votes follow the Council's
 existing membership and ballot rules; proposing a project grants no permission.
 
-This covers Markets and their Town-owned stalls, Town Halls, Ports and crafting
-communal boats at a Port. Resident adults physically supply and build the
+This covers Markets and their Town-owned stalls, Town Halls, Ports, street
+lanterns and crafting communal boats at a Port. Resident adults physically supply and build the
 approved project with real materials. Approval creates no goods, transfers no
 private stock and grants no access to household or personal supplies. Private
 donations need separate consent and the ordinary physical transfer rules.
@@ -603,6 +613,20 @@ or blocking a project must preserve its goods and safely release unspent
 reservations. This is a supported construction effect; free-form law text
 cannot execute it. The existing resident rule for Warehouse expansion stays
 in place. Costs, quantities and work times remain provisional for playtesting.
+
+**Street lanterns, agreed by the owner on October 3, 2026:** agents build
+street lanterns beside Roads; the map does not place them by itself. A lantern
+needs **no fuel**: once built it lights itself at dusk and goes out at dawn.
+There are two designs, a round **stone lamp** with an open flame and a
+**hanging lantern** on a roadside post with an arm over the Road
+([look](interface-and-art.md#pixel-art-and-generated-images)). **Also agreed
+on October 3:** a lantern is a **shared Town project** like those above, so the
+proposal names the lanterns, their Road-side sites and their material budget,
+and the Council approves it before residents build. Costs are provisional
+trial values to tune in playtests: a stone lamp takes stone, and a hanging
+lantern takes wood and a little refined iron. Where lanterns stand is the
+proposer's choice within the ordinary site rules; a suggestion is stone lamps
+at Road junctions and hanging lanterns every few tiles along a Road.
 
 The intended building roles now include House, Warehouse, Workshop,
 Farmhouse, farm fields, an adjacent private farm Silo, optional household-run
@@ -714,7 +738,12 @@ no title. Household requests for expansion onto additional tiles open
 ordinary Council proposals for nonconflicting land, and every current adult in
 the beneficiary household must separately accept before a right is granted.
 Expansion checks the resulting rights at construction start and completion.
-Pending disputes supply no grant; hearings and transfers remain in #633.
+New fields cannot occupy land another household holds or has requested.
+Ordinary land requests cannot cover another household's field, and grant
+settlement checks that the field is still clear of that conflict. A challenge
+to a recorded use right still follows the dispute procedure.
+Pending disputes supply no grant; hearings and transfers follow the case
+procedure below.
 
 Competing requests are visible as **pending disputes**. While one is pending,
 conflicting formal rights transfers pause; residents are not evicted, goods
@@ -732,8 +761,8 @@ the final decision on disputes and what happens when an agreed period ends.
 These rules do not imply automatic confiscation or unilateral household
 transfers. Evidence, hearings, outcomes and conflicts of interest follow the
 agreed [case procedure](#land-hearings-and-rulings). Disputed land is striped
-on the map, and inspecting a tile lists each household's claim. Household grants,
-consent, transfer and case actions are not built yet
+on the map, and inspecting a tile lists each household's claim. Household
+grants, individual acceptance, consensual transfers and land hearings work
 ([what works today](../what-works.md)).
 
 ### How Roads and bridges appear
@@ -745,7 +774,10 @@ Towns remain unconnected by Road; boats or later transport may still connect
 their travelers. Roads are not generated by footsteps or a separate building
 project. Agents and player do not paint Road tiles. Roads speed up travel.
 Roads connect to adjacent building entrances and must not occupy a building's
-footprint. The player's September 29 sketch indicates a connected spine with
+footprint. New Road tiles and new bridge entrances also avoid land any
+household holds or has requested. Existing Roads and bridges remain usable,
+including where a later land claim overlaps them. The player's September 29
+sketch indicates a connected spine with
 short branches as a useful layout direction, not a mandatory fixed street map.
 
 **Agreed after the September 30 road review:**
@@ -1106,10 +1138,12 @@ action authority.
 - **Approval starts a handover lasting at most three unpaused world days.**
   This is an initial trial duration. The existing government continues until
   a valid replacement is ready; the new form takes effect at that recorded
-  handover, rather than immediately when the approval vote passes. Elective
-  offices need willing, eligible officeholders selected through the agreed
-  voting rules. If a mayoral vote ties, another vote between the tied highest
-  candidates is required; do not use the council's random tie-break. If no
+  handover, rather than immediately when the approval vote passes. Newly added
+  elective mandates need willing, eligible officeholders selected through the
+  agreed voting rules. Retained mandates keep their ordinary vacancy rules;
+  an explicit replacement vote still needs a valid successor. If a mayoral
+  vote ties, another vote between the tied highest candidates is required;
+  do not use the council's random tie-break. If no
   valid replacement is ready by the handover deadline, cancel the attempted
   transition. An all-adult council consists automatically of eligible adults
   and does not require each resident to consent to taking a seat.
@@ -1170,8 +1204,11 @@ remains separate in [#426](https://github.com/compoodment/ClankerWorld/issues/42
   is no turnout minimum, but a winner needs at least one actual vote in the
   deciding round. Most votes wins; tied highest candidates face another vote,
   repeatedly if necessary, with fresh eligible voters and only the tied,
-  still-eligible candidates. Never use the council's draw. Failed attempts
-  retry after one unpaused day, or earlier following a material change.
+  still-eligible candidates. Never use the council's draw. Open a new mayoral
+  contest only when an eligible resident has agreed to stand for its exact
+  mandates. An existing contest can still fail if it loses every candidate.
+  Failed attempts retry after one unpaused day, or earlier following a
+  material change.
 - **Keep one active election process per Town, with scheduled full council
   elections taking priority.** Queue mayoral voting while that election runs.
   An interrupted mayoral round closes without a result and its unfinished
@@ -1478,6 +1515,7 @@ consumers remain unfinished.
 
 | Equipment | Production and function |
 | --- | --- |
+| Crude wooden axe and crude wooden pickaxe | Any household's own House, using wood; the same tree and stone gathering as wooden tools, but worse. |
 | Wooden axe and wooden pickaxe | Blacksmith, using wood; basic tree and stone gathering. |
 | Stone axe and stone pickaxe | Wood and stone; better speed and durability. The stone pickaxe unlocks iron extraction. |
 | Iron axe and iron pickaxe | Wood and refined iron; better speed and durability. The iron pickaxe unlocks rare deposits. |
@@ -1491,6 +1529,18 @@ consumers remain unfinished.
 Tools wear through use. The Blacksmith repairs worn tools with some of their
 original materials; broken tools need replacement. Hand collection of loose
 fallen wood keeps replacement wooden tools possible after the last axe is lost.
+
+**Agreed by the owner on October 3, 2026
+([#917](https://github.com/compoodment/ClankerWorld/issues/917)):** an adult can
+make a crude wooden axe or a crude wooden pickaxe at their own household's
+House, using wood. Fallen wood gathered by hand is enough, so no Town, shop or
+Blacksmith is needed. A crude axe fells trees, and a crude pickaxe extracts
+stone. Both do these jobs less well than the Blacksmith's wooden tools: slower,
+shorter-lived or both. The Blacksmith therefore stays the place for better
+tools. An agent who starts far from any Town can still gather wood and stone,
+build a House and later a Blacksmith of their own. Crude tools wear like other
+tools. The recipe, work time and how much worse crude tools are remain
+provisional trial values.
 
 | Product | Production and effect |
 | --- | --- |
@@ -1663,8 +1713,9 @@ These remain open; they are not new decisions.
    and one usable wooden pickaxe, and each starting agent has one garment kept
    in their House. The Farmhouse and Blacksmith are assigned
    automatically to the two starting households, one each, without player
-   selection. There are no optional extra starter supplies for now. Decide how
-   first-tier tools are made when the Blacksmith is unavailable.
+   selection. There are no optional extra starter supplies for now. Without a
+   Blacksmith, households make crude wooden tools at their House, as agreed in
+   [Tools, clothing and transport](#tools-clothing-and-transport).
    Farm planning responds to population, yield and stored reserves as agreed
    above; the exact formula is provisional.
 

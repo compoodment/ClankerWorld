@@ -611,6 +611,33 @@ The recent history should persist with the world save but remain bounded.
   ending in a flat white band. The plaza was "a bit too big for the eight
   stalls"; in the fourth round computment kept a shorter plaza but wanted
   the open column on each side back, so eight stalls take a 7×4 plaza.
+- **Night lights, agreed on October 3:** at night, buildings in use and
+  fires warm the ground around them. computment's rules:
+  - Roofs never glow. Light comes out of a building's windows and open door
+    onto the ground beside its walls. Windows are on the **front and both
+    sides, not the back**, for every building with windows, the Farmhouse
+    included; a front only one tile wide has room just for the door.
+  - A **House is lit only while someone is inside**; nobody keeps a lamp
+    burning in an empty house. Work buildings light while someone is inside
+    or a job runs there, and the Blacksmith's forge glows in its yard while
+    it works. A **Warehouse has no windows**: only a lantern by its loading
+    doors, lit while someone fetches or stores goods. A Silo and Market
+    stalls stay dark. A Port's lantern on the end of its pier burns every
+    night.
+  - Light must **not look circular** and must plainly **come from
+    something**: a window, a door, a fire or a lantern fitting that is drawn,
+    never a bare bright dot. Each pool has a ragged edge that **moves
+    slightly**; fires flicker faster. Light is stepped on the art's pixel grid,
+    warms the ground without hiding its texture, and fades in and out with
+    dusk and dawn.
+  - Every design gets lights, including the Market, Town Hall, Port, Clinic
+    and Restaurant designs approved on October 1; a design whose feature is
+    not in the game yet gets its lights when that feature lands. Night lights
+    are only for looks: night still sets no visibility rule.
+- **Street lanterns, agreed on October 3:** agents build street lanterns
+  beside Roads; they need **no fuel** and light themselves at dusk. Two
+  designs: **B, a round stone lamp with an open flame**, and **C, a lantern
+  hung from an arm over the Road** ([Towns](towns.md#shared-town-projects)).
 - Art is drawn in code, not stored as image files. computment prefers this.
   Approved art for content that is not built yet waits in
   `tools/ArtPreview/Proposed/` until its feature lands.
