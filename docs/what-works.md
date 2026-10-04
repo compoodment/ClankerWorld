@@ -961,6 +961,11 @@ water; Roads and plank bridges, with streets running up to each bridge; trees
 and natural sites; barrel, saguaro and prickly-pear cacti on about one in five
 desert cactus-cover tiles; farm fields as tilled soil with each crop shown at
 its stage; every current building; item icons; and the interface icons.
+At close zoom, physical handcarts use the approved empty and loaded pictures
+in eight directions, including the two loaded pulled poses. Smaller zooms
+keep the existing cart icon while the
+[separate 16px artwork](https://github.com/compoodment/ClankerWorld/issues/914)
+is pending.
 Agents face the way they last moved and show walking steps, and carrying,
 working, talking or hurt poses chosen from what the game already knows about
 them. A mountain range near the camera can show the earlier per-tile art for
