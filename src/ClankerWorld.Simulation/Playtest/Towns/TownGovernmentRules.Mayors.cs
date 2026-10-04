@@ -155,8 +155,7 @@ public static partial class TownGovernmentRules
         {
             var handover = ActiveChange(state) is { Status: "handover" } change ? change : null;
             var needed = handover is not null
-                ? Mandates(handover.Target).Where(m => !(m == "non_land" && handover.NonLandExtension is not null) &&
-                    (handover.Kind == "replace_mayor" || !state.Offices.Any(o => o.Mandates == m && o.HolderId is not null))).ToArray()
+                ? RequiredSuccessorMandates(state.Arrangement, handover)
                 : Mandates(state.Arrangement).Where(m => !state.Offices.Any(o => o.Mandates == m && o.HolderId is not null)).ToArray();
             var purpose = handover is not null ? "handover" : "vacancy";
             if (needed.Length == 0)
@@ -171,7 +170,7 @@ public static partial class TownGovernmentRules
                 }
             }
             var mandates = string.Join('+', Ordered(needed));
-            if (needed.Length > 0 && (tick >= state.MayoralRetryTick ||
+            if (needed.Length > 0 && Willing(state, adults, mandates, purpose == "handover" ? handover?.Id : null).Length > 0 && (tick >= state.MayoralRetryTick ||
                 ElectionCircumstances(state, adults, mandates, purpose == "handover" ? handover?.Id : null) != state.MayoralRetryCircumstances))
             {
                 var id = townId + ":mayor:" + (state.Sequence + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);

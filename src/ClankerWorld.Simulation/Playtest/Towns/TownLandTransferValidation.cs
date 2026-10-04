@@ -22,7 +22,7 @@ public static class TownLandTransferValidation
             .Concat(state.Adjustments.SelectMany(adjustment => adjustment.PriorRights.Select(version => version.Right).Concat(adjustment.ResultRights))).ToArray();
         foreach (var request in state.Transfers)
         {
-            Check(Id(request.Id) && request.TownId == townId && Id(request.FilerId) && agents.Contains(request.FilerId) &&
+            Check(TownGovernmentValidation.ValidId(request.Id, "land-transfer:" + townId + ":", state.Sequence) && request.TownId == townId && Id(request.FilerId) && agents.Contains(request.FilerId) &&
                 Id(request.TargetHouseholdId) && households.Contains(request.TargetHouseholdId) && request.ProposedTick >= 0 && request.ProposedTick <= tick &&
                 request.Status is "pending" or "transferred" or "rejected" or "withdrawn" or "invalidated" &&
                 request.RightVersions is { Count: > 0 } && request.RightVersions.All(version => version is not null && version.Right is not null) &&

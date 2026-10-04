@@ -45,9 +45,11 @@ public sealed partial class SettlementParenthoodTests
         inventory = InventoryFixture.AddLot(inventory, "guardian-birth-food", "food", destinationHousehold, 12,
             storageBuildingId: destinationHouse.InstanceId);
         society = society with { Inventory = inventory };
+        society = ChosenBirthNameTestFixture.NameParent(society, parents[0]);
+        society = ChosenBirthNameTestFixture.NameParent(society, guardians[0]);
         var orphanBirth = SocietyFixture.CommitBirth(society, new SocietyBirthRequest(
             "relocation-orphan", 1, parents[0], parents[1], originHousehold, parents, parents,
-            "orphan-birth-food", 4, society.WorldTick, ChildName: "Orphan", PrimaryCaregiverId: parents[0]));
+            "orphan-birth-food", 4, society.WorldTick, ChildName: ChosenBirthNameTestFixture.ChildName(society, parents[0], "Orphan"), PrimaryCaregiverId: parents[0]));
         var child = Assert.IsType<string>(orphanBirth.CreatedId);
         society = orphanBirth.Checkpoint;
         // A grandparent is asked first wherever they live, so the same adult is offered in every scenario.
@@ -66,7 +68,7 @@ public sealed partial class SettlementParenthoodTests
             var birth = SocietyFixture.CommitBirth(society, new SocietyBirthRequest(
                 "relocation-resident:" + index, 1, guardians[0], guardians[1], destinationHousehold,
                 guardians, guardians, "guardian-birth-food", 4, society.WorldTick,
-                ChildName: "Resident" + index, PrimaryCaregiverId: adult));
+                ChildName: ChosenBirthNameTestFixture.ChildName(society, guardians[0], "Resident" + index), PrimaryCaregiverId: adult));
             society = birth.Checkpoint;
             addedChildren.Add((Assert.IsType<string>(birth.CreatedId), destinationHouse.Position));
         }

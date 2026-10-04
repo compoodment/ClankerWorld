@@ -271,6 +271,38 @@ public sealed class TownLandTransferRuntimeTests
     }
 
     [Fact]
+    public async Task TransferTermsNameTheAgreedEndByItsWorldCalendarDay()
+    {
+        var provider = new TransferProvider { AllowPropose = true };
+        using var source = NewWorld(provider, generatedClock: true);
+        Configure(provider, source);
+        var state = source.ExportState();
+        var config = state.WorldSystems!.Config;
+        // A world that starts in the morning reaches calendar day 2 before a full day of ticks has passed.
+        var end = config.TicksPerDay - 1L;
+        Assert.True(config.CalendarOffsetTicks > 0);
+        Assert.Equal(1, WorldCalendarRules.FromTick(end, config).DayIndex);
+        Assert.Equal(0, end / config.TicksPerDay);
+        using var world = PrivateWorldRuntime.Restore(state with
+        {
+            HouseholdLandUseRights = state.HouseholdLandUseRights!.Select(right =>
+                right.Tiles.Any(provider.Plot.Contains) ? right with { AgreedEndTick = end } : right).ToArray()
+        }, _ => provider);
+        await UntilAsync(world, () => world.Towns[0].LandHearings.Transfers.Count == 1, 20, provider);
+
+        var proposed = Assert.Single(world.Towns[0].LandHearings.Transfers);
+        Assert.Equal(end, Assert.Single(proposed.RightVersions).Right.AgreedEndTick);
+        var notice = Assert.Single(world.Towns[0].Governance!.Notices, entry => entry.Id == proposed.NoticeId);
+        Assert.Contains("same agreed end on world day 2. ", notice.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("world day 1", notice.Text, StringComparison.Ordinal);
+        world.Validate();
+        var saved = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), _ => new ActionCoverageRecorder(chooseIdle: true));
+        restored.Validate();
+        Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+    }
+
+    [Fact]
     public async Task AdmittedJevProposalCannotCreatePermissionTransferAuthority()
     {
         var provider = new TransferProvider(DecisionProviderKind.Jev) { AllowPropose = true };
@@ -300,12 +332,18 @@ public sealed class TownLandTransferRuntimeTests
             .OrderBy(right => right.Id, StringComparer.Ordinal).First().Tiles.ToArray();
     }
 
-    private static PrivateWorldRuntime NewWorld(TransferProvider provider)
+    private static PrivateWorldRuntime NewWorld(TransferProvider provider, bool generatedClock = false)
     {
         using var generated = NormalPathWorld.CreateGenerated("government-personal-path", _ => provider);
         var state = generated.ExportState();
         var society = state.Society.Society;
         var oldDay = society.Config.TicksPerWorldDay;
+        // A calendar-day check keeps the generated day length and morning start; only board proximity and comfort are arranged.
+        if (generatedClock)
+            return PrivateWorldRuntime.Restore(state with
+            {
+                Inhabitants = state.Inhabitants.Select(person => person with { Position = state.Towns![0].OriginSite!.Value, HungerBasisPoints = 8_000 }).ToArray()
+            }, _ => provider);
         // Existing generated title, plots, founders, buildings and stock remain actual.
         // The same scoped public-board proximity/comfort and shorter day fixture as the civic runtime tests is used.
         return PrivateWorldRuntime.Restore(state with

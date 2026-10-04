@@ -15,13 +15,18 @@ public sealed partial class PrivateWorldRuntime
             candidates.Add(new(CivicAction(town.Id, "visit"), "Walk to the public notice place to inspect a land case you actually learned concerns you. Visiting changes no membership or property access.", 175));
         if (atBoard && household is not null)
         {
+            // Land a settled hearing covered, with permissions unchanged since, cannot start a new case, so it is not named.
+            // Land under a pending hearing can only be filed again as that hearing's exact plot, which joins it.
+            var pending = hearings.Cases.Where(item => item.Status == "pending").SelectMany(item => TownLandHearingRules.CurrentRevision(item).Tiles).ToHashSet();
             var affected = householdLandUseRights.Where(right => right.TownId == town.Id && right.HouseholdId == household).SelectMany(right => right.Tiles)
                 .Concat(householdLandUseRequests.Where(request => request.TownId == town.Id && request.HouseholdId == household && request.Status == "pending").SelectMany(TownLandRightsRules.UnresolvedRequestTiles))
-                .Distinct().OrderBy(tile => map.FootDistance(inhabitants[actor].Position, tile)).ThenBy(tile => tile.Y).ThenBy(tile => tile.X).Take(6).ToArray();
+                .Distinct().OrderBy(tile => map.FootDistance(inhabitants[actor].Position, tile)).ThenBy(tile => tile.Y).ThenBy(tile => tile.X)
+                .Where(tile => pending.Contains(tile) || TownLandHearingRules.FilingRefusal(hearings, town.Id, [tile], householdLandUseRights) is null).Take(6).ToArray();
             if (affected.Length > 0)
                 candidates.Add(new(CivicAction(town.Id, "hearing_file", choice: household),
                     "File a land disagreement affecting your household. State the disagreement and requested_outcome in civic_land_hearing, and exact connected civic_land_tiles. Filing supplies no agreement or permission. Nearby affected tiles: " +
-                    TownLandClaimRules.DescribeTiles(affected) + ".", 185));
+                    TownLandClaimRules.DescribeTiles(affected) + "." + (affected.Any(pending.Contains)
+                        ? " Land already under a pending hearing can only be filed again as exactly that hearing's plot, which joins it." : ""), 185));
         }
         if (atBoard && town.Government is { } government && TownAdults(town).Contains(actor, StringComparer.Ordinal))
         {
@@ -40,21 +45,30 @@ public sealed partial class PrivateWorldRuntime
             var revision = TownLandHearingRules.CurrentRevision(item);
             var token = TownLandHearingRules.RevisionToken(item);
             var knows = TownLandHearingRules.HasNoticeReceipt(revision, actor, WorldTick, council.Knowledge);
+            // A settled case with no rehearing request is closed. It asks nothing more of an adult who has read its
+            // ruling, so closed cases neither lengthen every prompt nor keep adding reads and statements to the save.
+            var open = item.Status == "pending" || item.ReopenRequests.Any(request => request.Status == "pending");
+            if (!open && !atBoard && !knows) continue;
             var parties = LandHearingParties(town, revision.Tiles, item);
             var isParty = parties.Any(party => party.AdultIds.Contains(actor, StringComparer.Ordinal) || party.RepresentativeId == actor);
-            if (atBoard && LandHearingMayInspect(town, item, actor) && (!LandHearingReadCurrent(item, actor) || item.Status == "settled"))
+            // A changed right, title or law on the plot is new record evidence, so its file is offered again.
+            if (atBoard && LandHearingMayInspect(town, item, actor) && (!LandHearingReadCurrent(item, actor) ||
+                    item.Status == "settled" && (!LandHearingReadRuling(item, actor) || item.ReopenRequests.Any(request => request.Status == "pending" &&
+                        !item.Reads.Any(read => read.AgentId == actor && read.Revision == revision.Number &&
+                            read.ReopenRequestIds.Contains(request.Id, StringComparer.Ordinal))) || LandHearingUnreadRecords(town, item).Length > 0)))
                 candidates.Add(new(CivicAction(town.Id, "hearing_inspect", token),
                     "Read the actual public land-case file and formal records for " + TownLandClaimRules.DescribeTiles(revision.Tiles) +
                     ". Reading supplies evidence awareness and grants no private-building access.", 177));
             if (!knows) continue;
-            if (isParty || TownAdults(town).Contains(actor, StringComparer.Ordinal))
-            {
+            if (open && (isParty || TownAdults(town).Contains(actor, StringComparer.Ordinal)))
                 candidates.Add(new(CivicAction(town.Id, "hearing_statement", token),
                     "Submit your own statement to the current land-case file via civic_land_hearing.statement. It remains an allegation with your identity, not a verified fact.", 182));
-                if (revision.Tiles.Any(tile => IsWithinInteractionRange(inhabitants[actor].Position, tile, ResourceInteractionRange)))
-                    candidates.Add(new(CivicAction(town.Id, "hearing_observe", token),
-                        "Record what you can physically see on the nearby disputed plot. This supplies no unseen events, building access or permission.", 181));
-            }
+            // A party may still record a new physical fact on a settled plot: that is how material new evidence arises.
+            // Seeing the same thing again adds nothing.
+            if ((open && TownAdults(town).Contains(actor, StringComparer.Ordinal) || isParty) &&
+                revision.Tiles.Any(tile => IsWithinInteractionRange(inhabitants[actor].Position, tile, ResourceInteractionRange)))
+                candidates.Add(new(CivicAction(town.Id, "hearing_observe", token),
+                    "Record what you can physically see on the nearby disputed plot. This supplies no unseen events, building access or permission.", 181));
             foreach (var party in parties.Where(party => item.Status == "pending" &&
                          (party.AdultIds.Contains(actor, StringComparer.Ordinal) || party.RepresentativeId == actor)))
             {
@@ -83,16 +97,24 @@ public sealed partial class PrivateWorldRuntime
             if (item.Judge is { } adjudicator && adjudicator.AgentId == actor && LandHearingJudgeValid(town, item, adjudicator) && LandHearingReadCurrent(item, actor))
             {
                 if (item.Status == "pending" && TownLandHearingRules.CanCloseResponses(item, parties, WorldTick))
-                    foreach (var kind in new[] { "confirm", "renew", "amend", "end", "reject" })
+                {
+                    // A ruling that would leave a lapsed permission as it is, or end one for an unrepresented household, is not offered.
+                    var (kinds, lapsed) = TownLandHearingRules.RulingChoices(householdLandUseRights, revision.Tiles, parties, WorldTick);
+                    foreach (var kind in kinds)
                         candidates.Add(new(CivicAction(town.Id, "hearing_rule", token, kind),
                             "Personally rule to " + kind + " only the recorded plot permission. Supply civic_land_hearing.statement reasons, actual evidence_ids and law_ids" +
-                            (kind is "renew" or "amend" or "end" ? ", household_id from affected households and any agreed_end_tick" : "") + ". " + LandHearingCaseChoices(town, item, actor), 165));
-                foreach (var request in item.ReopenRequests.Where(request => request.Status == "pending" &&
+                            (kind == "end" ? ", and household_id from affected households" : kind is "renew" or "amend" ? ", household_id from affected households and any agreed_end_tick" : "") + ". " +
+                            (lapsed.Length == 0 ? "" : "The permission of household " + string.Join(", ", lapsed) +
+                                " on this plot is past its agreed end, so the ruling must renew, amend or end it. Renewing also renews every lapsed permission on this plot for its own household. ") +
+                            LandHearingCaseChoices(town, item, actor), 165));
+                }
+                // Grounds are assessed only on a settled case; a rehearing already under way decides before any other request.
+                foreach (var request in item.ReopenRequests.Where(request => item.Status == "settled" && request.Status == "pending" &&
                              item.Reads.Any(read => read.AgentId == actor && read.Revision == revision.Number &&
                                  read.ReopenRequestIds.Contains(request.Id, StringComparer.Ordinal))))
                 {
                     var established = request.Kind == "material_evidence" ? TownLandHearingRules.MaterialNewEvidence(item, request, hearings) : TownLandHearingRules.DemonstratedProceduralError(item, request);
-                    if (established)
+                    if (established && TownLandHearingRules.ReopeningPlotIsAvailable(hearings, item))
                         candidates.Add(new(CivicAction(town.Id, "hearing_assess_reopen", token, request.Id + ":accept"), "Accept independently established grounds and open a fresh hearing; current rights remain until a valid correction. Give reasons in civic_land_hearing.statement. Filed " + request.Kind + " claim: " + request.Reasons, 165));
                     candidates.Add(new(CivicAction(town.Id, "hearing_assess_reopen", token, request.Id + ":reject"), "Reject this reopening request with reasons in civic_land_hearing.statement; keep the old ruling and request in the case history. Filed " + request.Kind + " claim: " + request.Reasons, 166));
                 }
@@ -101,7 +123,7 @@ public sealed partial class PrivateWorldRuntime
                 foreach (var grounds in new[] { "material_evidence", "procedural_error" })
                     candidates.Add(new(CivicAction(town.Id, "hearing_reopen", token, grounds),
                         "Request reopening for " + grounds.Replace('_', ' ') + "; identify actual inspected evidence_ids and state grounds in civic_land_hearing.grounds. A claim alone cannot reopen the case. " + LandHearingCaseChoices(town, item, actor), 184));
-            foreach (var recipient in inhabitants.Values.Where(person => person.InhabitantId != actor &&
+            foreach (var recipient in inhabitants.Values.Where(person => open && person.InhabitantId != actor &&
                          IsWithinInteractionRange(person.Position, inhabitants[actor].Position, ResourceInteractionRange)))
                 if (LandHearingReadCurrent(item, actor) && LandHearingMayInspect(town, item, recipient.InhabitantId) && !LandHearingReadCurrent(item, recipient.InhabitantId))
                     candidates.Add(new(CivicAction(town.Id, "hearing_relay", token, recipient.InhabitantId),
@@ -146,6 +168,9 @@ public sealed partial class PrivateWorldRuntime
                 throw new InvalidOperationException("A filing must name a connected plot under this Town's title.");
             if (action == "hearing_propose_town")
             {
+                // A plot the Town could not file on now is refused before the Council spends a vote on it.
+                if (TownLandHearingRules.FilingRefusal(hearings, town.Id, tiles, householdLandUseRights) is { } refusal)
+                    throw new InvalidOperationException(refusal);
                 var filing = new TownLandFilingRequest(tiles, outcome, text);
                 council = TownGovernanceRules.SubmitProposal(council, town.Id, actor, "land_hearing", null,
                     "Authorize this Town land case.", "council:" + council.Revision, TownAdults(town), WorldTick, CivicDay,
@@ -169,7 +194,12 @@ public sealed partial class PrivateWorldRuntime
                 council = TownGovernanceRules.LearnNotice(council, actor, revision.NoticeId, WorldTick);
                 hearings = LandHearingInspectRecords(currentTown, hearings, item.Id, actor, council);
                 break;
-            case "hearing_observe": hearings = LandHearingObserve(hearings, item, actor, council); break;
+            case "hearing_observe":
+                var observed = LandHearingObserve(hearings, item, actor, council);
+                // Seeing the same thing again adds no evidence, so it is not logged as new evidence either.
+                if (ReferenceEquals(observed, hearings)) return (council, hearings);
+                hearings = observed;
+                break;
             case "hearing_statement":
                 var statement = LandHearingText(hearingChoice?.Statement ?? proposalText);
                 hearings = TownLandHearingRules.AddEvidence(hearings, item.Id, revision.Number,
@@ -199,7 +229,7 @@ public sealed partial class PrivateWorldRuntime
                     throw new InvalidOperationException("A ruling can cite only an applicable law version actually inspected in this file.");
                 (hearings, var rights) = TownLandHearingRules.Rule(hearings, map, item.Id, revision.Number, item.Judge!, WorldTick,
                     rulingOutcome, evidenceIds, lawIds, LandHearingText(hearingChoice?.Statement ?? proposalText), householdLandUseRights, parties,
-                    item.Judge is { } judge && LandHearingJudgeValid(currentTown, item, judge));
+                    item.Judge is { } judge && LandHearingJudgeValid(currentTown, item, judge), householdLandUseRequests);
                 householdLandUseRights = rights.ToList();
                 var settled = hearings.Cases.Single(c => c.Id == item.Id);
                 foreach (var resolution in TownLandHearingRules.RequestResolutions(hearings, item.Id, settled.Rulings[^1].Id, householdLandUseRequests))

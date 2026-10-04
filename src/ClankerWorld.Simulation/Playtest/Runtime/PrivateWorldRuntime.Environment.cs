@@ -242,6 +242,17 @@ public sealed partial class PrivateWorldRuntime
             .ToHashSet(StringComparer.Ordinal);
         foreach (var id in inhabitants.Keys.Where(id => !activeIds.Contains(id)).ToArray())
         {
+            if (PendingInstructionFor(id) is { Order.Action: "construct_building" or "expand_building" } buildingOrder)
+            {
+                CancelConstructionForOrder(buildingOrder);
+                CancelExpansionForOrder(buildingOrder);
+                SetOrderStatus(buildingOrder, "blocked", "The ordered building worker is no longer alive.");
+            }
+            if (PendingInstructionFor(id) is { Order.Action: "produce_item" } productionOrder)
+            {
+                CancelProductionForOrder(productionOrder);
+                SetOrderStatus(productionOrder, "blocked", "The ordered production worker is no longer alive.");
+            }
             if (society.Checkpoint.Inventory.Lots.Any(lot => lot.CarrierId == id))
             {
                 var position = inhabitants[id].Position;
@@ -272,6 +283,7 @@ public sealed partial class PrivateWorldRuntime
                 inhabitants[id] with
                 {
                     MedicalTreatment = null,
+                    GuardianPlacement = null,
                     Equipment = inhabitants[id].Equipment is { } equipment
                         ? equipment with { OrnamentLotId = null } : null,
                 }, TownForResident(id)));

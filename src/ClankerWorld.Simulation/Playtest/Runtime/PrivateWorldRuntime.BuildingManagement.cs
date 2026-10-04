@@ -34,6 +34,9 @@ public sealed partial class PrivateWorldRuntime
             var definitionId = building.DefinitionId;
             var townId = building.TownId;
             if (townId is not null) RemoveTownBuildingAssignment(townId, instanceId);
+            if (townId is not null && towns.Single(item => item.Id == townId).Projects
+                    .SingleOrDefault(project => project.CompletedBuildingId == instanceId) is { } paidProject)
+                SetTownProject(townId, paidProject with { RemovedTick = WorldTick });
 
             worldSimulation = worldSimulation with
             {
@@ -41,6 +44,7 @@ public sealed partial class PrivateWorldRuntime
                 BuildingExpansions = PreserveExpansionDefinitionIdentity(instanceId, definitionId),
                 GuestInvitations = RemoveHouseInvitations(instanceId),
             };
+            RecordMarketBuildingRemoval(instanceId);
             if (survivalState is { } survival && survival.Fires.Any(item => item.BuildingId == instanceId))
             {
                 survivalState = survival with { Fires = survival.Fires.Where(item => item.BuildingId != instanceId).ToArray() };

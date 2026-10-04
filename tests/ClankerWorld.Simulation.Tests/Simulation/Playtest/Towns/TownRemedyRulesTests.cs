@@ -21,7 +21,8 @@ public sealed class TownRemedyRulesTests
         var agreement = Assert.Single(state.Agreements);
         Assert.Equal(offer.TermsHash, agreement.TermsHash);
         Assert.Equal((23L, 43L), (agreement.AcceptedTick, agreement.DeadlineTick));
-        Assert.Equal(new[] { "subject", "helper" }, agreement.Consents.Select(consent => consent.AgentId));
+        string[] contributors = ["subject", "helper"];
+        Assert.Equal(contributors, agreement.Consents.Select(consent => consent.AgentId));
         Assert.Empty(state.Effects);
     }
 

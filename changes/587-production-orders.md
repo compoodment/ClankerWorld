@@ -1,0 +1,1 @@
+- Order adults to make supported goods or mill flour through normal work sites and ingredients. Tasks track finished items or batches, keep their chosen site, and resume after survival interruptions or save/reload. Queue another task or cancel unfinished work and release its unused ingredients.

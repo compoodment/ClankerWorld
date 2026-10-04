@@ -625,6 +625,14 @@ public sealed class RestaurantBusinessPipelineTests
             Lots = state.Society.Society.Inventory.Lots.Where(lot => lot.ItemKind is "field_map" or "field_record" ||
                 lot.OwnerId != Alpha && lot.OwnerId != Beta && lot.OwnerId != cook && lot.OwnerId != customer).ToArray(),
         };
+        // This scripted pipeline isolates cooking and trade. Existing usable shared
+        // tools keep the House's wood reserve at two cooking batches, not tool inputs.
+        var adults = state.Society.Society.Inhabitants.Count(person => person.HouseholdId == Beta &&
+            person.Status == SocietyInhabitantStatus.Active && person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder);
+        inventory = InventoryFixture.AddLot(inventory, "restaurant-fixture-axes", "wooden_axe", Beta, adults,
+            storageBuildingId: house.InstanceId);
+        inventory = InventoryFixture.AddLot(inventory, "restaurant-fixture-picks", "wooden_pickaxe", Beta, adults,
+            storageBuildingId: house.InstanceId);
         var houseInputs = state.WorldContent!.Recipes.Where(item => item.WorkstationBuildingId == house.DefinitionId &&
                 item.Tags.Any(tag => tag is "named-meal" or "pottery"))
             .SelectMany(item => item.Inputs).GroupBy(input => input.ResourceId)

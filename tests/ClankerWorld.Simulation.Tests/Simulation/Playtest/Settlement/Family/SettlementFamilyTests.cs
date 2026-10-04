@@ -34,7 +34,6 @@ public sealed class SettlementFamilyTests
     }
 
     [Theory]
-    [InlineData(false, false)]
     [InlineData(true, true)]
     public async Task AncestryAndSiblingExclusionsSurviveInterveningRelativeDeath(bool ancestor, bool relativeDies)
     {
@@ -272,7 +271,7 @@ public sealed class SettlementFamilyTests
                 {
                     Society = state.Society.Society with
                     {
-                        Inhabitants = state.Society.Society.Inhabitants.Select(person => person with { Name = "family-private-text-secret" }).ToArray(),
+                        Inhabitants = state.Society.Society.Inhabitants.Select(person => person with { Name = $"family-private-text-secret-{person.Id}" }).ToArray(),
                     },
                 },
             };

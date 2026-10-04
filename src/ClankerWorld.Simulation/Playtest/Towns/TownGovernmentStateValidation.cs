@@ -17,6 +17,7 @@ internal static class TownGovernmentStateValidation
             state.Changes.Count(c => c.Status is "voting" or "handover") > 1 ||
             state.Changes.Where(c => c.Status is "queued" or "voting" or "handover").GroupBy(c => c.RequestKey).Any(g => g.Count() > 1))
             Fail("The Town's government processes or office records are invalid.");
+        var forcedElections = new HashSet<string>(StringComparer.Ordinal);
         foreach (var change in state.Changes)
         {
             var opened = change.OpenedTick is not null;
@@ -49,6 +50,7 @@ internal static class TownGovernmentStateValidation
                 change.SuccessorId is not null && !known.Contains(change.SuccessorId) ||
                 change.Reason is { Length: > 512 })
                 Fail("A saved protected resident vote or handover is invalid.");
+            ValidateForcedCouncilElection(town.Id, council, change, forcedElections);
         }
         var lastArrangement = state.Changes.LastOrDefault(c => c.Status == "completed")?.Target ?? TownArrangementRules.Initial;
         if (state.Arrangement != lastArrangement || !Unique(state.Offices.Select(o => o.Mandates)) ||
@@ -93,6 +95,28 @@ internal static class TownGovernmentStateValidation
             state.Arrangement.Ordinary != TownArrangementRules.Mayor && council.Form == "leader" ||
             state.Arrangement.Ordinary == TownArrangementRules.AllAdultCouncil && council.Form != "all_adult")
             Fail("Ordinary decision authority does not match the approved arrangement and living officeholder.");
+    }
+
+    private static void ValidateForcedCouncilElection(string townId, TownGovernanceState council,
+        TownGovernmentChange change, HashSet<string> forcedElections)
+    {
+        if (change.ForcedCouncilElectionId is not { } electionId) return;
+        if (!TownGovernmentValidation.ValidId(electionId, townId + ":election:", council.Sequence) ||
+            !forcedElections.Add(electionId) || change.Kind != "arrangement" ||
+            change.Status is not ("handover" or "completed" or "cancelled") || change.ApprovedTick is null ||
+            change.Target.Ordinary is not (TownArrangementRules.Council or TownArrangementRules.ElectedCouncil))
+            Fail("A forced Council election needs one approved government change in the same Town.");
+        var elections = council.ElectionHistory.Concat(council.Election is { } live ? [live] : [])
+            .Where(election => election.Id == electionId).ToArray();
+        if (elections.Length != 1)
+            Fail("A government change's forced Council election must exist exactly once.");
+        var election = elections[0];
+        // A runoff updates OpenedTick, so it can be later than approval or the first round.
+        if (election.Kind != "initial" || election.OpenedTick < change.ApprovedTick ||
+            change.SettledTick is { } settled && election.OpenedTick > settled ||
+            council.Election?.Id == electionId && change.Status != "handover" ||
+            election.Stage == "completed" && change.Status != "completed")
+            Fail("A forced Council election does not match its creating handover's lifecycle.");
     }
 
     private static long EffectiveStart(TownGovernmentState state, string electionId, long start) =>

@@ -89,12 +89,14 @@ public sealed partial class PrivateWorldRuntime
                     WorkstationSourceSurplus(inventory, group.First()));
     }
 
-    private IEnumerable<WorkstationSupplyNeed> WorkstationSupplyNeeds(string actor)
+    private IEnumerable<WorkstationSupplyNeed> WorkstationSupplyNeeds(string actor, string? itemKind = null,
+        string? buildingId = null, int maximumResourceQuantity = int.MaxValue, string? sourceLotId = null)
     {
         if (society.Checkpoint.GetInhabitant(actor).HouseholdId is not { } householdId)
             yield break;
         var definitions = worldContent.Buildings.ToDictionary(item => item.CanonicalId, StringComparer.Ordinal);
-        foreach (var building in worldSimulation.Buildings.Where(item => item.HouseholdId == householdId)
+        foreach (var building in worldSimulation.Buildings.Where(item => item.HouseholdId == householdId &&
+                     (buildingId is null || item.InstanceId == buildingId))
                      .OrderBy(item => item.InstanceId, StringComparer.Ordinal))
         {
             if (!definitions.TryGetValue(building.DefinitionId, out var definition) ||
@@ -102,10 +104,13 @@ public sealed partial class PrivateWorldRuntime
                 continue;
             var recipes = worldContent.Recipes.Where(recipe => recipe.WorkstationBuildingId == definition.CanonicalId &&
                     NeedsRecipeOutput(recipe, householdId) &&
-                    (!HasDedicatedSupply(definition) || recipe.Tags.Any(tag => tag is "pottery" or "care" or "named-meal" or "knowledge")))
-                .OrderBy(recipe => recipe.CanonicalId, StringComparer.Ordinal).ToArray();
+                    (!HasDedicatedSupply(definition) || HouseToolsContent.IsCrudeToolRecipe(recipe) ||
+                     recipe.Tags.Any(tag => tag is "pottery" or "care" or "named-meal" or "knowledge")))
+                .OrderBy(recipe => HouseToolsContent.IsCrudeToolRecipe(recipe) ? 0 : 1)
+                .ThenBy(recipe => recipe.CanonicalId, StringComparer.Ordinal).ToArray();
             foreach (var input in recipes.SelectMany(recipe => recipe.Inputs).GroupBy(input => input.ResourceId))
             {
+                if (itemKind is not null && input.Key != itemKind) continue;
                 var target = input.Max(item => item.Amount) * SupplyBatches;
                 var inventory = society.Checkpoint.Inventory;
                 var stocked = WorkstationOnsiteQuantity(inventory, building, input.Key);
@@ -121,16 +126,23 @@ public sealed partial class PrivateWorldRuntime
                     .Select(lot => lot.ContainerLotId is { } containerId
                         ? inventory.GetLot(containerId) : lot)
                     .Where(lot => PersonalEquipmentRules.IsCarried(lot, actor) &&
+                        (sourceLotId is null || lot.Id == sourceLotId) &&
                         lot.DeliveryBuildingId is null && deliveryRoom > 0 && SpareCarriedQuantity(actor, lot) > 0 &&
                         (!InventoryContainerRules.IsContainer(lot.ItemKind) ||
                          ContainerFamilyQuantity(inventory, lot.Id) <= deliveryRoom) &&
                         (!InventoryContainerRules.IsContainer(lot.ItemKind) ||
+                         DeliveryResourceQuantity(lot, input.Key) <= maximumResourceQuantity) &&
+                        (!InventoryContainerRules.IsContainer(lot.ItemKind) ||
                          !HasActiveContainerReservation(inventory, lot.Id)))
                     .DistinctBy(lot => lot.Id)
                     .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
-                var stock = carried is not null ? null : SpareHouseholdStock(actor, householdId, input.Key, building) ??
+                var stock = carried is not null ? null : SpareHouseholdStock(actor, householdId, input.Key, building,
+                    maximumResourceQuantity, sourceLotId) ??
                     AvailableWarehouseStock(actor, input.Key).FirstOrDefault(lot =>
-                        WorkstationPickupQuantity(actor, inventory, lot, building.InstanceId, int.MaxValue) > 0);
+                        (sourceLotId is null || lot.Id == sourceLotId) &&
+                        WorkstationPickupQuantity(actor, inventory, lot, building.InstanceId, int.MaxValue) > 0 &&
+                        (!InventoryContainerRules.IsContainer(lot.ItemKind) ||
+                         DeliveryResourceQuantity(lot, input.Key) <= maximumResourceQuantity));
                 var source = carried is not null || stock is not null ? null : MaterialSource(input.Key, actor);
                 if (source is not null && (deliveryRoom <= 0 ||
                     ProjectMaterialCarryUnits(actor, input.Key, source) > FreeCarryCapacity(actor)))
@@ -164,7 +176,7 @@ public sealed partial class PrivateWorldRuntime
     }
 
     private InventoryLot? SpareHouseholdStock(string actor, string householdId, string itemKind,
-        PlacedBuilding destination)
+        PlacedBuilding destination, int maximumResourceQuantity = int.MaxValue, string? sourceLotId = null)
     {
         var inventory = society.Checkpoint.Inventory;
         return inventory.Lots
@@ -172,10 +184,13 @@ public sealed partial class PrivateWorldRuntime
                 AvailableLotQuantity(lot) > 0)
             .Select(lot => lot.ContainerLotId is { } containerId
                 ? inventory.GetLot(containerId) : lot)
-            .Where(lot => lot.OwnerId == householdId && lot.CarrierId is null && lot.StorageBuildingId != destination.InstanceId &&
+            .Where(lot => lot.OwnerId == householdId && lot.CarrierId is null && !OnBorrowedMarketStall(lot) && lot.StorageBuildingId != destination.InstanceId &&
+                (sourceLotId is null || lot.Id == sourceLotId) &&
                 lot.DeliveryBuildingId is null && AvailableLotQuantity(lot) > 0 &&
                 (!InventoryContainerRules.IsContainer(lot.ItemKind) ||
                  !HasActiveContainerReservation(inventory, lot.Id)) &&
+                (!InventoryContainerRules.IsContainer(lot.ItemKind) ||
+                 DeliveryResourceQuantity(lot, itemKind) <= maximumResourceQuantity) &&
                 (lot.StorageBuildingId is null || worldSimulation.Buildings.Any(building =>
                     building.InstanceId == lot.StorageBuildingId && worldContent.Buildings.Any(definition =>
                         definition.CanonicalId == building.DefinitionId &&
@@ -246,5 +261,37 @@ public sealed partial class PrivateWorldRuntime
         }
         if (need.Source is { } source)
             GatherProjectMaterial(actor, state, itemKind, source);
+    }
+
+    private DeliveryOrderPlan? GetWorkstationOrderPlan(string actor, PlaytestInhabitantState person,
+        OwnerInstructionOrder order, int maximumQuantity)
+    {
+        if (!AdultResident(actor) || HouseholdFor(actor) is not { } householdId) return null;
+        var inventory = society.Checkpoint.Inventory;
+        foreach (var need in WorkstationSupplyNeeds(actor, order.TargetItemKind,
+                     order.TargetStorageBuildingId, maximumQuantity, order.DeliveryLotId)
+                     .Where(need => DeliveryDestinationMatches(order, need.Building)))
+        {
+            var carrier = need.Carried ?? need.HouseholdStock;
+            if (carrier is null) continue;
+            var direct = need.Carried is not null;
+            var container = InventoryContainerRules.IsContainer(carrier.ItemKind);
+            var quantity = direct
+                ? container ? ContainerFamilyQuantity(inventory, carrier.Id) <=
+                    WorkstationDeliveryRoom(inventory, need.Building.InstanceId) ? 1 : 0
+                    : Math.Min(maximumQuantity, Math.Min(WorkstationDeliveryRoom(inventory, need.Building.InstanceId),
+                        Math.Min(need.Missing, SpareCarriedQuantity(actor, carrier))))
+                : WorkstationPickupQuantity(actor, inventory, carrier, need.Building.InstanceId,
+                    Math.Min(need.Missing, maximumQuantity));
+            if (quantity <= 0) continue;
+            var resourceQuantity = container ? DeliveryResourceQuantity(carrier, need.ItemKind) : quantity;
+            if (resourceQuantity <= 0 || resourceQuantity > maximumQuantity) continue;
+            var resource = carrier.ItemKind == need.ItemKind ? carrier : inventory.Lots
+                .Where(lot => lot.ContainerLotId == carrier.Id && lot.ItemKind == need.ItemKind)
+                .OrderBy(lot => lot.Id, StringComparer.Ordinal).First();
+            return new DeliveryOrderPlan("workstation_input", need.Building, householdId,
+                carrier, resource, quantity, resourceQuantity, DirectDelivery: direct);
+        }
+        return null;
     }
 }

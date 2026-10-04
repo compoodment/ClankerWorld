@@ -28,6 +28,12 @@ public sealed record TownRuntimeState(
     public TownLandHearingState LandHearings { get; init; } = TownLandHearingState.Create();
 
     [JsonRequired]
+    public IReadOnlyList<TownConstructionProject> Projects { get; init; } = [];
+
+    [JsonRequired]
+    public IReadOnlyList<TownMarketState> Markets { get; init; } = [];
+
+    [JsonRequired]
     public TownNonviolentState Nonviolent { get; init; } = TownNonviolentState.Create();
 }
 

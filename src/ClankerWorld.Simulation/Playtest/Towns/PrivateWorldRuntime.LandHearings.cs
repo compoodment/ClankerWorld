@@ -11,21 +11,33 @@ public sealed partial class PrivateWorldRuntime
         foreach (var right in householdLandUseRights.Where(right => right.TownId == town.Id && right.AgreedEndTick <= WorldTick).ToArray())
         {
             if (hearings.Cases.Any(item => item.Filings.Any(filing => filing.Kind == "expiry" && filing.AuthorityId == right.Id))) continue;
-            if (hearings.Cases.Any(item => item.Status == "settled" &&
-                    TownLandHearingRules.CurrentRevision(item).Tiles.SequenceEqual(right.Tiles) &&
-                    LandHearingSamePermissionTerms(TownLandHearingRules.CurrentRevision(item).RightVersions.Select(version => version.Right),
-                        householdLandUseRights, right.Tiles))) continue;
+            // A different pending case over these tiles must rule on the lapsed permission first; only a
+            // ruling made at or after the agreed end, with the terms unchanged since, has already reviewed it.
+            if (TownLandHearingRules.FilingRefusal(hearings, town.Id, right.Tiles, householdLandUseRights, right.Id) is not null) continue;
             var filing = new TownLandCaseFiling(null, "expiry", "Review an agreed permission expiry; existing permission remains provisional.",
                 new("confirm"), WorldTick, right.Id);
             (council, hearings) = OpenLandHearing(town, council, hearings, filing, right.Tiles);
         }
         foreach (var proposal in council.Proposals.Where(proposal => proposal.Kind == "land_hearing" && proposal.Status == "passed"))
         {
+            var unopened = proposal.Id + ":unopened";
             if (proposal.LandHearingRequest is not { } request ||
                 hearings.Cases.Any(item => item.Filings.Any(filing => filing.AuthorityId == proposal.Id)) ||
+                council.Notices.Any(notice => notice.Kind == "result" && notice.SubjectId == unopened) ||
                 !LandHearingTownFilingAuthority(town with { Governance = council, Government = government }, proposal.AuthorId, proposal.Id)) continue;
             var filing = new TownLandCaseFiling(proposal.AuthorId, "town", request.Statement, request.RequestedOutcome, WorldTick, proposal.Id);
-            (council, hearings) = OpenLandHearing(town, council, hearings, filing, request.Tiles, townRepresentative: proposal.AuthorId);
+            // The Council's vote stands when its filing can no longer open: this runs inside the deciding
+            // vote, so a refusal is published once as a result instead of undoing that vote.
+            var refusal = TownLandHearingRules.IsValidOutcome(request.RequestedOutcome, WorldTick) ? null : "Its requested end date has passed.";
+            try
+            {
+                if (refusal is null)
+                    (council, hearings) = OpenLandHearing(town, council, hearings, filing, request.Tiles, townRepresentative: proposal.AuthorId);
+            }
+            catch (InvalidOperationException exception) { refusal = exception.Message; }
+            if (refusal is not null)
+                council = TownGovernanceRules.PostNotice(council, "result", unopened,
+                    "The Town land hearing that the Council authorized could not open. " + refusal, WorldTick);
         }
         foreach (var item in hearings.Cases.Where(item => item.Status == "pending").ToArray())
         {
@@ -77,14 +89,4 @@ public sealed partial class PrivateWorldRuntime
     private void LandHearingEvent(string kind, TownRuntimeState town, TownLandCase item, string? actor, string status) =>
         AppendEvent("land_case_" + kind,
             $"{town.Id}|{item.Id}|{TownLandHearingRules.CurrentRevision(item).Number}|{actor ?? ""}|{status}", CivicBoard(town));
-
-    private static bool LandHearingSamePermissionTerms(IEnumerable<HouseholdLandUseRight> left,
-        IEnumerable<HouseholdLandUseRight> right, IReadOnlyList<GridPoint> plot)
-    {
-        static IEnumerable<string> Terms(IEnumerable<HouseholdLandUseRight> rights, IReadOnlyList<GridPoint> tiles) => rights
-            .SelectMany(right => right.Tiles.Where(tiles.Contains).Select(tile =>
-                FormattableString.Invariant($"{tile.X}|{tile.Y}|{right.TownId}|{right.HouseholdId}|{right.GrantedTick}|{right.GrantSource}|{right.AgreedEndTick}")))
-            .Order(StringComparer.Ordinal);
-        return Terms(left, plot).SequenceEqual(Terms(right, plot), StringComparer.Ordinal);
-    }
 }

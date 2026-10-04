@@ -31,9 +31,11 @@ public static class ToolProgressionRules
 {
     private static readonly ToolDefinition[] Definitions =
     [
+        new(HouseToolsContent.CrudeWoodenAxe, ToolFamily.Axe, 0, 4, 1, 4_000),
         new("wooden_axe", ToolFamily.Axe, 1, 6, 1, 2_000),
         new("stone_axe", ToolFamily.Axe, 2, 7, 1, 1_250),
         new("iron_axe", ToolFamily.Axe, 3, 8, 1, 1_000),
+        new(HouseToolsContent.CrudeWoodenPickaxe, ToolFamily.Pickaxe, 0, 4, 1, 4_000),
         new("wooden_pickaxe", ToolFamily.Pickaxe, 1, 6, 1, 2_000),
         new("stone_pickaxe", ToolFamily.Pickaxe, 2, 7, 1, 1_250),
         new("iron_pickaxe", ToolFamily.Pickaxe, 3, 8, 1, 1_000),
@@ -169,6 +171,7 @@ public static class ToolProgressionRules
 
     public static IReadOnlyList<ContentQuantity> RepairMaterials(string itemKind) => itemKind switch
     {
+        HouseToolsContent.CrudeWoodenAxe or HouseToolsContent.CrudeWoodenPickaxe => [new("wood", 1)],
         "wooden_axe" or "wooden_pickaxe" or "wooden_hoe" or "wooden_hammer" => [new("wood", 1)],
         "stone_axe" or "stone_pickaxe" or "stone_hammer" => [new("wood", 1), new("stone", 1)],
         "iron_axe" or "iron_pickaxe" or "iron_hoe" or "iron_sickle" => [new("wood", 1), new("iron", 1)],
@@ -180,10 +183,10 @@ public static class ToolProgressionRules
     private static ToolDefinition? RequiredTool(string itemKind, MapResource source)
     {
         if (itemKind == "wood" && (TreeGrowthRules.IsWoodTree(source.TreeKind) || source.Kind == "construction"))
-            return Definitions.Single(tool => tool.ItemKind == "wooden_axe");
+            return Definitions.Single(tool => tool.ItemKind == HouseToolsContent.CrudeWoodenAxe);
         return itemKind switch
         {
-            "stone" => Definitions.Single(tool => tool.ItemKind == "wooden_pickaxe"),
+            "stone" => Definitions.Single(tool => tool.ItemKind == HouseToolsContent.CrudeWoodenPickaxe),
             "iron_ore" => Definitions.Single(tool => tool.ItemKind == "stone_pickaxe"),
             "gold_ore" or "diamond" => Definitions.Single(tool => tool.ItemKind == "iron_pickaxe"),
             _ => null,

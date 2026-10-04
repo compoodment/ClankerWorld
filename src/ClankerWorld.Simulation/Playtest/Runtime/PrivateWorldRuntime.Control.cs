@@ -121,6 +121,11 @@ public sealed partial class PrivateWorldRuntime
                     },
                 };
                 completedInstructionIds.Add(instruction.InstructionId);
+                CancelRepairForOrder(instruction);
+                CancelFieldWorkForOrder(instruction);
+                CancelProductionForOrder(instruction);
+                CancelConstructionForOrder(instruction);
+                CancelExpansionForOrder(instruction);
                 status = "cancelled";
                 AppendEvent("instruction_order_cancelled", $"{instruction.TargetInhabitantId}:{instruction.InstructionId}:owner");
             }
@@ -322,6 +327,11 @@ public sealed partial class PrivateWorldRuntime
                 },
             };
             completedInstructionIds.Add(instruction.InstructionId);
+            CancelRepairForOrder(instruction);
+            CancelFieldWorkForOrder(instruction);
+            CancelProductionForOrder(instruction);
+            CancelConstructionForOrder(instruction);
+            CancelExpansionForOrder(instruction);
             AppendEvent("instruction_order_cancelled", $"{inhabitantId}:{instruction.InstructionId}:replaced");
         }
         checkpointSchemaVersion = StateSchemaVersion;
@@ -373,20 +383,40 @@ public sealed partial class PrivateWorldRuntime
 
     private static string? UnderstoodTaskFor(string? candidate) => candidate switch
     {
+        "seek_shelter" => "reach the requested permitted shelter",
+        "tend_fire" => "light one permitted hearth using your own wood",
         "consume_food" => "eat one carried food item",
         "move_to" => "travel to the exact tile named in this order",
         "seek_food" => "travel within gathering range of an available food source",
         "harvest_food" => "gather several food servings from a nearby food source",
         "gather_material" => "gather the requested material from a natural source",
+        "till_field" => "till a field for your household",
+        "plant_field" => "plant the requested crop in your household field",
+        "tend_field" => "tend your household crop",
+        "harvest_field" => "harvest your household crop",
+        "repair_tool" => "repair your own worn tool",
+        "repair_equipment" => "repair your own worn clothing or carrying aid",
         "collect_material" => "collect your own stored or dropped material",
+        "collect_food" => "collect your own stored or dropped food",
+        "collect_equipment" => "collect your own stored or dropped equipment",
+        "collect_goods" => "collect your own stored or dropped goods",
         "store_material" => "store your own carried material in your House",
+        "store_equipment" => "store your own carried equipment in your House",
         "accept_guardianship" => "accept primary care of the named child through their guardian search",
+        "store_goods" => "store your own carried goods in your House",
+        "return_borrowed" => "return borrowed goods to their owning household's House",
+        "deliver_stock" => "deliver the requested goods to a permitted building",
+        "produce_item" => "make the requested goods at a permitted workstation",
+        "construct_building" => "construct the requested household building at a permitted site",
+        "expand_building" => "complete the requested building's next permitted expansion",
         _ => null,
     };
 
     private OwnerInstructionOrder? ParseInstructionOrder(string text, string actor)
     {
-        return ParseGuardianOrder(text, actor) ?? PrivateWorldInstructionOrderParser.Parse(text, map.Resources, FoodKnowledgeKind);
+        return ParseGuardianOrder(text, actor) ?? PrivateWorldInstructionOrderParser.Parse(text, map.Resources, FoodKnowledgeKind,
+            PrivateWorldProductionOrderCatalog.Available(worldContent), PrivateWorldDeliveryOrderCatalog.AvailableInputs(worldContent),
+            PrivateWorldBuildingOrderCatalog.Available(worldContent));
     }
 
     // A direct order that names no action the game can carry out is closed

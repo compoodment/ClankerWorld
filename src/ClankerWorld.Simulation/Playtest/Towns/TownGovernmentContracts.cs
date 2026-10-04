@@ -28,6 +28,10 @@ public sealed record TownGovernmentChange(string Id, string RequestKey, string K
     string? SuccessorId = null, string? Reason = null)
 {
     public IReadOnlyList<string> OpeningVoters { get; init; } = [];
+
+    [JsonRequired]
+    public string? ForcedCouncilElectionId { get; init; }
+
     public TownNonLandExtension? NonLandExtension { get; init; }
 }
 

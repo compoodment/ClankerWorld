@@ -142,7 +142,7 @@ public sealed partial class PrivateWorldRuntime
         (kind == "food" ? null : AvailableWarehouseStock(actor, kind).FirstOrDefault());
 
     private bool CanReachSharedItem(string actor, InventoryLot lot) =>
-        FindUnoccupiedRoute(actor, inhabitants[actor].Position, HouseholdStockPosition(lot),
+        !OnBorrowedMarketStall(lot) && FindUnoccupiedRoute(actor, inhabitants[actor].Position, HouseholdStockPosition(lot),
             HouseholdStockInteractionRange(lot)).Count > 0;
 
     private IEnumerable<PlacedBuilding> BuildingsWithTag(string tag) => worldSimulation.Buildings.Where(building =>
@@ -314,36 +314,43 @@ public sealed partial class PrivateWorldRuntime
         return carried is not null && ToolProgressionRules.Find(carried.ItemKind)!.Tier >= requested.Tier;
     }
 
+    private sealed record FireFuelEffect(string BuildingId, string FuelReservationId);
+
     private void TendFire(string actor, PlaytestInhabitantState person)
     {
         var building = ReachableUnlitHearth(actor, person);
-        if (building is null || survivalState is null)
-        {
-            return;
-        }
+        if (building is not null) _ = TendFireAt(actor, person, building);
+    }
+
+    private FireFuelEffect? TendFireAt(string actor, PlaytestInhabitantState person, PlacedBuilding building)
+    {
+        if (survivalState is null || IsFireLit(building) ||
+            !AccessibleHeatingBuildings(actor).Any(item => item.InstanceId == building.InstanceId))
+            return null;
         if (!HasCarriedOwnItem(actor, "wood"))
         {
             if (SharedItem("wood", actor) is not null)
-            {
                 CollectEquipment(actor, person, "wood");
-            }
             else if (MaterialSource("wood", actor) is { } source)
-            {
                 GatherProjectMaterial(actor, person, "wood", source);
-            }
-            return;
+            return null;
         }
         var interactionRange = building.HouseholdId is null ? ResourceInteractionRange : 0;
         if (!IsWithinInteractionRange(person.Position, building.Position, interactionRange))
         {
             MoveToward(actor, person, building.Position, "fuel_fire", interactionRange);
-            return;
+            return null;
         }
         var fuel = society.Checkpoint.Inventory.Lots.First(lot => lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) &&
             lot.DeliveryBuildingId is null && lot.ContainerLotId is null && lot.ItemKind == "wood" && AvailableLotQuantity(lot) > 0);
-        society.Apply(checkpoint => ClankerWorld.Simulation.Society.SocietyFixture.ConsumeInventory(checkpoint, actor, fuel.Id, 1, "heating_fuel"));
+        var previousReservations = society.Checkpoint.Inventory.Reservations.Select(item => item.Id).ToHashSet(StringComparer.Ordinal);
+        var result = society.Apply(checkpoint => ClankerWorld.Simulation.Society.SocietyFixture.ConsumeInventory(checkpoint, actor, fuel.Id, 1, "heating_fuel"));
+        var payment = result.Checkpoint.Inventory.Reservations.Single(item => !previousReservations.Contains(item.Id) &&
+            item.OwnerId == actor && item.LotId == fuel.Id && item.Quantity == 1 && item.Purpose == "heating_fuel" &&
+            item.State == InventoryReservationState.Completed && item.ExpiryTick == WorldTick);
         survivalState = survivalState with { Fires = survivalState.Fires.Append(new CampFireState(building.InstanceId, WorldTick + 120)).ToArray() };
         AppendEvent("fire_fuelled", building.InstanceId);
+        return new FireFuelEffect(building.InstanceId, payment.Id);
     }
 
     private IEnumerable<PlacedBuilding> ReachableWarmthDestinations(string actor, PlaytestInhabitantState person) =>
@@ -379,7 +386,9 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
-    private bool NeedsRecipeOutput(RecipeDefinition recipe, string? ownerId = null, string? requestWorker = null) => HasToolMakingDemand(recipe, ownerId, requestWorker) || recipe.Outputs.Any(output =>
+    private bool NeedsRecipeOutput(RecipeDefinition recipe, string? ownerId = null, string? requestWorker = null) =>
+        HouseToolsContent.IsCrudeToolRecipe(recipe) ? NeedsHouseTool(recipe, ownerId) :
+        HasToolMakingDemand(recipe, ownerId, requestWorker) || recipe.Outputs.Any(output =>
     {
         if (output.ResourceId == KnowledgeContent.Paper)
             return NeedsKnowledgePaper(ownerId);
@@ -397,6 +406,54 @@ public sealed partial class PrivateWorldRuntime
             : output.ResourceId == "food" ? inhabitants.Count * 4 : Math.Max(1, inhabitants.Count);
         return available < target;
     });
+
+    /// <summary>One usable family tool per adult, counting better tools and work already paid for.</summary>
+    private bool NeedsHouseTool(RecipeDefinition recipe, string? householdId)
+    {
+        if (householdId is null) return false;
+        var adults = inhabitants.Keys.Where(actor => AdultResident(actor) && HouseholdFor(actor) == householdId).ToArray();
+        if (adults.Length == 0) return false;
+        var family = ToolProgressionRules.Find(recipe.Outputs[0].ResourceId)!.Family;
+        var tools = society.Checkpoint.Inventory.Lots.Where(lot => lot.ContainerLotId is null &&
+            lot.DeliveryBuildingId is null && ToolProgressionRules.Find(lot.ItemKind)?.Family == family &&
+            AvailableLotQuantity(lot) > 0).ToArray();
+        // Private extras and borrowed tools held by the same adult cover only that adult.
+        var uncovered = adults.Where(actor => !tools.Any(lot =>
+            lot.OwnerId == householdId && ToolProgressionRules.IsTopLevelCarriedLot(lot, actor) ||
+            lot.OwnerId == actor && (ToolProgressionRules.IsTopLevelCarriedLot(lot, actor) ||
+                lot.CarrierId is null && CanReachHouseToolStock(actor, householdId, lot)))).ToArray();
+        if (uncovered.Length == 0) return false;
+        // Free shared stock can wait for an adult's route to reopen; do not keep making
+        // replacements merely because that adult is temporarily away from the household.
+        var available = tools.Where(lot => lot.OwnerId == householdId && lot.CarrierId is null &&
+                adults.Any(actor => CanReachHouseToolStock(actor, householdId, lot)))
+            .Sum(lot => (long)AvailableLotQuantity(lot));
+        if (available >= uncovered.Length) return false;
+        var committed = worldSimulation.ProductionJobs.Where(job => job.OwnerId == householdId &&
+                job.ToolMakingRequestId is null &&
+                job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused &&
+                worldSimulation.Buildings.Any(building => building.InstanceId == job.BuildingInstanceId &&
+                    building.HouseholdId == householdId && adults.Any(actor =>
+                        inhabitants[actor].Position == building.Position ||
+                        FindUnoccupiedRoute(actor, inhabitants[actor].Position, building.Position, 0).Count > 0)))
+            .SelectMany(job => worldContent.Recipes.FirstOrDefault(item => item.CanonicalId == job.RecipeId)?.Outputs ?? [])
+            .Where(output => ToolProgressionRules.Find(output.ResourceId)?.Family == family)
+            .Sum(output => (long)output.Amount);
+        return available + committed < uncovered.Length;
+    }
+
+    private bool CanReachHouseToolStock(string actor, string householdId, InventoryLot lot)
+    {
+        if (OnBorrowedMarketStall(lot))
+            return false;
+        if (lot.StorageBuildingId is { } storage && !worldSimulation.Buildings.Any(building =>
+                building.InstanceId == storage && building.HouseholdId == householdId))
+            return false;
+        var position = HouseholdStockPosition(lot);
+        var range = HouseholdStockInteractionRange(lot);
+        return IsWithinInteractionRange(inhabitants[actor].Position, position, range) ||
+            FindUnoccupiedRoute(actor, inhabitants[actor].Position, position, range).Count > 0;
+    }
 
     private string FoodSource(InventoryLot lot)
     {

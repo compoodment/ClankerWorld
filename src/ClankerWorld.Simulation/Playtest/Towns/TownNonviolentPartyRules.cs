@@ -15,7 +15,7 @@ public static class TownNonviolentPartyRules
         bool Adult(string id) => society.Inhabitants.Any(person => person.Id == id && person.Status == SocietyInhabitantStatus.Active &&
             person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder);
         var people = recorded.Where(filing => filing.Kind == "affected" && filing.AgentId != allegation.SubjectId)
-            .Select(filing => (Id: filing.AgentId, Role: "affected")).Prepend((allegation.SubjectId, "subject")).Distinct();
+            .Select(filing => (Id: filing.AgentId, Role: "affected")).Prepend((Id: allegation.SubjectId, Role: "subject")).Distinct();
         var parties = people.Select(entry =>
         {
             var person = society.GetInhabitant(entry.Id);

@@ -25,28 +25,32 @@ public sealed partial class PrivateWorldRuntime
     {
         var item = hearings.Cases.Single(c => c.Id == caseId);
         var revision = TownLandHearingRules.CurrentRevision(item);
-        void Record(string id, string version, string text)
+        foreach (var (id, version, text) in LandHearingUnreadRecords(town, item))
         {
             var current = hearings.Cases.Single(c => c.Id == caseId);
-            if (current.Evidence.Any(evidence => evidence.Revision == revision.Number && evidence.Kind == "record" &&
-                    evidence.SourceRecordId == id && evidence.SourceVersion == version)) return;
             hearings = TownLandHearingRules.AddEvidence(hearings, caseId, revision.Number,
                 new(LandHearingEvidenceId(current, actor, "record", id + version), revision.Number, "record", "record_inspection",
                     actor, id, version, WorldTick, actor, WorldTick, text), council.Knowledge);
         }
-        foreach (var right in householdLandUseRights.Where(right => right.TownId == town.Id && right.Tiles.Any(revision.Tiles.Contains)))
-            Record(right.Id, TownLandHearingRules.Version(right),
-                FormattableString.Invariant($"Recorded household {right.HouseholdId} permission for {right.Tiles.Count} tiles; grant {right.GrantSource}; granted {right.GrantedTick}; agreed end {right.AgreedEndTick?.ToString(CultureInfo.InvariantCulture) ?? "none"}."));
-        foreach (var title in townLandTitles.Where(title => title.TownId == town.Id && title.Tiles.Any(revision.Tiles.Contains)))
-            Record(title.Id, TownLandHearingRules.Digest(JsonSerializer.Serialize(title)),
-                FormattableString.Invariant($"Town {title.TownId} holds formal title to {title.Tiles.Count} recorded tiles from {title.RecordedTick}."));
-        foreach (var (law, version) in LandHearingApplicableLaws(town, item))
-            Record(LandHearingLawToken(law, version), TownLandHearingRules.LawVersion(version),
-                TownLawRules.Text(version.Subject, version.Rule));
-        foreach (var ruling in item.Rulings)
-            Record(ruling.Id, TownLandHearingRules.Digest(JsonSerializer.Serialize(ruling)),
-                FormattableString.Invariant($"Recorded ruling {ruling.Id}, hearing {ruling.Revision}, made at {ruling.Tick}: {ruling.Outcome.Kind}."));
         return TownLandHearingRules.Inspect(hearings, caseId, revision.Number, actor, WorldTick);
+    }
+
+    /// <summary>The plot's current rights, title, applicable law versions and rulings not yet in this notice's file.</summary>
+    private (string Id, string Version, string Text)[] LandHearingUnreadRecords(TownRuntimeState town, TownLandCase item)
+    {
+        var revision = TownLandHearingRules.CurrentRevision(item);
+        var records = householdLandUseRights.Where(right => right.TownId == town.Id && right.Tiles.Any(revision.Tiles.Contains))
+            .Select(right => (right.Id, TownLandHearingRules.Version(right),
+                FormattableString.Invariant($"Recorded household {right.HouseholdId} permission for {right.Tiles.Count} tiles; grant {right.GrantSource}; granted {right.GrantedTick}; agreed end {right.AgreedEndTick?.ToString(CultureInfo.InvariantCulture) ?? "none"}.")))
+            .Concat(townLandTitles.Where(title => title.TownId == town.Id && title.Tiles.Any(revision.Tiles.Contains))
+                .Select(title => (title.Id, TownLandHearingRules.Digest(JsonSerializer.Serialize(title)),
+                    FormattableString.Invariant($"Town {title.TownId} holds formal title to {title.Tiles.Count} recorded tiles from {title.RecordedTick}."))))
+            .Concat(LandHearingApplicableLaws(town, item).Select(pair => (LandHearingLawToken(pair.Law, pair.Version),
+                TownLandHearingRules.LawVersion(pair.Version), TownLawRules.Text(pair.Version.Subject, pair.Version.Rule))))
+            .Concat(item.Rulings.Select(ruling => (ruling.Id, TownLandHearingRules.Digest(JsonSerializer.Serialize(ruling)),
+                FormattableString.Invariant($"Recorded ruling {ruling.Id}, hearing {ruling.Revision}, made at {ruling.Tick}: {ruling.Outcome.Kind}."))));
+        return records.Where(record => !item.Evidence.Any(evidence => evidence.Revision == revision.Number && evidence.Kind == "record" &&
+            evidence.SourceRecordId == record.Item1 && evidence.SourceVersion == record.Item2)).ToArray();
     }
 
     private static string LandHearingEvidenceId(TownLandCase item, string actor, string kind, string source) =>

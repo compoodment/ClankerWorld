@@ -25,7 +25,7 @@ public static class TownRemedyRules
         bool feasible, string? replacesOfferId = null, string? replacesAgreementId = null)
     {
         var item = state.Cases.SingleOrDefault(c => c.Id == caseId && c.Status == "settled");
-        var finding = item?.Findings.LastOrDefault();
+        var finding = item is { Findings.Count: > 0 } ? item.Findings[^1] : null;
         if (replacesAgreementId is not null)
         {
             var previous = state.Agreements.SingleOrDefault(a => a.Id == replacesAgreementId && a.Status != "completed" && !IsSuperseded(state, a.Id));

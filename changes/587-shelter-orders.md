@@ -1,0 +1,1 @@
+- Agents can follow orders to seek permitted shelter or light a fire with real wood. Tasks keep their destination, respect household and storm-guest access, and preserve progress across interruptions and saves. Reaching cover completes a shelter task without claiming that warmth has recovered.

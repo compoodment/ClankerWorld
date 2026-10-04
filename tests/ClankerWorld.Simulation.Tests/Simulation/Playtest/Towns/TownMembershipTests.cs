@@ -18,7 +18,7 @@ namespace ClankerWorld.Simulation.Tests;
 /// or personally accept. Every consent here comes from an accepted personal
 /// model choice, as in play.
 /// </summary>
-public sealed class TownMembershipTests
+public sealed partial class TownMembershipTests
 {
     private const string First = "town:first";
     private const string Second = "town:second";
@@ -749,7 +749,8 @@ public sealed class TownMembershipTests
             Governance = passed,
             Admissions = [new TownAdmissionRecord(proposal, outsider, "approved", 1)],
         };
-        Assert.Equal(none + " · Second Town's council approved admission; not accepted yet", Describe(outsider, approved));
+        Assert.Equal(none + " · Second Town's council approved admission; accept before world day 2 at 00:04; about 23 world hours 44 minutes left; paused time does not count",
+            Describe(outsider, approved));
         Assert.Equal(none, Describe(outsider, approved, knows: (_, kind, _) => kind != "result"));
 
         var rejected = TownGovernanceRules.VoteProposal(pending, proposal, voter, false, 1);
@@ -824,7 +825,7 @@ public sealed class TownMembershipTests
                 Assert.DoesNotContain($"{town.Name}'s council approved", observation.Self?.TownMembershipNote ?? "", StringComparison.Ordinal);
             });
             Assert.Contains(observed, observation => observation.Candidates.Any(candidate => candidate.Id.StartsWith(accept, StringComparison.Ordinal)) &&
-                observation.Self?.TownMembershipNote?.Contains("council approved admission; not accepted yet", StringComparison.Ordinal) == true);
+                observation.Self?.TownMembershipNote?.Contains("council approved admission; accept before", StringComparison.Ordinal) == true);
             if (townId == Second) secondProposal = record.ProposalId;
             else return (state, record.ProposalId, secondProposal!);
         }
@@ -933,7 +934,7 @@ public sealed class TownMembershipTests
     private static (PrivateWorldRuntimeState State, string[] Children) WithChildren(PrivateWorldRuntimeState state, string caregiver,
         string otherParent, int count)
     {
-        var society = Partners(state.Society.Society, caregiver, otherParent);
+        var society = ChosenBirthNameTestFixture.NameParent(Partners(state.Society.Society, caregiver, otherParent), caregiver);
         var household = society.GetInhabitant(caregiver).HouseholdId!;
         var children = new List<string>();
         for (var index = 0; index < count; index++)
@@ -941,7 +942,7 @@ public sealed class TownMembershipTests
             var food = society.Inventory.Lots.First(lot => lot.OwnerId == household && lot.ItemKind == "food" && lot.Quantity >= 4);
             var birth = SocietyFixture.CommitBirth(society, new SocietyBirthRequest($"membership-child-{index}", 1, caregiver, otherParent,
                 household, [caregiver, otherParent], [caregiver, otherParent], food.Id, 4, society.WorldTick,
-                ChildName: $"Ari {index + 1}", PrimaryCaregiverId: caregiver));
+                ChildName: ChosenBirthNameTestFixture.ChildName(society, caregiver, $"Ari{index + 1}"), PrimaryCaregiverId: caregiver));
             children.Add(Assert.IsType<string>(birth.CreatedId));
             society = birth.Checkpoint;
         }

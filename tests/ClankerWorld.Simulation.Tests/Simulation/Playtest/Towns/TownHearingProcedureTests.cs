@@ -9,16 +9,17 @@ public sealed class TownHearingProcedureTests
     public void TiedLeadersAndActualBallotsSurviveInterruptionBeforeAFullNewDay()
     {
         string[] adults = ["a", "b", "c"];
+        string[] tiedLeaders = ["a", "b"];
         var contest = new TownCaseJudgeContest("case:judge:1", "waiting", 0, 0, null, null, [], [], [], [], 0, []);
         contest = TownHearingProcedure.AdvanceContest(contest, adults, adults, false, 0, 10);
         contest = contest with { Ballots = [new("a", "a"), new("b", "b")] };
         contest = TownHearingProcedure.AdvanceContest(contest, adults, adults, false, 10, 10);
-        Assert.Equal(new[] { "a", "b" }, contest.TiedCandidates);
+        Assert.Equal(tiedLeaders, contest.TiedCandidates);
         var tie = Assert.Single(contest.Rounds);
         Assert.Equal("tie", tie.Result);
-        Assert.Equal(new[] { "a", "b" }, tie.TiedCandidates);
+        Assert.Equal(tiedLeaders, tie.TiedCandidates);
         Assert.Equal(2, tie.Ballots.Count);
-        Assert.Equal(new[] { "a", "b" }, contest.Candidates);
+        Assert.Equal(tiedLeaders, contest.Candidates);
         contest = contest with { Ballots = [new("c", "b")] };
         contest = TownHearingProcedure.AdvanceContest(contest, adults, adults, true, 13, 10);
         Assert.Equal("waiting", contest.Stage);

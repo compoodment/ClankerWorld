@@ -325,14 +325,16 @@ public sealed partial class PrivateWorldRuntimeService(
                     LogSocialStanding(logger, result.WorldTick, actor, subject, standing.Trust, reason);
                 }
                 foreach (var worldEvent in result.Events.Where(item => item.Kind is "project_chosen" or "project_progress" or
-                             "project_request_fulfilled" or "town_resources_stored" or "town_resource_collected"))
+                             "project_request_fulfilled" or "town_resources_stored" or "town_resource_collected" or
+                             "owner_stock_picked_up" or "owner_stock_delivered"))
                 {
                     var actor = EventActor(worldEvent.Detail);
                     if (actor is null) continue;
-                    var project = projects.GetValueOrDefault(actor);
+                    var delivery = worldEvent.Kind is "owner_stock_picked_up" or "owner_stock_delivered";
+                    var project = delivery ? null : projects.GetValueOrDefault(actor);
                     LogSettlementActivity(logger, result.WorldTick, worldEvent.Kind, actor,
                         worldEvent.Kind is "town_resources_stored" or "town_resource_collected"
-                            ? "warehouse" : project?.Stage ?? "helping", project?.WorkDone ?? 0,
+                            ? "warehouse" : delivery ? "delivery" : project?.Stage ?? "helping", project?.WorkDone ?? 0,
                         worldEvent.Kind is not ("town_resources_stored" or "town_resource_collected") &&
                         project?.Blocker is not null);
                 }
@@ -384,6 +386,7 @@ public sealed partial class PrivateWorldRuntimeService(
                              "parenthood_requested" or "parenthood_preparing" or "parenthood_cancelled" or "parenthood_completed" or
                              "parenthood_postponed" or "continuity_rule_on" or "continuity_rule_off" or "continuity_plan_proceeded" or
                              "child_born" or "child_cared_for" or "guardian_needed" or "guardian_assigned" or
+                             "guardian_placement_pending" or "guardian_placement_completed" or "guardian_placement_cancelled" or
                              "primary_caregiver_assigned" or "caregiver_proposed" or "caregiver_assigned" or
                              "caregiver_accepted" or "caregiver_refused" or "caregiver_proposal_expired" or "caregiver_ended" or
                              "dependent_cared_for"))

@@ -31,6 +31,9 @@ public partial class WorldTerrainLayer : Control
     private readonly Dictionary<Vector2I, string> weatherRegions = [];
     private readonly HashSet<Vector2I> townBorderTiles = [];
     private readonly HashSet<Vector2I> roadTiles = [];
+    // Paid Market plazas use the Road drawing without changing terrain passability.
+    private readonly HashSet<Vector2I> marketPlazaTiles = [];
+    private readonly HashSet<string> marketStallBuildingIds = new(StringComparer.Ordinal);
     // Saved bridge decks, true when the deck runs east-west.
     private readonly Dictionary<Vector2I, bool> bridgeDecks = [];
     private readonly Dictionary<Vector2I, string> householdPropertyTiles = [];
@@ -127,6 +130,8 @@ public partial class WorldTerrainLayer : Control
         WeatherVersion++;
         townBorderTiles.Clear();
         roadTiles.Clear();
+        marketPlazaTiles.Clear();
+        marketStallBuildingIds.Clear();
         bridgeDecks.Clear();
         householdPropertyTiles.Clear();
         QueueRedraw();
@@ -300,6 +305,28 @@ public partial class WorldTerrainLayer : Control
         QueueRedraw();
     }
 
+    /// <summary>Draws committed Market ground; only actual paid buildings occupy its stall slots.</summary>
+    public void SetMarkets(IReadOnlyList<OwnerWorldTown> towns)
+    {
+        ArgumentNullException.ThrowIfNull(towns);
+        var nextTiles = new HashSet<Vector2I>();
+        var nextStalls = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var market in towns.SelectMany(town => town.Markets).Where(market => market.RemovedTick is null))
+        {
+            if (market.PlazaWidth != 7 || market.PlazaHeight != 4) continue;
+            for (var y = market.PlazaPosition.Y; y < market.PlazaPosition.Y + market.PlazaHeight; y++)
+                for (var x = market.PlazaPosition.X; x < market.PlazaPosition.X + market.PlazaWidth; x++)
+                    nextTiles.Add(new Vector2I(wrapsEastWest && world is not null ? Mod(x, world.Width) : x, y));
+            foreach (var stall in market.Stalls) nextStalls.Add(stall.BuildingInstanceId);
+        }
+        if (nextTiles.SetEquals(marketPlazaTiles) && nextStalls.SetEquals(marketStallBuildingIds)) return;
+        marketPlazaTiles.Clear();
+        marketPlazaTiles.UnionWith(nextTiles);
+        marketStallBuildingIds.Clear();
+        marketStallBuildingIds.UnionWith(nextStalls);
+        QueueRedraw();
+    }
+
     /// <summary>Draws the same saved bridge decks that movement uses; a deck is not drawn from terrain alone.</summary>
     public void SetBridges(IReadOnlyList<OwnerWorldBridge> bridges)
     {
@@ -338,12 +365,19 @@ public partial class WorldTerrainLayer : Control
     {
         ArgumentNullException.ThrowIfNull(placed);
         ArgumentNullException.ThrowIfNull(objects);
-        var next = placed.Select(building =>
+        var next = placed.Where(building => !StreetLanternLight.IsLantern(building.Tags)).Select(building =>
             {
                 var footprint = new Rect2I(building.Position.X, building.Position.Y,
                     Math.Max(1, building.Width), Math.Max(1, building.Height));
                 var entrance = building.Entrance is { } tile ? new Vector2I(tile.X, tile.Y) : (Vector2I?)null;
-                return (footprint, BuildingSprites.KindFor(building.Tags), BuildingDoor.Facing(footprint, entrance));
+                var kind = BuildingSprites.KindFor(building.Tags);
+                var door = BuildingDoor.Facing(footprint, entrance);
+                // The approved plaza already supplies the open aisle; a paid stall
+                // faces its actual entrance without painting a standalone doorstep path.
+                if (kind == BuildingKind.MarketStall && footprint.Size == Vector2I.One &&
+                    marketStallBuildingIds.Contains(building.InstanceId) && marketPlazaTiles.Contains(footprint.Position))
+                    door = door with { Tile = null };
+                return (footprint, kind, door);
             })
             .Concat(objects.Where(item => BuildingSprites.KindForObject(item.Kind) is not null)
                 .Select(item => (new Rect2I(item.Position.X, item.Position.Y, 1, 1), BuildingSprites.KindForObject(item.Kind)!.Value,
@@ -463,6 +497,7 @@ public partial class WorldTerrainLayer : Control
             10 => "Diamond outcrop",
             11 => "Clay bank",
             12 => "Fallen wood",
+            13 => "Medicinal herb patch",
             _ => null,
         };
     }
@@ -486,22 +521,7 @@ public partial class WorldTerrainLayer : Control
         var stages = new byte[next.Length];
         foreach (var resource in resources)
         {
-            var kind = resource.NaturalObjectKind switch
-            {
-                "berry_bush" => (byte)1,
-                "wild_greens" => (byte)2,
-                "fiber_plant" => (byte)3,
-                "reeds" => (byte)4,
-                "stone_outcrop" => (byte)5,
-                "fallen_wood" => (byte)12,
-                "wild_seed_patch" => (byte)6,
-                "fertile_soil" => (byte)7,
-                "iron_outcrop" => (byte)8,
-                "gold_outcrop" => (byte)9,
-                "diamond_outcrop" => (byte)10,
-                "clay_bank" => (byte)11,
-                _ => (byte)0,
-            };
+            var kind = NatureSprites.NaturalObjectCode(resource.NaturalObjectKind);
             if (kind == 0) continue;
             var x = resource.Position.X;
             var y = resource.Position.Y;
@@ -522,15 +542,14 @@ public partial class WorldTerrainLayer : Control
         foreach (var resource in resources)
         {
             if (resource.TreeKind is not null || resource.NaturalObjectKind is not null ||
-                NatureSprites.ForCampResource(resource.Kind) is not { } sprite) continue;
+                NatureSprites.ForCampResource(resource.Kind, resource.Quantity == 0 || resource.State != "available",
+                    resource.IsRenewable) is not { } sprite) continue;
             var x = resource.Position.X;
             var y = resource.Position.Y;
             if (x < 0 || x >= world.Width || y < 0 || y >= world.Height) continue;
             var index = y * world.Width + x;
             if (trees[index] != 0 || next[index] != 0) continue;
-            campResources[index] = resource.Quantity == 0 || resource.State != "available"
-                ? resource.IsRenewable ? NatureSprite.Regrowing : NatureSprite.Depleted
-                : sprite;
+            campResources[index] = sprite;
         }
         QueueRedraw();
     }
@@ -548,7 +567,7 @@ public partial class WorldTerrainLayer : Control
     {
         if (world is null || !world.IsCactusCoverAt(x, y)) return null;
         var tile = new Vector2I(x, y);
-        if (roadTiles.Contains(tile) || bridgeDecks.ContainsKey(tile) || doorsteps.ContainsKey(tile) ||
+        if (roadTiles.Contains(tile) || marketPlazaTiles.Contains(tile) || bridgeDecks.ContainsKey(tile) || doorsteps.ContainsKey(tile) ||
             fields.ContainsKey(tile) || buildingTiles.Contains(tile))
             return null;
         return CactusSprites.ForTile(x, y);
@@ -873,6 +892,9 @@ public partial class WorldTerrainLayer : Control
             case 12: // fallen wood
                 DrawCampResource(position, NatureSprite.WoodPile);
                 break;
+            case 13: // medicinal herb patch: reuse the approved drawing at overview zoom.
+                DrawNatureSprite(position, NatureSprite.HerbPatch);
+                break;
             default:
                 return;
         }
@@ -1089,9 +1111,13 @@ public partial class WorldTerrainLayer : Control
     /// </summary>
     private void DrawRoads((int Left, int Top, int Width, int Height) bounds, int stride)
     {
-        if (world is null || roadTiles.Count == 0 || tileSize <= 0) return;
+        if (world is null || roadTiles.Count == 0 && marketPlazaTiles.Count == 0 || tileSize <= 0) return;
         if (tileSize < SpriteTileMinimum)
         {
+            for (var y = bounds.Top; y < bounds.Top + bounds.Height; y++)
+                for (var x = bounds.Left; x < bounds.Left + bounds.Width; x++)
+                    if (marketPlazaTiles.Contains(new Vector2I(wrapsEastWest ? Mod(x, world.Width) : x, y)))
+                        DrawRect(new Rect2(x * stride, y * stride, tileSize, tileSize), RoadSprites.Dirt);
             DrawRoadLines(bounds, stride, RoadSprites.WornEdge, Math.Clamp(tileSize / 2.2f, 1.5f, 6f));
             DrawRoadLines(bounds, stride, RoadSprites.Dirt, Math.Clamp(tileSize / 3.5f, 1f, 4f));
             return;
@@ -1136,9 +1162,11 @@ public partial class WorldTerrainLayer : Control
         return links;
     }
 
+    // This is a drawing query; Market ground does not become a walkable stall footprint.
     private bool IsRoad(int x, int y) => world is not null && y >= 0 && y < world.Height &&
         (wrapsEastWest || x >= 0 && x < world.Width) &&
-        roadTiles.Contains(new Vector2I(wrapsEastWest ? Mod(x, world.Width) : x, y));
+        (roadTiles.Contains(new Vector2I(wrapsEastWest ? Mod(x, world.Width) : x, y)) ||
+         marketPlazaTiles.Contains(new Vector2I(wrapsEastWest ? Mod(x, world.Width) : x, y)));
 
     /// <summary>Whether a bridge deck running along the given axis lies on this tile.</summary>
     private bool IsDeck(int x, int y, bool eastWest) => world is not null && y >= 0 && y < world.Height &&
@@ -1225,7 +1253,7 @@ public partial class WorldTerrainLayer : Control
             NatureSprite.StoneOutcrop => new Color("8C8A82"),
             NatureSprite.FertileSoil => new Color("5E4A36"),
             NatureSprite.WildSeedPatch => new Color("C8B066"),
-            NatureSprite.Depleted => new Color("77766D", 0.78f),
+            NatureSprite.Depleted or NatureSprite.StoneOutcropDepleted or NatureSprite.ClayBankDepleted => new Color("77766D", 0.78f),
             _ => new Color("4F7A45"),
         };
         DrawCircle(position + new Vector2(tileSize * 0.5f, tileSize * 0.56f), Math.Max(1.5f, tileSize * 0.2f), color);

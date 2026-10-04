@@ -151,7 +151,7 @@ public sealed class TownGovernmentNonLandTests
         Assert.True(TownGovernmentRules.NonLandAuthorityAt(town.Government, "a", authority.AuthorityId, 20));
         Assert.True(TownGovernmentRules.NonLandAuthorityAt(town.Government, "a", authority.AuthorityId, endedTick));
         Assert.False(TownGovernmentRules.NonLandAuthorityAt(town.Government, "a", authority.AuthorityId, endedTick + 1));
-        var ended = Assert.Single(town.Government.OfficeHistory.Where(term => term.Mandates == "non_land"));
+        var ended = Assert.Single(town.Government.OfficeHistory, term => term.Mandates == "non_land");
         Assert.Equal(endedTick, ended.EndTick);
         Assert.Single(town.Government.NonLandGrants);
         town.Reload().Validate();

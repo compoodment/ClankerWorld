@@ -1,4 +1,5 @@
 using ClankerWorld.Simulation.Cognition;
+using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Kernel;
 
 namespace ClankerWorld.Simulation.Playtest;
@@ -58,9 +59,12 @@ public sealed partial class PrivateWorldRuntime
                 (itemKind is null || lot.ItemKind == itemKind) &&
                 AvailableLotQuantity(lot) > 0));
 
-    private InventoryLot? PersonalWarehouseSurplus(string actor) => society.Checkpoint.Inventory.Lots
+    private InventoryLot? PersonalWarehouseSurplus(string actor, string? itemKind = null,
+        string? sourceLotId = null) => society.Checkpoint.Inventory.Lots
         .Where(lot => lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) &&
             lot.DeliveryBuildingId is null && WarehouseResourceKinds.Contains(lot.ItemKind) &&
+            (itemKind is null || lot.ItemKind == itemKind) &&
+            (sourceLotId is null || lot.Id == sourceLotId) &&
             AvailableLotQuantity(lot) > WarehouseLoadQuantity)
         .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
 
@@ -94,5 +98,18 @@ public sealed partial class PrivateWorldRuntime
         RecordNonviolentGoodsCompletion(actor, surplus, warehouse.TownId!, quantity, warehouse.InstanceId,
             $"warehouse-stock:{WorldTick}:{actor}", "public_service_goods");
         AppendEvent("town_resources_stored", $"{actor}:{surplus.Id}:{quantity}:{warehouse.InstanceId}");
+    }
+
+    private DeliveryOrderPlan? GetTownOrderPlan(string actor, PlaytestInhabitantState person,
+        OwnerInstructionOrder order, int maximumQuantity)
+    {
+        if (!AdultResident(actor) || TownForResident(actor) is not { } townId ||
+            WarehousesForTown(townId).FirstOrDefault(building => DeliveryDestinationMatches(order, building)) is not { } warehouse ||
+            PersonalWarehouseSurplus(actor, order.TargetItemKind, order.DeliveryLotId) is not { } surplus)
+            return null;
+        var quantity = Math.Min(maximumQuantity, Math.Min(StorageRoom(warehouse.InstanceId),
+            Math.Min(WarehouseLoadQuantity, AvailableLotQuantity(surplus) - WarehouseLoadQuantity)));
+        return quantity <= 0 ? null : new DeliveryOrderPlan("town_surplus", warehouse, townId,
+            surplus, surplus, quantity, quantity, DirectDelivery: true);
     }
 }

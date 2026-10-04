@@ -294,7 +294,11 @@ public sealed partial class PrivateWorldRuntime
                 return RejectedLandRequest("The Town needs a Council before a use request can be filed.");
             var (result, updated) = FileHouseholdLandUse(requestId, requestedByAgentId, townId,
                 requestedTiles, agreedEndTick, governance);
-            if (result.Applied && !result.IsDuplicate) SaveTownGovernance(town, updated);
+            if (result.Applied && !result.IsDuplicate)
+            {
+                SaveTownGovernance(town, updated);
+                MaintainTownProjects();
+            }
             return result;
         }
         finally { gate.Release(); }
@@ -332,8 +336,11 @@ public sealed partial class PrivateWorldRuntime
         // Another household's recorded right is contested as a dispute; a building or running expansion without one is not free land.
         var foreignBuildings = BuildingFootprintTiles(building => building.HouseholdId != householdId);
         foreignBuildings.UnionWith(ExpansionWorkTiles(building => building?.HouseholdId != householdId));
+        foreignBuildings.UnionWith(MarketSiteTiles());
         if (tiles.Any(tile => foreignBuildings.Contains(tile) && !householdLandUseRights.Any(right => right.Tiles.Contains(tile))))
             return (RejectedLandRequest("That plot includes another household's or the Town's building or expansion work."), governance);
+        if (IncludesForeignFieldWithoutUseRight(householdId, tiles))
+            return (RejectedLandRequest("That plot includes another household's field without a recorded use right."), governance);
 
         var existingId = householdLandUseRequests.SingleOrDefault(item => item.Id == requestId);
         var proposed = new HouseholdLandUseRequest(requestId, townId, householdId,

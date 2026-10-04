@@ -111,7 +111,7 @@ public sealed partial class PrivateWorldRuntime
         $"Observed {record.ConductKind.Replace('_', ' ')} at ({record.Position.X},{record.Position.Y})" +
         (record.ItemKind is null ? "." : $", involving {record.Quantity} {record.ItemKind.Replace('_', ' ')}.");
 
-    private IReadOnlyList<(TownViolationAllegation Allegation, TownCaseEvidence Evidence)> NonviolentKnownReports(
+    private (TownViolationAllegation Allegation, TownCaseEvidence Evidence)[] NonviolentKnownReports(
         TownRuntimeState town, string actor)
     {
         var result = new List<(TownViolationAllegation, TownCaseEvidence)>();
@@ -131,7 +131,7 @@ public sealed partial class PrivateWorldRuntime
                 .ThenBy(item => item.Item2.Id, StringComparer.Ordinal).First()).ToArray();
     }
 
-    private IReadOnlyList<TownCaseEvidence> NonviolentKnownEvidence(TownRuntimeState town,
+    private TownCaseEvidence[] NonviolentKnownEvidence(TownRuntimeState town,
         TownViolationCase file, string actor) => town.Nonviolent.Acquisitions
         .Where(item => item.AgentId == actor && item.ConductId == file.Allegation.IncidentId)
         .OrderBy(item => item.Id, StringComparer.Ordinal)
@@ -254,12 +254,12 @@ public sealed partial class PrivateWorldRuntime
         AddEquipmentCandidates(native, actor, person);
         AddHandcartCandidates(native, actor, person);
         return native.Any(candidate => candidate.Id == RepairToolPrefix + target.Id || candidate.Id == RepairCartPrefix + target.Id ||
-            candidate.Id == "repair_equipment" && WornEquipment(actor)?.Id == target.Id);
+            candidate.Id == "repair_equipment" && CanPrepareEquipmentRepair(actor, person, target));
     }
 
-    private bool NonviolentRemedyDurationFeasible(TownRuntimeState town, IReadOnlyList<TownRemedyTerm> terms, long ticks)
+    private bool NonviolentRemedyDurationFeasible(TownRuntimeState town, TownRemedyTerm[] terms, long ticks)
     {
-        if (ticks <= 0 || terms.Count == 0 || terms.Any(term => !NonviolentRemedyFeasible(town, term))) return false;
+        if (ticks <= 0 || terms.Length == 0 || terms.Any(term => !NonviolentRemedyFeasible(town, term))) return false;
         foreach (var group in terms.GroupBy(term => term.ContributorId, StringComparer.Ordinal))
         {
             var actor = group.Key;
@@ -409,7 +409,7 @@ public sealed partial class PrivateWorldRuntime
                             ApplyHandcartCandidate(actor, person, RepairCartPrefix + target.Id);
                         else if (ToolProgressionRules.Find(target.ItemKind) is not null) RepairTool(actor, person, target.Id);
                         else if (person.Equipment?.Repair?.LotId == target.Id) ContinueEquipmentRepair(actor);
-                        else RepairEquipment(actor, person);
+                        else RepairEquipment(actor, person, target.Id);
                     }
                 }
                 finally { nonviolentRemedySelection = previousSelection; }

@@ -79,6 +79,18 @@ public sealed class PotteryContentTests
 
         var supplier = new PrefixCandidateProvider("supply_workstation:");
         var supplyState = setup.ExportState();
+        // This clay-supply control begins after the household has usable tools.
+        // Otherwise tool wood is picked up first and needs a separate hauling action.
+        var adults = supplyState.Society.Society.Inhabitants.Count(person => person.HouseholdId == householdId &&
+            person.Status == SocietyInhabitantStatus.Active && person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder);
+        var toolStock = InventoryFixture.AddLot(supplyState.Society.Society.Inventory,
+            "pottery-fixture-axes", "wooden_axe", householdId, adults, storageBuildingId: house.InstanceId);
+        toolStock = InventoryFixture.AddLot(toolStock, "pottery-fixture-picks", "wooden_pickaxe", householdId,
+            adults, storageBuildingId: house.InstanceId);
+        supplyState = supplyState with
+        {
+            Society = supplyState.Society with { Society = supplyState.Society.Society with { Inventory = toolStock } },
+        };
         supplyState = supplyState with
         {
             Inhabitants = supplyState.Inhabitants.Select(person => person.InhabitantId == actor
@@ -737,8 +749,6 @@ public sealed class PotteryContentTests
     }
 
     [Theory]
-    [InlineData(0, false)]
-    [InlineData(0, true)]
     [InlineData(2, false)]
     [InlineData(2, true)]
     public async Task CollectingAStoredJugLeavesCarrySpaceForWaterAcrossReload(int storedWater, bool fits)

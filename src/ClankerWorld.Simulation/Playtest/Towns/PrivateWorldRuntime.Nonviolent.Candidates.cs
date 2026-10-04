@@ -5,6 +5,7 @@ namespace ClankerWorld.Simulation.Playtest;
 
 public sealed partial class PrivateWorldRuntime
 {
+    private static readonly string[] NonviolentFindingChoices = ["unsupported", "explanation", "warning", "censure"];
     private void AddChildNonviolentCandidates(List<CognitionCandidate> candidates, string actor)
     {
         if (!ChildResident(actor) || NeedsUrgentFood(inhabitants[actor]) || NeedsUrgentWarmth(inhabitants[actor])) return;
@@ -14,7 +15,7 @@ public sealed partial class PrivateWorldRuntime
 
     private void AddTownNonviolentCandidates(List<CognitionCandidate> candidates, string actor, TownRuntimeState town)
     {
-        if (town.Governance is not { } council || !inhabitants.ContainsKey(actor) ||
+        if (town.Governance is not { } council || !inhabitants.TryGetValue(actor, out var actorState) ||
             society.Checkpoint.GetInhabitant(actor).AgeBand == SocietyAgeBand.Infant) return;
         var adult = LandHearingAdult(actor);
         var atBoard = NearCivicBoard(actor, town);
@@ -89,7 +90,7 @@ public sealed partial class PrivateWorldRuntime
             if (item.Judge is { } judge && judge.AgentId == actor && NonviolentJudgeValid(town, item, judge) && NonviolentReadCurrent(item, actor))
             {
                 if (item.Status == "pending" && TownNonviolentRules.CanCloseResponses(item, parties, WorldTick))
-                    foreach (var outcome in new[] { "unsupported", "explanation", "warning", "censure" }.Where(outcome => outcome != "censure" ||
+                    foreach (var outcome in NonviolentFindingChoices.Where(outcome => outcome != "censure" ||
                                  HasPriorLawNotice(town, item.Allegation, item.Allegation.SubjectId)))
                         candidates.Add(new(CivicAction(town.Id, "law_case_find", token, outcome),
                             "Record " + outcome + ". An adverse finding requires more-likely-than-not evidence, reasons and uncertainty in civic_nonviolent; rumor or silence alone is insufficient. A first incident without credible prior law notice favors explanation or warning. No property or membership changes." + NonviolentEvidenceChoices(town, item, actor), 165));
@@ -104,12 +105,12 @@ public sealed partial class PrivateWorldRuntime
             if (item.Status == "settled" && isParty && NonviolentReadCurrent(item, actor))
                 foreach (var grounds in new[] { "material_evidence", "procedural_error" })
                     candidates.Add(new(CivicAction(town.Id, "law_case_reopen", token, grounds), "Request reopening for " + grounds.Replace('_', ' ') + ". Supply actual evidence_ids and grounds; a claim alone changes no finding." + NonviolentEvidenceChoices(town, item, actor), 184));
-            if (adult && item.Findings.LastOrDefault() is { Result: "supported" } finding && NonviolentReadCurrent(item, actor) &&
+            if (adult && item.Findings.Count > 0 && item.Findings[^1] is { Result: "supported" } finding && NonviolentReadCurrent(item, actor) &&
                 (isParty || finding.Judge.AgentId == actor && NonviolentJudgeValid(town, item, finding.Judge)))
                 candidates.Add(new(CivicAction(town.Id, "remedy_offer", token, finding.Id),
                     "Offer feasible named goods, repair or Town resource delivery in civic_nonviolent.terms, with reasons and optional completion_ticks (default three days after consent). Each contributing adult must personally agree. No stock is reserved and no work forced.", 183));
             foreach (var recipient in inhabitants.Values.Where(person => person.InhabitantId != actor &&
-                         IsWithinInteractionRange(person.Position, inhabitants[actor].Position, ResourceInteractionRange)))
+                         IsWithinInteractionRange(person.Position, actorState.Position, ResourceInteractionRange)))
                 if (NonviolentReadCurrent(item, actor) && NonviolentMayInspect(town, item, recipient.InhabitantId) && !NonviolentReadCurrent(item, recipient.InhabitantId))
                     candidates.Add(new(CivicAction(town.Id, "law_case_relay", token, recipient.InhabitantId), "Relay the case material you actually read to " + society.Checkpoint.GetInhabitant(recipient.InhabitantId).Name + " nearby.", 181));
         }

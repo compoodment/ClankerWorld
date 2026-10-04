@@ -351,6 +351,7 @@ public sealed partial class PrivateWorldRuntime
         bridges = proposed.bridges;
         bridgeTraffic = proposed.bridgeTraffic;
         conversations = proposed.conversations;
+        marriages = proposed.marriages;
         conversationBudgets = proposed.conversationBudgets;
         businessTrades = proposed.businessTrades;
         toolMakingRequests = proposed.toolMakingRequests;
@@ -441,10 +442,12 @@ public sealed partial class PrivateWorldRuntime
                 return new PrivateWorldStepResult(false, "paused", WorldTick, [], []);
             }
 
+            guardianPlacementActions.Clear();
             var startingEvent = events.Count;
             var targetTick = checked(WorldTick + 1);
             StageSettlementContent();
             StageHouseContent();
+            StageBuiltInContent(HouseToolsContent.PackageId, HouseContent.PackageId, HouseToolsContent.Create, "house_tools_content_staged");
             StageWarehouseContent();
             StageFarmContent();
             StageBlacksmithContent();
@@ -455,8 +458,12 @@ public sealed partial class PrivateWorldRuntime
             StageSiloContent();
             StageTailorContent();
             StageCareContent();
+            StageBuiltInContent(TownHallContent.PackageId, HouseContent.PackageId, TownHallContent.Create, "town_hall_content_staged");
             StageBuiltInContent(KnowledgeContent.PackageId, HouseContent.PackageId, KnowledgeContent.Create, "knowledge_content_staged");
+            StageBuiltInContent(MarketContent.PackageId, TownHallContent.PackageId, MarketContent.Create, "market_content_staged");
+            StageBuiltInContent(StreetLanternContent.PackageId, HouseContent.PackageId, StreetLanternContent.Create, "street_lantern_content_staged");
             StageBuiltInContent(BusinessContent.PackageId, HouseContent.PackageId, BusinessContent.Create, "business_content_staged");
+            StageBuildingVariantContent();
             var readyPackages = contentRegistry.GetActivationCandidates(targetTick);
             var reservationPreview = WorldAssetReservationLedger.Restore(
                 assetReservations.ExportState(),
@@ -479,6 +486,9 @@ public sealed partial class PrivateWorldRuntime
             }
 
             assetReservations = reservationPreview;
+            MaintainProductionOrdersBeforeTick();
+            MaintainConstructionOrdersBeforeTick();
+            MaintainExpansionOrdersBeforeTick();
             society.AdvanceTo(targetTick, TownStoresForDueEstates(targetTick));
             var previousClimate = worldSystems.Climate;
             var campPosition = WeatherAnchor;
@@ -543,6 +553,8 @@ public sealed partial class PrivateWorldRuntime
             AdvanceSettlementCouncil();
             AdvanceTownGovernance();
             SettleTownAdmissions();
+            MaintainTownProjects();
+            MaintainMarkets();
             MaintainLessons();
             MaintainPartnerships();
             MaintainHousing();
@@ -551,6 +563,7 @@ public sealed partial class PrivateWorldRuntime
             MaintainParenthood();
             MaintainContinuity();
             MaintainDependentCare();
+            ReconcileGuardianPlacements();
             DiscoverIdentityMoments();
             UpdateConversationsForTick(targetTick);
             RefreshTownLandHearings();
@@ -637,8 +650,13 @@ public sealed partial class PrivateWorldRuntime
             AdvanceMedicalTreatments();
             // An agent whose reply was accepted this tick already acted, even if newer work stays queued.
             if (deferHosted) ApplySafeRoutinesWhileWaiting(waiting.Except(decisions.Select(item => item.InhabitantId), StringComparer.Ordinal), orderActorsHandledThisTick);
+            ReconcileGuardianPlacements();
+            AdvanceGuardianPlacementFollowers(orderActorsHandledThisTick);
             AdvanceBridgeTraffic();
             SettleGuardianSearches();
+            ReconcileGuardianPlacements();
+            MaintainTownProjects();
+            MaintainMarkets();
             MaintainToolMakingRequests();
             RefreshTownLandHearings();
             MaintainKnowledgeWriting();

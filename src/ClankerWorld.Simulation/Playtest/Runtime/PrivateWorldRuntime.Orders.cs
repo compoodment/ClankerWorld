@@ -17,11 +17,37 @@ public sealed partial class PrivateWorldRuntime
         if (order.TargetPosition is { } requestedPosition && !map.Contains(requestedPosition))
             return null;
 
-        if (order.Action == "collect_material")
+        if (IsShelterOrder(order.Action))
+            return ShelterOrderCandidateFor(instruction, person);
+
+        if (order.Action == "construct_building")
+            return ConstructionOrderCandidateFor(instruction, person);
+        if (order.Action == "expand_building")
+            return ExpansionOrderCandidateFor(instruction, person);
+
+        if (order.Action == "deliver_stock")
+            return DeliveryOrderCandidateFor(instruction, person);
+
+        if (order.Action == "produce_item")
+            return ProductionOrderCandidateFor(instruction, person);
+
+        if (IsFieldOrder(order.Action))
+            return FieldOrderCandidateFor(instruction, person);
+
+        if (order.Action == "repair_tool")
+            return ToolRepairOrderCandidateFor(instruction);
+
+        if (order.Action == "repair_equipment")
+            return RepairOrderCandidateFor(instruction, person);
+
+        if (order.Action is "collect_material" or "collect_food" or "collect_equipment" or "collect_goods")
             return CollectionOrderCandidateFor(instruction, person);
 
-        if (order.Action == "store_material")
+        if (order.Action is "store_material" or "store_equipment" or "store_goods")
             return StorageOrderCandidateFor(instruction, person);
+
+        if (order.Action == "return_borrowed")
+            return ReturnOrderCandidateFor(instruction, person);
 
         if (order.Action == "gather_material")
             return MaterialOrderCandidateFor(instruction, person);
@@ -125,6 +151,9 @@ public sealed partial class PrivateWorldRuntime
         CognitionCandidate? orderCandidate,
         CognitionCandidate? urgentCandidate)
     {
+        if (IsShelterOrder(instruction.Order!.Action))
+            return NeedsUrgentFood(person) && urgentCandidate is not null && IsFoodSurvivalCandidate(urgentCandidate.Id) ||
+                orderCandidate is null && urgentCandidate is not null;
         if (NeedsUrgentWarmth(person))
             return urgentCandidate is not null &&
                 orderCandidate?.Id is not ("wear_clothing" or "tend_fire" or "seek_warmth");
@@ -134,12 +163,25 @@ public sealed partial class PrivateWorldRuntime
             orderCandidate.DestinationId != urgentCandidate.DestinationId;
     }
 
-    private CognitionCandidate? UrgentSurvivalCandidateFor(string inhabitantId, PlaytestInhabitantState person) =>
-        CreateCandidates(inhabitantId, person, restrictForOrder: false)
-            .Where(candidate => IsSurvivalCandidate(candidate.Id))
+    private CognitionCandidate? UrgentSurvivalCandidateFor(
+        string inhabitantId, PlaytestInhabitantState person, OwnerQueuedInstruction? instruction = null) =>
+        SelectOrderSurvivalCandidate(CreateCandidates(inhabitantId, person, restrictForOrder: false), person, instruction);
+
+    private static CognitionCandidate? SelectOrderSurvivalCandidate(
+        IEnumerable<CognitionCandidate> candidates, PlaytestInhabitantState person, OwnerQueuedInstruction? instruction)
+    {
+        var available = candidates.Where(candidate => IsSurvivalCandidate(candidate.Id))
             .OrderBy(candidate => candidate.DeterministicPriority)
-            .ThenBy(candidate => candidate.Id, StringComparer.Ordinal)
-            .FirstOrDefault();
+            .ThenBy(candidate => candidate.Id, StringComparer.Ordinal).ToArray();
+        if (instruction?.Order is { } order && IsShelterOrder(order.Action) && NeedsUrgentFood(person) &&
+            available.FirstOrDefault(candidate => IsFoodSurvivalCandidate(candidate.Id)) is { } food)
+            return food;
+        return available.FirstOrDefault();
+    }
+
+    private static bool IsFoodSurvivalCandidate(string candidateId) => candidateId is
+        "consume_food" or "collect_shared_food" or "take_food_from_pot" or "make_room_for_food" or
+        "harvest_food" or "seek_food";
 
     private static bool IsSurvivalCandidate(string candidateId) => candidateId is
         "consume_food" or "collect_shared_food" or "take_food_from_pot" or "make_room_for_food" or "recover_household_delivery" or
@@ -154,7 +196,7 @@ public sealed partial class PrivateWorldRuntime
         SetOrderStatus(instruction, "doing", null, waitForDecision: false);
         var actor = instruction.TargetInhabitantId;
         // An order step interrupts timed repair work, as any other chosen action does.
-        if (inhabitants[actor].Equipment?.Repair is not null)
+        if (order.Action != "repair_equipment" && inhabitants[actor].Equipment?.Repair is not null)
         {
             CancelEquipmentRepair(actor);
             person = inhabitants[actor];
@@ -166,11 +208,45 @@ public sealed partial class PrivateWorldRuntime
         }
         switch (candidate.Id)
         {
+            case "seek_shelter":
+            case "tend_fire":
+            case "inspect_shelter_site":
+                ExecuteShelterOrderStep(instruction, person);
+                return;
+            case "construct_building":
+                ExecuteConstructionOrderStep(instruction, person);
+                return;
+            case "expand_building":
+                ExecuteExpansionOrderStep(instruction, person);
+                return;
+            case "deliver_stock":
+                ExecuteDeliveryOrderStep(instruction, person);
+                return;
+            case "produce_item":
+                ExecuteProductionOrderStep(instruction, person);
+                return;
+            case "work_field":
+                ExecuteFieldOrderStep(instruction, person);
+                return;
+            case "repair_tool":
+                ExecuteToolRepairOrderStep(instruction, person);
+                return;
+            case "repair_equipment":
+                ExecuteRepairOrderStep(instruction, person);
+                return;
             case "collect_material":
+            case "collect_food":
+            case "collect_equipment":
+            case "collect_goods":
                 ExecuteCollectionOrderStep(instruction, person);
                 return;
             case "store_material":
+            case "store_equipment":
+            case "store_goods":
                 ExecuteStorageOrderStep(instruction, person);
+                return;
+            case "return_borrowed":
+                ExecuteReturnOrderStep(instruction, person);
                 return;
             case "gather_material":
             case "inspect_material_site":
@@ -289,6 +365,13 @@ public sealed partial class PrivateWorldRuntime
     {
         var current = instructionsByIdempotency[instruction.IdempotencyKey];
         if (current.Order is not { } order || !IsActiveOrder(order.Status)) return;
+        if (status == "interrupted" && BoundProductionJob(current) is { } production)
+            PauseProductionOrderJob(current, production);
+        if (status == "interrupted")
+        {
+            PauseConstructionForOrder(current);
+            PauseExpansionForOrder(current);
+        }
         if (order.Status == status && order.BlockedReason == reason &&
             order.WaitForDecisionAfterFailure == waitForDecision) return;
         instructionsByIdempotency[current.IdempotencyKey] = current with
@@ -306,10 +389,28 @@ public sealed partial class PrivateWorldRuntime
 
     private string OrderBlockedReason(OwnerQueuedInstruction instruction, PlaytestInhabitantState person)
     {
-        if (instruction.Order?.Action == "collect_material")
+        if (instruction.Order is { } protective && IsShelterOrder(protective.Action))
+            return ShelterOrderBlockedReason(instruction, person);
+        if (instruction.Order?.Action == "construct_building")
+            return ConstructionOrderBlockedReason(instruction, person);
+        if (instruction.Order?.Action == "expand_building")
+            return ExpansionOrderBlockedReason(instruction);
+        if (instruction.Order?.Action == "deliver_stock")
+            return DeliveryOrderBlockedReason(instruction, person);
+        if (instruction.Order?.Action == "produce_item")
+            return ProductionOrderBlockedReason(instruction);
+        if (instruction.Order is { } fieldOrder && IsFieldOrder(fieldOrder.Action))
+            return FieldOrderBlockedReason(instruction);
+        if (instruction.Order?.Action == "repair_tool")
+            return ToolRepairOrderBlockedReason(instruction);
+        if (instruction.Order?.Action == "repair_equipment")
+            return RepairOrderBlockedReason(instruction);
+        if (instruction.Order?.Action is "collect_material" or "collect_food" or "collect_equipment" or "collect_goods")
             return CollectionOrderBlockedReason(instruction, person);
-        if (instruction.Order?.Action == "store_material")
+        if (instruction.Order?.Action is "store_material" or "store_equipment" or "store_goods")
             return StorageOrderBlockedReason(instruction, person);
+        if (instruction.Order?.Action == "return_borrowed")
+            return ReturnOrderBlockedReason(instruction, person);
         if (instruction.Order?.Action == "gather_material")
             return MaterialOrderBlockedReason(instruction, person);
 

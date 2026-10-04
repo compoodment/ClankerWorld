@@ -217,7 +217,7 @@ public sealed partial class PrivateWorldRuntime
     }
 
     private static void ValidatePhysicalAllegation(TownViolationAllegation allegation,
-        IReadOnlyDictionary<string, TownConductRecord> records)
+        Dictionary<string, TownConductRecord> records)
     {
         if (!records.TryGetValue(allegation.IncidentId, out var record) || record.ActorId != allegation.SubjectId ||
             record.ConductKind != allegation.ConductKind || record.Position != allegation.Position || record.Tick != allegation.ConductTick ||
@@ -226,7 +226,7 @@ public sealed partial class PrivateWorldRuntime
     }
 
     private static void ValidatePhysicalAcquisitions(string conductId, string actor, long tick,
-        IReadOnlyList<string> evidenceIds, IReadOnlyDictionary<string, TownConductAcquisition> acquisitions)
+        IReadOnlyList<string> evidenceIds, Dictionary<string, TownConductAcquisition> acquisitions)
     {
         if (evidenceIds.Count == 0 || evidenceIds.Any(id => !acquisitions.TryGetValue(id, out var item) ||
                 item.ConductId != conductId || item.AgentId != actor || item.Tick > tick))

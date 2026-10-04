@@ -69,13 +69,9 @@ public sealed class HouseholdBuildingUseCoverageTests
 
         // No claim means no access: a household that never holds a kind of
         // building is never offered its work.
-        var farmhouseRecipes = content.Recipes.Where(item => item.WorkstationBuildingId == farmhouse.DefinitionId)
-            .Select(item => "recipe:" + item.LocalId).ToArray();
-        var blacksmithRecipes = content.Recipes.Where(item => item.WorkstationBuildingId == blacksmith.DefinitionId)
-            .Select(item => "recipe:" + item.LocalId).ToArray();
-        var tailorShop = content.Buildings.Single(item => item.Tags.Contains("tailor"));
-        var tailorRecipes = content.Recipes.Where(item => item.WorkstationBuildingId == tailorShop.CanonicalId)
-            .Select(item => "recipe:" + item.LocalId).ToArray();
+        var farmhouseRecipes = RecipesForFamily("farmhouse");
+        var blacksmithRecipes = RecipesForFamily("blacksmith");
+        var tailorRecipes = RecipesForFamily("tailor");
         foreach (var household in world.Society.Households)
         {
             var families = FamiliesForHousehold(world, recorder, household.Id);
@@ -115,6 +111,15 @@ public sealed class HouseholdBuildingUseCoverageTests
                 .Select(item => HouseholdBuildingKinds.KindOf(definitions[item.DefinitionId]))
                 .ToArray();
             Assert.Equal(kinds.Length, kinds.Distinct(StringComparer.Ordinal).Count());
+        }
+
+        string[] RecipesForFamily(string tag)
+        {
+            var familyIds = content.Buildings.Where(item => item.Tags.Contains(tag, StringComparer.Ordinal))
+                .Select(item => item.CanonicalId).ToHashSet(StringComparer.Ordinal);
+            Assert.NotEmpty(familyIds);
+            return content.Recipes.Where(item => item.WorkstationBuildingId is { } id && familyIds.Contains(id))
+                .Select(item => "recipe:" + item.LocalId).ToArray();
         }
     }
 

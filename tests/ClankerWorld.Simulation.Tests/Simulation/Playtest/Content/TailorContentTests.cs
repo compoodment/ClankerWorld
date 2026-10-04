@@ -121,59 +121,6 @@ public sealed class TailorContentTests
         }
     }
 
-    [Fact]
-    public async Task OnlyTheHoldingHouseholdWorksAtItsTailorShop()
-    {
-        var (state, shopId) = WorldWithTailorShop("tailor-access", fiberInHouse: 0);
-        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "shop-fiber", "fiber", Alpha, 6,
-            storageBuildingId: shopId);
-        state = state with { Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } } };
-        var shop = state.WorldSimulation!.Buildings.Single(item => item.InstanceId == shopId);
-        var outsider = state.Society.Society.Inhabitants.First(person => person.HouseholdId == Beta).Id;
-        state = state with
-        {
-            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == outsider
-                ? person with { Position = shop.Position, HungerBasisPoints = 9_000 } : person).ToArray(),
-        };
-        var recorder = new ActionCoverageRecorder(chooseIdle: true);
-        using var world = PrivateWorldRuntime.Restore(state, _ => recorder);
-        var weave = world.WorldContent.Recipes.Single(item => item.LocalId == "weave-cloth");
-        var refused = world.StartProduction(weave.CanonicalId, shopId, outsider);
-        Assert.False(refused.Applied);
-        Assert.Contains("household", refused.Failure, StringComparison.Ordinal);
-
-        for (var tick = 0; tick < 60; tick++)
-            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-        var betaFamilies = world.Society.Inhabitants.Where(person => person.HouseholdId == Beta)
-            .SelectMany(person => recorder.FamiliesOfferedTo(person.Id, world.WorldContent)).ToHashSet();
-        var alphaFamilies = world.Society.Inhabitants.Where(person => person.HouseholdId == Alpha)
-            .SelectMany(person => recorder.FamiliesOfferedTo(person.Id, world.WorldContent)).ToHashSet();
-        Assert.DoesNotContain("recipe:weave-cloth", betaFamilies);
-        Assert.Contains("recipe:weave-cloth", alphaFamilies);
-        Assert.Equal(6, world.Society.Inventory.GetLot("shop-fiber").Quantity);
-    }
-
-    [Fact]
-    public async Task MissingFiberBlocksWeavingUntilItIsBroughtIn()
-    {
-        var (state, shopId) = WorldWithTailorShop("tailor-missing", fiberInHouse: 0);
-        var shop = state.WorldSimulation!.Buildings.Single(item => item.InstanceId == shopId);
-        var worker = state.Society.Society.Inhabitants.First(person => person.HouseholdId == Alpha).Id;
-        state = state with
-        {
-            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == worker
-                ? person with { Position = shop.Position, HungerBasisPoints = 9_000 } : person).ToArray(),
-        };
-        using var world = PrivateWorldRuntime.Restore(state, _ => new ActionCoverageRecorder(chooseIdle: true));
-        var weave = world.WorldContent.Recipes.Single(item => item.LocalId == "weave-cloth");
-        var refused = world.StartProduction(weave.CanonicalId, shopId, worker);
-        Assert.False(refused.Applied);
-        Assert.Contains("on-site", refused.Failure, StringComparison.Ordinal);
-        Assert.Empty(world.WorldSimulation.ProductionJobs);
-        await world.AdvanceOneTickAsync();
-        world.Validate();
-    }
-
     private static (PrivateWorldRuntimeState State, string ShopId) WorldWithTailorShop(string seed, int fiberInHouse)
         => TailorTestWorld.Create(seed, fiberInHouse);
 

@@ -39,7 +39,7 @@ public static class HouseholdLandGrantRules
         IReadOnlyList<HouseholdLandUseRight> receiptRights = rights;
         foreach (var town in towns)
         {
-            if (town.LandHearings is null)
+            if (!TownLandHearingValidation.HasRecords(town.LandHearings))
                 throw new InvalidDataException("Saved Town hearing history must be present.");
             receiptRights = TownLandHearingRules.OriginalGrantRights(town.LandHearings, receiptRights);
         }
@@ -118,7 +118,8 @@ public sealed partial class PrivateWorldRuntime
                 state = TownGovernanceRules.LandUseNotice(state, request.Id, "Household land request refused: " + refusal, WorldTick);
             }
             else if (!HasOpenLandHearingPlot(town.Id, request.Tiles) &&
-                HouseholdLandGrantRules.IsAvailable(request, householdLandUseRights, householdLandUseRequests))
+                HouseholdLandGrantRules.IsAvailable(request, householdLandUseRights, householdLandUseRequests) &&
+                !IncludesForeignFieldWithoutUseRight(request.HouseholdId, request.Tiles))
             {
                 if (proposal is null)
                 {
@@ -149,6 +150,10 @@ public sealed partial class PrivateWorldRuntime
             .SelectMany(TownLandRightsRules.UnresolvedRequestTiles))
         .ToHashSet();
 
+    private bool IncludesForeignFieldWithoutUseRight(string household, IReadOnlyList<GridPoint> tiles) =>
+        fields.Any(field => field.HouseholdId != household && tiles.Contains(field.Position) &&
+            !householdLandUseRights.Any(right => right.Tiles.Contains(field.Position)));
+
     private HashSet<GridPoint> BuildingFootprintTiles(Func<PlacedBuilding, bool> include)
     {
         var definitions = worldContent.Buildings.ToDictionary(item => item.CanonicalId, StringComparer.Ordinal);
@@ -162,7 +167,7 @@ public sealed partial class PrivateWorldRuntime
                 include(worldSimulation.Buildings.FirstOrDefault(building => building.InstanceId == job.BuildingInstanceId)))
             .SelectMany(ExpansionTiles).ToHashSet();
 
-    /// <summary>Free Town-titled land nearest first: no use right, pending request, building, expansion, road or field.</summary>
+    /// <summary>Free Town-titled land nearest first: no use right, pending request, building, expansion, road, field or Town project site.</summary>
     private GridPoint[] RequestableLandNear(TownRuntimeState town, GridPoint from, int count)
     {
         var taken = HouseholdLandHeldByOthers(null);
@@ -170,6 +175,9 @@ public sealed partial class PrivateWorldRuntime
         taken.UnionWith(ExpansionWorkTiles(_ => true));
         taken.UnionWith(RoadAndBridgeTiles());
         taken.UnionWith(fields.Select(field => field.Position));
+        taken.UnionWith(TownProjectProtectedSites());
+        taken.UnionWith(PendingTownProjectSiteTiles());
+        taken.UnionWith(MarketSiteTiles());
         return townLandTitles.Where(title => title.TownId == town.Id).SelectMany(title => title.Tiles)
             .Where(tile => map.IsLand(tile) && !taken.Contains(tile)).Distinct()
             .OrderBy(tile => map.FootDistance(from, tile)).ThenBy(tile => tile.Y).ThenBy(tile => tile.X)
@@ -216,6 +224,7 @@ public sealed partial class PrivateWorldRuntime
         // A footprint whose extra land is free can be granted; one over land another household
         // holds or has asked for only opens a dispute, so it is offered when no free one fits.
         var heldByOthers = HouseholdLandHeldByOthers(building.HouseholdId);
+        var proposedHalls = PendingTownProjectSiteTiles();
         GridPoint[]? offered = null;
         GridPoint[]? disputed = null;
         foreach (var shape in ExpansionShapes(building))
@@ -228,6 +237,7 @@ public sealed partial class PrivateWorldRuntime
             if (extra.Length == 0 || extra.Any(tile => !TownLandRightsRules.IsCoveredByTownTitle(tile, building.TownId!, townLandTitles))) continue;
             // One expansion asks the Council once: a pending request for any of its shapes waits to be decided.
             if (extra.Any(pending.Contains)) return null;
+            if (extra.Any(proposedHalls.Contains)) continue;
             if (extra.Any(heldByOthers.Contains)) disputed ??= extra;
             else offered ??= extra;
         }

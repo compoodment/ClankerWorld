@@ -45,7 +45,7 @@ public sealed partial class PrivateWorldRuntime
     private static bool TownNonviolentElectionBusy(TownRuntimeState town) => town.Nonviolent.Cases.Any(item => item.Contest is { Stage: "voting" });
     private bool MayVisitNonviolentCase(string actor, TownRuntimeState town) => inhabitants.ContainsKey(actor) &&
         CanWalkToCivicBoard(actor, town) && (town.Nonviolent.Cases.Any(item => NonviolentMayInspect(town, item, actor) && NonviolentKnows(town, item, actor)) ||
-            NonviolentKnownReports(town, actor).Count > 0);
+            NonviolentKnownReports(town, actor).Length > 0);
 
     private (TownGovernanceState Council, TownNonviolentState Nonviolent) AdvanceTownNonviolent(TownRuntimeState town,
         TownGovernanceState council, TownGovernmentState government)

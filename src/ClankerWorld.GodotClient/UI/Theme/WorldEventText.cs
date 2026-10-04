@@ -39,6 +39,10 @@ public static class WorldEventText
     public static string Describe(OwnerWorldEvent worldEvent, OwnerWorldSnapshot? snapshot)
     {
         var parts = worldEvent.Detail.Split(':', StringSplitOptions.RemoveEmptyEntries);
+        if (worldEvent.Kind is "marriage_accepted" or "marriage_surname_agreed" or "marriage_surname_draw")
+            return worldEvent.Detail;
+        if (worldEvent.Kind == "marriage_surname_blocked")
+            return "The shared surname would make a name too long. Shorten the agent's name and resume the surname conversation; both names are unchanged.";
         string ThingAt(int index) => index >= 0 && index < parts.Length
             ? GameUiText.HumanizeIdentifier(parts[index])
             : "something new";
@@ -48,6 +52,14 @@ public static class WorldEventText
             worldEvent.Detail.EndsWith(":" + person.Id, StringComparison.Ordinal))?.DisplayName ?? "The guest";
         var civicTownId = worldEvent.Detail.Split('|', 3)[0];
         var civicTownName = snapshot?.Towns.FirstOrDefault(town => town.Id == civicTownId)?.Name ?? "A Town";
+        var townProjectName = worldEvent.Kind.StartsWith("town_project_", StringComparison.Ordinal)
+            ? TownProjectForEvent(snapshot, worldEvent.Detail)?.Name ?? "a Town project" : "a Town project";
+        var townProjectSubject = townProjectName == "a Town project" ? "A Town project" : townProjectName;
+        var marketFields = worldEvent.Kind.StartsWith("market_", StringComparison.Ordinal)
+            ? worldEvent.Detail.Split('|') : Array.Empty<string>();
+        var marketSeller = marketFields.Length > 3 ? Name(snapshot, marketFields[3]) : "Someone";
+        var marketBuyer = marketFields.Length > 4 ? Name(snapshot, marketFields[4]) : "a customer";
+        var marketBuyerSubject = marketFields.Length > 4 ? marketBuyer : "A customer";
 
         return worldEvent.Kind switch
         {
@@ -59,12 +71,15 @@ public static class WorldEventText
             "building_expansion_started" => $"{buildingName} expansion has begun.",
             "building_expanded" => $"{buildingName} storage was expanded.",
             "building_expansion_cancelled" => $"{buildingName} expansion stopped; reserved materials were released.",
+            "expansion_order_paused" => "Ordered expansion paused for food or warmth; its materials remain reserved.",
+            "expansion_order_resumed" => "Ordered expansion resumed.",
             "house_guest_invited" => $"{guestName} may shelter in the {buildingName} during storms.",
             "house_guest_revoked" => $"{guestName}'s storm shelter invitation ended.",
             "build_started" => $"Work began on {ThingAt(1)}.",
             "build_completed" => $"{ThingAt(1)} is ready.",
             "recipe_started" => $"Work began on {ThingAt(1)}.",
             "recipe_completed" => $"{ThingAt(1)} was finished.",
+            "house_tool_made" => $"{Name(snapshot, Field(worldEvent.Detail, 0))} made a {GameUiText.ItemName(Field(worldEvent.Detail, 1)).ToLowerInvariant()}.",
             "field_work_started" => $"{LeadingName(snapshot, worldEvent.Detail)} started work on a field.",
             "field_prepared" => $"{LeadingName(snapshot, worldEvent.Detail)} prepared a field.",
             "field_planted" => $"{LeadingName(snapshot, worldEvent.Detail)} planted {ThingAt(parts.Length - 1).ToLowerInvariant()}.",
@@ -94,6 +109,9 @@ public static class WorldEventText
             "caregiver_assigned" => "A child has a new caregiver.",
             "guardian_needed" => "Needs a guardian. No adult has accepted care yet.",
             "guardian_assigned" => "An adult accepted care for a child.",
+            "guardian_placement_pending" => $"{Name(snapshot, worldEvent.Detail)} has a guardian and is waiting to move into their House.",
+            "guardian_placement_completed" => $"{LeadingName(snapshot, worldEvent.Detail)} moved into their guardian's House.",
+            "guardian_placement_cancelled" => $"{Name(snapshot, worldEvent.Detail)}'s move to their guardian's House stopped.",
             "medical_care_allowed" => $"{LeadingName(snapshot, worldEvent.Detail)} allowed someone to provide medical care.",
             "medical_care_revoked" => $"{LeadingName(snapshot, worldEvent.Detail)} withdrew permission for medical care.",
             "medical_treatment_started" => $"{LeadingName(snapshot, worldEvent.Detail)} began a course of medicine.",
@@ -124,6 +142,8 @@ public static class WorldEventText
             "handcart_repaired" => $"{LeadingName(snapshot, worldEvent.Detail)} repaired their handcart using carried materials.",
             "handcart_transferred" => $"{LeadingName(snapshot, worldEvent.Detail)} gave their handcart and its cargo to a nearby agent.",
             "handcart_blocked" => "The handcart cannot travel here; park it or choose another route. Its cargo is safe.",
+            "owner_stock_picked_up" => $"{LeadingName(snapshot, worldEvent.Detail)} collected a load for the requested delivery; it is still being carried.",
+            "owner_stock_delivered" => $"{LeadingName(snapshot, worldEvent.Detail)} delivered goods to the requested building.",
             "carrying_full" => $"{Name(snapshot, worldEvent.Detail)} cannot carry more; a load needs to be stored or set down.",
             "spare_cargo_stored" => $"{LeadingName(snapshot, worldEvent.Detail)} set down spare supplies for their household to make room in their load.",
             "household_delivery_recovered" => $"{LeadingName(snapshot, worldEvent.Detail)} returned unusable delivery supplies to their household's pile at camp.",
@@ -138,15 +158,30 @@ public static class WorldEventText
             "skill_learned" => DescribeSkill(worldEvent.Detail, snapshot),
             "inhabitant_building_proposed" => $"{LeadingName(snapshot, worldEvent.Detail)} suggested a new building design.",
             "instruction_not_understood" => $"{Name(snapshot, BeforeLastField(worldEvent.Detail))} didn't understand your order. " +
-                "For now, orders can only ask them to gather food, eat, find food, go to a tile or become a child's guardian.",
+                "Try a supported task, or use Suggest for broader guidance.",
             "settlement_founded" => "A new Town was founded.",
             "town_civic_law" => $"{civicTownName} recorded a law decision. See the Towns page for its wording and scope.",
             "town_civic_government" => $"{civicTownName} recorded a resident government decision. See the Towns page for the vote or handover.",
             "town_civic_mayor" => $"{civicTownName} recorded a mayoral election or office change. See the Towns page for its result.",
+            "market_built" => $"{civicTownName}'s Market was built. Adults can borrow one of its stalls to sell goods.",
+            "market_stall_built" => $"{civicTownName}'s Market gained another stall.",
+            "market_stall_borrowed" => $"{marketSeller} borrowed a free Market stall.",
+            "market_stock_loaded" => $"{marketSeller} picked up household goods to carry to the Market; their recorded owner is unchanged.",
+            "market_stock_delivered" => $"{marketSeller} brought goods to a Market stall; their recorded owner is unchanged.",
+            "market_stock_collected" => $"{marketSeller} collected their goods from a Market stall.",
+            "market_stall_left" => $"{marketSeller} left the Market stall. Earlier goods still belong to their recorded owners.",
+            "market_trade_offered" => $"{marketBuyerSubject} offered {marketSeller} an exchange at a Market stall. See the stall for its exact terms.",
+            "market_trade_completed" => $"{marketBuyerSubject} received a Market purchase from {marketSeller}; the real payment stays with the seller's household.",
+            "market_trade_cancelled" => $"The Market exchange between {marketSeller} and {marketBuyer} was cancelled; its unused goods are released.",
             "town_civic_council" => $"{civicTownName}'s council changed.",
             "town_civic_election" => $"{civicTownName}'s council election opened.",
             "town_civic_runoff" => $"{civicTownName}'s council election needs a runoff for tied seats.",
             "town_civic_proposal" => $"A proposal was submitted to {civicTownName}'s council.",
+            // Rulings and household transfers post their outcome as a result notice, but no council decided them.
+            "town_civic_result" when Field(worldEvent.Detail, 1).StartsWith("land-ruling:", StringComparison.Ordinal) =>
+                $"{civicTownName} posted the result of a land ruling. See the Towns page for its permission change and reasons.",
+            "town_civic_result" when Field(worldEvent.Detail, 1).StartsWith("land-transfer:", StringComparison.Ordinal) =>
+                $"{civicTownName} posted the outcome of a household permission transfer. See the Towns page for its terms.",
             "town_civic_result" => $"{civicTownName}'s council recorded a decision. See the Towns page for its result.",
             "town_civic_land_use" => $"A household land request in {civicTownName} has new information. See its plot for approval progress.",
             "land_use_granted" => "A household received an approved land-use right. The household use filter shows its plot.",
@@ -167,12 +202,26 @@ public static class WorldEventText
             "land_transfer_settled" or "land_transfer_blocked" => DescribeLandTransfer(worldEvent, snapshot),
             "town_land_claimed" => $"{civicTownName}'s council approved a claim to adjoining land. The Town title filter shows the new plot.",
             "town_civic_cancelled" => $"An unfinished election in {civicTownName} was cancelled.",
+            "town_project_approved" => $"The Council approved {townProjectName}; real materials and construction work are still needed.",
+            "town_project_blocked" => $"Work on {townProjectName} is blocked. See the Towns page for what is needed.",
+            "town_project_resumed" => $"{townProjectSubject} can continue.",
+            "town_project_cancelled" => $"{townProjectSubject} cannot be built at its approved site, so the Town stopped it. " +
+                "Its materials stay Town property where they are; see the Towns page for the reason.",
+            "town_project_donated" => $"{LeadingName(snapshot, worldEvent.Detail)} donated personal materials to {townProjectName}.",
+            "town_project_material_picked_up" => $"{LeadingName(snapshot, worldEvent.Detail)} picked up Town materials for {townProjectName}; the load is still being carried.",
+            "town_project_material_delivered" => $"{LeadingName(snapshot, worldEvent.Detail)} delivered materials to the approved site for {townProjectName}.",
+            "town_project_material_returned" => worldEvent.Detail.EndsWith(":ground", StringComparison.Ordinal)
+                ? $"{LeadingName(snapshot, worldEvent.Detail)} set down unused Town materials from {townProjectName}."
+                : $"{LeadingName(snapshot, worldEvent.Detail)} returned unused materials from {townProjectName} to the Town Warehouse.",
+            "town_project_worked" => $"{LeadingName(snapshot, worldEvent.Detail)} worked on {townProjectName}.",
+            "town_project_completed" => $"{townProjectSubject} was built with its approved materials.",
             "town_founding_started" => "Your first Town is being set up.",
             "town_resident_joined" => $"{ResidentName(snapshot, worldEvent)} joined {ResidentTownName(snapshot, worldEvent)}.",
             "town_resident_left" => $"{ResidentName(snapshot, worldEvent)} left {ResidentTownName(snapshot, worldEvent)}.",
             "town_membership_evaluated" => "The new adult is not part of a Town yet.",
             "town_admission_accepted" => DescribeAdmission(worldEvent.Detail, snapshot),
-            "town_admission_approved" => $"{civicTownName}'s council approved {Name(snapshot, Field(worldEvent.Detail, 1))}'s admission. It takes effect only if they accept.",
+            "town_admission_approved" => $"{civicTownName}'s council approved {Name(snapshot, Field(worldEvent.Detail, 1))}'s admission. They have one unpaused world day to accept.",
+            "town_admission_lapsed" when Field(worldEvent.Detail, 3) == "acceptance_expired" => $"{Name(snapshot, Field(worldEvent.Detail, 1))} did not join {civicTownName}: the approval expired after one unpaused world day without acceptance. Someone may ask the council again.",
             "town_admission_lapsed" => $"{Name(snapshot, Field(worldEvent.Detail, 1))} did not join {civicTownName}: the approval no longer fits their circumstances.",
             "town_building_assigned" => "A building joined the first Town.",
             "town_border_expanded" => "The first Town border expanded.",
@@ -184,7 +233,7 @@ public static class WorldEventText
             "household_founded" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} started a household; a House still needs materials and work.",
             "personal_goods_collected" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} collected their personal belongings.",
             "personal_goods_stored" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} stored personal belongings while keeping ownership.",
-            "borrowed_goods_returned" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} returned borrowed household goods.",
+            "borrowed_goods_returned" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} returned household goods.",
             "replacement_care_accepted" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} explicitly accepted primary care of a dependent.",
             "housing_request_made" => $"{LeadingName(snapshot, worldEvent.Detail)} asked {HouseholdAfterAgent(snapshot, worldEvent.Detail)} for a place to live in their House.",
             "household_joined" => $"{LeadingName(snapshot, worldEvent.Detail)} now lives with {HouseholdAfterAgent(snapshot, worldEvent.Detail)}.",
@@ -247,10 +296,12 @@ public static class WorldEventText
             "land_transfer_consent" => $"{actor ?? "A household adult"} " + (fields.Length == 5 && fields[4] == "decline"
                 ? "declined" : "personally accepted") + $" the terms of {subject}.",
             "land_transfer_withdrawn" => $"{actor ?? "The proposer"} withdrew {subject}; permission did not move.",
-            "land_transfer_settled" => $"{subject} completed after every current source and receiving household adult accepted. Its original permission terms and private property remain unchanged.",
-            _ => $"{subject} stopped because its published terms no longer qualify. Permission did not move.",
+            "land_transfer_settled" => $"{Sentence(subject)} completed after every current source and receiving household adult accepted. Its original permission terms and private property remain unchanged.",
+            _ => $"{Sentence(subject)} stopped because its published terms no longer qualify. Permission did not move.",
         };
     }
+
+    private static string Sentence(string text) => char.ToUpperInvariant(text[0]) + text[1..];
 
     private static string DescribeLandHearing(OwnerWorldEvent worldEvent, OwnerWorldSnapshot? snapshot)
     {
@@ -284,6 +335,20 @@ public static class WorldEventText
             "land_case_relayed" => $"{actor ?? "An informed adult"} relayed learned case evidence for {subject} to someone nearby.",
             _ => $"A request in {subject} was rejected without changing private property.",
         };
+    }
+
+    private static OwnerWorldTownProject? TownProjectForEvent(OwnerWorldSnapshot? snapshot, string detail)
+    {
+        if (snapshot is null) return null;
+        // Town, agent and proposal IDs contain colons; match their complete known identities.
+        var town = snapshot.Towns.OrderByDescending(item => item.Id.Length)
+            .FirstOrDefault(item => IsLeadingId(detail, item.Id));
+        if (town is not null)
+            return town.Projects.FirstOrDefault(project => IsLeadingId(detail, town.Id + ":" + project.Id));
+        var person = snapshot.Inhabitants.OrderByDescending(item => item.Id.Length)
+            .FirstOrDefault(item => IsLeadingId(detail, item.Id));
+        return person is null ? null : snapshot.Towns.SelectMany(item => item.Projects)
+            .FirstOrDefault(project => IsLeadingId(detail, person.Id + ":" + project.Id));
     }
 
     private static string DescribeHouseholdDeparture(OwnerWorldSnapshot? snapshot, string detail)

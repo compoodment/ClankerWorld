@@ -179,6 +179,7 @@ public partial class Main
         body.AddChild(profileOrderLabel);
 
         renameAgentInput.PlaceholderText = "Agent name";
+        renameAgentInput.TooltipText = "Changing a married agent's surname also updates their spouse.";
         renameAgentInput.MaxLength = 48;
         renameAgentInput.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         renameAgentInput.TextChanged += _ => refusedAgentRename.Forget();
@@ -711,8 +712,16 @@ public partial class Main
             if (project.Blocker is not null) details.Add(project.Blocker);
         }
         if (role is not null and not "unassigned") details.Add($"Role: {Pretty(role)}");
+        if (!isDeceased)
+            details.AddRange(inhabitant.DecisionFactors.Where(factor => factor.Key == "guardian-care")
+                .Select(factor => factor.Detail));
         if (Factor("housing") is { } housing && !isDeceased) details.Add(housing);
-        if (Factor("town-membership") is { } townMembership && !isDeceased) details.Add(townMembership);
+        if (!isDeceased && inhabitant.DecisionFactors.FirstOrDefault(factor => factor.Key == "town-membership") is { } townMembership)
+        {
+            details.Add(townMembership.Detail);
+            if (townMembership.AcceptanceDeadlineTick is { } deadline)
+                details.Add($"Acceptance deadline: {DisplayWorldClock(deadline)} · Paused time does not count.");
+        }
         if (inhabitant.Lesson is { } lesson)
             details.Add($"Learning {Pretty(lesson.Skill)} with {lesson.TeacherName} · {Pretty(lesson.Stage)} · {lesson.Progress}/{lesson.Required}");
         foreach (var skill in inhabitant.Skills ?? [])
@@ -810,8 +819,26 @@ public partial class Main
             "consume_food" => "Eating food",
             "harvest_food" => "Gathering food",
             "gather_material" => "Gathering " + (order.TargetMaterialKind?.Replace('_', ' ') ?? "materials"),
+            "till_field" => "Tilling household fields",
+            "plant_field" => "Planting " + (order.TargetCropKind?.Replace('_', ' ') ?? "crops"),
+            "tend_field" => "Tending " + (order.TargetCropKind?.Replace('_', ' ') ?? "household fields"),
+            "harvest_field" => "Harvesting " + (order.TargetCropKind?.Replace('_', ' ') ?? "household fields"),
+            "repair_equipment" or "repair_tool" => "Repairing " + (order.TargetEquipmentKind?.Replace('_', ' ') ?? "equipment"),
             "collect_material" => "Collecting " + (order.TargetMaterialKind?.Replace('_', ' ') ?? "materials"),
+            "collect_food" => "Collecting " + (order.TargetFoodKind?.Replace('_', ' ') ?? "food"),
+            "collect_equipment" => "Collecting " + (order.TargetEquipmentKind?.Replace('_', ' ') ?? "equipment"),
+            "collect_goods" => "Collecting " + OrderItemName(order.TargetItemKind),
             "store_material" => "Storing " + (order.TargetMaterialKind?.Replace('_', ' ') ?? "materials"),
+            "store_equipment" => "Storing " + (order.TargetEquipmentKind?.Replace('_', ' ') ?? "equipment"),
+            "store_goods" => "Storing " + OrderItemName(order.TargetItemKind),
+            "return_borrowed" => "Returning borrowed " + OrderItemName(order.TargetItemKind),
+            "deliver_stock" => "Delivering " + OrderItemName(order.TargetItemKind) + " to " + OrderBuildingName(order.TargetBuildingKind),
+            "construct_building" => "Building " + OrderBuildingName(order.TargetBuildingKind),
+            "expand_building" => "Expanding " + OrderBuildingName(order.TargetBuildingKind),
+            "seek_shelter" => order.TargetBuildingKind == "house" ? "Seeking shelter in their House" : "Seeking shelter",
+            "tend_fire" => order.TargetBuildingKind == "house" ? "Lighting a fire in their House" : "Lighting a fire",
+            "produce_item" => "Making " + (order.TargetOutputKind is { } output
+                ? GameUiText.ItemName(output).ToLowerInvariant() : "goods"),
             "seek_food" => "Going to a food site",
             "move_to" => "Going to a tile",
             "accept_guardianship" => "Becoming a guardian",
@@ -845,16 +872,49 @@ public partial class Main
             : $"{state} · {task}{units}{reason}{heard}";
     }
 
+    private static string OrderItemName(string? kind) => kind switch
+    {
+        null => "goods",
+        "iron" => "refined iron",
+        "tool" => "workshop tool",
+        _ => GameUiText.ItemName(kind).ToLowerInvariant(),
+    };
+
     private static string ProgressUnitLabel(string unit) => unit switch
     {
         "food_items" => "food items",
         "material_items" => "items",
+        "equipment_items" => "equipment items",
+        "goods_items" => "items",
+        "output_items" => "items made",
+        "production_batches" => "batches completed",
+        "repairs" => "items repaired",
+        "fields" => "fields completed",
         "collection_loads" => "loads collected",
         "storage_loads" => "loads stored",
+        "return_loads" => "loads returned",
+        "delivery_loads" => "loads delivered",
+        "buildings" => "buildings finished",
+        "expansions" => "expansions finished",
+        "shelters" => "shelters reached",
+        "fires" => "fires lit",
         "arrivals" => "sites reached",
         "harvests" => "harvest batches",
         "guardianships" => "care assignments",
         _ => unit,
+    };
+
+    private static string OrderBuildingName(string? kind) => kind switch
+    {
+        "house" => "House",
+        "farmhouse" => "Farmhouse",
+        "silo" => "Silo",
+        "blacksmith" => "Blacksmith",
+        "tailor" => "Tailor Shop",
+        "clinic" => "Clinic",
+        "store" => "Store",
+        "warehouse" => "Town Warehouse",
+        _ => "the requested building",
     };
 
     /// <summary>The Profile docks on the left, just below the top bar, and fits its contents.</summary>
