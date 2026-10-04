@@ -159,7 +159,7 @@ public sealed partial class PrivateWorldRuntime
     {
         foreach (var original in boatTransport.Boats.Where(boat => boat.Journey is not null).ToArray())
         {
-            var boat = original;
+            var boat = MoveBoatGroundCargo(original);
             var journey = boat.Journey!;
             if (tick < journey.NextMoveTick) continue;
             var target = Port(journey.Returning ? journey.OriginPortId : journey.DestinationPortId);
@@ -251,8 +251,7 @@ public sealed partial class PrivateWorldRuntime
         var position = destination ?? boat.Position;
         ApplyInventoryTransition(inventory => inventory with
         {
-            Lots = inventory.Lots.Select(lot => remaining.Contains(lot.Id, StringComparer.Ordinal) ||
-                lot.ContainerLotId is { } vessel && remaining.Contains(vessel, StringComparer.Ordinal)
+            Lots = inventory.Lots.Select(lot => remaining.Contains(lot.Id, StringComparer.Ordinal)
                 ? lot with { GroundPosition = new(position.X, position.Y) } : lot).ToArray(),
         });
         boat = boat with { GroundCargoLotIds = remaining };

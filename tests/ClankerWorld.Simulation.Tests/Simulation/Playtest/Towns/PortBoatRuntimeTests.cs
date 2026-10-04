@@ -4,6 +4,7 @@ using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
+using ClankerWorld.Simulation.Society;
 using ClankerWorld.Simulation.World;
 using ClankerWorld.Viewer.Observation;
 using Client = ClankerWorld.GodotClient.UI;
@@ -119,6 +120,66 @@ public sealed class PortBoatRuntimeTests
         foreach (var dock in geometry.DockingTiles)
             Assert.False(PortNavigationRules.Fits(map, definition, site, new HashSet<GridPoint> { dock }, out _));
         Assert.False(PortNavigationRules.Fits(map, definition, site, geometry.ApproachTiles.ToHashSet(), out _));
+    }
+
+    [Fact]
+    public async Task DeathAboardKeepsAContainerAndItsContentsTogetherUntilSafeLanding()
+    {
+        var policy = new BoatPolicy();
+        policy.IdleActors.Add(BoatPolicy.Author);
+        var state = PrivateWorldRuntimeCodec.Decode(await Underway.Value);
+        var checkpoint = state.Society.Society;
+        var maximum = checkpoint.Config.DayLifecycle!.MaximumDay;
+        var birth = checkpoint.LifeTickAt(checkpoint.WorldTick + 1) - maximum * checkpoint.Config.TicksPerLifecycleAge;
+        // Start from a genuinely paid and boarded voyage, with an elder's next
+        // age boundary due. Native mortality creates the death and estate.
+        state = state with
+        {
+            Society = state.Society with
+            {
+                Society = checkpoint with
+                {
+                    Config = checkpoint.Config with { BaseNaturalMortalityBasisPoints = 0, NaturalMortalitySlopeBasisPoints = 0 },
+                    Inhabitants = checkpoint.Inhabitants.Select(person => person.Id == BoatPolicy.Author ? person with
+                    {
+                        BirthTick = checkpoint.LifeClock is null ? birth : person.BirthTick,
+                        BirthLifeTick = checkpoint.LifeClock is null ? null : birth,
+                        AgeBand = SocietyAgeBand.Elder,
+                        LastLifecycleYearChecked = maximum - 1,
+                    } : person).ToArray(),
+                },
+            },
+        };
+        using var scenario = new BoatScenario(state, policy);
+        var boatId = scenario.World.Boats[0].Id;
+        await scenario.UntilAsync(() => (scenario.World.ExportState().DeceasedInhabitants ?? [])
+            .Any(person => person.InhabitantId == BoatPolicy.Author), 4);
+        Assert.Equal(boatId, scenario.World.ExportState().DeceasedInhabitants!
+            .Single(person => person.InhabitantId == BoatPolicy.Author).BoatIdAtDeath);
+        Assert.Contains("travel-jug", scenario.World.Boats[0].GroundCargoLotIds!);
+        var aboardBytes = PrivateWorldRuntimeCodec.Encode(scenario.World.ExportState());
+        using (var replay = new BoatScenario(PrivateWorldRuntimeCodec.Decode(aboardBytes), new()))
+        {
+            Assert.Equal(aboardBytes, PrivateWorldRuntimeCodec.Encode(replay.World.ExportState()));
+            for (var tick = 0; tick < 3; tick++)
+            {
+                Assert.True((await scenario.World.AdvanceOneTickAsync()).Advanced);
+                Assert.True((await replay.World.AdvanceOneTickAsync()).Advanced);
+                Assert.Equal(PrivateWorldRuntimeCodec.Encode(scenario.World.ExportState()),
+                    PrivateWorldRuntimeCodec.Encode(replay.World.ExportState()));
+            }
+        }
+        await scenario.UntilAsync(() => scenario.World.Boats[0].Journey is null, 100);
+        var jug = scenario.World.Society.Inventory.GetLot("travel-jug");
+        var water = scenario.World.Society.Inventory.GetLot("travel-water");
+        Assert.Equal(jug.Id, water.ContainerLotId);
+        Assert.Equal(jug.OwnerId, water.OwnerId);
+        Assert.Equal(1, water.Quantity);
+        Assert.Null(water.GroundPosition);
+        Assert.True(scenario.World.ExportState().Map.IsBuildable(new(jug.GroundPosition!.Value.X, jug.GroundPosition.Value.Y)));
+        var bytes = PrivateWorldRuntimeCodec.Encode(scenario.World.ExportState());
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes));
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
     }
 
     [Fact]
@@ -323,9 +384,13 @@ public sealed class PortBoatRuntimeTests
         }
         foreach (var person in state.Inhabitants)
         {
-            inventory = InventoryFixture.AddLot(inventory, "travel-food:" + person.InhabitantId, "food", person.InhabitantId, 4);
+            inventory = InventoryFixture.AddLot(inventory, "travel-food:" + person.InhabitantId, "food", person.InhabitantId,
+                person.InhabitantId == BoatPolicy.Author ? 2 : 4);
             inventory = InventoryFixture.AddLot(inventory, "travel-clothing:" + person.InhabitantId, "clothing", person.InhabitantId, 1);
         }
+        inventory = InventoryFixture.AddLot(inventory, "travel-jug", InventoryContainerRules.WaterJug, BoatPolicy.Author, 1);
+        inventory = InventoryFixture.AddLot(inventory, "travel-water", InventoryContainerRules.FreshWater, BoatPolicy.Author, 1,
+            containerLotId: "travel-jug");
         state = state with
         {
             Society = state.Society with

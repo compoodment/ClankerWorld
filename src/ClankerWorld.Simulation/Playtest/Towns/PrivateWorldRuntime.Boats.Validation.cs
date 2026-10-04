@@ -25,7 +25,10 @@ public sealed partial class PrivateWorldRuntime
             throw new InvalidDataException("Saved boat assets and trip queues are missing, duplicated or out of order.");
         var tick = state.Society.Society.WorldTick;
         var people = state.Society.Society.Inhabitants.ToDictionary(person => person.Id, StringComparer.Ordinal);
-        var towns = (state.Towns ?? []).ToDictionary(town => town.Id, StringComparer.Ordinal);
+        var towns = new Dictionary<string, TownRuntimeState>(StringComparer.Ordinal);
+        foreach (var town in state.Towns ?? [])
+            if (town is null || string.IsNullOrWhiteSpace(town.Id) || !towns.TryAdd(town.Id, town))
+                throw new InvalidDataException("Saved boat authority requires unique, known Town identities.");
         foreach (var town in towns.Values)
             foreach (var project in town.Projects.Where(project => project.Stage == "completed" && project.Plan.BoatPortId is not null))
                 if (project.RemovedTick is not null || !transport.Boats.Any(boat => boat.Id == project.CompletedBoatId &&
