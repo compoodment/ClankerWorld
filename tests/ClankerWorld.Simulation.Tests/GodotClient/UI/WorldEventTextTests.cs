@@ -147,7 +147,7 @@ public sealed class WorldEventTextTests
             ("town_admission_accepted", $"town:second|{AgentId}|none|2",
                 "Aster became a resident of Second Town. Their dependent children moved with them."),
             ("town_admission_approved", $"town:second|{AgentId}|town:second:proposal:4",
-                "Second Town's council approved Aster's admission. It takes effect only if they accept."),
+                "Second Town's council approved Aster's admission. They have one unpaused world day to accept."),
             ("town_admission_lapsed", $"town:first|{AgentId}|town:first:proposal:2|joined_elsewhere",
                 "Aster did not join First Town: the approval no longer fits their circumstances."),
             ("town_admission_accepted", "town:gone|agent:missing|none|1", "Someone became a resident of a Town."),
