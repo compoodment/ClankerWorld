@@ -91,8 +91,8 @@ unable to save.
 
 `ParseInstructionOrder` reads a complete, bounded grammar for eating food,
 seeking a food source, harvesting food, gathering supported raw materials,
-storing or collecting personal raw materials, collecting personal ready-to-eat
-food or equipment, repairing supported personal
+storing personal raw materials or equipment, collecting personal raw materials,
+ready-to-eat food or equipment, repairing supported personal
 clothing, carrying aids and tools, household field work, and moving to an exact
 tile. Harvest and food-source travel orders must name a supported kind or resource; explicit resource names must match a complete
 identifier and the requested kind. Unsupported
@@ -139,7 +139,7 @@ care assignment. A search that closes first leaves the order blocked rather
 than replacing its accepted guardian. Queue, cancellation, stale-response
 checks and urgent survival interruptions use the common order lifecycle.
 
-Storage orders reuse the material-kind catalogue and normal personal-storage
+Storage orders reuse the material/equipment catalogues and normal personal-storage
 eligibility. `StorePersonalGoods` serves both ordinary choices and orders: it
 walks to the House entrance, then uses `InventoryFixture.Relocate` to preserve
 ownership, condition and provenance. Reserved goods, promised deliveries,
@@ -148,9 +148,17 @@ relocation receipt advances the order; its identity is hashed to a fixed length
 because split inventory identifiers can grow. Walking and survival actions earn
 no storage progress. Default tasks count one stored lot, while explicit quantities
 limit the final relocation to the remaining amount. Repetition keeps waiting
-for further personal material or space until cancelled. The destination is the
+for further matching personal goods or space until cancelled. The destination is the
 agent's current household House; named foreign buildings and map coordinates
 are not recognized storage targets.
+
+`store_equipment` uses the existing exact `TargetEquipmentKind` and the same
+garment/carry-aid/tool subjects as collection. Complete equipment names are read
+before material names, so "stone pickaxes" cannot select raw stone. Explicit
+quantities count `equipment_items`; default orders count `storage_loads`.
+Selection and execution both use `PersonalStorageLots`, preserving the exclusions
+for worn items, reservations and borrowed or promised goods. Storage does not
+equip or repair goods. Model guidance and client task text name equipment storage.
 
 Collection orders use `PersonalGoodsAwaitingCollection` and the shared
 `CollectPersonalGoods` action. The actor must own the lot, which cannot be

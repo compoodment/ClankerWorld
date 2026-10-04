@@ -144,7 +144,7 @@ replaced orders cannot retain live repair reservations. Replay covers partial
 work, queues, cancellation and exact material costs. Older alpha saves are
 refused and preserved without migration.
 
-Private-world schema 83 introduces crude House tool behavior. The two new
+Private-world schema 84 introduces crude House tool behavior. The two new
 item kinds keep ownership, physical custody, condition and reservations in
 ordinary inventory lots; their recipes use existing saved projects and
 production jobs. Current saves resume supply, paid work and tool use without
@@ -271,6 +271,16 @@ condition, source, queued work, remaining quantity and cancellation survive
 reload and rollback. This version follows Council-election schema 81, food-collection schema 80
 and lantern schema 79. Older alpha checkpoints are refused and preserved
 without migration.
+
+Private-world schema 83 adds `store_equipment` with the existing exact
+`TargetEquipmentKind`. Equipment storage permits the five garment/carry-aid
+kinds and 13 tool kinds, with `equipment_items` for explicit quantities or
+`storage_loads` for default tasks. It uses bounded personal-storage receipts.
+Validation refuses mixed targets, locations, unsupported kinds, wrong units
+and unearned progress. Partial storage, queued work, cancellation and equipment
+condition survive reload and rollback. This version follows equipment-collection
+schema 82, Council-election schema 81, food schema 80 and lantern schema 79.
+Older alpha checkpoints are refused and preserved without migration.
 
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
@@ -661,7 +671,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 83. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 84. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
@@ -734,7 +744,7 @@ unique first names, schema 71 for physical guardian placements, schema 75
 for paid Markets and physical stall trade, schema 76 for land hearings and
 consensual permission transfers, schema 78 for sponsored admission approval
 expiry, schema 79 for paid street lanterns, schema 81 for elections forced by
-government changes, and schema 83 for crude House tools record when those fields
+government changes, and schema 84 for crude House tools record when those fields
 or behaviors were introduced; they do not allow an earlier checkpoint schema
 past the current alpha cutoff.
 
@@ -798,7 +808,7 @@ past the current alpha cutoff.
 | Schema 76 | Land hearings and voluntary permission transfers retain notice, evidence, personal consent, authority and closure history. Original grants and bounded adjustments must reproduce current permissions. Earlier alpha saves are refused and preserved without migration. |
 | Schema 78 | A sponsored admission approval expires one unpaused world day after its passed proposal settled, with `acceptance_expired` recorded when no acceptance occurred. The deadline uses saved world time and the original council decision, so pause and reload do not restart it. Earlier alpha saves are refused and preserved without migration. |
 | Schema 81 | A protected government change records the exact initial Council election it forced, including failed attempts. Current-format saves require the explicit nullable link and validate its Town, ownership and lifecycle. Ordinary elections remain independent; earlier alpha saves are refused and preserved without migration. |
-| Schema 83 | Crude House tools use ordinary saved inventory, projects and production jobs, with their own content package and tool tier. Supply, paid work, ownership, condition and extraction continue across reload without duplicate output or wear. Older alpha saves are refused and preserved without migration. |
+| Schema 84 | Crude House tools use ordinary saved inventory, projects and production jobs, with their own content package and tool tier. Supply, paid work, ownership, condition and extraction continue across reload without duplicate output or wear. Older alpha saves are refused and preserved without migration. |
 
 ### Tool-making requests
 
