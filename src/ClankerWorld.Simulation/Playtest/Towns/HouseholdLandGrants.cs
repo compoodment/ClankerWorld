@@ -39,7 +39,7 @@ public static class HouseholdLandGrantRules
         IReadOnlyList<HouseholdLandUseRight> receiptRights = rights;
         foreach (var town in towns)
         {
-            if (town.LandHearings is null)
+            if (!TownLandHearingValidation.HasRecords(town.LandHearings))
                 throw new InvalidDataException("Saved Town hearing history must be present.");
             receiptRights = TownLandHearingRules.OriginalGrantRights(town.LandHearings, receiptRights);
         }

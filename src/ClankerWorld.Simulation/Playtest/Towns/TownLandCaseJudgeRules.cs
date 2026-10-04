@@ -39,8 +39,9 @@ public static class TownLandCaseJudgeRules
     {
         var item = state.Cases.Single(c => c.Id == caseId);
         if (item.Judge is not { Kind: "case_elected" } judge || judge.AgentId != actor) throw new InvalidOperationException("Only a current elected case judge may resign this case-only mandate.");
-        if (Willing(item, actor)) state = Withdraw(state, caseId, actor, tick);
-        return TownLandHearingRules.InvalidateJudge(state, caseId, tick, "resigned");
+        // End the mandate first, so its history records a resignation rather than a withdrawn candidacy.
+        state = TownLandHearingRules.InvalidateJudge(state, caseId, tick, "resigned");
+        return Willing(item, actor) ? Withdraw(state, caseId, actor, tick) : state;
     }
 
     public static TownLandHearingState Vote(TownLandHearingState state, string caseId, string token,
@@ -84,7 +85,7 @@ public static class TownLandCaseJudgeRules
             if (item.Judge is not null) continue;
             if (government.Arrangement.Land != TownArrangementRules.Mayor)
             {
-                state = Replace(state, CancelContest(item, tick, "land_mandate_ended"));
+                if (item.Contest is not null) state = Replace(state, CancelContest(item, tick, "land_mandate_ended"));
                 continue;
             }
             if (office is not null && Eligible(item, office.HolderId!, adults, households, parties))
@@ -99,7 +100,8 @@ public static class TownLandCaseJudgeRules
             if (contest is null)
             {
                 var last = item.ContestHistory.Count == 0 ? null : item.ContestHistory[^1];
-                if (last is { Stage: "failed", SettledTick: { } failed } && tick < failed + day && last.Candidates.SequenceEqual(candidates)) continue;
+                // A failed vote retries after a day. With nobody willing and eligible there is nothing to retry until someone is.
+                if (last is { Stage: "failed", SettledTick: { } failed } && (tick < failed + day || candidates.Length == 0) && last.Candidates.SequenceEqual(candidates)) continue;
                 contest = new(item.Id + ":judge:" + (item.ContestHistory.Count + 1).ToString(CultureInfo.InvariantCulture), "waiting", 0,
                     tick, null, null, [], [], [], [], 0, []);
             }

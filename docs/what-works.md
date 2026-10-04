@@ -481,7 +481,9 @@ cannot leave someone falsely displayed as a required current responder; rulings
 retain their actual parties at the time of decision.
 
 Rulings can confirm, renew, change or end use permissions while preserving Town
-title, households, buildings, crops and goods. Settled cases reopen only on
+title, households, buildings, crops and goods. A permission past its agreed end
+must be renewed, changed or ended, and free Town land is given out only where a
+pending request for it was heard. Settled cases reopen only on
 material new evidence or a demonstrated procedural error, preserving earlier
 rulings and current rights until a correction. A ruling resolves only the
 covered part of a competing request; remaining tiles stay pending. Towns shows

@@ -986,7 +986,10 @@ remains saved.
 
 `TownRuntimeState.LandHearings` saves each public case's exact plot and right
 versions, affected parties, formal notice and response deadline. Equivalent
-filings join the live case without resetting its clock. Material right changes
+filings join the live case without resetting its clock. A different plot that
+overlaps a live case is refused. Land a settled case covered needs reopening
+grounds until its permission terms change; an agreed end reached after that
+case's last ruling still opens its expiry review. Material right changes
 or new affected adults publish a revised notice with a fresh day. Notice
 publication, actual civic receipts and case-file reads are separate records;
 reads identify the evidence and rehearing requests actually available to that
@@ -1003,11 +1006,19 @@ Hearing actions enter through admitted personal-model civic choices. Public
 statements remain allegations; actual nearby observations and inspected rights,
 title, law versions and earlier rulings retain their sources. The current land
 mayor must inspect the file and revalidate authority, conflicts and the response
-window before ruling. A conflicted holder steps aside for a willing independent
+window before ruling. A permission past its agreed end must be renewed, amended
+or ended; it cannot be confirmed or left as it is. An amend ruling reassigns
+existing permissions and the pending requests it heard; other free Town land
+stays free. A conflicted holder steps aside for a willing independent
 adult elected through the shared civic scheduler for this case only. A valid
 acting judge survives ordinary mayor succession; missing authority leaves the
 case pending. Reopening needs assessed material evidence or a demonstrated
-procedural error, retains earlier rulings and publishes a fresh notice.
+procedural error, retains earlier rulings and publishes a fresh notice. Grounds
+are judged against the latest ruling, and only while the case is settled. A
+settled case with no rehearing request offers its ruling to adults who have not
+read it and a rehearing request to its parties; statements, observations and
+relays resume while a request is pending. A Council-approved Town filing that
+can no longer open when its vote passes keeps the vote and posts the reason.
 
 Bounded permission adjustments retain original grant receipts and replayable
 before/after rights. A ruling records the exact covered portions of pending

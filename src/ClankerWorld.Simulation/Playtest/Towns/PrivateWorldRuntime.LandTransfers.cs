@@ -36,7 +36,7 @@ public sealed partial class PrivateWorldRuntime
         society.Checkpoint.GetHousehold(request.TargetHouseholdId).Name + " (" + request.TargetHouseholdId + "). Source permissions: " +
         string.Join("; ", request.RightVersions.Select(version => society.Checkpoint.GetHousehold(version.Right.HouseholdId).Name +
             " (" + version.Right.HouseholdId + "), " + (version.Right.AgreedEndTick is { } end
-                ? "same agreed end on world day " + (end / CivicDay + 1) : "no agreed end date"))) +
+                ? "same agreed end on world day " + CivicDayNumber(end) : "no agreed end date"))) +
         ". Title, household membership, private buildings, crops and goods keep their current records and owners.";
 
     private void LandTransferEvent(string kind, TownRuntimeState town, TownLandTransferRequest request, string? actor, string status) =>

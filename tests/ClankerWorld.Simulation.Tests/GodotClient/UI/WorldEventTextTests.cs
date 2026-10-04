@@ -261,6 +261,24 @@ public sealed class WorldEventTextTests
             WorldEventText.Describe(new(1, 0, "model_call_warning", detail), null));
     }
 
+    [Theory]
+    [InlineData("land-ruling:town:first:4", "Land hearing decided: confirm.", "A Town posted the result of a land ruling. See the Towns page for its permission change and reasons.")]
+    [InlineData("land-transfer:town:first:5", "Voluntary household permission transfer completed.", "A Town posted the outcome of a household permission transfer. See the Towns page for its terms.")]
+    [InlineData("town:first:proposal:6", "land_use proposal passed: Grant household use.", "A Town's council recorded a decision. See the Towns page for its result.")]
+    public void OnlyCouncilResultNoticesAreDescribedAsCouncilDecisions(string subject, string notice, string expected)
+    {
+        Assert.Equal(expected, WorldEventText.Describe(new(1, 0, "town_civic_result", $"town:first|{subject}|{notice}"), Snapshot()));
+        Assert.Equal(expected, WorldEventText.Describe(new(1, 0, "town_civic_result", $"town:first|{subject}|{notice}"), null));
+    }
+
+    [Theory]
+    [InlineData("land_transfer_settled", "Permission transfer 5 completed after every current source and receiving household adult accepted. ")]
+    [InlineData("land_transfer_blocked", "Permission transfer 5 stopped because its published terms no longer qualify. ")]
+    public void TransferOutcomeLinesStartWithACapital(string kind, string start)
+    {
+        Assert.StartsWith(start, WorldEventText.Describe(new(1, 0, kind, "town:first|land-transfer:town:first:5|1||done"), Snapshot()), StringComparison.Ordinal);
+    }
+
     private static OwnerWorldSnapshot Snapshot(params OwnerWorldInhabitant[] people) =>
         new("event-names", 1, "map", [], [], [], null, 1) { Inhabitants = people };
 

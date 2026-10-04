@@ -147,6 +147,11 @@ public static class WorldEventText
             "town_civic_election" => $"{civicTownName}'s council election opened.",
             "town_civic_runoff" => $"{civicTownName}'s council election needs a runoff for tied seats.",
             "town_civic_proposal" => $"A proposal was submitted to {civicTownName}'s council.",
+            // Rulings and household transfers post their outcome as a result notice, but no council decided them.
+            "town_civic_result" when Field(worldEvent.Detail, 1).StartsWith("land-ruling:", StringComparison.Ordinal) =>
+                $"{civicTownName} posted the result of a land ruling. See the Towns page for its permission change and reasons.",
+            "town_civic_result" when Field(worldEvent.Detail, 1).StartsWith("land-transfer:", StringComparison.Ordinal) =>
+                $"{civicTownName} posted the outcome of a household permission transfer. See the Towns page for its terms.",
             "town_civic_result" => $"{civicTownName}'s council recorded a decision. See the Towns page for its result.",
             "town_civic_land_use" => $"A household land request in {civicTownName} has new information. See its plot for approval progress.",
             "land_use_granted" => "A household received an approved land-use right. The household use filter shows its plot.",
@@ -215,10 +220,12 @@ public static class WorldEventText
             "land_transfer_consent" => $"{actor ?? "A household adult"} " + (fields.Length == 5 && fields[4] == "decline"
                 ? "declined" : "personally accepted") + $" the terms of {subject}.",
             "land_transfer_withdrawn" => $"{actor ?? "The proposer"} withdrew {subject}; permission did not move.",
-            "land_transfer_settled" => $"{subject} completed after every current source and receiving household adult accepted. Its original permission terms and private property remain unchanged.",
-            _ => $"{subject} stopped because its published terms no longer qualify. Permission did not move.",
+            "land_transfer_settled" => $"{Sentence(subject)} completed after every current source and receiving household adult accepted. Its original permission terms and private property remain unchanged.",
+            _ => $"{Sentence(subject)} stopped because its published terms no longer qualify. Permission did not move.",
         };
     }
+
+    private static string Sentence(string text) => char.ToUpperInvariant(text[0]) + text[1..];
 
     private static string DescribeLandHearing(OwnerWorldEvent worldEvent, OwnerWorldSnapshot? snapshot)
     {
