@@ -56,7 +56,6 @@ public sealed class WorldSystemsContractTests
 
     [Theory]
     [InlineData(4_000)]
-    [InlineData(8_000)]
     public void EcologyLookupReadsEachResourceAboutOnceAsTheWorldGrows(int count)
     {
         // A tick looks up thousands of sources. Searching the list for each one

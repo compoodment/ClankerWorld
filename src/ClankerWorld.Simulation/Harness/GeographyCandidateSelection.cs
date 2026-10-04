@@ -3,6 +3,16 @@ using ClankerWorld.Simulation.World;
 
 namespace ClankerWorld.Simulation.Harness;
 
+/// <summary>A generated map has no valid place for its first Town.</summary>
+public sealed class GeographyClearingUnavailableException : InvalidOperationException
+{
+    public GeographyClearingUnavailableException()
+        : base("The generated geography has no suitable base-camp clearing.") { }
+}
+
+/// <summary>An attempted map that could not provide a playable clearing.</summary>
+public sealed record GeographyCandidateFailure(int Attempt, string Reason);
+
 /// <summary>Measured visibility and connected regions for one deterministic candidate.</summary>
 public sealed record GeographyCandidateReport(
     int Attempt,
@@ -47,10 +57,11 @@ public sealed record GeographyCandidateReport(
         (ForestTargetApplicable ? DistanceOutside(ForestPercent, 20, 40) / 20 : 0) +
         (MountainTargetApplicable ? DistanceOutside(MountainPercent, 5, 12) / 7 : 0);
 
-    // A tie-break only: there is no approved minimum connected-patch size.
+    // A tie-break only. Mountains are already shaped into whole massifs, so
+    // only forest connectedness counts; preferring one large mountain region
+    // would always pick the world with the fewest massifs.
     internal double RegionCohesion =>
-        (ForestTiles == 0 ? 0 : (double)LargestForestRegion / ForestTiles) +
-        (MountainTiles == 0 ? 0 : (double)LargestMountainRegion / MountainTiles);
+        ForestTiles == 0 ? 0 : (double)LargestForestRegion / ForestTiles;
 
     private static double DistanceOutside(double value, double minimum, double maximum) =>
         value < minimum ? minimum - value : value > maximum ? value - maximum : 0;
@@ -63,6 +74,7 @@ public sealed record GeographyCandidateSelection(
     IReadOnlyList<GeographyCandidateReport> Candidates)
 {
     public GeographyCandidateReport Selected => Candidates.Single(candidate => candidate.Attempt == Map.GenerationAttempt);
+    public IReadOnlyList<GeographyCandidateFailure> FailedCandidates { get; init; } = [];
 }
 
 /// <summary>
@@ -77,9 +89,14 @@ public static class GeographyCandidateSelector
     public const double MinimumMountainPercent = 5;
     public const double MaximumMountainPercent = 12;
 
-    public static GeographyCandidateSelection Select(GeographyOptions options)
+    public static GeographyCandidateSelection Select(GeographyOptions options) =>
+        Select(options, static candidateOptions => GenerateCandidate(candidateOptions));
+
+    internal static GeographyCandidateSelection Select(GeographyOptions options,
+        Func<GeographyOptions, SeededMap> generateCandidate)
     {
         ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(generateCandidate);
         if (options.Size is not (WorldSizePreset.Small or WorldSizePreset.Medium))
             throw new ArgumentException("Coverage selection supports playable Small and Medium worlds only.", nameof(options));
 
@@ -88,12 +105,19 @@ public static class GeographyCandidateSelector
             ? GeographyGenerator.MaximumCandidateAttempts
             : 1;
         var reports = new List<GeographyCandidateReport>(attemptCount);
+        var failures = new List<GeographyCandidateFailure>(attemptCount);
         SeededMap? selectedMap = null;
         GeographyCandidateReport? selectedReport = null;
         for (var attempt = 0; attempt < attemptCount; attempt++)
         {
             var candidateOptions = options with { CandidateAttempt = attempt };
-            var map = GenerateCandidate(candidateOptions);
+            SeededMap map;
+            try { map = generateCandidate(candidateOptions); }
+            catch (GeographyClearingUnavailableException)
+            {
+                failures.Add(new GeographyCandidateFailure(attempt, "no-clearing"));
+                continue;
+            }
             var report = Measure(candidateOptions, map, forestTargetApplicable, mountainTargetApplicable);
             reports.Add(report);
             if (selectedReport is null || Compare(report, selectedReport) < 0)
@@ -103,8 +127,11 @@ public static class GeographyCandidateSelector
             }
         }
 
-        return new GeographyCandidateSelection(options with { CandidateAttempt = selectedReport!.Attempt },
-            selectedMap!, reports);
+        if (selectedReport is null || selectedMap is null)
+            throw new GeographyClearingUnavailableException();
+        return new GeographyCandidateSelection(options with { CandidateAttempt = selectedReport.Attempt },
+            selectedMap, reports)
+        { FailedCandidates = failures };
     }
 
     /// <summary>Recreates one saved candidate without searching or changing its identity.</summary>

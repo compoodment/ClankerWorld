@@ -14,7 +14,7 @@ namespace ClankerWorld.Simulation.Playtest;
 public sealed partial class PrivateWorldRuntime
 {
     private TownLayoutContext CreateTownLayoutContext(string actor, GridPoint? selectedSite = null,
-        BuildingDefinition? building = null)
+        BuildingDefinition? building = null, bool forTownProject = false, string? townProjectId = null)
     {
         var origin = inhabitants[actor].Position;
         var town = towns.SingleOrDefault(item => item.ResidentIds.Contains(actor, StringComparer.Ordinal));
@@ -23,6 +23,8 @@ public sealed partial class PrivateWorldRuntime
             .Concat(map.Resources.Select(item => item.Position))
             .Concat(RoadAndBridgeTiles())
             .Concat(fields.Select(field => field.Position))
+            .Concat(TownProjectProtectedSites(townProjectId))
+            .Concat(MarketSiteTiles())
             .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused).SelectMany(ExpansionTiles))
             .Concat(worldSimulation.Buildings.SelectMany(building =>
             {
@@ -32,6 +34,8 @@ public sealed partial class PrivateWorldRuntime
             }))
             .Concat(inhabitants.Values.Where(person => person.InhabitantId != actor)
                 .Select(person => person.Position))
+            // A household builds only on land no other household holds or has asked for; Town buildings avoid it all.
+            .Concat(HouseholdLandHeldByOthers(building is not null && !building.Tags.Any(IsHouseholdBuildingTag) ? null : HouseholdFor(actor)))
             .ToHashSet();
         var resourcesForLayout = map.Resources.Select(resource => new TownLayoutResource(
             resource,
@@ -47,7 +51,17 @@ public sealed partial class PrivateWorldRuntime
             resourcesForLayout,
             buildingsForLayout,
             roadTiles: roadTiles,
-            requiredNeighborTiles: building is not null && HouseholdBuildingKind(building) == "silo" ? SiloNeighborTiles(actor, definitions) : null);
+            requiredNeighborTiles: building is not null && HouseholdBuildingKind(building) == "silo" ? SiloNeighborTiles(actor, definitions) : null,
+            requiredLandTiles: forTownProject && town is not null ? TownProjectLandTiles(town) : null,
+            requiredEntranceOffset: forTownProject
+                ? building?.Tags.Contains(MarketContent.HallTag, StringComparer.Ordinal) == true ? new GridPoint(1, 2) : new GridPoint(1, 4)
+                : null,
+            requiredFootprintOffsets: forTownProject && building?.Tags.Contains(MarketContent.HallTag, StringComparer.Ordinal) == true
+                ? MarketContent.SiteTiles(new(0, 0)) : null,
+            permittedRoadOffsets: forTownProject && building?.Tags.Contains(MarketContent.HallTag, StringComparer.Ordinal) == true
+                ? MarketContent.PlazaTiles(new(0, 0)).Except(Enumerable.Range(0, MarketContent.MaximumStalls)
+                    .Select(slot => MarketContent.StallSite(new(0, 0), slot))) : null,
+            protectedTiles: TownProjectProtectedSites(townProjectId).Concat(bridges.SelectMany(item => item.Entrances)));
     }
 
     /// <summary>A Silo stands near its household's Farmhouse; no Farmhouse means no legal Silo site.</summary>
@@ -165,13 +179,18 @@ public sealed partial class PrivateWorldRuntime
         return false;
     }
 
+    private static bool IsGenericFoodRecipe(RecipeDefinition recipe) =>
+        recipe.Inputs.Any(input => input.ResourceId == "food") &&
+        recipe.Outputs.Any(output => output.ResourceId == "food");
+
     private bool HasAvailableQuantities(IReadOnlyList<ContentQuantity> quantities, string? ownerId = null)
     {
         var inventory = society.Checkpoint.Inventory;
         foreach (var requested in quantities)
         {
             var available = inventory.Lots
-                .Where(lot => lot.OwnerId == (ownerId ?? HouseholdId) && lot.ItemKind == requested.ResourceId)
+                .Where(lot => lot.OwnerId == (ownerId ?? HouseholdId) && lot.ItemKind == requested.ResourceId &&
+                    !IsHandcartCargo(inventory, lot) && !OnBorrowedMarketStall(lot))
                 .Sum(AvailableLotQuantity);
             if (available < requested.Amount)
             {
@@ -188,7 +207,7 @@ public sealed partial class PrivateWorldRuntime
         foreach (var requested in quantities.GroupBy(item => item.ResourceId, StringComparer.Ordinal))
         {
             var available = inventory.Lots
-                .Where(lot => lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) &&
+                .Where(lot => lot.OwnerId == actor && PersonalEquipmentRules.IsPhysicallyCarried(inventory, lot, actor) &&
                     lot.DeliveryBuildingId is null && lot.ItemKind == requested.Key)
                 .Sum(lot => (long)AvailableLotQuantity(lot));
             if (available < requested.Sum(item => (long)item.Amount))
@@ -224,7 +243,8 @@ public sealed partial class PrivateWorldRuntime
     private bool CanPlaceBuilding(
         BuildingDefinition definition,
         GridPoint position,
-        out string failure)
+        out string failure,
+        string? townProjectId = null)
     {
         var footprint = WorldContentSimulationRules.Footprint(definition, position).ToArray();
         if (footprint.Any(point => !map.IsBuildable(point)))
@@ -238,6 +258,9 @@ public sealed partial class PrivateWorldRuntime
             .Concat(map.Resources.Select(item => item.Position))
             .Concat(RoadAndBridgeTiles())
             .Concat(fields.Select(field => field.Position))
+            .Concat(TownProjectProtectedSites(townProjectId))
+            // An extra stall is the one building that belongs on a Market site, on its own approved slot.
+            .Concat(MarketSiteTiles().Where(tile => tile != position || !definition.Tags.Contains(MarketContent.StallTag, StringComparer.Ordinal)))
             .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused).SelectMany(ExpansionTiles))
             .ToHashSet();
         var buildingDefinitions = worldContent.Buildings.ToDictionary(item => item.CanonicalId, StringComparer.Ordinal);
@@ -297,7 +320,7 @@ public sealed partial class PrivateWorldRuntime
         });
     }
 
-    private static InventoryCheckpoint ConsumeQuantities(
+    private InventoryCheckpoint ConsumeQuantities(
         InventoryCheckpoint inventory,
         IReadOnlyList<ContentQuantity> quantities,
         string purpose,
@@ -309,7 +332,7 @@ public sealed partial class PrivateWorldRuntime
             var requested = quantities[quantityIndex];
             var remaining = requested.Amount;
             var lots = current.Lots
-                .Where(lot => lot.OwnerId == ownerId && lot.ItemKind == requested.ResourceId && lot.FreshnessBasisPoints > 0 && lot.ConditionBasisPoints > 0)
+                .Where(lot => lot.OwnerId == ownerId && lot.ItemKind == requested.ResourceId && !IsHandcartCargo(current, lot) && !OnBorrowedMarketStall(lot) && lot.FreshnessBasisPoints > 0 && lot.ConditionBasisPoints > 0)
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal)
                 .ToArray();
             foreach (var lot in lots)
@@ -355,6 +378,20 @@ public sealed partial class PrivateWorldRuntime
         return current;
     }
 
+    private const string MissingHouseholdIngredientsPrefix = "The household building needs ";
+
+    private static bool IsIngredientBlocker(string? blocker) =>
+        blocker == "Waiting for ingredients at this household building" ||
+        blocker?.StartsWith(MissingHouseholdIngredientsPrefix, StringComparison.Ordinal) == true;
+
+    private string MissingProductionIngredients(RecipeDefinition recipe, string owner, string buildingId)
+    {
+        var missing = recipe.Inputs.First(input => !HasIngredientsAtBuilding([input], owner, buildingId));
+        var available = society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == owner &&
+                lot.StorageBuildingId == buildingId && lot.ItemKind == missing.ResourceId).Sum(AvailableLotQuantity);
+        return $"{MissingHouseholdIngredientsPrefix}{missing.Amount - available} {missing.ResourceId.Replace('_', ' ')} in its on-site stock. Bring it here before starting work.";
+    }
+
     private bool HasIngredientsAtBuilding(IReadOnlyList<ContentQuantity> inputs,
         string ownerId, string buildingId) => inputs.All(input =>
         society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == ownerId &&
@@ -362,14 +399,15 @@ public sealed partial class PrivateWorldRuntime
                 lot.FreshnessBasisPoints > 0 && lot.ConditionBasisPoints > 0)
             .Sum(lot => (long)AvailableLotQuantity(lot)) >= input.Amount);
 
-    private static InventoryCheckpoint ReserveQuantities(
+    private InventoryCheckpoint ReserveQuantities(
         InventoryCheckpoint inventory,
         IReadOnlyList<ContentQuantity> quantities,
         string purpose,
         long expiryTick,
         string ownerId,
         out IReadOnlyList<string> reservationIds,
-        string? requiredStorageBuildingId = null)
+        string? requiredStorageBuildingId = null,
+        bool requireCarried = false)
     {
         var current = inventory;
         var created = new List<string>();
@@ -379,6 +417,7 @@ public sealed partial class PrivateWorldRuntime
             var remaining = requested.Amount;
             var lots = current.Lots
                 .Where(lot => lot.OwnerId == ownerId && lot.ItemKind == requested.ResourceId &&
+                    !IsHandcartCargo(current, lot) && !OnBorrowedMarketStall(lot) && (!requireCarried || ToolProgressionRules.IsTopLevelCarriedLot(lot, ownerId)) &&
                     lot.FreshnessBasisPoints > 0 && lot.ConditionBasisPoints > 0 &&
                     (requiredStorageBuildingId is null || lot.StorageBuildingId == requiredStorageBuildingId))
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal)
@@ -501,11 +540,13 @@ public sealed partial class PrivateWorldRuntime
                     current,
                     $"{job.JobId}:output:{outputIndex.ToString("D2", System.Globalization.CultureInfo.InvariantCulture)}",
                     output.ResourceId,
-                    productionOwner,
+                    output.ResourceId == InventoryContainerRules.Handcart ? job.WorkerId : productionOwner,
                     output.Amount,
                     targetTick,
-                    storageBuildingId: productionBuilding?.HouseholdId is not null ? productionBuilding.InstanceId
-                        : null);
+                    storageBuildingId: output.ResourceId != InventoryContainerRules.Handcart && productionBuilding?.HouseholdId is not null
+                        ? productionBuilding.InstanceId : null,
+                    groundPosition: output.ResourceId == InventoryContainerRules.Handcart
+                        ? new InventoryGroundPosition(productionBuilding!.Position.X, productionBuilding.Position.Y) : null);
             }
 
             return knifePlan is null ? current : ApplyToolWorkToInventory(current, job.WorkerId,

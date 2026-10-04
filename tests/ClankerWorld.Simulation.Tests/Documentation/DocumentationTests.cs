@@ -42,8 +42,16 @@ public sealed partial class DocumentationTests
     public void LocalMarkdownLinksResolveToExistingFilesAndHeadings()
     {
         var root = FindRepositoryRoot();
+        // Skip symbolic links, such as the .claude/skills and .agents/skills entries that point
+        // into skills/: their files are checked where they live, and their relative links
+        // resolve from there, not from the link.
         var markdownFiles = Directory
-            .EnumerateFiles(root, "*.md", SearchOption.AllDirectories)
+            .EnumerateFiles(root, "*.md", new EnumerationOptions
+            {
+                RecurseSubdirectories = true,
+                AttributesToSkip = FileAttributes.ReparsePoint,
+                IgnoreInaccessible = false,
+            })
             .Where(path => !Relative(root, path).StartsWith(".git/", StringComparison.Ordinal))
             .Order(StringComparer.Ordinal)
             .ToArray();

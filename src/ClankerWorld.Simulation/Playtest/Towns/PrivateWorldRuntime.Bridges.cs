@@ -33,6 +33,10 @@ public sealed partial class PrivateWorldRuntime
             .Concat(worldSimulation.Buildings.SelectMany(building =>
                 WorldContentSimulationRules.Footprint(definitions[building.DefinitionId], building)))
             .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused).SelectMany(ExpansionTiles))
+            .Concat(TownProjectFootprintTiles())
+            .Concat(towns.SelectMany(town => town.Markets).Where(market => market.RemovedTick is null)
+                .SelectMany(market => Enumerable.Range(0, MarketContent.MaximumStalls)
+                    .Select(slot => MarketContent.StallSite(market.Site, slot))))
             .ToHashSet();
     }
 

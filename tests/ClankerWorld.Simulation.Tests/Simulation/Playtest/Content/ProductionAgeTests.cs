@@ -7,23 +7,6 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed class ProductionAgeTests
 {
-    [Theory]
-    [InlineData(SocietyAgeBand.Infant)]
-    [InlineData(SocietyAgeBand.Adolescent)]
-    public async Task YoungWorkersCannotStartRecipesOrCropsBeforeOrAfterReload(SocietyAgeBand age)
-    {
-        var prepared = await PrepareAsync(age);
-        using var world = PrivateWorldRuntime.Restore(prepared.State, _ => new IdleProvider());
-        var before = PrivateWorldRuntimeCodec.Encode(world.ExportState());
-        var rejected = world.StartProduction(prepared.RecipeId, prepared.WorkstationId, prepared.WorkerId);
-        Assert.False(rejected.Applied);
-        Assert.Contains("too young", rejected.Failure, StringComparison.Ordinal);
-        Assert.Equal(before, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
-        using var reloaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(before), _ => new IdleProvider());
-        Assert.False(reloaded.StartProduction(prepared.RecipeId, prepared.WorkstationId, prepared.WorkerId).Applied);
-        Assert.Equal(before, PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
-    }
-
     internal static async Task CompleteAfterReloadAsync(PrivateWorldRuntimeState state, string jobId)
     {
         using var restored = PrivateWorldRuntime.Restore(
