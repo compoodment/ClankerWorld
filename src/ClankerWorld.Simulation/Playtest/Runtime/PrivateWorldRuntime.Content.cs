@@ -204,7 +204,8 @@ public sealed partial class PrivateWorldRuntime
         string eventKind,
         string? assignedTownId = null,
         string? householdId = null,
-        string? constructionOwnerId = null)
+        string? constructionOwnerId = null,
+        string? constructionInstructionId = null)
     {
         try
         {
@@ -240,6 +241,10 @@ public sealed partial class PrivateWorldRuntime
                     position,
                     $"Building instance '{normalizedInstanceId}' already exists.");
             }
+
+            if (BuildingIdentityIsReserved(normalizedInstanceId, constructionInstructionId))
+                return BuildingPlacementResult.Rejected(normalizedInstanceId, normalizedDefinitionId, position,
+                    $"Building instance '{normalizedInstanceId}' is reserved for building orders.");
 
             if (assignedTownId is not null && !towns.Any(item => item.Id == assignedTownId))
                 return BuildingPlacementResult.Rejected(normalizedInstanceId, normalizedDefinitionId, position,
@@ -288,7 +293,8 @@ public sealed partial class PrivateWorldRuntime
                     .ToArray(),
                 worldSimulation.ProductionJobs,
                 worldSimulation.NextProductionJobSequence,
-                worldSimulation.CropBuilds, worldSimulation.BuildingExpansions, worldSimulation.GuestInvitations);
+                worldSimulation.CropBuilds, worldSimulation.BuildingExpansions, worldSimulation.GuestInvitations,
+                worldSimulation.ConstructionReceipts);
             if (assignedTownId is not null)
                 AssignBuildingToTown(placed, definition);
             AppendEvent(eventKind, $"{placed.InstanceId}:{placed.DefinitionId}:{position.X},{position.Y}" +
@@ -433,7 +439,8 @@ public sealed partial class PrivateWorldRuntime
                 worldSimulation.Buildings,
                 worldSimulation.ProductionJobs.Append(job).OrderBy(item => item.JobId, StringComparer.Ordinal).ToArray(),
                 checked(worldSimulation.NextProductionJobSequence + 1),
-                worldSimulation.CropBuilds, worldSimulation.BuildingExpansions, worldSimulation.GuestInvitations);
+                worldSimulation.CropBuilds, worldSimulation.BuildingExpansions, worldSimulation.GuestInvitations,
+                worldSimulation.ConstructionReceipts);
             BindToolMakingJob(job);
             if (knife is not null)
                 checkpointSchemaVersion = StateSchemaVersion;
@@ -477,7 +484,7 @@ public sealed partial class PrivateWorldRuntime
             var people = society.Checkpoint.Inhabitants.Select(person => person.Id).ToHashSet(StringComparer.Ordinal);
             // Cancelled orders remain checkpoint history and still need their original content targets.
             if (instructionsByIdempotency.Values.Any(instruction =>
-                instruction.Order is { Action: "produce_item" or "deliver_stock" } order &&
+                instruction.Order is { Action: "produce_item" or "deliver_stock" or "construct_building" or "expand_building" } order &&
                 !IsValidSavedOrder(order, instruction, completed, people, WorldTick, remainingContent)))
                 throw new InvalidOperationException("Content referenced by owner orders requires an explicit migration before removal.");
             var record = contentRegistry.Rollback(packageId, WorldTick, reason);

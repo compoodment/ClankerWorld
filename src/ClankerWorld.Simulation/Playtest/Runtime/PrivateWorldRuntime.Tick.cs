@@ -487,6 +487,8 @@ public sealed partial class PrivateWorldRuntime
 
             assetReservations = reservationPreview;
             MaintainProductionOrdersBeforeTick();
+            MaintainConstructionOrdersBeforeTick();
+            MaintainExpansionOrdersBeforeTick();
             society.AdvanceTo(targetTick, TownStoresForDueEstates(targetTick));
             var previousClimate = worldSystems.Climate;
             var campPosition = WeatherAnchor;

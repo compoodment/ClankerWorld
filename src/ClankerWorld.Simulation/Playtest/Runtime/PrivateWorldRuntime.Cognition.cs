@@ -73,7 +73,8 @@ public sealed partial class PrivateWorldRuntime
                 !ShouldDispatchConversationChoice(inhabitant.Id) && GuardianPlacementCandidate(inhabitant.Id) is null)
                 continue;
             if (operativeOrder is not null && physical.Project is { Stage: not ("completed" or "cancelled") } orderedProject &&
-                !IsProductionOrderProject(operativeOrder, orderedProject))
+                !IsProductionOrderProject(operativeOrder, orderedProject) &&
+                !IsConstructionOrderProject(operativeOrder, orderedProject))
             {
                 SetProject(inhabitant.Id, orderedProject with { Stage = "paused", Blocker = "Following an owner order." });
                 physical = inhabitants[inhabitant.Id];
@@ -1052,14 +1053,24 @@ public sealed partial class PrivateWorldRuntime
                 return;
             }
 
+            var constructionOrder = ConstructionInstructionForProject(inhabitantId, state.Project);
+            if (state.Project?.OrderInstructionId is not null && (constructionOrder is null ||
+                state.Project.WorkDone < ProjectWorkTicks ||
+                !TryConstructionOrderSite(constructionOrder, state, out _, out _, out _, out _)))
+            {
+                AppendEvent("build_rejected", $"{inhabitantId}:{candidateId}:ordered_project_changed");
+                return;
+            }
+            var materialOwner = BuildingConstructionOwner(inhabitantId, definition);
             var placement = PlaceBuildingCore(
-                BuildInstanceId(inhabitantId, definition),
+                constructionOrder?.Order!.ConstructionInstanceId ?? BuildInstanceId(inhabitantId, definition),
                 definition.CanonicalId,
                 position,
                 "build_completed",
                 TownForResident(inhabitantId),
                 houseOwner,
-                BuildingConstructionOwner(inhabitantId, definition));
+                materialOwner,
+                constructionOrder?.InstructionId);
             if (!placement.Applied)
             {
                 AppendEvent("build_rejected", $"{inhabitantId}:{candidateId}:{placement.Failure}");
@@ -1067,6 +1078,8 @@ public sealed partial class PrivateWorldRuntime
             else
             {
                 CreditCompletedWork(inhabitantId, "building");
+                if (constructionOrder is not null)
+                    RecordConstructionOrderCompletion(constructionOrder, materialOwner);
             }
 
             return;

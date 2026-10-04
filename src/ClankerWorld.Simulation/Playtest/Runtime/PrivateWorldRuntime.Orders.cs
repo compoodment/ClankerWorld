@@ -17,6 +17,11 @@ public sealed partial class PrivateWorldRuntime
         if (order.TargetPosition is { } requestedPosition && !map.Contains(requestedPosition))
             return null;
 
+        if (order.Action == "construct_building")
+            return ConstructionOrderCandidateFor(instruction, person);
+        if (order.Action == "expand_building")
+            return ExpansionOrderCandidateFor(instruction, person);
+
         if (order.Action == "deliver_stock")
             return DeliveryOrderCandidateFor(instruction, person);
 
@@ -184,6 +189,12 @@ public sealed partial class PrivateWorldRuntime
         }
         switch (candidate.Id)
         {
+            case "construct_building":
+                ExecuteConstructionOrderStep(instruction, person);
+                return;
+            case "expand_building":
+                ExecuteExpansionOrderStep(instruction, person);
+                return;
             case "deliver_stock":
                 ExecuteDeliveryOrderStep(instruction, person);
                 return;
@@ -332,6 +343,11 @@ public sealed partial class PrivateWorldRuntime
         if (current.Order is not { } order || !IsActiveOrder(order.Status)) return;
         if (status == "interrupted" && BoundProductionJob(current) is { } production)
             PauseProductionOrderJob(current, production);
+        if (status == "interrupted")
+        {
+            PauseConstructionForOrder(current);
+            PauseExpansionForOrder(current);
+        }
         if (order.Status == status && order.BlockedReason == reason &&
             order.WaitForDecisionAfterFailure == waitForDecision) return;
         instructionsByIdempotency[current.IdempotencyKey] = current with
@@ -349,6 +365,10 @@ public sealed partial class PrivateWorldRuntime
 
     private string OrderBlockedReason(OwnerQueuedInstruction instruction, PlaytestInhabitantState person)
     {
+        if (instruction.Order?.Action == "construct_building")
+            return ConstructionOrderBlockedReason(instruction, person);
+        if (instruction.Order?.Action == "expand_building")
+            return ExpansionOrderBlockedReason(instruction);
         if (instruction.Order?.Action == "deliver_stock")
             return DeliveryOrderBlockedReason(instruction, person);
         if (instruction.Order?.Action == "produce_item")

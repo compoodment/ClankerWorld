@@ -314,6 +314,17 @@ reload without crediting earlier pickup or redirecting goods. This version follo
 custody-order schema 87; older alpha
 checkpoints are refused and preserved without migration.
 
+Private-world schema 89 adds construction and expansion order bindings.
+Construction keeps its exact definition, household, site, project start and
+unique building identity, with retained completion evidence for the actual
+paid placement. Expansion keeps the original building identity, owner,
+position and revision, the selected target anchor and footprint, and its
+order-owned expansion job. Validation checks these links rather than
+inferring completion from a building that happens to exist. Completed work
+survives later building removal; unfinished work, cancellation and survival
+pauses remain replayable. This version follows delivery-order schema 88. Older alpha checkpoints are
+refused and preserved without migration.
+
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
 Matching parent assignments are disclosed as agreement; when they differ, the
@@ -724,7 +735,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 88. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 89. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus

@@ -19,6 +19,9 @@ public sealed record BuildingExpansionJob(
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public long? PausedAtTick { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? OrderInstructionId { get; init; }
 }
 
 public static class BuildingStorageRules
@@ -346,11 +349,13 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
-    private void ApplyBuildingExpansionCandidate(string actor, PlaytestInhabitantState state, string buildingId)
+    private void ApplyBuildingExpansionCandidate(string actor, PlaytestInhabitantState state, string buildingId,
+        OwnerQueuedInstruction? orderInstruction = null)
     {
         var building = worldSimulation.Buildings.SingleOrDefault(item => item.InstanceId == buildingId);
         if (building is null || !MayExpandBuilding(actor, building, out _)) return;
-        var shape = ExpansionShapes(building).FirstOrDefault(shape => CanFitExpansion(building, shape.Position, shape.Footprint, out _));
+        if (orderInstruction is not null && ExpansionOrderBuilding(orderInstruction)?.InstanceId != buildingId) return;
+        var shape = ExpansionShapeForOrder(building, orderInstruction);
         if (shape.Footprint is null) return;
         var definition = worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
         var costs = BuildingStorageRules.ExpansionCosts(definition, building, shape.Footprint);
@@ -420,7 +425,7 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
         if (state.Position != building.Position) MoveToward(actor, state, building.Position, "building_expansion", 0);
-        else StartBuildingExpansionCore(actor, buildingId);
+        else StartBuildingExpansionCore(actor, buildingId, orderInstruction);
     }
 
     public ProductionStartResult StartBuildingExpansion(string actor, string buildingId)
@@ -430,14 +435,19 @@ public sealed partial class PrivateWorldRuntime
         finally { gate.Release(); }
     }
 
-    private ProductionStartResult StartBuildingExpansionCore(string actor, string buildingId)
+    private ProductionStartResult StartBuildingExpansionCore(string actor, string buildingId,
+        OwnerQueuedInstruction? orderInstruction = null)
     {
         var building = worldSimulation.Buildings.SingleOrDefault(item => item.InstanceId == buildingId);
         if (building is null) return ProductionStartResult.Rejected(buildingId, "The building is not placed.");
+        if (orderInstruction is not null &&
+            (PendingInstructionFor(actor)?.InstructionId != orderInstruction.InstructionId ||
+             ExpansionOrderBuilding(orderInstruction)?.InstanceId != buildingId))
+            return ProductionStartResult.Rejected(buildingId, "The expansion order no longer matches this building.");
         if (!MayExpandBuilding(actor, building, out var failure)) return ProductionStartResult.Rejected(buildingId, failure);
         if (inhabitants[actor].Position != building.Position)
             return ProductionStartResult.Rejected(buildingId, "The worker must be at the building before expansion starts.");
-        var shape = ExpansionShapes(building).FirstOrDefault(shape => CanFitExpansion(building, shape.Position, shape.Footprint, out _));
+        var shape = ExpansionShapeForOrder(building, orderInstruction);
         if (shape.Footprint is null)
             return ProductionStartResult.Rejected(buildingId, "There is no legal space for this building's next footprint.");
         var definition = worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
@@ -451,12 +461,14 @@ public sealed partial class PrivateWorldRuntime
         ApplyInventoryTransition(inventory => ReserveExpansionMaterials(inventory, actor, building, costs, jobId, completion, out reservations));
         var job = new BuildingExpansionJob(jobId, buildingId, actor, owner, building.Footprint?.Revision ?? 0,
             building.Position, shape.Position, shape.Footprint, WorldTick, completion, WorldProductionJobState.Running, reservations,
-            DefinitionId: building.DefinitionId);
+            DefinitionId: building.DefinitionId)
+        { OrderInstructionId = orderInstruction?.InstructionId };
         worldSimulation = worldSimulation with
         {
             BuildingExpansions = (worldSimulation.BuildingExpansions ?? []).Append(job).OrderBy(item => item.JobId, StringComparer.Ordinal).ToArray(),
             NextProductionJobSequence = worldSimulation.NextProductionJobSequence + 1,
         };
+        if (orderInstruction is not null) BindStartedExpansionOrder(orderInstruction, job);
         checkpointSchemaVersion = StateSchemaVersion;
         AppendEvent("building_expansion_started", $"{buildingId}:{jobId}");
         return new ProductionStartResult(true, jobId, buildingId, null);
@@ -503,6 +515,7 @@ public sealed partial class PrivateWorldRuntime
                 BuildingExpansions = (worldSimulation.BuildingExpansions ?? []).Select(item => item.JobId == job.JobId
                     ? item with { State = failure is null ? WorldProductionJobState.Completed : WorldProductionJobState.Cancelled, Failure = failure } : item).ToArray(),
             };
+            if (failure is null) CreditExpansionOrderJob(job);
             AppendEvent(failure is null ? "building_expanded" : "building_expansion_cancelled",
                 $"{job.BuildingInstanceId}:{job.JobId}" + (failure is null ? "" : $":{failure}"));
         }

@@ -274,6 +274,7 @@ public static class GameUiText
         ArgumentException.ThrowIfNullOrWhiteSpace(kind);
         return kind is "developer_edit" or "world_created" or "world_started" or "weather_changed" or "building_placed" or
             "building_expansion_started" or "building_expanded" or "building_expansion_cancelled" or "house_guest_invited" or "house_guest_revoked" or
+            "expansion_order_paused" or "expansion_order_resumed" or
             "build_started" or "build_completed" or "recipe_started" or "recipe_completed" or "house_tool_made" or
             "field_work_started" or "field_prepared" or "field_planted" or "field_tended" or "field_harvested" or
             "field_ready" or "field_work_interrupted" or "crop_weather_loss" or
@@ -550,6 +551,8 @@ public static class GameUiText
             "store_goods" => "store personal goods",
             "return_borrowed" => "return borrowed goods",
             "deliver_stock" => "deliver goods",
+            "construct_building" => "build a household building",
+            "expand_building" => "expand a building",
             "produce_item" => "make goods",
             "inspect_material_site" => "look for the requested material",
             "storage_pot" => "storage pot",

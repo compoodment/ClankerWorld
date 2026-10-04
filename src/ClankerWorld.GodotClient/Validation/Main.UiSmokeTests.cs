@@ -2688,6 +2688,32 @@ public partial class Main
                     instructionCancelButton.Visible == (deliveryOrder.Status == "finished"))
                     throw new InvalidOperationException($"Delivery tasks must show their goods, destination, actual progress and active-task cancellation: {renderedMessages}");
             }
+            foreach (var (buildingOrder, expectedSummary) in new (OwnerWorldInstructionOrder Order, string Summary)[]
+            {
+                (new("construct_building", "doing", 1, 0, "buildings", false, TargetBuildingKind: "clinic"),
+                    "Doing · Building Clinic · 0/1 buildings finished"),
+                (new("construct_building", "blocked", 1, 0, "buildings", false,
+                    BlockedReason: "The selected site is occupied.", TargetBuildingKind: "tailor"),
+                    "Blocked · Building Tailor Shop · 0/1 buildings finished · The selected site is occupied."),
+                (new("expand_building", "interrupted", 1, 0, "expansions", false, TargetBuildingKind: "house"),
+                    "Interrupted · Expanding House · 0/1 expansions finished"),
+                (new("expand_building", "finished", 1, 1, "expansions", false, TargetBuildingKind: "warehouse"),
+                    "Finished · Expanding Town Warehouse · 1/1 expansions finished"),
+            })
+            {
+                RenderSelectedInhabitantCard(occupied with
+                {
+                    Instructions =
+                    [
+                        new OwnerWorldInstruction("message-building-order", founder.Id, "must_do",
+                            "Complete the requested building work.", "queued", 0, 0, 1, Order: buildingOrder),
+                    ],
+                });
+                renderedMessages = instructionHistory.GetParsedText();
+                if (!renderedMessages.Contains(expectedSummary + "\n“You said: Complete the requested building work.”", StringComparison.Ordinal) ||
+                    instructionCancelButton.Visible == (buildingOrder.Status == "finished"))
+                    throw new InvalidOperationException($"Building tasks must show their building, completion, blocker and cancellation state: {renderedMessages}");
+            }
             RenderSelectedInhabitantCard(queuedOrderSnapshot);
             var alreadyFinished = OrderCancellationResultText(
                 new OwnerOrderControlReceipt("order-private-id", "finished", false, 0, 0));

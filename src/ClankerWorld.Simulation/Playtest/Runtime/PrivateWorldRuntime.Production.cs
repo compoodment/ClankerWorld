@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -238,13 +239,20 @@ public sealed partial class PrivateWorldRuntime
         return household;
     }
 
-    private static string BuildInstanceId(string inhabitantId, BuildingDefinition definition)
+    private string BuildInstanceId(string inhabitantId, BuildingDefinition definition)
     {
         // Preserve valid legacy IDs; descendant identities contain separators
         // that are legal society IDs but invalid content instance IDs.
-        if (inhabitantId.All(character => char.IsLower(character) || char.IsDigit(character) || character is '.' or '-' or '_'))
-            return $"build-{inhabitantId}-{definition.PackageDigest[7..15]}-{definition.LocalId}";
-        return "build-v2-" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(inhabitantId + "\n" + definition.CanonicalId)));
+        var original = inhabitantId.All(character => char.IsLower(character) || char.IsDigit(character) || character is '.' or '-' or '_')
+            ? $"build-{inhabitantId}-{definition.PackageDigest[7..15]}-{definition.LocalId}"
+            : "build-v2-" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(inhabitantId + "\n" + definition.CanonicalId)));
+        var candidate = original;
+        // Historical order bindings keep their identity. Ordinary paid rebuilding
+        // selects a stable replacement without changing those bindings or payments.
+        for (var replacement = 1; BuildingIdentityIsReserved(candidate); replacement++)
+            candidate = "build-replacement-" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(
+                original + "\n" + replacement.ToString(CultureInfo.InvariantCulture))));
+        return candidate;
     }
 
     private bool CanPlaceBuilding(
@@ -499,7 +507,8 @@ public sealed partial class PrivateWorldRuntime
                     .OrderBy(candidate => candidate.JobId, StringComparer.Ordinal)
                     .ToArray(),
                 worldSimulation.NextProductionJobSequence,
-                worldSimulation.CropBuilds, worldSimulation.BuildingExpansions, worldSimulation.GuestInvitations);
+                worldSimulation.CropBuilds, worldSimulation.BuildingExpansions, worldSimulation.GuestInvitations,
+                worldSimulation.ConstructionReceipts);
             if (completed && HouseToolsContent.IsCrudeToolRecipe(recipe))
                 AppendEvent("house_tool_made", $"{job.WorkerId}|{recipe.Outputs.Single().ResourceId}",
                     worldSimulation.Buildings.FirstOrDefault(building => building.InstanceId == job.BuildingInstanceId)?.Position);

@@ -4,7 +4,7 @@ using ClankerWorld.Simulation.Harness;
 namespace ClankerWorld.Simulation.Playtest;
 
 /// <summary>
-/// Parses only the direct food, material, storage, collection, equipment-repair, field-work movement and production orders that the runtime can execute.
+/// Parses supported food, inventory, repair, field, production, custody, movement, guardian and building orders.
 /// Every token must belong to one of these forms; unconsumed text is not guessed.
 /// </summary>
 internal static class PrivateWorldInstructionOrderParser
@@ -40,14 +40,15 @@ internal static class PrivateWorldInstructionOrderParser
         IReadOnlyList<MapResource> resources,
         Func<MapResource, string> foodKnowledgeKind,
         IReadOnlyList<ProductionOrderRecipe>? productionRecipes = null,
-        IReadOnlyList<DeliveryOrderInput>? deliveryInputs = null)
+        IReadOnlyList<DeliveryOrderInput>? deliveryInputs = null,
+        IReadOnlyList<BuildingOrderDefinition>? buildings = null)
     {
         ArgumentNullException.ThrowIfNull(text);
         ArgumentNullException.ThrowIfNull(resources);
         ArgumentNullException.ThrowIfNull(foodKnowledgeKind);
 
         return TryTokenize(text, out var tokens)
-            ? new OrderParser(tokens, resources, foodKnowledgeKind, productionRecipes ?? [], deliveryInputs ?? []).Parse()
+            ? new OrderParser(tokens, resources, foodKnowledgeKind, productionRecipes ?? [], deliveryInputs ?? [], buildings ?? []).Parse()
             : null;
     }
 
@@ -125,7 +126,8 @@ internal static class PrivateWorldInstructionOrderParser
         IReadOnlyList<MapResource> resources,
         Func<MapResource, string> foodKnowledgeKind,
         IReadOnlyList<ProductionOrderRecipe> productionRecipes,
-        IReadOnlyList<DeliveryOrderInput> deliveryInputs)
+        IReadOnlyList<DeliveryOrderInput> deliveryInputs,
+        IReadOnlyList<BuildingOrderDefinition> buildings)
     {
         private int position;
 
@@ -144,6 +146,8 @@ internal static class PrivateWorldInstructionOrderParser
             var repeatPrefix = keepPrefix || ReadWord("repeat") || ReadWord("repeatedly");
 
             var actionStart = position;
+            if (TryReadBuildingOrder(end, repeatPrefix) is { } buildingOrder) return buildingOrder;
+            position = actionStart;
             if (TryReadDeliveryOrder(end, repeatPrefix, keepPrefix) is { } deliveryOrder) return deliveryOrder;
             position = actionStart;
             if (TryReadProductionOrder(end, repeatPrefix, keepPrefix) is { } productionOrder) return productionOrder;
@@ -249,6 +253,40 @@ internal static class PrivateWorldInstructionOrderParser
                 targetPosition,
                 TargetMaterialKind: materialKind,
                 TargetEquipmentKind: equipmentKind);
+        }
+
+        private OwnerInstructionOrder? TryReadBuildingOrder(int end, bool repeat)
+        {
+            if (repeat) return null;
+            var action = ReadWord("build") ? "construct_building" : ReadWord("expand") ? "expand_building" : null;
+            if (action is null) return null;
+            var explicitQuantity = TryReadQuantity(out var quantity);
+            if (!explicitQuantity && (ReadWord("a") || ReadWord("an")))
+            {
+                explicitQuantity = true;
+                quantity = 1;
+            }
+            if (explicitQuantity && quantity != 1 || action == "expand_building" && !ReadWord("my")) return null;
+            string? kind;
+            if (ReadWord("town")) kind = ReadWord("warehouse") ? "warehouse" : null;
+            else if (TryReadAnyWord("house", "farmhouse", "blacksmith", "tailor", "silo", "clinic", "store"))
+                kind = tokens[position - 1].Value;
+            else kind = null;
+            if (kind == "tailor") _ = ReadWord("shop");
+            if (!PrivateWorldBuildingOrderCatalog.Supports(action, kind)) return null;
+            var definition = buildings.SingleOrDefault(item => item.BuildingKind == kind);
+            if (definition is null) return null;
+            GridPoint? targetPosition = null;
+            if (ReadWord("at"))
+            {
+                if (!TryReadCoordinate(out var requested)) return null;
+                targetPosition = requested;
+            }
+            if (!ReadWord("now")) _ = ReadWord("please");
+            if (position != end) return null;
+            return new(action, "queued", 1, 0, action == "construct_building" ? "buildings" : "expansions", false,
+                explicitQuantity, TargetPosition: targetPosition, TargetBuildingKind: kind,
+                TargetDefinitionId: action == "construct_building" ? definition.Definition.CanonicalId : null);
         }
 
         private OwnerInstructionOrder? TryReadDeliveryOrder(int end, bool repeat, bool keep)

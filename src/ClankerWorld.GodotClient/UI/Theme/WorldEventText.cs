@@ -71,6 +71,8 @@ public static class WorldEventText
             "building_expansion_started" => $"{buildingName} expansion has begun.",
             "building_expanded" => $"{buildingName} storage was expanded.",
             "building_expansion_cancelled" => $"{buildingName} expansion stopped; reserved materials were released.",
+            "expansion_order_paused" => "Ordered expansion paused for food or warmth; its materials remain reserved.",
+            "expansion_order_resumed" => "Ordered expansion resumed.",
             "house_guest_invited" => $"{guestName} may shelter in the {buildingName} during storms.",
             "house_guest_revoked" => $"{guestName}'s storm shelter invitation ended.",
             "build_started" => $"Work began on {ThingAt(1)}.",
@@ -156,7 +158,7 @@ public static class WorldEventText
             "skill_learned" => DescribeSkill(worldEvent.Detail, snapshot),
             "inhabitant_building_proposed" => $"{LeadingName(snapshot, worldEvent.Detail)} suggested a new building design.",
             "instruction_not_understood" => $"{Name(snapshot, BeforeLastField(worldEvent.Detail))} didn't understand your order. " +
-                "For now, orders can only ask them to gather food, eat, find food, go to a tile or become a child's guardian.",
+                "Try a supported task, or use Suggest for broader guidance.",
             "settlement_founded" => "A new Town was founded.",
             "town_civic_law" => $"{civicTownName} recorded a law decision. See the Towns page for its wording and scope.",
             "town_civic_government" => $"{civicTownName} recorded a resident government decision. See the Towns page for the vote or handover.",

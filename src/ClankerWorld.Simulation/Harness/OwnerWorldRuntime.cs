@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json.Serialization;
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Kernel;
+using ClankerWorld.Simulation.Playtest;
 
 namespace ClankerWorld.Simulation.Harness;
 
@@ -76,7 +77,23 @@ public sealed record OwnerInstructionOrder(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? TargetBuildingKind = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? DeliveryRoute = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? DeliveryLotId = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? DeliveryQuantity = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? DeliveryQuantity = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? TargetDefinitionId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ConstructionOwnerId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] GridPoint? ConstructionPosition = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] long? ConstructionStartedTick = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ConstructionInstanceId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] OwnerBuildingExpansionBinding? ExpansionBinding = null);
+
+public sealed record OwnerBuildingExpansionBinding(
+    string BuildingInstanceId,
+    string DefinitionId,
+    string OwnerId,
+    GridPoint ExpectedPosition,
+    int ExpectedRevision,
+    GridPoint TargetPosition,
+    BuildingFootprintRevision TargetFootprint,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? JobId = null);
 
 public sealed record OwnerOrderCancelRequest(
     string IdempotencyKey,

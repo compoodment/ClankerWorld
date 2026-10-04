@@ -124,6 +124,8 @@ public sealed partial class PrivateWorldRuntime
                 CancelRepairForOrder(instruction);
                 CancelFieldWorkForOrder(instruction);
                 CancelProductionForOrder(instruction);
+                CancelConstructionForOrder(instruction);
+                CancelExpansionForOrder(instruction);
                 status = "cancelled";
                 AppendEvent("instruction_order_cancelled", $"{instruction.TargetInhabitantId}:{instruction.InstructionId}:owner");
             }
@@ -328,6 +330,8 @@ public sealed partial class PrivateWorldRuntime
             CancelRepairForOrder(instruction);
             CancelFieldWorkForOrder(instruction);
             CancelProductionForOrder(instruction);
+            CancelConstructionForOrder(instruction);
+            CancelExpansionForOrder(instruction);
             AppendEvent("instruction_order_cancelled", $"{inhabitantId}:{instruction.InstructionId}:replaced");
         }
         checkpointSchemaVersion = StateSchemaVersion;
@@ -401,13 +405,16 @@ public sealed partial class PrivateWorldRuntime
         "return_borrowed" => "return borrowed goods to their owning household's House",
         "deliver_stock" => "deliver the requested goods to a permitted building",
         "produce_item" => "make the requested goods at a permitted workstation",
+        "construct_building" => "construct the requested household building at a permitted site",
+        "expand_building" => "complete the requested building's next permitted expansion",
         _ => null,
     };
 
     private OwnerInstructionOrder? ParseInstructionOrder(string text, string actor)
     {
         return ParseGuardianOrder(text, actor) ?? PrivateWorldInstructionOrderParser.Parse(text, map.Resources, FoodKnowledgeKind,
-            PrivateWorldProductionOrderCatalog.Available(worldContent), PrivateWorldDeliveryOrderCatalog.AvailableInputs(worldContent));
+            PrivateWorldProductionOrderCatalog.Available(worldContent), PrivateWorldDeliveryOrderCatalog.AvailableInputs(worldContent),
+            PrivateWorldBuildingOrderCatalog.Available(worldContent));
     }
 
     // A direct order that names no action the game can carry out is closed

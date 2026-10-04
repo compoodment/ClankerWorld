@@ -290,6 +290,36 @@ remaining definitions before changing the registry. A package removal that
 would invalidate an active or historical order is refused without changing
 the checkpoint; unrelated package removal remains available.
 
+Building orders use separate construction and expansion adapters. A
+`construct_building` order selects one active household building definition,
+then binds its household, exact site, project start and unique instance
+identity. Its own settlement project performs normal material acquisition,
+travel and work. Only successful placement creates the retained construction
+receipt and credits the order. The receipt preserves the actor, order,
+definition, owner, site and paid-material evidence after the project is
+replaced or the building is removed; an unrelated existing building is never
+completion proof.
+
+An `expand_building` order binds the original building, definition, owner,
+position and revision, plus the chosen next footprint and anchor. It then
+links its real expansion job through `OrderInstructionId`. Normal permission,
+need, placement, cost and reservation rules remain authoritative. Only that
+job's successful completion earns progress; retained completed-job history
+keeps the proof if the building is removed later. Urgent survival pauses
+ordered work before completion, and cancellation releases only the order's
+own unfinished work and unused reservations. Neither adapter adopts an
+unrelated project or job.
+
+The `ordered-building-` identity prefix belongs to the internal construction
+path. Saved building orders also reserve their bound instance identities,
+including after cancellation or removal. Public placement cannot reuse them;
+only an order's own construction completion can place its pending identity. This
+prevents replacement buildings from satisfying old bindings or mixing new
+material payments with retained completion receipts. Ordinary paid rebuilding
+by the same agent chooses a fresh, deterministic instance identity when its
+previous identity belongs to retained order history. It still pays the normal
+cost and cannot satisfy the earlier order.
+
 Production orders use `produce_item` and retain the exact recipe, output kind,
 chosen work site and owned project/job identity. The job's optional
 `OrderInstructionId` proves that the instruction started it. The bounded catalogue resolves
