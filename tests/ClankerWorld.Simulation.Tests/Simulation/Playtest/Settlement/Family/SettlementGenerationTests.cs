@@ -25,7 +25,9 @@ public sealed partial class SettlementParenthoodTests
             string? childId = null;
             var careSeen = false;
             var restarts = 0;
-            for (var tick = 0; tick < 12_000; tick++)
+            var positionedBirth = false;
+            var positionedAges = new HashSet<SocietyAgeBand>();
+            for (var tick = 0; tick < 1_200; tick++)
             {
                 var step = await world.AdvanceOneTickAsync();
                 careSeen |= step.Events.Any(item => item.Kind == "child_cared_for");
@@ -38,18 +40,44 @@ public sealed partial class SettlementParenthoodTests
                     var physical = world.Inhabitants.Single(person => person.InhabitantId == childId);
                     if (child.AgeBand == SocietyAgeBand.Adult && physical.Skills?.Count > 0)
                         break;
+                    if (careSeen && child.AgeBand != SocietyAgeBand.Adult && !positionedAges.Contains(child.AgeBand))
+                    {
+                        positionedAges.Add(child.AgeBand);
+                        if (child.AgeBand is SocietyAgeBand.Child or SocietyAgeBand.Adolescent)
+                        {
+                            // Retain real archived history and two restarts without
+                            // spending thousands of ticks on unrelated settlement life.
+                            if (restarts == 0)
+                                for (var pause = 0; pause <= PrivateWorldHistory.CompactionThreshold / 2; pause++)
+                                {
+                                    world.Pause();
+                                    world.Resume();
+                                }
+                            world.Pause();
+                            file.Save(world);
+                            world.Dispose();
+                            world = file.LoadOrCreate(state.WorldSeed);
+                            Assert.True(world.Society.IsPaused);
+                            world.Resume();
+                            restarts++;
+                        }
+                        var nextAge = child.AgeBand switch
+                        {
+                            SocietyAgeBand.Infant => world.Society.Config.InfantYears,
+                            SocietyAgeBand.Child => world.Society.Config.ChildYears,
+                            SocietyAgeBand.Adolescent => world.Society.Config.AdultYears,
+                            _ => throw new InvalidOperationException("Unexpected life stage before adult work."),
+                        };
+                        PositionChildBeforeAge(world, childId, nextAge);
+                    }
+                }
+                else if (!positionedBirth && world.Inhabitants.FirstOrDefault(person => person.Parenthood?.Stage == "preparing")
+                         is { Parenthood: { } plan })
+                {
+                    PositionFamilyFixtureAt(world, plan.LastTransitionTick + 599);
+                    positionedBirth = true;
                 }
                 if (tick % 256 == 0) file.Save(world);
-                if (tick is 2_000 or 5_000)
-                {
-                    world.Pause();
-                    file.Save(world);
-                    world.Dispose();
-                    world = file.LoadOrCreate(state.WorldSeed);
-                    Assert.True(world.Society.IsPaused);
-                    world.Resume();
-                    restarts++;
-                }
             }
             Assert.True(childId is not null,
                 $"No child was born by tick {world.WorldTick}. Family plans=" +
@@ -59,6 +87,8 @@ public sealed partial class SettlementParenthoodTests
                     person.Parenthood,
                     HouseholdId = world.Society.GetInhabitant(person.InhabitantId).HouseholdId,
                 })));
+            Assert.Equal(new[] { SocietyAgeBand.Infant, SocietyAgeBand.Child, SocietyAgeBand.Adolescent },
+                positionedAges.Order().ToArray());
             var grown = world.Society.GetInhabitant(childId);
             Assert.Equal(SocietyAgeBand.Adult, grown.AgeBand);
             Assert.Equal(SocietyWorkRole.Unassigned, grown.CurrentRole);

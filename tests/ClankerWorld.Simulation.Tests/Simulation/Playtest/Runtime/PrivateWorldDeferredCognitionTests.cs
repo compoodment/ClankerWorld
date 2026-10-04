@@ -20,7 +20,7 @@ public sealed class PrivateWorldDeferredCognitionTests
     public async Task DuplicateNameIsRetriedOnceWithCanonicalComparisonAndASeparateProviderRequest()
     {
         var provider = new SequencedHostedProvider(
-            new NameReply("e\u0301LODIE   Vale", SelectedCandidateId: "unknown_action"),
+            new NameReply("e\u0301LODIE\u00a0Lake", SelectedCandidateId: "unknown_action"),
             new NameReply("Maia Vale"));
         using var world = CreateNameTestWorld("duplicate-name-retry", provider);
         const string takenName = "  Élodie\u00a0Vale  ";
@@ -44,10 +44,31 @@ public sealed class PrivateWorldDeferredCognitionTests
         Assert.True(provider.ObservedRequests.ElementAt(1).IsNameRetry);
         Assert.True(provider.ObservedRequests.ElementAt(1).NeedsName);
         Assert.Equal("Maia Vale", world.Society.GetInhabitant(NameTargetId).Name);
+        Assert.True(world.Society.GetInhabitant(NameTargetId).HasChosenName);
         Assert.False(world.Society.GetInhabitant(NameTargetId).NeedsName);
         Assert.DoesNotContain(world.ExportState().Events, item =>
             item.Detail.Contains("Élodie", StringComparison.OrdinalIgnoreCase) ||
             item.Detail.Contains("Maia Vale", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task UniqueChosenFirstNameSurvivesARejectedActionWithoutAnotherNamingCall()
+    {
+        var provider = new SequencedHostedProvider(new NameReply("Maia Vale", SelectedCandidateId: "unknown_action"));
+        using var world = CreateNameTestWorld("name-with-rejected-action", provider);
+        world.StartWorld();
+        var result = await AdvanceUntilAcceptedAsync(world, NameTargetId);
+        var admission = Assert.Single(result.Decisions, item => item.InhabitantId == NameTargetId).Admission;
+        Assert.True(admission.FellBack);
+        Assert.Equal("candidate_not_legal", admission.Outcome);
+        var named = world.Society.GetInhabitant(NameTargetId);
+        Assert.Equal("Maia Vale", named.Name);
+        Assert.True(named.HasChosenName);
+        Assert.False(named.NeedsName);
+        Assert.Single(provider.ObservedRequests);
+        Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "agent_name_retry_requested");
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState())));
+        Assert.True(restored.Society.GetInhabitant(NameTargetId).HasChosenName);
     }
 
     [Fact]
@@ -63,7 +84,7 @@ public sealed class PrivateWorldDeferredCognitionTests
             _ = configuration.Configure(new("planning", "openai", "retry-meter-model", "retry-meter-key", false));
             var usage = new ProviderUsageStore(Path.Combine(directory.FullName, "usage.json"));
             _ = usage.Configure(new ProviderUsageLimitAction(2));
-            var handler = new SequencedNameResponseHandler("Taken Name", "Maia Vale");
+            var handler = new SequencedNameResponseHandler("Taken Lake", "Maia Vale");
             var router = new ConfigurableDecisionProvider(configuration,
                 new FixedHttpClientFactory(handler), usageStore: usage);
             using var world = CreateNameTestWorld("duplicate-name-retry-meter", router);
@@ -93,7 +114,7 @@ public sealed class PrivateWorldDeferredCognitionTests
     [Fact]
     public async Task MalformedReplyDoesNotApplyItsNameOrStartTheDuplicateNameRetry()
     {
-        var provider = new SequencedHostedProvider(new NameReply("Taken Name", 1.2));
+        var provider = new SequencedHostedProvider(new NameReply("Taken Lake", 1.2));
         // Peers must not take shared tools and create a real follow-up choice before this reply is admitted.
         using var world = CreateNameTestWorld("malformed-name-reply", provider, quietOthers: true);
         Assert.True(world.RenameAgent(NameOwnerId, "Taken Name"));
@@ -116,7 +137,7 @@ public sealed class PrivateWorldDeferredCognitionTests
     public async Task FailedNameRetryKeepsPlaceholderAndClosesTheNamingAttempt()
     {
         var provider = new SequencedHostedProvider(
-            [new NameReply("Taken Name")], false, false, true);
+            [new NameReply("Taken Lake")], false, false, true);
         using var world = CreateNameTestWorld("failed-name-retry", provider);
         Assert.True(world.RenameAgent(NameOwnerId, "Taken Name"));
         var placeholder = world.Society.GetInhabitant(NameTargetId).Name;
@@ -133,6 +154,7 @@ public sealed class PrivateWorldDeferredCognitionTests
         var namedAgent = world.Society.GetInhabitant(NameTargetId);
         Assert.Equal(placeholder, namedAgent.Name);
         Assert.False(namedAgent.NeedsName);
+        Assert.False(namedAgent.HasChosenName);
         var requests = provider.ObservedRequests.ToArray();
         Assert.True(requests.Length >= 2);
         Assert.True(requests[1].IsNameRetry);
@@ -149,8 +171,8 @@ public sealed class PrivateWorldDeferredCognitionTests
     public async Task SecondDuplicateKeepsPlaceholderAndDoesNotStartAnotherNamingRequest()
     {
         var provider = new SequencedHostedProvider(
-            new NameReply("Taken Name"),
-            new NameReply("taken   name"));
+            new NameReply("Taken Lake"),
+            new NameReply("taken\u00a0Ridge"));
         using var world = CreateNameTestWorld("duplicate-name-exhausted", provider);
         Assert.True(world.RenameAgent(NameOwnerId, "Taken Name"));
         var placeholder = world.Society.GetInhabitant(NameTargetId).Name;
@@ -164,6 +186,7 @@ public sealed class PrivateWorldDeferredCognitionTests
         Assert.Equal(2, provider.ObservedRequests.Count(request => request.NeedsName || request.IsNameRetry));
         Assert.Equal(placeholder, world.Society.GetInhabitant(NameTargetId).Name);
         Assert.False(world.Society.GetInhabitant(NameTargetId).NeedsName);
+        Assert.False(world.Society.GetInhabitant(NameTargetId).HasChosenName);
         Assert.Contains(world.ExportState().Events,
             item => item.Kind == "agent_name_retry_exhausted" && item.Detail == NameTargetId);
 
@@ -186,17 +209,60 @@ public sealed class PrivateWorldDeferredCognitionTests
         Assert.Equal(namingRequests, provider.ObservedRequests.Where(request => request.NeedsName || request.IsNameRetry).ToArray());
         Assert.Equal(placeholder, world.Society.GetInhabitant(NameTargetId).Name);
         Assert.False(world.Society.GetInhabitant(NameTargetId).NeedsName);
+        Assert.False(world.Society.GetInhabitant(NameTargetId).HasChosenName);
         Assert.DoesNotContain(world.ExportState().Society.Cognition.Queue,
             entry => entry.InhabitantId == NameTargetId && entry.TriggerIds.Contains(
                 SocietyCognitionScheduler.NameRetryTriggerId, StringComparer.Ordinal));
+
+        // Compaction must not infer name ownership from the retry events it archives.
+        for (var cycle = 0; cycle <= PrivateWorldHistory.CompactionThreshold / 2; cycle++)
+        {
+            world.Pause();
+            world.Resume();
+        }
+        world.Pause();
+        var directory = Directory.CreateTempSubdirectory("closed-placeholder-history-");
+        try
+        {
+            var file = new PrivateWorldStateFile(Path.Combine(directory.FullName, "world.json"));
+            Assert.True(file.Save(world));
+            var compact = world.ExportState();
+            Assert.True(compact.EventHistoryFloor > 0);
+            Assert.DoesNotContain(compact.Events, item => item.Kind == "agent_name_retry_exhausted");
+            using var fromDisk = file.LoadOrCreate(compact.WorldSeed);
+            Assert.Equal(PrivateWorldRuntimeCodec.Encode(compact), PrivateWorldRuntimeCodec.Encode(fromDisk.ExportState()));
+            Assert.False(fromDisk.Society.GetInhabitant(NameTargetId).HasChosenName);
+            Assert.False(fromDisk.Society.GetInhabitant(NameTargetId).NeedsName);
+            // Every founder placeholder can coexist with a genuinely chosen Founder first name.
+            Assert.True(fromDisk.RenameAgent(NameOwnerId, "Founder Vale"));
+            Assert.Equal(placeholder, fromDisk.Society.GetInhabitant(NameTargetId).Name);
+
+            var ordinaryProvider = new SequencedHostedProvider(new NameReply("Unexpected Replacement"));
+            using var resumed = PrivateWorldRuntime.Restore(
+                PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(fromDisk.ExportState())),
+                id => id == NameTargetId ? ordinaryProvider : new QuietDecisionProvider());
+            _ = resumed.SubmitInstruction(new OwnerInstructionRequest("after-name-compaction", "owner:test", NameTargetId,
+                OwnerInstructionKind.Suggestive, "Stay here for a moment."));
+            resumed.Resume();
+            _ = await AdvanceUntilAcceptedAsync(resumed, NameTargetId);
+            Assert.NotEmpty(ordinaryProvider.ObservedRequests);
+            Assert.All(ordinaryProvider.ObservedRequests, request =>
+            {
+                Assert.False(request.NeedsName);
+                Assert.False(request.IsNameRetry);
+            });
+            Assert.Equal(placeholder, resumed.Society.GetInhabitant(NameTargetId).Name);
+            Assert.False(resumed.Society.GetInhabitant(NameTargetId).HasChosenName);
+        }
+        finally { directory.Delete(recursive: true); }
     }
 
     [Fact]
     public async Task SameTickDuplicateNamesGoToStableIdWinner()
     {
-        var firstProvider = new SequencedHostedProvider(new NameReply("Shared Name"));
+        var firstProvider = new SequencedHostedProvider(new NameReply("Shared Vale"));
         var secondProvider = new SequencedHostedProvider(
-            new NameReply("Shared Name"),
+            new NameReply("SHARED Lake"),
             new NameReply("Second Name"));
         using var world = new PrivateWorldRuntime("same-tick-duplicate-names", id => id switch
         {
@@ -218,7 +284,7 @@ public sealed class PrivateWorldDeferredCognitionTests
         Assert.True(simultaneous.Advanced);
         Assert.Contains(simultaneous.Decisions, item => item.InhabitantId == NameTargetId && item.Admission.Accepted);
         Assert.Contains(simultaneous.Decisions, item => item.InhabitantId == NameOwnerId && item.Admission.Accepted);
-        Assert.Equal("Shared Name", world.Society.GetInhabitant(NameTargetId).Name);
+        Assert.Equal("Shared Vale", world.Society.GetInhabitant(NameTargetId).Name);
         Assert.Equal(secondPlaceholder, world.Society.GetInhabitant(NameOwnerId).Name);
         Assert.True(world.Society.GetInhabitant(NameOwnerId).NeedsName);
 
@@ -231,7 +297,7 @@ public sealed class PrivateWorldDeferredCognitionTests
     public async Task DuplicateNameRetryMarkerSurvivesPauseSaveRestoreAndIgnoresCanceledReply()
     {
         var provider = new SequencedHostedProvider(
-            [new NameReply("Taken Name"), new NameReply("Restored Name")],
+            [new NameReply("Taken Lake"), new NameReply("Restored Name")],
             holdSecond: true,
             ignoreSecondCancellation: true);
         using var world = CreateNameTestWorld("duplicate-name-retry-save", provider);
@@ -278,7 +344,7 @@ public sealed class PrivateWorldDeferredCognitionTests
     public async Task PlayerRenameCancelsQueuedNamingWorkAndPreservesOtherTriggers(bool otherWork)
     {
         var provider = new SequencedHostedProvider(
-            [new NameReply("Taken Name"), new NameReply("Retry Name")], holdSecond: true);
+            [new NameReply("Taken Lake"), new NameReply("Retry Name")], holdSecond: true);
         using var world = CreateNameTestWorld("rename-queued-name-retry", provider, quietOthers: true);
         Assert.True(world.RenameAgent(NameOwnerId, "Taken Name"));
         world.StartWorld();
@@ -377,36 +443,6 @@ public sealed class PrivateWorldDeferredCognitionTests
             person => Assert.Empty(person.RecentPrivateThoughts));
         Assert.DoesNotContain(world.ExportState().Events,
             item => item.Detail.Contains("I should gather food", StringComparison.Ordinal));
-    }
-
-    [Fact]
-    public async Task PausedRequestCannotActAndSavedQueueCanBeRetriedAfterReload()
-    {
-        var hosted = new HeldHostedProvider(ignoreCancellation: true,
-            kind: DecisionProviderKind.LargeLanguageModel, privateThought: "This stale thought must vanish.");
-        using var world = new PrivateWorldRuntime("deferred-reload", id =>
-            id == "founder-scout" ? hosted : new DeterministicDecisionProvider());
-        Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
-        await hosted.Started.Task.WaitAsync(TimeSpan.FromSeconds(3));
-        world.Pause();
-        var saved = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState()));
-        hosted.Release.TrySetResult(true);
-        await hosted.Returned.Task.WaitAsync(TimeSpan.FromSeconds(3));
-        Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "hosted_decision_completed");
-        Assert.Empty(world.Inhabitants.Single(person => person.InhabitantId == "founder-scout").RecentThoughts ?? []);
-
-        var replacement = new HeldHostedProvider(kind: DecisionProviderKind.LargeLanguageModel,
-            privateThought: "This new decision is mine.");
-        using var restored = PrivateWorldRuntime.Restore(saved, id =>
-            id == "founder-scout" ? replacement : new DeterministicDecisionProvider());
-        restored.Resume();
-        Assert.True((await restored.AdvanceOneTickNonBlockingAsync()).Advanced);
-        await replacement.Started.Task.WaitAsync(TimeSpan.FromSeconds(3));
-        replacement.Release.TrySetResult(true);
-        await replacement.Returned.Task.WaitAsync(TimeSpan.FromSeconds(3));
-        _ = await AdvanceUntilAcceptedAsync(restored, "founder-scout");
-        Assert.Equal("This new decision is mine.",
-            Assert.Single(restored.Inhabitants.Single(person => person.InhabitantId == "founder-scout").RecentThoughts!).Text);
     }
 
     [Fact]

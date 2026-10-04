@@ -440,6 +440,34 @@ public sealed class OwnerWorldObservationStore
                 id, inhabitantsById.GetValueOrDefault(id)?.Name ?? id,
                 election.Ballots.Count(ballot => ballot.Choices.Contains(id, StringComparer.Ordinal)))).ToArray(),
             election.SettledSeats.Select(id => inhabitantsById.GetValueOrDefault(id)?.Name ?? id).ToArray());
+        ViewerTownProjectPlan ProjectPlan(TownProjectPayload plan, string proposerId)
+        {
+            var definition = buildingDefinitions?.GetValueOrDefault(plan.DefinitionId) ?? TownHallContent.Hall3x4();
+            return new ViewerTownProjectPlan(plan.Name, proposerId,
+                inhabitantsById.GetValueOrDefault(proposerId)?.Name ?? proposerId,
+                plan.DefinitionId, definition.DisplayName, ToPosition(plan.Site), ToPosition(plan.Entrance),
+                definition.Width, definition.Height,
+                plan.Budget.Select(q => new ViewerTownProjectBudget(q.ResourceId, q.Amount)).ToArray());
+        }
+        ViewerCivicProposal ProjectProposal(TownProposal proposal) => new(proposal.Id, proposal.Kind,
+            proposal.Text, proposal.Status, proposal.Votes.Count(v => v.Yes), proposal.Votes.Count(v => !v.Yes),
+            proposal.RequiredYes, proposal.DeadlineTick)
+        {
+            Project = proposal.Project is { } plan ? ProjectPlan(plan, proposal.AuthorId) : null,
+        };
+        ViewerTownProject ProjectConstruction(TownRuntimeState town, TownConstructionProject project)
+        {
+            // Approval belongs to the full civic ledger, even when it is older than the recent proposal list.
+            var approval = town.Governance!.Proposals.Single(p => p.Id == project.ProposalId);
+            var plan = ProjectPlan(project.Plan, approval.AuthorId);
+            return new ViewerTownProject(project.Id, project.ProposalId, plan.Name, plan.ProposerId,
+                plan.ProposerName, plan.DefinitionId, plan.DisplayName, plan.Site, plan.Entrance,
+                plan.Width, plan.Height, project.Plan.Budget.Select(q => new ViewerTownProjectMaterial(
+                    q.ResourceId, q.Amount, TownProjectRules.DeliveredQuantity(project, town.Id,
+                        state.Society.Society.Inventory, q.ResourceId))).ToArray(),
+                project.WorkDone, TownProjectRules.WorkTicks, project.Stage, project.Blocker,
+                project.CompletedBuildingId, ProjectProposal(approval));
+        }
         var physicalById = state.Inhabitants.ToDictionary(item => item.InhabitantId, StringComparer.Ordinal);
         var deceasedById = (state.DeceasedInhabitants ?? []).ToDictionary(item => item.InhabitantId, StringComparer.Ordinal);
         var resourceStates = state.Resources.ToDictionary(item => item.ResourceId, item => item.State, StringComparer.Ordinal);
@@ -613,12 +641,16 @@ public sealed class OwnerWorldObservationStore
                             p.Votes.Count(v => v.Yes), p.Votes.Count(v => !v.Yes), p.RequiredYes, p.DeadlineTick)
                         {
                             LandHearingRequest = p.LandHearingRequest is { } request ? ProjectLandHearingProposal(state, request) : null,
+                            Project = p.Project is { } plan ? ProjectPlan(plan, p.AuthorId) : null,
                         }).ToArray(),
                         civic.Election is { } election ? ProjectElection(election) : null)
                     {
                         LatestElection = civic.ElectionHistory.Count > 0
                             ? ProjectElection(civic.ElectionHistory[^1]) : null,
                     } : null,
+                    Projects = item.Projects.OrderBy(project => project.ApprovedTick)
+                        .ThenBy(project => project.Id, StringComparer.Ordinal)
+                        .Select(project => ProjectConstruction(item, project)).ToArray(),
                 })
                 .ToArray(),
             TownLandTitles = (state.TownLandTitles ?? []).OrderBy(item => item.Id, StringComparer.Ordinal)
@@ -696,7 +728,7 @@ public sealed class OwnerWorldObservationStore
                         order.Action, order.Status, order.RequestedUnits, order.CompletedUnits,
                         order.ProgressUnit, order.RepeatUntilCancelled, order.TargetFoodKind,
                         order.TargetResourceId, order.TargetPosition?.X, order.TargetPosition?.Y,
-                        order.BlockedReason, order.TargetAgentId, order.TargetMaterialKind) : null))
+                        order.BlockedReason, order.TargetAgentId, order.TargetMaterialKind, order.TargetEquipmentKind) : null))
                 .ToArray(),
             Cognition = ToCognition(state),
             ContentPackages = state.Content?.Packages
@@ -1030,6 +1062,8 @@ public sealed class OwnerWorldObservationStore
         var dependents = SocietyFixture.MovingCareGroup(state.Society.Society, inhabitant.Id).Where(id => id != inhabitant.Id)
             .Select(id => state.Society.Society.GetInhabitant(id).Name).ToArray();
         if (dependents.Length > 0) decisionFactors.Add(new("dependent-care", string.Join(", ", dependents)));
+        var guardianNotes = GuardianCareNotes(state, inhabitant, physical).ToArray();
+        decisionFactors.AddRange(guardianNotes.Select(note => new ViewerDecisionFactor("guardian-care", note)));
         if (HousingDetail(state, inhabitant, physical.Housing) is { } housingDetail)
             decisionFactors.Add(new ViewerDecisionFactor("housing", housingDetail));
         if (state.Knowledge?.WritingProjects.SingleOrDefault(project => project.ActorId == inhabitant.Id) is { } writing)
@@ -1123,13 +1157,7 @@ public sealed class OwnerWorldObservationStore
                     : person.Parenthood.Stage == "requested" ? "Parenthood proposed; waiting for a separate decision."
                     : person.Parenthood.Stage == "postponed" ? "Parenthood put off for now."
                     : person.Parenthood.Stage == "completed" ? "Caring for a child in the household." : "Parenthood plan withdrawn."))
-                .Concat(physical.GuardianSearch is not null
-                    ? ["Needs a guardian. No adult has accepted care yet; nearby adults may still feed them."]
-                    : inhabitant.AgeBand is SocietyAgeBand.Infant or SocietyAgeBand.Child or SocietyAgeBand.Adolescent &&
-                    !state.Society.Society.Relationships.Any(edge => edge.Type == SocietyRelationshipType.Caregiver &&
-                        edge.State == SocietyRelationshipState.Accepted && edge.TargetId == inhabitant.Id &&
-                        state.Society.Society.GetInhabitant(edge.ProposerId).Status == SocietyInhabitantStatus.Active)
-                    ? ["No active caregiver; household adults may offer support."] : Array.Empty<string>())
+                .Concat(guardianNotes)
                 .Concat(HousingRequestNotes(state, inhabitant))
                 .ToArray(),
         };
@@ -1179,6 +1207,36 @@ public sealed class OwnerWorldObservationStore
                 DirectBarterState.Settled => $"Bought at the {name}: {terms}. The buyer carries the purchase; payment is stored at the shop.",
                 _ => $"Exchange at the {name} cancelled: {trade.CancellationReason}",
             };
+        }
+    }
+
+    /// <summary>Accepted care and a pending move are separate from needing a guardian.</summary>
+    private static IEnumerable<string> GuardianCareNotes(
+        PrivateWorldRuntimeState state, SocietyInhabitant inhabitant, PlaytestInhabitantState physical)
+    {
+        if (physical.GuardianSearch is not null)
+            yield return "Needs a guardian. No adult has accepted care yet; nearby adults may still feed them.";
+        else if (inhabitant.AgeBand is SocietyAgeBand.Infant or SocietyAgeBand.Child or SocietyAgeBand.Adolescent &&
+            !state.Society.Society.Relationships.Any(edge => edge.Type == SocietyRelationshipType.Caregiver &&
+                edge.State == SocietyRelationshipState.Accepted && edge.TargetId == inhabitant.Id &&
+                state.Society.Society.GetInhabitant(edge.ProposerId).Status == SocietyInhabitantStatus.Active))
+            yield return "No active caregiver; household adults may offer support.";
+
+        foreach (var child in state.Inhabitants.OrderBy(person => person.InhabitantId, StringComparer.Ordinal))
+        {
+            if (child.GuardianPlacement is not { } placement ||
+                child.InhabitantId != inhabitant.Id && placement.CaregiverId != inhabitant.Id)
+                continue;
+            var guardianName = state.Society.Society.GetInhabitant(placement.CaregiverId).Name;
+            var childName = state.Society.Society.GetInhabitant(child.InhabitantId).Name;
+            var hasBlocker = !string.IsNullOrWhiteSpace(placement.Blocker);
+            var progress = hasBlocker ? "The move is waiting."
+                : placement.HouseId is null ? "Waiting for a suitable home."
+                : placement.Stage == "escorting" ? $"They are travelling together to {guardianName}'s House."
+                : $"{guardianName} is going to collect {childName}.";
+            var blocker = !hasBlocker
+                ? string.Empty : " " + placement.Blocker!.TrimEnd('.') + ".";
+            yield return $"{guardianName} accepted care for {childName}. {progress}{blocker}";
         }
     }
 
@@ -1475,11 +1533,14 @@ public sealed class OwnerWorldObservationStore
         "move_to" => "walking to the ordered tile",
         "harvest_food" => "gathering food",
         "gather_material" => "gathering the ordered material",
+        "repair_equipment" => "repairing personal equipment",
         "collect_material" => "collecting personal materials",
         "store_material" => "storing personal materials in the House",
         "inspect_material_site" => "checking the ordered material site",
         "consume_food" => "eating carried food",
         "safe_idle" => "keeping a safe routine",
+        _ when candidateId.StartsWith("guardian_relocate:", StringComparison.Ordinal) => "bringing a child home",
+        _ when candidateId.StartsWith("guardian_follow:", StringComparison.Ordinal) => "following their guardian home",
         _ => candidateId.Replace('_', ' '),
     };
 

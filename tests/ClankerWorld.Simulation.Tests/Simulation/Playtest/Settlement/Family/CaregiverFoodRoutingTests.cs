@@ -16,7 +16,7 @@ public sealed class CaregiverFoodRoutingTests
     public async Task FeedingAnInfantKeepsTheNamedFoodsNourishmentAcrossReload(string kind, int nourishment)
     {
         var (state, actor, household, point) = FarmFieldTests.PreparedFarmer("named-infant-food");
-        var society = state.Society.Society;
+        var society = ChosenBirthNameTestFixture.NameParent(state.Society.Society, actor);
         var partner = society.Inhabitants.First(person => person.HouseholdId == household && person.Id != actor).Id;
         society = SocietyFixture.ProposeRelationship(society, new("named-care-parents", 1,
             SocietyRelationshipType.Partnership, actor, partner, society.WorldTick)).Checkpoint;
@@ -24,7 +24,7 @@ public sealed class CaregiverFoodRoutingTests
         var birthFood = society.Inventory.Lots.First(lot => lot.OwnerId == household && lot.ItemKind == "food" && lot.Quantity >= 4);
         var birth = SocietyFixture.CommitBirth(society, new($"family:{actor}:{society.WorldTick}", 1,
             actor, partner, household, [actor, partner], [actor, partner], birthFood.Id, 4, society.WorldTick,
-            ChildName: "Ari", PrimaryCaregiverId: actor));
+            ChildName: ChosenBirthNameTestFixture.ChildName(society, actor, "Ari"), PrimaryCaregiverId: actor));
         var childId = Assert.IsType<string>(birth.CreatedId);
         society = birth.Checkpoint;
         var childPosition = state.Map.FootNeighbors(point).First(tile => state.Map.IsBuildable(tile) &&
@@ -85,14 +85,14 @@ public sealed class CaregiverFoodRoutingTests
         initial.StartWorld();
         var state = blockStorage ? StorageRoutingTestFixture.BlockAccess(initial, storagePosition, 1) : initial.ExportState();
         var household = state.Society.Society.GetInhabitant(ids[0]).HouseholdId!;
-        var society = state.Society.Society;
+        var society = ChosenBirthNameTestFixture.NameParent(state.Society.Society, ids[0]);
         society = SocietyFixture.ProposeRelationship(society, new("care-parents", 1,
             SocietyRelationshipType.Partnership, ids[0], ids[1], society.WorldTick)).Checkpoint;
         society = SocietyFixture.AcceptRelationship(society, "care-parents", 1, ids[1]).Checkpoint;
         var birthFood = society.Inventory.Lots.First(lot => lot.OwnerId == household && lot.ItemKind == "food" && lot.Quantity >= 4);
         var birth = SocietyFixture.CommitBirth(society, new($"family:{ids[0]}:{society.WorldTick}", 1,
             ids[0], ids[1], household, [ids[0], ids[1]], [ids[0], ids[1]], birthFood.Id, 4, society.WorldTick,
-            ChildName: "Ari", PrimaryCaregiverId: ids[0]));
+            ChildName: ChosenBirthNameTestFixture.ChildName(society, ids[0], "Ari"), PrimaryCaregiverId: ids[0]));
         Assert.Equal("first-town-house-a", birthFood.StorageBuildingId);
         var childId = Assert.IsType<string>(birth.CreatedId);
         society = birth.Checkpoint;
@@ -182,13 +182,13 @@ public sealed class CaregiverFoodRoutingTests
         initial.StartWorld();
         var state = initial.ExportState();
         var household = state.Society.Society.GetInhabitant(ids[0]).HouseholdId!;
-        var society = state.Society.Society;
+        var society = ChosenBirthNameTestFixture.NameParent(state.Society.Society, ids[0]);
         society = SocietyFixture.ProposeRelationship(society, new("pot-care-parents", 1,
             SocietyRelationshipType.Partnership, ids[0], ids[1], society.WorldTick)).Checkpoint;
         society = SocietyFixture.AcceptRelationship(society, "pot-care-parents", 1, ids[1]).Checkpoint;
         var birthFood = society.Inventory.Lots.First(lot => lot.OwnerId == household && lot.ItemKind == "food" && lot.Quantity >= 4);
         var birth = SocietyFixture.CommitBirth(society, new($"family:{ids[0]}:{society.WorldTick}", 1,
-            ids[0], ids[1], household, [ids[0], ids[1]], [ids[0], ids[1]], birthFood.Id, 4, society.WorldTick, ChildName: "Ari", PrimaryCaregiverId: ids[0]));
+            ids[0], ids[1], household, [ids[0], ids[1]], [ids[0], ids[1]], birthFood.Id, 4, society.WorldTick, ChildName: ChosenBirthNameTestFixture.ChildName(society, ids[0], "Ari"), PrimaryCaregiverId: ids[0]));
         var childId = Assert.IsType<string>(birth.CreatedId);
         society = birth.Checkpoint;
         // The household's only food is in its House pot.

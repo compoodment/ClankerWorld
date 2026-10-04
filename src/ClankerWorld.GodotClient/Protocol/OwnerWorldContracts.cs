@@ -151,6 +151,7 @@ public sealed record OwnerWorldTown(
     IReadOnlyList<OwnerWorldPosition> BorderTiles)
 {
     public OwnerTownGovernance? Governance { get; init; }
+    public IReadOnlyList<OwnerWorldTownProject> Projects { get; init; } = [];
     public OwnerTownGovernment? Government { get; init; }
     public IReadOnlyList<OwnerTownLandHearing> LandHearings { get; init; } = [];
     public int LandHearingCount { get; init; }
@@ -238,7 +239,18 @@ public sealed record OwnerCivicProposal(string Id, string Kind, string Text, str
     int RequiredYes, long DeadlineTick)
 {
     public OwnerLandHearingProposal? LandHearingRequest { get; init; }
+    public OwnerWorldTownProjectPlan? Project { get; init; }
 }
+public sealed record OwnerWorldTownProjectBudget(string Kind, int Quantity);
+public sealed record OwnerWorldTownProjectPlan(string Name, string ProposerId, string ProposerName,
+    string DefinitionId, string DisplayName, OwnerWorldPosition Site, OwnerWorldPosition Entrance,
+    int Width, int Height, IReadOnlyList<OwnerWorldTownProjectBudget> Budget);
+public sealed record OwnerWorldTownProjectMaterial(string Kind, int Budget, int Supplied);
+public sealed record OwnerWorldTownProject(string Id, string ProposalId, string Name,
+    string ProposerId, string ProposerName, string DefinitionId, string DisplayName,
+    OwnerWorldPosition Site, OwnerWorldPosition Entrance, int Width, int Height,
+    IReadOnlyList<OwnerWorldTownProjectMaterial> Materials, int WorkDone, int WorkRequired,
+    string Stage, string? Blocker, string? CompletedBuildingId, OwnerCivicProposal Approval);
 public sealed record OwnerCivicCandidate(string Id, string Name, int Votes);
 public sealed record OwnerTownElection(string Id, string Kind, string Stage, int Seats, long DeadlineTick,
     IReadOnlyList<OwnerCivicCandidate> Candidates, IReadOnlyList<string> SettledNames);
@@ -351,7 +363,8 @@ public sealed record OwnerWorldInstructionOrder(
     int? TargetY = null,
     string? BlockedReason = null,
     string? TargetAgentId = null,
-    string? TargetMaterialKind = null);
+    string? TargetMaterialKind = null,
+    string? TargetEquipmentKind = null);
 
 public sealed record OwnerWorldCognitionEvent(long EventId, long WorldTick, string Kind, string Detail);
 

@@ -162,7 +162,7 @@ public sealed partial class PrivateWorldRuntime
                 include(worldSimulation.Buildings.FirstOrDefault(building => building.InstanceId == job.BuildingInstanceId)))
             .SelectMany(ExpansionTiles).ToHashSet();
 
-    /// <summary>Free Town-titled land nearest first: no use right, pending request, building, expansion, road or field.</summary>
+    /// <summary>Free Town-titled land nearest first: no use right, pending request, building, expansion, road, field or Town project site.</summary>
     private GridPoint[] RequestableLandNear(TownRuntimeState town, GridPoint from, int count)
     {
         var taken = HouseholdLandHeldByOthers(null);
@@ -170,6 +170,8 @@ public sealed partial class PrivateWorldRuntime
         taken.UnionWith(ExpansionWorkTiles(_ => true));
         taken.UnionWith(RoadAndBridgeTiles());
         taken.UnionWith(fields.Select(field => field.Position));
+        taken.UnionWith(TownProjectProtectedSites());
+        taken.UnionWith(PendingTownProjectSiteTiles());
         return townLandTitles.Where(title => title.TownId == town.Id).SelectMany(title => title.Tiles)
             .Where(tile => map.IsLand(tile) && !taken.Contains(tile)).Distinct()
             .OrderBy(tile => map.FootDistance(from, tile)).ThenBy(tile => tile.Y).ThenBy(tile => tile.X)
@@ -216,6 +218,7 @@ public sealed partial class PrivateWorldRuntime
         // A footprint whose extra land is free can be granted; one over land another household
         // holds or has asked for only opens a dispute, so it is offered when no free one fits.
         var heldByOthers = HouseholdLandHeldByOthers(building.HouseholdId);
+        var proposedHalls = PendingTownProjectSiteTiles();
         GridPoint[]? offered = null;
         GridPoint[]? disputed = null;
         foreach (var shape in ExpansionShapes(building))
@@ -228,6 +231,7 @@ public sealed partial class PrivateWorldRuntime
             if (extra.Length == 0 || extra.Any(tile => !TownLandRightsRules.IsCoveredByTownTitle(tile, building.TownId!, townLandTitles))) continue;
             // One expansion asks the Council once: a pending request for any of its shapes waits to be decided.
             if (extra.Any(pending.Contains)) return null;
+            if (extra.Any(proposedHalls.Contains)) continue;
             if (extra.Any(heldByOthers.Contains)) disputed ??= extra;
             else offered ??= extra;
         }
