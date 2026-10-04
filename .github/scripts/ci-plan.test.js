@@ -197,28 +197,26 @@ test('a job lists its slowest tests and warns only about very slow ones', () => 
   assert.match(report.warnings[0], /^::warning title=Slow test::Ns\.ATests\.Slow took 723 seconds\./);
 });
 
-test('a test much slower than on main is flagged, but ordinary runner noise is not', () => {
+test('the comparison lists the tests that grew most, but single tests never warn', () => {
   const main = { 'Ns.ATests.Slower': 30, 'Ns.BTests.Noisy': 100, 'Ns.CTests.Tiny': 1, 'Ns.DTests.Gone': 50 };
-  const run = { 'Ns.ATests.Slower': 75, 'Ns.BTests.Noisy': 125, 'Ns.CTests.Tiny': 6, 'Ns.ETests.New': 400 };
+  const run = { 'Ns.ATests.Slower': 110, 'Ns.BTests.Noisy': 125, 'Ns.CTests.Tiny': 6, 'Ns.ETests.New': 400 };
   const report = compareTimings(main, run);
-  // Only tests both runs have count: 131 s on main, 206 s here.
-  assert.match(report.summary, /The 3 tests both runs have took 206 s here and 131 s in main's latest green run \(\+57%\)/);
-  assert.match(report.summary, /\| Ns\.ATests\.Slower \| 30 \| 75 \| \+150% \|/);
+  // Only tests both runs have count: 131 s on main, 241 s here, which is less than two minutes more.
+  assert.match(report.summary, /The 3 tests both runs have took 241 s here and 131 s in main's latest green run \(\+84%\)/);
+  assert.match(report.summary, /\| Ns\.ATests\.Slower \| 30 \| 110 \| \+267% \|/);
   assert.doesNotMatch(report.summary, /ETests|DTests/);
-  // Twice as slow and 20 seconds more: flagged. 25% slower, or 5 seconds more: not.
-  assert.deepEqual(report.slower.map(change => change.name), ['Ns.ATests.Slower']);
-  assert.equal(report.warnings.length, 1);
-  assert.match(report.warnings[0], /^::warning title=Test got slower::Ns\.ATests\.Slower took 75 seconds, 2\.5 times its 30 seconds/);
+  // A single test nearly four times as slow is runner noise as often as not.
+  assert.deepEqual(report.warnings, []);
 });
 
-test('the whole suite growing a lot is flagged even when no single test doubles', () => {
+test('the whole suite growing a lot warns, and ordinary variation does not', () => {
   const main = Object.fromEntries(Array.from({ length: 40 }, (_, i) => [`Ns.T${i}Tests.Runs`, 10]));
-  const run = Object.fromEntries(Object.keys(main).map(name => [name, 15]));
-  const report = compareTimings(main, run);
-  assert.deepEqual(report.slower, []);
-  assert.equal(report.warnings.length, 1);
-  assert.match(report.warnings[0], /^::warning title=Tests got slower::The tests both runs have took 600 seconds, \+50% on main's/);
-  // A small suite growing by the same share adds too few seconds to matter.
+  const slower = compareTimings(main, Object.fromEntries(Object.keys(main).map(name => [name, 15])));
+  assert.equal(slower.warnings.length, 1);
+  assert.match(slower.warnings[0], /^::warning title=Tests got slower::The tests both runs have took 600 seconds, \+50% on main's/);
+  // A tenth slower is ordinary variation between runners.
+  assert.deepEqual(compareTimings(main, Object.fromEntries(Object.keys(main).map(name => [name, 11]))).warnings, []);
+  // A small suite growing by half adds too few seconds to matter.
   assert.deepEqual(compareTimings({ 'Ns.ATests.One': 10 }, { 'Ns.ATests.One': 15 }).warnings, []);
 });
 
