@@ -278,6 +278,14 @@ amount. Travel earns no progress, full hands leave the task waiting, and
 queueing, cancellation and partial progress survive reload. Collection grants
 no renewed household membership or private-stock access.
 
+Food collection uses the same personal-goods rules: "collect food", "collect
+three berries", "collect cultivated greens from (12, 4)", or "keep collecting
+fruit". A named kind selects only berries, fruit, wild greens or cultivated
+greens; plain "food" accepts any ready-to-eat food. These tasks collect existing
+stored or dropped goods. They do not harvest a food source or eat the pickup.
+Raw grain and potatoes remain outside this collection catalogue. Quantities,
+source tiles, carrying limits, queues, interruptions and reload work as above.
+
 Repair orders cover personally owned, carried basic clothing, padded coats,
 rain cloaks, baskets and sacks that are worn enough for the ordinary repair
 rules. For example, "repair my basket", "repair two padded coats", or "keep
@@ -533,6 +541,8 @@ continue. An unrelated office may remain vacant during the change.
 Supported arrangements include all adults,
 elected representatives and one elected governing leader. Ordinary laws cannot
 remove the protected resident vote or invent new powers.
+An unrelated government handover does not delay or cancel the Council's own
+election when an adult leaves during voting, or stop its retry after failure.
 
 Residents can create an elected land mayor without a population gate. Each
 mandate lasts twenty days, with renewal voting one day before expiry. Mayor

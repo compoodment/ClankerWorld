@@ -540,6 +540,7 @@ public static class GameUiText
             "repair_tool" => "repair a personal tool",
             "repair_equipment" => "repair personal equipment",
             "collect_material" => "collect personal materials",
+            "collect_food" => "collect personal food",
             "store_material" => "store personal materials",
             "inspect_material_site" => "look for the requested material",
             "storage_pot" => "storage pot",
