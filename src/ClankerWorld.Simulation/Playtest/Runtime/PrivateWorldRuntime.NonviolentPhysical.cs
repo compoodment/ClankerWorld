@@ -20,8 +20,13 @@ public sealed partial class PrivateWorldRuntime
 
     private static string ConductLawDigest(TownLawVersion version) => NonviolentDigest(new
     {
-        version.Version, version.Subject, version.Rule, version.Scope, version.SiteTiles,
-        version.ProposalId, version.AdoptedTick,
+        version.Version,
+        version.Subject,
+        version.Rule,
+        version.Scope,
+        version.SiteTiles,
+        version.ProposalId,
+        version.AdoptedTick,
     });
 
     // This runs at the native successful action, never by searching the public event log.
@@ -56,11 +61,14 @@ public sealed partial class PrivateWorldRuntime
                     nativeActId, person.InhabitantId, "firsthand", WorldTick, person.Position,
                     DescribeNonviolentConduct(record), ObserverHouseholdId: HouseholdFor(person.InhabitantId),
                     PrivateSiteHouseholdId: NonviolentPrivateSite(position)?.HouseholdId)).ToArray();
-            SetTown(town with { Nonviolent = PruneNonviolentConduct(town, town.Nonviolent with
+            SetTown(town with
             {
-                ConductRecords = town.Nonviolent.ConductRecords.Append(record).ToArray(),
-                Acquisitions = town.Nonviolent.Acquisitions.Concat(observations).ToArray(),
-            }) });
+                Nonviolent = PruneNonviolentConduct(town, town.Nonviolent with
+                {
+                    ConductRecords = town.Nonviolent.ConductRecords.Append(record).ToArray(),
+                    Acquisitions = town.Nonviolent.Acquisitions.Concat(observations).ToArray(),
+                })
+            });
         }
     }
 
@@ -254,7 +262,8 @@ public sealed partial class PrivateWorldRuntime
         AddEquipmentCandidates(native, actor, person);
         AddHandcartCandidates(native, actor, person);
         return native.Any(candidate => candidate.Id == RepairToolPrefix + target.Id || candidate.Id == RepairCartPrefix + target.Id ||
-            candidate.Id == "repair_equipment" && CanPrepareEquipmentRepair(actor, person, target));
+            candidate.Id == "repair_equipment" && WornEquipmentItems(actor).Any(lot => lot.Id == target.Id) &&
+                CanPrepareEquipmentRepair(actor, person, target));
     }
 
     private bool NonviolentRemedyDurationFeasible(TownRuntimeState town, TownRemedyTerm[] terms, long ticks)

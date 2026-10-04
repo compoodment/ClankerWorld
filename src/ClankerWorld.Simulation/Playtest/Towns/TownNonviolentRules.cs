@@ -76,17 +76,25 @@ public static class TownNonviolentRules
         var item = state.Cases.Single(c => c.Id == caseId && c.Status == "pending");
         if (!ValidParties(parties) || day <= 0 || !TownHearingProcedure.Id(noticeId)) throw new InvalidOperationException("A notice needs current legitimate parties.");
         var old = CurrentRevision(item);
-        return !RequiresNewNotice(old, parties) ? state : Replace(state, item with { Revisions = item.Revisions.Append(
-            new TownCaseRevision(old.Number + 1, parties.OrderBy(p => p.Id, StringComparer.Ordinal).ToArray(), noticeId, tick, checked(tick + day))).ToArray() });
+        return !RequiresNewNotice(old, parties) ? state : Replace(state, item with
+        {
+            Revisions = item.Revisions.Append(
+            new TownCaseRevision(old.Number + 1, parties.OrderBy(p => p.Id, StringComparer.Ordinal).ToArray(), noticeId, tick, checked(tick + day))).ToArray()
+        });
     }
     public static TownNonviolentState Inspect(TownNonviolentState state, string caseId, int revision, string actor, long tick)
     {
         var item = Exact(state, caseId, revision);
         if (!TownHearingProcedure.Id(actor) || tick < CurrentRevision(item).PublishedTick) throw new InvalidOperationException("Read the published case first.");
-        return Replace(state, item with { Reads = item.Reads.Append(new TownCaseRead(revision, actor, tick,
+        return Replace(state, item with
+        {
+            Reads = item.Reads.Append(new TownCaseRead(revision, actor, tick,
             TownHearingProcedure.Ordered(item.Evidence.Select(e => e.Id)), TownHearingProcedure.Ordered(item.ReopenRequests.Select(r => r.Id)))
-            { ResponseIds = TownHearingProcedure.Ordered(item.Responses.Where(r => r.Revision == revision).Select(ResponseToken)),
-                FindingIds = TownHearingProcedure.Ordered(item.Findings.Select(f => f.Id)) }).ToArray() });
+            {
+                ResponseIds = TownHearingProcedure.Ordered(item.Responses.Where(r => r.Revision == revision).Select(ResponseToken)),
+                FindingIds = TownHearingProcedure.Ordered(item.Findings.Select(f => f.Id))
+            }).ToArray()
+        });
     }
     public static TownNonviolentState RelayRead(TownNonviolentState state, string caseId, int revision, string source, string recipient, long tick)
     {
@@ -94,10 +102,15 @@ public static class TownNonviolentRules
         var reads = item.Reads.Where(r => r.Revision == revision && r.ReadTick <= tick && r.AgentId == source).ToArray();
         if (source == recipient || reads.Length == 0) throw new InvalidOperationException("Only an informed person can relay this case.");
         reads = reads.Concat(item.Reads.Where(r => r.Revision == revision && r.ReadTick <= tick && r.AgentId == recipient)).ToArray();
-        return Replace(state, item with { Reads = item.Reads.Append(new TownCaseRead(revision, recipient, tick,
+        return Replace(state, item with
+        {
+            Reads = item.Reads.Append(new TownCaseRead(revision, recipient, tick,
             TownHearingProcedure.Ordered(reads.SelectMany(r => r.EvidenceIds)), TownHearingProcedure.Ordered(reads.SelectMany(r => r.ReopenRequestIds)), source)
-            { ResponseIds = TownHearingProcedure.Ordered(reads.SelectMany(r => r.ResponseIds)),
-                FindingIds = TownHearingProcedure.Ordered(reads.SelectMany(r => r.FindingIds)) }).ToArray() });
+            {
+                ResponseIds = TownHearingProcedure.Ordered(reads.SelectMany(r => r.ResponseIds)),
+                FindingIds = TownHearingProcedure.Ordered(reads.SelectMany(r => r.FindingIds))
+            }).ToArray()
+        });
     }
     public static TownNonviolentState Respond(TownNonviolentState state, string caseId, int revision, string actor,
         string representedActor, string partyId, string kind, string text, long tick, IReadOnlyList<TownCivicReceipt> receipts,
@@ -144,8 +157,11 @@ public static class TownNonviolentRules
     public static TownNonviolentState InvalidateJudge(TownNonviolentState state, string caseId, long tick, string reason)
     {
         var item = state.Cases.Single(c => c.Id == caseId);
-        return item.Judge is null ? state : Replace(state, item with { Judge = null,
-            JudgeHistory = item.JudgeHistory.Append(new(item.Judge, tick, reason)).ToArray() });
+        return item.Judge is null ? state : Replace(state, item with
+        {
+            Judge = null,
+            JudgeHistory = item.JudgeHistory.Append(new(item.Judge, tick, reason)).ToArray()
+        });
     }
     public static TownNonviolentState Rule(TownNonviolentState state, string caseId, int revision, TownCaseJudge judge,
         long tick, string result, string consequence, IReadOnlyList<string> evidenceIds, string reasons, string uncertainty,
@@ -165,9 +181,14 @@ public static class TownNonviolentRules
         var finding = new TownViolationFinding(NextId(state, "finding"), revision, judge, tick, result, CivilStandard,
             TownHearingProcedure.Ordered(evidenceIds), reasons, uncertainty, consequence, currentParties.ToArray());
         item = TownCaseJudgeRules.CancelContest(item, tick, "case_closed");
-        return Replace(state with { Sequence = checked(state.Sequence + 1) }, item with { Status = "settled", SettledTick = tick,
-            Findings = item.Findings.Append(finding).ToArray(), Judge = null,
-            JudgeHistory = item.JudgeHistory.Append(new(judge, tick, "case_closed")).ToArray() });
+        return Replace(state with { Sequence = checked(state.Sequence + 1) }, item with
+        {
+            Status = "settled",
+            SettledTick = tick,
+            Findings = item.Findings.Append(finding).ToArray(),
+            Judge = null,
+            JudgeHistory = item.JudgeHistory.Append(new(judge, tick, "case_closed")).ToArray()
+        });
     }
 
     public static TownNonviolentState RequestReopen(TownNonviolentState state, string caseId, string actor,
@@ -213,8 +234,13 @@ public static class TownNonviolentRules
         request = request with { Status = groundsEstablished ? "accepted" : "rejected", AssessedBy = judge, AssessedTick = tick, Assessment = assessment };
         item = item with { ReopenRequests = item.ReopenRequests.Select(r => r.Id == requestId ? request : r).ToArray() };
         if (groundsEstablished)
-            item = item with { Status = "pending", SettledTick = null, Revisions = item.Revisions.Append(new TownCaseRevision(
-                CurrentRevision(item).Number + 1, currentParties.ToArray(), noticeId, tick, checked(tick + day))).ToArray() };
+            item = item with
+            {
+                Status = "pending",
+                SettledTick = null,
+                Revisions = item.Revisions.Append(new TownCaseRevision(
+                CurrentRevision(item).Number + 1, currentParties.ToArray(), noticeId, tick, checked(tick + day))).ToArray()
+            };
         else if (!item.ReopenRequests.Any(r => r.Status == "pending"))
             item = item with { Judge = null, JudgeHistory = item.JudgeHistory.Append(new(judge, tick, "reopening_rejected")).ToArray() };
         return Replace(state, item);

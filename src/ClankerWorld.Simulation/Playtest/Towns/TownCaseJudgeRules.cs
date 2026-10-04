@@ -70,7 +70,7 @@ public static class TownCaseJudgeRules
         var office = TownGovernmentRules.CurrentNonLandAuthority(government, tick);
         var schedulerBusy = ordinaryContestBusy || council.Election is { Stage: "main" or "runoff" } || government.Contest is { Stage: "voting" };
         var heldCaseId = state.Cases.FirstOrDefault(c => c.Contest is { Stage: "voting" })?.Id;
-        foreach (var saved in state.Cases.Where(c => c.Status == "pending" || c.ReopenRequests.Any(r => r.Status == "pending")).OrderBy(c => c.FiledTick).ThenBy(c => c.Id, StringComparer.Ordinal).ToArray())
+        foreach (var saved in state.Cases.OrderBy(c => c.FiledTick).ThenBy(c => c.Id, StringComparer.Ordinal).ToArray())
         {
             var item = saved;
             var parties = currentPartiesByCase?.GetValueOrDefault(item.Id) ?? TownNonviolentRules.CurrentRevision(item).Parties;
@@ -81,7 +81,7 @@ public static class TownCaseJudgeRules
                 state = TownNonviolentRules.InvalidateJudge(state, item.Id, tick, "authority_or_eligibility_ended");
                 item = state.Cases.Single(c => c.Id == item.Id);
             }
-            if (item.Judge is not null) continue;
+            if (item.Judge is not null || item.Status != "pending" && !item.ReopenRequests.Any(r => r.Status == "pending")) continue;
             if (government.Arrangement.NonLand != TownArrangementRules.Mayor)
             {
                 state = Replace(state, CancelContest(item, tick, "non_land_mandate_ended"));

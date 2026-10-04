@@ -1,11 +1,42 @@
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Playtest;
+using System.Text.Json;
 
 namespace ClankerWorld.Simulation.Tests;
 
 public sealed class TownNonviolentAuthorityRuntimeTests
 {
     private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(10);
+
+    [Fact]
+    public async Task ACompletedFindingSurvivesScopeRepealInTheSameTickAndItsJudgeLosesCurrentAuthority()
+    {
+        var state = await NonviolentRuntimeFixture.FindingAsync();
+        var town = state.Towns![0];
+        var finding = Assert.Single(Assert.Single(town.Nonviolent.Cases).Findings);
+        var tick = state.Society.Society.WorldTick;
+        Assert.Equal(tick, finding.Tick);
+        var (council, government) = TownGovernmentRules.Propose(town.Governance!, town.Government!, town.Id,
+            NonviolentRuntimeFixture.Subject, town.Government!.Arrangement with { NonLand = TownArrangementRules.NoOffice },
+            false, town.ResidentIds, tick, NonviolentRuntimeFixture.Day);
+        foreach (var voter in town.ResidentIds.Take(3))
+            government = TownGovernmentRules.Vote(government, government.Changes[^1].Id, voter, true, tick);
+        (council, government) = TownGovernmentRules.Advance(council, government, town.Id, town.Name,
+            state.WorldSeed, town.ResidentIds, tick, NonviolentRuntimeFixture.Day);
+        Assert.Equal(TownArrangementRules.NoOffice, government.Arrangement.NonLand);
+        var households = state.Society.Society.Inhabitants.ToDictionary(person => person.Id, person => person.HouseholdId, StringComparer.Ordinal);
+        var (cases, notices) = TownCaseJudgeRules.Advance(town.Nonviolent, council, government, town.ResidentIds,
+            households, tick, NonviolentRuntimeFixture.Day);
+        Assert.Null(Assert.Single(cases.Cases).Judge);
+        Assert.Single(cases.Cases[0].JudgeHistory);
+        state = NonviolentRuntimeFixture.Strict(state with
+        { Towns = [town with { Governance = notices, Government = government, Nonviolent = cases }] });
+        using var world = NonviolentRuntimeFixture.Create(state, new NonviolentTestProvider());
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        var restored = NonviolentRuntimeFixture.Strict(world.ExportState());
+        Assert.Equal(JsonSerializer.Serialize(finding), JsonSerializer.Serialize(Assert.Single(restored.Towns![0].Nonviolent.Cases[0].Findings)));
+        Assert.Null(restored.Towns[0].Nonviolent.Cases[0].Judge);
+    }
 
     [Theory]
     [InlineData(false)]
@@ -47,7 +78,17 @@ public sealed class TownNonviolentAuthorityRuntimeTests
                 foreach (var actor in town.ResidentIds.Where(actor => actor != NonviolentRuntimeFixture.Judge))
                     NonviolentRuntimeFixture.Wake(world, actor, "consider-scope-repeal:" + actor);
                 await AdvanceHostedUntilAsync(world,
-                    () => world.Towns[0].Government!.Arrangement.NonLand == TownArrangementRules.NoOffice, 24);
+                    () => world.Towns[0].Government!.Changes.Count > town.Government.Changes.Count, 6);
+                foreach (var actor in town.ResidentIds.Where(actor => actor != NonviolentRuntimeFixture.Judge))
+                    NonviolentRuntimeFixture.Wake(world, actor, "read-scope-proposal:" + actor);
+                await AdvanceHostedUntilAsync(world, () => town.ResidentIds.Where(actor => actor != NonviolentRuntimeFixture.Judge)
+                    .All(actor => world.Towns[0].Governance!.Knowledge.Any(receipt => receipt.AgentId == actor &&
+                        world.Towns[0].Governance!.Notices.Any(notice => notice.Id == receipt.NoticeId &&
+                            notice.SubjectId == TownGovernmentRules.VoteNoticeToken(world.Towns[0].Government!.Changes[^1])))), 6);
+                foreach (var actor in town.ResidentIds.Where(actor => actor != NonviolentRuntimeFixture.Judge))
+                    NonviolentRuntimeFixture.Wake(world, actor, "vote-scope-proposal:" + actor);
+                await AdvanceHostedUntilAsync(world,
+                    () => world.Towns[0].Government!.Arrangement.NonLand == TownArrangementRules.NoOffice, 6);
 
                 var government = world.Towns[0].Government!;
                 var change = Assert.Single(government.Changes, item => item.Target == repeal.Target && item.Status == "completed" &&
@@ -101,8 +142,8 @@ public sealed class TownNonviolentAuthorityRuntimeTests
             world.Pause();
             var restored = NonviolentRuntimeFixture.Strict(world.ExportState());
             var savedFile = Assert.Single(restored.Towns![0].Nonviolent.Cases);
-            Assert.Equal(file.Findings, savedFile.Findings);
-            Assert.Equal(originalCase.Responses, savedFile.Responses);
+            Assert.Equal(JsonSerializer.Serialize(file.Findings), JsonSerializer.Serialize(savedFile.Findings));
+            Assert.Equal(JsonSerializer.Serialize(originalCase.Responses), JsonSerializer.Serialize(savedFile.Responses));
         }
         finally { held.Release(); }
     }
@@ -114,7 +155,8 @@ public sealed class TownNonviolentAuthorityRuntimeTests
             Assert.True((await world.AdvanceOneTickNonBlockingAsync().AsTask().WaitAsync(Deadline)).Advanced);
             await Task.Delay(10);
         }
-        Assert.True(complete(), "The actual hosted civic action did not reach its bounded admission checkpoint.");
+        Assert.True(complete(), "The actual hosted civic action did not reach its bounded admission checkpoint. " +
+            string.Join("\n", world.ExportState().Events.TakeLast(20)));
     }
 
     private sealed class HeldFindingProvider(IReadOnlyList<string> evidence) : IDecisionProvider

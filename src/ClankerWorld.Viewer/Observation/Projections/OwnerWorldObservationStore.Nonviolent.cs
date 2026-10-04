@@ -62,7 +62,8 @@ public sealed partial class OwnerWorldObservationStore
                     allegation.SubjectId, Name(allegation.SubjectId), allegation.ConductKind, ToPosition(allegation.Position),
                     allegation.ConductTick, Readable(allegation.Statement), law is null ? null :
                         new ViewerTownLaw(allegation.LawId, law.Subject, law.Rule, law.Scope, law.SiteTiles.Count,
-                            law.Version, law.AdoptedTick, law.EndedTick) { Site = law.SiteTiles.Select(ToPosition).ToArray() },
+                            law.Version, law.AdoptedTick, law.EndedTick)
+                        { Site = law.SiteTiles.Select(ToPosition).ToArray() },
                     allegation.LawVersion,
                     item.Revisions.Select(revision => new ViewerCaseRevision(revision.Number, revision.NoticeId,
                         revision.PublishedTick, revision.DeadlineTick, revision.Parties.Select(party => Party(party, revision, tick)).ToArray())).ToArray(),

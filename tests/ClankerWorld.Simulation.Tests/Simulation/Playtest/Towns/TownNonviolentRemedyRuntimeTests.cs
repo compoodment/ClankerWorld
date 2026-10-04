@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json.Nodes;
 using ClankerWorld.Simulation.Cognition;
+using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
 
@@ -88,6 +89,138 @@ public sealed class TownNonviolentRemedyRuntimeTests
         Assert.Equal("completed", released.Towns[0].Nonviolent.Agreements[0].Status);
         NonviolentRuntimeFixture.Strict(released.ExportState());
     }
+
+    [Fact]
+    public async Task AgreedRepairTargetsTheNamedCoatInsteadOfThePreferredBasketAndSpendsMaterialsOnlyOnCompletion()
+    {
+        var state = await NonviolentRuntimeFixture.FindingAsync();
+        var actor = NonviolentRuntimeFixture.Subject;
+        var household = state.Society.Society.Inhabitants.Single(person => person.Id == actor).HouseholdId!;
+        var inventory = state.Society.Society.Inventory;
+        inventory = InventoryFixture.AddLot(inventory, "remedy-shop-fiber", "fiber", household, 2, storageBuildingId: "first-town-house-b");
+        using (var setup = NonviolentRuntimeFixture.Create(WithInventory(state, inventory), new NonviolentTestProvider()))
+        {
+            var definition = setup.WorldContent.Buildings.Single(building => building.LocalId == "tailor-shop-1x1");
+            var house = setup.WorldSimulation.Buildings.Single(building => building.HouseholdId == household &&
+                setup.WorldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId).Tags.Contains("house"));
+            var placed = Enumerable.Range(-4, 9).SelectMany(dy => Enumerable.Range(-4, 9)
+                .Select(dx => new GridPoint(house.Position.X + dx, house.Position.Y + dy)))
+                .Any(point => setup.PlaceBuilding("remedy-tailor", definition.CanonicalId, point, household).Applied);
+            Assert.True(placed);
+            state = setup.ExportState();
+        }
+        inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "remedy-basket", "basket", actor, 1, conditionBasisPoints: 3_000);
+        inventory = InventoryFixture.AddLot(inventory, "remedy-coat", "padded_coat", actor, 1, conditionBasisPoints: 3_000);
+        inventory = InventoryFixture.AddLot(inventory, "remedy-cloth", "cloth", actor, 1);
+        inventory = InventoryFixture.AddLot(inventory, "remedy-fiber", "fiber", actor, 1);
+        inventory = InventoryFixture.AddLot(inventory, "remedy-rope", "rope", actor, 1);
+        state = WithInventory(state, inventory) with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor ? person with
+            { Equipment = new(ClothingLotId: "remedy-coat", CarryAidLotId: "remedy-basket") } : person).ToArray(),
+        };
+        state = await NonviolentRuntimeFixture.AcceptRemedyAsync(state,
+            [new("repair_equipment", actor, actor, "padded_coat", 1, "remedy-coat")]);
+        var shop = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == "remedy-tailor");
+        state = state with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+            ? person with { Position = shop.Position } : person).ToArray()
+        };
+        using var world = NonviolentRuntimeFixture.Create(state, CompletionProvider());
+        NonviolentRuntimeFixture.Wake(world, actor, "perform-named-repair");
+        await NonviolentRuntimeFixture.UntilAsync(world, () => world.Inhabitants.Single(person => person.InhabitantId == actor).Equipment!.Repair is not null, 4);
+        var repair = world.Inhabitants.Single(person => person.InhabitantId == actor).Equipment!.Repair!;
+        Assert.Equal("remedy-coat", repair.LotId);
+        Assert.Empty(world.Towns[0].Nonviolent.Effects);
+        Assert.Equal(1, world.Society.Inventory.GetLot("remedy-cloth").Quantity);
+        var checkpoint = NonviolentRuntimeFixture.Strict(world.ExportState());
+        using var replay = NonviolentRuntimeFixture.Create(checkpoint, CompletionProvider());
+        for (var tick = 0; tick < PersonalEquipmentRules.RepairWorkTicks + 2; tick++)
+        {
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+            Assert.True((await replay.AdvanceOneTickAsync()).Advanced);
+            Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
+        }
+        Assert.Equal("completed", Assert.Single(replay.Towns[0].Nonviolent.Agreements).Status);
+        Assert.Single(replay.Towns[0].Nonviolent.Effects);
+        var receipt = Assert.Single(replay.Towns[0].Nonviolent.NativeReceipts);
+        Assert.Equal("remedy-coat", receipt.TargetId);
+        Assert.InRange(replay.Society.Inventory.GetLot("remedy-coat").ConditionBasisPoints, 8_900, 9_000);
+        Assert.InRange(replay.Society.Inventory.GetLot("remedy-basket").ConditionBasisPoints, 2_900, 3_000);
+        Assert.DoesNotContain(replay.Society.Inventory.Lots, lot => lot.Id == "remedy-cloth");
+        Assert.Equal(1, replay.Society.Inventory.GetLot("remedy-fiber").Quantity);
+        Assert.Equal(1, replay.Society.Inventory.GetLot("remedy-rope").Quantity);
+        Assert.All(repair.MaterialReservationIds, id => Assert.Equal(InventoryReservationState.Completed, replay.Society.Inventory.GetReservation(id).State));
+        NonviolentRuntimeFixture.Strict(replay.ExportState());
+    }
+
+    [Fact]
+    public async Task TownServiceCreditsOnlyBoundedLoadsActuallyStoredInTheResidentWarehouseAcrossRestart()
+    {
+        var state = await NonviolentRuntimeFixture.FindingAsync();
+        var actor = NonviolentRuntimeFixture.Subject;
+        var town = state.Towns![0];
+        var warehouse = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == "first-town-warehouse");
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "service-stone", "stone", actor, 10);
+        state = await NonviolentRuntimeFixture.AcceptRemedyAsync(WithInventory(state, inventory),
+            [new("public_service_goods", actor, town.Id, "stone", 6, warehouse.InstanceId)]);
+        state = state with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+            ? person with { Position = warehouse.Position } : person).ToArray()
+        };
+        using var world = NonviolentRuntimeFixture.Create(state, CompletionProvider());
+        NonviolentRuntimeFixture.Wake(world, actor, "perform-town-service");
+        await NonviolentRuntimeFixture.UntilAsync(world, () => world.Towns[0].Nonviolent.Effects.Count > 0, 4);
+        Assert.Equal(4, Assert.Single(world.Towns[0].Nonviolent.Effects).Quantity);
+        Assert.Equal("pending", Assert.Single(world.Towns[0].Nonviolent.Agreements).Status);
+        Assert.Equal(6, world.Society.Inventory.GetLot("service-stone").Quantity);
+        using var replay = NonviolentRuntimeFixture.Create(NonviolentRuntimeFixture.Strict(world.ExportState()), CompletionProvider());
+        for (var tick = 0; tick < 3; tick++)
+        {
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+            Assert.True((await replay.AdvanceOneTickAsync()).Advanced);
+        }
+        Assert.Equal("completed", Assert.Single(replay.Towns[0].Nonviolent.Agreements).Status);
+        Assert.Equal(6, replay.Towns[0].Nonviolent.Effects.Sum(effect => effect.Quantity));
+        Assert.Equal(2, replay.Towns[0].Nonviolent.NativeReceipts.Count);
+        Assert.Equal(4, replay.Society.Inventory.GetLot("service-stone").Quantity);
+        Assert.Equal(6, replay.Society.Inventory.Lots.Where(lot => lot.ItemKind == "stone" &&
+            lot.OwnerId == town.Id && lot.StorageBuildingId == warehouse.InstanceId).Sum(lot => lot.Quantity));
+        Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
+        NonviolentRuntimeFixture.Strict(replay.ExportState());
+    }
+
+    [Fact]
+    public async Task ConsentCannotSpendTheSameRemainingStockTwiceAcrossIndividuallyFeasibleTerms()
+    {
+        var state = await NonviolentRuntimeFixture.FindingAsync();
+        var actor = NonviolentRuntimeFixture.Subject;
+        state = await NonviolentRuntimeFixture.OfferRemedyAsync(state,
+            [new("return_goods", actor, NonviolentRuntimeFixture.Witness, "wood", 1, NonviolentRuntimeFixture.ReturnLot),
+                new("return_goods", actor, NonviolentRuntimeFixture.Judge, "wood", 1, NonviolentRuntimeFixture.ReturnLot)]);
+        var inventory = InventoryFixture.Reserve(state.Society.Society.Inventory, "other-native-work", actor,
+            NonviolentRuntimeFixture.ReturnLot, 1, "independent-work", long.MaxValue);
+        var provider = new NonviolentTestProvider
+        {
+            Choose = observation => observation.InhabitantId == actor
+                ? observation.Candidates.FirstOrDefault(candidate => candidate.Id.Contains("|remedy_accept|", StringComparison.Ordinal)) : null,
+        };
+        using var world = NonviolentRuntimeFixture.Create(WithInventory(state, inventory), provider);
+        NonviolentRuntimeFixture.Wake(world, actor, "consider-changed-stock");
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        var observation = Assert.Single(provider.Observations, item => item.InhabitantId == actor);
+        Assert.DoesNotContain(observation.Candidates, candidate => candidate.Id.Contains("|remedy_accept|", StringComparison.Ordinal));
+        Assert.Contains(observation.Candidates, candidate => candidate.Id.Contains("|remedy_decline|", StringComparison.Ordinal));
+        Assert.Empty(world.Towns[0].Nonviolent.Agreements);
+        Assert.Empty(world.Towns[0].Nonviolent.Effects);
+        Assert.Equal(2, world.Society.Inventory.GetLot(NonviolentRuntimeFixture.ReturnLot).Quantity);
+        NonviolentRuntimeFixture.Strict(world.ExportState());
+    }
+
+    private static PrivateWorldRuntimeState WithInventory(PrivateWorldRuntimeState state, InventoryCheckpoint inventory) =>
+        state with { Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } } };
 
     private static NonviolentTestProvider CompletionProvider() => new()
     {

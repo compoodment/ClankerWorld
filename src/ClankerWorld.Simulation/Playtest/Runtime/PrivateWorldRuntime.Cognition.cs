@@ -480,6 +480,16 @@ public sealed partial class PrivateWorldRuntime
                 intention.OperativeOrderInstructionId != order?.InstructionId)
                 continue;
 
+            if (intention.CandidateId.StartsWith(NonviolentRemedyPrefix, StringComparison.Ordinal))
+            {
+                // Continue only the physical contribution the agent already chose. Every step
+                // checks the live agreement, remaining goods, access and care needs again.
+                if (intention.Provider == DecisionProviderKind.LargeLanguageModel)
+                    foreach (var town in towns.ToArray())
+                        if (ApplyNonviolentRemedyAction(town, inhabitant.Id, intention.CandidateId)) break;
+                continue;
+            }
+            if (intention.CandidateId.StartsWith(NonviolentRelayPrefix, StringComparison.Ordinal)) continue;
             if (intention.CandidateId.StartsWith("civic|", StringComparison.Ordinal))
             {
                 // Formal civic acts require a fresh admitted personal choice. Only the physical trip

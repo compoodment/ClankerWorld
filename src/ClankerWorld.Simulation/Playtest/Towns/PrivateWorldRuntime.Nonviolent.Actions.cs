@@ -82,14 +82,14 @@ public sealed partial class PrivateWorldRuntime
                 var terms = NonviolentTerms(town, actor, offer.CaseId, payload);
                 var text = NonviolentText(payload?.Statement);
                 state = TownRemedyRules.Respond(state, offer.Id, offer.Revision, actor, "counter", text, WorldTick, CivicDay, council.Knowledge,
-                    offer.Terms.Where(term => term.ContributorId == actor).All(term => NonviolentRemedyFeasible(town, term)));
+                    NonviolentRemedyDurationFeasible(town, offer.Terms.Where(term => term.ContributorId == actor).ToArray(), offer.CompletionTicks));
                 state = TownRemedyRules.Offer(state, offer.CaseId, offer.FindingId, actor, terms, payload?.CompletionTicks ?? checked(3L * CivicDay),
                     text, WorldTick, CivicDay, "notice:" + (council.Notices.Count + 1), true, replacesOfferId: offer.Id);
                 council = PostNonviolentOffer(council, state.Offers[^1]);
             }
             else state = TownRemedyRules.Respond(state, offer.Id, offer.Revision, actor, action == "remedy_accept" ? "accept" : "decline",
                 payload?.Statement, WorldTick, CivicDay, council.Knowledge,
-                offer.Terms.Where(term => term.ContributorId == actor).All(term => NonviolentRemedyFeasible(town, term)));
+                NonviolentRemedyDurationFeasible(town, offer.Terms.Where(term => term.ContributorId == actor).ToArray(), offer.CompletionTicks));
             NonviolentEvent("offer_response", town, offer.Id, actor);
             return (council, state);
         }
@@ -174,11 +174,15 @@ public sealed partial class PrivateWorldRuntime
         }
         NonviolentEvent(action switch
         {
-            "law_case_inspect" => "inspected", "law_case_relay" => "relayed", "law_case_find" => "finding",
-            "law_case_answer" or "law_case_waive" => "response", "law_case_reopen" => "reopen_requested",
+            "law_case_inspect" => "inspected",
+            "law_case_relay" => "relayed",
+            "law_case_find" => "finding",
+            "law_case_answer" or "law_case_waive" => "response",
+            "law_case_reopen" => "reopen_requested",
             "law_case_assess_reopen" => state.Cases.Single(current => current.Id == item.Id).Status == "pending" ? "reopened" : "rejected",
             "law_case_judge_register" or "law_case_judge_withdraw" or "law_case_judge_resign" => "judge_consent",
-            "remedy_offer" => "offer", _ => "evidence"
+            "remedy_offer" => "offer",
+            _ => "evidence"
         }, town, item.Id, actor);
         return (council, state);
     }
@@ -193,8 +197,11 @@ public sealed partial class PrivateWorldRuntime
             term.Kind, ResolveCivicAgentToken(term.ContributorId), term.BeneficiaryId is { } beneficiary ? ResolveCivicAgentToken(beneficiary) : null,
             term.ItemKind, term.Quantity, PhysicalReference(term.TargetId))).ToArray();
         if (replacingAgreementId is not null)
-            town = town with { Nonviolent = town.Nonviolent with
-            { Agreements = town.Nonviolent.Agreements.Where(agreement => agreement.Id != replacingAgreementId).ToArray() } };
+            town = town with
+            {
+                Nonviolent = town.Nonviolent with
+                { Agreements = town.Nonviolent.Agreements.Where(agreement => agreement.Id != replacingAgreementId).ToArray() }
+            };
         if (result.Any(term => !LandHearingAdult(term.ContributorId) || !NonviolentRemedyFeasible(town, term) || !NonviolentRemedyTermKnownTo(town, term, actor)))
             throw new InvalidOperationException("A proposed contribution must be feasible, lawful and known without searching private property.");
         var duration = payload.CompletionTicks ?? checked(3L * CivicDay);

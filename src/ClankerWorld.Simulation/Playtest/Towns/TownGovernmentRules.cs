@@ -230,8 +230,12 @@ public static partial class TownGovernmentRules
                 if (state.Contest is { Purpose: not "handover" } obsolete &&
                     obsolete.Mandates.Split('+').Any(m => !Has(Mandates(handover.Target), m)))
                     (council, state) = ArchiveContest(council, state, "cancelled", "The protected handover ended a mandate this contest would fill.", adults, tick, day);
-                state = Replace(state, handover with { Status = "completed", SettledTick = tick,
-                    SuccessorId = handover.NonLandExtension?.HolderId ?? winner?.WinnerId });
+                state = Replace(state, handover with
+                {
+                    Status = "completed",
+                    SettledTick = tick,
+                    SuccessorId = handover.NonLandExtension?.HolderId ?? winner?.WinnerId
+                });
                 if (targetNeedsCouncil && council.Election is { Stage: "ready" } successor)
                     council = TownGovernanceRules.SeatFullCouncil(council, successor, tick, day);
                 else if (changesOrdinaryAuthority && !targetNeedsCouncil)

@@ -18,6 +18,7 @@ internal static class NonviolentRuntimeFixture
     internal const int Day = 20;
     private static readonly Lazy<byte[]> Baseline = new(CreateBaseline);
     private static readonly Lazy<Task<byte[]>> Hearing = new(CreateReadyHearingAsync);
+    private static readonly Lazy<Task<byte[]>> Finding = new(CreateFindingAsync);
     private static readonly Lazy<Task<byte[]>> Accepted = new(CreateAcceptedRemedyAsync);
 
     internal static PrivateWorldRuntimeState Prepared() => PrivateWorldRuntimeCodec.Decode(Baseline.Value);
@@ -57,10 +58,13 @@ internal static class NonviolentRuntimeFixture
     internal static CognitionNonviolentChoice FindingPayload(CognitionCandidate candidate) => new(
         Statement: "The actual observation and recorded rule support a warning, without changing anyone's property.",
         Uncertainty: "The evidence establishes passage, but does not establish the person's motive.",
-        EvidenceIds: Regex.Matches(candidate.Description, @"case-evidence:[a-f0-9]{64}")
-            .Select(match => match.Value).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray());
+        EvidenceIds: Regex.Matches(candidate.Description, @"([^\s;]+) \((?:observation|record),")
+            .Select(match => match.Groups[1].Value).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray());
 
-    private static async Task<byte[]> CreateAcceptedRemedyAsync()
+    internal static async Task<PrivateWorldRuntimeState> FindingAsync() =>
+        PrivateWorldRuntimeCodec.Decode(await Finding.Value);
+
+    private static async Task<byte[]> CreateFindingAsync()
     {
         var provider = new NonviolentTestProvider
         {
@@ -79,6 +83,21 @@ internal static class NonviolentRuntimeFixture
             Assert.Equal("non_land_mayor", finding.Judge.Kind);
             state = Strict(hearing.ExportState());
         }
+        return PrivateWorldRuntimeCodec.Encode(state);
+    }
+
+    private static async Task<byte[]> CreateAcceptedRemedyAsync() => PrivateWorldRuntimeCodec.Encode(
+        await AcceptRemedyAsync(await FindingAsync(), [new("return_goods", Subject, Witness, "wood", 1, ReturnLot)]));
+
+    internal static Task<PrivateWorldRuntimeState> AcceptRemedyAsync(PrivateWorldRuntimeState state,
+        IReadOnlyList<CognitionRemedyTerm> terms) => PrepareRemedyAsync(state, terms, accept: true);
+
+    internal static Task<PrivateWorldRuntimeState> OfferRemedyAsync(PrivateWorldRuntimeState state,
+        IReadOnlyList<CognitionRemedyTerm> terms) => PrepareRemedyAsync(state, terms, accept: false);
+
+    private static async Task<PrivateWorldRuntimeState> PrepareRemedyAsync(PrivateWorldRuntimeState state,
+        IReadOnlyList<CognitionRemedyTerm> terms, bool accept)
+    {
         var offered = false;
         var consent = new NonviolentTestProvider
         {
@@ -97,16 +116,21 @@ internal static class NonviolentRuntimeFixture
                 return choice;
             },
             Payload = (_, candidate) => candidate.Id.Contains("|remedy_offer|", StringComparison.Ordinal)
-                ? new(Statement: "I offer one of my own pieces of wood, voluntarily.",
-                    Terms: [new("return_goods", Subject, Witness, "wood", 1, ReturnLot)]) : null
+                ? new(Statement: "I offer my own named goods or work, voluntarily.", Terms: terms) : null
         };
         using var world = Create(state, consent);
         Wake(world, Subject, "consider-voluntary-return");
-        await UntilAsync(world, () => world.Towns[0].Nonviolent.Agreements.Count > 0, 12);
+        await UntilAsync(world, () => world.Towns[0].Nonviolent.Offers.Count > 0, 8);
+        var offer = Assert.Single(world.Towns[0].Nonviolent.Offers);
+        Wake(world, Subject, "read-voluntary-offer");
+        await UntilAsync(world, () => world.Towns[0].Governance!.Knowledge.Any(receipt =>
+            receipt.AgentId == Subject && receipt.NoticeId == offer.NoticeId), 4);
+        if (!accept) return Strict(world.ExportState());
+        Wake(world, Subject, "decide-voluntary-consent");
+        await UntilAsync(world, () => world.Towns[0].Nonviolent.Agreements.Count > 0, 4);
         Assert.Equal("pending", Assert.Single(world.Towns[0].Nonviolent.Agreements).Status);
         Assert.Empty(world.Towns[0].Nonviolent.Effects);
-        Assert.Equal(2, world.Society.Inventory.GetLot(ReturnLot).Quantity);
-        return PrivateWorldRuntimeCodec.Encode(Strict(world.ExportState()));
+        return Strict(world.ExportState());
     }
 
     internal static void Wake(PrivateWorldRuntime world, string actor, string key) =>
@@ -158,8 +182,7 @@ internal static class NonviolentRuntimeFixture
                 ? new(Statement: "I answer for myself and acknowledge the reported passage, without promising goods.") : null
         };
         using var prepared = Create(state, provider);
-        await UntilAsync(prepared, () => provider.Observations.Any(observation => observation.InhabitantId == Judge &&
-            observation.Candidates.Any(candidate => candidate.Id.Contains("|law_case_find|", StringComparison.Ordinal))) &&
+        await UntilAsync(prepared, () => TownNonviolentRules.ReadCurrent(prepared.Towns[0].Nonviolent.Cases[0], Judge, prepared.WorldTick) &&
             prepared.Towns[0].Nonviolent.Cases[0].Responses.Any(response => response.AgentId == Subject), 16);
         Wake(prepared, Judge, "fresh-reasoned-choice");
         return PrivateWorldRuntimeCodec.Encode(Strict(prepared.ExportState()));

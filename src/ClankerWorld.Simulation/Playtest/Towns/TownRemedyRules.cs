@@ -99,7 +99,10 @@ public static class TownRemedyRules
     public static TownNonviolentState Advance(TownNonviolentState state, long tick) => state with
     {
         Offers = state.Offers.Select(o => o.Status == "pending" && tick >= o.ResponseDeadlineTick ? o with { Status = "unanswered" } : o).ToArray(),
-        Agreements = state.Agreements.Select(a => a with { Status = a.Terms.All(t => CompletedQuantity(state, a.Id, t.Id) == t.Quantity)
-            ? "completed" : tick > a.DeadlineTick ? "overdue" : "pending" }).ToArray()
+        Agreements = state.Agreements.Select(a => a with
+        {
+            Status = a.Terms.All(t => CompletedQuantity(state, a.Id, t.Id) == t.Quantity)
+            ? "completed" : tick > a.DeadlineTick ? "overdue" : "pending"
+        }).ToArray()
     };
 }

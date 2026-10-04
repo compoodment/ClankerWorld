@@ -75,7 +75,10 @@ public partial class Main
 
             var pending = item with
             {
-                Status = "pending", SettledTick = null, Findings = [], Offers = [],
+                Status = "pending",
+                SettledTick = null,
+                Findings = [],
+                Offers = [],
                 CurrentParties = [parties[0], parties[1] with { RespondingAdultId = "new-caregiver-ui", RespondingAdultName = "Tess Rowan", NoticeAware = false }],
             };
             Render(sample with { Towns = [projectedTown with { NonviolentCases = [pending] }], WorldTick = 3_900 }, []);
@@ -86,11 +89,14 @@ public partial class Main
                 throw new InvalidOperationException("Current caregiver response authority must not overwrite the historical notice or inherit another caregiver's receipt.");
 
             // Same Town, tick and membership: only personal consent changes. The real list cache must refresh.
-            projectedTown = projectedTown with { NonviolentCases = [item with
+            projectedTown = projectedTown with
+            {
+                NonviolentCases = [item with
             {
                 Offers = [offer with { Status = "accepted", Responses = [consent], NoticeAwareContributorIds = [term.ContributorId], AgreementId = agreement.Id }],
                 Agreements = [agreement],
-            }] };
+            }]
+            };
             Render(sample with { Towns = [projectedTown], WorldTick = 3_900 }, []);
             if (!VisibleText().Contains("accepted; work still pending", StringComparison.Ordinal) ||
                 !VisibleText().Contains("Recorded completion 0/2", StringComparison.Ordinal) ||
@@ -110,10 +116,13 @@ public partial class Main
                     !visible.Contains("missed deadlines do not create a new violation", StringComparison.Ordinal))
                     throw new InvalidOperationException("The Town panel must distinguish overdue consent from actual completed delivery without automatic punishment.");
             }
-            var replacedTown = projectedTown with { NonviolentCases = [projectedTown.NonviolentCases[0] with
+            var replacedTown = projectedTown with
+            {
+                NonviolentCases = [projectedTown.NonviolentCases[0] with
             {
                 Agreements = [agreement with { Superseded = true }],
-            }] };
+            }]
+            };
             Render(sample with { Towns = [replacedTown], WorldTick = 5_000 }, []);
             if (!VisibleText().Contains("superseded by a later agreement; retained history", StringComparison.Ordinal) ||
                 VisibleText().Contains("Voluntary agreement · accepted; work still pending", StringComparison.Ordinal))

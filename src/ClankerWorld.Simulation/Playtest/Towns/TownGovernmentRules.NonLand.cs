@@ -13,7 +13,7 @@ public static partial class TownGovernmentRules
     public static bool CanStandForMayoralContest(TownGovernmentState state, string actor, string mandates, string? changeId) =>
         !mandates.Split('+').Contains("non_land") ||
         state.Changes.SingleOrDefault(change => change.Id == changeId) is not
-            { Kind: "arrangement", NonLandExtension: null, Target.NonLand: TownArrangementRules.Mayor } ||
+        { Kind: "arrangement", NonLandExtension: null, Target.NonLand: TownArrangementRules.Mayor } ||
         state.Arrangement.NonLand != TownArrangementRules.NoOffice ||
         !state.Offices.Any(office => office.HolderId == actor && office.Mandates is "land" or "ordinary");
 
@@ -35,7 +35,7 @@ public static partial class TownGovernmentRules
     public static bool CanAcceptNonLandDuties(TownGovernanceState council, TownGovernmentState state,
         string changeId, string actor, IEnumerable<string> adultResidents, long tick) =>
         state.Changes.SingleOrDefault(item => item.Id == changeId) is
-            { Status: "queued" or "voting" or "handover", NonLandExtension: { } extension } change &&
+        { Status: "queued" or "voting" or "handover", NonLandExtension: { } extension } change &&
         state.Arrangement.NonLand == TownArrangementRules.NoOffice &&
         extension.HolderId == actor && Has(adultResidents, actor) && ExtensionBaseCurrent(state, extension, tick) &&
         council.Knowledge.Any(receipt => receipt.AgentId == actor && receipt.LearnedTick <= tick &&
@@ -60,7 +60,7 @@ public static partial class TownGovernmentRules
     {
         if (state.Arrangement.NonLand != TownArrangementRules.Mayor ||
             state.Offices.SingleOrDefault(office => office.Mandates == "non_land") is not
-                { HolderId: { } holder, ElectionId: { } authority, TermStartTick: { } start, TermEndTick: { } end } || end <= tick)
+            { HolderId: { } holder, ElectionId: { } authority, TermStartTick: { } start, TermEndTick: { } end } || end <= tick)
             return null;
         var effective = state.NonLandGrants.SingleOrDefault(grant => grant.Id == authority)?.EffectiveTick ?? start;
         return effective <= tick ? new(holder, authority, effective, start, end) : null;

@@ -71,8 +71,11 @@ public sealed partial class PrivateWorldRuntime
             var revised = state.Cases.Single(current => current.Id == item.Id);
             if (NonviolentRevision(revised).Number != before) council = PostNonviolentNotice(council, revised);
         }
-        state = state with { Cases = state.Cases.Select(item => item with
-        { DirectStakeIds = item.Filings.Select(filing => filing.AgentId).Concat(NonviolentParties(town, item).Select(party => party.SubjectId)).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray() }).ToArray() };
+        state = state with
+        {
+            Cases = state.Cases.Select(item => item with
+            { DirectStakeIds = item.Filings.Select(filing => filing.AgentId).Concat(NonviolentParties(town, item).Select(party => party.SubjectId)).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray() }).ToArray()
+        };
         var parties = state.Cases.ToDictionary(item => item.Id, item => (IReadOnlyList<TownCaseParty>)NonviolentParties(town, item), StringComparer.Ordinal);
         (state, council) = TownCaseJudgeRules.Advance(state, council, government, TownAdults(town), LandHearingHouseholds(), WorldTick, CivicDay,
             TownLandHearingElectionBusy(town) || government.Contest is { Stage: "voting" or "ready" } || council.Election is { Stage: "ready" }, parties);

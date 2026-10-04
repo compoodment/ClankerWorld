@@ -129,7 +129,7 @@ public sealed partial class PrivateWorldRuntime
             if (atBoard && !history.Known(actor).Contains(offer.NoticeId))
                 candidates.Add(new(CivicAction(town.Id, "remedy_read", NonviolentOfferToken(offer)), "Read the actual voluntary offer: " + NonviolentTermsText(offer.Terms) + ". Publication alone is not your awareness or consent.", 177));
             if (!adult || !history.Known(actor).Contains(offer.NoticeId) || offer.Responses.Any(response => response.AgentId == actor && response.Kind == "accept")) continue;
-            if (offer.Terms.Where(term => term.ContributorId == actor).All(term => NonviolentRemedyFeasible(town, term)))
+            if (NonviolentRemedyDurationFeasible(town, offer.Terms.Where(term => term.ContributorId == actor).ToArray(), offer.CompletionTicks))
                 candidates.Add(new(CivicAction(town.Id, "remedy_accept", NonviolentOfferToken(offer)), "Personally accept your exact contribution: " + NonviolentTermsText(offer.Terms.Where(term => term.ContributorId == actor)) + ". This does not start work or reserve goods.", 165));
             candidates.Add(new(CivicAction(town.Id, "remedy_decline", NonviolentOfferToken(offer)), "Decline this voluntary offer. Declining creates no offense or automatic penalty.", 166));
             candidates.Add(new(CivicAction(town.Id, "remedy_counter", NonviolentOfferToken(offer)), "Counter with feasible named terms in civic_nonviolent.terms; everyone must read and consent to the new offer.", 183));

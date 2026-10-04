@@ -152,7 +152,10 @@ public static class TownNonviolentValidation
         if (item.Judge is { } judge)
         {
             ValidateJudge(judge, item, town.Government, people, tick);
-            Check(people[judge.AgentId].Status == SocietyInhabitantStatus.Active &&
+            Check(town.Government is { Arrangement.NonLand: TownArrangementRules.Mayor } currentGovernment &&
+                (judge.Kind == "case_elected" || TownGovernmentRules.CurrentNonLandAuthority(currentGovernment, tick) is { } authority &&
+                    authority.HolderId == judge.AgentId && authority.AuthorityId == judge.AuthorityId) &&
+                people[judge.AgentId].Status == SocietyInhabitantStatus.Active &&
                 people[judge.AgentId].AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder && town.ResidentIds.Contains(judge.AgentId) &&
                 !TownNonviolentRules.JudgeConflict(judge.AgentId, people[judge.AgentId].HouseholdId,
                     TownNonviolentPartyRules.CurrentParties(town, item, society, tick), item.DirectStakeIds.ToHashSet(StringComparer.Ordinal)),
@@ -254,7 +257,7 @@ public static class TownNonviolentValidation
         Dictionary<string, SocietyInhabitant> people, long at)
     {
         Check(Id(judge.AuthorityId) && Id(judge.AgentId) && people.ContainsKey(judge.AgentId) && judge.AssignedTick >= item.FiledTick && judge.AssignedTick <= at &&
-            government is not null && TownGovernmentRules.NonLandScopeAt(government, at) &&
+            government is not null && TownGovernmentRules.NonLandScopeAt(government, at, includeEndingTick: true) &&
             (judge.Kind == "non_land_mayor" ? TownGovernmentRules.NonLandAuthorityAt(government, judge.AgentId, judge.AuthorityId, at) :
                 judge.Kind == "case_elected" && item.ContestHistory.Any(c => c.Id == judge.AuthorityId && c.Stage == "completed" &&
                     c.WinnerId == judge.AgentId && c.SettledTick <= judge.AssignedTick) && item.JudgeConsents.Any(c => c.AgentId == judge.AgentId &&
