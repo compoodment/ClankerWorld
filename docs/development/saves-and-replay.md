@@ -386,7 +386,7 @@ the only record of membership; an admission record says what one approval did to
 - `admitted`: membership changed. It keeps the Town the newcomer left, if any,
   and the sorted IDs of the newcomer and the dependent children who moved.
 - `lapsed`: the approval could not be applied, with the reason `unavailable`,
-  `already_resident`, `affiliation_changed`, `joined_elsewhere` or, in schema 62,
+  `already_resident`, `affiliation_changed`, `joined_elsewhere` or, in schema 72,
   `acceptance_expired`.
 
 Schema 72 gives a sponsored approval one unpaused world day for acceptance. Its
