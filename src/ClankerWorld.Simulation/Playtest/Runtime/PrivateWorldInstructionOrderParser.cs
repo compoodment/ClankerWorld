@@ -4,11 +4,20 @@ using ClankerWorld.Simulation.Harness;
 namespace ClankerWorld.Simulation.Playtest;
 
 /// <summary>
-/// Parses only the direct food and movement orders that the runtime can execute.
+/// Parses only the direct food, material, storage, collection, equipment-repair and movement orders that the runtime can execute.
 /// Every token must belong to one of these forms; unconsumed text is not guessed.
 /// </summary>
 internal static class PrivateWorldInstructionOrderParser
 {
+    internal static bool IsEquipmentKind(string? kind) =>
+        kind is "clothing" or "padded_coat" or "rain_cloak" or "basket" or "sack";
+
+    internal static bool IsMaterialKind(string? kind) =>
+        kind is "wood" or "stone" or "fiber" or "clay" or "iron_ore" or "gold_ore" or "diamond";
+
+    internal static bool MatchesMaterial(MapResource resource, string kind) =>
+        resource.Kind == kind || kind == "wood" && resource.Kind == "construction";
+
     private static readonly IReadOnlyDictionary<string, int> NumberWords =
         new Dictionary<string, int>(StringComparer.Ordinal)
         {
@@ -131,9 +140,9 @@ internal static class PrivateWorldInstructionOrderParser
             if (!TryReadAction(out var action, out var actionVerb))
                 return null;
 
-            if (keepPrefix && action is not ("harvest_food" or "consume_food"))
+            if (keepPrefix && action is not ("harvest_food" or "consume_food" or "store_material" or "collect_material" or "repair_equipment"))
                 return null;
-            if (keepPrefix && actionVerb is not ("gathering" or "harvesting" or "eating"))
+            if (keepPrefix && actionVerb is not ("gathering" or "harvesting" or "eating" or "storing" or "collecting" or "repairing"))
                 return null;
 
             if (action == "seek_food" && TryReadCoordinate(out var destination))
@@ -146,18 +155,25 @@ internal static class PrivateWorldInstructionOrderParser
                     : null;
             }
 
+            _ = action is "collect_material" or "repair_equipment" && ReadWord("my");
             var hasExplicitQuantity = TryReadQuantity(out var requestedUnits);
             if (action == "seek_food" && hasExplicitQuantity)
                 return null;
 
-            var subject = TryReadFoodSubject(action == "consume_food");
-            if (!subject.Present && (action != "consume_food" || hasExplicitQuantity))
+            var equipmentKind = action == "repair_equipment" ? TryReadEquipmentSubject() : null;
+            if (action == "repair_equipment" && equipmentKind is null) return null;
+            var materialKind = action is "harvest_food" or "store_material" or "collect_material" ? TryReadMaterialSubject() : null;
+            if (action is "store_material" or "collect_material" && materialKind is null) return null;
+            if (materialKind is not null && action == "harvest_food") action = "gather_material";
+            var subject = materialKind is null && equipmentKind is null ? TryReadFoodSubject(action == "consume_food") : default;
+            if (materialKind is null && equipmentKind is null && !subject.Present && (action != "consume_food" || hasExplicitQuantity))
                 return null;
 
             var targetFoodKind = subject.FoodKind;
             var targetResourceId = subject.ResourceId;
             GridPoint? targetPosition = null;
-            var hasLocation = TryReadLocation(action, targetFoodKind, ref targetResourceId, ref targetPosition);
+            var hasLocation = action is "collect_material" or "repair_equipment" || (action == "store_material" ? TryReadHomeStorageLocation() :
+                TryReadLocation(action, targetFoodKind, ref targetResourceId, ref targetPosition, materialKind));
             if (!hasLocation)
                 return null;
             if (action == "consume_food" && (targetResourceId is not null || targetPosition is not null))
@@ -190,19 +206,102 @@ internal static class PrivateWorldInstructionOrderParser
                 {
                     "seek_food" => "arrivals",
                     "harvest_food" when !hasExplicitQuantity => "harvests",
+                    "gather_material" => hasExplicitQuantity ? "material_items" : "harvests",
+                    "collect_material" => hasExplicitQuantity ? "material_items" : "collection_loads",
+                    "store_material" => hasExplicitQuantity ? "material_items" : "storage_loads",
+                    "repair_equipment" => "repairs",
                     _ => "food_items",
                 },
                 repeat,
                 hasExplicitQuantity,
                 targetFoodKind,
                 targetResourceId,
-                targetPosition);
+                targetPosition,
+                TargetMaterialKind: materialKind,
+                TargetEquipmentKind: equipmentKind);
+        }
+
+        private bool TryReadHomeStorageLocation()
+        {
+            if (!ReadWord("in") && !ReadWord("at")) return true;
+            if (ReadWord("home")) return true;
+            if (!ReadWord("my") && !ReadWord("your") && !ReadWord("the")) return false;
+            return ReadWord("house");
+        }
+
+        private string? TryReadEquipmentSubject()
+        {
+            var start = position;
+            if (!ReadWord("the")) _ = ReadWord("a");
+            if (TryReadAnyWord("basket", "baskets")) return "basket";
+            if (TryReadAnyWord("sack", "sacks")) return "sack";
+            if (ReadWord("padded"))
+            {
+                if (TryReadAnyWord("coat", "coats")) return "padded_coat";
+            }
+            else if (ReadWord("rain"))
+            {
+                if (TryReadAnyWord("cloak", "cloaks")) return "rain_cloak";
+            }
+            else
+            {
+                _ = ReadWord("basic");
+                if (TryReadAnyWord("clothing", "clothes", "garment", "garments")) return "clothing";
+            }
+            position = start;
+            return null;
+        }
+
+        private string? TryReadMaterialSubject()
+        {
+            var start = position;
+            if (!ReadWord("the")) _ = ReadWord("some");
+            if (ReadWord("wood")) return "wood";
+            if (TryReadAnyWord("stone", "stones")) return "stone";
+            if (ReadWord("clay")) return "clay";
+            if (TryReadAnyWord("diamond", "diamonds")) return "diamond";
+            if (ReadWord("iron"))
+            {
+                if (ReadWord("ore")) return "iron_ore";
+            }
+            else if (ReadWord("gold"))
+            {
+                if (ReadWord("ore")) return "gold_ore";
+            }
+            else
+            {
+                _ = ReadWord("plant");
+                if (TryReadAnyWord("fiber", "fibre")) return "fiber";
+            }
+            position = start;
+            return null;
         }
 
         private bool TryReadAction(out string action, out string verb)
         {
             action = "";
             verb = "";
+            if (TryReadAnyWord("repair", "repairs", "repairing"))
+            {
+                action = "repair_equipment";
+                verb = tokens[position - 1].Value;
+                return true;
+            }
+
+            if (TryReadAnyWord("collect", "collects", "collecting"))
+            {
+                action = "collect_material";
+                verb = tokens[position - 1].Value;
+                return true;
+            }
+
+            if (TryReadAnyWord("store", "stores", "storing"))
+            {
+                action = "store_material";
+                verb = tokens[position - 1].Value;
+                return true;
+            }
+
             if (TryReadAnyWord("eat", "eats", "eating"))
             {
                 action = "consume_food";
@@ -352,10 +451,10 @@ internal static class PrivateWorldInstructionOrderParser
             return default;
         }
 
-        private (bool Present, MapResource? Resource, int TokensConsumed) MatchResourceAlias(int start)
+        private (bool Present, MapResource? Resource, int TokensConsumed) MatchResourceAlias(int start, string? materialKind = null)
         {
             var candidates = resources
-                .Where(resource => resource.Kind is "food" or "fruit")
+                .Where(resource => materialKind is null ? resource.Kind is "food" or "fruit" : MatchesMaterial(resource, materialKind))
                 .SelectMany(resource => ResourceAliasTokens(resource.Id)
                     .Select(alias => (Resource: resource, Alias: alias)))
                 .Where(candidate => MatchesTokens(start, candidate.Alias))
@@ -404,7 +503,8 @@ internal static class PrivateWorldInstructionOrderParser
             string action,
             string? targetFoodKind,
             ref string? targetResourceId,
-            ref GridPoint? targetPosition)
+            ref GridPoint? targetPosition,
+            string? materialKind = null)
         {
             if (position >= tokens.Count || tokens[position].Kind != TokenKind.Word ||
                 !IsWord(position, "from", "at", "near", "by", "in"))
@@ -419,7 +519,7 @@ internal static class PrivateWorldInstructionOrderParser
                 return true;
             }
 
-            var resource = MatchResourceAlias(position);
+            var resource = MatchResourceAlias(position, materialKind);
             if (!resource.Present)
                 return false;
             if (targetResourceId is not null || targetPosition is not null)

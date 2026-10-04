@@ -112,7 +112,7 @@ public partial class Main
                 ? developerEditOther.GetSelectedMetadata().AsString() : null);
         await RunOwnerActionAsync(async () =>
         {
-            await ownerApi.ApplyDeveloperEditAsync(ResolveWorldUri(), authority, deviceId, action, signer, CancellationToken.None);
+            await AwaitCurrentWorldResultAsync(ownerApi.ApplyDeveloperEditAsync(ResolveWorldUri(), authority, deviceId, action, signer, CancellationToken.None));
             return "Developer edit saved. See the Event Log for the change.";
         }, conflictMessage: "The developer edit was refused; nothing changed. Refresh, then check the selected need, available goods, skill or partnership.");
     }

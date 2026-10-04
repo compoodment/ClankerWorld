@@ -1,0 +1,3 @@
+- Overcrowded Houses give eligible adults one unpaused world day to find another home, with volunteers first, current capacity and care checks, and visible notice reasons, remaining time and expansion progress. Children and their sole caregivers are never forced out; families can arrange expansion or a voluntary split instead. Moving keeps personal goods, physical collection and the once-only food allowance.
+- The Event Log now describes an overcrowded House as overcrowded instead of saying its residents have no home (#816).
+- Move-out notices and pending relocation requests survive saving and loading without restarting the deadline. This alpha build requires save schema 64; earlier saves are refused and preserved without migration.

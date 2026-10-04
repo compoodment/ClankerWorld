@@ -42,12 +42,12 @@ public sealed partial class PrivateWorldRuntime
         foreach (var office in government.Offices.Where(o => o.HolderId == actor))
             candidates.Add(new(CivicAction(town.Id, "mayor_resign", office.Mandates),
                 $"Resign only your mandate for {TownArrangementRules.MandateLabel(office.Mandates)} in {town.Name}. Any separate mandate continues.", 198));
-        if (government.Contest is { Stage: "voting" } contest && contest.Voters.Contains(actor, StringComparer.Ordinal) &&
+        if (government.Contest is { Stage: "voting", RoundDeadlineTick: { } closes } contest && contest.Voters.Contains(actor, StringComparer.Ordinal) &&
             history.Knows(actor, TownGovernmentRules.RoundToken(contest)))
             foreach (var id in contest.Candidates)
                 candidates.Add(new(CivicAction(town.Id, "mayor_vote", TownGovernmentRules.RoundToken(contest), id),
                     $"Submit or revise your mayoral ballot for {society.Checkpoint.GetInhabitant(id).Name} in {town.Name}, for {TownArrangementRules.MandateLabel(contest.Mandates)}. " +
-                    $"Round {contest.Round} closes on world day {contest.RoundDeadlineTick / CivicDay + 1}. A tie requires another vote, never a draw.", 167));
+                    $"Round {contest.Round} closes on world day {CivicDayNumber(closes)}. A tie requires another vote, never a draw.", 167));
     }
 
     private (TownGovernanceState Council, TownGovernmentState Government) ApplyTownGovernmentAction(

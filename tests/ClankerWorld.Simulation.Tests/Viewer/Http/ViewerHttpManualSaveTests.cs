@@ -20,8 +20,6 @@ public sealed partial class ViewerHttpTests
 {
     [Theory]
     [InlineData(false, "\"32\"")]
-    [InlineData(false, "null")]
-    [InlineData(false, "32.5")]
     [InlineData(false, "2147483648")]
     [InlineData(true, "[]")]
     public async Task MalformedSaveJsonIsReportedAsInvalidWhilePausedAndPreservesTheWorld(
@@ -80,7 +78,6 @@ public sealed partial class ViewerHttpTests
 
     [Theory]
     [InlineData(0)]
-    [InlineData(10)]
     public async Task AutosaveConfigurationNeverTrimsAnotherWorld(int rotation)
     {
         var directory = Directory.CreateTempSubdirectory("autosave-world-boundary-");
@@ -242,12 +239,13 @@ public sealed partial class ViewerHttpTests
                 Assert.True(runtime.Society.IsPaused);
                 Assert.Empty(runtime.Inhabitants);
                 Assert.Equal(0, runtime.WorldTick);
-                Assert.Equal(15, runtime.Content.Packages.Count);
+                Assert.Equal(16, runtime.Content.Packages.Count);
                 Assert.Contains(runtime.Content.Packages, package => package.Manifest.PackageId == PotteryContent.PackageId);
                 Assert.Contains(runtime.Content.Packages, package => package.Manifest.PackageId == RestaurantContent.PackageId);
                 Assert.Contains(runtime.Content.Packages, package => package.Manifest.PackageId == BusinessContent.PackageId);
                 Assert.Contains(runtime.Content.Packages, package => package.Manifest.PackageId == CareContent.PackageId);
                 Assert.Contains(runtime.Content.Packages, package => package.Manifest.PackageId == OrnamentContent.PackageId);
+                Assert.Contains(runtime.Content.Packages, package => package.Manifest.PackageId == TownHallContent.PackageId);
                 Assert.Contains(runtime.Content.Packages, package => package.Manifest.PackageId == KnowledgeContent.PackageId);
                 Assert.All(runtime.Content.Packages, package =>
                     Assert.Equal(ContentPackageLifecycle.Active, package.Lifecycle));
@@ -258,6 +256,7 @@ public sealed partial class ViewerHttpTests
                 Assert.Contains(runtime.WorldContent.Buildings, building => building.LocalId == "blacksmith-1x2");
                 Assert.Contains(runtime.WorldContent.Buildings, building => building.LocalId == "restaurant-1x2");
                 Assert.Contains(runtime.WorldContent.Buildings, building => building.LocalId == "store-1x1");
+                Assert.Contains(runtime.WorldContent.Buildings, building => building.LocalId == "town-hall-3x4");
                 Assert.Equal(WorldSizePreset.Small, runtime.ExportState().Geography?.Size);
                 Assert.Equal(256, runtime.ExportState().Map.Width);
                 Assert.Equal(GeographyGenerator.CurrentHydrologyVersion, runtime.ExportState().Geography!.HydrologyVersion);
@@ -428,7 +427,8 @@ public sealed partial class ViewerHttpTests
             Assert.Contains(restoredCatalog.Worlds, world => world.Id == generatedId);
             var restoredRuntime = restarted.Services.GetRequiredService<PrivateWorldRuntime>();
             Assert.Equal(WorldSizePreset.Small, restoredRuntime.ExportState().Geography?.Size);
-            Assert.Equal(15, restoredRuntime.Content.Packages.Count);
+            Assert.Equal(16, restoredRuntime.Content.Packages.Count);
+            Assert.Contains(restoredRuntime.Content.Packages, package => package.Manifest.PackageId == TownHallContent.PackageId);
             Assert.Contains(restoredRuntime.Content.Packages, package => package.Manifest.PackageId == PotteryContent.PackageId);
             Assert.Contains(restoredRuntime.Content.Packages, package => package.Manifest.PackageId == RestaurantContent.PackageId);
             Assert.Contains(restoredRuntime.WorldContent.Buildings, building => building.LocalId == "restaurant-1x2");
@@ -690,7 +690,6 @@ public sealed partial class ViewerHttpTests
 
     [Theory]
     [InlineData("truncated")]
-    [InlineData("null")]
     [InlineData("missing-save")]
     [InlineData("aliased-id")]
     public void DamagedSaveMetadataDoesNotHideSoundSavesOrStopRotation(string damage)

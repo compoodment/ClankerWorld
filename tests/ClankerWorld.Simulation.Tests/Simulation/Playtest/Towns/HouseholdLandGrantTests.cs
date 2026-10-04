@@ -238,7 +238,7 @@ public sealed partial class HouseholdLandGrantTests
         var houseDefinition = state.WorldContent.Buildings.First(d => d.Tags.Contains("house"));
         var layout = typeof(PrivateWorldRuntime).GetMethod("CreateTownLayoutContext", BindingFlags.Instance | BindingFlags.NonPublic)!;
         IReadOnlySet<GridPoint> Occupied(PrivateWorldRuntime runtime, BuildingDefinition building) =>
-            ((TownLayoutContext)layout.Invoke(runtime, [actor, null, building])!).OccupiedTiles;
+            ((TownLayoutContext)layout.Invoke(runtime, [actor, null, building, false, null])!).OccupiedTiles;
         var free = Occupied(world, definitions[warehouse.DefinitionId]);
         var beside = WorldContentSimulationRules.Footprint(definitions[warehouse.DefinitionId], warehouse)
             .SelectMany(t => new[] { new GridPoint(t.X + 1, t.Y), new GridPoint(t.X - 1, t.Y), new GridPoint(t.X, t.Y + 1), new GridPoint(t.X, t.Y - 1) })

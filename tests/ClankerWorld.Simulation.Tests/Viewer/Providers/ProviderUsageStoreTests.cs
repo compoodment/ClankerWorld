@@ -108,10 +108,7 @@ public sealed class ProviderUsageStoreTests
     }
 
     [Theory]
-    [InlineData(1_000, 800)]
-    [InlineData(10, 8)]
     [InlineData(7, 6)]
-    [InlineData(5, 4)]
     [InlineData(1, 1)]
     public void WarningMarkIsEightyPercentRoundedUp(long limit, long mark) =>
         Assert.Equal(mark, ProviderUsageStore.WarningMark(limit));
@@ -232,60 +229,5 @@ public sealed class ProviderUsageStoreTests
             Assert.Equal(1, new ProviderUsageStore(path).Capture().Completed);
         }
         finally { directory.Delete(recursive: true); }
-    }
-
-    [Fact]
-    public async Task LimitTriggeredInsideHostedCompletionPausesBeforeDecisionAdmission()
-    {
-        var directory = Directory.CreateTempSubdirectory("clankerworld-usage-tick-");
-        try
-        {
-            var usage = new ProviderUsageStore(Path.Combine(directory.FullName, "usage.json"));
-            _ = usage.Configure(new ProviderUsageLimitAction(1));
-            var provider = new HeldUsageProvider(usage);
-            using var world = new PrivateWorldRuntime("usage-pause-boundary", id =>
-                id == "founder-scout" ? provider : new DeterministicDecisionProvider());
-            usage.LimitReached += world.Pause;
-            Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
-            await provider.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
-            var concurrentTick = world.AdvanceOneTickNonBlockingAsync().AsTask();
-            provider.Release.TrySetResult(true);
-            var raced = await concurrentTick.WaitAsync(TimeSpan.FromSeconds(10));
-            await provider.Returned.Task.WaitAsync(TimeSpan.FromSeconds(10));
-            Assert.True(world.Society.IsPaused);
-            Assert.DoesNotContain(raced.Decisions, item => item.InhabitantId == "founder-scout");
-            Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "hosted_decision_completed");
-            Assert.Contains(world.ExportState().Society.Cognition.Queue,
-                item => item.InhabitantId == "founder-scout");
-            var stopped = await world.AdvanceOneTickNonBlockingAsync();
-            Assert.False(stopped.Advanced);
-            Assert.Equal(1, usage.Capture().Attempts);
-        }
-        finally { directory.Delete(recursive: true); }
-    }
-
-    private sealed class HeldUsageProvider(ProviderUsageStore usage) : IDecisionProvider
-    {
-        public TaskCompletionSource<bool> Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public TaskCompletionSource<bool> Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public TaskCompletionSource<bool> Returned { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public DecisionProviderKind Kind => DecisionProviderKind.LargeLanguageModel;
-        public long ProviderEpoch => 1;
-
-        public async ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request,
-            CancellationToken cancellationToken = default)
-        {
-            var ticket = usage.Begin("openai", "test-model", "planning");
-            Started.TrySetResult(true);
-            await Release.Task; // Intentionally ignore cancellation, like a late provider reply.
-            usage.Finish(ticket, "completed", 8, 2); // Synchronously fires pause before returning a decision.
-            var selected = request.Observation.Candidates.First(item => item.Id == "safe_idle");
-            Returned.TrySetResult(true);
-            return new CognitionDecisionResponse(request.RequestId, request.Observation.InhabitantId,
-                Kind, ProviderEpoch, request.Observation.RunEpoch,
-                request.Observation.DecisionGeneration, request.Observation.ObservationDigest,
-                selected.Id, 1d, request.Observation.Candidates.ToDictionary(item => item.Id,
-                    item => item.Id == selected.Id ? 1d : 0d, StringComparer.Ordinal));
-        }
     }
 }

@@ -176,6 +176,7 @@ public static partial class SocietyFixture
             {
                 HouseholdId = householdId,
                 NeedsName = true,
+                HasChosenName = false,
                 DomesticFamilyUnitId = founder.DomesticFamilyUnitId ?? DomesticPersonUnit(founder.Id),
             })
                 .OrderBy(person => person.Id, StringComparer.Ordinal).ToArray(),
@@ -232,6 +233,7 @@ public static partial class SocietyFixture
             BirthLifeTick = checkpoint.LifeClock is null ? null : lifeBirth,
             HouseholdId = home,
             NeedsName = true,
+            HasChosenName = false,
         };
         var households = checkpoint.Households;
         var relationships = checkpoint.Relationships;
@@ -316,13 +318,35 @@ public static partial class SocietyFixture
         if (chosen.Length > 48 || chosen.Any(char.IsControl))
             throw new ArgumentException("Choose a name of at most 48 characters without control characters.", nameof(name));
         var existing = checkpoint.GetInhabitant(id);
-        if (existing.Name == chosen && !existing.NeedsName) return new SocietyOperationResult(checkpoint);
+        if (existing.Name == chosen && existing.HasChosenName && !existing.NeedsName)
+            return new SocietyOperationResult(checkpoint);
+        if (InhabitantNameRules.CanonicalKey(chosen) is null)
+            throw new ArgumentException("Choose a valid name.", nameof(name));
+        if (InhabitantNameRules.IsTaken(checkpoint, id, chosen))
+            throw new InhabitantNameTakenException();
+        if (!InhabitantNameRules.IsAllowedChildName(checkpoint, id, chosen))
+            throw new ArgumentException("Choose one of the child's parents' surnames.", nameof(name));
         var next = checkpoint with
         {
             Inhabitants = checkpoint.Inhabitants.Select(person =>
-                person.Id == id ? person with { Name = chosen, NeedsName = false } : person).ToArray(),
+                person.Id == id ? person with { Name = chosen, NeedsName = false, HasChosenName = true } : person).ToArray(),
         };
         return Commit(next, "inhabitant_renamed", id, id);
+    }
+
+    /// <summary>Ends automatic naming without promoting the retained placeholder to a chosen name.</summary>
+    public static SocietyOperationResult CloseNaming(SocietyCheckpoint checkpoint, string inhabitantId)
+    {
+        Validate(checkpoint);
+        var id = NormalizeRequiredText(inhabitantId, nameof(inhabitantId));
+        var existing = checkpoint.GetInhabitant(id);
+        if (!existing.NeedsName) return new SocietyOperationResult(checkpoint);
+        var next = checkpoint with
+        {
+            Inhabitants = checkpoint.Inhabitants.Select(person =>
+                person.Id == id ? person with { NeedsName = false } : person).ToArray(),
+        };
+        return Commit(next, "inhabitant_naming_closed", id, id);
     }
 
     public static SocietyOperationResult ProposeRelationship(
@@ -480,7 +504,7 @@ public static partial class SocietyFixture
         };
         next = RemoveRelationshipProjection(next, revoked,
             relationship.Type == SocietyRelationshipType.Caregiver && relationship.State == SocietyRelationshipState.Accepted);
-        if (revoked.Type == SocietyRelationshipType.Partnership)
+        if (revoked.Type == SocietyRelationshipType.Partnership && relationship.State == SocietyRelationshipState.Accepted)
             next = SplitPartnershipFamilyUnit(next, revoked);
         return Commit(next, "relationship_revoked", $"{relationshipId}:{actor}", relationshipId);
     }
@@ -822,6 +846,17 @@ public static partial class SocietyFixture
             return Reject(checkpoint, "birth_rejected", $"{request.Id}:readiness_or_consent");
         }
 
+        var childId = $"{checkpoint.WorldId}:inhabitant:{request.Id}";
+        if (request.ChildName is { } childName)
+        {
+            if (InhabitantNameRules.CanonicalKey(childName) is null)
+                throw new ArgumentException("Choose a valid child name.", nameof(request));
+            if (InhabitantNameRules.IsTaken(checkpoint, childId, childName))
+                throw new InhabitantNameTakenException();
+            if (!InhabitantNameRules.HasParentSurname(childName, [firstParent, secondParent]))
+                throw new ArgumentException("Choose one of the child's parents' surnames.", nameof(request));
+        }
+
         InventoryCheckpoint inventory;
         try
         {
@@ -850,11 +885,10 @@ public static partial class SocietyFixture
             return Reject(checkpoint, "birth_rejected", $"{request.Id}:reservation_failed");
         }
 
-        var childId = $"{checkpoint.WorldId}:inhabitant:{request.Id}";
         var primaryCaregiver = checkpoint.GetInhabitant(primaryCaregiverId);
         var child = new SocietyInhabitant(
             childId,
-            request.ChildName is null ? $"Child {childId}" : NormalizeRequiredText(request.ChildName, nameof(request.ChildName)),
+            request.ChildName is null ? "Child" : NormalizeRequiredText(request.ChildName, nameof(request.ChildName)),
             checkpoint.WorldTick,
             SocietyInhabitantStatus.Active,
             SocietyAgeBand.Infant,
@@ -863,7 +897,8 @@ public static partial class SocietyFixture
             ResolveNewbornProvider(checkpoint, firstParent, secondParent, request),
             SocietyWorkRole.Unassigned,
             0,
-            BirthLifeTick: checkpoint.LifeClock is null ? null : checkpoint.LifeTickAt(checkpoint.WorldTick))
+            BirthLifeTick: checkpoint.LifeClock is null ? null : checkpoint.LifeTickAt(checkpoint.WorldTick),
+            NeedsName: request.ChildName is null)
         {
             PrimaryCaregiverId = primaryCaregiverId,
             DomesticFamilyUnitId = primaryCaregiver.DomesticFamilyUnitId,
@@ -2123,9 +2158,14 @@ public static partial class SocietyFixture
         SocietyLifeClock? lifeClock = null)
     {
         EnsureCanonicalIds(inhabitants.Select(item => item.Id), "inhabitants");
+        var chosenNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var inhabitant in inhabitants)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(inhabitant.Name);
+            if (inhabitant.HasChosenName &&
+                (inhabitant.NeedsName || InhabitantNameRules.FirstNameKey(inhabitant.Name) is not { } firstName ||
+                 !chosenNames.Add(firstName)))
+                throw new InvalidDataException("Chosen first names must be valid, unique and no longer awaiting naming.");
             if (string.IsNullOrWhiteSpace(inhabitant.DomesticFamilyUnitId) ||
                 inhabitant.PrimaryCaregiverId is { } caregiverId &&
                     (caregiverId == inhabitant.Id || !inhabitants.Any(person => person.Id == caregiverId)))

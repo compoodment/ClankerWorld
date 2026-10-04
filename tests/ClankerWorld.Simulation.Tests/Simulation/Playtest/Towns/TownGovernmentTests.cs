@@ -23,10 +23,27 @@ public sealed class TownGovernmentTests
             Tick = tick;
             (Council, Government) = TownGovernmentRules.Advance(Council, Government, Id, "Test Town", "seed", Adults, tick, Day);
             known.UnionWith(Adults);
-            var society = SocietyFixture.CreateGenesis("government-validation", known.Select(id => SocietyFixture.CreateFounder(id, id))) with { WorldTick = tick };
+            Validate();
+        }
+        public void Validate()
+        {
+            var society = SocietyFixture.CreateGenesis("government-validation", known.Select(id => SocietyFixture.CreateFounder(id, id))) with { WorldTick = Tick };
             var town = new TownRuntimeState(Id, "Test Town", "founded", 0, Adults, [], [], Governance: Council, Government: Government);
             TownGovernanceValidation.Validate(town, society, Day);
             TownGovernmentValidation.Validate(town, society, [], Day);
+        }
+        public Town Reload()
+        {
+            var restored = new Town(Adults)
+            {
+                Id = Id,
+                Tick = Tick,
+                Government = JsonSerializer.Deserialize<TownGovernmentState>(JsonSerializer.Serialize(Government))!,
+                Council = JsonSerializer.Deserialize<TownGovernanceState>(JsonSerializer.Serialize(Council))!,
+            };
+            restored.known.UnionWith(known);
+            restored.Validate();
+            return restored;
         }
         public string Propose(TownArrangement target, string actor = "a", bool replace = false)
         {
@@ -49,6 +66,252 @@ public sealed class TownGovernmentTests
             Ballot("a", "a");
             Advance(Tick + Day);
         }
+    }
+
+    [Fact]
+    public void RetainedVacantLandMandateDoesNotBlockOrdinaryAuthorityChange()
+    {
+        var town = new Town();
+        town.Elect(LandMayor);
+        Assert.Equal(Day, town.Tick);
+        (town.Council, town.Government) = TownGovernmentRules.Resign(
+            town.Council, town.Government, "a", "land", town.Tick);
+        (town.Council, town.Government) = TownGovernmentRules.WithdrawMayor(
+            town.Council, town.Government, "a", "land", town.Tick);
+        var vacant = Assert.Single(town.Government.Offices);
+        Assert.Null(vacant.HolderId);
+        Assert.Empty(town.Government.Consents);
+        var officeHistory = town.Government.OfficeHistory.ToArray();
+
+        // The vote changes ordinary authority, not the retained vacant land mandate.
+        var target = new TownArrangement(TownArrangementRules.AllAdultCouncil, TownArrangementRules.Mayor);
+        var changeId = town.Propose(target);
+        town.Yes(changeId, "a", "b", "c");
+
+        Assert.Equal(vacant, Assert.Single(town.Government.Offices));
+        Assert.Equal(officeHistory, town.Government.OfficeHistory);
+        var completed = town.Government.Changes.Single(change => change.Id == changeId);
+        Assert.Equal(("completed", town.Tick), (completed.Status, completed.SettledTick));
+        Assert.Equal(target, town.Government.Arrangement);
+        Assert.Null(town.Government.Contest);
+    }
+
+    [Fact]
+    public void VacantOfficeWaitsQuietlyForPersonalConsentThenElectsARealSuccessor()
+    {
+        var town = new Town();
+        town.Elect(LandMayor);
+        (town.Council, town.Government) = TownGovernmentRules.Resign(
+            town.Council, town.Government, "a", "land", town.Tick);
+        (town.Council, town.Government) = TownGovernmentRules.WithdrawMayor(
+            town.Council, town.Government, "a", "land", town.Tick);
+        var before = town.Government;
+        var noticesBefore = town.Council.Notices.ToArray();
+        Assert.Empty(before.Consents);
+        Assert.Null(Assert.Single(before.Offices).HolderId);
+
+        // Advancing days must not announce or archive elections nobody agreed to enter.
+        for (var day = 2; day <= 11; day++)
+        {
+            town.Advance(day * Day);
+            Assert.Null(town.Government.Contest);
+        }
+        var afterQuietDays = town.Government;
+        var noticesAfterQuietDays = town.Council.Notices.ToArray();
+
+        // Personal consent later still starts a fresh term backed by an actual ballot.
+        town.Register("b");
+        town.Advance(111);
+        var contest = Assert.IsType<TownMayoralContest>(town.Government.Contest);
+        Assert.Equal(("vacancy", "land", "voting"), (contest.Purpose, contest.Mandates, contest.Stage));
+        Assert.Equal("b", Assert.Single(contest.Candidates));
+        town.Ballot("b", "b");
+        town.Advance(121);
+        var successor = Assert.Single(town.Government.Offices);
+        Assert.Equal("b", successor.HolderId);
+        Assert.Equal(121, successor.TermStartTick);
+        Assert.Equal(321, successor.TermEndTick);
+        Assert.Equal("completed", town.Government.ContestHistory[^1].Stage);
+
+        Assert.Equal(before.Sequence, afterQuietDays.Sequence);
+        Assert.Equal(before.ContestHistory, afterQuietDays.ContestHistory);
+        Assert.Equal(noticesBefore, noticesAfterQuietDays);
+        Assert.Equal(before.MayoralRetryTick, afterQuietDays.MayoralRetryTick);
+        Assert.Equal(before.MayoralRetryCircumstances, afterQuietDays.MayoralRetryCircumstances);
+    }
+
+    [Fact]
+    public void NewOrdinaryMandateUsesItsOwnConsentAndReplayWithoutFillingRetainedVacantLand()
+    {
+        var town = new Town();
+        town.Elect(LandMayor);
+        (town.Council, town.Government) = TownGovernmentRules.Resign(
+            town.Council, town.Government, "a", "land", town.Tick);
+        (town.Council, town.Government) = TownGovernmentRules.WithdrawMayor(
+            town.Council, town.Government, "a", "land", town.Tick);
+        var vacantLand = Assert.Single(town.Government.Offices);
+        var history = town.Government.OfficeHistory.ToArray();
+        town.Register("b", "land+ordinary");
+        var changeId = town.Propose(BothMandates);
+        town.Yes(changeId, "a", "b", "c");
+        Assert.Equal("handover", town.Government.Changes.Single(change => change.Id == changeId).Status);
+        Assert.Null(town.Government.Contest); // Consent to a different bundle is not consent to ordinary alone.
+        Assert.Equal(LandMayor, town.Government.Arrangement);
+        Assert.Equal(vacantLand, Assert.Single(town.Government.Offices));
+
+        town.Register("c", "ordinary");
+        town.Advance(11);
+        var contest = Assert.IsType<TownMayoralContest>(town.Government.Contest);
+        Assert.Equal(("handover", "ordinary", changeId), (contest.Purpose, contest.Mandates, contest.ChangeId));
+        Assert.Equal("c", Assert.Single(contest.Candidates));
+        Assert.Null(TownGovernmentRules.GoverningOffice(town.Government));
+        var governmentJson = JsonSerializer.Serialize(town.Government);
+        var councilJson = JsonSerializer.Serialize(town.Council);
+        var replay = new Town
+        {
+            Government = JsonSerializer.Deserialize<TownGovernmentState>(governmentJson)!,
+            Council = JsonSerializer.Deserialize<TownGovernanceState>(councilJson)!,
+        };
+        replay.Advance(town.Tick); // Both saved components pass their native validators on continuation.
+        Assert.Equal(governmentJson, JsonSerializer.Serialize(replay.Government));
+        Assert.Equal(councilJson, JsonSerializer.Serialize(replay.Council));
+        town.Ballot("d", "c");
+        replay.Ballot("d", "c");
+        town.Advance(20);
+        replay.Advance(20);
+        Assert.Null(TownGovernmentRules.GoverningOffice(town.Government));
+        town.Advance(21);
+        replay.Advance(21);
+
+        Assert.Equal(BothMandates, town.Government.Arrangement);
+        Assert.Equal("completed", town.Government.Changes.Single(change => change.Id == changeId).Status);
+        Assert.Equal(("c", 21L, 221L), (TownGovernmentRules.GoverningOffice(town.Government)!.HolderId,
+            TownGovernmentRules.GoverningOffice(town.Government)!.TermStartTick,
+            TownGovernmentRules.GoverningOffice(town.Government)!.TermEndTick));
+        Assert.Equal(("leader", "c"), (town.Council.Form, Assert.Single(town.Council.Members)));
+        Assert.Equal(vacantLand, town.Government.Offices.Single(office => office.Mandates == "land"));
+        Assert.Equal(history, town.Government.OfficeHistory);
+        Assert.Equal(JsonSerializer.Serialize(town.Government), JsonSerializer.Serialize(replay.Government));
+        Assert.Equal(JsonSerializer.Serialize(town.Council), JsonSerializer.Serialize(replay.Council));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ExplicitReplacementStillNeedsEveryTargetMandateOrLapsesWithoutChangingAuthority(bool successor)
+    {
+        var town = new Town();
+        town.Elect(BothMandates, "land+ordinary");
+        (town.Council, town.Government) = TownGovernmentRules.Resign(
+            town.Council, town.Government, "a", "land", town.Tick);
+        (town.Council, town.Government) = TownGovernmentRules.WithdrawMayor(
+            town.Council, town.Government, "a", "land+ordinary", town.Tick);
+        var offices = town.Government.Offices.ToArray();
+        var history = town.Government.OfficeHistory.ToArray();
+        town.Register("b", "ordinary");
+        var changeId = town.Propose(BothMandates, replace: true);
+        town.Yes(changeId, "a", "b", "c");
+        var approved = town.Government.Changes.Single(change => change.Id == changeId);
+        Assert.Equal(("replace_mayor", "handover", 40L), (approved.Kind, approved.Status, approved.HandoverDeadlineTick));
+        Assert.Null(town.Government.Contest);
+        Assert.Equal(offices, town.Government.Offices);
+
+        if (successor)
+        {
+            town.Register("c", "land+ordinary");
+            town.Advance(11);
+            var contest = Assert.IsType<TownMayoralContest>(town.Government.Contest);
+            Assert.Equal("land+ordinary", contest.Mandates);
+            Assert.Equal("c", Assert.Single(contest.Candidates));
+            town.Ballot("d", "c");
+            town.Advance(21);
+            Assert.Equal("completed", town.Government.Changes.Single(change => change.Id == changeId).Status);
+            Assert.Equal(2, town.Government.Offices.Count);
+            Assert.All(town.Government.Offices, office => Assert.Equal(("c", 21L, 221L),
+                (office.HolderId, office.TermStartTick, office.TermEndTick)));
+            Assert.Contains(town.Government.OfficeHistory, term => term.HolderId == "a" && term.Mandates == "ordinary" && term.EndTick == 21);
+        }
+        else
+        {
+            town.Advance(39);
+            Assert.Equal("handover", town.Government.Changes.Single(change => change.Id == changeId).Status);
+            town.Advance(40);
+            var cancelled = town.Government.Changes.Single(change => change.Id == changeId);
+            Assert.Equal(("cancelled", 40L), (cancelled.Status, cancelled.SettledTick));
+            Assert.Equal(offices, town.Government.Offices);
+            Assert.Equal(history, town.Government.OfficeHistory);
+            Assert.Equal(BothMandates, town.Government.Arrangement);
+            Assert.Equal(("leader", "a"), (town.Council.Form, Assert.Single(town.Council.Members)));
+            Assert.Null(town.Government.Contest);
+        }
+    }
+
+    [Fact]
+    public void SavedRetainedMandateContestIsCancelledWhenItsHandoverCompletesAndCannotReuseItsBallot()
+    {
+        var town = new Town();
+        town.Elect(LandMayor);
+        (town.Council, town.Government) = TownGovernmentRules.Resign(
+            town.Council, town.Government, "a", "land", town.Tick);
+        (town.Council, town.Government) = TownGovernmentRules.WithdrawMayor(
+            town.Council, town.Government, "a", "land", town.Tick);
+        town.Register("b", "land");
+        var target = new TownArrangement(TownArrangementRules.AllAdultCouncil, TownArrangementRules.Mayor);
+        var changeId = town.Propose(target);
+        foreach (var voter in new[] { "a", "b", "c" })
+            town.Government = TownGovernmentRules.Vote(town.Government, changeId, voter, true, town.Tick);
+
+        // Recorded native main b5909c33 output after approving this proposal at tick 10.
+        // It is a valid current-format save, before the retained-mandate handover fix.
+        const string contestId = "town:test:mayor:4";
+        town.Government = town.Government with
+        {
+            Sequence = 4,
+            Changes = town.Government.Changes.Select(change => change.Id == changeId
+                ? change with { Status = "handover", ApprovedTick = 10, HandoverDeadlineTick = 40 } : change).ToArray(),
+            Contest = new(contestId, "handover", "land", changeId, "voting", 1, 10, 10, 20,
+                town.Adults, ["b"], [], [], 0),
+        };
+        town.Council = TownGovernanceRules.PostNotice(town.Council, "government", changeId,
+            "Residents approved the government proposal. Incumbent authority continues until a valid handover, due by tick 40.", 10);
+        town.Council = TownGovernanceRules.PostNotice(town.Council, "mayor", contestId,
+            "An election is due for land disputes and permission expiries. Adult residents must personally agree to stand for these mandates; Council candidacy is not mayoral consent.", 10);
+        town.Council = TownGovernanceRules.PostNotice(town.Council, "mayor", contestId + ":1:10",
+            "Mayoral round 1: choose one of b for land disputes and permission expiries. Ballots may change until tick 20. Self-voting is allowed; a winner needs an actual vote in this round.", 10);
+        town.Ballot("b", "b");
+        town.Validate();
+        var savedOffice = Assert.Single(town.Government.Offices);
+        var savedBallot = Assert.Single(town.Government.Contest!.Ballots);
+        var replay = town.Reload();
+
+        town.Advance(11);
+        replay.Advance(11);
+        Assert.Equal("completed", town.Government.Changes.Single(change => change.Id == changeId).Status);
+        Assert.Equal(target, town.Government.Arrangement);
+        Assert.Equal(savedOffice, Assert.Single(town.Government.Offices));
+        Assert.Null(town.Government.Contest);
+        var cancelled = Assert.Single(town.Government.ContestHistory, contest => contest.Id == contestId);
+        Assert.Equal(("cancelled", changeId, 11L), (cancelled.Stage, cancelled.ChangeId, cancelled.SettledTick));
+        var round = Assert.Single(cancelled.Rounds);
+        Assert.Equal(("cancelled", 10L, 11L), (round.Result, round.OpenedTick, round.ClosedTick));
+        Assert.Equal(savedBallot, Assert.Single(round.Ballots));
+        Assert.Null(cancelled.WinnerId);
+        Assert.Equal(JsonSerializer.Serialize(town.Government), JsonSerializer.Serialize(replay.Government));
+        Assert.Equal(JsonSerializer.Serialize(town.Council), JsonSerializer.Serialize(replay.Council));
+        var continued = town.Reload();
+
+        // The ordinary vacancy route remains available, with a fresh ballot requirement.
+        continued.Advance(12);
+        var fresh = Assert.IsType<TownMayoralContest>(continued.Government.Contest);
+        Assert.Equal(("vacancy", "land", "voting"), (fresh.Purpose, fresh.Mandates, fresh.Stage));
+        Assert.NotEqual(contestId, fresh.Id);
+        Assert.Null(fresh.ChangeId);
+        Assert.Empty(fresh.Ballots);
+        continued.Advance(22);
+        Assert.Equal(savedOffice, Assert.Single(continued.Government.Offices));
+        Assert.Equal("failed", continued.Government.ContestHistory.Single(contest => contest.Id == fresh.Id).Stage);
+        Assert.Equal("cancelled", continued.Government.ContestHistory.Single(contest => contest.Id == contestId).Stage);
+        continued.Reload();
     }
 
     [Fact]

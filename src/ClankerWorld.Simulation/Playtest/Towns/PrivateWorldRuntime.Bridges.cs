@@ -34,6 +34,7 @@ public sealed partial class PrivateWorldRuntime
             .Concat(worldSimulation.Buildings.SelectMany(building =>
                 WorldContentSimulationRules.Footprint(definitions[building.DefinitionId], building)))
             .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused).SelectMany(ExpansionTiles))
+            .Concat(TownProjectFootprintTiles())
             .ToHashSet();
     }
 
