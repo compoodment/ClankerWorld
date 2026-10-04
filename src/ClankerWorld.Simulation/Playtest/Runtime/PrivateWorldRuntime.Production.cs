@@ -14,8 +14,12 @@ namespace ClankerWorld.Simulation.Playtest;
 
 public sealed partial class PrivateWorldRuntime
 {
-    private TownLayoutContext CreateTownLayoutContext(string actor, GridPoint? selectedSite = null,
-        BuildingDefinition? building = null, bool forTownProject = false, string? townProjectId = null)
+    // The occupied tiles and foot costs a layout reads. Building them gathers everything in the world and
+    // walks the map from the actor, so a caller laying out several buildings of one kind builds them once.
+    private sealed record TownLayoutBasis(HashSet<GridPoint> Occupied, Dictionary<GridPoint, int> FootCosts);
+
+    private TownLayoutBasis CreateTownLayoutBasis(string actor, GridPoint? selectedSite = null,
+        BuildingDefinition? building = null, string? townProjectId = null)
     {
         var origin = inhabitants[actor].Position;
         var town = towns.SingleOrDefault(item => item.ResidentIds.Contains(actor, StringComparer.Ordinal));
@@ -38,6 +42,16 @@ public sealed partial class PrivateWorldRuntime
             // A household builds only on land no other household holds or has asked for; Town buildings avoid it all.
             .Concat(HouseholdLandHeldByOthers(building is not null && !building.Tags.Any(IsHouseholdBuildingTag) ? null : HouseholdFor(actor)))
             .ToHashSet();
+        return new(occupied, FindUnoccupiedFootCosts(actor, origin, town, occupied, selectedSite));
+    }
+
+    private TownLayoutContext CreateTownLayoutContext(string actor, GridPoint? selectedSite = null,
+        BuildingDefinition? building = null, bool forTownProject = false, string? townProjectId = null,
+        TownLayoutBasis? basis = null)
+    {
+        basis ??= CreateTownLayoutBasis(actor, selectedSite, building, townProjectId);
+        var town = towns.SingleOrDefault(item => item.ResidentIds.Contains(actor, StringComparer.Ordinal));
+        var definitions = worldContent.Buildings.ToDictionary(item => item.CanonicalId, StringComparer.Ordinal);
         var resourcesForLayout = map.Resources.Select(resource => new TownLayoutResource(
             resource,
             resources.GetValueOrDefault(resource.Id) == ResourceState.Available));
@@ -47,8 +61,8 @@ public sealed partial class PrivateWorldRuntime
         return new TownLayoutContext(
             map,
             town,
-            occupied,
-            FindUnoccupiedFootCosts(actor, origin, town, occupied, selectedSite),
+            basis.Occupied,
+            basis.FootCosts,
             resourcesForLayout,
             buildingsForLayout,
             roadTiles: roadTiles,
