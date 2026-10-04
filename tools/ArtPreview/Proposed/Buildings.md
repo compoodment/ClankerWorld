@@ -8,6 +8,35 @@ baseline, and also on its own (the `.sprite` entries) so it can be placed in a
 scene. The newest round is described first; the earlier notes follow
 unchanged below it.
 
+## Integration — October 3, 2026
+
+The approved Clinic and Restaurant drawings now render their existing playable
+1×2 buildings, including rotated footprints and their recorded door sides.
+Their original roof seeds, colours, signs, planter and larger-footprint terrace
+are unchanged. The Clinic uses seed 348 and the Restaurant seed 441; the
+Restaurant still omits its terrace when either footprint dimension is one tile.
+The preview adapter selects these original proposal drawings directly for
+comparison with the client. Additional playable sizes remain separate work in
+[#829](https://github.com/compoodment/ClankerWorld/issues/829).
+
+The October 1 review notes below remain the approval history.
+
+## Handcart integration
+
+The client now draws physical handcarts with the 18 approved transparent
+32px pictures: eight empty, eight loaded, and loaded pulled E and SE.
+`HandcartSprites` keeps these pixels unchanged; `ArtContractChecks` compares
+each with this independent proposal. Other pulled directions and empty pulled
+carts use the matching parked picture. The renderer derives facing from
+observed cart movement, retains it while stationary, and starts south after a
+new observation timeline or a relocation of more than three tiles.
+
+The 32px picture fits the existing map marker at tile sizes of at least 40px.
+Below that, the existing 16px item icon remains the fallback; no 16px vehicle
+picture has been drawn or downsampled here. New art belongs to
+[#914](https://github.com/compoodment/ClankerWorld/issues/914). The historical
+round notes below still describe what was missing at the time of each review.
+
 ## Round 5
 
 You kept round 4's height but wanted back the open column on each side of the

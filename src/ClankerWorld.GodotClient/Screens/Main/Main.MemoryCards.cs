@@ -199,8 +199,9 @@ public partial class Main
                 var sites = new VBoxContainer();
                 sites.AddThemeConstantOverride("separation", 2);
                 foreach (var site in item.Sites) sites.AddChild(MemorySite(site.Terrain, site.X, site.Y, site.ResourceKinds));
+                var creation = item.Kind == "field_map" ? "drawn" : "written";
                 return MemoryEntry(MemoryKind.Map, PixelGlyph.Scroll, item.Title,
-                    MetaLine(MetaText($"{DisplayWorldClock(item.CreatedTick)} · {Pretty(item.Kind)} drawn by {item.CreatorName}")), sites);
+                    MetaLine(MetaText($"{DisplayWorldClock(item.CreatedTick)} · {GameUiText.ItemName(item.Kind)} {creation} by {item.CreatorName}")), sites);
             }));
         }
         foreach (var (name, id) in MemoryTabs)

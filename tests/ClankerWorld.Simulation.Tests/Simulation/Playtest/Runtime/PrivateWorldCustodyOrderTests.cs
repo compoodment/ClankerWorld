@@ -442,6 +442,28 @@ public sealed class PrivateWorldCustodyOrderTests
         Assert.Single(world.ExportState().Events, item => item.Kind == "personal_goods_collected");
     }
 
+    [Theory]
+    [InlineData("collect one cloth")]
+    [InlineData("store one cloth")]
+    [InlineData("return one borrowed cloth")]
+    public void CustodySavesRejectAnAgentTarget(string text)
+    {
+        var state = Prepared();
+        var actor = Actor(state);
+        using var world = Restore(state);
+        var receipt = Submit(world, actor, "agent-target-boundary", text);
+        var saved = world.ExportState();
+        Assert.NotEqual("unknown", Order(world, receipt).Action);
+        using var valid = Restore(saved);
+        Assert.Equal(world.ExportStateJson(), valid.ExportStateJson());
+        var corrupt = saved with
+        {
+            Instructions = saved.Instructions!.Select(item => item.InstructionId == receipt.InstructionId
+                ? item with { Order = item.Order! with { TargetAgentId = actor } } : item).ToArray(),
+        };
+        Assert.Throws<InvalidDataException>(() => Restore(corrupt));
+    }
+
     [Fact]
     public async Task StrictSavesRejectIncompleteDestinationBindingsAndWrongGoodsContracts()
     {

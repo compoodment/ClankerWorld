@@ -37,6 +37,13 @@ public enum AgentConversationEffect
 {
     None,
     MutualTrust,
+    Marriage,
+}
+
+public enum AgentConversationKind
+{
+    Ordinary,
+    MarriageSurname,
 }
 
 public sealed record AgentConversationTurn(
@@ -46,7 +53,8 @@ public sealed record AgentConversationTurn(
     long WorldTick,
     IReadOnlyList<string> ListenerIds,
     AgentConversationDisposition Disposition,
-    bool IsWrapUp = false);
+    bool IsWrapUp = false,
+    string? SurnameChoice = null);
 
 /// <summary>Only accepted, bounded public turns and the minimal state needed to resume are saved.</summary>
 public sealed record AgentConversation(
@@ -67,7 +75,11 @@ public sealed record AgentConversation(
     IReadOnlyList<string> ResumeAcceptedBy,
     AgentConversationInterruption Interruption,
     string? Outcome,
-    long LastUpdatedTick);
+    long LastUpdatedTick)
+{
+    [System.Text.Json.Serialization.JsonRequired]
+    public AgentConversationKind Kind { get; init; }
+}
 
 /// <summary>One agent's conversation starts or acceptances for the current world day.</summary>
 public sealed record AgentConversationDailyBudget(string AgentId, long WorldDay, int Count);
@@ -87,6 +99,7 @@ public enum AgentConversationPurpose
 {
     PublicTurn,
     WrapUp,
+    SurnameChoice,
 }
 
 public sealed record AgentConversationTurnRequest(
@@ -108,6 +121,8 @@ public sealed record AgentConversationTurnRequest(
     /// <summary>The personal provider revision captured before dispatching this turn.</summary>
     public long? ExpectedProviderEpoch { get; init; }
 
+    public IReadOnlyList<string> AllowedSurnames { get; init; } = [];
+
     public void Validate()
     {
         ValidateText(RequestId, 128, nameof(RequestId));
@@ -124,7 +139,13 @@ public sealed record AgentConversationTurnRequest(
         ValidateOptionalText(SpeakerAspiration, 256, nameof(SpeakerAspiration));
         ArgumentNullException.ThrowIfNull(PublicHistory);
         ArgumentNullException.ThrowIfNull(AllowedEffects);
-        if (PublicHistory.Count > 7 || AllowedEffects.Count > 2 ||
+        if (PublicHistory.Count > 7 || AllowedEffects.Count > 3 || AllowedSurnames is null ||
+            (Purpose == AgentConversationPurpose.SurnameChoice
+                ? AllowedSurnames.Count is < 1 or > 2 || PublicHistory.Count >= 4 ||
+                    AllowedEffects.Count != 1 || AllowedEffects[0] != AgentConversationEffect.None ||
+                    AllowedSurnames.Any(surname => string.IsNullOrWhiteSpace(surname) || surname.Length > 128 ||
+                        surname.Any(char.IsWhiteSpace) || surname.Any(char.IsControl))
+                : AllowedSurnames.Count != 0) ||
             AllowedEffects.Distinct().Count() != AllowedEffects.Count ||
             AllowedEffects.Any(effect => !Enum.IsDefined(effect)) ||
             PublicHistory.Any(turn => !AgentConversationText.IsValidUtterance(turn.Text)))
@@ -156,7 +177,8 @@ public sealed record AgentConversationTurnResponse(
     AgentConversationEffect Effect = AgentConversationEffect.None,
     int InputTokens = 0,
     int OutputTokens = 0,
-    string? ModelId = null);
+    string? ModelId = null,
+    string? SurnameChoice = null);
 
 public interface IAgentConversationProvider
 {

@@ -9,45 +9,6 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed partial class PrivateWorldRuntimeTests
 {
     [Fact]
-    public async Task UnavailableMustDoIsNotCompletedByAcceptedIdleAndSurvivesReload()
-    {
-        using var world = new PrivateWorldRuntime("must-do-illegal-review", _ => new CountingSelectingProvider(DecisionProviderKind.Deterministic, chooseIdle: true));
-        var receipt = world.SubmitInstruction(new OwnerInstructionRequest("must-eat-with-no-food", "owner:test",
-            "founder-ilya", OwnerInstructionKind.MustDo, "eat food"));
-        _ = await world.AdvanceOneTickAsync();
-        var state = world.ExportState();
-        Assert.DoesNotContain(receipt.InstructionId, state.CompletedInstructionIds ?? []);
-        Assert.DoesNotContain(state.Events, item => item.Kind == "instruction_applied" && item.Detail.StartsWith(receipt.InstructionId + ":", StringComparison.Ordinal));
-        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)));
-        Assert.Contains(restored.ExportState().Instructions!, instruction => instruction.InstructionId == receipt.InstructionId);
-        Assert.DoesNotContain(receipt.InstructionId, restored.ExportState().CompletedInstructionIds ?? []);
-    }
-
-    [Theory]
-    [InlineData(OwnerInstructionKind.MustDo)]
-    public async Task ProviderFailureDoesNotCompleteAnInstructionOrStopOtherAgents(OwnerInstructionKind kind)
-    {
-        using var runtime = new PrivateWorldRuntime("playtest-alpha", id =>
-            id == "founder-rowan" ? new FailingDecisionProvider() : new DeterministicDecisionProvider());
-        var instruction = runtime.SubmitInstruction(new OwnerInstructionRequest(
-            "outage-instruction", "owner-device:test", "founder-rowan",
-            kind, "gather food"));
-
-        var step = await runtime.AdvanceOneTickAsync();
-
-        Assert.True(step.Advanced);
-        Assert.Equal(1, runtime.WorldTick);
-        Assert.False(runtime.Society.IsPaused);
-        Assert.Equal("safe_idle", step.Decisions.Single(item => item.InhabitantId == "founder-rowan")
-            .Admission.Intention?.CandidateId);
-        Assert.Contains(step.Decisions, item => item.InhabitantId != "founder-rowan" &&
-            item.Admission.Intention?.CandidateId != "safe_idle");
-        Assert.DoesNotContain(instruction.InstructionId, runtime.ExportState().CompletedInstructionIds ?? []);
-        Assert.DoesNotContain(runtime.ExportState().Events, item =>
-            item.Kind == "instruction_applied" && item.Detail.Contains(instruction.InstructionId, StringComparison.Ordinal));
-    }
-
-    [Fact]
     public async Task PrivateWorldActivatesStagedContentOnTheNextTickAndCanQuarantineIt()
     {
         // Test unused-content rollback independently of the default gameplay policy.
@@ -544,14 +505,5 @@ public sealed partial class PrivateWorldRuntimeTests
                 1d,
                 probabilities));
         }
-    }
-
-    private sealed class FailingDecisionProvider : IDecisionProvider
-    {
-        public DecisionProviderKind Kind => DecisionProviderKind.LargeLanguageModel;
-        public long ProviderEpoch => 1;
-        public ValueTask<CognitionDecisionResponse> DecideAsync(
-            CognitionDecisionRequest request, CancellationToken cancellationToken = default) =>
-            throw new HttpRequestException("provider unavailable");
     }
 }

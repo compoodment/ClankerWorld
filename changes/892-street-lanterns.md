@@ -1,0 +1,1 @@
+- Town residents can propose and build stone street lamps and hanging street lanterns beside Roads after Council approval. They carry real materials, keep the approved Road edge and light automatically at dusk without fuel. Budgets and work are provisional; earlier alpha saves are refused and preserved.

@@ -498,6 +498,33 @@ public sealed class PrivateWorldProductionOrderTests
             item.Detail.EndsWith(":" + receipt.InstructionId, StringComparison.Ordinal));
     }
 
+    [Theory]
+    [InlineData("cook camp meal")]
+    [InlineData("cook household meal")]
+    [InlineData("cook hearty meal")]
+    public async Task RetiredCookingDoesNotReplaceOrStallExecutableProduction(string text)
+    {
+        var state = Stock(Prepared(House), House, "fiber", 3);
+        var actor = Actor(state);
+        var provider = new ProductionChoices();
+        using var world = PrivateWorldRuntime.Restore(state,
+            id => id == actor ? provider : new ProductionChoices());
+        var current = Submit(world, actor, "real-rope", "make rope");
+        var retained = Order(world, current);
+        var rejected = Submit(world, actor, "retired-cooking", text);
+        Assert.Equal(("unknown", "not_understood"), (Order(world, rejected).Action, Order(world, rejected).Status));
+        Assert.Equal(retained, Order(world, current));
+        await Finish(world, current);
+        Assert.DoesNotContain(provider.Requests, request => request.OperativeOrderInstructionId == rejected.InstructionId ||
+            request.ObserverGuidance?.Any(message => message.InstructionId == rejected.InstructionId) == true);
+        var job = Assert.Single(world.WorldSimulation.ProductionJobs);
+        Assert.Equal((WorldProductionJobState.Completed, current.InstructionId), (job.State, job.OrderInstructionId));
+        Assert.Equal(1, Produced(world, "rope"));
+        Assert.Equal(0, Quantity(world, Household, "fiber"));
+        using var restored = Reload(world);
+        world.Validate();
+    }
+
     private static PrivateWorldRuntimeState Prepared(string buildingId)
     {
         var state = PrivateWorldRuntimeCodec.Decode(Baseline.Value);

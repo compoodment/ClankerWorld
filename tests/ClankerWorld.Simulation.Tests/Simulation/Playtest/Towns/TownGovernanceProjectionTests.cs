@@ -90,7 +90,7 @@ public sealed class TownGovernanceProjectionTests
             Towns = [initialTown with { Governance = TownGovernanceState.Create(initialTown.ResidentIds) }],
             WorldSystems = RegionalWeatherRules.Initialize(initial.WorldSystems! with
             {
-                Config = initial.WorldSystems.Config with { TicksPerDay = day },
+                Config = initial.WorldSystems.Config with { TicksPerDay = day, CalendarOffsetTicks = 0 },
                 RegionalWeather = null,
             }, initial.Map),
             Society = initial.Society with
