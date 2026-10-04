@@ -325,13 +325,14 @@ public sealed partial class PrivateWorldFieldOrderTests
             Order(world, receipt) with { TargetFoodKind = "berries" },
             Order(world, receipt) with { TargetMaterialKind = "wood" },
             Order(world, receipt) with { TargetEquipmentKind = "basket" },
+            Order(world, receipt) with { TargetAgentId = Actor },
             Order(world, receipt) with { TargetPosition = new(1, 2) },
             Order(world, receipt) with { ProgressUnit = "food_items" },
             Order(world, receipt) with { LastEffectId = "field:work:unearned" },
         })
             Assert.Throws<InvalidDataException>(() => Restore(state with
             { Instructions = state.Instructions!.Select(item => item.InstructionId == receipt.InstructionId ? item with { Order = invalid } : item).ToArray() }));
-        Assert.Throws<InvalidDataException>(() => Restore(state with { SchemaVersion = 56 }));
+        Assert.Throws<InvalidDataException>(() => Restore(state with { SchemaVersion = 71 }));
     }
 
     [Theory]

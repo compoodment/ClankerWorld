@@ -21,6 +21,7 @@ public sealed partial class SettlementParenthoodTests
         Assert.Equal(world.WorldTick + 2L * state.WorldSystems!.Config.TicksPerDay, couple.DeadlineTick);
         Assert.All(world.Inhabitants, person => Assert.Null(person.Parenthood));
 
+        PositionFamilyFixtureAt(world, couple.DeadlineTick - 2);
         await AdvanceContinuityIntegrationTo(world, couple.DeadlineTick - 1);
         Assert.All(world.Inhabitants, person => Assert.Null(person.Parenthood));
         Assert.True((await world.AdvanceOneTickAsync()).Advanced);
@@ -37,6 +38,9 @@ public sealed partial class SettlementParenthoodTests
         Assert.Empty(world.Society.Births);
         world.Validate();
 
+        PositionFamilyFixtureAt(world, couple.DeadlineTick + 598);
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.Empty(world.Society.Births);
         world.Pause();
         var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
         using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes),
@@ -105,6 +109,7 @@ public sealed partial class SettlementParenthoodTests
             Assert.Equal(acceptor, postponed.PrimaryCaregiverId);
             Assert.Equal(acceptorHome, postponed.IntendedHouseholdId);
             Assert.Contains(putOff.SeenCandidates, candidate => candidate.Id == "parent_postpone:" + initiator);
+            PositionFamilyFixtureAt(world, deadline - 2);
             world.Pause();
             var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
             using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes),
@@ -123,6 +128,7 @@ public sealed partial class SettlementParenthoodTests
             Assert.Equal(deadline, resumed.LastTransitionTick);
             Assert.Null(restored.Inhabitants.Single(person => person.InhabitantId == acceptor).Parenthood);
             restored.Validate();
+            PositionFamilyFixtureAt(restored, deadline + 598);
             await AdvanceContinuityIntegrationTo(restored, deadline + 599);
             Assert.Empty(restored.Society.Births);
 

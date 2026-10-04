@@ -28,7 +28,7 @@ public static class PersonalEquipmentRules
          equipment.OrnamentLotId == lotId || equipment.Repair?.LotId == lotId);
     public static bool IsCarried(InventoryLot lot, string actor) =>
         (lot.CarrierId == actor || lot.CarrierId is null && lot.OwnerId == actor) &&
-        lot.StorageBuildingId is null && lot.GroundPosition is null;
+        lot.StorageBuildingId is null && lot.GroundPosition is null && lot.ContainerLotId is null;
 
     public static bool IsPhysicallyCarried(InventoryCheckpoint inventory, InventoryLot lot, string actor)
     {

@@ -32,12 +32,15 @@ public sealed partial class PrivateWorldRuntime
         if (kind is FarmWorkKind.Till or FarmWorkKind.Tend &&
             ToolProgressionRules.PlanWork(society.Checkpoint.Inventory, actor, ToolFamily.Hoe) is null) return null;
         if (kind == FarmWorkKind.Till)
-            return NearbyFarmTiles(farmhouse.Position).Where(FarmableFreeTile)
+        {
+            var heldByOthers = HouseholdLandHeldByOthers(household);
+            return NearbyFarmTiles(farmhouse.Position).Where(point => !heldByOthers.Contains(point) && FarmableFreeTile(point))
                 .Where(point => order.TargetPosition is null || point == order.TargetPosition)
                 .OrderBy(point => map.FootDistance(person.Position, point))
                 .ThenByDescending(point => fertility.At(point))
                 .ThenBy(point => point.Y).ThenBy(point => point.X)
                 .Cast<GridPoint?>().FirstOrDefault(point => CanWalkToFieldOrderSite(actor, person.Position, point!.Value));
+        }
         return fields.Where(field => field.HouseholdId == household && field.Work is null &&
                 (order.TargetPosition is null || field.Position == order.TargetPosition) &&
                 (kind == FarmWorkKind.Plant ? field.Stage is FarmFieldStage.Prepared or FarmFieldStage.Harvested :

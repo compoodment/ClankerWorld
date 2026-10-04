@@ -1,0 +1,1 @@
+- New World describes the previewed map in plain words, such as "Plenty of forest and some mountain ranges", instead of a line of percentages and candidate numbers. Hover the text for the exact figures.

@@ -1,0 +1,1 @@
+- Buildings in use now glow at night. Light falls on the ground from a building's windows and open door, never its roof: a House while someone is inside, workshops while someone works there, the Blacksmith's forge while it is busy, and a Warehouse's door lantern while goods are fetched. Each glow has a ragged edge that drifts gently, and the forge flickers.

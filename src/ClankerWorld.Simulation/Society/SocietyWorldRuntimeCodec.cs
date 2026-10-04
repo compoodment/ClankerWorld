@@ -5,7 +5,7 @@ namespace ClankerWorld.Simulation.Society;
 
 public static class SocietyWorldRuntimeCodec
 {
-    private const string Header = "clankerworld.society-runtime/v1";
+    private const string Header = "clankerworld.society-runtime/v2";
     private static readonly JsonSerializerOptions Options = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,

@@ -1,0 +1,1 @@
+- On the paired world: grow a Town's Road toward a river with an existing bridge and a wider stretch between narrow crossings. Where both banks connect to the bridge, the new Road should reach and reuse it without adding a second bridge. Save and reload, then check that the Road and original bridge remain connected. ([#722](https://github.com/compoodment/ClankerWorld/issues/722))

@@ -14,6 +14,11 @@ public sealed partial class PrivateWorldRuntime
         (offer.FirstPartyId == actor || offer.SecondPartyId == actor) &&
         !offer.AcceptedBy.Contains(actor, StringComparer.Ordinal));
 
+    private bool WantsTradeFoodKind(string actor, string kind) => IsEdibleFood(kind) &&
+        inhabitants[actor].HungerBasisPoints < 8_500 &&
+        society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == actor && lot.ItemKind == kind)
+            .Sum(AvailableLotQuantity) < 2;
+
     private bool PersonalTradeReceivingSpace(string first, string second, int firstQuantity, int secondQuantity)
     {
         var inventory = society.Checkpoint.Inventory;
@@ -43,7 +48,7 @@ public sealed partial class PrivateWorldRuntime
                 ? !ornaments.Any(lot => lot.ItemKind == OrnamentContent.DiamondOrnament)
                 : ornaments.Length == 0;
         }
-        if (kind is "field_map" or "field_record")
+        if (AgentKnowledgeRules.IsArtifactKind(kind))
         {
             // An agent can offer a record they physically hold; a prospective
             // recipient wants it only if it contains a fact they have not learned.
@@ -54,13 +59,13 @@ public sealed partial class PrivateWorldRuntime
             return artifact?.Facts.Any(fact => !KnowsMapFact(actor, fact.Position)) == true;
         }
 
-        var owned = society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == actor && lot.ItemKind == kind)
-            .Sum(AvailableLotQuantity);
         if (IsEdibleFood(kind))
         {
             // Keeping a small trade reserve is different from taking a food errand.
-            return owned < 2 && state.HungerBasisPoints < 8_500;
+            return WantsTradeFoodKind(actor, kind);
         }
+        var owned = society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == actor && lot.ItemKind == kind)
+            .Sum(AvailableLotQuantity);
         if (kind is "tool" or "clothing")
         {
             return owned == 0;
@@ -71,10 +76,16 @@ public sealed partial class PrivateWorldRuntime
         }
         if (!TownConstructionCandidateIds.TryParse(project.CandidateId, out var selection))
             return false;
-        var inputs = selection.IsBuilding
-            ? worldContent.Buildings.FirstOrDefault(item => item.CanonicalId == selection.DefinitionId)?.BuildCosts
-            : worldContent.Recipes.FirstOrDefault(item => item.CanonicalId == selection.DefinitionId)?.Inputs;
-        return inputs?.Any(input => input.ResourceId == kind && !HasAvailableQuantities([input]) && owned < input.Amount) == true;
+        var building = selection.IsBuilding
+            ? worldContent.Buildings.FirstOrDefault(item => item.CanonicalId == selection.DefinitionId) : null;
+        var recipe = selection.IsBuilding
+            ? null : worldContent.Recipes.FirstOrDefault(item => item.CanonicalId == selection.DefinitionId);
+        if (building is null && recipe is null) return false;
+        var inputs = building?.BuildCosts ?? recipe!.Inputs;
+        // Match the owners used by the actual construction and recipe choices.
+        // Another household's stock cannot satisfy this actor's production plan.
+        var inputOwner = building is not null ? BuildingConstructionOwner(actor, building) : ProductionOwnerFor(null, actor);
+        return inputs.Any(input => input.ResourceId == kind && !HasAvailableQuantities([input], inputOwner) && owned < input.Amount);
     }
 
     private (InventoryLot Give, InventoryLot Take)? TradeOpportunity(string actor, string other)
@@ -223,7 +234,7 @@ public sealed partial class PrivateWorldRuntime
         !InventoryContainerRules.IsContainer(lot.ItemKind) && lot.DeliveryBuildingId is null &&
         (!inhabitants.TryGetValue(lot.OwnerId, out var carrier) ||
          !PersonalEquipmentRules.IsSelected(carrier.Equipment, lot.Id)) &&
-        AvailableLotQuantity(lot) >= (lot.ItemKind is "field_map" or "field_record" ||
+        AvailableLotQuantity(lot) >= (AgentKnowledgeRules.IsArtifactKind(lot.ItemKind) ||
             OrnamentContent.IsOrnament(lot.ItemKind) ? 1 : 2);
 
     private void MaintainSettlementTrades()
