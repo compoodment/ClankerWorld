@@ -281,19 +281,29 @@ does not establish arbitrary mid-tick rollback or crash durability.
 
 ### Time of day and night
 
-Time of day is worked out from the elapsed tick, the world's saved ticks per
-day and its calendar offset. Darkness itself is not saved. `DaylightRules` follows the 24-hour clock the
-game shows, where a tick's clock minute is its tick of day × 1,440 ÷ ticks per
-day. Night is 40% of every day, the same all year
-([#641](https://github.com/compoodment/ClankerWorld/issues/641)), centred on
-midnight: 19:12 to 04:48. Dusk and dawn each fade over the clock hour centred
-on those times (18:42–19:42 and 04:18–05:18), so the darker half of each fade
-counts as night and night covers exactly 40% of the day. At 360 ticks a day
-that is 144 ticks of night with 15-tick fades. Darkness is reported in basis
-points, 0 in daylight and 10,000 at full night. New playable worlds and their
-founder setup begin at 06:00, after the dawn fade. A saved zero-offset world
-keeps midnight at elapsed tick zero. The first day of a new world therefore
-has 18 hours left; later days retain their full duration.
+Time of day is worked out from the elapsed tick and the world's saved calendar
+(ticks per day, season lengths and calendar offset). Darkness itself is not
+saved. `DaylightRules` follows the 24-hour clock the game shows, where a tick's
+clock minute is its tick of day × 1,440 ÷ ticks per day. Night follows the
+seasons ([#891](https://github.com/compoodment/ClankerWorld/issues/891),
+replacing the same-all-year night of
+[#641](https://github.com/compoodment/ClankerWorld/issues/641)):
+`DaylightRules.NightShare` gives 30% of the day on the first day of summer,
+50% on the first day of winter and 40% on the first days of spring and autumn,
+with an even daily step between them across each season's own length. Night is
+centred on midnight: 19:12 to 04:48 at 40%, 20:24 to 03:36 at 30% and 18:00 to
+06:00 at 50%. Dusk and dawn each fade over the clock hour centred on the start
+and end of night (18:42–19:42 and 04:18–05:18 at 40%), so the darker half of
+each fade counts as night and night covers exactly its share of the day. At
+360 ticks a day a 40% night is 144 ticks, a summer-start night 108 and a
+winter-start night 180, with 15-tick fades. Each tick uses its own calendar
+day's share, so a night's evening follows that day and its morning the next;
+both are fully dark around midnight, so nothing jumps. The rule uses whole
+numbers only, so every platform agrees on every tick. Darkness is reported in
+basis points, 0 in daylight and 10,000 at full night. New playable worlds and
+their founder setup begin at 06:00, after the dawn fade. A saved zero-offset
+world keeps midnight at elapsed tick zero. The first day of a new world
+therefore has 18 hours left; later days retain their full duration.
 
 Night adds a provisional chill of 15 exposure points per tick at full night,
 faded in and out with the darkness (`NightChillAtFullDarkness`). It is added to
@@ -305,8 +315,8 @@ making garments. Wear on a worn garment still follows the weather alone, so a
 mild night adds no repair work. In mild clear weather a basic garment or any
 shelter cancels the chill; with no protection an agent loses about a fifth of
 their warmth over a night. There are no night-only limits on choices, travel,
-work or conversation, and no sleep or energy. Night does not change weather or
-crops yet, and night length does not vary by season.
+work or conversation, and no sleep or energy. Longer winter nights mean more
+hours of chill. Night does not change weather or crops yet.
 
 The owner snapshot carries `darknessBasisPoints`, decided by the host from the
 same rule. The Godot client's `NightLayer` draws a deep blue wash, at most 40%
@@ -1086,16 +1096,23 @@ wait; deaths and membership departures remove voters and ballots. Equivalent
 requests share a process; different requests queue with fresh opening lists.
 Incumbent Council revisions cannot cancel this ledger. Approved transitions
 retain incumbent authority until all required successors are ready, with a
-three-day deadline. Explicit all-adult government disables automatic
-representation, and explicit elected government seeks three representatives
-above three adults. The initial arrangement retains the eight-adult threshold.
+three-day deadline. Ordinary handovers require mayoral successors only for
+mandates added by the target arrangement; explicit replacement requires every
+targeted mandate. A retained vacancy follows its existing succession rules.
+Explicit all-adult government disables automatic representation, and explicit
+elected government seeks three representatives above three adults. The initial
+arrangement retains the eight-adult threshold.
 
 Mayoral contests bind consent to exact mandates and ballots to a contest/round
-opening token. Every deciding round needs a positive vote; tied leaders repeat
-with fresh voters, without a random draw. Saved round records preserve votes,
-ties and interruptions. Scheduled Council voting takes priority; other Council
+opening token. A new contest starts only with an eligible willing candidate,
+so an empty vacancy adds no daily history or notices. Existing contests retain
+their normal failure and retry rules. Every deciding round needs a positive
+vote; tied leaders repeat with fresh voters, without a random draw. Saved round
+records preserve votes, ties and interruptions. Scheduled Council voting takes
+priority; other Council
 contests wait while mayoral voting runs. A cancelled transition cannot later
-seat its dependent contest. Separate mandate records preserve a governing
+seat its dependent contest. A completed transition cancels any dependent
+contest it no longer needs. Separate mandate records preserve a governing
 leader when a land mandate ends, and a governing vacancy temporarily restores
 all-adult authority without changing the approved succession arrangement.
 
