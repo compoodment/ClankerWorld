@@ -20,7 +20,7 @@ public sealed partial class PrivateWorldRuntime
     }
 
     private FarmWorkResult StartFieldWorkCore(string workerId, GridPoint position, FarmWorkKind kind,
-        string? crop = null, string? seedLotId = null)
+        string? crop = null, string? seedLotId = null, string? orderInstructionId = null)
     {
         if (!Enum.IsDefined(kind) || !inhabitants.TryGetValue(workerId, out var worker) || !AdultResident(workerId) ||
             society.Checkpoint.GetInhabitant(workerId).HouseholdId is not { } householdId ||
@@ -36,7 +36,7 @@ public sealed partial class PrivateWorldRuntime
             ? ToolProgressionRules.PlanWork(society.Checkpoint.Inventory, workerId, ToolFamily.Sickle)
             : null;
         if (NeedsUrgentFood(worker) || NeedsUrgentWarmth(worker) || IsConversationBusy(workerId) ||
-            (worker.Project is { Stage: not ("completed" or "cancelled") } project && !project.RequiresFreshChoice) ||
+            (orderInstructionId is null && worker.Project is { Stage: not ("completed" or "cancelled") } project && !project.RequiresFreshChoice) ||
             FarmWorkFor(workerId) is not null)
             return new(false, "The worker must finish other work or meet urgent needs first.");
         var field = fields.SingleOrDefault(item => item.Position == position);
@@ -74,7 +74,7 @@ public sealed partial class PrivateWorldRuntime
         SetFarmField(field with
         {
             Work = new(workerId, kind, FarmFieldRules.WorkTicks(kind), WorldTick, reservationId, crop,
-                hoeLotId, sickleLotId),
+                hoeLotId, sickleLotId, orderInstructionId),
         });
         checkpointSchemaVersion = StateSchemaVersion;
         AppendEvent("field_work_started", $"{workerId}:{FarmFieldRules.FieldId(position)}:{kind}");
@@ -158,8 +158,11 @@ public sealed partial class PrivateWorldRuntime
             CancelFarmWork(field);
     }
 
-    private bool ContinueFarmWork(string workerId)
+    private bool ContinueFarmWork(string workerId) => ContinueFarmWork(workerId, out _);
+
+    private bool ContinueFarmWork(string workerId, out FarmFieldState? completed)
     {
+        completed = null;
         if (FarmWorkFor(workerId) is not { Work: { } work } field) return false;
         if (work.LastWorkedTick == WorldTick) return true;
         if (!inhabitants.TryGetValue(workerId, out var worker) || !AdultResident(workerId) || HouseholdFor(workerId) != field.HouseholdId ||
@@ -225,6 +228,7 @@ public sealed partial class PrivateWorldRuntime
                 CompleteFieldHarvest(field, toolPlans);
                 break;
         }
+        completed = field with { Work = work };
         CreditCompletedWork(workerId, "farming");
         AppendEvent(work.Kind == FarmWorkKind.Till ? "field_prepared" : work.Kind == FarmWorkKind.Plant ? "field_planted" :
             work.Kind == FarmWorkKind.Tend ? "field_tended" : "field_harvested",

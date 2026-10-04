@@ -175,6 +175,15 @@ land-use proposals. Closed requests remain history without competing claims.
 Prepared-tick rollback and current-format reload preserve approval progress and
 commit the final grant once. Older alpha schemas are refused without migration.
 
+Private-world schema 72 adds field orders and their optional `TargetCropKind`.
+`FarmFieldWork.OrderInstructionId` binds work to its actor's active field order.
+Restoration validates that link, action, crop, work time and ordinary seed/tool
+state; a cancelled, queued, unrelated or missing instruction cannot retain bound
+work. Only finished work earns a bounded receipt and one completed field. Replay
+covers partial planting, queues, released seeds, real tool wear and household
+harvest ownership. This version follows the integrated guardian-placement schema 71. Older alpha saves
+are refused and preserved unchanged without migration.
+
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
 Matching parent assignments are disclosed as agreement; when they differ, the
@@ -545,7 +554,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 71. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 72. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
