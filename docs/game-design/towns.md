@@ -1515,6 +1515,7 @@ consumers remain unfinished.
 
 | Equipment | Production and function |
 | --- | --- |
+| Crude wooden axe and crude wooden pickaxe | Any household's own House, using wood; the same tree and stone gathering as wooden tools, but worse. |
 | Wooden axe and wooden pickaxe | Blacksmith, using wood; basic tree and stone gathering. |
 | Stone axe and stone pickaxe | Wood and stone; better speed and durability. The stone pickaxe unlocks iron extraction. |
 | Iron axe and iron pickaxe | Wood and refined iron; better speed and durability. The iron pickaxe unlocks rare deposits. |
@@ -1528,6 +1529,18 @@ consumers remain unfinished.
 Tools wear through use. The Blacksmith repairs worn tools with some of their
 original materials; broken tools need replacement. Hand collection of loose
 fallen wood keeps replacement wooden tools possible after the last axe is lost.
+
+**Agreed by the owner on October 3, 2026
+([#917](https://github.com/compoodment/ClankerWorld/issues/917)):** an adult can
+make a crude wooden axe or a crude wooden pickaxe at their own household's
+House, using wood. Fallen wood gathered by hand is enough, so no Town, shop or
+Blacksmith is needed. A crude axe fells trees, and a crude pickaxe extracts
+stone. Both do these jobs less well than the Blacksmith's wooden tools: slower,
+shorter-lived or both. The Blacksmith therefore stays the place for better
+tools. An agent who starts far from any Town can still gather wood and stone,
+build a House and later a Blacksmith of their own. Crude tools wear like other
+tools. The recipe, work time and how much worse crude tools are remain
+provisional trial values.
 
 | Product | Production and effect |
 | --- | --- |
@@ -1700,8 +1713,9 @@ These remain open; they are not new decisions.
    and one usable wooden pickaxe, and each starting agent has one garment kept
    in their House. The Farmhouse and Blacksmith are assigned
    automatically to the two starting households, one each, without player
-   selection. There are no optional extra starter supplies for now. Decide how
-   first-tier tools are made when the Blacksmith is unavailable.
+   selection. There are no optional extra starter supplies for now. Without a
+   Blacksmith, households make crude wooden tools at their House, as agreed in
+   [Tools, clothing and transport](#tools-clothing-and-transport).
    Farm planning responds to population, yield and stored reserves as agreed
    above; the exact formula is provisional.
 
