@@ -154,6 +154,18 @@ public partial class Main
         public TaskCompletionSource ReleasePause { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource ReleaseSelect { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource ReleaseDelete { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<string> LoadReceived { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource? ReleaseLoad { get; set; }
+        public ManualSaveLoadReceipt? LoadReceipt { get; set; }
+        public TaskCompletionSource<OwnerProviderModelListAction> ModelsReceived { get; set; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource? ReleaseModels { get; set; }
+        public OwnerProviderModelList? Models { get; set; }
+        public bool FailModels { get; set; }
+        public TaskCompletionSource<OwnerDeveloperEditAction> DeveloperEditReceived { get; set; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource? ReleaseDeveloperEdit { get; set; }
+        public OwnerControlReceipt? DeveloperEditReceipt { get; set; }
+        public bool FailDeveloperEdit { get; set; }
+        public Func<OwnerWorldCreationAction, Task<OwnerWorldPreview>>? PreviewHandler { get; set; }
         public int PauseCount => Volatile.Read(ref pauseCount);
         public int DeleteCount => Volatile.Read(ref deleteCount);
         public int SaveCreateCount => Volatile.Read(ref saveCreateCount);
@@ -168,7 +180,7 @@ public partial class Main
         public OwnerWorldReconnect? CreatedObservation { get; set; }
         public System.Collections.Concurrent.ConcurrentQueue<string> Requests { get; } = new();
         public System.Collections.Concurrent.ConcurrentQueue<OwnerWorldCreationAction> WorldCreations { get; } = new();
-        /// <summary>Full names the host refuses as already taken.</summary>
+        /// <summary>Exact rename attempts given a name_taken response by this fixture.</summary>
         public HashSet<string> TakenAgentNames { get; } = new(StringComparer.Ordinal);
         public System.Collections.Concurrent.ConcurrentQueue<OwnerAgentRenameAction> RenameRequests { get; } = new();
         public TaskCompletionSource RenameReceived { get; set; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -215,7 +227,11 @@ public partial class Main
             {
                 case OwnerPairingEndpoints.ChallengeIssue:
                     response = new OwnerChallenge(Authority, "smoke-device", Guid.NewGuid().ToString("N"),
-                        "smoke-nonce", DateTimeOffset.UtcNow.AddMinutes(1), SupportedActionPayloads);
+                        "smoke-nonce", DateTimeOffset.UtcNow.AddMinutes(1),
+                        SupportedActionPayloads ?? (PreviewHandler is null ? null : [OwnerWorldActionPayload.WorldCreationPayloadDomain]));
+                    break;
+                case OwnerPairingEndpoints.OwnerWorldPreview when PreviewHandler is not null:
+                    response = await PreviewHandler(envelope.GetProperty("action").Deserialize<OwnerWorldCreationAction>(JsonOptions)!).ConfigureAwait(false);
                     break;
                 case OwnerPairingEndpoints.OwnerWorldList:
                     response = Catalog;
@@ -224,6 +240,33 @@ public partial class Main
                     Interlocked.Increment(ref saveCreateCount);
                     response = new ManualWorldSave("new-save", envelope.GetProperty("action").GetProperty("value").GetString()!,
                         DateTimeOffset.UnixEpoch, 0);
+                    break;
+                case OwnerPairingEndpoints.OwnerSaveLoad when LoadReceipt is { } loadReceipt:
+                    LoadReceived.TrySetResult(envelope.GetProperty("action").GetProperty("value").GetString()!);
+                    if (ReleaseLoad is { } releaseLoad) await releaseLoad.Task.ConfigureAwait(false);
+                    response = loadReceipt;
+                    break;
+                case OwnerPairingEndpoints.OwnerProviderModels when Models is { } modelList:
+                    var failModels = FailModels;
+                    ModelsReceived.TrySetResult(envelope.GetProperty("action").Deserialize<OwnerProviderModelListAction>(JsonOptions)!);
+                    if (ReleaseModels is { } releaseModels) await releaseModels.Task.ConfigureAwait(false);
+                    if (failModels)
+                    {
+                        context.Response.StatusCode = (int)HttpStatusCode.ServiceUnavailable;
+                        response = new { error = "Controlled previous-timeline model-list failure." };
+                    }
+                    else response = modelList;
+                    break;
+                case OwnerPairingEndpoints.OwnerDeveloperEdit when DeveloperEditReceipt is { } editReceipt:
+                    var failEdit = FailDeveloperEdit;
+                    DeveloperEditReceived.TrySetResult(envelope.GetProperty("action").Deserialize<OwnerDeveloperEditAction>(JsonOptions)!);
+                    if (ReleaseDeveloperEdit is { } releaseEdit) await releaseEdit.Task.ConfigureAwait(false);
+                    if (failEdit)
+                    {
+                        context.Response.StatusCode = (int)HttpStatusCode.ServiceUnavailable;
+                        response = new { error = "Controlled previous-timeline developer-edit failure." };
+                    }
+                    else response = editReceipt;
                     break;
                 case OwnerPairingEndpoints.OwnerAutosaveConfigure:
                     var configuration = envelope.GetProperty("action").Deserialize<OwnerAutosaveConfigurationAction>(JsonOptions)!;
@@ -270,9 +313,9 @@ public partial class Main
                     if (ReleaseRename is { } releaseRename) await releaseRename.Task.ConfigureAwait(false);
                     if (TakenAgentNames.Contains(rename.Name))
                     {
-                        // The same refusal the world host sends for a taken full name.
+                        // The same refusal the world host sends for a taken first name.
                         context.Response.StatusCode = (int)HttpStatusCode.Conflict;
-                        response = new { code = "name_taken", message = "That full name belongs to another agent." };
+                        response = new { code = "name_taken", message = "That first name belongs to another agent." };
                     }
                     else response = new OwnerAgentRenameReceipt(rename.AgentId, rename.Name, true);
                     break;

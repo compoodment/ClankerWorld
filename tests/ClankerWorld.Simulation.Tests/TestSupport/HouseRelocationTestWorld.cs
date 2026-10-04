@@ -54,7 +54,7 @@ internal static class HouseRelocationTestWorld
             Society = state.Society with { Society = society },
             WorldSystems = RegionalWeatherRules.Initialize(state.WorldSystems! with
             {
-                Config = state.WorldSystems.Config with { TicksPerDay = day },
+                Config = state.WorldSystems.Config with { TicksPerDay = day, CalendarOffsetTicks = 0 },
                 RegionalWeather = null,
             }, state.Map),
             Towns = state.Towns!.Select(town => town with

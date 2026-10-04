@@ -1,0 +1,1 @@
+- New fields, land grants, Roads and bridges respect household land: farmers leave other households' held or requested plots clear, ordinary grants cannot take over another household's field, and new Roads and bridge entrances avoid private plots. Existing Roads and bridges remain usable.

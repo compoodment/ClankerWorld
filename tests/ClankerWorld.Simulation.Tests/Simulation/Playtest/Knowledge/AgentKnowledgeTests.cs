@@ -60,7 +60,7 @@ public sealed class AgentKnowledgeTests
         for (var generation = 0; generation < generations; generation++)
         {
             var partner = generation == 0 ? "founder-mira" : "founder-rowan";
-            var society = state.Society.Society;
+            var society = ChosenBirthNameTestFixture.NameParent(state.Society.Society, parent);
             var relationshipId = $"descendant-partnership-{generation}";
             society = SocietyFixture.ProposeRelationship(society, new(relationshipId, 1,
                 SocietyRelationshipType.Partnership, parent, partner, society.WorldTick)).Checkpoint;
@@ -71,7 +71,7 @@ public sealed class AgentKnowledgeTests
                 .Append(parent).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
             var birth = SocietyFixture.CommitBirth(society, new($"family:{parent}:{society.WorldTick}", 1,
                 parent, partner, caregiverHousehold, caregivers, [parent, partner],
-                "food:camp-alpha", 2, society.WorldTick, ChildName: "Explorer",
+                "food:camp-alpha", 2, society.WorldTick, ChildName: ChosenBirthNameTestFixture.ChildName(society, parent, $"Explorer{generation}"),
                 PrimaryCaregiverId: parent));
             parent = Assert.IsType<string>(birth.CreatedId);
             society = birth.Checkpoint;

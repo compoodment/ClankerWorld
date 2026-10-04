@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json.Serialization;
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Society;
@@ -40,6 +41,8 @@ public sealed record HouseholdLandUseRequest(
     public string? CouncilProposalId { get; init; }
     public IReadOnlyList<HouseholdLandUseConsent> Consents { get; init; } = [];
     public IReadOnlyList<string> GrantAdults { get; init; } = [];
+    [JsonRequired]
+    public IReadOnlyList<TownLandRequestResolution> HearingResolutions { get; init; } = [];
 }
 
 public sealed record HouseholdLandUseConsent(string AgentId, bool Accepted, long Tick);
@@ -55,6 +58,9 @@ public sealed record HouseholdLandUseRequestResult(
 public static class TownLandRightsRules
 {
     public const string StarterAllocationSource = "starter_allocation";
+
+    public static IEnumerable<GridPoint> UnresolvedRequestTiles(HouseholdLandUseRequest request) =>
+        request.Tiles.Where(tile => !request.HearingResolutions.Any(resolution => resolution.Tiles.Contains(tile)));
 
     public static GridPoint[] OrderTiles(IEnumerable<GridPoint> tiles) => tiles
         .OrderBy(point => point.Y).ThenBy(point => point.X).ToArray();
@@ -185,7 +191,7 @@ public static class TownLandRightsRules
     public static IReadOnlyList<string> ClaimantsAt(GridPoint tile,
         IReadOnlyList<HouseholdLandUseRight> rights, IReadOnlyList<HouseholdLandUseRequest> requests) =>
         rights.Where(right => right.Tiles.Contains(tile)).Select(right => right.HouseholdId)
-            .Concat(requests.Where(request => request.Status == "pending" && request.Tiles.Contains(tile)).Select(request => request.HouseholdId))
+            .Concat(requests.Where(request => request.Status == "pending" && UnresolvedRequestTiles(request).Contains(tile)).Select(request => request.HouseholdId))
             .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
 
     public static bool IsCoveredByTownTitle(GridPoint tile, string townId,
@@ -288,7 +294,11 @@ public sealed partial class PrivateWorldRuntime
                 return RejectedLandRequest("The Town needs a Council before a use request can be filed.");
             var (result, updated) = FileHouseholdLandUse(requestId, requestedByAgentId, townId,
                 requestedTiles, agreedEndTick, governance);
-            if (result.Applied && !result.IsDuplicate) SaveTownGovernance(town, updated);
+            if (result.Applied && !result.IsDuplicate)
+            {
+                SaveTownGovernance(town, updated);
+                MaintainTownProjects();
+            }
             return result;
         }
         finally { gate.Release(); }
@@ -326,8 +336,11 @@ public sealed partial class PrivateWorldRuntime
         // Another household's recorded right is contested as a dispute; a building or running expansion without one is not free land.
         var foreignBuildings = BuildingFootprintTiles(building => building.HouseholdId != householdId);
         foreignBuildings.UnionWith(ExpansionWorkTiles(building => building?.HouseholdId != householdId));
+        foreignBuildings.UnionWith(MarketSiteTiles());
         if (tiles.Any(tile => foreignBuildings.Contains(tile) && !householdLandUseRights.Any(right => right.Tiles.Contains(tile))))
             return (RejectedLandRequest("That plot includes another household's or the Town's building or expansion work."), governance);
+        if (IncludesForeignFieldWithoutUseRight(householdId, tiles))
+            return (RejectedLandRequest("That plot includes another household's field without a recorded use right."), governance);
 
         var existingId = householdLandUseRequests.SingleOrDefault(item => item.Id == requestId);
         var proposed = new HouseholdLandUseRequest(requestId, townId, householdId,

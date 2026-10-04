@@ -21,25 +21,34 @@ const SlowTestSeconds = 300;
 const PinnedShards = [
   [
     'SettlementParenthoodTests.ContinuityDeadlineWithoutARequest',
-    'FoodRoutingTests',
-    'SettlementSurvivalTests',
-    'DamagedCheckpointEntryTests',
+    'ConcreteMealTests',
+    'ToolProgressionRuntimeTests',
+    'SpoiledHouseholdDeliveryTests',
   ],
   [
     'SettlementParenthoodTests.ChildCanGrowIntoAWorkingAdult',
-    'SettlementParenthoodTests.BirthUsesTheAgreedCaregivers',
+    'PersonalEquipmentTests',
+    'FoodRoutingTests',
+    'WorkstationSourceReserveTests',
+  ],
+  [
+    'SettlementParenthoodTests.OutsideHouseholdRelativeGetsFirstOffer',
+    'BusinessTradeTests',
+    'SettlementSurvivalTests',
+    'HouseRelocationRuntimeTests',
+  ],
+  [
+    'RestaurantBusinessPipelineTests',
     'BuildingExpansionTests',
-    'HouseholdBuildingUseCoverageTests',
+    'OrnamentProductionTests',
     'PotteryContentTests',
   ],
   [
     'SettlementParenthoodTests.ContinuityResumesPostponedAcceptance',
-    'SettlementParenthoodTests.NewbornKeepsInitiatingParentsModel',
     'SettlementParenthoodTests.ContinuityCoupleMayPostpone',
-    'SettlementParenthoodTests.OlderDependentsDecideIndependently',
-    'FarmFieldTests.PhysicalCropCycleSurvivesReload',
-    'PersonalEquipmentTests',
-    'BusinessTradeTests',
+    'FarmFieldTests',
+    'OrnamentTradeTests',
+    'DamagedCheckpointEntryTests',
   ],
 ];
 

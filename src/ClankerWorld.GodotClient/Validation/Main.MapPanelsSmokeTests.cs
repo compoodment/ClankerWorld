@@ -52,7 +52,7 @@ public partial class Main
 
         var filterText = filtersPanel.FindChildren("*", nameof(Label), recursive: true, owned: false).OfType<Label>().Select(label => label.Text).ToArray();
         string[] descriptions = ["A dashed line around each Town", "Tints the buildings and fields a household owns",
-            "A blue edge around land titled to a Town", "Land each household may use, in its colour", "Red stripes where households' claims overlap"];
+            "A blue edge around land titled to a Town", "Land each household may use, in its colour", "Red stripes where claims overlap or permission is under review"];
         if (descriptions.Any(line => !filterText.Contains(line)) ||
             filterText.Any(text => text.StartsWith("Only buildings", StringComparison.Ordinal) || text.Contains("separate from building", StringComparison.Ordinal)))
             throw new InvalidOperationException("Each map filter must say in one line what it draws.");

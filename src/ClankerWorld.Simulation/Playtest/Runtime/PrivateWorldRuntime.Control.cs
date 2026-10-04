@@ -121,6 +121,8 @@ public sealed partial class PrivateWorldRuntime
                     },
                 };
                 completedInstructionIds.Add(instruction.InstructionId);
+                CancelRepairForOrder(instruction);
+                CancelFieldWorkForOrder(instruction);
                 status = "cancelled";
                 AppendEvent("instruction_order_cancelled", $"{instruction.TargetInhabitantId}:{instruction.InstructionId}:owner");
             }
@@ -322,6 +324,8 @@ public sealed partial class PrivateWorldRuntime
                 },
             };
             completedInstructionIds.Add(instruction.InstructionId);
+            CancelRepairForOrder(instruction);
+            CancelFieldWorkForOrder(instruction);
             AppendEvent("instruction_order_cancelled", $"{inhabitantId}:{instruction.InstructionId}:replaced");
         }
         checkpointSchemaVersion = StateSchemaVersion;
@@ -378,6 +382,13 @@ public sealed partial class PrivateWorldRuntime
         "seek_food" => "travel within gathering range of an available food source",
         "harvest_food" => "gather several food servings from a nearby food source",
         "gather_material" => "gather the requested material from a natural source",
+        "till_field" => "till a field for your household",
+        "plant_field" => "plant the requested crop in your household field",
+        "tend_field" => "tend your household crop",
+        "harvest_field" => "harvest your household crop",
+        "repair_tool" => "repair your own worn tool",
+        "repair_equipment" => "repair your own worn clothing or carrying aid",
+        "collect_material" => "collect your own stored or dropped material",
         "store_material" => "store your own carried material in your House",
         "accept_guardianship" => "accept primary care of the named child through their guardian search",
         _ => null,

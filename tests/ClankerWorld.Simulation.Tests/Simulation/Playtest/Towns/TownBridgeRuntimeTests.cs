@@ -470,7 +470,7 @@ public sealed class TownBridgeRuntimeTests
         });
     }
 
-    private static async Task<PrivateWorldRuntime> GrowthWorldAsync(string seed = GrowthSeed, GridPoint? townSite = null)
+    internal static async Task<PrivateWorldRuntime> GrowthWorldAsync(string seed = GrowthSeed, GridPoint? townSite = null)
     {
         var geography = new GeographyOptions(seed, WorldSizePreset.Small);
         var world = new PrivateWorldRuntime(geography.Seed, startPace: WorldStartPace.FounderSetup, geographyOptions: geography);
