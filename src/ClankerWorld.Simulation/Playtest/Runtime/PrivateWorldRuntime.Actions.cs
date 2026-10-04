@@ -285,7 +285,7 @@ public sealed partial class PrivateWorldRuntime
         if (society.Checkpoint.GetInhabitant(actor).HouseholdId is not { } householdId)
             return null;
         var loose = PreferredFood(householdId, actor).FirstOrDefault(lot =>
-            (requiredItemKind is null || lot.ItemKind == requiredItemKind) &&
+            !OnBorrowedMarketStall(lot) && (requiredItemKind is null || lot.ItemKind == requiredItemKind) &&
             lot.CarrierId is null && (lot.StorageBuildingId is null ||
              householdId == lot.OwnerId) &&
             (IsWithinInteractionRange(position, HouseholdStockPosition(lot), HouseholdStockInteractionRange(lot)) ||

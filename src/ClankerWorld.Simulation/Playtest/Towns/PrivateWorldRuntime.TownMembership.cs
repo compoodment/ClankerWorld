@@ -18,14 +18,18 @@ public sealed partial class PrivateWorldRuntime
     internal const string AdmissionAdmitted = "admitted";
     internal const string AdmissionLapsed = "lapsed";
     internal static readonly IReadOnlyList<string> AdmissionLapseReasons =
-        ["unavailable", "already_resident", "affiliation_changed", "joined_elsewhere"];
+        ["unavailable", "already_resident", "affiliation_changed", "joined_elsewhere", "acceptance_expired"];
 
     private static TownProposal? PendingAdmission(TownRuntimeState town, string subject) =>
         town.Governance?.Proposals.FirstOrDefault(proposal => proposal.Kind == "admission" &&
             proposal.SubjectId == subject && proposal.Status == "pending");
 
-    private static TownAdmissionRecord? ApprovedAdmission(TownRuntimeState town, string subject) =>
-        town.Admissions?.LastOrDefault(record => record.SubjectId == subject && record.Status == AdmissionApproved);
+    private static TownProposal? AdmissionProposal(TownRuntimeState town, TownAdmissionRecord record) =>
+        town.Governance?.Proposals.SingleOrDefault(proposal => proposal.Id == record.ProposalId);
+
+    private TownAdmissionRecord? ApprovedAdmission(TownRuntimeState town, string subject) =>
+        town.Admissions?.LastOrDefault(record => record.SubjectId == subject && record.Status == AdmissionApproved &&
+            TownAdmissionDeadlineRules.IsOpen(AdmissionProposal(town, record), WorldTick, CivicDay));
 
     private bool HasPendingAdmission(string subject) => towns.Any(town => PendingAdmission(town, subject) is not null);
 
@@ -84,6 +88,7 @@ public sealed partial class PrivateWorldRuntime
 
     private bool MayAcceptAdmission(string actor, TownRuntimeState town, TownAdmissionRecord record) =>
         record.Status == AdmissionApproved && record.SubjectId == actor && AdultResident(actor) &&
+        TownAdmissionDeadlineRules.IsOpen(AdmissionProposal(town, record), WorldTick, CivicDay) &&
         TownForResident(actor) is var current && current == record.PreviousTownId && current != town.Id &&
         // Their own undecided request elsewhere is answered first, so one choice cannot move them twice.
         !towns.Any(other => other.Id != town.Id && PendingAdmission(other, actor) is { } pending && pending.AuthorId == actor) &&
@@ -100,10 +105,11 @@ public sealed partial class PrivateWorldRuntime
 
     private void AddTownAdmissionCandidates(List<CognitionCandidate> candidates, string actor, TownRuntimeState town)
     {
-        if (ApprovedAdmission(town, actor) is not { } record || !MayAcceptAdmission(actor, town, record)) return;
+        if (ApprovedAdmission(town, actor) is not { } record || !MayAcceptAdmission(actor, town, record) ||
+            TownAdmissionDeadlineRules.AcceptanceDeadline(AdmissionProposal(town, record), CivicDay) is not { } deadline) return;
         var previous = record.PreviousTownId is { } from ? $" You would leave {TownName(from)}." : string.Empty;
         candidates.Add(new(CivicAction(town.Id, "accept_admission", record.ProposalId),
-            $"Accept {town.Name}'s approved admission and become a resident.{previous} This gives no House or household place.", 169));
+            $"Accept {town.Name}'s approved admission and become a resident.{previous} You must accept before {TownAdmissionDeadlineRules.DescribeWindow(deadline, WorldTick, CivicDay, worldSystems.Config.CalendarOffsetTicks)}. This gives no House or household place.", 169));
     }
 
     private void AcceptTownAdmission(string actor, string townId, string proposalId)
@@ -149,7 +155,8 @@ public sealed partial class PrivateWorldRuntime
                 var current = TownForResident(record.SubjectId);
                 var reason = !AdultResident(record.SubjectId) ? "unavailable"
                     : current == town.Id ? "already_resident"
-                    : current != record.PreviousTownId ? "affiliation_changed" : null;
+                    : current != record.PreviousTownId ? "affiliation_changed"
+                    : TownAdmissionDeadlineRules.IsExpired(AdmissionProposal(town, record), WorldTick, CivicDay) ? "acceptance_expired" : null;
                 if (reason is null) continue;
                 LapseTownAdmission(town.Id, record, reason);
                 return true;
@@ -167,7 +174,8 @@ public sealed partial class PrivateWorldRuntime
                 {
                     var record = new TownAdmissionRecord(proposal.Id, subject, AdmissionApproved, WorldTick, TownForResident(subject));
                     // A newcomer who died or joined this Town while the vote was open has nothing to accept.
-                    var lapse = !AdultResident(subject) ? "unavailable" : record.PreviousTownId == town.Id ? "already_resident" : null;
+                    var lapse = !AdultResident(subject) ? "unavailable" : record.PreviousTownId == town.Id ? "already_resident"
+                        : TownAdmissionDeadlineRules.IsExpired(proposal, WorldTick, CivicDay) ? "acceptance_expired" : null;
                     if (lapse is not null) LapseTownAdmission(town.Id, record, lapse);
                     else
                     {
@@ -186,7 +194,9 @@ public sealed partial class PrivateWorldRuntime
         var previous = TownForResident(subject);
         var reason = !AdultResident(subject) ? "unavailable"
             : previous == townId ? "already_resident"
-            : approved is not null && previous != approved.PreviousTownId ? "affiliation_changed" : null;
+            : approved is not null && previous != approved.PreviousTownId ? "affiliation_changed"
+            : approved is not null && TownAdmissionDeadlineRules.IsExpired(
+                AdmissionProposal(towns.Single(town => town.Id == townId), approved), WorldTick, CivicDay) ? "acceptance_expired" : null;
         if (reason is not null)
         {
             LapseTownAdmission(townId, approved ?? new TownAdmissionRecord(proposalId, subject, AdmissionApproved, WorldTick), reason);
@@ -311,12 +321,15 @@ public sealed partial class PrivateWorldRuntime
                     (record.PreviousTownId is null || townIds.Contains(record.PreviousTownId) && record.PreviousTownId != town.Id) &&
                     record.Status switch
                     {
-                        AdmissionApproved => proposal.AuthorId != record.SubjectId && record.MemberIds is null && record.Reason is null,
+                        AdmissionApproved => proposal.AuthorId != record.SubjectId && record.MemberIds is null && record.Reason is null &&
+                            TownAdmissionDeadlineRules.IsOpen(proposal, society.WorldTick, society.Config.TicksPerWorldDay),
                         AdmissionAdmitted => record.Reason is null && record.MemberIds is { Count: > 0 } members &&
                             members.Contains(record.SubjectId, StringComparer.Ordinal) &&
-                            members.All(people.Contains) && members.SequenceEqual(members.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)),
+                            members.All(people.Contains) && members.SequenceEqual(members.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)) &&
+                            (proposal.AuthorId == record.SubjectId || TownAdmissionDeadlineRules.IsOpen(proposal, record.DecidedTick, society.Config.TicksPerWorldDay)),
                         AdmissionLapsed => record.PreviousTownId is null && record.MemberIds is null &&
-                            AdmissionLapseReasons.Contains(record.Reason ?? "", StringComparer.Ordinal),
+                            AdmissionLapseReasons.Contains(record.Reason ?? "", StringComparer.Ordinal) &&
+                            (record.Reason != "acceptance_expired" || TownAdmissionDeadlineRules.IsExpired(proposal, record.DecidedTick, society.Config.TicksPerWorldDay)),
                         _ => false,
                     };
                 if (!valid)
@@ -380,8 +393,53 @@ public static class TownMembershipText
                 ? $"Town: resident of {home.Name} · may {council} and collect its Warehouse stock in person, housed or not"
                 : $"Town: resident of {home.Name} · may {council}, housed or not; it has no Warehouse yet";
         if (adult && AdmissionStatus(towns, agentId, home?.Id, society.WorldTick, ticksPerDay, calendarOffsetTicks, knows) is { } status)
+        {
+            if (text.Length + status.Length + 3 > MaximumLength && AcceptanceDeadline(towns, society, agentId, ticksPerDay, knows) is not null)
+            {
+                var prefix = home is null ? "Town: none" : $"Town: resident of {home.Name}";
+                var budget = Math.Max(0, MaximumLength - status.Length - 3);
+                text = prefix.Length <= budget ? prefix :
+                    prefix[..Math.Max(0, budget - 1)].TrimEnd() + (budget > 0 ? "…" : string.Empty);
+            }
             text += " · " + status;
+        }
         return text.Length > MaximumLength ? text[..MaximumLength] : text;
+    }
+
+    /// <summary>The exact deadline for the open approval described to this reader, if any.</summary>
+    public static long? AcceptanceDeadline(IReadOnlyList<TownRuntimeState> towns, SocietyCheckpoint society,
+        string agentId, int ticksPerDay, Func<TownRuntimeState, string, string, bool>? knows = null)
+    {
+        ArgumentNullException.ThrowIfNull(towns);
+        ArgumentNullException.ThrowIfNull(society);
+        if (!society.Inhabitants.Any(person => person.Id == agentId && person.Status == SocietyInhabitantStatus.Active &&
+                person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder)) return null;
+        knows ??= (_, _, _) => true;
+        return KnownPendingAdmission(towns, agentId, knows) is not null ? null :
+            KnownOpenApproval(towns, agentId, society.WorldTick, ticksPerDay, knows)?.Deadline;
+    }
+
+    private static (TownRuntimeState Town, TownProposal Proposal)? KnownPendingAdmission(
+        IReadOnlyList<TownRuntimeState> towns, string agentId, Func<TownRuntimeState, string, string, bool> knows)
+    {
+        foreach (var town in towns.OrderBy(item => item.Id, StringComparer.Ordinal))
+            if (town.Governance?.Proposals.FirstOrDefault(proposal => proposal.Kind == "admission" &&
+                    proposal.SubjectId == agentId && proposal.Status == "pending") is { } pending && knows(town, "proposal", pending.Id))
+                return (town, pending);
+        return null;
+    }
+
+    private static (TownRuntimeState Town, long Deadline)? KnownOpenApproval(IReadOnlyList<TownRuntimeState> towns,
+        string agentId, long worldTick, int ticksPerDay, Func<TownRuntimeState, string, string, bool> knows)
+    {
+        foreach (var town in towns.OrderBy(item => item.Id, StringComparer.Ordinal))
+            if (town.Admissions?.LastOrDefault(record => record.SubjectId == agentId &&
+                    record.Status == PrivateWorldRuntime.AdmissionApproved) is { } approved && knows(town, "result", approved.ProposalId) &&
+                town.Governance?.Proposals.SingleOrDefault(proposal => proposal.Id == approved.ProposalId) is { } proposal &&
+                TownAdmissionDeadlineRules.IsOpen(proposal, worldTick, ticksPerDay) &&
+                TownAdmissionDeadlineRules.AcceptanceDeadline(proposal, ticksPerDay) is { } deadline)
+                return (town, deadline);
+        return null;
     }
 
     private static string? AdmissionStatus(IReadOnlyList<TownRuntimeState> towns, string agentId, string? homeId,
@@ -391,14 +449,16 @@ public static class TownMembershipText
         // Calendar days, as WorldCalendarRules counts them: the offset moves midnight, not elapsed time.
         string Day(long tick) => "world day " +
             (tick / day + (tick % day + calendarOffsetTicks) / day + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        if (KnownPendingAdmission(towns, agentId, knows) is { } pending)
+            return $"admission to {pending.Town.Name} pending until {Day(pending.Proposal.DeadlineTick)}; grants nothing yet";
+        if (KnownOpenApproval(towns, agentId, worldTick, day, knows) is { } approved)
+            return $"{approved.Town.Name}'s council approved admission; accept before {TownAdmissionDeadlineRules.DescribeWindow(approved.Deadline, worldTick, day, calendarOffsetTicks)}";
         foreach (var town in towns.OrderBy(item => item.Id, StringComparer.Ordinal))
-            if (town.Governance?.Proposals.FirstOrDefault(proposal => proposal.Kind == "admission" &&
-                    proposal.SubjectId == agentId && proposal.Status == "pending") is { } pending && knows(town, "proposal", pending.Id))
-                return $"admission to {town.Name} pending until {Day(pending.DeadlineTick)}; grants nothing yet";
-        foreach (var town in towns.OrderBy(item => item.Id, StringComparer.Ordinal))
-            if (town.Admissions?.LastOrDefault(record => record.SubjectId == agentId &&
-                    record.Status == PrivateWorldRuntime.AdmissionApproved) is { } approved && knows(town, "result", approved.ProposalId))
-                return $"{town.Name}'s council approved admission; not accepted yet";
+            if (town.Id != homeId && town.Admissions?.LastOrDefault(record => record.SubjectId == agentId) is { } record &&
+                (record.Status == PrivateWorldRuntime.AdmissionApproved || record.Status == PrivateWorldRuntime.AdmissionLapsed && record.Reason == "acceptance_expired") &&
+                knows(town, "result", record.ProposalId) && TownAdmissionDeadlineRules.IsExpired(
+                    town.Governance?.Proposals.SingleOrDefault(proposal => proposal.Id == record.ProposalId), worldTick, day))
+                return $"{town.Name}'s admission approval expired without acceptance; ask again";
         var closed = towns.Where(town => town.Id != homeId).SelectMany(town => (town.Governance?.Proposals ?? [])
                 .Where(proposal => proposal.Kind == "admission" && proposal.SubjectId == agentId &&
                     proposal.Status is "rejected" or "cancelled" && worldTick - proposal.SettledTick < day &&

@@ -249,6 +249,7 @@ public sealed partial class PrivateWorldRuntime
                     : [building.Position])
             .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused).SelectMany(ExpansionTiles))
             .Concat(TownProjectProtectedSites())
+            .Concat(MarketSiteTiles())
             .ToHashSet();
         var occupied = map.CampObjects.Select(item => item.Position)
             .Concat(map.Resources.Select(item => item.Position))

@@ -412,9 +412,8 @@ council's approval waits **one unpaused world day** for the newcomer to accept.
 If they have not accepted by then, the approval lapses; paused time does not
 count. Anyone may ask the council again later through the ordinary proposal
 rules. There is no separate decline choice. An adult's own request is
-unaffected: it admits them as soon as it passes. The runtime change is
-tracked in [#887](https://github.com/compoodment/ClankerWorld/issues/887);
-until then an unaccepted approval stays open.
+unaffected: it admits them as soon as it passes. The implementation is tracked
+in [#887](https://github.com/compoodment/ClankerWorld/issues/887).
 
 The separately agreed New World and Add Agent placement rules still initialize
 Town membership: the first four agents belong to the first Town, and confirmed
