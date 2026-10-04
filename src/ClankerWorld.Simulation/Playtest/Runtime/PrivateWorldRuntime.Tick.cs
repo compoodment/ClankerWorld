@@ -560,6 +560,7 @@ public sealed partial class PrivateWorldRuntime
             ReconcileGuardianPlacements();
             DiscoverIdentityMoments();
             UpdateConversationsForTick(targetTick);
+            RefreshTownLandHearings();
             EnqueueDueCognition(activeHostedIds);
             var deferredDecisions = new List<SocietyCognitionDispatchResult>();
             if (deferHosted)
@@ -651,6 +652,7 @@ public sealed partial class PrivateWorldRuntime
             MaintainTownProjects();
             MaintainMarkets();
             MaintainToolMakingRequests();
+            RefreshTownLandHearings();
             MaintainKnowledgeWriting();
 
             AppendEvent("tick_advanced", targetTick.ToString(System.Globalization.CultureInfo.InvariantCulture));

@@ -157,6 +157,72 @@ public sealed record OwnerWorldTown(
     public IReadOnlyList<OwnerWorldTownProject> Projects { get; init; } = [];
     public OwnerTownGovernment? Government { get; init; }
     public IReadOnlyList<OwnerWorldMarket> Markets { get; init; } = [];
+    public IReadOnlyList<OwnerTownLandHearing> LandHearings { get; init; } = [];
+    public int LandHearingCount { get; init; }
+    public IReadOnlyList<OwnerLandTransfer> LandTransfers { get; init; } = [];
+    public int LandTransferCount { get; init; }
+}
+
+public sealed record OwnerLandTransferParty(string HouseholdId, string Kind, string HouseholdName, string RosterKind,
+    IReadOnlyList<string> AdultIds, IReadOnlyList<string> AdultNames, IReadOnlyList<string> AcceptedAdultIds,
+    IReadOnlyList<string> NoticeAwareAdultIds);
+public sealed record OwnerLandTransferResponse(string HouseholdId, string HouseholdName, string AgentId,
+    string AgentName, string Kind, long Tick, IReadOnlyList<string> PartyAdults);
+public sealed record OwnerLandTransfer(string Id, string FilerId, string FilerName, string TargetHouseholdId,
+    string TargetHouseholdName, IReadOnlyList<OwnerWorldPosition> Tiles, IReadOnlyList<OwnerLandHearingRightVersion> RightVersions,
+    IReadOnlyList<OwnerLandTransferParty> Parties, string NoticeId, long ProposedTick,
+    IReadOnlyList<OwnerLandTransferResponse> Responses, string Status, long? SettledTick, string? Reason,
+    string? ReceiptAdjustmentId);
+
+public sealed record OwnerLandHearingOutcome(string Kind, string? HouseholdId, string? HouseholdName, long? AgreedEndTick);
+public sealed record OwnerLandHearingProposal(IReadOnlyList<OwnerWorldPosition> Tiles,
+    OwnerLandHearingOutcome RequestedOutcome, string Statement);
+public sealed record OwnerLandHearingRightVersion(string Id, string Version, OwnerWorldHouseholdLandUseRight Right);
+public sealed record OwnerLandHearingFiling(string? AgentId, string? AgentName, string Kind, string Text,
+    OwnerLandHearingOutcome RequestedOutcome, long Tick, string? AuthorityId);
+public sealed record OwnerLandHearingParty(string Id, string Kind, string Name,
+    IReadOnlyList<string> AdultIds, IReadOnlyList<string> AdultNames, string? RepresentativeId,
+    string? RepresentativeName, IReadOnlyList<string> NoticeAwareAdultIds);
+public sealed record OwnerLandHearingResponse(int Revision, string PartyId, string AgentId, string AgentName,
+    string Kind, string Text, long Tick);
+public sealed record OwnerLandHearingJudge(string AgentId, string AgentName, string Kind, string AuthorityId, long AssignedTick);
+public sealed record OwnerLandHearingJudgeTerm(OwnerLandHearingJudge Judge, long EndedTick, string Reason);
+public sealed record OwnerLandHearingEvidence(string Id, int Revision, string Kind, string Acquisition,
+    string SourceAgentId, string SourceAgentName, string? SourceRecordId, string? SourceVersion, long ObservedTick,
+    string SubmittedByAgentId, string SubmittedByName, long SubmittedTick, string Text)
+{
+    public OwnerWorldHouseholdLandUseRight? PermissionRecord { get; init; }
+    public OwnerWorldLandTitle? TitleRecord { get; init; }
+    public string? RecordPartyName { get; init; }
+    public int? LawVersion { get; init; }
+}
+public sealed record OwnerLandHearingRead(int Revision, string AgentId, string AgentName, long ReadTick,
+    IReadOnlyList<string> EvidenceIds, string? SourceAgentId, string? SourceAgentName)
+{
+    public IReadOnlyList<string> ReopenRequestIds { get; init; } = [];
+}
+public sealed record OwnerLandHearingRuling(string Id, int Revision, OwnerLandHearingJudge Judge, long Tick,
+    OwnerLandHearingOutcome Outcome, IReadOnlyList<OwnerWorldPosition> Tiles, IReadOnlyList<string> EvidenceIds, IReadOnlyList<string> LawIds,
+    string Reasons, IReadOnlyList<string> AdjustmentIds)
+{
+    public IReadOnlyList<OwnerLandHearingParty> Parties { get; init; } = [];
+}
+public sealed record OwnerLandHearingReopenRequest(string Id, string AgentId, string AgentName, long Tick,
+    string Kind, IReadOnlyList<string> EvidenceIds, string Reasons, string Status,
+    OwnerLandHearingJudge? AssessedBy, long? AssessedTick, string? Assessment);
+public sealed record OwnerLandHearingElection(string Id, string Stage, int Round, long? DeadlineTick,
+    IReadOnlyList<OwnerCivicCandidate> Candidates, string? WinnerName, string? Reason);
+public sealed record OwnerTownLandHearing(string Id, string Kind, string Status, long FiledTick, long? SettledTick,
+    int Revision, IReadOnlyList<OwnerWorldPosition> Tiles, IReadOnlyList<OwnerLandHearingRightVersion> RightVersions,
+    string NoticeId, long PublishedTick, long DeadlineTick,
+    OwnerLandHearingOutcome RequestedOutcome, IReadOnlyList<OwnerLandHearingFiling> Filings, IReadOnlyList<OwnerLandHearingParty> Parties,
+    IReadOnlyList<OwnerLandHearingEvidence> Evidence, IReadOnlyList<OwnerLandHearingResponse> Responses,
+    IReadOnlyList<OwnerLandHearingRuling> Rulings, OwnerLandHearingJudge? Judge, IReadOnlyList<OwnerLandHearingJudgeTerm> JudgeHistory,
+    OwnerLandHearingElection? JudgeElection, OwnerLandHearingElection? LatestJudgeElection,
+    IReadOnlyList<OwnerLandHearingReopenRequest> ReopenRequests)
+{
+    public IReadOnlyList<OwnerLandHearingRead> Reads { get; init; } = [];
+    public IReadOnlyList<OwnerLandHearingParty> CurrentParties { get; init; } = [];
 }
 
 public sealed record OwnerTownLaw(string Id, string Subject, string Rule, string Scope, int SiteTiles, int Version,
@@ -190,6 +256,7 @@ public sealed record OwnerWorldMarketTrade(string OfferId, string SellerId, stri
 public sealed record OwnerCivicProposal(string Id, string Kind, string Text, string Status, int Yes, int No,
     int RequiredYes, long DeadlineTick)
 {
+    public OwnerLandHearingProposal? LandHearingRequest { get; init; }
     public OwnerWorldTownProjectPlan? Project { get; init; }
 }
 public sealed record OwnerWorldTownProjectBudget(string Kind, int Quantity);

@@ -1061,7 +1061,75 @@ construction likewise avoids land other households hold or have asked for, and
 Town buildings avoid all of it. Unaffiliated construction on untitled land keeps its ordinary physical
 rules and creates no title. Losing permission cancels the
 job and releases its materials. Existing expired rights are not silently
-removed; their eventual ruling remains separate land-case work.
+removed; ordinary Town advancement opens an expiry hearing and keeps the old
+permission provisional until a lawful ruling.
+
+`TownRuntimeState.LandHearings.Transfers` records voluntary transfers of exact
+existing permission plots. Published right versions, terms and party snapshots
+are immutable. Every current active adult or elder in every source and receiving
+household needs an actual notice receipt and a separate admitted personal-model
+acceptance. Filing and reading supply no acceptance. Added adults must learn and
+accept too; consent belongs to the exact household, so moving households cannot
+reuse it for a different party. No routine Council or mayor approval is required.
+Expiry, changed source rights, disputed claims and open hearings block completion.
+A decline or withdrawal closes the request without transferring permission.
+Completion stores the actual final party roster and one replayable bounded
+adjustment, preserving original grant terms and all outside pieces. Title,
+membership, buildings, crops, inventory and private-building access stay intact.
+Owner projection distinguishes current pending rosters from completed-transfer
+rosters, showing names, clocks, actual awareness and accepted adult counts. All
+pending transfers and eight recent closed ones are projected; the full ledger
+remains saved.
+
+`TownRuntimeState.LandHearings` saves each public case's exact plot and right
+versions, affected parties, formal notice and response deadline. Equivalent
+filings join the live case without resetting its clock. A different plot that
+overlaps a live case is refused. Land a settled case covered needs reopening
+grounds until its permission terms change; an agreed end reached after that
+case's last ruling still opens its expiry review. Material right changes
+or new affected adults publish a revised notice with a fresh day. Notice
+publication, actual civic receipts and case-file reads are separate records;
+reads identify the evidence and rehearing requests actually available to that
+adult. Physical relays carry only material their source learned. Owner inspection
+does not supply agent knowledge or private memories.
+Notice revisions retain their published party snapshots. The shared pure
+`TownLandCasePartyRules.CurrentParties` derives current adult responders and Town
+representation from the same captured rights, request masks, inhabitants, civic
+authority and clock used by the runtime. Death, departure and succession update
+current standing without rewriting the original notice. Owner views label these
+roles separately, and each ruling projects its actual closure party roster.
+
+Hearing actions enter through admitted personal-model civic choices. Public
+statements remain allegations; actual nearby observations and inspected rights,
+title, law versions and earlier rulings retain their sources. The current land
+mayor must inspect the file and revalidate authority, conflicts and the response
+window before ruling. A permission past its agreed end must be renewed, amended
+or ended; it cannot be confirmed or left as it is. A renewal renews every lapsed
+permission on the plot for its own household, so several lapsed households need
+no chosen winner. Ending is not offered for an unrepresented household. An amend ruling reassigns
+existing permissions and the pending requests it heard; other free Town land
+stays free. A conflicted holder steps aside for a willing independent
+adult elected through the shared civic scheduler for this case only. A valid
+acting judge survives ordinary mayor succession; missing authority leaves the
+case pending. Reopening needs assessed material evidence or a demonstrated
+procedural error, retains earlier rulings and publishes a fresh notice. Grounds
+are judged against the latest ruling, and only while the case is settled. A
+settled case with no rehearing request offers its file to adults who have not
+read its ruling or whose plot's right, title or law has changed since, and offers
+its parties nearby observations and a rehearing request; statements and relays
+resume while a request is pending. A Council-approved Town filing that
+can no longer open when its vote passes keeps the vote and posts the reason.
+
+Bounded permission adjustments retain original grant receipts and replayable
+before/after rights. A ruling records the exact covered portions of pending
+requests, so resolved tiles stop contributing claims while remaining portions
+stay pending. Town title, membership, buildings, crops and inventory are not
+transferred by a hearing. Owner projection carries all active cases and pending
+rehearing assessments plus eight recent settled cases; complete ledgers remain
+in the checkpoint. Town, plot and property views use public names, sources and
+world clocks. Lifecycle telemetry carries identifiers, status and counts, with
+no statements, model replies or private memories. Wider law enforcement remains
+separate work.
 
 Formal civic acts require an admitted personal-model choice. Built-in decisions,
 failed replies and continued intentions supply no votes or candidate agreement.

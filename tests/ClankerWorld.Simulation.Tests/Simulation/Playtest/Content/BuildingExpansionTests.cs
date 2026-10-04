@@ -35,7 +35,7 @@ public sealed class BuildingExpansionTests
         var before = PrivateWorldRuntimeCodec.Encode(world.ExportState());
         // Exercise the final authority check as if this previously offered choice arrived late.
         typeof(PrivateWorldRuntime).GetMethod("ApplyTownCivicCandidate", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .Invoke(world, [actor, offered.Id, null, null, null]);
+            .Invoke(world, [actor, offered.Id, null, null, null, null]);
         Assert.Single(world.HouseholdLandUseRequests);
         Assert.Equal(before, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
     }

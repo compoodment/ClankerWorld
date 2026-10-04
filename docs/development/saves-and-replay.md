@@ -169,8 +169,8 @@ apply an accepted claim twice. Older alpha schemas are refused and preserved;
 no migration is provided.
 
 Schema 59 adds household land request status, separate adult consent, the
-Council proposal link and the adult roster at grant settlement. A grant and its
-rights must retain matching plot coverage, grant time and agreed end date;
+Council proposal link and the adult roster at grant settlement. A grant's
+original rights receipt must retain matching plot coverage, grant time and agreed end date;
 loading rejects missing approval or consent evidence and orphaned Council
 land-use proposals. Closed requests remain history without competing claims.
 Prepared-tick rollback and current-format reload preserve approval progress and
@@ -199,8 +199,40 @@ a valid instruction that waits with a reason. The exact tile survives queued
 work, travel, partial pickup, cancellation and reload. Runtime selection and
 execution both recheck the lot's current position along with ordinary personal
 collection permissions, so moved or depleted goods cannot redirect the order.
-This version follows integrated tool-repair-order schema 73. Older alpha saves
-are refused and preserved unchanged without migration.
+This version follows integrated tool-repair schema 73. Older alpha saves are
+refused and preserved unchanged without migration.
+
+Schema 76 saves each Town's land-hearing ledger: plot and right-version notice
+revisions, affected parties, public evidence and provenance, explicit responses,
+actual file reads, case-only candidate consent and elections, adjudicator terms,
+rulings and rehearing assessments. Notice publication does not become a receipt,
+and a read records the evidence and rehearing requests actually seen. Original
+grant rights remain available for the Council receipt checks; versioned bounded
+adjustments reproduce current permissions without destroying that receipt.
+Request-resolution pointers identify the ruling and exact tiles decided, leaving
+only unresolved portions as competing claims. Loading validates the case's notice,
+source, read, authority and adjustment links rather than inventing missing evidence.
+Notice party snapshots remain historical; current response standing is derived
+from the captured world, while each ruling retains its actual closure parties.
+
+The same ledger saves voluntary transfer requests with immutable exact plots,
+right versions, published party rosters and terms. Actual notice receipts remain
+separate from individual accept or decline responses and their contemporaneous
+household rosters. A completed transfer retains its final adult rosters and
+exact permission-adjustment receipt. Loading validates that completion against
+every required adult's informed acceptance and the unchanged original grant terms; incomplete,
+declined, withdrawn or invalidated transfers cannot carry a completed adjustment.
+Pending consent requirements are derived from living adults, so a new adult must
+personally accept before completion. These records preserve original Council
+grant receipts without transferring title or physical property.
+
+These records share prepared-tick rollback with permissions, requests, civic
+receipts and events. Current-format reload and continuation retain pending
+windows, rulings and transfers without applying a decision twice. Reopening
+preserves the earlier ruling and current rights until a new correction is committed. Older
+alpha schemas are refused and preserved without migration.
+
+
 
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
@@ -413,10 +445,10 @@ the only record of membership; an admission record says what one approval did to
 - `admitted`: membership changed. It keeps the Town the newcomer left, if any,
   and the sorted IDs of the newcomer and the dependent children who moved.
 - `lapsed`: the approval could not be applied, with the reason `unavailable`,
-  `already_resident`, `affiliation_changed`, `joined_elsewhere` or, in schema 76,
+  `already_resident`, `affiliation_changed`, `joined_elsewhere` or, in schema 77,
   `acceptance_expired`.
 
-Schema 76 gives a sponsored approval one unpaused world day for acceptance. Its
+Schema 77 gives a sponsored approval one unpaused world day for acceptance. Its
 deadline is derived from the saved passed proposal's original `SettledTick` plus
 the configured `TicksPerDay`; no separate deadline field is stored. The approval
 expires at that tick, and its admission record keeps the lapse reason and actual
@@ -582,7 +614,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 76. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 77. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
@@ -652,10 +684,10 @@ for overcrowding move-out notices, schemas 65 to 67 for material gathering,
 storage and collection orders, schema 68 for shared Town-project construction,
 schema 69 for equipment-repair orders, schema 70 for explicit chosen names and
 unique first names, schema 71 for physical guardian placements, schema 75
-for paid Markets and physical stall trade, and schema 76 for sponsored admission
-approval expiry record when those fields or behaviors
-were introduced; they do not allow an earlier checkpoint schema past the
-current alpha cutoff.
+for paid Markets and physical stall trade, schema 76 for land hearings and
+consensual permission transfers, and schema 77 for sponsored admission approval
+expiry record when those fields or behaviors were introduced; they do not allow
+an earlier checkpoint schema past the current alpha cutoff.
 
 | Compatibility change | Meaning |
 | --- | --- |
@@ -712,7 +744,8 @@ current alpha cutoff.
 | Schema 70 and society/runtime v2 | Required chosen-name markers distinguish temporary labels from chosen identities, even after automatic naming ends. Chosen first names are unique across living and deceased inhabitants. Current-format reload and compaction retain the marker and pending retry; older alpha formats are refused and preserved without inference or migration. |
 | Schema 71 | Pending guardian placements retain exact accepted care authority, collecting or escorting progress, a selected House and current blocker. Household and Town membership change together only on valid arrival. Earlier alpha checkpoints are refused and preserved without migration. |
 | Schema 75 | Required Market lists bind paid halls and stalls to their completed Town projects, with named borrowing, physical stock receipts and exact inventory barter history. Earlier alpha checkpoints are refused and preserved without migration. |
-| Schema 76 | A sponsored admission approval expires one unpaused world day after its passed proposal settled, with `acceptance_expired` recorded when no acceptance occurred. The deadline uses saved world time and the original council decision, so pause and reload do not restart it. Earlier alpha saves are refused and preserved without migration. |
+| Schema 76 | Land hearings and voluntary permission transfers retain notice, evidence, personal consent, authority and closure history. Original grants and bounded adjustments must reproduce current permissions. Earlier alpha saves are refused and preserved without migration. |
+| Schema 77 | A sponsored admission approval expires one unpaused world day after its passed proposal settled, with `acceptance_expired` recorded when no acceptance occurred. The deadline uses saved world time and the original council decision, so pause and reload do not restart it. Earlier alpha saves are refused and preserved without migration. |
 
 ### Tool-making requests
 
