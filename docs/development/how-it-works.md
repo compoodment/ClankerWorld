@@ -94,7 +94,7 @@ seeking a food source, harvesting food, gathering supported raw materials,
 storing personal raw materials or equipment, collecting personal raw materials,
 ready-to-eat food or equipment, repairing supported personal
 clothing, carrying aids and tools, household field work, and moving to an exact
-tile. Harvest and food-source travel orders must name a supported kind or resource; explicit resource names must match a complete
+tile, and supported non-food production recipes. Harvest and food-source travel orders must name a supported kind or resource; explicit resource names must match a complete
 identifier and the requested kind. Unsupported
 objects or operations, mixed tasks, unknown explicit targets, and invalid
 quantities or leftover words are rejected as not understood rather than mapped
@@ -238,6 +238,29 @@ current work under normal field rules and the order resumes its remaining count.
 Saved work must match the actor's active instruction, action, crop and any
 explicit tile.
 Validation refuses links to another agent, task or equipment kind.
+
+Production orders use `produce_item` and retain the exact recipe, output kind,
+chosen work site and owned project/job identity. The job's optional
+`OrderInstructionId` proves that the instruction started it. The bounded catalogue resolves
+supported product names without interpreting arbitrary recipe text or model
+output. `output_items` counts actual produced units and accepts only whole
+recipe-yield multiples; `production_batches` counts one task by default or an
+explicit number of batches. A named site constrains the same normal access and
+workstation checks. Unavailable inputs or sites block the saved task.
+
+The order advances its bound settlement project through ordinary preparation,
+travel and production, even though ordinary project continuation yields to an
+active instruction. Starting or waiting for a job earns no progress. Only a
+committed completion of the exact bound job credits its physical outputs, with
+a production receipt preventing duplicate credit. Outputs retain ordinary
+recipe ownership. Cancelling or replacing an order releases its unfinished
+job's inputs without adopting or cancelling another project. Survival pauses
+the bound job before it can finish and resumes its remaining duration after
+the actor returns. Recipe, project, job and order references are validated
+together on restore. Content removal checks retained production orders,
+including cancelled history, against the remaining definitions before changing
+the registry. Retired generic cooking recipes are excluded; named-meal orders
+remain separate catalogue work.
 
 A MustDo with no recognized action is closed when it is submitted: it is added
 to the completed instructions with an `instruction_not_understood` event

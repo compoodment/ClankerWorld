@@ -358,6 +358,7 @@ public sealed record InhabitantObservation(
                         "gather the requested material from a natural source" or
                         "collect your own stored or dropped material" or
                         "collect your own stored or dropped food" or
+                        "make the requested goods at a permitted workstation" or
                         "collect your own stored or dropped equipment" or
                         "store your own carried material in your House" or
                         "store your own carried equipment in your House" or

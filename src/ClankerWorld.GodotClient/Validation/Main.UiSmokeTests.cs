@@ -2607,6 +2607,33 @@ public partial class Main
                 !renderedMessages.Contains("Suggestion waiting for their personal model\n“You said: Try the sunny riverbank next.”", StringComparison.Ordinal) ||
                 renderedMessages.Split("You said:", StringSplitOptions.None).Length - 1 != 4)
                 throw new InvalidOperationException("Keeping the active task visible must preserve the newest unread suggestion and the four-message history limit.");
+            foreach (var (productionOrder, expectedSummary) in new (OwnerWorldInstructionOrder Order, string Summary)[]
+            {
+                (new("produce_item", "doing", 4, 2, "output_items", false, TargetOutputKind: "cloth"),
+                    "Doing · Making cloth · 2/4 items made"),
+                (new("produce_item", "doing", 2, 1, "production_batches", false, TargetOutputKind: "gold"),
+                    "Doing · Making refined gold · 1/2 batches completed"),
+                (new("produce_item", "blocked", 2, 0, "output_items", false,
+                    BlockedReason: "The House needs clay.", TargetOutputKind: "storage_pot"),
+                    "Blocked · Making storage pot · 0/2 items made · The House needs clay."),
+                (new("produce_item", "doing", 1, 3, "production_batches", true, TargetOutputKind: "cloth"),
+                    "Doing · Making cloth · 3 batches completed so far, repeats until cancelled"),
+            })
+            {
+                RenderSelectedInhabitantCard(occupied with
+                {
+                    Instructions =
+                    [
+                        new OwnerWorldInstruction("message-production-order", founder.Id, "must_do",
+                            "Make the requested goods.", "queued", 0, 0, 1, Order: productionOrder),
+                    ],
+                });
+                renderedMessages = instructionHistory.GetParsedText();
+                if (!renderedMessages.Contains(expectedSummary + "\n“You said: Make the requested goods.”", StringComparison.Ordinal) ||
+                    !instructionCancelButton.Visible)
+                    throw new InvalidOperationException($"Production tasks must show the named goods, actual item or batch progress and any blocker: {renderedMessages}");
+            }
+            RenderSelectedInhabitantCard(queuedOrderSnapshot);
             var alreadyFinished = OrderCancellationResultText(
                 new OwnerOrderControlReceipt("order-private-id", "finished", false, 0, 0));
             var alreadyUnrecognized = OrderCancellationResultText(
@@ -3778,13 +3805,23 @@ public partial class Main
             VerifyAgentTextEllipses();
             VerifyPlainEllipses("after every panel has been shown");
             GD.Print("UI checks passed: startup Main Menu and settings, compact in-world pause menu and read-only Mod Library, confirmed quit, World Info Towns page, resource hover, square tile hover and agent priority, agent facings, walk steps and activity frames, bounded marker hitboxes at zoom, building footprints, mountain relief chunks drawn off the main thread, soft snow edges and desert cacti, camera-bounded large terrain and regional weather, zoom, middle-drag, WASD, overview navigation, Event Log jumps without pop-ups, keyboard shortcuts and the F1 controls list, Developer tools on F12 with readouts, agent jumps and planned paths, private thoughts, the agent order list at small and large screen sizes, memories, deceased inspection with final wills, family tree and refused agent renames.");
-            GetTree().Quit();
+            Callable.From(() => FinishUiSmoke(0)).CallDeferred();
         }
         catch (Exception exception)
         {
             GD.PushError(exception.Message);
-            GetTree().Quit(1);
+            Callable.From(() => FinishUiSmoke(1)).CallDeferred();
         }
+    }
+
+    private void FinishUiSmoke(int exitCode)
+    {
+        // Let the async smoke state machine release its temporary Godot objects
+        // before collecting them. Their finalizers must finish while the native
+        // C# bindings are still alive, rather than racing engine shutdown.
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GetTree().Quit(exitCode);
     }
 
     private void VerifyEventLogAgentNames()

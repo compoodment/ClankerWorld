@@ -37,6 +37,7 @@ public sealed partial class PrivateWorldRuntime
             society.Checkpoint.Inhabitants, map, society.Checkpoint.Estates);
         ValidateFarmFields(fields.ToArray(), map, worldSeed, society.Checkpoint, worldSimulation, worldContent, RoadAndBridgeTiles().ToArray());
         ValidateFieldOrderBindings(fields, instructionsByIdempotency.Values);
+        ValidateProductionOrderBindings(worldSimulation, worldContent, inhabitants.Values, instructionsByIdempotency.Values);
         if (worldSimulation.Buildings.Any(building => building.HouseholdId is { } householdId &&
             !society.Checkpoint.Households.Any(household => household.Id == householdId)))
             throw new InvalidDataException("A House references a missing household.");
@@ -392,7 +393,7 @@ public sealed partial class PrivateWorldRuntime
         var latestWorldEventId = state.Events.Count == 0 ? state.EventHistoryFloor : state.Events[^1].EventId;
         ValidateSavedInstructions(state.Instructions ?? [], state.CompletedInstructionIds ?? [], society.Checkpoint,
             state.Society.Society.WorldId, latestWorldEventId,
-            state.OrderCancellations ?? []);
+            state.OrderCancellations ?? [], state.WorldContent);
         ValidateBeliefEventSources(state.Society.Society.Beliefs ?? [], state.Events, state.EventHistoryFloor);
         ValidateConversationState(state, society.Checkpoint);
         AgentMarriageValidation.Validate(state, society.Checkpoint);
@@ -455,6 +456,7 @@ public sealed partial class PrivateWorldRuntime
         state.WorldContent.Validate();
         WorldContentSimulationRules.Validate(state.WorldSimulation, state.WorldContent, state.Map,
             state.Society.Society.WorldTick);
+        ValidateProductionOrderBindings(state.WorldSimulation, state.WorldContent, state.Inhabitants, state.Instructions ?? []);
         ValidateBuildingExpansionState(state.WorldSimulation, state.WorldContent, state.Society.Society,
             state.Map, state.SchemaVersion);
         ValidateHandcarts(state.HandcartHitches, state.Society.Society.Inventory, state.Inhabitants, travelMap);
@@ -507,7 +509,8 @@ public sealed partial class PrivateWorldRuntime
         SocietyCheckpoint checkpoint,
         string worldId,
         long latestEventId,
-        IReadOnlyList<OwnerOrderCancellation> cancellations)
+        IReadOnlyList<OwnerOrderCancellation> cancellations,
+        DeclarativeWorldContentState worldContent)
     {
         var people = checkpoint.Inhabitants.Select(person => person.Id).ToHashSet(StringComparer.Ordinal);
         var instructionIds = new HashSet<string>(StringComparer.Ordinal);
@@ -540,7 +543,7 @@ public sealed partial class PrivateWorldRuntime
                 instruction.Kind == OwnerInstructionKind.Suggestive && instruction.Order is not null ||
                 instruction.Kind == OwnerInstructionKind.MustDo && instruction.Order is null ||
                 instruction.Order is { } order && !IsValidSavedOrder(order, instruction, completedInstructionIds,
-                    people))
+                    people, checkpoint.WorldTick, worldContent))
                 throw new InvalidDataException("The saved owner instruction or observer response is invalid.");
         }
 
@@ -580,7 +583,9 @@ public sealed partial class PrivateWorldRuntime
         OwnerInstructionOrder order,
         OwnerQueuedInstruction instruction,
         IReadOnlyList<string> completedInstructionIds,
-        HashSet<string> people)
+        HashSet<string> people,
+        long worldTick,
+        DeclarativeWorldContentState worldContent)
     {
         var knownStatus = order.Status is "queued" or "waiting" or "doing" or "interrupted" or "blocked" or
             "finished" or "cancelled" or "not_understood";
@@ -590,6 +595,8 @@ public sealed partial class PrivateWorldRuntime
             order.BlockedReason is { Length: > 256 } || order.BlockedReason?.Any(char.IsControl) == true ||
             order.LastEffectId is { Length: > 512 } || order.LastEffectId?.Any(char.IsControl) == true ||
             order.TargetResourceId is { Length: > 128 } || order.TargetResourceId?.Any(char.IsControl) == true ||
+            order.Action != "produce_item" && (order.TargetRecipeId is not null || order.TargetOutputKind is not null ||
+                order.ProductionBuildingId is not null || order.ProductionJobId is not null || order.ProductionProjectStartedTick is not null) ||
             order.TargetFoodKind is not (null or "berries" or "fruit" or "wild_greens") &&
                 (order.Action != "consume_food" || !IsEdibleFood(order.TargetFoodKind)) &&
                 !(order.Action == "collect_food" && order.TargetFoodKind == "cultivated_greens") ||
@@ -608,6 +615,26 @@ public sealed partial class PrivateWorldRuntime
                 order.ProgressUnit == "none" && !order.RepeatUntilCancelled && order.TargetFoodKind is null &&
                 order.TargetResourceId is null && order.TargetPosition is null && order.LastEffectId is null &&
                 order.TargetAgentId is null;
+
+        if (order.Action == "produce_item")
+        {
+            var recipe = PrivateWorldProductionOrderCatalog.Find(worldContent, order.TargetRecipeId);
+            return recipe is not null && order.TargetOutputKind == recipe.OutputKind &&
+                order.TargetAgentId is null && order.TargetFoodKind is null && order.TargetResourceId is null &&
+                order.RequestedUnits is >= 1 and <= 1000 && order.CompletedUnits is >= 0 and <= 1_000_000 &&
+                (order.RepeatUntilCancelled || order.CompletedUnits <= order.RequestedUnits) &&
+                order.Status != "not_understood" &&
+                (order.Status == "finished") == (!order.RepeatUntilCancelled && order.CompletedUnits >= order.RequestedUnits) &&
+                (order.ProgressUnit == "output_items"
+                    ? order.QuantityIsExplicit && order.RequestedUnits % recipe.OutputQuantity == 0 &&
+                        order.CompletedUnits % recipe.OutputQuantity == 0
+                    : order.ProgressUnit == "production_batches" && (order.QuantityIsExplicit || order.RequestedUnits == 1)) &&
+                (order.ProductionBuildingId is null ? order.ProductionProjectStartedTick is null && order.ProductionJobId is null :
+                    IsValidProductionBindingId(order.ProductionBuildingId) && order.ProductionProjectStartedTick is >= 0 &&
+                    order.ProductionProjectStartedTick <= worldTick &&
+                    (order.ProductionJobId is null || IsValidProductionBindingId(order.ProductionJobId))) &&
+                (order.CompletedUnits == 0 ? order.LastEffectId is null : IsValidProductionReceipt(order.LastEffectId));
+        }
 
         if (IsFieldOrder(order.Action))
             return (order.Action == "till_field" ? order.TargetCropKind is null :
@@ -701,6 +728,13 @@ public sealed partial class PrivateWorldRuntime
 
         return true;
     }
+
+    private static bool IsValidProductionBindingId(string id) => id.Length is > 0 and <= 512 &&
+        id == id.Trim() && !id.Any(char.IsControl);
+
+    private static bool IsValidProductionReceipt(string? receipt) => receipt is { Length: 76 } &&
+        receipt.StartsWith("produce:job:", StringComparison.Ordinal) &&
+        receipt.Skip(12).All(character => character is >= '0' and <= '9' or >= 'a' and <= 'f');
 
     private static void ValidateConversationState(PrivateWorldRuntimeState state, SocietyCheckpoint checkpoint)
     {

@@ -301,6 +301,26 @@ them; their condition stays unchanged. Each unit occupies ordinary carrying
 space, and explicit quantities count individual items even when they share a
 stored lot. Shared or borrowed equipment remains unavailable to these orders.
 
+Production orders use the existing recipes for goods such as rope, baskets,
+cloth, clothing, sacks, tools, flour, pottery and care supplies. Examples are
+"make two sacks", "mill flour" and "make two batches of house bandages". They use
+ordinary recipe ingredients, household access, work sites, preparation and
+production time. Goods keep the recipe's usual ownership and location.
+The default is one batch. Explicit item quantities must be an exact number
+of whole batches; the game refuses a count that would require making extra
+items. Only completed production advances the displayed item or batch count.
+Bandages distinguish "house bandages" from "tailor bandages". These names
+select exact recipes; an ambiguous plain "bandages" request is not understood.
+
+An optional "at (12, 4)" pins the work site to that tile. The task keeps its
+chosen recipe and work site while it waits or repeats; it does not redirect
+to another building when access or materials disappear. Queueing, replacement,
+cancellation and save/reload retain the remaining count. Cancellation releases
+unused reserved ingredients; already finished goods remain. Urgent survival
+pauses the current production job and its remaining work before the order
+resumes. Named meals such as bread and porridge are not part of this order
+catalogue yet.
+
 Repair orders cover personally owned, carried basic clothing, padded coats,
 rain cloaks, baskets and sacks that are worn enough for the ordinary repair
 rules. For example, "repair my basket", "repair two padded coats", or "keep

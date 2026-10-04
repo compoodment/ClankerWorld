@@ -68,6 +68,11 @@ public sealed partial class PrivateWorldRuntime
         var result = society.Apply(checkpoint => SocietyFixture.LeaveHousehold(checkpoint, actor));
         if (result.CreatedId is null) return false;
         ApplyInventoryTransition(_ => nextInventory);
+        if (PendingInstructionFor(actor) is { Order.Action: "produce_item" } productionOrder)
+        {
+            CancelProductionForOrder(productionOrder);
+            SetOrderStatus(productionOrder, "blocked", "The agent left the household holding the ordered workstation.");
+        }
         foreach (var id in group)
         {
             var person = inhabitants[id];
@@ -166,6 +171,7 @@ public sealed partial class PrivateWorldRuntime
         var household = society.Checkpoint.GetInhabitant(actor).HouseholdId;
         if (household is null) yield break;
         foreach (var job in worldSimulation.ProductionJobs.Where(job => job.State == WorldProductionJobState.Paused &&
+                     !IsActiveProductionOrderJob(job.JobId) &&
                      worldSimulation.Buildings.Any(building => building.InstanceId == job.BuildingInstanceId && building.HouseholdId == household)))
             yield return (job.JobId, job.BuildingInstanceId, job.WorkerId, job.CompletionTick, job.PausedAtTick!.Value, job.InputReservationIds);
         foreach (var job in (worldSimulation.BuildingExpansions ?? []).Where(job => job.State == WorldProductionJobState.Paused && job.OwnerId == household))
