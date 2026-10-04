@@ -341,6 +341,15 @@ public sealed class TownProjectRuntimeTests
     {
         var policy = new TownProjectPolicy { HoldVote = true };
         using var scenario = TownProjectScenario.Create(TownProjectScenario.PlayableSeed, policy, initialTownStock: true);
+        // Settle model-driven proposal and notice reading before deferring the vote.
+        await scenario.UntilAsync(() =>
+        {
+            var council = scenario.World.Towns[0].Governance!;
+            return council.Proposals.Any(proposal => proposal.Kind == "project" && proposal.Status == "pending" &&
+                council.Notices.Any(notice => notice.SubjectId == proposal.Id &&
+                    council.Knowledge.Any(receipt => receipt.AgentId == TownProjectScenario.Author && receipt.NoticeId == notice.Id)));
+        }, 80);
+        policy.ArmHeldVote = true;
         for (var tick = 0; tick < 80 && !policy.VoteStarted.Task.IsCompleted; tick++)
         {
             await scenario.World.AdvanceOneTickNonBlockingAsync();
@@ -653,6 +662,7 @@ internal sealed class TownProjectPolicy
     internal TaskCompletionSource<bool> DonationStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     internal TaskCompletionSource<bool> ReleaseDonation { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     internal bool HoldVote { get; init; }
+    internal bool ArmHeldVote { get; set; }
     internal bool AcceptLandUse { get; set; }
     internal bool NoVotes { get; init; }
     internal TaskCompletionSource<bool> VoteStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -668,12 +678,6 @@ internal sealed class TownProjectPolicy
         public DecisionProviderKind Kind => DecisionProviderKind.LargeLanguageModel;
         public long ProviderEpoch => 1;
 
-        // The stale-vote scenario defers only its held personal vote. Preparatory
-        // proposal/read replies must settle before more game ticks consume the window.
-        public DecisionProviderKind KindFor(InhabitantObservation observation) => policy.HoldVote &&
-            (actor != TownProjectScenario.Author || !observation.Candidates.Any(candidate => candidate.Id.Contains("|yes|", StringComparison.Ordinal)))
-                ? DecisionProviderKind.Deterministic : Kind;
-
         public async ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
         {
             var observation = request.Observation;
@@ -684,7 +688,7 @@ internal sealed class TownProjectPolicy
                     candidate.Id is "consume_food" or "collect_shared_food" or "take_food_from_pot" or
                         "make_room_for_food" or "harvest_food" or "seek_food" or "wear_clothing" or "seek_warmth")
                 .OrderBy(candidate => candidate.DeterministicPriority).ThenBy(candidate => candidate.Id, StringComparer.Ordinal)
-                .FirstOrDefault() ?? (!policy.NoVotes && (!policy.HoldVote || actor == TownProjectScenario.Author)
+                .FirstOrDefault() ?? (!policy.NoVotes && (!policy.HoldVote || policy.ArmHeldVote && actor == TownProjectScenario.Author)
                 ? candidates.FirstOrDefault(c => c.Id.Contains("|yes|", StringComparison.Ordinal)) : null) ??
                 (policy.AcceptLandUse ? candidates.FirstOrDefault(c => c.Id.Contains("|accept_land_use|", StringComparison.Ordinal)) : null) ??
                 candidates.FirstOrDefault(c => c.Id.Contains("|read|", StringComparison.Ordinal));
@@ -759,7 +763,7 @@ internal sealed class TownProjectPolicy
                 await policy.ReleaseVote.Task;
             }
             var response = new CognitionDecisionResponse(request.RequestId, observation.InhabitantId,
-                KindFor(observation), ProviderEpoch, observation.RunEpoch, observation.DecisionGeneration, observation.ObservationDigest,
+                Kind, ProviderEpoch, observation.RunEpoch, observation.DecisionGeneration, observation.ObservationDigest,
                 selected.Id, 1, candidates.ToDictionary(c => c.Id, c => c.Id == selected.Id ? 1d : 0d, StringComparer.Ordinal),
                 CivicProposal: text);
             if (policy.HoldVote && actor == TownProjectScenario.Author && selected.Id.Contains("|yes|", StringComparison.Ordinal))
