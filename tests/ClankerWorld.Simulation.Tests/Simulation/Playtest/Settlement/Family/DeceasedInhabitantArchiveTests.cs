@@ -45,6 +45,7 @@ public sealed class DeceasedInhabitantArchiveTests
                 Config = state.WorldSystems!.Config with
                 {
                     TicksPerDay = 1,
+                    CalendarOffsetTicks = 0,
                     DaysPerYear = 4,
                     SpringDays = 1,
                     SummerDays = 1,

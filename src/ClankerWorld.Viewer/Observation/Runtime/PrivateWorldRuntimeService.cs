@@ -336,6 +336,8 @@ public sealed partial class PrivateWorldRuntimeService(
                         worldEvent.Kind is not ("town_resources_stored" or "town_resource_collected") &&
                         project?.Blocker is not null);
                 }
+                foreach (var worldEvent in result.Events.Where(item => item.Kind.StartsWith("handcart_", StringComparison.Ordinal)))
+                    HandcartTelemetry.Record(logger, worldEvent, runtime.Society.Inventory, actors);
                 foreach (var worldEvent in result.Events.Where(item => item.Kind == "survival_condition_changed"))
                 {
                     var actor = EventActor(worldEvent.Detail);
@@ -382,6 +384,7 @@ public sealed partial class PrivateWorldRuntimeService(
                              "parenthood_requested" or "parenthood_preparing" or "parenthood_cancelled" or "parenthood_completed" or
                              "parenthood_postponed" or "continuity_rule_on" or "continuity_rule_off" or "continuity_plan_proceeded" or
                              "child_born" or "child_cared_for" or "guardian_needed" or "guardian_assigned" or
+                             "guardian_placement_pending" or "guardian_placement_completed" or "guardian_placement_cancelled" or
                              "primary_caregiver_assigned" or "caregiver_proposed" or "caregiver_assigned" or
                              "caregiver_accepted" or "caregiver_refused" or "caregiver_proposal_expired" or "caregiver_ended" or
                              "dependent_cared_for"))
@@ -391,6 +394,7 @@ public sealed partial class PrivateWorldRuntimeService(
                 foreach (var worldEvent in result.Events.Where(item => item.Kind is "housing_request_made" or
                              "housing_answer_recorded" or "household_joined" or "housing_request_refused" or
                              "housing_request_expired" or "housing_request_cancelled" or "housing_blocked" or
+                             "relocation_notice" or "relocation_cancelled" or
                              "household_left" or "household_founded" or "personal_goods_collected" or "personal_goods_stored" or
                              "borrowed_goods_returned" or "replacement_care_accepted" or "household_work_resumed"))
                 {

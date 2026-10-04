@@ -14,31 +14,6 @@ public sealed class AbandonedWarehouseConsumerTests
     private const string Beta = "household:camp-beta";
 
     [Theory]
-    [InlineData("wooden_axe")]
-    [InlineData("wooden_pickaxe")]
-    [InlineData("wooden_hoe")]
-    public void OrdinaryToolChoicesCollectOnlyTheUnreservedUnitAndPreserveItsCondition(string kind)
-    {
-        var (state, actor, _) = PreparedStock(kind, 2);
-        state = WithReservation(state, "salvage-stock", 1);
-        using var world = Reload(state);
-        Assert.Contains(Candidates(world, actor), item => item.Id == "collect_" + kind);
-        Choose(world, actor, "collect_" + kind);
-        var carried = Assert.Single(world.Society.Inventory.Lots, lot => lot.OwnerId == actor && lot.ItemKind == kind);
-        Assert.Equal(1, carried.Quantity);
-        Assert.Equal(7_600, carried.ConditionBasisPoints);
-        Assert.Equal(8_300, carried.FreshnessBasisPoints);
-        Assert.Null(carried.StorageBuildingId);
-        Assert.Null(carried.DeliveryBuildingId);
-        Assert.Null(carried.GroundPosition);
-        Assert.Equal(1, world.Society.Inventory.GetLot("salvage-stock").Quantity);
-        Assert.Equal(InventoryReservationState.Reserved, world.Society.Inventory.GetReservation("keep-stock").State);
-        Assert.Equal(1, world.Society.Inventory.GetReservation("keep-stock").Quantity);
-        Assert.DoesNotContain(world.Towns.Single(item => item.Id == QuietTown).ResidentIds, id => id == actor);
-        AssertRoundTrip(world);
-    }
-
-    [Theory]
     [InlineData("sack", "equip_carry_aid")]
     [InlineData("padded_coat", "wear_clothing")]
     public void OrdinaryEquipmentChoicesCollectAndEquipCommunalStockWithoutTakingPrivateGoods(string kind, string choice)

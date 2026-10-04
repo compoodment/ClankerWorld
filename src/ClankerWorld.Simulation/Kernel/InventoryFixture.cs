@@ -103,6 +103,8 @@ public sealed record DirectBarterProposal(
 /// <summary>Current physical containers and provisional playtest capacity limits.</summary>
 public static class InventoryContainerRules
 {
+    public const string Handcart = "handcart";
+    public const int HandcartCapacity = 32;
     public const string StoragePot = "storage_pot";
     public const string WaterJug = "water_jug";
     public const string FreshWater = "fresh_water";
@@ -116,10 +118,11 @@ public static class InventoryContainerRules
         "simple_meal", "berry_porridge", "fruit_porridge", "restaurant_meal",
     };
 
-    public static bool IsContainer(string itemKind) => itemKind is StoragePot or WaterJug;
+    public static bool IsContainer(string itemKind) => itemKind is StoragePot or WaterJug or Handcart;
 
     public static int Capacity(string itemKind) => itemKind switch
     {
+        Handcart => HandcartCapacity,
         StoragePot => StoragePotCapacity,
         WaterJug => WaterJugCapacity,
         _ => throw new InvalidOperationException($"'{itemKind}' is not a container."),
@@ -127,6 +130,7 @@ public static class InventoryContainerRules
 
     public static bool Allows(string containerKind, string contentKind) => containerKind switch
     {
+        Handcart => !IsContainer(contentKind) && contentKind != FreshWater,
         StoragePot => FoodKinds.Contains(contentKind),
         WaterJug => contentKind == FreshWater,
         _ => false,
@@ -389,6 +393,26 @@ public static partial class InventoryFixture
             detail: $"{reservationId}:{purpose}");
     }
 
+    /// <summary>Releases only the requested part of a live claim, retaining protection for its remaining quantity.</summary>
+    public static InventoryCheckpoint ReleaseReservationQuantity(
+        InventoryCheckpoint checkpoint, string reservationId, int quantity, string purpose)
+    {
+        ValidateCheckpoint(checkpoint);
+        ArgumentException.ThrowIfNullOrWhiteSpace(reservationId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(purpose);
+        var reservation = checkpoint.GetReservation(reservationId);
+        if (reservation.State is not (InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed) ||
+            checkpoint.WorldTick > reservation.ExpiryTick || quantity <= 0 || quantity > reservation.Quantity)
+            throw new InvalidOperationException("Only a positive quantity from a live reservation can be released.");
+        if (quantity == reservation.Quantity)
+            return ReleaseReservation(checkpoint, reservationId, $"{purpose}:quantity:{quantity}");
+        var reservations = checkpoint.Reservations.Select(candidate => candidate.Id == reservationId
+            ? candidate with { Quantity = candidate.Quantity - quantity }
+            : candidate).ToArray();
+        return Commit(checkpoint, reservations: reservations, eventKind: "reservation_partly_released",
+            detail: $"{reservationId}:{purpose}:quantity:{quantity}");
+    }
+
     public static InventoryCheckpoint Transfer(
         InventoryCheckpoint checkpoint,
         string transferId,
@@ -431,7 +455,9 @@ public static partial class InventoryFixture
                 CarrierId = null,
                 StorageBuildingId = destinationStorageBuildingId,
                 DeliveryBuildingId = destinationDeliveryBuildingId,
-                GroundPosition = lot.Id == source.Id ? destinationGroundPosition : null,
+                GroundPosition = lot.Id == source.Id
+                    ? destinationGroundPosition ?? (source.ItemKind == InventoryContainerRules.Handcart ? source.GroundPosition : null)
+                    : null,
             })
                 .ToDictionary(lot => lot.Id, StringComparer.Ordinal);
             return Commit(
@@ -1044,6 +1070,9 @@ public static partial class InventoryFixture
         {
             if (InventoryContainerRules.IsContainer(lot.ItemKind) && (lot.Quantity != 1 || lot.ContainerLotId is not null))
                 throw new InvalidDataException($"Reusable vessel lot '{lot.Id}' must be a single top-level item.");
+            if (lot.ItemKind == InventoryContainerRules.Handcart &&
+                (lot.GroundPosition is null || lot.StorageBuildingId is not null || lot.DeliveryBuildingId is not null))
+                throw new InvalidDataException($"Handcart lot '{lot.Id}' must have a physical ground position.");
             if (lot.ItemKind == InventoryContainerRules.FreshWater && lot.ContainerLotId is null)
                 throw new InvalidDataException($"Fresh water lot '{lot.Id}' must be contained in a water jug.");
             if (lot.ContainerLotId is not { } containerId) continue;

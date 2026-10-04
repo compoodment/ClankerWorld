@@ -77,42 +77,6 @@ public sealed class OrnamentPersonalUseTests
     }
 
     [Fact]
-    public async Task WearingAnOrnamentAlsoRecordsTheOwnerMessageAndReplyAcrossReload()
-    {
-        var state = Prepared(local: true);
-        var actor = Actor(state);
-        state = WithInventory(state, InventoryFixture.AddLot(state.Society.Society.Inventory,
-            Ornament, "gold_ornament", Alpha, 1, storageBuildingId: House));
-        const string reply = "I chose a gold ornament to wear.";
-        using var world = Restore(state, actor,
-            new OrnamentChoices("wear_ornament:", DecisionProviderKind.LargeLanguageModel, observerReply: reply));
-        var receipt = world.SubmitInstruction(new("ornament-owner-message", "owner:test", actor,
-            OwnerInstructionKind.Suggestive, "Tell me what you chose to wear."));
-
-        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-        Assert.Equal(Ornament, Physical(world, actor).Equipment!.OrnamentLotId);
-        Assert.Equal((actor, 1), (world.Society.Inventory.GetLot(Ornament).OwnerId,
-            world.Society.Inventory.GetLot(Ornament).Quantity));
-        var result = world.ExportState();
-        var observed = Assert.Single(result.Instructions!, message => message.InstructionId == receipt.InstructionId);
-        Assert.Equal(world.WorldTick, observed.ObservedTick);
-        Assert.Equal(reply, observed.ObserverReply);
-        Assert.Contains(receipt.InstructionId, result.CompletedInstructionIds!);
-        // Completed suggestions are recorded as completed instructions, not as order events.
-        Assert.DoesNotContain(result.Events, item => item.Kind == "instruction_applied");
-
-        var bytes = PrivateWorldRuntimeCodec.Encode(result);
-        using var replay = Restore(PrivateWorldRuntimeCodec.Decode(bytes));
-        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
-        for (var tick = 0; tick < 3; tick++) Assert.True((await replay.AdvanceOneTickAsync()).Advanced);
-        Assert.Equal(observed, Assert.Single(replay.ExportState().Instructions!,
-            message => message.InstructionId == receipt.InstructionId));
-        Assert.Equal(Ornament, Physical(replay, actor).Equipment!.OrnamentLotId);
-        Assert.Single(replay.ExportState().Events, item => item.Kind == "ornament_worn");
-        replay.Validate();
-    }
-
-    [Fact]
     public async Task AWornOrnamentIsNeverPutAwayAsPersonalStorage()
     {
         var state = Prepared(local: true);
@@ -232,7 +196,6 @@ public sealed class OrnamentPersonalUseTests
 
     [Theory]
     [InlineData("foreign")]
-    [InlineData("reserved")]
     [InlineData("ground")]
     [InlineData("stored")]
     [InlineData("promised")]

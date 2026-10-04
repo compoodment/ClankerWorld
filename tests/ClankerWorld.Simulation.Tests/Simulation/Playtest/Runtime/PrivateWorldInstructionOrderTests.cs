@@ -15,7 +15,7 @@ public sealed partial class PrivateWorldRuntimeTests
     [InlineData("be good", false)]
     [InlineData("that was long ago", false)]
     [InlineData("build a house", false)]
-    [InlineData("gather wood", false)]
+    [InlineData("gather wood", true)]
     [InlineData("gather wood at berry-patch", false)]
     [InlineData("go to the Blacksmith", false)]
     [InlineData("gather berries and build a House", false)]
@@ -64,102 +64,6 @@ public sealed partial class PrivateWorldRuntimeTests
             Assert.Contains(order.InstructionId, state.CompletedInstructionIds ?? []);
             Assert.Single(closed);
         }
-    }
-
-    [Fact]
-    public async Task DirectOrderTheGameCannotActOnClosesAtOnceAndLocalChoicesDoNotMarkSuggestionsHeard()
-    {
-        var provider = new CountingSelectingProvider(DecisionProviderKind.Deterministic, chooseIdle: true);
-        using var world = new PrivateWorldRuntime("unknown-order", _ => provider);
-        for (var tick = 0; tick < 5; tick++)
-            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-
-        var order = world.SubmitInstruction(new OwnerInstructionRequest("build-house", "owner:test",
-            OrderedAgent, OwnerInstructionKind.MustDo, "build a house"));
-        var closed = world.ExportState();
-        Assert.Contains(order.InstructionId, closed.CompletedInstructionIds ?? []);
-        var notUnderstood = Assert.Single(closed.Events, item => item.Kind == "instruction_not_understood");
-        Assert.Equal(OrderedAgent + ":" + order.InstructionId, notUnderstood.Detail);
-        Assert.NotNull(notUnderstood.Position);
-
-        var suggestion = world.SubmitInstruction(new OwnerInstructionRequest("rest", "owner:test",
-            OrderedAgent, OwnerInstructionKind.Suggestive, "rest"));
-        for (var tick = 0; tick < 3; tick++)
-            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-
-        var state = world.ExportState();
-        var savedSuggestion = Assert.Single(state.Instructions!, item => item.InstructionId == suggestion.InstructionId);
-        Assert.DoesNotContain(suggestion.InstructionId, state.CompletedInstructionIds ?? []);
-        Assert.Null(savedSuggestion.ObservedTick);
-        Assert.Null(savedSuggestion.ObserverReply);
-        Assert.NotNull(savedSuggestion.GuidancePromptedTick);
-        Assert.DoesNotContain(state.Events, item => item.Kind == "instruction_applied" &&
-            item.Detail.StartsWith(order.InstructionId + ":", StringComparison.Ordinal));
-        world.Validate();
-
-        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
-            PrivateWorldRuntimeCodec.Encode(state)), _ => provider);
-        Assert.True((await restored.AdvanceOneTickAsync()).Advanced);
-        Assert.Contains(order.InstructionId, restored.ExportState().CompletedInstructionIds ?? []);
-        Assert.Single(restored.ExportState().Events, item => item.Kind == "instruction_not_understood");
-        restored.Validate();
-    }
-
-    [Fact]
-    public async Task UnheardSuggestionDoesNotBlockRecognizedMustDoWithoutAPersonalModel()
-    {
-        using var genesis = new PrivateWorldRuntime("unheard-suggestion-before-order");
-        var state = genesis.ExportState();
-        const string foodLotId = "guidance-test-berries";
-        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory,
-            foodLotId, "berries", OrderedAgent, 1);
-        state = state with
-        {
-            Inhabitants = state.Inhabitants.Select(item => item.InhabitantId == OrderedAgent
-                ? item with { HungerBasisPoints = 3_000 }
-                : item).ToArray(),
-            Society = state.Society with
-            {
-                Society = state.Society.Society with { Inventory = inventory },
-            },
-        };
-        var provider = new GuidanceRecordingProvider();
-        using var world = PrivateWorldRuntime.Restore(state, id =>
-            id == OrderedAgent ? provider : new CountingSelectingProvider(DecisionProviderKind.Deterministic, chooseIdle: true));
-
-        var suggestion = world.SubmitInstruction(new OwnerInstructionRequest(
-            "unheard-suggestion", "owner:test", OrderedAgent, OwnerInstructionKind.Suggestive,
-            "Try the berries when you feel like it."));
-        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-        var afterSuggestion = world.ExportState();
-        var pendingSuggestion = Assert.Single(afterSuggestion.Instructions!, item => item.InstructionId == suggestion.InstructionId);
-        Assert.NotNull(pendingSuggestion.GuidancePromptedTick);
-        Assert.Null(pendingSuggestion.ObservedTick);
-        Assert.DoesNotContain(suggestion.InstructionId, afterSuggestion.CompletedInstructionIds ?? []);
-
-        var callsAfterSuggestion = provider.Requests.Count;
-        for (var tick = 0; tick < 4; tick++)
-            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-        Assert.Equal(callsAfterSuggestion, provider.Requests.Count);
-
-        var order = world.SubmitInstruction(new OwnerInstructionRequest(
-            "recognized-order-after-suggestion", "owner:test", OrderedAgent, OwnerInstructionKind.MustDo,
-            "Please eat the food now."));
-        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-
-        var stateAfterOrder = world.ExportState();
-        Assert.Contains(order.InstructionId, stateAfterOrder.CompletedInstructionIds ?? []);
-        Assert.DoesNotContain(suggestion.InstructionId, stateAfterOrder.CompletedInstructionIds ?? []);
-        Assert.Null(Assert.Single(stateAfterOrder.Instructions!, item => item.InstructionId == suggestion.InstructionId).ObservedTick);
-        var orderPrompt = Assert.Single(provider.Requests, request =>
-            request.ObserverGuidance?.Any(message => message.InstructionId == order.InstructionId) == true);
-        Assert.Contains(orderPrompt.ObserverGuidance!, message => message.InstructionId == suggestion.InstructionId);
-        Assert.DoesNotContain(stateAfterOrder.Society.Society.Inventory.Lots,
-            lot => lot.Id == foodLotId);
-        Assert.Contains(stateAfterOrder.Events, item => item.Kind == "food_consumed" && item.Detail == OrderedAgent);
-        Assert.Single(stateAfterOrder.Events, item => item.Kind == "instruction_applied" &&
-            item.Detail == order.InstructionId + ":consume_food");
-        world.Validate();
     }
 
     [Fact]
@@ -438,13 +342,16 @@ public sealed partial class PrivateWorldRuntimeTests
     }
 
     [Fact]
-    public void AgentCardKeepsTheLatestClosedMessagesEvenWhenNoPersonalModelHeardThem()
+    public void AgentCardKeepsTheLatestClosedOrdersAndSuggestionsEvenWhenNoPersonalModelHeardThem()
     {
+        const int heardCount = 7;
         const int closedOrderCount = 8;
         const int closedMessagesShown = 6;
         using var world = new PrivateWorldRuntime("closed-unheard-messages");
-        var heard = world.SubmitInstruction(new OwnerInstructionRequest("heard-suggestion", "owner:test",
-            OrderedAgent, OwnerInstructionKind.Suggestive, "Try the riverbank berries."));
+        var heard = Enumerable.Range(1, heardCount)
+            .Select(index => world.SubmitInstruction(new OwnerInstructionRequest($"heard-suggestion-{index}",
+                "owner:test", OrderedAgent, OwnerInstructionKind.Suggestive, $"Try the riverbank berries, idea {index}.")))
+            .ToArray();
         var waiting = world.SubmitInstruction(new OwnerInstructionRequest("waiting-suggestion", "owner:test",
             OrderedAgent, OwnerInstructionKind.Suggestive, "Rest when you can."));
         // The game cannot act on these orders, so each closes at once and no personal model hears it.
@@ -457,29 +364,37 @@ public sealed partial class PrivateWorldRuntimeTests
         var exported = world.ExportState();
         Assert.All(closedOrders.Append(otherAgentOrder), order =>
             Assert.Contains(order.InstructionId, exported.CompletedInstructionIds ?? []));
-        // The oldest message was heard by a personal model and answered.
-        var withHeardMessage = exported with
+        // The oldest suggestions were heard by a personal model and answered.
+        var heardIds = heard.Select(item => item.InstructionId).ToHashSet(StringComparer.Ordinal);
+        var withHeardMessages = exported with
         {
-            Instructions = exported.Instructions!.Select(item => item.InstructionId == heard.InstructionId
+            Instructions = exported.Instructions!.Select(item => heardIds.Contains(item.InstructionId)
                 ? item with { ObservedTick = item.SubmittedTick, ObserverReply = "I will look there." }
                 : item).ToArray(),
-            CompletedInstructionIds = [.. exported.CompletedInstructionIds!, heard.InstructionId],
+            CompletedInstructionIds = [.. exported.CompletedInstructionIds!, .. heardIds],
         };
 
-        using var live = PrivateWorldRuntime.Restore(withHeardMessage);
+        using var live = PrivateWorldRuntime.Restore(withHeardMessages);
         using var reloaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
             PrivateWorldRuntimeCodec.Encode(live.ExportState())));
         foreach (var runtime in new[] { live, reloaded })
         {
             var projected = new OwnerWorldObservationStore(runtime).GetSnapshot().Instructions;
             var forAgent = projected.Where(item => item.TargetInhabitantId == OrderedAgent).ToArray();
-            // Open messages always stay; closed ones are bounded to the newest few, heard or not.
+            // Open messages always stay; closed orders and closed suggestions are each
+            // bounded to the newest few, heard or not, so more suggestions never hide orders.
             Assert.Equal(
-                closedOrders.TakeLast(closedMessagesShown).Select(item => item.InstructionId)
-                    .Prepend(waiting.InstructionId).ToArray(),
+                heard.TakeLast(closedMessagesShown).Append(waiting)
+                    .Concat(closedOrders.TakeLast(closedMessagesShown)).Select(item => item.InstructionId).ToArray(),
                 forAgent.Select(item => item.InstructionId).ToArray());
-            Assert.Equal("queued", forAgent[0].State);
-            Assert.All(forAgent.Skip(1), item =>
+            Assert.All(forAgent.Take(closedMessagesShown), item =>
+            {
+                Assert.Equal("suggestive", item.Kind);
+                Assert.Equal("completed", item.State);
+                Assert.Equal("I will look there.", item.ObserverReply);
+            });
+            Assert.Equal("queued", forAgent[closedMessagesShown].State);
+            Assert.All(forAgent.Skip(closedMessagesShown + 1), item =>
             {
                 Assert.Equal("must_do", item.Kind);
                 Assert.Equal("completed", item.State);

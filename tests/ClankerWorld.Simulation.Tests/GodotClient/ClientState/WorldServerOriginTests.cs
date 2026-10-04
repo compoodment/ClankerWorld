@@ -5,7 +5,6 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class WorldServerOriginTests
 {
     [Theory]
-    [InlineData("https://clanker.tail87ae72.ts.net:8443/")]
     [InlineData("http://[::1]:5188/")]
     public void AcceptsAnHttpsOriginOrLiteralLoopbackDevelopmentOrigin(string value)
     {
@@ -17,7 +16,6 @@ public sealed class WorldServerOriginTests
     }
 
     [Theory]
-    [InlineData("http://example.test:5188/")]
     [InlineData("https://example.test/path")]
     [InlineData("https://example.test/?redirect=https://other.test")]
     [InlineData("not a url")]

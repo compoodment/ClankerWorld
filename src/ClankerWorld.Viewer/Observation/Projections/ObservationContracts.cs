@@ -25,6 +25,10 @@ public sealed record ViewerPackedMapLayers(int Width, int Height, string Encodin
 }
 public sealed record ViewerFarmField(ViewerPosition Position, string HouseholdId, string Stage, string? Crop,
     int Fertility, string? WorkerId, int? WorkRemaining);
+public sealed record ViewerHandcart(string Id, string OwnerId, string OwnerName, ViewerPosition Position,
+    int Capacity, int ConditionPercent, string? PullerId, string? PullerName,
+    IReadOnlyList<ViewerInventoryEntry> Cargo);
+
 public sealed record ViewerGroundStock(ViewerPosition Position, string OwnerId, string Kind, int Quantity);
 public sealed record ViewerWorldPreview(ViewerPackedTerrain Terrain, ViewerPosition Camp,
     string ManifestDigest, int ResourceSites = 0)
@@ -130,8 +134,8 @@ public sealed record ViewerAgentKnowledgeArtifact(
     string CreatorName,
     IReadOnlyList<ViewerKnowledgeSite> Sites);
 /// <summary>
-/// The world's saved calendar, including its season lengths, so the game can
-/// name the season and day of any tick the same way the world does.
+/// The world's saved calendar, including its season lengths and clock offset,
+/// so the game names the season and day of any tick the same way the world does.
 /// </summary>
 public sealed record ViewerCalendarPace(
     int TicksPerDay,
@@ -139,7 +143,8 @@ public sealed record ViewerCalendarPace(
     int SpringDays,
     int SummerDays,
     int AutumnDays,
-    int WinterDays);
+    int WinterDays,
+    int CalendarOffsetTicks = 0);
 
 /// <summary>
 /// An inspection projection, never an editable actor record. A founder draft
@@ -236,7 +241,10 @@ public sealed record ViewerInstructionOrder(
     string? TargetResourceId = null,
     int? TargetX = null,
     int? TargetY = null,
-    string? BlockedReason = null);
+    string? BlockedReason = null,
+    string? TargetAgentId = null,
+    string? TargetMaterialKind = null,
+    string? TargetEquipmentKind = null);
 
 public sealed record ViewerCognitionEvent(long EventId, long WorldTick, string Kind, string Detail);
 
@@ -351,6 +359,8 @@ public sealed record ViewerEvent(long EventId, long WorldTick, string Kind, stri
 
 public sealed record ViewerFounderSetup(int Required, int Placed, bool Started)
 {
+    /// <summary>An untouched bootstrap world should open New World instead of the retired camp.</summary>
+    public bool RequiresWorldCreation { get; init; }
     public bool CanChooseTownSite { get; init; }
     public bool HasAcceptedTownSite { get; init; }
     public string? LastFounderId { get; init; }
@@ -366,6 +376,7 @@ public sealed record ViewerTown(
     IReadOnlyList<ViewerPosition> BorderTiles)
 {
     public ViewerTownGovernance? Governance { get; init; }
+    public IReadOnlyList<ViewerTownProject> Projects { get; init; } = [];
     public ViewerTownGovernment? Government { get; init; }
 }
 
@@ -384,7 +395,20 @@ public sealed record ViewerTownGovernment(string Declaration, IReadOnlyList<View
     ViewerMayoralElection? Election, ViewerMayoralElection? LatestElection, long RetryTick);
 
 public sealed record ViewerCivicProposal(string Id, string Kind, string Text, string Status, int Yes, int No,
-    int RequiredYes, long DeadlineTick);
+    int RequiredYes, long DeadlineTick)
+{
+    public ViewerTownProjectPlan? Project { get; init; }
+}
+public sealed record ViewerTownProjectBudget(string Kind, int Quantity);
+public sealed record ViewerTownProjectPlan(string Name, string ProposerId, string ProposerName,
+    string DefinitionId, string DisplayName, ViewerPosition Site, ViewerPosition Entrance,
+    int Width, int Height, IReadOnlyList<ViewerTownProjectBudget> Budget);
+public sealed record ViewerTownProjectMaterial(string Kind, int Budget, int Supplied);
+public sealed record ViewerTownProject(string Id, string ProposalId, string Name,
+    string ProposerId, string ProposerName, string DefinitionId, string DisplayName,
+    ViewerPosition Site, ViewerPosition Entrance, int Width, int Height,
+    IReadOnlyList<ViewerTownProjectMaterial> Materials, int WorkDone, int WorkRequired,
+    string Stage, string? Blocker, string? CompletedBuildingId, ViewerCivicProposal Approval);
 public sealed record ViewerCivicCandidate(string Id, string Name, int Votes);
 public sealed record ViewerTownElection(string Id, string Kind, string Stage, int Seats, long DeadlineTick,
     IReadOnlyList<ViewerCivicCandidate> Candidates, IReadOnlyList<string> SettledNames);
@@ -462,6 +486,7 @@ public sealed record ViewerWorldSnapshot(
     public bool WrapsEastWest { get; init; }
     public IReadOnlyList<ViewerFarmField> Fields { get; init; } = [];
     public IReadOnlyList<ViewerGroundStock> GroundStocks { get; init; } = [];
+    public IReadOnlyList<ViewerHandcart> Handcarts { get; init; } = [];
     public IReadOnlyList<ViewerStockpile> Stockpiles { get; init; } = [];
     public ViewerCouncil? Council { get; init; }
     public int? LifePaceRate { get; init; }
@@ -521,11 +546,14 @@ public sealed record ViewerCouncil(string? StewardName, string FoodPolicy, strin
 public sealed record ViewerEventSlice(long SnapshotTick, long AfterEventId, IReadOnlyList<ViewerEvent> Events,
     long EventHistoryFloor = 0, bool ResetRequired = false);
 
+public sealed record ViewerObserverTimeline(string InstanceId, long Generation);
+
 /// <summary>
 /// A reconnect response is one server-side capture, not a race between a
 /// client's separate snapshot and event-history requests.
 /// </summary>
-public sealed record ViewerReconnectBaseline(ViewerWorldSnapshot Snapshot, ViewerEventSlice Events);
+public sealed record ViewerReconnectBaseline(ViewerWorldSnapshot Snapshot, ViewerEventSlice Events,
+    ViewerObserverTimeline? Timeline = null);
 
 /// <summary>
 /// Owns the static deterministic sample exposed by the first browser slice.

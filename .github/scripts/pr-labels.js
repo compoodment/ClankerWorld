@@ -78,7 +78,7 @@ const Priorities = ['priority:p0', 'priority:p1', 'priority:p2', 'priority:p3'];
 const DefaultPriority = 'priority:p2';
 // Changes to CI, labels, templates or the contribution rules affect every
 // agent, so they are P0.
-const WorkflowPaths = ['.github/', '.claude/', 'skills/', 'CONTRIBUTING.md', 'AGENTS.md', 'CLAUDE.md'];
+const WorkflowPaths = ['.github/', '.claude/', '.agents/', 'skills/', 'CONTRIBUTING.md', 'AGENTS.md', 'CLAUDE.md'];
 const WorkflowPriority = 'priority:p0';
 // The actor GitHub records for labels this workflow writes with its token.
 const LabelBot = 'github-actions[bot]';
@@ -199,6 +199,7 @@ const AreaRules = {
   'area:tooling': [
     '.github/',
     '.claude/',
+    '.agents/',
     'skills/',
     'scripts/',
     'global.json',
