@@ -64,6 +64,14 @@ public sealed partial class PrivateWorldExpansionOrderTests
         using var rebuild = Restore(state);
         using var replay = Reload(rebuild);
         await TickTogether(rebuild, replay);
+        // The first tick replaces the finished/cancelled expansion intention.
+        // Ordinary project continuation then runs through the normal native path.
+        if (!rebuild.WorldSimulation.Buildings.Any(building =>
+                building.HouseholdId == Household && building.DefinitionId == house.DefinitionId))
+            await TickTogether(rebuild, replay);
+        Assert.True(rebuild.WorldSimulation.Buildings.Any(building =>
+                building.HouseholdId == Household && building.DefinitionId == house.DefinitionId),
+            string.Join("\n", rebuild.ExportState().Events.TakeLast(20).Select(item => item.Kind + ":" + item.Detail)));
         var replacement = Assert.Single(rebuild.WorldSimulation.Buildings, building =>
             building.HouseholdId == Household && building.DefinitionId == house.DefinitionId);
         Assert.NotEqual(house.InstanceId, replacement.InstanceId);
