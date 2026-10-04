@@ -12,6 +12,7 @@ internal static class ArtContractChecks
         CheckApprovedBuildings(current);
         CheckApprovedNature(current);
         CheckApprovedItems();
+        CheckApprovedHandcarts();
         foreach (var size in new[] { 16, 32 })
         {
             foreach (var (facing, frame) in new[] { (6, AgentFrame.Walk2), (4, AgentFrame.Carry), (2, AgentFrame.Talk) })
@@ -142,6 +143,32 @@ internal static class ArtContractChecks
             }
         }
         Console.WriteLine($"Approved item aliases: {aliases.Length * 3} exact RGBA comparisons.");
+    }
+
+    private static void CheckApprovedHandcarts()
+    {
+        // Keep the proposal independent: comparing the client with another call
+        // to its own drawing would not catch a changed palette, pose or pixel.
+        var approved = new Proposed.Buildings.BuildingsProposal().Render()
+            .Where(entry => entry.Id.StartsWith("handcart.", StringComparison.Ordinal) &&
+                entry.Id.EndsWith(".sprite", StringComparison.Ordinal))
+            .ToDictionary(entry => entry.Id, entry => entry.Image, StringComparer.Ordinal);
+        if (approved.Count != 18)
+            throw new InvalidOperationException("The approved handcart reference must contain all eighteen drawings.");
+        string[] directions = ["S", "SW", "W", "NW", "N", "NE", "E", "SE"];
+        for (var facing = 0; facing < directions.Length; facing++)
+            foreach (var loaded in new[] { false, true })
+            {
+                var id = $"handcart.{(loaded ? "loaded" : "empty")}.{directions[facing]}.sprite";
+                Equal(HandcartSprites.Sprite(facing, loaded, pulled: false), approved[id],
+                    $"The playable cart must match the approved {id} drawing pixel for pixel.");
+            }
+        foreach (var facing in new[] { 6, 7 })
+        {
+            var id = $"handcart.pulled.{directions[facing]}.sprite";
+            Equal(HandcartSprites.Sprite(facing, loaded: true, pulled: true), approved[id],
+                $"The playable cart must match the approved {id} drawing pixel for pixel.");
+        }
     }
 
     private static void Equal(Image actual, Image expected, string message)

@@ -153,8 +153,11 @@ with a picture of its ground. **Family** opens their family tree beside the
 Profile, with a portrait for each person and a heart between partners. Click
 someone to open their Profile.
 
-Handcarts appear as small wheeled carts on the map. Hover over one or inspect
-its tile to see its owner, parked or pulled state, condition and actual cargo.
+Handcarts show their empty or loaded bed at close zoom and face the way they
+last moved. A loaded cart pulled east or south-east lifts its shafts; other
+directions use the parked picture. At smaller zooms, carts use a small wheeled
+icon. Hover over one or inspect its tile to see its owner, parked or pulled
+state, condition and actual cargo.
 The owner's agent card also lists their carts. A broken cart keeps its goods;
 its owner can unload here or repair it with carried wood, iron fittings and rope.
 A cart holds loose goods separately from the agent's own carrying limit.

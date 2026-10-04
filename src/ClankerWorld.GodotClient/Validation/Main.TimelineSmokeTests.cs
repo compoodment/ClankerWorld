@@ -54,6 +54,8 @@ public partial class Main
             {
                 PackedTerrain = new(3, 3, "terrain-kind-v1", Convert.ToBase64String(new byte[9])),
                 Inhabitants = [Agent(agentId, "Rowan Lake"), Agent(listenerId, "Aster Vale")],
+                Handcarts = [new("timeline-cart", agentId, "Rowan Lake", new(tick == 19 ? 0 : 1, 1),
+                    32, 100, null, null, [])],
                 Conversations = [new("timeline-ui-conversation", agentId, "Rowan Lake", listenerId, "Aster Vale",
                     "completed", null, null, 0, tick,
                     [new(turnId, agentId, "Rowan Lake", $"Timeline {generation} conversation.", tick, [listenerId], false)])],
@@ -78,10 +80,20 @@ public partial class Main
             {
                 observationSession.ReplaceRegistration(registration);
                 ResetDisplayedWorldContext();
+                host.Reconnect = World(1, 19, 0);
+                await RefreshAsync();
                 host.Reconnect = World(1, 20, 2);
                 await RefreshAsync();
                 if (observationSession.Timeline?.Generation != 1 || observationSession.Current?.Baseline.Snapshot.WorldTick != 20)
                     throw new InvalidOperationException("The timeline UI check must first render its signed initial baseline.");
+                var heldCart = mapObjectVisuals["handcart:timeline-cart"];
+                void CheckCartFacing(int facing)
+                {
+                    using var pixels = mapObjectVisuals["handcart:timeline-cart"].GetNode<TextureRect>("HandcartSprite").Texture.GetImage();
+                    if (HandcartPixelDigest(pixels) != ApprovedHandcartDigest(facing, loaded: false, pulled: false))
+                        throw new InvalidOperationException("A handcart must keep its held heading until a fresh timeline is accepted, then start facing south.");
+                }
+                CheckCartFacing(6);
                 selectedInhabitantId = agentId;
                 var retained = OwnerPendingSubmission.ForInstruction(
                     OwnerPendingSubmissionBinding.Create(host.Authority, "smoke-device", signer.PublicKeyFingerprint,
@@ -126,6 +138,9 @@ public partial class Main
                     observationSession.Current?.Baseline.Snapshot.WorldTick != 20 || selectedInhabitantId != agentId ||
                     !knownEvents.ContainsKey(2) || !ReferenceEquals(terrainMap, heldTerrain) || !choosingFirstTownSite)
                     throw new InvalidOperationException("A same-world rewind must hold the old display while invalidating its requests.");
+                if (!ReferenceEquals(mapObjectVisuals["handcart:timeline-cart"], heldCart))
+                    throw new InvalidOperationException("Discovering a timeline change must hold the currently displayed cart.");
+                CheckCartFacing(6);
                 var heldSettingsStatus = autosaveSettingsStatus.Text;
                 var heldSavesStatus = manualSaveStatus.Text;
                 var heldSavePlaceholder = manualSaveList.Placeholder;
@@ -155,6 +170,9 @@ public partial class Main
                     ReferenceEquals(terrainMap, heldTerrain) || manualSaveOverlay.Visible || choosingFirstTownSite ||
                     observationSession.Current?.Baseline.Snapshot.FounderSetup?.CanChooseTownSite != true)
                     throw new InvalidOperationException("Accepting a fresh same-world baseline must clear old events, selection and terrain caches.");
+                if (ReferenceEquals(mapObjectVisuals["handcart:timeline-cart"], heldCart))
+                    throw new InvalidOperationException("Accepting a fresh timeline must replace the previous cart marker.");
+                CheckCartFacing(0);
                 if (lastSeenEventId > 1 || newEventsAfter != long.MaxValue || unreadEvents != 0 ||
                     locallyReadConversationTurns.Contains(ConversationTurnKey(worldId, turnId)))
                     throw new InvalidOperationException("A fresh timeline must reset event unread state and reused conversation-turn read markers.");
