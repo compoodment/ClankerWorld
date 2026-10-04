@@ -91,10 +91,24 @@ public sealed partial class PrivateWorldRuntimeTests
         world.Validate();
     }
 
-    [Fact]
-    public async Task MaterialOrderDiscoversAnExplicitUnknownSiteByTravellingThere()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task MaterialOrderDiscoversAnExplicitUnknownSiteByTravellingThere(bool nearlyFullMemory)
     {
         var (state, source) = MaterialOrderState("clay", distant: true);
+        if (nearlyFullMemory)
+        {
+            var position = CancellationActorPosition(state);
+            var remembered = state.Map.Tiles.Where(tile => state.Map.IsPassable(tile.Position) &&
+                    state.Map.FootDistance(tile.Position, position) > 8 &&
+                    state.Map.FootDistance(tile.Position, source.Position) > 8)
+                .Take(127).Select((tile, index) => new AgentKnowledgeFact(
+                    $"material-known-{index}", HarvestInstructionActor, HarvestInstructionActor,
+                    tile.Position, tile.Terrain.ToString(), [], state.Society.Society.WorldTick, "firsthand")).ToArray();
+            Assert.Equal(127, remembered.Length);
+            state = state with { Knowledge = state.Knowledge! with { Facts = state.Knowledge.Facts.Concat(remembered).ToArray() } };
+        }
         using var world = RestoreMaterialOrderWorld(state);
         var receipt = SubmitMaterialOrder(world, "unknown-site", $"gather clay from {source.Id}");
         Assert.DoesNotContain(world.ExportState().Knowledge!.Facts,
@@ -129,6 +143,40 @@ public sealed partial class PrivateWorldRuntimeTests
         Assert.Equal(1, world.WorldSystems.Ecology.GetResource(source.Id).Quantity);
         Assert.DoesNotContain(world.Society.Inventory.Lots, lot => lot.OwnerId == HarvestInstructionActor && lot.ItemKind == "fiber");
         world.Validate();
+    }
+
+    [Fact]
+    public async Task MaterialOrderCanInspectAnEmptyImpassableTileWithoutSavingInvalidKnowledge()
+    {
+        var (state, _) = MaterialOrderState("fiber");
+        var occupied = state.Inhabitants.Where(person => person.InhabitantId != HarvestInstructionActor)
+            .Select(person => person.Position).ToHashSet();
+        var buildings = state.WorldSimulation!.Buildings.SelectMany(building => WorldContentSimulationRules.Footprint(
+            state.WorldContent!.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId), building)).ToHashSet();
+        var target = state.Map.Tiles.Select(tile => tile.Position).First(point => !state.Map.IsPassable(point) &&
+            state.Map.Tiles.Any(neighbor => state.Map.FootDistance(point, neighbor.Position) == 1 && state.Map.IsPassable(neighbor.Position) && !occupied.Contains(neighbor.Position) && !buildings.Contains(neighbor.Position)));
+        var shore = state.Map.Tiles.Select(tile => tile.Position).First(point => state.Map.FootDistance(point, target) == 1 && state.Map.IsPassable(point) && !occupied.Contains(point) && !buildings.Contains(point));
+        var position = state.Map.Tiles.Select(tile => tile.Position).First(point => state.Map.IsPassable(point) &&
+            !occupied.Contains(point) && !buildings.Contains(point) && state.Map.FootDistance(point, target) is >= 5 and <= 7 &&
+            DeterministicRouteFinder.TryFind(state.Map, point, shore, out var route) && route.All(step => !occupied.Contains(step) && !buildings.Contains(step)));
+        state = state with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == HarvestInstructionActor
+                ? person with { Position = position } : person).ToArray()
+        };
+        using var world = RestoreMaterialOrderWorld(state);
+        var receipt = SubmitMaterialOrder(world, "impassable-site", $"gather fiber at ({target.X}, {target.Y})");
+        for (var tick = 0; tick < 35 && CancellationOrder(world.ExportState(), receipt.InstructionId).Status != "blocked"; tick++)
+        {
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+            world.Validate();
+        }
+        Assert.Equal("blocked", CancellationOrder(world.ExportState(), receipt.InstructionId).Status);
+        Assert.Equal(0, CancellationOrder(world.ExportState(), receipt.InstructionId).CompletedUnits);
+        Assert.DoesNotContain(world.ExportState().Knowledge!.Facts,
+            fact => fact.OwnerId == HarvestInstructionActor && fact.Position == target);
+        using var restored = RestoreMaterialOrderWorld(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState())));
+        restored.Validate();
     }
 
     [Theory]
@@ -188,7 +236,8 @@ public sealed partial class PrivateWorldRuntimeTests
         var saved = world.ExportState();
         var order = CancellationOrder(saved, receipt.InstructionId);
         foreach (var invalid in new[] { order with { TargetMaterialKind = null }, order with { TargetMaterialKind = "cloth" },
-                     order with { TargetFoodKind = "berries" }, order with { ProgressUnit = "food_items" },
+                     order with { TargetFoodKind = "berries" }, order with { TargetAgentId = HarvestInstructionActor },
+                     order with { ProgressUnit = "food_items" },
                      order with { LastEffectId = "gather:material:fake" }, order with { CompletedUnits = 1 } })
         {
             var damaged = saved with
@@ -204,10 +253,21 @@ public sealed partial class PrivateWorldRuntimeTests
     public async Task MaterialOrderToolCollectionDoesNotCountAsGatheredGoods()
     {
         var (state, source) = MaterialOrderState("stone");
+        var household = state.Society.Society.GetInhabitant(HarvestInstructionActor).HouseholdId!;
+        var position = CancellationActorPosition(state);
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory,
+            "material-shared-tool", "wooden_pickaxe", household, 1,
+            groundPosition: new InventoryGroundPosition(position.X, position.Y));
+        state = state with { Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } } };
         using var world = RestoreMaterialOrderWorld(state);
         var receipt = SubmitMaterialOrder(world, "shared-tool", $"gather stone from {source.Id}");
         Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         Assert.Equal("doing", CancellationOrder(world.ExportState(), receipt.InstructionId).Status);
+        var tool = world.Society.Inventory.GetLot("material-shared-tool");
+        Assert.Equal(household, tool.OwnerId);
+        Assert.Equal(HarvestInstructionActor, tool.CarrierId);
+        Assert.Contains(world.ExportState().Events, item => item.Kind == "equipment_collected" &&
+            item.Detail == HarvestInstructionActor + ":wooden_pickaxe");
         Assert.Equal(0, CancellationOrder(world.ExportState(), receipt.InstructionId).CompletedUnits);
         Assert.Equal(1, world.WorldSystems.Ecology.GetResource(source.Id).Quantity);
         Assert.DoesNotContain(world.Society.Inventory.Lots, lot => lot.OwnerId == HarvestInstructionActor && lot.ItemKind == "stone");

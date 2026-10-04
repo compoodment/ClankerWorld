@@ -1,0 +1,1 @@
+- Reassigning a household building now moves its existing footprint land-use right to the new household, keeping Town title, surrounding rights and grant terms intact. Disputed, expired or differently held rights prevent reassignment.

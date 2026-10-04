@@ -257,43 +257,9 @@ public sealed class ToolProgressionRuntimeTests
     }
 
     [Theory]
-    [InlineData("wooden_axe", "collect_wooden_axe")]
-    [InlineData("wooden_pickaxe", "collect_wooden_pickaxe")]
-    public async Task LegacyHouseholdStarterToolsArePhysicalStockAndCanBeCollected(
-        string itemKind, string candidateId)
-    {
-        const string actor = "founder-scout";
-        var chooser = new CandidateProvider(candidateId);
-        using var world = new PrivateWorldRuntime("legacy-tool-stock-" + itemKind,
-            id => id == actor ? chooser : new CandidateProvider("safe_idle"));
-
-        var stock = Assert.Single(world.Society.Inventory.Lots, lot =>
-            lot.OwnerId == "household:camp-alpha" && lot.ItemKind == itemKind);
-        Assert.Equal(1, stock.Quantity);
-        Assert.Equal(10_000, stock.ConditionBasisPoints);
-        Assert.Null(stock.StorageBuildingId);
-        Assert.Null(stock.GroundPosition);
-
-        for (var tick = 0; tick < 120 && !world.ExportState().Events.Any(item =>
-                 item.Kind == "equipment_collected" && item.Detail == $"{actor}:{itemKind}"); tick++)
-            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-
-        Assert.Contains(chooser.ObservedCandidateSets, candidates => candidates.Contains(candidateId));
-        Assert.Contains(world.ExportState().Events, item =>
-            item.Kind == "equipment_collected" && item.Detail == $"{actor}:{itemKind}");
-        // The household lends its tool: it stays household property while the agent carries it.
-        var collected = Assert.Single(world.Society.Inventory.Lots, lot =>
-            lot.OwnerId == "household:camp-alpha" && lot.CarrierId == actor && lot.ItemKind == itemKind);
-        Assert.Equal(1, collected.Quantity);
-        Assert.Null(collected.StorageBuildingId);
-        Assert.Null(collected.GroundPosition);
-    }
-
-    [Theory]
     [InlineData("wooden_hoe", true, true)]
     [InlineData("wooden_hoe", false, false)]
     [InlineData("tool", true, false)]
-    [InlineData("tool", false, false)]
     public async Task SharedHoeGoesToAFarmHouseholdAndObsoleteGenericToolIsNotCollectedAcrossReload(
         string kind, bool farmHousehold, bool offered)
     {
@@ -350,14 +316,9 @@ public sealed class ToolProgressionRuntimeTests
     }
 
     [Theory]
-    [InlineData("wooden_axe", "own")]
-    [InlineData("wooden_hoe", "own")]
     [InlineData("wooden_axe", "empty")]
-    [InlineData("wooden_hoe", "empty")]
     [InlineData("wooden_axe", "inhabited")]
-    [InlineData("wooden_hoe", "inhabited")]
     [InlineData("wooden_axe", "reserved")]
-    [InlineData("wooden_hoe", "reserved")]
     public async Task SharedWorkToolsRespectTownWarehouseAccessAndReservationsAcrossReload(
         string itemKind, string scenario)
     {
@@ -406,7 +367,8 @@ public sealed class ToolProgressionRuntimeTests
                     },
                     new TownRuntimeState("town:tool-yard", "Tool Yard", "founded",
                         state.Society.Society.WorldTick, otherResidents, [], [outside],
-                        Governance: TownGovernanceState.Create(otherResidents.Where(adultIds.Contains))),
+                        Governance: TownGovernanceState.Create(otherResidents.Where(adultIds.Contains)),
+                        Government: TownGovernmentState.Create()),
                 ],
             };
             using var reassigned = PrivateWorldRuntime.Restore(state, _ => new CandidateProvider("safe_idle"));

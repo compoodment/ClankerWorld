@@ -11,7 +11,7 @@ switch (command)
         Baseline.Run(Path.Combine(outRoot, "baseline"));
         break;
     case "proposed":
-        Proposals.Run(Path.Combine(outRoot, "proposed"));
+        Proposals.Run(Path.Combine(outRoot, "proposed"), args.Length > 2 ? args[2] : null);
         break;
     case "scene":
         SceneRunner.Run(Path.Combine(outRoot, "scene"));
@@ -20,7 +20,7 @@ switch (command)
         ArtContractChecks.Run();
         break;
     default:
-        Console.Error.WriteLine("usage: baseline|proposed|scene <out dir> | check");
+        Console.Error.WriteLine("usage: baseline|proposed|scene <out dir> [proposal family] | check");
         return 2;
 }
 return 0;
@@ -130,8 +130,7 @@ static class Baseline
         }
         families.Add(("nature16", nature16, null, 8));
 
-        // Buildings at the agreed footprints, door south, plus a few other door sides.
-        var buildings = new List<Entry>();
+        // Buildings at the agreed footprints in both zoom atlases, plus other door sides.
         var footprints = new (BuildingKind Kind, int W, int H)[]
         {
             (BuildingKind.House, 1, 1), (BuildingKind.House, 1, 2), (BuildingKind.House, 2, 2),
@@ -140,14 +139,26 @@ static class Baseline
             (BuildingKind.Blacksmith, 1, 2), (BuildingKind.Blacksmith, 2, 2),
             (BuildingKind.Silo, 1, 1),
             (BuildingKind.TailorShop, 1, 1), (BuildingKind.TailorShop, 2, 2),
+            (BuildingKind.Store, 1, 1), (BuildingKind.Store, 1, 2),
+            (BuildingKind.Clinic, 1, 1), (BuildingKind.Clinic, 1, 2), (BuildingKind.Clinic, 2, 1),
+            (BuildingKind.Restaurant, 1, 2), (BuildingKind.Restaurant, 2, 1), (BuildingKind.Restaurant, 2, 2),
             (BuildingKind.Workshop, 2, 2),
             (BuildingKind.Generic, 1, 1),
         };
-        foreach (var (kind, w, h) in footprints)
-            buildings.Add(new("buildings", $"{kind}.{w}x{h}", OnGrass(BuildingSprites.Render(kind, w, h, 32, new BuildingDoor(DoorSide.South, w / 2)), w, h)));
-        foreach (var side in new[] { DoorSide.North, DoorSide.East, DoorSide.West })
-            buildings.Add(new("buildings", $"House.1x2.door_{side}", OnGrass(BuildingSprites.Render(BuildingKind.House, 1, 2, 32, new BuildingDoor(side, 0)), 1, 2)));
-        families.Add(("buildings", buildings, null, 6));
+        foreach (var size in new[] { 32, 16 })
+        {
+            var family = size == 32 ? "buildings" : "buildings16";
+            var suffix = size == 32 ? string.Empty : ".16";
+            var buildings = new List<Entry>();
+            foreach (var (kind, w, h) in footprints)
+                buildings.Add(new(family, $"{kind}.{w}x{h}{suffix}",
+                    OnGrass(BuildingSprites.Render(kind, w, h, size, new BuildingDoor(DoorSide.South, w / 2)), w, h, size)));
+            foreach (var kind in new[] { BuildingKind.House, BuildingKind.Clinic, BuildingKind.Restaurant })
+                foreach (var side in new[] { DoorSide.North, DoorSide.East, DoorSide.West })
+                    buildings.Add(new(family, $"{kind}.1x2.door_{side}{suffix}",
+                        OnGrass(BuildingSprites.Render(kind, 1, 2, size, new BuildingDoor(side, 0)), 1, 2, size)));
+            families.Add((family, buildings, null, 6));
+        }
         var retired = new List<Entry>();
         foreach (var kind in new[] { BuildingKind.Shelter, BuildingKind.Storehouse, BuildingKind.Hearth, BuildingKind.Path, BuildingKind.Bedroll })
             retired.Add(new("retired", $"{kind}.1x1", OnGrass(BuildingSprites.Render(kind, 1, 1, 32), 1, 1)));
@@ -169,6 +180,13 @@ static class Baseline
         foreach (var kind in ItemIcons.Kinds.Append("crate"))
             items.Add(new("items", kind, ItemIcons.Render(kind, 16)));
         families.Add(("items", items, new Color("E9DCC0"), 7));
+        // Actual simulation IDs can be aliases rather than catalogue keys. Show
+        // those paths at every whole-number scale used by the item panels.
+        var aliases = new List<Entry>();
+        foreach (var size in new[] { 16, 32, 48 })
+            foreach (var kind in new[] { "potatoes", "cultivated_green_seed", "medicinal_herbs", "diamond_ornament", "simple_meal" })
+                aliases.Add(new("item-aliases", $"{kind}.{size}", ItemIcons.Render(kind, size)));
+        families.Add(("item-aliases", aliases, new Color("E9DCC0"), 5));
 
         // Interface glyphs in the Light theme's ink, on parchment.
         var glyphs = new List<Entry>();
@@ -211,12 +229,13 @@ static class Baseline
         File.WriteAllText(Path.Combine(root, "index.json"), JsonSerializer.Serialize(index, new JsonSerializerOptions { WriteIndented = true }));
     }
 
-    public static Image OnGrass(Image sprite, int tilesWide, int tilesHigh)
+    public static Image OnGrass(Image sprite, int tilesWide, int tilesHigh, int tilePixels = 32)
     {
-        var ground = Image.CreateEmpty(tilesWide * 32, tilesHigh * 32, false, Image.Format.Rgba8);
+        var ground = Image.CreateEmpty(tilesWide * tilePixels, tilesHigh * tilePixels, false, Image.Format.Rgba8);
         for (var y = 0; y < tilesHigh; y++)
             for (var x = 0; x < tilesWide; x++)
-                ground.BlitRect(TerrainTextures.Tile(TerrainStyle.Grass, TerrainTextures.VariantAt(x, y), 32), new Rect2I(0, 0, 32, 32), new Vector2I(x * 32, y * 32));
+                ground.BlitRect(TerrainTextures.Tile(TerrainStyle.Grass, TerrainTextures.VariantAt(x, y), tilePixels),
+                    new Rect2I(0, 0, tilePixels, tilePixels), new Vector2I(x * tilePixels, y * tilePixels));
         Sheet.Blend(ground, sprite, 0, 0);
         return ground;
     }
@@ -231,12 +250,13 @@ public interface IArtProposal
 
 static class Proposals
 {
-    public static void Run(string root)
+    public static void Run(string root, string? family = null)
     {
         Directory.CreateDirectory(root);
         var proposals = typeof(IArtProposal).Assembly.GetTypes()
             .Where(type => typeof(IArtProposal).IsAssignableFrom(type) && !type.IsAbstract && !type.IsInterface)
             .Select(type => (IArtProposal)Activator.CreateInstance(type)!)
+            .Where(proposal => family is null || proposal.Family == family)
             .OrderBy(proposal => proposal.Family)
             .ToList();
         var index = new List<object>();

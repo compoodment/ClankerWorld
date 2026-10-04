@@ -19,7 +19,7 @@ namespace ArtPreview.Proposed.Buildings;
 /// feature per kind (B1 to B7).
 /// </para>
 /// <para>
-/// Market, Market stall, Town Hall, Port, Restaurant and Clinic are
+/// Market, Market stall, Town Hall and Port are
 /// agreed but have no <see cref="BuildingKind"/> yet, so they are drawn
 /// through the private <see cref="Design"/> list and only yielded for review.
 /// </para>
@@ -219,6 +219,108 @@ public sealed class BuildingsProposal : IArtProposal, IArtSetProvider
     }
 
     /// <summary>
+    /// For the night-lights proposal: one design's approved drawing, the
+    /// ground under it, and where its lights go in 32-unit tile space. The
+    /// Market hall and the Port are laid out for the door sides the review
+    /// shows them with (south and north).
+    /// </summary>
+    public static (Image Sprite, Image Ground, LightPlan Plan) ForNight(LitDesign lit, int w, int h, DoorSide side, int tile)
+    {
+        var door = new BuildingDoor(side, tile);
+        var design = lit switch
+        {
+            LitDesign.House => Design.House,
+            LitDesign.Farmhouse => Design.Farmhouse,
+            LitDesign.Store => Design.Store,
+            LitDesign.TailorShop => Design.TailorShop,
+            LitDesign.Clinic => Design.Clinic,
+            LitDesign.Restaurant => Design.Restaurant,
+            LitDesign.Workshop => Design.Workshop,
+            LitDesign.Generic => Design.Generic,
+            LitDesign.Blacksmith => Design.Blacksmith,
+            LitDesign.Warehouse => Design.Warehouse,
+            LitDesign.Silo => Design.Silo,
+            LitDesign.MarketHall => Design.Market,
+            LitDesign.MarketStall => Design.MarketStall,
+            LitDesign.TownHall => Design.TownHall,
+            LitDesign.Port => Design.Port,
+            _ => Design.Generic,
+        };
+        var sprite = Draw(design, w, h, 32, door);
+        var ground = design == Design.Port ? Shore(w, h, PortLandSide(w, h, side)) : Grass(w, h, 32);
+        BuildingKind? built = lit switch
+        {
+            LitDesign.House => BuildingKind.House,
+            LitDesign.Farmhouse => BuildingKind.Farmhouse,
+            LitDesign.Store => BuildingKind.Store,
+            LitDesign.TailorShop => BuildingKind.TailorShop,
+            LitDesign.Clinic => BuildingKind.Clinic,
+            LitDesign.Restaurant => BuildingKind.Restaurant,
+            LitDesign.Workshop => BuildingKind.Workshop,
+            LitDesign.Generic => BuildingKind.Generic,
+            LitDesign.Blacksmith => BuildingKind.Blacksmith,
+            LitDesign.Warehouse => BuildingKind.Warehouse,
+            LitDesign.Silo => BuildingKind.Silo,
+            LitDesign.TownHall => BuildingKind.TownHall,
+            _ => null,
+        };
+        if (built is { } kind)
+        {
+            var (roof, yard, middle, wing) = BuildingSprites.Plan(kind, w, h, door);
+            return (sprite, ground, new LightPlan(lit, roof, yard, side, middle, Wing: wing));
+        }
+        int uw = w * 32, uh = h * 32;
+        LightPlan plan;
+        switch (design)
+        {
+            case Design.Market:
+                // The hall and its front arcade together; the arcade's eave stands seven units in from the edge.
+                plan = new LightPlan(lit, new Rect2(3, 3, uw - 6, uh - 10), null, side,
+                    Fit(tile * 32 + 16, 14, uw - 14));
+                break;
+            case Design.Port:
+            {
+                // The shed on the shore row; the lantern hangs on a post at the far edge of the T-head.
+                const float shedBottom = 27;
+                var shed = new Rect2(9, 5, uw - 18, shedBottom - 5);
+                plan = new LightPlan(lit, shed, null, side, Fit(tile * 32 + 16, shed.Position.X + 6, shed.End.X - 6),
+                    new Vector2(uw / 2f, uh - 9));
+                break;
+            }
+            case Design.Silo or Design.MarketStall:
+                plan = new LightPlan(lit, new Rect2(3, 3, uw - 6, uh - 8), null, side, uw / 2f);
+                break;
+            case Design.TownHall:
+            {
+                // The cross plan of HallRoofs: the main hall runs toward the door over lower wings.
+                var laid = Lay(uw, uh, door, RecipeFor(design), 5f);
+                var r = laid.Roof;
+                var towardDoor = side is DoorSide.South or DoorSide.North;
+                var main = towardDoor
+                    ? new Rect2(r.Position.X + r.Size.X * 0.2f, r.Position.Y, r.Size.X * 0.6f, r.Size.Y)
+                    : new Rect2(r.Position.X, r.Position.Y + r.Size.Y * 0.2f, r.Size.X, r.Size.Y * 0.6f);
+                var wing = towardDoor
+                    ? new Rect2(r.Position.X, r.Position.Y + r.Size.Y * 0.3f, r.Size.X, r.Size.Y * 0.38f)
+                    : new Rect2(r.Position.X + r.Size.X * 0.3f, r.Position.Y, r.Size.X * 0.38f, r.Size.Y);
+                var middle = towardDoor
+                    ? Fit(laid.DoorMiddle, main.Position.X + 10, main.End.X - 10)
+                    : Fit(laid.DoorMiddle, main.Position.Y + 10, main.End.Y - 10);
+                plan = new LightPlan(lit, main, null, side, middle, Wing: wing);
+                break;
+            }
+            default:
+            {
+                var recipe = RecipeFor(design);
+                if (design == Design.Restaurant && (uw <= 32 || uh <= 32)) recipe = recipe with { Yard = 0 };
+                var laid = Lay(uw, uh, door, recipe, design == Design.Warehouse ? 7f : 3f);
+                plan = new LightPlan(lit, laid.Roof, laid.Yard, side, laid.DoorMiddle);
+                break;
+            }
+        }
+        return (sprite, ground, plan);
+    }
+
+    /// <summary>
     /// Draws the redrawn kinds at any footprint and door side, Workshop and
     /// Generic included; only the retired kinds (Shelter, Storehouse, Hearth,
     /// Path, Bedroll) keep the game's current drawing.
@@ -229,6 +331,8 @@ public sealed class BuildingsProposal : IArtProposal, IArtSetProvider
             ? Draw(design, width, height, tilePixels, door)
             : BuildingSprites.Render(kind, width, height, tilePixels, door);
     }
+
+    internal static bool HasApprovedDrawing(BuildingKind kind) => DesignFor(kind) is not null;
 
     private static Design? DesignFor(BuildingKind kind) => kind switch
     {
@@ -241,6 +345,8 @@ public sealed class BuildingsProposal : IArtProposal, IArtSetProvider
         BuildingKind.Store => Design.Store,
         BuildingKind.Workshop => Design.Workshop,
         BuildingKind.Generic => Design.Generic,
+        BuildingKind.Clinic => Design.Clinic,
+        BuildingKind.Restaurant => Design.Restaurant,
         _ => null,
     };
 
