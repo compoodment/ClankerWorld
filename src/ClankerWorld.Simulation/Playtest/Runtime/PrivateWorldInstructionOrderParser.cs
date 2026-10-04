@@ -166,9 +166,10 @@ internal static class PrivateWorldInstructionOrderParser
             if (action == "seek_food" && hasExplicitQuantity)
                 return null;
 
-            var equipmentKind = action == "repair_equipment" ? TryReadEquipmentSubject() : null;
+            var equipmentKind = action is "repair_equipment" or "collect_material" ? TryReadEquipmentSubject() : null;
             if (action == "repair_equipment" && equipmentKind is null) return null;
-            if (IsToolKind(equipmentKind)) action = "repair_tool";
+            if (action == "repair_equipment" && IsToolKind(equipmentKind)) action = "repair_tool";
+            if (action == "collect_material" && equipmentKind is not null) action = "collect_equipment";
             var materialKind = action is "harvest_food" or "store_material" or "collect_material" ? TryReadMaterialSubject() : null;
             if (action == "store_material" && materialKind is null) return null;
             if (materialKind is not null && action == "harvest_food") action = "gather_material";
@@ -184,7 +185,7 @@ internal static class PrivateWorldInstructionOrderParser
             GridPoint? targetPosition = null;
             var hasLocation = action switch
             {
-                "collect_material" or "collect_food" => TryReadCollectionLocation(ref targetPosition),
+                "collect_material" or "collect_food" or "collect_equipment" => TryReadCollectionLocation(ref targetPosition),
                 "repair_equipment" or "repair_tool" => true,
                 "store_material" => TryReadHomeStorageLocation(),
                 _ => TryReadLocation(action, targetFoodKind, ref targetResourceId, ref targetPosition, materialKind),
@@ -225,6 +226,7 @@ internal static class PrivateWorldInstructionOrderParser
                     "collect_material" => hasExplicitQuantity ? "material_items" : "collection_loads",
                     "store_material" => hasExplicitQuantity ? "material_items" : "storage_loads",
                     "collect_food" => hasExplicitQuantity ? "food_items" : "collection_loads",
+                    "collect_equipment" => hasExplicitQuantity ? "equipment_items" : "collection_loads",
                     "repair_equipment" or "repair_tool" => "repairs",
                     _ => "food_items",
                 },

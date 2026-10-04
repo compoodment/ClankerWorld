@@ -286,6 +286,14 @@ stored or dropped goods. They do not harvest a food source or eat the pickup.
 Raw grain and potatoes remain outside this collection catalogue. Quantities,
 source tiles, carrying limits, queues, interruptions and reload work as above.
 
+Equipment collection covers the five clothing and carrying-aid kinds and the
+13 tool kinds described below: "collect my basket", "collect two iron knives"
+or "keep collecting padded coats". Add a source tile in the same way as other
+collections. The agent picks up its own goods without equipping or repairing
+them; their condition stays unchanged. Each unit occupies ordinary carrying
+space, and explicit quantities count individual items even when they share a
+stored lot. Shared or borrowed equipment remains unavailable to these orders.
+
 Repair orders cover personally owned, carried basic clothing, padded coats,
 rain cloaks, baskets and sacks that are worn enough for the ordinary repair
 rules. For example, "repair my basket", "repair two padded coats", or "keep
