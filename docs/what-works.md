@@ -453,8 +453,8 @@ planting stock and removes unfinished tilling; spent tool wear remains. Urgent
 survival interrupts work before its remaining task resumes. Queues, partial
 work, stock reservations and progress survive save/reload.
 
-General movement, shelter and guardian orders remain separate catalogue
-work. Named meals and weapon repairs are not supported by these orders yet.
+Shelter orders, named meals and weapon repairs remain part of the
+unfinished catalogue.
 
 A recognized new order replaces the active and queued orders unless **Queue**
 is selected. **Cancel task** stops a waiting or active order. An instruction

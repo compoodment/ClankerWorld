@@ -78,6 +78,8 @@ public sealed partial class PrivateWorldExpansionOrderTests
     [InlineData("owner")]
     [InlineData("reserved-material")]
     [InlineData("site")]
+    [InlineData("land-permission")]
+    [InlineData("land-owner")]
     public async Task ExpansionOrdersPreserveNativeNeedOwnershipMaterialAndSiteChecks(string boundary)
     {
         var state = Prepared();
@@ -99,6 +101,16 @@ public sealed partial class PrivateWorldExpansionOrderTests
             RoadTiles = state.RoadTiles!.Concat(new[] { new GridPoint(house.Position.X - 1, house.Position.Y),
                 new GridPoint(house.Position.X + 1, house.Position.Y), new GridPoint(house.Position.X, house.Position.Y - 1),
                 new GridPoint(house.Position.X, house.Position.Y + 1) }).Distinct().OrderBy(point => point.Y).ThenBy(point => point.X).ToArray(),
+        };
+        if (boundary == "land-permission") state = state with
+        {
+            HouseholdLandUseRights = state.HouseholdLandUseRights!
+                .Where(right => right.GrantSource != "expansion_test_fixture").ToArray(),
+        };
+        if (boundary == "land-owner") state = state with
+        {
+            HouseholdLandUseRights = state.HouseholdLandUseRights!.Select(right =>
+                right.GrantSource == "expansion_test_fixture" ? right with { HouseholdId = OtherHousehold } : right).ToArray(),
         };
         using var world = Restore(state);
         var text = string.Create(CultureInfo.InvariantCulture, $"expand my House at ({house.Position.X}, {house.Position.Y})");
@@ -293,6 +305,8 @@ public sealed partial class PrivateWorldExpansionOrderTests
                     BorderTiles = TownBorderRules.ExpandForBuilding(state.Map, town, site, definition.Width + 2, definition.Height + 2),
                 } : town).ToArray(),
             };
+            // Material/work fixtures start with the same recorded land permission as native expansion fixtures.
+            candidate = ExpansionLandFixture.WithRights(candidate, placed, envelope);
             using var probe = Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(candidate)));
             if (probe.StartBuildingExpansion(actor, buildingId).Applied) return PrivateWorldRuntimeCodec.Encode(candidate);
         }
