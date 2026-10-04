@@ -38,6 +38,7 @@ test alone does not make it available in the game.
 | Wooded forests, patchy beaches and reduced wet weather | Available in newly created worlds | Forest grass has many trees, forest-floor tiles always have trees, and cacti stay on desert sand. Default rain, storm and snow weights are one quarter lower across climates. Density and Windows performance still need owner playtesting. |
 | Choose the first Town and place four founders before starting | Available in the game | On-map, guidance-only hints for nearby food, fertile ground, wood, stone and open space for Roads; exact factor tuning remains provisional. Player-chosen supplies are unfinished. |
 | Move around and inspect the map | Available in the game | Zoom, overview, wrapped east/west movement, tile facts, building cards with stored items as icons, and separate filters for Town title, household use, disputes, building property and Town borders. The disputes filter stays empty in normal play, because land requests cannot be filed yet. A building card does not yet list recent storage changes or what a workstation can make, and work in progress does not show its materials. |
+| Approved art for playable content | Available in the game | Clinics and Restaurants have their approved exteriors. Medicinal herb patches and picked or depleted natural sites use their matching drawings on the map and tile cards. Potatoes, cultivated green seeds, medicinal herbs, diamond ornaments and simple meals use their approved item icons. Distinct refined-gold, plain-ring, berry-porridge and fruit-porridge drawings remain pending. [Windows visual checks](../playtest/792-approved-playable-art.md) are still wanted. |
 | Pause, inspect agents, view family trees and read events | Available in the game | Deceased profiles retain recorded thoughts and memories, and show any final will and final words; old deaths without an archive cannot be reconstructed. |
 | Developer tools | Available in the game | **F12** opens them in a world without pausing it: the tile's coordinates and facts, frame time, how long the server takes per step of world time, the agent count, jumping to an agent and drawing their planned path, plus the aging override, lost-reply recovery, paused world editing and paired-device management. While paused, **Edit selected agent** sets fullness, warmth, illness or nutrition, gives/removes carried goods, adds/removes skills, and starts/ends partnerships; each accepted change is saved and marked **Developer edit** in the Event Log. There are no time tools such as stepping one tick. The Windows playtest is pending. |
 | Display and interface settings | Available in the game | Themes, window size, weather switches, a 24-hour or 12-hour clock, and dates by season (the default, such as Autumn 2, Year 1) or as DD-MM-YYYY, MM-DD-YYYY or YYYY-MM-DD. A server too old to report season lengths shows numeric dates. The interface grows with the screen in whole steps (100%, 200% at 1080p and 1440p, 300% at 4K) with no setting, and the game always draws at the screen's own resolution. Windows visual and keyboard acceptance is still being checked. |
@@ -77,13 +78,24 @@ period. Returning makes no offline progress; a manually paused world stays
 paused. New worlds use six-minute days and a 40-day year as the current playtest
 pace, subject to model/server load.
 
-Every world day has a night covering 40% of it, the same all year: 19:12 to
-04:48 on the clock, about 2 min 24 s of a six-minute day, with an hour-long
-dusk and dawn fade (15 seconds each at that pace). A new world starts at
+Every world day has a night, longer in winter and shorter in summer: 40% of the
+day at the start of spring and autumn (19:12 to 04:48 on the clock, about
+2 min 24 s of a six-minute day), 30% at the start of summer (20:24 to 03:36)
+and 50% at the start of winter (18:00 to 06:00), changing a little each day in
+between. Dusk and dawn each fade over an hour (15 seconds at that pace). A new world starts at
 06:00 on Spring 1, Year 1, after dawn, so founder setup happens in full
 daylight. Loading an existing world keeps its saved clock. At night the map darkens with a
 gentle blue wash at every zoom, under map names, agents and weather, and it is
-colder outdoors (see [Life, work and society](#life-work-and-society)). Night
+colder outdoors (see [Life, work and society](#life-work-and-society)).
+Buildings in use glow: light falls on the ground from the windows on a
+building's front and sides and from its open door, never from its roof. A House
+is lit only while someone is inside; a Farmhouse, Store, Tailor Shop, Workshop
+or other building while someone is inside or a job runs there; and the
+Blacksmith's forge glows in its yard while it works. A Warehouse shows only a
+lantern by its loading doors, lit while someone fetches or stores goods, and a
+Silo stays dark. Each pool of light has a ragged edge that drifts slightly, and
+the forge flickers. Zoomed out, a lit building is a warm speck. Night lights have
+not been checked by hand in the Windows game yet. Night
 adds no rules of its own: agents need no sleep or energy, and nothing limits
 their choices or travel at night; they only react to the cold. The night chill
 is a provisional amount for playtesting, and night has not been checked by hand
@@ -273,11 +285,34 @@ collecting supplies and starting a job earn no repair progress. Cancel or
 replace an order to release unused materials immediately. Urgent survival also
 releases them; the order resumes with its remaining repairs when the need passes.
 Saving during a repair preserves its work and reservations. A repeating task
-waits for another matching worn item after the current ones are repaired.
+waits for another matching worn item after the current ones are repaired. Ordinary
+repair also considers the next worn item when the preferred one lacks materials,
+carrying space or a reachable private work site. When both can proceed, the
+equipped carry aid still comes first.
 
-Named collection sources, other carrying or storage destinations, farming,
-cooking, crafting, tool or weapon repairs and building orders remain part of
-the unfinished catalogue.
+Field orders cover tilling, planting, tending and harvesting for adults and
+elders whose household has a Farmhouse. Use "till two fields", "plant grain",
+"plant two fields of potatoes", "tend cultivated greens", or "keep harvesting
+fields of grain". With no quantity, one field is the task. Quantities must name
+fields: "harvest five potatoes" is not understood rather than being treated as
+five fields. Grain, potatoes and cultivated greens are supported. An omitted
+crop for tending or harvesting allows any suitable household crop; a named crop
+must match. Named field locations are not understood yet.
+
+Agents use real walking routes and planting stock. Tilling and tending require
+a usable carried hoe; a carried sickle speeds harvesting under the ordinary
+rules. Orders can request work even when the household already has enough food.
+Only completed field work counts, with normal tool wear and seed consumption.
+Harvests stay on the field as household property, with planting stock reserved
+for another cycle. Missing tools, stock, access, suitable fields or routes leave
+the task blocked with a reason. Cancellation or replacement releases unused
+planting stock and removes unfinished tilling; spent tool wear remains. Urgent
+survival interrupts work before its remaining task resumes. Queues, partial
+work, stock reservations and progress survive save/reload.
+
+Named collection sources, other carrying or storage destinations, cooking,
+crafting, tool or weapon repairs and building orders remain part of the
+unfinished catalogue.
 
 A recognized new order replaces the active and queued orders unless **Queue**
 is selected. **Cancel task** stops a waiting or active order. An instruction
@@ -459,8 +494,10 @@ Any adult resident can initiate a protected government-change vote at the
 Town's notice place. It needs
 more than half the remaining opening electorate to approve within one day;
 cast votes are final. Equivalent proposals share the window and different
-proposals queue. Approval gives at most three days to seat a valid successor,
-while lawful incumbents continue. Supported arrangements include all adults,
+proposals queue. Approval gives at most three days to seat a valid successor
+for newly added offices or an explicit replacement, while lawful incumbents
+continue. An unrelated office may remain vacant during the change.
+Supported arrangements include all adults,
 elected representatives and one elected governing leader. Ordinary laws cannot
 remove the protected resident vote or invent new powers.
 
@@ -470,7 +507,9 @@ candidacy needs separate personal agreement. Each resident chooses one willing
 candidate; tied leaders face further votes, never a draw. Scheduled Council
 elections interrupt mayoral voting and discard its unfinished ballots. Death,
 resignation, departure and expiry create vacancies. Land and ordinary governing
-mandates stay separate, even when one person holds both. A governing vacancy
+mandates stay separate, even when one person holds both. A new mayoral election
+waits for a willing eligible candidate, without posting failed elections each
+day while nobody agrees to stand. A governing vacancy
 restores all-adult decisions until lawful succession; land cases wait.
 
 The Towns page shows the approved arrangement, offices, recent government

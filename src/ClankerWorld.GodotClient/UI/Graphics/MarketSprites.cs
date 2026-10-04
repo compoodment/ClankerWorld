@@ -6,7 +6,7 @@ public static partial class BuildingSprites
 {
     private static partial class ApprovedArt
     {
-        private static readonly Ramp Fruit = Ramp.Of("9A4E1E", "C8702E", "E0893F", "F6C27A", "FFE0A8");
+        private static readonly Ramp MarketFruit = Ramp.Of("9A4E1E", "C8702E", "E0893F", "F6C27A", "FFE0A8");
 
         /// <summary>
         /// Round 3 Market: a timber market hall with no stalls inside it; the
@@ -205,7 +205,7 @@ public static partial class BuildingSprites
         private static void PaintStallLot(Plate p, int w, int h, BuildingDoor door)
         {
             var area = new Rect2(4, 4, w - 8, h - 9);
-            Stall(p, area, door.Side, Berry, Fruit, 5);
+            Stall(p, area, door.Side, Berry, MarketFruit, 5);
             if (door.Tile is null) return;
             // The path runs from the crates to the footprint edge along the door axis.
             var middle = p.P(door.Tile.Value * 32 + 16);

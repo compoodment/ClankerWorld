@@ -142,7 +142,7 @@ public sealed partial class PrivateWorldRuntime
                 map.IsReachableOnFoot(inhabitants[actor].Position, HouseholdStockPosition(lot)));
     }
 
-    private void ApplyFieldCandidate(string actor, PlaytestInhabitantState state, string candidate)
+    private void ApplyFieldCandidate(string actor, PlaytestInhabitantState state, string candidate, string? orderInstructionId = null)
     {
         var parts = candidate.Split(':');
         if (parts.Length != 5 || !Enum.TryParse<FarmWorkKind>(parts[1], out var kind) ||
@@ -177,10 +177,10 @@ public sealed partial class PrivateWorldRuntime
                 return;
             }
             if (state.Position != point) { MoveToward(actor, state, point, "field_planting"); return; }
-            StartFieldWorkCore(actor, point, kind, crop, seed.Id);
+            StartFieldWorkCore(actor, point, kind, crop, seed.Id, orderInstructionId);
             return;
         }
         if (state.Position != point) { MoveToward(actor, state, point, "field_work"); return; }
-        StartFieldWorkCore(actor, point, kind);
+        StartFieldWorkCore(actor, point, kind, orderInstructionId: orderInstructionId);
     }
 }

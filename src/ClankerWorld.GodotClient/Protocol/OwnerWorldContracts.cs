@@ -312,7 +312,8 @@ public sealed record OwnerWorldInstructionOrder(
     string? BlockedReason = null,
     string? TargetAgentId = null,
     string? TargetMaterialKind = null,
-    string? TargetEquipmentKind = null);
+    string? TargetEquipmentKind = null,
+    string? TargetCropKind = null);
 
 public sealed record OwnerWorldCognitionEvent(long EventId, long WorldTick, string Kind, string Detail);
 

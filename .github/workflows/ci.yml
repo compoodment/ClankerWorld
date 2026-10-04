@@ -83,6 +83,13 @@ jobs:
         with:
           global-json-file: global.json
       - run: dotnet restore --locked-mode
+      # The shared tool cache (scripts/tool-cache.sh) checks each download's pinned SHA-256.
+      - name: Restore pinned Godot downloads
+        if: needs.scope.outputs.code == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/clankerworld/tools/downloads
+          key: godot-downloads-${{ hashFiles('scripts/verify-godot-client.sh', 'scripts/verify-godot-windows-export.sh') }}
       - name: Verify Godot client project
         if: needs.scope.outputs.code == 'true'
         run: bash scripts/verify-godot-client.sh
@@ -91,12 +98,6 @@ jobs:
       - name: Verify documentation (the test suite is skipped)
         if: needs.scope.outputs.tests == 'false'
         run: dotnet test tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.csproj --configuration Release --no-restore --filter FullyQualifiedName~DocumentationTests
-      - name: Restore pinned Godot export downloads
-        if: needs.scope.outputs.code == 'true'
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/clankerworld-godot
-          key: godot-4.7.2-mono-linux-x64-export-templates-v1
       - name: Verify Windows 11 x64 Godot release export
         if: needs.scope.outputs.code == 'true'
         run: bash scripts/verify-godot-windows-export.sh

@@ -244,7 +244,8 @@ public sealed record ViewerInstructionOrder(
     string? BlockedReason = null,
     string? TargetAgentId = null,
     string? TargetMaterialKind = null,
-    string? TargetEquipmentKind = null);
+    string? TargetEquipmentKind = null,
+    string? TargetCropKind = null);
 
 public sealed record ViewerCognitionEvent(long EventId, long WorldTick, string Kind, string Detail);
 
