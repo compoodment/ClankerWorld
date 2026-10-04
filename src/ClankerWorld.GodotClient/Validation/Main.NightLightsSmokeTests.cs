@@ -146,6 +146,26 @@ public partial class Main
             !nightLightsLayer.DrawnCells.Any(cell => cell.Kind == LightCellKind.Paint))
             throw new InvalidOperationException("By day only lantern fittings may show, unlit.");
 
+        // The same visible building copy must light up across the world seam.
+        var east = terrainMap!.Width - 1;
+        var wrapped = night with
+        {
+            WorldId = night.WorldId + ":night-seam",
+            WrapsEastWest = true,
+            Inhabitants = [ada with { Position = new(east, 10) }],
+            PlacedBuildings = [Building("wrapped-house", "house", east, 10, 1, 1, new(east, 11))],
+            ProductionJobs = [],
+        };
+        RenderMap(wrapped);
+        cameraZoom = maximumCameraZoom;
+        cameraCenterTiles = new Vector2(0, 10);
+        RenderMap(wrapped);
+        nightLayer.Settle();
+        for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        if (!nightLightsLayer.DrawnCells.Any(cell => cell.Kind == LightCellKind.Light && cell.Area.Position.X < 0))
+            throw new InvalidOperationException("A wrapped building copy must keep its light at the visible world seam.");
+
+        RenderMap(map);
         (cameraZoom, cameraCenterTiles) = (zoomBefore, centerBefore);
         RenderMap(map);
         nightLayer.Settle();

@@ -180,6 +180,8 @@ public struct Rect2 : IEquatable<Rect2>
         var bottom = Math.Min(End.Y, other.End.Y);
         return new Rect2(left, top, Math.Max(0, right - left), Math.Max(0, bottom - top));
     }
+    public readonly bool Intersects(Rect2 other) =>
+        Position.X < other.End.X && End.X > other.Position.X && Position.Y < other.End.Y && End.Y > other.Position.Y;
     public readonly bool Equals(Rect2 other) => Position == other.Position && Size == other.Size;
     public override readonly bool Equals(object? obj) => obj is Rect2 r && Equals(r);
     public override readonly int GetHashCode() => HashCode.Combine(Position, Size);

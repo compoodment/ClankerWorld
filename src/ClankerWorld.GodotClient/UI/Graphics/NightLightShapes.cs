@@ -156,6 +156,10 @@ public static class NightLightShapes
         List<Rect2> pieces = [area];
         foreach (var roof in roofs)
         {
+            var intersects = false;
+            foreach (var piece in pieces)
+                if (piece.Intersects(roof)) { intersects = true; break; }
+            if (!intersects) continue;
             var remaining = new List<Rect2>();
             foreach (var piece in pieces)
             {
