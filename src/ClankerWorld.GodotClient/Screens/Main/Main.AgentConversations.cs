@@ -134,6 +134,7 @@ public partial class Main
                 (conversation.InitiatorId == agentId ? conversation.InitiatorName : conversation.InviteeName);
             var otherName = conversation.InitiatorId == agentId ? conversation.InviteeName : conversation.InitiatorName;
             conversationReaderTitle.Text = $"{ownName} and {otherName}";
+            if (conversation.Kind == "marriage_surname") conversationReaderTitle.Text = "Shared surname · " + conversationReaderTitle.Text;
         }
         else
         {
@@ -159,7 +160,8 @@ public partial class Main
 
         var history = string.Join("\n\n", heardTurns.Select(turn =>
             $"{turn.SpeakerName} · {DisplayWorldClock(turn.WorldTick)}" +
-            (turn.IsWrapUp ? " · wrap-up" : string.Empty) + $"\n{turn.Text}"));
+            (turn.IsWrapUp ? " · wrap-up" : string.Empty) + $"\n{turn.Text}" +
+            (turn.SurnameChoice is { } surname ? $"\nSurname choice: {surname}" : string.Empty)));
         SetPanelText(conversationHistoryText, history);
     }
 
@@ -174,7 +176,8 @@ public partial class Main
             ? said[..ConversationPreviewCharacters].TrimEnd() + "..."
             : said;
         var newTurns = unreadCount > 0 ? $"{unreadCount} new public turn{(unreadCount == 1 ? string.Empty : "s")}. " : string.Empty;
-        return $"{newTurns}{latest.SpeakerName}: {preview}";
+        var result = conversation.ChosenSurname is { } surname ? $"Chosen surname: {surname}. " : string.Empty;
+        return $"{result}{newTurns}{latest.SpeakerName}: {preview}";
     }
 
     private static string ConversationStatusText(OwnerWorldConversation conversation) => conversation.Status switch
@@ -208,6 +211,8 @@ public partial class Main
         "withdrawn" => "one person ended the conversation",
         "disagreed" => "wrap-up declined",
         "participant_unavailable" => "a participant left",
+        "surname_agreed" => "both agreed to the shared surname",
+        "surname_draw" => "a draw chose the shared surname after four turns without agreement",
         _ => "ended",
     };
 

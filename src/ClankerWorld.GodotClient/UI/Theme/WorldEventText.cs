@@ -39,6 +39,10 @@ public static class WorldEventText
     public static string Describe(OwnerWorldEvent worldEvent, OwnerWorldSnapshot? snapshot)
     {
         var parts = worldEvent.Detail.Split(':', StringSplitOptions.RemoveEmptyEntries);
+        if (worldEvent.Kind is "marriage_accepted" or "marriage_surname_agreed" or "marriage_surname_draw")
+            return worldEvent.Detail;
+        if (worldEvent.Kind == "marriage_surname_blocked")
+            return "The shared surname would make a name too long. Shorten the agent's name and resume the surname conversation; both names are unchanged.";
         string ThingAt(int index) => index >= 0 && index < parts.Length
             ? GameUiText.HumanizeIdentifier(parts[index])
             : "something new";

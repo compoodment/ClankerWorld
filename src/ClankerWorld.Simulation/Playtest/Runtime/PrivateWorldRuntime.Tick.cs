@@ -351,6 +351,7 @@ public sealed partial class PrivateWorldRuntime
         bridges = proposed.bridges;
         bridgeTraffic = proposed.bridgeTraffic;
         conversations = proposed.conversations;
+        marriages = proposed.marriages;
         conversationBudgets = proposed.conversationBudgets;
         businessTrades = proposed.businessTrades;
         toolMakingRequests = proposed.toolMakingRequests;

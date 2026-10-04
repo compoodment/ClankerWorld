@@ -20,7 +20,7 @@ namespace ClankerWorld.Simulation.Playtest;
 /// </summary>
 public sealed partial class PrivateWorldRuntime : IDisposable
 {
-    public const int StateSchemaVersion = 83;
+    public const int StateSchemaVersion = 84;
     // Founded Towns save laws, protected government changes and the mayor's office from this schema.
     public const int TownGovernmentSchemaVersion = 55;
     public const int ObserverGuidanceSchemaVersion = 41;
@@ -92,6 +92,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     private HashSet<GridPoint> roadTiles = [];
     private List<HandcartHitch> handcartHitches = [];
     private List<AgentConversation> conversations = [];
+    private List<AgentMarriage> marriages = [];
     private List<AgentConversationDailyBudget> conversationBudgets = [];
     private GridPoint SettlementStoragePosition =>
         map.CampObjects.FirstOrDefault(item => item.Id == "storage")?.Position ??
@@ -326,6 +327,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         runtime.bridges = state.Bridges!.OrderBy(item => item.Id, StringComparer.Ordinal).ToList();
         runtime.bridgeTraffic = state.BridgeTraffic!;
         runtime.conversations = state.Conversations!.ToList();
+        runtime.marriages = state.Marriages.ToList();
         runtime.conversationBudgets = state.ConversationBudgets!.ToList();
         runtime.businessTrades = state.BusinessTrades!.ToList();
         runtime.toolMakingRequests = state.ToolMakingRequests!.ToList();
@@ -489,7 +491,10 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         TownLandTitles, HouseholdLandUseRights, HouseholdLandUseRequests, BusinessTrades, continuity,
         orderCancellations.Values.OrderBy(item => item.Receipt.WorldTick)
             .ThenBy(item => item.IdempotencyKey, StringComparer.Ordinal).ToArray(), ToolMakingRequests,
-        handcartHitches.OrderBy(item => item.CartLotId, StringComparer.Ordinal).ToArray());
+        handcartHitches.OrderBy(item => item.CartLotId, StringComparer.Ordinal).ToArray())
+    {
+        Marriages = marriages.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(),
+    };
 
     private void AppendEvent(string kind, string detail, GridPoint? eventPosition = null)
     {

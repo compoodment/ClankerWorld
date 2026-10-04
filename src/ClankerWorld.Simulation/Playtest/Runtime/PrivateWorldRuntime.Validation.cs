@@ -395,6 +395,7 @@ public sealed partial class PrivateWorldRuntime
             state.OrderCancellations ?? []);
         ValidateBeliefEventSources(state.Society.Society.Beliefs ?? [], state.Events, state.EventHistoryFloor);
         ValidateConversationState(state, society.Checkpoint);
+        AgentMarriageValidation.Validate(state, society.Checkpoint);
         ValidateBusinessTrades(state.BusinessTrades, society.Checkpoint, state.Map, society.Checkpoint.WorldTick);
         ValidateToolMakingRequests(state.ToolMakingRequests, state.WorldSimulation, state.WorldContent, society.Checkpoint, state.Inhabitants, state.BusinessTrades!, society.Checkpoint.WorldTick);
         ValidateMedicalCare(state);
