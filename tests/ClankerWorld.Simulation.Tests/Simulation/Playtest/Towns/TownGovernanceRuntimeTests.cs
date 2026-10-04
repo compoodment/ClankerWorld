@@ -16,8 +16,8 @@ public sealed class TownGovernanceRuntimeTests
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private const string FirstAuthor = "founder:00000000000000000000000000000001";
     private const string SecondAuthor = "founder:00000000000000000000000000000003";
-    private const string FirstText = "Publish harvest dates for our Town.";
-    private const string SecondText = "Share notices about storms in our Town.";
+    private const string FirstText = "Harvest dates: Publish harvest dates for our Town.";
+    private const string SecondText = "Storm notices: Share notices about storms in our Town.";
 
     [Theory]
     [InlineData("built_in")]
@@ -59,8 +59,8 @@ public sealed class TownGovernanceRuntimeTests
     }
 
     [Theory]
-    [InlineData("Discuss tick 999999999999999999999999999999.")]
-    [InlineData("Discuss tick 9223372036854775807.")]
+    [InlineData("Numbers: Discuss tick 999999999999999999999999999999.")]
+    [InlineData("Numbers: Discuss tick 9223372036854775807.")]
     public async Task OrdinaryProposalTextWithLargeNumbersDoesNotStopLaterCivicObservations(string text)
     {
         var provider = new CivicProvider(FirstAuthor, proposalOverride: text);
@@ -82,7 +82,7 @@ public sealed class TownGovernanceRuntimeTests
         var first = initial.Towns[0];
         var secondSite = initial.Map.Tiles.Select(t => t.Position).First(p => initial.Map.IsBuildable(p) && !first.BorderTiles.Contains(p));
         var second = new TownRuntimeState("town:second", "Second Town", "founded", 0, ids[2..], [], [secondSite], secondSite,
-            TownGovernanceState.Create(ids[2..]));
+            TownGovernanceState.Create(ids[2..]), TownGovernmentState.Create());
         var split = initial with
         {
             Towns = [first with { ResidentIds = ids[..2], Governance = TownGovernanceState.Create(ids[..2]) }, second],
@@ -220,7 +220,7 @@ public sealed class TownGovernanceRuntimeTests
             Towns = [town with { Governance = governance }],
             WorldSystems = RegionalWeatherRules.Initialize(initial.WorldSystems! with
             {
-                Config = initial.WorldSystems.Config with { TicksPerDay = shortDay },
+                Config = initial.WorldSystems.Config with { TicksPerDay = shortDay, CalendarOffsetTicks = 0 },
                 RegionalWeather = null,
             }, initial.Map),
             Society = initial.Society with

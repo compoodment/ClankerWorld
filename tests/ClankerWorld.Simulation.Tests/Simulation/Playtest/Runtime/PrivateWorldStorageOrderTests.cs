@@ -288,6 +288,7 @@ public sealed partial class PrivateWorldStorageOrderTests
         foreach (var invalid in new[]
         {
             valid with { TargetMaterialKind = "cloth" }, valid with { TargetFoodKind = "berries" },
+            valid with { TargetAgentId = Actor(state) },
             valid with { TargetPosition = new(10_000_001, 1) }, valid with { TargetResourceId = "tree" },
             valid with { RequestedUnits = 0 }, valid with { CompletedUnits = -1 },
             valid with { ProgressUnit = "harvests" }, valid with { LastEffectId = "store:personal:unearned" },

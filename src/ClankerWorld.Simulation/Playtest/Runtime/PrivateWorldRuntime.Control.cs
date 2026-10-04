@@ -45,7 +45,7 @@ public sealed partial class PrivateWorldRuntime
 
             var text = request.Text.Trim();
             var hasPendingOrder = PendingInstructionFor(targetId) is not null;
-            var parsedOrder = request.Kind == OwnerInstructionKind.MustDo ? ParseInstructionOrder(text) : null;
+            var parsedOrder = request.Kind == OwnerInstructionKind.MustDo ? ParseInstructionOrder(text, targetId) : null;
             if (parsedOrder is not null && !request.Queue)
                 ReplacePendingOrders(targetId);
             if (parsedOrder is not null)
@@ -384,8 +384,10 @@ public sealed partial class PrivateWorldRuntime
     private static string? UnderstoodTaskFor(string? candidate) => candidate switch
     {
         "consume_food" => "eat one carried food item",
+        "move_to" => "travel to the exact tile named in this order",
         "seek_food" => "travel within gathering range of an available food source",
         "harvest_food" => "gather several food servings from a nearby food source",
+        "gather_material" => "gather the requested material from a natural source",
         "till_field" => "till a field for your household",
         "plant_field" => "plant the requested crop in your household field",
         "tend_field" => "tend your household crop",
@@ -398,19 +400,19 @@ public sealed partial class PrivateWorldRuntime
         "collect_goods" => "collect your own stored or dropped goods",
         "store_material" => "store your own carried material in your House",
         "store_equipment" => "store your own carried equipment in your House",
+        "accept_guardianship" => "accept primary care of the named child through their guardian search",
         "store_goods" => "store your own carried goods in your House",
         "return_borrowed" => "return borrowed goods to their owning household's House",
         "deliver_stock" => "deliver the requested goods to a permitted building",
-        "gather_material" => "gather the requested material from a natural source",
         "produce_item" => "make the requested goods at a permitted workstation",
         "construct_building" => "construct the requested household building at a permitted site",
         "expand_building" => "complete the requested building's next permitted expansion",
         _ => null,
     };
 
-    private OwnerInstructionOrder? ParseInstructionOrder(string text)
+    private OwnerInstructionOrder? ParseInstructionOrder(string text, string actor)
     {
-        return PrivateWorldInstructionOrderParser.Parse(text, map.Resources, FoodKnowledgeKind,
+        return ParseGuardianOrder(text, actor) ?? PrivateWorldInstructionOrderParser.Parse(text, map.Resources, FoodKnowledgeKind,
             PrivateWorldProductionOrderCatalog.Available(worldContent), PrivateWorldDeliveryOrderCatalog.AvailableInputs(worldContent),
             PrivateWorldBuildingOrderCatalog.Available(worldContent));
     }

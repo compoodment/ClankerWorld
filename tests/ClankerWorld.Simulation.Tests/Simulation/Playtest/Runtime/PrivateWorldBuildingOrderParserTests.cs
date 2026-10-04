@@ -187,6 +187,27 @@ public sealed class PrivateWorldBuildingOrderParserTests
         Assert.Equal(original, Assert.Single(restored.ExportState().Instructions!).Order);
     }
 
+    [Theory]
+    [InlineData("build one House at (2, 1)", "construct_building")]
+    [InlineData("expand my Town Warehouse at (2, 1)", "expand_building")]
+    public void BuildingSavesRejectAnAgentTarget(string text, string action)
+    {
+        using var world = CreateWorld();
+        Assert.Equal(action, Submit(world, "agent-target", text).Action);
+        var saved = world.ExportState();
+        var bytes = PrivateWorldRuntimeCodec.Encode(saved);
+        using var valid = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes));
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(valid.ExportState()));
+        var mixed = saved with
+        {
+            Instructions = saved.Instructions!.Select(instruction => instruction with
+            {
+                Order = instruction.Order! with { TargetAgentId = Actor },
+            }).ToArray(),
+        };
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(mixed));
+    }
+
     private static PrivateWorldRuntime CreateWorld(IEnumerable<ContentPackageManifest>? available = null)
     {
         var packages = (available ?? Packages).ToArray();

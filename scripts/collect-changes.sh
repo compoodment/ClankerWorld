@@ -4,11 +4,16 @@ set -euo pipefail
 # Move the entries waiting in changes/ into the Unreleased section of
 # CHANGELOG.md, newest first, and delete their files. Each pull request adds its
 # own file instead of editing CHANGELOG.md, so parallel pull requests do not
-# conflict. Run this when preparing a release, or whenever the changelog should
-# catch up, and commit the result.
+# conflict. Run this when preparing a release or for an owner-requested
+# catch-up, and commit the result.
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${repo_root}"
+
+if [[ "$(git rev-parse --is-shallow-repository)" == "true" ]]; then
+    printf '%s\n' 'Run git fetch --unshallow first: entry order needs full history.' >&2
+    exit 1
+fi
 
 changelog="CHANGELOG.md"
 heading="## Unreleased"

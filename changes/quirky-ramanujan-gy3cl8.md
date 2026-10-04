@@ -1,0 +1,1 @@
+- Elders can no longer have children. Only adults can plan or have a child, and a plan ends if either partner becomes an elder before the birth. The continuity rule no longer holds elder couples. Elders can still form partnerships and care for children.

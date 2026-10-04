@@ -1,0 +1,1 @@
+- On the paired world: in a Small world, send an agent to gather or mine somewhere far from town, then keep watching for a few minutes while it walks back. World time should keep moving at its normal pace, and the agent should take the same kind of route it did before. ([#832](https://github.com/compoodment/ClankerWorld/issues/832))

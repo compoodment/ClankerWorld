@@ -153,6 +153,24 @@ public sealed class PrivateWorldDeliveryOrderParserTests
         }
     }
 
+    [Fact]
+    public void DeliverySavesRejectAnAgentTarget()
+    {
+        using var world = CreateWorld();
+        Assert.Equal("deliver_stock", Submit(world, "agent-target", "donate two wood to my Town Warehouse").Action);
+        var saved = world.ExportState();
+        using var valid = PrivateWorldRuntime.Restore(saved);
+        Assert.Equal(PrivateWorldRuntimeCodec.Encode(saved), PrivateWorldRuntimeCodec.Encode(valid.ExportState()));
+        var corrupt = saved with
+        {
+            Instructions = saved.Instructions!.Select(item => item with
+            {
+                Order = item.Order! with { TargetAgentId = Actor },
+            }).ToArray(),
+        };
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(corrupt));
+    }
+
     private static PrivateWorldRuntime CreateWorld(bool activeInputs = false)
     {
         var genesis = new PrivateWorldRuntime("delivery-order-parser");

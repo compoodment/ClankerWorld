@@ -1,0 +1,1 @@
+- Agents using built-in rules no longer keep putting their belongings away at home and picking them straight back up. They leave maps and field records stored at home and keep other belongings with them. Any agent can still choose to store or collect its belongings, and recover them after moving out.

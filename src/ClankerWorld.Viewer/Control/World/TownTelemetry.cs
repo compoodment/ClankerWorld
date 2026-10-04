@@ -23,6 +23,20 @@ internal enum TownCivicTransitionKind
     ProposalOpened,
     DecisionRecorded,
     ElectionCancelled,
+    LawRecorded,
+    GovernmentRecorded,
+    MayorRecorded,
+}
+
+internal enum TownLandHearingTransitionKind
+{
+    Opened, NoticePublished, EvidenceAdded, ResponseRecorded, JudgeConsent,
+    JudgeElection, JudgeAssigned, Ruling, ReopenRequested, Reopened, Inspected, Relayed, Rejected,
+}
+
+internal enum TownLandTransferTransitionKind
+{
+    Proposed, Read, Consent, Withdrawn, Settled, Blocked,
 }
 
 /// <summary>Bounded operational outcomes for authoritative Town state changes.</summary>
@@ -47,6 +61,38 @@ internal static partial class TownTelemetry
         Message = "town_civic tick={WorldTick} town={TownId} transition={Transition} representative={Representative} members={Members} status={Status} yes={Yes} no={No} ballots={Ballots}")]
     private static partial void LogTownCivic(ILogger logger, long worldTick, string townId, TownCivicTransitionKind transition,
         bool representative, int members, string status, int yes, int no, int ballots);
+
+    /// <summary>A passed admission's outcome. IDs and counts only; never names or proposal text.</summary>
+    public static void Admission(ILogger logger, long worldTick, string townId, string outcome, string previousTownId,
+        int members, int residents) =>
+        LogTownAdmission(logger, worldTick, townId, outcome, previousTownId, members, residents);
+
+    [LoggerMessage(EventId = 2295, Level = LogLevel.Information,
+        Message = "town_admission tick={WorldTick} town={TownId} outcome={Outcome} previous_town={PreviousTownId} members={Members} residents={Residents}")]
+    private static partial void LogTownAdmission(ILogger logger, long worldTick, string townId, string outcome,
+        string previousTownId, int members, int residents);
+
+    /// <summary>Public case identity and bounded outcomes only; no statements, evidence text or model payloads.</summary>
+    public static void LandHearing(ILogger logger, long worldTick, string townId, string caseId,
+        TownLandHearingTransitionKind transition, string status, int revision, int parties, int evidence,
+        int responses, int rulings) =>
+        LogLandHearing(logger, worldTick, townId, caseId, transition, status, revision, parties, evidence, responses, rulings);
+
+    [LoggerMessage(EventId = 2296, Level = LogLevel.Information,
+        Message = "town_land_hearing tick={WorldTick} town={TownId} case={CaseId} transition={Transition} status={Status} revision={Revision} parties={Parties} evidence={Evidence} responses={Responses} rulings={Rulings}")]
+    private static partial void LogLandHearing(ILogger logger, long worldTick, string townId, string caseId,
+        TownLandHearingTransitionKind transition, string status, int revision, int parties, int evidence,
+        int responses, int rulings);
+
+    /// <summary>Recorded transfer outcome counts only; no public statements or private model payloads.</summary>
+    public static void LandTransfer(ILogger logger, long worldTick, string townId, string transferId,
+        TownLandTransferTransitionKind transition, string status, int parties, int responses, int tiles) =>
+        LogLandTransfer(logger, worldTick, townId, transferId, transition, status, parties, responses, tiles);
+
+    [LoggerMessage(EventId = 2297, Level = LogLevel.Information,
+        Message = "town_land_transfer tick={WorldTick} town={TownId} transfer={TransferId} transition={Transition} status={Status} parties={Parties} responses={Responses} tiles={Tiles}")]
+    private static partial void LogLandTransfer(ILogger logger, long worldTick, string townId, string transferId,
+        TownLandTransferTransitionKind transition, string status, int parties, int responses, int tiles);
 
     public static void SiteRejected(ILogger logger, long worldTick, string townId, string inhabitantId,
         string buildingId, int x, int y, string reason)

@@ -61,6 +61,7 @@ public partial class Main
         RefreshControlAvailability();
         var read = ++apiKeysRead;
         var owner = registration;
+        var generation = observationSession.RequestGeneration;
         savedApiKeys.Text = string.Empty;
         savedApiKeys.Hide();
         if (!TryGetOwner(out var authority, out var deviceId, out var signer))
@@ -71,16 +72,18 @@ public partial class Main
         apiKeysStatus.Text = "Checking saved keys...";
         try
         {
-            var status = await ownerApi.GetProviderStatusAsync(
-                ResolveWorldUri(), authority, deviceId, signer, CancellationToken.None);
-            if (read != apiKeysRead || !ReferenceEquals(owner, registration) || !apiKeysPanel.IsVisibleInTree()) return;
+            var status = await AwaitCurrentWorldResultAsync(ownerApi.GetProviderStatusAsync(
+                ResolveWorldUri(), authority, deviceId, signer, CancellationToken.None));
+            if (!IsCurrentWorldRequest(generation) || read != apiKeysRead ||
+                !ReferenceEquals(owner, registration) || !apiKeysPanel.IsVisibleInTree()) return;
             providerConfiguration = status;
             RenderSavedApiKeys();
             apiKeysStatus.Text = "Keys stay private on the host.";
         }
         catch (Exception exception)
         {
-            if (read == apiKeysRead && ReferenceEquals(owner, registration) && apiKeysPanel.IsVisibleInTree())
+            if (IsCurrentWorldRequest(generation) && read == apiKeysRead &&
+                ReferenceEquals(owner, registration) && apiKeysPanel.IsVisibleInTree())
                 apiKeysStatus.Text = "Could not check saved keys: " + FriendlyFailure(exception);
         }
     }
@@ -108,10 +111,11 @@ public partial class Main
         apiKeyInput.Text = string.Empty;
         apiKeysStatus.Text = "Saving key...";
         var saved = false;
+        var generation = observationSession.RequestGeneration;
         await RunOwnerActionAsync(async () =>
         {
-            providerConfiguration = await ownerApi.CreateCredentialSlotAsync(
-                ResolveWorldUri(), authority, deviceId, action, signer, CancellationToken.None);
+            providerConfiguration = await AwaitCurrentWorldResultAsync(ownerApi.CreateCredentialSlotAsync(
+                ResolveWorldUri(), authority, deviceId, action, signer, CancellationToken.None));
             saved = true;
             RenderSavedApiKeys();
             apiKeyLabelInput.Text = string.Empty;
@@ -120,6 +124,7 @@ public partial class Main
             PopulateCredentialChoices();
             return "API key saved on the host";
         });
-        if (!saved) apiKeysStatus.Text = "The key was not confirmed saved. Check the host connection and try again.";
+        if (!saved && IsCurrentWorldRequest(generation))
+            apiKeysStatus.Text = "The key was not confirmed saved. Check the host connection and try again.";
     }
 }

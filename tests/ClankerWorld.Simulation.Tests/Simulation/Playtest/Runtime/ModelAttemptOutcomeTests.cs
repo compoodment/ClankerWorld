@@ -23,7 +23,10 @@ public sealed class ModelAttemptOutcomeTests
     public async Task FailedNormalWorldAttemptHasOneChargeAndSafePersistedStatus(string mode, string expectedStatus, int attempts)
     {
         using var fixture = new Fixture(mode);
-        using var world = NormalPathWorld.CreateGenerated("model-outcomes", id => id == TargetId ? fixture.Provider : new DeterministicDecisionProvider());
+        // Keep other residents' choices stable so this measures one attempt,
+        // without a new invitation or household change prompting another.
+        using var world = NormalPathWorld.CreateGenerated("model-outcomes", id =>
+            id == TargetId ? fixture.Provider : new ActionCoverageRecorder(chooseIdle: true));
         var decision = await CompleteNext(world);
         world.Pause();
         Assert.True(decision.Admission.FellBack);
@@ -45,7 +48,8 @@ public sealed class ModelAttemptOutcomeTests
     public async Task LowConfidenceReplyWithoutProbabilityMapKeepsNameAndLastChoiceAfterLaterFailure()
     {
         using var fixture = new Fixture("accepted");
-        using var world = NormalPathWorld.CreateGenerated("model-outcomes", _ => fixture.Provider);
+        using var world = NormalPathWorld.CreateGenerated("model-outcomes", id =>
+            id == TargetId ? fixture.Provider : new ActionCoverageRecorder(chooseIdle: true));
         var accepted = await CompleteNext(world);
         Assert.False(accepted.Admission.FellBack);
         Assert.Equal(0.1, accepted.Admission.Intention!.Confidence);

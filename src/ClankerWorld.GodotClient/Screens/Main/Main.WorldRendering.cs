@@ -8,6 +8,67 @@ namespace ClankerWorld.GodotClient;
 
 public partial class Main
 {
+    // Facing is presentation inferred from accepted positions, never saved world state.
+    private readonly Dictionary<string, (OwnerWorldPosition Position, int Facing)> handcartFacings = new(StringComparer.Ordinal);
+
+    private void ResetDisplayedWorldContext()
+    {
+        knownEvents.Clear();
+        eventsWorldId = null;
+        lastSeenEventId = long.MinValue;
+        newEventsAfter = long.MaxValue;
+        unreadEvents = 0;
+        renderedEventLog = null;
+        conversationReadWorldId = null;
+        locallyReadConversationTurns.Clear();
+        openConversationId = null;
+        openConversationAgentId = null;
+        conversationPanel.Hide();
+        familyTreePanel.Hide();
+        memoriesPanel.Hide();
+        thoughtsPanel.Hide();
+        selectedInhabitantId = null;
+        renamingAgentId = null;
+        refusedAgentRename.Forget();
+        renameRow.Hide();
+        ClearTileSelection();
+        ClearBuildingSelection();
+        CancelBuildingRemoval();
+        CancelAutosaveSettingsRead();
+        CancelManualSaveListRead();
+        worldListRequest.Cancel();
+        manualSaveOverlay.Hide();
+        pendingOverwriteSaveId = null;
+        pendingDeletion = null;
+        choosingFirstTownSite = false;
+        movingFounderId = null;
+        placingAddedAgent = false;
+        founderSetupPanel.Hide();
+        providerConfiguration = null;
+        cognitionModelContext = null;
+        cognitionModelLookup = null;
+        founderKeyEdits++;
+        cognitionKeyEdits++;
+        ClearFounderModelSetupCheck();
+        ClearCognitionModelSetupCheck();
+        menuPauseConfirmed = false;
+        menuPausedWorld = false;
+        renderedMapSnapshot = null;
+        terrainMap = null;
+        terrainWorldId = null;
+        cameraWorldId = null;
+        usagePauseWorldId = null;
+        lastLifePaceWorldId = null;
+        renderedTownList = null;
+        foreach (var marker in inhabitantVisuals.Values) marker.QueueFree();
+        inhabitantVisuals.Clear();
+        inhabitantCanonicalXs.Clear();
+        foreach (var visual in mapObjectVisuals.Values) visual.QueueFree();
+        mapObjectVisuals.Clear();
+        mapObjectCanonicalXs.Clear();
+        handcartFacings.Clear();
+    }
+
     private void Render(OwnerWorldSnapshot snapshot, IReadOnlyList<OwnerWorldEvent> appendedEvents)
     {
         if (usagePauseWorldId != snapshot.WorldId)
@@ -26,6 +87,7 @@ public partial class Main
             familyTreePanel.Hide();
             memoriesPanel.Hide();
             thoughtsPanel.Hide();
+            ordersPanel.Hide();
             ClearTileSelection();
             ClearBuildingSelection();
         }
@@ -74,10 +136,18 @@ public partial class Main
 
     private void RenderMap(OwnerWorldSnapshot snapshot)
     {
+        if (renderedMapSnapshot is not { } previous ||
+            previous.WorldId != snapshot.WorldId || snapshot.WorldTick < previous.WorldTick ||
+            (previous.Authoring?.CurrentMapManifestDigest ?? previous.MapManifestDigest) !=
+                (snapshot.Authoring?.CurrentMapManifestDigest ?? snapshot.MapManifestDigest) ||
+            previous.MapLayersDigest != snapshot.MapLayersDigest ||
+            previous.WrapsEastWest != snapshot.WrapsEastWest || MapDimensions(previous) != MapDimensions(snapshot))
+            handcartFacings.Clear();
         renderedMapSnapshot = snapshot;
         var objectIds = snapshot.Resources.Where(resource => resource.TreeKind is null)
             .Select(resource => "resource:" + resource.Id)
             .Concat(snapshot.Objects.Select(item => "object:" + item.Id))
+            .Concat(snapshot.Handcarts.Select(item => "handcart:" + item.Id))
             .Concat(snapshot.PlacedBuildings.Select(item => "building:" + item.InstanceId)).ToHashSet(StringComparer.Ordinal);
         foreach (var id in mapObjectVisuals.Keys.Where(id => !objectIds.Contains(id)).ToArray())
         {
@@ -85,9 +155,12 @@ public partial class Main
             mapObjectVisuals.Remove(id);
             mapObjectCanonicalXs.Remove(id);
         }
+        foreach (var id in handcartFacings.Keys.Where(id => !objectIds.Contains("handcart:" + id)).ToArray())
+            handcartFacings.Remove(id);
 
         if (!HasMap(snapshot))
         {
+            handcartFacings.Clear();
             foreach (var visual in inhabitantVisuals.Values) visual.QueueFree();
             inhabitantVisuals.Clear();
             inhabitantCanonicalXs.Clear();
@@ -119,7 +192,10 @@ public partial class Main
         terrainLayer.SetBridges(snapshot.Bridges);
         terrainLayer.SetFields(snapshot.Fields);
         worldOverview.SetFields(snapshot.Fields);
+        terrainLayer.SetMarkets(snapshot.Towns);
         terrainLayer.SetBuildings(snapshot.PlacedBuildings, snapshot.Objects);
+        nightLightsLayer.SetBuildings(BuildingLights(snapshot));
+        nightLightsLayer.SetLanterns(StreetLanterns(snapshot), snapshot.WrapsEastWest);
         worldOverview.SetRoads([.. snapshot.RoadTiles, .. snapshot.Bridges.SelectMany(bridge => bridge.Span)]);
         ApplyMapFilters(snapshot);
         var mapWidth = terrainMap.Width;
@@ -131,11 +207,13 @@ public partial class Main
             snapshot.Towns.Where(town => town.BorderTiles.Count > 0).Select(town => TownMarkerTile(town, mapWidth, snapshot.WrapsEastWest)),
             snapshot.Inhabitants.Where(person => !person.IsDraft && IsLiving(person))
                 .Select(person => new Vector2(person.Position.X + 0.5f, person.Position.Y + 0.5f)));
+        nightLayer.Darkness = NightLayer.FromBasisPoints(snapshot.DarknessBasisPoints);
         if (!string.Equals(cameraWorldId, snapshot.WorldId, StringComparison.Ordinal))
         {
             cameraWorldId = snapshot.WorldId;
             cameraZoom = 1;
             cameraCenterTiles = InitialCameraCenter(snapshot, terrainMap);
+            nightLayer.Settle();
         }
         UpdateMapGeometry(snapshot);
         UpdateTownSiteGuidance(snapshot);
@@ -153,6 +231,34 @@ public partial class Main
                     ? ResourceGlyph(resource.Kind, resource.NaturalObjectKind) : string.Empty,
                 GameUiText.ResourceMapCaption(resource, currentTileSize),
                 GameUiText.ResourceTooltip(resource));
+        }
+
+        foreach (var cart in snapshot.Handcarts)
+        {
+            var id = "handcart:" + cart.Id;
+            AddMapObjectVisual(id, cart.Position, string.Empty, string.Empty, GameUiText.HandcartDescription(cart));
+            var marker = mapObjectVisuals[id];
+            var sprite = marker.GetNodeOrNull<TextureRect>("HandcartSprite");
+            if (sprite is null)
+            {
+                sprite = new TextureRect
+                {
+                    Name = "HandcartSprite",
+                    MouseFilter = Control.MouseFilterEnum.Ignore,
+                    TextureFilter = CanvasItem.TextureFilterEnum.Nearest
+                };
+                marker.AddChild(sprite);
+            }
+            var facing = ObserveHandcartFacing(cart, mapWidth, snapshot.WrapsEastWest);
+            // The approved vehicle is 32px; the marker has a 4px inset on each
+            // side. Smaller views retain the item icon until 16px art is approved.
+            var size = currentTileSize >= 40 ? 32 : 16;
+            sprite.Texture = size == 32
+                ? HandcartSprites.Texture(facing, cart.Cargo.Any(item => item.Quantity > 0), cart.PullerId is not null)
+                : ItemIcons.Texture("handcart", 16);
+            sprite.Size = new(size, size);
+            sprite.Position = new(0, Math.Max(0, marker.Size.Y - size));
+            sprite.Modulate = cart.ConditionPercent == 0 ? new Color("A89279") : Colors.White;
         }
 
         foreach (var mapObject in snapshot.Objects)
@@ -173,10 +279,12 @@ public partial class Main
             var stored = building.StoredItems is { Count: > 0 }
                 ? string.Join(" · ", building.StoredItems.Select(item => $"{GameUiText.ItemName(item.Kind)} {item.Quantity}"))
                 : "none recorded";
-            // The terrain layer draws the roof. Buildings show no name on the map;
+            // The terrain or night-light layer draws the roof or fitting. Buildings show no name on the map;
             // the marker keeps the hover help that names them.
             AddMapObjectVisual("building:" + building.InstanceId, building.Position, string.Empty, string.Empty,
                 $"{name}\nBuilt · {building.Width} × {building.Height} tiles" +
+                (StreetLanternLight.IsLantern(building.Tags) && building.Entrance is { } road
+                    ? $"\nRoad beside the post · ({road.X}, {road.Y})\nLights at dusk · no fuel" : "") +
                 (assignedTown is null ? "\nNo Town assignment" : $"\nTown · {assignedTown}") +
                 (household is null ? "" : $"\nHousehold · {household.Name}") +
                 (building.StoredItems is null ? "" : $"\nStored here · {stored}") +
@@ -278,6 +386,25 @@ public partial class Main
         PositionSelectedInhabitantCard(snapshot);
         PositionBuildingQuickCard(snapshot);
         RefreshTileHoverAtMouse();
+    }
+
+    private int ObserveHandcartFacing(OwnerWorldHandcart cart, int mapWidth, bool wrapsEastWest)
+    {
+        var facing = AgentSprites.South;
+        if (handcartFacings.TryGetValue(cart.Id, out var previous))
+        {
+            facing = previous.Facing;
+            var dx = cart.Position.X - previous.Position.X;
+            var dy = cart.Position.Y - previous.Position.Y;
+            if (wrapsEastWest && mapWidth > 0)
+                dx -= (int)Math.Round(dx / (double)mapWidth) * mapWidth;
+            if (Math.Max(Math.Abs(dx), Math.Abs(dy)) > AgentMarker.MaxStepTiles)
+                facing = AgentSprites.South;
+            else if (dx != 0 || dy != 0)
+                facing = AgentSprites.FacingToward(dx, dy);
+        }
+        handcartFacings[cart.Id] = (cart.Position, facing);
+        return facing;
     }
 
     // Clipped captions degrade into unreadable fragments such as "rehou", so a

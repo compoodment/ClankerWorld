@@ -11,6 +11,12 @@ internal static partial class OwnerEndpoints
 {
     public static void MapOwnerEndpoints(this WebApplication app, bool isPrivateWorld)
     {
+        app.MapGet("/api/v1/status", () => Results.Ok(new
+        {
+            Build = BuildInformation.Display,
+            BuildInformation.Version,
+            BuildInformation.SourceRevision,
+        }));
         MapPairing(app);
         MapObservation(app);
         MapRuntimeControl(app, isPrivateWorld);
