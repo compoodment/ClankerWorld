@@ -145,7 +145,7 @@ public sealed partial class PrivateWorldRuntime
     private IEnumerable<InventoryLot> PersonalGoodsAwaitingCollection(string actor) => society.Checkpoint.Inventory.Lots.Where(lot =>
         // A parked handcart stays on the ground with its cargo; its owner pulls it rather than carrying it.
         lot.OwnerId == actor && !PersonalEquipmentRules.IsCarried(lot, actor) && lot.CarrierId is null &&
-        lot.ItemKind != InventoryContainerRules.Handcart &&
+        lot.ItemKind != InventoryContainerRules.Handcart && (!MarketTradeRules.IsLoose(lot) || !OnMarketStall(lot)) &&
         lot.DeliveryBuildingId is null && lot.ContainerLotId is null && PhysicalUnreservedQuantity(lot) > 0 &&
         !(InventoryContainerRules.IsContainer(lot.ItemKind) && HasActiveContainerReservation(society.Checkpoint.Inventory, lot.Id)) &&
         (lot.GroundPosition is not null || lot.StorageBuildingId is { } storageId &&

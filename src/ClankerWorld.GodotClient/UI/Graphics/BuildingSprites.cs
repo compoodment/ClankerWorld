@@ -437,6 +437,13 @@ public static partial class BuildingSprites
                 Math.Max(1, Pixel(box.End.X) - Pixel(box.Position.X)),
                 Math.Max(1, Pixel(box.End.Y) - Pixel(box.Position.Y)));
             Rect2 Units(Rect2I box) => new((Vector2)box.Position / scale, (Vector2)box.Size / scale);
+            if (kind == BuildingKind.Market)
+            {
+                var frame = new MarketFrame(Opposite(door.Side), w, h);
+                var roof = frame.Map(3, 3, frame.Breadth - 6, frame.Length - 10);
+                var marketMiddle = Fit(door.Tile is { } tile ? tile * 32 + 16 : frame.Breadth / 2f, 14, frame.Breadth - 14);
+                return (Units(Pixels(roof)), null, Pixel(marketMiddle) / scale, null);
+            }
             if (kind != BuildingKind.TownHall)
                 return (Units(Pixels(plan.Roof)), plan.Yard is { } yard ? Units(Pixels(yard)) : null,
                     Pixel(plan.DoorMiddle) / scale, null);

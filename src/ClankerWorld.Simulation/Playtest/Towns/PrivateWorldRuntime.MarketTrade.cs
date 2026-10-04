@@ -411,8 +411,8 @@ public sealed partial class PrivateWorldRuntime
             !PersonalEquipmentRules.IsCarried(payment, trade.BuyerId) || payment.GroundPosition is not null ||
             payment.StorageBuildingId is not null || payment.ConditionBasisPoints <= 0 || payment.FreshnessBasisPoints <= 0 ||
             payment.Quantity < offer.SecondQuantity || ProtectedMarketItem(trade.BuyerId, payment) ||
-            new[] { offer.Id + ":first", offer.Id + ":second" }.Any(id => !inventory.Reservations.Any(claim =>
-                claim.Id == id && claim.State == InventoryReservationState.Reserved)))
+            !MarketTradeValidation.HasExactOpenClaim(inventory, offer, true) ||
+            !MarketTradeValidation.HasExactOpenClaim(inventory, offer, false))
             return "The exact reserved goods are no longer usable at their agreed location.";
         if (MarketStockQuantity(market, stall) + MarketIncomingPayment(market, stall) > MarketTradeRules.StallCapacity ||
             PersonalEquipmentRules.CarriedQuantity(inventory, trade.BuyerId, inhabitants[trade.BuyerId].Equipment) +

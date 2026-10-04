@@ -75,7 +75,8 @@ public sealed class MarketRulesTests
     public void ARoadOnAnAisleDoesNotFreeAnotherProjectsProtectedDoorway()
     {
         var map = new SeededMap(12, 10, 0,
-            (from y in Enumerable.Range(0, 10) from x in Enumerable.Range(0, 12)
+            (from y in Enumerable.Range(0, 10)
+             from x in Enumerable.Range(0, 12)
              select new TerrainTile(new GridPoint(x, y), TerrainKind.Meadow)).ToArray(), [], [], "market-rules-fixture");
         var origin = new GridPoint(5, 2);
         var shape = MarketContent.SiteTiles(new(0, 0)).ToHashSet();

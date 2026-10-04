@@ -24,6 +24,13 @@ public sealed record TownMarketState(string Id, string ProjectId, string HallBui
 /// <summary>Validates trading authority separately from the Council's paid-building receipts.</summary>
 public static class MarketTradeValidation
 {
+    internal static bool HasExactOpenClaim(InventoryCheckpoint inventory, DirectBarterOffer offer, bool first) =>
+        inventory.Reservations.FirstOrDefault(claim => claim.Id == offer.Id + (first ? ":first" : ":second")) ==
+        new InventoryReservation(offer.Id + (first ? ":first" : ":second"),
+            first ? offer.FirstPartyId : offer.SecondPartyId, first ? offer.FirstLotId : offer.SecondLotId,
+            first ? offer.FirstQuantity : offer.SecondQuantity, "barter:" + offer.Id, offer.ExpiryTick,
+            true, InventoryReservationState.Reserved);
+
     public static void Validate(IReadOnlyList<TownRuntimeState> towns, SocietyCheckpoint society,
         SeededMap map, WorldContentSimulationState simulation, DeclarativeWorldContentState content, long worldTick,
         IEnumerable<PlaytestInhabitantState> physicalInhabitants)
@@ -166,6 +173,14 @@ public static class MarketTradeValidation
                         throw Invalid("A Market exchange disagrees with its named seller, deposited stock or exact offer.");
                     if (offer.State == DirectBarterState.Open)
                     {
+                        foreach (var first in new[] { true, false })
+                        {
+                            var claim = inventory.Reservations.FirstOrDefault(item => item.Id == offer.Id + (first ? ":first" : ":second"));
+                            // Missing or released claims are cancelled by runtime maintenance; retained live claims must be exact.
+                            if (claim is not null && claim.State != InventoryReservationState.Released &&
+                                !HasExactOpenClaim(inventory, offer, first))
+                                throw Invalid("An open Market offer has a reservation that does not bind its exact exchange.");
+                        }
                         var goods = inventory.Lots.FirstOrDefault(lot => lot.Id == offer.FirstLotId);
                         var payment = inventory.Lots.FirstOrDefault(lot => lot.Id == offer.SecondLotId);
                         if (occupancy.EndedTick is not null || market.RemovedTick is not null || stall.RemovedTick is not null ||

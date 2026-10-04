@@ -190,7 +190,7 @@ public sealed partial class PrivateWorldRuntime
         {
             var available = inventory.Lots
                 .Where(lot => lot.OwnerId == (ownerId ?? HouseholdId) && lot.ItemKind == requested.ResourceId &&
-                    !IsHandcartCargo(inventory, lot))
+                    !IsHandcartCargo(inventory, lot) && !OnBorrowedMarketStall(lot))
                 .Sum(AvailableLotQuantity);
             if (available < requested.Amount)
             {
@@ -320,7 +320,7 @@ public sealed partial class PrivateWorldRuntime
         });
     }
 
-    private static InventoryCheckpoint ConsumeQuantities(
+    private InventoryCheckpoint ConsumeQuantities(
         InventoryCheckpoint inventory,
         IReadOnlyList<ContentQuantity> quantities,
         string purpose,
@@ -332,7 +332,7 @@ public sealed partial class PrivateWorldRuntime
             var requested = quantities[quantityIndex];
             var remaining = requested.Amount;
             var lots = current.Lots
-                .Where(lot => lot.OwnerId == ownerId && lot.ItemKind == requested.ResourceId && !IsHandcartCargo(current, lot) && lot.FreshnessBasisPoints > 0 && lot.ConditionBasisPoints > 0)
+                .Where(lot => lot.OwnerId == ownerId && lot.ItemKind == requested.ResourceId && !IsHandcartCargo(current, lot) && !OnBorrowedMarketStall(lot) && lot.FreshnessBasisPoints > 0 && lot.ConditionBasisPoints > 0)
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal)
                 .ToArray();
             foreach (var lot in lots)
@@ -399,7 +399,7 @@ public sealed partial class PrivateWorldRuntime
                 lot.FreshnessBasisPoints > 0 && lot.ConditionBasisPoints > 0)
             .Sum(lot => (long)AvailableLotQuantity(lot)) >= input.Amount);
 
-    private static InventoryCheckpoint ReserveQuantities(
+    private InventoryCheckpoint ReserveQuantities(
         InventoryCheckpoint inventory,
         IReadOnlyList<ContentQuantity> quantities,
         string purpose,
@@ -417,7 +417,7 @@ public sealed partial class PrivateWorldRuntime
             var remaining = requested.Amount;
             var lots = current.Lots
                 .Where(lot => lot.OwnerId == ownerId && lot.ItemKind == requested.ResourceId &&
-                    !IsHandcartCargo(current, lot) && (!requireCarried || ToolProgressionRules.IsTopLevelCarriedLot(lot, ownerId)) &&
+                    !IsHandcartCargo(current, lot) && !OnBorrowedMarketStall(lot) && (!requireCarried || ToolProgressionRules.IsTopLevelCarriedLot(lot, ownerId)) &&
                     lot.FreshnessBasisPoints > 0 && lot.ConditionBasisPoints > 0 &&
                     (requiredStorageBuildingId is null || lot.StorageBuildingId == requiredStorageBuildingId))
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal)

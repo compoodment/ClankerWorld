@@ -184,6 +184,14 @@ covers partial planting, queues, released seeds, real tool wear and household
 harvest ownership. This version follows the integrated guardian-placement schema 71. Older alpha saves
 are refused and preserved unchanged without migration.
 
+Private-world schema 73 adds `repair_tool` orders using the existing
+`TargetEquipmentKind` field. Validation restricts the action to supported tool
+kinds and repair counts. Only a completed inventory repair earns a bounded
+`repair:tool:` receipt. Replay covers partly completed quantities, preparation,
+queues and cancellation without charging the materials twice. This version
+follows integrated field-order schema 72. Older alpha saves are refused and preserved
+unchanged without migration.
+
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
 Matching parent assignments are disclosed as agreement; when they differ, the
@@ -554,7 +562,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 73. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 74. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
@@ -623,7 +631,7 @@ physical knowledge writing, schema 63 for exact-tile movement orders, schema 64
 for overcrowding move-out notices, schemas 65 to 67 for material gathering,
 storage and collection orders, schema 68 for shared Town-project construction,
 schema 69 for equipment-repair orders, schema 70 for explicit chosen names and
-unique first names, schema 71 for physical guardian placements and schema 73
+unique first names, schema 71 for physical guardian placements and schema 74
 for paid Markets and physical stall trade record when those fields or behaviors
 were introduced; they do not allow an earlier checkpoint schema past the
 current alpha cutoff.
@@ -682,7 +690,7 @@ current alpha cutoff.
 | Schema 69 | Equipment-repair orders retain the equipment kind and progress in finished repairs, and an in-progress repair names the order it belongs to. Loading refuses mixed target fields, unearned progress and a repair bound to another order or item kind. Queue, cancellation and partial work replay without duplicate material costs; older alpha saves are refused and preserved without migration. |
 | Schema 70 and society/runtime v2 | Required chosen-name markers distinguish temporary labels from chosen identities, even after automatic naming ends. Chosen first names are unique across living and deceased inhabitants. Current-format reload and compaction retain the marker and pending retry; older alpha formats are refused and preserved without inference or migration. |
 | Schema 71 | Pending guardian placements retain exact accepted care authority, collecting or escorting progress, a selected House and current blocker. Household and Town membership change together only on valid arrival. Earlier alpha checkpoints are refused and preserved without migration. |
-| Schema 73 | Required Market lists bind paid halls and stalls to their completed Town projects, with named borrowing, physical stock receipts and exact inventory barter history. Earlier alpha checkpoints are refused and preserved without migration. |
+| Schema 74 | Required Market lists bind paid halls and stalls to their completed Town projects, with named borrowing, physical stock receipts and exact inventory barter history. Earlier alpha checkpoints are refused and preserved without migration. |
 
 ### Tool-making requests
 
@@ -788,7 +796,7 @@ alpha schemas, including 53, are refused visibly and preserved without migration
 
 ## Paid Markets and stall trade
 
-Schema 73 adds a required, non-null `Markets` list to each Town. Each Market
+Schema 74 adds a required, non-null `Markets` list to each Town. Each Market
 binds its hall and fixed 7×4 plaza to the completed starter project, which pays
 for exactly two stalls in slots 0 and 4. Each additional stall requires its own
 completed project with the exact definition, slot, site and material budget.
@@ -806,10 +814,13 @@ exact inventory offer, named seller and buyer, lots, reservations and outcome.
 Completed or cancelled trades retain their history without requiring spent
 goods to remain live. Loading checks owners, locations and the actual physical
 occupancy instead of reconstructing authority from a stall's current borrower;
-an open offer's reservations are the inventory's own, and the runtime cancels
-an offer whose claims are gone. Goods on a stall tile are not capped at load,
+retained active claims of an open offer must bind its exact parties, lots, quantities,
+purpose, expiry and exclusive reservation state. Missing or released claims remain
+loadable and are cancelled before trade continues. Goods on a stall tile are not capped at load,
 because a death or a removed stall can leave more there than a borrower may
-deposit. Two standing Markets in one Town cannot share ground.
+deposit. Two standing Markets in one Town cannot share ground. Loading also
+keeps a standing plaza clear of unrelated buildings, fields, claims, expansions,
+resources, camp objects and bridge ends; only its paid stalls and aisle Roads fit.
 
 Leaving, household change, death or removal ends borrowing and cancels open
 offers. Removed Market buildings keep their paid history and stock receipts,

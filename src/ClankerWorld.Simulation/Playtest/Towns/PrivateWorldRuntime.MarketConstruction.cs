@@ -68,7 +68,9 @@ public sealed partial class PrivateWorldRuntime
     }
 
     private static void ValidatePaidMarkets(IReadOnlyList<TownRuntimeState> towns, SocietyCheckpoint society,
-        SeededMap map, WorldContentSimulationState simulation, DeclarativeWorldContentState content)
+        SeededMap map, WorldContentSimulationState simulation, DeclarativeWorldContentState content,
+        IReadOnlyList<FarmFieldState> fields, IReadOnlyList<HouseholdLandUseRight> rights,
+        IReadOnlyList<HouseholdLandUseRequest> requests, IReadOnlyList<GridPoint> roads, IReadOnlyList<BridgeState> bridges)
     {
         var marketIds = new HashSet<string>(StringComparer.Ordinal);
         var stallIds = new HashSet<string>(StringComparer.Ordinal);
@@ -121,6 +123,35 @@ public sealed partial class PrivateWorldRuntime
                          placed.HouseholdId is not null || placed.Position != MarketContent.StallSite(market.Site, stall.SlotIndex) ||
                          placed.Entrance != MarketContent.StallEntrance(market.Site, stall.SlotIndex) || placed.PlacedTick != stall.BuiltTick))
                         throw new InvalidDataException("A Market's placed stall disagrees with its paid history or retained removal.");
+                }
+                if (market.RemovedTick is null)
+                {
+                    var site = MarketContent.SiteTiles(market.Site).ToHashSet();
+                    var ownBuildings = market.Stalls.Select(stall => stall.BuildingId).Append(market.HallBuildingId)
+                        .ToHashSet(StringComparer.Ordinal);
+                    var occupied = simulation.Buildings.Where(building => !ownBuildings.Contains(building.InstanceId))
+                        .SelectMany(building => WorldContentSimulationRules.Footprint(
+                            content.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId), building))
+                        .Concat(fields.Select(field => field.Position))
+                        .Concat(map.Resources.Select(resource => resource.Position))
+                        .Concat(map.CampObjects.Select(item => item.Position))
+                        .Concat(rights.SelectMany(right => right.Tiles))
+                        .Concat(requests.Where(request => request.Status == "pending").SelectMany(request => request.Tiles))
+                        .Concat((simulation.BuildingExpansions ?? []).Where(job => job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused)
+                            .SelectMany(job => Enumerable.Range(0, job.TargetFootprint.Height).SelectMany(y =>
+                                Enumerable.Range(0, job.TargetFootprint.Width).Select(x => new GridPoint(job.TargetPosition.X + x, job.TargetPosition.Y + y)))))
+                        .Concat(bridges.SelectMany(bridge => bridge.Entrances))
+                        .Concat(towns.SelectMany(other => other.Projects.Select(project => (Town: other, Project: project)))
+                            .Where(item => item.Project.Stage is not ("completed" or "cancelled") &&
+                                !(item.Town.Id == town.Id && item.Project.Plan.DefinitionId == MarketContent.Stall1x1().CanonicalId &&
+                                  Enumerable.Range(0, MarketContent.MaximumStalls).Any(slot =>
+                                      MarketContent.StallSite(market.Site, slot) == item.Project.Plan.Site)))
+                            .SelectMany(item => TownProjectRules.Footprint(item.Project.Plan).Append(item.Project.Plan.Entrance)));
+                    var builtOrReserved = WorldContentSimulationRules.Footprint(MarketContent.Hall2x2(), market.Site)
+                        .Concat(Enumerable.Range(0, MarketContent.MaximumStalls).Select(slot => MarketContent.StallSite(market.Site, slot)))
+                        .ToHashSet();
+                    if (occupied.Any(site.Contains) || roads.Any(builtOrReserved.Contains))
+                        throw new InvalidDataException("A standing Market plaza must retain its reserved slots and clear aisles.");
                 }
                 if (MarketContent.StarterSlotIndexes.Any(slot => !market.Stalls.Any(stall => stall.ProjectId == project.Id && stall.SlotIndex == slot)))
                     throw new InvalidDataException("The Market is missing an approved starter stall.");

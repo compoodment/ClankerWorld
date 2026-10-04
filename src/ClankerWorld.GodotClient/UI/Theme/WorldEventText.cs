@@ -204,7 +204,7 @@ public static class WorldEventText
             "household_founded" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} started a household; a House still needs materials and work.",
             "personal_goods_collected" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} collected their personal belongings.",
             "personal_goods_stored" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} stored personal belongings while keeping ownership.",
-            "borrowed_goods_returned" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} returned borrowed household goods.",
+            "borrowed_goods_returned" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} returned household goods.",
             "replacement_care_accepted" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} explicitly accepted primary care of a dependent.",
             "housing_request_made" => $"{LeadingName(snapshot, worldEvent.Detail)} asked {HouseholdAfterAgent(snapshot, worldEvent.Detail)} for a place to live in their House.",
             "household_joined" => $"{LeadingName(snapshot, worldEvent.Detail)} now lives with {HouseholdAfterAgent(snapshot, worldEvent.Detail)}.",

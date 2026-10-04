@@ -97,7 +97,8 @@ public sealed partial class PrivateWorldRuntime
         ValidateTownAdmissions(towns, society.Checkpoint, checkpointSchemaVersion);
         TownProjectValidation.Validate(towns, society.Checkpoint, map, worldSimulation, worldContent,
             townLandTitles, householdLandUseRights, householdLandUseRequests, fields, RoadTiles, Bridges);
-        ValidatePaidMarkets(towns, society.Checkpoint, map, worldSimulation, worldContent);
+        ValidatePaidMarkets(towns, society.Checkpoint, map, worldSimulation, worldContent,
+            fields, householdLandUseRights, householdLandUseRequests, RoadTiles, Bridges);
         MarketTradeValidation.Validate(towns, society.Checkpoint, map, worldSimulation, worldContent, WorldTick, inhabitants.Values);
         ValidateRoads(RoadTiles, map, founderSetup);
         ValidateBridges(Bridges, bridgeTraffic, map, RoadTiles, worldSimulation, worldContent,
@@ -408,7 +409,8 @@ public sealed partial class PrivateWorldRuntime
         ValidateTownAdmissions(state.Towns ?? [], society.Checkpoint, state.SchemaVersion);
         TownProjectValidation.Validate(state.Towns ?? [], society.Checkpoint, state.Map, state.WorldSimulation!, state.WorldContent!,
             state.TownLandTitles!, state.HouseholdLandUseRights!, state.HouseholdLandUseRequests!, state.Fields!, state.RoadTiles!, state.Bridges!);
-        ValidatePaidMarkets(state.Towns ?? [], society.Checkpoint, state.Map, state.WorldSimulation!, state.WorldContent!);
+        ValidatePaidMarkets(state.Towns ?? [], society.Checkpoint, state.Map, state.WorldSimulation!, state.WorldContent!,
+            state.Fields!, state.HouseholdLandUseRights!, state.HouseholdLandUseRequests!, state.RoadTiles!, state.Bridges!);
         MarketTradeValidation.Validate(state.Towns ?? [], society.Checkpoint, state.Map, state.WorldSimulation!, state.WorldContent!, society.Checkpoint.WorldTick, state.Inhabitants);
         ValidateLessons(state);
         ValidateHousing(state.Inhabitants, state.Society.Society, state.SchemaVersion);
@@ -587,7 +589,7 @@ public sealed partial class PrivateWorldRuntime
             order.TargetFoodKind is not (null or "berries" or "fruit" or "wild_greens") &&
                 (order.Action != "consume_food" || !IsEdibleFood(order.TargetFoodKind)) ||
             !IsFieldOrder(order.Action) && order.TargetCropKind is not null ||
-            order.Action != "repair_equipment" && order.TargetEquipmentKind is not null ||
+            order.Action is not ("repair_equipment" or "repair_tool") && order.TargetEquipmentKind is not null ||
             order.Action is not ("gather_material" or "store_material" or "collect_material") && order.TargetMaterialKind is not null ||
             order.TargetPosition is { X: < -10_000_000 or > 10_000_000 } ||
             order.TargetPosition is { Y: < -10_000_000 or > 10_000_000 } ||
@@ -613,15 +615,16 @@ public sealed partial class PrivateWorldRuntime
                 (order.Status == "finished") == (!order.RepeatUntilCancelled && order.CompletedUnits >= order.RequestedUnits) &&
                 (order.CompletedUnits == 0 ? order.LastEffectId is null : order.LastEffectId?.StartsWith("field:work:", StringComparison.Ordinal) == true);
 
-        if (order.Action == "repair_equipment")
-            return PrivateWorldInstructionOrderParser.IsEquipmentKind(order.TargetEquipmentKind) &&
+        if (order.Action is "repair_equipment" or "repair_tool")
+            return (order.Action == "repair_tool" ? PrivateWorldInstructionOrderParser.IsToolKind(order.TargetEquipmentKind) :
+                    PrivateWorldInstructionOrderParser.IsEquipmentKind(order.TargetEquipmentKind)) &&
                 order.TargetAgentId is null && order.TargetFoodKind is null && order.TargetResourceId is null && order.TargetPosition is null &&
                 order.RequestedUnits is >= 1 and <= 1000 && order.CompletedUnits is >= 0 and <= 1_000_000 &&
                 (order.QuantityIsExplicit || order.RequestedUnits == 1) && order.ProgressUnit == "repairs" &&
                 (order.RepeatUntilCancelled || order.CompletedUnits <= order.RequestedUnits) &&
                 order.Status != "not_understood" &&
                 (order.Status == "finished") == (!order.RepeatUntilCancelled && order.CompletedUnits >= order.RequestedUnits) &&
-                (order.CompletedUnits == 0 ? order.LastEffectId is null : order.LastEffectId?.StartsWith("repair:equipment:", StringComparison.Ordinal) == true);
+                (order.CompletedUnits == 0 ? order.LastEffectId is null : order.LastEffectId?.StartsWith(order.Action == "repair_tool" ? "repair:tool:" : "repair:equipment:", StringComparison.Ordinal) == true);
 
         if (order.Action == "collect_material")
             return PrivateWorldInstructionOrderParser.IsMaterialKind(order.TargetMaterialKind) &&

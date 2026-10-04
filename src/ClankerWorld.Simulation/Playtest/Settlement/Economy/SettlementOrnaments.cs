@@ -41,6 +41,7 @@ public sealed partial class PrivateWorldRuntime
         var household = society.Checkpoint.GetInhabitant(actor).HouseholdId;
         return society.Checkpoint.Inventory.Lots.Where(lot => PersonalEquipmentRules.IsOrnament(lot.ItemKind) &&
                 lot.ContainerLotId is null && lot.DeliveryBuildingId is null && AvailableLotQuantity(lot) > 0 &&
+                !OnBorrowedMarketStall(lot) &&
                 (IsPersonallyCarriedOrnament(lot, actor) || household is not null && lot.OwnerId == household &&
                     (lot.CarrierId is null || lot.CarrierId == actor) && FreeCarryCapacity(actor) > 0 &&
                     (lot.StorageBuildingId is null || worldSimulation.Buildings.Any(building =>
