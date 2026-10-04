@@ -72,9 +72,10 @@ public sealed partial class PrivateWorldRuntime
             if (MaterialOrderTarget(instruction) is { } target && map.Contains(target))
             {
                 MoveToward(actor, person, target, "owner_order_material_site", ResourceInteractionRange);
+                // Retain the observed site rather than every walking step. The bounded
+                // ledger accepts passable tiles, so false impassable sites add no fact.
                 var reached = inhabitants[actor].Position;
-                if (reached != person.Position) RecordKnowledgeFact(actor, reached);
-                if (IsWithinInteractionRange(reached, target, ResourceInteractionRange))
+                if (map.IsPassable(target) && IsWithinInteractionRange(reached, target, ResourceInteractionRange))
                     RecordKnowledgeFact(actor, target);
             }
             return;
@@ -89,11 +90,9 @@ public sealed partial class PrivateWorldRuntime
             SetOrderStatus(instruction, "blocked", MaterialOrderBlockedReason(instruction, person));
             return;
         }
-        if (IsWithinInteractionRange(person.Position, source.Position, ResourceInteractionRange))
+        if (map.IsPassable(source.Position) && IsWithinInteractionRange(person.Position, source.Position, ResourceInteractionRange))
             RecordKnowledgeFact(actor, source.Position);
         var effect = GatherProjectMaterial(actor, person, instruction.Order!.TargetMaterialKind!, source);
-        var position = inhabitants[actor].Position;
-        if (position != person.Position) RecordKnowledgeFact(actor, position);
         if (effect is not null)
             CreditOrderEffect(instruction, $"gather:{effect.LotId}",
                 instruction.Order.ProgressUnit == "harvests" ? 1 : effect.Quantity);

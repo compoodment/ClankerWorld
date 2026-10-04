@@ -19,7 +19,7 @@ public sealed partial class PrivateWorldRuntime
         .Sum(reservation => reservation.Quantity);
 
     private InventoryLot? CarriedPlantingSeed(string actor, string kind) => society.Checkpoint.Inventory.Lots
-        .Where(lot => lot.OwnerId == actor && lot.ItemKind == kind && lot.GroundPosition is null &&
+        .Where(lot => lot.OwnerId == actor && lot.ItemKind == kind && lot.ContainerLotId is null && lot.GroundPosition is null &&
             lot.StorageBuildingId is null && lot.DeliveryBuildingId is null && PlantingSeedQuantity(lot) > 0)
         .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
 
@@ -248,6 +248,8 @@ public sealed partial class PrivateWorldRuntime
                     ? WorldContentSimulationRules.Footprint(definition, building)
                     : [building.Position])
             .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused).SelectMany(ExpansionTiles))
+            .Concat(TownProjectProtectedSites())
+            .Concat(MarketSiteTiles())
             .ToHashSet();
         var occupied = map.CampObjects.Select(item => item.Position)
             .Concat(map.Resources.Select(item => item.Position))

@@ -9,6 +9,9 @@ namespace ClankerWorld.Simulation.Playtest;
 /// outside its door, beside one edge of the footprint; the door is on that
 /// side. It is set when the building's Road is laid, and is null for a
 /// building without a Road.
+/// For a paid street lantern, Position is its one-tile roadside site and
+/// Entrance is the immutable adjacent Road tile approved by the Council.
+/// Their cardinal difference binds the fitting's Road edge, rather than a door.
 /// </summary>
 public sealed record PlacedBuilding(
     string InstanceId,
@@ -37,7 +40,8 @@ public sealed record WorldProductionJob(
     long CompletionTick,
     WorldProductionJobState State,
     IReadOnlyList<string> InputReservationIds,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ToolLotId = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ToolLotId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ToolMakingRequestId = null)
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public long? PausedAtTick { get; init; }

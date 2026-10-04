@@ -19,6 +19,16 @@ public sealed partial class PrivateWorldRuntime
     private static string ConstructionInstanceId(string instructionId) =>
         "ordered-building-" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(instructionId))).ToLowerInvariant();
 
+    private bool BuildingIdentityIsReserved(string instanceId, string? constructionInstructionId = null) =>
+        instanceId.StartsWith("ordered-building-", StringComparison.Ordinal) &&
+            (constructionInstructionId is null || ConstructionInstanceId(constructionInstructionId) != instanceId) ||
+        (worldSimulation.ConstructionReceipts ?? []).Any(receipt => receipt.BuildingInstanceId == instanceId) ||
+        instructionsByIdempotency.Values.Any(instruction => instruction.Order is { } order &&
+            (order.ExpansionBinding?.BuildingInstanceId == instanceId ||
+             order.ShelterBinding is { } shelter && shelter.BuildingInstanceId == instanceId &&
+                 shelter.BuildingPlacedTick == WorldTick ||
+             order.ConstructionInstanceId == instanceId && instruction.InstructionId != constructionInstructionId));
+
     private static string ConstructionOrderReceipt(string instanceId) =>
         "construction:building:" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(instanceId))).ToLowerInvariant();
 

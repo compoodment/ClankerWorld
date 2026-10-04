@@ -18,11 +18,12 @@ public static partial class TownGovernanceValidation
             p.Status == SocietyInhabitantStatus.Active && p.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder)).ToHashSet(StringComparer.Ordinal);
         if (state.Members is null || state.Candidates is null || state.Proposals is null ||
             state.ElectionHistory is null || state.Notices is null || state.Knowledge is null ||
-            state.Form is not ("all_adult" or "representative") || state.Fallback is not ("initial" or "none" or "demographic" or "candidates") ||
+            state.Form is not ("all_adult" or "representative" or "leader") || state.Fallback is not ("initial" or "none" or "demographic" or "candidates" or "arrangement") ||
             state.Revision < 0 || state.Sequence < 0 || state.RetryTick < 0 || state.RetryCircumstances is null ||
             state.RetryCircumstances.Length > 64 || !Unique(state.Members) || state.Members.Any(id => !adults.Contains(id)) ||
             state.Form == "all_adult" && !adults.SetEquals(state.Members) ||
             state.Form == "representative" && (state.Members.Count > TownGovernanceRules.Seats || state.TermEndTick is null) ||
+            state.Form == "leader" && (state.Members.Count != 1 || state.TermEndTick is not null) ||
             state.TermEndTick is < 0 || state.Candidates.Any(c => c is null || !adults.Contains(c.AgentId) ||
                 !c.FullTerm && c.RemainderTermEndTick is null || c.RemainderTermEndTick is < 0) ||
             !Unique(state.Candidates.Select(c => c.AgentId)) || state.Proposals.Any(p => p is null) ||
@@ -35,9 +36,15 @@ public static partial class TownGovernanceValidation
         foreach (var proposal in state.Proposals)
         {
             if (!ValidGeneratedId(proposal.Id, town.Id + ":proposal:", state.Sequence) ||
-                string.IsNullOrWhiteSpace(proposal.RequestKey) || proposal.Kind is not ("law" or "admission") || !known.Contains(proposal.AuthorId) ||
+                string.IsNullOrWhiteSpace(proposal.RequestKey) || proposal.Kind is not ("law" or "admission" or "land_claim" or "land_use" or "land_hearing" or "project") || !known.Contains(proposal.AuthorId) ||
+                proposal.Kind == "land_use" && string.IsNullOrWhiteSpace(proposal.SubjectId) ||
                 proposal.Kind == "admission" && (proposal.SubjectId is null || !known.Contains(proposal.SubjectId)) ||
-                proposal.Kind == "law" && proposal.SubjectId is not null ||
+                proposal.Kind is "law" or "land_claim" or "land_hearing" or "project" && proposal.SubjectId is not null ||
+                proposal.Kind == "land_hearing" && (!TownLandGovernmentFilingRules.IsValid(proposal.LandHearingRequest, proposal.OpenedTick) ||
+                    proposal.RequestKey != TownLandGovernmentFilingRules.RequestKey(proposal.LandHearingRequest!)) ||
+                proposal.Kind != "land_hearing" && proposal.LandHearingRequest is not null ||
+                proposal.Kind == "land_claim" && proposal.LandClaimTiles is not { Count: > 0 } ||
+                proposal.Kind != "land_claim" && proposal.LandClaimTiles is not null ||
                 string.IsNullOrWhiteSpace(proposal.Text) || proposal.Text.Length > TownGovernanceRules.MaximumProposalText || proposal.Text.Any(char.IsControl) ||
                 proposal.Circumstances is null || proposal.Circumstances.Length > 512 || proposal.CouncilRevision < 0 || proposal.CouncilRevision > state.Revision ||
                 proposal.OpenedTick < 0 || proposal.OpenedTick > tick || proposal.DeadlineTick != proposal.OpenedTick + day ||
@@ -57,6 +64,15 @@ public static partial class TownGovernanceValidation
                 proposal.Status == "passed" && proposal.Votes.Count(v => v.Yes) < proposal.RequiredYes ||
                 proposal.Status == "rejected" && proposal.Votes.Count(v => v.Yes) >= proposal.RequiredYes)
                 throw new InvalidDataException("A Town's saved proposal or final votes are invalid.");
+            if (proposal.Kind == "project")
+            {
+                TownProjectRules.ValidatePayload(proposal.Project);
+                if (proposal.RequestKey != TownProjectRules.RequestKey(proposal.Project!) ||
+                    proposal.Text != TownProjectRules.ProposalText(proposal.Project!))
+                    throw new InvalidDataException("A Town's construction proposal differs from its named site and budget.");
+            }
+            else if (proposal.Project is not null)
+                throw new InvalidDataException("A law or admission proposal cannot contain construction authority.");
         }
         if (state.Proposals.Where(p => p.Status == "pending").GroupBy(p => p.RequestKey, StringComparer.Ordinal).Any(g => g.Count() > 1))
             throw new InvalidDataException("Equivalent pending Town proposals must share a single window.");
@@ -87,7 +103,8 @@ public static partial class TownGovernanceValidation
         {
             var notice = state.Notices[index];
             if (notice.Id != "notice:" + (index + 1).ToString(CultureInfo.InvariantCulture) || string.IsNullOrWhiteSpace(notice.SubjectId) ||
-                notice.Kind is not ("council" or "candidate" or "nomination" or "election" or "runoff" or "result" or "proposal" or "cancelled") ||
+                notice.Kind is not ("council" or "candidate" or "nomination" or "election" or "runoff" or "result" or "proposal" or "cancelled" or
+                    "law" or "government" or "mayor" or "land_use" or "land_hearing" or "land_transfer") ||
                 string.IsNullOrWhiteSpace(notice.Text) || notice.Text.Length > 32768 || notice.PostedTick < 0 || notice.PostedTick > tick)
                 throw new InvalidDataException("A saved Town civic notice is invalid.");
         }

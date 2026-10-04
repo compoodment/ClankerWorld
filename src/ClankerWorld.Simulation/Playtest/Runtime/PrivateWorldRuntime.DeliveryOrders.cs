@@ -103,7 +103,7 @@ public sealed partial class PrivateWorldRuntime
                 order.DeliveryRoute is not null && order.DeliveryRoute != route ||
                 PersonalEquipmentRules.IsSelected(inhabitants[actor].Equipment, lot.Id)) continue;
             var vessel = InventoryContainerRules.IsContainer(lot.ItemKind);
-            if (vessel && HasActiveContainerReservation(inventory, lot.Id)) continue;
+            if (UnusableDeliveryStock(inventory, lot) || vessel && HasActiveContainerReservation(inventory, lot.Id)) continue;
             var available = vessel ? DeliveryResourceQuantity(lot, order.TargetItemKind!)
                 : lot.ItemKind == order.TargetItemKind ? AvailableLotQuantity(lot) : 0;
             var quantity = order.DeliveryQuantity ?? Math.Min(available, DeliveryOrderRemaining(order));
@@ -280,7 +280,7 @@ public sealed partial class PrivateWorldRuntime
              (order.DeliveryPurpose == "town_surplus" ? TownForResident(actor) != building.TownId : HouseholdFor(actor) != building.HouseholdId)))
             return "The selected destination moved, changed owner or is no longer available; the order keeps its original destination.";
         if (order.DeliveryLotId is not null)
-            return "The selected shipment must remain carried and unreserved, with room and an open route for its whole load at the destination.";
+            return "The selected shipment must remain carried, usable and unreserved, with room and an open route for its whole load at the destination.";
         if (!ReadyForBriefInteraction(actor)) return "The agent needs warmth before delivering goods.";
         return "No matching delivery is available under this building's normal stock, reserve, carrying and access limits.";
     }

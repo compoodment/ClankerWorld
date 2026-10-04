@@ -316,6 +316,28 @@ public partial class Main
             OpenConversationReader(conversationMap, thirdAgentId, "conversation:ui-interrupted");
             if (!conversationReaderStatus.Text.StartsWith("Interrupted · world paused", StringComparison.Ordinal))
                 throw new InvalidOperationException("An interrupted conversation must keep its pause reason visible in the summary.");
+
+            var surname = new OwnerWorldConversation("conversation:ui-surname", firstAgentId, "Aster Ash", secondAgentId, "Rowan Ash",
+                "closed", null, "surname_draw", 8, 12,
+                Enumerable.Range(0, 4).Select(index => new OwnerWorldConversationTurn(
+                    $"conversation:ui-surname:turn:{index + 1}", index % 2 == 0 ? firstAgentId : secondAgentId,
+                    index % 2 == 0 ? "Aster Ash" : "Rowan Ash", "I have a surname in mind.", index + 9,
+                    [index % 2 == 0 ? secondAgentId : firstAgentId], false, index % 2 == 0 ? "Ash" : "Reed")).ToArray())
+            {
+                Kind = "marriage_surname",
+                ChosenSurname = "Ash",
+            };
+            var surnameMap = conversationMap with { WorldTick = 12, Conversations = [surname] };
+            OpenConversationReader(surnameMap, firstAgentId, surname.Id);
+            if (!conversationReaderTitle.Text.StartsWith("Shared surname ·", StringComparison.Ordinal) ||
+                !conversationReaderStatus.Text.Contains("draw", StringComparison.Ordinal) ||
+                !conversationReaderSummary.Text.Contains("Chosen surname: Ash", StringComparison.Ordinal))
+                throw new InvalidOperationException("The surname reader must show the session, shared result and disclosed draw.");
+            conversationHistoryExpanded = true;
+            RenderConversationReader(surnameMap, surname, firstAgentId, 0);
+            if (!conversationHistoryText.Text.Contains("Surname choice: Reed", StringComparison.Ordinal) ||
+                !conversationHistoryText.Text.Contains("Surname choice: Ash", StringComparison.Ordinal))
+                throw new InvalidOperationException("The surname history must display each partner's admitted choice.");
         }
         finally
         {
@@ -817,6 +839,8 @@ public partial class Main
             VerifyEventLogAgentNames();
             await VerifyNewcomerOfferAsync();
             VerifyOrnamentPresentation();
+            await VerifyHandcartPresentationAsync();
+            VerifyToolMakingPresentation();
             await VerifyMenuBackdropAsync();
             // Tooltips and other windows the engine creates on demand follow the root's filter,
             // so pixel frames must not be smoothed there either.
@@ -868,10 +892,26 @@ public partial class Main
                     Coverage = mountainOnly,
                     Candidates = [mountainOnly],
                 };
+                // The preview is described in words; exact shares stay in its tooltip.
+                bool PlainWords() => !worldPreviewStatus.Text.Contains('%', StringComparison.Ordinal) &&
+                    !worldPreviewStatus.Text.Contains("Candidate", StringComparison.Ordinal) &&
+                    !worldPreviewStatus.Text.Contains("target", StringComparison.OrdinalIgnoreCase);
                 SetWorldPreviewStatus(mountainOnlyPreview);
-                if (!worldPreviewStatus.Text.Contains("Met applicable Normal target: mountains", StringComparison.Ordinal) ||
-                    worldPreviewStatus.Text.Contains("Both default Balanced trial targets", StringComparison.Ordinal))
-                    throw new InvalidOperationException("Preview must name only the applicable Normal target when the other control is Low or High.");
+                if (!worldPreviewStatus.Text.StartsWith("Some forest and some mountain ranges, on 100 tiles of land.", StringComparison.Ordinal) ||
+                    worldPreviewStatus.Text.Contains("balanced", StringComparison.Ordinal) || !PlainWords() ||
+                    !worldPreviewStatus.TooltipText.Contains("A balanced world has 20–40% forest and 5–12% mountains", StringComparison.Ordinal) ||
+                    worldPreviewStatus.TooltipText.Contains("maps tried", StringComparison.Ordinal) ||
+                    worldAcceptUnmetTargets.Visible)
+                    throw new InvalidOperationException($"A map that meets the balance it aims for must be described plainly: {worldPreviewStatus.Text}");
+                SetWorldPreviewStatus(mountainOnlyPreview with
+                {
+                    FailedCandidates = [new OwnerWorldCandidateFailure(0, "no-clearing")],
+                });
+                if (!worldPreviewStatus.TooltipText.Contains("Closest of 2 maps tried: no room for a first Town; 15% forest, 10% mountains.", StringComparison.Ordinal) ||
+                    worldPreviewStatus.TooltipText.Contains("no-clearing", StringComparison.Ordinal) ||
+                    worldPreviewStatus.Text.Contains("no room", StringComparison.Ordinal) || !PlainWords() ||
+                    worldAcceptUnmetTargets.Visible)
+                    throw new InvalidOperationException($"The tooltip must list a failed attempt in the order tried, beside real measurements, without requiring acceptance of an unavailable map: {worldPreviewStatus.TooltipText}");
                 var forestOnly = missedCoverage with
                 {
                     ForestTargetApplicable = true,
@@ -880,16 +920,18 @@ public partial class Main
                     MountainTargetMet = false,
                 };
                 SetWorldPreviewStatus(mountainOnlyPreview with { Coverage = forestOnly, Candidates = [forestOnly] });
-                if (!worldPreviewStatus.Text.Contains("Missed: Forest 15.0%", StringComparison.Ordinal) ||
-                    !worldPreviewStatus.Text.Contains("Candidate results:", StringComparison.Ordinal))
-                    throw new InvalidOperationException("Preview must name a missed Normal target and candidate results when only forest is targeted.");
+                if (!worldPreviewStatus.Text.Contains("It has less forest than a balanced world.", StringComparison.Ordinal) ||
+                    !PlainWords() || !worldAcceptUnmetTargets.Visible)
+                    throw new InvalidOperationException($"A map with too little forest must say so and offer to keep it: {worldPreviewStatus.Text}");
                 var noTargets = mountainOnly with { MountainTargetApplicable = false, MountainTargetMet = false };
                 SetWorldPreviewStatus(mountainOnlyPreview with { Coverage = noTargets, Candidates = [noTargets] });
-                if (!worldPreviewStatus.Text.Contains("No trial targets apply", StringComparison.Ordinal) ||
-                    !worldPreviewStatus.Text.Contains($"{15d:F1}% forest and {10d:F1}% mountains", StringComparison.Ordinal) ||
-                    worldAcceptUnmetTargets.Visible)
-                    throw new InvalidOperationException("Preview without targets must show measured coverage without an acceptance gate.");
+                if (worldPreviewStatus.Text.Contains("balanced", StringComparison.Ordinal) || !PlainWords() ||
+                    worldPreviewStatus.TooltipText != "Forest 15% and mountains 10% of the land." ||
+                    worldPreviewStatus.MouseFilter == MouseFilterEnum.Ignore || worldAcceptUnmetTargets.Visible)
+                    throw new InvalidOperationException("A map with no balance to aim for must show its measurements only in the tooltip, with no acceptance box.");
                 InvalidateWorldPreview(refresh: false);
+                if (worldPreviewStatus.TooltipText.Length != 0)
+                    throw new InvalidOperationException("Clearing the preview must also clear the last map's measurements from its tooltip.");
                 var preset = CurrentWorldOptions();
                 worldForestChoice.Select(0);
                 if (SameGeneration(preset, CurrentWorldOptions()))
@@ -915,6 +957,10 @@ public partial class Main
                 worldPreview.Hide();
             }
             OpenMainMenuSettings();
+            if (BuildInformation.SourceRevision.Length != 40 ||
+                !gameSettingsContent.FindChildren("*", nameof(Label), recursive: true, owned: false)
+                    .OfType<Label>().Any(label => label.Text == BuildInformation.Display && label.IsVisibleInTree()))
+                throw new InvalidOperationException("Settings must show the assembly version and source commit before a world is loaded.");
             if (!mainMenuOverlay.Visible || mainMenuCard.Visible || !gameMenuPanel.Visible || !gameSettingsContent.Visible ||
                 worldSettingsCategoryButton.Visible || worldSettingsContent.Visible || menuResumeButton.Visible ||
                 !ShowsGlyph(menuCloseButton, PixelGlyph.Back) || !mainMenuBackdrop.IsVisibleInTree() || mainMenuLogo.Visible)
@@ -1040,11 +1086,15 @@ public partial class Main
             {
                 await VerifyFirstWorldListAsync();
                 await VerifyWorldActionSelectionAsync();
+                await VerifyFreshHostEntryAsync();
                 await VerifyNewWorldCompatibilityMessageAsync();
+                await VerifyWorldPreviewRerollAsync();
                 await VerifyAutosaveSettingsOwnershipAsync();
                 await VerifyUiScaleAt1440pAsync(displayWindow);
                 await VerifyManualSaveListOwnershipAsync();
+                await VerifySameWorldTimelineUiRecoveryAsync();
                 VerifySaveBranchList();
+                await VerifySaveTimelineAsync();
                 windowSizeChoice.Select(1);
                 SetWindowSize(1);
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
@@ -1300,6 +1350,20 @@ public partial class Main
                 civicLabels.Contains("tick", StringComparison.OrdinalIgnoreCase) || civicLabels.Contains("candidate-", StringComparison.Ordinal) ||
                 civicLabels.Contains("representative", StringComparison.Ordinal) && !civicLabels.Contains("elected representatives", StringComparison.Ordinal))
                 throw new InvalidOperationException("Normal Town council rows must use world clocks and names rather than internal counters or IDs.");
+            var governmentTown = civicTown with
+            {
+                Government = new OwnerTownGovernment("Ordinary decisions: the elected Council. Land decisions: the elected mayor.",
+                    [new("law-1", "Grove", "Leave the saplings.", "site", 5, 2, 3_600, null)], 1,
+                    [new("land disputes and permission expiries", "Mira Vale", 10_800, null)],
+                    [new("change-1", "Every adult resident makes ordinary decisions.", "handover", 3, 0, 3, 3_600, 4_680, null)],
+                    new("mayor-1", "land disputes and permission expiries", "voting", 2, 3_960,
+                        [new("candidate-1", "Nia Moss", 2)], null, null), null, 0),
+            };
+            Render(sample with { WorldTick = 3_600, Towns = [governmentTown] }, []);
+            foreach (var phrase in new[] { "Approved government:", "Mira Vale: land disputes", "handover due by",
+                         "Mayoral election: Voting", "round 2", "Law: Grove", "recorded site (5 land tiles)", "Version 2", "Wider law enforcement remains unavailable" })
+                if (!TownListText().Contains(phrase, StringComparison.Ordinal))
+                    throw new InvalidOperationException("The Town page must show actual law scope, government handovers and separate office authority: " + phrase);
             var revisedCivicTown = civicTown with
             {
                 Governance = civicTown.Governance! with
@@ -2087,7 +2151,7 @@ public partial class Main
             if (TreeArtManifest.Entries.Where(entry => entry.Code > 0).Select(entry => entry.Code).Distinct().Count() !=
                 TreeArtManifest.Entries.Count(entry => entry.Code > 0))
                 throw new InvalidOperationException("Each drawn tree stage needs its own terrain code.");
-            for (byte kind = 1; kind <= 12; kind++)
+            for (byte kind = 1; kind <= 13; kind++)
                 if (NatureSprites.ForNaturalObject(kind, 0) is null)
                     throw new InvalidOperationException($"Natural object {kind} has no sprite.");
             // Farm fields: every crop and growth state draws its overlay over the
@@ -2116,7 +2180,7 @@ public partial class Main
                 foreach (var kind in Enum.GetValues<BuildingKind>())
                     foreach (var (footprintWidth, footprintHeight) in new[] { (1, 1), (2, 1), (1, 2), (2, 2) })
                     {
-                        var roof = BuildingSprites.Render(kind, footprintWidth, footprintHeight, tilePixels);
+                        using var roof = BuildingSprites.Render(kind, footprintWidth, footprintHeight, tilePixels);
                         var covered = 0;
                         for (var by = 0; by < roof.GetHeight(); by++)
                             for (var bx = 0; bx < roof.GetWidth(); bx++)
@@ -2192,11 +2256,31 @@ public partial class Main
             if (ItemIcons.Has("never-an-item") || Convert.ToBase64String(ItemIcons.Render("never-an-item", 32).GetData()) !=
                     Convert.ToBase64String(ItemIcons.Render("crate", 32).GetData()) || !ItemIcons.Has("wood"))
                 throw new InvalidOperationException("An item without its own icon must show the crate.");
+            foreach (var meal in new[] { "porridge", "berry_porridge", "fruit_porridge", "stew", "restaurant_meal" })
+                if (!ItemIcons.Has(meal) || !ItemIcons.FitsGrid(meal) || (!ItemIcons.Kinds.Contains(meal) &&
+                    Convert.ToBase64String(ItemIcons.Render(meal, 32).GetData()) !=
+                        Convert.ToBase64String(ItemIcons.Render("food", 32).GetData())))
+                    throw new InvalidOperationException("A concrete meal without distinct art must use the food icon.");
             if (GameUiText.ItemName("storage_pot") != "Storage pot" ||
                 GameUiText.ItemName("water_jug") != "Water jug" ||
                 GameUiText.ItemName("fresh_water") != "Fresh water")
                 throw new InvalidOperationException("Pottery and water items must have clear player-facing names.");
+            foreach (var (kind, name) in new[]
+                     {
+                         ("paper", "Paper"), ("field_record", "Field record"),
+                         ("field_map", "Field map"), ("book", "Book"),
+                     })
+                if (!ItemIcons.Has(kind) || GameUiText.ItemName(kind) != name)
+                    throw new InvalidOperationException("Physical written goods must use their approved icons and readable names.");
             string IconData(string kind) => Convert.ToBase64String(ItemIcons.Render(kind, 32).GetData());
+            foreach (var (actualKind, approvedKind) in new[]
+                     {
+                         ("potatoes", "potato"), ("cultivated_green_seed", "green_seed"),
+                         ("medicinal_herbs", "herbs"), ("diamond_ornament", "ornament"), ("simple_meal", "meal"),
+                     })
+                if (!ItemIcons.Has(actualKind) || !ItemIcons.FitsGrid(actualKind) ||
+                    IconData(actualKind) != IconData(approvedKind) || IconData(actualKind) == IconData("crate"))
+                    throw new InvalidOperationException($"The real item {actualKind} must show its approved {approvedKind} drawing.");
             if (IconData("wooden_hammer") == IconData("stone_hammer") ||
                 IconData("wooden_sickle") == IconData("iron_sickle"))
                 throw new InvalidOperationException("Wooden and stronger work tools must show distinct tier colours.");
@@ -2209,11 +2293,19 @@ public partial class Main
                 BuildingSprites.KindFor(["cooking", "warmth"]) != BuildingKind.Hearth ||
                 BuildingSprites.KindFor(["silo", "farm-storage"]) != BuildingKind.Silo ||
                 BuildingSprites.KindFor(["tailor", "clothing-making"]) != BuildingKind.TailorShop ||
+                BuildingSprites.KindFor(["clinic", "care", "storage"]) != BuildingKind.Clinic ||
+                BuildingSprites.KindFor(["restaurant", "food-stock"]) != BuildingKind.Restaurant ||
                 BuildingSprites.KindFor(null) != BuildingKind.Generic ||
                 BuildingSprites.KindForObject("campfire") != BuildingKind.Hearth ||
                 BuildingSprites.KindForObject("cooking") != BuildingKind.Hearth ||
                 BuildingSprites.KindForObject("path") != BuildingKind.Path ||
                 NatureSprites.ForCampResource("construction") != NatureSprite.WoodPile ||
+                // A Town's starting supplies carry no natural site; none may fall back to a bare marker.
+                NatureSprites.ForCampResource("stone") != NatureSprite.StoneOutcrop ||
+                NatureSprites.ForCampResource("fiber") != NatureSprite.FiberPlant ||
+                NatureSprites.ForCampResource("seed") != NatureSprite.WildSeedPatch ||
+                NatureSprites.ForCampResource("clay") != NatureSprite.ClayBank ||
+                NatureSprites.ForCampResource("grain_seed") != NatureSprite.WildSeedPatch ||
                 NatureSprites.ForCampResource("iron_ore") is not null ||
                 BuildingSprites.KindForObject("resource") is not null)
                 throw new InvalidOperationException("Buildings and camp objects must pick their art family from their recorded tags and kinds.");
@@ -2358,6 +2450,7 @@ public partial class Main
                     !resourceVisual.TooltipText.Contains(expectedName, StringComparison.Ordinal))
                     throw new InvalidOperationException($"The {expectedName} natural object must draw as a distinct inspectable map site.");
             }
+            VerifyPlayableNaturalArt(sample);
             var fallenWood = new OwnerWorldResource("sample-fallen-wood", "wood", new(3, 3), false,
                 "available", 3, 3, NaturalObjectKind: "fallen_wood");
             var fallenWoodMap = sample with { Resources = [sampleResource, fallenWood] };
@@ -2939,6 +3032,7 @@ public partial class Main
             if (unreadEvents != 0 || eventsBadge.Visible || !eventLog.GetParsedText().Contains('●'))
                 throw new InvalidOperationException("Opening the Event Log must mark events read and dot the rows that were new.");
             VerifyEventRows();
+            await VerifyEventLogLayoutAsync();
             // The mouse wheel over a panel scrolls it and never zooms the map behind it, even at the end of the scroll.
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             var zoomBeforeWheel = cameraZoom;
@@ -3112,6 +3206,8 @@ public partial class Main
             }
             if (brightest > 0.31f || lit > 900 || flashes > 25)
                 throw new InvalidOperationException($"Lightning must stay soft and rare: peak={brightest}, lit samples={lit}, flashes={flashes}.");
+            await VerifyNightWashAsync(largeMap);
+            await VerifyNightLightsAsync(largeMap);
             var startedMap = largeMap with { FounderSetup = null };
             RenderWorldHud(startedMap);
             for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
@@ -3482,6 +3578,18 @@ public partial class Main
                 inhabitantList.GetItemText(2) != "Deceased" || inhabitantList.IsItemSelectable(2) ||
                 !inhabitantList.GetItemText(3).StartsWith("Mira", StringComparison.Ordinal))
                 throw new InvalidOperationException("The roster must list the living with their activity and hunger before the deceased.");
+            RenderInhabitantList(rosterMap with
+            {
+                Inhabitants = [rosterMap.Inhabitants[0] with
+                {
+                    PublicIntention = new OwnerWorldPublicIntention("knowledge_copy:knowledge-artifact-000001",
+                        "knowledge_copy:knowledge-artifact-000001", "deterministic", 1),
+                }],
+            });
+            if (!RosterCardText(0).Contains("Copying a written work", StringComparison.Ordinal) ||
+                RosterCardText(0).Contains("knowledge-artifact", StringComparison.Ordinal))
+                throw new InvalidOperationException("The Agents list must describe copying written knowledge without showing internal artifact identifiers.");
+            RenderInhabitantList(rosterMap);
             RenderWorldHud(rosterMap);
             if (!agentsWarning.Visible || inhabitantsButton.Text != "2" ||
                 !inhabitantsButton.TooltipText.Contains("hungry: Rowan", StringComparison.Ordinal))
@@ -3496,19 +3604,28 @@ public partial class Main
                 throw new InvalidOperationException("An empty roster must show its summary without an empty list box.");
             var formerPosition = new OwnerWorldPosition(2, 2);
             var deceased = new OwnerWorldInhabitant("agent:00000000000000000000000000000098", "Mira", "dead", formerPosition,
-                5_000, [], [new("age-band", "elder"), new("death-tick", "1")],
+                5_000, [], [new("age-band", "elder"), new("death-tick", "1"), new("will-status", "accepted")],
                 new OwnerWorldRoute("deceased", null, null, [], string.Empty),
                 new OwnerWorldSpatialKnowledge(formerPosition, [formerPosition], [formerPosition]), false)
             {
+                FinalWill = new OwnerWorldFinalWill("accepted", "items",
+                    [new("living-parent", "Rowan", false, [new("seed", 3)]), new("town:first", "First Town", true, [new("wood", 4)])],
+                    "Keep the orchard going."),
                 RecentPrivateThoughts = [new OwnerWorldPrivateThought(1, "I hope Rowan remembers our garden.")],
                 RecentMemories = [new OwnerWorldAgentMemory(1, "living-parent", "Rowan",
                     "I hid the garden tools where Rowan cannot see them.", "private")],
                 RecentKnowledgeFacts = [new OwnerWorldKnowledgeFact(2, 7, 9, "Forest", ["wood"],
                     "Mira", "firsthand", null)],
-                KnowledgeArtifacts = [new OwnerWorldKnowledgeArtifact("knowledge-artifact-000001", "field_map",
-                    "Field map · 2 sites", 2, "Mira",
-                    [new OwnerWorldKnowledgeSite(7, 9, "Forest", ["wood"], "Mira"),
-                     new OwnerWorldKnowledgeSite(8, 9, "River", [], "Mira")])],
+                KnowledgeArtifacts =
+                [
+                    new OwnerWorldKnowledgeArtifact("knowledge-artifact-000001", "field_map",
+                        "Field map · 2 sites", 2, "Mira",
+                        [new OwnerWorldKnowledgeSite(7, 9, "Forest", ["wood"], "Mira"),
+                         new OwnerWorldKnowledgeSite(8, 9, "River", [], "Mira")]),
+                    new OwnerWorldKnowledgeArtifact("knowledge-artifact-000002", "book",
+                        "Book · 1 site", 3, "Mira",
+                        [new OwnerWorldKnowledgeSite(7, 9, "Forest", ["wood"], "Mira")]),
+                ],
             };
             var historicalSnapshot = sample with
             {
@@ -3527,6 +3644,24 @@ public partial class Main
                 !selectedActorSummaryLabel.Text.Contains("Dead", StringComparison.Ordinal) ||
                 !ShowsGlyph(profileCloseButton, PixelGlyph.Close) || renameAgentInput.Text != "Mira")
                 throw new InvalidOperationException("A deceased inhabitant must open straight to a historical Profile without appearing as a living map actor.");
+            if (!inhabitantDetails.Visible ||
+                !inhabitantDetails.Text.Contains("Final will: belongings left item by item to Rowan and First Town.", StringComparison.Ordinal) ||
+                !inhabitantDetails.Text.Contains("To Rowan: 3 seed", StringComparison.Ordinal) ||
+                !inhabitantDetails.Text.Contains("To First Town: 4 wood", StringComparison.Ordinal) ||
+                !inhabitantDetails.Text.Contains("Final words: \u201CKeep the orchard going.\u201D", StringComparison.Ordinal) ||
+                inhabitantDetails.Text.Contains("town:first", StringComparison.Ordinal))
+                throw new InvalidOperationException("A historical Profile must show the final will's heirs, their goods and the final words.");
+            // Model text remains plain even if a malformed snapshot contains formatting tags.
+            var taggedWords = "[b]Keep the orchard going.[/b]";
+            var taggedSnapshot = historicalSnapshot with
+            {
+                Inhabitants = [deceased with { FinalWill = deceased.FinalWill! with { FinalWords = taggedWords } }],
+            };
+            RenderSelectedInhabitantCard(taggedSnapshot);
+            if (inhabitantDetails.BbcodeEnabled ||
+                !inhabitantDetails.GetParsedText().Contains(taggedWords, StringComparison.Ordinal))
+                throw new InvalidOperationException("Final words must render as plain text without applying formatting from the model.");
+            RenderSelectedInhabitantCard(historicalSnapshot);
             if (!privateThoughtHistory.Text.Contains("I hope Rowan remembers our garden.", StringComparison.Ordinal) ||
                 !thoughtsHeading.Text.Contains("HISTORICAL", StringComparison.Ordinal) ||
                 !thoughtsReaderText.GetParsedText().Contains("I hope Rowan remembers our garden.", StringComparison.Ordinal) ||
@@ -3536,6 +3671,7 @@ public partial class Main
             if (!memoriesPanel.Visible ||
                 !MemoryCardsText().Contains("I hid the garden tools", StringComparison.Ordinal) ||
                 !MemoryCardsText().Contains("Field map", StringComparison.Ordinal) ||
+                !MemoryCardsText().Contains("Book written by Mira", StringComparison.Ordinal) ||
                 !MemoryCardsText().Contains("Forest at 7, 9", StringComparison.Ordinal) ||
                 ProfilePeopleText().Contains("I hid the garden tools", StringComparison.Ordinal))
                 throw new InvalidOperationException("Historical memories and bounded agent-owned map records must be inspectable separately from public social notes.");
@@ -3546,6 +3682,10 @@ public partial class Main
                 ? new OwnerWorldPosition(15, 11) : new OwnerWorldPosition(0, 0);
             knownEvents[101] = new OwnerWorldEvent(101, 2, "inhabitant_removed", deceased.Id,
                 deathDestination);
+            knownEvents[102] = new OwnerWorldEvent(102, 3, "agent_knowledge_artifact_created",
+                deceased.Id + "|knowledge-artifact-000002|book|1", formerPosition);
+            knownEvents[103] = new OwnerWorldEvent(103, 4, "agent_knowledge_artifact_read",
+                "agent:other|" + deceased.Id + "|knowledge-artifact-000003|1", formerPosition);
             RenderEventLog();
             if (!eventLog.GetParsedText().Contains("died.", StringComparison.Ordinal) ||
                 eventLog.GetParsedText().Contains("scroll-sentinel", StringComparison.Ordinal) ||
@@ -3553,6 +3693,12 @@ public partial class Main
                 gameSettingsContent.GetChildren().OfType<Label>()
                     .Any(label => label.Text.Contains("event pop-ups", StringComparison.OrdinalIgnoreCase)))
                 throw new InvalidOperationException("Deaths must remain in the Event Log without an event pop-up setting.");
+            if (!eventLog.GetParsedText().Contains("finished writing a book.", StringComparison.Ordinal) ||
+                !eventLog.GetParsedText().Contains("learned about places from a written work.", StringComparison.Ordinal) ||
+                DescribeWorldEvent(knownEvents[102], historicalSnapshot) != "Mira finished writing a book." ||
+                DescribeWorldEvent(knownEvents[103], historicalSnapshot) != "Mira learned about places from a written work." ||
+                eventLog.GetParsedText().Contains("knowledge-artifact-", StringComparison.Ordinal))
+                throw new InvalidOperationException("Written-knowledge events must name the writer or actual reader without displaying artifact identifiers.");
             ToggleEvents();
             if (!eventsPanel.Visible || !agentProfilePanel.Visible)
                 throw new InvalidOperationException("The Event Log and the agent's Profile must remain available together.");
@@ -3659,6 +3805,7 @@ public partial class Main
                 throw new InvalidOperationException("Household membership must not create a family link.");
             familyTreePanel.Hide();
             await VerifyAgentPanelsAsync();
+            await VerifyOrderListAsync();
             eventsPanel.Show();
             _UnhandledKeyInput(new InputEventKey { Keycode = Key.Escape, Pressed = true });
             if (eventsPanel.Visible)
@@ -3764,14 +3911,24 @@ public partial class Main
             await VerifyRefusedAgentRenameAsync();
             VerifyAgentTextEllipses();
             VerifyPlainEllipses("after every panel has been shown");
-            GD.Print("UI checks passed: startup Main Menu and settings, compact in-world pause menu and read-only Mod Library, confirmed quit, World Info Towns page, resource hover, square tile hover and agent priority, agent facings, walk steps and activity frames, bounded marker hitboxes at zoom, building footprints, mountain relief chunks drawn off the main thread, soft snow edges and desert cacti, camera-bounded large terrain and regional weather, zoom, middle-drag, WASD, overview navigation, Event Log jumps without pop-ups, keyboard shortcuts and the F1 controls list, Developer tools on F12 with readouts, agent jumps and planned paths, private thoughts, memories, deceased inspection, family tree and refused agent renames.");
-            GetTree().Quit();
+            GD.Print("UI checks passed: startup Main Menu and settings, compact in-world pause menu and read-only Mod Library, confirmed quit, World Info Towns page, resource hover, square tile hover and agent priority, agent facings, walk steps and activity frames, bounded marker hitboxes at zoom, building footprints, mountain relief chunks drawn off the main thread, soft snow edges and desert cacti, camera-bounded large terrain and regional weather, zoom, middle-drag, WASD, overview navigation, Event Log jumps without pop-ups, keyboard shortcuts and the F1 controls list, Developer tools on F12 with readouts, agent jumps and planned paths, private thoughts, the agent order list at small and large screen sizes, memories, deceased inspection with final wills, family tree and refused agent renames.");
+            Callable.From(() => FinishUiSmoke(0)).CallDeferred();
         }
         catch (Exception exception)
         {
             GD.PushError(exception.Message);
-            GetTree().Quit(1);
+            Callable.From(() => FinishUiSmoke(1)).CallDeferred();
         }
+    }
+
+    private void FinishUiSmoke(int exitCode)
+    {
+        // Let the async smoke state machine release its temporary Godot objects
+        // before collecting them. Their finalizers must finish while the native
+        // C# bindings are still alive, rather than racing engine shutdown.
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GetTree().Quit(exitCode);
     }
 
     private void VerifyEventLogAgentNames()
@@ -3810,7 +3967,7 @@ public partial class Main
             foreach (var worldEvent in events) knownEvents[worldEvent.EventId] = worldEvent;
             RenderEventLog();
             string[] expected = ["Rowan gathered food.", "Scout ate.", "Mira was born.", "Aster died.",
-                "Rowan joined the first Town.", "Aster left the first Town."];
+                "Rowan joined First Town.", "Aster left First Town."];
             if (expected.Any(text => !eventLog.GetParsedText().Contains(text, StringComparison.Ordinal)))
                 throw new InvalidOperationException("The Event Log must show full living, deceased and descendant names for normal IDs.");
             snapshot = snapshot with

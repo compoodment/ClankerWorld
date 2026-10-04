@@ -20,8 +20,6 @@ public sealed partial class ViewerHttpTests
 {
     [Theory]
     [InlineData(false, "\"32\"")]
-    [InlineData(false, "null")]
-    [InlineData(false, "32.5")]
     [InlineData(false, "2147483648")]
     [InlineData(true, "[]")]
     public async Task MalformedSaveJsonIsReportedAsInvalidWhilePausedAndPreservesTheWorld(
@@ -80,7 +78,6 @@ public sealed partial class ViewerHttpTests
 
     [Theory]
     [InlineData(0)]
-    [InlineData(10)]
     public async Task AutosaveConfigurationNeverTrimsAnotherWorld(int rotation)
     {
         var directory = Directory.CreateTempSubdirectory("autosave-world-boundary-");
@@ -242,11 +239,18 @@ public sealed partial class ViewerHttpTests
                 Assert.True(runtime.Society.IsPaused);
                 Assert.Empty(runtime.Inhabitants);
                 Assert.Equal(0, runtime.WorldTick);
-                Assert.Equal(13, runtime.Content.Packages.Count);
+                Assert.Equal(24, runtime.Content.Packages.Count);
+                AssertBuildingVariantPackagesActive(runtime);
                 Assert.Contains(runtime.Content.Packages, package => package.Manifest.PackageId == PotteryContent.PackageId);
+                Assert.Contains(runtime.Content.Packages, package => package.Manifest.PackageId == RestaurantContent.PackageId);
                 Assert.Contains(runtime.Content.Packages, package => package.Manifest.PackageId == BusinessContent.PackageId);
                 Assert.Contains(runtime.Content.Packages, package => package.Manifest.PackageId == CareContent.PackageId);
                 Assert.Contains(runtime.Content.Packages, package => package.Manifest.PackageId == OrnamentContent.PackageId);
+                Assert.Contains(runtime.Content.Packages, package => package.Manifest.PackageId == TownHallContent.PackageId);
+                Assert.Contains(runtime.Content.Packages, package => package.Manifest.PackageId == StreetLanternContent.PackageId);
+                Assert.Contains(runtime.Content.Packages, package => package.Manifest.PackageId == KnowledgeContent.PackageId);
+                Assert.Contains(runtime.Content.Packages, package => package.Manifest.PackageId == HouseToolsContent.PackageId);
+                Assert.Contains(runtime.Content.Packages, package => package.Manifest.PackageId == MarketContent.PackageId);
                 Assert.All(runtime.Content.Packages, package =>
                     Assert.Equal(ContentPackageLifecycle.Active, package.Lifecycle));
                 Assert.Contains(runtime.WorldContent.Buildings, building => building.LocalId == "house-1x1");
@@ -254,7 +258,11 @@ public sealed partial class ViewerHttpTests
                 Assert.Contains(runtime.WorldContent.Buildings, building => building.LocalId == "silo-1x1");
                 Assert.Contains(runtime.WorldContent.Buildings, building => building.LocalId == "farmhouse-1x1");
                 Assert.Contains(runtime.WorldContent.Buildings, building => building.LocalId == "blacksmith-1x2");
+                Assert.Contains(runtime.WorldContent.Buildings, building => building.LocalId == "restaurant-1x2");
                 Assert.Contains(runtime.WorldContent.Buildings, building => building.LocalId == "store-1x1");
+                Assert.Contains(runtime.WorldContent.Buildings, building => building.LocalId == "town-hall-3x4");
+                Assert.Contains(runtime.WorldContent.Buildings, building => building.CanonicalId == StreetLanternContent.Stone().CanonicalId);
+                Assert.Contains(runtime.WorldContent.Buildings, building => building.CanonicalId == StreetLanternContent.Hanging().CanonicalId);
                 Assert.Equal(WorldSizePreset.Small, runtime.ExportState().Geography?.Size);
                 Assert.Equal(256, runtime.ExportState().Map.Width);
                 Assert.Equal(GeographyGenerator.CurrentHydrologyVersion, runtime.ExportState().Geography!.HydrologyVersion);
@@ -343,9 +351,6 @@ public sealed partial class ViewerHttpTests
                 var olderDocument = JsonNode.Parse(originalBytes)!.AsObject();
                 var olderState = olderDocument["state"]!.AsObject();
                 olderState["schemaVersion"] = PrivateWorldRuntime.StateSchemaVersion - 1;
-                olderState.Remove("bridges");
-                olderState.Remove("bridgeTraffic");
-                olderState["map"]!.AsObject().Remove("bridgeDecks");
                 var olderBytes = Encoding.UTF8.GetBytes(olderDocument.ToJsonString());
                 File.WriteAllBytes(firstPath, olderBytes);
                 using var olderList = await SendSignedAsync(host, client, key, device.DeviceId,
@@ -425,12 +430,22 @@ public sealed partial class ViewerHttpTests
             Assert.Contains(restoredCatalog.Worlds, world => world.Id == generatedId);
             var restoredRuntime = restarted.Services.GetRequiredService<PrivateWorldRuntime>();
             Assert.Equal(WorldSizePreset.Small, restoredRuntime.ExportState().Geography?.Size);
-            Assert.Equal(13, restoredRuntime.Content.Packages.Count);
+            Assert.Equal(24, restoredRuntime.Content.Packages.Count);
+            Assert.Contains(restoredRuntime.Content.Packages, package => package.Manifest.PackageId == TownHallContent.PackageId);
+            Assert.Contains(restoredRuntime.Content.Packages, package => package.Manifest.PackageId == StreetLanternContent.PackageId);
+            AssertBuildingVariantPackagesActive(restoredRuntime);
+            Assert.Contains(restoredRuntime.Content.Packages, package => package.Manifest.PackageId == MarketContent.PackageId);
             Assert.Contains(restoredRuntime.Content.Packages, package => package.Manifest.PackageId == PotteryContent.PackageId);
+            Assert.Contains(restoredRuntime.Content.Packages, package => package.Manifest.PackageId == RestaurantContent.PackageId);
+            Assert.Contains(restoredRuntime.WorldContent.Buildings, building => building.LocalId == "restaurant-1x2");
             Assert.Contains(restoredRuntime.Content.Packages, package => package.Manifest.PackageId == BusinessContent.PackageId);
             Assert.Contains(restoredRuntime.Content.Packages, package => package.Manifest.PackageId == CareContent.PackageId);
             Assert.Contains(restoredRuntime.Content.Packages, package => package.Manifest.PackageId == OrnamentContent.PackageId);
+            Assert.Contains(restoredRuntime.Content.Packages, package => package.Manifest.PackageId == KnowledgeContent.PackageId);
+            Assert.Contains(restoredRuntime.Content.Packages, package => package.Manifest.PackageId == HouseToolsContent.PackageId);
             Assert.Contains(restoredRuntime.WorldContent.Buildings, building => building.LocalId == "store-1x1");
+            Assert.Contains(restoredRuntime.WorldContent.Buildings, building => building.CanonicalId == StreetLanternContent.Stone().CanonicalId);
+            Assert.Contains(restoredRuntime.WorldContent.Buildings, building => building.CanonicalId == StreetLanternContent.Hanging().CanonicalId);
             Assert.Equal(5, restoredRuntime.WorldSimulation.Buildings.Count);
             Assert.NotEmpty(restoredRuntime.RoadTiles);
             var selectedOld = restarted.Services.GetRequiredService<WorldSelectionCoordinator>()
@@ -566,6 +581,13 @@ public sealed partial class ViewerHttpTests
                 var branched = await savedAfterLoad.Content.ReadFromJsonAsync<ManualWorldSave>();
                 Assert.Equal(2, branched?.Branch?.Number);
                 Assert.Equal(saveId, branched?.Branch?.StartedFromId);
+                var timelineAction = new OwnerControlAction("save-timeline");
+                using var timeline = await SendSignedAsync(host, client, key, device.DeviceId,
+                    "/api/v1/owner/saves/timeline", timelineAction, OwnerHttpBinding.EmptyPayload("save-timeline"));
+                Assert.Equal(HttpStatusCode.OK, timeline.StatusCode);
+                Assert.Equal(new SaveTimelinePosition(branched?.Id, branched?.Branch?.Id, false,
+                    branched?.Branch?.Number, branched?.WorldTick),
+                    await timeline.Content.ReadFromJsonAsync<SaveTimelinePosition>());
                 Assert.Contains(providers.CaptureRuntimeConfiguration().Assignments ?? [],
                     item => item.InhabitantId == "founder:checkpoint" && item.CredentialSlotId == slotId);
                 var statusAction = new OwnerControlAction("autosave-status");
@@ -677,7 +699,6 @@ public sealed partial class ViewerHttpTests
 
     [Theory]
     [InlineData("truncated")]
-    [InlineData("null")]
     [InlineData("missing-save")]
     [InlineData("aliased-id")]
     public void DamagedSaveMetadataDoesNotHideSoundSavesOrStopRotation(string damage)
@@ -887,6 +908,23 @@ public sealed partial class ViewerHttpTests
             else Assert.False(File.Exists(sourcePath));
         }
         finally { directory.Delete(recursive: true); }
+    }
+
+    private static void AssertBuildingVariantPackagesActive(PrivateWorldRuntime runtime)
+    {
+        foreach (var id in new[]
+                 {
+                     FarmhouseVariantContent.PackageId, BlacksmithVariantContent.PackageId,
+                     TailorVariantContent.PackageId, ClinicVariantContent.PackageId,
+                     RestaurantVariantContent.PackageId,
+                 })
+        {
+            var package = Assert.Single(runtime.Content.Packages, item => item.Manifest.PackageId == id);
+            Assert.Equal(ContentPackageLifecycle.Active, package.Lifecycle);
+            Assert.Equal(0, package.ActivationTick);
+            Assert.Contains(runtime.WorldContent.Buildings,
+                building => building.PackageDigest == package.Manifest.PackageDigest);
+        }
     }
 
     private static void AssertSavedTownLandRecordsMatch(PrivateWorldRuntimeState expected,

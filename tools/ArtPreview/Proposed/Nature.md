@@ -212,3 +212,17 @@ new picked, harvested and per-site depleted states appear only on the sheet.
   regrowing sprout.
 - Checked only in the offline renderer, on the contact sheet and in the
   reference scene at 32 px and 16 px. Not yet seen in the running game.
+
+## Integration into current play (#792)
+
+The approved October 1 drawings are unchanged. The client now uses the herb
+patch for the playable medicinal-herb site and the approved picked, harvested
+and depleted drawings for each supported site. The map and tile card select
+the same drawing from the host's existing quantity, availability and renewal
+facts; this adds no growth stages or resource rules. Trees keep their existing
+mature, stump, sapling and orchard states.
+
+The proposal adapter now names these client sprites explicitly so pixel
+comparisons use the approved proposal drawing, including both 16 px and
+32 px art. The kind-only clay and grain-seed mappings remain separate work
+in [#804](https://github.com/compoodment/ClankerWorld/pull/804).

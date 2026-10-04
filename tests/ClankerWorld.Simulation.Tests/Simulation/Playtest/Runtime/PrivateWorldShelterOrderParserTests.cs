@@ -181,6 +181,28 @@ public sealed class PrivateWorldShelterOrderParserTests
         Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
     }
 
+    [Theory]
+    [InlineData("seek shelter", "seek_shelter")]
+    [InlineData("light a fire", "tend_fire")]
+    public void ShelterSavesRejectAnAgentTarget(string text, string action)
+    {
+        using var world = new PrivateWorldRuntime("shelter-agent-target");
+        var order = Submit(world, "agent-target", text);
+        Assert.Equal(action, order.Action);
+        var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var valid = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes));
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(valid.ExportState()));
+        var state = PrivateWorldRuntimeCodec.Decode(bytes);
+        var poisoned = state with
+        {
+            Instructions = state.Instructions!.Select(item => item with
+            {
+                Order = item.Order! with { TargetAgentId = Actor },
+            }).ToArray(),
+        };
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(poisoned));
+    }
+
     private static OwnerInstructionOrder Submit(PrivateWorldRuntime world, string key, string text)
     {
         var receipt = world.SubmitInstruction(new(key, "owner:test", Actor, OwnerInstructionKind.MustDo, text));

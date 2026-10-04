@@ -5,7 +5,8 @@ namespace ClankerWorld.Simulation.Playtest;
 
 public sealed partial class PrivateWorldRuntime
 {
-    private sealed record FarmStockChoice(InventoryLot Carrier, InventoryLot Resource);
+    private sealed record FarmStockChoice(InventoryLot Carrier, InventoryLot Resource,
+        int? ResourceQuantityLimit = null);
 
     private sealed record FarmStockHaulPlan(
         InventoryLot Carrier,
@@ -36,16 +37,17 @@ public sealed partial class PrivateWorldRuntime
 
     /// <summary>
     /// Loose household farm stock, or a loose vessel holding it, whose load
-    /// the actor can carry to farm storage. Stock already stored in a House,
-    /// Farmhouse or Silo stays where it is, so this haul never undoes the
-    /// flour haul or moves stock between farm buildings.
+    /// the actor can carry to farm storage. Stock already stored in a House
+    /// or Farmhouse stays where it is. Stored Silo grain can supply the
+    /// Farmhouse's actual milling deficit without undoing the flour haul.
     /// </summary>
     private FarmStockChoice? FarmGrainForDelivery(string householdId, string actor, string? itemKind = null,
         string? destinationId = null, int maximumQuantity = int.MaxValue)
     {
         var inventory = society.Checkpoint.Inventory;
         foreach (var carrier in inventory.Lots.Where(lot => lot.OwnerId == householdId && lot.CarrierId is null &&
-                     lot.ContainerLotId is null && lot.StorageBuildingId is null && lot.DeliveryBuildingId is null)
+                     lot.ContainerLotId is null && lot.StorageBuildingId is null && lot.DeliveryBuildingId is null &&
+                     !OnBorrowedMarketStall(lot))
                      .OrderBy(lot => lot.GroundPosition is not null ? 0 : 1)
                      .ThenBy(lot => lot.Id, StringComparer.Ordinal))
         {
@@ -66,11 +68,69 @@ public sealed partial class PrivateWorldRuntime
             if (choice is not null)
                 return choice;
         }
-        return null;
+        return SiloGrainForFarmhouse(householdId, actor);
 
-        bool CanHaulToFarmStorage(FarmStockChoice choice) =>
-            FarmStorageFor(householdId, choice.Resource.ItemKind, destinationId) is { } destination &&
-            PlanFarmStockHaul(actor, destination.InstanceId, choice, maximumQuantity) is not null;
+        bool CanHaulToFarmStorage(FarmStockChoice choice)
+        {
+            if (FarmStorageFor(householdId, choice.Resource.ItemKind, destinationId) is not { } destination ||
+                PlanFarmStockHaul(actor, destination.InstanceId, choice, maximumQuantity) is null)
+                return false;
+            var source = HouseholdStockPosition(choice.Carrier);
+            var range = HouseholdStockInteractionRange(choice.Carrier);
+            var position = inhabitants[actor].Position;
+            return (IsWithinInteractionRange(position, source, range) ||
+                    FindUnoccupiedRoute(actor, position, source, range).Count > 0) &&
+                FindUnoccupiedRoute(actor, source, destination.Position, 0).Count > 0;
+        }
+    }
+
+    private FarmStockChoice? SiloGrainForFarmhouse(string householdId, string actor)
+    {
+        if (FarmhouseForHousehold(householdId) is not { } farmhouse ||
+            !inhabitants.TryGetValue(actor, out var person))
+            return null;
+        var inputTarget = worldContent.Recipes.Where(recipe =>
+                recipe.WorkstationBuildingId == farmhouse.DefinitionId && !recipe.IsCrop &&
+                NeedsRecipeOutput(recipe, householdId))
+            .SelectMany(recipe => recipe.Inputs).Where(input => input.ResourceId == FarmFieldRules.Grain)
+            .Select(input => input.Amount).DefaultIfEmpty(0).Max() * SupplyBatches;
+        var inventory = society.Checkpoint.Inventory;
+        var supplied = inventory.Lots.Where(lot => lot.OwnerId == householdId &&
+                lot.StorageBuildingId == farmhouse.InstanceId && lot.ItemKind == FarmFieldRules.Grain)
+            .Sum(AvailableLotQuantity);
+        var incoming = inventory.Lots.Where(lot => lot.DeliveryBuildingId == farmhouse.InstanceId &&
+                lot.ItemKind == FarmFieldRules.Grain).Sum(AvailableLotQuantity);
+        var missing = inputTarget - supplied - incoming;
+        if (missing <= 0 || RemainingDeliveryRoom(inventory, farmhouse.InstanceId) <= 0)
+            return null;
+        var silos = worldSimulation.Buildings.Where(building => building.HouseholdId == householdId &&
+                worldContent.Buildings.Any(definition => definition.CanonicalId == building.DefinitionId &&
+                    definition.Tags.Contains("silo")))
+            .Select(building => building.InstanceId).ToHashSet(StringComparer.Ordinal);
+        foreach (var carrier in inventory.Lots.Where(lot => lot.OwnerId == householdId && lot.CarrierId is null &&
+                     lot.ContainerLotId is null && lot.DeliveryBuildingId is null &&
+                     lot.StorageBuildingId is { } storage && silos.Contains(storage))
+                     .OrderBy(lot => lot.Id, StringComparer.Ordinal))
+        {
+            var resources = carrier.ItemKind == FarmFieldRules.Grain ? new[] { carrier } :
+                InventoryContainerRules.IsContainer(carrier.ItemKind)
+                    ? inventory.Lots.Where(lot => lot.ContainerLotId == carrier.Id &&
+                        lot.ItemKind == FarmFieldRules.Grain).OrderBy(lot => lot.Id, StringComparer.Ordinal).ToArray()
+                    : [];
+            foreach (var resource in resources)
+            {
+                var choice = new FarmStockChoice(carrier, resource, missing);
+                if (PlanFarmStockHaul(actor, farmhouse.InstanceId, choice) is null)
+                    continue;
+                var source = HouseholdStockPosition(carrier);
+                var range = HouseholdStockInteractionRange(carrier);
+                if ((IsWithinInteractionRange(person.Position, source, range) ||
+                     FindUnoccupiedRoute(actor, person.Position, source, range).Count > 0) &&
+                    FindUnoccupiedRoute(actor, source, farmhouse.Position, 0).Count > 0)
+                    return choice;
+            }
+        }
+        return null;
     }
 
     private FarmStockChoice? FarmFlourForHouse(string householdId, string farmhouseId) =>
@@ -112,7 +172,8 @@ public sealed partial class PrivateWorldRuntime
 
         if (!InventoryContainerRules.IsContainer(choice.Carrier.ItemKind))
         {
-            var quantity = Math.Min(maximumQuantity, Math.Min(capacity, AvailableLotQuantity(choice.Resource)));
+            var quantity = Math.Min(maximumQuantity, Math.Min(capacity, Math.Min(AvailableLotQuantity(choice.Resource),
+                choice.ResourceQuantityLimit ?? int.MaxValue)));
             return quantity > 0
                 ? new FarmStockHaulPlan(choice.Carrier, choice.Resource, quantity, quantity, MoveContainerFamily: false)
                 : null;
@@ -122,7 +183,8 @@ public sealed partial class PrivateWorldRuntime
             return null;
         var familyQuantity = ContainerFamilyQuantity(inventory, choice.Carrier.Id);
         var resourceQuantity = DeliveryResourceQuantity(choice.Carrier, choice.Resource.ItemKind);
-        if (familyQuantity <= capacity && resourceQuantity <= maximumQuantity)
+        if (familyQuantity <= capacity && resourceQuantity <= maximumQuantity && choice.ResourceQuantityLimit is null &&
+            !UnusableDeliveryStock(inventory, choice.Carrier))
             return new FarmStockHaulPlan(choice.Carrier, choice.Resource, 1,
                 resourceQuantity, MoveContainerFamily: true);
 
@@ -131,7 +193,8 @@ public sealed partial class PrivateWorldRuntime
         if (choice.Resource.ContainerLotId != choice.Carrier.Id || choice.Carrier.ConditionBasisPoints == 0 ||
             choice.Resource.ItemKind is not (FarmFieldRules.Grain or "flour"))
             return null;
-        var takenQuantity = Math.Min(maximumQuantity, Math.Min(capacity, AvailableLotQuantity(choice.Resource)));
+        var takenQuantity = Math.Min(maximumQuantity, Math.Min(capacity, Math.Min(AvailableLotQuantity(choice.Resource),
+            choice.ResourceQuantityLimit ?? int.MaxValue)));
         return takenQuantity > 0
             ? new FarmStockHaulPlan(choice.Carrier, choice.Resource, takenQuantity, takenQuantity,
                 MoveContainerFamily: false)

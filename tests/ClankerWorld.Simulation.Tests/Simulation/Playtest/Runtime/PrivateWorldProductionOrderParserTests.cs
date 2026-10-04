@@ -47,18 +47,18 @@ public sealed class PrivateWorldProductionOrderParserTests
     }
 
     [Theory]
-    [InlineData("cook food", 1, "production_batches", false)]
-    [InlineData("cook eight food", 8, "output_items", true)]
-    [InlineData("cook two batches of food", 2, "production_batches", true)]
-    public void CookingKeepsItemCountsDistinctFromBatchesOfFour(string text, int quantity,
+    [InlineData("make house bandages", 1, "production_batches", false)]
+    [InlineData("make four house bandages", 4, "output_items", true)]
+    [InlineData("make two batches of house bandages", 2, "production_batches", true)]
+    public void ProductionKeepsItemCountsDistinctFromBatchesOfTwo(string text, int quantity,
         string progressUnit, bool explicitQuantity)
     {
-        using var world = CreateWorld([StarterContent.Create()]);
-        var recipe = Assert.Single(world.WorldContent.Recipes, item => item.LocalId == "meal");
-        Assert.Equal(4, Assert.Single(recipe.Outputs).Amount);
+        using var world = CreateWorld();
+        var recipe = Assert.Single(world.WorldContent.Recipes, item => item.LocalId == "house-bandages");
+        Assert.Equal(2, Assert.Single(recipe.Outputs).Amount);
 
-        var order = Submit(world, "cook", text);
-        Assert.Equal(("produce_item", recipe.CanonicalId, "food"),
+        var order = Submit(world, "bandages", text);
+        Assert.Equal(("produce_item", recipe.CanonicalId, "bandage"),
             (order.Action, order.TargetRecipeId, order.TargetOutputKind));
         Assert.Equal((quantity, progressUnit, explicitQuantity),
             (order.RequestedUnits, order.ProgressUnit, order.QuantityIsExplicit));
@@ -99,9 +99,6 @@ public sealed class PrivateWorldProductionOrderParserTests
     }
 
     [Theory]
-    [InlineData("cook food", "cook household meal", "house-meal", "food")]
-    [InlineData("cook food", "cook camp meal", "meal", "food")]
-    [InlineData("cook food", "cook hearty meal", "hearty-meal", "food")]
     [InlineData("make bandages", "make house bandages", "house-bandages", "bandage")]
     [InlineData("make bandages", "make tailor bandages", "tailor-bandages", "bandage")]
     public void AmbiguousOutputsNeedARecipeQualifier(string ambiguous, string qualified,
@@ -148,6 +145,12 @@ public sealed class PrivateWorldProductionOrderParserTests
     [InlineData("make 1.5 sacks")]
     [InlineData("mill wood")]
     [InlineData("refine sacks")]
+    [InlineData("cook food")]
+    [InlineData("cook eight food")]
+    [InlineData("cook two batches of food")]
+    [InlineData("cook camp meal")]
+    [InlineData("cook household meal")]
+    [InlineData("cook hearty meal")]
     [InlineData("cook bread")]
     [InlineData("cook porridge")]
     [InlineData("cook vegetable stew")]
@@ -167,9 +170,9 @@ public sealed class PrivateWorldProductionOrderParserTests
     [Fact]
     public void ItemCountsThatCannotBeMadeInWholeBatchesAreRejected()
     {
-        using var world = CreateWorld([StarterContent.Create()]);
+        using var world = CreateWorld();
         var current = Submit(world, "current", "eat berries");
-        var rejected = Submit(world, "partial-batch", "cook two food");
+        var rejected = Submit(world, "partial-batch", "make three house bandages");
         Assert.Equal("not_understood", rejected.Status);
         Assert.Equal(current, world.ExportState().Instructions!.Single(item => item.IdempotencyKey == "current").Order);
     }
@@ -177,9 +180,9 @@ public sealed class PrivateWorldProductionOrderParserTests
     [Fact]
     public void CheckpointRejectsInvalidProductionTargetsAndProgress()
     {
-        using var world = CreateWorld([StarterContent.Create()]);
-        var original = Submit(world, "saved-production", "cook eight food");
-        Assert.Equal(("produce_item", "food", 8),
+        using var world = CreateWorld();
+        var original = Submit(world, "saved-production", "make four house bandages");
+        Assert.Equal(("produce_item", "bandage", 4),
             (original.Action, original.TargetOutputKind, original.RequestedUnits));
         var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
         var cropId = world.WorldContent.Recipes.Single(item => item.LocalId == "vegetables").CanonicalId;
@@ -195,10 +198,11 @@ public sealed class PrivateWorldProductionOrderParserTests
             ("targetEquipmentKind", JsonValue.Create("sack")),
             ("targetCropKind", JsonValue.Create("grain")),
             ("targetResourceId", JsonValue.Create("berry-patch")),
+            ("targetAgentId", JsonValue.Create(Actor)),
             ("action", JsonValue.Create("consume_food")),
             ("progressUnit", JsonValue.Create("food_items")),
             ("quantityIsExplicit", JsonValue.Create(false)),
-            ("requestedUnits", JsonValue.Create(6)),
+            ("requestedUnits", JsonValue.Create(3)),
             ("productionJobId", JsonValue.Create("unbound-job")),
             ("lastEffectId", JsonValue.Create("production:unearned")),
         ];

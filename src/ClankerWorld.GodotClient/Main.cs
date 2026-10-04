@@ -93,6 +93,8 @@ public partial class Main : Control
     private readonly ColorRect topBarShade = new();
     private readonly WorldTerrainLayer terrainLayer = new();
     private readonly WeatherLayer weatherLayer = new();
+    private readonly NightLayer nightLayer = new();
+    private readonly NightLightsLayer nightLightsLayer = new();
     private WorldTerrainMap? terrainMap;
     private string? terrainWorldId;
     private string? terrainManifestDigest;

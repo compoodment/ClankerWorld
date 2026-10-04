@@ -38,6 +38,11 @@ public partial class Main
 
         var readouts = new VBoxContainer();
         readouts.AddThemeConstantOverride("separation", 4);
+        readouts.AddChild(new Label
+        {
+            Text = BuildInformation.Display,
+            TooltipText = "Source commit: " + BuildInformation.SourceRevision,
+        });
         developerTileLabel.Text = "Point at the map.";
         readouts.AddChild(MetricRow("Tile", developerTileLabel));
         readouts.AddChild(MetricRow("Frame time", developerFrameLabel));
@@ -68,6 +73,7 @@ public partial class Main
             ThemeTypeVariation = "DimLabel",
             AutowrapMode = TextServer.AutowrapMode.WordSmart,
         });
+        BuildDeveloperEdits();
         BuildDeveloperLifePace();
         BuildDeveloperRecovery();
         BuildDeveloperAuthoring();

@@ -114,6 +114,8 @@ public sealed class PrivateWorldCustodyOrderParserTests
     [Theory]
     [InlineData("return two borrowed wood", "wood")]
     [InlineData("return two borrowed iron pickaxes", "iron_pickaxe")]
+    [InlineData("return two borrowed crude wooden axes", "crude_wooden_axe")]
+    [InlineData("return two borrowed crude wooden pickaxes", "crude_wooden_pickaxe")]
     [InlineData("return two borrowed diamond ornaments", "diamond_ornament")]
     [InlineData("return two borrowed iron ore", "iron_ore")]
     [InlineData("return two borrowed iron knives", "iron_knife")]

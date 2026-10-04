@@ -29,7 +29,7 @@ public sealed partial class PrivateWorldRuntime
         var chosenKey = chosenName is null ? null : InhabitantNameRules.CanonicalKey(chosenName);
         if (chosenName is null || chosenKey is null)
         {
-            CloseNameRequest(inhabitantId, inhabitant.Name);
+            CloseNameRequest(inhabitantId);
             AppendEvent("agent_name_unavailable", inhabitantId);
             return;
         }
@@ -37,6 +37,12 @@ public sealed partial class PrivateWorldRuntime
         var duplicate = InhabitantNameRules.IsTaken(society.Checkpoint, inhabitantId, chosenName);
         if (!duplicate)
         {
+            if (!InhabitantNameRules.IsAllowedChildName(society.Checkpoint, inhabitantId, chosenName))
+            {
+                CloseNameRequest(inhabitantId);
+                AppendEvent("agent_name_unavailable", inhabitantId);
+                return;
+            }
             society.Apply(checkpoint => SocietyFixture.RenameInhabitant(checkpoint, inhabitantId, chosenName));
             AppendEvent("agent_named", inhabitantId);
             return;
@@ -45,7 +51,7 @@ public sealed partial class PrivateWorldRuntime
         AppendEvent("agent_name_rejected", inhabitantId);
         if (request.Observation.IsNameRetry)
         {
-            CloseNameRequest(inhabitantId, inhabitant.Name);
+            CloseNameRequest(inhabitantId);
             AppendEvent("agent_name_retry_exhausted", inhabitantId);
             return;
         }
@@ -65,12 +71,12 @@ public sealed partial class PrivateWorldRuntime
 
         // The original queue entry has just been consumed, so this is only a
         // defensive bound for an unexpectedly full or unavailable queue.
-        CloseNameRequest(inhabitantId, inhabitant.Name);
+        CloseNameRequest(inhabitantId);
         AppendEvent("agent_name_retry_unavailable", inhabitantId);
     }
 
-    private void CloseNameRequest(string inhabitantId, string placeholderName) =>
-        society.Apply(checkpoint => SocietyFixture.RenameInhabitant(checkpoint, inhabitantId, placeholderName));
+    private void CloseNameRequest(string inhabitantId) =>
+        society.Apply(checkpoint => SocietyFixture.CloseNaming(checkpoint, inhabitantId));
 
     private void CloseUnresolvedNameRetry(CognitionDecisionRequest request)
     {
@@ -86,7 +92,7 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
 
-        CloseNameRequest(inhabitantId, inhabitant.Name);
+        CloseNameRequest(inhabitantId);
         AppendEvent("agent_name_retry_unusable", inhabitantId);
     }
 

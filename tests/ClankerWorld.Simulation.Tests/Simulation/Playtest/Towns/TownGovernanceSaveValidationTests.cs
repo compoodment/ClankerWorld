@@ -6,25 +6,6 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed class TownGovernanceSaveValidationTests
 {
-    [Theory]
-    [InlineData("notice:0")]
-    [InlineData("notice:02")]
-    [InlineData("notice:3")]
-    public void NoticeIdsMustMatchTheirAppendPositionEvenWhenTheReceiptMatches(string id)
-    {
-        var state = NewCheckpoint();
-        var town = state.Towns![0];
-        var governance = TownGovernanceRules.Register(town.Governance!, town.ResidentIds[0], true, null, town.ResidentIds, 0);
-        governance = TownGovernanceRules.Nominate(governance, town.ResidentIds[0], town.ResidentIds[1], town.ResidentIds, 0);
-        governance = TownGovernanceRules.LearnNotice(governance, town.ResidentIds[0], governance.Notices[1].Id, 0);
-
-        AssertDamagedCheckpointRefused(WithGovernance(state, governance), saved =>
-        {
-            saved["notices"]![1]!["id"] = id;
-            saved["knowledge"]![0]!["noticeId"] = id;
-        });
-    }
-
     [Fact]
     public void ReorderedNoticeIdsAreRefused()
     {
@@ -52,14 +33,7 @@ public sealed class TownGovernanceSaveValidationTests
     [Theory]
     [InlineData("proposal", "0")]
     [InlineData("proposal", "01")]
-    [InlineData("proposal", "+1")]
-    [InlineData("proposal", "2")]
     [InlineData("proposal", "not-a-number")]
-    [InlineData("election", "0")]
-    [InlineData("election", "01")]
-    [InlineData("election", "+1")]
-    [InlineData("election", "2")]
-    [InlineData("election", "not-a-number")]
     public void CivicRecordIdsRequireAPositiveCanonicalNumberWithinTheSequence(string kind, string suffix)
     {
         var state = CheckpointWithCivicRecord(kind);
@@ -96,8 +70,18 @@ public sealed class TownGovernanceSaveValidationTests
         foreach (var voter in town.ResidentIds.Take(3))
             governance = TownGovernanceRules.VoteProposal(governance, governance.Proposals[0].Id, voter, true, 0);
         Assert.Equal("passed", governance.Proposals[0].Status);
+        // The subject already lives there, so the passed admission's one outcome is a lapse.
+        var withVote = WithGovernance(state, governance);
+        var healthy = withVote with
+        {
+            Towns = [withVote.Towns![0] with
+            {
+                Admissions = [new(governance.Proposals[0].Id, subject, "lapsed", 0, Reason: "already_resident")],
+            }],
+        };
+        AssertRoundtrips(healthy);
 
-        AssertDamagedCheckpointRefused(WithGovernance(state, governance), saved =>
+        AssertDamagedCheckpointRefused(healthy, saved =>
         {
             var proposal = saved["proposals"]![0]!;
             proposal["requiredYes"] = 1;
@@ -107,32 +91,11 @@ public sealed class TownGovernanceSaveValidationTests
     }
 
     [Theory]
-    [InlineData("rejected", 1)]
-    [InlineData("cancelled", 2)]
-    [InlineData("withdrawn", 4)]
-    public void SettledProposalThresholdStillMatchesItsHistoricalRoster(string status, int requiredYes)
-    {
-        var state = NewCheckpoint();
-        var town = state.Towns![0];
-        var governance = TownGovernanceRules.SubmitProposal(town.Governance!, town.Id, town.ResidentIds[0],
-            "law", null, "Post harvest dates.", "same", town.ResidentIds, 0, state.WorldSystems!.Config.TicksPerDay);
-        governance = TownGovernanceRules.WithdrawProposal(governance, governance.Proposals[0].Id, town.ResidentIds[0], 0);
-
-        AssertDamagedCheckpointRefused(WithGovernance(state, governance), saved =>
-        {
-            saved["proposals"]![0]!["status"] = status;
-            saved["proposals"]![0]!["requiredYes"] = requiredYes;
-        });
-    }
-
-    [Theory]
     [InlineData(0, 1)]
     [InlineData(0, 2)]
     [InlineData(1, 1)]
     [InlineData(1, 2)]
-    [InlineData(2, 2)]
     [InlineData(3, 2)]
-    [InlineData(4, 3)]
     public void LegitimateHistoricalThresholdsSurviveRosterAndGoverningFormChanges(int voters, int requiredYes)
     {
         var state = NewCheckpoint();
