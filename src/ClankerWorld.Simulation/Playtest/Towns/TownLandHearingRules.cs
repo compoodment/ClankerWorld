@@ -398,6 +398,10 @@ public static class TownLandHearingRules
         return Replace(state with { Sequence = state.Sequence + 1 }, item with { ReopenRequests = item.ReopenRequests.Append(request).ToArray() });
     }
 
+    public static bool ReopeningPlotIsAvailable(TownLandHearingState state, TownLandCase item) =>
+        !state.Cases.Any(other => other.Id != item.Id && other.TownId == item.TownId && other.Status == "pending" &&
+            CurrentRevision(other).Tiles.Any(CurrentRevision(item).Tiles.Contains));
+
     public static TownLandHearingState Reopen(TownLandHearingState state, string caseId, string requestId,
         TownLandCaseJudge judge, bool groundsEstablished, string assessment, IReadOnlyList<HouseholdLandUseRight> currentRights,
         IReadOnlyList<TownLandCaseParty> currentParties, long tick, int day, string noticeId, bool validAuthority)
@@ -410,6 +414,8 @@ public static class TownLandHearingRules
             throw new InvalidOperationException("An authorized independent judge must inspect and assess the reopening grounds.");
         if (groundsEstablished && !(request.Kind == "material_evidence" ? MaterialNewEvidence(item, request, state) : DemonstratedProceduralError(item, request)))
             throw new InvalidOperationException("Disagreement or an unsupported allegation does not establish reopening grounds.");
+        if (groundsEstablished && !ReopeningPlotIsAvailable(state, item))
+            throw new InvalidOperationException("Another pending land hearing covers this plot; reopening waits for that hearing.");
         request = request with { Status = groundsEstablished ? "accepted" : "rejected", AssessedBy = judge, AssessedTick = tick, Assessment = assessment };
         item = item with { ReopenRequests = item.ReopenRequests.Select(r => r.Id == requestId ? request : r).ToArray() };
         if (groundsEstablished)

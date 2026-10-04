@@ -21,6 +21,8 @@ public static class TownLandHearingValidation
         // Evidence may point into another case's historical rights. Check every file's
         // shape before those lookups, while leaving semantic validation to one pass.
         foreach (var item in state.Cases) ValidateCaseFile(tick, townId, item, state.Sequence);
+        Check(!state.Cases.Where(c => c.Status == "pending").SelectMany(c => TownLandHearingRules.CurrentRevision(c).Tiles)
+            .GroupBy(tile => tile).Any(group => group.Count() > 1), "Pending land hearings cannot overlap their plots.");
         Unique(state.Cases.Select(c => c.Id));
         Unique(state.Cases.SelectMany(c => c.ReopenRequests).Select(r => r.Id));
         Unique(state.OriginalRights.Select(r => r.Id));
@@ -95,8 +97,8 @@ public static class TownLandHearingValidation
             item.JudgeHistory is not null && item.JudgeConsents is not null && item.ContestHistory is not null && item.ReopenRequests is not null && item.DirectStakeIds is not null,
             "A saved land case must retain its complete file.");
         Check(item.Revisions.All(r => r is not null) && item.Filings.All(r => r is not null) && item.Evidence.All(r => r is not null) &&
-            item.Responses.All(r => r is not null) && item.Reads.All(r => r is not null) && item.Rulings.All(r => r is not null) &&
-            item.JudgeHistory.All(r => r is not null) && item.JudgeConsents.All(r => r is not null) && item.ContestHistory.All(r => r is not null) &&
+            item.Responses.All(r => r is not null) && item.Reads.All(r => r is not null) && item.Rulings.All(r => r is not null && r.Judge is not null) &&
+            item.JudgeHistory.All(r => r is not null && r.Judge is not null) && item.JudgeConsents.All(r => r is not null) && item.ContestHistory.All(r => r is not null) &&
             item.ReopenRequests.All(r => r is not null), "A saved land case cannot contain null file entries.");
         foreach (var revision in item.Revisions)
             Check(revision.Tiles is { Count: > 0 } && revision.Parties is { Count: > 0 } && revision.Parties.All(p => p is not null) &&

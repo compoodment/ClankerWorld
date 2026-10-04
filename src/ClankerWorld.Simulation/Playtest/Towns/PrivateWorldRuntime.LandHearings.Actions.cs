@@ -114,7 +114,7 @@ public sealed partial class PrivateWorldRuntime
                                  read.ReopenRequestIds.Contains(request.Id, StringComparer.Ordinal))))
                 {
                     var established = request.Kind == "material_evidence" ? TownLandHearingRules.MaterialNewEvidence(item, request, hearings) : TownLandHearingRules.DemonstratedProceduralError(item, request);
-                    if (established)
+                    if (established && TownLandHearingRules.ReopeningPlotIsAvailable(hearings, item))
                         candidates.Add(new(CivicAction(town.Id, "hearing_assess_reopen", token, request.Id + ":accept"), "Accept independently established grounds and open a fresh hearing; current rights remain until a valid correction. Give reasons in civic_land_hearing.statement. Filed " + request.Kind + " claim: " + request.Reasons, 165));
                     candidates.Add(new(CivicAction(town.Id, "hearing_assess_reopen", token, request.Id + ":reject"), "Reject this reopening request with reasons in civic_land_hearing.statement; keep the old ruling and request in the case history. Filed " + request.Kind + " claim: " + request.Reasons, 166));
                 }

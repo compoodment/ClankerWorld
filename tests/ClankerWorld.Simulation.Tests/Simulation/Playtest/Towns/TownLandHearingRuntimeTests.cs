@@ -551,6 +551,8 @@ public sealed class TownLandHearingRuntimeTests
             ledger with { Cases = [savedCase with { Revisions = [savedRevision with { Parties = [null!] }] }] },
             ledger with { Cases = [savedCase with { Filings = null! }] },
             ledger with { Cases = [savedCase with { Filings = [null!] }] },
+            ledger with { Cases = [savedCase with { Rulings = [savedCase.Rulings[0] with { Judge = null! }] }] },
+            ledger with { Cases = [savedCase with { JudgeHistory = [savedCase.JudgeHistory[0] with { Judge = null! }] }] },
             // The valid first case has actual record evidence, whose provenance
             // lookup must not traverse a later malformed case before refusing it.
             ledger with

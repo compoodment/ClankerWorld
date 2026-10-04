@@ -253,6 +253,7 @@ public sealed class TownLandHearingRulesTests
         state = TownLandHearingRules.RequestReopen(state, fixture.Id, "a", "material_evidence", [newEvidence.Id], "New plot evidence", 13);
         var request = state.Cases[0].ReopenRequests[0];
         Assert.True(TownLandHearingRules.MaterialNewEvidence(state.Cases[0], request, state));
+        Assert.True(TownLandHearingRules.ReopeningPlotIsAvailable(state, state.Cases[0]));
         state = TownLandHearingRules.AssignJudge(state, fixture.Id, oldRuling.Judge with { AssignedTick = 14 });
         state = TownLandHearingRules.Inspect(state, fixture.Id, 1, "judge", 14);
         state = TownLandHearingRules.Reopen(state, fixture.Id, request.Id, state.Cases[0].Judge!, true, "The new observation warrants a hearing", rights, Parties,
@@ -468,6 +469,38 @@ public sealed class TownLandHearingRulesTests
             overlapping, moved, Parties, 13, 10, "notice:next");
         Assert.Equal(2, reopened.Cases.Count);
         Assert.Equal(("pending", 13L), (reopened.Cases[1].Status, reopened.Cases[1].FiledTick));
+    }
+
+    [Fact]
+    public void AReopeningWaitsWhileAnotherPendingCaseOverlapsItsPlot()
+    {
+        var fixture = Ready(end: 40);
+        var (state, rights) = TownLandHearingRules.Rule(fixture.State, Map(), fixture.Id, 1, fixture.State.Cases[0].Judge!, 11,
+            new("confirm"), ["record:right"], [], "Keep the recorded permission", fixture.Rights, Parties, true);
+        var judge = state.Cases[0].Rulings[0].Judge;
+        var moved = TownLandRightsRules.ReassignFootprintRights(Map(), rights, new HashSet<GridPoint> { new(2, 0) }, "beta", 12);
+        state = TownLandHearingRules.File(state, "town",
+            new("a", "dispute", "This permission has changed hands", new("amend", "alpha"), 13),
+            [new(2, 0), new(3, 0)], moved, Parties, 13, 10, "notice:next");
+        var other = state.Cases[1];
+        var observation = new TownLandEvidence("new-observation", 1, "observation", "firsthand", "a", null, null,
+            14, "a", 14, "A new boundary marker stands on the plot");
+        state = TownLandHearingRules.AddEvidence(state, fixture.Id, 1, observation, fixture.Council.Knowledge);
+        state = TownLandHearingRules.RequestReopen(state, fixture.Id, "a", "material_evidence", [observation.Id], "New plot evidence", 14);
+        state = TownLandHearingRules.AssignJudge(state, fixture.Id, judge with { AssignedTick = 15 });
+        state = TownLandHearingRules.Inspect(state, fixture.Id, 1, "judge", 15);
+        var request = state.Cases[0].ReopenRequests[0];
+        Assert.True(TownLandHearingRules.MaterialNewEvidence(state.Cases[0], request, state));
+        Assert.False(TownLandHearingRules.ReopeningPlotIsAvailable(state, state.Cases[0]));
+
+        Assert.Throws<InvalidOperationException>(() => TownLandHearingRules.Reopen(state, fixture.Id, request.Id,
+            state.Cases[0].Judge!, true, "The new observation warrants a hearing", moved, Parties, 15, 10, "notice:reopen", true));
+        Assert.Equal(("settled", "pending"), (state.Cases[0].Status, state.Cases[0].ReopenRequests[0].Status));
+        Assert.Equal(other, Assert.Single(state.Cases, item => item.Status == "pending"));
+        var rejected = TownLandHearingRules.Reopen(state, fixture.Id, request.Id, state.Cases[0].Judge!, false,
+            "Keep the prior ruling", moved, Parties, 15, 10, "unused", true);
+        Assert.Equal("rejected", rejected.Cases[0].ReopenRequests[0].Status);
+        Assert.Equal(other, rejected.Cases[1]);
     }
 
     [Fact]
