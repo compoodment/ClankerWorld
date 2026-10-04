@@ -144,7 +144,7 @@ replaced orders cannot retain live repair reservations. Replay covers partial
 work, queues, cancellation and exact material costs. Older alpha saves are
 refused and preserved without migration.
 
-Private-world schema 85 introduces crude House tool behavior. The two new
+Private-world schema 86 introduces crude House tool behavior. The two new
 item kinds keep ownership, physical custody, condition and reservations in
 ordinary inventory lots; their recipes use existing saved projects and
 production jobs. Current saves resume supply, paid work and tool use without
@@ -281,6 +281,17 @@ and unearned progress. Partial storage, queued work, cancellation and equipment
 condition survive reload and rollback. This version follows equipment-collection
 schema 82, Council-election schema 81, food schema 80 and lantern schema 79.
 Older alpha checkpoints are refused and preserved without migration.
+
+Private-world schema 85 adds `produce_item` orders with an exact recipe and
+output kind, an optional requested site, and the selected building, project
+start and production-job identities. A production job's optional
+`OrderInstructionId` records which order started it; matching a recipe and
+start time alone cannot adopt an unrelated job. Progress counts finished output
+items or whole batches. Loading validates recipe yields, cross-record ownership and
+job references, pause state and completion receipts together. Queued work,
+partial progress, cancellation and survival pauses retain their state through
+reload and replay. This version follows marriage schema 84 and equipment-storage schema 83; older alpha checkpoints are refused and preserved
+without migration.
 
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
@@ -692,7 +703,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 85. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 86. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
@@ -796,7 +807,7 @@ current alpha cutoff.
 | Schema 40 | Explicit domestic family-unit IDs and dependent caregiver IDs, plus the primary caregiver and intended/actual household for a parenthood plan and birth record. House resident limits remain derived from these records and completed building footprints. Older builds refuse the checkpoint rather than infer family identities. |
 | Schema 41 | Owner messages keep their exact words and target, when a personal model heard them, an optional short reply and the one-fresh-decision prompt tick. Instruction and completion records are required and validated: identifiers, kind, target, ordering, tick bounds and reply. Earlier alpha checkpoints are refused and preserved; no message migration is added. |
 | Schema 42 | A selected carried tool for unfinished field work or a knife-assisted recipe. Work and its exact tool lot survive reload; each field action and recipe completion wears its selected tool when that action commits. Earlier alpha checkpoints cannot contain these links. |
-| Schema 85 | Crude House tools use ordinary saved inventory, projects and production jobs, with their own content package and tool tier. Supply, paid work, ownership, condition and extraction continue across reload without duplicate output or wear. Older alpha saves are refused and preserved without migration. |
+| Schema 86 | Crude House tools use ordinary saved inventory, projects and production jobs, with their own content package and tool tier. Supply, paid work, ownership, condition and extraction continue across reload without duplicate output or wear. Older alpha saves are refused and preserved without migration. |
 | Schema 43 | Bounded per-agent life-moment opportunities, their single-attempt outcomes and accepted personality/aspiration changes. In-flight requests are interrupted after restore; deceased archives retain finalized outcomes. Earlier schemas cannot carry life-moment records; older alpha checkpoints are refused and preserved. |
 | Schema 44 | Connected Town-title plots from the accepted first-Town layout, starter household use rights on assigned building footprints, and pending land-use requests. Later border growth does not create title. Invalid or incomplete land records are refused; earlier alpha checkpoints are not migrated. |
 | Schema 45 | Physical shop exchange records bind exact inventory barter offers to the shop, selling household, customer, position and proposal time, with the completing seller or cancellation reason. Reservations, purchase carrying, on-site payment and Store delivery lots retain their physical inventory locations. Earlier alpha checkpoints are refused and preserved; no shop-state migration is added. |

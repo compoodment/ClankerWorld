@@ -250,7 +250,8 @@ public sealed record ViewerInstructionOrder(
     string? TargetAgentId = null,
     string? TargetMaterialKind = null,
     string? TargetEquipmentKind = null,
-    string? TargetCropKind = null);
+    string? TargetCropKind = null,
+    string? TargetOutputKind = null);
 
 public sealed record ViewerCognitionEvent(long EventId, long WorldTick, string Kind, string Detail);
 

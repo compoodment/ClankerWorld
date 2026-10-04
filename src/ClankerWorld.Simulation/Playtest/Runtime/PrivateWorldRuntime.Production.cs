@@ -150,8 +150,15 @@ public sealed partial class PrivateWorldRuntime
             return false;
         }
 
+        var productionOrder = actorId is null ? null : PendingInstructionFor(actorId)?.Order;
+        if (productionOrder?.Action != "produce_item" || productionOrder.TargetRecipeId != recipe.CanonicalId)
+            productionOrder = null;
         foreach (var placed in worldSimulation.Buildings.OrderBy(item => item.InstanceId, StringComparer.Ordinal))
         {
+            if (productionOrder is not null &&
+                (productionOrder.ProductionBuildingId is { } requiredBuilding && placed.InstanceId != requiredBuilding ||
+                 productionOrder.TargetPosition is { } requestedPosition && placed.Position != requestedPosition))
+                continue;
             if (placed.DefinitionId != recipe.WorkstationBuildingId ||
                 placed.HouseholdId is not null && (actorId is null ||
                     placed.HouseholdId != society.Checkpoint.GetInhabitant(actorId).HouseholdId))
@@ -498,6 +505,7 @@ public sealed partial class PrivateWorldRuntime
                     worldSimulation.Buildings.FirstOrDefault(building => building.InstanceId == job.BuildingInstanceId)?.Position);
             else
                 AppendEvent(completed ? "recipe_completed" : "recipe_cancelled", $"{job.JobId}:{recipe.CanonicalId}");
+            if (completed) CreditProductionOrderJob(job, recipe);
         }
     }
 

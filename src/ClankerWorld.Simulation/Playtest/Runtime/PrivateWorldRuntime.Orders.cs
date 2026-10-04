@@ -17,6 +17,9 @@ public sealed partial class PrivateWorldRuntime
         if (order.TargetPosition is { } requestedPosition && !map.Contains(requestedPosition))
             return null;
 
+        if (order.Action == "produce_item")
+            return ProductionOrderCandidateFor(instruction, person);
+
         if (IsFieldOrder(order.Action))
             return FieldOrderCandidateFor(instruction, person);
 
@@ -175,6 +178,9 @@ public sealed partial class PrivateWorldRuntime
         }
         switch (candidate.Id)
         {
+            case "produce_item":
+                ExecuteProductionOrderStep(instruction, person);
+                return;
             case "work_field":
                 ExecuteFieldOrderStep(instruction, person);
                 return;
@@ -310,6 +316,8 @@ public sealed partial class PrivateWorldRuntime
     {
         var current = instructionsByIdempotency[instruction.IdempotencyKey];
         if (current.Order is not { } order || !IsActiveOrder(order.Status)) return;
+        if (status == "interrupted" && BoundProductionJob(current) is { } production)
+            PauseProductionOrderJob(current, production);
         if (order.Status == status && order.BlockedReason == reason &&
             order.WaitForDecisionAfterFailure == waitForDecision) return;
         instructionsByIdempotency[current.IdempotencyKey] = current with
@@ -327,6 +335,8 @@ public sealed partial class PrivateWorldRuntime
 
     private string OrderBlockedReason(OwnerQueuedInstruction instruction, PlaytestInhabitantState person)
     {
+        if (instruction.Order?.Action == "produce_item")
+            return ProductionOrderBlockedReason(instruction);
         if (instruction.Order is { } fieldOrder && IsFieldOrder(fieldOrder.Action))
             return FieldOrderBlockedReason(instruction);
         if (instruction.Order?.Action == "repair_tool")

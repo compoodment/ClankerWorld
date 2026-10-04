@@ -325,7 +325,8 @@ public sealed partial class PrivateWorldRuntime
         string recipeId,
         string buildingInstanceId,
         string workerId,
-        string eventKind)
+        string eventKind,
+        string? orderInstructionId = null)
     {
         try
         {
@@ -427,7 +428,7 @@ public sealed partial class PrivateWorldRuntime
                 completionTick,
                 WorldProductionJobState.Running,
                 reservationIds.ToArray(), knife?.ToolLotId, ToolMakingRequestJobFor(normalizedWorkerId, recipe, normalizedBuildingId))
-            { OwnerId = productionOwner };
+            { OwnerId = productionOwner, OrderInstructionId = orderInstructionId };
             worldSimulation = new WorldContentSimulationState(
                 worldSimulation.Buildings,
                 worldSimulation.ProductionJobs.Append(job).OrderBy(item => item.JobId, StringComparer.Ordinal).ToArray(),
@@ -471,8 +472,16 @@ public sealed partial class PrivateWorldRuntime
             {
                 throw new InvalidOperationException("Content referenced by settlement projects requires an explicit migration before removal.");
             }
+            var remainingContent = ContentDefinitionApplicator.RemovePackage(worldContent, manifest.PackageDigest);
+            var completed = completedInstructionIds.ToArray();
+            var people = society.Checkpoint.Inhabitants.Select(person => person.Id).ToHashSet(StringComparer.Ordinal);
+            // Cancelled orders remain checkpoint history and still need their original recipe.
+            if (instructionsByIdempotency.Values.Any(instruction =>
+                instruction.Order is { Action: "produce_item" } order &&
+                !IsValidSavedOrder(order, instruction, completed, people, WorldTick, remainingContent)))
+                throw new InvalidOperationException("Content referenced by owner orders requires an explicit migration before removal.");
             var record = contentRegistry.Rollback(packageId, WorldTick, reason);
-            worldContent = ContentDefinitionApplicator.RemovePackage(worldContent, record.Manifest.PackageDigest);
+            worldContent = remainingContent;
             worldSimulation = remainingSimulation;
             if (survivalState is not null)
             {

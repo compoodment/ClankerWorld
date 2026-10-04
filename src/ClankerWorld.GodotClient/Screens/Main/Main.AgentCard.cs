@@ -829,6 +829,8 @@ public partial class Main
             "collect_equipment" => "Collecting " + (order.TargetEquipmentKind?.Replace('_', ' ') ?? "equipment"),
             "store_material" => "Storing " + (order.TargetMaterialKind?.Replace('_', ' ') ?? "materials"),
             "store_equipment" => "Storing " + (order.TargetEquipmentKind?.Replace('_', ' ') ?? "equipment"),
+            "produce_item" => "Making " + (order.TargetOutputKind is { } output
+                ? GameUiText.ItemName(output).ToLowerInvariant() : "goods"),
             "seek_food" => "Going to a food site",
             "move_to" => "Going to a tile",
             "accept_guardianship" => "Becoming a guardian",
@@ -867,6 +869,8 @@ public partial class Main
         "food_items" => "food items",
         "material_items" => "items",
         "equipment_items" => "equipment items",
+        "output_items" => "items made",
+        "production_batches" => "batches completed",
         "repairs" => "items repaired",
         "fields" => "fields completed",
         "collection_loads" => "loads collected",

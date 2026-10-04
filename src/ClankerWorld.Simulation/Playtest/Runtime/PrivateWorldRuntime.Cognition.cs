@@ -72,7 +72,8 @@ public sealed partial class PrivateWorldRuntime
                 !awaitingDispatch.Contains(inhabitant.Id) &&
                 !ShouldDispatchConversationChoice(inhabitant.Id) && GuardianPlacementCandidate(inhabitant.Id) is null)
                 continue;
-            if (operativeOrder is not null && physical.Project is { Stage: not ("completed" or "cancelled") } orderedProject)
+            if (operativeOrder is not null && physical.Project is { Stage: not ("completed" or "cancelled") } orderedProject &&
+                !IsProductionOrderProject(operativeOrder, orderedProject))
             {
                 SetProject(inhabitant.Id, orderedProject with { Stage = "paused", Blocker = "Following an owner order." });
                 physical = inhabitants[inhabitant.Id];
@@ -94,7 +95,8 @@ public sealed partial class PrivateWorldRuntime
             var candidates = CreateCandidates(inhabitant.Id, physical)
                 .Select(candidate => candidate with { DestinationName = DestinationNameForModel(candidate.DestinationId) })
                 .ToList();
-            if (PauseExpiredUnfillableHouseholdRecipeProject(inhabitant.Id))
+            if ((operativeOrder is null || !IsProductionOrderProject(operativeOrder, physical.Project)) &&
+                PauseExpiredUnfillableHouseholdRecipeProject(inhabitant.Id))
             {
                 physical = inhabitants[inhabitant.Id];
                 candidates = CreateCandidates(inhabitant.Id, physical)
@@ -1084,7 +1086,12 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
 
-        var started = StartProductionCore(recipe.CanonicalId, siteId, inhabitantId, "build_started");
+        var productionInstruction = PendingInstructionFor(inhabitantId);
+        var orderInstructionId = productionInstruction is not null &&
+            IsProductionOrderProject(productionInstruction, state.Project) &&
+            state.Project?.WorkDone == ProjectWorkTicks && productionInstruction.Order!.ProductionBuildingId == siteId
+                ? productionInstruction.InstructionId : null;
+        var started = StartProductionCore(recipe.CanonicalId, siteId, inhabitantId, "build_started", orderInstructionId);
         if (!started.Applied)
         {
             AppendEvent("build_rejected", $"{inhabitantId}:{candidateId}:{started.Failure}");
