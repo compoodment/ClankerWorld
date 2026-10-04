@@ -336,6 +336,7 @@ public sealed partial class PrivateWorldRuntimeTests
         {
             order with { TargetPosition = null },
             order with { TargetFoodKind = "berries" },
+            order with { TargetMaterialKind = "wood" },
             order with { TargetResourceId = "berry-patch" },
             order with { TargetAgentId = OrderedAgent },
             order with { RequestedUnits = 2 },

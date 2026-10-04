@@ -123,8 +123,8 @@ public sealed record OwnerWorldKnowledgeArtifact(
     string CreatorName,
     IReadOnlyList<OwnerWorldKnowledgeSite> Sites);
 /// <summary>
-/// The world's saved calendar. Season lengths come from the same saved values
-/// the world uses for its seasons; an older host leaves them at zero.
+/// The world's saved calendar. Season lengths and the clock offset come from
+/// the world's saved values; an older host leaves missing values at zero.
 /// </summary>
 public sealed record OwnerWorldCalendarPace(
     int TicksPerDay,
@@ -132,9 +132,11 @@ public sealed record OwnerWorldCalendarPace(
     int SpringDays = 0,
     int SummerDays = 0,
     int AutumnDays = 0,
-    int WinterDays = 0);
+    int WinterDays = 0,
+    int CalendarOffsetTicks = 0);
 public sealed record OwnerFounderSetup(int Required, int Placed, bool Started)
 {
+    public bool RequiresWorldCreation { get; init; }
     public bool CanChooseTownSite { get; init; }
     public bool HasAcceptedTownSite { get; init; }
     public string? LastFounderId { get; init; }
@@ -149,6 +151,7 @@ public sealed record OwnerWorldTown(
     IReadOnlyList<OwnerWorldPosition> BorderTiles)
 {
     public OwnerTownGovernance? Governance { get; init; }
+    public IReadOnlyList<OwnerWorldTownProject> Projects { get; init; } = [];
     public OwnerTownGovernment? Government { get; init; }
 }
 
@@ -167,7 +170,20 @@ public sealed record OwnerTownGovernment(string Declaration, IReadOnlyList<Owner
     OwnerMayoralElection? Election, OwnerMayoralElection? LatestElection, long RetryTick);
 
 public sealed record OwnerCivicProposal(string Id, string Kind, string Text, string Status, int Yes, int No,
-    int RequiredYes, long DeadlineTick);
+    int RequiredYes, long DeadlineTick)
+{
+    public OwnerWorldTownProjectPlan? Project { get; init; }
+}
+public sealed record OwnerWorldTownProjectBudget(string Kind, int Quantity);
+public sealed record OwnerWorldTownProjectPlan(string Name, string ProposerId, string ProposerName,
+    string DefinitionId, string DisplayName, OwnerWorldPosition Site, OwnerWorldPosition Entrance,
+    int Width, int Height, IReadOnlyList<OwnerWorldTownProjectBudget> Budget);
+public sealed record OwnerWorldTownProjectMaterial(string Kind, int Budget, int Supplied);
+public sealed record OwnerWorldTownProject(string Id, string ProposalId, string Name,
+    string ProposerId, string ProposerName, string DefinitionId, string DisplayName,
+    OwnerWorldPosition Site, OwnerWorldPosition Entrance, int Width, int Height,
+    IReadOnlyList<OwnerWorldTownProjectMaterial> Materials, int WorkDone, int WorkRequired,
+    string Stage, string? Blocker, string? CompletedBuildingId, OwnerCivicProposal Approval);
 public sealed record OwnerCivicCandidate(string Id, string Name, int Votes);
 public sealed record OwnerTownElection(string Id, string Kind, string Stage, int Seats, long DeadlineTick,
     IReadOnlyList<OwnerCivicCandidate> Candidates, IReadOnlyList<string> SettledNames);
@@ -279,7 +295,9 @@ public sealed record OwnerWorldInstructionOrder(
     int? TargetX = null,
     int? TargetY = null,
     string? BlockedReason = null,
-    string? TargetAgentId = null);
+    string? TargetAgentId = null,
+    string? TargetMaterialKind = null,
+    string? TargetEquipmentKind = null);
 
 public sealed record OwnerWorldCognitionEvent(long EventId, long WorldTick, string Kind, string Detail);
 
@@ -499,7 +517,14 @@ public sealed record OwnerWorldEventSlice(
 
 public sealed record OwnerWorldCouncil(string? StewardName, string FoodPolicy, string? ProposedPolicy, int Approvals, int Rejections, int Voters);
 
-public sealed record OwnerWorldReconnectBaseline(OwnerWorldSnapshot Snapshot, OwnerWorldEventSlice Events);
+public sealed record OwnerObserverTimeline(string InstanceId, long Generation)
+{
+    internal bool IsValid => !string.IsNullOrWhiteSpace(InstanceId) && InstanceId.Length <= 128 &&
+        !InstanceId.Any(char.IsControl) && Generation >= 0;
+}
+
+public sealed record OwnerWorldReconnectBaseline(OwnerWorldSnapshot Snapshot, OwnerWorldEventSlice Events,
+    OwnerObserverTimeline? Timeline = null);
 
 public sealed record OwnerWorldReconnect(OwnerWorldHandshake Handshake, OwnerWorldReconnectBaseline Baseline);
 

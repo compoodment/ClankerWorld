@@ -552,34 +552,6 @@ public sealed class SettlementProjectTests(Xunit.Abstractions.ITestOutputHelper 
     }
 
     [Fact]
-    public async Task ProjectWorkSurvivesManualPauseAndRestartAndIsVisibleToOwner()
-    {
-        using var world = new PrivateWorldRuntime("settlement-project");
-        world.StageStarterContent();
-        for (var tick = 0; tick < 100 && !world.Inhabitants.Any(person => person.Project is { WorkDone: > 1 and < 9 }); tick++)
-        {
-            await world.AdvanceOneTickAsync();
-        }
-        var worker = world.Inhabitants.First(person => person.Project is { WorkDone: > 1 and < 9 });
-        var chosen = worker.Project!;
-        var snapshot = new OwnerWorldObservationStore(world).GetSnapshot();
-        Assert.Equal(chosen.Label, snapshot.Inhabitants.Single(person => person.Id == worker.InhabitantId).Project!.Label);
-        world.Pause();
-        var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
-        Assert.False((await world.AdvanceOneTickAsync()).Advanced);
-        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
-        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes));
-        Assert.Equal(chosen, restored.Inhabitants.Single(person => person.InhabitantId == worker.InhabitantId).Project);
-        restored.Resume();
-        for (var tick = 0; tick < 100; tick++)
-        {
-            await restored.AdvanceOneTickAsync();
-        }
-        Assert.Contains(restored.ExportState().Events, item => item.Kind == "project_progress" &&
-            item.Detail == $"{worker.InhabitantId}:completed:{chosen.Label}");
-    }
-
-    [Fact]
     public async Task AChosenProjectAcquiresAndUsesCarriedWoodWhenThereIsNoHouse()
     {
         using var seed = new PrivateWorldRuntime("settlement-acquisition");

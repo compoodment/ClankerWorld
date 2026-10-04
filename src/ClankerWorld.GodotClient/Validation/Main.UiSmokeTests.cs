@@ -1064,11 +1064,13 @@ public partial class Main
             {
                 await VerifyFirstWorldListAsync();
                 await VerifyWorldActionSelectionAsync();
+                await VerifyFreshHostEntryAsync();
                 await VerifyNewWorldCompatibilityMessageAsync();
                 await VerifyWorldPreviewRerollAsync();
                 await VerifyAutosaveSettingsOwnershipAsync();
                 await VerifyUiScaleAt1440pAsync(displayWindow);
                 await VerifyManualSaveListOwnershipAsync();
+                await VerifySameWorldTimelineUiRecoveryAsync();
                 VerifySaveBranchList();
                 await VerifySaveTimelineAsync();
                 windowSizeChoice.Select(1);
@@ -2127,7 +2129,7 @@ public partial class Main
             if (TreeArtManifest.Entries.Where(entry => entry.Code > 0).Select(entry => entry.Code).Distinct().Count() !=
                 TreeArtManifest.Entries.Count(entry => entry.Code > 0))
                 throw new InvalidOperationException("Each drawn tree stage needs its own terrain code.");
-            for (byte kind = 1; kind <= 12; kind++)
+            for (byte kind = 1; kind <= 13; kind++)
                 if (NatureSprites.ForNaturalObject(kind, 0) is null)
                     throw new InvalidOperationException($"Natural object {kind} has no sprite.");
             // Farm fields: every crop and growth state draws its overlay over the
@@ -2156,7 +2158,7 @@ public partial class Main
                 foreach (var kind in Enum.GetValues<BuildingKind>())
                     foreach (var (footprintWidth, footprintHeight) in new[] { (1, 1), (2, 1), (1, 2), (2, 2) })
                     {
-                        var roof = BuildingSprites.Render(kind, footprintWidth, footprintHeight, tilePixels);
+                        using var roof = BuildingSprites.Render(kind, footprintWidth, footprintHeight, tilePixels);
                         var covered = 0;
                         for (var by = 0; by < roof.GetHeight(); by++)
                             for (var bx = 0; bx < roof.GetWidth(); bx++)
@@ -2232,11 +2234,11 @@ public partial class Main
             if (ItemIcons.Has("never-an-item") || Convert.ToBase64String(ItemIcons.Render("never-an-item", 32).GetData()) !=
                     Convert.ToBase64String(ItemIcons.Render("crate", 32).GetData()) || !ItemIcons.Has("wood"))
                 throw new InvalidOperationException("An item without its own icon must show the crate.");
-            foreach (var meal in new[] { "simple_meal", "porridge", "berry_porridge", "fruit_porridge", "stew", "restaurant_meal" })
+            foreach (var meal in new[] { "porridge", "berry_porridge", "fruit_porridge", "stew", "restaurant_meal" })
                 if (!ItemIcons.Has(meal) || !ItemIcons.FitsGrid(meal) || (!ItemIcons.Kinds.Contains(meal) &&
                     Convert.ToBase64String(ItemIcons.Render(meal, 32).GetData()) !=
                         Convert.ToBase64String(ItemIcons.Render("food", 32).GetData())))
-                    throw new InvalidOperationException("A concrete meal without distinct art must use the meal icon.");
+                    throw new InvalidOperationException("A concrete meal without distinct art must use the food icon.");
             if (GameUiText.ItemName("storage_pot") != "Storage pot" ||
                 GameUiText.ItemName("water_jug") != "Water jug" ||
                 GameUiText.ItemName("fresh_water") != "Fresh water")
@@ -2249,6 +2251,14 @@ public partial class Main
                 if (!ItemIcons.Has(kind) || GameUiText.ItemName(kind) != name)
                     throw new InvalidOperationException("Physical written goods must use their approved icons and readable names.");
             string IconData(string kind) => Convert.ToBase64String(ItemIcons.Render(kind, 32).GetData());
+            foreach (var (actualKind, approvedKind) in new[]
+                     {
+                         ("potatoes", "potato"), ("cultivated_green_seed", "green_seed"),
+                         ("medicinal_herbs", "herbs"), ("diamond_ornament", "ornament"), ("simple_meal", "meal"),
+                     })
+                if (!ItemIcons.Has(actualKind) || !ItemIcons.FitsGrid(actualKind) ||
+                    IconData(actualKind) != IconData(approvedKind) || IconData(actualKind) == IconData("crate"))
+                    throw new InvalidOperationException($"The real item {actualKind} must show its approved {approvedKind} drawing.");
             if (IconData("wooden_hammer") == IconData("stone_hammer") ||
                 IconData("wooden_sickle") == IconData("iron_sickle"))
                 throw new InvalidOperationException("Wooden and stronger work tools must show distinct tier colours.");
@@ -2261,6 +2271,8 @@ public partial class Main
                 BuildingSprites.KindFor(["cooking", "warmth"]) != BuildingKind.Hearth ||
                 BuildingSprites.KindFor(["silo", "farm-storage"]) != BuildingKind.Silo ||
                 BuildingSprites.KindFor(["tailor", "clothing-making"]) != BuildingKind.TailorShop ||
+                BuildingSprites.KindFor(["clinic", "care", "storage"]) != BuildingKind.Clinic ||
+                BuildingSprites.KindFor(["restaurant", "food-stock"]) != BuildingKind.Restaurant ||
                 BuildingSprites.KindFor(null) != BuildingKind.Generic ||
                 BuildingSprites.KindForObject("campfire") != BuildingKind.Hearth ||
                 BuildingSprites.KindForObject("cooking") != BuildingKind.Hearth ||
@@ -2416,6 +2428,7 @@ public partial class Main
                     !resourceVisual.TooltipText.Contains(expectedName, StringComparison.Ordinal))
                     throw new InvalidOperationException($"The {expectedName} natural object must draw as a distinct inspectable map site.");
             }
+            VerifyPlayableNaturalArt(sample);
             var fallenWood = new OwnerWorldResource("sample-fallen-wood", "wood", new(3, 3), false,
                 "available", 3, 3, NaturalObjectKind: "fallen_wood");
             var fallenWoodMap = sample with { Resources = [sampleResource, fallenWood] };

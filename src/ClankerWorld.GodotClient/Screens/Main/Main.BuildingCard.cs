@@ -269,6 +269,8 @@ public partial class Main
         signature += $"|{building.ExpansionState}|{building.ExpansionFailure}|" +
             string.Join('|', building.Trades.Select(trade => trade.OfferId + ":" + trade.Status)) + "|" +
             string.Join('|', building.ToolMakingRequests.Select(request => request.Id + ":" + request.Status + ":" + request.Blocker));
+        var townHall = building.Tags?.Contains("town_hall", StringComparer.Ordinal) == true;
+        signature += "|" + townHall;
         if (renderedBuildingStatus == signature) return;
         renderedBuildingStatus = signature;
         ClearChildren(buildingQuickStatus);
@@ -292,6 +294,8 @@ public partial class Main
         var openTrades = building.Trades.Count(trade => trade.Status == "open");
         if (openTrades > 0)
             buildingQuickStatus.AddChild(new Label { Text = $"{Plural(openTrades, "customer exchange")} waiting" });
+        if (townHall)
+            buildingQuickStatus.AddChild(new Label { Text = "Town civic notice place · see Council decisions in World Info" });
         if (jobs.Length > 0)
         {
             buildingQuickStatus.AddChild(JobRow(snapshot, jobs[0]));
@@ -324,7 +328,8 @@ public partial class Main
     private void RenderBuildingDetails(OwnerWorldSnapshot snapshot, OwnerWorldPlacedBuilding building,
         string? household, string? town, OwnerWorldProductionJob[] jobs, string[] inside)
     {
-        var usedBy = household ?? (town is not null && building.Tags?.Contains("warehouse") == true
+        var townHall = building.Tags?.Contains("town_hall", StringComparer.Ordinal) == true;
+        var usedBy = townHall ? "Town civic notice place" : household ?? (town is not null && building.Tags?.Contains("warehouse") == true
             ? $"{town} residents" : "Any agent");
         var facts = new List<(string Key, string Value)>
         {
@@ -333,6 +338,16 @@ public partial class Main
             ("Built", SplitClock(DisplayWorldClock(building.PlacedTick)).Date),
             ("Footprint", $"{building.Width} × {building.Height} tiles"),
         };
+        if (townHall && snapshot.Towns.SelectMany(item => item.Projects)
+                .FirstOrDefault(project => project.CompletedBuildingId == building.InstanceId) is { } project)
+        {
+            facts.Add(("Town project", project.Name));
+            facts.Add(("Proposed by", project.ProposerName));
+            facts.Add(("Council approval", $"{project.Approval.Yes} yes / {project.Approval.No} no · {project.Approval.RequiredYes} yes needed"));
+            facts.Add(("Materials spent", string.Join(" · ", project.Materials.Select(q =>
+                $"{q.Supplied} {GameUiText.ItemName(q.Kind)}")) + " · provisional budget"));
+            facts.Add(("Construction", $"{project.WorkDone} / {project.WorkRequired} units · provisional work"));
+        }
         if (building.StorageCapacity is { } capacity)
             facts.Add(("Storage", $"{building.StoredQuantity} / {capacity} items"));
         if (building.Tags?.Any(tag => tag is "farmhouse" or "blacksmith" or "tailor" or "store" or "restaurant" or "clinic") == true)
@@ -477,13 +492,14 @@ public partial class Main
             isWarehouse ? target : null, isWarehouse || string.IsNullOrEmpty(target) ? null : target,
             WorldId: snapshot.WorldId);
         OwnerBuildingManagementResult? result = null;
+        var generation = observationSession.RequestGeneration;
         await RunOwnerActionAsync(async () =>
         {
-            result = await ownerApi.ReassignBuildingAsync(ResolveWorldUri(), authority, deviceId, action,
-                signer, CancellationToken.None);
+            result = await AwaitCurrentWorldResultAsync(ownerApi.ReassignBuildingAsync(ResolveWorldUri(), authority, deviceId, action,
+                signer, CancellationToken.None));
             return result.Applied ? "Building owner changed" : result.Failure ?? "The building could not be reassigned.";
         });
-        if (result is { } changed)
+        if (IsCurrentWorldRequest(generation) && result is { } changed)
             SetStatus(changed.Applied ? "Building owner changed" : changed.Failure ?? "The building could not be reassigned.",
                 good: changed.Applied);
     }
@@ -518,14 +534,15 @@ public partial class Main
         }
 
         OwnerBuildingManagementResult? result = null;
+        var generation = observationSession.RequestGeneration;
         await RunOwnerActionAsync(async () =>
         {
-            result = await ownerApi.RemoveBuildingAsync(ResolveWorldUri(), authority, deviceId,
+            result = await AwaitCurrentWorldResultAsync(ownerApi.RemoveBuildingAsync(ResolveWorldUri(), authority, deviceId,
                 action,
-                signer, CancellationToken.None);
+                signer, CancellationToken.None));
             return result.Applied ? "Building removed" : result.Failure ?? "The building could not be removed.";
         });
-        if (result is not { } removed) return;
+        if (!IsCurrentWorldRequest(generation) || result is not { } removed) return;
         SetStatus(removed.Applied ? "Building removed" : removed.Failure ?? "The building could not be removed.",
             good: removed.Applied);
         if (removed.Applied && buildingCardSnapshot?.WorldId == worldId && selectedBuildingId == action.InstanceId)

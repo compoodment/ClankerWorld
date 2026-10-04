@@ -711,6 +711,9 @@ public partial class Main
             if (project.Blocker is not null) details.Add(project.Blocker);
         }
         if (role is not null and not "unassigned") details.Add($"Role: {Pretty(role)}");
+        if (!isDeceased)
+            details.AddRange(inhabitant.DecisionFactors.Where(factor => factor.Key == "guardian-care")
+                .Select(factor => factor.Detail));
         if (Factor("housing") is { } housing && !isDeceased) details.Add(housing);
         if (Factor("town-membership") is { } townMembership && !isDeceased) details.Add(townMembership);
         if (inhabitant.Lesson is { } lesson)
@@ -809,6 +812,10 @@ public partial class Main
         {
             "consume_food" => "Eating food",
             "harvest_food" => "Gathering food",
+            "gather_material" => "Gathering " + (order.TargetMaterialKind?.Replace('_', ' ') ?? "materials"),
+            "repair_equipment" => "Repairing " + (order.TargetEquipmentKind?.Replace('_', ' ') ?? "equipment"),
+            "collect_material" => "Collecting " + (order.TargetMaterialKind?.Replace('_', ' ') ?? "materials"),
+            "store_material" => "Storing " + (order.TargetMaterialKind?.Replace('_', ' ') ?? "materials"),
             "seek_food" => "Going to a food site",
             "move_to" => "Going to a tile",
             "accept_guardianship" => "Becoming a guardian",
@@ -845,6 +852,10 @@ public partial class Main
     private static string ProgressUnitLabel(string unit) => unit switch
     {
         "food_items" => "food items",
+        "material_items" => "items",
+        "repairs" => "items repaired",
+        "collection_loads" => "loads collected",
+        "storage_loads" => "loads stored",
         "arrivals" => "sites reached",
         "harvests" => "harvest batches",
         "guardianships" => "care assignments",

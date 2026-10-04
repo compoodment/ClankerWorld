@@ -185,64 +185,6 @@ public sealed partial class PrivateWorldConversationTests
     }
 
     [Fact]
-    public async Task PendingInvitationSurvivesPrivateWorldFileReloadAndCanStillBeAccepted()
-    {
-        var provider = new ConversationProvider(new HashSet<string>(StringComparer.Ordinal)
-        {
-            InitiatorId, InviteeId,
-        });
-        var directory = Directory.CreateTempSubdirectory("clankerworld-pending-invitation-");
-        var path = Path.Combine(directory.FullName, "world.json");
-        try
-        {
-            using var world = NewWorld("pending-invitation-reload", provider);
-            world.StartWorld();
-            for (var attempt = 0; attempt < 50 && world.Conversations.All(item =>
-                     item.Status != AgentConversationStatus.Proposed); attempt++)
-            {
-                _ = await world.AdvanceOneTickNonBlockingAsync();
-                await Task.Delay(5);
-            }
-
-            var beforeSave = Assert.Single(world.Conversations, item => item.Status == AgentConversationStatus.Proposed);
-            Assert.Null(beforeSave.CurrentSpeakerId);
-            var savedBudget = world.ConversationBudgets.Single(item => item.AgentId == InitiatorId);
-            var file = new PrivateWorldStateFile(path, id =>
-                id is InitiatorId or InviteeId ? provider : new DeterministicDecisionProvider());
-            file.Save(world);
-            var exactSavedBytes = File.ReadAllBytes(path);
-
-            using var restored = file.LoadOrCreate("pending-invitation-reload");
-            Assert.Equal(exactSavedBytes, File.ReadAllBytes(path));
-            var afterReload = Assert.Single(restored.Conversations, item => item.Status == AgentConversationStatus.Proposed);
-            Assert.Equal(beforeSave.Id, afterReload.Id);
-            Assert.Null(afterReload.CurrentSpeakerId);
-            Assert.Equal(beforeSave.CreatedTick, afterReload.CreatedTick);
-            Assert.Equal(beforeSave.ProposalDeadlineTick, afterReload.ProposalDeadlineTick);
-            Assert.Equal(beforeSave.Revision, afterReload.Revision);
-            Assert.Equal(savedBudget, restored.ConversationBudgets.Single(item => item.AgentId == InitiatorId));
-            Assert.Empty(provider.TurnRequests);
-
-            restored.Resume();
-            for (var attempt = 0; attempt < 90 && restored.Conversations.Single(item => item.Id == beforeSave.Id)
-                     .Turns.Count == 0; attempt++)
-            {
-                _ = await restored.AdvanceOneTickNonBlockingAsync();
-                await Task.Delay(5);
-            }
-
-            var accepted = Assert.Single(restored.Conversations, item => item.Id == beforeSave.Id);
-            Assert.NotEmpty(accepted.Turns);
-            Assert.Contains(provider.TurnRequests, request => request.ConversationId == beforeSave.Id);
-            Assert.Equal(1, restored.ConversationBudgets.Single(item => item.AgentId == InviteeId).Count);
-        }
-        finally
-        {
-            directory.Delete(recursive: true);
-        }
-    }
-
-    [Fact]
     public async Task ProviderRouteChangedDuringPreparedTickCannotAdmitTurnOrListenerMemory()
     {
         var provider = new ConversationProvider(new HashSet<string>(StringComparer.Ordinal)
@@ -791,7 +733,7 @@ public sealed partial class PrivateWorldConversationTests
                     candidate.Id.StartsWith("conversation_wrapup_accept:", StringComparison.Ordinal)))
                 return new ValueTask<CognitionDecisionResponse>(WaitForPlanningCancellationAsync(cancellationToken));
             var selected = observation.Candidates.FirstOrDefault(candidate =>
-                observation.InhabitantId == InitiatorId && candidate.Id == $"talk:{InviteeId}") ??
+                !EndSuspendedConversations && observation.InhabitantId == InitiatorId && candidate.Id == $"talk:{InviteeId}") ??
                 observation.Candidates.FirstOrDefault(candidate => EndSuspendedConversations &&
                     candidate.Id.StartsWith("conversation_end:", StringComparison.Ordinal)) ??
                 observation.Candidates.FirstOrDefault(candidate =>

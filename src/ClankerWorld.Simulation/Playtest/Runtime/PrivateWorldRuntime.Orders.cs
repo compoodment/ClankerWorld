@@ -17,6 +17,18 @@ public sealed partial class PrivateWorldRuntime
         if (order.TargetPosition is { } requestedPosition && !map.Contains(requestedPosition))
             return null;
 
+        if (order.Action == "repair_equipment")
+            return RepairOrderCandidateFor(instruction, person);
+
+        if (order.Action == "collect_material")
+            return CollectionOrderCandidateFor(instruction, person);
+
+        if (order.Action == "store_material")
+            return StorageOrderCandidateFor(instruction, person);
+
+        if (order.Action == "gather_material")
+            return MaterialOrderCandidateFor(instruction, person);
+
         if (order.Action == "move_to" && order.TargetPosition is { } destination)
             return !MovementOrderNeedsHouseInvitation(instruction.TargetInhabitantId, destination) &&
                 (person.Position == destination ||
@@ -145,7 +157,7 @@ public sealed partial class PrivateWorldRuntime
         SetOrderStatus(instruction, "doing", null, waitForDecision: false);
         var actor = instruction.TargetInhabitantId;
         // An order step interrupts timed repair work, as any other chosen action does.
-        if (inhabitants[actor].Equipment?.Repair is not null)
+        if (order.Action != "repair_equipment" && inhabitants[actor].Equipment?.Repair is not null)
         {
             CancelEquipmentRepair(actor);
             person = inhabitants[actor];
@@ -157,6 +169,19 @@ public sealed partial class PrivateWorldRuntime
         }
         switch (candidate.Id)
         {
+            case "repair_equipment":
+                ExecuteRepairOrderStep(instruction, person);
+                return;
+            case "collect_material":
+                ExecuteCollectionOrderStep(instruction, person);
+                return;
+            case "store_material":
+                ExecuteStorageOrderStep(instruction, person);
+                return;
+            case "gather_material":
+            case "inspect_material_site":
+                ExecuteMaterialOrderStep(instruction, person, candidate.Id);
+                return;
             case "move_to" when order.Action == "move_to" && order.TargetPosition is { } destination:
                 MoveToward(actor, person, destination, "owner_order_move");
                 // Only the tile reached joins the agent's small map memory. Recording
@@ -287,6 +312,15 @@ public sealed partial class PrivateWorldRuntime
 
     private string OrderBlockedReason(OwnerQueuedInstruction instruction, PlaytestInhabitantState person)
     {
+        if (instruction.Order?.Action == "repair_equipment")
+            return RepairOrderBlockedReason(instruction);
+        if (instruction.Order?.Action == "collect_material")
+            return CollectionOrderBlockedReason(instruction, person);
+        if (instruction.Order?.Action == "store_material")
+            return StorageOrderBlockedReason(instruction, person);
+        if (instruction.Order?.Action == "gather_material")
+            return MaterialOrderBlockedReason(instruction, person);
+
         if (instruction.Order?.Action == "move_to")
             return instruction.Order.TargetPosition is not { } destination || !map.Contains(destination)
                 ? "The requested tile is outside this world."

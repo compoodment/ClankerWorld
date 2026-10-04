@@ -1,0 +1,1 @@
+- A bridge cut off by impassable Peaks no longer prevents a needed crossing elsewhere on the river. Existing bridges are still reused when agents can reach them along both banks.

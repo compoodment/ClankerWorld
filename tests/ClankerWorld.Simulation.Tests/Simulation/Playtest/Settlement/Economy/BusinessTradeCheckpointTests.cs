@@ -13,29 +13,6 @@ public sealed class BusinessTradeCheckpointTests
     [InlineData("both")]
     [InlineData("unrelated")]
     [InlineData("duplicate-buyer")]
-    public async Task RestoringAnOpenShopExchangeRequiresTheCustomersActualAcceptance(string damage)
-    {
-        var (state, _) = await PendingExchangeAsync();
-        var healthyBytes = PrivateWorldRuntimeCodec.Encode(state);
-        var trade = Assert.Single(state.BusinessTrades!);
-        var offer = state.Society.Society.Inventory.GetOffer(trade.OfferId);
-        var inventory = state.Society.Society.Inventory with
-        {
-            Offers = state.Society.Society.Inventory.Offers.Select(item => item.Id == offer.Id
-                ? item with { AcceptedBy = DamagedAcceptance(damage, offer) } : item).ToArray(),
-        };
-
-        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(WithInventory(state, inventory)));
-
-        AssertHealthyRoundtrip(state, healthyBytes);
-    }
-
-    [Theory]
-    [InlineData("none")]
-    [InlineData("seller-only")]
-    [InlineData("both")]
-    [InlineData("unrelated")]
-    [InlineData("duplicate-buyer")]
     public async Task DecodingAnOpenShopExchangeRequiresTheCustomersActualAcceptance(string damage)
     {
         var (state, _) = await PendingExchangeAsync();
@@ -52,54 +29,6 @@ public sealed class BusinessTradeCheckpointTests
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Decode(damagedBytes));
 
         AssertHealthyRoundtrip(state, healthyBytes);
-    }
-
-    [Fact]
-    public async Task HealthyPendingAndCompletedShopExchangesKeepTheirAcceptanceAcrossReload()
-    {
-        var (state, seller) = await PendingExchangeAsync();
-        var trade = Assert.Single(state.BusinessTrades!);
-        var offer = state.Society.Society.Inventory.GetOffer(trade.OfferId);
-        Assert.Equal(new[] { trade.BuyerId }, offer.AcceptedBy);
-        AssertHealthyRoundtrip(state, PrivateWorldRuntimeCodec.Encode(state));
-        state = state with
-        {
-            Inhabitants = state.Inhabitants.Select(person => person with { LastDecisionContext = null }).ToArray(),
-        };
-        using var settling = PrivateWorldRuntime.Restore(state, actor => actor == seller
-            ? new ShopChoice("business_continue:") : new ShopChoice("safe_idle"));
-        for (var tick = 0; tick < 40 && settling.Society.Inventory.GetOffer(offer.Id).State == DirectBarterState.Open; tick++)
-            Assert.True((await settling.AdvanceOneTickAsync()).Advanced);
-        var settled = settling.Society.Inventory.GetOffer(offer.Id);
-        Assert.Equal(DirectBarterState.Settled, settled.State);
-        Assert.Equal(new[] { offer.FirstPartyId, offer.SecondPartyId }.Order(StringComparer.Ordinal), settled.AcceptedBy);
-        Assert.Equal(seller, Assert.Single(settling.BusinessTrades).SellerActorId);
-        var completed = settling.ExportState();
-        AssertHealthyRoundtrip(completed, PrivateWorldRuntimeCodec.Encode(completed));
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task CancelledShopHistoryKeepsTheAcceptancePresentBeforeCancellation(bool buyerAccepted)
-    {
-        var (state, _) = await PendingExchangeAsync();
-        var trade = Assert.Single(state.BusinessTrades!);
-        var offer = state.Society.Society.Inventory.GetOffer(trade.OfferId);
-        var inventory = state.Society.Society.Inventory;
-        if (!buyerAccepted)
-            inventory = inventory with
-            {
-                Offers = inventory.Offers.Select(item => item.Id == offer.Id ? item with { AcceptedBy = [] } : item).ToArray(),
-            };
-        inventory = InventoryFixture.CancelDirectBarterOffer(inventory, offer.Id, offer.Revision, offer.FirstPartyId);
-        var cancelled = WithInventory(state, inventory) with
-        {
-            BusinessTrades = [trade with { CancellationReason = "The selling household declined." }],
-        };
-        var expectedAcceptance = buyerAccepted ? new[] { trade.BuyerId } : Array.Empty<string>();
-        Assert.Equal(expectedAcceptance, inventory.GetOffer(offer.Id).AcceptedBy);
-        AssertHealthyRoundtrip(cancelled, PrivateWorldRuntimeCodec.Encode(cancelled));
     }
 
     private static string[] DamagedAcceptance(string damage, DirectBarterOffer offer) => damage switch

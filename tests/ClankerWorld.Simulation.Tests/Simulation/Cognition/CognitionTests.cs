@@ -331,9 +331,31 @@ public sealed class CognitionTests
         Assert.NotEqual(first, nameRetry);
         Assert.Contains("given name starting with", first, StringComparison.Ordinal);
         Assert.DoesNotContain("given name starting with", named, StringComparison.Ordinal);
-        Assert.Contains("full name you chose is already taken", nameRetry, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("first name you chose is already taken", nameRetry, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Do not list or ask for anyone else’s name", nameRetry, StringComparison.Ordinal);
         Assert.True(retryInput.RootElement.GetProperty("name_retry").GetBoolean());
+
+        var child = regularNameRequest with
+        {
+            Observation = regularNameRequest.Observation with
+            {
+                Self = new CognitionSelfContext("actor-alpha", "Child one", "Child", "Curious", "Learn",
+                    null, null, null, null, AllowedChildSurnames: ["Vale", "Lake"]),
+            },
+        };
+        var childPrompt = await SystemPrompt(child);
+        Assert.Contains("self.allowed_child_surnames", childPrompt, StringComparison.Ordinal);
+        using var childPayload = JsonDocument.Parse(handler.Body ?? throw new InvalidDataException());
+        using var childInput = JsonDocument.Parse(childPayload.RootElement.GetProperty("messages")[1].GetProperty("content").GetString()!);
+        Assert.Equal(["Vale", "Lake"], childInput.RootElement.GetProperty("self").GetProperty("allowed_child_surnames")
+            .EnumerateArray().Select(item => Assert.IsType<string>(item.GetString())).ToArray());
+        var unnamedParents = child with
+        {
+            Observation = child.Observation with { Self = child.Observation.Self! with { AllowedChildSurnames = [] } },
+        };
+        Assert.Contains("Omit chosen_name", await SystemPrompt(unnamedParents), StringComparison.Ordinal);
+        var alreadyNamedChild = child with { Observation = child.Observation with { NeedsName = false } };
+        Assert.DoesNotContain("self.allowed_child_surnames", await SystemPrompt(alreadyNamedChild), StringComparison.Ordinal);
     }
 
     [Fact]
