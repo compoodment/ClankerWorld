@@ -112,8 +112,8 @@ an endless ore ladder merely because they are conventional crafting-game items.
 
 | # | Status | Item family | Jobs and representation |
 | --- | --- | --- | --- |
-| 4.1 | Agreed | Axe | Wood gathering: wooden, stone and iron versions with improving speed and durability. Wear, Blacksmith repair and replacement; also a work weapon under the combat design. |
-| 4.2 | Agreed | Pickaxe | Wooden pickaxe extracts stone, stone pickaxe extracts iron ore, iron pickaxe extracts gold/diamond. Improved speed and durability, wear and repair. |
+| 4.1 | Agreed | Axe | Wood gathering: crude House-made, wooden, stone and iron versions with improving speed and durability. Wear, Blacksmith repair and replacement; also a work weapon under the combat design. |
+| 4.2 | Agreed | Pickaxe | A crude House-made or wooden pickaxe extracts stone, stone pickaxe extracts iron ore, iron pickaxe extracts gold/diamond. Improved speed and durability, wear and repair. |
 | 4.3 | Agreed | Hoe | Wooden hoe prepares and tends fields; iron hoe works faster. |
 | 4.4 | Agreed | Hammer | Wood-and-stone tool for construction and repairs. |
 | 4.5 | Agreed | Sickle | Wood-and-iron tool speeds crop harvesting; exact advantage is provisional. |
@@ -129,7 +129,9 @@ automatically assigns the Farmhouse and Blacksmith to the two starting
 households, one productive building each. There are no optional extra supplies
 for now; later ownership transfers remain **open**. Wooden replacement tools
 come from wood at the Blacksmith; fallen wood can be gathered by hand if the
-last axe is lost. The Workshop is not required at start.
+last axe is lost. Without a Blacksmith, a household can make
+[crude wooden tools](towns.md#tools-clothing-and-transport) at its House. The
+Workshop is not required at start.
 
 ## 5. Food, cooking, and care
 
