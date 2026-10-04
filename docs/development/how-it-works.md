@@ -92,7 +92,7 @@ unable to save.
 `ParseInstructionOrder` reads a complete, bounded grammar for eating food,
 seeking a food source, harvesting food, gathering supported raw materials,
 storing or collecting personal raw materials, collecting personal ready-to-eat
-food, repairing supported personal
+food or equipment, repairing supported personal
 clothing, carrying aids and tools, household field work, and moving to an exact
 tile. Harvest and food-source travel orders must name a supported kind or resource; explicit resource names must match a complete
 identifier and the requested kind. Unsupported
@@ -174,6 +174,15 @@ Default orders count one `collection_loads` pickup; explicit quantities count
 `food_items` and cap the last pickup at the remaining amount. Shared food
 collection, harvesting and eating never credit these orders. Model guidance,
 observer activity and task labels identify the action as personal food pickup.
+
+Equipment collection uses `collect_equipment` and the existing exact
+`TargetEquipmentKind` catalogue for five garments/carrying aids and 13 tools.
+The parser tries complete equipment names before material names, so "stone
+pickaxe" remains a tool while "stone" remains a raw material. The same personal
+pickup path preserves condition and never equips or repairs the goods.
+Explicit quantities use `equipment_items` and cap the final relocation; default
+orders count `collection_loads`. Shared and borrowed equipment never enters
+this order's eligible personal-lot set.
 
 Repair orders save a separate `TargetEquipmentKind` for basic clothing, padded
 coats, rain cloaks, baskets or sacks. The parser refuses unsupported equipment and
