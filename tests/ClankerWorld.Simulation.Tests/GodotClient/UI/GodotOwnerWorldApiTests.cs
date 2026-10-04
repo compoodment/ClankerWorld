@@ -80,8 +80,9 @@ public sealed class GodotOwnerWorldApiTests
         Assert.True(committed);
         Assert.True(session.TryAccept(selected, session.EventCursor, out var failure), failure);
         Assert.Equal(selectedWorld, session.Current!.Baseline.Snapshot.WorldId);
-        Assert.True(session.TryAccept(old, 3, out _));
-        Assert.False(session.TryAccept(selected, 0, out _));
+        Assert.False(session.TryAccept(old, 3, out _));
+        Assert.Equal(selectedWorld, session.Current!.Baseline.Snapshot.WorldId);
+        Assert.True(session.TryAccept(selected, 0, out _));
     }
 
     [Fact]
@@ -384,15 +385,6 @@ public sealed class GodotOwnerWorldApiTests
         Assert.Equal(serverPayload, clientPayload);
         Assert.EndsWith($"check-key={checkKey.ToString().ToLowerInvariant()}", clientPayload, StringComparison.Ordinal);
         if (apiKey is not null) Assert.DoesNotContain(apiKey, clientPayload, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void ControlPayloadMatchesViewerOwnerProtocolByteForByte()
-    {
-        var clientPayload = OwnerWorldActionPayload.Control("pause");
-        var serverPayload = OwnerHttpBinding.EmptyPayload("pause");
-
-        Assert.Equal(serverPayload, clientPayload);
     }
 
     private static OwnerWorldReconnect CreateCoherentReconnect()

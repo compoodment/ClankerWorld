@@ -1,0 +1,4 @@
+- The world keeps closer to its normal speed while agents travel far from town.
+  Agents reuse matching route checks when choosing what to do, and building
+  and recipe lookups are faster.
+  Agents choose and walk exactly the same routes as before.

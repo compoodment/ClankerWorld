@@ -425,7 +425,7 @@ public partial class Main
     private void RenderTownList(OwnerWorldSnapshot snapshot)
     {
         var signature = string.Join("\n", snapshot.Towns.Select(town =>
-            $"{town.Id}|{town.Name}|{town.FoundingState}|{town.FoundedTick}|{town.ResidentIds.Count}|{town.BorderTiles.Count}|{ResidentPortraitsKey(snapshot, town)}|{TownCivicText(town, snapshot.WorldTick)}")) +
+            $"{town.Id}|{town.Name}|{town.FoundingState}|{town.FoundedTick}|{town.ResidentIds.Count}|{town.BorderTiles.Count}|{ResidentPortraitsKey(snapshot, town)}|{TownCivicText(town, snapshot.WorldTick)}|{TownProjectText(town)}")) +
             "|" + displayPreferences.DateStyle + "|" + observedCalendarPace + "|" + UiTheme.Current.Name;
         if (renderedTownList == signature) return;
         renderedTownList = signature;
@@ -475,6 +475,13 @@ public partial class Main
                     AutowrapMode = TextServer.AutowrapMode.WordSmart,
                     CustomMinimumSize = new Vector2(300, 0),
                 });
+            if (town.Projects.Count > 0)
+                text.AddChild(new Label
+                {
+                    Text = TownProjectText(town),
+                    AutowrapMode = TextServer.AutowrapMode.WordSmart,
+                    CustomMinimumSize = new Vector2(300, 0),
+                });
             line.AddChild(text);
             var show = new Button
             {
@@ -502,7 +509,8 @@ public partial class Main
         if (town.Governance is not { } council) return "";
         var lines = new List<string>
         {
-            council.Form == "representative" ? "Council: elected representatives" : "Council: all adult residents",
+            council.Form == "leader" ? "Ordinary decisions: elected governing leader" :
+                council.Form == "representative" ? "Council: elected representatives" : "Council: all adult residents",
             council.MemberNames.Count == 0 ? "No adult councillors." : string.Join(", ", council.MemberNames),
         };
         if (council.TermEndTick is { } termEnd) lines.Add("Term ends " + DisplayWorldClock(termEnd));
@@ -542,9 +550,77 @@ public partial class Main
             lines.Add($"{Pretty(proposal.Status)} {Pretty(proposal.Kind).ToLowerInvariant()} proposal: {proposal.Text}");
             lines.Add($"{proposal.Yes} yes / {proposal.No} no · {proposal.RequiredYes} yes needed" +
                 (proposal.Status == "pending" ? " · closes " + DisplayWorldClock(proposal.DeadlineTick) : ""));
+            if (proposal.Project is { } plan && proposal.Status == "pending")
+            {
+                lines.Add($"{plan.ProposerName} proposes {plan.Name} · {plan.DisplayName} · {plan.Width} × {plan.Height} tiles at ({plan.Site.X}, {plan.Site.Y})");
+                lines.Add($"Entrance: ({plan.Entrance.X}, {plan.Entrance.Y}) · Provisional budget: " +
+                    string.Join(" · ", plan.Budget.Select(q => $"{q.Quantity} {GameUiText.ItemName(q.Kind)}")));
+            }
         }
+        if (town.Government is { } government) AddGovernmentText(lines, government, tick);
         // Proposals are written by agents' models, which may use the font's mid-height ellipsis.
         return GameUiText.PlainEllipses(string.Join("\n", lines));
+    }
+
+    private static string TownProjectText(OwnerWorldTown town)
+    {
+        var lines = new List<string>();
+        foreach (var project in town.Projects)
+        {
+            lines.Add($"{project.Name} · {project.DisplayName} · {Pretty(project.Stage)}");
+            lines.Add($"Proposed by {project.ProposerName} · {project.Width} × {project.Height} tiles at ({project.Site.X}, {project.Site.Y})");
+            lines.Add($"Entrance: ({project.Entrance.X}, {project.Entrance.Y})");
+            lines.Add("Provisional budget · supplied: " + string.Join(" · ", project.Materials.Select(q =>
+                $"{q.Supplied} / {q.Budget} {GameUiText.ItemName(q.Kind)}")));
+            lines.Add($"Provisional work: {project.WorkDone} / {project.WorkRequired} units");
+            lines.Add($"Council approval: {project.Approval.Yes} yes / {project.Approval.No} no · {project.Approval.RequiredYes} yes needed");
+            if (project.Blocker is { } blocker) lines.Add((project.Stage == "cancelled" ? "Not built: " : "Waiting: ") + blocker);
+            if (project.CompletedBuildingId is not null) lines.Add("Built · select the Town Hall on the map for details.");
+        }
+        return GameUiText.PlainEllipses(string.Join("\n", lines));
+    }
+
+    private void AddGovernmentText(List<string> lines, OwnerTownGovernment government, long tick)
+    {
+        lines.Add("Approved government: " + government.Declaration);
+        foreach (var office in government.Offices)
+            lines.Add(office.HolderName is { } holder ? $"{holder}: {office.Mandate}; term ends " + DisplayWorldClock(office.TermEndTick!.Value)
+                : $"Vacant: {office.Mandate}. {office.VacancyReason}");
+        if (government.Offices.Count > 0) lines.Add("Land hearings and enforcement are not available yet; an office grants no ownership.");
+        foreach (var change in government.Changes)
+        {
+            lines.Add($"{Pretty(change.Status)} resident proposal: {change.Declaration}");
+            if (change.Status == "voting") lines.Add($"{change.Yes} yes / {change.No} no · {change.RequiredYes} yes needed · closes " + DisplayWorldClock(change.DeadlineTick!.Value));
+            if (change.Status == "handover") lines.Add("Incumbent authority continues; handover due by " + DisplayWorldClock(change.HandoverDeadlineTick!.Value));
+            if (change.Reason is { } reason) lines.Add(reason);
+        }
+        void Election(OwnerMayoralElection election, bool latest)
+        {
+            lines.Add($"{(latest ? "Last mayoral election" : "Mayoral election")}: {Pretty(election.Stage)} · {election.Mandates} · round {election.Round}");
+            if (election.Stage == "voting" && election.DeadlineTick is { } deadline) lines.Add("Voting closes " + DisplayWorldClock(deadline));
+            if (election.Stage == "waiting") lines.Add("Waiting for the Council election to finish. No mayoral ballots are being collected.");
+            if (election.Candidates.Count > 0) lines.Add(string.Join(" · ", election.Candidates.Select(c => $"{c.Name}: {c.Votes} {(c.Votes == 1 ? "vote" : "votes")}")));
+            if (election.WinnerName is { } winner) lines.Add("Selected: " + winner + (election.Stage == "ready" ? "; awaiting a valid handover or term start." : "."));
+            if (election.Reason is { } reason) lines.Add(reason);
+        }
+        if (government.Election is { } live) Election(live, false);
+        if (government.LatestElection is { } latest) Election(latest, true);
+        if (government.Election is null && government.RetryTick > tick) lines.Add("Mayoral retry after " + DisplayWorldClock(government.RetryTick));
+        if (government.LawCount > government.Laws.Count) lines.Add($"Showing the latest {government.Laws.Count} of {government.LawCount} laws.");
+        foreach (var law in government.Laws)
+        {
+            var scope = law.Scope switch
+            {
+                "resident_duty" => "duty of residents, wherever they are",
+                "site" => $"the recorded site ({law.SiteTiles} land tiles), visitors included",
+                _ => "the Town's formally claimed land, visitors included",
+            };
+            lines.Add($"{(law.EndedTick is null ? "Law" : "Repealed law")}: {law.Subject} — {law.Rule}");
+            if (law.Site.Count > 0) lines.Add("Site tiles: " + string.Join(", ", law.Site.Select(p => $"({p.X}, {p.Y})")));
+            lines.Add($"Scope: {scope}. Version {law.Version}, effective from " + DisplayWorldClock(law.AdoptedTick) +
+                (law.EndedTick is { } ended ? " until " + DisplayWorldClock(ended) : ""));
+        }
+        if (government.Laws.Count > 0) lines.Add("Laws record social rules; they do not prevent actions, change ownership or apply to earlier conduct.");
     }
 
     private static string CivicElectionName(string kind) => kind switch

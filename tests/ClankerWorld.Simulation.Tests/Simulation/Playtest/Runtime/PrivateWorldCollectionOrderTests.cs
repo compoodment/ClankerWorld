@@ -366,6 +366,7 @@ public sealed class PrivateWorldCollectionOrderTests
         var valid = Order(world, receipt);
         foreach (var invalid in new[]
         {
+            valid with { TargetAgentId = Actor(state) },
             valid with { TargetMaterialKind = "cloth" }, valid with { TargetFoodKind = "berries" },
             valid with { TargetPosition = new(1, 1) }, valid with { TargetResourceId = "tree" },
             valid with { RequestedUnits = 0 }, valid with { CompletedUnits = -1 },
