@@ -12,6 +12,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import check_ledger
 import per_test_coverage as runner
 import remove_tests
 import unique_coverage as unique
@@ -400,6 +401,51 @@ public sealed partial class SampleTests
                 "public sealed partial class SampleTests\n{\n    [Fact]\n    public void Elsewhere() { }\n}\n")
             entry = {"test": "Example.SampleTests.Elsewhere", "decision": "delete", "file": str(root / "SampleTests.cs")}
             self.assertEqual(root / "SampleTests.More.cs", remove_tests.locate(entry, root))
+
+
+class CheckLedgerTests(unittest.TestCase):
+    LEDGER = [
+        {"test": "Ns.ATests.Gone", "decision": "delete", "retained_proof": ["Ns.ATests.Kept", "Ns.BTests.AlsoGone"]},
+        {"test": "Ns.BTests.AlsoGone", "decision": "delete", "retained_proof": ["Ns.BTests.Kept"]},
+        {"test": "Ns.CTests.Rows", "decision": "delete_rows", "rows": ["[InlineData(1)]"], "retained_proof": []},
+        {"test": "Ns.DTests.Split", "decision": "delete", "retained_proof": ["Ns.DFileTests.InPartial"]},
+        {"test": "Ns.ETests.Kept", "decision": "retain", "retained_proof": ["Ns.Missing.Anything"]},
+    ]
+
+    def test_a_proof_this_ledger_also_removes_is_reported_with_the_proofs_left(self):
+        tests = {"ATests.Kept", "BTests.Kept", "CTests.Rows", "DTests.InPartial", "ETests.Kept"}
+        report = check_ledger.check(self.LEDGER, tests)
+        self.assertEqual([{"test": "ATests.Gone", "proof": "BTests.AlsoGone", "removed_by_this_ledger": True,
+                           "other_proofs_that_run": ["ATests.Kept"]}], report["missing_proofs"])
+        self.assertEqual([], report["not_removed"])
+        self.assertEqual([], report["trimmed_but_gone"])
+
+    def test_a_proof_listed_under_another_class_is_flagged_not_failed(self):
+        tests = {"ATests.Kept", "BTests.Kept", "BTests.AlsoGone", "CTests.Rows", "DTests.InPartial"}
+        report = check_ledger.check(self.LEDGER, tests)
+        self.assertEqual([{"test": "DTests.Split", "proof": "DFileTests.InPartial", "runs_as": ["DTests.InPartial"]}],
+                         report["other_class"])
+        self.assertEqual(["BTests.AlsoGone"], report["not_removed"])
+
+    def test_removals_that_did_not_happen_and_proofs_a_follow_up_will_remove(self):
+        tests = {"ATests.Gone", "ATests.Kept", "BTests.Kept", "DTests.InPartial"}
+        report = check_ledger.check(self.LEDGER, tests, held=["Ns.ATests.Kept"])
+        self.assertEqual(["ATests.Gone"], report["not_removed"])
+        self.assertEqual(["CTests.Rows"], report["trimmed_but_gone"])
+        self.assertEqual([{"test": "ATests.Gone", "proof": "ATests.Kept"}], report["relies_on_held"])
+
+    def test_test_names_come_from_list_tests_output_or_trx(self):
+        with tempfile.TemporaryDirectory() as folder:
+            listed = Path(folder) / "list.txt"
+            listed.write_text("The following Tests are available:\n"
+                              "    Ns.ATests.Kept\n    Ns.CTests.Rows(value: 2)\n    Ns.Outer+Nested.Case\n")
+            self.assertEqual({"ATests.Kept", "CTests.Rows", "Outer+Nested.Case"}, check_ledger.read_tests(listed))
+            trx = Path(folder) / "run.trx"
+            trx.write_text('''<TestRun xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+                <TestDefinitions><UnitTest id="1"><TestMethod className="Ns.ATests" name="Kept"/>
+                </UnitTest></TestDefinitions><Results><UnitTestResult testId="1" outcome="Passed"/>
+                </Results></TestRun>''')
+            self.assertEqual({"ATests.Kept"}, check_ledger.read_tests(trx))
 
 
 if __name__ == "__main__":
