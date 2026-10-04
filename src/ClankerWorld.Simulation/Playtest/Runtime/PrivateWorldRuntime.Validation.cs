@@ -95,6 +95,7 @@ public sealed partial class PrivateWorldRuntime
             TownGovernmentValidation.Validate(town, society.Checkpoint, townLandTitles, worldSystems.Config.TicksPerDay);
         }
         ValidateTownAdmissions(towns, society.Checkpoint, checkpointSchemaVersion);
+        ValidateLandHearings(map, society.Checkpoint, towns, householdLandUseRights, householdLandUseRequests, townLandTitles, worldSystems.Config.TicksPerDay);
         TownProjectValidation.Validate(towns, society.Checkpoint, map, worldSimulation, worldContent,
             townLandTitles, householdLandUseRights, householdLandUseRequests, fields, RoadTiles, Bridges);
         ValidatePaidMarkets(towns, society.Checkpoint, map, worldSimulation, worldContent,
@@ -470,6 +471,8 @@ public sealed partial class PrivateWorldRuntime
         TownLandRightsRules.ValidateRecords(state.Map, state.Society.Society.WorldTick, state.Towns,
             state.TownLandTitles, state.HouseholdLandUseRights, state.HouseholdLandUseRequests,
             state.Society.Society);
+        ValidateLandHearings(state.Map, society.Checkpoint, state.Towns ?? [], state.HouseholdLandUseRights!,
+            state.HouseholdLandUseRequests!, state.TownLandTitles!, state.WorldSystems!.Config.TicksPerDay);
         ValidateRoads(state.RoadTiles, state.Map, state.FounderSetup);
         ValidateBridges(state.Bridges, state.BridgeTraffic, travelMap,
             state.RoadTiles, state.WorldSimulation, state.WorldContent, state.Society.Society,
@@ -607,7 +610,7 @@ public sealed partial class PrivateWorldRuntime
         if (IsFieldOrder(order.Action))
             return (order.Action == "till_field" ? order.TargetCropKind is null :
                     order.TargetCropKind is null ? order.Action != "plant_field" : FarmFieldRules.IsCrop(order.TargetCropKind)) &&
-                order.TargetAgentId is null && order.TargetFoodKind is null && order.TargetResourceId is null && order.TargetPosition is null &&
+                order.TargetAgentId is null && order.TargetFoodKind is null && order.TargetResourceId is null &&
                 order.RequestedUnits is >= 1 and <= 1000 && order.CompletedUnits is >= 0 and <= 1_000_000 &&
                 (order.QuantityIsExplicit || order.RequestedUnits == 1) && order.ProgressUnit == "fields" &&
                 (order.RepeatUntilCancelled || order.CompletedUnits <= order.RequestedUnits) &&

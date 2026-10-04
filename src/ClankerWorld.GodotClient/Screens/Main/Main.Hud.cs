@@ -554,7 +554,13 @@ public partial class Main
         if (council.WillingCandidateNames.Count > 0) lines.Add("Willing candidates: " + string.Join(", ", council.WillingCandidateNames));
         foreach (var proposal in council.Proposals.TakeLast(8))
         {
-            lines.Add($"{Pretty(proposal.Status)} {Pretty(proposal.Kind).ToLowerInvariant()} proposal: {proposal.Text}");
+            lines.Add($"{Pretty(proposal.Status)} {Pretty(proposal.Kind).ToLowerInvariant()} proposal: " +
+                (proposal.LandHearingRequest is { } request ? request.Statement : proposal.Text));
+            if (proposal.LandHearingRequest is { } landCase)
+            {
+                lines.Add("Exact plot: " + string.Join(", ", landCase.Tiles.Select(tile => $"({tile.X}, {tile.Y})")));
+                lines.Add("Requested: " + LandHearingText.Outcome(landCase.RequestedOutcome, DisplayWorldClock));
+            }
             lines.Add($"{proposal.Yes} yes / {proposal.No} no · {proposal.RequiredYes} yes needed" +
                 (proposal.Status == "pending" ? " · closes " + DisplayWorldClock(proposal.DeadlineTick) : ""));
             if (proposal.Project is { } plan && proposal.Status == "pending")
@@ -566,6 +572,14 @@ public partial class Main
             }
         }
         if (town.Government is { } government) AddGovernmentText(lines, government, tick);
+        if (town.LandHearingCount > town.LandHearings.Count)
+            lines.Add($"Showing {town.LandHearings.Count} active or recent land hearings of {town.LandHearingCount}.");
+        foreach (var hearing in town.LandHearings)
+            lines.AddRange(LandHearingText.Details(hearing, DisplayWorldClock, town.Government?.Laws));
+        if (town.LandTransferCount > town.LandTransfers.Count)
+            lines.Add($"Showing {town.LandTransfers.Count} pending or recent permission transfers of {town.LandTransferCount}.");
+        foreach (var transfer in town.LandTransfers)
+            lines.AddRange(LandTransferText.Details(transfer, DisplayWorldClock));
         // Proposals are written by agents' models, which may use the font's mid-height ellipsis.
         return GameUiText.PlainEllipses(string.Join("\n", lines));
     }
@@ -595,7 +609,7 @@ public partial class Main
         foreach (var office in government.Offices)
             lines.Add(office.HolderName is { } holder ? $"{holder}: {office.Mandate}; term ends " + DisplayWorldClock(office.TermEndTick!.Value)
                 : $"Vacant: {office.Mandate}. {office.VacancyReason}");
-        if (government.Offices.Count > 0) lines.Add("Land hearings and enforcement are not available yet; an office grants no ownership.");
+        if (government.Offices.Count > 0) lines.Add("A land mayor may decide use-permission hearings. Wider law enforcement remains unavailable; an office grants no ownership.");
         foreach (var change in government.Changes)
         {
             lines.Add($"{Pretty(change.Status)} resident proposal: {change.Declaration}");

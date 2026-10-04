@@ -9,7 +9,7 @@ using ClankerWorld.Viewer.Observation;
 
 namespace ClankerWorld.Simulation.Tests;
 
-public sealed class PrivateWorldFieldOrderTests
+public sealed partial class PrivateWorldFieldOrderTests
 {
     private static readonly Lazy<(byte[] Bytes, string Actor, string Household, GridPoint Point)> Generated = new(() =>
     {
@@ -123,12 +123,15 @@ public sealed class PrivateWorldFieldOrderTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task CancellationAndReplacementReleaseUnspentPlantingStockImmediately(bool replace)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task CancellationAndReplacementReleaseUnspentPlantingStockImmediately(bool replace, bool explicitLocation)
     {
         using var world = Restore(WithFields(WithSeeds(Prepared(), "grain", 1), new FarmFieldState(Point, Household, FarmFieldStage.Prepared)));
-        var receipt = Submit(world, "plant", "plant grain");
+        var text = "plant grain" + (explicitLocation ? $" at ({Point.X}, {Point.Y})" : "");
+        var receipt = Submit(world, "plant", text);
         Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         var reservation = Assert.Single(world.Fields).Work!.SeedReservationId!;
@@ -166,7 +169,7 @@ public sealed class PrivateWorldFieldOrderTests
     [InlineData("tend cultivated")]
     [InlineData("plant cultivated grain")]
     [InlineData("plant grain and potatoes")]
-    [InlineData("plant grain at (1, 2)")]
+    [InlineData("plant grain at (1,)")]
     [InlineData("plant grain in another household")]
     [InlineData("do not till fields")]
     [InlineData("till -2 fields")]
@@ -332,13 +335,16 @@ public sealed class PrivateWorldFieldOrderTests
         Assert.Throws<InvalidDataException>(() => Restore(state with { SchemaVersion = 71 }));
     }
 
-    [Fact]
-    public async Task ACancelledHeldModelReplyCannotSpendTheReleasedSeed()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ACancelledHeldModelReplyCannotSpendTheReleasedSeed(bool explicitLocation)
     {
         var provider = new FieldChoices(DecisionProviderKind.LargeLanguageModel, hold: true);
         using var world = PrivateWorldRuntime.Restore(WithFields(WithSeeds(Prepared(), "grain", 1), new FarmFieldState(Point, Household, FarmFieldStage.Prepared)),
             actor => actor == Actor ? provider : new FieldChoices());
-        var receipt = Submit(world, "held", "plant grain");
+        var text = "plant grain" + (explicitLocation ? $" at ({Point.X}, {Point.Y})" : "");
+        var receipt = Submit(world, "held", text);
         try
         {
             Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);

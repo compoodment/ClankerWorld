@@ -226,6 +226,8 @@ public partial class Main
         if (!nightLightsLayer.DrawnCells.Any(cell => cell.Kind == LightCellKind.Light && cell.Area.Position.X < 0))
             throw new InvalidOperationException("A wrapped building copy must keep its light at the visible world seam.");
 
+        cameraZoom = maximumCameraZoom;
+        cameraCenterTiles = new Vector2(18, 8);
         RenderMap(map);
         // A completed street fitting works without inhabitants or production jobs.
         var street = night with

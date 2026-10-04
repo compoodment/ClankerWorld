@@ -315,7 +315,10 @@ fields of grain". With no quantity, one field is the task. Quantities must name
 fields: "harvest five potatoes" is not understood rather than being treated as
 five fields. Grain, potatoes and cultivated greens are supported. An omitted
 crop for tending or harvesting allows any suitable household crop; a named crop
-must match. Named field locations are not understood yet.
+must match. Add "at (12, 4)" or "at tile 12,4" to work only at that location.
+An unavailable or unsuitable tile leaves the order waiting, even if another
+field could take the work. Quantities and repetition keep the exact location
+when there is no further matching work to do there.
 
 Agents use real walking routes and planting stock. Tilling and tending require
 a usable carried hoe; a carried sickle speeds harvesting under the ordinary
@@ -377,7 +380,7 @@ summaries remain unfinished.
 | Household shops | Basic version | Adults can offer exact goods for goods kept at a nearby Farmhouse, Blacksmith, Tailor Shop, Clinic, Restaurant or Store. Both traders meet there before anything changes hands. The buyer carries the purchase; payment goes into household stock at that shop. Buyers can seek better tool tiers, clothing that protects them better in the current weather or medicine for an observed illness. Store goods must be carried in first. The building card shows the terms and progress; cancelled offers release both lots. Buying grants no access to private stock, cooking, treatment or household membership. A customer may ask a Blacksmith household for a tool before it is stocked. The household may accept or refuse; accepted work uses its own real materials, and a finished tool is purchased through the usual physical barter. No payment, price promise or future ownership is created by the request. Request status and any missing-input or storage blocker appear on the Blacksmith and relevant agent cards; [its Windows checklist](../playtest/564-tool-making.md) is pending. Market stall trading is described below. Restaurant adults buy missing ingredients and customers buy meals after walking to a shop in their own Town. Its [Windows checklist](../playtest/561-concrete-meals.md) is pending. Barter rates and shelf sizes are provisional. |
 | Clinic supplies and illness care | Basic version | Reachable renewable herb patches supply a household-held 1×1 or 1×2 Clinic. It makes medicine from herbs, wood and water in a reusable jug; a House or Tailor Shop cuts cloth into bandages. One real medicine dose reduces illness gradually. Adults choose named caregivers through a fresh accepted personal-model decision and may revoke permission; self-care and a dependent's accepted caregiver use their existing authority. Jev, failed replies, repeated intentions and owner orders cannot grant adult permission. Interrupted treatment stops without refunding the spent dose. Saving keeps permission and progress; pausing stops recovery time. Injury causes and bandage treatment remain deferred. Automated checks cover this path; [the Windows playtest](../playtest/565-clinic-care.md) remains pending. |
 | Parenthood, guardians, life stages and death | Basic version | Ordinary consent/preparation binds an explicit primary caregiver and intended home; the accepting parent chooses a named caregiver-and-home option. Birth joins the caregiver's current household even if it has changed, is full, or has lost its House; a missing home is recorded as a housing need, and the other parent stays put. If the current primary caregiver dies or ends care, living relatives, household adults and then Town residents are asked in order, and each wider group keeps the earlier ones. A willing adult must accept; until then the child's card and Event Log say “Needs a guardian,” nearby adults may still feed them, and the player can suggest an adult who is being asked in a message. An adult can also be ordered to accept a named child through the same active search; Queue, Cancel task and normal eligibility checks still apply. A completed House with room in the same known Town permits household placement at acceptance. Otherwise care stays accepted while a pending move waits for a suitable home: the guardian collects the child and accompanies them to their House, including in another Town. Household and Town membership change together on arrival, after care authority and room are checked again; birth records stay unchanged. The agent card shows waiting, travel and blockers, and pending moves survive save/load. Infant care, child talk/play/help and age restrictions are enforced. Only adults can have children; elders cannot, and a plan ends if either partner becomes an elder before the birth. While fewer than eight non-elders live, the continuity rule lets a partnered couple with no infant put off a child for up to two days but not refuse. Parents' selected child model is recorded at birth; children without an explicit model use safe local choices. The owner can later choose another model or leave the child unconfigured; world defaults are not inherited. |
-| Towns and household property | Basic version | First-Town membership/borders, building ownership, household stores, household food steward, and an adult with no household asking to join a household that holds a House, with every adult member's agreement. The accepted first-Town layout records Town title over its connected land and starter household use rights on owned building footprints; later border growth alone does not add title. Councils can approve explicit claims to adjoining unclaimed land. Add Agent uses recorded rights; one pending request does not assign a household, and conflicting claims make placement ambiguous. Owners can reassign or remove buildings when stored goods, deliveries and active work allow; Town borders and title stay unchanged, while a household building takes its existing footprint use right to the new household. Any agent can physically recover unreserved communal stock from an empty Town's Warehouse. Adults may leave without a vote, retrieve their personal goods and form a household alone after seeking an accepting existing home. An adult with no Town can join one through its council (below). Recorded multiple Towns can be saved and validated, but founding another Town, land transfers and land-case decisions, broader law and currencies remain unfinished. Nonconflicting household land grants require Council approval and every current adult household member's explicit acceptance. House expansion needs recorded use rights on its extra tiles. |
+| Towns and household property | Basic version | First-Town membership/borders, building ownership, household stores, household food steward, and an adult with no household asking to join a household that holds a House, with every adult member's agreement. The accepted first-Town layout records Town title over its connected land and starter household use rights on owned building footprints; later border growth alone does not add title. Councils can approve explicit claims to adjoining unclaimed land. Add Agent uses recorded rights; one pending request does not assign a household, and conflicting claims make placement ambiguous. Owners can reassign or remove buildings when stored goods, deliveries and active work allow; Town borders and title stay unchanged, while a household building takes its existing footprint use right to the new household. Any agent can physically recover unreserved communal stock from an empty Town's Warehouse. Adults may leave without a vote, retrieve their personal goods and form a household alone after seeking an accepting existing home. An adult with no Town can join one through its council (below). Recorded multiple Towns can be saved and validated. Existing use permissions can transfer with every current adult's acceptance in all giving and receiving households; public land hearings decide disputes and expiry with sourced rulings and grounded rehearings. Founding another Town, wider enforcement and currencies remain unfinished. Nonconflicting household land grants require Council approval and every current adult household member's explicit acceptance. House expansion needs recorded use rights on its extra tiles. |
 
 Restaurant trading uses the normal private-world path; its
 [Windows playtest checklist](../playtest/561-concrete-meals.md) is pending.
@@ -495,12 +498,24 @@ accept. A refusal, withdrawal or elapsed requested end date closes the request;
 conflicting claims remain pending without changing anyone's rights. Plot
 details show Council votes and household acceptance counts.
 
+Existing use permissions can transfer between households for an exact connected
+plot. Every current adult in every giving and receiving household must actually
+learn the published terms and personally accept. A proposal, a read or silence
+supplies no consent, and a new adult joining before completion must accept too.
+This ordinary route needs no mayor or Council approval and preserves the original
+grant date and any agreed end date. It changes no Town title, household membership,
+building, crop, goods or private-building access. A decline or the proposer's
+withdrawal closes it without moving permission. Expiry, disputed claims, an open
+hearing or changed source permission stop it. Town, plot and property details
+show exact terms, named adults and acceptance counts; Towns retains all pending
+transfers and eight recent closed ones, with full history in the save.
+
 A House that needs more room can request the exact extra tiles for an expansion.
 Construction waits for recorded permission, and rechecks it before completion.
 Town-owned expansions need Town title on their extra tiles. These checks do not
 transfer buildings or goods, and an expired existing right remains recorded
-until a lawful ruling changes it. Hearings, expiry rulings and voluntary
-transfers remain in [#633](https://github.com/compoodment/ClankerWorld/issues/633).
+until a lawful ruling changes it. An agreed expiry opens a review and leaves
+the permission provisional while that review is pending.
 
 Councils can adopt, amend and repeal laws with a named subject and scope:
 formally claimed land (including visitors), a recorded site within that land,
@@ -533,8 +548,32 @@ restores all-adult decisions until lawful succession; land cases wait.
 The Towns page shows the approved arrangement, offices, recent government
 votes, current and last mayoral contests, and the latest sixteen laws with
 scope, version and effective dates. Complete histories stay in the save.
-Land hearings, enforcement and punishment are still separate unfinished work.
-Windows civic pacing and visual checks remain pending.
+
+Affected households and the legitimate Town government can file public land
+hearings. Each affected adult gets a formal response period; actual reading or
+relaying supplies awareness, and only their own answer or explicit waiver can
+close their opportunity early. The file distinguishes allegations, observations
+and inspected records, with sources and the deciding mayor's reasons. A conflicted
+land mayor stands aside for a willing independent adult elected for that case
+only. Without valid authority, the case and existing rights remain pending.
+
+Parties named at notice publication remain separate from current adult responders
+and the authorized Town representative. Death, household departure or loss of authority
+cannot leave someone falsely displayed as a required current responder; rulings
+retain their actual parties at the time of decision.
+
+Rulings can confirm, renew, change or end use permissions while preserving Town
+title, households, buildings, crops and goods. A permission past its agreed end
+must be renewed, changed or ended, and free Town land is given out only where a
+pending request for it was heard. Settled cases reopen only on
+material new evidence or a demonstrated procedural error, preserving earlier
+rulings and current rights until a correction. A ruling resolves only the
+covered part of a competing request; remaining tiles stay pending. Towns shows
+active cases, pending rehearing assessments and eight recent settled cases;
+plot and property details show matching cases. Complete history stays saved.
+Wider enforcement and punishment remain unfinished. Windows civic pacing and
+visual checks remain pending; see the unchecked
+[#633 playtest](../playtest/633-land-hearings.md).
 
 An agent belongs to one Town or none, and travel never changes that. Losing a
 home keeps Town membership, the council vote and in-person Warehouse

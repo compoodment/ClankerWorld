@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json.Serialization;
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Society;
@@ -40,6 +41,8 @@ public sealed record HouseholdLandUseRequest(
     public string? CouncilProposalId { get; init; }
     public IReadOnlyList<HouseholdLandUseConsent> Consents { get; init; } = [];
     public IReadOnlyList<string> GrantAdults { get; init; } = [];
+    [JsonRequired]
+    public IReadOnlyList<TownLandRequestResolution> HearingResolutions { get; init; } = [];
 }
 
 public sealed record HouseholdLandUseConsent(string AgentId, bool Accepted, long Tick);
@@ -55,6 +58,9 @@ public sealed record HouseholdLandUseRequestResult(
 public static class TownLandRightsRules
 {
     public const string StarterAllocationSource = "starter_allocation";
+
+    public static IEnumerable<GridPoint> UnresolvedRequestTiles(HouseholdLandUseRequest request) =>
+        request.Tiles.Where(tile => !request.HearingResolutions.Any(resolution => resolution.Tiles.Contains(tile)));
 
     public static GridPoint[] OrderTiles(IEnumerable<GridPoint> tiles) => tiles
         .OrderBy(point => point.Y).ThenBy(point => point.X).ToArray();
@@ -185,7 +191,7 @@ public static class TownLandRightsRules
     public static IReadOnlyList<string> ClaimantsAt(GridPoint tile,
         IReadOnlyList<HouseholdLandUseRight> rights, IReadOnlyList<HouseholdLandUseRequest> requests) =>
         rights.Where(right => right.Tiles.Contains(tile)).Select(right => right.HouseholdId)
-            .Concat(requests.Where(request => request.Status == "pending" && request.Tiles.Contains(tile)).Select(request => request.HouseholdId))
+            .Concat(requests.Where(request => request.Status == "pending" && UnresolvedRequestTiles(request).Contains(tile)).Select(request => request.HouseholdId))
             .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
 
     public static bool IsCoveredByTownTitle(GridPoint tile, string townId,
