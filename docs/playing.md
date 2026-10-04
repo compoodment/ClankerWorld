@@ -73,7 +73,9 @@ any other living or deceased agent in the world; changing the surname alone
 does not free a taken first name. You can keep the selected agent's own first
 name. A child's chosen surname must come from a biological parent. Temporary
 names do not reserve first names, and renaming leaves past conversations as
-spoken.
+spoken. Changing a married agent's surname updates both spouses together,
+keeping the other spouse's first and middle names. A taken first name leaves
+both names unchanged.
 
 ## Create your first Town
 
@@ -162,8 +164,11 @@ with a picture of its ground. **Family** opens their family tree beside the
 Profile, with a portrait for each person and a heart between partners. Click
 someone to open their Profile.
 
-Handcarts appear as small wheeled carts on the map. Hover over one or inspect
-its tile to see its owner, parked or pulled state, condition and actual cargo.
+Handcarts show their empty or loaded bed at close zoom and face the way they
+last moved. A loaded cart pulled east or south-east lifts its shafts; other
+directions use the parked picture. At smaller zooms, carts use a small wheeled
+icon. Hover over one or inspect its tile to see its owner, parked or pulled
+state, condition and actual cargo.
 The owner's agent card also lists their carts. A broken cart keeps its goods;
 its owner can unload here or repair it with carried wood, iron fittings and rope.
 A cart holds loose goods separately from the agent's own carrying limit.
@@ -175,6 +180,16 @@ that this agent could hear. Reading it does not pause the world, and private
 thoughts never appear in the conversation. An interrupted conversation stays
 stopped until both participants choose to resume; loading a save never starts
 provider calls for it on its own.
+
+Partnered adults can propose marriage during a face-to-face conversation.
+Both people decide with their own selected models. If they agree, a separate
+**Shared surname** conversation follows, using only their two existing
+surnames. It may continue while the partners are apart. They have at most four
+alternating turns; if they still disagree, the game discloses a draw for the
+surname. A failed call, pause or cancellation keeps the completed turns and
+leaves marriage incomplete until the surname is settled. The agent's Profile
+shows their spouse and whether that choice is still pending. Marriage is not
+required to have a child.
 
 **Suggest** shares an idea with the agent's own planning model. **Order** gives
 it a task. A new suggestion or recognized order asks for one fresh planning

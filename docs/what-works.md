@@ -387,6 +387,19 @@ provisional and need a Windows playtest. Private thoughts are never shared as
 conversation history. Other automatic experience capture and generated memory
 summaries remain unfinished.
 
+Partnered adults can propose marriage through that conversation's wrap-up.
+Each partner separately accepts or declines with their selected personal model.
+Mutual marriage consent starts a dedicated surname conversation, which can
+continue remotely and has at most four alternating valid turns. Only the
+partners' original surnames are allowed; agreement ends it early, otherwise a
+disclosed seeded draw resolves it after four turns. Failed calls, pauses and
+cancellations consume no surname turn. Consent, surname progress and the final
+result survive saves and ordinary conversation-history compaction. Profiles
+show the spouse and shared surname, and later player surname changes update
+both spouses together while keeping the original conversation unchanged. A
+taken first name leaves both names unchanged. Divorce, remarriage and widowhood
+rules are not implemented here.
+
 ## Life, work and society
 
 | Feature | Status | Current limits |
@@ -941,6 +954,11 @@ water; Roads and plank bridges, with streets running up to each bridge; trees
 and natural sites; barrel, saguaro and prickly-pear cacti on about one in five
 desert cactus-cover tiles; farm fields as tilled soil with each crop shown at
 its stage; every current building; item icons; and the interface icons.
+At close zoom, physical handcarts use the approved empty and loaded pictures
+in eight directions, including the two loaded pulled poses. Smaller zooms
+keep the existing cart icon while the
+[separate 16px artwork](https://github.com/compoodment/ClankerWorld/issues/914)
+is pending.
 Agents face the way they last moved and show walking steps, and carrying,
 working, talking or hurt poses chosen from what the game already knows about
 them. A mountain range near the camera can show the earlier per-tile art for

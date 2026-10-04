@@ -1,0 +1,1 @@
+- Partners can agree to marry through their own models and then choose a shared surname in a saved conversation. A disclosed draw settles continued disagreement after four turns. Player surname changes update both spouses together, and a taken first name leaves both unchanged. Older alpha saves are refused and preserved by the new marriage save format.
