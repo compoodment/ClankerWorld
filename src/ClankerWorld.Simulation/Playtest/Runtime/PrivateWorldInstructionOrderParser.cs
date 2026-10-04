@@ -378,6 +378,7 @@ internal static class PrivateWorldInstructionOrderParser
         {
             var start = position;
             if (!ReadWord("the") && !ReadWord("a")) _ = ReadWord("an");
+            var crude = ReadWord("crude");
             var material = ReadWord("wooden") ? "wooden" : ReadWord("stone") ? "stone" : ReadWord("iron") ? "iron" : null;
             if (material is not null)
             {
@@ -387,8 +388,13 @@ internal static class PrivateWorldInstructionOrderParser
                     TryReadAnyWord("hammer", "hammers") ? "hammer" :
                     TryReadAnyWord("sickle", "sickles") ? "sickle" :
                     TryReadAnyWord("knife", "knives") ? "knife" : null;
-                var kind = material + "_" + tool;
+                var kind = (crude ? "crude_" : "") + material + "_" + tool;
                 if (IsToolKind(kind)) return kind;
+                position = start;
+                return null;
+            }
+            if (crude)
+            {
                 position = start;
                 return null;
             }

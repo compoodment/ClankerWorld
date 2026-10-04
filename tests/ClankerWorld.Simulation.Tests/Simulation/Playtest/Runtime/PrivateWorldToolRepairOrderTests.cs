@@ -19,6 +19,8 @@ public sealed class PrivateWorldToolRepairOrderTests
     });
 
     [Theory]
+    [InlineData("crude_wooden_axe")]
+    [InlineData("crude_wooden_pickaxe")]
     [InlineData("wooden_axe")]
     [InlineData("stone_axe")]
     [InlineData("iron_axe")]
@@ -83,6 +85,9 @@ public sealed class PrivateWorldToolRepairOrderTests
     }
 
     [Theory]
+    [InlineData("repair crude wooden hoe")]
+    [InlineData("repair crude stone axe")]
+    [InlineData("repair crude iron pickaxe")]
     [InlineData("repair an axe")]
     [InlineData("repair wooden knives")]
     [InlineData("repair stone hoes")]

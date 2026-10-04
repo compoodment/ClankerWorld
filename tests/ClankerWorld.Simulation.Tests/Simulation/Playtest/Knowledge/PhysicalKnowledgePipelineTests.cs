@@ -4,6 +4,7 @@ using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
+using ClankerWorld.Simulation.Society;
 using ClankerWorld.Viewer.Observation;
 
 namespace ClankerWorld.Simulation.Tests;
@@ -27,6 +28,14 @@ public sealed class PhysicalKnowledgePipelineTests
         };
         inventory = InventoryFixture.AddLot(inventory, "paper-water-jug", InventoryContainerRules.WaterJug,
             household, 1, state.Society.Society.WorldTick, storageBuildingId: houseId);
+        // Begin this paper-supply scenario with household tool needs met, so the
+        // built-in chooser can reach the jug within the bounded observation window.
+        var adults = state.Society.Society.Inhabitants.Count(person => person.HouseholdId == household &&
+            person.Status == SocietyInhabitantStatus.Active && person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder);
+        inventory = InventoryFixture.AddLot(inventory, "paper-fixture-axes", "wooden_axe", household,
+            adults, storageBuildingId: houseId);
+        inventory = InventoryFixture.AddLot(inventory, "paper-fixture-picks", "wooden_pickaxe", household,
+            adults, storageBuildingId: houseId);
         Assert.DoesNotContain(inventory.Lots, lot => lot.OwnerId == household && lot.ItemKind is "fiber" or "fresh_water" or "paper");
         var provider = new ChoosingProvider(actor, "explore");
         using var world = PrivateWorldRuntime.Restore(WithInventory(state, inventory) with

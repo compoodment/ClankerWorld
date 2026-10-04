@@ -44,6 +44,15 @@ waiting for a home, meeting up or travelling. The child joins the guardian's
 household and Town only when they arrive together and the House still has room.
 Birth parents and family history stay unchanged.
 
+A household can make a crude wooden axe and pickaxe at its own House from
+wood stored there. Nearby fallen wood can be gathered by hand to get started.
+The axe fells trees and the pickaxe extracts stone, so a household does not
+need a Town or Blacksmith for those first tools. Crude tools gather less and
+wear out sooner than the Blacksmith's wooden tools. Agents collect and use a
+better usable tool when one is available. Inventory and plot details name the
+crude tools, and the Event Log records completed work; their item pictures
+still use the generic icon.
+
 When a House is overcrowded, inspect a resident's housing details to see who
 has notice to move out, why, how much time remains and whether expansion is
 under way. Eligible adults get one world day; pausing stops the countdown,

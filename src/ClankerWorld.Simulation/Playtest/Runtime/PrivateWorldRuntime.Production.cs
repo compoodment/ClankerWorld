@@ -500,7 +500,11 @@ public sealed partial class PrivateWorldRuntime
                     .ToArray(),
                 worldSimulation.NextProductionJobSequence,
                 worldSimulation.CropBuilds, worldSimulation.BuildingExpansions, worldSimulation.GuestInvitations);
-            AppendEvent(completed ? "recipe_completed" : "recipe_cancelled", $"{job.JobId}:{recipe.CanonicalId}");
+            if (completed && HouseToolsContent.IsCrudeToolRecipe(recipe))
+                AppendEvent("house_tool_made", $"{job.WorkerId}|{recipe.Outputs.Single().ResourceId}",
+                    worldSimulation.Buildings.FirstOrDefault(building => building.InstanceId == job.BuildingInstanceId)?.Position);
+            else
+                AppendEvent(completed ? "recipe_completed" : "recipe_cancelled", $"{job.JobId}:{recipe.CanonicalId}");
             if (completed) CreditProductionOrderJob(job, recipe);
         }
     }
