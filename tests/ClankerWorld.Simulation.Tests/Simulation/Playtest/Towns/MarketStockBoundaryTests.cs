@@ -12,9 +12,10 @@ public sealed class MarketStockBoundaryTests
     private const string Household = "household:camp-alpha";
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task OrdinaryPersonalCollectionCannotReclaimMarketStock(bool ownerOrder)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task OrdinaryPersonalCollectionCannotReclaimMarketStock(bool ownerOrder, bool targeted)
     {
         var state = await PaidMarketWorld.StateAsync();
         var stall = PaidMarketWorld.StallTile(state, 0);
@@ -27,8 +28,16 @@ public sealed class MarketStockBoundaryTests
                 ? candidates.FirstOrDefault(candidate => candidate.Id == "household_collect:boundary-personal-wood") : null,
         };
         using var world = PrivateWorldRuntime.Restore(state, policy.CreateProvider);
-        if (ownerOrder) world.SubmitInstruction(new("boundary-collect-order", "owner:test", Seller,
-            OwnerInstructionKind.MustDo, "collect two wood"));
+        if (ownerOrder)
+        {
+            var receipt = world.SubmitInstruction(new("boundary-collect-order", "owner:test", Seller,
+                OwnerInstructionKind.MustDo, targeted ? $"collect two wood from ({stall.X}, {stall.Y})" : "collect two wood"));
+            var instruction = Assert.Single(world.ExportState().Instructions!, item => item.InstructionId == receipt.InstructionId);
+            Assert.NotNull(instruction.Order);
+            Assert.Equal("collect_material", instruction.Order.Action);
+            Assert.Equal(targeted ? stall : (GridPoint?)null, instruction.Order.TargetPosition);
+            Assert.Equal(2, instruction.Order.RequestedUnits);
+        }
         for (var tick = 0; tick < 12; tick++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         var lot = world.Society.Inventory.GetLot("boundary-personal-wood");
         Assert.Equal((Seller, 2, (string?)null, new InventoryGroundPosition(stall.X, stall.Y)),

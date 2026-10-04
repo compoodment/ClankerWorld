@@ -156,8 +156,11 @@ Collection orders use `PersonalGoodsAwaitingCollection` and the shared
 carried, reserved in full, promised for delivery or inside another container.
 Storage must belong to the current household or one recorded in that actor's
 departures. Ground lots use normal pickup range. The nearest reachable eligible
-lot is chosen, with stable identity ordering for ties; an explicit source is
-not yet recognized. Physical pickup preserves ownership, condition, provenance
+lot is chosen, with stable identity ordering for ties. An optional source tile
+filters this same set by its current physical position, at both selection and
+execution. Moving goods away or exhausting the tile leaves the remaining order
+blocked; it never falls back to another location. Building storage uses the
+building's listed position. Physical pickup preserves ownership, condition, provenance
 and reserved portions, with the final quantity capped by carrying space and
 the requested remainder. Only the committed relocation earns progress, using
 a bounded hashed receipt. Former-household collection grants no other access.

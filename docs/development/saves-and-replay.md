@@ -127,7 +127,8 @@ goods again. Older alpha saves are refused and preserved without migration.
 
 Private-world schema 67 adds `collect_material` orders for the same material
 catalogue. Their source is selected through ordinary personal-goods collection
-rules, so explicit source, food, guardian and coordinate targets are refused. Progress
+rules; schema 74 adds an optional coordinate constraint below. Food, guardian
+and resource identity targets remain invalid. Progress
 counts collected loads or exact item quantities, and a bounded committed-move
 receipt prevents replay from duplicating pickup. Unavailable goods and full
 carrying space preserve the remaining task. Older alpha saves are refused and
@@ -191,6 +192,15 @@ kinds and repair counts. Only a completed inventory repair earns a bounded
 queues and cancellation without charging the materials twice. This version
 follows integrated field-order schema 72. Older alpha saves are refused and preserved
 unchanged without migration.
+
+Private-world schema 74 allows an optional `TargetPosition` on collection orders.
+Coordinates keep the existing bounded integer validation; an off-map target is
+a valid instruction that waits with a reason. The exact tile survives queued
+work, travel, partial pickup, cancellation and reload. Runtime selection and
+execution both recheck the lot's current position along with ordinary personal
+collection permissions, so moved or depleted goods cannot redirect the order.
+This version follows integrated tool-repair-order schema 73. Older alpha saves
+are refused and preserved unchanged without migration.
 
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
@@ -562,7 +572,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 74. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 75. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
@@ -631,7 +641,7 @@ physical knowledge writing, schema 63 for exact-tile movement orders, schema 64
 for overcrowding move-out notices, schemas 65 to 67 for material gathering,
 storage and collection orders, schema 68 for shared Town-project construction,
 schema 69 for equipment-repair orders, schema 70 for explicit chosen names and
-unique first names, schema 71 for physical guardian placements and schema 74
+unique first names, schema 71 for physical guardian placements and schema 75
 for paid Markets and physical stall trade record when those fields or behaviors
 were introduced; they do not allow an earlier checkpoint schema past the
 current alpha cutoff.
@@ -690,7 +700,7 @@ current alpha cutoff.
 | Schema 69 | Equipment-repair orders retain the equipment kind and progress in finished repairs, and an in-progress repair names the order it belongs to. Loading refuses mixed target fields, unearned progress and a repair bound to another order or item kind. Queue, cancellation and partial work replay without duplicate material costs; older alpha saves are refused and preserved without migration. |
 | Schema 70 and society/runtime v2 | Required chosen-name markers distinguish temporary labels from chosen identities, even after automatic naming ends. Chosen first names are unique across living and deceased inhabitants. Current-format reload and compaction retain the marker and pending retry; older alpha formats are refused and preserved without inference or migration. |
 | Schema 71 | Pending guardian placements retain exact accepted care authority, collecting or escorting progress, a selected House and current blocker. Household and Town membership change together only on valid arrival. Earlier alpha checkpoints are refused and preserved without migration. |
-| Schema 74 | Required Market lists bind paid halls and stalls to their completed Town projects, with named borrowing, physical stock receipts and exact inventory barter history. Earlier alpha checkpoints are refused and preserved without migration. |
+| Schema 75 | Required Market lists bind paid halls and stalls to their completed Town projects, with named borrowing, physical stock receipts and exact inventory barter history. Earlier alpha checkpoints are refused and preserved without migration. |
 
 ### Tool-making requests
 
@@ -796,7 +806,7 @@ alpha schemas, including 53, are refused visibly and preserved without migration
 
 ## Paid Markets and stall trade
 
-Schema 74 adds a required, non-null `Markets` list to each Town. Each Market
+Schema 75 adds a required, non-null `Markets` list to each Town. Each Market
 binds its hall and fixed 7×4 plaza to the completed starter project, which pays
 for exactly two stalls in slots 0 and 4. Each additional stall requires its own
 completed project with the exact definition, slot, site and material budget.
