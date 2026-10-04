@@ -379,6 +379,7 @@ public sealed record ViewerTown(
     public ViewerTownGovernance? Governance { get; init; }
     public IReadOnlyList<ViewerTownProject> Projects { get; init; } = [];
     public ViewerTownGovernment? Government { get; init; }
+    public IReadOnlyList<ViewerMarket> Markets { get; init; } = [];
     public IReadOnlyList<ViewerTownLandHearing> LandHearings { get; init; } = [];
     public int LandHearingCount { get; init; }
     public IReadOnlyList<ViewerLandTransfer> LandTransfers { get; init; } = [];
@@ -460,6 +461,20 @@ public sealed record ViewerMayoralElection(string Id, string Mandates, string St
 public sealed record ViewerTownGovernment(string Declaration, IReadOnlyList<ViewerTownLaw> Laws, int LawCount,
     IReadOnlyList<ViewerTownOffice> Offices, IReadOnlyList<ViewerGovernmentChange> Changes,
     ViewerMayoralElection? Election, ViewerMayoralElection? LatestElection, long RetryTick);
+
+public sealed record ViewerMarket(string Id, string ProjectId, string HallBuildingId,
+    ViewerPosition Site, ViewerPosition PlazaPosition, int PlazaWidth, int PlazaHeight,
+    IReadOnlyList<ViewerMarketStall> Stalls, long? RemovedTick = null);
+public sealed record ViewerMarketStall(string BuildingInstanceId, int SlotIndex, ViewerPosition Position,
+    string? SellerId, string? SellerName, long? OccupiedTick,
+    IReadOnlyList<ViewerMarketStock> Stock, IReadOnlyList<ViewerMarketTrade> Trades);
+public sealed record ViewerMarketStock(string LotId, string? ParentLotId, string OwnerId, string OwnerName,
+    string Kind, int Quantity, int AvailableQuantity);
+public sealed record ViewerMarketTrade(string OfferId, string SellerId, string SellerName,
+    string GoodsOwnerId, string GoodsOwnerName, string PaymentOwnerId, string PaymentOwnerName,
+    string BuyerId, string BuyerName, string GoodsKind, int GoodsQuantity, string PaymentKind,
+    int PaymentQuantity, string Status, string? CancellationReason,
+    bool SellerAccepted = false, bool BuyerAccepted = false);
 
 public sealed record ViewerCivicProposal(string Id, string Kind, string Text, string Status, int Yes, int No,
     int RequiredYes, long DeadlineTick)

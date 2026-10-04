@@ -271,6 +271,8 @@ public partial class Main
             string.Join('|', building.ToolMakingRequests.Select(request => request.Id + ":" + request.Status + ":" + request.Blocker));
         var townHall = building.Tags?.Contains("town_hall", StringComparer.Ordinal) == true;
         signature += "|" + townHall;
+        var market = MarketForBuilding(snapshot, building.InstanceId);
+        signature += "|" + (market is null ? string.Empty : MarketBuildingText(market, building.InstanceId));
         if (renderedBuildingStatus == signature) return;
         renderedBuildingStatus = signature;
         ClearChildren(buildingQuickStatus);
@@ -296,6 +298,12 @@ public partial class Main
             buildingQuickStatus.AddChild(new Label { Text = $"{Plural(openTrades, "customer exchange")} waiting" });
         if (townHall)
             buildingQuickStatus.AddChild(new Label { Text = "Town civic notice place · see Council decisions in World Info" });
+        if (market is not null)
+            buildingQuickStatus.AddChild(new Label
+            {
+                Text = MarketBuildingText(market, building.InstanceId),
+                AutowrapMode = TextServer.AutowrapMode.WordSmart,
+            });
         if (jobs.Length > 0)
         {
             buildingQuickStatus.AddChild(JobRow(snapshot, jobs[0]));
@@ -329,7 +337,9 @@ public partial class Main
         string? household, string? town, OwnerWorldProductionJob[] jobs, string[] inside)
     {
         var townHall = building.Tags?.Contains("town_hall", StringComparer.Ordinal) == true;
-        var usedBy = townHall ? "Town civic notice place" : household ?? (town is not null && building.Tags?.Contains("warehouse") == true
+        var market = MarketForBuilding(snapshot, building.InstanceId);
+        var usedBy = townHall ? "Town civic notice place" : market is not null
+            ? "Market sellers and customers · goods keep their recorded owners" : household ?? (town is not null && building.Tags?.Contains("warehouse") == true
             ? $"{town} residents" : "Any agent");
         var facts = new List<(string Key, string Value)>
         {
@@ -338,7 +348,7 @@ public partial class Main
             ("Built", SplitClock(DisplayWorldClock(building.PlacedTick)).Date),
             ("Footprint", $"{building.Width} × {building.Height} tiles"),
         };
-        if (townHall && snapshot.Towns.SelectMany(item => item.Projects)
+        if ((townHall || market is not null) && snapshot.Towns.SelectMany(item => item.Projects)
                 .FirstOrDefault(project => project.CompletedBuildingId == building.InstanceId) is { } project)
         {
             facts.Add(("Town project", project.Name));
@@ -350,6 +360,27 @@ public partial class Main
         }
         if (building.StorageCapacity is { } capacity)
             facts.Add(("Storage", $"{building.StoredQuantity} / {capacity} items"));
+        if (market is not null)
+        {
+            facts.Add(("Market", $"Town-owned hall and stalls · {market.PlazaWidth} × {market.PlazaHeight} plaza"));
+            facts.Add(("Stall use", market.RemovedTick is null
+                ? "An adult seller may borrow a free stall until leaving; customers from any Town may trade"
+                : "Market removed · stalls inactive; goods keep their recorded owners"));
+            var stalls = building.InstanceId == market.HallBuildingId ? market.Stalls
+                : market.Stalls.Where(stall => stall.BuildingInstanceId == building.InstanceId).ToArray();
+            foreach (var stall in stalls)
+            {
+                facts.Add(($"Stall {stall.SlotIndex + 1}", MarketStallText(stall, market.RemovedTick is not null)));
+                if (stall.Stock.Count == 0) facts.Add(("Goods at stall", "No goods deposited here"));
+                foreach (var stock in stall.Stock)
+                    facts.Add(("Goods at stall", MarketStockText(stock)));
+                foreach (var trade in stall.Trades)
+                {
+                    facts.Add(("Exchange", MarketTradeText(trade)));
+                    facts.Add(("Exchange ownership", $"Goods: {trade.GoodsOwnerName} · payment: {trade.PaymentOwnerName}"));
+                }
+            }
+        }
         if (building.Tags?.Any(tag => tag is "farmhouse" or "blacksmith" or "tailor" or "store" or "restaurant" or "clinic") == true)
             facts.Add(("Customers", "May trade here; household stock and other uses remain private"));
         foreach (var hearing in LandHearingText.ForInspection(snapshot.Towns.SelectMany(item => item.LandHearings).Where(item =>
@@ -432,6 +463,20 @@ public partial class Main
         buildingPeopleText.Text = string.Join('\n', people);
         buildingPeopleText.Visible = people.Count > 0;
         RenderBuildingManagement(snapshot, building);
+    }
+
+    private static OwnerWorldMarket? MarketForBuilding(OwnerWorldSnapshot snapshot, string buildingId) =>
+        snapshot.Towns.SelectMany(town => town.Markets).FirstOrDefault(market =>
+            market.HallBuildingId == buildingId || market.Stalls.Any(stall => stall.BuildingInstanceId == buildingId));
+
+    private static string MarketBuildingText(OwnerWorldMarket market, string buildingId)
+    {
+        if (market.RemovedTick is not null) return "Market inactive · goods keep their recorded owners";
+        if (buildingId == market.HallBuildingId)
+            return $"{Plural(market.Stalls.Count, "stall")} built · {market.Stalls.Count(stall => stall.SellerId is not null)} borrowed";
+        var stall = market.Stalls.First(item => item.BuildingInstanceId == buildingId);
+        return MarketStallText(stall) + $" · {stall.Stock.Sum(stock => stock.Quantity)} items at stall · " +
+            $"{Plural(stall.Trades.Count(trade => trade.Status == "open"), "exchange")} waiting";
     }
 
     private void RenderBuildingManagement(OwnerWorldSnapshot snapshot, OwnerWorldPlacedBuilding building)

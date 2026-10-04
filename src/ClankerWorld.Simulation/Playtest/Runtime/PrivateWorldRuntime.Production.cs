@@ -24,6 +24,7 @@ public sealed partial class PrivateWorldRuntime
             .Concat(RoadAndBridgeTiles())
             .Concat(fields.Select(field => field.Position))
             .Concat(TownProjectProtectedSites(townProjectId))
+            .Concat(MarketSiteTiles())
             .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused).SelectMany(ExpansionTiles))
             .Concat(worldSimulation.Buildings.SelectMany(building =>
             {
@@ -52,7 +53,15 @@ public sealed partial class PrivateWorldRuntime
             roadTiles: roadTiles,
             requiredNeighborTiles: building is not null && HouseholdBuildingKind(building) == "silo" ? SiloNeighborTiles(actor, definitions) : null,
             requiredLandTiles: forTownProject && town is not null ? TownProjectLandTiles(town) : null,
-            requiredEntranceOffset: forTownProject ? new GridPoint(1, 4) : null);
+            requiredEntranceOffset: forTownProject
+                ? building?.Tags.Contains(MarketContent.HallTag, StringComparer.Ordinal) == true ? new GridPoint(1, 2) : new GridPoint(1, 4)
+                : null,
+            requiredFootprintOffsets: forTownProject && building?.Tags.Contains(MarketContent.HallTag, StringComparer.Ordinal) == true
+                ? MarketContent.SiteTiles(new(0, 0)) : null,
+            permittedRoadOffsets: forTownProject && building?.Tags.Contains(MarketContent.HallTag, StringComparer.Ordinal) == true
+                ? MarketContent.PlazaTiles(new(0, 0)).Except(Enumerable.Range(0, MarketContent.MaximumStalls)
+                    .Select(slot => MarketContent.StallSite(new(0, 0), slot))) : null,
+            protectedTiles: TownProjectProtectedSites(townProjectId).Concat(bridges.SelectMany(item => item.Entrances)));
     }
 
     /// <summary>A Silo stands near its household's Farmhouse; no Farmhouse means no legal Silo site.</summary>
@@ -181,7 +190,7 @@ public sealed partial class PrivateWorldRuntime
         {
             var available = inventory.Lots
                 .Where(lot => lot.OwnerId == (ownerId ?? HouseholdId) && lot.ItemKind == requested.ResourceId &&
-                    !IsHandcartCargo(inventory, lot))
+                    !IsHandcartCargo(inventory, lot) && !OnBorrowedMarketStall(lot))
                 .Sum(AvailableLotQuantity);
             if (available < requested.Amount)
             {
@@ -250,6 +259,8 @@ public sealed partial class PrivateWorldRuntime
             .Concat(RoadAndBridgeTiles())
             .Concat(fields.Select(field => field.Position))
             .Concat(TownProjectProtectedSites(townProjectId))
+            // An extra stall is the one building that belongs on a Market site, on its own approved slot.
+            .Concat(MarketSiteTiles().Where(tile => tile != position || !definition.Tags.Contains(MarketContent.StallTag, StringComparer.Ordinal)))
             .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused).SelectMany(ExpansionTiles))
             .ToHashSet();
         var buildingDefinitions = worldContent.Buildings.ToDictionary(item => item.CanonicalId, StringComparer.Ordinal);
@@ -309,7 +320,7 @@ public sealed partial class PrivateWorldRuntime
         });
     }
 
-    private static InventoryCheckpoint ConsumeQuantities(
+    private InventoryCheckpoint ConsumeQuantities(
         InventoryCheckpoint inventory,
         IReadOnlyList<ContentQuantity> quantities,
         string purpose,
@@ -321,7 +332,7 @@ public sealed partial class PrivateWorldRuntime
             var requested = quantities[quantityIndex];
             var remaining = requested.Amount;
             var lots = current.Lots
-                .Where(lot => lot.OwnerId == ownerId && lot.ItemKind == requested.ResourceId && !IsHandcartCargo(current, lot) && lot.FreshnessBasisPoints > 0 && lot.ConditionBasisPoints > 0)
+                .Where(lot => lot.OwnerId == ownerId && lot.ItemKind == requested.ResourceId && !IsHandcartCargo(current, lot) && !OnBorrowedMarketStall(lot) && lot.FreshnessBasisPoints > 0 && lot.ConditionBasisPoints > 0)
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal)
                 .ToArray();
             foreach (var lot in lots)
@@ -388,7 +399,7 @@ public sealed partial class PrivateWorldRuntime
                 lot.FreshnessBasisPoints > 0 && lot.ConditionBasisPoints > 0)
             .Sum(lot => (long)AvailableLotQuantity(lot)) >= input.Amount);
 
-    private static InventoryCheckpoint ReserveQuantities(
+    private InventoryCheckpoint ReserveQuantities(
         InventoryCheckpoint inventory,
         IReadOnlyList<ContentQuantity> quantities,
         string purpose,
@@ -406,7 +417,7 @@ public sealed partial class PrivateWorldRuntime
             var remaining = requested.Amount;
             var lots = current.Lots
                 .Where(lot => lot.OwnerId == ownerId && lot.ItemKind == requested.ResourceId &&
-                    !IsHandcartCargo(current, lot) && (!requireCarried || ToolProgressionRules.IsTopLevelCarriedLot(lot, ownerId)) &&
+                    !IsHandcartCargo(current, lot) && !OnBorrowedMarketStall(lot) && (!requireCarried || ToolProgressionRules.IsTopLevelCarriedLot(lot, ownerId)) &&
                     lot.FreshnessBasisPoints > 0 && lot.ConditionBasisPoints > 0 &&
                     (requiredStorageBuildingId is null || lot.StorageBuildingId == requiredStorageBuildingId))
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal)

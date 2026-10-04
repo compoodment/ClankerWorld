@@ -51,6 +51,11 @@ public static class WorldEventText
         var townProjectName = worldEvent.Kind.StartsWith("town_project_", StringComparison.Ordinal)
             ? TownProjectForEvent(snapshot, worldEvent.Detail)?.Name ?? "a Town project" : "a Town project";
         var townProjectSubject = townProjectName == "a Town project" ? "A Town project" : townProjectName;
+        var marketFields = worldEvent.Kind.StartsWith("market_", StringComparison.Ordinal)
+            ? worldEvent.Detail.Split('|') : Array.Empty<string>();
+        var marketSeller = marketFields.Length > 3 ? Name(snapshot, marketFields[3]) : "Someone";
+        var marketBuyer = marketFields.Length > 4 ? Name(snapshot, marketFields[4]) : "a customer";
+        var marketBuyerSubject = marketFields.Length > 4 ? marketBuyer : "A customer";
 
         return worldEvent.Kind switch
         {
@@ -149,6 +154,16 @@ public static class WorldEventText
             "town_civic_law" => $"{civicTownName} recorded a law decision. See the Towns page for its wording and scope.",
             "town_civic_government" => $"{civicTownName} recorded a resident government decision. See the Towns page for the vote or handover.",
             "town_civic_mayor" => $"{civicTownName} recorded a mayoral election or office change. See the Towns page for its result.",
+            "market_built" => $"{civicTownName}'s Market was built. Adults can borrow one of its stalls to sell goods.",
+            "market_stall_built" => $"{civicTownName}'s Market gained another stall.",
+            "market_stall_borrowed" => $"{marketSeller} borrowed a free Market stall.",
+            "market_stock_loaded" => $"{marketSeller} picked up household goods to carry to the Market; their recorded owner is unchanged.",
+            "market_stock_delivered" => $"{marketSeller} brought goods to a Market stall; their recorded owner is unchanged.",
+            "market_stock_collected" => $"{marketSeller} collected their goods from a Market stall.",
+            "market_stall_left" => $"{marketSeller} left the Market stall. Earlier goods still belong to their recorded owners.",
+            "market_trade_offered" => $"{marketBuyerSubject} offered {marketSeller} an exchange at a Market stall. See the stall for its exact terms.",
+            "market_trade_completed" => $"{marketBuyerSubject} received a Market purchase from {marketSeller}; the real payment stays with the seller's household.",
+            "market_trade_cancelled" => $"The Market exchange between {marketSeller} and {marketBuyer} was cancelled; its unused goods are released.",
             "town_civic_council" => $"{civicTownName}'s council changed.",
             "town_civic_election" => $"{civicTownName}'s council election opened.",
             "town_civic_runoff" => $"{civicTownName}'s council election needs a runoff for tied seats.",
@@ -201,7 +216,7 @@ public static class WorldEventText
             "household_founded" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} started a household; a House still needs materials and work.",
             "personal_goods_collected" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} collected their personal belongings.",
             "personal_goods_stored" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} stored personal belongings while keeping ownership.",
-            "borrowed_goods_returned" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} returned borrowed household goods.",
+            "borrowed_goods_returned" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} returned household goods.",
             "replacement_care_accepted" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} explicitly accepted primary care of a dependent.",
             "housing_request_made" => $"{LeadingName(snapshot, worldEvent.Detail)} asked {HouseholdAfterAgent(snapshot, worldEvent.Detail)} for a place to live in their House.",
             "household_joined" => $"{LeadingName(snapshot, worldEvent.Detail)} now lives with {HouseholdAfterAgent(snapshot, worldEvent.Detail)}.",

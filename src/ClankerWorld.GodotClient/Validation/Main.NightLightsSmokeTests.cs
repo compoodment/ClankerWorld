@@ -45,7 +45,7 @@ public partial class Main
             throw new InvalidOperationException("Night lights must follow who is inside each building and which jobs run there.");
 
         // Newly integrated building families must reach the map's real lighting path.
-        foreach (var (tag, width, height) in new[] { ("clinic", 1, 2), ("restaurant", 1, 2), ("restaurant", 2, 2), ("town_hall", 3, 4) })
+        foreach (var (tag, width, height) in new[] { ("clinic", 1, 2), ("restaurant", 1, 2), ("restaurant", 2, 2), ("town_hall", 3, 4), ("market", 2, 2) })
         {
             var inUse = night with
             {
@@ -65,6 +65,16 @@ public partial class Main
             if (NightLightShapes.Building(plan, true, false, true, 0, 1)
                 .Any(cell => cell.Kind == LightCellKind.Light && roofs.Any(roof => cell.Area.Intersects(roof))))
                 throw new InvalidOperationException("Restaurant lanterns and Town Hall windows must leave every part of their roof dark.");
+            if (tag == "market")
+            {
+                // Measured from the approved hall and arcade, including the 16px painter rounding.
+                if (plan.Design != LitDesign.MarketHall || plan.Roof != new Rect2(3, 3, 58, 54) ||
+                    current[0].AtAtlas(16).Plan.Roof != new Rect2(4, 4, 56, 52))
+                    throw new InvalidOperationException("Market lights must follow the actual hall and arcade at both atlas sizes.");
+                var stallOnly = inUse with { PlacedBuildings = [Building("stall", "market_stall", 11, 10, 1, 1, new(11, 11))] };
+                if (BuildingLights(stallOnly).Count != 0)
+                    throw new InvalidOperationException("Market stalls must stay dark.");
+            }
             if (tag == "town_hall")
             {
                 // Measured from the 16px atlas: its integer cross differs from scaling the 32px plan.

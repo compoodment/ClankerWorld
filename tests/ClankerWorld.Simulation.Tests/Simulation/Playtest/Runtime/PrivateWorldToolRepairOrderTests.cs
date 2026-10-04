@@ -284,7 +284,7 @@ public sealed class PrivateWorldToolRepairOrderTests
             order with { CompletedUnits = 2 }, order with { LastEffectId = "repair:equipment:wrong" },
         })
             Assert.Throws<InvalidDataException>(() => Restore(saved with { Instructions = saved.Instructions!.Select(item => item.InstructionId == receipt.InstructionId ? item with { Order = invalid } : item).ToArray() }));
-        Assert.Throws<InvalidDataException>(() => Restore(saved with { SchemaVersion = 72 }));
+        Assert.Throws<InvalidDataException>(() => Restore(saved with { SchemaVersion = 73 }));
     }
 
     [Theory]

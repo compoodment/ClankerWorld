@@ -133,6 +133,7 @@ public sealed partial class PrivateWorldRuntime
 
     private bool CanLoadCartLot(string actor, PlaytestInhabitantState person, InventoryLot lot) =>
         lot.ContainerLotId is null && lot.DeliveryBuildingId is null &&
+        !OnBorrowedMarketStall(lot) && (lot.OwnerId != actor || !OnMarketStall(lot)) &&
         !InventoryContainerRules.IsContainer(lot.ItemKind) && AvailableLotQuantity(lot) > 0 &&
         // Worn clothing, a carry aid, a worn ornament or an item under repair stays on the agent.
         !PersonalEquipmentRules.IsSelected(person.Equipment, lot.Id) &&
