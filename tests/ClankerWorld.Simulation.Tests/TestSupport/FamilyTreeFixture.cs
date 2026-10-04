@@ -32,7 +32,7 @@ internal static class FamilyTreeFixture
         var ancestor = society.Inhabitants[0] with
         {
             Id = $"{society.WorldId}:inhabitant:ancestor-{key}",
-            Name = $"Ancestor {key}",
+            Name = $"Ancestor-{key}",
             Status = SocietyInhabitantStatus.Dead,
             HouseholdId = null,
             ProviderBindingId = null,

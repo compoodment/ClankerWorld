@@ -19,7 +19,7 @@ public sealed partial class SettlementParenthoodTests
             AgeBand = SocietyAgeBand.Infant,
             LastLifecycleYearChecked = 0,
         };
-        var checkpoint = SocietyFixture.CreateGenesis("multiple-care", [adult, child, child with { Id = "other" }]);
+        var checkpoint = SocietyFixture.CreateGenesis("multiple-care", [adult, child, child with { Id = "other", Name = "Other" }]);
         checkpoint = SocietyFixture.CreateHousehold(checkpoint, "home", "Home", ["adult", "child", "other"]).Checkpoint;
         var first = SocietyFixture.AssumeInfantCare(checkpoint, "adult", "child");
         var second = SocietyFixture.AssumeInfantCare(first.Checkpoint, "adult", "other");
@@ -133,6 +133,31 @@ public sealed partial class SettlementParenthoodTests
         using var generated = NormalPathWorld.CreateGenerated("guardian-relative-priority-project", _ => new ParentProvider("safe_idle"));
         generated.Pause();
         var state = generated.ExportState();
+        Assert.Equal(0, state.Society.Society.WorldTick);
+        const int testDay = 120;
+        var originalDay = state.Society.Society.Config.TicksPerWorldDay;
+        // Keep both complete guardian-search windows and their reloads, using a shorter
+        // test day. Preserve founder ages and initialize weather for the matching calendar.
+        state = state with
+        {
+            Society = state.Society with
+            {
+                Society = state.Society.Society with
+                {
+                    Config = state.Society.Society.Config with { TicksPerWorldDay = testDay },
+                    Inhabitants = state.Society.Society.Inhabitants.Select(person => person with
+                    {
+                        BirthTick = person.BirthTick / originalDay * testDay,
+                        BirthLifeTick = person.BirthLifeTick is { } birth ? birth / originalDay * testDay : null,
+                    }).ToArray(),
+                },
+            },
+            WorldSystems = ClankerWorld.Simulation.World.RegionalWeatherRules.Initialize(state.WorldSystems! with
+            {
+                Config = state.WorldSystems.Config with { TicksPerDay = testDay },
+                RegionalWeather = null,
+            }, state.Map),
+        };
         var originHouse = state.WorldSimulation!.Buildings.Single(item => item.InstanceId == "first-town-house-a");
         var relativeHouse = state.WorldSimulation.Buildings.Single(item => item.InstanceId == "first-town-house-b");
         var childHousehold = originHouse.HouseholdId!;
@@ -193,9 +218,10 @@ public sealed partial class SettlementParenthoodTests
         var inventory = InventoryFixture.AddLot(checkpoint.Inventory, "guardian-priority-birth-food", "food",
             childHousehold, 4, storageBuildingId: originHouse.InstanceId);
         checkpoint = checkpoint with { Inventory = inventory };
+        checkpoint = ChosenBirthNameTestFixture.NameParent(checkpoint, parents[0]);
         var birth = SocietyFixture.CommitBirth(checkpoint, new SocietyBirthRequest("guardian-priority-birth", 1,
             parents[0], parents[1], childHousehold, parents, parents, "guardian-priority-birth-food", 4,
-            checkpoint.WorldTick, ChildName: "Orphan", PrimaryCaregiverId: parents[0]));
+            checkpoint.WorldTick, ChildName: ChosenBirthNameTestFixture.ChildName(checkpoint, parents[0], "Orphan"), PrimaryCaregiverId: parents[0]));
         var child = Assert.IsType<string>(birth.CreatedId);
         checkpoint = birth.Checkpoint;
         var grandparent = new SocietyRelationship("guardian-search-grandparent", 1,
@@ -552,7 +578,7 @@ public sealed partial class SettlementParenthoodTests
                 {
                     Society = state.Society.Society with
                     {
-                        Inhabitants = state.Society.Society.Inhabitants.Select(person => person with { Name = "private-care-secret" }).ToArray(),
+                        Inhabitants = state.Society.Society.Inhabitants.Select(person => person with { Name = $"private-care-secret-{person.Id}" }).ToArray(),
                     }
                 }
             };
@@ -586,11 +612,20 @@ public sealed partial class SettlementParenthoodTests
         var state = await PreparedState();
         var first = state.Inhabitants[0].InhabitantId;
         var second = state.Inhabitants[1].InhabitantId;
+        state = state with
+        {
+            Society = state.Society with
+            {
+                Society = ChosenBirthNameTestFixture.NameParent(state.Society.Society, first),
+            },
+        };
         using var world = PrivateWorldRuntime.Restore(state, actor => new ParentProvider(actor == first ? "parent_propose:" : "parent_accept:"));
         for (var tick = 0; tick < 605; tick++) await world.AdvanceOneTickAsync();
         state = world.ExportState();
         var child = Assert.Single(state.Society.Society.Births).ChildId;
         using var society = SocietyWorldRuntime.Restore(state.Society);
+        society.Apply(checkpoint => SocietyFixture.RenameInhabitant(checkpoint, child,
+            ChosenBirthNameTestFixture.ChildName(checkpoint, first, "Orphan")));
         society.Apply(checkpoint => SocietyFixture.Kill(checkpoint, first, SocietyDeathCause.Accident, checkpoint.WorldTick));
         society.Apply(checkpoint => SocietyFixture.Kill(checkpoint, second, SocietyDeathCause.Accident, checkpoint.WorldTick));
         var societyState = society.ExportState();

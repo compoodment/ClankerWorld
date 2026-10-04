@@ -184,7 +184,7 @@ public partial class Main
             else if (mouse.Pressed && mouse.ButtonIndex == MouseButton.Left)
             {
                 var tile = TileAtCanvas(mouse.Position, snapshot);
-                if (MapContains(snapshot, tile.X, tile.Y) && BuildingAt(snapshot, tile) is { } building)
+                if (MapContains(snapshot, tile.X, tile.Y) && BuildingAt(snapshot, tile, mouse.Position) is { } building)
                 {
                     // A building opens its own card instead of the tile's.
                     SelectBuilding(building.InstanceId);
@@ -330,6 +330,54 @@ public partial class Main
                 (requester is null ? string.Empty : $" · filed by {requester}");
             lines.Add($"Pending use request: {claimant} · {request.ApprovalDetail}");
             landFacts.Add(("Use request", claimant + " · " + request.ApprovalDetail));
+        }
+        foreach (var hearing in LandHearingText.ForInspection(snapshot.Towns.SelectMany(item => item.LandHearings)
+                     .Where(item => item.Tiles.Any(point => point.X == tile.X && point.Y == tile.Y))))
+        {
+            var summary = LandHearingText.Summary(hearing);
+            lines.Add(summary);
+            landFacts.Add(("Case", summary));
+            var notice = LandHearingText.NoticeSummary(hearing, DisplayWorldClock);
+            lines.Add(notice);
+            landFacts.Add(("Formal notice", notice));
+            if (hearing.Judge is { } judge)
+            {
+                var authority = judge.AgentName + (judge.Kind == "case_elected" ? " · this case only" : " · land mayor");
+                landFacts.Add(("Adjudicator", authority));
+                lines.Add("Adjudicator: " + authority);
+            }
+            else if (hearing.SettledTick is null || hearing.ReopenRequests.Any(request => request.Status == "pending"))
+            {
+                landFacts.Add(("Adjudicator", "Waiting for a valid independent adjudicator"));
+                lines.Add("Adjudicator: waiting for a valid independent adjudicator");
+            }
+            if (hearing.Rulings.Count > 0)
+            {
+                var outcome = LandHearingText.Outcome(hearing.Rulings[^1].Outcome, DisplayWorldClock);
+                landFacts.Add(("Latest ruling", outcome));
+                lines.Add("Latest ruling: " + outcome);
+            }
+            if (hearing.Kind == "expiry" && hearing.SettledTick is null)
+            {
+                landFacts.Add(("Use permission", "Previous permission remains provisional during review"));
+                lines.Add("Previous permission remains provisional during review");
+            }
+        }
+        foreach (var transfer in LandTransferText.ForInspection(snapshot.Towns.SelectMany(item => item.LandTransfers)
+                     .Where(item => item.Tiles.Any(point => point.X == tile.X && point.Y == tile.Y))))
+        {
+            var summary = LandTransferText.Summary(transfer);
+            var acceptance = LandTransferText.Acceptance(transfer);
+            landFacts.Add(("Permission transfer", summary));
+            landFacts.Add(("Household acceptance", acceptance));
+            landFacts.Add(("Proposed", DisplayWorldClock(transfer.ProposedTick)));
+            lines.Add(summary);
+            lines.Add(acceptance);
+            foreach (var terms in LandTransferText.Terms(transfer, DisplayWorldClock))
+            {
+                landFacts.Add(("Exact permission terms", terms));
+                lines.Add(terms);
+            }
         }
         var landClaimants = useRights.Select(right => right.HouseholdId)
             .Concat(useRequests.Select(request => request.HouseholdId))

@@ -178,7 +178,10 @@ public partial class Main
         terrainLayer.SetBridges(snapshot.Bridges);
         terrainLayer.SetFields(snapshot.Fields);
         worldOverview.SetFields(snapshot.Fields);
+        terrainLayer.SetMarkets(snapshot.Towns);
         terrainLayer.SetBuildings(snapshot.PlacedBuildings, snapshot.Objects);
+        nightLightsLayer.SetBuildings(BuildingLights(snapshot));
+        nightLightsLayer.SetLanterns(StreetLanterns(snapshot), snapshot.WrapsEastWest);
         worldOverview.SetRoads([.. snapshot.RoadTiles, .. snapshot.Bridges.SelectMany(bridge => bridge.Span)]);
         ApplyMapFilters(snapshot);
         var mapWidth = terrainMap.Width;
@@ -257,10 +260,12 @@ public partial class Main
             var stored = building.StoredItems is { Count: > 0 }
                 ? string.Join(" · ", building.StoredItems.Select(item => $"{GameUiText.ItemName(item.Kind)} {item.Quantity}"))
                 : "none recorded";
-            // The terrain layer draws the roof. Buildings show no name on the map;
+            // The terrain or night-light layer draws the roof or fitting. Buildings show no name on the map;
             // the marker keeps the hover help that names them.
             AddMapObjectVisual("building:" + building.InstanceId, building.Position, string.Empty, string.Empty,
                 $"{name}\nBuilt · {building.Width} × {building.Height} tiles" +
+                (StreetLanternLight.IsLantern(building.Tags) && building.Entrance is { } road
+                    ? $"\nRoad beside the post · ({road.X}, {road.Y})\nLights at dusk · no fuel" : "") +
                 (assignedTown is null ? "\nNo Town assignment" : $"\nTown · {assignedTown}") +
                 (household is null ? "" : $"\nHousehold · {household.Name}") +
                 (building.StoredItems is null ? "" : $"\nStored here · {stored}") +

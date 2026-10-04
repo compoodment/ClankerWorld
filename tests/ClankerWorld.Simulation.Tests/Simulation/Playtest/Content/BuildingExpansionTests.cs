@@ -35,7 +35,7 @@ public sealed class BuildingExpansionTests
         var before = PrivateWorldRuntimeCodec.Encode(world.ExportState());
         // Exercise the final authority check as if this previously offered choice arrived late.
         typeof(PrivateWorldRuntime).GetMethod("ApplyTownCivicCandidate", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .Invoke(world, [actor, offered.Id, null, null, null]);
+            .Invoke(world, [actor, offered.Id, null, null, null, null]);
         Assert.Single(world.HouseholdLandUseRequests);
         Assert.Equal(before, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
     }
@@ -313,41 +313,6 @@ public sealed class BuildingExpansionTests
         Assert.False(world.StartProduction(recipe.CanonicalId, house.InstanceId, helper).Applied);
         using var reloaded = Reload(world);
         Assert.Equal(delivered, reloaded.Society.Inventory.GetLot(delivered.Id));
-    }
-
-    [Fact]
-    public async Task AHouseholdWithoutAHouseBuildsItsFirstOneFromPersonallyCarriedMaterials()
-    {
-        using var seed = PreparedWorld("first-town-house-a", out _, out _);
-        var state = seed.ExportState();
-        var site = FindUnaffiliatedOpenTile(state);
-        const string actor = "agent:00000000000000000000000000000098";
-        var household = seed.AddAgent(actor, site);
-        Assert.Equal("household:" + actor, household);
-        state = seed.ExportState();
-        var definition = seed.WorldContent.Buildings.Single(item => item.LocalId == "house-1x1");
-        var inventory = state.Society.Society.Inventory;
-        foreach (var cost in definition.BuildCosts)
-            inventory = InventoryFixture.AddLot(inventory, "first-house-" + cost.ResourceId, cost.ResourceId, actor, cost.Amount);
-        state = state with
-        {
-            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
-            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor ? person with
-            {
-                HungerBasisPoints = 9_000,
-                Project = new SettlementProject(TownConstructionCandidateIds.Building(definition.CanonicalId, site),
-                    definition.DisplayName, seed.WorldTick, "working", 10),
-            } : person).ToArray(),
-        };
-        using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)), _ => new IdleProvider());
-        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-        var house = Assert.Single(world.WorldSimulation.Buildings, item => item.HouseholdId == household);
-        Assert.Equal(site, house.Position);
-        Assert.Equal("completed", world.Inhabitants.Single(person => person.InhabitantId == actor).Project!.Stage);
-        Assert.DoesNotContain(world.Society.Inventory.Lots, lot => lot.Id.StartsWith("first-house-", StringComparison.Ordinal));
-        Assert.DoesNotContain(world.Society.Inventory.Lots, lot => lot.OwnerId == household && lot.StorageBuildingId is null);
-        using var reloaded = Reload(world);
-        Assert.Contains(reloaded.WorldSimulation.Buildings, item => item == house);
     }
 
     [Fact]

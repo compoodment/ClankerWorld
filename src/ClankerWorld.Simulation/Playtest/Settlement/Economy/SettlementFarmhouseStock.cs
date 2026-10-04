@@ -44,7 +44,8 @@ public sealed partial class PrivateWorldRuntime
     {
         var inventory = society.Checkpoint.Inventory;
         foreach (var carrier in inventory.Lots.Where(lot => lot.OwnerId == householdId && lot.CarrierId is null &&
-                     lot.ContainerLotId is null && lot.StorageBuildingId is null && lot.DeliveryBuildingId is null)
+                     lot.ContainerLotId is null && lot.StorageBuildingId is null && lot.DeliveryBuildingId is null &&
+                     !OnBorrowedMarketStall(lot))
                      .OrderBy(lot => lot.GroundPosition is not null ? 0 : 1)
                      .ThenBy(lot => lot.Id, StringComparer.Ordinal))
         {

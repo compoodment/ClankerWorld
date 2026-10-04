@@ -105,6 +105,7 @@ public sealed partial class PrivateWorldRuntime
     private bool BusinessBuyerWantsWithoutRestaurant(string actor, InventoryLot lot)
     {
         if (MedicalSupplyWanted(actor, lot.ItemKind)) return true;
+        if (WantsFieldPlantingStock(actor, lot.ItemKind)) return true;
         if (WantsOrnamentInput(actor, lot.ItemKind)) return true;
         var inventory = society.Checkpoint.Inventory;
         if (ToolProgressionRules.Find(lot.ItemKind) is { } offeredTool)

@@ -13,7 +13,7 @@ and host commits, Windows build, date, resolution and interface size.
   silently transfer a building or prevent gathering.
 - [ ] Ask residents to create a land mayor. Follow the resident vote, handover,
   willing candidates, ballots and officeholder in Towns and the Event Log.
-  Confirm land hearings are described as unavailable.
+  Confirm the land mandate stays separate from ordinary governing authority.
 - [ ] Try a tied mayoral vote and a Council election during mayoral voting.
   Check that the next round and interrupted ballots are explained clearly.
 - [ ] Pause during a government vote, save and restart. Confirm the same vote

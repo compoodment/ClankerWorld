@@ -18,7 +18,7 @@ namespace ClankerWorld.Simulation.Tests;
 /// or personally accept. Every consent here comes from an accepted personal
 /// model choice, as in play.
 /// </summary>
-public sealed class TownMembershipTests
+public sealed partial class TownMembershipTests
 {
     private const string First = "town:first";
     private const string Second = "town:second";
@@ -726,6 +726,20 @@ public sealed class TownMembershipTests
         var proposal = pending.Proposals[0].Id;
         Assert.Equal(none + " · admission to Second Town pending until world day 2; grants nothing yet",
             Describe(outsider, second with { Governance = pending }));
+        // The deadline is one full day after tick zero. In a world that starts
+        // part-way through its first day it still falls on calendar day 2, and
+        // a deadline just short of the first midnight stays on day 1.
+        var deadline = pending.Proposals[0].DeadlineTick;
+        Assert.Equal(day, deadline);
+        string? Morning(TownGovernanceState governance, int offset) => TownMembershipText.Describe(
+            [first, second with { Governance = governance }], society, outsider, day,
+            new HashSet<string>([First], StringComparer.Ordinal), calendarOffsetTicks: offset);
+        Assert.Equal(none + " · admission to Second Town pending until world day 2; grants nothing yet", Morning(pending, day / 4));
+        var early = pending with { Proposals = [pending.Proposals[0] with { DeadlineTick = day - day / 4 - 1 }] };
+        Assert.Equal(none + " · admission to Second Town pending until world day 1; grants nothing yet", Morning(early, day / 4));
+        var atMidnight = pending with { Proposals = [pending.Proposals[0] with { DeadlineTick = day - day / 4 }] };
+        Assert.Equal(none + " · admission to Second Town pending until world day 2; grants nothing yet", Morning(atMidnight, day / 4));
+        Assert.Equal(none + " · admission to Second Town pending until world day 1; grants nothing yet", Morning(atMidnight, 0));
         Assert.Equal(none, Describe(outsider, second with { Governance = pending }, knows: (_, _, _) => false));
 
         var passed = TownGovernanceRules.SubmitProposal(council, Second, voter, "admission", outsider, "Admit them.", "council:0", [voter], 0, day);
@@ -735,7 +749,8 @@ public sealed class TownMembershipTests
             Governance = passed,
             Admissions = [new TownAdmissionRecord(proposal, outsider, "approved", 1)],
         };
-        Assert.Equal(none + " · Second Town's council approved admission; not accepted yet", Describe(outsider, approved));
+        Assert.Equal(none + " · Second Town's council approved admission; accept before world day 2 at 00:04; about 23 world hours 44 minutes left; paused time does not count",
+            Describe(outsider, approved));
         Assert.Equal(none, Describe(outsider, approved, knows: (_, kind, _) => kind != "result"));
 
         var rejected = TownGovernanceRules.VoteProposal(pending, proposal, voter, false, 1);
@@ -810,7 +825,7 @@ public sealed class TownMembershipTests
                 Assert.DoesNotContain($"{town.Name}'s council approved", observation.Self?.TownMembershipNote ?? "", StringComparison.Ordinal);
             });
             Assert.Contains(observed, observation => observation.Candidates.Any(candidate => candidate.Id.StartsWith(accept, StringComparison.Ordinal)) &&
-                observation.Self?.TownMembershipNote?.Contains("council approved admission; not accepted yet", StringComparison.Ordinal) == true);
+                observation.Self?.TownMembershipNote?.Contains("council approved admission; accept before", StringComparison.Ordinal) == true);
             if (townId == Second) secondProposal = record.ProposalId;
             else return (state, record.ProposalId, secondProposal!);
         }
@@ -919,7 +934,7 @@ public sealed class TownMembershipTests
     private static (PrivateWorldRuntimeState State, string[] Children) WithChildren(PrivateWorldRuntimeState state, string caregiver,
         string otherParent, int count)
     {
-        var society = Partners(state.Society.Society, caregiver, otherParent);
+        var society = ChosenBirthNameTestFixture.NameParent(Partners(state.Society.Society, caregiver, otherParent), caregiver);
         var household = society.GetInhabitant(caregiver).HouseholdId!;
         var children = new List<string>();
         for (var index = 0; index < count; index++)
@@ -927,7 +942,7 @@ public sealed class TownMembershipTests
             var food = society.Inventory.Lots.First(lot => lot.OwnerId == household && lot.ItemKind == "food" && lot.Quantity >= 4);
             var birth = SocietyFixture.CommitBirth(society, new SocietyBirthRequest($"membership-child-{index}", 1, caregiver, otherParent,
                 household, [caregiver, otherParent], [caregiver, otherParent], food.Id, 4, society.WorldTick,
-                ChildName: $"Ari {index + 1}", PrimaryCaregiverId: caregiver));
+                ChildName: ChosenBirthNameTestFixture.ChildName(society, caregiver, $"Ari{index + 1}"), PrimaryCaregiverId: caregiver));
             children.Add(Assert.IsType<string>(birth.CreatedId));
             society = birth.Checkpoint;
         }
@@ -978,7 +993,7 @@ public sealed class TownMembershipTests
         {
             WorldSystems = RegionalWeatherRules.Initialize(state.WorldSystems! with
             {
-                Config = state.WorldSystems.Config with { TicksPerDay = day },
+                Config = state.WorldSystems.Config with { TicksPerDay = day, CalendarOffsetTicks = 0 },
                 RegionalWeather = null,
             }, state.Map),
             Society = state.Society with

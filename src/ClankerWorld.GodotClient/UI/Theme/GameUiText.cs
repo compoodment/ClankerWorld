@@ -98,7 +98,7 @@ public static class GameUiText
     public static string FriendlyFailure(Exception exception) => exception switch
     {
         Pairing.OwnerAgentNameTakenException =>
-            "that full name belongs to another agent. Choose a different name",
+            "that first name belongs to another agent. Choose a different first name",
         Pairing.OwnerWorldGenerationException =>
             "there is no room for a first Town with these settings. Choose another seed or change the terrain settings",
         Pairing.OwnerActionCompatibilityException =>
@@ -155,6 +155,7 @@ public static class GameUiText
         "gold_outcrop" => "Gold outcrop",
         "diamond_outcrop" => "Diamond outcrop",
         "clay_bank" => "Clay bank",
+        "medicinal_herb_patch" => "Medicinal herb patch",
         "wild_seed_patch" => "Wild seed patch",
         "fertile_soil" => "Fertile soil",
         _ => null,
@@ -188,11 +189,17 @@ public static class GameUiText
         var daysPerYear = calendarPace?.DaysPerYear ?? 365;
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(ticksPerDay);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(daysPerYear);
-        var dayIndex = worldTick / ticksPerDay;
+        var offset = calendarPace?.CalendarOffsetTicks ?? 0;
+        ArgumentOutOfRangeException.ThrowIfNegative(offset);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(offset, ticksPerDay);
+        // Shift the calendar, not elapsed world time. Splitting the raw tick
+        // first keeps even the largest representable tick overflow-safe.
+        var shiftedTickOfDay = worldTick % ticksPerDay + (long)offset;
+        var dayIndex = worldTick / ticksPerDay + shiftedTickOfDay / ticksPerDay;
         var date = SeasonDateLengths(calendarPace, dateFormat) is { } seasonLengths
             ? FormatSeasonDate(dayIndex, daysPerYear, seasonLengths)
             : FormatWorldDate(dayIndex, daysPerYear, dateFormat);
-        var minuteOfDay = (int)(((worldTick % ticksPerDay) * MinutesPerDay) / ticksPerDay);
+        var minuteOfDay = (int)((shiftedTickOfDay % ticksPerDay * MinutesPerDay) / ticksPerDay);
         var hour = minuteOfDay / 60;
         var minute = minuteOfDay % 60;
         if (!useTwelveHourClock) return $"{date} · {hour:00}:{minute:00}";
@@ -273,6 +280,8 @@ public static class GameUiText
             "crop_moisture_effect" or "food_harvested" or "food_consumed" or "tree_planted" or "tree_replanted" or "child_born" or
             "inhabitant_removed" or "estate_will_accepted" or "estate_will_default" or
             "partnership_accepted" or "partnership_ended" or "caregiver_assigned" or
+            "guardian_needed" or "guardian_assigned" or "guardian_placement_pending" or
+            "guardian_placement_completed" or "guardian_placement_cancelled" or
             "continuity_rule_on" or "continuity_rule_off" or
             "medical_care_allowed" or "medical_care_revoked" or
             "medical_treatment_started" or "medical_treatment_completed" or "medical_treatment_interrupted" or
@@ -288,9 +297,19 @@ public static class GameUiText
             "ornament_worn" or "ornament_removed" or "ornament_given" or
             "inhabitant_building_proposed" or "instruction_not_understood" or "settlement_founded" or "town_founding_started" or
             "town_civic_council" or "town_civic_election" or "town_civic_runoff" or "town_civic_proposal" or "town_civic_result" or "town_civic_cancelled" or
+            "town_project_approved" or "town_project_blocked" or "town_project_resumed" or "town_project_cancelled" or
+            "town_project_donated" or "town_project_material_picked_up" or "town_project_material_delivered" or
+            "town_project_material_returned" or "town_project_worked" or "town_project_completed" or
+            "market_built" or "market_stall_built" or "market_stall_borrowed" or "market_stall_left" or
+            "market_stock_loaded" or "market_stock_delivered" or "market_stock_collected" or
+            "market_trade_offered" or "market_trade_completed" or "market_trade_cancelled" or
             "town_resident_joined" or "town_resident_left" or "town_membership_evaluated" or
             "town_admission_accepted" or "town_admission_approved" or "town_admission_lapsed" or
             "land_use_requested" or "land_use_granted" or "town_building_assigned" or "town_border_expanded" or "town_land_claimed" or "town_founded" or "bridge_built" or
+            "town_civic_land_hearing" or "land_case_opened" or "land_case_notice" or "land_case_evidence" or "land_case_response" or
+            "land_case_judge_consent" or "land_case_judge_election" or "land_case_judge_assigned" or "land_case_ruling" or
+            "land_case_reopen_requested" or "land_case_reopened" or "land_case_inspected" or "land_case_relayed" or "land_case_rejected" or
+            "land_transfer_proposed" or "land_transfer_read" or "land_transfer_consent" or "land_transfer_withdrawn" or "land_transfer_settled" or "land_transfer_blocked" or
             "housing_request_made" or "household_joined" or "housing_request_refused" or "housing_request_expired" or
             "handcart_attached" or "handcart_parked" or "handcart_loaded" or "handcart_unloaded" or
             "handcart_repaired" or "handcart_transferred" or "handcart_blocked" or
@@ -373,6 +392,8 @@ public static class GameUiText
         if (candidateId?.StartsWith("medical_revoke:", StringComparison.Ordinal) == true) return "withdrawing medical permission";
         if (candidateId?.StartsWith("medical_collect:", StringComparison.Ordinal) == true) return "collecting medicine";
         if (candidateId?.StartsWith("medical_treat:", StringComparison.Ordinal) == true) return "giving medicine";
+        if (candidateId?.StartsWith("guardian_relocate:", StringComparison.Ordinal) == true) return "bringing a child home";
+        if (candidateId?.StartsWith("guardian_follow:", StringComparison.Ordinal) == true) return "following their guardian home";
         if (!string.IsNullOrWhiteSpace(summary) && !summary.Contains(':', StringComparison.Ordinal))
             return summary.Trim();
         return string.IsNullOrWhiteSpace(candidateId) ? "taking in the surroundings" : HumanizeIdentifier(candidateId);
@@ -435,6 +456,8 @@ public static class GameUiText
         if (normalized.StartsWith("guardian_accept:", StringComparison.Ordinal)) return "accept someone's care";
         if (normalized.StartsWith("guardian_refuse:", StringComparison.Ordinal)) return "turn down an offer of care";
         if (normalized.StartsWith("guardian_end:", StringComparison.Ordinal)) return "stop looking after someone";
+        if (normalized.StartsWith("guardian_relocate:", StringComparison.Ordinal)) return "bring a child home";
+        if (normalized.StartsWith("guardian_follow:", StringComparison.Ordinal)) return "follow their guardian home";
         if (normalized.StartsWith("parent_", StringComparison.Ordinal))
         {
             return normalized.StartsWith("parent_propose:", StringComparison.Ordinal) ? "talk about having a child"
@@ -509,6 +532,15 @@ public static class GameUiText
             "collect_shared_food" => "collect food from camp",
             "harvest_food" => "gather food",
             "gather_material" => "gather materials",
+            "till_field" => "till a household field",
+            "plant_field" => "plant a household field",
+            "tend_field" => "tend a household field",
+            "harvest_field" => "harvest a household field",
+            "work_field" => "work on a household field",
+            "repair_tool" => "repair a personal tool",
+            "repair_equipment" => "repair personal equipment",
+            "collect_material" => "collect personal materials",
+            "collect_food" => "collect personal food",
             "store_material" => "store personal materials",
             "inspect_material_site" => "look for the requested material",
             "storage_pot" => "storage pot",

@@ -156,6 +156,11 @@ public partial class Main
         nightLayer.Follow(terrainLayer);
         mapStage.AddChild(nightLayer);
 
+        // Lit windows, doors and fires warm the ground back up through the wash.
+        nightLightsLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        nightLightsLayer.Follow(terrainLayer, nightLayer);
+        mapStage.AddChild(nightLightsLayer);
+
         objectLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         objectLayer.MouseFilter = Control.MouseFilterEnum.Ignore;
         mapStage.AddChild(objectLayer);
