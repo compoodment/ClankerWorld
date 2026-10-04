@@ -360,6 +360,9 @@ public sealed record InhabitantObservation(
                         "collect your own stored or dropped food" or
                         "make the requested goods at a permitted workstation" or
                         "collect your own stored or dropped equipment" or
+                        "collect your own stored or dropped goods" or
+                        "store your own carried goods in your House" or
+                        "return borrowed goods to their owning household's House" or
                         "store your own carried material in your House" or
                         "store your own carried equipment in your House" or
                         "repair your own worn clothing or carrying aid" or

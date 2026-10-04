@@ -423,25 +423,8 @@ public sealed partial class PrivateWorldRuntime
             CollectPersonalGoods(actor, candidate["household_collect:".Length..]);
             return;
         }
-        if (!candidate.StartsWith("household_return:", StringComparison.Ordinal)) return;
-        var lotId = candidate["household_return:".Length..];
-        var lot = BorrowedGoods(actor).FirstOrDefault(item => item.Id == lotId);
-        if (lot is null || HouseForHousehold(lot.OwnerId) is not { } house) return;
-        // Returning goods at an entrance grants no general shelter or cooking access.
-        if (!IsWithinInteractionRange(inhabitants[actor].Position, house.Position, 1))
-        {
-            MoveToward(actor, inhabitants[actor], house.Position, "personal_goods", 1);
-            return;
-        }
-        var room = StorageRoom(house.InstanceId);
-        var quantity = InventoryContainerRules.IsContainer(lot.ItemKind)
-            ? VesselFits(lot, room) ? 1 : 0
-            : Math.Min(PhysicalUnreservedQuantity(lot), room);
-        if (quantity <= 0) return;
-        ApplyInventoryTransition(inventory => InventoryFixture.Relocate(inventory,
-            $"personal:{actor}:{WorldTick}:{lot.Id}", lot.Id, lot.OwnerId, quantity,
-            storageBuildingId: house.InstanceId));
-        AppendEvent("borrowed_goods_returned", $"{actor}|{lot.ItemKind}|{quantity}|{lot.OwnerId}");
+        if (candidate.StartsWith("household_return:", StringComparison.Ordinal))
+            ReturnBorrowedGoods(actor, candidate["household_return:".Length..]);
     }
 
     private static void ValidateDepartures(IEnumerable<PlaytestInhabitantState> physical, SocietyCheckpoint society, int schemaVersion)

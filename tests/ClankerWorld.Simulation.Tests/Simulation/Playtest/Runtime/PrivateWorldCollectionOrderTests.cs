@@ -113,9 +113,9 @@ public sealed partial class PrivateWorldCollectionOrderTests
     [InlineData("collect 1.5 wood")]
     [InlineData("collect wood from the Warehouse")]
     [InlineData("collect wood at (1,)")]
-    [InlineData("collect gold")]
-    [InlineData("collect cloth")]
-    [InlineData("collect iron")]
+    [InlineData("collect ornaments")]
+    [InlineData("collect cloth and rope")]
+    [InlineData("collect tools")]
     [InlineData("keep collect wood")]
     public void CollectionOrderRejectsUnsupportedTextWithoutReplacingTheCurrentOrder(string text)
     {

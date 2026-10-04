@@ -254,6 +254,10 @@ knives in my House", or "keep storing padded coats". The agent puts away its
 own carried, unworn goods while keeping their ownership and condition. Worn
 clothing and carrying aids stay with their wearer. Exact quantities, House
 space, travel, queues and cancellation follow the material-storage rules above.
+All personal-storage orders accept an optional House tile, such as "in my House
+at (12, 4)". They keep the first chosen House and its household owner. If it
+moves, disappears or changes owner, or the agent leaves that household, the
+task waits without changing destinations.
 
 Orders also support exact-tile movement: "Move to tile (12, 4)", "Go to (12, 4)"
 or "Travel to (12, 4)". They use ordinary walking routes and travel delays,
@@ -290,7 +294,7 @@ three berries", "collect cultivated greens from (12, 4)", or "keep collecting
 fruit". A named kind selects only berries, fruit, wild greens or cultivated
 greens; plain "food" accepts any ready-to-eat food. These tasks collect existing
 stored or dropped goods. They do not harvest a food source or eat the pickup.
-Raw grain and potatoes remain outside this collection catalogue. Quantities,
+Raw grain and potatoes use the goods catalogue below. Quantities,
 source tiles, carrying limits, queues, interruptions and reload work as above.
 
 Equipment collection covers the five clothing and carrying-aid kinds and the
@@ -300,6 +304,26 @@ collections. The agent picks up its own goods without equipping or repairing
 them; their condition stays unchanged. Each unit occupies ordinary carrying
 space, and explicit quantities count individual items even when they share a
 stored lot. Shared or borrowed equipment remains unavailable to these orders.
+
+Personal-goods collection and storage also cover rope, cloth, refined iron and
+gold, workshop tools, grain, flour, potatoes, named planting seeds, medicinal
+herbs, bandages, medicine, storage pots, water jugs and gold or diamond ornaments.
+Examples are "collect two refined iron", "store three grain seeds in my House
+at (12, 4)" and "collect one water jug". Bare seeds, tools and ornaments remain
+ambiguous. Pots and jugs move whole, with their contents and ownership intact;
+their contents use space but do not add to the number of vessels moved.
+Selected equipment and reservations remain protected. Household-owned outputs
+are not available to personal collection or storage.
+
+Borrowed-return orders such as "return two borrowed cloth" and "return one
+borrowed water jug" put carried household goods back in their owner's House.
+They preserve ownership and pin the selected House and source lot while work
+is pending. A default task returns one available load; an explicit quantity
+caps the last move. Only a physical return earns progress. Unavailable goods,
+House space or walking routes leave a visible blocker. Queues, interruptions,
+cancellation and reload retain the work already done.
+An order to put away a tool currently used for ordinary field work interrupts
+that work before moving the tool, keeping the saved work state consistent.
 
 Production orders use the existing recipes for goods such as rope, baskets,
 cloth, clothing, sacks, tools, flour, pottery and care supplies. Examples are

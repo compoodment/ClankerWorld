@@ -119,11 +119,11 @@ public sealed partial class PrivateWorldStorageOrderTests
     [InlineData("store -2 wood")]
     [InlineData("store 1.5 wood")]
     [InlineData("store wood in the Warehouse")]
-    [InlineData("store wood at (1, 2)")]
+    [InlineData("store wood at (1, 2) then gather stone")]
     [InlineData("store wood in another House")]
     [InlineData("store food")]
-    [InlineData("store iron")]
-    [InlineData("store cloth")]
+    [InlineData("store seeds")]
+    [InlineData("store cloth in the Warehouse")]
     [InlineData("keep store wood")]
     public void StorageOrderRejectsUnsupportedTextWithoutReplacingTheCurrentOrder(string text)
     {
@@ -289,7 +289,7 @@ public sealed partial class PrivateWorldStorageOrderTests
         {
             valid with { TargetMaterialKind = "cloth" }, valid with { TargetFoodKind = "berries" },
             valid with { TargetAgentId = Actor(state) },
-            valid with { TargetPosition = new(1, 1) }, valid with { TargetResourceId = "tree" },
+            valid with { TargetPosition = new(10_000_001, 1) }, valid with { TargetResourceId = "tree" },
             valid with { RequestedUnits = 0 }, valid with { CompletedUnits = -1 },
             valid with { ProgressUnit = "harvests" }, valid with { LastEffectId = "store:personal:unearned" },
             valid with { CompletedUnits = 1, LastEffectId = "gather:material:wrong-action" },

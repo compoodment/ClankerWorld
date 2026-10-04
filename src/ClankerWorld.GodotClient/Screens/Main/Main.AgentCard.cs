@@ -827,8 +827,11 @@ public partial class Main
             "collect_material" => "Collecting " + (order.TargetMaterialKind?.Replace('_', ' ') ?? "materials"),
             "collect_food" => "Collecting " + (order.TargetFoodKind?.Replace('_', ' ') ?? "food"),
             "collect_equipment" => "Collecting " + (order.TargetEquipmentKind?.Replace('_', ' ') ?? "equipment"),
+            "collect_goods" => "Collecting " + OrderItemName(order.TargetItemKind),
             "store_material" => "Storing " + (order.TargetMaterialKind?.Replace('_', ' ') ?? "materials"),
             "store_equipment" => "Storing " + (order.TargetEquipmentKind?.Replace('_', ' ') ?? "equipment"),
+            "store_goods" => "Storing " + OrderItemName(order.TargetItemKind),
+            "return_borrowed" => "Returning borrowed " + OrderItemName(order.TargetItemKind),
             "produce_item" => "Making " + (order.TargetOutputKind is { } output
                 ? GameUiText.ItemName(output).ToLowerInvariant() : "goods"),
             "seek_food" => "Going to a food site",
@@ -864,17 +867,27 @@ public partial class Main
             : $"{state} · {task}{units}{reason}{heard}";
     }
 
+    private static string OrderItemName(string? kind) => kind switch
+    {
+        null => "goods",
+        "iron" => "refined iron",
+        "tool" => "workshop tool",
+        _ => GameUiText.ItemName(kind).ToLowerInvariant(),
+    };
+
     private static string ProgressUnitLabel(string unit) => unit switch
     {
         "food_items" => "food items",
         "material_items" => "items",
         "equipment_items" => "equipment items",
+        "goods_items" => "items",
         "output_items" => "items made",
         "production_batches" => "batches completed",
         "repairs" => "items repaired",
         "fields" => "fields completed",
         "collection_loads" => "loads collected",
         "storage_loads" => "loads stored",
+        "return_loads" => "loads returned",
         "arrivals" => "sites reached",
         "harvests" => "harvest batches",
         "guardianships" => "care assignments",

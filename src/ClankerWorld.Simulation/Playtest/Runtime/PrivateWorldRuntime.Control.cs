@@ -393,9 +393,12 @@ public sealed partial class PrivateWorldRuntime
         "collect_material" => "collect your own stored or dropped material",
         "collect_food" => "collect your own stored or dropped food",
         "collect_equipment" => "collect your own stored or dropped equipment",
+        "collect_goods" => "collect your own stored or dropped goods",
         "store_material" => "store your own carried material in your House",
         "store_equipment" => "store your own carried equipment in your House",
         "accept_guardianship" => "accept primary care of the named child through their guardian search",
+        "store_goods" => "store your own carried goods in your House",
+        "return_borrowed" => "return borrowed goods to their owning household's House",
         "produce_item" => "make the requested goods at a permitted workstation",
         _ => null,
     };

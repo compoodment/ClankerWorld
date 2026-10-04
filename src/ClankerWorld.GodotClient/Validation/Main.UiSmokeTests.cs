@@ -2633,6 +2633,32 @@ public partial class Main
                     !instructionCancelButton.Visible)
                     throw new InvalidOperationException($"Production tasks must show the named goods, actual item or batch progress and any blocker: {renderedMessages}");
             }
+            foreach (var (custodyOrder, expectedSummary) in new (OwnerWorldInstructionOrder Order, string Summary)[]
+            {
+                (new("collect_goods", "doing", 2, 1, "goods_items", false, TargetItemKind: "water_jug"),
+                    "Doing · Collecting water jug · 1/2 items"),
+                (new("store_goods", "blocked", 3, 1, "goods_items", false,
+                    BlockedReason: "The chosen House no longer belongs to your household.", TargetItemKind: "grain_seed"),
+                    "Blocked · Storing grain seed · 1/3 items · The chosen House no longer belongs to your household."),
+                (new("return_borrowed", "doing", 1, 0, "return_loads", false, TargetItemKind: "cloth"),
+                    "Doing · Returning borrowed cloth · 0/1 loads returned"),
+                (new("return_borrowed", "doing", 1, 3, "goods_items", true, TargetItemKind: "iron"),
+                    "Doing · Returning borrowed refined iron · 3 items so far, repeats until cancelled"),
+            })
+            {
+                RenderSelectedInhabitantCard(occupied with
+                {
+                    Instructions =
+                    [
+                        new OwnerWorldInstruction("message-custody-order", founder.Id, "must_do",
+                            "Move the requested goods.", "queued", 0, 0, 1, Order: custodyOrder),
+                    ],
+                });
+                renderedMessages = instructionHistory.GetParsedText();
+                if (!renderedMessages.Contains(expectedSummary + "\n“You said: Move the requested goods.”", StringComparison.Ordinal) ||
+                    !instructionCancelButton.Visible)
+                    throw new InvalidOperationException($"Goods tasks must show their subject, moved quantity and any destination blocker: {renderedMessages}");
+            }
             RenderSelectedInhabitantCard(queuedOrderSnapshot);
             var alreadyFinished = OrderCancellationResultText(
                 new OwnerOrderControlReceipt("order-private-id", "finished", false, 0, 0));

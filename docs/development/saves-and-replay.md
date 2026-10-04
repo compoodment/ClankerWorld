@@ -293,6 +293,15 @@ partial progress, cancellation and survival pauses retain their state through
 reload and replay. This version follows marriage schema 84 and equipment-storage schema 83; older alpha checkpoints are refused and preserved
 without migration.
 
+Private-world schema 87 adds exact personal-goods and borrowed-return orders.
+`TargetItemKind` is separate from gathering and repair subjects. Storage and
+return tasks save the selected House identity, household owner and position;
+returns also save their source lot. The destination binding is complete or absent,
+and incompatible actions, subjects, quantities and receipts are refused.
+Finite progress, queued work and cancellation survive reload without switching
+House or changing ownership. This version follows crude House tools schema 86 and production-order schema 85; older alpha checkpoints are refused and preserved
+without migration.
+
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
 Matching parent assignments are disclosed as agreement; when they differ, the
@@ -703,7 +712,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 86. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 87. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus

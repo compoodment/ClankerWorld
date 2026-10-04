@@ -139,7 +139,7 @@ care assignment. A search that closes first leaves the order blocked rather
 than replacing its accepted guardian. Queue, cancellation, stale-response
 checks and urgent survival interruptions use the common order lifecycle.
 
-Storage orders reuse the material/equipment catalogues and normal personal-storage
+Storage orders reuse the material, equipment and goods catalogues and normal personal-storage
 eligibility. `StorePersonalGoods` serves both ordinary choices and orders: it
 walks to the House entrance, then uses `InventoryFixture.Relocate` to preserve
 ownership, condition and provenance. Reserved goods, promised deliveries,
@@ -148,9 +148,11 @@ relocation receipt advances the order; its identity is hashed to a fixed length
 because split inventory identifiers can grow. Walking and survival actions earn
 no storage progress. Default tasks count one stored lot, while explicit quantities
 limit the final relocation to the remaining amount. Repetition keeps waiting
-for further matching personal goods or space until cancelled. The destination is the
-agent's current household House; named foreign buildings and map coordinates
-are not recognized storage targets.
+for further matching personal goods or space until cancelled. The destination is
+bound once to the current household's House identity, household owner and listed
+position, before travel. An optional requested coordinate must match that House.
+Each step rechecks the binding, so removal, reassignment, movement or departure
+blocks the task instead of retargeting it. Named foreign buildings remain unsupported.
 
 `store_equipment` uses the existing exact `TargetEquipmentKind` and the same
 garment/carry-aid/tool subjects as collection. Complete equipment names are read
@@ -173,6 +175,25 @@ building's listed position. Physical pickup preserves ownership, condition, prov
 and reserved portions, with the final quantity capped by carrying space and
 the requested remainder. Only the committed relocation earns progress, using
 a bounded hashed receipt. Former-household collection grants no other access.
+Vessels must fit with their entire contents before selection as well as execution.
+
+`collect_goods` and `store_goods` use an exact `TargetItemKind` from a separate
+logistics catalogue. They do not broaden the gathering or repair subjects.
+Explicit quantities count `goods_items`; default tasks count collection or
+storage loads. A vessel relocation moves one whole container family, preserves
+its ownership and credits one vessel, never its contents as extra progress.
+
+`return_borrowed` uses the same named goods plus the existing material/equipment
+subjects. It binds the carried source lot and its owning household's exact
+House before travel. The shared borrowed-return helper rechecks custody,
+ownership, reservations, whole-vessel space and the destination at execution.
+Only a committed relocation receipt earns `goods_items` or `return_loads`.
+Cancellation never undoes completed movement or changes goods ownership.
+When an explicit storage or return moves the exact hoe or sickle used by that
+agent's ordinary field work, it first interrupts that work through the normal
+cancellation transition. The new order can then move the tool without leaving
+a stale field-work reference in the same checkpoint. Spare tools and unrelated
+field work are unaffected.
 
 Food collection uses the same path with action `collect_food`. A separate
 bounded subject parser accepts generic food or exactly berries, fruit, wild
