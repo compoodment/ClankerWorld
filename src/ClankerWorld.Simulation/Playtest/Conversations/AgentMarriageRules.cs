@@ -50,6 +50,8 @@ public static class AgentMarriageRules
         society.Inhabitants.SingleOrDefault(person => person.Id == first) is { } initiator && IsAdult(initiator) &&
         society.Inhabitants.SingleOrDefault(person => person.Id == second) is { } invitee && IsAdult(invitee) &&
         initiator.HasChosenName && invitee.HasChosenName &&
+        InhabitantNameRules.CanonicalKey(initiator.Name) is { Length: <= 48 } &&
+        InhabitantNameRules.CanonicalKey(invitee.Name) is { Length: <= 48 } &&
         InhabitantNameRules.SurnameKey(initiator.Name) is not null && InhabitantNameRules.SurnameKey(invitee.Name) is not null &&
         Partnership(society, first, second) is not null &&
         !marriages.Any(marriage => HasParticipant(marriage, first) || HasParticipant(marriage, second));
@@ -79,8 +81,11 @@ public static class AgentMarriageRules
                 WithSurname(marriage.InviteeNameAtAcceptance, surname).Length <= 48)
             .Order(StringComparer.Ordinal).ToArray();
 
-    public static bool CanKeepSurnameChoices(AgentMarriage marriage, string name) =>
-        AllowedSurnames(marriage).All(surname => WithSurname(name, surname).Length <= 48);
+    public static bool CanKeepSurnameChoices(AgentMarriage marriage, string name)
+    {
+        var choices = AllowedSurnames(marriage);
+        return choices.Count > 0 && choices.All(surname => WithSurname(name, surname).Length <= 48);
+    }
 
     public static string WithSurname(string name, string surname)
     {

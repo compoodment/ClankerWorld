@@ -11,6 +11,28 @@ public sealed partial class PrivateWorldConversationTests
     private static readonly string[] MarriageSurnameOptions = ["Ash", "Reed"];
 
     [Fact]
+    public async Task UnicodeExpansionCannotAcceptOrRestoreAMarriageWithoutAnyFittingSurname()
+    {
+        var first = new MarriagePersonalProvider(InitiatorId);
+        var second = new MarriagePersonalProvider(InviteeId);
+        IDecisionProvider Route(string id) => id == InitiatorId ? first : id == InviteeId ? second : new DeterministicDecisionProvider();
+        using var world = MarriedWorldSetup("unicode-marriage-eligibility", Route);
+        var expandingName = new string('\u0344', 24) + " Q";
+        Assert.True(world.RenameAgent(InitiatorId, expandingName));
+        Assert.Equal(expandingName, world.Society.GetInhabitant(InitiatorId).Name);
+        world.Validate(); // Existing naming accepts this raw name, whose canonical form expands.
+        Assert.False(AgentMarriageRules.CanPropose(world.Society, world.Marriages, InitiatorId, InviteeId));
+        Assert.Empty(world.Marriages);
+
+        using var accepted = MarriedWorldSetup("unicode-marriage-receipt", Route);
+        await AdvanceMarriageUntil(accepted, () => accepted.Marriages.Count == 1);
+        accepted.Pause();
+        var saved = accepted.ExportState();
+        var marriage = Assert.Single(saved.Marriages) with { InitiatorNameAtAcceptance = expandingName };
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(saved with { Marriages = [marriage] }));
+    }
+
+    [Fact]
     public async Task LongOriginalNamesOnlyOfferSurnamesThatFitBothAndFinishWithoutRepeatedCalls()
     {
         var first = new MarriagePersonalProvider(InitiatorId) { UseAllowedSurnameOptions = true, DisagreeOnSurname = true };

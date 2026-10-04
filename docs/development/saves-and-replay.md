@@ -424,7 +424,9 @@ conversation's separate mutual marriage consent. Its surname session admits
 at most four alternating choices from the original surnames that fit both
 accepted names within the existing 48-character limit. Later player renames
 cannot invalidate those choices while the session is unfinished; loading
-refuses such a checkpoint too. Invalid
+refuses such a checkpoint too. Marriage eligibility and saved acceptance names
+also check the limit after Unicode normalization, so an accepted receipt cannot
+have an empty surname choice list. Invalid
 replies, failed calls, pause and cancellation admit no turn. A completed
 receipt records the result, completion time and whether the seeded draw was
 used; validation rechecks the draw against the seed and consent identity.

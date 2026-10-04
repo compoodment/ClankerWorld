@@ -77,7 +77,7 @@ internal static class AgentMarriageValidation
     }
 
     private static bool ValidOriginalName(string? name) => name is not null && name.Length <= 48 && !name.Any(char.IsControl) &&
-        InhabitantNameRules.CanonicalKey(name) is not null && InhabitantNameRules.SurnameKey(name) is not null;
+        InhabitantNameRules.CanonicalKey(name) is { Length: <= 48 } && InhabitantNameRules.SurnameKey(name) is not null;
 
     private static bool ValidSurname(string? name) => !string.IsNullOrWhiteSpace(name) && name.Length <= 48 &&
         !name.Any(char.IsControl) && !name.Any(char.IsWhiteSpace) && InhabitantNameRules.CanonicalKey(name) == name;
