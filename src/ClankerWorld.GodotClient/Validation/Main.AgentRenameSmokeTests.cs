@@ -7,7 +7,7 @@ namespace ClankerWorld.GodotClient;
 public partial class Main
 {
     /// <summary>
-    /// A rename the host refuses because another agent holds the full name
+    /// A rename the host refuses because another agent holds the first name
     /// keeps the player's attempt in the Profile field through an ordinary
     /// signed refresh with the field unfocused, including one that lands while
     /// the host is still deciding, while the Profile keeps showing the host's
@@ -17,6 +17,7 @@ public partial class Main
     {
         const string asterId = "rename-ui-aster";
         const string rowanId = "rename-ui-rowan";
+        const string refusedName = "Aster Lake";
         var previousRegistration = registration;
         var previousKey = deviceKey;
         var previousUrl = worldUrlInput.Text;
@@ -59,7 +60,7 @@ public partial class Main
             }
             async Task RefuseTakenNameAsync(OwnerWorldReconnect? refreshWhileDeciding = null)
             {
-                renameAgentInput.Text = "Aster Vale";
+                renameAgentInput.Text = refusedName;
                 renameAgentInput.EmitSignal(LineEdit.SignalName.TextChanged, renameAgentInput.Text);
                 // Pressing Rename takes keyboard focus away from the field.
                 GetViewport().GuiGetFocusOwner()?.ReleaseFocus();
@@ -77,20 +78,21 @@ public partial class Main
                         throw new InvalidOperationException("The rename request must reach the host before the refresh check.");
                     // The periodic refresh does not wait for owner actions.
                     await RefreshFromHostAsync(refreshWhileDeciding);
-                    if (renameAgentInput.Text != "Aster Vale")
+                    if (renameAgentInput.Text != refusedName)
                         throw new InvalidOperationException($"A refresh while the host decides must keep the attempted name: field={renameAgentInput.Text}.");
                     host.ReleaseRename = null;
                     release.SetResult();
                     await renaming.WaitAsync(TimeSpan.FromSeconds(5));
                 }
-                if (!host.RenameRequests.TryDequeue(out var sent) || sent != new OwnerAgentRenameAction(rowanId, "Aster Vale") ||
-                    !renameRow.Visible || renameAgentInput.Text != "Aster Vale" || renameAgentInput.HasFocus() ||
+                if (!host.RenameRequests.TryDequeue(out var sent) || sent != new OwnerAgentRenameAction(rowanId, refusedName) ||
+                    !renameRow.Visible || renameAgentInput.Text != refusedName || renameAgentInput.HasFocus() ||
                     selectedActorNameLabel.Text != "Rowan Lake" ||
-                    !statusLabel.Text.Contains("belongs to another agent", StringComparison.Ordinal))
-                    throw new InvalidOperationException($"A refused rename must keep the attempt in the open field and explain that the name is taken: field={renameAgentInput.Text}, status={statusLabel.Text}.");
+                    !statusLabel.Text.Contains("first name belongs to another agent", StringComparison.Ordinal))
+                    throw new InvalidOperationException($"A refused rename must keep the attempt in the open field and explain that the first name is taken: field={renameAgentInput.Text}, status={statusLabel.Text}.");
             }
 
-            host.TakenAgentNames.Add("Aster Vale");
+            // This is an exact response fixture; the real HTTP tests exercise the host's name rule.
+            host.TakenAgentNames.Add(refusedName);
             await RefreshFromHostAsync(World("rename-ui-smoke", 1));
             selectedInhabitantId = null;
             SelectInhabitant(rowanId);
@@ -102,7 +104,7 @@ public partial class Main
 
             await RefuseTakenNameAsync(refreshWhileDeciding: World("rename-ui-smoke", 2));
             await RefreshFromHostAsync(World("rename-ui-smoke", 3));
-            if (!renameRow.Visible || renameAgentInput.Text != "Aster Vale" || selectedActorNameLabel.Text != "Rowan Lake" ||
+            if (!renameRow.Visible || renameAgentInput.Text != refusedName || selectedActorNameLabel.Text != "Rowan Lake" ||
                 quickCardNameLabel.Text != "Rowan Lake")
                 throw new InvalidOperationException($"An ordinary refresh with the field unfocused must keep the refused name for the player to change, while the Profile shows the name the host holds: field={renameAgentInput.Text}.");
 
@@ -132,7 +134,7 @@ public partial class Main
             if (!host.RenameRequests.TryDequeue(out var accepted) || accepted != new OwnerAgentRenameAction(rowanId, "Rowan Hill") ||
                 renameRow.Visible || selectedActorNameLabel.Text != "Rowan Hill" ||
                 observationSession.Current?.Baseline.Snapshot.WorldTick != 6)
-                throw new InvalidOperationException("A different name must rename the agent, close the field and show the host's new name.");
+                throw new InvalidOperationException("Keeping an agent's own first name must allow a new surname, close the field and show the host's new name.");
         }
         finally
         {

@@ -100,8 +100,10 @@ public sealed partial class PrivateWorldRuntime
                 StarterContent.Create(), SettlementContent.Create(), HouseContent.Create(),
                 WarehouseContent.Create(), FarmContent.Create(), BlacksmithContent.Create(),
                 HouseCookingContent.Create(), PotteryContent.Create(), SiloContent.Create(), TailorContent.Create(),
-                RestaurantContent.Create(), BusinessContent.Create(), CareContent.Create(), OrnamentContent.Create(),
-                KnowledgeContent.Create(),
+                RestaurantContent.Create(), BusinessContent.Create(), CareContent.Create(), OrnamentContent.Create(), TownHallContent.Create(),
+                KnowledgeContent.Create(), MarketContent.Create(), StreetLanternContent.Create(),
+                FarmhouseVariantContent.Create(), BlacksmithVariantContent.Create(), TailorVariantContent.Create(),
+                ClinicVariantContent.Create(), RestaurantVariantContent.Create(),
             ];
             foreach (var manifest in manifests)
             {
@@ -218,6 +220,17 @@ public sealed partial class PrivateWorldRuntime
                     position,
                     $"Building definition '{normalizedDefinitionId}' is not active.");
             }
+
+            if (definition.Tags.Contains(TownHallContent.HallTag, StringComparer.Ordinal) ||
+                StreetLanternContent.IsLantern(definition.CanonicalId))
+                return BuildingPlacementResult.Rejected(normalizedInstanceId, normalizedDefinitionId, position,
+                    StreetLanternContent.IsLantern(definition.CanonicalId)
+                        ? $"{definition.DisplayName} needs a Council-approved project, delivered materials and completed building work."
+                        : "The Town Hall needs a Council-approved project, delivered materials and completed building work.");
+
+            if (definition.Tags.Any(tag => tag is MarketContent.HallTag or MarketContent.StallTag))
+                return BuildingPlacementResult.Rejected(normalizedInstanceId, normalizedDefinitionId, position,
+                    "A Market or stall needs a Council-approved project, delivered Town materials and completed building work.");
 
             if (worldSimulation.Buildings.Any(item => item.InstanceId == normalizedInstanceId))
             {
@@ -440,6 +453,12 @@ public sealed partial class PrivateWorldRuntime
         try
         {
             var manifest = GetContentManifest(packageId);
+            if (towns.SelectMany(town => town.Projects).Any(project => project.Plan.DefinitionId
+                    .StartsWith(manifest.PackageDigest + "/", StringComparison.Ordinal)) ||
+                towns.SelectMany(town => town.Governance?.Proposals ?? []).Any(proposal =>
+                    proposal.Status is "pending" or "passed" && proposal.Project is { } plan &&
+                    plan.DefinitionId.StartsWith(manifest.PackageDigest + "/", StringComparison.Ordinal)))
+                throw new InvalidOperationException("This content is referenced by retained Town construction approvals and material receipts.");
             var packageRecipes = manifest.Definitions.Where(definition => definition.Kind == RecipeDefinition.SchemaKind)
                 .Select(definition => definition.CanonicalId(manifest.PackageDigest)).ToHashSet(StringComparer.Ordinal);
             if (toolMakingRequests.Any(request => !ToolMakingRequestRules.IsTerminal(request.Status) &&

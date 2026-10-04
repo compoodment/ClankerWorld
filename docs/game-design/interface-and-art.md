@@ -311,12 +311,14 @@ everything that is available in the current build. See [what works today](../wha
   chooses its own name after placement; the player can rename it later. Agents
   should choose full names with a surname and may choose a middle name. Do not
   include every existing agent name in the naming prompt merely to avoid
-  collisions. The world rejects an already-taken exact full name and asks the
+  collisions. Under the October 3 decision in
+  [Agents and social life](agents-and-families.md#starting-agents-families-and-life-stages),
+  the world rejects an already-taken chosen first name and asks the
   agent once more; if that also fails, the agent keeps a placeholder name the
   player can change. The comparison covers every agent in the world, including
-  those who have died; similar but distinct names are allowed (see
-  [Agents and social life](agents-and-families.md#starting-agents-families-and-life-stages)).
-  Player renaming follows the same full-name check, as recorded in
+  those who have died; a different surname or middle name does not make a taken
+  first name available. Temporary unnamed placeholders do not reserve a first
+  name. Player renaming follows the same first-name check, as recorded in
   [Player guidance and orders](#player-guidance-and-orders). Cultural naming
   context remains open.
 - **Agreed on September 30:** before the player confirms, Add Agent shows which
@@ -423,12 +425,17 @@ everything that is available in the current build. See [what works today](../wha
   Direct manipulation of those fields belongs in developer tools, whose
   first set is agreed above. This preserves the separately agreed
   founder setup, world settings and Mod Library controls.
-- **Player renaming uses the same full-name check as model naming**, against
-  every other living or deceased agent in the world. A taken full name is
-  rejected; the player supplies another name, without a model retry. Similar
-  but distinct full names remain allowed. Renaming keeps the same person,
+- **Player renaming uses the same first-name check as model naming**, against
+  every other named living or deceased agent in the world. A taken first name is
+  rejected; the player supplies another name, without a model retry. An agent
+  may keep their own first name while changing the rest of their name. Renaming
+  keeps the same person,
   relationships and memories; old conversation text remains as originally
   spoken rather than being rewritten to use the new name.
+  **Agreed with computment on October 3:** a surname change for a married agent
+  updates both spouses together, keeping the other spouse's first and middle
+  names. The name check happens before either change; refusal leaves both
+  names unchanged. The original marriage surname conversation stays as it was.
 
 **Existing agreed handling, from September 30:** an order the game cannot act
 on is accepted and closed at once as not understood, without a model request.
@@ -604,6 +611,33 @@ The recent history should persist with the world save but remain bounded.
   ending in a flat white band. The plaza was "a bit too big for the eight
   stalls"; in the fourth round computment kept a shorter plaza but wanted
   the open column on each side back, so eight stalls take a 7×4 plaza.
+- **Night lights, agreed on October 3:** at night, buildings in use and
+  fires warm the ground around them. computment's rules:
+  - Roofs never glow. Light comes out of a building's windows and open door
+    onto the ground beside its walls. Windows are on the **front and both
+    sides, not the back**, for every building with windows, the Farmhouse
+    included; a front only one tile wide has room just for the door.
+  - A **House is lit only while someone is inside**; nobody keeps a lamp
+    burning in an empty house. Work buildings light while someone is inside
+    or a job runs there, and the Blacksmith's forge glows in its yard while
+    it works. A **Warehouse has no windows**: only a lantern by its loading
+    doors, lit while someone fetches or stores goods. A Silo and Market
+    stalls stay dark. A Port's lantern on the end of its pier burns every
+    night.
+  - Light must **not look circular** and must plainly **come from
+    something**: a window, a door, a fire or a lantern fitting that is drawn,
+    never a bare bright dot. Each pool has a ragged edge that **moves
+    slightly**; fires flicker faster. Light is stepped on the art's pixel grid,
+    warms the ground without hiding its texture, and fades in and out with
+    dusk and dawn.
+  - Every design gets lights, including the Market, Town Hall, Port, Clinic
+    and Restaurant designs approved on October 1; a design whose feature is
+    not in the game yet gets its lights when that feature lands. Night lights
+    are only for looks: night still sets no visibility rule.
+- **Street lanterns, agreed on October 3:** agents build street lanterns
+  beside Roads; they need **no fuel** and light themselves at dusk. Two
+  designs: **B, a round stone lamp with an open flame**, and **C, a lantern
+  hung from an arm over the Road** ([Towns](towns.md#shared-town-projects)).
 - Art is drawn in code, not stored as image files. computment prefers this.
   Approved art for content that is not built yet waits in
   `tools/ArtPreview/Proposed/` until its feature lands.

@@ -35,6 +35,8 @@ public partial class Main
 
         // A smaller window can lower the UI Scale that fits, as well as re-lay the panels.
         Resized += ApplyUiScale;
+        // The map's container can finish resizing after the root signal above.
+        uiLayer.Resized += QueueHudListsFit;
         foreach (var panel in HudPanels())
         {
             panel.VisibilityChanged += PlaceHudPanels;
@@ -153,6 +155,11 @@ public partial class Main
         nightLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         nightLayer.Follow(terrainLayer);
         mapStage.AddChild(nightLayer);
+
+        // Lit windows, doors and fires warm the ground back up through the wash.
+        nightLightsLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        nightLightsLayer.Follow(terrainLayer, nightLayer);
+        mapStage.AddChild(nightLightsLayer);
 
         objectLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         objectLayer.MouseFilter = Control.MouseFilterEnum.Ignore;

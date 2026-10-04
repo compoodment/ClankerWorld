@@ -220,7 +220,7 @@ public sealed class TownGovernanceRuntimeTests
             Towns = [town with { Governance = governance }],
             WorldSystems = RegionalWeatherRules.Initialize(initial.WorldSystems! with
             {
-                Config = initial.WorldSystems.Config with { TicksPerDay = shortDay },
+                Config = initial.WorldSystems.Config with { TicksPerDay = shortDay, CalendarOffsetTicks = 0 },
                 RegionalWeather = null,
             }, initial.Map),
             Society = initial.Society with

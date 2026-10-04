@@ -20,22 +20,37 @@ public static class HouseholdLandGrantRules
 
     public static bool IsAvailable(HouseholdLandUseRequest request, IReadOnlyList<HouseholdLandUseRight> rights,
         IReadOnlyList<HouseholdLandUseRequest> requests) =>
-        !rights.Any(right => right.Tiles.Any(request.Tiles.Contains)) &&
+        request.HearingResolutions.Count == 0 && !rights.Any(right => right.Tiles.Any(request.Tiles.Contains)) &&
         !requests.Any(other => other.Status == "pending" && other.HouseholdId != request.HouseholdId &&
-            other.Tiles.Any(request.Tiles.Contains));
+            other.Tiles.Any(tile => request.Tiles.Contains(tile) && !other.HearingResolutions.Any(resolution => resolution.Tiles.Contains(tile))));
+
+    public static string? RefusalReason(HouseholdLandUseRequest request, IReadOnlyList<string> adults,
+        TownProposal? proposal, long tick) =>
+        adults.Count == 0 ? "The household has no living adult signatory." :
+        request.AgreedEndTick is { } end && end <= tick ? "The requested end date has arrived." :
+        request.Consents.Any(c => !c.Accepted && adults.Contains(c.AgentId, StringComparer.Ordinal)) ? "A current adult in the household declined." :
+        proposal is { Status: "cancelled" } && request.HearingResolutions.Count == 0 ? "The Council changed before it decided; the household may ask again." :
+        proposal is { Status: "rejected" or "withdrawn" } ? "The Council proposal did not pass." : null;
 
     public static void Validate(long tick, IReadOnlyList<TownRuntimeState> towns,
         IReadOnlyList<HouseholdLandUseRight> rights, IReadOnlyList<HouseholdLandUseRequest> requests,
         IReadOnlySet<string> knownAgents)
     {
+        IReadOnlyList<HouseholdLandUseRight> receiptRights = rights;
+        foreach (var town in towns)
+        {
+            if (!TownLandHearingValidation.HasRecords(town.LandHearings))
+                throw new InvalidDataException("Saved Town hearing history must be present.");
+            receiptRights = TownLandHearingRules.OriginalGrantRights(town.LandHearings, receiptRights);
+        }
         foreach (var request in requests)
         {
             var council = towns.Single(t => t.Id == request.TownId).Governance;
             var proposal = council?.Proposals.SingleOrDefault(p => p.Id == request.CouncilProposalId);
-            if (request.Status is not ("pending" or "granted" or "rejected" or "withdrawn") ||
+            if (request.Status is not ("pending" or "granted" or "rejected" or "withdrawn" or "hearing_resolved") ||
                 request.Status == "pending" && request.SettledTick is not null ||
                 request.Status != "pending" && (request.SettledTick is null || request.SettledTick < request.RequestedTick || request.SettledTick > tick) ||
-                request.Consents is null || request.GrantAdults is null ||
+                request.Consents is null || request.GrantAdults is null || request.HearingResolutions is null ||
                 request.Consents.Any(c => c is null || !knownAgents.Contains(c.AgentId) || c.Tick < request.RequestedTick ||
                     c.Tick > (request.SettledTick ?? tick) || council is null ||
                     !council.Knowledge.Any(k => k.AgentId == c.AgentId && k.LearnedTick <= c.Tick &&
@@ -46,7 +61,7 @@ public static class HouseholdLandGrantRules
                     proposal.AuthorId != request.RequestedByAgentId || proposal.OpenedTick < request.RequestedTick) ||
                 request.Status != "granted" && request.GrantAdults.Count != 0)
                 throw new InvalidDataException("A saved household land request has invalid approval or consent history.");
-            var grants = rights.Where(right => right.GrantSource == GrantSource(request.Id)).ToArray();
+            var grants = receiptRights.Where(right => right.GrantSource == GrantSource(request.Id)).ToArray();
             if (request.Status == "granted")
             {
                 if (proposal is not { Status: "passed" } || proposal.SettledTick > request.SettledTick ||
@@ -61,7 +76,8 @@ public static class HouseholdLandGrantRules
             else if (grants.Length != 0)
                 throw new InvalidDataException("An unfinished or refused land request cannot supply a use right.");
         }
-        if (rights.Any(right => right.GrantSource.StartsWith(GrantPrefix, StringComparison.Ordinal) &&
+        TownLandHearingValidation.ValidateRequestResolutions(tick, towns.Select(town => town.LandHearings).ToArray(), requests);
+        if (receiptRights.Any(right => right.GrantSource.StartsWith(GrantPrefix, StringComparison.Ordinal) &&
                 !requests.Any(request => request.Status == "granted" && GrantSource(request.Id) == right.GrantSource)) ||
             towns.Any(town => town.Governance?.Proposals.Any(proposal => proposal.Kind == "land_use" &&
                 !requests.Any(request => request.TownId == town.Id && request.CouncilProposalId == proposal.Id &&
@@ -75,7 +91,8 @@ public sealed partial class PrivateWorldRuntime
     private TownGovernanceState OpenLandUseProposal(TownRuntimeState town, TownGovernanceState state,
         ref HouseholdLandUseRequest request)
     {
-        if (request.CouncilProposalId is not null || !HouseholdLandGrantRules.IsAvailable(request, householdLandUseRights, householdLandUseRequests) ||
+        if (request.CouncilProposalId is not null || HasOpenLandHearingPlot(town.Id, request.Tiles) ||
+            !HouseholdLandGrantRules.IsAvailable(request, householdLandUseRights, householdLandUseRequests) ||
             !TownAdults(town).Contains(request.RequestedByAgentId, StringComparer.Ordinal)) return state;
         var text = $"Grant household use of {request.Tiles.Count} land tile(s); every current adult in the household must separately accept.";
         state = TownGovernanceRules.SubmitProposal(state, town.Id, request.RequestedByAgentId, "land_use", request.Id,
@@ -92,11 +109,7 @@ public sealed partial class PrivateWorldRuntime
             var request = saved;
             var adults = HouseholdAdults(request.HouseholdId);
             var proposal = state.Proposals.SingleOrDefault(p => p.Id == request.CouncilProposalId);
-            string? refusal = adults.Length == 0 ? "The household has no living adult signatory." :
-                request.AgreedEndTick is { } end && end <= WorldTick ? "The requested end date has arrived." :
-                request.Consents.Any(c => !c.Accepted && adults.Contains(c.AgentId, StringComparer.Ordinal)) ? "A current adult in the household declined." :
-                proposal is { Status: "cancelled" } ? "The Council changed before it decided; the household may ask again." :
-                proposal is { Status: "rejected" or "withdrawn" } ? "The Council proposal did not pass." : null;
+            var refusal = HouseholdLandGrantRules.RefusalReason(request, adults, proposal, WorldTick);
             if (refusal is not null)
             {
                 request = request with { Status = "rejected", SettledTick = WorldTick };
@@ -104,7 +117,9 @@ public sealed partial class PrivateWorldRuntime
                     state = TownGovernanceRules.CancelLandUseProposal(state, proposalId, WorldTick);
                 state = TownGovernanceRules.LandUseNotice(state, request.Id, "Household land request refused: " + refusal, WorldTick);
             }
-            else if (HouseholdLandGrantRules.IsAvailable(request, householdLandUseRights, householdLandUseRequests))
+            else if (!HasOpenLandHearingPlot(town.Id, request.Tiles) &&
+                HouseholdLandGrantRules.IsAvailable(request, householdLandUseRights, householdLandUseRequests) &&
+                !IncludesForeignFieldWithoutUseRight(request.HouseholdId, request.Tiles))
             {
                 if (proposal is null)
                 {
@@ -132,8 +147,12 @@ public sealed partial class PrivateWorldRuntime
     private HashSet<GridPoint> HouseholdLandHeldByOthers(string? household) => householdLandUseRights
         .Where(right => right.HouseholdId != household).SelectMany(right => right.Tiles)
         .Concat(householdLandUseRequests.Where(request => request.Status == "pending" && request.HouseholdId != household)
-            .SelectMany(request => request.Tiles))
+            .SelectMany(TownLandRightsRules.UnresolvedRequestTiles))
         .ToHashSet();
+
+    private bool IncludesForeignFieldWithoutUseRight(string household, IReadOnlyList<GridPoint> tiles) =>
+        fields.Any(field => field.HouseholdId != household && tiles.Contains(field.Position) &&
+            !householdLandUseRights.Any(right => right.Tiles.Contains(field.Position)));
 
     private HashSet<GridPoint> BuildingFootprintTiles(Func<PlacedBuilding, bool> include)
     {
@@ -148,7 +167,7 @@ public sealed partial class PrivateWorldRuntime
                 include(worldSimulation.Buildings.FirstOrDefault(building => building.InstanceId == job.BuildingInstanceId)))
             .SelectMany(ExpansionTiles).ToHashSet();
 
-    /// <summary>Free Town-titled land nearest first: no use right, pending request, building, expansion, road or field.</summary>
+    /// <summary>Free Town-titled land nearest first: no use right, pending request, building, expansion, road, field or Town project site.</summary>
     private GridPoint[] RequestableLandNear(TownRuntimeState town, GridPoint from, int count)
     {
         var taken = HouseholdLandHeldByOthers(null);
@@ -156,6 +175,9 @@ public sealed partial class PrivateWorldRuntime
         taken.UnionWith(ExpansionWorkTiles(_ => true));
         taken.UnionWith(RoadAndBridgeTiles());
         taken.UnionWith(fields.Select(field => field.Position));
+        taken.UnionWith(TownProjectProtectedSites());
+        taken.UnionWith(PendingTownProjectSiteTiles());
+        taken.UnionWith(MarketSiteTiles());
         return townLandTitles.Where(title => title.TownId == town.Id).SelectMany(title => title.Tiles)
             .Where(tile => map.IsLand(tile) && !taken.Contains(tile)).Distinct()
             .OrderBy(tile => map.FootDistance(from, tile)).ThenBy(tile => tile.Y).ThenBy(tile => tile.X)
@@ -164,7 +186,7 @@ public sealed partial class PrivateWorldRuntime
 
     private string LandUseTerms(HouseholdLandUseRequest request) =>
         "Exact tiles: " + TownLandClaimRules.DescribeTiles(request.Tiles) + ". " +
-        (request.AgreedEndTick is { } end ? $"Agreed end: world day {end / CivicDay + 1}. " : "No agreed end date. ");
+        (request.AgreedEndTick is { } end ? $"Agreed end: world day {CivicDayNumber(end)}. " : "No agreed end date. ");
 
     private void AddHouseholdLandCandidates(List<CognitionCandidate> candidates, string actor, TownRuntimeState town)
     {
@@ -177,14 +199,18 @@ public sealed partial class PrivateWorldRuntime
         var history = CivicHistory(town);
         foreach (var request in householdLandUseRequests.Where(r => r.TownId == town.Id && r.Status == "pending" && history.Knows(actor, "land_use", r.Id)))
         {
+            var terms = request.HearingResolutions.Count == 0 ? LandUseTerms(request) :
+                "Remaining unheard requested tiles: " + TownLandClaimRules.DescribeTiles(TownLandRightsRules.UnresolvedRequestTiles(request)) +
+                ". Completed hearing decisions remain. A new ordinary grant requires a separate request for its exact plot. ";
             if (request.RequestedByAgentId == actor)
                 candidates.Add(new(CivicAction(town.Id, "withdraw_land_use", request.Id),
-                    "Withdraw your pending household land request. " + LandUseTerms(request), 190));
+                    "Withdraw your pending household land request. " + terms, 190));
             if (!HouseholdAdults(request.HouseholdId).Contains(actor, StringComparer.Ordinal) || request.Consents.Any(c => c.AgentId == actor)) continue;
-            candidates.Add(new(CivicAction(town.Id, "accept_land_use", request.Id),
-                "Personally accept the requested use right for your household. Council approval and every current adult's acceptance are also required. " + LandUseTerms(request), 165));
+            if (request.HearingResolutions.Count == 0)
+                candidates.Add(new(CivicAction(town.Id, "accept_land_use", request.Id),
+                    "Personally accept the requested use right for your household. Council approval and every current adult's acceptance are also required. " + terms, 165));
             candidates.Add(new(CivicAction(town.Id, "decline_land_use", request.Id),
-                "Personally decline the requested use right for your household. " + LandUseTerms(request), 166));
+                "Personally decline the requested use right for your household. " + terms, 166));
         }
     }
 
@@ -194,10 +220,11 @@ public sealed partial class PrivateWorldRuntime
             ExpansionShapes(building).Any(shape => CanFitExpansion(building, shape.Position, shape.Footprint, out _))) return null;
         var definition = worldContent.Buildings.Single(d => d.CanonicalId == building.DefinitionId);
         var pending = householdLandUseRequests.Where(r => r.Status == "pending" && r.HouseholdId == building.HouseholdId)
-            .SelectMany(r => r.Tiles).ToHashSet();
+            .SelectMany(TownLandRightsRules.UnresolvedRequestTiles).ToHashSet();
         // A footprint whose extra land is free can be granted; one over land another household
         // holds or has asked for only opens a dispute, so it is offered when no free one fits.
         var heldByOthers = HouseholdLandHeldByOthers(building.HouseholdId);
+        var proposedHalls = PendingTownProjectSiteTiles();
         GridPoint[]? offered = null;
         GridPoint[]? disputed = null;
         foreach (var shape in ExpansionShapes(building))
@@ -210,6 +237,7 @@ public sealed partial class PrivateWorldRuntime
             if (extra.Length == 0 || extra.Any(tile => !TownLandRightsRules.IsCoveredByTownTitle(tile, building.TownId!, townLandTitles))) continue;
             // One expansion asks the Council once: a pending request for any of its shapes waits to be decided.
             if (extra.Any(pending.Contains)) return null;
+            if (extra.Any(proposedHalls.Contains)) continue;
             if (extra.Any(heldByOthers.Contains)) disputed ??= extra;
             else offered ??= extra;
         }

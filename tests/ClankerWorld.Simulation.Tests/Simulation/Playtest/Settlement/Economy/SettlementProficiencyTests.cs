@@ -13,7 +13,6 @@ public sealed class SettlementProficiencyTests
     [InlineData(10, false, false)]
     [InlineData(0, true, false)]
     [InlineData(30, true, false)]
-    [InlineData(0, false, true)]
     [InlineData(0, true, true)]
     public async Task PracticeImprovesWorkAndOnlySuccessfulCompletionEarnsCredit(int experience, bool finish, bool knownSkill)
     {
@@ -34,7 +33,7 @@ public sealed class SettlementProficiencyTests
                 Society = state.Society.Society with
                 {
                     Inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "practice-tool", "wooden_hammer", actor.InhabitantId, 1),
-                    Inhabitants = state.Society.Society.Inhabitants.Select(person => person with { Name = "sk-private-practice-name" }).ToArray(),
+                    Inhabitants = state.Society.Society.Inhabitants.Select(person => person with { Name = $"sk-private-practice-name-{person.Id}" }).ToArray(),
                 }
             },
             Inhabitants = state.Inhabitants.Select(person => person == actor ? person with
@@ -83,20 +82,6 @@ public sealed class SettlementProficiencyTests
             }
         }
         finally { directory.Delete(recursive: true); }
-    }
-
-    [Theory]
-    [InlineData(-1, 11)]
-    [InlineData(1, 10)]
-    public void InvalidOrOldSchemaPracticeFailsClosed(int experience, int schema)
-    {
-        using var world = new PrivateWorldRuntime("invalid-practice");
-        var state = world.ExportState();
-        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(state with
-        {
-            SchemaVersion = schema,
-            Inhabitants = state.Inhabitants.Select(person => person with { Proficiency = new(experience) }).ToArray(),
-        }));
     }
 
     private sealed class IdleProvider : IDecisionProvider

@@ -121,7 +121,7 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
         if (society.Checkpoint.Inventory.Lots.Any(lot => lot.OwnerId == householdId &&
-                lot.ItemKind == "iron_ore" && AvailableLotQuantity(lot) > 0))
+                lot.ItemKind == "iron_ore" && !OnBorrowedMarketStall(lot) && AvailableLotQuantity(lot) > 0))
             return;
         if (MaterialSource("iron_ore", actor) is not { } source ||
             FreeCarryCapacity(actor) < ProjectMaterialCarryUnits(actor, "iron_ore", source) &&
@@ -188,7 +188,7 @@ public sealed partial class PrivateWorldRuntime
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
             if (personal is not null) return personal;
             var source = inventory.Lots
-                .Where(lot => lot.OwnerId == householdId && lot.CarrierId is null && lot.StorageBuildingId != blacksmithId &&
+                .Where(lot => lot.OwnerId == householdId && lot.CarrierId is null && !OnBorrowedMarketStall(lot) && lot.StorageBuildingId != blacksmithId &&
                     lot.DeliveryBuildingId != blacksmithId && lot.ContainerLotId is null && lot.ItemKind == kind &&
                     AvailableLotQuantity(lot) > 0)
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
@@ -212,6 +212,7 @@ public sealed partial class PrivateWorldRuntime
                 .Sum(AvailableLotQuantity);
             if (stocked + incoming >= target || inventory.Lots.Any(lot =>
                     (lot.OwnerId == householdId || lot.OwnerId == actor) && lot.ItemKind == kind &&
+                    !OnBorrowedMarketStall(lot) && (lot.OwnerId != actor || !OnMarketStall(lot)) &&
                     lot.StorageBuildingId != blacksmithId && lot.DeliveryBuildingId != blacksmithId &&
                     lot.ContainerLotId is null &&
                     AvailableLotQuantity(lot) > 0))
@@ -263,7 +264,7 @@ public sealed partial class PrivateWorldRuntime
         if (PersonalSmithOre(actor) is not null ||
             BlacksmithOreStocked(householdId, blacksmithId) >= BlacksmithInputTarget(blacksmithId, "iron_ore") ||
             society.Checkpoint.Inventory.Lots.Any(lot => lot.OwnerId == householdId &&
-                lot.ItemKind == "iron_ore" && AvailableLotQuantity(lot) > 0))
+                lot.ItemKind == "iron_ore" && !OnBorrowedMarketStall(lot) && AvailableLotQuantity(lot) > 0))
             return null;
         return MaterialSource("iron_ore", actor) is { } source ? ("iron_ore", source) : null;
     }

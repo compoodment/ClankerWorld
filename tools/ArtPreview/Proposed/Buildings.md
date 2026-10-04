@@ -8,6 +8,19 @@ baseline, and also on its own (the `.sprite` entries) so it can be placed in a
 scene. The newest round is described first; the earlier notes follow
 unchanged below it.
 
+## Integration — October 3, 2026
+
+The approved Clinic and Restaurant drawings now render their existing playable
+1×2 buildings, including rotated footprints and their recorded door sides.
+Their original roof seeds, colours, signs, planter and larger-footprint terrace
+are unchanged. The Clinic uses seed 348 and the Restaurant seed 441; the
+Restaurant still omits its terrace when either footprint dimension is one tile.
+The preview adapter selects these original proposal drawings directly for
+comparison with the client. Additional playable sizes remain separate work in
+[#829](https://github.com/compoodment/ClankerWorld/issues/829).
+
+The October 1 review notes below remain the approval history.
+
 ## Handcart integration
 
 The client now draws physical handcarts with the 18 approved transparent

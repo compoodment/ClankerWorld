@@ -221,6 +221,8 @@ public sealed record CognitionWillChoice(
 /// <paramref name="ContinuityNote"/> explains the low-population continuity rule to a partner it applies to.
 /// <paramref name="DepartureNote"/> summarizes goods to collect or return and paused household work after a departure.
 /// <paramref name="TownMembershipNote"/> states recorded Town membership, its rights and any admission the actor knows of.
+/// <paramref name="AllowedChildSurnames"/> lists the chosen biological parents' surnames during a child's naming request;
+/// an empty list means no parental surname is available, while null means the childhood restriction does not apply.
 /// </summary>
 public sealed record CognitionSelfContext(
     string OwnerId, string Name, string LifeStage, string Personality, string Aspiration,
@@ -228,7 +230,8 @@ public sealed record CognitionSelfContext(
     string? HouseholdName = null, string? TownName = null, string? HousingNote = null,
     string? EquipmentNote = null, string? ContinuityNote = null, string? DepartureNote = null, string? CivicNote = null,
     string? MedicalCareNote = null, string? TownMembershipNote = null,
-    string? ToolMakingRequestNote = null);
+    string? ToolMakingRequestNote = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<string>? AllowedChildSurnames = null);
 
 /// <summary>
 /// An exact owner message addressed to this actor. The authoritative identity
@@ -353,7 +356,15 @@ public sealed record InhabitantObservation(
                         "gather several food servings from a nearby food source" or
                         "gather the requested material from a natural source" or
                         "collect your own stored or dropped material" or
+                        "collect your own stored or dropped food" or
+                        "collect your own stored or dropped equipment" or
                         "store your own carried material in your House" or
+                        "repair your own worn clothing or carrying aid" or
+                        "repair your own worn tool" or
+                        "till a field for your household" or
+                        "plant the requested crop in your household field" or
+                        "tend your household crop" or
+                        "harvest your household crop" or
                         "travel to the exact tile named in this order" or
                         "accept primary care of the named child through their guardian search") ||
                 message.Kind == "suggestive" && message.UnderstoodTask is not null)
@@ -383,6 +394,12 @@ public sealed record InhabitantObservation(
             self.ToolMakingRequestNote?.Length > 256 ||
             self.WarmthBasisPoints is < 0 or > 10_000 || self.IllnessBasisPoints is < 0 or > 10_000))
             throw new ArgumentException("Self context must be bounded and owned by the actor.", nameof(Self));
+
+        if (Self?.AllowedChildSurnames is { } surnames &&
+            (surnames.Count > 2 || surnames.Any(surname => string.IsNullOrWhiteSpace(surname) ||
+                surname.Length > 128 || surname.Any(char.IsControl)) ||
+             surnames.Distinct(StringComparer.OrdinalIgnoreCase).Count() != surnames.Count))
+            throw new ArgumentException("Child naming context must contain at most two bounded parental surnames.", nameof(Self));
 
         if (Candidates is null || Candidates.Count == 0)
         {
@@ -511,7 +528,8 @@ public sealed record CognitionDecisionResponse(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<string>? CivicBallot = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<CognitionObserverReply>? ObserverReplies = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] CognitionWillChoice? Will = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<CognitionLandTile>? CivicLandTiles = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<CognitionLandTile>? CivicLandTiles = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] CognitionLandHearingChoice? CivicLandHearing = null)
 {
     public const int MaximumCivicLandTiles = 64;
     public const int MaximumPrivateThoughtLength = 160;
@@ -591,6 +609,7 @@ public sealed record CognitionDecisionResponse(
             throw new ArgumentOutOfRangeException(nameof(ObserverReplies));
         if (CivicLandTiles is { Count: 0 or > MaximumCivicLandTiles } || CivicLandTiles?.Any(tile => tile is null) == true)
             throw new ArgumentOutOfRangeException(nameof(CivicLandTiles));
+        CivicLandHearing?.Validate();
         var observerReplyIds = new HashSet<string>(StringComparer.Ordinal);
         foreach (var reply in ObserverReplies ?? [])
         {
@@ -1093,12 +1112,19 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                         "For claim_land actions include civic_land_tiles, an array of 1 to 64 objects with integer x and y coordinates naming one connected plot adjoining the Town's title. The Council must approve it before title changes. " +
                         "For request_land_use actions include civic_land_tiles for one connected plot already titled to the Town. A household use grant needs Council approval and separate accept_land_use choices from every current adult household member; filing or voting yes supplies no household acceptance. request_expansion_land already names the required plot. " +
                         "For civic ballot actions include civic_ballot, an array of up to the stated number of distinct eligible candidate IDs, or an empty array to abstain. " +
+                        "For hearing actions, civic_land_hearing may contain statement (testimony or reasons, at most 256 characters), household_id, agreed_end_tick (an integer), evidence_ids and law_ids (up to 16 distinct exact offered references each), grounds (a reopening claim, at most 256 characters), and requested_outcome (confirm, renew, amend, end or reject when filing). hearing_file also supplies civic_land_tiles. The selected hearing candidate fixes a ruling or reopening assessment; your submission supplies no authority, household consent or verified fact. Only cite case evidence you actually inspected or received. " +
+                        "For land_transfer_propose, supply exact civic_land_tiles within existing permissions and the offered receiving household_id in civic_land_hearing. A voluntary transfer retains permission terms and moves no private buildings, crops or goods. Each current affected adult must separately read the actual transfer notice and choose their own offered land_transfer_accept or land_transfer_decline action; filing supplies no consent. " +
                         "Civic candidates come only from notices you actually read or heard; registration records your own willingness. " +
                         "When needs_name is true, also include chosen_name (your own full name, " +
                         "including a given name and family/surname; a middle name is optional; " +
-                        "at most 48 characters). " +
+                        "at most 48 characters). The first name must not already belong to another named agent, living or dead; changing only the surname does not make it available. " +
                         (request.Observation.IsNameRetry
-                            ? "The full name you chose is already taken in this world. Choose a different full name. Do not list or ask for anyone else’s name. "
+                            ? "The first name you chose is already taken in this world. Choose a different first name. Do not list or ask for anyone else’s name. "
+                            : string.Empty) +
+                        (request.Observation.NeedsName && request.Observation.Self?.AllowedChildSurnames is { } childSurnames
+                            ? childSurnames.Count > 0
+                                ? "For this child's name, use one of the biological parents' surnames in self.allowed_child_surnames as the final name; do not invent another surname. "
+                                : "Neither biological parent currently has a chosen surname available. Omit chosen_name and keep the temporary label; do not invent a surname. "
                             : string.Empty) +
                         "When needs_personality or needs_aspiration is true, you may also include " +
                         "chosen_personality and chosen_aspiration respectively, in your own words, " +
@@ -1144,6 +1170,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                             civic_notices_learned = self.CivicNote,
                             medical_care = self.MedicalCareNote,
                             tool_making_request = self.ToolMakingRequestNote,
+                            allowed_child_surnames = request.Observation.NeedsName ? self.AllowedChildSurnames : null,
                             warmth_basis_points = self.WarmthBasisPoints,
                             illness_basis_points = self.IllnessBasisPoints,
                             recent_thought = self.RecentThought,
@@ -1407,7 +1434,8 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                 privateThought,
                 chosenName,
                 ChosenPersonality: chosenPersonality, ChosenAspiration: chosenAspiration, CivicProposal: civicProposal, CivicBallot: civicBallot,
-                ObserverReplies: observerReplies, Will: will, CivicLandTiles: ParseCivicLandTiles(answerRoot));
+                ObserverReplies: observerReplies, Will: will, CivicLandTiles: ParseCivicLandTiles(answerRoot),
+                CivicLandHearing: CognitionLandHearingChoice.Parse(answerRoot));
         }
         catch (JsonException exception)
         {

@@ -35,6 +35,15 @@ that version mismatch. You can still reconnect to the existing world.
 
 Adults may leave a household without its permission. Their own goods remain theirs even in the old House; collecting them and returning borrowed tools require travel and carrying space. A primary caregiver keeps dependent children with them unless another adult explicitly takes over care. An adult seeks an accepting existing home with room for the whole group first, then may start a household alone and build a House through the usual materials and site rules. Inspect the agent to see membership, goods awaiting collection, borrowed goods, care responsibility and the housing blocker.
 
+When a child loses their last caregiver, relatives are asked first, then adults
+in the child's household and Town. Until someone accepts, the child shows
+**Needs a guardian**. Accepting care does not mean the child has moved in: a
+guardian in another Town must have a completed House with room, collect the
+child and accompany them home. Inspect either agent to see whether they are
+waiting for a home, meeting up or travelling. The child joins the guardian's
+household and Town only when they arrive together and the House still has room.
+Birth parents and family history stay unchanged.
+
 When a House is overcrowded, inspect a resident's housing details to see who
 has notice to move out, why, how much time remains and whether expansion is
 under way. Eligible adults get one world day; pausing stops the countdown,
@@ -50,6 +59,13 @@ notice. Children and their sole caregivers are never forced out, including
 together as a group. Their House stays overcrowded until expansion or a
 voluntary move with care preserved provides enough room.
 
+To rename an agent, open their **Profile**. The first name must be unused by
+any other living or deceased agent in the world; changing the surname alone
+does not free a taken first name. You can keep the selected agent's own first
+name. A child's chosen surname must come from a biological parent. Temporary
+names do not reserve first names, and renaming leaves past conversations as
+spoken.
+
 ## Create your first Town
 
 On a fresh server, **Continue** opens **New World** so you can choose the map
@@ -61,7 +77,8 @@ still open normally.
    [More New World options](#more-new-world-options)).
 2. Wait for the preview. Changing an option updates it; **Create World** becomes
    available when the preview for the current choices succeeds.
-3. Create the world. It opens paused. Choose a rough site for its first Town;
+3. Create the world. It opens paused at 06:00 on Spring 1, Year 1, in daylight.
+   Choose a rough site for its first Town;
    greener shading and the hovered tips show nearby food, fertile ground, wood,
    stone and open space for Roads. These are suggestions only: the game checks
    whether the starter layout fits after you choose a site. It then places two
@@ -211,6 +228,23 @@ one load; a quantity stops exactly at that number. Full hands or unavailable
 goods leave the task waiting. These orders cover the same seven raw materials;
 requests naming a particular source or destination are not understood yet.
 
+To work on household fields, try **Till two fields**, **Plant grain**,
+**Plant two fields of potatoes**, **Tend cultivated greens**, or **Keep
+harvesting fields of grain**. Adults need a household with a Farmhouse and
+suitable fields, stock and tools. Counts mean completed fields, so include
+**fields** when giving a number; **Harvest five potatoes** is not understood.
+A named crop is never replaced with another. Harvests remain on the field
+until carried. Cancel or replace the order to stop the current work and release
+unused planting stock. Named field locations are not supported yet.
+
+To mend worn personal equipment, use **Repair my basket**, **Repair two padded
+coats**, or **Keep repairing basic garments**. Adults and elders can repair basic
+clothing, padded coats, rain cloaks, baskets and sacks. They collect real supplies
+and use their household's House for baskets or Tailor Shop for the other items.
+Only finished repairs count. Missing items, materials, carrying space or a work
+site leaves the task waiting. Queue, cancellation and save/reload also work for
+these orders. Tools, weapons and named work sites are not supported repair targets.
+
 An instruction the game cannot understand leaves the current order running.
 Unsupported requests, such as "build a house" or "gather cloth," close as not
 understood and appear in the Event Log. Recognized orders follow normal access
@@ -224,17 +258,24 @@ who may use it, when it was built, which side its door faces, the work in
 progress, a larger storage grid with each item's name, and who is inside or
 lives there. Back (or **Escape**) returns to the small card.
 
-Every day has a night, from 19:12 to 04:48 on the clock in the top bar, with a
-short dusk and dawn. In a six-minute day that is about 2 min 24 s of night. The
-map turns a gentle dark blue but stays readable; names, agents and panels keep
-their daytime colors. Nights are colder outdoors, so an agent with no clothing,
-shelter or fire loses warmth, and their warmth bar shows it. A new world starts
-at midnight.
+Every day has a night, with a short dusk and dawn. Nights are longest in winter
+and shortest in summer: from 19:12 to 04:48 on the clock in the top bar at the
+start of spring and autumn, about 2 min 24 s of a six-minute day; from 20:24
+to 03:36 at the start of summer; and from 18:00 to 06:00 at the start of
+winter. The map turns a gentle dark blue but stays readable; names, agents and
+panels keep their daytime colors. Buildings in use glow from their windows and
+doors: a House while someone is home, a workshop while someone works there,
+the Blacksmith's forge while it is busy, and a Warehouse's door lantern while
+goods are fetched. Nights are colder outdoors, so an agent with no clothing,
+shelter or fire loses warmth, and their warmth bar shows it. New worlds start
+in the morning; loading a saved world keeps its recorded time.
 
 Click bare ground to inspect the recorded facts there. Agents take priority
 when they overlap the pointer. **Event Log** shows important events under a
 heading for each day, each with an icon for its kind. An event with a known
-location has a **Find** button that moves the camera there. Opening the log
+location has a **Find** button that moves the camera there. The log grows to
+fit wrapped text and day headings until it reaches the bottom of the screen,
+then scrolls. It adjusts when the window changes size. Opening the log
 marks its new entries read; the ones that were new keep a small dot while it
 stays open. While the continuity rule
 is on, the top of the log offers **Add a newcomer**, which opens Add Agent.
@@ -278,12 +319,15 @@ An agent belongs to one Town or none. Traveling, visiting or losing a home
 does not change it. An adult with no Town, such as one you add outside the
 border, can walk to a Town's notice place and ask its council for admission. A
 resident can also ask the council to admit an adult nearby who has no Town, and
-that adult chooses whether to accept once they read the approval. Dependent
-children join with their caregiver. Once admitted, a resident may collect their
-Town's Warehouse stock in person, but approval never gives a House or household
-place. The agent's Profile shows their Town, what it lets them do and any
-admission in progress, and the Event Log notes approvals, admissions and
-approvals that no longer apply.
+that adult chooses whether to accept once they read the approval. They have
+one unpaused world day from the council's approval to accept; the Profile shows
+the deadline as a world date and time. An unaccepted approval expires, and
+someone may ask the council again later. A newcomer who made their own request
+joins as soon as it passes. Dependent children join with their caregiver. Once
+admitted, a resident may collect their Town's Warehouse stock in person, but
+approval never gives a House or household place. The agent's Profile shows
+their Town, what it lets them do and their admission status, and the Event Log
+notes approvals, admissions and approvals that no longer apply.
 
 Residents can also propose laws as a **subject: rule**, applying to the Town's
 claimed land, a nearby recorded site, or residents wherever they travel. Council
@@ -297,13 +341,100 @@ The one-day resident vote needs a majority of its opening adult electorate;
 death or departure removes a voter, while travel does not. Approval begins a
 handover of at most three days. The Towns page distinguishes an approved proposal
 from a completed handover and explains a failed transition.
+An election the current Council opened on its own continues independently,
+even if someone leaves the Town while the proposed change waits for a successor.
 
 An elected mayor may hold the land mandate, ordinary governing authority, or
 both separately. Candidates personally agree to those specific mandates.
 Residents choose one candidate and may revise their ballot. A tie means another
 vote, never a draw. The term lasts twenty days, and a vacancy needs a new election.
 Pausing stops votes, terms and handovers. The page shows officeholders and vacant
-mandates; land hearings and enforcement have not been implemented yet.
+mandates. Wider law enforcement and punishment are not available yet.
+
+An adult in an affected household can propose transferring an exact plot of
+recorded use permission to another household. Every current adult in all giving
+and receiving households must learn the published terms and personally accept;
+proposing, reading and silence supply no acceptance. A new adult joining while
+it is pending must accept too. This ordinary transfer needs no Council or mayor
+approval. It preserves the original grant date and any agreed end date, and
+moves only use permission. Town title, membership, buildings, crops, goods and
+private-building access stay unchanged. Expired, disputed or under-review land
+cannot use this route. Town, plot and property details show the exact terms,
+names, dates and each household's acceptance progress.
+
+An affected household can ask for a land hearing, and the Town can file through
+its legitimate government. A permission with an agreed end date enters review
+when that date passes; it remains provisional while the case is pending. The
+Towns page shows the plot, affected households, formal response deadline,
+evidence sources and who may decide the case. Publication does not mean a notice
+was read: adults learn it through actual reading or a relay. Each affected adult
+may answer or explicitly waive their own response; silence is neither agreement
+nor evidence against them.
+The page separates the parties named when the notice was published from current
+adult responders and the Town's current authorized representative. Each ruling
+keeps the parties who were represented when it was made.
+
+The land mayor may confirm, renew, change or end use permission, recording the
+evidence and reasons. A permission past its agreed end must be renewed, changed
+or ended; renewing renews every lapsed permission on the plot for its own household. A mayor with a personal or household conflict stands aside;
+residents can elect a willing, independent adult for that case only. A case waits
+if nobody qualifies. A rehearing requires material new evidence or a demonstrated
+procedural error. The old ruling remains recorded and current rights stay in
+effect until a valid correction. These decisions leave Town title, household
+membership, buildings, crops and goods with their holders; they neither evict
+occupants nor grant entry to private buildings. Plot and building details show
+the hearing, and the disputed-land filter marks plots still under review.
+
+An adult resident can propose a named Town Hall on clear Town-titled land, and
+the Council votes through the same process as an ordinary proposal. In
+**World Info → Towns**, its plan shows the site and entrance, exact budget and
+Council result. An approved project also shows delivered materials, construction
+progress and anything blocking it. Council approval supplies no building or
+materials by itself.
+
+Residents must learn the proposal from notices or a nearby relay before helping.
+They carry available Town materials in real loads and work at the approved site.
+If they gather new wood or stone, those goods stay personal until their own model
+freshly chooses to donate them. **Speak → Suggest** may ask an adult to consider
+helping or donating; an Order cannot give away their goods. After completion,
+select the Hall for its project and payment details. Agents read civic notices
+there, with the same nearby learning and relay rules as before. A blocked project
+keeps its materials as Town property and releases unused claims rather than
+building for free. If its site can no longer be used, the Town stops the
+project and the Towns page says why; its leftover materials stay Town
+property where they are. See [What works today](what-works.md#life-work-and-society)
+for this first version's limits and provisional amounts. Its
+[hands-on checklist](../playtest/767-town-projects.md) remains pending.
+
+To begin a Market, use **Speak → Suggest** to ask an adult resident to consider a
+named Market proposal. **World Info → Towns** shows its site, exact budget,
+Council result, supplied materials and work. Its first project pays for the
+hall and two stalls on a fixed 7×4 plaza. Once the existing stalls are borrowed,
+another stall needs its own Council approval and delivered materials.
+
+Once it is built, select the hall or a stall to see who borrows it, the goods
+actually there, their owners and any offered exchange. Adults may choose to
+carry surplus there and borrow a free stall. Buyers, including visitors who
+belong to no Town, bring personal payment, and the named seller chooses whether
+to accept when both have reached the stall. The buyer carries the purchase;
+payment becomes the seller's household stock there. Leaving frees the stall;
+leftover goods still belong to their
+recorded owner. Suggestions can guide these choices, but an Order cannot force
+a sale or give away goods. The
+[Market hands-on checklist](../playtest/564-market-stalls.md) remains pending.
+
+Residents can also propose a **stone street lamp** or **hanging street lantern**
+beside an existing Road. The Council approves its design, Road edge and exact
+budget before anyone builds. Trial costs are **4 stone**, or **4 wood and
+1 refined iron**, with the same provisional 10 work units as other Town
+projects. Residents carry and spend real Town materials; household stock is
+not taken. The fitting occupies one clear roadside tile on Town-titled land
+and keeps the edge that was approved. The Road itself stays open.
+
+Completed lanterns show by day, light at dusk and go out at dawn. They need no
+fuel and do not change what agents can see or do. Select the visible fitting for
+its project and payment details. The [street-lantern checklist](../playtest/892-street-lanterns.md)
+still needs a hands-on check.
 
 ## Pause, settings and controls
 
@@ -424,3 +555,6 @@ or latitude cooling. **Reset these options** restores the preset and Small size
 without changing the name or seed. The preview updates after
 changes; Create World waits for a matching preview. Small and Medium are
 available; larger worlds remain unavailable pending their support checks.
+**Reroll** chooses another seed and clears the old map while its replacement
+loads. You can reroll during generation; the preview will follow your latest
+seed. If the world name is missing, enter it and choose **Preview again**.

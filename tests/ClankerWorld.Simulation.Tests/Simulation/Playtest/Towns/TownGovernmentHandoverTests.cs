@@ -1,5 +1,6 @@
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.Society;
+using System.Text.Json;
 
 namespace ClankerWorld.Simulation.Tests;
 
@@ -8,9 +9,10 @@ namespace ClankerWorld.Simulation.Tests;
 /// successor is ready first, and lapsed handovers that must leave the current
 /// arrangement's own council elections and retries alone.
 /// </summary>
-public sealed class TownGovernmentHandoverTests
+public sealed partial class TownGovernmentHandoverTests
 {
     private const int Day = 10;
+    private static readonly JsonSerializerOptions GovernmentJsonOptions = new(JsonSerializerDefaults.Web);
     private static readonly TownArrangement ElectedMayor = new(TownArrangementRules.ElectedCouncil, TownArrangementRules.Mayor);
     private static readonly TownArrangement AllAdult = new(TownArrangementRules.AllAdultCouncil, TownArrangementRules.NoOffice);
 
@@ -27,10 +29,32 @@ public sealed class TownGovernmentHandoverTests
             Tick = tick;
             (Council, Government) = TownGovernmentRules.Advance(Council, Government, Id, "Test Town", "seed", Adults, tick, Day);
             known.UnionWith(Adults);
-            var society = SocietyFixture.CreateGenesis("government-validation", known.Select(id => SocietyFixture.CreateFounder(id, id))) with { WorldTick = tick };
+            Validate();
+        }
+        public void Validate()
+        {
+            var society = SocietyFixture.CreateGenesis("government-validation", known.Select(id => SocietyFixture.CreateFounder(id, id))) with { WorldTick = Tick };
             var town = new TownRuntimeState(Id, "Test Town", "founded", 0, Adults, [], [], Governance: Council, Government: Government);
             TownGovernanceValidation.Validate(town, society, Day);
             TownGovernmentValidation.Validate(town, society, [], Day);
+        }
+        public byte[] Save() => JsonSerializer.SerializeToUtf8Bytes(
+            new TownSave(Id, known.Order(StringComparer.Ordinal).ToArray(), Adults, Tick, Council, Government), GovernmentJsonOptions);
+        public Town RoundTrip()
+        {
+            var saved = Save();
+            var state = JsonSerializer.Deserialize<TownSave>(saved, GovernmentJsonOptions)!;
+            var restored = new Town(state.Known)
+            {
+                Id = state.Id,
+                Adults = state.Adults,
+                Tick = state.Tick,
+                Council = state.Council,
+                Government = state.Government,
+            };
+            restored.Validate();
+            Assert.Equal(saved, restored.Save());
+            return restored;
         }
         public string Propose(TownArrangement target, string actor = "a")
         {
@@ -57,6 +81,9 @@ public sealed class TownGovernmentHandoverTests
                 Government = TownGovernmentRules.VoteMayor(Government, TownGovernmentRules.RoundToken(contest), "a", contest.Candidates[0], tick);
         }
     }
+
+    private sealed record TownSave(string Id, string[] Known, string[] Adults, long Tick,
+        TownGovernanceState Council, TownGovernmentState Government);
 
 
     // Council candidates are willing before approval, so the council is ready before the mayor.

@@ -17,7 +17,16 @@ public sealed partial class PrivateWorldRuntime
         if (order.TargetPosition is { } requestedPosition && !map.Contains(requestedPosition))
             return null;
 
-        if (order.Action == "collect_material")
+        if (IsFieldOrder(order.Action))
+            return FieldOrderCandidateFor(instruction, person);
+
+        if (order.Action == "repair_tool")
+            return ToolRepairOrderCandidateFor(instruction);
+
+        if (order.Action == "repair_equipment")
+            return RepairOrderCandidateFor(instruction, person);
+
+        if (order.Action is "collect_material" or "collect_food" or "collect_equipment")
             return CollectionOrderCandidateFor(instruction, person);
 
         if (order.Action == "store_material")
@@ -154,7 +163,7 @@ public sealed partial class PrivateWorldRuntime
         SetOrderStatus(instruction, "doing", null, waitForDecision: false);
         var actor = instruction.TargetInhabitantId;
         // An order step interrupts timed repair work, as any other chosen action does.
-        if (inhabitants[actor].Equipment?.Repair is not null)
+        if (order.Action != "repair_equipment" && inhabitants[actor].Equipment?.Repair is not null)
         {
             CancelEquipmentRepair(actor);
             person = inhabitants[actor];
@@ -166,7 +175,18 @@ public sealed partial class PrivateWorldRuntime
         }
         switch (candidate.Id)
         {
+            case "work_field":
+                ExecuteFieldOrderStep(instruction, person);
+                return;
+            case "repair_tool":
+                ExecuteToolRepairOrderStep(instruction, person);
+                return;
+            case "repair_equipment":
+                ExecuteRepairOrderStep(instruction, person);
+                return;
             case "collect_material":
+            case "collect_food":
+            case "collect_equipment":
                 ExecuteCollectionOrderStep(instruction, person);
                 return;
             case "store_material":
@@ -306,7 +326,13 @@ public sealed partial class PrivateWorldRuntime
 
     private string OrderBlockedReason(OwnerQueuedInstruction instruction, PlaytestInhabitantState person)
     {
-        if (instruction.Order?.Action == "collect_material")
+        if (instruction.Order is { } fieldOrder && IsFieldOrder(fieldOrder.Action))
+            return FieldOrderBlockedReason(instruction);
+        if (instruction.Order?.Action == "repair_tool")
+            return ToolRepairOrderBlockedReason(instruction);
+        if (instruction.Order?.Action == "repair_equipment")
+            return RepairOrderBlockedReason(instruction);
+        if (instruction.Order?.Action is "collect_material" or "collect_food" or "collect_equipment")
             return CollectionOrderBlockedReason(instruction, person);
         if (instruction.Order?.Action == "store_material")
             return StorageOrderBlockedReason(instruction, person);

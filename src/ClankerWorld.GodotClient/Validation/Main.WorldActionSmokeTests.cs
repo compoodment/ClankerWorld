@@ -165,6 +165,7 @@ public partial class Main
         public TaskCompletionSource? ReleaseDeveloperEdit { get; set; }
         public OwnerControlReceipt? DeveloperEditReceipt { get; set; }
         public bool FailDeveloperEdit { get; set; }
+        public Func<OwnerWorldCreationAction, Task<OwnerWorldPreview>>? PreviewHandler { get; set; }
         public int PauseCount => Volatile.Read(ref pauseCount);
         public int DeleteCount => Volatile.Read(ref deleteCount);
         public int SaveCreateCount => Volatile.Read(ref saveCreateCount);
@@ -179,7 +180,7 @@ public partial class Main
         public OwnerWorldReconnect? CreatedObservation { get; set; }
         public System.Collections.Concurrent.ConcurrentQueue<string> Requests { get; } = new();
         public System.Collections.Concurrent.ConcurrentQueue<OwnerWorldCreationAction> WorldCreations { get; } = new();
-        /// <summary>Full names the host refuses as already taken.</summary>
+        /// <summary>Exact rename attempts given a name_taken response by this fixture.</summary>
         public HashSet<string> TakenAgentNames { get; } = new(StringComparer.Ordinal);
         public System.Collections.Concurrent.ConcurrentQueue<OwnerAgentRenameAction> RenameRequests { get; } = new();
         public TaskCompletionSource RenameReceived { get; set; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -226,7 +227,11 @@ public partial class Main
             {
                 case OwnerPairingEndpoints.ChallengeIssue:
                     response = new OwnerChallenge(Authority, "smoke-device", Guid.NewGuid().ToString("N"),
-                        "smoke-nonce", DateTimeOffset.UtcNow.AddMinutes(1), SupportedActionPayloads);
+                        "smoke-nonce", DateTimeOffset.UtcNow.AddMinutes(1),
+                        SupportedActionPayloads ?? (PreviewHandler is null ? null : [OwnerWorldActionPayload.WorldCreationPayloadDomain]));
+                    break;
+                case OwnerPairingEndpoints.OwnerWorldPreview when PreviewHandler is not null:
+                    response = await PreviewHandler(envelope.GetProperty("action").Deserialize<OwnerWorldCreationAction>(JsonOptions)!).ConfigureAwait(false);
                     break;
                 case OwnerPairingEndpoints.OwnerWorldList:
                     response = Catalog;
@@ -308,9 +313,9 @@ public partial class Main
                     if (ReleaseRename is { } releaseRename) await releaseRename.Task.ConfigureAwait(false);
                     if (TakenAgentNames.Contains(rename.Name))
                     {
-                        // The same refusal the world host sends for a taken full name.
+                        // The same refusal the world host sends for a taken first name.
                         context.Response.StatusCode = (int)HttpStatusCode.Conflict;
-                        response = new { code = "name_taken", message = "That full name belongs to another agent." };
+                        response = new { code = "name_taken", message = "That first name belongs to another agent." };
                     }
                     else response = new OwnerAgentRenameReceipt(rename.AgentId, rename.Name, true);
                     break;

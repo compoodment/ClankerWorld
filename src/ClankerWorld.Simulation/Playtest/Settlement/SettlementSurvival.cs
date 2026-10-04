@@ -142,7 +142,7 @@ public sealed partial class PrivateWorldRuntime
         (kind == "food" ? null : AvailableWarehouseStock(actor, kind).FirstOrDefault());
 
     private bool CanReachSharedItem(string actor, InventoryLot lot) =>
-        FindUnoccupiedRoute(actor, inhabitants[actor].Position, HouseholdStockPosition(lot),
+        !OnBorrowedMarketStall(lot) && FindUnoccupiedRoute(actor, inhabitants[actor].Position, HouseholdStockPosition(lot),
             HouseholdStockInteractionRange(lot)).Count > 0;
 
     private IEnumerable<PlacedBuilding> BuildingsWithTag(string tag) => worldSimulation.Buildings.Where(building =>
