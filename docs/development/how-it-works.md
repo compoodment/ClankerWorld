@@ -1083,16 +1083,23 @@ wait; deaths and membership departures remove voters and ballots. Equivalent
 requests share a process; different requests queue with fresh opening lists.
 Incumbent Council revisions cannot cancel this ledger. Approved transitions
 retain incumbent authority until all required successors are ready, with a
-three-day deadline. Explicit all-adult government disables automatic
-representation, and explicit elected government seeks three representatives
-above three adults. The initial arrangement retains the eight-adult threshold.
+three-day deadline. Ordinary handovers require mayoral successors only for
+mandates added by the target arrangement; explicit replacement requires every
+targeted mandate. A retained vacancy follows its existing succession rules.
+Explicit all-adult government disables automatic representation, and explicit
+elected government seeks three representatives above three adults. The initial
+arrangement retains the eight-adult threshold.
 
 Mayoral contests bind consent to exact mandates and ballots to a contest/round
-opening token. Every deciding round needs a positive vote; tied leaders repeat
-with fresh voters, without a random draw. Saved round records preserve votes,
-ties and interruptions. Scheduled Council voting takes priority; other Council
+opening token. A new contest starts only with an eligible willing candidate,
+so an empty vacancy adds no daily history or notices. Existing contests retain
+their normal failure and retry rules. Every deciding round needs a positive
+vote; tied leaders repeat with fresh voters, without a random draw. Saved round
+records preserve votes, ties and interruptions. Scheduled Council voting takes
+priority; other Council
 contests wait while mayoral voting runs. A cancelled transition cannot later
-seat its dependent contest. Separate mandate records preserve a governing
+seat its dependent contest. A completed transition cancels any dependent
+contest it no longer needs. Separate mandate records preserve a governing
 leader when a land mandate ends, and a governing vacancy temporarily restores
 all-adult authority without changing the approved succession arrangement.
 

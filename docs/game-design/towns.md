@@ -601,8 +601,8 @@ through the ordinary proposal and majority procedure before residents may
 spend Town materials or start that project. Pending votes follow the Council's
 existing membership and ballot rules; proposing a project grants no permission.
 
-This covers Markets and their Town-owned stalls, Town Halls, Ports and crafting
-communal boats at a Port. Resident adults physically supply and build the
+This covers Markets and their Town-owned stalls, Town Halls, Ports, street
+lanterns and crafting communal boats at a Port. Resident adults physically supply and build the
 approved project with real materials. Approval creates no goods, transfers no
 private stock and grants no access to household or personal supplies. Private
 donations need separate consent and the ordinary physical transfer rules.
@@ -620,10 +620,14 @@ street lanterns beside Roads; the map does not place them by itself. A lantern
 needs **no fuel**: once built it lights itself at dusk and goes out at dawn.
 There are two designs, a round **stone lamp** with an open flame and a
 **hanging lantern** on a roadside post with an arm over the Road
-([look](interface-and-art.md#pixel-art-and-generated-images)). Still open:
-what each costs, whether a lantern needs the Council's approval as a shared
-Town project, and where lanterns stand. A suggestion is stone lamps at Road
-junctions and hanging lanterns every few tiles along a Road.
+([look](interface-and-art.md#pixel-art-and-generated-images)). **Also agreed
+on October 3:** a lantern is a **shared Town project** like those above, so the
+proposal names the lanterns, their Road-side sites and their material budget,
+and the Council approves it before residents build. Costs are provisional
+trial values to tune in playtests: a stone lamp takes stone, and a hanging
+lantern takes wood and a little refined iron. Where lanterns stand is the
+proposer's choice within the ordinary site rules; a suggestion is stone lamps
+at Road junctions and hanging lanterns every few tiles along a Road.
 
 The intended building roles now include House, Warehouse, Workshop,
 Farmhouse, farm fields, an adjacent private farm Silo, optional household-run
@@ -1127,10 +1131,12 @@ action authority.
 - **Approval starts a handover lasting at most three unpaused world days.**
   This is an initial trial duration. The existing government continues until
   a valid replacement is ready; the new form takes effect at that recorded
-  handover, rather than immediately when the approval vote passes. Elective
-  offices need willing, eligible officeholders selected through the agreed
-  voting rules. If a mayoral vote ties, another vote between the tied highest
-  candidates is required; do not use the council's random tie-break. If no
+  handover, rather than immediately when the approval vote passes. Newly added
+  elective mandates need willing, eligible officeholders selected through the
+  agreed voting rules. Retained mandates keep their ordinary vacancy rules;
+  an explicit replacement vote still needs a valid successor. If a mayoral
+  vote ties, another vote between the tied highest candidates is required;
+  do not use the council's random tie-break. If no
   valid replacement is ready by the handover deadline, cancel the attempted
   transition. An all-adult council consists automatically of eligible adults
   and does not require each resident to consent to taking a seat.
@@ -1191,8 +1197,11 @@ remains separate in [#426](https://github.com/compoodment/ClankerWorld/issues/42
   is no turnout minimum, but a winner needs at least one actual vote in the
   deciding round. Most votes wins; tied highest candidates face another vote,
   repeatedly if necessary, with fresh eligible voters and only the tied,
-  still-eligible candidates. Never use the council's draw. Failed attempts
-  retry after one unpaused day, or earlier following a material change.
+  still-eligible candidates. Never use the council's draw. Open a new mayoral
+  contest only when an eligible resident has agreed to stand for its exact
+  mandates. An existing contest can still fail if it loses every candidate.
+  Failed attempts retry after one unpaused day, or earlier following a
+  material change.
 - **Keep one active election process per Town, with scheduled full council
   elections taking priority.** Queue mayoral voting while that election runs.
   An interrupted mayoral round closes without a result and its unfinished
