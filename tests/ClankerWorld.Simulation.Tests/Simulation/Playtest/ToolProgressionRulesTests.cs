@@ -95,6 +95,8 @@ public sealed class ToolProgressionRulesTests
     }
 
     [Theory]
+    [InlineData(HouseToolsContent.CrudeWoodenAxe, "wood")]
+    [InlineData(HouseToolsContent.CrudeWoodenPickaxe, "wood")]
     [InlineData("wooden_axe", "wood")]
     [InlineData("stone_pickaxe", "wood,stone")]
     [InlineData("iron_knife", "iron")]

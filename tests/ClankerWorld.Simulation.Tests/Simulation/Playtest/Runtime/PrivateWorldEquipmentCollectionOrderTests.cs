@@ -7,6 +7,8 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed partial class PrivateWorldCollectionOrderTests
 {
     [Theory]
+    [InlineData("crude_wooden_axe")]
+    [InlineData("crude_wooden_pickaxe")]
     [InlineData("clothing")]
     [InlineData("padded_coat")]
     [InlineData("rain_cloak")]

@@ -12,6 +12,51 @@ public sealed class MarketStockBoundaryTests
     private const string Household = "household:camp-alpha";
 
     [Theory]
+    [InlineData("wooden_axe", HouseToolsContent.CrudeWoodenAxe)]
+    [InlineData("wooden_pickaxe", HouseToolsContent.CrudeWoodenPickaxe)]
+    public async Task ToolsDisplayedAtABorrowedStallDoNotSuppressHouseholdReplacements(string stockKind, string crudeKind)
+    {
+        var state = await PaidMarketWorld.StateAsync();
+        var stall = PaidMarketWorld.StallTile(state, 0);
+        var house = PaidMarketWorld.HouseOf(state, Household);
+        var recipe = state.WorldContent!.Recipes.Single(item => item.Outputs.Any(output => output.ResourceId == crudeKind));
+        var family = ToolProgressionRules.Find(stockKind)!.Family;
+        Assert.DoesNotContain(state.Society.Society.Inventory.Lots, lot =>
+            ToolProgressionRules.Find(lot.ItemKind)?.Family == family &&
+            (lot.OwnerId is Household or Seller or Housemate));
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory,
+            "boundary-house-tool-wood", "wood", Household, 3, storageBuildingId: house.InstanceId);
+        inventory = InventoryFixture.AddLot(inventory, "boundary-stall-tools", stockKind, Household, 2,
+            groundPosition: new(stall.X, stall.Y));
+        state = PaidMarketWorld.At(PaidMarketWorld.WithInventory(state, inventory), Housemate, stall);
+
+        // The same nearby tools cover both adults when this stall is not borrowed.
+        var ordinaryPolicy = new MarketRulesPolicy();
+        using (var ordinary = PrivateWorldRuntime.Restore(state, ordinaryPolicy.CreateProvider))
+        {
+            for (var tick = 0; tick < 4; tick++) Assert.True((await ordinary.AdvanceOneTickAsync()).Advanced);
+            Assert.NotEmpty(ordinaryPolicy.OfferedTo(Housemate));
+            Assert.DoesNotContain(ordinaryPolicy.OfferedTo(Housemate), item => item.Id == "build:recipe:" + recipe.CanonicalId);
+            ordinary.Validate();
+        }
+
+        // Borrowing protects sale stock, even when the other adult stands on it.
+        var salePolicy = new MarketRulesPolicy();
+        using var sale = PrivateWorldRuntime.Restore(PaidMarketWorld.Borrowing(state, Seller, 0), salePolicy.CreateProvider);
+        for (var tick = 0; tick < 4; tick++) Assert.True((await sale.AdvanceOneTickAsync()).Advanced);
+        Assert.Contains(salePolicy.OfferedTo(Housemate), item => item.Id == "build:recipe:" + recipe.CanonicalId);
+        Assert.DoesNotContain(salePolicy.OfferedTo(Housemate), item => item.Id == "collect_tool:" + stockKind);
+        var stock = sale.Society.Inventory.GetLot("boundary-stall-tools");
+        Assert.Equal((Household, 2, (string?)null, new InventoryGroundPosition(stall.X, stall.Y)),
+            (stock.OwnerId, stock.Quantity, stock.CarrierId, stock.GroundPosition));
+        Assert.Empty(sale.WorldSimulation.ProductionJobs);
+        sale.Validate();
+        var bytes = PrivateWorldRuntimeCodec.Encode(sale.ExportState());
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes));
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+    }
+
+    [Theory]
     [InlineData(false, false)]
     [InlineData(true, false)]
     [InlineData(true, true)]

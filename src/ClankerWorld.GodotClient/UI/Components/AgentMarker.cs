@@ -64,7 +64,7 @@ public partial class AgentMarker : Control
     // Worn or held equipment is not a load.
     private static readonly HashSet<string> EquipmentKinds = new(StringComparer.Ordinal)
     {
-        "clothing", "tool", "wooden_axe", "wooden_pickaxe",
+        "clothing", "tool", "wooden_axe", "wooden_pickaxe", "crude_wooden_axe", "crude_wooden_pickaxe",
     };
 
     private static readonly Color SelectedColor = new("FFD166");

@@ -102,8 +102,10 @@ public sealed partial class PrivateWorldRuntime
                 continue;
             var recipes = worldContent.Recipes.Where(recipe => recipe.WorkstationBuildingId == definition.CanonicalId &&
                     NeedsRecipeOutput(recipe, householdId) &&
-                    (!HasDedicatedSupply(definition) || recipe.Tags.Any(tag => tag is "pottery" or "care" or "named-meal" or "knowledge")))
-                .OrderBy(recipe => recipe.CanonicalId, StringComparer.Ordinal).ToArray();
+                    (!HasDedicatedSupply(definition) || HouseToolsContent.IsCrudeToolRecipe(recipe) ||
+                     recipe.Tags.Any(tag => tag is "pottery" or "care" or "named-meal" or "knowledge")))
+                .OrderBy(recipe => HouseToolsContent.IsCrudeToolRecipe(recipe) ? 0 : 1)
+                .ThenBy(recipe => recipe.CanonicalId, StringComparer.Ordinal).ToArray();
             foreach (var input in recipes.SelectMany(recipe => recipe.Inputs).GroupBy(input => input.ResourceId))
             {
                 var target = input.Max(item => item.Amount) * SupplyBatches;
