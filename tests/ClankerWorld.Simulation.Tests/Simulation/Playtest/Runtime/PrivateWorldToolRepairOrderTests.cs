@@ -277,14 +277,14 @@ public sealed class PrivateWorldToolRepairOrderTests
         Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(resumed.ExportState()));
         foreach (var invalid in new[]
         {
-            order with { TargetEquipmentKind = "wooden_knife" }, order with { TargetEquipmentKind = "basket" },
+            order with { TargetAgentId = actor }, order with { TargetEquipmentKind = "wooden_knife" }, order with { TargetEquipmentKind = "basket" },
             order with { TargetMaterialKind = "iron" }, order with { TargetFoodKind = "berries" },
             order with { TargetPosition = new(1, 2) }, order with { TargetCropKind = "grain" },
             order with { TargetResourceId = "tree" }, order with { ProgressUnit = "material_items" },
             order with { CompletedUnits = 2 }, order with { LastEffectId = "repair:equipment:wrong" },
         })
             Assert.Throws<InvalidDataException>(() => Restore(saved with { Instructions = saved.Instructions!.Select(item => item.InstructionId == receipt.InstructionId ? item with { Order = invalid } : item).ToArray() }));
-        Assert.Throws<InvalidDataException>(() => Restore(saved with { SchemaVersion = 57 }));
+        Assert.Throws<InvalidDataException>(() => Restore(saved with { SchemaVersion = 72 }));
     }
 
     [Theory]

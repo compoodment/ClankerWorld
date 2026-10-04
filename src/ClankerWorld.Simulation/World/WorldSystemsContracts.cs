@@ -114,7 +114,8 @@ public sealed record WorldSystemsConfig(
     int MaxChunkCount = 256,
     int MaxResourcesPerChunk = 1_024,
     int MaxCultureTags = 16,
-    IReadOnlyList<WeatherProfile>? WeatherProfiles = null)
+    IReadOnlyList<WeatherProfile>? WeatherProfiles = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] int CalendarOffsetTicks = 0)
 {
     public const int MaximumChunkCount = 1_024;
     public const int MaximumResourcesPerChunk = 2_048;
@@ -159,6 +160,7 @@ public sealed record WorldSystemsConfig(
     public void Validate()
     {
         if (ContractVersion <= 0 || TicksPerDay <= 0 || DaysPerYear <= 0 ||
+            CalendarOffsetTicks < 0 || CalendarOffsetTicks >= TicksPerDay ||
             SpringDays <= 0 || SummerDays <= 0 || AutumnDays <= 0 || WinterDays <= 0 ||
             SpringDays + SummerDays + AutumnDays + WinterDays != DaysPerYear ||
             MaxChunkCount <= 0 || MaxChunkCount > MaximumChunkCount ||
@@ -197,7 +199,10 @@ public static class WorldCalendarRules
         config.Validate();
         ArgumentOutOfRangeException.ThrowIfNegative(worldTick);
 
-        var dayIndex = worldTick / config.TicksPerDay;
+        // Keep elapsed time unchanged, and carry only the day's remainder so
+        // adding the morning offset cannot overflow a long-running world tick.
+        var shiftedTickOfDay = worldTick % config.TicksPerDay + config.CalendarOffsetTicks;
+        var dayIndex = worldTick / config.TicksPerDay + shiftedTickOfDay / config.TicksPerDay;
         var dayOfYear = (int)(dayIndex % config.DaysPerYear);
         var (season, firstDayOfSeason) = SeasonAtDay(dayOfYear, config);
         return new(
@@ -205,7 +210,7 @@ public static class WorldCalendarRules
             dayIndex,
             dayOfYear,
             dayOfYear - firstDayOfSeason,
-            (int)(worldTick % config.TicksPerDay),
+            (int)(shiftedTickOfDay % config.TicksPerDay),
             season);
     }
 
@@ -381,7 +386,7 @@ public static class WeatherRules
         }
         else if (climate is ClimateZone.Cold or ClimateZone.Polar)
         {
-            var shifted = rainWeight * (climate == ClimateZone.Polar ? 4 : 2) / 5;
+            var shifted = (int)((long)rainWeight * (climate == ClimateZone.Polar ? 4 : 2) / 5);
             rainWeight -= shifted;
             snowWeight += shifted;
         }
@@ -1480,7 +1485,7 @@ public sealed record WorldSystemsState(
 /// </summary>
 public static class WorldSystemsRules
 {
-    public const int SchemaVersion = 2;
+    public const int SchemaVersion = 3;
 
     public static WorldSystemsState CreateGenesis(
         string worldSeed,
@@ -1498,7 +1503,7 @@ public static class WorldSystemsRules
         var effectiveCurrency = currency ?? new CurrencyState([], [], []);
         var effectiveCulture = culture ?? new CultureState([], []);
         var state = new WorldSystemsState(
-            SchemaVersion,
+            effectiveConfig.CalendarOffsetTicks == 0 ? 2 : SchemaVersion,
             worldSeed.Trim(),
             0,
             effectiveConfig,
@@ -1541,6 +1546,8 @@ public static class WorldSystemsRules
 
         ArgumentNullException.ThrowIfNull(state.Config);
         state.Config.Validate();
+        if (state.SchemaVersion < 3 && state.Config.CalendarOffsetTicks != 0)
+            throw new InvalidDataException("The world-systems schema cannot store a calendar offset.");
         RegionalWeatherRules.Validate(state.RegionalWeather, state.WorldTick, state.Config);
         ArgumentNullException.ThrowIfNull(state.Climate);
         var calendar = WorldCalendarRules.FromTick(state.WorldTick, state.Config);

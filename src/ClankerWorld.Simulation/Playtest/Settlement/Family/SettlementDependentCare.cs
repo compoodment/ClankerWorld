@@ -254,7 +254,7 @@ public sealed partial class PrivateWorldRuntime
             if (candidates.Any(candidate => candidate.Id == "guardian_accept:" + child))
                 continue;
             candidates.Add(new("guardian_accept:" + child,
-                $"Accept primary care of {society.Checkpoint.GetInhabitant(child).Name}. They can move into your household only if your House has room and you share their Town.", 3));
+                $"Accept primary care of {society.Checkpoint.GetInhabitant(child).Name}. If your House has room, accompany them there when a physical move is needed.", 3));
         }
         foreach (var edge in CareProposals().Where(edge => edge.TargetId == actor && EligibleCaregiver(edge.ProposerId, actor)))
         {
@@ -304,6 +304,7 @@ public sealed partial class PrivateWorldRuntime
             if (existing is null) return;
             society.Apply(checkpoint => SocietyFixture.RevokeRelationship(checkpoint, target, actor));
             AppendEvent("caregiver_ended", actor);
+            ReconcileGuardianPlacements();
             return;
         }
         if (candidate.StartsWith("guardian_primary:", StringComparison.Ordinal))
@@ -312,6 +313,7 @@ public sealed partial class PrivateWorldRuntime
             var result = society.Apply(checkpoint => SocietyFixture.AssumePrimaryCare(checkpoint, actor, target));
             if (result.NewEvents?.Any(item => item.Kind == "primary_caregiver_assumed") == true)
                 AppendEvent("primary_caregiver_assigned", target);
+            ReconcileGuardianPlacements();
             return;
         }
         if (candidate.StartsWith("guardian_offer:", StringComparison.Ordinal))
@@ -356,6 +358,7 @@ public sealed partial class PrivateWorldRuntime
             !SocietyFixture.HasActivePrimaryCaregiver(society.Checkpoint, child))
             return;
         SetGuardianSearch(child, null);
+        BeginGuardianPlacement(child, adult, result.CreatedId!);
         SetHousing(child, (inhabitants[child].Housing ?? new()) with { Blocker = HousingBlocker(child) });
         AppendEvent("guardian_assigned", child);
     }

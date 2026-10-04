@@ -4,7 +4,7 @@ using ClankerWorld.Simulation.Harness;
 namespace ClankerWorld.Simulation.Playtest;
 
 /// <summary>
-/// Parses only the direct food, material-gathering, personal-storage, collection, equipment-repair and field-work orders that the runtime can execute.
+/// Parses only the direct food, material, storage, collection, equipment-repair, field-work and movement orders that the runtime can execute.
 /// Every token must belong to one of these forms; unconsumed text is not guessed.
 /// </summary>
 internal static class PrivateWorldInstructionOrderParser
@@ -151,6 +151,16 @@ internal static class PrivateWorldInstructionOrderParser
             if (keepPrefix && actionVerb is not ("gathering" or "harvesting" or "eating" or "storing" or "collecting" or "repairing"))
                 return null;
 
+            if (action == "seek_food" && TryReadCoordinate(out var destination))
+            {
+                if (repeatPrefix) return null;
+                if (!ReadWord("now")) _ = ReadWord("please");
+                return position == end
+                    ? new OwnerInstructionOrder("move_to", "queued", 1, 0, "arrivals", false,
+                        TargetPosition: destination)
+                    : null;
+            }
+
             _ = action is "collect_material" or "repair_equipment" && ReadWord("my");
             var hasExplicitQuantity = TryReadQuantity(out var requestedUnits);
             if (action == "seek_food" && hasExplicitQuantity)
@@ -162,7 +172,7 @@ internal static class PrivateWorldInstructionOrderParser
             var materialKind = action is "harvest_food" or "store_material" or "collect_material" ? TryReadMaterialSubject() : null;
             if (action is "store_material" or "collect_material" && materialKind is null) return null;
             if (materialKind is not null && action == "harvest_food") action = "gather_material";
-            var subject = materialKind is null && equipmentKind is null ? TryReadFoodSubject() : default;
+            var subject = materialKind is null && equipmentKind is null ? TryReadFoodSubject(action == "consume_food") : default;
             if (materialKind is null && equipmentKind is null && !subject.Present && (action != "consume_food" || hasExplicitQuantity))
                 return null;
 
@@ -204,8 +214,8 @@ internal static class PrivateWorldInstructionOrderParser
                     "seek_food" => "arrivals",
                     "harvest_food" when !hasExplicitQuantity => "harvests",
                     "gather_material" => hasExplicitQuantity ? "material_items" : "harvests",
-                    "store_material" => hasExplicitQuantity ? "material_items" : "storage_loads",
                     "collect_material" => hasExplicitQuantity ? "material_items" : "collection_loads",
+                    "store_material" => hasExplicitQuantity ? "material_items" : "storage_loads",
                     "repair_equipment" or "repair_tool" => "repairs",
                     _ => "food_items",
                 },
@@ -420,7 +430,7 @@ internal static class PrivateWorldInstructionOrderParser
             return true;
         }
 
-        private FoodSubject TryReadFoodSubject()
+        private FoodSubject TryReadFoodSubject(bool includeCookedFood)
         {
             var subjectStart = position;
             if (ReadWord("the") || ReadWord("a") || ReadWord("an") || ReadWord("some"))
@@ -432,7 +442,7 @@ internal static class PrivateWorldInstructionOrderParser
                 }
             }
 
-            var category = ReadFoodCategory();
+            var category = ReadFoodCategory(includeCookedFood);
             var resource = MatchResourceAlias(position);
             if (resource.Present && (category.TokensConsumed == 0 ||
                     resource.TokensConsumed > category.TokensConsumed))
@@ -459,12 +469,28 @@ internal static class PrivateWorldInstructionOrderParser
             return default;
         }
 
-        private FoodSubject ReadFoodCategory()
+        private FoodSubject ReadFoodCategory(bool includeCookedFood)
         {
             if (position >= tokens.Count || tokens[position].Kind != TokenKind.Word)
                 return default;
 
             var word = tokens[position].Value;
+            if (includeCookedFood)
+            {
+                if (position + 1 < tokens.Count)
+                {
+                    if (word is "berry" or "fruit" && IsWord(position + 1, "porridge"))
+                        return new FoodSubject(true, word + "_porridge", null, 2);
+                    if (word is "simple" or "restaurant" && IsWord(position + 1, "meal"))
+                        return new FoodSubject(true, word + "_meal", null, 2);
+                    if (word == "vegetable" && IsWord(position + 1, "stew"))
+                        return new FoodSubject(true, "stew", null, 2);
+                    if (word == "cultivated" && IsWord(position + 1, "greens"))
+                        return new FoodSubject(true, "cultivated_greens", null, 2);
+                }
+                if (word is "porridge" or "bread" or "stew")
+                    return new FoodSubject(true, word, null, 1);
+            }
             if (word is "berry" or "berries")
                 return new FoodSubject(true, "berries", null, 1);
             if (word == "fruit")

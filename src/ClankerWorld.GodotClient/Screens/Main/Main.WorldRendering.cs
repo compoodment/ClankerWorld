@@ -8,6 +8,63 @@ namespace ClankerWorld.GodotClient;
 
 public partial class Main
 {
+    private void ResetDisplayedWorldContext()
+    {
+        knownEvents.Clear();
+        eventsWorldId = null;
+        lastSeenEventId = long.MinValue;
+        newEventsAfter = long.MaxValue;
+        unreadEvents = 0;
+        renderedEventLog = null;
+        conversationReadWorldId = null;
+        locallyReadConversationTurns.Clear();
+        openConversationId = null;
+        openConversationAgentId = null;
+        conversationPanel.Hide();
+        familyTreePanel.Hide();
+        memoriesPanel.Hide();
+        thoughtsPanel.Hide();
+        selectedInhabitantId = null;
+        renamingAgentId = null;
+        refusedAgentRename.Forget();
+        renameRow.Hide();
+        ClearTileSelection();
+        ClearBuildingSelection();
+        CancelBuildingRemoval();
+        CancelAutosaveSettingsRead();
+        CancelManualSaveListRead();
+        worldListRequest.Cancel();
+        manualSaveOverlay.Hide();
+        pendingOverwriteSaveId = null;
+        pendingDeletion = null;
+        choosingFirstTownSite = false;
+        movingFounderId = null;
+        placingAddedAgent = false;
+        founderSetupPanel.Hide();
+        providerConfiguration = null;
+        cognitionModelContext = null;
+        cognitionModelLookup = null;
+        founderKeyEdits++;
+        cognitionKeyEdits++;
+        ClearFounderModelSetupCheck();
+        ClearCognitionModelSetupCheck();
+        menuPauseConfirmed = false;
+        menuPausedWorld = false;
+        renderedMapSnapshot = null;
+        terrainMap = null;
+        terrainWorldId = null;
+        cameraWorldId = null;
+        usagePauseWorldId = null;
+        lastLifePaceWorldId = null;
+        renderedTownList = null;
+        foreach (var marker in inhabitantVisuals.Values) marker.QueueFree();
+        inhabitantVisuals.Clear();
+        inhabitantCanonicalXs.Clear();
+        foreach (var visual in mapObjectVisuals.Values) visual.QueueFree();
+        mapObjectVisuals.Clear();
+        mapObjectCanonicalXs.Clear();
+    }
+
     private void Render(OwnerWorldSnapshot snapshot, IReadOnlyList<OwnerWorldEvent> appendedEvents)
     {
         if (usagePauseWorldId != snapshot.WorldId)
@@ -26,6 +83,7 @@ public partial class Main
             familyTreePanel.Hide();
             memoriesPanel.Hide();
             thoughtsPanel.Hide();
+            ordersPanel.Hide();
             ClearTileSelection();
             ClearBuildingSelection();
         }
@@ -78,6 +136,7 @@ public partial class Main
         var objectIds = snapshot.Resources.Where(resource => resource.TreeKind is null)
             .Select(resource => "resource:" + resource.Id)
             .Concat(snapshot.Objects.Select(item => "object:" + item.Id))
+            .Concat(snapshot.Handcarts.Select(item => "handcart:" + item.Id))
             .Concat(snapshot.PlacedBuildings.Select(item => "building:" + item.InstanceId)).ToHashSet(StringComparer.Ordinal);
         foreach (var id in mapObjectVisuals.Keys.Where(id => !objectIds.Contains(id)).ToArray())
         {
@@ -131,11 +190,13 @@ public partial class Main
             snapshot.Towns.Where(town => town.BorderTiles.Count > 0).Select(town => TownMarkerTile(town, mapWidth, snapshot.WrapsEastWest)),
             snapshot.Inhabitants.Where(person => !person.IsDraft && IsLiving(person))
                 .Select(person => new Vector2(person.Position.X + 0.5f, person.Position.Y + 0.5f)));
+        nightLayer.Darkness = NightLayer.FromBasisPoints(snapshot.DarknessBasisPoints);
         if (!string.Equals(cameraWorldId, snapshot.WorldId, StringComparison.Ordinal))
         {
             cameraWorldId = snapshot.WorldId;
             cameraZoom = 1;
             cameraCenterTiles = InitialCameraCenter(snapshot, terrainMap);
+            nightLayer.Settle();
         }
         UpdateMapGeometry(snapshot);
         UpdateTownSiteGuidance(snapshot);
@@ -153,6 +214,29 @@ public partial class Main
                     ? ResourceGlyph(resource.Kind, resource.NaturalObjectKind) : string.Empty,
                 GameUiText.ResourceMapCaption(resource, currentTileSize),
                 GameUiText.ResourceTooltip(resource));
+        }
+
+        foreach (var cart in snapshot.Handcarts)
+        {
+            var id = "handcart:" + cart.Id;
+            AddMapObjectVisual(id, cart.Position, string.Empty, string.Empty, GameUiText.HandcartDescription(cart));
+            var marker = mapObjectVisuals[id];
+            var sprite = marker.GetNodeOrNull<TextureRect>("HandcartSprite");
+            if (sprite is null)
+            {
+                sprite = new TextureRect
+                {
+                    Name = "HandcartSprite",
+                    MouseFilter = Control.MouseFilterEnum.Ignore,
+                    TextureFilter = CanvasItem.TextureFilterEnum.Nearest
+                };
+                marker.AddChild(sprite);
+            }
+            var size = currentTileSize >= 64 ? 32 : 16;
+            sprite.Texture = ItemIcons.Texture("handcart", size);
+            sprite.Size = new(size, size);
+            sprite.Position = new(0, Math.Max(0, marker.Size.Y - size));
+            sprite.Modulate = cart.ConditionPercent == 0 ? new Color("A89279") : Colors.White;
         }
 
         foreach (var mapObject in snapshot.Objects)

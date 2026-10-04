@@ -17,12 +17,26 @@ concurrency:
 # The Protect main ruleset requires verify, windows-documentation and windows-provider-storage.
 # verify passes only when scope, checks and every test shard pass. A pull request that changes
 # only documentation (Markdown files and docs/) runs the documentation tests and skips the rest.
+# One that also changes only Godot client files the test project does not compile runs the code
+# checks too, but skips the test suite, which those files cannot affect. Only an explicit
+# tests=false from scope skips the test suite.
 jobs:
   scope:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # To read the test timings uploaded by main's latest green run.
+      actions: read
     outputs:
       code: ${{ steps.plan.outputs.code }}
+      tests: ${{ steps.plan.outputs.tests }}
       shards: ${{ steps.plan.outputs.shards }}
+      filter-1: ${{ steps.split.outputs.filter_1 }}
+      filter-2: ${{ steps.split.outputs.filter_2 }}
+      filter-3: ${{ steps.split.outputs.filter_3 }}
+      filter-4: ${{ steps.split.outputs.filter_4 }}
+      filter-5: ${{ steps.split.outputs.filter_5 }}
+      filter-6: ${{ steps.split.outputs.filter_6 }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -41,6 +55,20 @@ jobs:
           fi
           node .github/scripts/ci-plan.js scope < "$RUNNER_TEMP/changed.txt" | tee -a "$GITHUB_OUTPUT"
           node .github/scripts/ci-plan.js matrix | tee -a "$GITHUB_OUTPUT"
+      # Without these timings the split falls back to the fixed one in ci-plan.js.
+      - name: Fetch test timings from main's latest green run
+        if: steps.plan.outputs.tests != 'false'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run_id="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?branch=main&event=push&status=success&per_page=1" --jq '.workflow_runs[0].id')"
+          echo "Timings from run ${run_id}"
+          gh run download "$run_id" --repo "$GITHUB_REPOSITORY" --pattern 'test-timings-*' --dir "$RUNNER_TEMP/timings"
+      - name: Split the tests between the test jobs
+        id: split
+        if: steps.plan.outputs.tests != 'false'
+        run: node .github/scripts/ci-plan.js plan "$RUNNER_TEMP/timings" >> "$GITHUB_OUTPUT"
 
   checks:
     needs: scope
@@ -55,20 +83,21 @@ jobs:
         with:
           global-json-file: global.json
       - run: dotnet restore --locked-mode
+      # The shared tool cache (scripts/tool-cache.sh) checks each download's pinned SHA-256.
+      - name: Restore pinned Godot downloads
+        if: needs.scope.outputs.code == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/clankerworld/tools/downloads
+          key: godot-downloads-${{ hashFiles('scripts/verify-godot-client.sh', 'scripts/verify-godot-windows-export.sh') }}
       - name: Verify Godot client project
         if: needs.scope.outputs.code == 'true'
         run: bash scripts/verify-godot-client.sh
       - if: needs.scope.outputs.code == 'true'
         run: dotnet format --verify-no-changes --no-restore
-      - name: Verify documentation (documentation-only change)
-        if: needs.scope.outputs.code != 'true'
+      - name: Verify documentation (the test suite is skipped)
+        if: needs.scope.outputs.tests == 'false'
         run: dotnet test tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.csproj --configuration Release --no-restore --filter FullyQualifiedName~DocumentationTests
-      - name: Restore pinned Godot export downloads
-        if: needs.scope.outputs.code == 'true'
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/clankerworld-godot
-          key: godot-4.7.2-mono-linux-x64-export-templates-v1
       - name: Verify Windows 11 x64 Godot release export
         if: needs.scope.outputs.code == 'true'
         run: bash scripts/verify-godot-windows-export.sh
@@ -80,11 +109,11 @@ jobs:
           path: export/windows-x64
           if-no-files-found: error
 
-  # The test suite split across parallel jobs; .github/scripts/ci-plan.js decides which tests
-  # each job runs, and every test runs in exactly one of them.
+  # The test suite split across parallel jobs by scope's plan (.github/scripts/ci-plan.js);
+  # every test runs in exactly one of them.
   tests:
     needs: scope
-    if: needs.scope.outputs.code == 'true'
+    if: needs.scope.outputs.tests != 'false'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -99,11 +128,14 @@ jobs:
         run: dotnet restore tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.csproj --locked-mode
       - name: Run test shard ${{ matrix.shard }}
         env:
-          SHARD: ${{ matrix.shard }}
+          FILTER: ${{ needs.scope.outputs[format('filter-{0}', matrix.shard)] }}
         run: |
-          filter="$(node .github/scripts/ci-plan.js filter "$SHARD")"
-          dotnet test tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.csproj --configuration Release --no-restore --filter "$filter" --logger "trx;LogFileName=timings.trx" --results-directory "$RUNNER_TEMP/test-results"
-      # Each test's duration, for rebalancing the shards in ci-plan.js.
+          test -n "$FILTER"
+          dotnet test tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.csproj --configuration Release --no-restore --filter "$FILTER" --logger "trx;LogFileName=timings.trx" --results-directory "$RUNNER_TEMP/test-results"
+      - name: Report the slowest tests
+        if: ${{ !cancelled() }}
+        run: node .github/scripts/ci-plan.js slow "$RUNNER_TEMP/test-results"
+      # Each test's duration, which later runs use to split the tests.
       - name: Upload test timings
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
@@ -121,14 +153,15 @@ jobs:
       - name: Require every part of Verify to pass
         env:
           CODE: ${{ needs.scope.outputs.code }}
+          TESTS_NEEDED: ${{ needs.scope.outputs.tests }}
           SCOPE: ${{ needs.scope.result }}
           CHECKS: ${{ needs.checks.result }}
           TESTS: ${{ needs.tests.result }}
         run: |
-          echo "scope: $SCOPE, checks: $CHECKS, tests: $TESTS, code changed: $CODE"
+          echo "scope: $SCOPE, checks: $CHECKS, tests: $TESTS, code changed: $CODE, tests needed: $TESTS_NEEDED"
           test "$SCOPE" = success
           test "$CHECKS" = success
-          if [ "$CODE" = true ]; then test "$TESTS" = success; else test "$TESTS" = skipped; fi
+          if [ "$TESTS_NEEDED" = false ]; then test "$TESTS" = skipped; else test "$TESTS" = success; fi
 
   windows-documentation:
     runs-on: windows-latest
@@ -142,10 +175,10 @@ jobs:
       - name: Verify documentation with LF and CRLF checkout text
         run: dotnet test tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.csproj --configuration Release --no-restore --filter FullyQualifiedName~DocumentationTests
 
-  # Skipped for a documentation-only pull request; GitHub counts a skipped required job as passed.
+  # Skipped when scope skips the test suite; GitHub counts a skipped required job as passed.
   windows-provider-storage:
     needs: scope
-    if: needs.scope.outputs.code == 'true'
+    if: needs.scope.outputs.tests != 'false'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
@@ -155,4 +188,17 @@ jobs:
       - name: Restore locked test dependencies
         run: dotnet restore tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.csproj --locked-mode
       - name: Verify native protected storage and checkpoint recovery
-        run: dotnet test tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.csproj --configuration Release --no-restore --filter "FullyQualifiedName~ProviderConfigurationStoreTests|FullyQualifiedName~PairedOwnerCanConfigureHostedCognitionWithoutEchoingOrSavingTheKeyInTheWorld|FullyQualifiedName~OnlySignedOwnerCanDeleteUnusedNamedCredentialSlot|FullyQualifiedName~ManualSaveGenerationTests|FullyQualifiedName~ResumeRequiresDurableCheckpointEvenOnRetry|FullyQualifiedName~ResumeCheckpointTests|FullyQualifiedName~Deletion"
+        env:
+          CLANKERWORLD_CHECKPOINT_DIAGNOSTICS: ${{ runner.temp }}/checkpoint-evidence
+        run: dotnet test tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.csproj --configuration Release --no-restore --filter "FullyQualifiedName~ProviderConfigurationStoreTests|FullyQualifiedName~PairedOwnerCanConfigureHostedCognitionWithoutEchoingOrSavingTheKeyInTheWorld|FullyQualifiedName~OnlySignedOwnerCanDeleteUnusedNamedCredentialSlot|FullyQualifiedName~ManualSaveGenerationTests|FullyQualifiedName~ResumeRequiresDurableCheckpointEvenOnRetry|FullyQualifiedName~ResumeCheckpointTests|FullyQualifiedName~PrivateWorldStateFileTests|FullyQualifiedName~Deletion" --logger "trx;LogFileName=windows-storage.trx" --results-directory "${{ runner.temp }}/windows-storage-results"
+      - name: Upload native storage test results and checkpoint failure evidence
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-storage-evidence
+          path: |
+            ${{ runner.temp }}/windows-storage-results
+            ${{ runner.temp }}/checkpoint-evidence
+          include-hidden-files: true
+          retention-days: 14
+          if-no-files-found: warn

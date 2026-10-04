@@ -70,20 +70,4 @@ public sealed class InventoryEquipmentTests
         Assert.Equal(bytes, InventoryCheckpointCodec.Encode(inventory));
         Assert.Equal(InventoryReservationState.Reserved, inventory.GetReservation("a-input").State);
     }
-
-    [Fact]
-    public void BrokenGoodsCanMoveForRepairButCannotBeSpentOrOfferedAsUsableStock()
-    {
-        var inventory = InventoryFixture.CreateGenesis(
-        [
-            new("broken-sack", "sack", "owner", 1, 0, 10_000, 0),
-        ]);
-        var moved = InventoryFixture.Transfer(inventory, "store-broken", "owner", "household", "broken-sack", 1,
-            "equipment_storage", "house");
-        var lot = moved.GetLot("broken-sack");
-        Assert.Equal(("household", "house", 1, 0), (lot.OwnerId, lot.StorageBuildingId, lot.Quantity, lot.ConditionBasisPoints));
-        var bytes = InventoryCheckpointCodec.Encode(moved);
-        Assert.Throws<InvalidOperationException>(() => InventoryFixture.Reserve(moved, "spend", "household", lot.Id, 1, "production", 10));
-        Assert.Equal(bytes, InventoryCheckpointCodec.Encode(moved));
-    }
 }

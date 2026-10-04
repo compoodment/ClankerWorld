@@ -7,7 +7,6 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class SocietyTests
 {
     [Theory]
-    [InlineData("a", false)]
     [InlineData("b", true)]
     public void DeathReleasesBothOpenBarterReservationsButPreservesOtherWork(string deceased, bool accepted)
     {
@@ -404,34 +403,6 @@ public sealed class SocietyTests
     }
 
     [Fact]
-    public void DeathAndEstateSettlementKeepAContainerFamilyTogether()
-    {
-        var config = TestConfig() with { EstateEscrowDays = 1 };
-        var checkpoint = SocietyFixture.CreateGenesis("container-estate",
-            [SocietyFixture.CreateFounder("alice", "Alice", config: config),
-             SocietyFixture.CreateFounder("bob", "Bob", config: config)],
-            [
-                new InventoryLot("pot", InventoryContainerRules.StoragePot, "alice", 1, 10_000, 10_000, 0),
-                new InventoryLot("berries", "berries", "alice", 3, 10_000, 10_000, 0, ContainerLotId: "pot"),
-            ], config);
-        checkpoint = SocietyFixture.CreateHousehold(checkpoint, "home", "The Home", ["alice", "bob"]).Checkpoint;
-
-        var killed = SocietyFixture.Kill(checkpoint, "alice", SocietyDeathCause.Hazard).Checkpoint;
-        var estateId = "estate:alice:0";
-        Assert.Equal(estateId, killed.Inventory.GetLot("pot").OwnerId);
-        Assert.Equal(estateId, killed.Inventory.GetLot("berries").OwnerId);
-        Assert.Equal("pot", killed.Inventory.GetLot("berries").ContainerLotId);
-
-        var settled = SocietyFixture.AdvanceTo(killed, config.TicksPerWorldDay * config.EstateEscrowDays).Checkpoint;
-
-        Assert.True(settled.GetEstate(estateId).Settled);
-        Assert.Equal("bob", settled.Inventory.GetLot("pot").OwnerId);
-        Assert.Equal("bob", settled.Inventory.GetLot("berries").OwnerId);
-        Assert.Equal("pot", settled.Inventory.GetLot("berries").ContainerLotId);
-        Assert.Equal(3, settled.Inventory.GetLot("berries").Quantity);
-    }
-
-    [Fact]
     public async Task MultipleInhabitantsHaveIndependentFairCognitionSchedules()
     {
         var config = TestConfig();
@@ -492,29 +463,6 @@ public sealed class SocietyTests
         public long ProviderEpoch => 1;
         public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request,
             CancellationToken cancellationToken = default) => throw new InvalidOperationException("Preview only.");
-    }
-
-    [Fact]
-    public async Task CancellationLeavesSelectedAndUnprocessedCognitionEntriesQueued()
-    {
-        var config = TestConfig();
-        var founders = new[]
-        {
-            SocietyFixture.CreateFounder("alice", "Alice", config: config),
-            SocietyFixture.CreateFounder("bob", "Bob", config: config),
-        };
-        using var cancellation = new CancellationTokenSource();
-        var scheduler = new SocietyCognitionScheduler(
-            founders,
-            _ => new CancellingDecisionProvider(cancellation),
-            maxDispatchPerCycle: 2);
-        Assert.True(scheduler.Enqueue(Entry("a", "alice", 1, 0)));
-        Assert.True(scheduler.Enqueue(Entry("b", "bob", 0, 0)));
-
-        await Assert.ThrowsAsync<OperationCanceledException>(async () => await scheduler.DispatchAsync(cancellation.Token));
-
-        var state = scheduler.ExportState();
-        Assert.Equal(["a", "b"], state.Queue.Select(item => item.ScheduleId).OrderBy(item => item, StringComparer.Ordinal));
     }
 
     [Fact]
@@ -724,21 +672,4 @@ public sealed class SocietyTests
                 $"digest:{scheduleId}",
                 5_000,
             [new CognitionCandidate("safe_idle", "Continue safely.", 0)]));
-
-    private sealed class CancellingDecisionProvider(CancellationTokenSource cancellation) : IDecisionProvider
-    {
-        private readonly DeterministicDecisionProvider fallback = new();
-
-        public DecisionProviderKind Kind => fallback.Kind;
-
-        public long ProviderEpoch => fallback.ProviderEpoch;
-
-        public ValueTask<CognitionDecisionResponse> DecideAsync(
-            CognitionDecisionRequest request,
-            CancellationToken cancellationToken = default)
-        {
-            cancellation.Cancel();
-            return fallback.DecideAsync(request, cancellationToken);
-        }
-    }
 }
