@@ -351,7 +351,7 @@ choices and distinct mandates. Paused and rejected ticks do not advance or
 partly apply civic work; replay does not reroll ties or duplicate authority.
 Older alpha checkpoints are refused and preserved; no migration is added.
 
-Private-world schema 79 records the exact initial Council election forced by a
+Private-world schema 80 records the exact initial Council election forced by a
 protected government change, or an explicit null when it forced none. The field
 is required in the current format. Loading rejects missing or cross-Town
 elections, duplicate ownership, unrelated renewal/replacement elections and
@@ -631,7 +631,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 79. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 80. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
@@ -703,7 +703,7 @@ schema 69 for equipment-repair orders, schema 70 for explicit chosen names and
 unique first names, schema 71 for physical guardian placements, schema 75
 for paid Markets and physical stall trade, schema 76 for land hearings and
 consensual permission transfers, schema 78 for sponsored admission approval
-expiry, and schema 79 for elections forced by government changes record when
+expiry, and schema 80 for elections forced by government changes record when
 those fields or behaviors were introduced; they do not allow an earlier
 checkpoint schema past the current alpha cutoff.
 
@@ -762,9 +762,10 @@ checkpoint schema past the current alpha cutoff.
 | Schema 70 and society/runtime v2 | Required chosen-name markers distinguish temporary labels from chosen identities, even after automatic naming ends. Chosen first names are unique across living and deceased inhabitants. Current-format reload and compaction retain the marker and pending retry; older alpha formats are refused and preserved without inference or migration. |
 | Schema 71 | Pending guardian placements retain exact accepted care authority, collecting or escorting progress, a selected House and current blocker. Household and Town membership change together only on valid arrival. Earlier alpha checkpoints are refused and preserved without migration. |
 | Schema 75 | Required Market lists bind paid halls and stalls to their completed Town projects, with named borrowing, physical stock receipts and exact inventory barter history. Earlier alpha checkpoints are refused and preserved without migration. |
+| Schema 79 | Paid stone and hanging street lanterns reuse the Town project ledger. The exact immutable definition, one-tile roadside site and adjacent Road tile bind their style and edge; altered budgets, geometry, receipts or orphan fixtures are refused. Earlier alpha saves are refused and preserved without migration. |
 | Schema 76 | Land hearings and voluntary permission transfers retain notice, evidence, personal consent, authority and closure history. Original grants and bounded adjustments must reproduce current permissions. Earlier alpha saves are refused and preserved without migration. |
 | Schema 78 | A sponsored admission approval expires one unpaused world day after its passed proposal settled, with `acceptance_expired` recorded when no acceptance occurred. The deadline uses saved world time and the original council decision, so pause and reload do not restart it. Earlier alpha saves are refused and preserved without migration. |
-| Schema 79 | A protected government change records the exact initial Council election it forced, including failed attempts. Current-format saves require the explicit nullable link and validate its Town, ownership and lifecycle. Ordinary elections remain independent; earlier alpha saves are refused and preserved without migration. |
+| Schema 80 | A protected government change records the exact initial Council election it forced, including failed attempts. Current-format saves require the explicit nullable link and validate its Town, ownership and lifecycle. Ordinary elections remain independent; earlier alpha saves are refused and preserved without migration. |
 
 ### Tool-making requests
 
@@ -918,6 +919,21 @@ equipment and phase wakes are controlled test arrangements; title, field
 placement and actor positions are retained from actual work and movement.
 Earlier alpha checkpoints are refused and preserved
 without migration.
+
+Schema 79 adds two supported street-lantern definitions to that same paid
+ledger. Their `Site` is a clear one-tile roadside footprint and `Entrance` is
+the approved cardinally adjacent Road tile. The immutable definition selects
+the style; the difference between those two positions binds its Road edge.
+These positions and the exact trial budget are part of the approval scope,
+not inferred later from a nearby Road. Completion keeps the bound entrance
+and does not generate or extend streets. Live placement and current-format
+validation require uncontested Town title and an existing Road, with the same
+real delivery, reservation, work and removal receipts as the Hall. No fuel,
+lit flag or separate rendering authority is saved: day/night appearance is
+derived from the saved world clock. The owner projection supplies definition
+tags as derived display data. Current roundtrip and replay retain the edge,
+paid materials and partial custody. Earlier alpha saves are refused and
+preserved without migration.
 
 ## Pending model work and estates
 

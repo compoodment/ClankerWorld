@@ -490,13 +490,19 @@ public sealed record ViewerCivicProposal(string Id, string Kind, string Text, st
 public sealed record ViewerTownProjectBudget(string Kind, int Quantity);
 public sealed record ViewerTownProjectPlan(string Name, string ProposerId, string ProposerName,
     string DefinitionId, string DisplayName, ViewerPosition Site, ViewerPosition Entrance,
-    int Width, int Height, IReadOnlyList<ViewerTownProjectBudget> Budget);
+    int Width, int Height, IReadOnlyList<ViewerTownProjectBudget> Budget)
+{
+    public IReadOnlyList<string> Tags { get; init; } = [];
+}
 public sealed record ViewerTownProjectMaterial(string Kind, int Budget, int Supplied);
 public sealed record ViewerTownProject(string Id, string ProposalId, string Name,
     string ProposerId, string ProposerName, string DefinitionId, string DisplayName,
     ViewerPosition Site, ViewerPosition Entrance, int Width, int Height,
     IReadOnlyList<ViewerTownProjectMaterial> Materials, int WorkDone, int WorkRequired,
-    string Stage, string? Blocker, string? CompletedBuildingId, ViewerCivicProposal Approval);
+    string Stage, string? Blocker, string? CompletedBuildingId, ViewerCivicProposal Approval)
+{
+    public IReadOnlyList<string> Tags { get; init; } = [];
+}
 public sealed record ViewerCivicCandidate(string Id, string Name, int Votes);
 public sealed record ViewerTownElection(string Id, string Kind, string Stage, int Seats, long DeadlineTick,
     IReadOnlyList<ViewerCivicCandidate> Candidates, IReadOnlyList<string> SettledNames);

@@ -418,6 +418,19 @@ recorded owner. Suggestions can guide these choices, but an Order cannot force
 a sale or give away goods. The
 [Market hands-on checklist](../playtest/564-market-stalls.md) remains pending.
 
+Residents can also propose a **stone street lamp** or **hanging street lantern**
+beside an existing Road. The Council approves its design, Road edge and exact
+budget before anyone builds. Trial costs are **4 stone**, or **4 wood and
+1 refined iron**, with the same provisional 10 work units as other Town
+projects. Residents carry and spend real Town materials; household stock is
+not taken. The fitting occupies one clear roadside tile on Town-titled land
+and keeps the edge that was approved. The Road itself stays open.
+
+Completed lanterns show by day, light at dusk and go out at dawn. They need no
+fuel and do not change what agents can see or do. Select the visible fitting for
+its project and payment details. The [street-lantern checklist](../playtest/892-street-lanterns.md)
+still needs a hands-on check.
+
 ## Pause, settings and controls
 
 The pause button pauses or resumes time. **Menu** opens the Pause Menu and keeps
@@ -537,3 +550,6 @@ or latitude cooling. **Reset these options** restores the preset and Small size
 without changing the name or seed. The preview updates after
 changes; Create World waits for a matching preview. Small and Medium are
 available; larger worlds remain unavailable pending their support checks.
+**Reroll** chooses another seed and clears the old map while its replacement
+loads. You can reroll during generation; the preview will follow your latest
+seed. If the world name is missing, enter it and choose **Preview again**.

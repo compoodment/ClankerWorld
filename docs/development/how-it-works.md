@@ -2015,6 +2015,24 @@ Events are `bridge_built` (`road:<bridge>:<route>` or `traffic:<bridge>`),
 final check, `town_road_extension_refused`. The host logs them as
 `bridge` and `road_route` lines with IDs and reason codes only.
 
+## Council-approved street lanterns
+
+Paid street lanterns reuse the shared Town-project ledger and the ordinary
+building projection. A one-tile roadside `Position` and its approved adjacent
+Road `Entrance` bind the exact edge; two immutable definitions carry the style
+and trial cost. Live sites use uncontested Town title and existing Road tiles.
+The same actual delivery reservations and work receipts pay for completion;
+direct placement cannot bypass them. Lanterns are excluded from doorway-based
+Road generation and extension. Derived project tags let the owner client show
+Road-side facts without guessing from names or dimensions. The saved receipt
+rules and schema are in [Saves and replay](saves-and-replay.md#council-approved-town-projects).
+
+The normal map draws those projected fittings with Claude's approved
+`NightLightShapes.StreetLantern` renderer. It uses the bound Road tile and edge,
+shows fittings by day and adds light only during the derived night interval.
+No fuel, lit flag or visibility authority is introduced. The road remains open
+and a visible fitting can be selected for its paid project details.
+
 ## Approved authored assets
 
 Paused authoring can reference only an exact normalized `assetId` and lowercase
