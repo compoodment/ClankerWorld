@@ -29,7 +29,7 @@ public sealed partial class PrivateWorldRuntime
         if (order.Action is "collect_material" or "collect_food" or "collect_equipment")
             return CollectionOrderCandidateFor(instruction, person);
 
-        if (order.Action == "store_material")
+        if (order.Action is "store_material" or "store_equipment")
             return StorageOrderCandidateFor(instruction, person);
 
         if (order.Action == "gather_material")
@@ -190,6 +190,7 @@ public sealed partial class PrivateWorldRuntime
                 ExecuteCollectionOrderStep(instruction, person);
                 return;
             case "store_material":
+            case "store_equipment":
                 ExecuteStorageOrderStep(instruction, person);
                 return;
             case "gather_material":
@@ -334,7 +335,7 @@ public sealed partial class PrivateWorldRuntime
             return RepairOrderBlockedReason(instruction);
         if (instruction.Order?.Action is "collect_material" or "collect_food" or "collect_equipment")
             return CollectionOrderBlockedReason(instruction, person);
-        if (instruction.Order?.Action == "store_material")
+        if (instruction.Order?.Action is "store_material" or "store_equipment")
             return StorageOrderBlockedReason(instruction, person);
         if (instruction.Order?.Action == "gather_material")
             return MaterialOrderBlockedReason(instruction, person);
