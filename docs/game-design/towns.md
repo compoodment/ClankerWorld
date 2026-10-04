@@ -615,6 +615,16 @@ reservations. This is a supported construction effect; free-form law text
 cannot execute it. The existing resident rule for Warehouse expansion stays
 in place. Costs, quantities and work times remain provisional for playtesting.
 
+**Street lanterns, agreed by the owner on October 3, 2026:** agents build
+street lanterns beside Roads; the map does not place them by itself. A lantern
+needs **no fuel**: once built it lights itself at dusk and goes out at dawn.
+There are two designs, a round **stone lamp** with an open flame and a
+**hanging lantern** on a roadside post with an arm over the Road
+([look](interface-and-art.md#pixel-art-and-generated-images)). Still open:
+what each costs, whether a lantern needs the Council's approval as a shared
+Town project, and where lanterns stand. A suggestion is stone lamps at Road
+junctions and hanging lanterns every few tiles along a Road.
+
 The intended building roles now include House, Warehouse, Workshop,
 Farmhouse, farm fields, an adjacent private farm Silo, optional household-run
 Store, household-run Blacksmith with internal work stock and direct sales,
