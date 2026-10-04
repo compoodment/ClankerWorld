@@ -172,7 +172,7 @@ public sealed partial class PrivateWorldRuntime
                 AvailableLotQuantity(lot) > 0)
             .Select(lot => lot.ContainerLotId is { } containerId
                 ? inventory.GetLot(containerId) : lot)
-            .Where(lot => lot.OwnerId == householdId && lot.CarrierId is null && lot.StorageBuildingId != destination.InstanceId &&
+            .Where(lot => lot.OwnerId == householdId && lot.CarrierId is null && !OnBorrowedMarketStall(lot) && lot.StorageBuildingId != destination.InstanceId &&
                 lot.DeliveryBuildingId is null && AvailableLotQuantity(lot) > 0 &&
                 (!InventoryContainerRules.IsContainer(lot.ItemKind) ||
                  !HasActiveContainerReservation(inventory, lot.Id)) &&

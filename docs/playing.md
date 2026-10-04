@@ -225,6 +225,15 @@ one load; a quantity stops exactly at that number. Full hands or unavailable
 goods leave the task waiting. These orders cover the same seven raw materials;
 requests naming a particular source or destination are not understood yet.
 
+To work on household fields, try **Till two fields**, **Plant grain**,
+**Plant two fields of potatoes**, **Tend cultivated greens**, or **Keep
+harvesting fields of grain**. Adults need a household with a Farmhouse and
+suitable fields, stock and tools. Counts mean completed fields, so include
+**fields** when giving a number; **Harvest five potatoes** is not understood.
+A named crop is never replaced with another. Harvests remain on the field
+until carried. Cancel or replace the order to stop the current work and release
+unused planting stock. Named field locations are not supported yet.
+
 To mend worn personal equipment, use **Repair my basket**, **Repair two padded
 coats**, or **Keep repairing basic garments**. Adults and elders can repair basic
 clothing, padded coats, rain cloaks, baskets and sacks. They collect real supplies
@@ -246,10 +255,15 @@ who may use it, when it was built, which side its door faces, the work in
 progress, a larger storage grid with each item's name, and who is inside or
 lives there. Back (or **Escape**) returns to the small card.
 
-Every day has a night, from 19:12 to 04:48 on the clock in the top bar, with a
-short dusk and dawn. In a six-minute day that is about 2 min 24 s of night. The
-map turns a gentle dark blue but stays readable; names, agents and panels keep
-their daytime colors. Nights are colder outdoors, so an agent with no clothing,
+Every day has a night, with a short dusk and dawn. Nights are longest in winter
+and shortest in summer: from 19:12 to 04:48 on the clock in the top bar at the
+start of spring and autumn, about 2 min 24 s of a six-minute day; from 20:24
+to 03:36 at the start of summer; and from 18:00 to 06:00 at the start of
+winter. The map turns a gentle dark blue but stays readable; names, agents and
+panels keep their daytime colors. Buildings in use glow from their windows and
+doors: a House while someone is home, a workshop while someone works there,
+the Blacksmith's forge while it is busy, and a Warehouse's door lantern while
+goods are fetched. Nights are colder outdoors, so an agent with no clothing,
 shelter or fire loses warmth, and their warmth bar shows it. New worlds start
 in the morning; loading a saved world keeps its recorded time.
 
@@ -325,7 +339,41 @@ both separately. Candidates personally agree to those specific mandates.
 Residents choose one candidate and may revise their ballot. A tie means another
 vote, never a draw. The term lasts twenty days, and a vacancy needs a new election.
 Pausing stops votes, terms and handovers. The page shows officeholders and vacant
-mandates; land hearings and enforcement have not been implemented yet.
+mandates. Wider law enforcement and punishment are not available yet.
+
+An adult in an affected household can propose transferring an exact plot of
+recorded use permission to another household. Every current adult in all giving
+and receiving households must learn the published terms and personally accept;
+proposing, reading and silence supply no acceptance. A new adult joining while
+it is pending must accept too. This ordinary transfer needs no Council or mayor
+approval. It preserves the original grant date and any agreed end date, and
+moves only use permission. Town title, membership, buildings, crops, goods and
+private-building access stay unchanged. Expired, disputed or under-review land
+cannot use this route. Town, plot and property details show the exact terms,
+names, dates and each household's acceptance progress.
+
+An affected household can ask for a land hearing, and the Town can file through
+its legitimate government. A permission with an agreed end date enters review
+when that date passes; it remains provisional while the case is pending. The
+Towns page shows the plot, affected households, formal response deadline,
+evidence sources and who may decide the case. Publication does not mean a notice
+was read: adults learn it through actual reading or a relay. Each affected adult
+may answer or explicitly waive their own response; silence is neither agreement
+nor evidence against them.
+The page separates the parties named when the notice was published from current
+adult responders and the Town's current authorized representative. Each ruling
+keeps the parties who were represented when it was made.
+
+The land mayor may confirm, renew, change or end use permission, recording the
+evidence and reasons. A permission past its agreed end must be renewed, changed
+or ended; renewing renews every lapsed permission on the plot for its own household. A mayor with a personal or household conflict stands aside;
+residents can elect a willing, independent adult for that case only. A case waits
+if nobody qualifies. A rehearing requires material new evidence or a demonstrated
+procedural error. The old ruling remains recorded and current rights stay in
+effect until a valid correction. These decisions leave Town title, household
+membership, buildings, crops and goods with their holders; they neither evict
+occupants nor grant entry to private buildings. Plot and building details show
+the hearing, and the disputed-land filter marks plots still under review.
 
 An adult resident can propose a named Town Hall on clear Town-titled land, and
 the Council votes through the same process as an ordinary proposal. In
@@ -347,6 +395,23 @@ project and the Towns page says why; its leftover materials stay Town
 property where they are. See [What works today](what-works.md#life-work-and-society)
 for this first version's limits and provisional amounts. Its
 [hands-on checklist](../playtest/767-town-projects.md) remains pending.
+
+To begin a Market, use **Speak → Suggest** to ask an adult resident to consider a
+named Market proposal. **World Info → Towns** shows its site, exact budget,
+Council result, supplied materials and work. Its first project pays for the
+hall and two stalls on a fixed 7×4 plaza. Once the existing stalls are borrowed,
+another stall needs its own Council approval and delivered materials.
+
+Once it is built, select the hall or a stall to see who borrows it, the goods
+actually there, their owners and any offered exchange. Adults may choose to
+carry surplus there and borrow a free stall. Buyers, including visitors who
+belong to no Town, bring personal payment, and the named seller chooses whether
+to accept when both have reached the stall. The buyer carries the purchase;
+payment becomes the seller's household stock there. Leaving frees the stall;
+leftover goods still belong to their
+recorded owner. Suggestions can guide these choices, but an Order cannot force
+a sale or give away goods. The
+[Market hands-on checklist](../playtest/564-market-stalls.md) remains pending.
 
 ## Pause, settings and controls
 

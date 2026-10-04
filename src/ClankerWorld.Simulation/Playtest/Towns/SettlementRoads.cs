@@ -53,7 +53,9 @@ public sealed partial class PrivateWorldRuntime
             .Where(point => (!occupied.Contains(point) || roadTiles.Contains(point)) && map.IsBuildable(point) &&
                 WorldContentSimulationRules.IsEntrance(buildingDesign, building.Position, point) &&
                 (!buildingDesign.Tags.Contains(TownHallContent.HallTag, StringComparer.Ordinal) ||
-                 point == TownHallContent.Entrance(building.Position)))
+                 point == TownHallContent.Entrance(building.Position)) &&
+                (!buildingDesign.Tags.Any(tag => tag is MarketContent.HallTag or MarketContent.StallTag) ||
+                 point == building.Entrance))
             .Distinct().OrderBy(point => point.Y).ThenBy(point => point.X).ToArray();
         if (entrances.Length == 0)
         {

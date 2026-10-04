@@ -1338,7 +1338,7 @@ public partial class Main
             };
             Render(sample with { WorldTick = 3_600, Towns = [governmentTown] }, []);
             foreach (var phrase in new[] { "Approved government:", "Mira Vale: land disputes", "handover due by",
-                         "Mayoral election: Voting", "round 2", "Law: Grove", "recorded site (5 land tiles)", "Version 2", "Land hearings and enforcement are not available yet" })
+                         "Mayoral election: Voting", "round 2", "Law: Grove", "recorded site (5 land tiles)", "Version 2", "Wider law enforcement remains unavailable" })
                 if (!TownListText().Contains(phrase, StringComparison.Ordinal))
                     throw new InvalidOperationException("The Town page must show actual law scope, government handovers and separate office authority: " + phrase);
             var revisedCivicTown = civicTown with
@@ -3049,6 +3049,7 @@ public partial class Main
             if (brightest > 0.31f || lit > 900 || flashes > 25)
                 throw new InvalidOperationException($"Lightning must stay soft and rare: peak={brightest}, lit samples={lit}, flashes={flashes}.");
             await VerifyNightWashAsync(largeMap);
+            await VerifyNightLightsAsync(largeMap);
             var startedMap = largeMap with { FounderSetup = null };
             RenderWorldHud(startedMap);
             for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);

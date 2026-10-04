@@ -297,9 +297,19 @@ public static class GameUiText
             "ornament_worn" or "ornament_removed" or "ornament_given" or
             "inhabitant_building_proposed" or "instruction_not_understood" or "settlement_founded" or "town_founding_started" or
             "town_civic_council" or "town_civic_election" or "town_civic_runoff" or "town_civic_proposal" or "town_civic_result" or "town_civic_cancelled" or
+            "town_project_approved" or "town_project_blocked" or "town_project_resumed" or "town_project_cancelled" or
+            "town_project_donated" or "town_project_material_picked_up" or "town_project_material_delivered" or
+            "town_project_material_returned" or "town_project_worked" or "town_project_completed" or
+            "market_built" or "market_stall_built" or "market_stall_borrowed" or "market_stall_left" or
+            "market_stock_loaded" or "market_stock_delivered" or "market_stock_collected" or
+            "market_trade_offered" or "market_trade_completed" or "market_trade_cancelled" or
             "town_resident_joined" or "town_resident_left" or "town_membership_evaluated" or
             "town_admission_accepted" or "town_admission_approved" or "town_admission_lapsed" or
             "land_use_requested" or "land_use_granted" or "town_building_assigned" or "town_border_expanded" or "town_land_claimed" or "town_founded" or "bridge_built" or
+            "town_civic_land_hearing" or "land_case_opened" or "land_case_notice" or "land_case_evidence" or "land_case_response" or
+            "land_case_judge_consent" or "land_case_judge_election" or "land_case_judge_assigned" or "land_case_ruling" or
+            "land_case_reopen_requested" or "land_case_reopened" or "land_case_inspected" or "land_case_relayed" or "land_case_rejected" or
+            "land_transfer_proposed" or "land_transfer_read" or "land_transfer_consent" or "land_transfer_withdrawn" or "land_transfer_settled" or "land_transfer_blocked" or
             "housing_request_made" or "household_joined" or "housing_request_refused" or "housing_request_expired" or
             "handcart_attached" or "handcart_parked" or "handcart_loaded" or "handcart_unloaded" or
             "handcart_repaired" or "handcart_transferred" or "handcart_blocked" or
@@ -522,6 +532,12 @@ public static class GameUiText
             "collect_shared_food" => "collect food from camp",
             "harvest_food" => "gather food",
             "gather_material" => "gather materials",
+            "till_field" => "till a household field",
+            "plant_field" => "plant a household field",
+            "tend_field" => "tend a household field",
+            "harvest_field" => "harvest a household field",
+            "work_field" => "work on a household field",
+            "repair_tool" => "repair a personal tool",
             "repair_equipment" => "repair personal equipment",
             "collect_material" => "collect personal materials",
             "store_material" => "store personal materials",

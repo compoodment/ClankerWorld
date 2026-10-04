@@ -458,7 +458,9 @@ public sealed partial class PrivateWorldRuntime
             StageCareContent();
             StageBuiltInContent(TownHallContent.PackageId, HouseContent.PackageId, TownHallContent.Create, "town_hall_content_staged");
             StageBuiltInContent(KnowledgeContent.PackageId, HouseContent.PackageId, KnowledgeContent.Create, "knowledge_content_staged");
+            StageBuiltInContent(MarketContent.PackageId, TownHallContent.PackageId, MarketContent.Create, "market_content_staged");
             StageBuiltInContent(BusinessContent.PackageId, HouseContent.PackageId, BusinessContent.Create, "business_content_staged");
+            StageBuildingVariantContent();
             var readyPackages = contentRegistry.GetActivationCandidates(targetTick);
             var reservationPreview = WorldAssetReservationLedger.Restore(
                 assetReservations.ExportState(),
@@ -546,6 +548,7 @@ public sealed partial class PrivateWorldRuntime
             AdvanceTownGovernance();
             SettleTownAdmissions();
             MaintainTownProjects();
+            MaintainMarkets();
             MaintainLessons();
             MaintainPartnerships();
             MaintainHousing();
@@ -557,6 +560,7 @@ public sealed partial class PrivateWorldRuntime
             ReconcileGuardianPlacements();
             DiscoverIdentityMoments();
             UpdateConversationsForTick(targetTick);
+            RefreshTownLandHearings();
             EnqueueDueCognition(activeHostedIds);
             var deferredDecisions = new List<SocietyCognitionDispatchResult>();
             if (deferHosted)
@@ -646,7 +650,9 @@ public sealed partial class PrivateWorldRuntime
             SettleGuardianSearches();
             ReconcileGuardianPlacements();
             MaintainTownProjects();
+            MaintainMarkets();
             MaintainToolMakingRequests();
+            RefreshTownLandHearings();
             MaintainKnowledgeWriting();
 
             AppendEvent("tick_advanced", targetTick.ToString(System.Globalization.CultureInfo.InvariantCulture));

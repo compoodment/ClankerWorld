@@ -38,21 +38,182 @@ public sealed class OwnerWorldObservationStore
             government.ContestHistory.Count > 0 ? Election(government.ContestHistory[^1]) : null, government.MayoralRetryTick);
     }
 
+    private static ViewerTownLandHearing[] ProjectLandHearings(PrivateWorldRuntimeState state, TownRuntimeState town)
+    {
+        var cases = town.LandHearings?.Cases ?? [];
+        string AgentName(string id) => state.Society.Society.Inhabitants.FirstOrDefault(person => person.Id == id)?.Name ?? "Unknown adult";
+        string HouseholdName(string id) => state.Society.Society.Households.FirstOrDefault(household => household.Id == id)?.Name ?? "Unknown household";
+        HashSet<string> Awareness(string noticeId, long tick) => (town.Governance?.Knowledge ?? [])
+            .Where(receipt => receipt.NoticeId == noticeId && receipt.LearnedTick <= tick)
+            .Select(receipt => receipt.AgentId).ToHashSet(StringComparer.Ordinal);
+        ViewerLandHearingParty Party(TownLandCaseParty party, IReadOnlySet<string> aware) => new(party.Id, party.Kind,
+            party.HouseholdId is { } household ? HouseholdName(household) :
+                (state.Towns ?? []).FirstOrDefault(other => other.Id == party.TownId)?.Name ?? town.Name,
+            party.AdultIds.ToArray(), party.AdultIds.Select(AgentName).ToArray(), party.RepresentativeId,
+            party.RepresentativeId is { } representative ? AgentName(representative) : null,
+            party.AdultIds.Where(aware.Contains).Concat(party.RepresentativeId is { } agent && aware.Contains(agent) ? [agent] : [])
+                .Distinct(StringComparer.Ordinal).ToArray());
+        var names = state.Society.Society.Inhabitants.Select(person => (Id: person.Id, Name: person.Name))
+            .Concat(state.Society.Society.Households.Select(household => (Id: household.Id, Name: household.Name)))
+            .Concat((state.Towns ?? []).Select(other => (Id: other.Id, Name: other.Name)))
+            .Concat((state.WorldContent?.Buildings ?? []).Select(building => (Id: building.CanonicalId, Name: building.DisplayName)))
+            .OrderByDescending(item => item.Id.Length).ToArray();
+        string Readable(string text)
+        {
+            foreach (var name in names) text = text.Replace(name.Id, name.Name, StringComparison.Ordinal);
+            return text;
+        }
+        ViewerLandHearingOutcome Outcome(TownLandRequestedOutcome outcome) => new(outcome.Kind, outcome.HouseholdId,
+            outcome.HouseholdId is { } household ? HouseholdName(household) : null, outcome.AgreedEndTick);
+        ViewerLandHearingJudge Judge(TownLandCaseJudge judge) => new(judge.AgentId, AgentName(judge.AgentId),
+            judge.Kind, judge.AuthorityId, judge.AssignedTick);
+        ViewerLandHearingElection Election(TownLandCaseJudgeContest contest) => new(contest.Id, contest.Stage,
+            contest.Round, contest.RoundDeadlineTick, contest.Candidates.Select(id => new ViewerCivicCandidate(id,
+                AgentName(id), contest.Ballots.Count(ballot => ballot.CandidateId == id))).ToArray(),
+            contest.WinnerId is { } winner ? AgentName(winner) : null, contest.Reason);
+        ViewerLandHearingEvidence Evidence(TownLandEvidence evidence, TownLandCase item)
+        {
+            var right = item.Revisions.SelectMany(revision => revision.RightVersions)
+                .Concat(town.LandHearings?.OriginalRights ?? [])
+                .Concat((state.HouseholdLandUseRights ?? []).Select(TownLandHearingRules.Snapshot))
+                .Concat((town.LandHearings?.Adjustments ?? []).SelectMany(adjustment => adjustment.ResultRights)
+                    .Select(TownLandHearingRules.Snapshot))
+                .FirstOrDefault(version => version.Id == evidence.SourceRecordId && version.Version == evidence.SourceVersion)?.Right;
+            var title = (state.TownLandTitles ?? []).FirstOrDefault(record => record.Id == evidence.SourceRecordId);
+            var lawToken = evidence.SourceRecordId?.Split('@', 2);
+            return new(evidence.Id, evidence.Revision, evidence.Kind, evidence.Acquisition,
+                evidence.SourceAgentId, AgentName(evidence.SourceAgentId), evidence.SourceRecordId,
+                evidence.SourceVersion, evidence.ObservedTick, evidence.SubmittedByAgentId,
+                AgentName(evidence.SubmittedByAgentId), evidence.SubmittedTick, Readable(evidence.Text))
+            {
+                PermissionRecord = right is not null ? new(right.Id, right.TownId, right.HouseholdId,
+                    right.Tiles.Select(ToPosition).ToArray(), right.GrantedTick, right.GrantSource, right.AgreedEndTick) : null,
+                TitleRecord = title is not null ? new(title.Id, title.TownId, title.Tiles.Select(ToPosition).ToArray(), title.RecordedTick) : null,
+                RecordPartyName = right is not null ? HouseholdName(right.HouseholdId) : title is not null
+                    ? (state.Towns ?? []).FirstOrDefault(other => other.Id == title.TownId)?.Name : null,
+                LawVersion = lawToken is { Length: 2 } && int.TryParse(lawToken[1], out var versionNumber) ? versionNumber : null,
+            };
+        }
+        static bool Active(TownLandCase item) => item.SettledTick is null || item.ReopenRequests.Any(request => request.Status == "pending");
+        return cases.Where(Active)
+            .Concat(cases.Where(item => !Active(item)).OrderBy(item => item.SettledTick)
+                .ThenBy(item => item.Id, StringComparer.Ordinal).TakeLast(RecentSettledLandHearingLimit))
+            .OrderBy(item => item.FiledTick).ThenBy(item => item.Id, StringComparer.Ordinal)
+            .Select(item =>
+            {
+                var revision = item.Revisions[^1];
+                var aware = Awareness(revision.NoticeId, state.Society.Society.WorldTick);
+                return new ViewerTownLandHearing(item.Id, item.Kind, item.Status, item.FiledTick, item.SettledTick,
+                    revision.Number, revision.Tiles.Select(ToPosition).ToArray(), revision.RightVersions.Select(version =>
+                        new ViewerLandHearingRightVersion(version.Id, version.Version, new ViewerHouseholdLandUseRight(
+                            version.Right.Id, version.Right.TownId, version.Right.HouseholdId,
+                            version.Right.Tiles.Select(ToPosition).ToArray(), version.Right.GrantedTick,
+                            version.Right.GrantSource, version.Right.AgreedEndTick))).ToArray(),
+                    revision.NoticeId, revision.PublishedTick, revision.DeadlineTick, Outcome(revision.RequestedOutcome),
+                    item.Filings.Select(filing => new ViewerLandHearingFiling(filing.AgentId,
+                        filing.AgentId is { } filer ? AgentName(filer) : null, filing.Kind, Readable(filing.Text),
+                        Outcome(filing.RequestedOutcome), filing.Tick, filing.AuthorityId)).ToArray(),
+                    revision.Parties.Select(party => Party(party, aware)).ToArray(),
+                    item.Evidence.Select(evidence => Evidence(evidence, item)).ToArray(),
+                    item.Responses.Select(response => new ViewerLandHearingResponse(response.Revision, response.PartyId,
+                        response.AgentId, AgentName(response.AgentId), response.Kind, Readable(response.Text), response.Tick)).ToArray(),
+                    item.Rulings.Select(ruling => new ViewerLandHearingRuling(ruling.Id, ruling.Revision, Judge(ruling.Judge),
+                        ruling.Tick, Outcome(ruling.Outcome), item.Revisions.Single(old => old.Number == ruling.Revision)
+                            .Tiles.Select(ToPosition).ToArray(), ruling.EvidenceIds.ToArray(), ruling.LawIds.ToArray(),
+                        Readable(ruling.Reasons), ruling.AdjustmentIds.ToArray())
+                    {
+                        Parties = ruling.Parties.Select(party => Party(party, Awareness(
+                            item.Revisions.Single(old => old.Number == ruling.Revision).NoticeId, ruling.Tick))).ToArray(),
+                    }).ToArray(),
+                    item.Judge is { } judge ? Judge(judge) : null,
+                    item.JudgeHistory.Select(term => new ViewerLandHearingJudgeTerm(Judge(term.Judge), term.EndedTick, term.Reason)).ToArray(),
+                    item.Contest is { } contest ? Election(contest) : null,
+                    item.ContestHistory.Count > 0 ? Election(item.ContestHistory[^1]) : null,
+                    item.ReopenRequests.Select(request => new ViewerLandHearingReopenRequest(request.Id, request.AgentId,
+                        AgentName(request.AgentId), request.Tick, request.Kind, request.EvidenceIds.ToArray(), Readable(request.Reasons),
+                        request.Status, request.AssessedBy is { } adjudicator ? Judge(adjudicator) : null,
+                        request.AssessedTick, request.Assessment is { } assessment ? Readable(assessment) : null)).ToArray())
+                {
+                    CurrentParties = item.Status == "pending" ? TownLandCasePartyRules.CurrentParties(town, revision.Tiles,
+                        state.HouseholdLandUseRights ?? [], state.HouseholdLandUseRequests ?? [], state.Society.Society.Inhabitants,
+                        state.Society.Society.WorldTick, item).Select(party => Party(party, aware)).ToArray() : [],
+                    Reads = item.Reads.Select(read => new ViewerLandHearingRead(read.Revision, read.AgentId, AgentName(read.AgentId),
+                        read.ReadTick, read.EvidenceIds.ToArray(), read.SourceAgentId,
+                        read.SourceAgentId is { } source ? AgentName(source) : null)
+                    {
+                        ReopenRequestIds = read.ReopenRequestIds.ToArray(),
+                    }).ToArray(),
+                };
+            }).ToArray();
+    }
+
+    private static ViewerLandTransfer[] ProjectLandTransfers(PrivateWorldRuntimeState state, TownRuntimeState town)
+    {
+        var transfers = town.LandHearings?.Transfers ?? [];
+        var receipts = town.Governance?.Knowledge ?? [];
+        var adultHouseholds = state.Society.Society.Inhabitants.Where(person => person.Status == SocietyInhabitantStatus.Active &&
+            person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder).ToDictionary(person => person.Id, person => person.HouseholdId, StringComparer.Ordinal);
+        string AgentName(string id) => state.Society.Society.Inhabitants.FirstOrDefault(person => person.Id == id)?.Name ?? "Unknown adult";
+        string HouseholdName(string id) => state.Society.Society.Households.FirstOrDefault(household => household.Id == id)?.Name ?? "Unknown household";
+        return transfers.Where(request => request.Status == "pending")
+            .Concat(transfers.Where(request => request.Status != "pending").OrderBy(request => request.SettledTick)
+                .ThenBy(request => request.Id, StringComparer.Ordinal).TakeLast(RecentClosedLandTransferLimit))
+            .OrderBy(request => request.ProposedTick).ThenBy(request => request.Id, StringComparer.Ordinal)
+            .Select(request =>
+            {
+                var parties = request.Status == "pending" ? TownLandTransferRules.PartiesFor(request.RightVersions.Select(version => version.Right),
+                    request.Tiles, request.TargetHouseholdId, adultHouseholds) : request.Receipt?.Parties ?? request.Parties;
+                var rosterKind = request.Status == "pending" ? "current" : request.Receipt is not null ? "settlement" : "publication";
+                var asOf = request.SettledTick ?? state.Society.Society.WorldTick;
+                var aware = receipts.Where(receipt => receipt.NoticeId == request.NoticeId && receipt.LearnedTick >= request.ProposedTick &&
+                    receipt.LearnedTick <= asOf).Select(receipt => receipt.AgentId).ToHashSet(StringComparer.Ordinal);
+                return new ViewerLandTransfer(request.Id, request.FilerId, AgentName(request.FilerId), request.TargetHouseholdId,
+                    HouseholdName(request.TargetHouseholdId), request.Tiles.Select(ToPosition).ToArray(), request.RightVersions.Select(version =>
+                        new ViewerLandHearingRightVersion(version.Id, version.Version, new ViewerHouseholdLandUseRight(version.Right.Id,
+                            version.Right.TownId, version.Right.HouseholdId, version.Right.Tiles.Select(ToPosition).ToArray(),
+                            version.Right.GrantedTick, version.Right.GrantSource, version.Right.AgreedEndTick))).ToArray(),
+                    parties.Select(party => new ViewerLandTransferParty(party.HouseholdId, party.Kind, HouseholdName(party.HouseholdId), rosterKind,
+                        party.AdultIds.ToArray(), party.AdultIds.Select(AgentName).ToArray(),
+                        TownLandTransferRules.AcceptedAdults(request, party, receipts, asOf).ToArray(), party.AdultIds.Where(aware.Contains).ToArray())).ToArray(),
+                    request.NoticeId, request.ProposedTick, request.Responses.Select(response => new ViewerLandTransferResponse(response.HouseholdId,
+                        HouseholdName(response.HouseholdId), response.AgentId, AgentName(response.AgentId), response.Kind, response.Tick,
+                        response.PartyAdults.ToArray())).ToArray(), request.Status, request.SettledTick, request.Reason, request.Receipt?.AdjustmentId);
+            }).ToArray();
+    }
+
+    private static ViewerLandHearingProposal ProjectLandHearingProposal(PrivateWorldRuntimeState state, TownLandFilingRequest request)
+    {
+        var statement = request.Statement;
+        var names = state.Society.Society.Inhabitants.Select(person => (Id: person.Id, Name: person.Name))
+            .Concat(state.Society.Society.Households.Select(household => (Id: household.Id, Name: household.Name)))
+            .Concat((state.Towns ?? []).Select(town => (Id: town.Id, Name: town.Name))).OrderByDescending(item => item.Id.Length);
+        foreach (var name in names) statement = statement.Replace(name.Id, name.Name, StringComparison.Ordinal);
+        var outcome = request.RequestedOutcome;
+        return new(request.Tiles.Select(ToPosition).ToArray(), new(outcome.Kind, outcome.HouseholdId,
+            outcome.HouseholdId is { } householdId ? state.Society.Society.Households.FirstOrDefault(household => household.Id == householdId)?.Name ?? "Unknown household" : null,
+            outcome.AgreedEndTick), statement);
+    }
+
     private static string LandRequestApprovalDetail(PrivateWorldRuntimeState state, HouseholdLandUseRequest request, bool disputed)
     {
-        if (request.Status != "pending") return "Household request " + request.Status;
+        if (request.Status != "pending") return request.Status == "hearing_resolved"
+            ? "Use request resolved by a recorded land ruling" : "Household request " + request.Status.Replace('_', ' ');
         var adults = state.Society.Society.Inhabitants.Where(p => p.HouseholdId == request.HouseholdId &&
             p.Status == SocietyInhabitantStatus.Active && p.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder).ToArray();
         var accepted = adults.Count(p => request.Consents.Any(c => c.AgentId == p.Id && c.Accepted));
         var proposal = state.Towns?.Single(t => t.Id == request.TownId).Governance?.Proposals.SingleOrDefault(p => p.Id == request.CouncilProposalId);
         var council = proposal?.Status == "passed" ? "Council approved" : proposal is null ? "Awaiting Council consideration" :
             $"Council votes: {proposal.Votes.Count(v => v.Yes)}/{proposal.RequiredYes}";
-        return $"{council}; household acceptance: {accepted}/{adults.Length}" + (disputed ? "; disputed plot" : "");
+        var resolved = request.HearingResolutions.SelectMany(receipt => receipt.Tiles).Distinct().Count();
+        return $"{council}; household acceptance: {accepted}/{adults.Length}" + (disputed ? "; disputed plot" : "") +
+            (resolved > 0 ? $"; {resolved}/{request.Tiles.Count} requested tiles resolved by land rulings; remaining tiles still pending" : "");
     }
 
     private const int AgentKnowledgeArtifactLimit = 8;
     private const int RecentClosedInstructionLimitPerAgent = 6;
     public const int RecentCivicProposalLimit = 8;
+    public const int RecentSettledLandHearingLimit = 8;
+    public const int RecentClosedLandTransferLimit = 8;
     private static readonly string[] OwnerServerCapabilities =
     [
         "snapshot.read.v1",
@@ -281,7 +442,8 @@ public sealed class OwnerWorldObservationStore
             election.SettledSeats.Select(id => inhabitantsById.GetValueOrDefault(id)?.Name ?? id).ToArray());
         ViewerTownProjectPlan ProjectPlan(TownProjectPayload plan, string proposerId)
         {
-            var definition = buildingDefinitions?.GetValueOrDefault(plan.DefinitionId) ?? TownHallContent.Hall3x4();
+            var definition = buildingDefinitions?.GetValueOrDefault(plan.DefinitionId) ??
+                TownProjectRules.DefinitionFor(plan.DefinitionId) ?? throw new InvalidDataException("Unsupported Town project definition.");
             return new ViewerTownProjectPlan(plan.Name, proposerId,
                 inhabitantsById.GetValueOrDefault(proposerId)?.Name ?? proposerId,
                 plan.DefinitionId, definition.DisplayName, ToPosition(plan.Site), ToPosition(plan.Entrance),
@@ -304,8 +466,48 @@ public sealed class OwnerWorldObservationStore
                 plan.Width, plan.Height, project.Plan.Budget.Select(q => new ViewerTownProjectMaterial(
                     q.ResourceId, q.Amount, TownProjectRules.DeliveredQuantity(project, town.Id,
                         state.Society.Society.Inventory, q.ResourceId))).ToArray(),
-                project.WorkDone, TownProjectRules.WorkTicks, project.Stage, project.Blocker,
+                project.WorkDone, TownProjectRules.RequiredWork(project.Plan), project.Stage, project.Blocker,
                 project.CompletedBuildingId, ProjectProposal(approval));
+        }
+        string MarketOwnerName(string id) => inhabitantsById.GetValueOrDefault(id)?.Name ??
+            state.Society.Society.Households.FirstOrDefault(household => household.Id == id)?.Name ??
+            state.Towns?.FirstOrDefault(town => town.Id == id)?.Name ?? id;
+        ViewerMarket ProjectMarket(TownMarketState market)
+        {
+            var inventory = state.Society.Society.Inventory;
+            var plaza = MarketContent.PlazaOrigin(market.Site);
+            var stalls = market.Stalls.Where(stall => stall.RemovedTick is null)
+                .OrderBy(stall => stall.SlotIndex).Select(stall =>
+                {
+                    var building = state.WorldSimulation?.Buildings.FirstOrDefault(item => item.InstanceId == stall.BuildingId);
+                    if (building is null) return null;
+                    var occupancy = market.RemovedTick is null ? market.Occupancies
+                        .LastOrDefault(item => item.StallBuildingId == stall.BuildingId && item.EndedTick is null) : null;
+                    var stock = MarketTradeRules.StockAt(market, stall.BuildingId, building.Position, inventory)
+                        .OrderBy(lot => lot.OwnerId, StringComparer.Ordinal).ThenBy(lot => lot.ItemKind, StringComparer.Ordinal)
+                        .ThenBy(lot => lot.Id, StringComparer.Ordinal).Select(lot => new ViewerMarketStock(
+                            lot.Id, lot.ContainerLotId, lot.OwnerId, MarketOwnerName(lot.OwnerId), lot.ItemKind,
+                            lot.Quantity, MarketTradeRules.AvailableQuantity(inventory, lot))).ToArray();
+                    var trades = market.Trades.Where(trade => trade.StallBuildingId == stall.BuildingId)
+                        .OrderByDescending(trade => inventory.GetOffer(trade.OfferId).State == DirectBarterState.Open)
+                        .ThenByDescending(trade => trade.ProposedTick).ThenBy(trade => trade.OfferId, StringComparer.Ordinal)
+                        .Take(8).Select(trade =>
+                        {
+                            var offer = inventory.GetOffer(trade.OfferId);
+                            return new ViewerMarketTrade(trade.OfferId, trade.SellerAgentId, MarketOwnerName(trade.SellerAgentId),
+                                trade.GoodsOwnerId, MarketOwnerName(trade.GoodsOwnerId), trade.PaymentOwnerId,
+                                MarketOwnerName(trade.PaymentOwnerId), trade.BuyerId, MarketOwnerName(trade.BuyerId),
+                                trade.GoodsKind, offer.FirstQuantity, trade.PaymentKind, offer.SecondQuantity,
+                                offer.State.ToString().ToLowerInvariant(), trade.CancellationReason,
+                                offer.AcceptedBy.Contains(offer.FirstPartyId, StringComparer.Ordinal),
+                                offer.AcceptedBy.Contains(offer.SecondPartyId, StringComparer.Ordinal));
+                        }).ToArray();
+                    return new ViewerMarketStall(stall.BuildingId, stall.SlotIndex, ToPosition(building.Position),
+                        occupancy?.SellerAgentId, occupancy is null ? null : MarketOwnerName(occupancy.SellerAgentId),
+                        occupancy?.StartedTick, stock, trades);
+                }).OfType<ViewerMarketStall>().ToArray();
+            return new ViewerMarket(market.Id, market.ProjectId, market.HallBuildingId, ToPosition(market.Site),
+                ToPosition(plaza), MarketContent.PlazaWidth, MarketContent.PlazaHeight, stalls, market.RemovedTick);
         }
         var physicalById = state.Inhabitants.ToDictionary(item => item.InhabitantId, StringComparer.Ordinal);
         var deceasedById = (state.DeceasedInhabitants ?? []).ToDictionary(item => item.InhabitantId, StringComparer.Ordinal);
@@ -460,6 +662,10 @@ public sealed class OwnerWorldObservationStore
                     item.BorderTiles.OrderBy(point => point.Y).ThenBy(point => point.X)
                         .Select(ToPosition).ToArray())
                 {
+                    LandHearings = ProjectLandHearings(state, item),
+                    LandHearingCount = item.LandHearings?.Cases.Count ?? 0,
+                    LandTransfers = ProjectLandTransfers(state, item),
+                    LandTransferCount = item.LandHearings?.Transfers.Count ?? 0,
                     Government = item.Government is { } government ? ProjectGovernment(government,
                         id => inhabitantsById.GetValueOrDefault(id)?.Name ?? id) : null,
                     Governance = item.Governance is { } civic ? new ViewerTownGovernance(
@@ -475,6 +681,7 @@ public sealed class OwnerWorldObservationStore
                                                 state.HouseholdLandUseRights ?? [], state.HouseholdLandUseRequests ?? []))) : ""), p.Status,
                             p.Votes.Count(v => v.Yes), p.Votes.Count(v => !v.Yes), p.RequiredYes, p.DeadlineTick)
                         {
+                            LandHearingRequest = p.LandHearingRequest is { } request ? ProjectLandHearingProposal(state, request) : null,
                             Project = p.Project is { } plan ? ProjectPlan(plan, p.AuthorId) : null,
                         }).ToArray(),
                         civic.Election is { } election ? ProjectElection(election) : null)
@@ -485,6 +692,8 @@ public sealed class OwnerWorldObservationStore
                     Projects = item.Projects.OrderBy(project => project.ApprovedTick)
                         .ThenBy(project => project.Id, StringComparer.Ordinal)
                         .Select(project => ProjectConstruction(item, project)).ToArray(),
+                    Markets = item.Markets.OrderBy(market => market.Id, StringComparer.Ordinal)
+                        .Select(ProjectMarket).ToArray(),
                 })
                 .ToArray(),
             TownLandTitles = (state.TownLandTitles ?? []).OrderBy(item => item.Id, StringComparer.Ordinal)
@@ -499,14 +708,15 @@ public sealed class OwnerWorldObservationStore
                 .OrderBy(item => item.Id, StringComparer.Ordinal)
                 .Select(item =>
                 {
-                    var claimants = item.Tiles.SelectMany(tile => TownLandRightsRules.ClaimantsAt(tile,
+                    var unresolved = item.Tiles.Where(tile => !item.HearingResolutions.Any(receipt => receipt.Tiles.Contains(tile))).ToArray();
+                    var claimants = unresolved.SelectMany(tile => TownLandRightsRules.ClaimantsAt(tile,
                             state.HouseholdLandUseRights ?? [], state.HouseholdLandUseRequests ?? []))
                         .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
-                    var disputedTiles = item.Tiles.Where(tile => TownLandRightsRules.IsDisputed(tile,
+                    var disputedTiles = unresolved.Where(tile => TownLandRightsRules.IsDisputed(tile,
                             state.HouseholdLandUseRights ?? [], state.HouseholdLandUseRequests ?? []))
                         .OrderBy(tile => tile.Y).ThenBy(tile => tile.X).ToArray();
                     return new ViewerHouseholdLandUseRequest(item.Id, item.TownId, item.HouseholdId,
-                        item.RequestedByAgentId, item.Tiles.Select(ToPosition).ToArray(), item.RequestedTick,
+                        item.RequestedByAgentId, unresolved.Select(ToPosition).ToArray(), item.RequestedTick,
                         item.AgreedEndTick, disputedTiles.Length > 0, claimants,
                         disputedTiles.Select(ToPosition).ToArray())
                     {
@@ -561,7 +771,7 @@ public sealed class OwnerWorldObservationStore
                         order.Action, order.Status, order.RequestedUnits, order.CompletedUnits,
                         order.ProgressUnit, order.RepeatUntilCancelled, order.TargetFoodKind,
                         order.TargetResourceId, order.TargetPosition?.X, order.TargetPosition?.Y,
-                        order.BlockedReason, order.TargetAgentId, order.TargetMaterialKind, order.TargetEquipmentKind) : null))
+                        order.BlockedReason, order.TargetAgentId, order.TargetMaterialKind, order.TargetEquipmentKind, order.TargetCropKind) : null))
                 .ToArray(),
             Cognition = ToCognition(state),
             ContentPackages = state.Content?.Packages
@@ -1366,6 +1576,8 @@ public sealed class OwnerWorldObservationStore
         "move_to" => "walking to the ordered tile",
         "harvest_food" => "gathering food",
         "gather_material" => "gathering the ordered material",
+        "work_field" => "working on a household field",
+        "repair_tool" => "repairing a personal tool",
         "repair_equipment" => "repairing personal equipment",
         "collect_material" => "collecting personal materials",
         "store_material" => "storing personal materials in the House",
