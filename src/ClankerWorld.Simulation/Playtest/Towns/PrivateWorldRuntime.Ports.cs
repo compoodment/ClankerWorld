@@ -66,10 +66,12 @@ public sealed partial class PrivateWorldRuntime
         return null;
     }
 
-    private GridPoint? FreePortDock(PlacedBuilding port, string? exceptBoatId = null) =>
+    private IEnumerable<GridPoint> FreePortDocks(PlacedBuilding port, string? exceptBoatId = null) =>
         PortGeometryFor(port).DockingTiles.Where(dock => !boatTransport.Boats.Any(boat => boat.Id != exceptBoatId &&
-            (boat.Position == dock || boat.Journey?.ReservedDock == dock)))
-            .Cast<GridPoint?>().FirstOrDefault();
+            (boat.Position == dock || boat.Journey?.ReservedDock == dock)));
+
+    private GridPoint? FreePortDock(PlacedBuilding port, string? exceptBoatId = null) =>
+        FreePortDocks(port, exceptBoatId).Cast<GridPoint?>().FirstOrDefault();
 
     private void AddBoatAccessCandidates(List<CognitionCandidate> candidates, string actor, TownRuntimeState town)
     {
@@ -87,32 +89,28 @@ public sealed partial class PrivateWorldRuntime
     private void AddPortProjectProposalCandidates(List<CognitionCandidate> candidates, string actor, TownRuntimeState town)
     {
         var ports = worldSimulation.Buildings.Where(building => building.TownId == town.Id && Port(building.InstanceId) is not null).ToArray();
-        // Provisional autonomous planning limit; a coastal Town starts with two endpoints.
-        var planned = town.Projects.Count(project => IsLiveTownProject(project) && project.Plan.BoatPortId is null &&
-            TownProjectRules.DefinitionFor(project.Plan.DefinitionId) is { } definition && PortNavigationRules.IsPort(definition));
         var legal = TownProjectLandTiles(town);
         var occupied = PortObstacles();
-        if (ports.Length + planned < 2)
-            foreach (var definition in PortContent.Definitions.Where(definition => worldContent.Buildings.Any(d => d.CanonicalId == definition.CanonicalId)))
+        foreach (var definition in PortContent.Definitions.Where(definition => worldContent.Buildings.Any(d => d.CanonicalId == definition.CanonicalId)))
+        {
+            var offered = 0;
+            foreach (var land in legal.OrderBy(point => point.Y).ThenBy(point => point.X))
             {
-                var offered = 0;
-                foreach (var land in legal.OrderBy(point => point.Y).ThenBy(point => point.X))
+                var site = PortNavigationRules.Facing(definition) switch
                 {
-                    var site = PortNavigationRules.Facing(definition) switch
-                    {
-                        PortFacing.North => new GridPoint(land.X, land.Y - 3),
-                        PortFacing.West => new GridPoint(land.X - 3, land.Y),
-                        _ => land,
-                    };
-                    if (!PortNavigationRules.Fits(map, definition, site, occupied, out _, roadTiles)) continue;
-                    var geometry = PortNavigationRules.Geometry(map, definition, site);
-                    if (geometry.LandTiles.Any(point => !legal.Contains(point)) || !geometry.ApproachTiles.Any(legal.Contains)) continue;
-                    var plan = PlanFor(town, definition, site, definition.DisplayName);
-                    if (plan is null || TownProjectSiteFailure(town, plan, actor: actor) is not null) continue;
-                    AddTownProjectProposalCandidate(candidates, town, definition, site);
-                    if (++offered == 2) break;
-                }
+                    PortFacing.North => new GridPoint(land.X, land.Y - 3),
+                    PortFacing.West => new GridPoint(land.X - 3, land.Y),
+                    _ => land,
+                };
+                if (!PortNavigationRules.Fits(map, definition, site, occupied, out _, roadTiles)) continue;
+                var geometry = PortNavigationRules.Geometry(map, definition, site);
+                if (geometry.LandTiles.Any(point => !legal.Contains(point)) || !geometry.ApproachTiles.Any(legal.Contains)) continue;
+                var plan = PlanFor(town, definition, site, definition.DisplayName);
+                if (plan is null || TownProjectSiteFailure(town, plan, actor: actor) is not null) continue;
+                AddTownProjectProposalCandidate(candidates, town, definition, site);
+                if (++offered == 2) break;
             }
+        }
         foreach (var port in ports.Where(PortIsLegal).OrderBy(port => port.InstanceId, StringComparer.Ordinal))
         {
             if (FreePortDock(port) is null || town.Projects.Any(project => IsLiveTownProject(project) && project.Plan.BoatPortId == port.InstanceId) ||
@@ -135,7 +133,10 @@ public sealed partial class PrivateWorldRuntime
         SetBoat(new(id, townId, project.Id, dock, port.InstanceId));
         SetTownProject(townId, project with
         {
-            Stage = "completed", CompletedBoatId = id, Blocker = null, LastTransitionTick = WorldTick,
+            Stage = "completed",
+            CompletedBoatId = id,
+            Blocker = null,
+            LastTransitionTick = WorldTick,
         });
         AppendEvent("communal_boat_launched", $"{townId}:{id}:{port.InstanceId}:{project.Plan.Name}", dock);
     }

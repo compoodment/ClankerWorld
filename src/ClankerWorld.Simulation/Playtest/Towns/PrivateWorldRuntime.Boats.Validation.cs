@@ -47,7 +47,7 @@ public sealed partial class PrivateWorldRuntime
             if (!towns.TryGetValue(boat.TownId, out var town) ||
                 !PortNavigationRules.NavigableWater(state.Map, boat.Position) ||
                 town.Projects.SingleOrDefault(project => project.Id == boat.ProjectId) is not
-                    { Stage: "completed", Plan.BoatPortId: not null } project ||
+                { Stage: "completed", Plan.BoatPortId: not null } project ||
                 project.CompletedBoatId != boat.Id || project.CompletedBuildingId is not null ||
                 boat.Id != TownProjectRules.BuildingId(project.Id))
                 throw new InvalidDataException("Every communal boat needs one completed, paid Town boat project.");
@@ -87,12 +87,17 @@ public sealed partial class PrivateWorldRuntime
             else if (boat.DockedPortId is null || !Geometry(boat.DockedPortId).DockingTiles.Contains(boat.Position))
                 throw new InvalidDataException("An idle boat must be moored in a real Port's docking space.");
             if (boat.GroundCargoLotIds is { } cargo)
+            {
+                if (cargo.Distinct(StringComparer.Ordinal).Count() != cargo.Count || boat.Journey is not { } estateJourney ||
+                    !people.TryGetValue(estateJourney.PassengerId, out var deceased) || deceased.Status != SocietyInhabitantStatus.Dead)
+                    throw new InvalidDataException("Only a deceased passenger's unique estate cargo may remain aboard.");
                 foreach (var id in cargo)
                 {
                     var lot = state.Society.Society.Inventory.Lots.SingleOrDefault(lot => lot.Id == id);
-                    if (lot is null || lot.ContainerLotId is not null || lot.GroundPosition != new InventoryGroundPosition(boat.Position.X, boat.Position.Y))
+                    if (lot is null || lot.Quantity <= 0 || lot.ContainerLotId is not null || lot.GroundPosition != new InventoryGroundPosition(boat.Position.X, boat.Position.Y))
                         throw new InvalidDataException("Aboard estate cargo must remain at its one physical boat location.");
                 }
+            }
         }
         var queuedPassengers = new HashSet<string>(StringComparer.Ordinal);
         foreach (var request in transport.Requests)
@@ -106,6 +111,7 @@ public sealed partial class PrivateWorldRuntime
                 (request.Status is "arrived" or "returned" or "cancelled") != (request.SettledTick is not null) ||
                 request.SettledTick is { } settled && (settled < request.RequestedTick || settled > tick) ||
                 request.Status == "waiting" && (request.BoatId is not null || !queuedPassengers.Add(request.PassengerId) || passengers.Contains(request.PassengerId)) ||
+                request.Status == "cancelled" && request.BoatId is not null ||
                 request.Status == "underway" && !transport.Boats.Any(boat => boat.Id == request.BoatId && boat.Journey?.RequestId == request.Id) ||
                 request.Status is "arrived" or "returned" && !transport.Boats.Any(boat => boat.Id == request.BoatId))
                 throw new InvalidDataException("The saved boat queue contains a missing traveler, duplicate active request or invalid outcome.");

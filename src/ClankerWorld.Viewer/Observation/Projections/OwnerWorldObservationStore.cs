@@ -25,7 +25,7 @@ public sealed class OwnerWorldObservationStore
             government.Laws.TakeLast(16).Select(l =>
             {
                 var v = TownLawRules.Current(l);
-                return new ViewerTownLaw(l.Id, v.Subject, v.Rule, v.Scope, v.SiteTiles.Count, v.Version, v.AdoptedTick, v.EndedTick)
+                return new ViewerTownLaw(l.Id, v.Subject, v.Rule, v.BoatAccess is null ? v.Scope : "communal_boats", v.SiteTiles.Count, v.Version, v.AdoptedTick, v.EndedTick)
                 { Site = v.SiteTiles.Select(ToPosition).ToArray() };
             }).ToArray(), government.Laws.Count,
             government.Offices.Select(o => new ViewerTownOffice(TownArrangementRules.MandateLabel(o.Mandates),
@@ -1682,7 +1682,9 @@ public sealed class OwnerWorldObservationStore
     }).ToArray();
 
     private static ViewerBoatTripRequest[] ProjectBoatRequests(PrivateWorldRuntimeState state) =>
-        state.BoatTransport.Requests.TakeLast(40).Select(request => new ViewerBoatTripRequest(request.Id, request.Sequence,
+        state.BoatTransport.Requests.Where(request => request.Status is "waiting" or "underway")
+            .Concat(state.BoatTransport.Requests.Where(request => request.Status is not ("waiting" or "underway")).TakeLast(40))
+            .OrderBy(request => request.Sequence).Select(request => new ViewerBoatTripRequest(request.Id, request.Sequence,
             request.PassengerId, BoatPassengerName(state, request.PassengerId), request.BoatTownId,
             request.OriginPortId, request.DestinationPortId, request.Status, request.BoatId)).ToArray();
 
@@ -1721,6 +1723,10 @@ public sealed class OwnerWorldObservationStore
         PlaytestInhabitantState physical,
         IReadOnlyList<ViewerInventoryEntry> inventory)
     {
+        if (state.BoatTransport.Boats.FirstOrDefault(boat => boat.Journey?.PassengerId == physical.InhabitantId) is { Journey: { } journey })
+            return new ViewerRoute(journey.WaitingSinceTick is not null ? "boat_waiting" : journey.Returning ? "boat_returning" : "boat_travel",
+                journey.Returning ? journey.OriginPortId : journey.DestinationPortId, ToPosition(journey.ReservedDock),
+                journey.WaterPath.Skip(journey.PathIndex + 1).Select(ToPosition).ToArray(), state.Map.ManifestDigest);
         var food = inventory.FirstOrDefault(item => item.Kind == "food");
         if (food is { Quantity: > 0 } && physical.HungerBasisPoints < 8_500)
         {

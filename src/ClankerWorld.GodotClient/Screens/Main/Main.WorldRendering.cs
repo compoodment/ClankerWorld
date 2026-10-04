@@ -252,7 +252,8 @@ public partial class Main
             {
                 sprite = new TextureRect
                 {
-                    Name = "BoatSprite", MouseFilter = Control.MouseFilterEnum.Ignore,
+                    Name = "BoatSprite",
+                    MouseFilter = Control.MouseFilterEnum.Ignore,
                     TextureFilter = CanvasItem.TextureFilterEnum.Nearest,
                 };
                 marker.AddChild(sprite);

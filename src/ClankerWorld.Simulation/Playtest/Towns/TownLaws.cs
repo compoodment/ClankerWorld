@@ -33,9 +33,9 @@ public sealed record TownLawDraft(string ProposalId, string Action, string? LawI
 }
 
 /// <summary>
-/// Town laws are recorded social rules. They never block physical actions,
-/// change ownership or create offices; they only say which rule applied to
-/// whom, where and when.
+/// Ordinary laws record social rules without changing physical authority.
+/// The explicit typed boat-access grant permits visitor travel; law text
+/// alone never changes ownership, creates offices or authorizes an action.
 /// </summary>
 public static class TownLawRules
 {
@@ -172,7 +172,8 @@ public static class TownLawRules
         var key = $"law_repeal:{law.Id}:{current.Version.ToString(CultureInfo.InvariantCulture)}";
         return Submit(council, government, townId, actor, label, key, adults, tick, day,
             proposalId => new TownLawDraft(proposalId, "repeal", law.Id, current.Version, current.Subject, current.Rule,
-                current.Scope, current.SiteTiles) { BoatAccess = current.BoatAccess });
+                current.Scope, current.SiteTiles)
+            { BoatAccess = current.BoatAccess });
     }
 
     public static (TownGovernanceState Council, TownGovernmentState Government) ProposeBoatAccess(
@@ -266,7 +267,8 @@ public static class TownLawRules
     public static string VoteText(TownLawDraft draft) =>
         (draft.Action == "adopt" ? "Adopt law: " : draft.Action == "amend" ? $"Amend law {Number(draft.LawId!)} (version {draft.BaseVersion}) to: "
             : $"Repeal law {Number(draft.LawId!)} (version {draft.BaseVersion}): ") + Text(draft.Subject, draft.Rule) +
-        ". Scope: " + ScopeLabel(draft.Scope, "this Town", draft.SiteTiles.Count) +
+        ". Scope: " + (draft.BoatAccess is not null ? "this Town's communal boats at usable Ports; no ownership or membership"
+            : ScopeLabel(draft.Scope, "this Town", draft.SiteTiles.Count)) +
         (draft.SiteTiles.Count > 0 ? ". Site tiles: " + SiteKey(draft.SiteTiles.ToArray()) : "") + ".";
 
     internal static string ProposalText(TownLawDraft draft) => draft.Action switch

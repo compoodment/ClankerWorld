@@ -425,7 +425,7 @@ public partial class Main
     private void RenderTownList(OwnerWorldSnapshot snapshot)
     {
         var signature = string.Join("\n", snapshot.Towns.Select(town =>
-            $"{town.Id}|{town.Name}|{town.FoundingState}|{town.FoundedTick}|{town.ResidentIds.Count}|{town.BorderTiles.Count}|{ResidentPortraitsKey(snapshot, town)}|{TownCivicText(town, snapshot.WorldTick)}|{TownProjectText(town)}|{TownMarketText(town)}")) +
+            $"{town.Id}|{town.Name}|{town.FoundingState}|{town.FoundedTick}|{town.ResidentIds.Count}|{town.BorderTiles.Count}|{ResidentPortraitsKey(snapshot, town)}|{TownCivicText(town, snapshot.WorldTick)}|{TownProjectText(town)}|{TownMarketText(town)}|{TownBoatText(snapshot, town)}")) +
             "|" + displayPreferences.DateStyle + "|" + observedCalendarPace + "|" + UiTheme.Current.Name;
         if (renderedTownList == signature) return;
         renderedTownList = signature;
@@ -486,6 +486,13 @@ public partial class Main
                 text.AddChild(new Label
                 {
                     Text = TownMarketText(town),
+                    AutowrapMode = TextServer.AutowrapMode.WordSmart,
+                    CustomMinimumSize = new Vector2(300, 0),
+                });
+            if (snapshot.Boats.Any(boat => boat.TownId == town.Id) || snapshot.BoatRequests.Any(request => request.BoatTownId == town.Id && request.Status is "waiting" or "underway"))
+                text.AddChild(new Label
+                {
+                    Text = TownBoatText(snapshot, town),
                     AutowrapMode = TextServer.AutowrapMode.WordSmart,
                     CustomMinimumSize = new Vector2(300, 0),
                 });
@@ -635,6 +642,7 @@ public partial class Main
         {
             var scope = law.Scope switch
             {
+                "communal_boats" => "the Town's communal boats at usable Ports; no ownership or membership",
                 "resident_duty" => "duty of residents, wherever they are",
                 "site" => $"the recorded site ({law.SiteTiles} land tiles), visitors included",
                 _ => "the Town's formally claimed land, visitors included",

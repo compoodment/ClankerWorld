@@ -36,11 +36,11 @@ public static class PortNavigationRules
         {
             GridPoint point = facing switch
             {
-            PortFacing.North => new(position.X + across, position.Y + 3 - depth),
-            PortFacing.East => new(position.X + depth, position.Y + across),
-            PortFacing.South => new(position.X + across, position.Y + depth),
-            PortFacing.West => new(position.X + 3 - depth, position.Y + across),
-            _ => throw new InvalidDataException("The Port direction is invalid."),
+                PortFacing.North => new(position.X + across, position.Y + 3 - depth),
+                PortFacing.East => new(position.X + depth, position.Y + across),
+                PortFacing.South => new(position.X + across, position.Y + depth),
+                PortFacing.West => new(position.X + 3 - depth, position.Y + across),
+                _ => throw new InvalidDataException("The Port direction is invalid."),
             };
             return map?.WrapColumn(point) ?? point;
         }

@@ -31,6 +31,10 @@ public sealed partial class PrivateWorldRuntime
     private bool CanUseTownBoat(string townId, string actor) => towns.SingleOrDefault(town => town.Id == townId) is { } town &&
         (town.ResidentIds.Contains(actor, StringComparer.Ordinal) || TownBoatAccessRules.Allows(town, actor, WorldTick));
 
+    private GridPoint? AvailablePortLanding(PlacedBuilding port, string passenger) =>
+        PortGeometryFor(port).LandTiles.Where(point => !inhabitants.Values.Any(person =>
+            person.InhabitantId != passenger && person.Position == point)).Cast<GridPoint?>().FirstOrDefault();
+
     private IReadOnlyList<GridPoint> BoatWaterRoute(GridPoint origin, GridPoint dock, string? boatId = null) =>
         PortNavigationRules.WaterRoute(map, origin, [dock], PortObstacles()
             .Concat(boatTransport.Boats.Where(boat => boat.Id != boatId).SelectMany(boat => boat.Journey is { } journey ? new[] { boat.Position, journey.ReservedDock } : new[] { boat.Position })).ToHashSet());
@@ -51,8 +55,9 @@ public sealed partial class PrivateWorldRuntime
                              Port(port.InstanceId) is not null && PortIsLegal(port)).OrderBy(port => port.InstanceId, StringComparer.Ordinal))
                 {
                     // Geography is enough to request a trip; a full dock does not reserve a boat.
-                    if (PortNavigationRules.WaterRoute(map, PortGeometryFor(origin).DockingTiles[0],
-                            PortGeometryFor(destination).DockingTiles, PortObstacles()).Count == 0) continue;
+                    if (!boatTransport.Boats.Where(boat => boat.TownId == townId && boat.DockedPortId == origin.InstanceId && boat.Journey is null)
+                            .Any(boat => PortNavigationRules.WaterRoute(map, boat.Position,
+                                PortGeometryFor(destination).DockingTiles, PortObstacles()).Count > 0)) continue;
                     var key = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(
                         new[] { townId, origin.InstanceId, destination.InstanceId }))));
                     yield return new(BoatTripPrefix + key, townId, origin, destination);
@@ -127,12 +132,14 @@ public sealed partial class PrivateWorldRuntime
                 continue;
             }
             if (!ReadyToBoard(request.PassengerId) || inhabitants[request.PassengerId].Position != origin.Entrance ||
-                !PortIsLegal(origin) || !PortIsLegal(destination) || FreePortDock(destination) is not { } dock) continue;
+                !PortIsLegal(origin) || !PortIsLegal(destination) || AvailablePortLanding(destination, request.PassengerId) is null) continue;
             foreach (var boat in boatTransport.Boats.Where(boat => boat.TownId == request.BoatTownId &&
                          boat.DockedPortId == origin.InstanceId && boat.Journey is null).OrderBy(boat => boat.Id, StringComparer.Ordinal))
             {
-                var route = BoatWaterRoute(boat.Position, dock, boat.Id);
-                if (route.Count == 0) continue;
+                var route = FreePortDocks(destination).Select(dock => BoatWaterRoute(boat.Position, dock, boat.Id))
+                    .FirstOrDefault(path => path.Count > 0);
+                if (route is null) continue;
+                var dock = route[^1];
                 SetBoat(boat with
                 {
                     DockedPortId = null,
@@ -167,11 +174,16 @@ public sealed partial class PrivateWorldRuntime
                     journey = journey with { WaterPath = revised, PathIndex = 0 };
                     next = revised.Count > 1 ? revised[1] : boat.Position;
                 }
-                boat = boat with { Position = next, Journey = journey with
+                boat = boat with
                 {
-                    PathIndex = Math.Min(journey.PathIndex + 1, journey.WaterPath.Count - 1),
-                    NextMoveTick = checked(tick + BoatStepTicks), WaitingSinceTick = null,
-                } };
+                    Position = next,
+                    Journey = journey with
+                    {
+                        PathIndex = Math.Min(journey.PathIndex + 1, journey.WaterPath.Count - 1),
+                        NextMoveTick = checked(tick + BoatStepTicks),
+                        WaitingSinceTick = null,
+                    }
+                };
                 SetBoat(boat);
                 if (inhabitants.TryGetValue(journey.PassengerId, out var passenger))
                     inhabitants[journey.PassengerId] = passenger with { Position = next };
@@ -179,8 +191,7 @@ public sealed partial class PrivateWorldRuntime
                 journey = boat.Journey!;
                 if (journey.PathIndex + 1 < journey.WaterPath.Count) continue;
             }
-            var landing = PortGeometryFor(target).LandTiles.Where(point => !inhabitants.Values.Any(person =>
-                person.InhabitantId != journey.PassengerId && person.Position == point)).Cast<GridPoint?>().FirstOrDefault();
+            var landing = AvailablePortLanding(target, journey.PassengerId);
             if (landing is null) { WaitOrRecoverBoat(boat, tick); continue; }
             if (inhabitants.TryGetValue(journey.PassengerId, out var arriving))
                 inhabitants[journey.PassengerId] = arriving with { Position = landing.Value, MoveWaitTicks = 0, TravelCooldownTicks = 0 };
@@ -199,16 +210,25 @@ public sealed partial class PrivateWorldRuntime
         var since = journey.WaitingSinceTick ?? tick;
         SetBoat(boat with { Journey = journey with { WaitingSinceTick = since, NextMoveTick = checked(tick + BoatStepTicks) } });
         if (journey.WaitingSinceTick is null) AppendEvent("boat_waiting", $"{journey.PassengerId}:{boat.Id}:arrival_blocked", boat.Position);
-        if (!journey.Returning && tick - since < society.Checkpoint.Config.TicksPerWorldDay) return;
+        if (!journey.Returning && tick - since < CivicDay) return;
         var recovery = Port(journey.Returning ? journey.DestinationPortId : journey.OriginPortId);
-        if (recovery is null || !PortIsLegal(recovery) || FreePortDock(recovery, boat.Id) is not { } dock) return;
-        var route = BoatWaterRoute(boat.Position, dock, boat.Id);
-        if (route.Count == 0) return;
-        SetBoat(boat with { Journey = journey with
+        if (recovery is null || !PortIsLegal(recovery) || AvailablePortLanding(recovery, journey.PassengerId) is null) return;
+        var route = FreePortDocks(recovery, boat.Id).Select(dock => BoatWaterRoute(boat.Position, dock, boat.Id))
+            .FirstOrDefault(path => path.Count > 0);
+        if (route is null) return;
+        var dock = route[^1];
+        SetBoat(boat with
         {
-            Returning = !journey.Returning, ReservedDock = dock, WaterPath = route, PathIndex = 0,
-            WaitingSinceTick = null, NextMoveTick = checked(tick + BoatStepTicks),
-        } });
+            Journey = journey with
+            {
+                Returning = !journey.Returning,
+                ReservedDock = dock,
+                WaterPath = route,
+                PathIndex = 0,
+                WaitingSinceTick = null,
+                NextMoveTick = checked(tick + BoatStepTicks),
+            }
+        });
         AppendEvent("boat_recovery_started", $"{journey.PassengerId}:{boat.Id}:{recovery.InstanceId}", boat.Position);
     }
 
