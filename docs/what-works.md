@@ -78,9 +78,11 @@ period. Returning makes no offline progress; a manually paused world stays
 paused. New worlds use six-minute days and a 40-day year as the current playtest
 pace, subject to model/server load.
 
-Every world day has a night covering 40% of it, the same all year: 19:12 to
-04:48 on the clock, about 2 min 24 s of a six-minute day, with an hour-long
-dusk and dawn fade (15 seconds each at that pace). A new world starts at
+Every world day has a night, longer in winter and shorter in summer: 40% of the
+day at the start of spring and autumn (19:12 to 04:48 on the clock, about
+2 min 24 s of a six-minute day), 30% at the start of summer (20:24 to 03:36)
+and 50% at the start of winter (18:00 to 06:00), changing a little each day in
+between. Dusk and dawn each fade over an hour (15 seconds at that pace). A new world starts at
 06:00 on Spring 1, Year 1, after dawn, so founder setup happens in full
 daylight. Loading an existing world keeps its saved clock. At night the map darkens with a
 gentle blue wash at every zoom, under map names, agents and weather, and it is
