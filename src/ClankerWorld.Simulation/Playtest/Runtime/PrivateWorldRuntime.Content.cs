@@ -242,13 +242,7 @@ public sealed partial class PrivateWorldRuntime
                     $"Building instance '{normalizedInstanceId}' already exists.");
             }
 
-            var reservedConstructionIdentity = normalizedInstanceId.StartsWith("ordered-building-", StringComparison.Ordinal) &&
-                (constructionInstructionId is null || ConstructionInstanceId(constructionInstructionId) != normalizedInstanceId);
-            if (reservedConstructionIdentity ||
-                (worldSimulation.ConstructionReceipts ?? []).Any(receipt => receipt.BuildingInstanceId == normalizedInstanceId) ||
-                instructionsByIdempotency.Values.Any(instruction => instruction.Order is { } order &&
-                    (order.ExpansionBinding?.BuildingInstanceId == normalizedInstanceId ||
-                     order.ConstructionInstanceId == normalizedInstanceId && instruction.InstructionId != constructionInstructionId)))
+            if (BuildingIdentityIsReserved(normalizedInstanceId, constructionInstructionId))
                 return BuildingPlacementResult.Rejected(normalizedInstanceId, normalizedDefinitionId, position,
                     $"Building instance '{normalizedInstanceId}' is reserved for building orders.");
 

@@ -644,7 +644,7 @@ public sealed partial class PrivateWorldRuntime
                 order.RequestedUnits != 1 || order.CompletedUnits is < 0 or > 1 || order.RepeatUntilCancelled ||
                 order.ProgressUnit != (construction ? "buildings" : "expansions") ||
                 order.Status == "not_understood" || (order.Status == "finished") != (order.CompletedUnits == 1) ||
-                order.TargetFoodKind is not null || order.TargetResourceId is not null ||
+                order.TargetAgentId is not null || order.TargetFoodKind is not null || order.TargetResourceId is not null ||
                 (order.CompletedUnits == 0 ? order.LastEffectId is not null :
                     !IsValidCustodyReceipt(order.LastEffectId, construction ? "construction:building:" : "expand:job:")))
                 return false;

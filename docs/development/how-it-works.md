@@ -315,7 +315,10 @@ path. Saved building orders also reserve their bound instance identities,
 including after cancellation or removal. Public placement cannot reuse them;
 only an order's own construction completion can place its pending identity. This
 prevents replacement buildings from satisfying old bindings or mixing new
-material payments with retained completion receipts.
+material payments with retained completion receipts. Ordinary paid rebuilding
+by the same agent chooses a fresh, deterministic instance identity when its
+previous identity belongs to retained order history. It still pays the normal
+cost and cannot satisfy the earlier order.
 
 Production orders use `produce_item` and retain the exact recipe, output kind,
 chosen work site and owned project/job identity. The job's optional
