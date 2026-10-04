@@ -1,0 +1,1 @@
+- Town councils can approve explicit claims to adjoining unclaimed land. The Towns page shows the proposed tiles and votes, and the Town title filter updates after approval. Existing titles, household rights, buildings and goods are preserved. This changes the alpha save format; older saves are refused without being overwritten.

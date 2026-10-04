@@ -30,6 +30,10 @@ public sealed record OwnerWorldPackedMapLayers(int Width, int Height, string Enc
 }
 public sealed record OwnerWorldFarmField(OwnerWorldPosition Position, string HouseholdId, string Stage, string? Crop,
     int Fertility, string? WorkerId, int? WorkRemaining);
+public sealed record OwnerWorldHandcart(string Id, string OwnerId, string OwnerName, OwnerWorldPosition Position,
+    int Capacity, int ConditionPercent, string? PullerId, string? PullerName,
+    IReadOnlyList<OwnerWorldInventoryEntry> Cargo);
+
 public sealed record OwnerWorldGroundStock(OwnerWorldPosition Position, string OwnerId, string Kind, int Quantity);
 
 public sealed record OwnerWorldObject(string Id, string Kind, OwnerWorldPosition Position);
@@ -52,7 +56,10 @@ public sealed record OwnerWorldResource(
 
 public sealed record OwnerWorldInventoryEntry(string Kind, int Quantity);
 
-public sealed record OwnerWorldDecisionFactor(string Key, string Detail);
+public sealed record OwnerWorldDecisionFactor(string Key, string Detail)
+{
+    public long? AcceptanceDeadlineTick { get; init; }
+}
 
 public sealed record OwnerWorldRoute(
     string Status,
@@ -119,8 +126,8 @@ public sealed record OwnerWorldKnowledgeArtifact(
     string CreatorName,
     IReadOnlyList<OwnerWorldKnowledgeSite> Sites);
 /// <summary>
-/// The world's saved calendar. Season lengths come from the same saved values
-/// the world uses for its seasons; an older host leaves them at zero.
+/// The world's saved calendar. Season lengths and the clock offset come from
+/// the world's saved values; an older host leaves missing values at zero.
 /// </summary>
 public sealed record OwnerWorldCalendarPace(
     int TicksPerDay,
@@ -128,9 +135,11 @@ public sealed record OwnerWorldCalendarPace(
     int SpringDays = 0,
     int SummerDays = 0,
     int AutumnDays = 0,
-    int WinterDays = 0);
+    int WinterDays = 0,
+    int CalendarOffsetTicks = 0);
 public sealed record OwnerFounderSetup(int Required, int Placed, bool Started)
 {
+    public bool RequiresWorldCreation { get; init; }
     public bool CanChooseTownSite { get; init; }
     public bool HasAcceptedTownSite { get; init; }
     public string? LastFounderId { get; init; }
@@ -145,10 +154,127 @@ public sealed record OwnerWorldTown(
     IReadOnlyList<OwnerWorldPosition> BorderTiles)
 {
     public OwnerTownGovernance? Governance { get; init; }
+    public IReadOnlyList<OwnerWorldTownProject> Projects { get; init; } = [];
+    public OwnerTownGovernment? Government { get; init; }
+    public IReadOnlyList<OwnerWorldMarket> Markets { get; init; } = [];
+    public IReadOnlyList<OwnerTownLandHearing> LandHearings { get; init; } = [];
+    public int LandHearingCount { get; init; }
+    public IReadOnlyList<OwnerLandTransfer> LandTransfers { get; init; } = [];
+    public int LandTransferCount { get; init; }
 }
 
+public sealed record OwnerLandTransferParty(string HouseholdId, string Kind, string HouseholdName, string RosterKind,
+    IReadOnlyList<string> AdultIds, IReadOnlyList<string> AdultNames, IReadOnlyList<string> AcceptedAdultIds,
+    IReadOnlyList<string> NoticeAwareAdultIds);
+public sealed record OwnerLandTransferResponse(string HouseholdId, string HouseholdName, string AgentId,
+    string AgentName, string Kind, long Tick, IReadOnlyList<string> PartyAdults);
+public sealed record OwnerLandTransfer(string Id, string FilerId, string FilerName, string TargetHouseholdId,
+    string TargetHouseholdName, IReadOnlyList<OwnerWorldPosition> Tiles, IReadOnlyList<OwnerLandHearingRightVersion> RightVersions,
+    IReadOnlyList<OwnerLandTransferParty> Parties, string NoticeId, long ProposedTick,
+    IReadOnlyList<OwnerLandTransferResponse> Responses, string Status, long? SettledTick, string? Reason,
+    string? ReceiptAdjustmentId);
+
+public sealed record OwnerLandHearingOutcome(string Kind, string? HouseholdId, string? HouseholdName, long? AgreedEndTick);
+public sealed record OwnerLandHearingProposal(IReadOnlyList<OwnerWorldPosition> Tiles,
+    OwnerLandHearingOutcome RequestedOutcome, string Statement);
+public sealed record OwnerLandHearingRightVersion(string Id, string Version, OwnerWorldHouseholdLandUseRight Right);
+public sealed record OwnerLandHearingFiling(string? AgentId, string? AgentName, string Kind, string Text,
+    OwnerLandHearingOutcome RequestedOutcome, long Tick, string? AuthorityId);
+public sealed record OwnerLandHearingParty(string Id, string Kind, string Name,
+    IReadOnlyList<string> AdultIds, IReadOnlyList<string> AdultNames, string? RepresentativeId,
+    string? RepresentativeName, IReadOnlyList<string> NoticeAwareAdultIds);
+public sealed record OwnerLandHearingResponse(int Revision, string PartyId, string AgentId, string AgentName,
+    string Kind, string Text, long Tick);
+public sealed record OwnerLandHearingJudge(string AgentId, string AgentName, string Kind, string AuthorityId, long AssignedTick);
+public sealed record OwnerLandHearingJudgeTerm(OwnerLandHearingJudge Judge, long EndedTick, string Reason);
+public sealed record OwnerLandHearingEvidence(string Id, int Revision, string Kind, string Acquisition,
+    string SourceAgentId, string SourceAgentName, string? SourceRecordId, string? SourceVersion, long ObservedTick,
+    string SubmittedByAgentId, string SubmittedByName, long SubmittedTick, string Text)
+{
+    public OwnerWorldHouseholdLandUseRight? PermissionRecord { get; init; }
+    public OwnerWorldLandTitle? TitleRecord { get; init; }
+    public string? RecordPartyName { get; init; }
+    public int? LawVersion { get; init; }
+}
+public sealed record OwnerLandHearingRead(int Revision, string AgentId, string AgentName, long ReadTick,
+    IReadOnlyList<string> EvidenceIds, string? SourceAgentId, string? SourceAgentName)
+{
+    public IReadOnlyList<string> ReopenRequestIds { get; init; } = [];
+}
+public sealed record OwnerLandHearingRuling(string Id, int Revision, OwnerLandHearingJudge Judge, long Tick,
+    OwnerLandHearingOutcome Outcome, IReadOnlyList<OwnerWorldPosition> Tiles, IReadOnlyList<string> EvidenceIds, IReadOnlyList<string> LawIds,
+    string Reasons, IReadOnlyList<string> AdjustmentIds)
+{
+    public IReadOnlyList<OwnerLandHearingParty> Parties { get; init; } = [];
+}
+public sealed record OwnerLandHearingReopenRequest(string Id, string AgentId, string AgentName, long Tick,
+    string Kind, IReadOnlyList<string> EvidenceIds, string Reasons, string Status,
+    OwnerLandHearingJudge? AssessedBy, long? AssessedTick, string? Assessment);
+public sealed record OwnerLandHearingElection(string Id, string Stage, int Round, long? DeadlineTick,
+    IReadOnlyList<OwnerCivicCandidate> Candidates, string? WinnerName, string? Reason);
+public sealed record OwnerTownLandHearing(string Id, string Kind, string Status, long FiledTick, long? SettledTick,
+    int Revision, IReadOnlyList<OwnerWorldPosition> Tiles, IReadOnlyList<OwnerLandHearingRightVersion> RightVersions,
+    string NoticeId, long PublishedTick, long DeadlineTick,
+    OwnerLandHearingOutcome RequestedOutcome, IReadOnlyList<OwnerLandHearingFiling> Filings, IReadOnlyList<OwnerLandHearingParty> Parties,
+    IReadOnlyList<OwnerLandHearingEvidence> Evidence, IReadOnlyList<OwnerLandHearingResponse> Responses,
+    IReadOnlyList<OwnerLandHearingRuling> Rulings, OwnerLandHearingJudge? Judge, IReadOnlyList<OwnerLandHearingJudgeTerm> JudgeHistory,
+    OwnerLandHearingElection? JudgeElection, OwnerLandHearingElection? LatestJudgeElection,
+    IReadOnlyList<OwnerLandHearingReopenRequest> ReopenRequests)
+{
+    public IReadOnlyList<OwnerLandHearingRead> Reads { get; init; } = [];
+    public IReadOnlyList<OwnerLandHearingParty> CurrentParties { get; init; } = [];
+}
+
+public sealed record OwnerTownLaw(string Id, string Subject, string Rule, string Scope, int SiteTiles, int Version,
+    long AdoptedTick, long? EndedTick)
+{
+    public IReadOnlyList<OwnerWorldPosition> Site { get; init; } = [];
+}
+public sealed record OwnerTownOffice(string Mandate, string? HolderName, long? TermEndTick, string? VacancyReason);
+public sealed record OwnerGovernmentChange(string Id, string Declaration, string Status, int Yes, int No, int RequiredYes,
+    long? DeadlineTick, long? HandoverDeadlineTick, string? Reason);
+public sealed record OwnerMayoralElection(string Id, string Mandates, string Stage, int Round, long? DeadlineTick,
+    IReadOnlyList<OwnerCivicCandidate> Candidates, string? WinnerName, string? Reason);
+public sealed record OwnerTownGovernment(string Declaration, IReadOnlyList<OwnerTownLaw> Laws, int LawCount,
+    IReadOnlyList<OwnerTownOffice> Offices, IReadOnlyList<OwnerGovernmentChange> Changes,
+    OwnerMayoralElection? Election, OwnerMayoralElection? LatestElection, long RetryTick);
+
+public sealed record OwnerWorldMarket(string Id, string ProjectId, string HallBuildingId,
+    OwnerWorldPosition Site, OwnerWorldPosition PlazaPosition, int PlazaWidth, int PlazaHeight,
+    IReadOnlyList<OwnerWorldMarketStall> Stalls, long? RemovedTick = null);
+public sealed record OwnerWorldMarketStall(string BuildingInstanceId, int SlotIndex, OwnerWorldPosition Position,
+    string? SellerId, string? SellerName, long? OccupiedTick,
+    IReadOnlyList<OwnerWorldMarketStock> Stock, IReadOnlyList<OwnerWorldMarketTrade> Trades);
+public sealed record OwnerWorldMarketStock(string LotId, string? ParentLotId, string OwnerId, string OwnerName,
+    string Kind, int Quantity, int AvailableQuantity);
+public sealed record OwnerWorldMarketTrade(string OfferId, string SellerId, string SellerName,
+    string GoodsOwnerId, string GoodsOwnerName, string PaymentOwnerId, string PaymentOwnerName,
+    string BuyerId, string BuyerName, string GoodsKind, int GoodsQuantity, string PaymentKind,
+    int PaymentQuantity, string Status, string? CancellationReason,
+    bool SellerAccepted = false, bool BuyerAccepted = false);
+
 public sealed record OwnerCivicProposal(string Id, string Kind, string Text, string Status, int Yes, int No,
-    int RequiredYes, long DeadlineTick);
+    int RequiredYes, long DeadlineTick)
+{
+    public OwnerLandHearingProposal? LandHearingRequest { get; init; }
+    public OwnerWorldTownProjectPlan? Project { get; init; }
+}
+public sealed record OwnerWorldTownProjectBudget(string Kind, int Quantity);
+public sealed record OwnerWorldTownProjectPlan(string Name, string ProposerId, string ProposerName,
+    string DefinitionId, string DisplayName, OwnerWorldPosition Site, OwnerWorldPosition Entrance,
+    int Width, int Height, IReadOnlyList<OwnerWorldTownProjectBudget> Budget)
+{
+    public IReadOnlyList<string> Tags { get; init; } = [];
+}
+public sealed record OwnerWorldTownProjectMaterial(string Kind, int Budget, int Supplied);
+public sealed record OwnerWorldTownProject(string Id, string ProposalId, string Name,
+    string ProposerId, string ProposerName, string DefinitionId, string DisplayName,
+    OwnerWorldPosition Site, OwnerWorldPosition Entrance, int Width, int Height,
+    IReadOnlyList<OwnerWorldTownProjectMaterial> Materials, int WorkDone, int WorkRequired,
+    string Stage, string? Blocker, string? CompletedBuildingId, OwnerCivicProposal Approval)
+{
+    public IReadOnlyList<string> Tags { get; init; } = [];
+}
 public sealed record OwnerCivicCandidate(string Id, string Name, int Votes);
 public sealed record OwnerTownElection(string Id, string Kind, string Stage, int Seats, long DeadlineTick,
     IReadOnlyList<OwnerCivicCandidate> Candidates, IReadOnlyList<string> SettledNames);
@@ -168,7 +294,10 @@ public sealed record OwnerWorldHouseholdLandUseRight(string Id, string TownId, s
 public sealed record OwnerWorldHouseholdLandUseRequest(string Id, string TownId, string HouseholdId,
     string RequestedByAgentId, IReadOnlyList<OwnerWorldPosition> Tiles, long RequestedTick,
     long? AgreedEndTick, bool IsDisputed, IReadOnlyList<string> ClaimantHouseholdIds,
-    IReadOnlyList<OwnerWorldPosition> DisputedTiles);
+    IReadOnlyList<OwnerWorldPosition> DisputedTiles)
+{
+    public string ApprovalDetail { get; init; } = "Awaiting approval";
+}
 
 public sealed record OwnerWorldInhabitant(
     string Id,
@@ -191,6 +320,7 @@ public sealed record OwnerWorldInhabitant(
     public OwnerWorldSurvival? Survival { get; init; }
     public OwnerWorldEquipment? Equipment { get; init; }
     public string? MedicalCareNote { get; init; }
+    public string? ToolMakingRequestNote { get; init; }
     public OwnerWorldLesson? Lesson { get; init; }
     public OwnerWorldProficiency? Proficiency { get; init; }
     public IReadOnlyList<OwnerWorldSkill>? Skills { get; init; }
@@ -209,7 +339,13 @@ public sealed record OwnerWorldInhabitant(
     public IReadOnlyList<OwnerWorldKnowledgeFact> RecentKnowledgeFacts { get; init; } = [];
 
     public IReadOnlyList<OwnerWorldKnowledgeArtifact> KnowledgeArtifacts { get; init; } = [];
+
+    public OwnerWorldFinalWill? FinalWill { get; init; }
 }
+
+/// <summary>A dead agent's will: status, how it divides the estate, each heir's goods and any final words.</summary>
+public sealed record OwnerWorldFinalWill(string Status, string? Split, IReadOnlyList<OwnerWorldWillHeir> Heirs, string? FinalWords);
+public sealed record OwnerWorldWillHeir(string Id, string Name, bool IsTown, IReadOnlyList<OwnerWorldInventoryEntry> Items);
 
 public sealed record OwnerWorldProject(string Label, string Stage, int WorkDone, int WorkRequired, string? Blocker, long StartedTick);
 public sealed record OwnerWorldSurvival(int WarmthBasisPoints, int IllnessBasisPoints, bool HasClothing, bool HasTool,
@@ -250,6 +386,7 @@ public sealed record OwnerWorldInstructionOrder(
     int? TargetX = null,
     int? TargetY = null,
     string? BlockedReason = null,
+    string? TargetAgentId = null,
     string? TargetMaterialKind = null,
     string? TargetEquipmentKind = null,
     string? TargetCropKind = null,
@@ -334,8 +471,12 @@ public sealed record OwnerWorldPlacedBuilding(
     bool IsOvercrowded = false)
 {
     public IReadOnlyList<OwnerWorldBusinessTrade> Trades { get; init; } = [];
+    public IReadOnlyList<OwnerWorldToolMakingRequest> ToolMakingRequests { get; init; } = [];
     public bool AllowsHouseholdOwner { get; init; }
 }
+
+public sealed record OwnerWorldToolMakingRequest(string Id, string RequesterName, string RecipeId,
+    string RecipeName, string ItemKind, string Status, string? Blocker, string? OfferId = null);
 
 public sealed record OwnerWorldBusinessTrade(string OfferId, string BuyerName, string GoodsKind, int GoodsQuantity,
     string PaymentKind, int PaymentQuantity, string Status, string? CancellationReason);
@@ -417,10 +558,13 @@ public sealed record OwnerWorldSnapshot(
     public bool WrapsEastWest { get; init; }
     public IReadOnlyList<OwnerWorldFarmField> Fields { get; init; } = [];
     public IReadOnlyList<OwnerWorldGroundStock> GroundStocks { get; init; } = [];
+    public IReadOnlyList<OwnerWorldHandcart> Handcarts { get; init; } = [];
     public IReadOnlyList<OwnerWorldStockpile> Stockpiles { get; init; } = [];
     public OwnerWorldCouncil? Council { get; init; }
     public int? LifePaceRate { get; init; }
     public OwnerWorldCalendarPace? CalendarPace { get; init; }
+    /// <summary>How dark the host says the world is: 0 in daylight, 10,000 at full night.</summary>
+    public int? DarknessBasisPoints { get; init; }
     public bool? JevEnabled { get; init; }
     public bool? ContinuityRuleActive { get; init; }
     public OwnerFounderSetup? FounderSetup { get; init; }
@@ -466,7 +610,14 @@ public sealed record OwnerWorldEventSlice(
 
 public sealed record OwnerWorldCouncil(string? StewardName, string FoodPolicy, string? ProposedPolicy, int Approvals, int Rejections, int Voters);
 
-public sealed record OwnerWorldReconnectBaseline(OwnerWorldSnapshot Snapshot, OwnerWorldEventSlice Events);
+public sealed record OwnerObserverTimeline(string InstanceId, long Generation)
+{
+    internal bool IsValid => !string.IsNullOrWhiteSpace(InstanceId) && InstanceId.Length <= 128 &&
+        !InstanceId.Any(char.IsControl) && Generation >= 0;
+}
+
+public sealed record OwnerWorldReconnectBaseline(OwnerWorldSnapshot Snapshot, OwnerWorldEventSlice Events,
+    OwnerObserverTimeline? Timeline = null);
 
 public sealed record OwnerWorldReconnect(OwnerWorldHandshake Handshake, OwnerWorldReconnectBaseline Baseline);
 
@@ -497,7 +648,9 @@ public sealed record OwnerWorldPreview(OwnerWorldPackedTerrain Terrain, OwnerWor
     public string? MapLayersDigest { get; init; }
     public OwnerWorldCandidateReport? Coverage { get; init; }
     public IReadOnlyList<OwnerWorldCandidateReport> Candidates { get; init; } = [];
+    public IReadOnlyList<OwnerWorldCandidateFailure> FailedCandidates { get; init; } = [];
 }
+public sealed record OwnerWorldCandidateFailure(int Attempt, string Reason);
 public sealed record OwnerWorldCandidateReport(int Attempt, int DryLandTiles, int ForestTiles,
     int MountainTiles, double ForestPercent, double MountainPercent, int ForestRegionCount,
     int LargestForestRegion, int MountainRegionCount, int LargestMountainRegion,
@@ -526,11 +679,18 @@ public sealed record ManualWorldSave(string Id, string Name, DateTimeOffset Crea
 /// <summary>One version of a world's history; saves from before branches have none.</summary>
 public sealed record SaveBranch(string Id, int Number, string? StartedFromId = null,
     string? StartedFromName = null, long? StartedFromTick = null);
+/// <summary>Where the running world continues on the save timeline: the save it was last
+/// loaded from or saved as, that save's branch, and whether the next save starts a new branch.</summary>
+public sealed record SaveTimelinePosition(string? ContinuedFromId, string? BranchId, bool StartsNewBranch,
+    int? NextBranchNumber = null, long? ContinuedFromTick = null);
 public sealed record ManualSaveLoadReceipt(string LoadedId, string BackupId, long WorldTick);
 public sealed record ManualSaveOverwriteReceipt(ManualWorldSave Saved, string BackupId);
 public sealed record OwnerAutosaveConfigurationAction(bool Enabled, int IntervalMinutes, int RotationCount);
 public sealed record WorldAutosaveSettings(string WorldId, bool Enabled, int IntervalMinutes,
     int RotationCount, DateTimeOffset LastSavedUtc, long LastWorldTick);
+public sealed record OwnerDeveloperEditAction(string WorldId, long ExpectedEventId, string AgentId,
+    string Operation, string Value, int Amount = 0, string? OtherAgentId = null);
+
 public sealed record OwnerLifePaceAction(int Rate);
 public sealed record OwnerJevAssistanceAction(bool Enabled);
 

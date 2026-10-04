@@ -1,0 +1,1 @@
+- Every world day now has a night, 40% of the day from 19:12 to 04:48 on the clock, with a short dusk and dawn. The map darkens gently at night while names, agents and panels keep their colors, and nights are colder outdoors; clothing, shelter and a lit fire still keep agents warm.

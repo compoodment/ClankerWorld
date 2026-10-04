@@ -20,7 +20,7 @@ public sealed partial class PrivateWorldRuntime
         var room = RemainingDeliveryRoom(inventory, store.InstanceId);
         if (room == 0) return null;
         var protectedToolIds = BestUsableToolIds(inventory, actor);
-        foreach (var lot in inventory.Lots.Where(lot => IsLooseBusinessLot(lot) &&
+        foreach (var lot in inventory.Lots.Where(lot => IsLooseBusinessLot(lot) && !OnBorrowedMarketStall(lot) &&
                      BusinessRules.MaySell("store", lot.ItemKind) && lot.StorageBuildingId != store.InstanceId &&
                      // Own carried goods, or household stock nobody is carrying.
                      (lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) ||
@@ -33,7 +33,7 @@ public sealed partial class PrivateWorldRuntime
         {
             var reserve = IsEdibleFood(lot.ItemKind) ? lot.OwnerId == actor ? 2 :
                 2 * society.Checkpoint.GetHousehold(householdId).MemberIds.Count(id => inhabitants.ContainsKey(id)) : 0;
-            var surplus = Math.Max(0, AvailableLotQuantity(lot) - reserve);
+            var surplus = Math.Max(0, (lot.OwnerId == actor ? SpareCarriedQuantity(actor, lot) : AvailableLotQuantity(lot)) - reserve);
             var shelf = inventory.Lots.Where(stock => stock.StorageBuildingId == store.InstanceId &&
                 stock.ItemKind == lot.ItemKind).Sum(stock => stock.Quantity);
             var quantity = Math.Min(Math.Min(surplus, StoreShelfTarget - shelf), Math.Min(HouseHaulLoadQuantity, room));

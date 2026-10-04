@@ -2,7 +2,7 @@
 title: Device pairing
 type: development-reference
 status: active
-updated: 2026-10-02
+updated: 2026-10-03
 ---
 
 # Device pairing
@@ -107,6 +107,24 @@ starts at cursor zero, so a younger world can be entered without restarting the
 client. Tick/event regression and terrain identity checks still apply within the
 new observation timeline.
 
+## Recovering after another device loads a world
+
+Private hosts advertise `owner-observation-timeline.v1`. Each reconnect
+baseline includes a `Timeline` with the live runtime's instance ID and a
+monotonic generation, captured under the same gate as its snapshot and events.
+A successful manual load or world switch advances the generation, including a
+load of the same world at the same time. A new host runtime has a new instance
+ID. Ordinary ticks, pauses, saves and history compaction keep the timeline.
+These values are transient observer metadata, not saved world identity.
+
+When another device changes the timeline, the client keeps its held view while
+requesting a fresh baseline with cursor zero and no terrain or map-layer cache
+hints. Only a validated baseline replaces the view and clears its old events,
+selection and inspection state. Responses from an earlier request context or
+timeline cannot replace the new view. The usual tick, cursor and event-order
+checks still apply within one timeline. Hosts without the capability retain
+the earlier reconnect contract; signed reconnect payloads are unchanged.
+
 ## Building ownership changes
 
 Building removal and reassignment payloads require the observed simulation world
@@ -132,10 +150,15 @@ installation's pairing identity). Unqueued instructions use the signed
 `clankerworld.owner-instruction.v2` payload. Queued instructions use
 `clankerworld.owner-instruction.v3`, which appends `queue=true` to the canonical
 payload. Both require the world ID. The host checks it under the same mutation
-gate as selection and manual loading, through the instruction's durable save. Selecting another
-world refuses the retry without discarding its local record; returning to the
-original world recovers the original receipt. The client disables Retry while
-another world, or no confirmed world, is observed. Authoring payloads are unchanged.
+gate as selection and manual loading, through the instruction's durable save.
+The client also binds each newly retained instruction, cancellation or
+authoring batch to the confirmed observer timeline and world. Retry is disabled
+while a fresh baseline is pending or a different timeline is observed, even
+when the saved world ID is the same. The exact request and its idempotency key
+remain on disk; the client never retargets them. After a load, switch or host
+restart, check the world before explicitly forgetting a retained request and
+issuing a new one. An older local record without a timeline is not silently
+bound to a host that advertises this capability. Authoring payloads are unchanged.
 
 Client and host must both use this instruction payload. Older requests without
 a simulation world ID are refused rather than guessed into the current world.
@@ -148,16 +171,17 @@ current world format in [Saves and replay](saves-and-replay.md).
 `clankerworld.owner-order-cancel.v1` with the world ID, idempotency key, target
 agent ID and exact order ID. The host binds it to the active owner device and
 world before committing, and saves the original receipt for idempotent retries.
-The retained client cancellation has the same pairing/origin/world boundaries
-as an instruction; switching worlds disables Retry until its world is selected
-again. A fresh challenge and signature are required for each retry.
+The retained client cancellation has the same pairing, origin, world and
+observer-timeline boundaries as an instruction. A fresh challenge and signature
+are required for each retry.
 
 The user can explicitly retry that one record. The retry obtains a new one-use
 challenge and signature, then submits the same logical request so the server
 returns the original receipt rather than creating a duplicate. Private-world
 instruction keys ignore surrounding whitespace consistently. An exact instruction
-retry still returns its accepted receipt after the recipient dies, including
-after saving and restarting the host. A new instruction to a deceased agent or
+retry at the host still returns its accepted receipt after the recipient dies,
+including after saving and restarting the host. The client's stricter timeline
+guard above decides whether its retained record can be sent. A new instruction to a deceased agent or
 a different request reusing that key remains rejected. This is not a
 general offline queue: only one request is retained, it cannot cross a pairing
 or origin boundary, and it can be explicitly forgotten. The record never

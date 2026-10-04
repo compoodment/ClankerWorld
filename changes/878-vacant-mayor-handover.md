@@ -1,0 +1,1 @@
+- A vacant mayoral office no longer blocks a government change that keeps that office, and Towns wait for a willing candidate instead of recording an empty failed election every day.

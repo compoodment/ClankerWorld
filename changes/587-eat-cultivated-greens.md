@@ -1,1 +1,0 @@
-- Eating orders can name cultivated greens exactly, including quantities and repetition. Agents eat only the requested kind through ordinary food access and fullness rules, keeping remaining meals across saves. Older alpha saves are refused and preserved unchanged.

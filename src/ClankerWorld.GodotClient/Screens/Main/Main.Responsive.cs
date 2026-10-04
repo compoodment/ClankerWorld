@@ -63,7 +63,7 @@ public partial class Main
         PositionSelectedTilePanel();
         PositionFamilyTreePanel(viewport, hudTop);
         FitHudLists();
-        foreach (var reader in new[] { memoriesPanel, thoughtsPanel, conversationPanel })
+        foreach (var reader in new[] { memoriesPanel, thoughtsPanel, ordersPanel, conversationPanel })
         {
             reader.CustomMinimumSize = new Vector2(Math.Clamp(viewport.X - 28, 320, ReaderWidth), 0);
             if (reader == memoriesPanel && reader.Visible) FitMemoryCards();
