@@ -47,6 +47,9 @@ internal static class AgentMarriageValidation
                 throw new InvalidDataException("The surname conversation chose a surname outside the couple's original names.");
             if (marriage.CompletedTick is null)
             {
+                if (marriage.SurnameReceipt is null && parties.Any(id =>
+                        !AgentMarriageRules.CanKeepSurnameChoices(marriage, society.GetInhabitant(id).Name)))
+                    throw new InvalidDataException("An unfinished marriage's surname choices no longer fit both names.");
                 if (marriage.ChosenSurname is not null || marriage.UsedTieBreak || marriage.LatestPlayerRename is not null ||
                     marriage.SurnameReceipt is not null && session.Outcome != "participant_unavailable" ||
                     marriage.SurnameReceipt is null && (liveSession is null || session.Outcome == "participant_unavailable") ||

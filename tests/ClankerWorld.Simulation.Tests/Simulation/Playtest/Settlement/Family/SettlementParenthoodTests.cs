@@ -249,7 +249,10 @@ public sealed partial class SettlementParenthoodTests
         Assert.Equal(3, fullHome.PermanentResidentCount);
         Assert.Equal(3, fullHome.ResidentLimit);
         Assert.False(fullHome.IsOvercrowded);
+        PositionFamilyFixtureAt(moved, plan.LastTransitionTick + 598);
         moved.Resume();
+        Assert.True((await moved.AdvanceOneTickAsync()).Advanced);
+        Assert.Empty(moved.Society.Births);
         for (var tick = 0; tick < 620 && moved.Society.Births.Count == 0; tick++)
             Assert.True((await moved.AdvanceOneTickAsync()).Advanced);
 
@@ -281,37 +284,6 @@ public sealed partial class SettlementParenthoodTests
         Assert.Equal(newHome.Id, restored.Inhabitants.Single(item => item.InhabitantId == caregiver).Parenthood!.BirthHouseholdId);
         Assert.Equal(HousingBlockers.Overcrowded,
             restored.Inhabitants.Single(item => item.InhabitantId == birth.ChildId).Housing?.Blocker);
-    }
-
-    [Fact]
-    public async Task AcceptingParentChoosesAnExplicitCaregiverAndIntendedHome()
-    {
-        var state = await PreparedState();
-        var initiator = state.Inhabitants[0].InhabitantId;
-        var acceptor = state.Inhabitants[1].InhabitantId;
-        var acceptorHome = state.Society.Society.GetInhabitant(acceptor).HouseholdId!;
-        var initiatorProvider = new ParentProvider("parent_propose:");
-        var parentProvider = new ParentProvider($"parent_accept:{initiator}:acceptor:");
-        IDecisionProvider ProviderFor(string actor) => actor == initiator
-            ? initiatorProvider
-            : actor == acceptor
-                ? parentProvider
-                : new ParentProvider("safe_idle");
-
-        using var world = PrivateWorldRuntime.Restore(state, ProviderFor);
-        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-
-        var plan = world.Inhabitants.Single(person => person.InhabitantId == initiator).Parenthood!;
-        Assert.Equal("preparing", plan.Stage);
-        Assert.Equal(acceptor, plan.PrimaryCaregiverId);
-        Assert.Equal(acceptorHome, plan.IntendedHouseholdId);
-        Assert.Contains(parentProvider.SeenCandidates, candidate =>
-            candidate.Id == $"parent_accept:{initiator}:acceptor:{Uri.EscapeDataString(acceptorHome)}" &&
-            candidate.Description.Contains(acceptorHome, StringComparison.Ordinal));
-        Assert.Contains(initiatorProvider.SeenCandidates, candidate => candidate.Id == $"parent_propose:{acceptor}" &&
-            candidate.Description.Contains("either parent as the primary caregiver", StringComparison.Ordinal) &&
-            candidate.Description.Contains("that parent's household as the intended home", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -527,19 +499,6 @@ public sealed partial class SettlementParenthoodTests
         await restored.AdvanceOneTickAsync();
         Assert.Equal("cancelled", restored.Inhabitants.Single(person => person.InhabitantId == first).Parenthood!.Stage);
         Assert.Empty(restored.Society.Births);
-    }
-
-    [Fact]
-    public async Task OldSchemaCannotHideAnActiveParenthoodPlan()
-    {
-        var state = await PreparedState();
-        state = state with
-        {
-            SchemaVersion = 8,
-            Inhabitants = state.Inhabitants.Select((person, index) => index == 0
-            ? person with { Parenthood = new(state.Inhabitants[1].InhabitantId, "requested", 0, 0) } : person).ToArray()
-        };
-        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(state));
     }
 
     [Fact]

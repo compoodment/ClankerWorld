@@ -91,7 +91,7 @@ public sealed partial class PrivateWorldRuntime
     }
 
     private long CurrentConversationWorldDay =>
-        WorldTick / society.Checkpoint.Config.TicksPerWorldDay;
+        WorldCalendarRules.FromTick(WorldTick, worldSystems.Config).DayIndex;
 
     private bool HasConversationAllowance(string agentId) =>
         AgentConversationRules.CanStartToday(conversationBudgets, agentId, CurrentConversationWorldDay);
@@ -397,8 +397,8 @@ public sealed partial class PrivateWorldRuntime
             checkpointSchemaVersion = StateSchemaVersion;
             AppendEvent(eventKind!, eventDetail!);
         }
-        if (conversationBudgets.RemoveAll(item => item.WorldDay <
-                worldTick / society.Checkpoint.Config.TicksPerWorldDay) > 0)
+        var worldDay = WorldCalendarRules.FromTick(worldTick, worldSystems.Config).DayIndex;
+        if (conversationBudgets.RemoveAll(item => item.WorldDay < worldDay) > 0)
             checkpointSchemaVersion = StateSchemaVersion;
     }
 

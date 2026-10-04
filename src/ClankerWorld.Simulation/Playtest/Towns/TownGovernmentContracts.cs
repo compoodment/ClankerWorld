@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace ClankerWorld.Simulation.Playtest;
 
 /// <summary>
@@ -24,6 +26,9 @@ public sealed record TownGovernmentChange(string Id, string RequestKey, string K
     string? SuccessorId = null, string? Reason = null)
 {
     public IReadOnlyList<string> OpeningVoters { get; init; } = [];
+
+    [JsonRequired]
+    public string? ForcedCouncilElectionId { get; init; }
 }
 
 /// <summary>

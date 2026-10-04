@@ -112,8 +112,8 @@ an endless ore ladder merely because they are conventional crafting-game items.
 
 | # | Status | Item family | Jobs and representation |
 | --- | --- | --- | --- |
-| 4.1 | Agreed | Axe | Wood gathering: wooden, stone and iron versions with improving speed and durability. Wear, Blacksmith repair and replacement; also a work weapon under the combat design. |
-| 4.2 | Agreed | Pickaxe | Wooden pickaxe extracts stone, stone pickaxe extracts iron ore, iron pickaxe extracts gold/diamond. Improved speed and durability, wear and repair. |
+| 4.1 | Agreed | Axe | Wood gathering: crude House-made, wooden, stone and iron versions with improving speed and durability. Wear, Blacksmith repair and replacement; also a work weapon under the combat design. |
+| 4.2 | Agreed | Pickaxe | A crude House-made or wooden pickaxe extracts stone, stone pickaxe extracts iron ore, iron pickaxe extracts gold/diamond. Improved speed and durability, wear and repair. |
 | 4.3 | Agreed | Hoe | Wooden hoe prepares and tends fields; iron hoe works faster. |
 | 4.4 | Agreed | Hammer | Wood-and-stone tool for construction and repairs. |
 | 4.5 | Agreed | Sickle | Wood-and-iron tool speeds crop harvesting; exact advantage is provisional. |
@@ -129,7 +129,9 @@ automatically assigns the Farmhouse and Blacksmith to the two starting
 households, one productive building each. There are no optional extra supplies
 for now; later ownership transfers remain **open**. Wooden replacement tools
 come from wood at the Blacksmith; fallen wood can be gathered by hand if the
-last axe is lost. The Workshop is not required at start.
+last axe is lost. Without a Blacksmith, a household can make
+[crude wooden tools](towns.md#tools-clothing-and-transport) at its House. The
+Workshop is not required at start.
 
 ## 5. Food, cooking, and care
 
@@ -174,6 +176,7 @@ and an inspection-panel identity/icon. There are **no room-interior assets**.
 | 6.14 | Agreed | Clinic / healer's shop: 1×1 or 1×2 | Household-held care stock; the first Clinic is 1×2. Patients buy supplies or accepted caregivers deliver them; medicine consumes a real dose and supports gradual illness recovery. Bandage treatment is deferred. Quantities and recovery rates are provisional; see [Clinic supplies and illness care](towns.md#clinic-supplies-and-illness-care) and [current availability](../what-works.md#life-work-and-society). |
 | 6.15 | Agreed | Road | **One** road type; straight, corner, junction, end, diagonal and connection pieces as needed for readable automatic routes. Packed dirt with worn, feathered edges and pebbles; rounded bends; a doorstep path to each building's entrance, which may face any side ([road review](towns.md#how-roads-and-bridges-appear)). Roads remain after their building or Town disappears. Roads cost no materials. |
 | 6.16 | Agreed | Bridge | Narrow river crossing sprite(s) for a river up to **two tiles wide**; wider water is not bridged. Generated from traffic **or immediately as part of a generated Road** crossing a bridgeable river, never hand-painted by player. Costs no materials. Whether a bridge is redundant compares the actual connected banks, with no fixed radius; separate nearby streams may each need a bridge. |
+| 6.17 | Agreed | Street lantern | Built by agents beside Roads; **no fuel**, lit from dusk to dawn. Two designs: a round stone lamp with an open flame and a hanging lantern on a roadside post with an arm over the Road. Built as a Council-approved shared Town project; trial costs stone for the lamp, wood and a little refined iron for the hanging lantern ([Towns](towns.md#shared-town-projects)). |
 
 Port footprint interpretation, shown in one of its four orientations (`P` is
 part of the 2×4 Port, `·` is clear docking water beside it):

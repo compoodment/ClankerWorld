@@ -22,7 +22,17 @@ public sealed record TownRuntimeState(
     TownGovernanceState? Governance = null,
     TownGovernmentState? Government = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    IReadOnlyList<TownAdmissionRecord>? Admissions = null);
+    IReadOnlyList<TownAdmissionRecord>? Admissions = null)
+{
+    [JsonRequired]
+    public TownLandHearingState LandHearings { get; init; } = TownLandHearingState.Create();
+
+    [JsonRequired]
+    public IReadOnlyList<TownConstructionProject> Projects { get; init; } = [];
+
+    [JsonRequired]
+    public IReadOnlyList<TownMarketState> Markets { get; init; } = [];
+}
 
 /// <summary>
 /// What one passed admission proposal did to recorded membership. The council

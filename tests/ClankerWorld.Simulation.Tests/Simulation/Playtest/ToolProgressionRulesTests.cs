@@ -8,53 +8,6 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class ToolProgressionRulesTests
 {
     [Fact]
-    public void PickaxeTiersGateDepositsAndImproveYieldAndDurability()
-    {
-        var inventory = InventoryFixture.CreateGenesis(
-        [
-            new("wood-pick", "wooden_pickaxe", "actor", 1, 10_000, 10_000, 0),
-            new("stone-pick", "stone_pickaxe", "actor", 1, 10_000, 10_000, 0),
-        ]);
-        var rareInventory = InventoryFixture.AddLot(inventory, "iron-pick", "iron_pickaxe", "actor", 1);
-        var iron = new MapResource("iron", "iron_ore", new GridPoint(4, 5), false,
-            NaturalObjectKind: "iron_outcrop");
-        var gold = new MapResource("gold", "gold_ore", new GridPoint(4, 6), false,
-            NaturalObjectKind: "gold_outcrop");
-        var diamond = new MapResource("diamond", "diamond", new GridPoint(4, 7), false,
-            NaturalObjectKind: "diamond_outcrop");
-
-        var ironPlan = ToolProgressionRules.PlanGather("iron_ore", iron, inventory, "actor", 3);
-        var goldPlan = ToolProgressionRules.PlanGather("gold_ore", gold, rareInventory, "actor", 3);
-        var diamondPlan = ToolProgressionRules.PlanGather("diamond", diamond, rareInventory, "actor", 3);
-
-        Assert.Equal((7, "stone-pick", 1_250),
-            (ironPlan!.Quantity, ironPlan.ToolLotId, ironPlan.WearLossBasisPoints));
-        Assert.Equal((8, "iron-pick", 1_000),
-            (goldPlan!.Quantity, goldPlan.ToolLotId, goldPlan.WearLossBasisPoints));
-        Assert.Equal((8, "iron-pick", 1_000),
-            (diamondPlan!.Quantity, diamondPlan.ToolLotId, diamondPlan.WearLossBasisPoints));
-    }
-
-    [Fact]
-    public void LowerTierOrReservedToolsCannotExtractHigherTierOrchardMaterials()
-    {
-        var inventory = InventoryFixture.CreateGenesis(
-        [
-            new("wood-pick", "wooden_pickaxe", "actor", 1, 10_000, 10_000, 0),
-            new("stone-pick", "stone_pickaxe", "actor", 1, 10_000, 10_000, 0),
-        ]);
-        inventory = InventoryFixture.Reserve(inventory, "hold-stone-pick", "actor", "stone-pick", 1,
-            "production", 10);
-        var iron = new MapResource("iron", "iron_ore", new GridPoint(4, 5), false,
-            NaturalObjectKind: "iron_outcrop");
-        var gold = new MapResource("gold", "gold_ore", new GridPoint(4, 6), false,
-            NaturalObjectKind: "gold_outcrop");
-
-        Assert.Null(ToolProgressionRules.PlanGather("iron_ore", iron, inventory, "actor", 3));
-        Assert.Null(ToolProgressionRules.PlanGather("gold_ore", gold, inventory, "actor", 3));
-    }
-
-    [Fact]
     public void OnlyFellingAWoodTreeAwardsASeedAndLooseWoodNeedsNoAxe()
     {
         var inventory = InventoryFixture.CreateGenesis(

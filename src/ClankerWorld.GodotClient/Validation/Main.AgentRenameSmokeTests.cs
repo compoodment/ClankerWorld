@@ -93,9 +93,7 @@ public partial class Main
 
             // This is an exact response fixture; the real HTTP tests exercise the host's name rule.
             host.TakenAgentNames.Add(refusedName);
-            if (!observationSession.TryAccept(World("rename-ui-smoke", 1), 0, out var failure))
-                throw new InvalidOperationException("Rename observation fixture was refused: " + failure);
-            Render(observationSession.Current!.Baseline.Snapshot, []);
+            await RefreshFromHostAsync(World("rename-ui-smoke", 1));
             selectedInhabitantId = null;
             SelectInhabitant(rowanId);
             OpenAgentProfile(speak: false);
@@ -117,7 +115,15 @@ public partial class Main
                 throw new InvalidOperationException("Choosing another agent must drop the refused name.");
 
             await RefuseTakenNameAsync();
+            // This legacy host has no timeline metadata: selecting another
+            // world explicitly resets the client before its fresh baseline.
+            observationSession.ResetAfterLoad();
             await RefreshFromHostAsync(World("rename-ui-other", 5));
+            if (selectedInhabitantId is not null || renameRow.Visible)
+                throw new InvalidOperationException("Opening another world must close the old world's rename selection.");
+            SelectInhabitant(rowanId);
+            OpenAgentProfile(speak: false);
+            renameToggleButton.EmitSignal(BaseButton.SignalName.Pressed);
             if (renameAgentInput.Text != "Rowan Lake")
                 throw new InvalidOperationException("Opening another world must drop the old world's refused name.");
 

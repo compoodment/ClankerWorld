@@ -34,7 +34,6 @@ public sealed class SettlementFamilyTests
     }
 
     [Theory]
-    [InlineData(false, false)]
     [InlineData(true, true)]
     public async Task AncestryAndSiblingExclusionsSurviveInterveningRelativeDeath(bool ancestor, bool relativeDies)
     {

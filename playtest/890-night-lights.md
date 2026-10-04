@@ -1,0 +1,4 @@
+- Watch a Town through a night. Buildings with someone inside glow from the ground beside their front and side windows and their door; roofs never light up, and empty buildings and the Silo stay dark. ([#890](https://github.com/compoodment/ClankerWorld/issues/890))
+- Watch the Blacksmith while it makes something at night. Its forge glows and flickers in its yard without lighting the roof. ([#890](https://github.com/compoodment/ClankerWorld/issues/890))
+- Find the lantern by the Warehouse's loading doors by day, then watch it at night while someone fetches goods. Its light falls away from the wall. ([#890](https://github.com/compoodment/ClankerWorld/issues/890))
+- Zoom out at night. Lit buildings show as warm specks, and the map stays smooth at every zoom. ([#890](https://github.com/compoodment/ClankerWorld/issues/890))

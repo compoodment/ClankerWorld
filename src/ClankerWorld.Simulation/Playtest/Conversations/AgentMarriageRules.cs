@@ -74,7 +74,13 @@ public static class AgentMarriageRules
     public static IReadOnlyList<string> AllowedSurnames(AgentMarriage marriage) =>
         new[] { InhabitantNameRules.SurnameKey(marriage.InitiatorNameAtAcceptance)!,
                 InhabitantNameRules.SurnameKey(marriage.InviteeNameAtAcceptance)! }
-            .Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.Ordinal).ToArray();
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Where(surname => WithSurname(marriage.InitiatorNameAtAcceptance, surname).Length <= 48 &&
+                WithSurname(marriage.InviteeNameAtAcceptance, surname).Length <= 48)
+            .Order(StringComparer.Ordinal).ToArray();
+
+    public static bool CanKeepSurnameChoices(AgentMarriage marriage, string name) =>
+        AllowedSurnames(marriage).All(surname => WithSurname(name, surname).Length <= 48);
 
     public static string WithSurname(string name, string surname)
     {
