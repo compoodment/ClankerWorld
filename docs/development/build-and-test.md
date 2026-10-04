@@ -69,6 +69,14 @@ when every part of the Verify workflow passes:
 - **tests (1)** to **tests (6)** split the Release test suite between them, so
   it runs on six machines at once.
 
+**test-times** then compares each test's time with main's latest green run and
+lists the biggest changes in the run summary. It warns when a test takes at
+least twice as long and 20 seconds longer, or when the tests both runs have
+take 40% and two minutes longer in total. A test that gets slower without
+changing usually means the simulation got slower, for players too. Runner speed
+varies by about a fifth between runs, so this job is not part of `verify` and
+never blocks a merge on its own.
+
 A pull request that changes only documentation (Markdown files and anything
 under `docs/`) runs the workflow-script checks and the documentation tests on
 Linux and Windows, and skips the rest, including `windows-provider-storage`.

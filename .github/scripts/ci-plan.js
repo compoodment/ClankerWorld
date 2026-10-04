@@ -4,6 +4,7 @@
 //   node ci-plan.js plan <timings-dir>      prints filter_1=... and so on, one dotnet test --filter per test job
 //   node ci-plan.js filter <shard>          prints the fixed fallback filter for one test job
 //   node ci-plan.js slow <results-dir>      lists a job's slowest tests and warns about very slow ones
+//   node ci-plan.js compare <main-dir> <run-dir>  compares a run's test times with main's and warns when tests got slower
 // Every test runs in exactly one job: a test belongs to the first shard with an entry that names it,
 // and the last shard runs everything no entry names, so new or renamed tests always run.
 const fs = require('fs');
@@ -14,6 +15,13 @@ const { isDocumentation } = require('./pr-labels.js');
 const Cores = 4;
 // CI warns about a single test slower than this, because no run can finish before its slowest test.
 const SlowTestSeconds = 300;
+// CI warns about a test that takes at least this many times as long as in main's latest green run, and
+// at least this many seconds longer. Runner speed varies by about a fifth between runs.
+const SlowerRatio = 2;
+const SlowerSeconds = 20;
+// And about the tests both runs have, taken together, growing by this much.
+const SuiteSlowerRatio = 1.4;
+const SuiteSlowerSeconds = 120;
 
 // The fallback split, used when the latest main run's timings can't be read. "Class" names a whole
 // test class, apart from tests an earlier shard already names; "Class.Method" names one test method,
@@ -224,6 +232,43 @@ function slowReport(times, limit = SlowTestSeconds, top = 10) {
   return { summary, warnings };
 }
 
+// Compares a run's test times with main's latest green run, test by test and in total, so a change
+// that makes existing tests slower shows up even when no single test reaches the slow-test limit.
+// A slower simulation usually slows many tests at once, and players' ticks with them.
+function compareTimings(main, run, top = 10) {
+  const common = Object.keys(run).filter(name => name in main).sort();
+  const heading = '### Test time against main';
+  if (common.length === 0) {
+    return { summary: `${heading}\n\nNo timings from main's latest green run to compare with.\n`, warnings: [], slower: [] };
+  }
+  const changes = common.map(name => ({ name, before: main[name], after: run[name], added: run[name] - main[name] }));
+  const before = changes.reduce((sum, change) => sum + change.before, 0);
+  const after = changes.reduce((sum, change) => sum + change.after, 0);
+  const percent = value => `${value >= 0 ? '+' : ''}${Math.round(value * 100)}%`;
+  const slower = changes
+    .filter(change => change.after >= change.before * SlowerRatio && change.added >= SlowerSeconds)
+    .sort((a, b) => b.added - a.added || (a.name < b.name ? -1 : 1));
+  const rows = changes.filter(change => change.added > 0)
+    .sort((a, b) => b.added - a.added || (a.name < b.name ? -1 : 1)).slice(0, top)
+    .map(change => `| ${change.name} | ${Math.round(change.before)} | ${Math.round(change.after)} | ${percent(change.added / Math.max(change.before, 0.1))} |`);
+  const summary = [
+    heading, '',
+    `The ${common.length} tests both runs have took ${Math.round(after)} s here and ${Math.round(before)} s in main's latest green run ` +
+      `(${percent(after / before - 1)}). Runner speed varies by about a fifth between runs, so only large changes mean something.`, '',
+    '| Test | Main (s) | Here (s) | Change |', '| --- | --- | --- | --- |', ...rows, '',
+  ].join('\n');
+  const advice = 'Find out why before merging: fix it, or say in the pull request why the extra time is needed ' +
+    '(docs/development/build-and-test.md#how-ci-runs).';
+  const warnings = slower.map(change =>
+    `::warning title=Test got slower::${change.name} took ${Math.round(change.after)} seconds, ` +
+    `${(change.after / change.before).toFixed(1)} times its ${Math.round(change.before)} seconds in main's latest green run. ${advice}`);
+  if (after >= before * SuiteSlowerRatio && after - before >= SuiteSlowerSeconds) {
+    warnings.unshift(`::warning title=Tests got slower::The tests both runs have took ${Math.round(after)} seconds, ` +
+      `${percent(after / before - 1)} on main's latest green run. ${advice}`);
+  }
+  return { summary, warnings, slower };
+}
+
 // The test project, and the client folder it compiles a few files from.
 const TestProject = 'tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.csproj';
 const ClientFolder = 'src/ClankerWorld.GodotClient/';
@@ -269,7 +314,7 @@ function main(args, input) {
   }
   if (command === 'matrix') return `shards=${JSON.stringify(Array.from({ length: shardCount() }, (_, i) => i + 1))}`;
   if (command === 'filter') return testFilter(Number(value));
-  throw new Error('Usage: ci-plan.js scope | matrix | plan <timings-dir> | filter <shard> | slow <results-dir>');
+  throw new Error('Usage: ci-plan.js scope | matrix | plan <timings-dir> | filter <shard> | slow <results-dir> | compare <main-dir> <run-dir>');
 }
 
 if (require.main === module) {
@@ -278,8 +323,10 @@ if (require.main === module) {
     const { lines, note } = planFilters(value);
     console.error(note);
     console.log(lines.join('\n'));
-  } else if (command === 'slow') {
-    const { summary, warnings } = slowReport(readTimings(value));
+  } else if (command === 'slow' || command === 'compare') {
+    const { summary, warnings } = command === 'slow'
+      ? slowReport(readTimings(value))
+      : compareTimings(readTimings(value), readTimings(process.argv[4]));
     if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${summary}\n`);
     else console.log(summary);
     for (const warning of warnings) console.log(warning);
@@ -290,6 +337,7 @@ if (require.main === module) {
 }
 
 module.exports = {
-  PinnedShards, Cores, SlowTestSeconds, namePart, clause, shardCount, testFilter, parseTrx, readTimings,
-  planShards, planFilters, slowReport, compiledFiles, planScope, main,
+  PinnedShards, Cores, SlowTestSeconds, SlowerRatio, SlowerSeconds, SuiteSlowerRatio, SuiteSlowerSeconds, namePart,
+  clause, shardCount, testFilter, parseTrx, readTimings, planShards, planFilters, slowReport, compareTimings,
+  compiledFiles, planScope, main,
 };

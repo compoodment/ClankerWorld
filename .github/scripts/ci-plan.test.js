@@ -5,7 +5,7 @@ const path = require('node:path');
 const { test } = require('node:test');
 const {
   PinnedShards, namePart, shardCount, testFilter, parseTrx, readTimings, planShards, planFilters, slowReport,
-  compiledFiles, planScope, main,
+  compareTimings, compiledFiles, planScope, main,
 } = require('./ci-plan.js');
 
 // The second shard names all of BigTests, but the first shard's BigTests.LongMethod stays there.
@@ -195,6 +195,48 @@ test('a job lists its slowest tests and warns only about very slow ones', () => 
   assert.doesNotMatch(report.summary, /CTests/);
   assert.deepEqual(report.warnings.length, 1);
   assert.match(report.warnings[0], /^::warning title=Slow test::Ns\.ATests\.Slow took 723 seconds\./);
+});
+
+test('a test much slower than on main is flagged, but ordinary runner noise is not', () => {
+  const main = { 'Ns.ATests.Slower': 30, 'Ns.BTests.Noisy': 100, 'Ns.CTests.Tiny': 1, 'Ns.DTests.Gone': 50 };
+  const run = { 'Ns.ATests.Slower': 75, 'Ns.BTests.Noisy': 125, 'Ns.CTests.Tiny': 6, 'Ns.ETests.New': 400 };
+  const report = compareTimings(main, run);
+  // Only tests both runs have count: 131 s on main, 206 s here.
+  assert.match(report.summary, /The 3 tests both runs have took 206 s here and 131 s in main's latest green run \(\+57%\)/);
+  assert.match(report.summary, /\| Ns\.ATests\.Slower \| 30 \| 75 \| \+150% \|/);
+  assert.doesNotMatch(report.summary, /ETests|DTests/);
+  // Twice as slow and 20 seconds more: flagged. 25% slower, or 5 seconds more: not.
+  assert.deepEqual(report.slower.map(change => change.name), ['Ns.ATests.Slower']);
+  assert.equal(report.warnings.length, 1);
+  assert.match(report.warnings[0], /^::warning title=Test got slower::Ns\.ATests\.Slower took 75 seconds, 2\.5 times its 30 seconds/);
+});
+
+test('the whole suite growing a lot is flagged even when no single test doubles', () => {
+  const main = Object.fromEntries(Array.from({ length: 40 }, (_, i) => [`Ns.T${i}Tests.Runs`, 10]));
+  const run = Object.fromEntries(Object.keys(main).map(name => [name, 15]));
+  const report = compareTimings(main, run);
+  assert.deepEqual(report.slower, []);
+  assert.equal(report.warnings.length, 1);
+  assert.match(report.warnings[0], /^::warning title=Tests got slower::The tests both runs have took 600 seconds, \+50% on main's/);
+  // A small suite growing by the same share adds too few seconds to matter.
+  assert.deepEqual(compareTimings({ 'Ns.ATests.One': 10 }, { 'Ns.ATests.One': 15 }).warnings, []);
+});
+
+test('without main timings the comparison says so and warns about nothing', () => {
+  const report = compareTimings({}, { 'Ns.ATests.One': 10 });
+  assert.match(report.summary, /No timings from main's latest green run/);
+  assert.deepEqual(report.warnings, []);
+});
+
+test('the workflow compares test times after the test jobs, without blocking a merge', () => {
+  const workflow = fs.readFileSync(path.join(__dirname, '..', 'workflows', 'ci.yml'), 'utf8');
+  const job = workflow.slice(workflow.indexOf('\n  test-times:'), workflow.indexOf('\n  verify:'));
+  assert.match(job, /needs: tests/);
+  assert.match(job, /needs\.tests\.result == 'success'/);
+  assert.match(job, /pattern: test-timings-\*/);
+  assert.match(job, /ci-plan\.js compare "\$RUNNER_TEMP\/main" "\$RUNNER_TEMP\/this-run"/);
+  const verify = workflow.slice(workflow.indexOf('\n  verify:'), workflow.indexOf('\n  windows-documentation:'));
+  assert.doesNotMatch(verify, /test-times/);
 });
 
 test('the workflow passes each job its planned filter', () => {

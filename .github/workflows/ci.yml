@@ -145,6 +145,34 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
 
+  # Compares this run's test times with main's latest green run and warns when tests got much slower,
+  # usually a sign that the simulation itself got slower. Not part of verify: runner speed varies, so
+  # it informs review instead of blocking a merge.
+  test-times:
+    needs: tests
+    if: ${{ !cancelled() && needs.tests.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v5
+      - name: Download this run's test timings
+        uses: actions/download-artifact@v4
+        with:
+          pattern: test-timings-*
+          path: ${{ runner.temp }}/this-run
+      - name: Download main's latest green test timings
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run_id="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?branch=main&event=push&status=success&per_page=1" --jq '.workflow_runs[0].id')"
+          echo "Comparing with run ${run_id}"
+          gh run download "$run_id" --repo "$GITHUB_REPOSITORY" --pattern 'test-timings-*' --dir "$RUNNER_TEMP/main"
+      - name: Compare test times with main
+        run: node .github/scripts/ci-plan.js compare "$RUNNER_TEMP/main" "$RUNNER_TEMP/this-run"
+
   verify:
     needs: [scope, checks, tests]
     if: ${{ !cancelled() }}
