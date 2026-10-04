@@ -992,8 +992,9 @@ alpha schemas, including 53, are refused visibly and preserved without migration
 Private-world schema 92 adds required, non-null `BoatTransport` state. Empty
 boat and request lists record that no asset or trip exists. Each boat binds a
 Town, one completed paid boat project, its current water position and either a
-real mooring or one saved journey. Boat projects retain their completed asset ID
-and exact consumed wood, rope and refined-iron receipts.
+real mooring or one saved journey. Every completed boat project must retain its
+physical asset, completed asset ID and exact consumed wood, rope and refined-iron
+receipts. A missing boat or invented removal record is refused.
 
 Journeys retain one passenger, origin and destination Port IDs, reserved dock,
 cardinal water path, current index, start and next movement ticks, blocked-arrival

@@ -225,6 +225,24 @@ public sealed class PortBoatRuntimeTests
     }
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ACompletedPaidBoatCannotDisappearOrAcquireAnInventedRemoval(bool removed)
+    {
+        var state = PrivateWorldRuntimeCodec.Decode(await PaidBoat.Value);
+        var boat = Assert.Single(state.BoatTransport.Boats);
+        state = removed ? state with
+        {
+            Towns = state.Towns!.Select(town => town with
+            {
+                Projects = town.Projects.Select(project => project.Id == boat.ProjectId
+                    ? project with { RemovedTick = state.Society.Society.WorldTick } : project).ToArray(),
+            }).ToArray(),
+        } : state with { BoatTransport = state.BoatTransport with { Boats = [] } };
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(state));
+    }
+
+    [Theory]
     [InlineData("owner")]
     [InlineData("payment")]
     [InlineData("passenger")]

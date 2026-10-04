@@ -26,6 +26,11 @@ public sealed partial class PrivateWorldRuntime
         var tick = state.Society.Society.WorldTick;
         var people = state.Society.Society.Inhabitants.ToDictionary(person => person.Id, StringComparer.Ordinal);
         var towns = (state.Towns ?? []).ToDictionary(town => town.Id, StringComparer.Ordinal);
+        foreach (var town in towns.Values)
+            foreach (var project in town.Projects.Where(project => project.Stage == "completed" && project.Plan.BoatPortId is not null))
+                if (project.RemovedTick is not null || !transport.Boats.Any(boat => boat.Id == project.CompletedBoatId &&
+                        boat.ProjectId == project.Id && boat.TownId == town.Id))
+                    throw new InvalidDataException("Each completed boat project must retain its one physical communal boat.");
         var passengers = new HashSet<string>(StringComparer.Ordinal);
         var docks = new Dictionary<GridPoint, string>();
         PortGeometry Geometry(string portId)
