@@ -226,9 +226,9 @@ public partial class Main
         if (!nightLightsLayer.DrawnCells.Any(cell => cell.Kind == LightCellKind.Light && cell.Area.Position.X < 0))
             throw new InvalidOperationException("A wrapped building copy must keep its light at the visible world seam.");
 
+        RenderMap(map);
         cameraZoom = maximumCameraZoom;
         cameraCenterTiles = new Vector2(18, 8);
-        RenderMap(map);
         // A completed street fitting works without inhabitants or production jobs.
         var street = night with
         {
@@ -245,7 +245,7 @@ public partial class Main
             if (nightLightsLayer.Buildings.Count != 0 || terrainLayer.BuildingSpriteCount != 0 || cells.Count == 0 ||
                 (darkness == 0 ? cells.Any(cell => cell.Kind != LightCellKind.Paint) :
                     !cells.Any(cell => cell.Kind == LightCellKind.Light) || !cells.Any(cell => cell.Kind == LightCellKind.Glow)))
-                throw new InvalidOperationException("Completed street fittings must show by day, light at dusk without people or jobs, and go dark again at dawn without drawing roofs.");
+                throw new InvalidOperationException($"Completed street fittings must show by day, light at dusk without people or jobs, and go dark again at dawn without drawing roofs: darkness={darkness}, buildings={nightLightsLayer.Buildings.Count}, roofs={terrainLayer.BuildingSpriteCount}, cells={cells.Count}.");
         }
 
         // At daylight, only camera/zoom changes can refresh this fitting-only layer.
