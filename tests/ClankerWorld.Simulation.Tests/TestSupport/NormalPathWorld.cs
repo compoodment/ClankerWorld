@@ -13,13 +13,14 @@ namespace ClankerWorld.Simulation.Tests;
 /// </summary>
 internal static class NormalPathWorld
 {
-    public static PrivateWorldRuntime CreateGenerated(string seed, Func<string, IDecisionProvider> providerFactory)
+    public static PrivateWorldRuntime CreateGenerated(string seed, Func<string, IDecisionProvider> providerFactory,
+        GridPoint? roughTownSite = null)
     {
         var options = new GeographyOptions(seed, WorldSizePreset.Small);
         var world = new PrivateWorldRuntime(options.Seed, providerFactory,
             startPace: WorldStartPace.FounderSetup, geographyOptions: options);
         var map = world.ExportState().Map;
-        var anchor = FindStartingTownSite(map);
+        var anchor = roughTownSite ?? FindStartingTownSite(map);
         world.InitializeFirstTownContent();
         world.AcceptFirstTownLayout(anchor);
         var buildings = world.WorldSimulation.Buildings.SelectMany(building =>

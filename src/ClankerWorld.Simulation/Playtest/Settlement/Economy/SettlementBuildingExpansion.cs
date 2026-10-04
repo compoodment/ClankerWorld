@@ -136,6 +136,7 @@ public sealed partial class PrivateWorldRuntime
             .OrderBy(lot => lot.Id, StringComparer.Ordinal)
             .Where(lot => CanReachSharedItem(actor, lot))
             .Concat(warehouseStock)
+            .Where(lot => !IsActiveTownProjectDelivery(lot.Id))
             .FirstOrDefault();
     }
 
@@ -265,7 +266,7 @@ public sealed partial class PrivateWorldRuntime
     }
 
     private bool CanFitExpansion(PlacedBuilding building, GridPoint position,
-        BuildingFootprintRevision footprint, out string failure, string? ownJobId = null)
+        BuildingFootprintRevision footprint, out string failure, string? ownJobId = null, bool requireLandRights = true)
     {
         var definition = worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
         failure = "The expansion overlaps terrain, a resource, a Road, a field, another building, or another expansion.";
@@ -278,7 +279,8 @@ public sealed partial class PrivateWorldRuntime
             return false;
         var tiles = WorldContentSimulationRules.Footprint(target, position).ToHashSet();
         var original = WorldContentSimulationRules.Footprint(definition, building);
-        if (!original.All(tiles.Contains) || tiles.Any(RoadAndBridgeTiles().Contains) ||
+        if (!original.All(tiles.Contains) || tiles.Any(RoadAndBridgeTiles().Contains) || TownProjectProtectedSites().Any(tiles.Contains) ||
+            MarketSiteTiles().Any(tiles.Contains) ||
             fields.Any(field => tiles.Contains(field.Position)) ||
             (worldSimulation.BuildingExpansions ?? []).Where(job => (job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused) &&
                 job.JobId != ownJobId).Any(job => ExpansionTiles(job).Any(tiles.Contains))) return false;
@@ -294,8 +296,27 @@ public sealed partial class PrivateWorldRuntime
             failure = "The expansion would obstruct the building's entrance.";
             return false;
         }
+        var extraTiles = tiles.Except(original).ToArray();
+        if (requireLandRights && extraTiles.Any(tile => !MayExpandOntoLand(building, tile)))
+        {
+            failure = "The expansion lacks the required Town title or household use permission.";
+            return false;
+        }
         failure = string.Empty;
         return true;
+    }
+
+    private bool MayExpandOntoLand(PlacedBuilding building, GridPoint tile)
+    {
+        var title = townLandTitles.SingleOrDefault(item => item.Tiles.Contains(tile));
+        if (building.TownId is { } townId && title?.TownId != townId) return false;
+        // Unaffiliated construction on untitled land keeps its physical rules;
+        // it creates no title. Unassigning a building cannot bypass a title.
+        if (title is null) return true;
+        return building.HouseholdId is { } household
+            ? householdLandUseRights.Any(right => right.TownId == title.TownId &&
+                right.HouseholdId == household && right.Tiles.Contains(tile))
+            : building.TownId == title.TownId && !HouseholdLandHeldByOthers(null).Contains(tile);
     }
 
     private static IEnumerable<GridPoint> ExpansionTiles(BuildingExpansionJob job) =>

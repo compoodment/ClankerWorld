@@ -74,6 +74,16 @@ public static class OwnerWorldActionPayload
         $"interval-minutes={action.IntervalMinutes.ToString(CultureInfo.InvariantCulture)}",
         $"rotation-count={action.RotationCount.ToString(CultureInfo.InvariantCulture)}");
 
+    public static string DeveloperEdit(OwnerDeveloperEditAction action) => string.Join(
+        '\n', "clankerworld.owner-developer-edit.v1",
+        $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}",
+        $"expected-event-id={action.ExpectedEventId.ToString(CultureInfo.InvariantCulture)}",
+        $"agent-id={EncodeRequired(action.AgentId, nameof(action.AgentId))}",
+        $"operation={EncodeRequired(action.Operation, nameof(action.Operation))}",
+        $"value={EncodeRequired(action.Value, nameof(action.Value))}",
+        $"amount={action.Amount.ToString(CultureInfo.InvariantCulture)}",
+        $"other-agent-id={EncodeOptional(action.OtherAgentId)}");
+
     public static string LifePace(OwnerLifePaceAction action) =>
         "clankerworld.owner-life-pace.v1\nrate=" + action.Rate.ToString(CultureInfo.InvariantCulture);
 

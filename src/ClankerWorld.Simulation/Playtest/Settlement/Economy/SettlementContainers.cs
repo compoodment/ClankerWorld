@@ -76,16 +76,11 @@ public sealed partial class PrivateWorldRuntime
         }
         else
         {
-            var storedJug = inventory.Lots.Where(lot => lot.OwnerId == householdId &&
-                    lot.ItemKind == InventoryContainerRules.WaterJug && lot.StorageBuildingId == house.InstanceId &&
-                    lot.ContainerLotId is null && lot.ConditionBasisPoints > 0 &&
-                    ContainerContentsQuantity(inventory, lot.Id) < InventoryContainerRules.WaterJugCapacity &&
-                    // Leave at least one carrying place for fresh water after pickup.
-                    ContainerFamilyQuantity(inventory, lot.Id) < FreeCarryCapacity(actor) &&
-                    !HasActiveContainerReservation(inventory, lot.Id))
-                .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
-            if (storedJug is not null && FindFreshWaterShore(actor, house.Position) is not null &&
-                FindUnoccupiedRoute(actor, person.Position, house.Position, 0).Count > 0)
+            var storedJug = StoredWaterJugForRefill(actor, person, householdId);
+            if (storedJug is not null && WaterJugStockLocation(storedJug, householdId) is { } source &&
+                FindFreshWaterShore(actor, source.Position) is not null &&
+                (person.Position == source.Position ||
+                 FindUnoccupiedRoute(actor, person.Position, source.Position, 0).Count > 0))
             {
                 candidates.Add(new CognitionCandidate("collect_water_jug",
                     "Collect the household's reusable jug before fetching fresh water.", 26, storedJug.Id));
@@ -203,26 +198,45 @@ public sealed partial class PrivateWorldRuntime
         return null;
     }
 
+    private PlacedBuilding? WaterJugStockLocation(InventoryLot lot, string householdId) =>
+        worldSimulation.Buildings.FirstOrDefault(building => building.InstanceId == lot.StorageBuildingId &&
+            building.HouseholdId == householdId && worldContent.Buildings.Any(definition =>
+                definition.CanonicalId == building.DefinitionId && definition.Tags.Any(tag => tag is "house" or "restaurant")));
+
+    private InventoryLot? StoredWaterJugForRefill(string actor, PlaytestInhabitantState person, string householdId)
+    {
+        var inventory = society.Checkpoint.Inventory;
+        return inventory.Lots.Where(lot => lot.OwnerId == householdId && lot.CarrierId is null &&
+                lot.ItemKind == InventoryContainerRules.WaterJug && lot.ContainerLotId is null &&
+                lot.ConditionBasisPoints > 0 &&
+                ContainerContentsQuantity(inventory, lot.Id) < InventoryContainerRules.WaterJugCapacity &&
+                // Keep one place for the water fetched after this real pickup.
+                ContainerFamilyQuantity(inventory, lot.Id) < FreeCarryCapacity(actor) &&
+                !HasActiveContainerReservation(inventory, lot.Id) &&
+                CanRemoveWorkstationStock(inventory, lot, 1))
+            .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault(lot =>
+                WaterJugStockLocation(lot, householdId) is { } source &&
+                FindFreshWaterShore(actor, source.Position) is not null &&
+                (person.Position == source.Position ||
+                 FindUnoccupiedRoute(actor, person.Position, source.Position, 0).Count > 0));
+    }
+
     private void CollectWaterJug(string actor, PlaytestInhabitantState person)
     {
         if (society.Checkpoint.GetInhabitant(actor).HouseholdId is not { } householdId ||
             HouseForHousehold(householdId) is not { } house)
             return;
         var inventory = society.Checkpoint.Inventory;
-        var jug = inventory.Lots.Where(lot => lot.OwnerId == householdId &&
-                lot.ItemKind == InventoryContainerRules.WaterJug && lot.StorageBuildingId == house.InstanceId &&
-                lot.ContainerLotId is null && lot.ConditionBasisPoints > 0 &&
-                ContainerContentsQuantity(inventory, lot.Id) < InventoryContainerRules.WaterJugCapacity &&
-                ContainerFamilyQuantity(inventory, lot.Id) < FreeCarryCapacity(actor) &&
-                !HasActiveContainerReservation(inventory, lot.Id))
-            .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
+        var jug = StoredWaterJugForRefill(actor, person, householdId);
         if (jug is null || ContainerFamilyQuantity(inventory, jug.Id) >= FreeCarryCapacity(actor))
             return;
-        if (person.Position != house.Position)
+        var source = WaterJugStockLocation(jug, householdId)!;
+        if (person.Position != source.Position)
         {
-            MoveToward(actor, person, house.Position, "collect_water_jug", 0);
+            MoveToward(actor, person, source.Position, "collect_water_jug", 0);
             return;
         }
+        if (!CanRemoveWorkstationStock(inventory, jug, 1)) return;
         ApplyInventoryTransition(current => InventoryFixture.Transfer(current,
             $"water-jug-pickup:{WorldTick}:{actor}", householdId, actor, jug.Id, 1,
             "water_jug_collected"));
@@ -332,7 +346,7 @@ public sealed partial class PrivateWorldRuntime
         AppendEvent("food_taken_from_pot", $"{actor}:{choice.Pot.Id}:{choice.Food.Id}:{quantity}");
     }
 
-    private PotFoodChoice? FindFoodInPot(string householdId, string houseId)
+    private PotFoodChoice? FindFoodInPot(string householdId, string houseId, string? requiredItemKind = null)
     {
         var inventory = society.Checkpoint.Inventory;
         return inventory.Lots.Where(lot => lot.OwnerId == householdId &&
@@ -341,6 +355,7 @@ public sealed partial class PrivateWorldRuntime
                 !HasActiveContainerReservation(inventory, lot.Id))
             .OrderBy(lot => lot.Id, StringComparer.Ordinal)
             .Select(pot => inventory.Lots.Where(lot => lot.ContainerLotId == pot.Id &&
+                    (requiredItemKind is null || lot.ItemKind == requiredItemKind) &&
                     IsEdibleFood(lot.ItemKind) && lot.ConditionBasisPoints > 0 &&
                     lot.FreshnessBasisPoints > 0 && AvailableLotQuantity(lot) > 0)
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal)

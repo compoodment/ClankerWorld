@@ -85,7 +85,8 @@ public sealed partial class PrivateWorldRuntime
     {
         var placed = worldSimulation.Buildings.SingleOrDefault(building => building.InstanceId == blacksmithId);
         if (placed is null) return [];
-        return worldContent.Recipes.Where(recipe => recipe.WorkstationBuildingId == placed.DefinitionId)
+        // A handcart is built only from what its builder carries, so the Blacksmith keeps no stock for it.
+        return worldContent.Recipes.Where(recipe => recipe.WorkstationBuildingId == placed.DefinitionId && !IsHandcartRecipe(recipe))
             .SelectMany(recipe => recipe.Inputs)
             .GroupBy(input => input.ResourceId, StringComparer.Ordinal)
             .Select(group => (ItemKind: group.Key, Target: checked(group.Max(input => input.Amount) * 2)))
@@ -120,7 +121,7 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
         if (society.Checkpoint.Inventory.Lots.Any(lot => lot.OwnerId == householdId &&
-                lot.ItemKind == "iron_ore" && AvailableLotQuantity(lot) > 0))
+                lot.ItemKind == "iron_ore" && !OnBorrowedMarketStall(lot) && AvailableLotQuantity(lot) > 0))
             return;
         if (MaterialSource("iron_ore", actor) is not { } source ||
             FreeCarryCapacity(actor) < ProjectMaterialCarryUnits(actor, "iron_ore", source) &&
@@ -185,12 +186,12 @@ public sealed partial class PrivateWorldRuntime
             var personal = inventory.Lots
                 .Where(lot => lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) && lot.DeliveryBuildingId is null &&
                     (sourceLotId is null || lot.Id == sourceLotId) &&
-                    lot.ContainerLotId is null && lot.ItemKind == kind && AvailableLotQuantity(lot) > 0 &&
+                    lot.ContainerLotId is null && lot.ItemKind == kind && SpareCarriedQuantity(actor, lot) > 0 &&
                     !PersonalEquipmentRules.IsSelected(inhabitants[actor].Equipment, lot.Id))
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
             if (personal is not null) return personal;
             var source = inventory.Lots
-                .Where(lot => lot.OwnerId == householdId && lot.CarrierId is null && lot.StorageBuildingId != blacksmithId &&
+                .Where(lot => lot.OwnerId == householdId && lot.CarrierId is null && !OnBorrowedMarketStall(lot) && lot.StorageBuildingId != blacksmithId &&
                     (sourceLotId is null || lot.Id == sourceLotId) &&
                     lot.DeliveryBuildingId != blacksmithId && lot.ContainerLotId is null && lot.ItemKind == kind &&
                     AvailableLotQuantity(lot) > 0)
@@ -217,6 +218,7 @@ public sealed partial class PrivateWorldRuntime
                 .Sum(AvailableLotQuantity);
             if (stocked + incoming >= target || inventory.Lots.Any(lot =>
                     (lot.OwnerId == householdId || lot.OwnerId == actor) && lot.ItemKind == kind &&
+                    !OnBorrowedMarketStall(lot) && (lot.OwnerId != actor || !OnMarketStall(lot)) &&
                     lot.StorageBuildingId != blacksmithId && lot.DeliveryBuildingId != blacksmithId &&
                     lot.ContainerLotId is null &&
                     AvailableLotQuantity(lot) > 0))
@@ -268,7 +270,7 @@ public sealed partial class PrivateWorldRuntime
         if (PersonalSmithOre(actor) is not null ||
             BlacksmithOreStocked(householdId, blacksmithId) >= BlacksmithInputTarget(blacksmithId, "iron_ore") ||
             society.Checkpoint.Inventory.Lots.Any(lot => lot.OwnerId == householdId &&
-                lot.ItemKind == "iron_ore" && AvailableLotQuantity(lot) > 0))
+                lot.ItemKind == "iron_ore" && !OnBorrowedMarketStall(lot) && AvailableLotQuantity(lot) > 0))
             return null;
         return MaterialSource("iron_ore", actor) is { } source ? ("iron_ore", source) : null;
     }
@@ -349,7 +351,7 @@ public sealed partial class PrivateWorldRuntime
                 .Sum(AvailableLotQuantity);
             var targetPersonal = BlacksmithInputTarget(blacksmith.InstanceId, input.ItemKind);
             var personalQuantity = Math.Min(targetPersonal - stockedPersonal - incomingPersonal,
-                Math.Min(room, Math.Min(HouseHaulLoadQuantity, AvailableLotQuantity(input))));
+                Math.Min(room, Math.Min(HouseHaulLoadQuantity, SpareCarriedQuantity(actor, input))));
             if (personalQuantity <= 0) return;
             ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
                 $"smith-input-delivery:{WorldTick}:{actor}", actor, householdId, input.Id,

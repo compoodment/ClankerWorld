@@ -100,28 +100,28 @@ public sealed class NatureProposal : IArtProposal, IArtSetProvider
         ("BroadleafStump", NatureSprite.BroadleafStump, "Round cut face with a ring, lit rim and split, bark ring and four short roots (two at 16 px)."),
         ("BroadleafSapling", NatureSprite.BroadleafSapling, "A small young canopy in the lighter canopy steps, lit north-west, outlined."),
         ("BerryBush", NatureSprite.BerryBush, "Darker bush in the forest-grass ramp, lit side, berries as 2x2 with a highlight and 2 px dashes at 16 px."),
-        ("BerryBushPicked", null, "Same bush without its berries; small bare stalks where they were."),
+        ("BerryBushPicked", NatureSprite.BerryBushPicked, "Same bush without its berries; small bare stalks where they were."),
         ("WildGreens", NatureSprite.WildGreens, "Rosette of broad leaves with pale veins, lit leaves toward the light, outlined."),
         ("FiberPlant", NatureSprite.FiberPlant, "A dark clump with tapered blades of uneven length, each with a south-east edge line instead of a heavy outline."),
         ("StoneOutcrop", NatureSprite.StoneOutcrop, "Three boulders with flat lit top faces, creases between them and two loose stones."),
-        ("StoneOutcropDepleted", null, "The quarried site: a flat grey gravel patch with a dug hollow and a few chips, in the outcrop's stone colours."),
+        ("StoneOutcropDepleted", NatureSprite.StoneOutcropDepleted, "The quarried site: a flat grey gravel patch with a dug hollow and a few chips, in the outcrop's stone colours."),
         ("IronOutcrop", NatureSprite.IronOutcrop, "Darker iron-grey boulders with rust-stained faces, rust veins and blocks that stay at 16 px."),
         ("GoldOutcrop", NatureSprite.GoldOutcrop, "Rock boulders with gold flecks in gold light and highlight; two-pixel dashes at 16 px."),
         ("ClayBank", NatureSprite.ClayBank, "Brown bank lit on its crest with a bite dug out of the south-east: crest line, fresh clay floor, spade scrapes, clods."),
-        ("HerbPatch", null, "New: a low clump of small-leaved sprigs with small pale flowers that have a gold centre."),
+        ("HerbPatch", NatureSprite.HerbPatch, "New: a low clump of small-leaved sprigs with small pale flowers that have a gold centre."),
         // Round 2.
         ("ConiferStump", NatureSprite.ConiferStump, "A darker cut face than the broadleaf stump, with close rings, a scaly bark ring, five slender roots and a bead of amber resin."),
         ("ConiferSapling", NatureSprite.ConiferSapling, "A small seven-point star in the lighter needle steps, lit north-west, outlined; the points stay at 16 px."),
         ("Reeds", NatureSprite.Reeds, "Today's standing reeds, redrawn: three olive clumps of stems fanning up, with dark cattail heads lit on the north-west."),
-        ("ReedsHarvested", null, "The clumps cut low: short stubs with pale cut ends and the low leaves, no cattail heads."),
-        ("WildGreensPicked", null, "The rosette with its big outer leaves picked: short cut stalks with pale ends round the young inner leaves."),
-        ("FiberPlantHarvested", null, "The same dark clump with every blade cut short; each stub ends in a pale cut."),
-        ("HerbPatchPicked", null, "The herb clump with its sprig tips and flowers snipped off: shorter stems with their lower leaves."),
+        ("ReedsHarvested", NatureSprite.ReedsHarvested, "The clumps cut low: short stubs with pale cut ends and the low leaves, no cattail heads."),
+        ("WildGreensPicked", NatureSprite.WildGreensPicked, "The rosette with its big outer leaves picked: short cut stalks with pale ends round the young inner leaves."),
+        ("FiberPlantHarvested", NatureSprite.FiberPlantHarvested, "The same dark clump with every blade cut short; each stub ends in a pale cut."),
+        ("HerbPatchPicked", NatureSprite.HerbPatchPicked, "The herb clump with its sprig tips and flowers snipped off: shorter stems with their lower leaves."),
         ("DiamondOutcrop", NatureSprite.DiamondOutcrop, "Blue-grey slate boulders holding pale faceted crystals lit from the north-west; cyan dashes at 16 px."),
-        ("IronOutcropDepleted", null, "The iron outcrop quarried flat: iron-grey gravel, a dug hollow, rust-stained chips."),
-        ("GoldOutcropDepleted", null, "The gold outcrop quarried flat: grey gravel and hollow with a few dull gold traces."),
-        ("DiamondOutcropDepleted", null, "The diamond outcrop quarried flat: slate gravel and hollow with one dull crystal shard."),
-        ("ClayBankDepleted", null, "The clay bank dug out: a low crest of the old bank on the north-west round a wide pit of fresh clay."),
+        ("IronOutcropDepleted", NatureSprite.IronOutcropDepleted, "The iron outcrop quarried flat: iron-grey gravel, a dug hollow, rust-stained chips."),
+        ("GoldOutcropDepleted", NatureSprite.GoldOutcropDepleted, "The gold outcrop quarried flat: grey gravel and hollow with a few dull gold traces."),
+        ("DiamondOutcropDepleted", NatureSprite.DiamondOutcropDepleted, "The diamond outcrop quarried flat: slate gravel and hollow with one dull crystal shard."),
+        ("ClayBankDepleted", NatureSprite.ClayBankDepleted, "The clay bank dug out: a low crest of the old bank on the north-west round a wide pit of fresh clay."),
         ("Regrowing", NatureSprite.Regrowing, "A fresh sprout, two seed leaves and a young leaf, on a small patch of loosened earth; for any regrowing site."),
         ("Depleted", NatureSprite.Depleted, "Fallback for a used-up site without its own art: a bare scuffed patch of earth with a few pebbles and a broken twig."),
     ];
@@ -130,6 +130,8 @@ public sealed class NatureProposal : IArtProposal, IArtSetProvider
     private static readonly Dictionary<NatureSprite, string> Replaced = Assets
         .Where(asset => asset.Replaces is not null)
         .ToDictionary(asset => asset.Replaces!.Value, asset => asset.Id);
+
+    internal static bool HasApprovedDrawing(NatureSprite sprite) => Replaced.ContainsKey(sprite);
 
     public IEnumerable<Entry> Render()
     {

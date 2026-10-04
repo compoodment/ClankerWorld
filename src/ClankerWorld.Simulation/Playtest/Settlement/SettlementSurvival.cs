@@ -52,7 +52,10 @@ public sealed partial class PrivateWorldRuntime
 {
     private SettlementSurvivalState? survivalState;
     private static readonly HashSet<string> PerishableKinds = new(StringComparer.Ordinal)
-        { "food", "fruit", "berries", "wild_greens", "cultivated_greens" };
+        { "food", "fruit", "berries", "wild_greens", "cultivated_greens",
+            "simple_meal", "bread", "porridge", "berry_porridge", "fruit_porridge", "stew", "restaurant_meal" };
+    private static readonly IReadOnlyDictionary<string, int> FoodSpoilageRates =
+        new Dictionary<string, int>(StringComparer.Ordinal) { ["bread"] = 2 };
     private const int IllnessRecoveryPerTick = 12;
     private const int ShelteredIllnessRecoveryBonusPerTick = 12;
     private const int IllnessCareReliefBasisPoints = 250;
@@ -67,6 +70,11 @@ public sealed partial class PrivateWorldRuntime
     // Provisional routine and outing reserves, not owner-approved balance.
     private const int RoutineFoodSeekFullness = 4_500;
     private const int OutingFullnessReserve = 3_000;
+    // Provisional balance (#641, #673): how much colder full night is than
+    // the same weather by day, in the per-tick exposure units weather uses.
+    // Dusk and dawn fade it in and out. Shelter, clothing and fire offset it
+    // exactly as they offset weather.
+    private const int NightChillAtFullDarkness = 15;
 
     private static bool NeedsUrgentFood(PlaytestInhabitantState person) => person.HungerBasisPoints < UrgentFullness;
 
@@ -84,7 +92,7 @@ public sealed partial class PrivateWorldRuntime
         var heat = AccessibleHeatingBuildings(person.InhabitantId).Any(building => IsFireLit(building) &&
             IsWithinInteractionRange(person.Position, building.Position,
                 building.HouseholdId is null ? 2 : 0)) ? 90 : 0;
-        var loss = Math.Max(0, WeatherExposure(person.Position) - protection);
+        var loss = Math.Max(0, OutdoorExposure(person.Position) - protection);
         return -loss + heat + (loss == 0 ? 20 : 0);
     }
 
@@ -99,6 +107,10 @@ public sealed partial class PrivateWorldRuntime
 
     private WeatherKind WeatherAt(GridPoint position) => WeatherRules.At(worldSystems, position, map.Height,
         WeatherRules.RegionClimate(map, position));
+
+    /// <summary>The cold of being outdoors here now: weather, climate and season, plus night.</summary>
+    private int OutdoorExposure(GridPoint position) => WeatherExposure(position) +
+        NightChillAtFullDarkness * DaylightRules.DarknessBasisPoints(worldSystems) / DaylightRules.FullDarkness;
 
     private int WeatherExposure(GridPoint position) => WeatherAt(position) switch
     {
@@ -130,7 +142,7 @@ public sealed partial class PrivateWorldRuntime
         (kind == "food" ? null : AvailableWarehouseStock(actor, kind).FirstOrDefault());
 
     private bool CanReachSharedItem(string actor, InventoryLot lot) =>
-        FindUnoccupiedRoute(actor, inhabitants[actor].Position, HouseholdStockPosition(lot),
+        !OnBorrowedMarketStall(lot) && FindUnoccupiedRoute(actor, inhabitants[actor].Position, HouseholdStockPosition(lot),
             HouseholdStockInteractionRange(lot)).Count > 0;
 
     private IEnumerable<PlacedBuilding> BuildingsWithTag(string tag) => worldSimulation.Buildings.Where(building =>
@@ -185,6 +197,15 @@ public sealed partial class PrivateWorldRuntime
         .Where(building => building.HouseholdId is null ||
             building.HouseholdId == society.Checkpoint.GetInhabitant(actor).HouseholdId);
 
+    private PlacedBuilding? ReachableUnlitHearth(string actor, PlaytestInhabitantState person) =>
+        AccessibleHeatingBuildings(actor).FirstOrDefault(building =>
+        {
+            if (IsFireLit(building)) return false;
+            var range = building.HouseholdId is null ? ResourceInteractionRange : 0;
+            return IsWithinInteractionRange(person.Position, building.Position, range) ||
+                FindUnoccupiedRoute(actor, person.Position, building.Position, range).Count > 0;
+        });
+
     private void AdvanceSettlementSurvival()
     {
         if (survivalState is null && !contentRegistry.ExportState().Packages.Any(package => package.Manifest.PackageId == SettlementContent.PackageId &&
@@ -216,7 +237,7 @@ public sealed partial class PrivateWorldRuntime
             : BuildingsWithTag("storage").Where(building => building.HouseholdId is not null)
                 .Select(building => building.HouseholdId!).ToHashSet(StringComparer.Ordinal);
         ApplyInventoryTransition(inventory => InventoryFixture.ProcessSpoilage(inventory, WorldTick, 4,
-            PerishableKinds, shelteredOwners));
+            PerishableKinds, shelteredOwners, FoodSpoilageRates));
         foreach (var person in inhabitants.Values.ToArray())
         {
             var old = person.Survival ?? new SurvivalCondition();
@@ -244,7 +265,7 @@ public sealed partial class PrivateWorldRuntime
         AddEquipmentCandidates(candidates, actor, person);
         AddOrnamentCandidates(candidates, actor);
         var losingWarmth = WarmthChange(person) < 0;
-        if (AdultResident(actor) && losingWarmth && condition.WarmthBasisPoints < ComfortableWarmth && AccessibleHeatingBuildings(actor).Any(building => !IsFireLit(building)) &&
+        if (AdultResident(actor) && losingWarmth && condition.WarmthBasisPoints < ComfortableWarmth && ReachableUnlitHearth(actor, person) is not null &&
             (HasCarriedOwnItem(actor, "wood") || FreeCarryCapacity(actor) > 0 && SharedItem("wood", actor) is not null ||
                 MaterialSource("wood", actor) is { } firewood && FreeCarryCapacity(actor) >= ProjectMaterialCarryUnits(actor, "wood", firewood)))
         {
@@ -295,7 +316,7 @@ public sealed partial class PrivateWorldRuntime
 
     private void TendFire(string actor, PlaytestInhabitantState person)
     {
-        var building = AccessibleHeatingBuildings(actor).FirstOrDefault(building => !IsFireLit(building));
+        var building = ReachableUnlitHearth(actor, person);
         if (building is null || survivalState is null)
         {
             return;
@@ -358,17 +379,78 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
-    private bool NeedsRecipeOutput(RecipeDefinition recipe, string? ownerId = null) => survivalState is null || recipe.Outputs.Any(output =>
+    private bool NeedsRecipeOutput(RecipeDefinition recipe, string? ownerId = null, string? requestWorker = null) =>
+        HouseToolsContent.IsCrudeToolRecipe(recipe) ? NeedsHouseTool(recipe, ownerId) :
+        HasToolMakingDemand(recipe, ownerId, requestWorker) || recipe.Outputs.Any(output =>
     {
+        if (output.ResourceId == KnowledgeContent.Paper)
+            return NeedsKnowledgePaper(ownerId);
+        if (survivalState is null)
+            return true;
         var available = society.Checkpoint.Inventory.Lots.Where(lot => lot.ItemKind == output.ResourceId &&
                 (ownerId is null || lot.OwnerId == ownerId))
             .Sum(AvailableLotQuantity);
-        var target = output.ResourceId == "food" ? inhabitants.Count * 4 : Math.Max(1, inhabitants.Count);
+        var residentCount = ownerId is null ? inhabitants.Count :
+            inhabitants.Values.Count(person => society.Checkpoint.GetInhabitant(person.InhabitantId).HouseholdId == ownerId);
+        if (IsPreparedMeal(output.ResourceId) && !recipe.Inputs.Any(input => IsPreparedMeal(input.ResourceId)))
+            available = society.Checkpoint.Inventory.Lots.Where(lot => IsPreparedMeal(lot.ItemKind) &&
+                    (ownerId is null || lot.OwnerId == ownerId)).Sum(AvailableLotQuantity);
+        var target = IsPreparedMeal(output.ResourceId) ? Math.Max(2, residentCount * 2)
+            : output.ResourceId == "food" ? inhabitants.Count * 4 : Math.Max(1, inhabitants.Count);
         return available < target;
     });
 
+    /// <summary>One usable family tool per adult, counting better tools and work already paid for.</summary>
+    private bool NeedsHouseTool(RecipeDefinition recipe, string? householdId)
+    {
+        if (householdId is null) return false;
+        var adults = inhabitants.Keys.Where(actor => AdultResident(actor) && HouseholdFor(actor) == householdId).ToArray();
+        if (adults.Length == 0) return false;
+        var family = ToolProgressionRules.Find(recipe.Outputs[0].ResourceId)!.Family;
+        var tools = society.Checkpoint.Inventory.Lots.Where(lot => lot.ContainerLotId is null &&
+            lot.DeliveryBuildingId is null && ToolProgressionRules.Find(lot.ItemKind)?.Family == family &&
+            AvailableLotQuantity(lot) > 0).ToArray();
+        // Private extras and borrowed tools held by the same adult cover only that adult.
+        var uncovered = adults.Where(actor => !tools.Any(lot =>
+            lot.OwnerId == householdId && ToolProgressionRules.IsTopLevelCarriedLot(lot, actor) ||
+            lot.OwnerId == actor && (ToolProgressionRules.IsTopLevelCarriedLot(lot, actor) ||
+                lot.CarrierId is null && CanReachHouseToolStock(actor, householdId, lot)))).ToArray();
+        if (uncovered.Length == 0) return false;
+        // Free shared stock can wait for an adult's route to reopen; do not keep making
+        // replacements merely because that adult is temporarily away from the household.
+        var available = tools.Where(lot => lot.OwnerId == householdId && lot.CarrierId is null &&
+                adults.Any(actor => CanReachHouseToolStock(actor, householdId, lot)))
+            .Sum(lot => (long)AvailableLotQuantity(lot));
+        if (available >= uncovered.Length) return false;
+        var committed = worldSimulation.ProductionJobs.Where(job => job.OwnerId == householdId &&
+                job.ToolMakingRequestId is null &&
+                job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused &&
+                worldSimulation.Buildings.Any(building => building.InstanceId == job.BuildingInstanceId &&
+                    building.HouseholdId == householdId && adults.Any(actor =>
+                        inhabitants[actor].Position == building.Position ||
+                        FindUnoccupiedRoute(actor, inhabitants[actor].Position, building.Position, 0).Count > 0)))
+            .SelectMany(job => worldContent.Recipes.FirstOrDefault(item => item.CanonicalId == job.RecipeId)?.Outputs ?? [])
+            .Where(output => ToolProgressionRules.Find(output.ResourceId)?.Family == family)
+            .Sum(output => (long)output.Amount);
+        return available + committed < uncovered.Length;
+    }
+
+    private bool CanReachHouseToolStock(string actor, string householdId, InventoryLot lot)
+    {
+        if (OnBorrowedMarketStall(lot))
+            return false;
+        if (lot.StorageBuildingId is { } storage && !worldSimulation.Buildings.Any(building =>
+                building.InstanceId == storage && building.HouseholdId == householdId))
+            return false;
+        var position = HouseholdStockPosition(lot);
+        var range = HouseholdStockInteractionRange(lot);
+        return IsWithinInteractionRange(inhabitants[actor].Position, position, range) ||
+            FindUnoccupiedRoute(actor, inhabitants[actor].Position, position, range).Count > 0;
+    }
+
     private string FoodSource(InventoryLot lot)
     {
+        if (IsPreparedMeal(lot.ItemKind)) return lot.ItemKind;
         var inventory = society.Checkpoint.Inventory;
         var visited = new HashSet<string>(StringComparer.Ordinal);
         var originId = lot.Id;
@@ -392,10 +474,17 @@ public sealed partial class PrivateWorldRuntime
         return originId.StartsWith("food:harvest:", StringComparison.Ordinal) ? "foraged" : "camp_rations";
     }
 
-    private static bool IsEdibleFood(string kind) => kind is "food" or "fruit" or "berries" or "wild_greens" or "cultivated_greens";
+    private static bool IsPreparedMeal(string kind) => kind is "simple_meal" or "porridge" or
+        "berry_porridge" or "fruit_porridge" or "bread" or "stew" or "restaurant_meal";
+
+    private static bool IsEdibleFood(string kind) => IsPreparedMeal(kind) ||
+        kind is "food" or "fruit" or "berries" or "wild_greens" or "cultivated_greens";
 
     private static int FoodNourishment(string kind) => kind switch
     {
+        "restaurant_meal" => 6_000,
+        "berry_porridge" or "fruit_porridge" or "stew" => 5_000,
+        "simple_meal" or "porridge" or "bread" => 4_000,
         "berries" => 2_000,
         "wild_greens" => 1_500,
         "cultivated_greens" => 4_000,
@@ -421,7 +510,8 @@ public sealed partial class PrivateWorldRuntime
             return null;
         }
         var kind = FoodSource(food);
-        var nutrition = Math.Clamp(condition.NutritionBasisPoints + (condition.LastMealKind is null ? 0 : condition.LastMealKind != kind ? 500 : -100), 0, 10_000);
+        var nutrition = Math.Clamp(condition.NutritionBasisPoints + (condition.LastMealKind is null ? 0 : condition.LastMealKind != kind ? 500 : -100) +
+            (food.ItemKind == "restaurant_meal" ? 500 : food.ItemKind is "berry_porridge" or "fruit_porridge" ? 250 : 0), 0, 10_000);
         var illness = Math.Clamp(condition.IllnessBasisPoints +
             (food.FreshnessBasisPoints < 2_500 ? SpoiledMealIllnessIncreaseBasisPoints : -FreshMealIllnessReliefBasisPoints), 0, 10_000);
         AppendEvent("meal_eaten", $"{person.InhabitantId}:{kind}:nutrition={nutrition}");
@@ -442,7 +532,8 @@ public sealed partial class PrivateWorldRuntime
         {
             if (person.Survival is { } condition && (state.Survival is null ||
                 condition.WarmthBasisPoints is < 0 or > 10_000 || condition.IllnessBasisPoints is < 0 or > 10_000 ||
-                condition.NutritionBasisPoints is < 0 or > 10_000 || condition.LastMealKind is not (null or "crops" or "cooked" or "foraged" or "camp_rations" or "orchard")))
+                condition.NutritionBasisPoints is < 0 or > 10_000 || condition.LastMealKind is not (null or "crops" or "cooked" or "foraged" or "camp_rations" or "orchard") &&
+                !IsPreparedMeal(condition.LastMealKind!)))
             {
                 throw new InvalidDataException("The saved inhabitant survival condition is invalid.");
             }

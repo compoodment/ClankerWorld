@@ -37,8 +37,10 @@ public sealed partial class SettlementParenthoodTests
             using var world = PrivateWorldRuntime.Restore(state, ProviderFor);
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-            for (var tick = 0; tick < 599; tick++)
-                Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+            var plan = world.Inhabitants.Single(person => person.InhabitantId == initiatorId).Parenthood!;
+            Assert.Equal("preparing", plan.Stage);
+            PositionFamilyFixtureAt(world, plan.LastTransitionTick + 598);
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
             Assert.Empty(world.Society.Births);
 
             var stateFile = new PrivateWorldStateFile(Path.Combine(directory.FullName, "world.json"), ProviderFor);
@@ -181,7 +183,11 @@ public sealed partial class SettlementParenthoodTests
             using var agingWorld = PrivateWorldRuntime.Restore(hungryChildState, ProviderFor);
             agingWorld.Pause();
             Assert.True(agingWorld.SetLifePace(1_460));
+            PositionChildBeforeAge(agingWorld, childId, agingWorld.Society.Config.InfantYears);
             agingWorld.Resume();
+            Assert.True((await agingWorld.AdvanceOneTickAsync()).Advanced);
+            Assert.Equal(SocietyAgeBand.Infant, agingWorld.Society.GetInhabitant(childId).AgeBand);
+            Assert.Equal(0, callCounts.GetValueOrDefault(childId));
             var maturityTicks = agingWorld.Society.Config.TicksPerWorldDay;
             for (var tick = 0; tick < maturityTicks && callCounts.GetValueOrDefault(childId) == 0; tick++)
                 Assert.True((await agingWorld.AdvanceOneTickAsync()).Advanced);

@@ -44,6 +44,8 @@ public sealed partial class PrivateWorldRuntime
         {
             if (field is not null || !FarmableFreeTile(position))
                 return new(false, "This land cannot be tilled: choose free farmable land.");
+            if (HouseholdLandHeldByOthers(householdId).Contains(position))
+                return new(false, "This land is held or requested by another household.");
             field = new(position, householdId, FarmFieldStage.Preparing);
         }
         else if (field is null || field.HouseholdId != householdId || field.Work is not null)
@@ -64,8 +66,10 @@ public sealed partial class PrivateWorldRuntime
                 seed.ItemKind != FarmFieldRules.PlantingItem(crop!) || AvailableLotQuantity(seed) < 1)
                 return new(false, "Carry one of your own usable planting items to the field.");
             reservationId = $"{FarmFieldRules.FieldId(position)}:plant:{field.Cycle}:{WorldTick}:{workerId}";
+            // This seed belongs to active work, including illness and conversation
+            // pauses. Completion consumes it; every work cancellation releases it.
             ApplyInventoryTransition(inventory => InventoryFixture.Reserve(inventory, reservationId,
-                workerId, seed.Id, 1, "field_planting", checked(WorldTick + FarmFieldRules.WorkTicks(kind) + 1)));
+                workerId, seed.Id, 1, "field_planting", long.MaxValue));
         }
         var hoeLotId = hoe is null ? null : IsolateFieldToolForWork(workerId, position, hoe.ToolLotId);
         var sickleLotId = sickle is null ? null : IsolateFieldToolForWork(workerId, position, sickle.ToolLotId);
@@ -93,7 +97,8 @@ public sealed partial class PrivateWorldRuntime
 
     private bool FarmableFreeTile(GridPoint position)
     {
-        if (!fertility.CanFarm(position) || fields.Any(field => field.Position == position) ||
+        if (!fertility.CanFarm(position) || fields.Any(field => field.Position == position) || TownProjectProtectedSites().Contains(position) ||
+            MarketSiteTiles().Contains(position) ||
             RoadAndBridgeTiles().Contains(position) || map.CampObjects.Any(item => item.Position == position) ||
             (worldSimulation.BuildingExpansions ?? []).Any(job => (job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused) && ExpansionTiles(job).Contains(position)) ||
             map.Resources.Any(item => item.Position == position)) return false;
@@ -171,6 +176,8 @@ public sealed partial class PrivateWorldRuntime
             return false;
         }
         if (IsConversationBusy(workerId)) return true;
+        if (!SettlementIllnessRules.AllowsWork(workerId, WorldTick,
+                worker.Survival?.IllnessBasisPoints ?? 0)) return true;
         var toolPlans = FieldWorkToolPlans(workerId, work);
         var hoe = toolPlans.FirstOrDefault(plan => ToolProgressionRules.Find(
             society.Checkpoint.Inventory.GetLot(plan.ToolLotId).ItemKind)?.Family == ToolFamily.Hoe);

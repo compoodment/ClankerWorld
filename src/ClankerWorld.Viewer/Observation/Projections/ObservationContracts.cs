@@ -25,6 +25,10 @@ public sealed record ViewerPackedMapLayers(int Width, int Height, string Encodin
 }
 public sealed record ViewerFarmField(ViewerPosition Position, string HouseholdId, string Stage, string? Crop,
     int Fertility, string? WorkerId, int? WorkRemaining);
+public sealed record ViewerHandcart(string Id, string OwnerId, string OwnerName, ViewerPosition Position,
+    int Capacity, int ConditionPercent, string? PullerId, string? PullerName,
+    IReadOnlyList<ViewerInventoryEntry> Cargo);
+
 public sealed record ViewerGroundStock(ViewerPosition Position, string OwnerId, string Kind, int Quantity);
 public sealed record ViewerWorldPreview(ViewerPackedTerrain Terrain, ViewerPosition Camp,
     string ManifestDigest, int ResourceSites = 0)
@@ -33,6 +37,7 @@ public sealed record ViewerWorldPreview(ViewerPackedTerrain Terrain, ViewerPosit
     public string? MapLayersDigest { get; init; }
     public GeographyCandidateReport? Coverage { get; init; }
     public IReadOnlyList<GeographyCandidateReport> Candidates { get; init; } = [];
+    public IReadOnlyList<GeographyCandidateFailure> FailedCandidates { get; init; } = [];
 }
 
 public sealed record ViewerMapObject(string Id, string Kind, ViewerPosition Position);
@@ -51,7 +56,12 @@ public sealed record ViewerActor(
 
 public sealed record ViewerInventoryEntry(string Kind, int Quantity);
 
-public sealed record ViewerDecisionFactor(string Key, string Detail);
+public sealed record ViewerDecisionFactor(string Key, string Detail)
+{
+    /// <summary>Derived deadline for the sponsored admission approval shown in this row.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public long? AcceptanceDeadlineTick { get; init; }
+}
 
 public sealed record ViewerRoute(
     string Status,
@@ -129,8 +139,8 @@ public sealed record ViewerAgentKnowledgeArtifact(
     string CreatorName,
     IReadOnlyList<ViewerKnowledgeSite> Sites);
 /// <summary>
-/// The world's saved calendar, including its season lengths, so the game can
-/// name the season and day of any tick the same way the world does.
+/// The world's saved calendar, including its season lengths and clock offset,
+/// so the game names the season and day of any tick the same way the world does.
 /// </summary>
 public sealed record ViewerCalendarPace(
     int TicksPerDay,
@@ -138,7 +148,8 @@ public sealed record ViewerCalendarPace(
     int SpringDays,
     int SummerDays,
     int AutumnDays,
-    int WinterDays);
+    int WinterDays,
+    int CalendarOffsetTicks = 0);
 
 /// <summary>
 /// An inspection projection, never an editable actor record. A founder draft
@@ -165,6 +176,7 @@ public sealed record ViewerInhabitant(
     public ViewerSurvival? Survival { get; init; }
     public ViewerEquipment? Equipment { get; init; }
     public string? MedicalCareNote { get; init; }
+    public string? ToolMakingRequestNote { get; init; }
     public ViewerLesson? Lesson { get; init; }
     public ViewerProficiency? Proficiency { get; init; }
     public IReadOnlyList<ViewerSkill> Skills { get; init; } = [];
@@ -183,7 +195,17 @@ public sealed record ViewerInhabitant(
     public IReadOnlyList<ViewerAgentKnowledgeFact> RecentKnowledgeFacts { get; init; } = [];
 
     public IReadOnlyList<ViewerAgentKnowledgeArtifact> KnowledgeArtifacts { get; init; } = [];
+
+    /// <summary>A dead agent's will on their historical profile; null for the living.</summary>
+    public ViewerFinalWill? FinalWill { get; init; }
 }
+
+/// <param name="Status">pending, accepted or default (household inheritance).</param>
+/// <param name="Split">equal or items for an accepted will; otherwise null.</param>
+/// <param name="Heirs">Each named heir and the goods the will leaves them, in the will's order.</param>
+/// <param name="FinalWords">Words the agent left for the people who inherit, if any.</param>
+public sealed record ViewerFinalWill(string Status, string? Split, IReadOnlyList<ViewerWillHeir> Heirs, string? FinalWords);
+public sealed record ViewerWillHeir(string Id, string Name, bool IsTown, IReadOnlyList<ViewerInventoryEntry> Items);
 
 public sealed record ViewerProject(string Label, string Stage, int WorkDone, int WorkRequired, string? Blocker, long StartedTick);
 public sealed record ViewerSurvival(int WarmthBasisPoints, int IllnessBasisPoints, bool HasClothing, bool HasTool,
@@ -225,6 +247,7 @@ public sealed record ViewerInstructionOrder(
     int? TargetX = null,
     int? TargetY = null,
     string? BlockedReason = null,
+    string? TargetAgentId = null,
     string? TargetMaterialKind = null,
     string? TargetEquipmentKind = null,
     string? TargetCropKind = null,
@@ -311,8 +334,12 @@ public sealed record ViewerPlacedBuilding(
     bool IsOvercrowded = false)
 {
     public IReadOnlyList<ViewerBusinessTrade> Trades { get; init; } = [];
+    public IReadOnlyList<ViewerToolMakingRequest> ToolMakingRequests { get; init; } = [];
     public bool AllowsHouseholdOwner { get; init; }
 }
+
+public sealed record ViewerToolMakingRequest(string Id, string RequesterName, string RecipeId,
+    string RecipeName, string ItemKind, string Status, string? Blocker, string? OfferId = null);
 
 public sealed record ViewerBusinessTrade(string OfferId, string BuyerName, string GoodsKind, int GoodsQuantity,
     string PaymentKind, int PaymentQuantity, string Status, string? CancellationReason);
@@ -341,6 +368,8 @@ public sealed record ViewerEvent(long EventId, long WorldTick, string Kind, stri
 
 public sealed record ViewerFounderSetup(int Required, int Placed, bool Started)
 {
+    /// <summary>An untouched bootstrap world should open New World instead of the retired camp.</summary>
+    public bool RequiresWorldCreation { get; init; }
     public bool CanChooseTownSite { get; init; }
     public bool HasAcceptedTownSite { get; init; }
     public string? LastFounderId { get; init; }
@@ -356,10 +385,127 @@ public sealed record ViewerTown(
     IReadOnlyList<ViewerPosition> BorderTiles)
 {
     public ViewerTownGovernance? Governance { get; init; }
+    public IReadOnlyList<ViewerTownProject> Projects { get; init; } = [];
+    public ViewerTownGovernment? Government { get; init; }
+    public IReadOnlyList<ViewerMarket> Markets { get; init; } = [];
+    public IReadOnlyList<ViewerTownLandHearing> LandHearings { get; init; } = [];
+    public int LandHearingCount { get; init; }
+    public IReadOnlyList<ViewerLandTransfer> LandTransfers { get; init; } = [];
+    public int LandTransferCount { get; init; }
 }
 
+public sealed record ViewerLandTransferParty(string HouseholdId, string Kind, string HouseholdName, string RosterKind,
+    IReadOnlyList<string> AdultIds, IReadOnlyList<string> AdultNames, IReadOnlyList<string> AcceptedAdultIds,
+    IReadOnlyList<string> NoticeAwareAdultIds);
+public sealed record ViewerLandTransferResponse(string HouseholdId, string HouseholdName, string AgentId,
+    string AgentName, string Kind, long Tick, IReadOnlyList<string> PartyAdults);
+public sealed record ViewerLandTransfer(string Id, string FilerId, string FilerName, string TargetHouseholdId,
+    string TargetHouseholdName, IReadOnlyList<ViewerPosition> Tiles, IReadOnlyList<ViewerLandHearingRightVersion> RightVersions,
+    IReadOnlyList<ViewerLandTransferParty> Parties, string NoticeId, long ProposedTick,
+    IReadOnlyList<ViewerLandTransferResponse> Responses, string Status, long? SettledTick, string? Reason,
+    string? ReceiptAdjustmentId);
+
+public sealed record ViewerLandHearingOutcome(string Kind, string? HouseholdId, string? HouseholdName, long? AgreedEndTick);
+public sealed record ViewerLandHearingProposal(IReadOnlyList<ViewerPosition> Tiles,
+    ViewerLandHearingOutcome RequestedOutcome, string Statement);
+public sealed record ViewerLandHearingRightVersion(string Id, string Version, ViewerHouseholdLandUseRight Right);
+public sealed record ViewerLandHearingFiling(string? AgentId, string? AgentName, string Kind, string Text,
+    ViewerLandHearingOutcome RequestedOutcome, long Tick, string? AuthorityId);
+public sealed record ViewerLandHearingParty(string Id, string Kind, string Name,
+    IReadOnlyList<string> AdultIds, IReadOnlyList<string> AdultNames, string? RepresentativeId,
+    string? RepresentativeName, IReadOnlyList<string> NoticeAwareAdultIds);
+public sealed record ViewerLandHearingResponse(int Revision, string PartyId, string AgentId, string AgentName,
+    string Kind, string Text, long Tick);
+public sealed record ViewerLandHearingJudge(string AgentId, string AgentName, string Kind, string AuthorityId, long AssignedTick);
+public sealed record ViewerLandHearingJudgeTerm(ViewerLandHearingJudge Judge, long EndedTick, string Reason);
+public sealed record ViewerLandHearingEvidence(string Id, int Revision, string Kind, string Acquisition,
+    string SourceAgentId, string SourceAgentName, string? SourceRecordId, string? SourceVersion, long ObservedTick,
+    string SubmittedByAgentId, string SubmittedByName, long SubmittedTick, string Text)
+{
+    public ViewerHouseholdLandUseRight? PermissionRecord { get; init; }
+    public ViewerTownLandTitle? TitleRecord { get; init; }
+    public string? RecordPartyName { get; init; }
+    public int? LawVersion { get; init; }
+}
+public sealed record ViewerLandHearingRead(int Revision, string AgentId, string AgentName, long ReadTick,
+    IReadOnlyList<string> EvidenceIds, string? SourceAgentId, string? SourceAgentName)
+{
+    public IReadOnlyList<string> ReopenRequestIds { get; init; } = [];
+}
+public sealed record ViewerLandHearingRuling(string Id, int Revision, ViewerLandHearingJudge Judge, long Tick,
+    ViewerLandHearingOutcome Outcome, IReadOnlyList<ViewerPosition> Tiles, IReadOnlyList<string> EvidenceIds, IReadOnlyList<string> LawIds,
+    string Reasons, IReadOnlyList<string> AdjustmentIds)
+{
+    public IReadOnlyList<ViewerLandHearingParty> Parties { get; init; } = [];
+}
+public sealed record ViewerLandHearingReopenRequest(string Id, string AgentId, string AgentName, long Tick,
+    string Kind, IReadOnlyList<string> EvidenceIds, string Reasons, string Status,
+    ViewerLandHearingJudge? AssessedBy, long? AssessedTick, string? Assessment);
+public sealed record ViewerLandHearingElection(string Id, string Stage, int Round, long? DeadlineTick,
+    IReadOnlyList<ViewerCivicCandidate> Candidates, string? WinnerName, string? Reason);
+public sealed record ViewerTownLandHearing(string Id, string Kind, string Status, long FiledTick, long? SettledTick,
+    int Revision, IReadOnlyList<ViewerPosition> Tiles, IReadOnlyList<ViewerLandHearingRightVersion> RightVersions,
+    string NoticeId, long PublishedTick, long DeadlineTick,
+    ViewerLandHearingOutcome RequestedOutcome, IReadOnlyList<ViewerLandHearingFiling> Filings, IReadOnlyList<ViewerLandHearingParty> Parties,
+    IReadOnlyList<ViewerLandHearingEvidence> Evidence, IReadOnlyList<ViewerLandHearingResponse> Responses,
+    IReadOnlyList<ViewerLandHearingRuling> Rulings, ViewerLandHearingJudge? Judge, IReadOnlyList<ViewerLandHearingJudgeTerm> JudgeHistory,
+    ViewerLandHearingElection? JudgeElection, ViewerLandHearingElection? LatestJudgeElection,
+    IReadOnlyList<ViewerLandHearingReopenRequest> ReopenRequests)
+{
+    public IReadOnlyList<ViewerLandHearingRead> Reads { get; init; } = [];
+    public IReadOnlyList<ViewerLandHearingParty> CurrentParties { get; init; } = [];
+}
+
+public sealed record ViewerTownLaw(string Id, string Subject, string Rule, string Scope, int SiteTiles, int Version,
+    long AdoptedTick, long? EndedTick)
+{
+    public IReadOnlyList<ViewerPosition> Site { get; init; } = [];
+}
+public sealed record ViewerTownOffice(string Mandate, string? HolderName, long? TermEndTick, string? VacancyReason);
+public sealed record ViewerGovernmentChange(string Id, string Declaration, string Status, int Yes, int No, int RequiredYes,
+    long? DeadlineTick, long? HandoverDeadlineTick, string? Reason);
+public sealed record ViewerMayoralElection(string Id, string Mandates, string Stage, int Round, long? DeadlineTick,
+    IReadOnlyList<ViewerCivicCandidate> Candidates, string? WinnerName, string? Reason);
+public sealed record ViewerTownGovernment(string Declaration, IReadOnlyList<ViewerTownLaw> Laws, int LawCount,
+    IReadOnlyList<ViewerTownOffice> Offices, IReadOnlyList<ViewerGovernmentChange> Changes,
+    ViewerMayoralElection? Election, ViewerMayoralElection? LatestElection, long RetryTick);
+
+public sealed record ViewerMarket(string Id, string ProjectId, string HallBuildingId,
+    ViewerPosition Site, ViewerPosition PlazaPosition, int PlazaWidth, int PlazaHeight,
+    IReadOnlyList<ViewerMarketStall> Stalls, long? RemovedTick = null);
+public sealed record ViewerMarketStall(string BuildingInstanceId, int SlotIndex, ViewerPosition Position,
+    string? SellerId, string? SellerName, long? OccupiedTick,
+    IReadOnlyList<ViewerMarketStock> Stock, IReadOnlyList<ViewerMarketTrade> Trades);
+public sealed record ViewerMarketStock(string LotId, string? ParentLotId, string OwnerId, string OwnerName,
+    string Kind, int Quantity, int AvailableQuantity);
+public sealed record ViewerMarketTrade(string OfferId, string SellerId, string SellerName,
+    string GoodsOwnerId, string GoodsOwnerName, string PaymentOwnerId, string PaymentOwnerName,
+    string BuyerId, string BuyerName, string GoodsKind, int GoodsQuantity, string PaymentKind,
+    int PaymentQuantity, string Status, string? CancellationReason,
+    bool SellerAccepted = false, bool BuyerAccepted = false);
+
 public sealed record ViewerCivicProposal(string Id, string Kind, string Text, string Status, int Yes, int No,
-    int RequiredYes, long DeadlineTick);
+    int RequiredYes, long DeadlineTick)
+{
+    public ViewerLandHearingProposal? LandHearingRequest { get; init; }
+    public ViewerTownProjectPlan? Project { get; init; }
+}
+public sealed record ViewerTownProjectBudget(string Kind, int Quantity);
+public sealed record ViewerTownProjectPlan(string Name, string ProposerId, string ProposerName,
+    string DefinitionId, string DisplayName, ViewerPosition Site, ViewerPosition Entrance,
+    int Width, int Height, IReadOnlyList<ViewerTownProjectBudget> Budget)
+{
+    public IReadOnlyList<string> Tags { get; init; } = [];
+}
+public sealed record ViewerTownProjectMaterial(string Kind, int Budget, int Supplied);
+public sealed record ViewerTownProject(string Id, string ProposalId, string Name,
+    string ProposerId, string ProposerName, string DefinitionId, string DisplayName,
+    ViewerPosition Site, ViewerPosition Entrance, int Width, int Height,
+    IReadOnlyList<ViewerTownProjectMaterial> Materials, int WorkDone, int WorkRequired,
+    string Stage, string? Blocker, string? CompletedBuildingId, ViewerCivicProposal Approval)
+{
+    public IReadOnlyList<string> Tags { get; init; } = [];
+}
 public sealed record ViewerCivicCandidate(string Id, string Name, int Votes);
 public sealed record ViewerTownElection(string Id, string Kind, string Stage, int Seats, long DeadlineTick,
     IReadOnlyList<ViewerCivicCandidate> Candidates, IReadOnlyList<string> SettledNames);
@@ -379,7 +525,10 @@ public sealed record ViewerHouseholdLandUseRight(string Id, string TownId, strin
 public sealed record ViewerHouseholdLandUseRequest(string Id, string TownId, string HouseholdId,
     string RequestedByAgentId, IReadOnlyList<ViewerPosition> Tiles, long RequestedTick,
     long? AgreedEndTick, bool IsDisputed, IReadOnlyList<string> ClaimantHouseholdIds,
-    IReadOnlyList<ViewerPosition> DisputedTiles);
+    IReadOnlyList<ViewerPosition> DisputedTiles)
+{
+    public string ApprovalDetail { get; init; } = "Awaiting approval";
+}
 
 public sealed record ViewerWeatherRegion(int X, int Y, string Weather, int? SoilMoisture = null);
 
@@ -403,7 +552,8 @@ public sealed record ViewerConversationTurn(
     string Text,
     long WorldTick,
     IReadOnlyList<string> ListenerIds,
-    bool IsWrapUp);
+    bool IsWrapUp,
+    string? SurnameChoice = null);
 
 public sealed record ViewerConversation(
     string Id,
@@ -416,7 +566,11 @@ public sealed record ViewerConversation(
     string? Outcome,
     long CreatedTick,
     long LastUpdatedTick,
-    IReadOnlyList<ViewerConversationTurn> Turns);
+    IReadOnlyList<ViewerConversationTurn> Turns)
+{
+    public string Kind { get; init; } = "ordinary";
+    public string? ChosenSurname { get; init; }
+}
 
 public sealed record ViewerWorldSnapshot(
     string WorldId,
@@ -434,10 +588,17 @@ public sealed record ViewerWorldSnapshot(
     public bool WrapsEastWest { get; init; }
     public IReadOnlyList<ViewerFarmField> Fields { get; init; } = [];
     public IReadOnlyList<ViewerGroundStock> GroundStocks { get; init; } = [];
+    public IReadOnlyList<ViewerHandcart> Handcarts { get; init; } = [];
     public IReadOnlyList<ViewerStockpile> Stockpiles { get; init; } = [];
     public ViewerCouncil? Council { get; init; }
     public int? LifePaceRate { get; init; }
     public ViewerCalendarPace? CalendarPace { get; init; }
+    /// <summary>
+    /// How dark the world is now, decided by the host from the world clock:
+    /// 0 in daylight, 10,000 at full night, between them at dusk and dawn.
+    /// Absent for a world without a calendar.
+    /// </summary>
+    public int? DarknessBasisPoints { get; init; }
     public bool? JevEnabled { get; init; }
     /// <summary>The current saved rule state, independent of retained event history.</summary>
     public bool? ContinuityRuleActive { get; init; }
@@ -487,11 +648,14 @@ public sealed record ViewerCouncil(string? StewardName, string FoodPolicy, strin
 public sealed record ViewerEventSlice(long SnapshotTick, long AfterEventId, IReadOnlyList<ViewerEvent> Events,
     long EventHistoryFloor = 0, bool ResetRequired = false);
 
+public sealed record ViewerObserverTimeline(string InstanceId, long Generation);
+
 /// <summary>
 /// A reconnect response is one server-side capture, not a race between a
 /// client's separate snapshot and event-history requests.
 /// </summary>
-public sealed record ViewerReconnectBaseline(ViewerWorldSnapshot Snapshot, ViewerEventSlice Events);
+public sealed record ViewerReconnectBaseline(ViewerWorldSnapshot Snapshot, ViewerEventSlice Events,
+    ViewerObserverTimeline? Timeline = null);
 
 /// <summary>
 /// Owns the static deterministic sample exposed by the first browser slice.
