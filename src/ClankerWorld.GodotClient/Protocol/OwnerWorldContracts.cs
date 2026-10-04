@@ -56,7 +56,10 @@ public sealed record OwnerWorldResource(
 
 public sealed record OwnerWorldInventoryEntry(string Kind, int Quantity);
 
-public sealed record OwnerWorldDecisionFactor(string Key, string Detail);
+public sealed record OwnerWorldDecisionFactor(string Key, string Detail)
+{
+    public long? AcceptanceDeadlineTick { get; init; }
+}
 
 public sealed record OwnerWorldRoute(
     string Status,
