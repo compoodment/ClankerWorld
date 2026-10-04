@@ -138,6 +138,10 @@ public sealed partial class PrivateWorldDeliveryOrderTests
         state = At(state, actor, Home(state, House).Position);
         var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "clinic-herbs", "medicinal_herbs", Alpha, 4, storageBuildingId: Clinic);
         inventory = InventoryFixture.AddLot(inventory, "clinic-fuel", "wood", Alpha, 2, storageBuildingId: Clinic);
+        // The House keeps two cooking batches; the Clinic shipment is genuine surplus.
+        inventory = InventoryFixture.AddLot(inventory, "house-reserve-jug", "water_jug", Alpha, 1, storageBuildingId: House);
+        inventory = InventoryFixture.AddLot(inventory, "house-reserve-water", "fresh_water", Alpha, 2,
+            storageBuildingId: House, containerLotId: "house-reserve-jug");
         inventory = InventoryFixture.AddLot(inventory, "clinic-jug", "water_jug", Alpha, 1, storageBuildingId: House);
         inventory = InventoryFixture.AddLot(inventory, "clinic-water", "fresh_water", Alpha,
             boundary == "available" ? 2 : 4, storageBuildingId: House, containerLotId: "clinic-jug");
@@ -159,6 +163,9 @@ public sealed partial class PrivateWorldDeliveryOrderTests
         using var world = Restore(WithInventory(state, inventory));
         var receipt = Submit(world, actor, "water-delivery", "supply " + (boundary == "finite-two" ? "two" : "four") + " fresh water to my Clinic");
         await Tick(world);
+        Assert.Equal((Alpha, House, 2), (world.Society.Inventory.GetLot("house-reserve-water").OwnerId,
+            world.Society.Inventory.GetLot("house-reserve-water").StorageBuildingId,
+            world.Society.Inventory.GetLot("house-reserve-water").Quantity));
         if (boundary != "available")
         {
             Assert.Equal(("blocked", 0), (Order(world, receipt).Status, Order(world, receipt).CompletedUnits));
@@ -183,6 +190,9 @@ public sealed partial class PrivateWorldDeliveryOrderTests
         using var replay = Reload(world);
         await FinishTogether(world, replay, receipt);
         Assert.Equal(("finished", 4), (Order(world, receipt).Status, Order(world, receipt).CompletedUnits));
+        Assert.Equal((Alpha, House, 2), (world.Society.Inventory.GetLot("house-reserve-water").OwnerId,
+            world.Society.Inventory.GetLot("house-reserve-water").StorageBuildingId,
+            world.Society.Inventory.GetLot("house-reserve-water").Quantity));
         Assert.All(ClinicJugFamily, id =>
         {
             Assert.Equal(Alpha, world.Society.Inventory.GetLot(id).OwnerId);
