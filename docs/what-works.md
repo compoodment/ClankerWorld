@@ -315,7 +315,10 @@ fields of grain". With no quantity, one field is the task. Quantities must name
 fields: "harvest five potatoes" is not understood rather than being treated as
 five fields. Grain, potatoes and cultivated greens are supported. An omitted
 crop for tending or harvesting allows any suitable household crop; a named crop
-must match. Named field locations are not understood yet.
+must match. Add "at (12, 4)" or "at tile 12,4" to work only at that location.
+An unavailable or unsuitable tile leaves the order waiting, even if another
+field could take the work. Quantities and repetition keep the exact location
+when there is no further matching work to do there.
 
 Agents use real walking routes and planting stock. Tilling and tending require
 a usable carried hoe; a carried sickle speeds harvesting under the ordinary

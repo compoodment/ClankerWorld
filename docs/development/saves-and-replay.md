@@ -176,7 +176,8 @@ land-use proposals. Closed requests remain history without competing claims.
 Prepared-tick rollback and current-format reload preserve approval progress and
 commit the final grant once. Older alpha schemas are refused without migration.
 
-Private-world schema 72 adds field orders and their optional `TargetCropKind`.
+Private-world schema 72 adds field orders and their optional `TargetCropKind`;
+schema 77 adds an optional exact tile below.
 `FarmFieldWork.OrderInstructionId` binds work to its actor's active field order.
 Restoration validates that link, action, crop, work time and ordinary seed/tool
 state; a cancelled, queued, unrelated or missing instruction cannot retain bound
@@ -233,6 +234,13 @@ preserves the earlier ruling and current rights until a new correction is commit
 alpha schemas are refused and preserved without migration.
 
 
+
+Private-world schema 77 allows the existing bounded `TargetPosition` on field
+orders. A saved running field job must be at that tile as well as matching the
+order's actor, action and crop. Queueing, partial work, exact progress and seed
+reservations survive pause and reload; a rejected tick cannot leave work or
+progress behind. An unavailable target waits without selecting another field.
+Older alpha saves are refused and preserved unchanged without migration.
 
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
@@ -445,10 +453,10 @@ the only record of membership; an admission record says what one approval did to
 - `admitted`: membership changed. It keeps the Town the newcomer left, if any,
   and the sorted IDs of the newcomer and the dependent children who moved.
 - `lapsed`: the approval could not be applied, with the reason `unavailable`,
-  `already_resident`, `affiliation_changed`, `joined_elsewhere` or, in schema 77,
+  `already_resident`, `affiliation_changed`, `joined_elsewhere` or, in schema 78,
   `acceptance_expired`.
 
-Schema 77 gives a sponsored approval one unpaused world day for acceptance. Its
+Schema 78 gives a sponsored approval one unpaused world day for acceptance. Its
 deadline is derived from the saved passed proposal's original `SettledTick` plus
 the configured `TicksPerDay`; no separate deadline field is stored. The approval
 expires at that tick, and its admission record keeps the lapse reason and actual
@@ -614,7 +622,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 77. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 78. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
@@ -685,7 +693,7 @@ storage and collection orders, schema 68 for shared Town-project construction,
 schema 69 for equipment-repair orders, schema 70 for explicit chosen names and
 unique first names, schema 71 for physical guardian placements, schema 75
 for paid Markets and physical stall trade, schema 76 for land hearings and
-consensual permission transfers, and schema 77 for sponsored admission approval
+consensual permission transfers, and schema 78 for sponsored admission approval
 expiry record when those fields or behaviors were introduced; they do not allow
 an earlier checkpoint schema past the current alpha cutoff.
 
@@ -745,7 +753,7 @@ an earlier checkpoint schema past the current alpha cutoff.
 | Schema 71 | Pending guardian placements retain exact accepted care authority, collecting or escorting progress, a selected House and current blocker. Household and Town membership change together only on valid arrival. Earlier alpha checkpoints are refused and preserved without migration. |
 | Schema 75 | Required Market lists bind paid halls and stalls to their completed Town projects, with named borrowing, physical stock receipts and exact inventory barter history. Earlier alpha checkpoints are refused and preserved without migration. |
 | Schema 76 | Land hearings and voluntary permission transfers retain notice, evidence, personal consent, authority and closure history. Original grants and bounded adjustments must reproduce current permissions. Earlier alpha saves are refused and preserved without migration. |
-| Schema 77 | A sponsored admission approval expires one unpaused world day after its passed proposal settled, with `acceptance_expired` recorded when no acceptance occurred. The deadline uses saved world time and the original council decision, so pause and reload do not restart it. Earlier alpha saves are refused and preserved without migration. |
+| Schema 78 | A sponsored admission approval expires one unpaused world day after its passed proposal settled, with `acceptance_expired` recorded when no acceptance occurred. The deadline uses saved world time and the original council decision, so pause and reload do not restart it. Earlier alpha saves are refused and preserved without migration. |
 
 ### Tool-making requests
 
