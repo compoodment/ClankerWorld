@@ -28,6 +28,9 @@ public static partial class TownGovernmentRules
         Fingerprint(adults.Prepend(mandates).Concat(Willing(state, adults, mandates).Select(id => "candidate:" + id)));
     private static string[] Willing(TownGovernmentState state, string[] adults, string mandates) =>
         adults.Where(id => state.Consents.Any(c => c.AgentId == id && c.Mandates == mandates)).ToArray();
+    private static string[] RequiredSuccessorMandates(TownArrangement current, TownGovernmentChange change) =>
+        change.Kind == "replace_mayor" ? Mandates(change.Target) :
+            Mandates(change.Target).Except(Mandates(current), StringComparer.Ordinal).ToArray();
     private static TownGovernmentState Replace(TownGovernmentState state, TownGovernmentChange change) =>
         state with { Changes = state.Changes.Select(c => c.Id == change.Id ? change : c).ToArray() };
     private static TownGovernanceState Notice(TownGovernanceState council, string kind, string subject, string text, long tick) =>
@@ -174,14 +177,15 @@ public static partial class TownGovernmentRules
         if (handover is not null)
         {
             var winner = state.Contest is { Stage: "ready", Purpose: "handover" } contest && contest.ChangeId == handover.Id ? contest : null;
-            var officeReady = Mandates(handover.Target).All(m =>
-                winner is not null && Has(winner.Mandates.Split('+'), m) || handover.Kind != "replace_mayor" &&
-                state.Offices.Any(o => o.Mandates == m && o.HolderId is not null));
+            var officeReady = RequiredSuccessorMandates(state.Arrangement, handover).All(m =>
+                winner is not null && Has(winner.Mandates.Split('+'), m));
             var councilReady = !targetNeedsCouncil || council.Form == "representative" && council.Members.Count == TownGovernanceRules.Seats ||
                 council.Election is { Stage: "ready", SettledSeats.Count: TownGovernanceRules.Seats };
             if (officeReady && councilReady && tick <= handover.HandoverDeadlineTick)
             {
                 if (winner is not null) (council, state) = SeatMayor(council, state, winner, tick, day);
+                if (state.Contest?.ChangeId == handover.Id)
+                    (council, state) = ArchiveContest(council, state, "cancelled", "The government handover completed without needing this election.", adults, tick, day);
                 foreach (var office in state.Offices.Where(o => !Has(Mandates(handover.Target), o.Mandates)).ToArray())
                 {
                     if (office.HolderId is not null) (council, state) = EndOffice(council, state, office, tick, "Residents ended this mandate.");

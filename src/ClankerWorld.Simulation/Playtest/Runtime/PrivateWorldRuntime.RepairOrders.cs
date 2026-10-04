@@ -17,11 +17,7 @@ public sealed partial class PrivateWorldRuntime
                 : "End the previous repair and release its unused materials before starting this task.", 0, repair.LotId);
         var target = WornEquipmentItems(actor)
             .Where(lot => lot.ItemKind == instruction.Order!.TargetEquipmentKind)
-            .FirstOrDefault(lot => MissingRepairInputUnits(actor, lot) <= FreeCarryCapacity(actor) &&
-                EquipmentRepairSite(actor, lot) is { } site &&
-                (person.Position == site.Position || FindUnoccupiedRoute(actor, person.Position, site.Position, 0).Count > 0) &&
-                PersonalEquipmentRules.RepairMaterials(lot.ItemKind).All(input => HasCarriedOwnItem(actor, input.ResourceId) ||
-                    SharedItem(input.ResourceId, actor) is not null));
+            .FirstOrDefault(lot => CanPrepareEquipmentRepair(actor, person, lot));
         return target is null ? null : new("repair_equipment", "Collect the materials and repair the requested personal item at your household's work site.", 0, target.Id);
     }
 

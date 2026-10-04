@@ -175,7 +175,24 @@ land-use proposals. Closed requests remain history without competing claims.
 Prepared-tick rollback and current-format reload preserve approval progress and
 commit the final grant once. Older alpha schemas are refused without migration.
 
-Schema 72 saves each Town's land-hearing ledger: plot and right-version notice
+Private-world schema 72 adds field orders and their optional `TargetCropKind`.
+`FarmFieldWork.OrderInstructionId` binds work to its actor's active field order.
+Restoration validates that link, action, crop, work time and ordinary seed/tool
+state; a cancelled, queued, unrelated or missing instruction cannot retain bound
+work. Only finished work earns a bounded receipt and one completed field. Replay
+covers partial planting, queues, released seeds, real tool wear and household
+harvest ownership. This version follows the integrated guardian-placement schema 71. Older alpha saves
+are refused and preserved unchanged without migration.
+
+Private-world schema 73 adds `repair_tool` orders using the existing
+`TargetEquipmentKind` field. Validation restricts the action to supported tool
+kinds and repair counts. Only a completed inventory repair earns a bounded
+`repair:tool:` receipt. Replay covers partly completed quantities, preparation,
+queues and cancellation without charging the materials twice. This version
+follows integrated field-order schema 72. Older alpha saves are refused and preserved
+unchanged without migration.
+
+Schema 74 saves each Town's land-hearing ledger: plot and right-version notice
 revisions, affected parties, public evidence and provenance, explicit responses,
 actual file reads, case-only candidate consent and elections, adjudicator terms,
 rulings and rehearing assessments. Notice publication does not become a receipt,
@@ -204,6 +221,7 @@ receipts and events. Current-format reload and continuation retain pending
 windows, rulings and transfers without applying a decision twice. Reopening
 preserves the earlier ruling and current rights until a new correction is committed. Older
 alpha schemas are refused and preserved without migration.
+
 
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
@@ -575,7 +593,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 72. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 74. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
@@ -752,7 +770,11 @@ save made before night existed loads unchanged; nights, and their chill on
 outdoor warmth, apply from its next tick. Its recorded history is not
 re-simulated. A world saved during dawn reloads at the same darkness and
 advances to the same bytes as the live world, which `SettlementSurvivalTests`
-checks.
+checks. Seasonal night length
+([#891](https://github.com/compoodment/ClankerWorld/issues/891)) is derived the
+same way, from the saved tick and the saved season lengths, so it adds no saved
+field either: an existing save loads, and from its next tick its nights follow
+the season it is in.
 
 ## Council-approved Town projects
 

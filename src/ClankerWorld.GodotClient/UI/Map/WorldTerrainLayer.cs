@@ -463,6 +463,7 @@ public partial class WorldTerrainLayer : Control
             10 => "Diamond outcrop",
             11 => "Clay bank",
             12 => "Fallen wood",
+            13 => "Medicinal herb patch",
             _ => null,
         };
     }
@@ -486,22 +487,7 @@ public partial class WorldTerrainLayer : Control
         var stages = new byte[next.Length];
         foreach (var resource in resources)
         {
-            var kind = resource.NaturalObjectKind switch
-            {
-                "berry_bush" => (byte)1,
-                "wild_greens" => (byte)2,
-                "fiber_plant" => (byte)3,
-                "reeds" => (byte)4,
-                "stone_outcrop" => (byte)5,
-                "fallen_wood" => (byte)12,
-                "wild_seed_patch" => (byte)6,
-                "fertile_soil" => (byte)7,
-                "iron_outcrop" => (byte)8,
-                "gold_outcrop" => (byte)9,
-                "diamond_outcrop" => (byte)10,
-                "clay_bank" => (byte)11,
-                _ => (byte)0,
-            };
+            var kind = NatureSprites.NaturalObjectCode(resource.NaturalObjectKind);
             if (kind == 0) continue;
             var x = resource.Position.X;
             var y = resource.Position.Y;
@@ -522,15 +508,14 @@ public partial class WorldTerrainLayer : Control
         foreach (var resource in resources)
         {
             if (resource.TreeKind is not null || resource.NaturalObjectKind is not null ||
-                NatureSprites.ForCampResource(resource.Kind) is not { } sprite) continue;
+                NatureSprites.ForCampResource(resource.Kind, resource.Quantity == 0 || resource.State != "available",
+                    resource.IsRenewable) is not { } sprite) continue;
             var x = resource.Position.X;
             var y = resource.Position.Y;
             if (x < 0 || x >= world.Width || y < 0 || y >= world.Height) continue;
             var index = y * world.Width + x;
             if (trees[index] != 0 || next[index] != 0) continue;
-            campResources[index] = resource.Quantity == 0 || resource.State != "available"
-                ? resource.IsRenewable ? NatureSprite.Regrowing : NatureSprite.Depleted
-                : sprite;
+            campResources[index] = sprite;
         }
         QueueRedraw();
     }
@@ -872,6 +857,9 @@ public partial class WorldTerrainLayer : Control
                 break;
             case 12: // fallen wood
                 DrawCampResource(position, NatureSprite.WoodPile);
+                break;
+            case 13: // medicinal herb patch: reuse the approved drawing at overview zoom.
+                DrawNatureSprite(position, NatureSprite.HerbPatch);
                 break;
             default:
                 return;
@@ -1225,7 +1213,7 @@ public partial class WorldTerrainLayer : Control
             NatureSprite.StoneOutcrop => new Color("8C8A82"),
             NatureSprite.FertileSoil => new Color("5E4A36"),
             NatureSprite.WildSeedPatch => new Color("C8B066"),
-            NatureSprite.Depleted => new Color("77766D", 0.78f),
+            NatureSprite.Depleted or NatureSprite.StoneOutcropDepleted or NatureSprite.ClayBankDepleted => new Color("77766D", 0.78f),
             _ => new Color("4F7A45"),
         };
         DrawCircle(position + new Vector2(tileSize * 0.5f, tileSize * 0.56f), Math.Max(1.5f, tileSize * 0.2f), color);
