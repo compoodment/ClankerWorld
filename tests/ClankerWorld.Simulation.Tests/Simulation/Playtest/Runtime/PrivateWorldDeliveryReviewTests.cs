@@ -1,4 +1,4 @@
-using ClankerWorld.Simulation.Harness;
+using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
 
 namespace ClankerWorld.Simulation.Tests;
@@ -50,7 +50,7 @@ public sealed partial class PrivateWorldDeliveryOrderTests
         inventory = InventoryFixture.AddLot(inventory, "promised-jug", "water_jug", Alpha, 1,
             groundPosition: new(source.X, source.Y));
         inventory = InventoryFixture.AddLot(inventory, "promised-water", "fresh_water", Alpha, 4,
-            containerLotId: "promised-jug", groundPosition: new(source.X, source.Y));
+            containerLotId: "promised-jug");
         using var world = Restore(WithInventory(state, inventory));
         var receipt = Submit(world, actor, "vessel-usability", "supply four fresh water to my Clinic");
         await Tick(world);
