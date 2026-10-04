@@ -97,6 +97,9 @@ public sealed partial class PrivateWorldRuntime
         ValidateTownAdmissions(towns, society.Checkpoint, checkpointSchemaVersion);
         TownProjectValidation.Validate(towns, society.Checkpoint, map, worldSimulation, worldContent,
             townLandTitles, householdLandUseRights, householdLandUseRequests, fields, RoadTiles, Bridges);
+        ValidatePaidMarkets(towns, society.Checkpoint, map, worldSimulation, worldContent,
+            fields, householdLandUseRights, householdLandUseRequests, RoadTiles, Bridges);
+        MarketTradeValidation.Validate(towns, society.Checkpoint, map, worldSimulation, worldContent, WorldTick, inhabitants.Values);
         ValidateRoads(RoadTiles, map, founderSetup);
         ValidateBridges(Bridges, bridgeTraffic, map, RoadTiles, worldSimulation, worldContent,
             society.Checkpoint, inhabitants.Values);
@@ -406,6 +409,9 @@ public sealed partial class PrivateWorldRuntime
         ValidateTownAdmissions(state.Towns ?? [], society.Checkpoint, state.SchemaVersion);
         TownProjectValidation.Validate(state.Towns ?? [], society.Checkpoint, state.Map, state.WorldSimulation!, state.WorldContent!,
             state.TownLandTitles!, state.HouseholdLandUseRights!, state.HouseholdLandUseRequests!, state.Fields!, state.RoadTiles!, state.Bridges!);
+        ValidatePaidMarkets(state.Towns ?? [], society.Checkpoint, state.Map, state.WorldSimulation!, state.WorldContent!,
+            state.Fields!, state.HouseholdLandUseRights!, state.HouseholdLandUseRequests!, state.RoadTiles!, state.Bridges!);
+        MarketTradeValidation.Validate(state.Towns ?? [], society.Checkpoint, state.Map, state.WorldSimulation!, state.WorldContent!, society.Checkpoint.WorldTick, state.Inhabitants);
         ValidateLessons(state);
         ValidateHousing(state.Inhabitants, state.Society.Society, state.SchemaVersion);
         ValidateDependentCare(state.Inhabitants, state.Society.Society, state.Towns ?? [], state.SchemaVersion);
@@ -622,7 +628,7 @@ public sealed partial class PrivateWorldRuntime
 
         if (order.Action == "collect_material")
             return PrivateWorldInstructionOrderParser.IsMaterialKind(order.TargetMaterialKind) &&
-                order.TargetAgentId is null && order.TargetFoodKind is null && order.TargetResourceId is null && order.TargetPosition is null &&
+                order.TargetAgentId is null && order.TargetFoodKind is null && order.TargetResourceId is null &&
                 order.RequestedUnits is >= 1 and <= 1000 && order.CompletedUnits is >= 0 and <= 1_000_000 &&
                 (order.RepeatUntilCancelled || order.CompletedUnits <= order.RequestedUnits) &&
                 order.Status != "not_understood" &&

@@ -156,8 +156,11 @@ Collection orders use `PersonalGoodsAwaitingCollection` and the shared
 carried, reserved in full, promised for delivery or inside another container.
 Storage must belong to the current household or one recorded in that actor's
 departures. Ground lots use normal pickup range. The nearest reachable eligible
-lot is chosen, with stable identity ordering for ties; an explicit source is
-not yet recognized. Physical pickup preserves ownership, condition, provenance
+lot is chosen, with stable identity ordering for ties. An optional source tile
+filters this same set by its current physical position, at both selection and
+execution. Moving goods away or exhausting the tile leaves the remaining order
+blocked; it never falls back to another location. Building storage uses the
+building's listed position. Physical pickup preserves ownership, condition, provenance
 and reserved portions, with the final quantity capped by carrying space and
 the requested remainder. Only the committed relocation earns progress, using
 a bounded hashed receipt. Former-household collection grants no other access.
@@ -1488,9 +1491,65 @@ Store stocking also keeps each adult's best usable work tool. Optional shelf
 restocking waits behind gathering materials needed by household work.
 Rates, the eight-unit shelf target and four-unit carried loads are provisional.
 Blacksmiths can sell real refined iron for another household's tool work.
-Market stalls and meals remain tracked in #564 and its domain
+Meals remain tracked in #564 and its domain
 issues; currency remains later work. The Clinic sells actual medicine
 and bandages through the same inventory and physical business authority.
+
+**Markets** use the same inventory authority with separate saved paid-building
+and occupancy records. The Council-approved starter project pays for the 2×2
+hall and only two 1×1 stalls on the fixed 7×4 plaza, in slots 0 and 4. When
+every standing stall is borrowed and no further stall is proposed or under
+construction, the next unused fixed slot may be proposed as a separate
+Council-approved Town project. A standing Market's site tiles count as occupied
+for other buildings, Town project sites, expansions, fields, tree planting and
+household land requests. The provisional starter budget is 24 wood,
+8 stone and 4 fiber with 10 work units; another stall costs 4 wood and 2 fiber
+with 3 work units. General plaza growth has no implementation or agreed rule.
+Physical stock receipts retain the personal or household owner. One named
+active adult borrows a stall while they remain inside the hall-and-plaza area;
+leaving, household change, death or removal ends borrowing and releases
+unfinished offer claims without transferring leftovers.
+
+Loads, borrowing, deposits, collection and barter mutations need a fresh
+accepted, non-fallback personal LLM choice; their candidates rank above
+`safe_idle`, so built-in rules never pick them. Continued intentions walk only;
+owner orders do not authorize these mutations. A member carrying their own
+household's goods may return them to its House through `household_return`, and
+the household hauling, farm stock and planting routines skip stock on a stall
+while a member of that household borrows it. Usable loose surplus (the food
+reserve counts the owner's other usable stock of that kind), actual
+carrying and stall room, active claims, current household rights and protected
+equipment constrain the offered choices. The provisional one-for-one quote is
+an actual `Inventory.Offers` exchange. Buyers may belong to any Town or have no
+Town membership; walking into the Market and completing a purchase change
+neither their household nor their Town. The named seller accepts only after
+both people meet at the stall. Purchased stock
+becomes the buyer's personal cargo; payment is physically set down as the
+seller's household stock, including payment for personally owned goods. A
+later stall borrower cannot sell an earlier borrower's stock. Its recorded
+owner, or a current member of the owning household, may physically collect it.
+Live inventory ownership remains authoritative after inheritance or collection.
+Customer access remains limited to the named transaction. See the
+[Market save rules](saves-and-replay.md#paid-markets-and-stall-trade) for the
+saved layout, stock and offer checks.
+
+Missing-input demand checks the buyer's actual production owner, keeping each
+household's available materials separate. A nonterminal recipe plan marked
+`RequiresFreshChoice` may choose a Market purchase while remaining paused; an
+actively continuing plan keeps the adult at its work. Resuming the recipe
+still requires its ordinary choice and physical ingredient-delivery rules.
+
+`WantsFieldPlantingStock` reuses the actual field and planting-stock checks for
+grain seed, cultivated-green seed and loose potatoes. The adult must belong to
+a household holding a Farmhouse, have a usable hoe and have no urgent survival
+need or actively continuing project. That household must need food, and the
+adult must be able to reach its idle `Prepared` or `Harvested` field without
+another person's planting claim. A usable personally carried planting unit,
+accessible household stock or that field's reserved replanting lot satisfies
+the same-kind need. The exact one-unit purchase remains personal cargo until
+ordinary field work consumes it; a held unit suppresses further same-kind seed
+quotes even when the seller still has stock. Other goods may still be wanted.
+Demand creates no future seed buffer or access to another household's stores.
 
 ### Blacksmith tool-making requests
 

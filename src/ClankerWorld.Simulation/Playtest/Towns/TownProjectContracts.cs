@@ -32,15 +32,36 @@ public static class TownProjectRules
     public const int WorkTicks = 10;
     public const int MaximumNameLength = 80;
 
+    public static IReadOnlyList<BuildingDefinition> Definitions { get; } =
+        Array.AsReadOnly(new[] { TownHallContent.Hall3x4(), MarketContent.Hall2x2(), MarketContent.Stall1x1() });
+
+    public static BuildingDefinition? DefinitionFor(string definitionId) =>
+        Definitions.SingleOrDefault(definition => definition.CanonicalId == definitionId);
+
+    public static int RequiredWork(TownProjectPayload plan) =>
+        plan.DefinitionId == MarketContent.Stall1x1().CanonicalId ? 3 : WorkTicks;
+
+    public static IEnumerable<GridPoint> Footprint(TownProjectPayload plan) =>
+        plan.DefinitionId == MarketContent.Hall2x2().CanonicalId
+            ? MarketContent.SiteTiles(plan.Site)
+            : WorldContentSimulationRules.Footprint(DefinitionFor(plan.DefinitionId) ??
+                throw new InvalidDataException("Unsupported Town project definition."), plan.Site);
+
     public static void ValidatePayload(TownProjectPayload? plan)
     {
-        var hall = TownHallContent.Hall3x4();
+        var definition = plan is null ? null : DefinitionFor(plan.DefinitionId);
         if (plan is null || string.IsNullOrWhiteSpace(plan.Name) || plan.Name != plan.Name.Trim() ||
             plan.Name.Length > MaximumNameLength || plan.Name.Any(char.IsControl) ||
-            plan.DefinitionId != hall.CanonicalId || plan.Entrance != TownHallContent.Entrance(plan.Site) ||
-            plan.Budget is null || !plan.Budget.SequenceEqual(hall.BuildCosts))
+            definition is null || !EntranceMatches(plan) ||
+            plan.Budget is null || !plan.Budget.SequenceEqual(definition.BuildCosts))
             throw new InvalidDataException("The Town project must bind a supported building, name, doorway and exact provisional budget.");
     }
+
+    private static bool EntranceMatches(TownProjectPayload plan) => plan.DefinitionId == TownHallContent.Hall3x4().CanonicalId
+        ? plan.Entrance == TownHallContent.Entrance(plan.Site)
+        : plan.DefinitionId == MarketContent.Hall2x2().CanonicalId
+            ? plan.Entrance == MarketContent.HallEntrance(plan.Site)
+            : plan.Entrance.X == plan.Site.X && Math.Abs((long)plan.Entrance.Y - plan.Site.Y) == 1;
 
     public static string RequestKey(TownProjectPayload plan)
     {
@@ -64,7 +85,7 @@ public static class TownProjectRules
             new[] { projectId, actor, sourceLotId, tick.ToString(CultureInfo.InvariantCulture), ordinal.ToString(CultureInfo.InvariantCulture) }))));
 
     public static string ProposalText(TownProjectPayload plan) =>
-        FormattableString.Invariant($"Build {plan.Name}, a Town Hall at ({plan.Site.X},{plan.Site.Y}), with ") +
+        FormattableString.Invariant($"Build {plan.Name}, a {DefinitionFor(plan.DefinitionId)?.DisplayName ?? "Town building"} at ({plan.Site.X},{plan.Site.Y}), with ") +
         string.Join(" and ", plan.Budget.Select(q => q.Amount.ToString(CultureInfo.InvariantCulture) + " " + q.ResourceId)) + " (provisional budget).";
 
     public static bool SameScope(TownProjectPayload first, TownProjectPayload second) =>

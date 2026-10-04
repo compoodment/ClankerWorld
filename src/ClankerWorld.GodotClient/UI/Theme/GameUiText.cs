@@ -297,6 +297,12 @@ public static class GameUiText
             "ornament_worn" or "ornament_removed" or "ornament_given" or
             "inhabitant_building_proposed" or "instruction_not_understood" or "settlement_founded" or "town_founding_started" or
             "town_civic_council" or "town_civic_election" or "town_civic_runoff" or "town_civic_proposal" or "town_civic_result" or "town_civic_cancelled" or
+            "town_project_approved" or "town_project_blocked" or "town_project_resumed" or "town_project_cancelled" or
+            "town_project_donated" or "town_project_material_picked_up" or "town_project_material_delivered" or
+            "town_project_material_returned" or "town_project_worked" or "town_project_completed" or
+            "market_built" or "market_stall_built" or "market_stall_borrowed" or "market_stall_left" or
+            "market_stock_loaded" or "market_stock_delivered" or "market_stock_collected" or
+            "market_trade_offered" or "market_trade_completed" or "market_trade_cancelled" or
             "town_resident_joined" or "town_resident_left" or "town_membership_evaluated" or
             "town_admission_accepted" or "town_admission_approved" or "town_admission_lapsed" or
             "land_use_requested" or "land_use_granted" or "town_building_assigned" or "town_border_expanded" or "town_land_claimed" or "town_founded" or "bridge_built" or
