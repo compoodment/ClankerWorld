@@ -109,13 +109,15 @@ public sealed partial class PrivateWorldRuntime
     private void AddTownProjectProposalCandidates(List<CognitionCandidate> candidates, string actor, TownRuntimeState town)
     {
         // Every Town project building is communal, so all of them read the same occupied tiles and foot
-        // routes, and all of their site checks read the same world tiles: gather each once.
-        var basis = CreateTownLayoutBasis(actor, building: TownProjectRules.Definitions[0]);
+        // routes, and all of their site checks read the same world tiles: gather each once, when first needed.
+        // A basis built for another kind of building is refused by CreateTownLayoutContext.
+        var basis = new Lazy<TownLayoutBasis>(() => CreateTownLayoutBasis(actor, building: TownHallContent.Hall3x4()),
+            LazyThreadSafetyMode.None);
         var siteWorld = CreateTownProjectSiteWorld(town);
         foreach (var definition in TownProjectRules.Definitions.Where(item => !item.Tags.Contains(MarketContent.StallTag, StringComparer.Ordinal) && !StreetLanternContent.IsLantern(item.CanonicalId)))
         {
             if (!worldContent.Buildings.Any(item => item.CanonicalId == definition.CanonicalId)) continue;
-            var layout = CreateTownLayoutContext(actor, building: definition, forTownProject: true, basis: basis);
+            var layout = CreateTownLayoutContext(actor, building: definition, forTownProject: true, basis: basis.Value);
             var offered = 0;
             foreach (var site in TownLayoutService.RankConstructionSites(layout, definition, TownLayoutService.MaximumCandidateLimit))
             {
@@ -169,12 +171,12 @@ public sealed partial class PrivateWorldRuntime
     // edge is scored, but the full site check runs only in rank order until four edges pass: the same
     // four that checking every edge would give.
     private void AddStreetLanternProposalCandidates(List<CognitionCandidate> candidates, string actor, TownRuntimeState town,
-        TownLayoutBasis basis, TownProjectSiteWorld siteWorld)
+        Lazy<TownLayoutBasis> basis, TownProjectSiteWorld siteWorld)
     {
         var designs = new[] { StreetLanternContent.Stone(), StreetLanternContent.Hanging() }
             .Where(definition => worldContent.Buildings.Any(item => item.CanonicalId == definition.CanonicalId)).ToArray();
         if (designs.Length == 0) return;
-        var ordinary = CreateTownLayoutContext(actor, building: designs[0], basis: basis);
+        var ordinary = CreateTownLayoutContext(actor, building: designs[0], basis: basis.Value);
         var legal = siteWorld.Legal.Value;
         var layout = new TownLayoutContext(map, town, ordinary.OccupiedTiles, ordinary.ReachableFootCosts,
             ordinary.Resources, ordinary.Buildings, roadTiles: roadTiles, requiredLandTiles: legal);
