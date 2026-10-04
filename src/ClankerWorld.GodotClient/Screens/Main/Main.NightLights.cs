@@ -30,7 +30,14 @@ public partial class Main
             var door = BuildingDoor.Facing(footprint, building.Entrance is { } entrance
                 ? new Vector2I(entrance.X, entrance.Y) : null);
             var (roof, yard, middle, wing) = BuildingSprites.Plan(kind, footprint.Size.X, footprint.Size.Y, door);
-            lights.Add(new BuildingLight(footprint, new LightPlan(design, roof, yard, door.Side, middle, Wing: wing),
+            Vector2? lantern = kind == BuildingKind.Port ? door.Side switch
+            {
+                DoorSide.North => new(footprint.Size.X * 16, footprint.Size.Y * 32 - 9),
+                DoorSide.South => new(footprint.Size.X * 16, 9),
+                DoorSide.West => new(footprint.Size.X * 32 - 9, footprint.Size.Y * 16),
+                _ => new(9, footprint.Size.Y * 16),
+            } : null;
+            lights.Add(new BuildingLight(footprint, new LightPlan(design, roof, yard, door.Side, middle, lantern, wing),
                 people.Any(footprint.HasPoint), working.Contains(building.InstanceId))
             { Kind = kind, Door = door });
         }
@@ -60,6 +67,7 @@ public partial class Main
         BuildingKind.Restaurant => LitDesign.Restaurant,
         BuildingKind.TownHall => LitDesign.TownHall,
         BuildingKind.Market => LitDesign.MarketHall,
+        BuildingKind.Port => LitDesign.Port,
         BuildingKind.Blacksmith => LitDesign.Blacksmith,
         BuildingKind.Warehouse or BuildingKind.Storehouse => LitDesign.Warehouse,
         BuildingKind.Silo => LitDesign.Silo,

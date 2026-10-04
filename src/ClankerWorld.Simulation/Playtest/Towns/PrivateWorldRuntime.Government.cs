@@ -34,7 +34,7 @@ public sealed partial class PrivateWorldRuntime
         {
             var number = TownLawRules.Number(law.Id).ToString(CultureInfo.InvariantCulture);
             var current = TownLawRules.Current(law);
-            candidates.Add(new(CivicAction(town.Id, "amend", law.Id, current.Version.ToString(CultureInfo.InvariantCulture)),
+            if (current.BoatAccess is null) candidates.Add(new(CivicAction(town.Id, "amend", law.Id, current.Version.ToString(CultureInfo.InvariantCulture)),
                 $"Propose amending {town.Name}'s law {number} ({current.Subject}); write the complete new wording in civic_proposal as 'subject: rule'. " +
                 "It keeps the law's scope, needs the council's votes and applies only from adoption.", 193));
             candidates.Add(new(CivicAction(town.Id, "repeal", law.Id, current.Version.ToString(CultureInfo.InvariantCulture)),

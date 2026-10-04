@@ -29,6 +29,12 @@ public sealed record ViewerHandcart(string Id, string OwnerId, string OwnerName,
     int Capacity, int ConditionPercent, string? PullerId, string? PullerName,
     IReadOnlyList<ViewerInventoryEntry> Cargo);
 
+public sealed record ViewerBoat(string Id, string TownId, string TownName, ViewerPosition Position,
+    string? DockedPortId, string? PassengerId, string? PassengerName, string? DestinationPortId,
+    string Status, ViewerPosition? ReservedDock, IReadOnlyList<ViewerInventoryEntry> Cargo);
+public sealed record ViewerBoatTripRequest(string Id, long Sequence, string PassengerId, string PassengerName,
+    string BoatTownId, string OriginPortId, string DestinationPortId, string Status, string? BoatId);
+
 public sealed record ViewerGroundStock(ViewerPosition Position, string OwnerId, string Kind, int Quantity);
 public sealed record ViewerWorldPreview(ViewerPackedTerrain Terrain, ViewerPosition Camp,
     string ManifestDigest, int ResourceSites = 0)
@@ -496,6 +502,7 @@ public sealed record ViewerTownProjectPlan(string Name, string ProposerId, strin
     int Width, int Height, IReadOnlyList<ViewerTownProjectBudget> Budget)
 {
     public IReadOnlyList<string> Tags { get; init; } = [];
+    public string? BoatPortId { get; init; }
 }
 public sealed record ViewerTownProjectMaterial(string Kind, int Budget, int Supplied);
 public sealed record ViewerTownProject(string Id, string ProposalId, string Name,
@@ -505,6 +512,7 @@ public sealed record ViewerTownProject(string Id, string ProposalId, string Name
     string Stage, string? Blocker, string? CompletedBuildingId, ViewerCivicProposal Approval)
 {
     public IReadOnlyList<string> Tags { get; init; } = [];
+    public string? CompletedBoatId { get; init; }
 }
 public sealed record ViewerCivicCandidate(string Id, string Name, int Votes);
 public sealed record ViewerTownElection(string Id, string Kind, string Stage, int Seats, long DeadlineTick,
@@ -589,6 +597,8 @@ public sealed record ViewerWorldSnapshot(
     public IReadOnlyList<ViewerFarmField> Fields { get; init; } = [];
     public IReadOnlyList<ViewerGroundStock> GroundStocks { get; init; } = [];
     public IReadOnlyList<ViewerHandcart> Handcarts { get; init; } = [];
+    public IReadOnlyList<ViewerBoat> Boats { get; init; } = [];
+    public IReadOnlyList<ViewerBoatTripRequest> BoatRequests { get; init; } = [];
     public IReadOnlyList<ViewerStockpile> Stockpiles { get; init; } = [];
     public ViewerCouncil? Council { get; init; }
     public int? LifePaceRate { get; init; }

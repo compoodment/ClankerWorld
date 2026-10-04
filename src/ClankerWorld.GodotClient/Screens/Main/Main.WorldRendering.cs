@@ -10,6 +10,7 @@ public partial class Main
 {
     // Facing is presentation inferred from accepted positions, never saved world state.
     private readonly Dictionary<string, (OwnerWorldPosition Position, int Facing)> handcartFacings = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, (OwnerWorldPosition Position, int Facing)> boatFacings = new(StringComparer.Ordinal);
 
     private void ResetDisplayedWorldContext()
     {
@@ -67,6 +68,7 @@ public partial class Main
         mapObjectVisuals.Clear();
         mapObjectCanonicalXs.Clear();
         handcartFacings.Clear();
+        boatFacings.Clear();
     }
 
     private void Render(OwnerWorldSnapshot snapshot, IReadOnlyList<OwnerWorldEvent> appendedEvents)
@@ -142,12 +144,16 @@ public partial class Main
                 (snapshot.Authoring?.CurrentMapManifestDigest ?? snapshot.MapManifestDigest) ||
             previous.MapLayersDigest != snapshot.MapLayersDigest ||
             previous.WrapsEastWest != snapshot.WrapsEastWest || MapDimensions(previous) != MapDimensions(snapshot))
+        {
             handcartFacings.Clear();
+            boatFacings.Clear();
+        }
         renderedMapSnapshot = snapshot;
         var objectIds = snapshot.Resources.Where(resource => resource.TreeKind is null)
             .Select(resource => "resource:" + resource.Id)
             .Concat(snapshot.Objects.Select(item => "object:" + item.Id))
             .Concat(snapshot.Handcarts.Select(item => "handcart:" + item.Id))
+            .Concat(snapshot.Boats.Select(item => "boat:" + item.Id))
             .Concat(snapshot.PlacedBuildings.Select(item => "building:" + item.InstanceId)).ToHashSet(StringComparer.Ordinal);
         foreach (var id in mapObjectVisuals.Keys.Where(id => !objectIds.Contains(id)).ToArray())
         {
@@ -157,10 +163,13 @@ public partial class Main
         }
         foreach (var id in handcartFacings.Keys.Where(id => !objectIds.Contains("handcart:" + id)).ToArray())
             handcartFacings.Remove(id);
+        foreach (var id in boatFacings.Keys.Where(id => !objectIds.Contains("boat:" + id)).ToArray())
+            boatFacings.Remove(id);
 
         if (!HasMap(snapshot))
         {
             handcartFacings.Clear();
+            boatFacings.Clear();
             foreach (var visual in inhabitantVisuals.Values) visual.QueueFree();
             inhabitantVisuals.Clear();
             inhabitantCanonicalXs.Clear();
@@ -231,6 +240,30 @@ public partial class Main
                     ? ResourceGlyph(resource.Kind, resource.NaturalObjectKind) : string.Empty,
                 GameUiText.ResourceMapCaption(resource, currentTileSize),
                 GameUiText.ResourceTooltip(resource));
+        }
+
+        foreach (var boat in snapshot.Boats)
+        {
+            var id = "boat:" + boat.Id;
+            AddMapObjectVisual(id, boat.Position, string.Empty, string.Empty, GameUiText.BoatDescription(boat));
+            var marker = mapObjectVisuals[id];
+            var sprite = marker.GetNodeOrNull<TextureRect>("BoatSprite");
+            if (sprite is null)
+            {
+                sprite = new TextureRect
+                {
+                    Name = "BoatSprite", MouseFilter = Control.MouseFilterEnum.Ignore,
+                    TextureFilter = CanvasItem.TextureFilterEnum.Nearest,
+                };
+                marker.AddChild(sprite);
+            }
+            var facing = ObserveBoatFacing(boat, mapWidth, snapshot.WrapsEastWest);
+            sprite.Texture = BoatSprites.Texture(facing, boat.Status is "underway" or "returning");
+            // The approved boat is 32 px. Smaller views scale that drawing until #914 supplies approved 16 px art.
+            var size = currentTileSize >= 40 ? 32 : Math.Max(1, currentTileSize - 8);
+            sprite.Size = new(size, size);
+            sprite.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
+            sprite.Position = new(0, Math.Max(0, marker.Size.Y - size));
         }
 
         foreach (var cart in snapshot.Handcarts)
@@ -404,6 +437,22 @@ public partial class Main
                 facing = AgentSprites.FacingToward(dx, dy);
         }
         handcartFacings[cart.Id] = (cart.Position, facing);
+        return facing;
+    }
+
+    private int ObserveBoatFacing(OwnerWorldBoat boat, int mapWidth, bool wrapsEastWest)
+    {
+        var facing = AgentSprites.South;
+        if (boatFacings.TryGetValue(boat.Id, out var previous))
+        {
+            facing = previous.Facing;
+            var dx = boat.Position.X - previous.Position.X;
+            var dy = boat.Position.Y - previous.Position.Y;
+            if (wrapsEastWest && mapWidth > 0) dx -= (int)Math.Round(dx / (double)mapWidth) * mapWidth;
+            if (Math.Max(Math.Abs(dx), Math.Abs(dy)) > AgentMarker.MaxStepTiles) facing = AgentSprites.South;
+            else if (dx != 0 || dy != 0) facing = AgentSprites.FacingToward(dx, dy);
+        }
+        boatFacings[boat.Id] = (boat.Position, facing);
         return facing;
     }
 

@@ -11,7 +11,11 @@ namespace ClankerWorld.Simulation.Playtest;
 
 /// <summary>Immutable scope of a supported construction proposal; a name grants no authority.</summary>
 public sealed record TownProjectPayload(string Name, string DefinitionId, GridPoint Site,
-    GridPoint Entrance, IReadOnlyList<ContentQuantity> Budget);
+    GridPoint Entrance, IReadOnlyList<ContentQuantity> Budget)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? BoatPortId { get; init; }
+}
 
 /// <summary>An actual load and its retained input receipt, including released history.</summary>
 public sealed record TownProjectDelivery(string Id, string ContributorId, string SourceLotId,
@@ -25,6 +29,9 @@ public sealed record TownConstructionProject(string Id, string ProposalId, TownP
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public long? RemovedTick { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? CompletedBoatId { get; init; }
 }
 
 public static class TownProjectRules
@@ -33,16 +40,21 @@ public static class TownProjectRules
     public const int MaximumNameLength = 80;
 
     public static IReadOnlyList<BuildingDefinition> Definitions { get; } =
-        Array.AsReadOnly(new[] { TownHallContent.Hall3x4(), MarketContent.Hall2x2(), MarketContent.Stall1x1(), StreetLanternContent.Stone(), StreetLanternContent.Hanging() });
+        Array.AsReadOnly(new[] { TownHallContent.Hall3x4(), MarketContent.Hall2x2(), MarketContent.Stall1x1(), StreetLanternContent.Stone(), StreetLanternContent.Hanging() }
+            .Concat(PortContent.Definitions).ToArray());
 
     public static BuildingDefinition? DefinitionFor(string definitionId) =>
         Definitions.SingleOrDefault(definition => definition.CanonicalId == definitionId);
 
-    public static int RequiredWork(TownProjectPayload plan) =>
+    public static int RequiredWork(TownProjectPayload plan) => plan.BoatPortId is not null ? 16 :
         plan.DefinitionId == MarketContent.Stall1x1().CanonicalId ? 3 : WorkTicks;
 
+    public static GridPoint WorkSite(TownProjectPayload plan) =>
+        DefinitionFor(plan.DefinitionId) is { } definition && PortNavigationRules.IsPort(definition)
+            ? PortNavigationRules.Geometry(null, definition, plan.Site).WorkPosition : plan.Site;
+
     public static IEnumerable<GridPoint> Footprint(TownProjectPayload plan) =>
-        plan.DefinitionId == MarketContent.Hall2x2().CanonicalId
+        plan.BoatPortId is not null ? [] : plan.DefinitionId == MarketContent.Hall2x2().CanonicalId
             ? MarketContent.SiteTiles(plan.Site)
             : WorldContentSimulationRules.Footprint(DefinitionFor(plan.DefinitionId) ??
                 throw new InvalidDataException("Unsupported Town project definition."), plan.Site);
@@ -53,11 +65,15 @@ public static class TownProjectRules
         if (plan is null || string.IsNullOrWhiteSpace(plan.Name) || plan.Name != plan.Name.Trim() ||
             plan.Name.Length > MaximumNameLength || plan.Name.Any(char.IsControl) ||
             definition is null || !EntranceMatches(plan) ||
-            plan.Budget is null || !plan.Budget.SequenceEqual(definition.BuildCosts))
+            plan.BoatPortId is not null && (!PortNavigationRules.IsPort(definition) || string.IsNullOrWhiteSpace(plan.BoatPortId)) ||
+            plan.Budget is null || !plan.Budget.SequenceEqual(plan.BoatPortId is null ? definition.BuildCosts : PortContent.BoatCosts))
             throw new InvalidDataException("The Town project must bind a supported building, name, doorway and exact provisional budget.");
     }
 
-    private static bool EntranceMatches(TownProjectPayload plan) => StreetLanternContent.IsLantern(plan.DefinitionId)
+    private static bool EntranceMatches(TownProjectPayload plan) =>
+        DefinitionFor(plan.DefinitionId) is { } definition && PortNavigationRules.IsPort(definition)
+        ? PortNavigationRules.Geometry(null, definition, plan.Site).ApproachTiles.Contains(plan.Entrance)
+        : StreetLanternContent.IsLantern(plan.DefinitionId)
         ? StreetLanternContent.IsRoadEdge(plan.Site, plan.Entrance)
         : plan.DefinitionId == TownHallContent.Hall3x4().CanonicalId
         ? plan.Entrance == TownHallContent.Entrance(plan.Site)
@@ -72,6 +88,7 @@ public static class TownProjectRules
             plan.Site.X.ToString(CultureInfo.InvariantCulture), plan.Site.Y.ToString(CultureInfo.InvariantCulture),
             plan.Entrance.X.ToString(CultureInfo.InvariantCulture), plan.Entrance.Y.ToString(CultureInfo.InvariantCulture),
             string.Join('|', plan.Budget.Select(q => q.ResourceId + ":" + q.Amount.ToString(CultureInfo.InvariantCulture))));
+        if (plan.BoatPortId is not null) binding += "\nboat:" + plan.BoatPortId;
         return "project:" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(binding)));
     }
 
@@ -88,7 +105,7 @@ public static class TownProjectRules
 
     public static string ProposalText(TownProjectPayload plan)
     {
-        var kind = DefinitionFor(plan.DefinitionId)?.DisplayName ?? "Town building";
+        var kind = plan.BoatPortId is null ? DefinitionFor(plan.DefinitionId)?.DisplayName ?? "Town building" : "communal boat";
         var place = StreetLanternContent.IsLantern(plan.DefinitionId)
             ? FormattableString.Invariant($" at ({plan.Site.X},{plan.Site.Y}) beside Road ({plan.Entrance.X},{plan.Entrance.Y})")
             : FormattableString.Invariant($" at ({plan.Site.X},{plan.Site.Y})");
@@ -99,13 +116,14 @@ public static class TownProjectRules
 
     public static bool SameScope(TownProjectPayload first, TownProjectPayload second) =>
         first.Name == second.Name && first.DefinitionId == second.DefinitionId && first.Site == second.Site &&
-        first.Entrance == second.Entrance && first.Budget.SequenceEqual(second.Budget);
+        first.Entrance == second.Entrance && first.BoatPortId == second.BoatPortId && first.Budget.SequenceEqual(second.Budget);
 
     /// <summary>Usable delivered stock or already spent project stock, never a cumulative delivery counter.</summary>
     public static int DeliveredQuantity(TownConstructionProject project, string townId,
         InventoryCheckpoint inventory, string itemKind)
     {
-        var site = new InventoryGroundPosition(project.Plan.Site.X, project.Plan.Site.Y);
+        var work = WorkSite(project.Plan);
+        var site = new InventoryGroundPosition(work.X, work.Y);
         return project.Deliveries.Where(d => d.ItemKind == itemKind && d.ReleasedTick is null &&
                 d.DeliveredTick is not null && d.ReservationId is not null)
             .Where(d => inventory.Reservations.Any(r => r.Id == d.ReservationId && r.OwnerId == townId &&

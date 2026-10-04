@@ -55,6 +55,19 @@ public static class GameUiText
             $"\nCondition: {cart.ConditionPercent}% · Cargo: {cart.Cargo.Sum(item => item.Quantity)}/{cart.Capacity} · {cargo}";
     }
 
+    public static string BoatDescription(OwnerWorldBoat boat)
+    {
+        var cargo = boat.Cargo.Count == 0 ? "Empty" : string.Join(", ", boat.Cargo.Select(item => $"{ItemName(item.Kind)} {item.Quantity}"));
+        var status = boat.Status switch
+        {
+            "moored" => "Moored", "waiting" => "Waiting for a safe arrival",
+            "returning" => "Returning to the departure Port", _ => "Underway",
+        };
+        return $"Boat · {status}\nTown: {boat.TownName} · Position: {boat.Position.X}, {boat.Position.Y}" +
+            (boat.PassengerName is { } passenger ? "\nPassenger: " + passenger : "") +
+            $"\nCargo: {cargo}";
+    }
+
     /// <summary>
     /// Text from an agent's model or the host with each ellipsis character
     /// (U+2026) spelled as three full stops. The body font draws that character

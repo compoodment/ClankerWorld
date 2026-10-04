@@ -598,6 +598,7 @@ public partial class Main
             lines.Add($"Provisional work: {project.WorkDone} / {project.WorkRequired} units");
             lines.Add($"Council approval: {project.Approval.Yes} yes / {project.Approval.No} no · {project.Approval.RequiredYes} yes needed");
             if (project.Blocker is { } blocker) lines.Add((project.Stage == "cancelled" ? "Not built: " : "Waiting: ") + blocker);
+            if (project.CompletedBoatId is not null) lines.Add("Built · select the moored boat on the map for details.");
             if (project.CompletedBuildingId is not null) lines.Add($"Built · select the {project.DisplayName} on the map for details.");
         }
         return GameUiText.PlainEllipses(string.Join("\n", lines));

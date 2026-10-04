@@ -562,6 +562,16 @@ public sealed partial class PrivateWorldRuntime
             return;
         var pendingInstruction = PendingInstructionFor(decision.InhabitantId);
         var candidateId = decision.Admission.Intention.CandidateId;
+        if (PassengerBoat(decision.InhabitantId) is not null && candidateId is not ("consume_food" or "safe_idle"))
+        {
+            AppendEvent("boat_action_blocked", $"{decision.InhabitantId}:stay_aboard");
+            return;
+        }
+        if (PassengerBoat(decision.InhabitantId) is not null)
+        {
+            ApplyCandidate(decision.InhabitantId, state, candidateId, reportIdle: true);
+            return;
+        }
         if (candidateId != "safe_idle") guardianPlacementActions.Add(decision.InhabitantId);
         if (decision.Admission.Intention.OperativeOrderInstructionId != pendingInstruction?.InstructionId)
         {
@@ -855,6 +865,7 @@ public sealed partial class PrivateWorldRuntime
                 CollectEquipment(inhabitantId, state, kind);
             return;
         }
+        if (ApplyBoatCandidate(inhabitantId, candidateId)) return;
         if (ApplyHandcartCandidate(inhabitantId, state, candidateId)) return;
         if (candidateId.StartsWith(RepairToolPrefix, StringComparison.Ordinal))
         {
@@ -1116,6 +1127,13 @@ public sealed partial class PrivateWorldRuntime
         PlaytestInhabitantState state,
         bool restrictForOrder = true)
     {
+        if (PassengerBoat(inhabitantId) is not null)
+        {
+            var aboard = new List<CognitionCandidate> { new("safe_idle", "Stay aboard while the boat travels or waits for a safe Port.", 100) };
+            if (PreferredFood(inhabitantId, inhabitantId).Any() && state.HungerBasisPoints < ComfortableFullness)
+                aboard.Add(new("consume_food", "Eat one carried food item aboard the boat.", 0));
+            return aboard;
+        }
         var currentConversation = ConversationFor(inhabitantId);
         var candidates = currentConversation is null
             ? new List<CognitionCandidate>()
@@ -1239,6 +1257,7 @@ public sealed partial class PrivateWorldRuntime
             AddTownProjectCandidates(candidates, inhabitantId);
             AddTownProjectDonationCandidates(candidates, inhabitantId);
             AddMarketCandidates(candidates, inhabitantId);
+            AddBoatCandidates(candidates, inhabitantId);
             AddLearningCandidates(candidates, inhabitantId);
             AddExplorationCandidate(candidates, inhabitantId, state);
         }

@@ -286,7 +286,7 @@ public sealed partial class PrivateWorldRuntime
                     GuardianPlacement = null,
                     Equipment = inhabitants[id].Equipment is { } equipment
                         ? equipment with { OrnamentLotId = null } : null,
-                }, TownForResident(id)));
+                }, TownForResident(id)) { BoatIdAtDeath = RecordBoatDeath(id) });
             inhabitants.Remove(id);
             RemoveTownResident(id);
             checkpointSchemaVersion = StateSchemaVersion;

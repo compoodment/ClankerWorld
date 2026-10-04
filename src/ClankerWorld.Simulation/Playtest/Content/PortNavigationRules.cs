@@ -26,20 +26,24 @@ public static class PortNavigationRules
         _ => throw new InvalidDataException("The Port must save one of its four cardinal orientations."),
     };
 
-    public static PortGeometry Geometry(SeededMap map, BuildingDefinition definition, GridPoint position)
+    public static PortGeometry Geometry(SeededMap? map, BuildingDefinition definition, GridPoint position)
     {
         var facing = Facing(definition);
         var horizontal = facing is PortFacing.East or PortFacing.West;
         if (definition.Width != (horizontal ? 4 : 2) || definition.Height != (horizontal ? 2 : 4))
             throw new InvalidDataException("A Port occupies two tiles across and four along its saved direction.");
-        GridPoint Point(int across, int depth) => map.WrapColumn(facing switch
+        GridPoint Point(int across, int depth)
         {
+            GridPoint point = facing switch
+            {
             PortFacing.North => new(position.X + across, position.Y + 3 - depth),
             PortFacing.East => new(position.X + depth, position.Y + across),
             PortFacing.South => new(position.X + across, position.Y + depth),
             PortFacing.West => new(position.X + 3 - depth, position.Y + across),
             _ => throw new InvalidDataException("The Port direction is invalid."),
-        });
+            };
+            return map?.WrapColumn(point) ?? point;
+        }
         var land = new[] { Point(0, 0), Point(1, 0) };
         var water = Enumerable.Range(1, 3).SelectMany(depth => new[] { Point(0, depth), Point(1, depth) }).ToArray();
         var docking = Enumerable.Range(1, 3).SelectMany(depth => new[] { Point(-1, depth), Point(2, depth) }).ToArray();
@@ -57,7 +61,9 @@ public static class PortNavigationRules
             return false;
         }
         var geometry = Geometry(map, definition, position);
-        if (geometry.LandTiles.Any(tile => !map.IsBuildable(tile) || occupied.Contains(tile)))
+        if (!Geometry(null, definition, position).ApproachTiles.Any(map.Contains))
+            failure = "The Port's land approach must fit on the map.";
+        else if (geometry.LandTiles.Any(tile => !map.IsBuildable(tile) || occupied.Contains(tile)))
             failure = "The Port needs a clear two-tile land end.";
         else if (geometry.WaterTiles.Any(tile => !NavigableWater(map, tile) || occupied.Contains(tile)))
             failure = "Three rows of the Port must extend into clear navigable water.";

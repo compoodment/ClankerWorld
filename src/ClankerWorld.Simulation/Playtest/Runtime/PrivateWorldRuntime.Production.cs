@@ -262,7 +262,7 @@ public sealed partial class PrivateWorldRuntime
         string? townProjectId = null)
     {
         var footprint = WorldContentSimulationRules.Footprint(definition, position).ToArray();
-        if (footprint.Any(point => !map.IsBuildable(point)))
+        if (!PortNavigationRules.IsPort(definition) && footprint.Any(point => !map.IsBuildable(point)))
         {
             failure = "Every building footprint tile must be on buildable ground; mountains and peaks cannot hold buildings.";
             return false;
@@ -293,6 +293,14 @@ public sealed partial class PrivateWorldRuntime
             }
         }
 
+        occupied.UnionWith(worldSimulation.Buildings.Where(building => Port(building.InstanceId) is not null)
+            .Select(PortGeometryFor).SelectMany(geometry => geometry.DockingTiles));
+        if (PortNavigationRules.IsPort(definition))
+        {
+            var fits = PortNavigationRules.Fits(map, definition, position, occupied, out var portFailure, roadTiles);
+            failure = portFailure ?? string.Empty;
+            return fits;
+        }
         if (footprint.Any(occupied.Contains))
         {
             failure = "The building footprint overlaps an existing object, resource, Road, bridge end, or building.";

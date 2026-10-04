@@ -13,6 +13,7 @@ internal static class ArtContractChecks
         CheckApprovedNature(current);
         CheckApprovedItems();
         CheckApprovedHandcarts();
+        CheckApprovedBoatsAndPorts();
         foreach (var size in new[] { 16, 32 })
         {
             foreach (var (facing, frame) in new[] { (6, AgentFrame.Walk2), (4, AgentFrame.Carry), (2, AgentFrame.Talk) })
@@ -168,6 +169,26 @@ internal static class ArtContractChecks
             var id = $"handcart.pulled.{directions[facing]}.sprite";
             Equal(HandcartSprites.Sprite(facing, loaded: true, pulled: true), approved[id],
                 $"The playable cart must match the approved {id} drawing pixel for pixel.");
+        }
+    }
+
+    private static void CheckApprovedBoatsAndPorts()
+    {
+        var approved = new Proposed.Buildings.BuildingsProposal().Render().ToDictionary(entry => entry.Id, entry => entry.Image, StringComparer.Ordinal);
+        string[] directions = ["S", "SW", "W", "NW", "N", "NE", "E", "SE"];
+        for (var facing = 0; facing < directions.Length; facing++)
+            foreach (var rowing in new[] { false, true })
+            {
+                var id = $"boat.{(rowing ? "rowing" : "moored")}.{directions[facing]}.sprite";
+                var reference = Proposed.Buildings.BuildingsProposal.ApprovedBoat(facing, rowing);
+                Equal(BoatSprites.Sprite(facing, rowing), reference, "The playable boat must match the independent approved " + id);
+                Console.WriteLine($"Boat reference {facing} {rowing}: {Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(reference.GetData()))}");
+            }
+        foreach (var (w, h, side, letter) in new[] { (2, 4, DoorSide.North, "N"), (4, 2, DoorSide.East, "E"), (2, 4, DoorSide.South, "S"), (4, 2, DoorSide.West, "W") })
+        {
+            var reference = approved[$"Port.{w}x{h}.{letter}.sprite"];
+            Equal(BuildingSprites.Render(BuildingKind.Port, w, h, 32, new(side, 1)), reference, "The playable Port must match the independent approved rotation.");
+            Console.WriteLine($"Port reference {letter}: {Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(reference.GetData()))}");
         }
     }
 
