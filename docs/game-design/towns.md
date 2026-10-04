@@ -405,6 +405,17 @@ departure and relocation for existing overcrowding are implemented in
   The household still needs agreement and places for the complete care group;
   Town approval creates no free House, private access or extra resident places.
 
+**Agreed by the owner on October 3, 2026
+([#871](https://github.com/compoodment/ClankerWorld/issues/871)):** when a
+resident asks the council to admit an adult nearby who has no Town, the
+council's approval waits **one unpaused world day** for the newcomer to accept.
+If they have not accepted by then, the approval lapses; paused time does not
+count. Anyone may ask the council again later through the ordinary proposal
+rules. There is no separate decline choice. An adult's own request is
+unaffected: it admits them as soon as it passes. The runtime change is
+tracked in [#887](https://github.com/compoodment/ClankerWorld/issues/887);
+until then an unaccepted approval stays open.
+
 The separately agreed New World and Add Agent placement rules still initialize
 Town membership: the first four agents belong to the first Town, and confirmed
 Add Agent placement uses the recorded household property/Town precedence. Those
@@ -603,6 +614,16 @@ or blocking a project must preserve its goods and safely release unspent
 reservations. This is a supported construction effect; free-form law text
 cannot execute it. The existing resident rule for Warehouse expansion stays
 in place. Costs, quantities and work times remain provisional for playtesting.
+
+**Street lanterns, agreed by the owner on October 3, 2026:** agents build
+street lanterns beside Roads; the map does not place them by itself. A lantern
+needs **no fuel**: once built it lights itself at dusk and goes out at dawn.
+There are two designs, a round **stone lamp** with an open flame and a
+**hanging lantern** on a roadside post with an arm over the Road
+([look](interface-and-art.md#pixel-art-and-generated-images)). Still open:
+what each costs, whether a lantern needs the Council's approval as a shared
+Town project, and where lanterns stand. A suggestion is stone lamps at Road
+junctions and hanging lanterns every few tiles along a Road.
 
 The intended building roles now include House, Warehouse, Workshop,
 Farmhouse, farm fields, an adjacent private farm Silo, optional household-run
