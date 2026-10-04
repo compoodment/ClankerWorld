@@ -299,7 +299,9 @@ pickaxes, wooden and iron hoes and sickles, wooden and stone hammers, and iron
 knives are supported. Fully broken tools need replacement. Borrowed, reserved,
 stored and promised tools are unavailable to these personal orders. The agent
 may put spare cargo in household storage to make room for supplies, preserving
-the tool being repaired and any tools needed to gather materials. Cancellation
+all matching worn personal tools and any tools needed to gather materials.
+Preparation waits for supplies or another gathering tool if gathering would
+break a requested tool. Cancellation
 keeps already collected goods and spent gathering wear. Quantities, queues,
 survival interruptions and preparation survive save/reload.
 

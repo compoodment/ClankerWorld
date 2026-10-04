@@ -182,7 +182,9 @@ restricted to the 13 supported tool kinds. The parser requires the material and
 tool name. `RepairableTools` shares ordinary private Blacksmith, material,
 carrying and route checks; orders additionally require personal ownership and
 positive remaining condition. Ordinary repair retains its borrowed-household
-behavior. `RepairTool` performs physical pickup, gathering, spare-cargo storage
+behavior. Order preparation protects every matching worn personal tool from
+spare-cargo storage and refuses gathering that would break a requested tool.
+`RepairTool` performs physical pickup, gathering, spare-cargo storage
 and walking, returning a repaired lot only after the real inventory transition.
 That return alone earns one repair, with a bounded receipt derived from actor,
 time and repaired lot identity. Stacked worn lots split into individual repaired
