@@ -266,7 +266,10 @@ acceptance, not a repeated task; other non-food task domains remain in
 [#587](https://github.com/compoodment/ClankerWorld/issues/587).
 
 Personal collection orders cover the same seven raw materials: "collect my
-wood", "collect three clay", or "keep collecting stone". Adults and elders
+wood", "collect three clay", or "keep collecting stone". Add "from (12, 4)"
+or "at tile 12,4" to collect only from that tile, including storage at a
+building's listed coordinates. If the requested goods are unavailable there,
+the order waits instead of collecting somewhere else. Adults and elders
 walk to their own available goods in current or former household storage, or
 on the ground, and physically pick them up. Household or other people's goods,
 reserved portions and promised deliveries remain unavailable. A default task

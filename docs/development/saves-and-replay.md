@@ -127,7 +127,8 @@ goods again. Older alpha saves are refused and preserved without migration.
 
 Private-world schema 67 adds `collect_material` orders for the same material
 catalogue. Their source is selected through ordinary personal-goods collection
-rules, so explicit source, food, guardian and coordinate targets are refused. Progress
+rules; schema 74 adds an optional coordinate constraint below. Food, guardian
+and resource identity targets remain invalid. Progress
 counts collected loads or exact item quantities, and a bounded committed-move
 receipt prevents replay from duplicating pickup. Unavailable goods and full
 carrying space preserve the remaining task. Older alpha saves are refused and
@@ -191,6 +192,16 @@ kinds and repair counts. Only a completed inventory repair earns a bounded
 queues and cancellation without charging the materials twice. This version
 follows integrated field-order schema 72. Older alpha saves are refused and preserved
 unchanged without migration.
+
+Private-world schema 74 allows an optional `TargetPosition` on collection orders.
+Coordinates keep the existing bounded integer validation; an off-map target is
+a valid instruction that waits with a reason. The exact tile survives queued
+work, travel, partial pickup, cancellation and reload. Runtime selection and
+execution both recheck the lot's current position along with ordinary personal
+collection permissions, so moved or depleted goods cannot redirect the order.
+This version is provisional above the tool-repair-order base and must be
+reconciled above its integrated base before merge. Older alpha saves are refused
+and preserved unchanged without migration.
 
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
@@ -562,7 +573,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 73. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 74. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
