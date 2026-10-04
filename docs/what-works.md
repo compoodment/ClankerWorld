@@ -285,7 +285,10 @@ collecting supplies and starting a job earn no repair progress. Cancel or
 replace an order to release unused materials immediately. Urgent survival also
 releases them; the order resumes with its remaining repairs when the need passes.
 Saving during a repair preserves its work and reservations. A repeating task
-waits for another matching worn item after the current ones are repaired.
+waits for another matching worn item after the current ones are repaired. Ordinary
+repair also considers the next worn item when the preferred one lacks materials,
+carrying space or a reachable private work site. When both can proceed, the
+equipped carry aid still comes first.
 
 Field orders cover tilling, planting, tending and harvesting for adults and
 elders whose household has a Farmhouse. Use "till two fields", "plant grain",

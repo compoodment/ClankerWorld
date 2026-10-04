@@ -167,7 +167,9 @@ Repair orders save a separate `TargetEquipmentKind` for basic clothing, padded
 coats, rain cloaks, baskets or sacks. The parser refuses other equipment and
 explicit sites. Orders filter the normal worn-item rules by this exact kind,
 collect real materials through `CollectEquipment`, then use `RepairEquipment`
-and `ContinueEquipmentRepair`. Ordinary item preference remains unchanged.
+and `ContinueEquipmentRepair`. Ordinary repair chooses the first feasible worn item, preferring the equipped
+carry aid when its materials, carrying space and private work site are usable.
+Candidate selection and execution use the same feasibility checks.
 A repair work record links to the active instruction; only the returned completed
 repair advances its item count, with a bounded receipt derived from the actor,
 start time and lot identity. New orders release any previous repair's unspent
