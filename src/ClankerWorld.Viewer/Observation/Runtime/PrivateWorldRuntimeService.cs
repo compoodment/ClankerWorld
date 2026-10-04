@@ -540,6 +540,54 @@ public sealed partial class PrivateWorldRuntimeService(
     private void LogTownEvent(PlaytestWorldEvent worldEvent)
     {
         if (logger is null) return;
+        var transferKind = worldEvent.Kind switch
+        {
+            "land_transfer_proposed" => TownLandTransferTransitionKind.Proposed,
+            "land_transfer_read" => TownLandTransferTransitionKind.Read,
+            "land_transfer_consent" => TownLandTransferTransitionKind.Consent,
+            "land_transfer_withdrawn" => TownLandTransferTransitionKind.Withdrawn,
+            "land_transfer_settled" => TownLandTransferTransitionKind.Settled,
+            "land_transfer_blocked" => TownLandTransferTransitionKind.Blocked,
+            _ => (TownLandTransferTransitionKind?)null,
+        };
+        if (transferKind is { } transferTransition)
+        {
+            var fields = worldEvent.Detail.Split('|', 5);
+            var transferTown = fields.Length == 5 ? runtime.Towns.FirstOrDefault(item => item.Id == fields[0]) : null;
+            var transfer = transferTown?.LandHearings.Transfers.FirstOrDefault(item => item.Id == fields[1]);
+            if (transferTown is not null && transfer is not null)
+                TownTelemetry.LandTransfer(logger, worldEvent.WorldTick, transferTown.Id, transfer.Id, transferTransition,
+                    transfer.Status, transfer.Parties.Count, transfer.Responses.Count, transfer.Tiles.Count);
+            return;
+        }
+        var hearingKind = worldEvent.Kind switch
+        {
+            "land_case_opened" => TownLandHearingTransitionKind.Opened,
+            "land_case_notice" => TownLandHearingTransitionKind.NoticePublished,
+            "land_case_evidence" => TownLandHearingTransitionKind.EvidenceAdded,
+            "land_case_response" => TownLandHearingTransitionKind.ResponseRecorded,
+            "land_case_judge_consent" => TownLandHearingTransitionKind.JudgeConsent,
+            "land_case_judge_election" => TownLandHearingTransitionKind.JudgeElection,
+            "land_case_judge_assigned" => TownLandHearingTransitionKind.JudgeAssigned,
+            "land_case_ruling" => TownLandHearingTransitionKind.Ruling,
+            "land_case_reopen_requested" => TownLandHearingTransitionKind.ReopenRequested,
+            "land_case_reopened" => TownLandHearingTransitionKind.Reopened,
+            "land_case_inspected" => TownLandHearingTransitionKind.Inspected,
+            "land_case_relayed" => TownLandHearingTransitionKind.Relayed,
+            "land_case_rejected" => TownLandHearingTransitionKind.Rejected,
+            _ => (TownLandHearingTransitionKind?)null,
+        };
+        if (hearingKind is { } hearingTransition)
+        {
+            var fields = worldEvent.Detail.Split('|', 5);
+            var hearingTown = fields.Length >= 3 ? runtime.Towns.FirstOrDefault(item => item.Id == fields[0]) : null;
+            var hearing = hearingTown?.LandHearings?.Cases.FirstOrDefault(item => item.Id == fields[1]);
+            if (hearingTown is not null && hearing is not null)
+                TownTelemetry.LandHearing(logger, worldEvent.WorldTick, hearingTown.Id, hearing.Id, hearingTransition,
+                    hearing.Status, hearing.Revisions[^1].Number, hearing.Revisions[^1].Parties.Count,
+                    hearing.Evidence.Count, hearing.Responses.Count, hearing.Rulings.Count);
+            return;
+        }
         var civicKind = worldEvent.Kind switch
         {
             "town_civic_law" => TownCivicTransitionKind.LawRecorded,
