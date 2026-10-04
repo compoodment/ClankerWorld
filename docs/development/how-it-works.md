@@ -260,6 +260,36 @@ Saved work must match the actor's active instruction, action, crop and any
 explicit tile.
 Validation refuses links to another agent, task or equipment kind.
 
+Delivery orders use `deliver_stock` with a separate purpose, exact item kind
+and requested building kind. Bounded `haul`, `supply`, `deliver`, `donate` and
+`stock` commands select existing native policies for household/farm stock,
+workstation inputs, spare House food, Town Warehouse surplus and Store stock.
+Their plans preserve the ordinary source, demand, reserve, capacity, access
+and route checks. A requested farm-storage destination filters legal choices
+before applying the default Farmhouse/Silo preference.
+
+The order binds a native route, building identity, owner and listed position,
+then the exact carried lot and requested-kind quantity. Household pickup uses
+the existing ownership transfer and `DeliveryBuildingId` promise; a Town
+Warehouse never becomes a household delivery destination. A matching carried
+shipment can be explicitly bound before its final delivery. Continuing a bound
+shipment does not repeat ingredient-demand selection, because inbound stock
+already reduces that demand. Each deposit rechecks custody, access and room.
+
+Typed committed movement effects provide the actual transfer identity and
+quantity. Only final delivery credits `goods_items` or `delivery_loads`, never
+pickup, walking, an inventory difference or an unrelated event. A selected
+load waits if its destination no longer has room for it. Whole-vessel plans
+sum every matching contained resource lot, preserve the entire family and
+reject a move that would exceed a finite request. Only the existing grain/flour
+path may take part of a vessel's contents. Cancellation keeps real cargo and
+delivery promises; it does not refund ownership or revive old progress.
+
+Content rollback checks saved production and delivery orders against the
+remaining definitions before changing the registry. A package removal that
+would invalidate an active or historical order is refused without changing
+the checkpoint; unrelated package removal remains available.
+
 Production orders use `produce_item` and retain the exact recipe, output kind,
 chosen work site and owned project/job identity. The job's optional
 `OrderInstructionId` proves that the instruction started it. The bounded catalogue resolves

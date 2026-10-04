@@ -325,14 +325,16 @@ public sealed partial class PrivateWorldRuntimeService(
                     LogSocialStanding(logger, result.WorldTick, actor, subject, standing.Trust, reason);
                 }
                 foreach (var worldEvent in result.Events.Where(item => item.Kind is "project_chosen" or "project_progress" or
-                             "project_request_fulfilled" or "town_resources_stored" or "town_resource_collected"))
+                             "project_request_fulfilled" or "town_resources_stored" or "town_resource_collected" or
+                             "owner_stock_picked_up" or "owner_stock_delivered"))
                 {
                     var actor = EventActor(worldEvent.Detail);
                     if (actor is null) continue;
-                    var project = projects.GetValueOrDefault(actor);
+                    var delivery = worldEvent.Kind is "owner_stock_picked_up" or "owner_stock_delivered";
+                    var project = delivery ? null : projects.GetValueOrDefault(actor);
                     LogSettlementActivity(logger, result.WorldTick, worldEvent.Kind, actor,
                         worldEvent.Kind is "town_resources_stored" or "town_resource_collected"
-                            ? "warehouse" : project?.Stage ?? "helping", project?.WorkDone ?? 0,
+                            ? "warehouse" : delivery ? "delivery" : project?.Stage ?? "helping", project?.WorkDone ?? 0,
                         worldEvent.Kind is not ("town_resources_stored" or "town_resource_collected") &&
                         project?.Blocker is not null);
                 }

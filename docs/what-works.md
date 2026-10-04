@@ -325,6 +325,38 @@ cancellation and reload retain the work already done.
 An order to put away a tool currently used for ordinary field work interrupts
 that work before moving the tool, keeping the saved work state consistent.
 
+Delivery orders use the existing household and Town supply rules. The commands
+distinguish their purpose: "haul four grain to my Farmhouse", "supply two iron
+to my Blacksmith", "deliver two berries to my House", "donate two wood to my
+Town Warehouse", or "stock three cloth in my Store". Named destinations may
+include a listed tile with "at (12, 4)". The selected building and owner stay
+fixed through travel, partial progress and reload.
+
+Pickup and walking earn no delivery progress. An explicit count measures the
+requested goods at the final deposit; a plain request completes one load.
+Household supplies retain their real carried delivery assignment between
+pickup and deposit. A matching existing shipment can be selected before its
+delivery, but its earlier pickup does not count. If space runs out during the
+trip, the load waits until it fits. Cancellation leaves actual goods and
+completed transfers in place, and never credits a later ordinary delivery to
+the cancelled task.
+
+Workstation supplies remain limited by current recipes and ingredient demand.
+Farm hauling retains its existing stock-source and storage rules, with the
+requested Farmhouse or Silo taking precedence over the ordinary preference.
+House food delivery shares only spare carried food. Town donations accept the
+normal wood, stone, fiber and tree-seed surplus while keeping the agent's
+reserve. Store stocking keeps its shelf target, food reserves and protected
+tools. Missing demand or surplus leaves a visible blocker even if the order
+asks for more.
+
+Vessels and their contents keep their physical identity and ownership rules.
+For a water supply, the count measures water in the delivered jug, not the jug
+as an extra item. The whole family must fit and stay unreserved; water cannot
+be split to satisfy a smaller count. Grain and flour can use the existing
+partial-vessel pickup. No other decanting or arbitrary private-stock access is
+introduced by these orders.
+
 Production orders use the existing recipes for goods such as rope, baskets,
 cloth, clothing, sacks, tools, flour, pottery and care supplies. Examples are
 "make two sacks", "mill flour" and "make two batches of house bandages". They use

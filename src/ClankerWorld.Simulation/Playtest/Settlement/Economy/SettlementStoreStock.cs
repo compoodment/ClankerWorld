@@ -1,4 +1,5 @@
 using ClankerWorld.Simulation.Cognition;
+using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Kernel;
 
 namespace ClankerWorld.Simulation.Playtest;
@@ -9,18 +10,22 @@ public sealed partial class PrivateWorldRuntime
     private const int StoreShelfTarget = 8;
     private sealed record StoreStockLoad(PlacedBuilding Store, InventoryLot Goods, int Quantity);
 
-    private StoreStockLoad? NextStoreLoad(string actor)
+    private StoreStockLoad? NextStoreLoad(string actor, string? itemKind = null, string? buildingId = null,
+        string? sourceLotId = null)
     {
         if (!AdultResident(actor) || CarriedHouseDelivery(actor) is not null ||
             inhabitants[actor].Project is { Stage: not ("completed" or "cancelled") } ||
             society.Checkpoint.GetInhabitant(actor).HouseholdId is not { } householdId ||
-            HouseholdBuildingWithTag(householdId, "store") is not { } store)
+            HouseholdBuildingWithTag(householdId, "store") is not { } store ||
+            buildingId is not null && store.InstanceId != buildingId)
             return null;
         var inventory = society.Checkpoint.Inventory;
         var room = RemainingDeliveryRoom(inventory, store.InstanceId);
         if (room == 0) return null;
         var protectedToolIds = BestUsableToolIds(inventory, actor);
         foreach (var lot in inventory.Lots.Where(lot => IsLooseBusinessLot(lot) && !OnBorrowedMarketStall(lot) &&
+                     (itemKind is null || lot.ItemKind == itemKind) &&
+                     (sourceLotId is null || lot.Id == sourceLotId) &&
                      BusinessRules.MaySell("store", lot.ItemKind) && lot.StorageBuildingId != store.InstanceId &&
                      // Own carried goods, or household stock nobody is carrying.
                      (lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) ||
@@ -86,5 +91,15 @@ public sealed partial class PrivateWorldRuntime
             $"store-pickup:{WorldTick}:{actor}", householdId, actor, load.Goods.Id, load.Quantity,
             "store_stock_collected", destinationDeliveryBuildingId: load.Store.InstanceId));
         AppendEvent("store_stock_collected", $"{actor}:{load.Goods.Id}:{load.Quantity}:{load.Store.InstanceId}");
+    }
+
+    private DeliveryOrderPlan? GetStoreOrderPlan(string actor, PlaytestInhabitantState person,
+        OwnerInstructionOrder order, int maximumQuantity)
+    {
+        if (NextStoreLoad(actor, order.TargetItemKind, order.TargetStorageBuildingId, order.DeliveryLotId) is not { } load ||
+            !DeliveryDestinationMatches(order, load.Store)) return null;
+        var quantity = Math.Min(maximumQuantity, load.Quantity);
+        return quantity <= 0 ? null : new DeliveryOrderPlan("store_stock", load.Store, load.Store.HouseholdId!,
+            load.Goods, load.Goods, quantity, quantity, DirectDelivery: load.Goods.OwnerId == actor);
     }
 }

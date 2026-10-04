@@ -17,6 +17,9 @@ public sealed partial class PrivateWorldRuntime
         if (order.TargetPosition is { } requestedPosition && !map.Contains(requestedPosition))
             return null;
 
+        if (order.Action == "deliver_stock")
+            return DeliveryOrderCandidateFor(instruction, person);
+
         if (order.Action == "produce_item")
             return ProductionOrderCandidateFor(instruction, person);
 
@@ -181,6 +184,9 @@ public sealed partial class PrivateWorldRuntime
         }
         switch (candidate.Id)
         {
+            case "deliver_stock":
+                ExecuteDeliveryOrderStep(instruction, person);
+                return;
             case "produce_item":
                 ExecuteProductionOrderStep(instruction, person);
                 return;
@@ -343,6 +349,8 @@ public sealed partial class PrivateWorldRuntime
 
     private string OrderBlockedReason(OwnerQueuedInstruction instruction, PlaytestInhabitantState person)
     {
+        if (instruction.Order?.Action == "deliver_stock")
+            return DeliveryOrderBlockedReason(instruction, person);
         if (instruction.Order?.Action == "produce_item")
             return ProductionOrderBlockedReason(instruction);
         if (instruction.Order is { } fieldOrder && IsFieldOrder(fieldOrder.Action))

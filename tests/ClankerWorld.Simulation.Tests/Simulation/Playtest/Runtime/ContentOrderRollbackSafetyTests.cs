@@ -7,8 +7,11 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class ContentOrderRollbackSafetyTests
 {
     private const string Actor = "founder-ilya";
+    private static readonly string[] OrderActions = ["deliver_stock", "produce_item"];
 
     [Theory]
+    [InlineData("supply fresh water to my Clinic", "deliver_stock", false)]
+    [InlineData("supply fresh water to my Clinic", "deliver_stock", true)]
     [InlineData("prepare medicine", "produce_item", false)]
     [InlineData("prepare medicine", "produce_item", true)]
     public void RollbackPreservesUnboundOrdersIncludingCancelledHistory(string text, string action, bool cancelled)
@@ -21,6 +24,7 @@ public sealed class ContentOrderRollbackSafetyTests
         var order = Assert.Single(world.ExportState().Instructions!).Order!;
         Assert.Equal((action, cancelled ? "cancelled" : "waiting"), (order.Action, order.Status));
         Assert.Null(order.ProductionBuildingId);
+        Assert.Null(order.TargetStorageBuildingId);
         Assert.Empty(world.WorldSimulation.Buildings);
         Assert.Empty(world.WorldSimulation.ProductionJobs);
         Assert.Equal(0, world.WorldTick);
@@ -38,13 +42,15 @@ public sealed class ContentOrderRollbackSafetyTests
     }
 
     [Fact]
-    public void UnrelatedRollbackLeavesProductionOrdersLoadable()
+    public void UnrelatedRollbackLeavesDeliveryAndProductionOrdersLoadable()
     {
         using var world = CreateWorld();
+        world.SubmitInstruction(new("delivery", "owner:test", Actor, OwnerInstructionKind.MustDo,
+            "supply fresh water to my Clinic"));
         world.SubmitInstruction(new("production", "owner:test", Actor, OwnerInstructionKind.MustDo,
-            "prepare medicine"));
+            "prepare medicine", Queue: true));
         var before = world.ExportState().Instructions!.ToArray();
-        Assert.Equal("produce_item", Assert.Single(before).Order!.Action);
+        Assert.Equal(OrderActions, before.Select(item => item.Order!.Action));
 
         var receipt = world.RollbackContent(PotteryContent.PackageId, "withdraw unrelated pottery");
 

@@ -116,7 +116,11 @@ public sealed partial class PrivateWorldRuntime
         // Removal, reassignment and expansion are legitimate world changes. They
         // block the saved destination at execution time rather than corrupting it.
         foreach (var instruction in instructions)
-            if (instruction.Order?.TargetStorageOwnerId is { } owner &&
+            if (instruction.Order is
+                {
+                    Action: "store_material" or "store_equipment" or "store_goods" or "return_borrowed",
+                    TargetStorageOwnerId: { } owner
+                } &&
                 !society.Households.Any(household => household.Id == owner))
                 throw new InvalidDataException("A custody order references an unknown owning household.");
     }

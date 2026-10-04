@@ -399,6 +399,7 @@ public sealed partial class PrivateWorldRuntime
         "accept_guardianship" => "accept primary care of the named child through their guardian search",
         "store_goods" => "store your own carried goods in your House",
         "return_borrowed" => "return borrowed goods to their owning household's House",
+        "deliver_stock" => "deliver the requested goods to a permitted building",
         "produce_item" => "make the requested goods at a permitted workstation",
         _ => null,
     };
@@ -406,7 +407,7 @@ public sealed partial class PrivateWorldRuntime
     private OwnerInstructionOrder? ParseInstructionOrder(string text, string actor)
     {
         return ParseGuardianOrder(text, actor) ?? PrivateWorldInstructionOrderParser.Parse(text, map.Resources, FoodKnowledgeKind,
-            PrivateWorldProductionOrderCatalog.Available(worldContent));
+            PrivateWorldProductionOrderCatalog.Available(worldContent), PrivateWorldDeliveryOrderCatalog.AvailableInputs(worldContent));
     }
 
     // A direct order that names no action the game can carry out is closed

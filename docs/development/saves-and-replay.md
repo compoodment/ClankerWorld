@@ -302,6 +302,18 @@ Finite progress, queued work and cancellation survive reload without switching
 House or changing ownership. This version follows crude House tools schema 86 and production-order schema 85; older alpha checkpoints are refused and preserved
 without migration.
 
+Private-world schema 88 adds `deliver_stock` with exact purpose, item and
+building kinds. Optional `DeliveryRoute`, `DeliveryLotId` and `DeliveryQuantity`
+retain the selected native route and active shipment. The destination reuses
+the complete building/owner/position binding; its owner may be the receiving
+household or Town according to the route. The active lot and quantity are
+paired, and final-delivery receipts use a distinct bounded identity. Loading
+validates the action's subject, route and binding together. Queued tasks,
+partially completed quantities, carried shipments and cancellation survive
+reload without crediting earlier pickup or redirecting goods. This version follows
+custody-order schema 87; older alpha
+checkpoints are refused and preserved without migration.
+
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
 Matching parent assignments are disclosed as agreement; when they differ, the
@@ -712,7 +724,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 87. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 88. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus

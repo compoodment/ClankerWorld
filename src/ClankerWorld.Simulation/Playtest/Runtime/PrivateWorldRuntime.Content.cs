@@ -475,9 +475,9 @@ public sealed partial class PrivateWorldRuntime
             var remainingContent = ContentDefinitionApplicator.RemovePackage(worldContent, manifest.PackageDigest);
             var completed = completedInstructionIds.ToArray();
             var people = society.Checkpoint.Inhabitants.Select(person => person.Id).ToHashSet(StringComparer.Ordinal);
-            // Cancelled orders remain checkpoint history and still need their original recipe.
+            // Cancelled orders remain checkpoint history and still need their original content targets.
             if (instructionsByIdempotency.Values.Any(instruction =>
-                instruction.Order is { Action: "produce_item" } order &&
+                instruction.Order is { Action: "produce_item" or "deliver_stock" } order &&
                 !IsValidSavedOrder(order, instruction, completed, people, WorldTick, remainingContent)))
                 throw new InvalidOperationException("Content referenced by owner orders requires an explicit migration before removal.");
             var record = contentRegistry.Rollback(packageId, WorldTick, reason);

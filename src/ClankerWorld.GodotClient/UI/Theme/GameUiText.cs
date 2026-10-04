@@ -289,6 +289,7 @@ public static class GameUiText
             "council_policy_adopted" or "settlement_trade_completed" or
             "business_trade_offered" or "business_trade_completed" or "business_trade_cancelled" or
             "store_stock_collected" or "store_stock_delivered" or "household_delivery_recovered" or
+            "owner_stock_picked_up" or "owner_stock_delivered" or
             "agent_knowledge_artifact_created" or "agent_knowledge_artifact_read" or "agent_knowledge_shared" or
             "agent_knowledge_writing_started" or "agent_knowledge_writing_cancelled" or "agent_knowledge_material_collected" or
             "agent_knowledge_artifact_collected" or "agent_knowledge_artifact_stored" or
@@ -548,6 +549,7 @@ public static class GameUiText
             "store_equipment" => "store personal equipment",
             "store_goods" => "store personal goods",
             "return_borrowed" => "return borrowed goods",
+            "deliver_stock" => "deliver goods",
             "produce_item" => "make goods",
             "inspect_material_site" => "look for the requested material",
             "storage_pot" => "storage pot",

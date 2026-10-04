@@ -140,6 +140,8 @@ public static class WorldEventText
             "handcart_repaired" => $"{LeadingName(snapshot, worldEvent.Detail)} repaired their handcart using carried materials.",
             "handcart_transferred" => $"{LeadingName(snapshot, worldEvent.Detail)} gave their handcart and its cargo to a nearby agent.",
             "handcart_blocked" => "The handcart cannot travel here; park it or choose another route. Its cargo is safe.",
+            "owner_stock_picked_up" => $"{LeadingName(snapshot, worldEvent.Detail)} collected a load for the requested delivery; it is still being carried.",
+            "owner_stock_delivered" => $"{LeadingName(snapshot, worldEvent.Detail)} delivered goods to the requested building.",
             "carrying_full" => $"{Name(snapshot, worldEvent.Detail)} cannot carry more; a load needs to be stored or set down.",
             "spare_cargo_stored" => $"{LeadingName(snapshot, worldEvent.Detail)} set down spare supplies for their household to make room in their load.",
             "household_delivery_recovered" => $"{LeadingName(snapshot, worldEvent.Detail)} returned unusable delivery supplies to their household's pile at camp.",
