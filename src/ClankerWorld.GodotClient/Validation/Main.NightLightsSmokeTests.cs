@@ -65,6 +65,18 @@ public partial class Main
             if (NightLightShapes.Building(plan, true, false, true, 0, 1)
                 .Any(cell => cell.Kind == LightCellKind.Light && roofs.Any(roof => cell.Area.Intersects(roof))))
                 throw new InvalidOperationException("Restaurant lanterns and Town Hall windows must leave every part of their roof dark.");
+            if (tag == "town_hall")
+            {
+                // Measured from the 16px atlas: its integer cross differs from scaling the 32px plan.
+                var actualMain = new Rect2(20, 4, 56, 102);
+                var actualWing = new Rect2(4, 34, 88, 38);
+                var mid = current[0].AtAtlas(16).Plan;
+                if (mid.Roof != actualMain || mid.Wing != actualWing ||
+                    NightLightShapes.Building(mid, true, false, true, 0, 1, snap: 2)
+                        .Any(cell => cell.Kind == LightCellKind.Light &&
+                            (cell.Area.Intersects(actualMain) || cell.Area.Intersects(actualWing))))
+                    throw new InvalidOperationException("Mid-zoom Town Hall lights must stay outside the actual 16px roof pixels.");
+            }
         }
 
         // A lived-in House: windows on both sides and the door, never the roof or the back wall.

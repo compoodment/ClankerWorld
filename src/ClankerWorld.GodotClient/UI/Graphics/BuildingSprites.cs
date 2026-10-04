@@ -115,9 +115,9 @@ public static class BuildingSprites
     /// relative to its footprint. Kinds without the approved drawing use the
     /// plain three-unit inset with the door in the middle of its side.
     /// </summary>
-    public static (Rect2 Roof, Rect2? Yard, float DoorMiddle, Rect2? Wing) Plan(BuildingKind kind, int tilesWide, int tilesHigh, BuildingDoor door)
+    public static (Rect2 Roof, Rect2? Yard, float DoorMiddle, Rect2? Wing) Plan(BuildingKind kind, int tilesWide, int tilesHigh, BuildingDoor door, int tilePixels = 32)
     {
-        if (ApprovedArt.PlanFor(kind, tilesWide, tilesHigh, door) is { } plan) return plan;
+        if (ApprovedArt.PlanFor(kind, tilesWide, tilesHigh, door, tilePixels) is { } plan) return plan;
         var roof = new Rect2(3, 3, tilesWide * 32 - 6, tilesHigh * 32 - 8);
         var horizontal = door.Side is DoorSide.South or DoorSide.North;
         var from = horizontal ? roof.Position.X : roof.Position.Y;
@@ -419,20 +419,28 @@ public static class BuildingSprites
         public static bool Draws(BuildingKind kind) => kind == BuildingKind.Silo || RecipeFor(kind) is not null;
 
         /// <summary>Where a roofed kind's roof, yard and door are, in 32-unit tile space; null for the others.</summary>
-        public static (Rect2 Roof, Rect2? Yard, float DoorMiddle, Rect2? Wing)? PlanFor(BuildingKind kind, int tilesWide, int tilesHigh, BuildingDoor door)
+        public static (Rect2 Roof, Rect2? Yard, float DoorMiddle, Rect2? Wing)? PlanFor(BuildingKind kind, int tilesWide, int tilesHigh, BuildingDoor door, int tilePixels)
         {
             if (RecipeFor(kind) is not { } recipe) return null;
             var w = Math.Clamp(tilesWide, 1, 8) * 32;
             var h = Math.Clamp(tilesHigh, 1, 8) * 32;
             if (kind == BuildingKind.Restaurant && (w <= 32 || h <= 32)) recipe = recipe with { Yard = 0 };
             var plan = Lay(w, h, door, recipe, kind == BuildingKind.Warehouse ? 7f : kind == BuildingKind.TownHall ? 5f : 3f);
-            if (kind != BuildingKind.TownHall) return (plan.Roof, plan.Yard, plan.DoorMiddle, null);
-            var (main, wings) = HallLayout((Rect2I)plan.Roof, door.Side);
+            var scale = tilePixels / 32f;
+            int Pixel(float units) => (int)MathF.Round(units * scale);
+            Rect2I Pixels(Rect2 box) => new(Pixel(box.Position.X), Pixel(box.Position.Y),
+                Math.Max(1, Pixel(box.End.X) - Pixel(box.Position.X)),
+                Math.Max(1, Pixel(box.End.Y) - Pixel(box.Position.Y)));
+            Rect2 Units(Rect2I box) => new((Vector2)box.Position / scale, (Vector2)box.Size / scale);
+            if (kind != BuildingKind.TownHall)
+                return (Units(Pixels(plan.Roof)), plan.Yard is { } yard ? Units(Pixels(yard)) : null,
+                    Pixel(plan.DoorMiddle) / scale, null);
+            var (main, wings) = HallLayout(Pixels(plan.Roof), door.Side);
             var horizontal = door.Side is DoorSide.South or DoorSide.North;
-            var middle = FitHallPixel((int)MathF.Round(plan.DoorMiddle),
-                (horizontal ? main.Position.X : main.Position.Y) + 10,
-                (horizontal ? main.End.X : main.End.Y) - 1 - 10);
-            return (new Rect2(main.Position, main.Size), null, middle, new Rect2(wings.Position, wings.Size));
+            var middle = FitHallPixel(Pixel(plan.DoorMiddle),
+                (horizontal ? main.Position.X : main.Position.Y) + Pixel(10),
+                (horizontal ? main.End.X : main.End.Y) - 1 - Pixel(10));
+            return (Units(main), null, middle / scale, Units(wings));
         }
 
         /// <summary>The main roof colour of an approved kind, for the overview fill; null for the others.</summary>

@@ -5,6 +5,16 @@ namespace ClankerWorld.GodotClient.UI;
 /// <summary>One building's lights tonight: where it stands, how its lights are laid out and who is using it.</summary>
 public readonly record struct BuildingLight(Rect2I Footprint, LightPlan Plan, bool Occupied, bool Working)
 {
+    public BuildingKind? Kind { get; init; }
+    public BuildingDoor Door { get; init; }
+
+    /// <summary>Match the integer roof layout of the atlas actually drawn at this zoom.</summary>
+    public BuildingLight AtAtlas(int tilePixels)
+    {
+        if (Kind is not { } kind) return this;
+        var (roof, yard, middle, wing) = BuildingSprites.Plan(kind, Footprint.Size.X, Footprint.Size.Y, Door, tilePixels);
+        return this with { Plan = Plan with { Roof = roof, Yard = yard, DoorMiddle = middle, Wing = wing } };
+    }
     /// <summary>Whether anything of this building shines, for the overview speck.</summary>
     public bool Shines => Plan.Design switch
     {
@@ -114,12 +124,14 @@ public partial class NightLightsLayer : Control
             return;
         }
 
-        var snap = BuildingSprites.AtlasTileSize(source.TileSize) == 16 ? 2 : 1;
+        var atlasSize = BuildingSprites.AtlasTileSize(source.TileSize);
+        var snap = atlasSize == 16 ? 2 : 1;
         var unit = stride / 32f;
         var placed = new List<(Vector2 Origin, LightCell Cell)>();
         var roofs = new List<Rect2>();
-        foreach (var (building, seed) in VisibleBuildings(visible))
+        foreach (var (visibleBuilding, seed) in VisibleBuildings(visible))
         {
+            var building = visibleBuilding.AtAtlas(atlasSize);
             var origin = new Vector2(building.Footprint.Position.X, building.Footprint.Position.Y) * stride;
             roofs.Add(Scaled(origin, building.Plan.Roof, unit));
             if (building.Plan.Wing is { } wing) roofs.Add(Scaled(origin, wing, unit));

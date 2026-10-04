@@ -30,7 +30,7 @@ public partial class Main
                 ? new Vector2I(entrance.X, entrance.Y) : null);
             var (roof, yard, middle, wing) = BuildingSprites.Plan(kind, footprint.Size.X, footprint.Size.Y, door);
             lights.Add(new BuildingLight(footprint, new LightPlan(design, roof, yard, door.Side, middle, Wing: wing),
-                people.Any(footprint.HasPoint), working.Contains(building.InstanceId)));
+                people.Any(footprint.HasPoint), working.Contains(building.InstanceId)) { Kind = kind, Door = door });
         }
         return lights;
     }
