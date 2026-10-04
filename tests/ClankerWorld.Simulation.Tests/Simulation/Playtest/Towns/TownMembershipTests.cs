@@ -18,7 +18,7 @@ namespace ClankerWorld.Simulation.Tests;
 /// or personally accept. Every consent here comes from an accepted personal
 /// model choice, as in play.
 /// </summary>
-public sealed class TownMembershipTests
+public sealed partial class TownMembershipTests
 {
     private const string First = "town:first";
     private const string Second = "town:second";
@@ -749,7 +749,8 @@ public sealed class TownMembershipTests
             Governance = passed,
             Admissions = [new TownAdmissionRecord(proposal, outsider, "approved", 1)],
         };
-        Assert.Equal(none + " · Second Town's council approved admission; not accepted yet", Describe(outsider, approved));
+        Assert.Equal(none + " · Second Town's council approved admission; accept before world day 2 at 00:04; about 23 world hours 44 minutes left; paused time does not count",
+            Describe(outsider, approved));
         Assert.Equal(none, Describe(outsider, approved, knows: (_, kind, _) => kind != "result"));
 
         var rejected = TownGovernanceRules.VoteProposal(pending, proposal, voter, false, 1);
@@ -824,7 +825,7 @@ public sealed class TownMembershipTests
                 Assert.DoesNotContain($"{town.Name}'s council approved", observation.Self?.TownMembershipNote ?? "", StringComparison.Ordinal);
             });
             Assert.Contains(observed, observation => observation.Candidates.Any(candidate => candidate.Id.StartsWith(accept, StringComparison.Ordinal)) &&
-                observation.Self?.TownMembershipNote?.Contains("council approved admission; not accepted yet", StringComparison.Ordinal) == true);
+                observation.Self?.TownMembershipNote?.Contains("council approved admission; accept before", StringComparison.Ordinal) == true);
             if (townId == Second) secondProposal = record.ProposalId;
             else return (state, record.ProposalId, secondProposal!);
         }
