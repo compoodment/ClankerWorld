@@ -35,6 +35,8 @@ jobs:
       filter-2: ${{ steps.split.outputs.filter_2 }}
       filter-3: ${{ steps.split.outputs.filter_3 }}
       filter-4: ${{ steps.split.outputs.filter_4 }}
+      filter-5: ${{ steps.split.outputs.filter_5 }}
+      filter-6: ${{ steps.split.outputs.filter_6 }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -81,6 +83,13 @@ jobs:
         with:
           global-json-file: global.json
       - run: dotnet restore --locked-mode
+      # The shared tool cache (scripts/tool-cache.sh) checks each download's pinned SHA-256.
+      - name: Restore pinned Godot downloads
+        if: needs.scope.outputs.code == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/clankerworld/tools/downloads
+          key: godot-downloads-${{ hashFiles('scripts/verify-godot-client.sh', 'scripts/verify-godot-windows-export.sh') }}
       - name: Verify Godot client project
         if: needs.scope.outputs.code == 'true'
         run: bash scripts/verify-godot-client.sh
@@ -89,12 +98,6 @@ jobs:
       - name: Verify documentation (the test suite is skipped)
         if: needs.scope.outputs.tests == 'false'
         run: dotnet test tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.csproj --configuration Release --no-restore --filter FullyQualifiedName~DocumentationTests
-      - name: Restore pinned Godot export downloads
-        if: needs.scope.outputs.code == 'true'
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/clankerworld-godot
-          key: godot-4.7.2-mono-linux-x64-export-templates-v1
       - name: Verify Windows 11 x64 Godot release export
         if: needs.scope.outputs.code == 'true'
         run: bash scripts/verify-godot-windows-export.sh
@@ -185,4 +188,17 @@ jobs:
       - name: Restore locked test dependencies
         run: dotnet restore tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.csproj --locked-mode
       - name: Verify native protected storage and checkpoint recovery
-        run: dotnet test tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.csproj --configuration Release --no-restore --filter "FullyQualifiedName~ProviderConfigurationStoreTests|FullyQualifiedName~PairedOwnerCanConfigureHostedCognitionWithoutEchoingOrSavingTheKeyInTheWorld|FullyQualifiedName~OnlySignedOwnerCanDeleteUnusedNamedCredentialSlot|FullyQualifiedName~ManualSaveGenerationTests|FullyQualifiedName~ResumeRequiresDurableCheckpointEvenOnRetry|FullyQualifiedName~ResumeCheckpointTests|FullyQualifiedName~Deletion"
+        env:
+          CLANKERWORLD_CHECKPOINT_DIAGNOSTICS: ${{ runner.temp }}/checkpoint-evidence
+        run: dotnet test tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.csproj --configuration Release --no-restore --filter "FullyQualifiedName~ProviderConfigurationStoreTests|FullyQualifiedName~PairedOwnerCanConfigureHostedCognitionWithoutEchoingOrSavingTheKeyInTheWorld|FullyQualifiedName~OnlySignedOwnerCanDeleteUnusedNamedCredentialSlot|FullyQualifiedName~ManualSaveGenerationTests|FullyQualifiedName~ResumeRequiresDurableCheckpointEvenOnRetry|FullyQualifiedName~ResumeCheckpointTests|FullyQualifiedName~PrivateWorldStateFileTests|FullyQualifiedName~Deletion" --logger "trx;LogFileName=windows-storage.trx" --results-directory "${{ runner.temp }}/windows-storage-results"
+      - name: Upload native storage test results and checkpoint failure evidence
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-storage-evidence
+          path: |
+            ${{ runner.temp }}/windows-storage-results
+            ${{ runner.temp }}/checkpoint-evidence
+          include-hidden-files: true
+          retention-days: 14
+          if-no-files-found: warn

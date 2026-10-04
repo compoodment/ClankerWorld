@@ -98,6 +98,25 @@ public sealed partial class PrivateWorldRuntime
         return stock < population * FarmFieldRules.MealsPerPersonPerDay * 2;
     }
 
+    // A missing unit for existing eligible field work, not an inventory buffer.
+    private bool WantsFieldPlantingStock(string actor, string itemKind)
+    {
+        var crop = new[] { FarmFieldRules.Greens, FarmFieldRules.Grain, FarmFieldRules.Potatoes }
+            .FirstOrDefault(candidate => FarmFieldRules.PlantingItem(candidate) == itemKind);
+        if (crop is null || !AdultResident(actor) ||
+            society.Checkpoint.GetInhabitant(actor).Status != SocietyInhabitantStatus.Active ||
+            society.Checkpoint.GetInhabitant(actor).HouseholdId is not { } householdId ||
+            FarmhouseForHousehold(householdId) is null || !FarmNeedsFood(householdId) ||
+            NeedsUrgentFood(inhabitants[actor]) || NeedsUrgentWarmth(inhabitants[actor]) ||
+            (inhabitants[actor].Project is { Stage: not ("completed" or "cancelled") } project && !project.RequiresFreshChoice) ||
+            ToolProgressionRules.PlanWork(society.Checkpoint.Inventory, actor, ToolFamily.Hoe) is null)
+            return false;
+        return fields.Any(field => field.HouseholdId == householdId && field.Work is null &&
+            field.Stage is FarmFieldStage.Prepared or FarmFieldStage.Harvested &&
+            CanReachField(actor, inhabitants[actor].Position, field.Position) &&
+            !HasOtherInhabitantClaimedPlanting(field, actor) && PlantingStock(actor, field, crop) is null);
+    }
+
     private IEnumerable<string> PlantableCrops(string actor, FarmFieldState field) =>
         new[] { FarmFieldRules.Greens, FarmFieldRules.Grain, FarmFieldRules.Potatoes }
             .OrderBy(crop => field.Crop == crop ? -1 : fields.Count(item => item.HouseholdId == field.HouseholdId &&
@@ -114,7 +133,8 @@ public sealed partial class PrivateWorldRuntime
         return inventory.Lots.Where(lot => lot.ItemKind == kind && lot.DeliveryBuildingId is null &&
                 lot.ContainerLotId is null &&
                 (lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) ||
-                    lot.OwnerId == field.HouseholdId && lot.CarrierId is null && FreeCarryCapacity(actor) > 0) &&
+                    lot.OwnerId == field.HouseholdId && lot.CarrierId is null && FreeCarryCapacity(actor) > 0 &&
+                    !OnBorrowedMarketStall(lot)) &&
                 (AvailableLotQuantity(lot) > 0 || reserve?.LotId == lot.Id))
             .OrderBy(lot => lot.OwnerId == actor ? 0 : reserve?.LotId == lot.Id ? 1 : 2)
             .ThenBy(lot => lot.Id, StringComparer.Ordinal)
@@ -122,7 +142,7 @@ public sealed partial class PrivateWorldRuntime
                 map.IsReachableOnFoot(inhabitants[actor].Position, HouseholdStockPosition(lot)));
     }
 
-    private void ApplyFieldCandidate(string actor, PlaytestInhabitantState state, string candidate)
+    private void ApplyFieldCandidate(string actor, PlaytestInhabitantState state, string candidate, string? orderInstructionId = null)
     {
         var parts = candidate.Split(':');
         if (parts.Length != 5 || !Enum.TryParse<FarmWorkKind>(parts[1], out var kind) ||
@@ -157,10 +177,10 @@ public sealed partial class PrivateWorldRuntime
                 return;
             }
             if (state.Position != point) { MoveToward(actor, state, point, "field_planting"); return; }
-            StartFieldWorkCore(actor, point, kind, crop, seed.Id);
+            StartFieldWorkCore(actor, point, kind, crop, seed.Id, orderInstructionId);
             return;
         }
         if (state.Position != point) { MoveToward(actor, state, point, "field_work"); return; }
-        StartFieldWorkCore(actor, point, kind);
+        StartFieldWorkCore(actor, point, kind, orderInstructionId: orderInstructionId);
     }
 }

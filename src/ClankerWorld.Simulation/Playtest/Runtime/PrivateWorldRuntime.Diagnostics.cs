@@ -19,6 +19,13 @@ public sealed record PrivateWorldDiagnostics(
     IReadOnlyDictionary<string, PlaytestPlannedRoute> PlannedRoutes,
     double? LastTickMilliseconds);
 
+/// <summary>
+/// Identifies the live observer's timeline. This is host metadata, never saved
+/// world identity: loading a checkpoint changes its generation, and creating a
+/// new runtime starts a new instance.
+/// </summary>
+public sealed record PrivateWorldObserverTimeline(string InstanceId, long Generation);
+
 public sealed partial class PrivateWorldRuntime
 {
     private static readonly IReadOnlyDictionary<string, PlaytestPlannedRoute> NoPlannedRoutes =
@@ -30,16 +37,28 @@ public sealed partial class PrivateWorldRuntime
     private Dictionary<string, PlaytestPlannedRoute> plannedRoutes = new(StringComparer.Ordinal);
     private IReadOnlyDictionary<string, PlaytestPlannedRoute> previousPlannedRoutes = NoPlannedRoutes;
     private double? lastTickMilliseconds;
+    // Keep these on the long-lived runtime. Prepared ticks and history
+    // compaction must not replace them when committing their simulation state.
+    private readonly string observerInstanceId = Guid.NewGuid().ToString("N");
+    private long observerGeneration;
 
     /// <summary>The committed state and its diagnostics, read together so both describe the same tick.</summary>
     public (PrivateWorldRuntimeState State, PrivateWorldDiagnostics Diagnostics) ExportStateWithDiagnostics()
+    {
+        var (state, diagnostics, _) = ExportObservation();
+        return (state, diagnostics);
+    }
+
+    /// <summary>Captures state, diagnostics and its observer timeline under the same runtime gate.</summary>
+    public (PrivateWorldRuntimeState State, PrivateWorldDiagnostics Diagnostics, PrivateWorldObserverTimeline Timeline)
+        ExportObservation()
     {
         gate.Wait();
         try
         {
             return (CaptureState(), new PrivateWorldDiagnostics(
                 new Dictionary<string, PlaytestPlannedRoute>(plannedRoutes, StringComparer.Ordinal),
-                lastTickMilliseconds));
+                lastTickMilliseconds), new PrivateWorldObserverTimeline(observerInstanceId, observerGeneration));
         }
         finally
         {

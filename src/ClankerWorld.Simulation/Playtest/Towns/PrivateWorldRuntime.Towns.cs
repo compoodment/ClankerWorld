@@ -254,10 +254,10 @@ public sealed partial class PrivateWorldRuntime
                 throw new ArgumentException("Choose an agent in this world.", nameof(agentId));
             ArgumentNullException.ThrowIfNull(name);
             var existing = society.Checkpoint.GetInhabitant(agentId);
-            if (existing.Name == name.Trim() && !existing.NeedsName) return false;
+            if (existing.Name == name.Trim() && existing.HasChosenName && !existing.NeedsName) return false;
             if (InhabitantNameRules.CanonicalKey(name) is null)
                 throw new ArgumentException("Choose a valid name.", nameof(name));
-            if (existing.Name != name.Trim() && InhabitantNameRules.IsTaken(society.Checkpoint, agentId, name))
+            if (InhabitantNameRules.IsTaken(society.Checkpoint, agentId, name))
                 throw new InhabitantNameTakenException();
             var result = society.Apply(checkpoint => SocietyFixture.RenameInhabitant(checkpoint, agentId, name));
             var changed = result.NewEvents is { Count: > 0 };
@@ -284,6 +284,7 @@ public sealed partial class PrivateWorldRuntime
                 AppendEvent("town_founded", $"{firstTown.Id}:residents:{firstTown.ResidentIds.Count}");
             }
             AdvanceTownGovernance();
+            SettleTownAdmissions();
             if (resume) society.Resume();
             AppendEvent("world_started", "four_founders_ready");
         }
@@ -305,6 +306,7 @@ public sealed partial class PrivateWorldRuntime
         AdvanceTownGovernance();
         var updated = towns.Single(item => item.Id == townId);
         AppendEvent("town_resident_joined", $"{updated.Id}:{residentId}:{reason}:residents:{updated.ResidentIds.Count}");
+        SettleTownAdmissions();
     }
 
     private void RemoveTownResident(string residentId)
@@ -315,6 +317,7 @@ public sealed partial class PrivateWorldRuntime
         SetTown(town with { ResidentIds = residents });
         AdvanceTownGovernance();
         AppendEvent("town_resident_left", $"{town.Id}:{residentId}:residents:{residents.Length}");
+        SettleTownAdmissions();
     }
 
     private string? TownForResident(string residentId) => towns

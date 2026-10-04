@@ -223,7 +223,7 @@ public sealed class StreetLanternRuntimeTests
         var error = Assert.Throws<InvalidDataException>(() => TownProjectValidation.Validate([orphanTown], withoutReceipts, state.Map,
             state.WorldSimulation!, state.WorldContent!, state.TownLandTitles!, state.HouseholdLandUseRights!,
             state.HouseholdLandUseRequests!, state.Fields!, state.RoadTiles!, state.Bridges!));
-        Assert.Equal("A street lantern has no matching paid Town project.", error.Message);
+        Assert.Equal("A Town construction receipt or building has no matching paid project.", error.Message);
         Assert.Equal(source, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
     }
 }

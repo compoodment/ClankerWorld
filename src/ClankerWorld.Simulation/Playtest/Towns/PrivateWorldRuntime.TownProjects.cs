@@ -109,6 +109,22 @@ public sealed partial class PrivateWorldRuntime
         AppendEvent("town_project_blocked", $"{town.Id}:{project.Id}:{failure}", project.Plan.Site);
     }
 
+    // A cancelled project keeps its goods where they are, releases its claims and no longer holds its site.
+    private void CancelTownProject(TownRuntimeState town, TownConstructionProject project, string reason)
+    {
+        project = ReleaseTownProjectClaims(project, reason) with { Stage = "cancelled", Blocker = reason };
+        SetTownProject(town.Id, project);
+        AppendEvent("town_project_cancelled", $"{town.Id}:{project.Id}:{reason}", project.Plan.Site);
+    }
+
+    // Wait only when a pending household request is the site's sole problem; it may still be refused.
+    private bool TownProjectWaitsForLandRequest(TownRuntimeState town, TownConstructionProject project)
+    {
+        var footprint = TownProjectRules.Footprint(project.Plan).ToHashSet();
+        return householdLandUseRequests.Any(request => request.Status == "pending" && request.Tiles.Any(footprint.Contains)) &&
+            TownProjectSiteFailure(town, project.Plan, project.Id, ignorePendingRequests: true) is null;
+    }
+
     private void MaintainTownProjects()
     {
         foreach (var originalTown in towns.ToArray())
@@ -130,7 +146,10 @@ public sealed partial class PrivateWorldRuntime
                 var project = town.Projects.Single(item => item.Id == originalProject.Id);
                 if (TownProjectSiteFailure(town, project.Plan, project.Id) is { } failure)
                 {
-                    BlockTownProject(town, project, failure);
+                    // Only a pending household request can still be refused. Any other failure, such as a
+                    // granted use right or a site taken during the vote, would hold the site forever.
+                    if (TownProjectWaitsForLandRequest(town, project)) BlockTownProject(town, project, failure);
+                    else CancelTownProject(town, project, failure);
                     continue;
                 }
                 if (project.Stage == "blocked")
@@ -460,19 +479,20 @@ public sealed partial class PrivateWorldRuntime
             MoveToward(actor, state, choice.Project.Plan.Site, "town_project_work", 0);
             return;
         }
-        if (choice.Project.WorkDone == TownProjectRules.WorkTicks)
+        var workNeeded = TownProjectRules.RequiredWork(choice.Project.Plan);
+        if (choice.Project.WorkDone == workNeeded)
         {
             CompletePaidTownProject(actor, choice.Town.Id, choice.Project);
             return;
         }
         if (!SettlementIllnessRules.AllowsWork(actor, WorldTick, state.Survival?.IllnessBasisPoints ?? 0)) return;
         var hammer = ToolProgressionRules.PlanWork(society.Checkpoint.Inventory, actor, ToolFamily.Hammer);
-        var done = Math.Min(TownProjectRules.WorkTicks, choice.Project.WorkDone + (hammer?.WorkUnits ?? 1));
+        var done = Math.Min(workNeeded, choice.Project.WorkDone + (hammer?.WorkUnits ?? 1));
         if (hammer is not null) ApplyToolWork(actor, hammer);
         var project = choice.Project with { Stage = "working", WorkDone = done, LastTransitionTick = WorldTick };
         SetTownProject(choice.Town.Id, project);
         AppendEvent("town_project_worked", $"{actor}:{project.Id}:{done}", project.Plan.Site);
-        if (done == TownProjectRules.WorkTicks) CompletePaidTownProject(actor, choice.Town.Id, project);
+        if (done == workNeeded) CompletePaidTownProject(actor, choice.Town.Id, project);
     }
 
     private void CompletePaidTownProject(string actor, string townId, TownConstructionProject project)
@@ -511,6 +531,7 @@ public sealed partial class PrivateWorldRuntime
             Blocker = null,
             LastTransitionTick = WorldTick,
         });
+        CompletePaidMarketConstruction(townId, project, placed);
         AssignBuildingToTown(placed, worldContent.Buildings.Single(item => item.CanonicalId == placed.DefinitionId));
         CreditCompletedWork(actor, "building");
         AppendEvent("town_project_completed", $"{actor}:{project.Id}:{id}:{project.Plan.Name}", project.Plan.Site);

@@ -5,10 +5,21 @@ namespace ClankerWorld.GodotClient.UI;
 /// <summary>One building's lights tonight: where it stands, how its lights are laid out and who is using it.</summary>
 public readonly record struct BuildingLight(Rect2I Footprint, LightPlan Plan, bool Occupied, bool Working)
 {
+    public BuildingKind? Kind { get; init; }
+    public BuildingDoor Door { get; init; }
+
+    /// <summary>Match the integer roof layout of the atlas actually drawn at this zoom.</summary>
+    public BuildingLight AtAtlas(int tilePixels)
+    {
+        if (Kind is not { } kind) return this;
+        var (roof, yard, middle, wing) = BuildingSprites.Plan(kind, Footprint.Size.X, Footprint.Size.Y, Door, tilePixels);
+        return this with { Plan = Plan with { Roof = roof, Yard = yard, DoorMiddle = middle, Wing = wing } };
+    }
     /// <summary>Whether anything of this building shines, for the overview speck.</summary>
     public bool Shines => Plan.Design switch
     {
         LitDesign.Silo or LitDesign.MarketStall => false,
+        LitDesign.House => Occupied,
         LitDesign.Port => true,
         _ => Occupied || Working,
     };
@@ -173,8 +184,8 @@ public partial class NightLightsLayer : Control
         {
             var overview = new List<(Rect2, LightCellKind)>();
             if (drawnDarkness > 0)
-                foreach (var building in buildings)
-                    if (building.Shines && building.Footprint.Intersects(visible)) DrawSpeck(building, stride);
+                foreach (var (building, _) in VisibleBuildings(visible))
+                    if (building.Shines) DrawSpeck(building, stride);
             foreach (var lantern in lanterns)
                 foreach (var shift in wrapsEastWest ? new[] { -source.World.Width, 0, source.World.Width } : [0])
                 {
@@ -198,15 +209,19 @@ public partial class NightLightsLayer : Control
             return;
         }
 
-        var snap = BuildingSprites.AtlasTileSize(source.TileSize) == 16 ? 2 : 1;
+        var atlasSize = BuildingSprites.AtlasTileSize(source.TileSize);
+        var snap = atlasSize == 16 ? 2 : 1;
         var unit = stride / 32f;
         var placed = new List<(Vector2 Origin, LightCell Cell)>();
-        foreach (var building in buildings)
+        var roofs = new List<Rect2>();
+        foreach (var (visibleBuilding, seed) in VisibleBuildings(visible))
         {
-            if (!building.Footprint.Intersects(visible)) continue;
+            var building = visibleBuilding.AtAtlas(atlasSize);
             var origin = new Vector2(building.Footprint.Position.X, building.Footprint.Position.Y) * stride;
+            roofs.Add(Scaled(origin, building.Plan.Roof, unit));
+            if (building.Plan.Wing is { } wing) roofs.Add(Scaled(origin, wing, unit));
             foreach (var cell in NightLightShapes.Building(building.Plan, building.Occupied, building.Working,
-                drawnDarkness > 0.05f, drawnTime, Seed(building.Footprint.Position), snap))
+                drawnDarkness > 0.05f, drawnTime, seed, snap))
                 placed.Add((origin, cell));
         }
         foreach (var lantern in lanterns)
@@ -224,9 +239,11 @@ public partial class NightLightsLayer : Control
         if (drawnDarkness > 0)
             foreach (var (origin, cell) in placed.Where(item => item.Cell.Kind == LightCellKind.Light).OrderBy(item => item.Cell.Strength))
             {
-                var area = Scaled(origin, cell.Area, unit);
-                DrawRect(area, cell.Color with { A = Math.Min(0.98f, cell.Strength * drawnDarkness) });
-                drawn.Add((area, cell.Kind));
+                foreach (var area in NightLightShapes.OutsideRoofs(Scaled(origin, cell.Area, unit), roofs))
+                {
+                    DrawRect(area, cell.Color with { A = Math.Min(0.98f, cell.Strength * drawnDarkness) });
+                    drawn.Add((area, cell.Kind));
+                }
             }
         foreach (var (origin, cell) in placed.Where(item => item.Cell.Kind != LightCellKind.Light))
         {
@@ -238,6 +255,18 @@ public partial class NightLightsLayer : Control
             drawn.Add((area, cell.Kind));
         }
         DrawnCells = drawn;
+    }
+
+    private IEnumerable<(BuildingLight Building, int Seed)> VisibleBuildings(Rect2I visible)
+    {
+        var shifts = source!.WrapsEastWest ? new[] { -source.World!.Width, 0, source.World.Width } : [0];
+        foreach (var building in buildings)
+            foreach (var shift in shifts)
+            {
+                var footprint = building.Footprint with { Position = building.Footprint.Position + new Vector2I(shift, 0) };
+                if (footprint.Intersects(visible))
+                    yield return (building with { Footprint = footprint }, Seed(building.Footprint.Position));
+            }
     }
 
     private static Rect2 Scaled(Vector2 origin, Rect2 units, float unit) =>

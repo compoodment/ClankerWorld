@@ -1,0 +1,1 @@
+- Households can build a 1×2 Farmhouse, 2×2 Blacksmith, 2×2 Tailor Shop, 1×1 Clinic or 2×2 Restaurant as an alternative to the existing size. Each uses real materials and work and keeps the building's usual recipes and household access. First-Town buildings and the one-building-per-kind rule stay the same; costs and stock capacities remain provisional.

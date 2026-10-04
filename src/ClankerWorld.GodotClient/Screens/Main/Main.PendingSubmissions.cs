@@ -76,7 +76,7 @@ public partial class Main
     private void LoadPendingSubmission()
     {
         pendingSubmission = TryCreatePendingSubmissionBinding(out var binding)
-            ? pendingSubmissionStore.TryLoad(binding)
+            ? pendingSubmissionStore.TryLoadForRegistration(binding)
             : null;
         RenderPendingSubmission();
         RefreshControlAvailability();
@@ -96,7 +96,7 @@ public partial class Main
                 registration.Authority,
                 registration.DeviceId,
                 deviceKey.PublicKeyFingerprint,
-                ResolveWorldUri());
+                ResolveWorldUri(), observationSession.Timeline, observationSession.Current?.Baseline.Snapshot.WorldId);
             return true;
         }
         catch (ArgumentException)
@@ -120,22 +120,22 @@ public partial class Main
 
         if (!TryGetOwner(out var authority, out var deviceId, out var signer) ||
             !TryCreatePendingSubmissionBinding(out var binding) ||
-            !pending.Binding.Matches(binding))
+            !pending.Binding.MatchesRegistration(binding) || !CanRetryPendingSubmission(pending))
         {
-            SetStatus("this retained request is not bound to the current paired device and pinned server; forget it explicitly before making a new request", good: false);
+            SetStatus("This retained request belongs to a previous world state or paired connection. Check the world, then explicitly forget it before sending a new request.", good: false);
             return;
         }
 
         if (pending.Instruction is { } retainedInstruction &&
             !retainedInstruction.CanRetryIn(observationSession.Current?.Baseline.Snapshot.WorldId))
         {
-            SetStatus("Return to the world where this instruction was sent before retrying. The request is still retained.", good: false);
+            SetStatus("This instruction belongs to a previous world state. Check the world, then explicitly forget it before sending a new request.", good: false);
             return;
         }
         if (pending.OrderCancel is { } retainedCancellation &&
             !retainedCancellation.CanRetryIn(observationSession.Current?.Baseline.Snapshot.WorldId))
         {
-            SetStatus("Return to the world where this order was sent before retrying its cancellation. The request is still retained.", good: false);
+            SetStatus("This cancellation belongs to a previous world state. Check the world, then explicitly forget it before sending a new request.", good: false);
             return;
         }
 
@@ -144,16 +144,16 @@ public partial class Main
         {
             if (pending.Instruction is { } instruction)
             {
-                await ownerApi.SubmitInstructionAsync(
-                    ResolveWorldUri(), authority, deviceId, instruction.ToAction(), signer, CancellationToken.None);
+                await AwaitCurrentWorldResultAsync(ownerApi.SubmitInstructionAsync(
+                    ResolveWorldUri(), authority, deviceId, instruction.ToAction(), signer, CancellationToken.None));
                 completed = true;
                 return InstructionSubmissionResultText(instruction.Kind, instruction.Queue);
             }
 
             if (pending.Authoring is { } authoring)
             {
-                var receipt = await ownerApi.SubmitAuthoringAsync(
-                    ResolveWorldUri(), authority, deviceId, authoring.ToAction(), signer, CancellationToken.None);
+                var receipt = await AwaitCurrentWorldResultAsync(ownerApi.SubmitAuthoringAsync(
+                    ResolveWorldUri(), authority, deviceId, authoring.ToAction(), signer, CancellationToken.None));
                 completed = true;
                 return receipt.Applied
                     ? $"confirmed authoring batch {receipt.BatchId} at revision {receipt.Revision}"
@@ -162,8 +162,8 @@ public partial class Main
 
             if (pending.OrderCancel is { } cancellation)
             {
-                var receipt = await ownerApi.CancelOrderAsync(
-                    ResolveWorldUri(), authority, deviceId, cancellation.ToAction(), signer, CancellationToken.None);
+                var receipt = await AwaitCurrentWorldResultAsync(ownerApi.CancelOrderAsync(
+                    ResolveWorldUri(), authority, deviceId, cancellation.ToAction(), signer, CancellationToken.None));
                 completed = true;
                 return OrderCancellationResultText(receipt);
             }
@@ -179,6 +179,7 @@ public partial class Main
 
     private void CompletePendingSubmission(OwnerPendingSubmission completed)
     {
+        if (!CanRetryPendingSubmission(completed)) return;
         if (!pendingSubmissionStore.TryClear(completed))
         {
             SetStatus("server confirmed the request, but its local retry record could not be cleared; retry remains safe or forget it after checking the world", good: false);
@@ -214,25 +215,39 @@ public partial class Main
         {
             { Instruction: { } instruction } =>
                 $"Retained instruction retry · {instruction.Kind} for {instruction.TargetInhabitantId} · ID {instruction.IdempotencyKey}" +
-                (instruction.CanRetryIn(observationSession.Current?.Baseline.Snapshot.WorldId)
-                    ? string.Empty : " · Return to its original world before retrying."),
+                (CanRetryPendingSubmission(pendingSubmission)
+                    ? string.Empty : " · Previous world state: check the world, then forget this request before sending a new one."),
             { Authoring: { } authoring } =>
-                $"Retained paused-authoring retry · batch {authoring.BatchId}",
+                $"Retained paused-authoring retry · batch {authoring.BatchId}" +
+                (CanRetryPendingSubmission(pendingSubmission)
+                    ? string.Empty : " · Previous world state: check the world, then forget this request before sending a new one."),
             { OrderCancel: { } cancellation } =>
                 $"Retained order-cancellation retry · order {cancellation.OrderId} for {cancellation.TargetInhabitantId}" +
-                (cancellation.CanRetryIn(observationSession.Current?.Baseline.Snapshot.WorldId)
-                    ? string.Empty : " · Return to its original world before retrying."),
+                (CanRetryPendingSubmission(pendingSubmission)
+                    ? string.Empty : " · Previous world state: check the world, then forget this request before sending a new one."),
             _ => "No retained owner request. A network failure keeps one instruction, order cancellation or authoring batch here for an exact retry.",
         };
     }
 
     private readonly OwnerActionGate ownerActionGate = new();
 
+    private bool CanRetryPendingSubmission(OwnerPendingSubmission? pending)
+    {
+        var worldId = observationSession.Current?.Baseline.Snapshot.WorldId;
+        return pending is not null && !observationSession.AwaitingFreshBaseline &&
+            pending.Binding.CanRetryIn(worldId, observationSession.Timeline) &&
+            (pending.Instruction is not { } instruction || instruction.CanRetryIn(worldId)) &&
+            (pending.OrderCancel is not { } cancellation || cancellation.CanRetryIn(worldId));
+    }
+
     private async Task RunOwnerActionAsync(Func<Task<string>> action, bool waitForTurn = false,
         string? conflictMessage = null)
     {
+        var generation = observationSession.RequestGeneration;
+        if (!IsCurrentWorldRequest(generation)) return;
         await ownerActionGate.RunAsync(async () =>
         {
+            if (!IsCurrentWorldRequest(generation)) return;
             isOwnerAction = true;
             refreshCancellation?.Cancel();
             RefreshControlAvailability();
@@ -242,6 +257,10 @@ public partial class Main
                 var detail = await action();
                 SetStatus(detail, good: true);
                 await RefreshAsync();
+            }
+            catch (ObsoleteWorldRequestException)
+            {
+                // A different world state is being displayed or recovered.
             }
             catch (System.Net.Http.HttpRequestException exception)
                 when (exception.StatusCode == System.Net.HttpStatusCode.Conflict && conflictMessage is not null)

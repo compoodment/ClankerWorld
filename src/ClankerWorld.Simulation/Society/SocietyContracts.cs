@@ -192,6 +192,10 @@ public sealed record SocietyInhabitant(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] long? BirthLifeTick = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool NeedsName = false)
 {
+    /// <summary>Whether Name is a chosen identity rather than an unnamed placeholder.</summary>
+    [JsonRequired]
+    public bool HasChosenName { get; init; } = !NeedsName;
+
     /// <summary>The explicit domestic group used for House resident priority, separate from ancestry.</summary>
     public string? DomesticFamilyUnitId { get; init; }
 
@@ -301,6 +305,8 @@ public sealed record SocietyAgentMemoryCompaction(
     string OwnerId,
     IReadOnlyList<SocietyAgentMemoryImportance> Sources);
 
+public sealed record SocietyBirthFoodContribution(string LotId, int Quantity);
+
 public sealed record SocietyBirthRequest(
     string Id,
     int Revision,
@@ -315,7 +321,8 @@ public sealed record SocietyBirthRequest(
     NewbornProviderPolicy ProviderPolicy = NewbornProviderPolicy.Hybrid,
     string? RequestedProviderBindingId = null,
     string? ChildName = null,
-    string? PrimaryCaregiverId = null);
+    string? PrimaryCaregiverId = null,
+    IReadOnlyList<SocietyBirthFoodContribution>? FoodContributions = null);
 
 /// <summary>
 /// A dead agent's frozen estate. <paramref name="BeneficiaryIds"/> is always the

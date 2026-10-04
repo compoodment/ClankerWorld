@@ -19,7 +19,11 @@ public enum BuildingKind : byte
     Path,
     Bedroll,
     Generic,
+    Clinic,
+    Restaurant,
     TownHall,
+    Market,
+    MarketStall,
 }
 
 /// <summary>The edge of a building's footprint that its door is on.</summary>
@@ -64,7 +68,7 @@ public readonly record struct BuildingDoor(DoorSide Side, int? Tile = null)
 /// owner approved in the art review (<see cref="ApprovedArt"/>); only the
 /// retired camp objects keep their earlier provisional drawing.
 /// </summary>
-public static class BuildingSprites
+public static partial class BuildingSprites
 {
     private static readonly Dictionary<(BuildingKind Kind, int Width, int Height, int Tile, BuildingDoor Door), ImageTexture> Cache = [];
     private static readonly Color Shadow = new(0.04f, 0.06f, 0.05f, 0.30f);
@@ -82,7 +86,11 @@ public static class BuildingSprites
         if (Has("workshop")) return BuildingKind.Workshop;
         if (Has("tailor")) return BuildingKind.TailorShop;
         if (Has("store")) return BuildingKind.Store;
+        if (Has("clinic")) return BuildingKind.Clinic;
+        if (Has("restaurant")) return BuildingKind.Restaurant;
         if (Has("town_hall")) return BuildingKind.TownHall;
+        if (Has("market_stall")) return BuildingKind.MarketStall;
+        if (Has("market")) return BuildingKind.Market;
         if ((Has("cooking") || Has("warmth")) && !Has("shelter")) return BuildingKind.Hearth;
         if (Has("storage")) return BuildingKind.Storehouse;
         if (Has("shelter")) return BuildingKind.Shelter;
@@ -111,14 +119,14 @@ public static class BuildingSprites
     /// relative to its footprint. Kinds without the approved drawing use the
     /// plain three-unit inset with the door in the middle of its side.
     /// </summary>
-    public static (Rect2 Roof, Rect2? Yard, float DoorMiddle) Plan(BuildingKind kind, int tilesWide, int tilesHigh, BuildingDoor door)
+    public static (Rect2 Roof, Rect2? Yard, float DoorMiddle, Rect2? Wing) Plan(BuildingKind kind, int tilesWide, int tilesHigh, BuildingDoor door, int tilePixels = 32)
     {
-        if (ApprovedArt.PlanFor(kind, tilesWide, tilesHigh, door) is { } plan) return plan;
+        if (ApprovedArt.PlanFor(kind, tilesWide, tilesHigh, door, tilePixels) is { } plan) return plan;
         var roof = new Rect2(3, 3, tilesWide * 32 - 6, tilesHigh * 32 - 8);
         var horizontal = door.Side is DoorSide.South or DoorSide.North;
         var from = horizontal ? roof.Position.X : roof.Position.Y;
         var length = horizontal ? roof.Size.X : roof.Size.Y;
-        return (roof, null, door.Tile is { } tile ? tile * 32 + 16 : from + length / 2);
+        return (roof, null, door.Tile is { } tile ? tile * 32 + 16 : from + length / 2, null);
     }
 
     public static ImageTexture Texture(BuildingKind kind, int width, int height, int tilePixels, BuildingDoor door = default)
@@ -326,7 +334,8 @@ public static class BuildingSprites
     /// The building exteriors the owner approved in the art review
     /// (2026-10-01): House, Warehouse, Blacksmith, Silo and Tailor shop from
     /// the first round, and the Farmhouse, Workshop and generic building from
-    /// the second, at any footprint and door side. The layout keeps the
+    /// the second, plus the approved Clinic and Restaurant, at any footprint
+    /// and door side. The layout keeps the
     /// earlier contract: the roof sits three units in from the footprint, the
     /// door is on the side that faces the Road, and the doorstep path starts at
     /// the edge. Each roof is laid in a real material (clay tiles, thatch,
@@ -335,7 +344,7 @@ public static class BuildingSprites
     /// over a stone doorstep, and one identifying feature per kind. Layouts
     /// are written in 32-unit tile space and drawn at 32 or 16 px per tile.
     /// </summary>
-    private static class ApprovedArt
+    private static partial class ApprovedArt
     {
         // Every colour is a step of an art style guide ramp.
         private static readonly Ramp Clay = Ramp.Of("5E2E22", "9E4E34", "C66A45", "E08E64", "EFA982");
@@ -359,6 +368,7 @@ public static class BuildingSprites
         private static readonly Ramp Gold = Ramp.Of("8A6A1E", "B8902E", "D9AE3C", "F2CC5E", "FFE28A");
         private static readonly Ramp Leaf = Ramp.Of("3C5F2E", "4C7A3A", "5E8C45", "79A657", "9BC66F");
         private static readonly Ramp Berry = Ramp.Of("7A2A2E", "A33A3F", "C4474B", "F08A8A", "FFC2C2");
+        private static readonly Ramp Fruit = Ramp.Of("9A4E1E", "C8702E", "E0893F", "F6C27A", "FFE0A8");
         private static readonly Ramp Dirt = Ramp.Of("6E5538", "977852", "B99A6B", "C9AC7C", "D9C08F");
         private static readonly Ramp River = Ramp.Of("2F5A75", "3B7294", "4786AB", "5695B8", "7FB4CF");
 
@@ -403,24 +413,55 @@ public static class BuildingSprites
             BuildingKind.Store => new(Timber, Material.Shingle, RoofShape.Hip, 193, Clearance: 10),
             BuildingKind.Workshop => new(GreenPlank, Material.Plank, RoofShape.Gable, 379, Yard: 16),
             BuildingKind.Generic => new(Plain, Material.Shingle, RoofShape.Hip, 410),
+            BuildingKind.Clinic => new(Cloth, Material.Shingle, RoofShape.Hip, 348),
+            BuildingKind.Restaurant => new(Clay, Material.Clay, RoofShape.Gable, 441, Yard: 20),
             BuildingKind.TownHall => new(Slate, Material.Slate, RoofShape.Hip, 286, Clearance: 22),
+            BuildingKind.Market => new(Timber, Material.Plank, RoofShape.Hip, 224),
             _ => null,
         };
 
         /// <summary>Whether this kind uses the approved drawing.</summary>
-        public static bool Draws(BuildingKind kind) => kind == BuildingKind.Silo || RecipeFor(kind) is not null;
+        public static bool Draws(BuildingKind kind) => kind is BuildingKind.Silo or BuildingKind.MarketStall || RecipeFor(kind) is not null;
 
         /// <summary>Where a roofed kind's roof, yard and door are, in 32-unit tile space; null for the others.</summary>
-        public static (Rect2 Roof, Rect2? Yard, float DoorMiddle)? PlanFor(BuildingKind kind, int tilesWide, int tilesHigh, BuildingDoor door)
+        public static (Rect2 Roof, Rect2? Yard, float DoorMiddle, Rect2? Wing)? PlanFor(BuildingKind kind, int tilesWide, int tilesHigh, BuildingDoor door, int tilePixels)
         {
             if (RecipeFor(kind) is not { } recipe) return null;
-            var plan = Lay(Math.Clamp(tilesWide, 1, 8) * 32, Math.Clamp(tilesHigh, 1, 8) * 32, door, recipe,
-                kind == BuildingKind.Warehouse ? 7f : 3f);
-            return (plan.Roof, plan.Yard, plan.DoorMiddle);
+            var w = Math.Clamp(tilesWide, 1, 8) * 32;
+            var h = Math.Clamp(tilesHigh, 1, 8) * 32;
+            if (kind == BuildingKind.Restaurant && (w <= 32 || h <= 32)) recipe = recipe with { Yard = 0 };
+            var plan = Lay(w, h, door, recipe, kind == BuildingKind.Warehouse ? 7f : kind == BuildingKind.TownHall ? 5f : 3f);
+            var scale = tilePixels / 32f;
+            int Pixel(float units) => (int)MathF.Round(units * scale);
+            Rect2I Pixels(Rect2 box) => new(Pixel(box.Position.X), Pixel(box.Position.Y),
+                Math.Max(1, Pixel(box.End.X) - Pixel(box.Position.X)),
+                Math.Max(1, Pixel(box.End.Y) - Pixel(box.Position.Y)));
+            Rect2 Units(Rect2I box) => new((Vector2)box.Position / scale, (Vector2)box.Size / scale);
+            if (kind == BuildingKind.Market)
+            {
+                var frame = new MarketFrame(Opposite(door.Side), w, h);
+                var roof = frame.Map(3, 3, frame.Breadth - 6, frame.Length - 10);
+                var marketMiddle = Fit(door.Tile is { } tile ? tile * 32 + 16 : frame.Breadth / 2f, 14, frame.Breadth - 14);
+                return (Units(Pixels(roof)), null, Pixel(marketMiddle) / scale, null);
+            }
+            if (kind != BuildingKind.TownHall)
+                return (Units(Pixels(plan.Roof)), plan.Yard is { } yard ? Units(Pixels(yard)) : null,
+                    Pixel(plan.DoorMiddle) / scale, null);
+            var (main, wings) = HallLayout(Pixels(plan.Roof), door.Side);
+            var horizontal = door.Side is DoorSide.South or DoorSide.North;
+            var middle = FitHallPixel(Pixel(plan.DoorMiddle),
+                (horizontal ? main.Position.X : main.Position.Y) + Pixel(10),
+                (horizontal ? main.End.X : main.End.Y) - 1 - Pixel(10));
+            return (Units(main), null, middle / scale, Units(wings));
         }
 
         /// <summary>The main roof colour of an approved kind, for the overview fill; null for the others.</summary>
-        public static Color? MainRoof(BuildingKind kind) => kind == BuildingKind.Silo ? SiloWood.Base : RecipeFor(kind)?.Roof.Base;
+        public static Color? MainRoof(BuildingKind kind) => kind switch
+        {
+            BuildingKind.Silo => SiloWood.Base,
+            BuildingKind.MarketStall => Berry.Base,
+            _ => RecipeFor(kind)?.Roof.Base,
+        };
 
         /// <summary>Draws one approved kind over its footprint, transparent outside the building.</summary>
         public static Image Draw(BuildingKind kind, int tilesWide, int tilesHigh, int tilePixels, BuildingDoor door)
@@ -430,7 +471,12 @@ public static class BuildingSprites
             var plate = new Plate(tilesWide * tilePixels, tilesHigh * tilePixels, tilePixels / 32f);
             var w = tilesWide * 32;
             var h = tilesHigh * 32;
-            if (RecipeFor(kind) is { } recipe) PaintRoofed(plate, kind, recipe, w, h, door);
+            if (kind == BuildingKind.MarketStall) PaintStallLot(plate, w, h, door);
+            else if (RecipeFor(kind) is { } recipe)
+            {
+                if (kind == BuildingKind.Market) PaintMarket(plate, recipe, w, h, door);
+                else PaintRoofed(plate, kind, recipe, w, h, door);
+            }
             else PaintSilo(plate, w, h);
             return plate.Image;
         }
@@ -519,6 +565,8 @@ public static class BuildingSprites
         /// </summary>
         private static void PaintRoofed(Plate p, BuildingKind kind, Recipe recipe, int w, int h, BuildingDoor door)
         {
+            // The approved dining terrace needs at least two tiles each way.
+            if (kind == BuildingKind.Restaurant && (w <= 32 || h <= 32)) recipe = recipe with { Yard = 0 };
             if (kind == BuildingKind.TownHall)
             {
                 PaintHall(p, recipe, w, h, door);
@@ -539,10 +587,11 @@ public static class BuildingSprites
                 }
                 else
                 {
-                    // The farmyard and the work yard are smaller worn patches, not the whole end.
                     var inset = p.P(2);
                     var patch = new Rect2I(yard.Position.X + inset, yard.Position.Y + inset, yard.Size.X - inset * 2, yard.Size.Y - inset * 2);
-                    YardFloor(p, patch, Dirt.Base, Dirt.Shade, Dirt.Shade, kind == BuildingKind.Farmhouse ? 117 : 131);
+                    if (kind == BuildingKind.Restaurant) Flagstones(p, patch, 167);
+                    // The farmyard and work yard are smaller worn patches, not the whole end.
+                    else YardFloor(p, patch, Dirt.Base, Dirt.Shade, Dirt.Shade, kind == BuildingKind.Farmhouse ? 117 : 131);
                 }
             }
             PaintRoof(p, roof, recipe);
@@ -585,6 +634,20 @@ public static class BuildingSprites
                     SpoolSign(p, spool.X, spool.Y);
                     nextRow = Door(p, roof, door.Side, middle, 3, 3);
                     break;
+                case BuildingKind.Clinic:
+                    var sign = Inward(p, roof, door.Side, middle, 8);
+                    CrossSign(p, sign.X, sign.Y);
+                    nextRow = Door(p, roof, door.Side, middle, 3, 3);
+                    HerbPlanter(p, roof, door.Side, middle);
+                    break;
+                case BuildingKind.Restaurant:
+                    if (plan.Yard is { } terrace) Terrace(p, p.Px(terrace));
+                    var (kx, ky) = ChimneySpot(roof, p.Small, door.Side, middle);
+                    Chimney(p, kx, ky);
+                    var pot = Inward(p, roof, door.Side, middle, 8);
+                    PotSign(p, pot.X, pot.Y);
+                    nextRow = Door(p, roof, door.Side, middle, 3, 3);
+                    break;
             }
             // The doorstep path the Road's own doorstep piece continues.
             if (door.Tile is not null) Path(p, roof, door.Side, middle, nextRow);
@@ -609,7 +672,7 @@ public static class BuildingSprites
 
         private static int FitHallPixel(int value, int min, int max) => max < min ? (min + max) / 2 : Math.Clamp(value, min, max);
 
-        private static Rect2I HallRoofs(Plate p, Rect2I roof, Recipe recipe, DoorSide door, int salt)
+        private static (Rect2I Main, Rect2I Wings) HallLayout(Rect2I roof, DoorSide door)
         {
             var towardDoor = door is DoorSide.South or DoorSide.North;
             int x = roof.Position.X, y = roof.Position.Y, w = roof.Size.X, h = roof.Size.Y;
@@ -619,6 +682,12 @@ public static class BuildingSprites
             var wings = towardDoor
                 ? new Rect2I(x, y + (int)(h * 0.3f), w, (int)(h * 0.38f))
                 : new Rect2I(x + (int)(w * 0.3f), y, (int)(w * 0.38f), h);
+            return (main, wings);
+        }
+
+        private static Rect2I HallRoofs(Plate p, Rect2I roof, Recipe recipe, DoorSide door, int salt)
+        {
+            var (main, wings) = HallLayout(roof, door);
             PaintRoof(p, wings, recipe with { Salt = salt + 1 });
             PaintRoof(p, main, recipe with { Salt = salt });
             // Gold finials where the main ridge ends.
@@ -1699,6 +1768,123 @@ public static class BuildingSprites
 
         /// <summary>Clamps to [min, max], or takes the middle when a small footprint leaves no room.</summary>
         private static float Fit(float value, float min, float max) => max < min ? (min + max) / 2 : Math.Clamp(value, min, max);
+
+        /// <summary>B6 Clinic: a cream sign board with a green cross.</summary>
+        private static void CrossSign(Plate p, int cx, int cy)
+        {
+            if (p.Small)
+            {
+                p.Fill(cx - 1, cy - 1, 5, 5, SmallShadow);
+                p.Fill(cx - 2, cy - 2, 5, 5, Timber.Edge);
+                p.Fill(cx - 1, cy - 1, 3, 3, Cloth.Highlight);
+                p.Fill(cx - 1, cy, 3, 1, Leaf.Base);
+                p.Fill(cx, cy - 1, 1, 3, Leaf.Base);
+                return;
+            }
+            p.Fill(cx - 3, cy - 3, 9, 9, SmallShadow);
+            p.Fill(cx - 4, cy - 4, 9, 9, Timber.Edge);
+            p.Fill(cx - 3, cy - 3, 7, 7, Cloth.Highlight);
+            p.Fill(cx - 1, cy - 3, 3, 7, Leaf.Base);
+            p.Fill(cx - 3, cy - 1, 7, 3, Leaf.Base);
+            p.Fill(cx - 1, cy - 3, 1, 2, Leaf.Light);
+            p.Fill(cx - 3, cy - 1, 2, 1, Leaf.Light);
+            p.Put(cx + 1, cy + 1, Leaf.Shade);
+        }
+
+        /// <summary>Clinic: a small planter of herbs beside the doorstep, leaves with a few lavender flowers.</summary>
+        private static void HerbPlanter(Plate p, Rect2I roof, DoorSide side, int middle)
+        {
+            if (p.Small) return;
+            var start = middle + 5;
+            for (var k = 2; k <= 4; k++)
+                for (var t = start; t < start + 6; t++)
+                {
+                    var edge = k == 2 || k == 4 || t == start || t == start + 5;
+                    var c = edge ? Timber.Shade : (t + k) % 3 == 0 ? Leaf.Light : Leaf.Base;
+                    if (!edge && (t * 7 + k) % 5 == 0) c = DyedShingle.Light;
+                    Out(p, roof, side, k, t, c);
+                }
+        }
+
+        /// <summary>B6 Restaurant: a cream sign board with an iron pot of stew seen from above, handles to the sides.</summary>
+        private static void PotSign(Plate p, int cx, int cy)
+        {
+            if (p.Small)
+            {
+                p.Fill(cx - 1, cy - 1, 4, 4, SmallShadow);
+                p.Fill(cx - 2, cy - 2, 4, 4, Timber.Edge);
+                p.Fill(cx - 1, cy - 1, 2, 2, Fruit.Base);
+                p.Put(cx - 1, cy - 1, Fruit.Light);
+                return;
+            }
+            p.Fill(cx - 3, cy - 3, 9, 8, SmallShadow);
+            p.Fill(cx - 4, cy - 4, 9, 8, Timber.Edge);
+            p.Fill(cx - 3, cy - 3, 7, 6, Cloth.Light);
+            p.Fill(cx - 3, cy - 3, 7, 1, Cloth.Highlight);
+            // Rim (iron, lit on the north-west), stew inside, a handle on each side.
+            string[] pot =
+            [
+                ".ree...",
+                "rFLFe..",
+                "eFFSeh.",
+                "heSSe..",
+                ".eee...",
+            ];
+            for (var j = 0; j < pot.Length; j++)
+                for (var i = 0; i < pot[j].Length; i++)
+                {
+                    Color? c = pot[j][i] switch
+                    {
+                        'r' => Iron.Light,
+                        'e' => Iron.Edge,
+                        'h' => Iron.Shade,
+                        'F' => Fruit.Base,
+                        'L' => Fruit.Light,
+                        'S' => Fruit.Shade,
+                        _ => null,
+                    };
+                    if (c is { } colour) p.Put(cx - 2 + i, cy - 3 + j, colour);
+                }
+        }
+
+        /// <summary>
+        /// Restaurant terrace (2 x 2 only): two plank tables with a bench along
+        /// each long side and a bowl on each table, on the flagstones laid by
+        /// <see cref="PaintRoofed"/>.
+        /// </summary>
+        private static void Terrace(Plate p, Rect2I yard)
+        {
+            var tall = yard.Size.Y >= yard.Size.X;
+            foreach (var f in new[] { 0.3f, 0.72f })
+            {
+                int tx = tall ? yard.Position.X + yard.Size.X / 2 : yard.Position.X + (int)(yard.Size.X * f);
+                int ty = tall ? yard.Position.Y + (int)(yard.Size.Y * f) : yard.Position.Y + yard.Size.Y / 2;
+                if (p.Small)
+                {
+                    p.Fill(tx - 1, ty, 4, 2, SmallShadow);
+                    p.Fill(tx - 2, ty - 1, 4, 2, Timber.Light);
+                    continue;
+                }
+                // Benches first, then the table between them and its shadow on the flagstones.
+                foreach (var by in new[] { ty - 5, ty + 4 })
+                {
+                    p.Fill(tx - 4, by + 1, 9, 2, SmallShadow);
+                    p.Fill(tx - 5, by, 9, 2, Timber.Edge);
+                    p.Fill(tx - 4, by, 7, 1, Timber.Base);
+                }
+                p.Fill(tx - 4, ty - 1, 10, 5, SmallShadow);
+                p.Fill(tx - 5, ty - 2, 10, 5, Timber.Edge);
+                p.Fill(tx - 4, ty - 1, 8, 3, Timber.Light);
+                p.Fill(tx - 4, ty - 1, 8, 1, Timber.Highlight);
+                p.Fill(tx - 4, ty + 1, 8, 1, Toward(Timber, 3, 2, 0.6f));
+                // A bowl of stew on the table.
+                p.Put(tx - 2, ty, Cloth.Highlight);
+                p.Put(tx - 1, ty, Fruit.Base);
+                p.Put(tx - 1, ty - 1, Cloth.Highlight);
+                p.Put(tx, ty, Cloth.Light);
+                p.Put(tx + 2, ty, Cloth.Highlight);
+            }
+        }
 
         // ------------------------------------------------------------------
         // Small helpers.

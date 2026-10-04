@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Collections.Concurrent;
 using System.Text.Json;
 using ClankerWorld.Simulation.Cognition;
@@ -237,6 +238,64 @@ public sealed class TownProjectRuntimeTests
     }
 
     [Fact]
+    public async Task GrantedHouseholdRightOnAHallSiteCancelsTheProjectWithoutLosingGoods()
+    {
+        using var scenario = await TownProjectScenario.ApprovedAsync(initialTownStock: true);
+        scenario.Policy.Supply = true;
+        scenario.Policy.PersonalSupply = false;
+        await scenario.UntilAsync(() => scenario.Project.Deliveries.Any(delivery => delivery.DeliveredTick is not null), 80);
+        scenario.Policy.Supply = false;
+        var requested = scenario.World.RequestHouseholdLandUse("request:hall-site", TownProjectScenario.Author,
+            TownBorderRules.FirstTownId, WorldContentSimulationRules.Footprint(TownHallContent.Hall3x4(), scenario.Project.Plan.Site).ToArray());
+        Assert.True(requested.Applied, requested.Failure);
+        await scenario.UntilAsync(() => scenario.Project.Stage == "blocked", 4);
+
+        // Granting the request makes the site unusable for good, so the project stops instead of holding the land.
+        scenario.Policy.AcceptLandUse = true;
+        await scenario.UntilAsync(() => scenario.Project.Stage == "cancelled", 160);
+        Assert.Equal("granted", scenario.World.HouseholdLandUseRequests.Single(request => request.Id == "request:hall-site").Status);
+        Assert.NotNull(scenario.Project.Blocker);
+        Assert.All(scenario.Project.Deliveries, delivery => Assert.NotNull(delivery.ReleasedTick));
+        Assert.Contains(scenario.World.ExportState().Events, item => item.Kind == "town_project_cancelled");
+        var saved = PrivateWorldRuntimeCodec.Encode(scenario.World.ExportState());
+        scenario.Reload();
+        Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(scenario.World.ExportState()));
+
+        // The cancelled project's goods stay Town property where they are; nothing is created or spent.
+        scenario.Policy.AcceptLandUse = false;
+        for (var tick = 0; tick < 10; tick++) Assert.True((await scenario.World.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal("cancelled", scenario.Project.Stage);
+        Assert.Equal(44, TownProjectScenario.MaterialQuantity(scenario.World.Society.Inventory, TownBorderRules.FirstTownId));
+        Assert.DoesNotContain(scenario.World.WorldSimulation.Buildings, building => building.DefinitionId == TownHallContent.Hall3x4().CanonicalId);
+        scenario.World.Validate();
+    }
+
+    [Fact]
+    public async Task APendingHallProposalKeepsItsSiteOutOfOtherHallProposals()
+    {
+        using var scenario = TownProjectScenario.Create(TownProjectScenario.PlayableSeed, new TownProjectPolicy { NoVotes = true });
+        await scenario.UntilAsync(() => scenario.World.Towns[0].Governance!.Proposals.Any(proposal => proposal.Kind == "project"), 40);
+        var proposal = Assert.Single(scenario.World.Towns[0].Governance!.Proposals);
+        var hall = TownHallContent.Hall3x4();
+        var taken = WorldContentSimulationRules.Footprint(hall, proposal.Project!.Site).Append(proposal.Project.Entrance).ToHashSet();
+        bool Overlaps(GridPoint site) => WorldContentSimulationRules.Footprint(hall, site).Append(TownHallContent.Entrance(site)).Any(taken.Contains);
+        GridPoint[] OfferedSites(Func<InhabitantObservation, bool> include) => scenario.Policy.Observations.Where(include)
+            .SelectMany(observation => observation.Candidates)
+            .Where(candidate => candidate.Id.Contains("|project|", StringComparison.Ordinal))
+            .Select(candidate => candidate.Id.Split('|')[4].Split(','))
+            .Select(point => new GridPoint(int.Parse(point[0], CultureInfo.InvariantCulture), int.Parse(point[1], CultureInfo.InvariantCulture)))
+            .Distinct().ToArray();
+        // Ranked Hall sites sit side by side, so neighbours of the chosen site were on offer before the vote opened.
+        Assert.Contains(OfferedSites(observation => observation.WorldTick <= proposal.OpenedTick),
+            site => site != proposal.Project.Site && Overlaps(site));
+        var since = scenario.World.WorldTick;
+        await scenario.UntilAsync(() => scenario.Policy.Observations.Count(observation => observation.WorldTick > since &&
+            observation.Candidates.Any(candidate => candidate.Id.Contains("|propose|", StringComparison.Ordinal))) >= 3, 20);
+        Assert.Equal("pending", Assert.Single(scenario.World.Towns[0].Governance!.Proposals).Status);
+        Assert.DoesNotContain(OfferedSites(observation => observation.WorldTick > since), Overlaps);
+    }
+
+    [Fact]
     public async Task PassedLawNamingAHallCreatesNoConstructionOrMaterialPermission()
     {
         using var scenario = TownProjectScenario.Create("town-project-law-is-not-permission",
@@ -339,12 +398,12 @@ public sealed class TownProjectRuntimeTests
         var plan = new TownProjectPayload("Civic Hall", hall.CanonicalId, new(4, 4),
             new(5, 8), hall.BuildCosts);
         var state = TownGovernanceRules.SubmitProposal(TownGovernanceState.Create(adults),
-            "town:test", "a", "project", null, "Ignore free-form cost claims.", "unchanged", adults, 0, 10, plan);
+            "town:test", "a", "project", null, "Ignore free-form cost claims.", "unchanged", adults, 0, 10, project: plan);
         var proposal = Assert.Single(state.Proposals);
         Assert.Equal(10, proposal.DeadlineTick);
         Assert.Equal(3, proposal.RequiredYes);
         var duplicate = TownGovernanceRules.SubmitProposal(state, "town:test", "b", "project", null,
-            "Other wording.", "unchanged", adults, 2, 10, plan with { Name = "Renamed Hall" });
+            "Other wording.", "unchanged", adults, 2, 10, project: plan with { Name = "Renamed Hall" });
         Assert.Single(duplicate.Proposals);
         Assert.Equal(proposal, duplicate.Proposals[0]);
         state = TownGovernanceRules.VoteProposal(state, proposal.Id, "a", true, 2);
@@ -355,12 +414,12 @@ public sealed class TownProjectRuntimeTests
         Assert.Equal("passed", state.Proposals[0].Status);
         Assert.Equal(plan, state.Proposals[0].Project);
         Assert.Throws<InvalidOperationException>(() => TownGovernanceRules.SubmitProposal(state,
-            "town:test", "visitor", "project", null, "Hall", "unchanged", adults, 3, 10, plan));
+            "town:test", "visitor", "project", null, "Hall", "unchanged", adults, 3, 10, project: plan));
         Assert.Throws<InvalidOperationException>(() => TownGovernanceRules.SubmitProposal(state,
-            "town:test", "a", "law", null, "Build a Hall.", "unchanged", adults, 3, 10, plan));
+            "town:test", "a", "law", null, "Build a Hall.", "unchanged", adults, 3, 10, project: plan));
         Assert.Throws<InvalidDataException>(() => TownGovernanceRules.SubmitProposal(state,
             "town:test", "a", "project", null, "Hall", "unchanged", adults, 3, 10,
-            plan with { Budget = [new("wood", 25), new("stone", 12)] }));
+            project: plan with { Budget = [new("wood", 25), new("stone", 12)] }));
     }
 
     [Theory]
@@ -421,7 +480,7 @@ internal sealed class TownProjectScenario : IDisposable
     internal const string Author = "founder:00000000000000000000000000000001";
     internal const string PlayableSeed = "town-project-real-donation";
     internal const string Name = "Communal Hall";
-    internal const string LaterNotice = "Post the next harvest dates at our Hall.";
+    internal const string LaterNotice = "Harvest dates: Post the next harvest dates at our Hall.";
     internal const string WoodStock = "initial-town-wood";
     internal const string StoneStock = "initial-town-stone";
     internal static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -438,7 +497,7 @@ internal sealed class TownProjectScenario : IDisposable
         policy.ActorAtSite = actor => World.Towns[0].Projects.Count == 1 &&
             World.Inhabitants.Single(person => person.InhabitantId == actor).Position == Project.Plan.Site;
         policy.MaterialStillNeeded = material => World.Towns[0].Projects.Count == 1 &&
-            Project.Plan.Budget.Single(cost => cost.ResourceId == material).Amount >
+            Project.Plan.Budget.SingleOrDefault(cost => cost.ResourceId == material) is { } cost && cost.Amount >
             TownProjectRules.DeliveredQuantity(Project, World.Towns[0].Id, World.Society.Inventory, material);
         policy.MayStoreSpareTool = lotId =>
         {
@@ -455,10 +514,11 @@ internal sealed class TownProjectScenario : IDisposable
             throw new InvalidOperationException("A normal generated fixture must retain all independent map layers.");
     }
 
-    internal static TownProjectScenario Create(string seed, TownProjectPolicy? policy = null, bool initialTownStock = false)
+    internal static TownProjectScenario Create(string seed, TownProjectPolicy? policy = null, bool initialTownStock = false,
+        GridPoint? roughTownSite = null)
     {
         policy ??= new();
-        var world = NormalPathWorld.CreateGenerated(seed, policy.CreateProvider);
+        var world = NormalPathWorld.CreateGenerated(seed, policy.CreateProvider, roughTownSite);
         if (initialTownStock)
         {
             // Controlled initial stock only: no tick, proposal or project has run yet.
@@ -574,6 +634,8 @@ internal sealed class TownProjectScenario : IDisposable
 
 internal sealed class TownProjectPolicy
 {
+    internal string ProjectLocalId { get; init; } = TownHallContent.Hall3x4().LocalId;
+    internal string ProjectName { get; init; } = TownProjectScenario.Name;
     internal bool Proposed { get; set; }
     internal bool OrdinaryLaw { get; init; }
     internal bool Supply { get; set; }
@@ -589,6 +651,8 @@ internal sealed class TownProjectPolicy
     internal TaskCompletionSource<bool> DonationStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     internal TaskCompletionSource<bool> ReleaseDonation { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     internal bool HoldVote { get; init; }
+    internal bool AcceptLandUse { get; set; }
+    internal bool NoVotes { get; init; }
     internal TaskCompletionSource<bool> VoteStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     internal TaskCompletionSource<bool> ReleaseVote { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     internal ConcurrentQueue<(string Actor, string Id, long Tick)> Choices { get; } = new();
@@ -611,18 +675,19 @@ internal sealed class TownProjectPolicy
                     candidate.Id is "consume_food" or "collect_shared_food" or "take_food_from_pot" or
                         "make_room_for_food" or "harvest_food" or "seek_food" or "wear_clothing" or "seek_warmth")
                 .OrderBy(candidate => candidate.DeterministicPriority).ThenBy(candidate => candidate.Id, StringComparer.Ordinal)
-                .FirstOrDefault() ?? (!policy.HoldVote || actor == TownProjectScenario.Author
+                .FirstOrDefault() ?? (!policy.NoVotes && (!policy.HoldVote || actor == TownProjectScenario.Author)
                 ? candidates.FirstOrDefault(c => c.Id.Contains("|yes|", StringComparison.Ordinal)) : null) ??
+                (policy.AcceptLandUse ? candidates.FirstOrDefault(c => c.Id.Contains("|accept_land_use|", StringComparison.Ordinal)) : null) ??
                 candidates.FirstOrDefault(c => c.Id.Contains("|read|", StringComparison.Ordinal));
             string? text = null;
             if (selected is null && actor == TownProjectScenario.Author && !policy.Proposed)
             {
-                selected = candidates.FirstOrDefault(c => c.Id.Contains(policy.OrdinaryLaw ? "|propose|" :
-                    "|project|" + TownHallContent.Hall3x4().LocalId + "|", StringComparison.Ordinal));
+                selected = candidates.FirstOrDefault(c => c.Id.Contains(policy.OrdinaryLaw
+                    ? "|propose|" : "|project|" + policy.ProjectLocalId + "|", StringComparison.Ordinal));
                 if (selected is not null)
                 {
                     policy.Proposed = true;
-                    text = policy.OrdinaryLaw ? "Build a Communal Hall with all the Town's wood." : TownProjectScenario.Name;
+                    text = policy.OrdinaryLaw ? "Hall: Build a Communal Hall with all the Town's wood." : policy.ProjectName;
                 }
             }
             if (selected is null && actor == TownProjectScenario.Author && policy.LawAfterHall && !policy.LawProposed &&
@@ -637,6 +702,7 @@ internal sealed class TownProjectPolicy
                 {
                     "founder:00000000000000000000000000000002" => "wood",
                     TownProjectScenario.Author => "stone",
+                    "founder:00000000000000000000000000000003" when policy.ProjectLocalId == MarketContent.Hall2x2().LocalId => "fiber",
                     _ => null,
                 };
                 // Real starter tools, collected by separate people so a whole harvest fits.

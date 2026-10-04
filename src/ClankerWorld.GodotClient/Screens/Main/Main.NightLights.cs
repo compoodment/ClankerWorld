@@ -29,9 +29,10 @@ public partial class Main
             if (LitDesignFor(kind) is not { } design) continue;
             var door = BuildingDoor.Facing(footprint, building.Entrance is { } entrance
                 ? new Vector2I(entrance.X, entrance.Y) : null);
-            var (roof, yard, middle) = BuildingSprites.Plan(kind, footprint.Size.X, footprint.Size.Y, door);
-            lights.Add(new BuildingLight(footprint, new LightPlan(design, roof, yard, door.Side, middle),
-                people.Any(footprint.HasPoint), working.Contains(building.InstanceId)));
+            var (roof, yard, middle, wing) = BuildingSprites.Plan(kind, footprint.Size.X, footprint.Size.Y, door);
+            lights.Add(new BuildingLight(footprint, new LightPlan(design, roof, yard, door.Side, middle, Wing: wing),
+                people.Any(footprint.HasPoint), working.Contains(building.InstanceId))
+            { Kind = kind, Door = door });
         }
         return lights;
     }
@@ -55,6 +56,10 @@ public partial class Main
         BuildingKind.Store => LitDesign.Store,
         BuildingKind.TailorShop => LitDesign.TailorShop,
         BuildingKind.Workshop => LitDesign.Workshop,
+        BuildingKind.Clinic => LitDesign.Clinic,
+        BuildingKind.Restaurant => LitDesign.Restaurant,
+        BuildingKind.TownHall => LitDesign.TownHall,
+        BuildingKind.Market => LitDesign.MarketHall,
         BuildingKind.Blacksmith => LitDesign.Blacksmith,
         BuildingKind.Warehouse or BuildingKind.Storehouse => LitDesign.Warehouse,
         BuildingKind.Silo => LitDesign.Silo,

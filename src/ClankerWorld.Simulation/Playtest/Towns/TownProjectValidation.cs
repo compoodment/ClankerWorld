@@ -21,7 +21,6 @@ public static class TownProjectValidation
         var reservations = new HashSet<string>(StringComparer.Ordinal);
         var liveLots = new HashSet<string>(StringComparer.Ordinal);
         var completedBuildings = new HashSet<string>(StringComparer.Ordinal);
-        var hall = TownHallContent.Hall3x4();
         foreach (var town in towns)
         {
             if (town.Projects is null) throw Invalid("A Town is missing its construction ledger.");
@@ -29,9 +28,8 @@ public static class TownProjectValidation
             {
                 if (project is null || !projects.Add(project.Id)) throw Invalid("Town project identities must be unique.");
                 TownProjectRules.ValidatePayload(project.Plan);
-                var definition = TownProjectRules.Definition(project.Plan.DefinitionId) ??
-                    throw Invalid("A Town project must use supported paid content.");
                 var lantern = StreetLanternContent.IsLantern(project.Plan.DefinitionId);
+                var requiredWork = TownProjectRules.RequiredWork(project.Plan);
                 var proposal = town.Governance?.Proposals.SingleOrDefault(item => item.Id == project.ProposalId);
                 if (proposal is not { Kind: "project", Status: "passed", Project: not null } ||
                     project.Id != TownProjectRules.ProjectId(proposal) ||
@@ -39,13 +37,13 @@ public static class TownProjectValidation
                     project.ApprovedTick != proposal.SettledTick || project.ApprovedTick > society.WorldTick ||
                     project.LastTransitionTick < project.ApprovedTick || project.LastTransitionTick > society.WorldTick ||
                     project.Stage is not ("supplying" or "working" or "blocked" or "completed" or "cancelled") ||
-                    project.WorkDone is < 0 or > TownProjectRules.WorkTicks || project.Deliveries is null ||
+                    project.WorkDone < 0 || project.WorkDone > requiredWork || project.Deliveries is null ||
                     project.Blocker is { Length: > 512 } ||
                     project.Stage == "blocked" && string.IsNullOrWhiteSpace(project.Blocker) ||
                     project.Stage is "supplying" or "working" or "completed" && project.Blocker is not null)
                     throw Invalid("A Town project disagrees with its Council approval or construction stage.");
                 if (content.Buildings.All(item => item.CanonicalId != project.Plan.DefinitionId) ||
-                    !FootprintIsBuildable(map, project.Plan.Site, definition.Width, definition.Height) ||
+                    TownProjectRules.Footprint(project.Plan).Any(point => !map.Contains(point) || !map.IsBuildable(point)) ||
                     !map.IsBuildable(project.Plan.Entrance))
                     throw Invalid("A Town project's approved footprint or doorway is invalid.");
                 if (lantern && project.RemovedTick is null && project.Stage is ("supplying" or "working" or "completed") &&
@@ -116,7 +114,7 @@ public static class TownProjectValidation
                 }
                 var allDelivered = project.Plan.Budget.All(cost => TownProjectRules.DeliveredQuantity(project, town.Id, inventory, cost.ResourceId) == cost.Amount);
                 if (project.Stage == "working" && !allDelivered || project.Stage == "completed" &&
-                    (project.WorkDone != TownProjectRules.WorkTicks || !allDelivered ||
+                    (project.WorkDone != requiredWork || !allDelivered ||
                      project.CompletedBuildingId != TownProjectRules.BuildingId(project.Id) ||
                      !completedBuildings.Add(project.CompletedBuildingId)))
                     throw Invalid("A working or completed Town project lacks its exact delivered material budget.");
@@ -138,11 +136,9 @@ public static class TownProjectValidation
                     throw Invalid("Each passed Town construction proposal requires one retained project.");
         }
         if (inventory.Reservations.Any(receipt => receipt.Purpose.StartsWith("town-project:", StringComparison.Ordinal) && !reservations.Contains(receipt.Id)) ||
-            simulation.Buildings.Any(building => building.DefinitionId == hall.CanonicalId && !completedBuildings.Contains(building.InstanceId)))
-            throw Invalid("A Town construction receipt or Hall has no matching paid project.");
-        if (simulation.Buildings.Any(building => StreetLanternContent.IsLantern(building.DefinitionId) &&
-                !completedBuildings.Contains(building.InstanceId)))
-            throw Invalid("A street lantern has no matching paid Town project.");
+            simulation.Buildings.Any(building => TownProjectRules.DefinitionFor(building.DefinitionId) is { } definition &&
+                !definition.Tags.Contains(MarketContent.StallTag, StringComparer.Ordinal) && !completedBuildings.Contains(building.InstanceId)))
+            throw Invalid("A Town construction receipt or building has no matching paid project.");
     }
 
     private static void ValidateLiveSite(IReadOnlyList<TownRuntimeState> towns, TownRuntimeState town,
@@ -151,42 +147,42 @@ public static class TownProjectValidation
         IReadOnlyList<HouseholdLandUseRight> rights, IReadOnlyList<HouseholdLandUseRequest> requests,
         IReadOnlyList<FarmFieldState> fields, IReadOnlyList<GridPoint> roads, IReadOnlyList<BridgeState> bridges)
     {
-        var definition = TownProjectRules.Definition(project.Plan.DefinitionId) ??
-            throw Invalid("An active Town project must use supported paid content.");
-        var footprint = WorldContentSimulationRules.Footprint(definition, project.Plan.Site).ToHashSet();
-        var lantern = StreetLanternContent.IsLantern(project.Plan.DefinitionId);
+        var definition = TownProjectRules.DefinitionFor(project.Plan.DefinitionId)!;
+        var footprint = TownProjectRules.Footprint(project.Plan).ToHashSet();
+        var buildingTiles = WorldContentSimulationRules.Footprint(definition, project.Plan.Site).ToHashSet();
+        if (definition.Tags.Contains(MarketContent.StallTag, StringComparer.Ordinal) &&
+            !town.Markets.Any(market => market.RemovedTick is null && Enumerable.Range(0, MarketContent.MaximumStalls)
+                .Any(slot => MarketContent.StallSite(market.Site, slot) == project.Plan.Site &&
+                    MarketContent.StallEntrance(market.Site, slot) == project.Plan.Entrance &&
+                    !market.Stalls.Any(stall => stall.SlotIndex == slot))))
+            throw Invalid("An active additional stall must bind an unused slot in its Town's paid Market.");
+        if (definition.Tags.Contains(MarketContent.HallTag, StringComparer.Ordinal))
+        {
+            if (town.Markets.Any(market => market.RemovedTick is null && MarketContent.SiteTiles(market.Site).Any(footprint.Contains)))
+                throw Invalid("An active Market project overlaps an existing Market.");
+            buildingTiles.UnionWith(Enumerable.Range(0, MarketContent.MaximumStalls)
+                .Select(slot => MarketContent.StallSite(project.Plan.Site, slot)));
+        }
         var title = titles.Where(item => item.TownId == town.Id).SelectMany(item => item.Tiles).ToHashSet();
-        var claimed = rights.SelectMany(item => item.Tiles).Concat(requests.SelectMany(item => item.Tiles))
+        var claimed = rights.SelectMany(item => item.Tiles)
+            .Concat(requests.Where(item => item.Status == "pending").SelectMany(item => item.Tiles))
             .Concat(titles.Where(item => item.TownId != town.Id).SelectMany(item => item.Tiles)).ToHashSet();
         var occupied = map.Resources.Select(item => item.Position).Concat(map.CampObjects.Select(item => item.Position))
             .Concat(fields.Select(item => item.Position))
             .Concat(simulation.Buildings.SelectMany(building => WorldContentSimulationRules.Footprint(
-                content.Buildings.Single(candidate => candidate.CanonicalId == building.DefinitionId), building)))
+                content.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId), building)))
             .Concat((simulation.BuildingExpansions ?? []).Where(job => job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused)
                 .SelectMany(job => Enumerable.Range(0, job.TargetFootprint.Height).SelectMany(y =>
                     Enumerable.Range(0, job.TargetFootprint.Width).Select(x => new GridPoint(job.TargetPosition.X + x, job.TargetPosition.Y + y)))))
             .Concat(towns.SelectMany(item => item.Projects).Where(other => other.Id != project.Id && other.Stage is not ("completed" or "cancelled"))
-                .SelectMany(other => WorldContentSimulationRules.Footprint(
-                    TownProjectRules.Definition(other.Plan.DefinitionId) ?? throw Invalid("An active Town project has unsupported content."), other.Plan.Site)))
+                .SelectMany(other => TownProjectRules.Footprint(other.Plan).Append(other.Plan.Entrance)))
             .ToHashSet();
-        var reservedEntrances = towns.SelectMany(item => item.Projects)
-            .Where(other => other.Id != project.Id && other.Stage is not ("completed" or "cancelled"))
-            .Select(other => other.Plan.Entrance).ToHashSet();
-        if (footprint.Any(point => !title.Contains(point) || claimed.Contains(point) || occupied.Contains(point) || reservedEntrances.Contains(point)) ||
-            footprint.Any(roads.Contains) || bridges.SelectMany(bridge => bridge.Entrances).Any(footprint.Contains) ||
+        if (footprint.Any(point => !title.Contains(point) || claimed.Contains(point) || occupied.Contains(point)) ||
+            buildingTiles.Any(roads.Contains) || bridges.SelectMany(bridge => bridge.Entrances).Any(footprint.Contains) ||
             occupied.Contains(project.Plan.Entrance) ||
-            !lantern && reservedEntrances.Contains(project.Plan.Entrance) ||
-            lantern && (!title.Contains(project.Plan.Entrance) || claimed.Contains(project.Plan.Entrance) || !roads.Contains(project.Plan.Entrance)))
+            StreetLanternContent.IsLantern(project.Plan.DefinitionId) &&
+                (!title.Contains(project.Plan.Entrance) || claimed.Contains(project.Plan.Entrance) || !roads.Contains(project.Plan.Entrance)))
             throw Invalid("An active Town construction site must remain clear and uncontested Town-titled land.");
-    }
-
-    private static bool FootprintIsBuildable(SeededMap map, GridPoint site, int width, int height)
-    {
-        if (site.X < 0 || site.Y < 0 || (long)site.X + width > map.Width || (long)site.Y + height > map.Height) return false;
-        for (var y = 0; y < height; y++)
-            for (var x = 0; x < width; x++)
-                if (!map.IsBuildable(new GridPoint(site.X + x, site.Y + y))) return false;
-        return true;
     }
 
     private static InvalidDataException Invalid(string message) => new(message);

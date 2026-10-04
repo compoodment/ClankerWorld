@@ -35,10 +35,10 @@ public sealed class NightLightsProposal : IArtProposal
         new(LitDesign.Store, 1, 2, DoorSide.South, 0, "Store.1x2", "The long Store."),
         new(LitDesign.TailorShop, 1, 1, DoorSide.South, 0, "TailorShop.1x1", "Lit while someone is sewing or buying."),
         new(LitDesign.TailorShop, 2, 2, DoorSide.South, 1, "TailorShop.2x2", "The big Tailor Shop: front and side windows."),
-        new(LitDesign.Clinic, 1, 1, DoorSide.South, 0, "Clinic.1x1", "Not in the game yet (approved October 1). Lit while a healer or patient is inside."),
-        new(LitDesign.Clinic, 1, 2, DoorSide.South, 0, "Clinic.1x2", "Not in the game yet: the first Clinic, 1 x 2."),
-        new(LitDesign.Restaurant, 1, 2, DoorSide.South, 0, "Restaurant.1x2", "Not in the game yet (approved October 1). Lit while it is open with someone inside."),
-        new(LitDesign.Restaurant, 2, 2, DoorSide.South, 1, "Restaurant.2x2", "Not in the game yet: the big Restaurant also hangs a lantern over its terrace tables while open."),
+        new(LitDesign.Clinic, 1, 1, DoorSide.South, 0, "Clinic.1x1", "Lit while a healer or patient is inside."),
+        new(LitDesign.Clinic, 1, 2, DoorSide.South, 0, "Clinic.1x2", "The first Clinic, 1 x 2."),
+        new(LitDesign.Restaurant, 1, 2, DoorSide.South, 0, "Restaurant.1x2", "Lit while it is open with someone inside."),
+        new(LitDesign.Restaurant, 2, 2, DoorSide.South, 1, "Restaurant.2x2", "The big Restaurant also hangs a lantern over its terrace tables while open."),
         new(LitDesign.Workshop, 2, 2, DoorSide.South, 1, "Workshop.2x2", "Lit while someone works inside; the work yard stays dark."),
         new(LitDesign.Generic, 1, 1, DoorSide.South, 0, "Generic.1x1", "Any building the game cannot name: lit like a House."),
         new(LitDesign.Blacksmith, 1, 2, DoorSide.South, 0, "Blacksmith.1x2", "The forge in the yard glows and flickers while a job runs; door and side windows while someone is inside."),
@@ -48,7 +48,7 @@ public sealed class NightLightsProposal : IArtProposal
         new(LitDesign.Silo, 1, 1, DoorSide.South, 0, "Silo.1x1", "Never lit: nobody goes inside a Silo at night."),
         new(LitDesign.MarketHall, 2, 2, DoorSide.South, 1, "Market.2x2", "Not in the game yet (approved October 1). While traders are in, light spills from the open arcade along the whole front and from the side windows."),
         new(LitDesign.MarketStall, 1, 1, DoorSide.South, 0, "MarketStall.1x1", "Not in the game yet. Stalls close at night and stay dark."),
-        new(LitDesign.TownHall, 3, 4, DoorSide.South, 1, "TownHall.3x4", "Not in the game yet (approved October 1). During a meeting: tall windows close together on the front and sides, and a wide spill over the forecourt. The bell tower stays dark."),
+        new(LitDesign.TownHall, 3, 4, DoorSide.South, 1, "TownHall.3x4", "During a meeting: tall windows close together on the front and sides, and a wide spill over the forecourt. The bell tower stays dark."),
         new(LitDesign.Port, 2, 4, DoorSide.North, 1, "Port.2x4", "Not in the game yet (approved October 1). The lantern on the T-head burns every night so boats can find the Port; the shed is lit while someone is in it."),
     ];
 

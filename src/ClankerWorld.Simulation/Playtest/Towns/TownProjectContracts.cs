@@ -32,24 +32,38 @@ public static class TownProjectRules
     public const int WorkTicks = 10;
     public const int MaximumNameLength = 80;
 
-    public static BuildingDefinition? Definition(string? definitionId)
-    {
-        var hall = TownHallContent.Hall3x4();
-        return definitionId == hall.CanonicalId ? hall : StreetLanternContent.Definition(definitionId);
-    }
+    public static IReadOnlyList<BuildingDefinition> Definitions { get; } =
+        Array.AsReadOnly(new[] { TownHallContent.Hall3x4(), MarketContent.Hall2x2(), MarketContent.Stall1x1(), StreetLanternContent.Stone(), StreetLanternContent.Hanging() });
+
+    public static BuildingDefinition? DefinitionFor(string definitionId) =>
+        Definitions.SingleOrDefault(definition => definition.CanonicalId == definitionId);
+
+    public static int RequiredWork(TownProjectPayload plan) =>
+        plan.DefinitionId == MarketContent.Stall1x1().CanonicalId ? 3 : WorkTicks;
+
+    public static IEnumerable<GridPoint> Footprint(TownProjectPayload plan) =>
+        plan.DefinitionId == MarketContent.Hall2x2().CanonicalId
+            ? MarketContent.SiteTiles(plan.Site)
+            : WorldContentSimulationRules.Footprint(DefinitionFor(plan.DefinitionId) ??
+                throw new InvalidDataException("Unsupported Town project definition."), plan.Site);
 
     public static void ValidatePayload(TownProjectPayload? plan)
     {
-        var definition = Definition(plan?.DefinitionId);
+        var definition = plan is null ? null : DefinitionFor(plan.DefinitionId);
         if (plan is null || string.IsNullOrWhiteSpace(plan.Name) || plan.Name != plan.Name.Trim() ||
             plan.Name.Length > MaximumNameLength || plan.Name.Any(char.IsControl) ||
-            definition is null ||
-            (StreetLanternContent.IsLantern(plan.DefinitionId)
-                ? !StreetLanternContent.IsRoadEdge(plan.Site, plan.Entrance)
-                : plan.Entrance != TownHallContent.Entrance(plan.Site)) ||
+            definition is null || !EntranceMatches(plan) ||
             plan.Budget is null || !plan.Budget.SequenceEqual(definition.BuildCosts))
             throw new InvalidDataException("The Town project must bind a supported building, name, doorway and exact provisional budget.");
     }
+
+    private static bool EntranceMatches(TownProjectPayload plan) => StreetLanternContent.IsLantern(plan.DefinitionId)
+        ? StreetLanternContent.IsRoadEdge(plan.Site, plan.Entrance)
+        : plan.DefinitionId == TownHallContent.Hall3x4().CanonicalId
+        ? plan.Entrance == TownHallContent.Entrance(plan.Site)
+        : plan.DefinitionId == MarketContent.Hall2x2().CanonicalId
+            ? plan.Entrance == MarketContent.HallEntrance(plan.Site)
+            : plan.Entrance.X == plan.Site.X && Math.Abs((long)plan.Entrance.Y - plan.Site.Y) == 1;
 
     public static string RequestKey(TownProjectPayload plan)
     {
@@ -74,7 +88,7 @@ public static class TownProjectRules
 
     public static string ProposalText(TownProjectPayload plan)
     {
-        var kind = StreetLanternContent.Definition(plan.DefinitionId)?.DisplayName ?? "Town Hall";
+        var kind = DefinitionFor(plan.DefinitionId)?.DisplayName ?? "Town building";
         var place = StreetLanternContent.IsLantern(plan.DefinitionId)
             ? FormattableString.Invariant($" at ({plan.Site.X},{plan.Site.Y}) beside Road ({plan.Entrance.X},{plan.Entrance.Y})")
             : FormattableString.Invariant($" at ({plan.Site.X},{plan.Site.Y})");

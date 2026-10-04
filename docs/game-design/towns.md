@@ -242,7 +242,7 @@ Any move between Towns still follows the admission rules in issue
 Adult departure, personal ownership, limited physical collection, the once-only
 food allowance, care-group moves and solo formation are implemented through
 [#593](https://github.com/compoodment/ClankerWorld/issues/593). Overcrowding
-notice and relocation selection remain separate work in
+notice and relocation selection are implemented through
 [#599](https://github.com/compoodment/ClankerWorld/issues/599). The agreed
 response to losing a dependent's last active primary caregiver is described in
 [Agents and families](agents-and-families.md#dependent-care-after-loss-of-the-last-active-primary-caregiver).
@@ -371,7 +371,7 @@ and [storage-expansion work](https://github.com/compoodment/ClankerWorld/issues/
 remain their original implementation slices. Resident limits, admission checks,
 birth placement and expansion for more places are implemented in
 [#598](https://github.com/compoodment/ClankerWorld/issues/598). Notice,
-departure and relocation for existing overcrowding remain separate work in
+departure and relocation for existing overcrowding are implemented in
 [#599](https://github.com/compoodment/ClankerWorld/issues/599).
 
 ### Town membership
@@ -404,6 +404,17 @@ departure and relocation for existing overcrowding remain separate work in
   resident. Children gain no adult council or voting rights before adulthood.
   The household still needs agreement and places for the complete care group;
   Town approval creates no free House, private access or extra resident places.
+
+**Agreed by the owner on October 3, 2026
+([#871](https://github.com/compoodment/ClankerWorld/issues/871)):** when a
+resident asks the council to admit an adult nearby who has no Town, the
+council's approval waits **one unpaused world day** for the newcomer to accept.
+If they have not accepted by then, the approval lapses; paused time does not
+count. Anyone may ask the council again later through the ordinary proposal
+rules. There is no separate decline choice. An adult's own request is
+unaffected: it admits them as soon as it passes. The runtime change is
+tracked in [#887](https://github.com/compoodment/ClankerWorld/issues/887);
+until then an unaccepted approval stays open.
 
 The separately agreed New World and Add Agent placement rules still initialize
 Town membership: the first four agents belong to the first Town, and confirmed
@@ -509,6 +520,15 @@ and invented content are not silently approved. In particular:
   sells flour and the Tailor Shop sells cloth. The Blacksmith already sells
   tools directly and takes tool-making requests—no separate Store is required
   for its own products.
+  A tool-making request asks that household to use its own materials and normal
+  Blacksmith work. Placing or accepting the request takes no payment and grants
+  no claim to unfinished goods. Once a real tool is finished, its owner may
+  quote an ordinary barter exchange; both sides still choose whether to trade
+  and bring their goods to the shop. The request does not lock a price, reserve
+  future property or grant private-stock access. Missing ingredients and full
+  workplace storage remain visible blockers. A withdrawn request leaves work,
+  materials and finished goods with their existing owners. Market stalls and
+  shared Town construction follow their separate accepted rules.
 - The accepted medical goods include **bandages and medicine**. Their cloth
   and herb/water/fuel supply chains are agreed below; detailed recovery rates
   remain provisional. The October 2 decision stages bandage production, storage
@@ -595,17 +615,19 @@ reservations. This is a supported construction effect; free-form law text
 cannot execute it. The existing resident rule for Warehouse expansion stays
 in place. Costs, quantities and work times remain provisional for playtesting.
 
-**Street lanterns, agreed with the owner on October 3:** agents propose and
-build them as shared Town projects; the map never places them on its own.
-They need no fuel: a completed lantern lights at dusk and goes out at dawn.
-The two approved designs are a round stone lamp with a flickering open flame
-and a hanging lantern on a roadside post whose arm reaches over the Road,
-with gently moving light. The proposal binds the design, Road edge and exact
-material budget. A stone lamp takes stone; a hanging lantern takes wood and
-a little refined iron. Amounts remain provisional. The proposer chooses sites
-beside Roads within the ordinary land and site rules; junctions and spaced
-posts are suggestions, not automatic placement. Night lighting is for looks
-only and does not change visibility or permissions.
+**Street lanterns, agreed by the owner on October 3, 2026:** agents build
+street lanterns beside Roads; the map does not place them by itself. A lantern
+needs **no fuel**: once built it lights itself at dusk and goes out at dawn.
+There are two designs, a round **stone lamp** with an open flame and a
+**hanging lantern** on a roadside post with an arm over the Road
+([look](interface-and-art.md#pixel-art-and-generated-images)). **Also agreed
+on October 3:** a lantern is a **shared Town project** like those above, so the
+proposal names the lanterns, their Road-side sites and their material budget,
+and the Council approves it before residents build. Costs are provisional
+trial values to tune in playtests: a stone lamp takes stone, and a hanging
+lantern takes wood and a little refined iron. Where lanterns stand is the
+proposer's choice within the ordinary site rules; a suggestion is stone lamps
+at Road junctions and hanging lanterns every few tiles along a Road.
 
 The intended building roles now include House, Warehouse, Workshop,
 Farmhouse, farm fields, an adjacent private farm Silo, optional household-run
@@ -699,12 +721,25 @@ assigned to each household; the shared Warehouse remains Town property.
 Add Agent treats a recorded use right as household property and Town title
 like a Town border; a single pending request gives no household. A household
 building's current owner comes before another household's undisputed use right
-on its footprint, so reassigning a building does not block placement there. A
-field does not, and disputed land is always refused. These existing foundation
-and placement rules do not yet implement the agreed Council-approved title
-claims, household land requests or movement of footprint use rights with
-building reassignment. That runtime work remains in
-[#426](https://github.com/compoodment/ClankerWorld/issues/426).
+on its footprint. Reassigning a household building carries its existing
+footprint use right to the new household. The rest of a larger plot stays with
+its holder, even when the footprint splits it into separate plots. Town title
+and grant terms stay unchanged; disputed, expired or differently held rights
+prevent reassignment. A field does not override a use right, and disputed land
+is always refused.
+
+The October 2 owner answers on
+[#426](https://github.com/compoodment/ClankerWorld/issues/426#issuecomment-5956742184)
+settle title growth through Council-approved claims to adjoining unclaimed
+land. These claims now run through ordinary Council proposals: an adult names
+one connected plot, councillors learn its notice and vote, and the server
+rechecks the plot before recording title. Existing claims, household rights,
+structures and private goods are preserved. A border change alone still gives
+no title. Household requests for expansion onto additional tiles open
+ordinary Council proposals for nonconflicting land, and every current adult in
+the beneficiary household must separately accept before a right is granted.
+Expansion checks the resulting rights at construction start and completion.
+Pending disputes supply no grant; hearings and transfers remain in #633.
 
 Competing requests are visible as **pending disputes**. While one is pending,
 conflicting formal rights transfers pause; residents are not evicted, goods
@@ -722,7 +757,7 @@ the final decision on disputes and what happens when an agreed period ends.
 These rules do not imply automatic confiscation or unilateral household
 transfers. Evidence, hearings, outcomes and conflicts of interest follow the
 agreed [case procedure](#land-hearings-and-rulings). Disputed land is striped
-on the map, and inspecting a tile lists each household's claim. Approval,
+on the map, and inspecting a tile lists each household's claim. Household grants,
 consent, transfer and case actions are not built yet
 ([what works today](../what-works.md)).
 
@@ -1096,10 +1131,12 @@ action authority.
 - **Approval starts a handover lasting at most three unpaused world days.**
   This is an initial trial duration. The existing government continues until
   a valid replacement is ready; the new form takes effect at that recorded
-  handover, rather than immediately when the approval vote passes. Elective
-  offices need willing, eligible officeholders selected through the agreed
-  voting rules. If a mayoral vote ties, another vote between the tied highest
-  candidates is required; do not use the council's random tie-break. If no
+  handover, rather than immediately when the approval vote passes. Newly added
+  elective mandates need willing, eligible officeholders selected through the
+  agreed voting rules. Retained mandates keep their ordinary vacancy rules;
+  an explicit replacement vote still needs a valid successor. If a mayoral
+  vote ties, another vote between the tied highest candidates is required;
+  do not use the council's random tie-break. If no
   valid replacement is ready by the handover deadline, cancel the attempted
   transition. An all-adult council consists automatically of eligible adults
   and does not require each resident to consent to taking a seat.
@@ -1160,8 +1197,11 @@ remains separate in [#426](https://github.com/compoodment/ClankerWorld/issues/42
   is no turnout minimum, but a winner needs at least one actual vote in the
   deciding round. Most votes wins; tied highest candidates face another vote,
   repeatedly if necessary, with fresh eligible voters and only the tied,
-  still-eligible candidates. Never use the council's draw. Failed attempts
-  retry after one unpaused day, or earlier following a material change.
+  still-eligible candidates. Never use the council's draw. Open a new mayoral
+  contest only when an eligible resident has agreed to stand for its exact
+  mandates. An existing contest can still fail if it loses every candidate.
+  Failed attempts retry after one unpaused day, or earlier following a
+  material change.
 - **Keep one active election process per Town, with scheduled full council
   elections taking priority.** Queue mayoral voting while that election runs.
   An interrupted mayoral round closes without a result and its unfinished
@@ -1397,15 +1437,18 @@ wood-tree seed and orchard seed are distinct; planting potatoes remain potatoes.
 | --- | --- | --- |
 | Flour | 1 grain → 1 flour | Farmhouse; a real intermediate that can be stored, carried and sold separately. |
 | Simple meal | 2 potatoes/greens + 1 wood → 2 meals | House; everyday household cooking, using potatoes, wild greens or cultivated greens. |
-| Porridge | 1 grain + 1 water + 1 wood → 2 servings | House or Restaurant; accessible grain-based nourishment. Berries or fruit may improve a serving. |
+| Porridge | 1 grain + 1 water + 1 wood → 2 servings | House or Restaurant; accessible grain-based nourishment. |
+| Berry or fruit porridge | 1 grain + 1 berries/fruit + 1 water + 1 wood → 2 servings | House or Restaurant; named improved meals that can be eaten or sold. |
 | Bread | 2 flour + 1 water + 1 wood → 2 servings | House or Restaurant; keeps longer and travels well. |
 | Vegetable stew | 1 potato + 1 cultivated greens + 1 water + 1 wood → 2 servings | House or Restaurant; a substantial vegetable meal. |
 | Restaurant meal | 1 bread + 1 cultivated greens + 1 wood → 2 servings | Restaurant; better nourishment and dietary variety, sold on site. |
 
 Harvests stay at their field until collected; they do not appear remotely in a
 Silo. Grain and planting stock enter private farm storage. Ready food goes into
-House or business stock. Dry grain keeps substantially longer than flour,
-bread or cooked meals and supports a winter reserve. Food stays out of the
+House or business stock. Raw grain, potatoes and flour keep their freshness in
+the current trial. Greens, bread and cooked meals spoil, with a usable storage
+pot slowing the loss. These storage and nourishment rules remain provisional.
+Food stays out of the
 communal resource Warehouse.
 
 Farm production responds to population, expected yield and stored reserves.
@@ -1425,7 +1468,7 @@ for other activities; this is not a fixed nutrition or hunger-drain formula.
 | Rope | House crafting; trial 3 fiber → 1 rope. | Sacks, carts, boats and later construction recipes. |
 | Clay | Dig a clay bank and carry clay. | Fired storage pots and water jugs. |
 | Pottery | House crafting; trial 2 clay + 1 wood → 1 vessel. | Reusable storage pots and water jugs, with separate item identities. |
-| Fresh water | Collect from a river or lake with a reusable jug and carry it. | Cooking, medicine-making and animal care. |
+| Fresh water | Collect from a river or lake with a reusable jug and carry it. | Used in current porridge, bread and stew and Clinic medicine-making; animal care remains unfinished. |
 | Gold | Extract gold ore from a gold-bearing outcrop with an iron pickaxe, carry it to the Blacksmith and refine it with fuel. Ore and refined gold remain separate goods. | Ornaments, gifts and trade goods. |
 | Diamond | Extract from a diamond-bearing outcrop with an iron pickaxe. | Trade goods or a stone set into an ornament. |
 
@@ -1451,8 +1494,15 @@ fallbacks, repeated intentions and owner orders do not make those choices.
 A storage pot slows spoilage for the food within its limited capacity, a trial
 8 food. A water jug holds a limited quantity of water, a trial 4 fresh water.
 Both remain after their contents are used; filling, emptying and carrying them
-must preserve the vessel and its goods. Adults dig clay from a finite clay bank
-and make either vessel at a household House.
+must preserve the vessel and its goods. A filled vessel moves as one family
+only when its entire load fits and moving every ingredient leaves the source's
+needed reserve intact. Active claims still prevent its movement.
+Adults dig clay from a finite clay bank
+and make either vessel at a household House. Houses and Restaurants consume
+fresh water from these jugs for porridge,
+bread and stew, leaving the jug ready for refilling. The Clinic also consumes
+delivered fresh water to make medicine and leaves the jug reusable. Animal-care
+consumers remain unfinished.
 
 #### Tools, clothing and transport
 
@@ -1485,6 +1535,23 @@ Baskets and sacks use one equipped carrying slot. A handcart is a visible
 object that an agent pulls, parks, repairs and transfers ownership of. Worn
 clothing still does not change the agent's map sprite. Exact carrying amounts,
 cart movement costs, protection and repair quantities are tuned in playtests.
+
+The handcart trial uses 1 refined iron to make 2 fittings, then 4 carried wood,
+2 carried fittings and 1 carried rope at a household Blacksmith to build one
+personal cart. Its 32 cargo units are separate from the puller's carried load.
+The owner must reach it to attach, load, unload, park, repair or give it away.
+Loading household goods still requires that household's permission and physical
+pickup. Giving a parked cart transfers that cart and its contents together,
+without changing access to any other property. Carts carry loose goods;
+filled pots and jugs remain separate carried vessels in this trial.
+
+A pulled cart follows cardinal legal foot routes and avoids unroaded mountains.
+Road travel has the ordinary foot movement cost and less cart wear; other
+routes take an extra movement wait. A broken cart stops at its last position
+with its load intact. Unloading can move goods into the owner's available
+carrying space or set them down as owned ground goods, including when the cart
+or contents are damaged. One carried wood, fitting and rope repair the cart
+where it stands. These recipes, limits and rates remain provisional.
 
 The current equipment trial allows 8 cargo units without an aid, 16 with a
 basket and 24 with a sack. The equipped garment and aid each occupy their own
@@ -1575,6 +1642,19 @@ and sell finished meals; Clinics stock care goods and sell treatment. An
 optional Store receives goods by actual delivery before selling them. Market
 sellers carry goods into their stalls, trade with agents from any Town and
 carry remaining goods away.
+
+The first Restaurant version buys missing inputs for the recipes its household
+needs, with a provisional reserve for two batches. Usable stock already there,
+actual incoming deliveries and supplies an adult can physically collect reduce
+the shortage. Supplying one workplace must preserve the ingredients another
+still needs. An adult pays only with their personally owned carried goods, and
+cannot spend a needed Restaurant ingredient in a way that increases its
+shortage. Restaurant adults may visit ingredient shops in their Town, and
+adult residents may visit its Restaurants for meals. The trip reveals no
+remote private stock. Exact goods and
+terms are checked after arrival, and both traders must meet before settlement.
+The House remains the heating hearth; Restaurant wood is a cooking input.
+Meal prices remain provisional barter terms tied to the recipe.
 
 **Agreed on October 1, 2026:** a seller may use any empty Market stall and keep
 it until they leave. The Town does not assign stalls. Leaving frees the stall
