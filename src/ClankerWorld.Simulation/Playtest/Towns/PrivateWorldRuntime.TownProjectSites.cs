@@ -109,8 +109,7 @@ public sealed partial class PrivateWorldRuntime
                 if (++offered == TownLayoutService.DefaultCandidateLimit) break;
             }
         }
-        AddStreetLanternProposalCandidates(candidates, actor, town, StreetLanternContent.Stone());
-        AddStreetLanternProposalCandidates(candidates, actor, town, StreetLanternContent.Hanging());
+        AddStreetLanternProposalCandidates(candidates, actor, town);
         var stallDefinition = MarketContent.Stall1x1();
         if (!worldContent.Buildings.Any(item => item.CanonicalId == stallDefinition.CanonicalId)) return;
         foreach (var market in town.Markets.Where(item => item.RemovedTick is null && MarketNeedsMoreStalls(town, item)))
@@ -149,29 +148,42 @@ public sealed partial class PrivateWorldRuntime
             $"Propose a named {definition.DisplayName} at ({coordinates}) in {town.Name}, with a provisional budget of {budget}; put its name in civic_proposal. Council approval creates no goods or private-stock access.", 191));
     }
 
-    private void AddStreetLanternProposalCandidates(List<CognitionCandidate> candidates, string actor,
-        TownRuntimeState town, BuildingDefinition definition)
+    // Both lantern designs stand on one tile beside a Road, so they share one layout and its foot routes.
+    // Every Road edge is scored, but the full site check, which gathers occupied tiles from the whole
+    // world, runs only in rank order until four edges pass: the same four that checking all would give.
+    private void AddStreetLanternProposalCandidates(List<CognitionCandidate> candidates, string actor, TownRuntimeState town)
     {
-        if (!worldContent.Buildings.Any(item => item.CanonicalId == definition.CanonicalId)) return;
-        var ordinary = CreateTownLayoutContext(actor, building: definition);
+        var designs = new[] { StreetLanternContent.Stone(), StreetLanternContent.Hanging() }
+            .Where(definition => worldContent.Buildings.Any(item => item.CanonicalId == definition.CanonicalId)).ToArray();
+        if (designs.Length == 0) return;
+        var ordinary = CreateTownLayoutContext(actor, building: designs[0]);
         var legal = TownProjectLandTiles(town);
         var layout = new TownLayoutContext(map, town, ordinary.OccupiedTiles, ordinary.ReachableFootCosts,
             ordinary.Resources, ordinary.Buildings, roadTiles: roadTiles, requiredLandTiles: legal);
-        var edges = new List<(TownConstructionSiteCandidate Site, GridPoint Road)>();
-        foreach (var road in roadTiles.Where(legal.Contains).OrderBy(point => point.Y).ThenBy(point => point.X))
-            foreach (var post in map.FootNeighbors(road).Where(point => StreetLanternContent.IsRoadEdge(point, road)))
-                if (TownLayoutService.TryEvaluateConstructionSite(layout, definition, post, out var site) && site is not null &&
-                    TownProjectSiteFailure(town, new(definition.DisplayName, definition.CanonicalId, post, road, definition.BuildCosts)) is null)
-                    edges.Add((site, road));
-        foreach (var edge in edges.OrderByDescending(edge => edge.Site.Score)
-                     .ThenBy(edge => edge.Site.TownBorderGrowthTiles).ThenBy(edge => edge.Site.RouteCost)
-                     .ThenBy(edge => edge.Site.Position.Y).ThenBy(edge => edge.Site.Position.X)
-                     .ThenBy(edge => edge.Road.Y).ThenBy(edge => edge.Road.X).Take(4))
+        var roadEdges = roadTiles.Where(legal.Contains).OrderBy(point => point.Y).ThenBy(point => point.X)
+            .SelectMany(road => map.FootNeighbors(road).Where(point => StreetLanternContent.IsRoadEdge(point, road))
+                .Select(post => (Post: post, Road: road)))
+            .ToArray();
+        foreach (var definition in designs)
         {
-            var coordinates = FormattableString.Invariant($"{edge.Site.Position.X},{edge.Site.Position.Y},{edge.Road.X},{edge.Road.Y}");
-            var budget = definition.CanonicalId == StreetLanternContent.Stone().CanonicalId ? "4 stone" : "4 wood and 1 refined iron";
-            candidates.Add(new(CivicAction(town.Id, "project", definition.LocalId, coordinates),
-                FormattableString.Invariant($"Propose a named {definition.DisplayName} at ({edge.Site.Position.X},{edge.Site.Position.Y}) beside Road ({edge.Road.X},{edge.Road.Y}) in {town.Name}, with a provisional budget of {budget}; put its name in civic_proposal. Council approval creates no goods or private-stock access."), 190));
+            var edges = new List<(TownConstructionSiteCandidate Site, GridPoint Road)>();
+            foreach (var (post, road) in roadEdges)
+                if (TownLayoutService.TryEvaluateConstructionSite(layout, definition, post, out var site) && site is not null)
+                    edges.Add((site, road));
+            var offered = 0;
+            foreach (var edge in edges.OrderByDescending(edge => edge.Site.Score)
+                         .ThenBy(edge => edge.Site.TownBorderGrowthTiles).ThenBy(edge => edge.Site.RouteCost)
+                         .ThenBy(edge => edge.Site.Position.Y).ThenBy(edge => edge.Site.Position.X)
+                         .ThenBy(edge => edge.Road.Y).ThenBy(edge => edge.Road.X))
+            {
+                if (TownProjectSiteFailure(town, new(definition.DisplayName, definition.CanonicalId, edge.Site.Position, edge.Road,
+                        definition.BuildCosts)) is not null) continue;
+                var coordinates = FormattableString.Invariant($"{edge.Site.Position.X},{edge.Site.Position.Y},{edge.Road.X},{edge.Road.Y}");
+                var budget = definition.CanonicalId == StreetLanternContent.Stone().CanonicalId ? "4 stone" : "4 wood and 1 refined iron";
+                candidates.Add(new(CivicAction(town.Id, "project", definition.LocalId, coordinates),
+                    FormattableString.Invariant($"Propose a named {definition.DisplayName} at ({edge.Site.Position.X},{edge.Site.Position.Y}) beside Road ({edge.Road.X},{edge.Road.Y}) in {town.Name}, with a provisional budget of {budget}; put its name in civic_proposal. Council approval creates no goods or private-stock access."), 190));
+                if (++offered == 4) break;
+            }
         }
     }
 
