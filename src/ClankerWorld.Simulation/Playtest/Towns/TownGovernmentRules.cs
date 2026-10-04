@@ -160,16 +160,30 @@ public static partial class TownGovernmentRules
             council = TownGovernanceRules.ChangeCouncil(council, adults, "all_adult", "arrangement", null, tick);
         // A ready winner waiting for this handover must not hold back the council election it also needs.
         var holdOtherElections = caseElectionActive || state.Contest is { Stage: "voting" } or { Stage: "ready", Purpose: not "handover" };
-        // Representatives the current arrangement would not elect wait for the handover to complete.
-        var deferFullHandover = targetNeedsCouncil && !currentElectsCouncil;
+        // Only an election this handover actually opened waits for its completion.
+        // A population change must not turn an existing ordinary election into a dependent one.
+        var mayCreateForcedAttempt = targetNeedsCouncil && !currentElectsCouncil && council.Election is null;
+        var historyCountBefore = council.ElectionHistory.Count;
         var fallbackBefore = council.Fallback;
         council = TownGovernanceRules.Advance(council, townId, seed, adults, tick, day,
             allowNewElections: (currentNeedsCouncil || targetNeedsCouncil) && !holdOtherElections,
             forceRepresentation: targetNeedsCouncil || state.Arrangement.Ordinary == TownArrangementRules.ElectedCouncil,
-            deferFullHandover: deferFullHandover);
+            deferFullHandover: ForcedElectionIsLive(handover, council));
+        if (mayCreateForcedAttempt && handover is not null)
+        {
+            // Too few willing candidates can fail a newly opened attempt immediately.
+            var forced = council.Election is { Kind: "initial" } live ? live :
+                council.ElectionHistory.Skip(historyCountBefore).FirstOrDefault(e => e.Kind == "initial");
+            if (forced is not null)
+            {
+                handover = handover with { ForcedCouncilElectionId = forced.Id };
+                state = Replace(state, handover);
+            }
+        }
         // A failed election forced by this handover must not leave the council retrying for
         // candidates: residents never approved that representation.
-        if (deferFullHandover && council.Fallback == "candidates" && fallbackBefore != "candidates")
+        if (handover?.ForcedCouncilElectionId is { } forcedId && council.Fallback == "candidates" && fallbackBefore != "candidates" &&
+            council.ElectionHistory.Skip(historyCountBefore).Any(e => e.Id == forcedId && e.Stage == "failed"))
             council = TownGovernanceRules.ChangeCouncil(council, council.Members, council.Form, fallbackBefore, council.TermEndTick, tick);
         (council, state) = TownLawRules.Enact(council, state, townId, townName, tick);
 
@@ -206,6 +220,8 @@ public static partial class TownGovernmentRules
                         handover.Target.Ordinary == TownArrangementRules.Mayor && governing is not null ? [governing] : adults,
                         handover.Target.Ordinary == TownArrangementRules.Mayor && governing is not null ? "leader" : "all_adult", "arrangement", null, tick);
                 }
+                if (ForcedElectionIsLive(handover, council))
+                    council = TownGovernanceRules.CancelElection(council, tick, "The government handover completed without needing this election.");
                 council = Notice(council, "government", handover.Id, "Government handover completed. " + TownArrangementRules.Declaration(handover.Target), tick);
             }
             else if (tick >= handover.HandoverDeadlineTick)
@@ -213,7 +229,7 @@ public static partial class TownGovernmentRules
                 state = Replace(state, handover with { Status = "cancelled", SettledTick = tick, Reason = "No valid successor was ready within three days." });
                 if (state.Contest?.ChangeId == handover.Id)
                     (council, state) = ArchiveContest(council, state, "cancelled", "The creating government transition expired.", adults, tick, day);
-                if (deferFullHandover)
+                if (ForcedElectionIsLive(handover, council))
                     council = TownGovernanceRules.CancelElection(council, tick, "The creating government transition expired.");
                 council = Notice(council, "government", handover.Id, "Government handover cancelled: no valid successor was ready within three days. Existing lawful authority remains.", tick);
             }
@@ -228,6 +244,9 @@ public static partial class TownGovernmentRules
         (council, state) = TownLawRules.Enact(council, state, townId, townName, tick);
         return OpenNext(council, state, adults, tick, day);
     }
+
+    private static bool ForcedElectionIsLive(TownGovernmentChange? change, TownGovernanceState council) =>
+        change?.ForcedCouncilElectionId is { } id && council.Election?.Id == id;
 
     private static bool NeedsElectedCouncil(TownArrangement arrangement, int adults) =>
         arrangement.Ordinary == TownArrangementRules.ElectedCouncil && adults > TownGovernanceRules.Seats ||

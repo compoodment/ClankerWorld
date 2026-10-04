@@ -1,0 +1,1 @@
+- Adults and elders can collect their own stored or dropped ready-to-eat food with orders such as "collect three berries" or "collect food from (12, 4)". Exact quantities, source tiles, queues, cancellation and partial progress survive saves. Shared, reserved and promised goods remain unavailable. Older alpha saves are refused and preserved unchanged.

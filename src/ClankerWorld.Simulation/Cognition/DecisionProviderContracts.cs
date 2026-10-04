@@ -356,6 +356,8 @@ public sealed record InhabitantObservation(
                         "gather several food servings from a nearby food source" or
                         "gather the requested material from a natural source" or
                         "collect your own stored or dropped material" or
+                        "collect your own stored or dropped food" or
+                        "collect your own stored or dropped equipment" or
                         "store your own carried material in your House" or
                         "repair your own worn clothing or carrying aid" or
                         "repair your own worn tool" or
