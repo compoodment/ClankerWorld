@@ -144,13 +144,20 @@ distribution goal, the companion-process host or the first package.
   as life stage plus days, such as **Adult · 22 days** ([Agents and social
   life](agents-and-families.md#life-stages-to-try-in-playtesting)).
 - **Night length, agreed on October 1
-  ([#641](https://github.com/compoodment/ClankerWorld/issues/641)):** night is
-  **40% of every world day**, the same all year: about 3 min 36 s of daylight
-  and 2 min 24 s of night in a six-minute day, with short dawn and dusk fades.
-  In the first version night lowers outdoor warmth and darkens the map gently,
-  keeping it readable. Night effects on weather and night length that changes
-  with the seasons come later, after colder nights are playtested. The warmth
-  drop is provisional balance.
+  ([#641](https://github.com/compoodment/ClankerWorld/issues/641)):** night
+  averages **40% of a world day**: about 3 min 36 s of daylight and 2 min 24 s
+  of night in a six-minute day, with short dawn and dusk fades. Night lowers
+  outdoor warmth and darkens the map gently, keeping it readable. Night
+  effects on weather come later, after colder nights are playtested. The
+  warmth drop is provisional balance.
+- **Night length follows the seasons, agreed on October 3:** computment wants
+  night to be longer in winter and shorter in summer, because that is
+  realistic, now rather than after a playtest. Night is shortest, **30% of the
+  day**, on the first day of summer and longest, **50%**, on the first day of
+  winter; it is 40% on the first days of spring and autumn and changes a
+  little every day in between. Night stays centred on midnight. Longer winter
+  nights also mean more hours of night chill. The 30% and 50% figures are
+  provisional and can be tuned after playtesting.
 - **Morning start, agreed on October 2
   ([#764](https://github.com/compoodment/ClankerWorld/issues/764)):** a new
   world starts in the morning, after the dawn fade, not at midnight, so
@@ -160,7 +167,7 @@ distribution goal, the companion-process host or the first package.
 
 Playtest the accepted starting pace and revise it if days, seasons, or agent
 lives feel rushed or slow. Still open: detailed stage effects, how much
-colder night is, seasonal night length, night's effect on weather, provider
+colder night is, night's effect on weather, provider
 work at pause/quit boundaries, safe routine activity for a stalled agent, and
 how to communicate provider delays without freezing the world.
 
@@ -537,7 +544,7 @@ These remain open; they are not new decisions.
    and first package. Still to prove: the same simulation and save behavior in
    both deployments, without creating a second, divergent game.
 
-- **Night and weather details.** Night is 40% of each day and, at first, lowers
-    warmth only, with no sleep/energy gate or independent night-only
-    restrictions. Decide how much colder night is, and night's later effect
-    on weather, after playtesting.
+- **Night and weather details.** Night is 30% to 50% of each day with the
+    seasons and, at first, lowers warmth only, with no sleep/energy gate or
+    independent night-only restrictions. Decide how much colder night is, and
+    night's later effect on weather, after playtesting.

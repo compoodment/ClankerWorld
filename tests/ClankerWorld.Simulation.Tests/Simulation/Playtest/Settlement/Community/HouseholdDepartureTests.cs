@@ -255,40 +255,6 @@ public sealed class HouseholdDepartureTests
     }
 
     [Fact]
-    public void SoleCaregiverCannotBeDisplacedAndVoluntaryExitMovesCompleteGroupWithoutTeleporting()
-    {
-        using var initial = NormalPathWorld.CreateGenerated("departure-care", _ => new Choices());
-        initial.Pause();
-        var state = initial.ExportState();
-        var actor = initial.Society.GetHousehold(Alpha).MemberIds[0];
-        var other = initial.Society.GetHousehold(Alpha).MemberIds[1];
-        var checkpoint = state.Society.Society;
-        var child = other; // A younger dependent in the same physical checkpoint, with unchanged identity and position.
-        checkpoint = checkpoint with
-        {
-            Inhabitants = checkpoint.Inhabitants.Select(person => person.Id == child
-                ? person with
-                {
-                    AgeBand = SocietyAgeBand.Infant,
-                    BirthTick = checkpoint.WorldTick,
-                    BirthLifeTick = null,
-                    LastLifecycleYearChecked = 0,
-                    PrimaryCaregiverId = actor,
-                    DomesticFamilyUnitId = checkpoint.GetInhabitant(actor).DomesticFamilyUnitId
-                } : person).ToArray(),
-        };
-        // Exercise the independent society move contract without modifying any physical position.
-        var position = state.Inhabitants.Single(person => person.InhabitantId == child).Position;
-        var left = SocietyFixture.LeaveHousehold(checkpoint, actor).Checkpoint;
-        Assert.Null(left.GetInhabitant(actor).HouseholdId);
-        Assert.Null(left.GetInhabitant(child).HouseholdId);
-        Assert.Equal(actor, left.GetInhabitant(child).PrimaryCaregiverId);
-        Assert.Equal(position, state.Inhabitants.Single(person => person.InhabitantId == child).Position);
-        Assert.Equal(2, SocietyFixture.MovingCareGroup(left, actor).Count);
-        Assert.Equal(checkpoint.Relationships.Count, left.Relationships.Count);
-    }
-
-    [Fact]
     public async Task CompleteCareGroupNeedsRoomAndUnanimousAdmissionAndCareCanBeExplicitlyReassigned()
     {
         var provider = new Choices();

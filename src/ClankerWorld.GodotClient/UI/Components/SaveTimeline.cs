@@ -7,7 +7,8 @@ namespace ClankerWorld.GodotClient.UI;
 /// The world's calendar as the timeline's season bar draws it. An older host
 /// sends no season lengths, so its year is split into four equal seasons.
 /// </summary>
-public sealed record SaveTimelineCalendar(int TicksPerDay, int DaysPerYear, IReadOnlyList<int> SeasonDays)
+public sealed record SaveTimelineCalendar(int TicksPerDay, int DaysPerYear, IReadOnlyList<int> SeasonDays,
+    int CalendarOffsetTicks = 0)
 {
     private static readonly string[] SeasonNames = ["spring", "summer", "autumn", "winter"];
 
@@ -21,10 +22,12 @@ public sealed record SaveTimelineCalendar(int TicksPerDay, int DaysPerYear, IRea
             var quarter = daysPerYear / 4;
             lengths = quarter == 0 ? [daysPerYear, 0, 0, 0] : [quarter, quarter, quarter, daysPerYear - 3 * quarter];
         }
-        return new SaveTimelineCalendar(ticksPerDay, daysPerYear, lengths);
+        return new SaveTimelineCalendar(ticksPerDay, daysPerYear, lengths,
+            Math.Clamp(pace?.CalendarOffsetTicks ?? 0, 0, ticksPerDay - 1));
     }
 
-    public float Day(long worldTick) => worldTick / (float)TicksPerDay;
+    /// <summary>Calendar days since the first midnight; a world that starts in the morning starts part-way through day 0.</summary>
+    public float Day(long worldTick) => worldTick / (float)TicksPerDay + CalendarOffsetTicks / (float)TicksPerDay;
 
     /// <summary>The season (0 is spring), the day within it counted from 0, its length and the year counted from 1.</summary>
     public (int Season, int Day, int Length, long Year) DateOf(long day)

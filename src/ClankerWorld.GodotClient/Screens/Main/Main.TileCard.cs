@@ -74,7 +74,13 @@ public partial class Main
     private void AddTileFact(string key, string value)
     {
         tileFacts.AddChild(new Label { Text = key, ThemeTypeVariation = "DimLabel" });
-        tileFacts.AddChild(new Label { Text = value });
+        tileFacts.AddChild(new Label
+        {
+            Text = value,
+            AutowrapMode = TextServer.AutowrapMode.WordSmart,
+            SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
+            CustomMinimumSize = new Vector2(180, 0),
+        });
     }
 
     private void AddTileThing(Texture2D? icon, string name, string detail)

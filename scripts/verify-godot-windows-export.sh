@@ -4,7 +4,8 @@ set -euo pipefail
 # Export the first distributable client target using only the exact Godot .NET
 # editor and export templates published for this project. The generated bundle
 # is suitable for upload as a CI artifact, not for release distribution: it is
-# deliberately unsigned.
+# deliberately unsigned. The editor and templates come from the shared tool
+# cache (scripts/tool-cache.sh), unpacked once and shared read-only.
 readonly GODOT_VERSION="4.7.2"
 readonly GODOT_RELEASE="${GODOT_VERSION}-stable"
 readonly GODOT_TEMPLATE_VERSION="${GODOT_VERSION}.stable.mono"
@@ -43,53 +44,11 @@ require_command() {
     fi
 }
 
-verify_sha256() {
-    local expected="$1"
-    local path="$2"
-    local label="$3"
-    local actual
-
-    actual="$(sha256sum "${path}" | awk '{ print $1 }')"
-    if [[ "${actual}" != "${expected}" ]]; then
-        printf '%s SHA-256 mismatch\nexpected: %s\nactual:   %s\n' \
-            "${label}" "${expected}" "${actual}" >&2
-        return 1
-    fi
-}
-
-download_verified() {
-    local url="$1"
-    local path="$2"
-    local expected_sha256="$3"
-    local label="$4"
-    local temporary_path
-
-    if [[ -f "${path}" ]]; then
-        printf 'Checking cached %s SHA-256\n' "${label}"
-        verify_sha256 "${expected_sha256}" "${path}" "${label}"
-        return
-    fi
-
-    mkdir -p "$(dirname "${path}")"
-    temporary_path="$(mktemp "${path}.partial.XXXXXX")"
-
-    printf 'Fetching %s\n' "${label}"
-    if ! curl --fail --location --retry 3 --retry-all-errors --silent --show-error \
-        --output "${temporary_path}" "${url}"; then
-        rm -f -- "${temporary_path}"
-        return 1
-    fi
-    printf 'Checking downloaded %s SHA-256\n' "${label}"
-    if ! verify_sha256 "${expected_sha256}" "${temporary_path}" "${label}"; then
-        rm -f -- "${temporary_path}"
-        return 1
-    fi
-    mv "${temporary_path}" "${path}"
-}
-
 for command in awk curl dotnet file find git grep sed sha256sum sort tar tr unzip; do
     require_command "${command}"
 done
+# shellcheck source=tool-cache.sh
+source "${repo_root}/scripts/tool-cache.sh"
 
 if [[ ! -f "${project_file}" ]]; then
     printf 'Godot client project file not found: %s\n' "${project_file}" >&2
@@ -107,32 +66,30 @@ if [[ -d "${output_dir}" ]] && [[ -n "$(find "${output_dir}" -mindepth 1 -maxdep
 fi
 mkdir -p "${output_dir}"
 
-cache_dir="${GODOT_DOWNLOAD_CACHE:-${XDG_CACHE_HOME:-${HOME}/.cache}/clankerworld-godot}"
-editor_archive_path="${cache_dir}/${GODOT_ARCHIVE}"
-templates_archive_path="${cache_dir}/${GODOT_TEMPLATES_ARCHIVE}"
-scratch_parent="${RUNNER_TEMP:-/tmp}"
+scratch_parent="${RUNNER_TEMP:-${TMPDIR:-/tmp}}"
 scratch_root="$(mktemp -d "${scratch_parent%/}/clankerworld-godot-windows-export.XXXXXX")"
 
 cleanup() {
     rm -rf -- "${scratch_root}"
 }
 trap cleanup EXIT
+printf '%s\n' "$$" > "${scratch_root}/.clankerworld-run.pid"
 
-download_verified "${GODOT_RELEASE_URL}/${GODOT_ARCHIVE}" "${editor_archive_path}" \
-    "${GODOT_ARCHIVE_SHA256}" "Godot .NET editor archive"
-download_verified "${GODOT_RELEASE_URL}/${GODOT_TEMPLATES_ARCHIVE}" "${templates_archive_path}" \
-    "${GODOT_TEMPLATES_SHA256}" "Godot .NET export templates archive"
+editor_archive_path="$(tool_cache_download "${GODOT_RELEASE_URL}/${GODOT_ARCHIVE}" \
+    "${GODOT_ARCHIVE_SHA256}" "${GODOT_ARCHIVE}")"
+templates_archive_path="$(tool_cache_download "${GODOT_RELEASE_URL}/${GODOT_TEMPLATES_ARCHIVE}" \
+    "${GODOT_TEMPLATES_SHA256}" "${GODOT_TEMPLATES_ARCHIVE}")"
 
-tool_root="${scratch_root}/tool"
+# Godot reads its settings and export templates from these folders; each run gets its own.
+export XDG_CONFIG_HOME="${scratch_root}/config"
 export XDG_DATA_HOME="${scratch_root}/data"
-template_unpack_root="${scratch_root}/templates"
+export XDG_CACHE_HOME="${scratch_root}/cache"
 staged_repo_root="${scratch_root}/repository"
 staged_project_dir="${staged_repo_root}/src/ClankerWorld.GodotClient"
 staged_project_file="${staged_project_dir}/ClankerWorld.GodotClient.csproj"
 staged_solution_path="${staged_project_dir}/ClankerWorld.GodotClient.sln"
 
-printf 'Extracting Godot .NET editor\n'
-unzip -q "${editor_archive_path}" -d "${tool_root}"
+tool_root="$(tool_cache_unzip "${editor_archive_path}" "${GODOT_ARCHIVE_SHA256}")"
 godot_bin="$(find "${tool_root}" -type f -name "Godot_v${GODOT_VERSION}-stable_mono_linux.x86_64" -print -quit)"
 if [[ -z "${godot_bin}" || ! -x "${godot_bin}" ]]; then
     printf 'Godot .NET editor executable was not found after extraction.\n' >&2
@@ -140,7 +97,7 @@ if [[ -z "${godot_bin}" || ! -x "${godot_bin}" ]]; then
 fi
 
 printf 'Installing Godot .NET export templates\n'
-unzip -q "${templates_archive_path}" -d "${template_unpack_root}"
+template_unpack_root="$(tool_cache_unzip "${templates_archive_path}" "${GODOT_TEMPLATES_SHA256}")"
 template_version_file="$(find "${template_unpack_root}" -type f -name version.txt -print -quit)"
 if [[ -z "${template_version_file}" ]]; then
     printf 'Godot export templates archive did not contain version.txt.\n' >&2
@@ -153,7 +110,7 @@ if [[ "${template_version}" != "${GODOT_TEMPLATE_VERSION}" ]]; then
 fi
 template_root="${XDG_DATA_HOME}/godot/export_templates/${template_version}"
 mkdir -p "$(dirname "${template_root}")"
-mv "$(dirname "${template_version_file}")" "${template_root}"
+ln -s "$(dirname "${template_version_file}")" "${template_root}"
 if [[ ! -f "${template_root}/windows_release_x86_64.exe" ]]; then
     printf 'Windows x64 release template was not found after extraction.\n' >&2
     exit 1

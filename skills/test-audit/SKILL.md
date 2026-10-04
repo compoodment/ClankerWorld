@@ -52,11 +52,18 @@ python skills/test-audit/scripts/unique_coverage.py <evidence>/per-test --timing
   --table <evidence>/unique.tsv --plan --keep <evidence>/keep.txt
 ```
 
-- `per_test_coverage.py` runs each method in its own process, several at a time. Each worker gets its own copy of the test output folder, because the coverage collector rewrites assemblies while it runs. It finds the coverage collector from the test project's restore data, and can resume after an interruption. Only measurements with a successful completion record and one valid coverage report are reused; failed, unfinished, empty or malformed measurements are rerun. A valid report measures source lines even when none were hit. Byte-identical collector attachment copies count as one report; differing reports for one method are ambiguous and must be rerun. The planner applies the same checks before recommending any removal. Use a new evidence folder whenever the build or settings change, and resume only with the same inputs. Older reports without completion records must be measured again. It takes roughly the suite's own time plus several seconds of start-up per method, so start it early and read code while it runs. `dotnet` picks its SDK from the `global.json` in the folder it runs in: if the baseline ran from elsewhere, pass that folder as `--cwd`.
-- `unique_coverage.py` reports each test's covered and unique lines. With `--plan`, it lists tests that can go one after another without losing any line or mapped branch, fewest unique lines first and the slowest first among equals. With `--remove FILE`, it simulates removing a chosen list. Branch unions are reported as a lower bound. The removal estimate is a conservative upper bound on mapped branches that could be lost: equal partial branch counts do not establish that two tests cover the same branches. Coverlet also counts unmapped branches that this planner cannot attribute to individual tests; the full-suite comparison below must verify total branch coverage. The planner refuses incomplete per-test measurements.
+- `per_test_coverage.py` runs each method in its own process, several at a time.
+  - It takes roughly the suite's own time plus several seconds of start-up per method, so start it early and read code while it runs.
+  - Each worker gets its own copy of the test output folder, because the coverage collector rewrites assemblies while it runs. It finds the collector from the test project's restore data.
+  - It can resume after an interruption. It reuses a measurement only when it finished successfully and left exactly one valid report; it reruns failed, unfinished, empty, malformed or conflicting ones. A report that measured lines but hit none is still valid. Resume only with the same build and settings, and use a new evidence folder when either changes.
+  - `dotnet` picks its SDK from the `global.json` in the folder it runs in. If the baseline ran from elsewhere, pass that folder as `--cwd`.
+- `unique_coverage.py` reports each test's covered and unique lines, and refuses incomplete measurements.
+  - With `--plan`, it lists tests that can go one after another without losing any line or mapped branch, fewest unique lines first and the slowest first among equals. With `--remove FILE`, it simulates removing a chosen list.
+  - Line results are exact. Branch results are cautious: a report says how many branches a test took on a line, not which ones, so the planner assumes the worst and may predict losses that don't happen. It also can't see branches Coverlet doesn't map to a line. The full-suite comparison in section 6 settles total branch coverage.
 - Zero unique coverage means removing that test alone loses no coverage. It does not make the test useless: it may assert behavior that other tests only run through. The plan is a list of candidates to read, not a list to delete.
 - Theory rows share one method's report. Judge rows by reading them.
 - A test skipped on this operating system, such as one that needs native Windows, shows no coverage here. List it in `--keep` rather than reading it as redundant.
+- Also list in `--keep` the tests CI picks by name, such as the filters of the native Windows jobs in `.github/workflows/`, and the documentation and architecture checks. Removing one silently changes what a required check runs.
 
 ## 4. Decide what earns a place
 
@@ -82,7 +89,7 @@ Audit by production ownership, so parallel reviewers read distinct lanes: world,
 - Find each candidate's file from its method declaration, not its class name: a class split across files (`partial`) puts its tests in several files. `remove_tests.py` locates them this way.
 - Give each reviewer its candidates together with the kept tests that overlap each one most, by the share of the candidate's covered lines they also cover. The per-test reports hold this.
 - Reviewers only read. Don't edit the checkout they're reading; try removals in a separate worktree.
-- A reviewer never names another candidate as retained proof, because that one may go too. Once every ledger is in, reconcile: a test kept only because its proof was a candidate in another lane can go if that other test was kept.
+- A reviewer never names another candidate as retained proof, because that one may go too. Once every ledger is in, reconcile: a test kept only because its proof was a candidate in another lane can go if that other test was kept. Reconcile again after every further review round, because a second round can remove a test the first round named as proof.
 - Expect reviewers to keep a large share of the candidates. Zero unique coverage often still hides a distinct assertion, refusal or edge case.
 
 ## 5. Keep a ledger
@@ -99,6 +106,8 @@ Before deleting anything, write one ledger entry per candidate:
 
 Mark each entry retain, repair, consolidate or delete. Cover every file in scope, and get a second reader on decisions that cross ownership lanes. Keep the full ledger outside the repository diff, and put its summary in the pull request.
 
+The scripts read the ledger as a JSON list of entries with `test` (the fully qualified method), `decision`, `rows` (the exact attribute lines, for `delete_rows`), `retained_proof` (a list of fully qualified test names) and, optionally, `file`.
+
 ## 6. Remove, then verify
 
 - Remove evidence-backed candidates in coherent batches, one ownership lane at a time. Move any distinct assertion into the test that stays before deleting its duplicate. `python skills/test-audit/scripts/remove_tests.py <ledger.json>` removes the methods and theory rows a ledger marks `delete` or `delete_rows`, with their attributes and doc comments.
@@ -108,7 +117,8 @@ Mark each entry retain, repair, consolidate or delete. Cover every file in scope
   - Clean up only warnings that are new. IDE0005 reports one warning per file however many `using` lines are unnecessary, so repeat until no new warning appears.
   - Unused private nested types aren't reported, so search for any helper class the reviewers named. Delete test files left without tests.
   - Remove the temporary `.editorconfig`.
-- Before pushing, check the removals against every open pull request that changes tests. Commit them, then run `git merge-tree --write-tree --name-only HEAD <pr-head>` and the same against the commit before the removals. A file that conflicts only in the first holds a removal that conflicts. Put back those removals, trying them one at a time so the rest can stay. Usually that pull request is changing the test itself, so list the removal in a follow-up issue blocked by it, rather than deleting a test someone is editing.
+- Check that every removal still has a proof that runs. List the tests after the removals with `dotnet test <project> --configuration Release --no-build --list-tests > <evidence>/after.txt`, then run `python skills/test-audit/scripts/check_ledger.py <ledger.json> --tests <evidence>/after.txt`. It fails when a named proof doesn't run, for example because the audit removed it too, or when a removal didn't happen. It also flags a proof that runs under another class name, as tests in a class split across files can: check that it is the same test. For each failure, confirm that the proofs left still cover the removal and correct the ledger, or put the test back.
+- Before pushing, check the removals against every open pull request that changes tests. Commit them, then run `git merge-tree --write-tree --name-only HEAD <pr-head>` and the same against the commit before the removals. A file that conflicts only in the first holds a removal that conflicts. Put back those removals, trying them one at a time so the rest can stay. Usually that pull request is changing the test itself, so list the removal in a follow-up issue blocked by it, rather than deleting a test someone is editing. Run `check_ledger.py` again with `--held` and the follow-up's list: for each removal that relies on a held-back test, note in the follow-up that its proof must be re-checked before that test goes.
 - Never weaken assertions, coverage settings, CI routing or a supported contract to meet a number. If the evidence can't support the requested count, stop and report the measured limit.
 - Run the retained sibling tests, then the full Release suite with coverage into `<evidence>/final`, then compare:
 
@@ -124,6 +134,17 @@ Mark each entry retain, repair, consolidate or delete. Cover every file in scope
 - If instrumentation makes an unmodified test fail on timing, keep the test and investigate. Repeat both full runs with the same documented scheduling, such as `-- xUnit.MaxParallelThreads=4`, rather than dropping cases or relaxing assertions.
 - Where it's unclear whether a retained test really covers a removed one, make a temporary production mutation that the removed test caught. Check that a retained test fails too, then restore the source byte for byte.
 - Run `dotnet format --verify-no-changes --no-restore`, `git diff --check`, and the repository's native Windows and Godot smoke and export gates that apply. Have a reviewer who did not choose the deletions compare them with the retained proof.
+
+### Keep the pull request mergeable
+
+An audit changes many test files, so its pull request conflicts with most open pull requests that change tests, and gathers new conflicts while it waits for review.
+
+- Prefer one pull request per ownership lane over one large one. Smaller pull requests are reviewed sooner, conflict less and can merge independently. Run every check above for each.
+- If one waits long enough for main to move under it, refresh it, or ask its reviewer to, rather than letting conflicts pile up:
+  - Merge main in. Where main changed a test the audit removes, keep main's version of the test, drop that removal and list it in the follow-up issue to review again. Where main changed a retained proof, read it again.
+  - Repeat the open pull request check, the ledger check and the unused-code check against the new main.
+  - Measure coverage again on the refreshed head, against main at the same commit, and update the description and the follow-up issue.
+  - A pull request marked ready belongs to its reviewer: refresh it yourself only if they or the owner ask.
 
 ## 7. Report
 

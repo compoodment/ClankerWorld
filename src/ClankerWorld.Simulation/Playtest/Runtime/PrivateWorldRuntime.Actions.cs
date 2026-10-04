@@ -20,6 +20,7 @@ public sealed partial class PrivateWorldRuntime
         string reason,
         int interactionRange = 0)
     {
+        guardianPlacementActions.Add(inhabitantId);
         if (IsWithinInteractionRange(state.Position, destination, interactionRange))
         {
             AppendEvent("destination_reached", $"{inhabitantId}:{reason}");
@@ -34,6 +35,7 @@ public sealed partial class PrivateWorldRuntime
         }
 
         if (state.Departures is { Count: > 0 } && MovingCareGroup(inhabitantId).Any(id => id != inhabitantId &&
+                inhabitants[id].GuardianPlacement is null &&
                 !IsWithinInteractionRange(inhabitants[id].Position, state.Position, 2)))
         {
             RecordMovementBlocked(inhabitantId, state, "waiting_for_dependent");
@@ -82,7 +84,8 @@ public sealed partial class PrivateWorldRuntime
                 building.Position == destination &&
                 building.HouseholdId is not null &&
                 (building.HouseholdId == society.Checkpoint.GetInhabitant(inhabitantId).HouseholdId ||
-                 WeatherAt(building.Position) == WeatherKind.Storm && HasHouseGuestInvitation(inhabitantId, building.InstanceId))))
+                 WeatherAt(building.Position) == WeatherKind.Storm && HasHouseGuestInvitation(inhabitantId, building.InstanceId) ||
+                 CanEnterGuardianPlacementHouse(inhabitantId, building))))
             occupied.Remove(destination);
         // An occupied exact destination cannot be reached. Keep the household
         // sharing exception above, and avoid searching an entire map for it.
@@ -282,7 +285,7 @@ public sealed partial class PrivateWorldRuntime
         if (society.Checkpoint.GetInhabitant(actor).HouseholdId is not { } householdId)
             return null;
         var loose = PreferredFood(householdId, actor).FirstOrDefault(lot =>
-            (requiredItemKind is null || lot.ItemKind == requiredItemKind) &&
+            !OnBorrowedMarketStall(lot) && (requiredItemKind is null || lot.ItemKind == requiredItemKind) &&
             lot.CarrierId is null && (lot.StorageBuildingId is null ||
              householdId == lot.OwnerId) &&
             (IsWithinInteractionRange(position, HouseholdStockPosition(lot), HouseholdStockInteractionRange(lot)) ||

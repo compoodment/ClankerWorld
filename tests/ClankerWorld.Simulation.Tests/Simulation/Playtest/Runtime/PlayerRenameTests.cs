@@ -11,10 +11,10 @@ public sealed class PlayerRenameTests
     private const string Second = "founder:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 
     [Theory]
-    [InlineData("Élodie Vale", false)]
-    [InlineData("  e\u0301LODIE\u00a0  Vale  ", false)]
-    [InlineData("Élodie Vale", true)]
-    public void PlayerCannotTakeAnotherPersonsFullName(string proposed, bool deceased)
+    [InlineData("Élodie Lake", false)]
+    [InlineData("  e\u0301LODIE\u00a0  Lake  ", false)]
+    [InlineData("Élodie Lake", true)]
+    public void PlayerCannotTakeAnotherPersonsChosenFirstName(string proposed, bool deceased)
     {
         using var initial = NewWorld();
         initial.RenameAgent(First, "Élodie Vale");
@@ -46,13 +46,16 @@ public sealed class PlayerRenameTests
         }
         using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(saved)));
         var before = PrivateWorldRuntimeCodec.Encode(world.ExportState());
-        Assert.ThrowsAny<InvalidOperationException>(() => world.RenameAgent(Second, proposed));
+        Assert.Throws<InhabitantNameTakenException>(() => world.RenameAgent(Second, proposed));
         Assert.Equal(before, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
-        Assert.True(world.RenameAgent(Second, "Élodie Lake"));
+        Assert.True(world.RenameAgent(Second, "Marin Lake"));
+        Assert.True(world.Society.GetInhabitant(Second).HasChosenName);
     }
 
-    [Fact]
-    public void ConfirmingOwnUnchosenPlaceholderRetainsPlayerPrecedenceWithoutClaimingAnotherName()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ChoosingPlaceholderTextClaimsItsFirstNameEvenAfterNamingCloses(bool namingClosed)
     {
         using var initial = NewWorld();
         var saved = initial.ExportState();
@@ -67,16 +70,35 @@ public sealed class PlayerRenameTests
                 },
             },
         };
+        if (namingClosed)
+            saved = saved with
+            {
+                Society = saved.Society with
+                {
+                    Society = SocietyFixture.CloseNaming(SocietyFixture.CloseNaming(
+                        saved.Society.Society, First).Checkpoint, Second).Checkpoint,
+                },
+            };
         using var world = PrivateWorldRuntime.Restore(saved);
-        Assert.True(world.Society.GetInhabitant(First).NeedsName);
+        Assert.Equal(!namingClosed, world.Society.GetInhabitant(First).NeedsName);
+        Assert.False(world.Society.GetInhabitant(First).HasChosenName);
+        Assert.False(world.Society.GetInhabitant(Second).HasChosenName);
         Assert.True(world.RenameAgent(First, "New agent"));
         Assert.False(world.Society.GetInhabitant(First).NeedsName);
+        Assert.True(world.Society.GetInhabitant(First).HasChosenName);
         Assert.Equal("New agent", world.Society.GetInhabitant(First).Name);
-        Assert.True(world.Society.GetInhabitant(Second).NeedsName);
+        Assert.Equal(!namingClosed, world.Society.GetInhabitant(Second).NeedsName);
         var beforeRetry = PrivateWorldRuntimeCodec.Encode(world.ExportState());
         Assert.False(world.RenameAgent(First, "New agent"));
         Assert.Equal(beforeRetry, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
-        Assert.Throws<InhabitantNameTakenException>(() => world.RenameAgent(First, "NEW AGENT"));
+        Assert.True(world.RenameAgent(First, "NEW AGENT"));
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
+            PrivateWorldRuntimeCodec.Encode(world.ExportState())));
+        Assert.True(restored.Society.GetInhabitant(First).HasChosenName);
+        Assert.False(restored.Society.GetInhabitant(Second).HasChosenName);
+        var beforeConflict = PrivateWorldRuntimeCodec.Encode(restored.ExportState());
+        Assert.Throws<InhabitantNameTakenException>(() => restored.RenameAgent(Second, "New Lake"));
+        Assert.Equal(beforeConflict, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
     }
 
     [Fact]

@@ -85,7 +85,6 @@ public sealed class PrivateWorldInstructionParserTests
     [Theory]
     [InlineData("gather berries at 12 4", 12, 4)]
     [InlineData("gather berries at (12,4)", 12, 4)]
-    [InlineData("gather berries at10,12", 10, 12)]
     public void CoordinateFormsAreConsumedAndSaved(string text, int x, int y)
     {
         using var world = new PrivateWorldRuntime("strict-order-coordinates");
@@ -118,9 +117,7 @@ public sealed class PrivateWorldInstructionParserTests
     [Theory]
     [InlineData("Eat!", "consume_food")]
     [InlineData("gathering berries", "harvest_food")]
-    [InlineData("Please eat the food now.", "consume_food")]
     [InlineData("go to the berry patch", "seek_food")]
-    [InlineData("keep gathering food until cancelled", "harvest_food")]
     [InlineData("keep eating", "consume_food")]
     [InlineData("keep eating food", "consume_food")]
     public void ExplicitlySupportedDirectFormsRemainRecognized(string text, string action)

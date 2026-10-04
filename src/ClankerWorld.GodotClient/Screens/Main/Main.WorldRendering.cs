@@ -8,6 +8,63 @@ namespace ClankerWorld.GodotClient;
 
 public partial class Main
 {
+    private void ResetDisplayedWorldContext()
+    {
+        knownEvents.Clear();
+        eventsWorldId = null;
+        lastSeenEventId = long.MinValue;
+        newEventsAfter = long.MaxValue;
+        unreadEvents = 0;
+        renderedEventLog = null;
+        conversationReadWorldId = null;
+        locallyReadConversationTurns.Clear();
+        openConversationId = null;
+        openConversationAgentId = null;
+        conversationPanel.Hide();
+        familyTreePanel.Hide();
+        memoriesPanel.Hide();
+        thoughtsPanel.Hide();
+        selectedInhabitantId = null;
+        renamingAgentId = null;
+        refusedAgentRename.Forget();
+        renameRow.Hide();
+        ClearTileSelection();
+        ClearBuildingSelection();
+        CancelBuildingRemoval();
+        CancelAutosaveSettingsRead();
+        CancelManualSaveListRead();
+        worldListRequest.Cancel();
+        manualSaveOverlay.Hide();
+        pendingOverwriteSaveId = null;
+        pendingDeletion = null;
+        choosingFirstTownSite = false;
+        movingFounderId = null;
+        placingAddedAgent = false;
+        founderSetupPanel.Hide();
+        providerConfiguration = null;
+        cognitionModelContext = null;
+        cognitionModelLookup = null;
+        founderKeyEdits++;
+        cognitionKeyEdits++;
+        ClearFounderModelSetupCheck();
+        ClearCognitionModelSetupCheck();
+        menuPauseConfirmed = false;
+        menuPausedWorld = false;
+        renderedMapSnapshot = null;
+        terrainMap = null;
+        terrainWorldId = null;
+        cameraWorldId = null;
+        usagePauseWorldId = null;
+        lastLifePaceWorldId = null;
+        renderedTownList = null;
+        foreach (var marker in inhabitantVisuals.Values) marker.QueueFree();
+        inhabitantVisuals.Clear();
+        inhabitantCanonicalXs.Clear();
+        foreach (var visual in mapObjectVisuals.Values) visual.QueueFree();
+        mapObjectVisuals.Clear();
+        mapObjectCanonicalXs.Clear();
+    }
+
     private void Render(OwnerWorldSnapshot snapshot, IReadOnlyList<OwnerWorldEvent> appendedEvents)
     {
         if (usagePauseWorldId != snapshot.WorldId)
@@ -121,7 +178,9 @@ public partial class Main
         terrainLayer.SetBridges(snapshot.Bridges);
         terrainLayer.SetFields(snapshot.Fields);
         worldOverview.SetFields(snapshot.Fields);
+        terrainLayer.SetMarkets(snapshot.Towns);
         terrainLayer.SetBuildings(snapshot.PlacedBuildings, snapshot.Objects);
+        nightLightsLayer.SetBuildings(BuildingLights(snapshot));
         worldOverview.SetRoads([.. snapshot.RoadTiles, .. snapshot.Bridges.SelectMany(bridge => bridge.Span)]);
         ApplyMapFilters(snapshot);
         var mapWidth = terrainMap.Width;

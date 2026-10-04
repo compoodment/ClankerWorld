@@ -1,0 +1,1 @@
+- Nights now follow the seasons: about 30% of the day at the start of summer, 50% at the start of winter and 40% at the start of spring and autumn, changing a little each day. Winter nights are longer and so stay cold for longer.
