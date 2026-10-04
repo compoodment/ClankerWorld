@@ -164,6 +164,18 @@ static class Baseline
             retired.Add(new("retired", $"{kind}.1x1", OnGrass(BuildingSprites.Render(kind, 1, 1, 32), 1, 1)));
         families.Add(("retired", retired, null, 5));
 
+        // The approved 32 px cart poses, at native size and without a backdrop.
+        var handcarts = new List<Entry>();
+        string[] cartDirections = ["S", "SW", "W", "NW", "N", "NE", "E", "SE"];
+        foreach (var loaded in new[] { false, true })
+            for (var facing = 0; facing < cartDirections.Length; facing++)
+                handcarts.Add(new("handcarts", $"handcart.{(loaded ? "loaded" : "empty")}.{cartDirections[facing]}.sprite",
+                    HandcartSprites.Sprite(facing, loaded, pulled: false)));
+        foreach (var facing in new[] { 6, 7 })
+            handcarts.Add(new("handcarts", $"handcart.pulled.{cartDirections[facing]}.sprite",
+                HandcartSprites.Sprite(facing, loaded: true, pulled: true)));
+        families.Add(("handcarts", handcarts, null, 8));
+
         // Agents: every variant and life stage, over grass.
         var agents = new List<Entry>();
         foreach (var stage in new[] { "infant", "child", "adult", "elder" })
