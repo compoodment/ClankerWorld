@@ -133,6 +133,7 @@ public sealed partial class PrivateWorldRuntime
         foreach (var job in personalJobs) AppendEvent("recipe_cancelled", $"{job.JobId}:{job.RecipeId}");
         checkpointSchemaVersion = StateSchemaVersion;
         AppendEvent("household_left", $"{actor}|{householdId}|{cause}|{allowance}");
+        ReconcileGuardianPlacements();
         return true;
     }
 
@@ -144,7 +145,7 @@ public sealed partial class PrivateWorldRuntime
     private IEnumerable<InventoryLot> PersonalGoodsAwaitingCollection(string actor) => society.Checkpoint.Inventory.Lots.Where(lot =>
         // A parked handcart stays on the ground with its cargo; its owner pulls it rather than carrying it.
         lot.OwnerId == actor && !PersonalEquipmentRules.IsCarried(lot, actor) && lot.CarrierId is null &&
-        lot.ItemKind != InventoryContainerRules.Handcart &&
+        lot.ItemKind != InventoryContainerRules.Handcart && (!MarketTradeRules.IsLoose(lot) || !OnMarketStall(lot)) &&
         lot.DeliveryBuildingId is null && lot.ContainerLotId is null && PhysicalUnreservedQuantity(lot) > 0 &&
         !(InventoryContainerRules.IsContainer(lot.ItemKind) && HasActiveContainerReservation(society.Checkpoint.Inventory, lot.Id)) &&
         (lot.GroundPosition is not null || lot.StorageBuildingId is { } storageId &&
@@ -304,14 +305,14 @@ public sealed partial class PrivateWorldRuntime
             if (lot.OwnerId != society.Checkpoint.GetInhabitant(actor).HouseholdId && HouseForHousehold(lot.OwnerId) is { } ownerHouse &&
                 VesselFits(lot, StorageRoom(ownerHouse.InstanceId)))
                 candidates.Add(new("household_return:" + lot.Id, $"Physically return borrowed {lot.ItemKind.Replace('_', ' ')} to its owning household.", 22));
+            // Goods carried to or from the Market stay household property and can only be used again from the House.
+            else if (lot.OwnerId == home && MarketTradeRules.IsLoose(lot) && !ProtectedMarketItem(actor, lot) &&
+                     PhysicalUnreservedQuantity(lot) > 0 && HouseForHousehold(lot.OwnerId) is { } ownHouse &&
+                     StorageRoom(ownHouse.InstanceId) > 0)
+                candidates.Add(new("household_return:" + lot.Id, $"Carry your household's {lot.ItemKind.Replace('_', ' ')} back to its House.", 22));
         if (home is not null && HouseForHousehold(home) is { } house && StorageRoom(house.InstanceId) > 0)
         {
-            foreach (var lot in society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == actor &&
-                         PersonalEquipmentRules.IsCarried(lot, actor) && lot.DeliveryBuildingId is null && lot.ContainerLotId is null &&
-                         // Worn clothing, the carry aid, a worn ornament and a tool under repair stay with the adult.
-                         !PersonalEquipmentRules.IsSelected(inhabitants[actor].Equipment, lot.Id) &&
-                         !IsEdibleFood(lot.ItemKind) && PhysicalUnreservedQuantity(lot) > 0 &&
-                         VesselFits(lot, StorageRoom(house.InstanceId))).OrderBy(lot => lot.Id, StringComparer.Ordinal))
+            foreach (var lot in PersonalStorageLots(actor, house.InstanceId))
                 candidates.Add(new("household_store_personal:" + lot.Id, $"Store your own {lot.ItemKind.Replace('_', ' ')} in your House while keeping personal ownership.",
                     // The built-in chooser collects other stored belongings at once,
                     // so it puts away only what it then leaves at home.
@@ -406,37 +407,35 @@ public sealed partial class PrivateWorldRuntime
             if (result.CreatedId is not null) AppendEvent("replacement_care_accepted", $"{actor}|{child}");
             return;
         }
-        var collect = candidate.StartsWith("household_collect:", StringComparison.Ordinal);
-        var store = candidate.StartsWith("household_store_personal:", StringComparison.Ordinal);
-        var returnBorrowed = candidate.StartsWith("household_return:", StringComparison.Ordinal);
-        if (!collect && !store && !returnBorrowed) return;
-        var lotId = candidate[(collect ? "household_collect:".Length : store ? "household_store_personal:".Length : "household_return:".Length)..];
-        var lot = society.Checkpoint.Inventory.Lots.FirstOrDefault(item => item.Id == lotId);
-        if (lot is null) return;
-        if (collect && !PersonalGoodsAwaitingCollection(actor).Any(item => item.Id == lotId)) return;
-        if (returnBorrowed && !BorrowedGoods(actor).Any(item => item.Id == lotId)) return;
-        if (store && (lot.OwnerId != actor || lot.ContainerLotId is not null || !PersonalEquipmentRules.IsCarried(lot, actor) ||
-                      PersonalEquipmentRules.IsSelected(inhabitants[actor].Equipment, lot.Id))) return;
-        var house = collect ? null : HouseForHousehold(returnBorrowed ? lot.OwnerId : HouseholdFor(actor));
-        if (!collect && house is null) return;
-        var destination = collect ? HouseholdStockPosition(lot) : house!.Position;
-        // Collection/return at an entrance grants no general shelter or cooking access.
-        var range = collect && lot.GroundPosition is not null ? ResourceInteractionRange : 1;
-        if (!IsWithinInteractionRange(inhabitants[actor].Position, destination, range))
+        if (candidate.StartsWith("household_store_personal:", StringComparison.Ordinal))
         {
-            MoveToward(actor, inhabitants[actor], destination, "personal_goods", range);
+            StorePersonalGoods(actor, candidate["household_store_personal:".Length..]);
             return;
         }
-        var room = collect ? FreeCarryCapacity(actor) : StorageRoom(house!.InstanceId);
+        if (candidate.StartsWith("household_collect:", StringComparison.Ordinal))
+        {
+            CollectPersonalGoods(actor, candidate["household_collect:".Length..]);
+            return;
+        }
+        if (!candidate.StartsWith("household_return:", StringComparison.Ordinal)) return;
+        var lotId = candidate["household_return:".Length..];
+        var lot = BorrowedGoods(actor).FirstOrDefault(item => item.Id == lotId);
+        if (lot is null || HouseForHousehold(lot.OwnerId) is not { } house) return;
+        // Returning goods at an entrance grants no general shelter or cooking access.
+        if (!IsWithinInteractionRange(inhabitants[actor].Position, house.Position, 1))
+        {
+            MoveToward(actor, inhabitants[actor], house.Position, "personal_goods", 1);
+            return;
+        }
+        var room = StorageRoom(house.InstanceId);
         var quantity = InventoryContainerRules.IsContainer(lot.ItemKind)
             ? VesselFits(lot, room) ? 1 : 0
             : Math.Min(PhysicalUnreservedQuantity(lot), room);
         if (quantity <= 0) return;
         ApplyInventoryTransition(inventory => InventoryFixture.Relocate(inventory,
             $"personal:{actor}:{WorldTick}:{lot.Id}", lot.Id, lot.OwnerId, quantity,
-            collect ? actor : null, collect ? null : house!.InstanceId));
-        AppendEvent(collect ? "personal_goods_collected" : returnBorrowed ? "borrowed_goods_returned" : "personal_goods_stored",
-            $"{actor}|{lot.ItemKind}|{quantity}|{lot.OwnerId}");
+            storageBuildingId: house.InstanceId));
+        AppendEvent("borrowed_goods_returned", $"{actor}|{lot.ItemKind}|{quantity}|{lot.OwnerId}");
     }
 
     private static void ValidateDepartures(IEnumerable<PlaytestInhabitantState> physical, SocietyCheckpoint society, int schemaVersion)
@@ -479,7 +478,7 @@ public sealed partial class PrivateWorldRuntime
         {
             foreach (var childId in MovingCareGroup(adult.InhabitantId).Where(id => id != adult.InhabitantId))
             {
-                if (!inhabitants.TryGetValue(childId, out var child) ||
+                if (!inhabitants.TryGetValue(childId, out var child) || child.GuardianPlacement is not null ||
                     IsWithinInteractionRange(child.Position, adult.Position, 1)) continue;
                 MoveToward(childId, child, adult.Position, "follow_caregiver", 1);
             }

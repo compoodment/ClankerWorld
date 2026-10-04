@@ -61,6 +61,9 @@ public partial class Main
         if (calendar.DateOf(25) != (2, 5, 10, 1) || calendar.DateOf(41) != (0, 1, 10, 2) ||
             olderHost.DateOf(39) != (3, 9, 10, 1))
             throw new InvalidOperationException("The season bar must count seasons the way the world does.");
+        var morning = SaveTimelineCalendar.From(new OwnerWorldCalendarPace(Day, 40, 10, 10, 10, 10, CalendarOffsetTicks: Day / 4));
+        if (morning.Day(0) != 0.25f || morning.Day(3L * Day / 4) != 1f || calendar.Day(0) != 0f)
+            throw new InvalidOperationException("A save in a world that starts in the morning must sit at its calendar time of day.");
         if (SaveTimelineLayout.Shorten("A save with a long name", 60, text => text.Length * 6) != "A save..." ||
             SaveTimelineLayout.Shorten("Winter", 60, text => text.Length * 6) != "Winter")
             throw new InvalidOperationException("Long save names must be shortened with three full stops.");

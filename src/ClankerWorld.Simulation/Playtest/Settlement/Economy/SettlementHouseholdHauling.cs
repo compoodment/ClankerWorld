@@ -124,7 +124,7 @@ public sealed partial class PrivateWorldRuntime
         string? houseId = null) =>
         society.Checkpoint.Inventory.Lots
             .Where(lot => lot.OwnerId == householdId && lot.CarrierId is null && lot.ContainerLotId is null &&
-                lot.StorageBuildingId is null && lot.DeliveryBuildingId is null &&
+                lot.StorageBuildingId is null && lot.DeliveryBuildingId is null && !OnBorrowedMarketStall(lot) &&
                 (InventoryContainerRules.IsContainer(lot.ItemKind)
                     ? !HasActiveContainerReservation(society.Checkpoint.Inventory, lot.Id) &&
                         !UnusableDeliveryStock(society.Checkpoint.Inventory, lot)

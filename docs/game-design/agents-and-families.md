@@ -60,19 +60,25 @@ everything that is available in the current build. See [what works today](../wha
   what changes. It may keep either or both current choices. A missing, invalid
   or interrupted reply leaves the current identity alone and is not retried
   automatically. A name change is separate from these opportunities.
-- **Two agents in one world cannot share an exact full name.** If a model
-  chooses a name that is already taken, the game asks that agent once more,
+- **Agreed with computment on October 3
+  ([#910](https://github.com/compoodment/ClankerWorld/issues/910)): chosen first
+  names are unique within each world**, including names of deceased agents.
+  This replaces the earlier full-name-only rule. Model naming, child naming
+  and player renaming all follow it; a different surname or middle name does
+  not make a taken first name available. Temporary unnamed placeholders remain
+  until named and do not reserve a chosen first name. If a model
+  chooses a first name that is already taken, the game asks that agent once more,
   which costs one extra request that counts toward model usage. If that also
-  fails, the agent keeps a placeholder name that the player can change. Similar
-  but not identical names are allowed, such as two agents called Rowan with
-  different surnames. The comparison covers every agent in the world,
-  including those who have died. A valid name is kept even when the action in
+  fails, the agent keeps a placeholder name that the player can change. A valid
+  name is kept even when the action in
   the same reply is rejected. **Leaning toward (provisional; tuned in
   playtests):** to make names more varied, each agent's naming request suggests
   a fixed starting letter for that agent. In a test on one model this raised
   the number of different first names from 8 to 15 without extra requests.
   [Player renaming](interface-and-art.md#player-guidance-and-orders) uses the
-  same full-name check and preserves the person's identity and historical text.
+  same first-name check and preserves the person's identity and historical text.
+  Building the new rule is tracked in
+  [#912](https://github.com/compoodment/ClankerWorld/issues/912).
 - Agents have no genders. Children have **two parents**. Parents choose the
   child's name and provider/model, and must choose **one of their own surnames**
   as the child's surname. Children inherit tendencies, culture, and
@@ -94,7 +100,8 @@ everything that is available in the current build. See [what works today](../wha
   conversation below follows; the couple does not register with the Town
   Council. Building this is tracked in
   [#784](https://github.com/compoodment/ClankerWorld/issues/784). When agents
-  marry, both partners must share one of their existing surnames, chosen by them
+  marry, they keep their first names and both partners must share one of their
+  existing surnames, chosen by them
   in a dedicated conversation. That
   conversation is initiated even if they are far apart in the world: a narrow
   exception to ordinary proximity-bound conversation, not a general remote
@@ -237,12 +244,15 @@ everything that is available in the current build. See [what works today](../wha
   asks living biological relatives first, then adults in the dependent's household, then
   adult residents of their Town. Each wider group is added to those already
   asked, so a relative who missed the first day can still accept. The first adult who explicitly accepts becomes
-  the current primary caregiver. A child moves to that adult's household only
-  when its completed House has a free resident place and both belong to the
-  same Town; Town membership and birth parentage remain unchanged. A cross-Town
-  acceptance records care but leaves the child's household in place until
-  Town admission rules in [issue #602](https://github.com/compoodment/ClankerWorld/issues/602)
-  allow a move. Until acceptance, the child stays where they are, nearby adults
+  the current primary caregiver. A child can join that adult's household at
+  acceptance when its completed House has a free resident place and both belong
+  to the same known Town. Otherwise accepted care keeps a pending move: once
+  the guardian has a recorded Town and a completed House with room, they
+  collect the child and accompany them home. On arrival together, the child
+  joins that household and the guardian's recorded Town under the dependent
+  care rules. A full or unavailable House waits; acceptance alone grants no
+  resident place or Town membership. Birth parentage stays unchanged.
+  Until acceptance, the child stays where they are, nearby adults
   may still feed them, and the player can see the unmet guardian need and
   suggest an adult in a message. Ordering an adult to take the child in waits
   for the order list in [issue #587](https://github.com/compoodment/ClankerWorld/issues/587).

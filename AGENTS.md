@@ -21,8 +21,9 @@ any change to a shared rule in CONTRIBUTING only.
   state instead of trusting old notes.
 - The rules change often, and you read them only when your session starts,
   from your checkout. At the start, run `git fetch origin` and
-  `git diff HEAD origin/main -- AGENTS.md CONTRIBUTING.md CLAUDE.md`; if it
-  shows changes, read main's versions (`git show origin/main:CONTRIBUTING.md`).
+  `git diff HEAD origin/main -- AGENTS.md CONTRIBUTING.md CLAUDE.md skills/`;
+  if it shows changes, read main's versions
+  (`git show origin/main:CONTRIBUTING.md`).
   Note `git rev-parse --short origin/main`, and before each new issue or review
   claim fetch again and diff from that commit. If anything changed, follow the
   new rules from then on and note the new commit.
@@ -129,7 +130,7 @@ parts of CONTRIBUTING named in its row and ends at a different point.
 | --- | --- | --- |
 | Find bugs | [Issues](CONTRIBUTING.md#issues-and-design-questions) and the bug and security rules in [Priorities](CONTRIBUTING.md#priorities) | Each problem has its own Bug issue, or, for a security problem, the owner has it in chat and its placeholder issue is open |
 | Fix issues | [Find work](CONTRIBUTING.md#find-work) through [Drafts and readiness](CONTRIBUTING.md#drafts-and-readiness) | Its pull request is ready for review and linked to its issues |
-| Review and merge | [Review and merge](CONTRIBUTING.md#review-and-merge) | The change is on main, main's CI passes on it, its issues are closed or updated, and what waited on it is unblocked |
+| Review and merge | [Review and merge](CONTRIBUTING.md#review-and-merge), with the [review-merge skill](skills/review-merge/SKILL.md) | The change is on main, main's CI passes on it, its issues are closed or updated, and what waited on it is unblocked |
 | Owner requests | [Issues](CONTRIBUTING.md#issues-and-design-questions), [Prepare a pull request](CONTRIBUTING.md#prepare-a-pull-request) through [Drafts and readiness](CONTRIBUTING.md#drafts-and-readiness), and the Decisions rule in [Close issues when the work merges](CONTRIBUTING.md#close-issues-when-the-work-merges) | The requested pull request is ready, or a draft if the owner asked for one, or decisions are recorded |
 
 What each job adds:
@@ -151,7 +152,9 @@ What each job adds:
   reviewing it (a second only while the first waits on CI or its merging
   turn). Fix what you find yourself, push each fix as it builds, take
   your turn for the final run with `status:merging`, and check main's CI after
-  each merge.
+  each merge. The [review-merge skill](skills/review-merge/SKILL.md) shows
+  how to review your next pull request while the first waits, so the merging
+  turn is never idle.
 - **Owner requests:** the owner asks you directly for something, such as a
   change to how the repository works or a set of decisions. It needs no issue
   or claim; say so in the pull request. Turn agreed work into Implementation
@@ -178,9 +181,11 @@ Use the [documentation guide](docs/README.md) to choose the right page.
 | Build, check or package a change | [Build and test](docs/development/build-and-test.md) |
 | Prepare an explicitly requested release | [Releasing](docs/development/releasing.md) |
 | Review, prune or add tests | [Test audit skill](skills/test-audit/SKILL.md) |
+| Review and merge pull requests | [Review-merge skill](skills/review-merge/SKILL.md) |
 
 The [skills folder](skills/README.md) holds step-by-step guides for jobs that
-come up again and again. When your task matches one, follow its `SKILL.md`.
+come up again and again. Claude Code and Codex list them on their own; when
+your task matches one, follow its `SKILL.md`.
 
 ## Report your result
 
@@ -193,3 +198,7 @@ come up again and again. When your task matches one, follow its `SKILL.md`.
   and give the commit hash.
 - Never call work delivered while review or another required step is still
   pending.
+- **On your own machine:** keep evidence in `.evidence/`, with what is worth
+  keeping in `.evidence/keep/`. When your job ends, run
+  `scripts/clean-workspace.sh` and remove what it lists with `--apply`
+  ([Disk space](docs/development/build-and-test.md#disk-space)).

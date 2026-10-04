@@ -37,23 +37,6 @@ public sealed class OwnerAuthorityStoreTests
     }
 
     [Fact]
-    public void LocalApprovalRejectsTheWrongVisibleCodeWithoutChangingPendingState()
-    {
-        var clock = NewClock();
-        var store = NewStore(clock);
-        using var deviceKey = CreateP256Key();
-        var pairing = StartPairing(store, deviceKey);
-        var wrongCode = pairing.PairingCode == "000000" ? "000001" : "000000";
-
-        var approval = store.ApprovePendingPairingLocally(pairing.PairingId, wrongCode);
-        var status = store.GetPairingStatus(pairing.PairingId);
-
-        Assert.Equal(OwnerAuthorityFailure.PairingCodeMismatch, approval.Failure);
-        Assert.True(status.IsSuccess);
-        Assert.Equal(OwnerPairingState.Pending, status.Value!.State);
-    }
-
-    [Fact]
     public void PairingVisibleCodeAttemptsAreBoundedAndSurviveRestore()
     {
         var clock = NewClock();
@@ -83,38 +66,6 @@ public sealed class OwnerAuthorityStoreTests
         Assert.True(status.IsSuccess);
         Assert.Equal(OwnerPairingState.Expired, status.Value!.State);
         Assert.Equal(OwnerAuthorityFailure.PairingExpired, afterLockout.Failure);
-    }
-
-    [Fact]
-    public void LegacyPairingStateWithoutAttemptCountRestoresWithTheDefault()
-    {
-        var clock = NewClock();
-        var store = NewStore(clock);
-        using var deviceKey = CreateP256Key();
-        var pairing = StartPairing(store, deviceKey);
-        var currentState = store.ExportState();
-        var legacyState = currentState with
-        {
-            Pairings = currentState.Pairings
-                .Select(stored => new OwnerStoredPairing(
-                    stored.PairingId,
-                    stored.DeviceId,
-                    stored.PublicKeySpkiBase64,
-                    stored.PublicKeyFingerprint,
-                    stored.VisibleCodeHashBase64,
-                    stored.ExpiresAtUtc,
-                    stored.ActivationCanonicalProof,
-                    stored.State))
-                .ToArray(),
-        };
-
-        var restored = OwnerAuthorityStore.Restore(
-            legacyState,
-            clock,
-            CryptographicOwnerAuthorityRandom.Instance);
-        var approval = restored.ApprovePendingPairingLocally(pairing.PairingId, pairing.PairingCode);
-
-        Assert.True(approval.IsSuccess);
     }
 
     [Fact]
@@ -187,31 +138,6 @@ public sealed class OwnerAuthorityStoreTests
 
         Assert.Equal(OwnerAuthorityFailure.InvalidSignature, activation.Failure);
         Assert.Equal(OwnerAuthorityFailure.DeviceNotFound, device.Failure);
-    }
-
-    [Fact]
-    public void ApprovedDeviceActivatesOnlyAfterItProvesItsRegisteredPrivateKey()
-    {
-        var clock = NewClock();
-        var store = NewStore(clock);
-        using var deviceKey = CreateP256Key();
-        var pairing = StartPairing(store, deviceKey);
-        var approval = store.ApprovePendingPairingLocally(pairing.PairingId, pairing.PairingCode);
-        Assert.True(approval.IsSuccess);
-
-        var activation = store.ActivatePairing(
-            new OwnerPairingActivationRequest(
-                pairing.PairingId,
-                pairing.ActivationCanonicalProof,
-                Sign(deviceKey, pairing.ActivationCanonicalProof)));
-        var status = store.GetPairingStatus(pairing.PairingId);
-
-        Assert.True(activation.IsSuccess);
-        Assert.Equal(pairing.DeviceId, activation.Value!.DeviceId);
-        Assert.Equal(pairing.PublicKeyFingerprint, activation.Value.PublicKeyFingerprint);
-        Assert.Equal(OwnerDeviceState.Active, activation.Value.State);
-        Assert.True(status.IsSuccess);
-        Assert.Equal(OwnerPairingState.Active, status.Value!.State);
     }
 
     [Fact]

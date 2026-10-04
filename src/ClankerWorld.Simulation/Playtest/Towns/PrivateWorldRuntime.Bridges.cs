@@ -23,16 +23,21 @@ public sealed partial class PrivateWorldRuntime
             .SelectMany(item => item.Span).ToHashSet();
     }
 
-    /// <summary>Building footprints, resources and camp objects: nothing Road or bridge may land on.</summary>
+    /// <summary>Occupied or held ground that new Road tiles and bridge banks must leave clear.</summary>
     private HashSet<GridPoint> RoadBlockedTiles()
     {
         var definitions = worldContent.Buildings.ToDictionary(item => item.CanonicalId, StringComparer.Ordinal);
         return map.Resources.Select(item => item.Position)
             .Concat(fields.Select(field => field.Position))
+            .Concat(HouseholdLandHeldByOthers(null))
             .Concat(map.CampObjects.Select(item => item.Position))
             .Concat(worldSimulation.Buildings.SelectMany(building =>
                 WorldContentSimulationRules.Footprint(definitions[building.DefinitionId], building)))
             .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused).SelectMany(ExpansionTiles))
+            .Concat(TownProjectFootprintTiles())
+            .Concat(towns.SelectMany(town => town.Markets).Where(market => market.RemovedTick is null)
+                .SelectMany(market => Enumerable.Range(0, MarketContent.MaximumStalls)
+                    .Select(slot => MarketContent.StallSite(market.Site, slot))))
             .ToHashSet();
     }
 

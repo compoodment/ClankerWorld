@@ -149,6 +149,7 @@ public static class RoadRoutePlanner
             if (!RiverBridgeRules.TryResolve(map, crossing.Id, out var current) ||
                 current!.EntranceA != crossing.EntranceA || current.EntranceB != crossing.EntranceB ||
                 !current.Span.SequenceEqual(crossing.Span) || current.Design != crossing.Design ||
+                crossing.Entrances.Any(blocked.Contains) ||
                 !roadsAfter.Contains(crossing.EntranceA) || !roadsAfter.Contains(crossing.EntranceB) ||
                 crossing.Span.Any(tile => !newDecks.Add(tile)))
                 return "crossing_invalid";
@@ -197,7 +198,8 @@ public static class RoadRoutePlanner
                     banned.Contains(crossing!.Id))
                     continue;
                 var far = crossing.EntranceA == current ? crossing.EntranceB : crossing.EntranceA;
-                if (!Landing(far, out var joins) || IsRedundant(crossing)) continue;
+                if (crossing.Entrances.Any(request.Blocked.Contains) ||
+                    !Landing(far, out var joins) || IsRedundant(crossing)) continue;
                 Relax(far, checked(priority.Cost + crossing.Span.Count * ProspectiveWaterTileCost +
                     map.FootTravelCost(far) + Beside(far, joins)), new Link(current, LinkKind.Crossing, null, crossing));
             }

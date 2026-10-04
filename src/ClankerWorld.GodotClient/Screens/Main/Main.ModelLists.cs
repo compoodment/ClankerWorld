@@ -24,6 +24,7 @@ public partial class Main
     private async Task LoadModelListAsync(ModelPicker picker, string provider, string? credentialSlotId, string? apiKey,
         bool checkKey = true)
     {
+        var generation = observationSession.RequestGeneration;
         var defaultModel = DefaultProviderModel(provider);
         if (!HasModelList(provider))
         {
@@ -40,13 +41,13 @@ public partial class Main
         {
             var list = await ownerApi.ListProviderModelsAsync(ResolveWorldUri(), authority, deviceId,
                 new OwnerProviderModelListAction(provider, credentialSlotId, apiKey, checkKey), signer, CancellationToken.None);
-            if (!picker.IsLatest(lookup)) return;
+            if (!IsCurrentWorldRequest(generation) || !picker.IsLatest(lookup)) return;
             if (checkKey) picker.ShowList(list.Models, list.DefaultModel, list.Error);
             else picker.ShowList(list.Models, list.DefaultModel, PasteKeyNote, canRetry: false);
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
-            if (picker.IsLatest(lookup))
+            if (IsCurrentWorldRequest(generation) && picker.IsLatest(lookup))
                 picker.ShowError("Couldn't reach the game server for the model list. Type a model name or try again.", defaultModel);
         }
     }
