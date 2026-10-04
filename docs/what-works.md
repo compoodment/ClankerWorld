@@ -248,6 +248,13 @@ progress. Missing goods, a missing House, full storage or a blocked route leaves
 the task waiting with a reason. Queueing, cancellation and interrupted progress
 survive reload.
 
+Equipment storage accepts the same five clothing/carrying-aid kinds and 13
+tool kinds as equipment collection below: "store my basket", "store two iron
+knives in my House", or "keep storing padded coats". The agent puts away its
+own carried, unworn goods while keeping their ownership and condition. Worn
+clothing and carrying aids stay with their wearer. Exact quantities, House
+space, travel, queues and cancellation follow the material-storage rules above.
+
 Orders also support exact-tile movement: "Move to tile (12, 4)", "Go to (12, 4)"
 or "Travel to (12, 4)". They use ordinary walking routes and travel delays,
 finish only on the requested tile, and wait when it is occupied or unreachable.

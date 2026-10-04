@@ -264,6 +264,16 @@ reload and rollback. This version follows Council-election schema 81, food-colle
 and lantern schema 79. Older alpha checkpoints are refused and preserved
 without migration.
 
+Private-world schema 83 adds `store_equipment` with the existing exact
+`TargetEquipmentKind`. Equipment storage permits the five garment/carry-aid
+kinds and 13 tool kinds, with `equipment_items` for explicit quantities or
+`storage_loads` for default tasks. It uses bounded personal-storage receipts.
+Validation refuses mixed targets, locations, unsupported kinds, wrong units
+and unearned progress. Partial storage, queued work, cancellation and equipment
+condition survive reload and rollback. This version follows equipment-collection
+schema 82, Council-election schema 81, food schema 80 and lantern schema 79.
+Older alpha checkpoints are refused and preserved without migration.
+
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
 Matching parent assignments are disclosed as agreement; when they differ, the
@@ -418,7 +428,7 @@ Conversation records use private-world schema 35, following schema 34's fields
 and ground harvest lots. No migration for older alpha saves is added solely to preserve
 compatibility.
 
-Private-world schema 83 adds required marriage records and conversation kinds.
+Private-world schema 84 adds required marriage records and conversation kinds.
 Each marriage retains its accepted partnership snapshot and the ordinary
 conversation's separate mutual marriage consent. Its surname session admits
 at most four alternating choices from the original surnames that fit both
@@ -426,10 +436,9 @@ accepted names within the existing 48-character limit. Later player renames
 cannot invalidate those choices while the session is unfinished; loading
 refuses such a checkpoint too. Marriage eligibility and saved acceptance names
 also check the limit after Unicode normalization, so an accepted receipt cannot
-have an empty surname choice list. Invalid
-replies, failed calls, pause and cancellation admit no turn. A completed
-receipt records the result, completion time and whether the seeded draw was
-used; validation rechecks the draw against the seed and consent identity.
+have an empty surname choice list. Invalid replies, failed calls, pause and
+cancellation admit no turn. A completed receipt records the result, completion
+time and whether the seeded draw was used; validation rechecks the draw against the seed and consent identity.
 Receipts survive ordinary conversation compaction, including a pending session
 closed because a participant became unavailable. Active unfinished sessions
 still require both partners' fresh resume choices after loading. Later player
@@ -437,8 +446,8 @@ surname changes retain the original result and record the latest player
 change separately; validation requires both spouse names to match the current
 surname. Tick rollback keeps both names, consent and surname history unchanged
 and can admit the completed reply later without issuing the call again.
-Schema 83 is provisional above current-main schema 82 until the final catch-up;
-older alpha files are refused and preserved without migration.
+Marriage schema 84 follows equipment-storage schema 83. Older alpha files
+are refused and preserved without migration.
 
 Routine history compaction validates the compacted checkpoint without applying
 load transitions. It preserves the live conversation cursor, consent and pending
@@ -675,7 +684,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 83. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 84. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
@@ -747,7 +756,7 @@ schema 69 for equipment-repair orders, schema 70 for explicit chosen names and
 unique first names, schema 71 for physical guardian placements, schema 75
 for paid Markets and physical stall trade, schema 76 for land hearings and
 consensual permission transfers, schema 78 for sponsored admission approval
-expiry, schema 81 for elections forced by government changes, and schema 83
+expiry, schema 81 for elections forced by government changes, and schema 84
 for marriage consent and surname sessions record when those fields or behaviors
 were introduced; they do not allow an earlier checkpoint schema past the
 current alpha cutoff.
@@ -811,7 +820,7 @@ current alpha cutoff.
 | Schema 76 | Land hearings and voluntary permission transfers retain notice, evidence, personal consent, authority and closure history. Original grants and bounded adjustments must reproduce current permissions. Earlier alpha saves are refused and preserved without migration. |
 | Schema 78 | A sponsored admission approval expires one unpaused world day after its passed proposal settled, with `acceptance_expired` recorded when no acceptance occurred. The deadline uses saved world time and the original council decision, so pause and reload do not restart it. Earlier alpha saves are refused and preserved without migration. |
 | Schema 81 | A protected government change records the exact initial Council election it forced, including failed attempts. Current-format saves require the explicit nullable link and validate its Town, ownership and lifecycle. Ordinary elections remain independent; earlier alpha saves are refused and preserved without migration. |
-| Schema 83 | Required marriage consent receipts and dedicated surname conversations preserve the original surnames, admitted turns and seeded result, including across history compaction. Later player surname changes update both spouses together without rewriting the original decision. |
+| Schema 84 | Required marriage consent receipts and dedicated surname conversations preserve the original surnames, admitted turns and seeded result, including across history compaction. Later player surname changes update both spouses together without rewriting the original decision. |
 
 ### Tool-making requests
 
