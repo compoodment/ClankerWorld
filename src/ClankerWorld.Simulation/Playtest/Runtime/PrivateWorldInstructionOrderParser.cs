@@ -226,6 +226,7 @@ internal static class PrivateWorldInstructionOrderParser
                     "gather_material" => hasExplicitQuantity ? "material_items" : "harvests",
                     "collect_material" => hasExplicitQuantity ? "material_items" : "collection_loads",
                     "store_material" => hasExplicitQuantity ? "material_items" : "storage_loads",
+                    "store_equipment" => hasExplicitQuantity ? "equipment_items" : "storage_loads",
                     "collect_food" => hasExplicitQuantity ? "food_items" : "collection_loads",
                     "collect_equipment" => hasExplicitQuantity ? "equipment_items" : "collection_loads",
                     "repair_equipment" or "repair_tool" => "repairs",
