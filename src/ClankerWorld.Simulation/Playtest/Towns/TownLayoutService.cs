@@ -49,7 +49,9 @@ public sealed class TownLayoutContext
         IEnumerable<TownLayoutResource> resources,
         IEnumerable<TownLayoutBuilding> buildings,
         IEnumerable<GridPoint>? roadTiles = null,
-        IEnumerable<GridPoint>? requiredNeighborTiles = null)
+        IEnumerable<GridPoint>? requiredNeighborTiles = null,
+        IEnumerable<GridPoint>? requiredLandTiles = null,
+        GridPoint? requiredEntranceOffset = null)
     {
         ArgumentNullException.ThrowIfNull(map);
         ArgumentNullException.ThrowIfNull(occupiedTiles);
@@ -68,6 +70,8 @@ public sealed class TownLayoutContext
         Resources = resources.ToArray();
         Buildings = buildings.ToArray();
         RequiredNeighborTiles = requiredNeighborTiles?.ToHashSet();
+        RequiredLandTiles = requiredLandTiles?.ToHashSet();
+        RequiredEntranceOffset = requiredEntranceOffset;
         RoadTiles = (roadTiles ?? []).ToHashSet();
         CandidateAnchors = town is null
             ? ReachableFootCosts.Keys.OrderBy(point => point.Y).ThenBy(point => point.X).ToArray()
@@ -96,6 +100,10 @@ public sealed class TownLayoutContext
     /// Farmhouse; sites that touch rank first.
     /// </summary>
     public IReadOnlySet<GridPoint>? RequiredNeighborTiles { get; }
+
+    public IReadOnlySet<GridPoint>? RequiredLandTiles { get; }
+
+    public GridPoint? RequiredEntranceOffset { get; }
 
     /// <summary>How far, in tiles including diagonals, a site may be from its required neighbor. Provisional.</summary>
     public const int NeighborReach = 2;
@@ -181,6 +189,16 @@ public static class TownLayoutService
         var footprint = Footprint(definition, position).ToArray();
         if (footprint.Any(point => !map.IsBuildable(point) || context.OccupiedTiles.Contains(point)))
             return false;
+        if (context.RequiredLandTiles is { } titled && footprint.Any(point => !titled.Contains(point)))
+            return false;
+        if (context.RequiredEntranceOffset is { } offset)
+        {
+            var entrance = new GridPoint(position.X + offset.X, position.Y + offset.Y);
+            if (!map.IsBuildable(entrance) ||
+                context.OccupiedTiles.Contains(entrance) && !context.RoadTiles.Contains(entrance) ||
+                !context.ReachableFootCosts.ContainsKey(entrance))
+                return false;
+        }
         var neighborDistance = context.RequiredNeighborTiles is { } neighbors
             ? footprint.SelectMany(point => neighbors.Select(neighbor =>
                 Math.Max(Math.Abs(neighbor.X - point.X), Math.Abs(neighbor.Y - point.Y)))).DefaultIfEmpty(int.MaxValue).Min()

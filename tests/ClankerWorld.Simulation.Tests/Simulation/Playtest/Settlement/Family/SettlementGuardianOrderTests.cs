@@ -41,7 +41,8 @@ public sealed partial class SettlementParenthoodTests
         var saved = setup.ExportState();
         Assert.Equal(child, Assert.Single(saved.Instructions!).Order!.TargetAgentId);
         using var renamed = SocietyWorldRuntime.Restore(saved.Society);
-        renamed.Apply(checkpoint => SocietyFixture.RenameInhabitant(checkpoint, child, "Renamed Child"));
+        renamed.Apply(checkpoint => SocietyFixture.RenameInhabitant(checkpoint, child,
+            "Renamed " + InhabitantNameRules.SurnameKey(checkpoint.GetInhabitant(child).Name)));
         using var world = PrivateWorldRuntime.Restore(saved with { Society = renamed.ExportState() }, _ => new ParentProvider("safe_idle"));
         world.Pause();
         var directory = Directory.CreateTempSubdirectory("clankerworld-guardian-order-");
@@ -167,6 +168,7 @@ public sealed partial class SettlementParenthoodTests
             order with { TargetAgentId = "missing-child" },
             order with { TargetAgentId = adult },
             order with { TargetFoodKind = "berries" },
+            order with { TargetMaterialKind = "wood" },
             order with { RequestedUnits = 2 },
             order with { RepeatUntilCancelled = true },
             order with { CompletedUnits = 1 },

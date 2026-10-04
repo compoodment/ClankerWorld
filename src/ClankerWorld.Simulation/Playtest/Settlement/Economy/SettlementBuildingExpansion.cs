@@ -136,6 +136,7 @@ public sealed partial class PrivateWorldRuntime
             .OrderBy(lot => lot.Id, StringComparer.Ordinal)
             .Where(lot => CanReachSharedItem(actor, lot))
             .Concat(warehouseStock)
+            .Where(lot => !IsActiveTownProjectDelivery(lot.Id))
             .FirstOrDefault();
     }
 
@@ -278,7 +279,7 @@ public sealed partial class PrivateWorldRuntime
             return false;
         var tiles = WorldContentSimulationRules.Footprint(target, position).ToHashSet();
         var original = WorldContentSimulationRules.Footprint(definition, building);
-        if (!original.All(tiles.Contains) || tiles.Any(RoadAndBridgeTiles().Contains) ||
+        if (!original.All(tiles.Contains) || tiles.Any(RoadAndBridgeTiles().Contains) || TownProjectProtectedSites().Any(tiles.Contains) ||
             fields.Any(field => tiles.Contains(field.Position)) ||
             (worldSimulation.BuildingExpansions ?? []).Where(job => (job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused) &&
                 job.JobId != ownJobId).Any(job => ExpansionTiles(job).Any(tiles.Contains))) return false;

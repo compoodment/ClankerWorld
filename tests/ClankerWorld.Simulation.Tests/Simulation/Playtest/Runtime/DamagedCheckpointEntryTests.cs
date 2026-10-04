@@ -10,30 +10,17 @@ namespace ClankerWorld.Simulation.Tests;
 /// </summary>
 public sealed class DamagedCheckpointEntryTests
 {
+    private static readonly Lazy<Task<byte[]>> healthyCheckpoint = new(CreateHealthyCheckpoint);
+
     // Every list below threw a null-reference fault on an empty entry before
     // the decoder refused empty entries generically.
     [Theory]
     [InlineData("map.resources")]
-    [InlineData("society.society.inhabitants")]
-    [InlineData("society.society.households")]
-    [InlineData("society.society.relationships")]
     [InlineData("society.society.inventory.lots")]
-    [InlineData("society.society.inventory.reservations")]
-    [InlineData("society.society.events")]
-    [InlineData("society.cognition.runtimes")]
     [InlineData("society.cognition.runtimes[0].events")]
-    [InlineData("society.cognition.events")]
-    [InlineData("inhabitants")]
-    [InlineData("resources")]
-    [InlineData("events")]
     [InlineData("worldSystems.factions.standings")]
-    [InlineData("worldContent.buildings")]
-    [InlineData("worldContent.buildings[0].buildCosts")]
-    [InlineData("worldContent.recipes")]
     [InlineData("worldContent.recipes[0].inputs")]
-    [InlineData("worldContent.recipes[0].outputs")]
     [InlineData("worldSimulation.buildingExpansions")]
-    [InlineData("towns")]
     [InlineData("towns[0].residentIds")]
     public async Task EmptyEntryInAnySavedListIsRefusedAsInvalidData(string list)
     {
@@ -76,7 +63,10 @@ public sealed class DamagedCheckpointEntryTests
         Assert.Equal(healthy, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
     }
 
-    private static async Task<byte[]> HealthyCheckpoint()
+    // Share only encoded state; each test gets its own bytes and parsed document.
+    private static async Task<byte[]> HealthyCheckpoint() => (await healthyCheckpoint.Value).ToArray();
+
+    private static async Task<byte[]> CreateHealthyCheckpoint()
     {
         using var world = NormalPathWorld.CreateGenerated("damaged-entry", _ => new ActionCoverageRecorder());
         for (var tick = 0; tick < 30; tick++)

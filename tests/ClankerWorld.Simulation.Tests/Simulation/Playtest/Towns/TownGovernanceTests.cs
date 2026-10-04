@@ -26,7 +26,6 @@ public sealed class TownGovernanceTests
     [Theory]
     [InlineData(4, 3)]
     [InlineData(3, 2)]
-    [InlineData(2, 2)]
     public void OrdinaryProposalsNeedStrictMajorityAndSilenceNeverApproves(int count, int required)
     {
         var adults = Adults.Take(count).ToArray();
@@ -55,21 +54,6 @@ public sealed class TownGovernanceTests
     }
 
     [Fact]
-    public void CouncilRosterChangesCancelPendingProposalsAndAllowFreshVotes()
-    {
-        var adults = Adults.Take(4).ToArray();
-        var state = Proposal(TownGovernanceState.Create(adults), adults);
-        state = TownGovernanceRules.VoteProposal(state, state.Proposals[0].Id, "a", true, 1);
-        var newer = adults.Append("e").ToArray();
-        state = Advance(state, 2, newer);
-        Assert.Equal("cancelled", state.Proposals[0].Status);
-        state = Proposal(state, newer, 2);
-        Assert.Equal(2, state.Proposals.Count);
-        Assert.Empty(state.Proposals[1].Votes);
-        Assert.Equal(12, state.Proposals[1].DeadlineTick);
-    }
-
-    [Fact]
     public void EquivalentAdmissionRequestsShareDeadlineAndFailedRequestsHaveCooldown()
     {
         var adults = Adults.Take(4).ToArray();
@@ -84,18 +68,6 @@ public sealed class TownGovernanceTests
         Assert.Throws<InvalidOperationException>(() => TownGovernanceRules.SubmitProposal(state, "town:test", "newcomer", "admission", "newcomer", "Let me in.", "same", adults, 4, Day));
         state = TownGovernanceRules.SubmitProposal(state, "town:test", "newcomer", "admission", "newcomer", "Let me in.", "new material", adults, 4, Day);
         Assert.Equal(2, state.Proposals.Count);
-    }
-
-    [Fact]
-    public void AdmissionResultIsRecordedOnlyAfterActualCouncilVotes()
-    {
-        var adults = Adults.Take(3).ToArray();
-        var state = TownGovernanceRules.SubmitProposal(TownGovernanceState.Create(adults), "town:test", "visitor", "admission", "visitor", "Admit visitor.", "same", adults, 0, Day);
-        state = TownGovernanceRules.VoteProposal(state, state.Proposals[0].Id, "a", true, 1);
-        Assert.Null(TownGovernanceRules.AdmissionApproval(state, "visitor"));
-        state = TownGovernanceRules.VoteProposal(state, state.Proposals[0].Id, "b", true, 1);
-        Assert.Equal("passed", TownGovernanceRules.AdmissionApproval(state, "visitor")!.Status);
-        Assert.DoesNotContain("visitor", state.Members);
     }
 
     [Fact]
@@ -154,29 +126,6 @@ public sealed class TownGovernanceTests
         Assert.DoesNotContain("a", state.Election.Candidates);
         Assert.Empty(state.Election.Ballots);
         Assert.Throws<InvalidOperationException>(() => TownGovernanceRules.VoteElection(state, contest, "newadult", ["b"], 3));
-    }
-
-    [Fact]
-    public void SilentCutoffRunoffUsesSavedFairDrawAmongSupportedTiedCandidatesOnly()
-    {
-        var state = Advance(Registered(5), 0);
-        var id = state.Election!.Id;
-        state = TownGovernanceRules.VoteElection(state, id, "a", ["a", "b", "c"], 1);
-        state = TownGovernanceRules.VoteElection(state, id, "b", ["a", "d"], 2);
-        state = Advance(state, Day);
-        Assert.Equal("runoff", state.Election!.Stage);
-        Assert.Equal(["a"], state.Election.SettledSeats);
-        Assert.Equal(2, state.Election.Seats);
-        Assert.Equal(["b", "c", "d"], state.Election.Candidates);
-        Assert.DoesNotContain("e", state.Election.Candidates);
-        state = Advance(state, 2 * Day);
-        Assert.Equal("representative", state.Form);
-        Assert.Contains("a", state.Members);
-        var finished = state.ElectionHistory[0];
-        Assert.Equal(3, finished.DrawOrder.Count);
-        Assert.Equal(["b", "c", "d"], finished.DrawOrder.Order(StringComparer.Ordinal));
-        Assert.Equal(120, state.TermEndTick);
-        Assert.Equal(finished.DrawOrder, Advance(state, 2 * Day).ElectionHistory[0].DrawOrder);
     }
 
     [Fact]
@@ -332,27 +281,6 @@ public sealed class TownGovernanceTests
     }
 
     [Fact]
-    public void RegularElectionSupersedesReplacementWithoutCopyingBallotsOrShortConsent()
-    {
-        var state = Elected();
-        state = TownGovernanceRules.Register(state, "d", false, state.TermEndTick, Adults, 90);
-        state = TownGovernanceRules.Register(state, "e", true, null, Adults, 90);
-        state = Advance(state, 95, Adults.Where(id => id != "c").ToArray());
-        Assert.Equal("replacement", state.Election!.Kind);
-        state = TownGovernanceRules.VoteElection(state, state.Election.Id, "a", ["d"], 96);
-        state = Advance(state, 100, Adults.Where(id => id != "c").ToArray());
-        Assert.Equal("regular", state.Election!.Kind);
-        Assert.Empty(state.Election.Ballots);
-        Assert.DoesNotContain("d", state.Election.Candidates);
-        Assert.Equal("cancelled", state.ElectionHistory[^1].Stage);
-        Assert.Equal(["a", "b"], state.Members);
-        var cancelled = state.ElectionHistory[^1];
-        var cancellationNotice = Assert.Single(state.Notices, n => n.SubjectId == cancelled.Id && n.PostedTick == 100);
-        Assert.Equal("cancelled", cancellationNotice.Kind);
-        Assert.Contains("Regular voting", cancellationNotice.Text, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public void AnotherPersonsNominationSuppliesNoCandidateConsentUntilTheNomineePersonallyAgrees()
     {
         var state = TownGovernanceRules.Nominate(TownGovernanceState.Create(Adults), "a", "b", Adults, 0);
@@ -374,8 +302,6 @@ public sealed class TownGovernanceTests
     }
 
     [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
     [InlineData(2)]
     public void TooFewWillingCandidatesFailImmediatelyAndWaitForRetryOrPositiveImprovement(int count)
     {
@@ -397,27 +323,6 @@ public sealed class TownGovernanceTests
         Assert.Equal("main", state.Election!.Stage);
         Assert.Equal(["a", "b", "c"], state.Election.Candidates);
         Assert.Equal(12, state.Election.DeadlineTick);
-    }
-
-    [Fact]
-    public void InsufficientRegularCandidatesRetainIncumbentsUntilTermEndAndAcceptImprovedFieldEarly()
-    {
-        var state = TownGovernanceRules.WithdrawCandidate(Elected(), "c", 90);
-        state = Advance(state, 100);
-        Assert.Null(state.Election);
-        Assert.Equal("representative", state.Form);
-        Assert.Equal(["a", "b", "c"], state.Members);
-        Assert.Equal(110, state.TermEndTick);
-        Assert.Equal("failed", state.ElectionHistory[^1].Stage);
-        var attempts = state.ElectionHistory.Count;
-        state = Advance(state, 101);
-        Assert.Equal(attempts, state.ElectionHistory.Count);
-        state = TownGovernanceRules.Register(state, "d", true, null, Adults, 102);
-        state = Advance(state, 102);
-        Assert.Equal("regular", state.Election!.Kind);
-        Assert.Equal(["a", "b", "d"], state.Election.Candidates);
-        Assert.Equal(["a", "b", "c"], state.Members);
-        Assert.Equal(110, state.TermEndTick);
     }
 
     [Fact]

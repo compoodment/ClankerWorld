@@ -35,19 +35,57 @@ that version mismatch. You can still reconnect to the existing world.
 
 Adults may leave a household without its permission. Their own goods remain theirs even in the old House; collecting them and returning borrowed tools require travel and carrying space. A primary caregiver keeps dependent children with them unless another adult explicitly takes over care. An adult seeks an accepting existing home with room for the whole group first, then may start a household alone and build a House through the usual materials and site rules. Inspect the agent to see membership, goods awaiting collection, borrowed goods, care responsibility and the housing blocker.
 
+When a child loses their last caregiver, relatives are asked first, then adults
+in the child's household and Town. Until someone accepts, the child shows
+**Needs a guardian**. Accepting care does not mean the child has moved in: a
+guardian in another Town must have a completed House with room, collect the
+child and accompany them home. Inspect either agent to see whether they are
+waiting for a home, meeting up or travelling. The child joins the guardian's
+household and Town only when they arrive together and the House still has room.
+Birth parents and family history stay unchanged.
+
+When a House is overcrowded, inspect a resident's housing details to see who
+has notice to move out, why, how much time remains and whether expansion is
+under way. Eligible adults get one world day; pausing stops the countdown,
+and saving and loading keep the remaining time. Volunteers go first, then
+the newest eligible arrivals outside the main family. With no family majority,
+the same order applies without favoring a family.
+
+An adult with notice may ask another household with room while still living
+in the old House. Every adult in the new household must agree. If no home is
+ready when notice ends, the adult leaves the old household and keeps seeking
+a home. Only a finished expansion adds places; it can cancel an unnecessary
+notice. Children and their sole caregivers are never forced out, including
+together as a group. Their House stays overcrowded until expansion or a
+voluntary move with care preserved provides enough room.
+
+To rename an agent, open their **Profile**. The first name must be unused by
+any other living or deceased agent in the world; changing the surname alone
+does not free a taken first name. You can keep the selected agent's own first
+name. A child's chosen surname must come from a biological parent. Temporary
+names do not reserve first names, and renaming leaves past conversations as
+spoken.
+
 ## Create your first Town
+
+On a fresh server, **Continue** opens **New World** so you can choose the map
+before placing your first Town. Existing worlds with founders or other work
+still open normally.
 
 1. Choose **New World**. Enter a name and seed and choose Small or Medium. Other
    map options are under **+ More options** (see
    [More New World options](#more-new-world-options)).
 2. Wait for the preview. Changing an option updates it; **Create World** becomes
    available when the preview for the current choices succeeds.
-3. Create the world. It opens paused. Choose a rough site for its first Town;
+3. Create the world. It opens paused at 06:00 on Spring 1, Year 1, in daylight.
+   Choose a rough site for its first Town;
    greener shading and the hovered tips show nearby food, fertile ground, wood,
    stone and open space for Roads. These are suggestions only: the game checks
    whether the starter layout fits after you choose a site. It then places two
    Houses, a Warehouse, Farmhouse, Blacksmith and Roads. You can choose another
-   site before placing the founders.
+   site before placing the founders, including after removing an empty starter
+   Farmhouse or Blacksmith. **Redo Town site** replaces the starter layout and
+   its Roads together.
 4. Configure and place **four starting agents**. Choose each agent's provider,
    key and model. A saved key can be reused, or you can add another for the same
    provider. Then pick the model from the game's short list for that
@@ -142,6 +180,28 @@ waits until the agent is hungry enough, and gathering needs enough carrying
 space. A recognized new order replaces the current one unless you turn on
 **Queue**. Use **Cancel task** to stop a waiting or active order.
 
+Material orders can gather wood, stone, plant fiber, clay, iron ore, gold ore
+or diamond. For example, use **Gather five wood**, **Keep gathering clay**, or
+**Gather stone at (12, 4)**. One ordinary load is the default; a quantity counts
+the goods actually gathered, and the last whole load may exceed it. Agents use
+their normal tools and carrying space. A named site is checked through travel
+and observation, and an empty or unavailable site leaves the order waiting
+with a reason. These orders are for adults and elders.
+
+To put carried raw materials away, use **Store wood**, **Store five clay in my
+House**, or **Keep storing stone**. The agent walks to its household's House
+and keeps ownership of the goods. A plain request stores one carried lot, up
+to the room available; a quantity stops at that exact number. Missing personal
+materials or a full House leaves the task waiting with a reason. Storage orders
+currently cover the same seven raw materials as gathering, for adults and elders.
+
+Use **Move to tile (12, 4)** to send an agent to an exact tile. **Go to (12, 4)**
+and **Travel to (12, 4)** work too. The agent walks there normally and finishes
+only on that tile. An occupied or unreachable destination leaves the order
+blocked with a reason. These are single trips; queue another order for the
+return journey. A destination in another household's House requires an
+invitation. Urgent food or warmth needs can interrupt the trip, then it resumes.
+
 The small card and the Profile show the order the agent is on now: whether it
 is waiting, being done, interrupted or blocked, how far along it is, why it is
 held up, and how many orders are queued after it. With no open order, they
@@ -157,8 +217,24 @@ guardian search. The order finishes when they accept primary care; moving the
 child into their House still requires room and a shared Town. This order can be
 queued or cancelled like a food task. It cannot replace an existing guardian.
 
+To pick up personal raw materials, use **Collect my wood**, **Collect three
+clay**, or **Keep collecting stone**. Adults and elders walk to their own goods
+in their current or former household's storage, or where they were dropped.
+They keep ownership and use normal carrying space. A plain request collects
+one load; a quantity stops exactly at that number. Full hands or unavailable
+goods leave the task waiting. These orders cover the same seven raw materials;
+requests naming a particular source or destination are not understood yet.
+
+To mend worn personal equipment, use **Repair my basket**, **Repair two padded
+coats**, or **Keep repairing basic garments**. Adults and elders can repair basic
+clothing, padded coats, rain cloaks, baskets and sacks. They collect real supplies
+and use their household's House for baskets or Tailor Shop for the other items.
+Only finished repairs count. Missing items, materials, carrying space or a work
+site leaves the task waiting. Queue, cancellation and save/reload also work for
+these orders. Tools, weapons and named work sites are not supported repair targets.
+
 An instruction the game cannot understand leaves the current order running.
-Unsupported requests, such as "build a house" or "gather wood," close as not
+Unsupported requests, such as "build a house" or "gather cloth," close as not
 understood and appear in the Event Log. Recognized orders follow normal access
 and survival rules. [What works today](what-works.md#agents-and-their-models)
 has the details.
@@ -174,8 +250,8 @@ Every day has a night, from 19:12 to 04:48 on the clock in the top bar, with a
 short dusk and dawn. In a six-minute day that is about 2 min 24 s of night. The
 map turns a gentle dark blue but stays readable; names, agents and panels keep
 their daytime colors. Nights are colder outdoors, so an agent with no clothing,
-shelter or fire loses warmth, and their warmth bar shows it. A new world starts
-at midnight.
+shelter or fire loses warmth, and their warmth bar shows it. New worlds start
+in the morning; loading a saved world keeps its recorded time.
 
 Click bare ground to inspect the recorded facts there. Agents take priority
 when they overlap the pointer. **Event Log** shows important events under a
@@ -251,6 +327,27 @@ vote, never a draw. The term lasts twenty days, and a vacancy needs a new electi
 Pausing stops votes, terms and handovers. The page shows officeholders and vacant
 mandates; land hearings and enforcement have not been implemented yet.
 
+An adult resident can propose a named Town Hall on clear Town-titled land, and
+the Council votes through the same process as an ordinary proposal. In
+**World Info → Towns**, its plan shows the site and entrance, exact budget and
+Council result. An approved project also shows delivered materials, construction
+progress and anything blocking it. Council approval supplies no building or
+materials by itself.
+
+Residents must learn the proposal from notices or a nearby relay before helping.
+They carry available Town materials in real loads and work at the approved site.
+If they gather new wood or stone, those goods stay personal until their own model
+freshly chooses to donate them. **Speak → Suggest** may ask an adult to consider
+helping or donating; an Order cannot give away their goods. After completion,
+select the Hall for its project and payment details. Agents read civic notices
+there, with the same nearby learning and relay rules as before. A blocked project
+keeps its materials as Town property and releases unused claims rather than
+building for free. If its site can no longer be used, the Town stops the
+project and the Towns page says why; its leftover materials stay Town
+property where they are. See [What works today](what-works.md#life-work-and-society)
+for this first version's limits and provisional amounts. Its
+[hands-on checklist](../playtest/767-town-projects.md) remains pending.
+
 ## Pause, settings and controls
 
 The pause button pauses or resumes time. **Menu** opens the Pause Menu and keeps
@@ -288,6 +385,15 @@ turn on **Show planned path** to draw the route they are walking, as the server
 planned it. The panel also holds the aging override, recovery for a request
 whose reply was lost, paused world editing and paired-device management. The
 aging override and world editing need the world paused first.
+
+To set up a test, pause and use **Edit selected agent**. Choose a need and its
+percentage, goods and a quantity, a skill, or another agent for a partnership,
+then press **Apply developer edit**. The server saves accepted changes and
+marks each one **Developer edit** in the Event Log. Goods go into the selected
+agent's carried load; removal protects equipped items, filled vessels, knowledge
+records and reserved or borrowed goods. Starting a partnership requires two
+living, unpartnered adults who are not close relatives. A refused edit leaves the world
+unchanged; refresh the world view before trying again if the world changed.
 
 **Settings → Game → Model calls** shows how many model calls this installation
 has made and sets an optional limit. One count and limit cover all your worlds.
