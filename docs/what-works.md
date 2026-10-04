@@ -86,7 +86,16 @@ between. Dusk and dawn each fade over an hour (15 seconds at that pace). A new w
 06:00 on Spring 1, Year 1, after dawn, so founder setup happens in full
 daylight. Loading an existing world keeps its saved clock. At night the map darkens with a
 gentle blue wash at every zoom, under map names, agents and weather, and it is
-colder outdoors (see [Life, work and society](#life-work-and-society)). Night
+colder outdoors (see [Life, work and society](#life-work-and-society)).
+Buildings in use glow: light falls on the ground from the windows on a
+building's front and sides and from its open door, never from its roof. A House
+is lit only while someone is inside; a Farmhouse, Store, Tailor Shop, Workshop
+or other building while someone is inside or a job runs there; and the
+Blacksmith's forge glows in its yard while it works. A Warehouse shows only a
+lantern by its loading doors, lit while someone fetches or stores goods, and a
+Silo stays dark. Each pool of light has a ragged edge that drifts slightly, and
+the forge flickers. Zoomed out, a lit building is a warm speck. Night lights have
+not been checked by hand in the Windows game yet. Night
 adds no rules of its own: agents need no sleep or energy, and nothing limits
 their choices or travel at night; they only react to the cold. The night chill
 is a provisional amount for playtesting, and night has not been checked by hand

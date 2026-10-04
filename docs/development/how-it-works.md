@@ -339,6 +339,25 @@ and below map labels, agent markers, weather and panels. It eases between the
 once-a-tick readings, shows a newly opened world's darkness at once, and looks
 the same in both themes. The World Map panel is not darkened.
 
+Night lights ([#890](https://github.com/compoodment/ClankerWorld/issues/890))
+are drawn by `NightLightsLayer`, just above the wash and under labels and
+agents. It takes each placed building's family, footprint, door side and the
+roof, yard and door spots from `BuildingSprites.Plan`, and decides from the
+snapshot whether it is occupied (a living agent stands within its footprint)
+or working (a production job runs there); nothing new comes from the host and
+nothing is saved. `NightLightShapes` turns that into rows of light in the
+building's 32-unit tile space: spills from windows on the front and both
+sides, never the back, and from the door; a forge pool in a Blacksmith's yard;
+and a Warehouse's wall lantern, whose unlit fitting also shows by day. Pools
+have ragged edges from three slow sine waves seeded per tile; fires move
+faster. The layer steps that drift every eighth of a second, scales light by
+the eased darkness and draws rows weakest first through a shader that
+brightens the ground and pulls its hue toward the light, so the ground keeps
+its texture. At overview zoom a lit building is a warm speck. The same shapes
+draw the art preview's night proposal (`tools/ArtPreview/Proposed/NightLights.md`),
+including designs not in the game yet and the street lanterns of
+[#892](https://github.com/compoodment/ClankerWorld/issues/892).
+
 ## Model inputs, usage and memories
 
 A personal-model request selects one legal candidate, not a free-form dialogue
