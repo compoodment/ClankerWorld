@@ -118,7 +118,8 @@ public sealed partial class PrivateWorldRuntime
                 state = TownGovernanceRules.LandUseNotice(state, request.Id, "Household land request refused: " + refusal, WorldTick);
             }
             else if (!HasOpenLandHearingPlot(town.Id, request.Tiles) &&
-                HouseholdLandGrantRules.IsAvailable(request, householdLandUseRights, householdLandUseRequests))
+                HouseholdLandGrantRules.IsAvailable(request, householdLandUseRights, householdLandUseRequests) &&
+                !IncludesForeignFieldWithoutUseRight(request.HouseholdId, request.Tiles))
             {
                 if (proposal is null)
                 {
@@ -148,6 +149,10 @@ public sealed partial class PrivateWorldRuntime
         .Concat(householdLandUseRequests.Where(request => request.Status == "pending" && request.HouseholdId != household)
             .SelectMany(TownLandRightsRules.UnresolvedRequestTiles))
         .ToHashSet();
+
+    private bool IncludesForeignFieldWithoutUseRight(string household, IReadOnlyList<GridPoint> tiles) =>
+        fields.Any(field => field.HouseholdId != household && tiles.Contains(field.Position) &&
+            !householdLandUseRights.Any(right => right.Tiles.Contains(field.Position)));
 
     private HashSet<GridPoint> BuildingFootprintTiles(Func<PlacedBuilding, bool> include)
     {

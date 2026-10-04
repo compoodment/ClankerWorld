@@ -39,8 +39,9 @@ public sealed partial class PrivateWorldRuntime
         var expectedYield = Math.Max(1, FarmFieldRules.HarvestQuantity(FarmFieldRules.Grain, fertility.At(farmhouse.Position)));
         var wantedFields = Math.Max(1, (int)Math.Ceiling(population * FarmFieldRules.MealsPerPersonPerDay * 2d / expectedYield));
         if (!hasHoe || !FarmNeedsFood(householdId) || fields.Count(field => field.HouseholdId == householdId) >= wantedFields) return;
+        var heldByOthers = HouseholdLandHeldByOthers(householdId);
         var site = NearbyFarmTiles(farmhouse.Position)
-            .Where(FarmableFreeTile)
+            .Where(point => !heldByOthers.Contains(point) && FarmableFreeTile(point))
             .OrderByDescending(point => fields.Any(field => field.HouseholdId == householdId && map.FootDistance(field.Position, point) == 1))
             .ThenByDescending(point => fertility.At(point) - map.FootDistance(farmhouse.Position, point) * 2)
             .ThenBy(point => point.Y).ThenBy(point => point.X)

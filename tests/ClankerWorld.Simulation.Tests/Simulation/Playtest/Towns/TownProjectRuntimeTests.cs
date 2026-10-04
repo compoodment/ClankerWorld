@@ -382,7 +382,7 @@ public sealed class TownProjectRuntimeTests
         for (var tick = 0; tick < 8; tick++) await scenario.World.AdvanceOneTickAsync();
         Assert.NotEmpty(scenario.Policy.Observations);
         Assert.DoesNotContain(scenario.Policy.Observations, observation =>
-            observation.Candidates.Any(candidate => candidate.Id.Contains("|project|", StringComparison.Ordinal)));
+            observation.Candidates.Any(candidate => candidate.Id.Contains("|project|" + TownHallContent.Hall3x4().LocalId + "|", StringComparison.Ordinal)));
         Assert.Empty(scenario.World.Towns[0].Governance!.Proposals);
         Assert.Empty(scenario.World.Towns[0].Projects);
         Assert.Equal(48, scenario.World.Society.Inventory.GetLot("wood:camp-alpha").Quantity);

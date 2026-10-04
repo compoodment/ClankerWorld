@@ -1038,20 +1038,30 @@ Household land requests use the same bounded `civic_land_tiles` field for
 already titled land. The choice names the agent's tile and up to six free Town
 tiles nearest first: no use right, pending request, building, expansion, road
 or field.
-Filing refuses tiles the household already holds and other owners' buildings
-and running expansions with no recorded right; another household's recorded
+Filing refuses tiles the household already holds and other owners' buildings,
+running expansions and fields with no recorded right; another household's recorded
 right is contested as a dispute.
 A nonconflicting request opens an ordinary `land_use`
 Council proposal. Its canonical key includes the household, exact tiles and
 optional agreed end date. Filing posts a notice but supplies no acceptance.
 Each current adult in the household must learn that notice and explicitly
 choose `accept_land_use`; Council votes are separate. Grant settlement rechecks
-the current adult roster and competing rights/requests. A dispute leaves the
+the current adult roster, competing rights/requests and foreign fields. An
+older pending request cannot grant another household's worked field merely
+because its Council vote and household acceptance have finished. A dispute leaves the
 request pending; refusal, withdrawal, an elapsed requested term and a Council
 change that cancels the vote close it, and the household may ask again.
 A grant preserves its Council proposal, individual consent records and the
 adult roster at settlement. Closed requests remain in the save history but do
 not contribute competing claims to the map or Add Agent.
+
+Ordinary and ordered field-site choices and authoritative tilling exclude land another
+household holds or has requested; unclaimed land and the farmer's own household
+land keep their ordinary physical requirements. New Roads and bridge entrances
+exclude every household's held or requested tiles. Routing may still join an
+existing Road or reuse an existing bridge on claimed land, but it rechecks
+both banks before adding a new crossing. These construction checks do not
+change walking permissions or remove existing infrastructure.
 
 `request_expansion_land` derives the extra House tiles from a currently legal
 larger footprint, so agents can request them before gathering materials.
@@ -2000,6 +2010,24 @@ Events are `bridge_built` (`road:<bridge>:<route>` or `traffic:<bridge>`),
 `traffic_bridge_not_built`, `town_road_unconnected` and, if a run-on fails its
 final check, `town_road_extension_refused`. The host logs them as
 `bridge` and `road_route` lines with IDs and reason codes only.
+
+## Council-approved street lanterns
+
+Paid street lanterns reuse the shared Town-project ledger and the ordinary
+building projection. A one-tile roadside `Position` and its approved adjacent
+Road `Entrance` bind the exact edge; two immutable definitions carry the style
+and trial cost. Live sites use uncontested Town title and existing Road tiles.
+The same actual delivery reservations and work receipts pay for completion;
+direct placement cannot bypass them. Lanterns are excluded from doorway-based
+Road generation and extension. Derived project tags let the owner client show
+Road-side facts without guessing from names or dimensions. The saved receipt
+rules and schema are in [Saves and replay](saves-and-replay.md#council-approved-town-projects).
+
+The normal map draws those projected fittings with Claude's approved
+`NightLightShapes.StreetLantern` renderer. It uses the bound Road tile and edge,
+shows fittings by day and adds light only during the derived night interval.
+No fuel, lit flag or visibility authority is introduced. The road remains open
+and a visible fitting can be selected for its paid project details.
 
 ## Approved authored assets
 

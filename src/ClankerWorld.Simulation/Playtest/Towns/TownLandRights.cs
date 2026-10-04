@@ -339,6 +339,8 @@ public sealed partial class PrivateWorldRuntime
         foreignBuildings.UnionWith(MarketSiteTiles());
         if (tiles.Any(tile => foreignBuildings.Contains(tile) && !householdLandUseRights.Any(right => right.Tiles.Contains(tile))))
             return (RejectedLandRequest("That plot includes another household's or the Town's building or expansion work."), governance);
+        if (IncludesForeignFieldWithoutUseRight(householdId, tiles))
+            return (RejectedLandRequest("That plot includes another household's field without a recorded use right."), governance);
 
         var existingId = householdLandUseRequests.SingleOrDefault(item => item.Id == requestId);
         var proposed = new HouseholdLandUseRequest(requestId, townId, householdId,
