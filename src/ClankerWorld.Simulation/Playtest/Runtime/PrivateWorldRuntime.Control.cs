@@ -392,6 +392,7 @@ public sealed partial class PrivateWorldRuntime
         "collect_food" => "collect your own stored or dropped food",
         "collect_equipment" => "collect your own stored or dropped equipment",
         "store_material" => "store your own carried material in your House",
+        "store_equipment" => "store your own carried equipment in your House",
         "accept_guardianship" => "accept primary care of the named child through their guardian search",
         _ => null,
     };

@@ -264,6 +264,16 @@ reload and rollback. This version follows Council-election schema 81, food-colle
 and lantern schema 79. Older alpha checkpoints are refused and preserved
 without migration.
 
+Private-world schema 83 adds `store_equipment` with the existing exact
+`TargetEquipmentKind`. Equipment storage permits the five garment/carry-aid
+kinds and 13 tool kinds, with `equipment_items` for explicit quantities or
+`storage_loads` for default tasks. It uses bounded personal-storage receipts.
+Validation refuses mixed targets, locations, unsupported kinds, wrong units
+and unearned progress. Partial storage, queued work, cancellation and equipment
+condition survive reload and rollback. This version follows equipment-collection
+schema 82, Council-election schema 81, food schema 80 and lantern schema 79.
+Older alpha checkpoints are refused and preserved without migration.
+
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
 Matching parent assignments are disclosed as agreement; when they differ, the
@@ -653,7 +663,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 82. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 83. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
