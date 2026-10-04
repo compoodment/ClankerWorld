@@ -3805,13 +3805,23 @@ public partial class Main
             VerifyAgentTextEllipses();
             VerifyPlainEllipses("after every panel has been shown");
             GD.Print("UI checks passed: startup Main Menu and settings, compact in-world pause menu and read-only Mod Library, confirmed quit, World Info Towns page, resource hover, square tile hover and agent priority, agent facings, walk steps and activity frames, bounded marker hitboxes at zoom, building footprints, mountain relief chunks drawn off the main thread, soft snow edges and desert cacti, camera-bounded large terrain and regional weather, zoom, middle-drag, WASD, overview navigation, Event Log jumps without pop-ups, keyboard shortcuts and the F1 controls list, Developer tools on F12 with readouts, agent jumps and planned paths, private thoughts, the agent order list at small and large screen sizes, memories, deceased inspection with final wills, family tree and refused agent renames.");
-            GetTree().Quit();
+            Callable.From(() => FinishUiSmoke(0)).CallDeferred();
         }
         catch (Exception exception)
         {
             GD.PushError(exception.Message);
-            GetTree().Quit(1);
+            Callable.From(() => FinishUiSmoke(1)).CallDeferred();
         }
+    }
+
+    private void FinishUiSmoke(int exitCode)
+    {
+        // Let the async smoke state machine release its temporary Godot objects
+        // before collecting them. Their finalizers must finish while the native
+        // C# bindings are still alive, rather than racing engine shutdown.
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GetTree().Quit(exitCode);
     }
 
     private void VerifyEventLogAgentNames()
