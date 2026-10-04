@@ -1176,6 +1176,10 @@ after every change:
   at once.
 - A request a resident made is saved as `approved`, and the newcomer is offered
   an `accept_admission` civic choice once they have learned the result notice.
+  `TownAdmissionDeadlineRules` derives the acceptance deadline from the passed
+  proposal's original `SettledTick` plus the world's configured `TicksPerDay`.
+  Acceptance is open only before that deadline. At the deadline the approval
+  lapses with `acceptance_expired`; paused time does not advance the window.
   Accepting needs the same Town they had when the council voted, and is not
   offered while their own request elsewhere is undecided.
 - Applying an admission moves the newcomer and their care group: the living
@@ -1195,8 +1199,15 @@ but household admission stays a separate decision and grants no Town membership.
 `TownMembershipText` describes recorded membership, the rights it gives (council
 seat or vote, in-person Warehouse collection) and the admission status in one
 bounded line. The agent's `CognitionSelfContext.TownMembershipNote` includes only
-pending, approved, refused or cancelled admissions the agent learned from notices;
-the owner's agent card shows the same line from all records. `town_admission`
+pending, approved, lapsed, refused or cancelled admissions the agent learned from
+notices. Its shared approval selector excludes expired approvals and keeps the
+original notice knowledge gate. A known open approval and its acceptance choice
+state the deadline and remaining world time. The owner's agent card reads public records;
+its `town-membership` decision factor has an optional derived
+`AcceptanceDeadlineTick`, so the client can format the actual world date and
+time without depending on the bounded Council proposal display. No deadline is
+saved separately or added to an agent's knowledge by publication alone. A later
+ordinary request can be approved and accepted again. `town_admission`
 telemetry records the Town, outcome, previous Town and counts only.
 
 `TownGovernmentState` stores scoped law versions, protected resident processes,
