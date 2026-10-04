@@ -24,6 +24,7 @@ public sealed partial class PrivateWorldRuntime
             .Concat(RoadAndBridgeTiles())
             .Concat(fields.Select(field => field.Position))
             .Concat(TownProjectProtectedSites(townProjectId))
+            .Concat(MarketSiteTiles())
             .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused).SelectMany(ExpansionTiles))
             .Concat(worldSimulation.Buildings.SelectMany(building =>
             {
@@ -59,7 +60,8 @@ public sealed partial class PrivateWorldRuntime
                 ? MarketContent.SiteTiles(new(0, 0)) : null,
             permittedRoadOffsets: forTownProject && building?.Tags.Contains(MarketContent.HallTag, StringComparer.Ordinal) == true
                 ? MarketContent.PlazaTiles(new(0, 0)).Except(Enumerable.Range(0, MarketContent.MaximumStalls)
-                    .Select(slot => MarketContent.StallSite(new(0, 0), slot))) : null);
+                    .Select(slot => MarketContent.StallSite(new(0, 0), slot))) : null,
+            protectedTiles: TownProjectProtectedSites(townProjectId).Concat(bridges.SelectMany(item => item.Entrances)));
     }
 
     /// <summary>A Silo stands near its household's Farmhouse; no Farmhouse means no legal Silo site.</summary>
@@ -257,6 +259,8 @@ public sealed partial class PrivateWorldRuntime
             .Concat(RoadAndBridgeTiles())
             .Concat(fields.Select(field => field.Position))
             .Concat(TownProjectProtectedSites(townProjectId))
+            // An extra stall is the one building that belongs on a Market site, on its own approved slot.
+            .Concat(MarketSiteTiles().Where(tile => tile != position || !definition.Tags.Contains(MarketContent.StallTag, StringComparer.Ordinal)))
             .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused).SelectMany(ExpansionTiles))
             .ToHashSet();
         var buildingDefinitions = worldContent.Buildings.ToDictionary(item => item.CanonicalId, StringComparer.Ordinal);

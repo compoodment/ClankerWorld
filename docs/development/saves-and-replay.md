@@ -791,9 +791,12 @@ identity; live inventory remains authoritative after inheritance or collection.
 Another borrower gains no right to sell those goods. Barter records bind the
 exact inventory offer, named seller and buyer, lots, reservations and outcome.
 Completed or cancelled trades retain their history without requiring spent
-goods to remain live. Loading checks owners, locations, active claims and the
-actual physical occupancy instead of reconstructing authority from a stall's
-current borrower.
+goods to remain live. Loading checks owners, locations and the actual physical
+occupancy instead of reconstructing authority from a stall's current borrower;
+an open offer's reservations are the inventory's own, and the runtime cancels
+an offer whose claims are gone. Goods on a stall tile are not capped at load,
+because a death or a removed stall can leave more there than a borrower may
+deposit. Two standing Markets in one Town cannot share ground.
 
 Leaving, household change, death or removal ends borrowing and cancels open
 offers. Removed Market buildings keep their paid history and stock receipts,

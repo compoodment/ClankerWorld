@@ -453,7 +453,7 @@ public partial class Main
     {
         if (market.RemovedTick is not null) return "Market inactive · goods keep their recorded owners";
         if (buildingId == market.HallBuildingId)
-            return $"{market.Stalls.Count} stalls built · {market.Stalls.Count(stall => stall.SellerId is not null)} borrowed";
+            return $"{Plural(market.Stalls.Count, "stall")} built · {market.Stalls.Count(stall => stall.SellerId is not null)} borrowed";
         var stall = market.Stalls.First(item => item.BuildingInstanceId == buildingId);
         return MarketStallText(stall) + $" · {stall.Stock.Sum(stock => stock.Quantity)} items at stall · " +
             $"{Plural(stall.Trades.Count(trade => trade.Status == "open"), "exchange")} waiting";

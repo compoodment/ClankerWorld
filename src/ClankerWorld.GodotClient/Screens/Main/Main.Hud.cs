@@ -637,7 +637,7 @@ public partial class Main
         {
             var name = town.Projects.FirstOrDefault(project => project.Id == market.ProjectId)?.Name ?? "Market";
             var borrowed = market.RemovedTick is null ? market.Stalls.Count(stall => stall.SellerId is not null) : 0;
-            lines.Add($"{name} · {market.Stalls.Count} stalls built · {borrowed} borrowed");
+            lines.Add($"{name} · {Plural(market.Stalls.Count, "stall")} built · {borrowed} borrowed");
             lines.Add(market.RemovedTick is null
                 ? $"Town-owned Market · {market.PlazaWidth} × {market.PlazaHeight} plaza · any Town's adults may trade"
                 : "Market removed · earlier goods retain their recorded owners");

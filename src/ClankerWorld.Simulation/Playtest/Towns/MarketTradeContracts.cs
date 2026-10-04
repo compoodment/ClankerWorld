@@ -73,9 +73,6 @@ public static class MarketTradeValidation
                             building.HouseholdId is null && building.Position == position &&
                             building.DefinitionId == MarketContent.Stall1x1().CanonicalId))
                         throw Invalid("A live stall needs its actual Town-owned paid building.");
-                    if (MarketTradeRules.StockAt(market, stall.BuildingId, position, inventory).Sum(lot => (long)lot.Quantity) >
-                        MarketTradeRules.StallCapacity)
-                        throw Invalid("Actual on-site stock exceeds a Market stall's physical capacity.");
                     var visits = market.Occupancies.Where(item => item.StallBuildingId == stall.BuildingId)
                         .OrderBy(item => item.StartedTick).ThenBy(item => item.EndedTick ?? long.MaxValue).ToArray();
                     for (var index = 1; index < visits.Length; index++)
@@ -104,6 +101,8 @@ public static class MarketTradeValidation
                             throw Invalid("A live seller must borrow one existing stall for their actual household.");
                     }
                 }
+                if (market.Trades.Select(trade => trade.OfferId).Distinct(StringComparer.Ordinal).Count() != market.Trades.Count)
+                    throw Invalid("A Market cannot record the same exchange twice.");
                 for (var ordinal = 0; ordinal < market.StockReceipts.Count; ordinal++)
                 {
                     var receipt = market.StockReceipts[ordinal];
@@ -120,7 +119,7 @@ public static class MarketTradeValidation
                         receipt.InventoryEventId <= 0 || receipt.InventoryEventId > inventory.EventHistoryFloor + inventory.Events.Count ||
                         receipt.LotId != receipt.SourceLotId && receipt.LotId != receipt.SourceLotId + "#move:" + receipt.Id + ":deposit")
                         throw Invalid("A Market stock receipt has forged or inconsistent deposit authority.");
-                    var retainedEvent = inventory.Events.SingleOrDefault(item => item.EventId == receipt.InventoryEventId);
+                    var retainedEvent = inventory.Events.FirstOrDefault(item => item.EventId == receipt.InventoryEventId);
                     if (receipt.InventoryEventId > inventory.EventHistoryFloor && (retainedEvent is null ||
                         retainedEvent.WorldTick != receipt.DepositedTick || retainedEvent.Kind != "inventory_relocated" ||
                         retainedEvent.Detail != receipt.Id + ":deposit:" + receipt.OwnerId + ":" + receipt.SourceLotId + ":" +
@@ -132,8 +131,8 @@ public static class MarketTradeValidation
                     // estate, sale or physical collection may legitimately change the live lot owner.
                     if (receipt.TradeOfferId is { } offerId)
                     {
-                        var trade = market.Trades.SingleOrDefault(item => item.OfferId == offerId);
-                        var offer = inventory.Offers.SingleOrDefault(item => item.Id == offerId);
+                        var trade = market.Trades.FirstOrDefault(item => item.OfferId == offerId);
+                        var offer = inventory.Offers.FirstOrDefault(item => item.Id == offerId);
                         if (trade is null || offer is not { State: DirectBarterState.Settled } ||
                             trade.OccupancyId != receipt.OccupancyId || trade.SellerAgentId != receipt.SellerAgentId ||
                             trade.PaymentOwnerId != receipt.OwnerId || trade.PaymentKind != receipt.ItemKind ||
@@ -146,8 +145,8 @@ public static class MarketTradeValidation
                 {
                     var occupancy = trade is null ? null : market.Occupancies.SingleOrDefault(item => item.Id == trade.OccupancyId);
                     var stall = trade is null ? null : market.Stalls.SingleOrDefault(item => item.BuildingId == trade.StallBuildingId);
-                    var offer = trade is null ? null : inventory.Offers.SingleOrDefault(item => item.Id == trade.OfferId);
-                    if (trade is null || !trades.Add(trade.OfferId) || occupancy is null || stall is null || offer is null ||
+                    var offer = trade is null ? null : inventory.Offers.FirstOrDefault(item => item.Id == trade.OfferId);
+                    if (trade is null || trade.OfferId is null || !trades.Add(trade.OfferId) || occupancy is null || stall is null || offer is null ||
                         !trade.OfferId.StartsWith(MarketTradeRules.OfferPrefix, StringComparison.Ordinal) ||
                         occupancy.StallBuildingId != stall.BuildingId || occupancy.SellerAgentId != trade.SellerAgentId ||
                         occupancy.SellerHouseholdId != trade.PaymentOwnerId ||
@@ -159,15 +158,16 @@ public static class MarketTradeValidation
                         !Bounded(trade.GoodsKind, 128) || !Bounded(trade.PaymentKind, 128) || trade.GoodsKind == trade.PaymentKind ||
                         offer.Revision != 1 || offer.FirstPartyId != trade.GoodsOwnerId || offer.SecondPartyId != trade.BuyerId ||
                         offer.FirstQuantity != 1 || offer.SecondQuantity != 1 ||
-                        offer.ExpiryTick != checked(trade.ProposedTick + MarketTradeRules.OfferLifetimeTicks) ||
+                        trade.ProposedTick > long.MaxValue - MarketTradeRules.OfferLifetimeTicks ||
+                        offer.ExpiryTick != trade.ProposedTick + MarketTradeRules.OfferLifetimeTicks ||
                         !market.StockReceipts.Any(receipt => receipt.OccupancyId == occupancy.Id &&
                             receipt.OwnerId == trade.GoodsOwnerId && receipt.ItemKind == trade.GoodsKind &&
                             (offer.FirstLotId == receipt.LotId || offer.FirstLotId.StartsWith(receipt.LotId + "#", StringComparison.Ordinal))))
                         throw Invalid("A Market exchange disagrees with its named seller, deposited stock or exact offer.");
                     if (offer.State == DirectBarterState.Open)
                     {
-                        var goods = inventory.Lots.SingleOrDefault(lot => lot.Id == offer.FirstLotId);
-                        var payment = inventory.Lots.SingleOrDefault(lot => lot.Id == offer.SecondLotId);
+                        var goods = inventory.Lots.FirstOrDefault(lot => lot.Id == offer.FirstLotId);
+                        var payment = inventory.Lots.FirstOrDefault(lot => lot.Id == offer.SecondLotId);
                         if (occupancy.EndedTick is not null || market.RemovedTick is not null || stall.RemovedTick is not null ||
                             trade.SettledTick is not null || trade.CancellationReason is not null ||
                             !offer.AcceptedBy.SequenceEqual([trade.BuyerId], StringComparer.Ordinal) ||

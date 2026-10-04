@@ -55,9 +55,11 @@ public sealed partial class PrivateWorldRuntime
             .Concat(worldSimulation.Buildings.SelectMany(building => WorldContentSimulationRules.Footprint(
                 worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId), building)))
             .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused)
-                .SelectMany(ExpansionTiles)).Concat(TownProjectFootprintTiles(projectId)).ToHashSet();
+                .SelectMany(ExpansionTiles)).Concat(TownProjectProtectedSites(projectId)).ToHashSet();
         if (footprint.Any(point => !map.IsBuildable(point) || occupied.Contains(point)))
             return "The approved building and its plaza need clear buildable ground.";
+        if (bridges.SelectMany(bridge => bridge.Entrances).Any(footprint.Contains))
+            return "The approved building and its plaza cannot cover a bridge end.";
         if (definition.Tags.Contains(MarketContent.HallTag, StringComparer.Ordinal) &&
             Enumerable.Range(0, MarketContent.MaximumStalls).Any(slot => RoadTiles.Contains(MarketContent.StallSite(plan.Site, slot))))
             return "The Market's stall layout crosses an existing Road.";
@@ -67,7 +69,7 @@ public sealed partial class PrivateWorldRuntime
             worldSimulation.Buildings.Any(b => WorldContentSimulationRules.Footprint(
                 worldContent.Buildings.Single(d => d.CanonicalId == b.DefinitionId), b).Contains(plan.Entrance)) ||
             (worldSimulation.BuildingExpansions ?? []).Any(j => j.State is WorldProductionJobState.Running or WorldProductionJobState.Paused &&
-                ExpansionTiles(j).Contains(plan.Entrance)) || TownProjectFootprintTiles(projectId).Contains(plan.Entrance))
+                ExpansionTiles(j).Contains(plan.Entrance)) || TownProjectProtectedSites(projectId).Contains(plan.Entrance))
             return "The approved building's doorway is blocked.";
         if (actor is not null && inhabitants.TryGetValue(actor, out var person) &&
             person.Position != plan.Site && FindUnoccupiedRoute(actor, person.Position, plan.Site, 0).Count == 0)
@@ -104,19 +106,31 @@ public sealed partial class PrivateWorldRuntime
         }
         var stallDefinition = MarketContent.Stall1x1();
         if (!worldContent.Buildings.Any(item => item.CanonicalId == stallDefinition.CanonicalId)) return;
-        foreach (var market in town.Markets.Where(item => item.RemovedTick is null && MarketNeedsMoreStalls(item)))
+        foreach (var market in town.Markets.Where(item => item.RemovedTick is null && MarketNeedsMoreStalls(town, item)))
             for (var slot = 0; slot < MarketContent.MaximumStalls; slot++)
             {
                 if (market.Stalls.Any(stall => stall.SlotIndex == slot)) continue;
                 var site = MarketContent.StallSite(market.Site, slot);
                 var plan = PlanFor(town, stallDefinition, site, "Market stall");
-                if (plan is not null && TownProjectSiteFailure(town, plan, actor: actor) is null)
-                    AddTownProjectProposalCandidate(candidates, town, stallDefinition, site);
+                if (plan is null || TownProjectSiteFailure(town, plan, actor: actor) is not null) continue;
+                // One more stall at a time: the next waits until this one is built and borrowed too.
+                AddTownProjectProposalCandidate(candidates, town, stallDefinition, site);
+                break;
             }
     }
 
-    private static bool MarketNeedsMoreStalls(TownMarketState market) => market.Stalls.Where(stall => stall.RemovedTick is null).All(stall =>
-        market.Occupancies.Any(occupancy => occupancy.StallBuildingId == stall.BuildingId && occupancy.EndedTick is null));
+    // Every standing stall is borrowed, and no further stall for this Market is already proposed or being built.
+    private static bool MarketNeedsMoreStalls(TownRuntimeState town, TownMarketState market)
+    {
+        var standing = market.Stalls.Where(stall => stall.RemovedTick is null).ToArray();
+        var slots = Enumerable.Range(0, MarketContent.MaximumStalls).Select(slot => MarketContent.StallSite(market.Site, slot)).ToHashSet();
+        var stallId = MarketContent.Stall1x1().CanonicalId;
+        return standing.Length > 0 &&
+            standing.All(stall => market.Occupancies.Any(occupancy => occupancy.StallBuildingId == stall.BuildingId && occupancy.EndedTick is null)) &&
+            !town.Projects.Any(project => IsLiveTownProject(project) && project.Plan.DefinitionId == stallId && slots.Contains(project.Plan.Site)) &&
+            !(town.Governance?.Proposals ?? []).Any(proposal => proposal is { Kind: "project", Status: "pending", Project: not null } &&
+                proposal.Project.DefinitionId == stallId && slots.Contains(proposal.Project.Site));
+    }
 
     private void AddTownProjectProposalCandidate(List<CognitionCandidate> candidates, TownRuntimeState town,
         ClankerWorld.Simulation.Content.BuildingDefinition definition, GridPoint site)
@@ -136,7 +150,7 @@ public sealed partial class PrivateWorldRuntime
                 ? MarketContent.HallEntrance(site) : Enumerable.Range(0, MarketContent.MaximumStalls)
                     .SelectMany(slot => town.Markets.Where(market => market.RemovedTick is null &&
                         MarketContent.StallSite(market.Site, slot) == site && !market.Stalls.Any(stall => stall.SlotIndex == slot))
-                        .Select(market => (GridPoint?)MarketContent.StallEntrance(market.Site, slot))).SingleOrDefault();
+                        .Select(market => (GridPoint?)MarketContent.StallEntrance(market.Site, slot))).FirstOrDefault();
         return entrance is { } door ? new(name, definition.CanonicalId, site, door, definition.BuildCosts) : null;
     }
 

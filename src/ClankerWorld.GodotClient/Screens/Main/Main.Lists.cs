@@ -86,7 +86,7 @@ public partial class Main
             "weather_changed" => PixelIcons.Weather(worldEvent.Detail.Split(':').LastOrDefault() ?? "clear", 1),
             "food_harvested" or "food_consumed" => PixelIcons.Texture(PixelGlyph.Basket, ink, food, 1),
             "build_started" or "build_completed" or "building_placed" or "recipe_started" or "recipe_completed" or "bridge_built" or
-                "town_project_worked" or "town_project_completed"
+                "town_project_worked" or "town_project_completed" or "market_built" or "market_stall_built"
                 => PixelIcons.Texture(PixelGlyph.Hammer, ink, wood, 1),
             "tree_planted" or "tree_replanted" or "crop_moisture_effect" => PixelIcons.Texture(PixelGlyph.Leaf, ink, green, 1),
             "child_born" or "partnership_accepted" or "partnership_ended" or "caregiver_assigned" or
@@ -105,7 +105,7 @@ public partial class Main
             "resumed" => PixelIcons.Texture(PixelGlyph.Play, ink, ink, 1),
             "instruction_not_understood" or "inhabitant_building_proposed" => PixelIcons.Texture(PixelGlyph.Speech, ink, UiTheme.Current.Paper, 1),
             "settlement_trade_completed" or "town_project_donated" or "town_project_material_picked_up" or
-                "town_project_material_delivered" or "town_project_material_returned" or "market_stock_delivered" or
+                "town_project_material_delivered" or "town_project_material_returned" or "market_stock_loaded" or "market_stock_delivered" or
                 "market_stock_collected" or "market_trade_offered" or "market_trade_completed" or "market_trade_cancelled"
                 => PixelIcons.Texture(PixelGlyph.Box, ink, wood, 1),
             _ => PixelIcons.Texture(PixelGlyph.Globe, ink, green, 1),

@@ -55,6 +55,7 @@ public static class WorldEventText
             ? worldEvent.Detail.Split('|') : Array.Empty<string>();
         var marketSeller = marketFields.Length > 3 ? Name(snapshot, marketFields[3]) : "Someone";
         var marketBuyer = marketFields.Length > 4 ? Name(snapshot, marketFields[4]) : "a customer";
+        var marketBuyerSubject = marketFields.Length > 4 ? marketBuyer : "A customer";
 
         return worldEvent.Kind switch
         {
@@ -153,12 +154,15 @@ public static class WorldEventText
             "town_civic_law" => $"{civicTownName} recorded a law decision. See the Towns page for its wording and scope.",
             "town_civic_government" => $"{civicTownName} recorded a resident government decision. See the Towns page for the vote or handover.",
             "town_civic_mayor" => $"{civicTownName} recorded a mayoral election or office change. See the Towns page for its result.",
+            "market_built" => $"{civicTownName}'s Market was built. Adults can borrow one of its stalls to sell goods.",
+            "market_stall_built" => $"{civicTownName}'s Market gained another stall.",
             "market_stall_borrowed" => $"{marketSeller} borrowed a free Market stall.",
+            "market_stock_loaded" => $"{marketSeller} picked up household goods to carry to the Market; their recorded owner is unchanged.",
             "market_stock_delivered" => $"{marketSeller} brought goods to a Market stall; their recorded owner is unchanged.",
             "market_stock_collected" => $"{marketSeller} collected their goods from a Market stall.",
             "market_stall_left" => $"{marketSeller} left the Market stall. Earlier goods still belong to their recorded owners.",
-            "market_trade_offered" => $"{marketSeller} offered a Market exchange to {marketBuyer}. See the stall for its exact terms.",
-            "market_trade_completed" => $"{marketBuyer} received a Market purchase from {marketSeller}; the real payment stays with the seller's household.",
+            "market_trade_offered" => $"{marketBuyerSubject} offered {marketSeller} an exchange at a Market stall. See the stall for its exact terms.",
+            "market_trade_completed" => $"{marketBuyerSubject} received a Market purchase from {marketSeller}; the real payment stays with the seller's household.",
             "market_trade_cancelled" => $"The Market exchange between {marketSeller} and {marketBuyer} was cancelled; its unused goods are released.",
             "town_civic_council" => $"{civicTownName}'s council changed.",
             "town_civic_election" => $"{civicTownName}'s council election opened.",

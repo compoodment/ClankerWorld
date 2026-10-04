@@ -533,10 +533,12 @@ communal boats remain later work.
 A Council can also approve a Market: a Town-owned 2×2 hall beside a fixed 7×4
 packed-earth plaza. Its first paid project includes two 1×1 stalls, one in each
 opposite-facing row. The provisional budget is 24 wood, 8 stone and 4 fiber,
-with 10 work units. When the existing stalls are borrowed, the Town may approve
-another in an unused fixed slot. Up to six more stalls can fill the plaza;
-each needs separate Council approval, 4 wood, 2 fiber and 3 work units. The same
-Town-title, real supply, voluntary donation and shared construction rules apply.
+with 10 work units. When every standing stall is borrowed, the Town may approve
+one more in the next unused fixed slot, and the next only once that one is
+built. Up to six more stalls can fill the plaza; each needs separate Council
+approval, 4 wood, 2 fiber and 3 work units. The same Town-title, real supply,
+voluntary donation and shared construction rules apply. The built hall and
+plaza stay clear of other buildings, fields, trees and household land requests.
 General plaza growth remains open.
 
 An adult can borrow an empty stall while they stay at the Market and physically
@@ -549,8 +551,12 @@ purchase; payment becomes the seller's household stock at the stall, including
 when the purchase was the seller's personal property. Buying gives no access
 to private stores or household membership. Leaving frees the stall and cancels
 unfinished exchanges. Its next borrower cannot sell the previous seller's
-leftovers; the recorded owner can return to collect them. An Order or built-in
-choice cannot give away stock or consent to a Market exchange.
+leftovers; the recorded owner can return to collect them. Household goods a
+member carries to or from the Market can be brought back into the household's
+House. Housemates leave household stock on a stall while one of them borrows
+it, and haul it home once the borrowing ends. An Order or built-in choice
+cannot give away stock or consent to a Market exchange; built-in rules prefer
+ordinary work over any Market choice.
 
 An adult whose recipe plan has paused for missing ingredients can choose to
 buy the missing material. The purchase remains personal cargo; it grants no
@@ -565,7 +571,8 @@ work. Walking into a Market or buying there changes no household or Town
 membership.
 
 Hall and stall cards show built stalls, borrowers, goods and owners, and exact
-exchange progress. Only paid stalls appear on the map. Automated checks cover
+exchange progress. Only paid stalls appear on the map, and the Event Log reports
+Market and Town project events. Automated checks cover
 paid construction, another paid stall, real barter, ingredient and seed buying,
 actual planting, visitors and current-format saves. The nine checks in the
 [Windows checklist](../playtest/564-market-stalls.md) are pending.

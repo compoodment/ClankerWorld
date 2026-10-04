@@ -192,7 +192,7 @@ public partial class Main
         var south = north with { InstanceId = "market-ui-south", Position = new(3, 5), Entrance = new(3, 6) };
         var trade = new OwnerWorldMarketTrade("market-ui-offer", "seller:one", "Sam", "household:sam",
             "Sam's household", "household:sam", "Sam's household", "buyer:two", "Lina",
-            "berries", 2, "wood", 1, "open", null, SellerAccepted: true);
+            "berries", 2, "wood", 1, "open", null, BuyerAccepted: true);
         var first = new OwnerWorldMarketStall(north.InstanceId, 0, north.Position, "seller:one", "Sam", 11,
             [new("earlier-grain", null, "seller:earlier", "Sela", "grain", 3, 3),
                 new("current-berries", null, "household:sam", "Sam's household", "berries", 2, 0)], [trade]);
@@ -260,24 +260,24 @@ public partial class Main
         var facts = Facts();
         if (!facts.Contains("3 Grain · owner: Sela", StringComparison.Ordinal) ||
             !facts.Contains("Sam → Lina: 2 Berries for 1 Wood", StringComparison.Ordinal) ||
-            !facts.Contains("seller agreed · buyer decision pending", StringComparison.Ordinal) ||
+            !facts.Contains("seller decision pending · buyer agreed", StringComparison.Ordinal) ||
             !facts.Contains("Goods: Sam's household · payment: Sam's household", StringComparison.Ordinal) ||
             buildingDetailsStorage.Visible ||
             !GetViewportRect().Grow(1).Encloses(buildingDetailsPanel.GetGlobalRect()))
             throw new InvalidOperationException("The stall card must show exact exchange terms and recorded owners without treating private ground goods as Town storage.");
 
-        var agreed = map with
+        var refused = map with
         {
             Towns = [town with { Markets = [market with
             {
-                Stalls = [first with { Trades = [trade with { BuyerAccepted = true }] }, second],
+                Stalls = [first with { Trades = [trade with { Status = "cancelled", CancellationReason = "One of the traders cancelled the exchange." }] }, second],
             }] }],
         };
-        RenderTownList(agreed);
-        RenderBuildingCard(agreed);
-        if (!Facts().Contains("waiting for both traders at the stall", StringComparison.Ordinal) ||
-            Facts().Contains("buyer decision pending", StringComparison.Ordinal))
-            throw new InvalidOperationException("Both recorded acceptances must refresh the stall from pending consent to the physical meeting.");
+        RenderTownList(refused);
+        RenderBuildingCard(refused);
+        if (!Facts().Contains("cancelled · One of the traders cancelled the exchange.", StringComparison.Ordinal) ||
+            Facts().Contains("seller decision pending", StringComparison.Ordinal))
+            throw new InvalidOperationException("A cancelled exchange must refresh the stall from the pending answer to its recorded reason.");
 
         var settled = first with
         {
@@ -285,7 +285,7 @@ public partial class Main
             SellerName = "Mika",
             OccupiedTick = 30,
             Stock = [first.Stock[0], new("actual-payment", null, "household:sam", "Sam's household", "wood", 1, 1)],
-            Trades = [trade with { Status = "settled" }],
+            Trades = [trade with { Status = "settled", SellerAccepted = true }],
         };
         var changed = map with { Towns = [town with { Markets = [market with { Stalls = [settled, second] }] }] };
         // A changed observation at the same tick must refresh both caches.

@@ -1429,9 +1429,12 @@ and bandages through the same inventory and physical business authority.
 
 **Markets** use the same inventory authority with separate saved paid-building
 and occupancy records. The Council-approved starter project pays for the 2×2
-hall and only two 1×1 stalls on the fixed 7×4 plaza, in slots 0 and 4. When all
-live stalls are borrowed, another fixed slot may be proposed as a separate
-Council-approved Town project. The provisional starter budget is 24 wood,
+hall and only two 1×1 stalls on the fixed 7×4 plaza, in slots 0 and 4. When
+every standing stall is borrowed and no further stall is proposed or under
+construction, the next unused fixed slot may be proposed as a separate
+Council-approved Town project. A standing Market's site tiles count as occupied
+for other buildings, Town project sites, expansions, fields, tree planting and
+household land requests. The provisional starter budget is 24 wood,
 8 stone and 4 fiber with 10 work units; another stall costs 4 wood and 2 fiber
 with 3 work units. General plaza growth has no implementation or agreed rule.
 Physical stock receipts retain the personal or household owner. One named
@@ -1440,8 +1443,13 @@ leaving, household change, death or removal ends borrowing and releases
 unfinished offer claims without transferring leftovers.
 
 Loads, borrowing, deposits, collection and barter mutations need a fresh
-accepted, non-fallback personal LLM choice. Continued intentions walk only;
-owner orders do not authorize these mutations. Usable loose surplus, actual
+accepted, non-fallback personal LLM choice; their candidates rank above
+`safe_idle`, so built-in rules never pick them. Continued intentions walk only;
+owner orders do not authorize these mutations. A member carrying their own
+household's goods may return them to its House through `household_return`, and
+the household hauling, farm stock and planting routines skip stock on a stall
+while a member of that household borrows it. Usable loose surplus (the food
+reserve counts the owner's other usable stock of that kind), actual
 carrying and stall room, active claims, current household rights and protected
 equipment constrain the offered choices. The provisional one-for-one quote is
 an actual `Inventory.Offers` exchange. Buyers may belong to any Town or have no

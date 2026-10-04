@@ -133,7 +133,8 @@ public sealed partial class PrivateWorldRuntime
         return inventory.Lots.Where(lot => lot.ItemKind == kind && lot.DeliveryBuildingId is null &&
                 lot.ContainerLotId is null &&
                 (lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) ||
-                    lot.OwnerId == field.HouseholdId && lot.CarrierId is null && FreeCarryCapacity(actor) > 0) &&
+                    lot.OwnerId == field.HouseholdId && lot.CarrierId is null && FreeCarryCapacity(actor) > 0 &&
+                    !OnBorrowedMarketStall(lot)) &&
                 (AvailableLotQuantity(lot) > 0 || reserve?.LotId == lot.Id))
             .OrderBy(lot => lot.OwnerId == actor ? 0 : reserve?.LotId == lot.Id ? 1 : 2)
             .ThenBy(lot => lot.Id, StringComparer.Ordinal)

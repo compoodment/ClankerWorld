@@ -47,10 +47,12 @@ public sealed partial class PrivateWorldRuntime
 
     private void RecordMarketBuildingRemoval(string buildingId)
     {
+        var removed = false;
         foreach (var town in towns.ToArray())
         {
             var changed = town.Markets.Any(market => market.HallBuildingId == buildingId || market.Stalls.Any(stall => stall.BuildingId == buildingId));
             if (!changed) continue;
+            removed = true;
             SetTown(town with
             {
                 Markets = town.Markets.Select(market => market with
@@ -61,6 +63,8 @@ public sealed partial class PrivateWorldRuntime
             });
         }
         MaintainMarkets();
+        // A stall project of a removed Market has lost its site, and the world may be saved before the next tick.
+        if (removed) MaintainTownProjects();
     }
 
     private static void ValidatePaidMarkets(IReadOnlyList<TownRuntimeState> towns, SocietyCheckpoint society,
@@ -111,7 +115,7 @@ public sealed partial class PrivateWorldRuntime
                             market.RemovedTick is { } ended && stall.BuiltTick > ended)
                             throw new InvalidDataException("An additional stall lacks its own exact paid Council project.");
                     }
-                    var placed = simulation.Buildings.SingleOrDefault(building => building.InstanceId == stall.BuildingId);
+                    var placed = simulation.Buildings.FirstOrDefault(building => building.InstanceId == stall.BuildingId);
                     if (stall.RemovedTick is not null && placed is not null || stall.RemovedTick is null &&
                         (placed is null || placed.DefinitionId != MarketContent.Stall1x1().CanonicalId || placed.TownId != town.Id ||
                          placed.HouseholdId is not null || placed.Position != MarketContent.StallSite(market.Site, stall.SlotIndex) ||
@@ -121,6 +125,9 @@ public sealed partial class PrivateWorldRuntime
                 if (MarketContent.StarterSlotIndexes.Any(slot => !market.Stalls.Any(stall => stall.ProjectId == project.Id && stall.SlotIndex == slot)))
                     throw new InvalidDataException("The Market is missing an approved starter stall.");
             }
+            if (town.Markets.Where(market => market.RemovedTick is null).SelectMany(market => MarketContent.SiteTiles(market.Site))
+                .GroupBy(tile => tile).Any(tiles => tiles.Count() > 1))
+                throw new InvalidDataException("Two standing Markets in one Town cannot share ground.");
             if (town.Projects.Where(project => project.Stage == "completed" && project.Plan.DefinitionId == MarketContent.Hall2x2().CanonicalId)
                     .Any(project => town.Markets.Count(market => market.ProjectId == project.Id) != 1) ||
                 town.Projects.Where(project => project.Stage == "completed" && project.Plan.DefinitionId == MarketContent.Stall1x1().CanonicalId)

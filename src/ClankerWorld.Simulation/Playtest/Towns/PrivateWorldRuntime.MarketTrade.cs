@@ -12,7 +12,24 @@ public sealed partial class PrivateWorldRuntime
         MarketStallState Stall, MarketStallOccupancy? Occupancy = null, InventoryLot? Lot = null,
         int Quantity = 0, MarketTradeState? Trade = null, InventoryLot? Payment = null);
 
+    private const int MarketCandidateLimit = 16;
+
     private static bool IsMarketCandidate(string id) => id.StartsWith("market_", StringComparison.Ordinal);
+
+    // A settled or cancelled trade is history; only the others still need their offer looked up.
+    private static bool IsOpenMarketTrade(MarketTradeState trade) =>
+        trade.SettledTick is null && trade.CancellationReason is null;
+
+    /// <summary>The Hall, stall slots and aisles of every standing Market, which other building and planting leave clear.</summary>
+    private IEnumerable<GridPoint> MarketSiteTiles() => towns.SelectMany(town => town.Markets)
+        .Where(market => market.RemovedTick is null).SelectMany(market => MarketContent.SiteTiles(market.Site));
+
+    /// <summary>Household goods stay on sale while one of the household's members borrows the stall they lie on.</summary>
+    private bool OnBorrowedMarketStall(InventoryLot lot) => lot.GroundPosition is { } ground &&
+        towns.Any(town => town.Markets.Any(market => market.Occupancies.Any(occupancy =>
+            occupancy.EndedTick is null && occupancy.SellerHouseholdId == lot.OwnerId &&
+            market.Stalls.Any(stall => stall.BuildingId == occupancy.StallBuildingId &&
+                MarketContent.StallSite(market.Site, stall.SlotIndex) == new GridPoint(ground.X, ground.Y)))));
 
     private bool MarketAdult(string actor) => AdultResident(actor) &&
         society.Checkpoint.GetInhabitant(actor).Status == SocietyInhabitantStatus.Active;
@@ -65,7 +82,8 @@ public sealed partial class PrivateWorldRuntime
             inventory ?? society.Checkpoint.Inventory).Sum(lot => lot.Quantity);
 
     private int MarketIncomingPayment(TownMarketState market, MarketStallState stall,
-        InventoryCheckpoint? inventory = null) => market.Trades.Where(trade => trade.StallBuildingId == stall.BuildingId)
+        InventoryCheckpoint? inventory = null) => market.Trades
+        .Where(trade => IsOpenMarketTrade(trade) && trade.StallBuildingId == stall.BuildingId)
         .Select(trade => (inventory ?? society.Checkpoint.Inventory).GetOffer(trade.OfferId))
         .Where(offer => offer.State == DirectBarterState.Open)
         .Sum(offer => Math.Max(0, offer.SecondQuantity - offer.FirstQuantity));
@@ -75,11 +93,25 @@ public sealed partial class PrivateWorldRuntime
 
     private int MarketSurplus(string actor, InventoryLot lot)
     {
-        var reserve = IsEdibleFood(lot.ItemKind) ? lot.OwnerId == actor
+        if (!IsEdibleFood(lot.ItemKind)) return AvailableLotQuantity(lot);
+        var reserve = lot.OwnerId == actor
             ? Math.Max(2, CaregiverFoodCarryRequirement(actor, inhabitants[actor]))
-            : 2 * society.Checkpoint.GetHousehold(lot.OwnerId).MemberIds.Count(id => inhabitants.ContainsKey(id)) : 0;
-        return Math.Max(0, AvailableLotQuantity(lot) - reserve);
+            : 2 * society.Checkpoint.GetHousehold(lot.OwnerId).MemberIds.Count(id => inhabitants.ContainsKey(id));
+        // The owner's other usable food of this kind covers the reserve first, so a load taken from real surplus stays surplus.
+        var kept = society.Checkpoint.Inventory.Lots.Where(other => other.Id != lot.Id && other.OwnerId == lot.OwnerId &&
+                other.ItemKind == lot.ItemKind && other.ContainerLotId is null && other.DeliveryBuildingId is null &&
+                (lot.OwnerId == actor ? PersonalEquipmentRules.IsCarried(other, actor) : other.CarrierId is null) &&
+                !OnMarketStall(other))
+            .Sum(AvailableLotQuantity);
+        return Math.Max(0, AvailableLotQuantity(lot) - Math.Max(0, reserve - kept));
     }
+
+    private bool OnMarketStall(InventoryLot lot) => towns.Any(town => town.Markets.Any(market => market.Stalls.Any(stall =>
+        MarketTradeRules.IsAt(lot, MarketContent.StallSite(market.Site, stall.SlotIndex)))));
+
+    // Household goods a member carries away need the household's House to come back to.
+    private bool CanCarryMarketGoods(string actor, InventoryLot lot) =>
+        lot.OwnerId == actor || HouseForHousehold(lot.OwnerId) is not null;
 
     private bool ProtectedMarketItem(string actor, InventoryLot lot) =>
         AgentKnowledgeRules.IsArtifactKind(lot.ItemKind) ||
@@ -94,9 +126,9 @@ public sealed partial class PrivateWorldRuntime
             (PersonalEquipmentRules.IsCarried(lot, actor) ||
              lot.OwnerId != actor && lot.CarrierId is null &&
              (lot.StorageBuildingId is null || worldSimulation.Buildings.Any(building =>
-                 building.InstanceId == lot.StorageBuildingId && building.HouseholdId == lot.OwnerId))) &&
-            !towns.Any(town => town.Markets.Any(market => market.Stalls.Any(stall =>
-                MarketTradeRules.IsAt(lot, MarketContent.StallSite(market.Site, stall.SlotIndex))))))
+                 building.InstanceId == lot.StorageBuildingId && building.HouseholdId == lot.OwnerId)) &&
+             CanCarryMarketGoods(actor, lot)) &&
+            !OnMarketStall(lot))
             .OrderBy(lot => PersonalEquipmentRules.IsCarried(lot, actor) ? 0 : 1)
             .ThenBy(lot => lot.Id, StringComparer.Ordinal);
     }
@@ -137,6 +169,7 @@ public sealed partial class PrivateWorldRuntime
         if (!MarketAdult(actor)) yield break;
         var inventory = society.Checkpoint.Inventory;
         var ready = ReadyForMarket(actor);
+        var offeredLoad = false;
         foreach (var town in towns.OrderBy(item => item.Id, StringComparer.Ordinal))
             foreach (var market in town.Markets.OrderBy(item => item.Id, StringComparer.Ordinal))
                 foreach (var stall in market.Stalls.OrderBy(item => item.SlotIndex))
@@ -145,7 +178,8 @@ public sealed partial class PrivateWorldRuntime
                     var occupancy = MarketOccupant(market, stall);
                     // Owners retain physical collection even after the building or borrowing ends.
                     foreach (var lot in MarketTradeRules.StockAt(market, stall.BuildingId, position, inventory)
-                                 .Where(lot => MarketTradeRules.IsLoose(lot) && OwnMarketGoods(actor, lot) && AvailableLotQuantity(lot) > 0))
+                                 .Where(lot => MarketTradeRules.IsLoose(lot) && OwnMarketGoods(actor, lot) &&
+                                     AvailableLotQuantity(lot) > 0 && CanCarryMarketGoods(actor, lot)))
                     {
                         var quantity = Math.Min(MarketTradeRules.LoadQuantity, Math.Min(AvailableLotQuantity(lot), FreeCarryCapacity(actor)));
                         if (quantity > 0 && CanReachMarketPoint(actor, position, ResourceInteractionRange))
@@ -154,7 +188,7 @@ public sealed partial class PrivateWorldRuntime
                                 "collect", town, market, stall, occupancy, lot, quantity);
                     }
                     if (!LiveMarketStall(town, market, stall)) continue;
-                    foreach (var trade in market.Trades.Where(item => item.StallBuildingId == stall.BuildingId &&
+                    foreach (var trade in market.Trades.Where(item => IsOpenMarketTrade(item) && item.StallBuildingId == stall.BuildingId &&
                                  (item.SellerAgentId == actor || item.BuyerId == actor)).OrderBy(item => item.OfferId, StringComparer.Ordinal))
                     {
                         if (inventory.GetOffer(trade.OfferId).State != DirectBarterState.Open) continue;
@@ -203,18 +237,23 @@ public sealed partial class PrivateWorldRuntime
                             }
                             continue;
                         }
+                        // One empty stall is enough to plan a load; the stall itself is borrowed on arrival.
+                        if (offeredLoad) continue;
                         var quantity = Math.Min(MarketTradeRules.LoadQuantity, Math.Min(MarketSurplus(actor, lot), FreeCarryCapacity(actor)));
                         if (quantity > 0 && CanReachMarketPoint(actor, HouseholdStockPosition(lot), HouseholdStockInteractionRange(lot)))
                             yield return new(MarketChoiceId("load", market.Id, stall.BuildingId, lot.Id,
                                 quantity.ToString(CultureInfo.InvariantCulture), MarketPlaceMode(actor, HouseholdStockPosition(lot),
                                     HouseholdStockInteractionRange(lot))), "load", town, market, stall, Lot: lot, Quantity: quantity);
                     }
+                    offeredLoad = true;
                 }
     }
 
     private void AddMarketCandidates(List<CognitionCandidate> candidates, string actor)
     {
-        foreach (var choice in MarketChoices(actor))
+        // Trade answers and leaving come first, so the limit never hides them behind stock choices.
+        foreach (var choice in MarketChoices(actor).OrderBy(item => item.Kind is "continue" or "cancel" or "leave" ? 0 : 1)
+                     .Take(MarketCandidateLimit))
         {
             var offer = choice.Trade is { } trade ? society.Checkpoint.Inventory.GetOffer(trade.OfferId) : null;
             var text = choice.Kind switch
@@ -228,15 +267,18 @@ public sealed partial class PrivateWorldRuntime
                 "cancel" => "Cancel this Market exchange and release its exact goods.",
                 _ => actor == choice.Trade!.BuyerId
                     ? $"Wait at the stall for {offer!.FirstQuantity} {choice.Trade.GoodsKind} in exchange for {offer.SecondQuantity} {choice.Trade.PaymentKind}."
-                    : $"Meet the buyer and accept {offer!.SecondQuantity} {choice.Trade.PaymentKind} for {offer.FirstQuantity} {choice.Trade.GoodsKind}; the payment goes to your household.",
+                    : MarketTradeMode(actor, choice.Trade) == "waiting-for-buyer"
+                        ? $"Wait at your stall for the buyer, who offers {offer!.SecondQuantity} {choice.Trade.PaymentKind} for {offer.FirstQuantity} {choice.Trade.GoodsKind}."
+                        : $"Meet the buyer and accept {offer!.SecondQuantity} {choice.Trade.PaymentKind} for {offer.FirstQuantity} {choice.Trade.GoodsKind}; the payment goes to your household.",
             };
+            // Above safe idle, like Town project donations: built-in rules cannot act on a Market choice.
             candidates.Add(new(choice.Id, text, choice.Kind switch
             {
-                "cancel" or "leave" => 65,
-                "collect" => 42,
-                "load" or "deposit" or "borrow" => 38,
-                "buy" => 14,
-                _ => 12,
+                "cancel" or "leave" => 175,
+                "collect" => 174,
+                "load" or "deposit" or "borrow" => 173,
+                "buy" => 172,
+                _ => 171,
             }, choice.Stall.BuildingId));
         }
     }
@@ -283,7 +325,8 @@ public sealed partial class PrivateWorldRuntime
                 ApplyInventoryTransition(inventory => InventoryFixture.Relocate(inventory,
                     MarketTradeRules.Identity("market-pickup:", actor, id, WorldTick.ToString(CultureInfo.InvariantCulture)),
                     choice.Lot!.Id, choice.Lot.OwnerId, choice.Quantity, carrierId: actor));
-                AppendEvent("market_stock_collected", $"{choice.Town.Id}|{choice.Market.Id}|{choice.Stall.BuildingId}|{actor}|{choice.Lot!.Id}", position);
+                AppendEvent(choice.Kind == "load" ? "market_stock_loaded" : "market_stock_collected",
+                    $"{choice.Town.Id}|{choice.Market.Id}|{choice.Stall.BuildingId}|{actor}|{choice.Lot!.Id}", destination);
                 break;
             case "deposit":
                 DepositMarketStock(actor, choice, position);
@@ -445,7 +488,7 @@ public sealed partial class PrivateWorldRuntime
 
     private void EndMarketOccupancy(string townId, TownMarketState market, MarketStallOccupancy occupancy, string reason)
     {
-        foreach (var trade in market.Trades.Where(item => item.OccupancyId == occupancy.Id &&
+        foreach (var trade in market.Trades.Where(item => IsOpenMarketTrade(item) && item.OccupancyId == occupancy.Id &&
                      society.Checkpoint.Inventory.GetOffer(item.OfferId).State == DirectBarterState.Open).ToArray())
         {
             CancelMarketTrade(townId, market, trade, reason);
@@ -480,24 +523,28 @@ public sealed partial class PrivateWorldRuntime
                     EndMarketOccupancy(originalTown.Id, market, occupancy, reason);
                     market = towns.Single(town => town.Id == originalTown.Id).Markets.Single(item => item.Id == market.Id);
                 }
-                foreach (var trade in market.Trades.ToArray())
+                foreach (var trade in market.Trades.Where(IsOpenMarketTrade).ToArray())
                 {
                     var offer = society.Checkpoint.Inventory.GetOffer(trade.OfferId);
+                    // The inventory closes an offer at its deadline before this check sees it.
                     var failure = offer.State == DirectBarterState.Open ? MarketTradeFailure(originalTown, market, trade, offer) :
-                        offer.State == DirectBarterState.Cancelled && trade.CancellationReason is null ? "The exact offer was cancelled." : null;
+                        offer.State != DirectBarterState.Cancelled ? null :
+                        offer.ExpiryTick < WorldTick ? "The offer ran out of time." : "The exact offer was cancelled.";
                     if (failure is null) continue;
                     CancelMarketTrade(originalTown.Id, market, trade, failure);
                     market = towns.Single(town => town.Id == originalTown.Id).Markets.Single(item => item.Id == market.Id);
                 }
                 // Removal ends borrowing but retains the stock history and owners' physical collection.
-                var hallExists = worldSimulation.Buildings.Any(building => building.InstanceId == market.HallBuildingId);
-                var changed = market with
+                var built = worldSimulation.Buildings.Select(building => building.InstanceId).ToHashSet(StringComparer.Ordinal);
+                if ((market.RemovedTick is not null || built.Contains(market.HallBuildingId)) &&
+                    market.Stalls.All(stall => stall.RemovedTick is not null || built.Contains(stall.BuildingId)))
+                    continue;
+                SetMarket(originalTown.Id, market with
                 {
-                    RemovedTick = hallExists ? market.RemovedTick : market.RemovedTick ?? WorldTick,
-                    Stalls = market.Stalls.Select(stall => worldSimulation.Buildings.Any(building => building.InstanceId == stall.BuildingId)
+                    RemovedTick = built.Contains(market.HallBuildingId) ? market.RemovedTick : market.RemovedTick ?? WorldTick,
+                    Stalls = market.Stalls.Select(stall => built.Contains(stall.BuildingId)
                         ? stall : stall with { RemovedTick = stall.RemovedTick ?? WorldTick }).ToArray(),
-                };
-                SetMarket(originalTown.Id, changed);
+                });
             }
     }
 }
