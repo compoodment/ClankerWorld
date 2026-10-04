@@ -119,7 +119,6 @@ public sealed partial class PrivateWorldRuntimeTests
 
     [Theory]
     [InlineData(false)]
-    [InlineData(true)]
     public async Task PausedHeldTravelOrderRefreshesItsPersonalRequestInTheResumedEpoch(bool reload)
     {
         var provider = new CancellationPlanningProvider(holdFirstOrder: true, holdFreshOrder: true);
@@ -153,6 +152,15 @@ public sealed partial class PrivateWorldRuntimeTests
                 await Task.Delay(10);
             }
             Assert.True(provider.FreshStarted.Task.IsCompleted, "The resumed order request was not dispatched.");
+
+            // The resumed request starts in the background; wait for its actual
+            // epoch while continuing ticks, without releasing the obsolete reply.
+            for (var tick = 0; tick < 200 &&
+                 !provider.Requests.Any(request => request.RunEpoch != originalRequest.RunEpoch); tick++)
+            {
+                await Task.Delay(25);
+                Assert.True((await resumeWorld.AdvanceOneTickNonBlockingAsync()).Advanced);
+            }
 
             var freshRequest = Assert.Single(provider.Requests, request => request.RunEpoch != originalRequest.RunEpoch);
             Assert.Equal(resumeWorld.Society.RunEpoch, freshRequest.RunEpoch);

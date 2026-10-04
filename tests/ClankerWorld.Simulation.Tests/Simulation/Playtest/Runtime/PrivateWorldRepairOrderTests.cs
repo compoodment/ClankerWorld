@@ -229,6 +229,7 @@ public sealed class PrivateWorldRepairOrderTests
             valid with { TargetMaterialKind = "wood" }, valid with { TargetFoodKind = "berries" },
             valid with { TargetResourceId = "tree" }, valid with { TargetPosition = new(1, 1) },
             valid with { ProgressUnit = "material_items" }, valid with { LastEffectId = "repair:equipment:unearned" },
+            valid with { TargetAgentId = actor },
         })
         {
             corrupt = saved with

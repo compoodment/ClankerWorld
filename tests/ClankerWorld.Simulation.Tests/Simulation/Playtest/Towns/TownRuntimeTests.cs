@@ -63,8 +63,8 @@ public sealed class TownRuntimeTests
                 JsonSerializer.Serialize(store.GetSnapshot(), GodotJsonOptions), GodotJsonOptions);
             Assert.Equal("dead", snapshot!.Inhabitants.Single(person => person.Id == founderId).Lifecycle);
             foreach (var (kind, expected) in new[]
-                     { ("inhabitant_removed", "Aster died."), ("town_resident_left", "Aster left the first Town."),
-                       ("town_resident_joined", "Aster joined the first Town.") })
+                     { ("inhabitant_removed", "Aster died."), ("town_resident_left", "Aster left First Town."),
+                       ("town_resident_joined", "Aster joined First Town.") })
             {
                 var accepted = store.GetEventsAfter(0).Events.First(item => item.Kind == kind && item.Detail.Contains(founderId, StringComparison.Ordinal));
                 var clientEvent = JsonSerializer.Deserialize<GodotOwnerWorldEvent>(JsonSerializer.Serialize(accepted, GodotJsonOptions), GodotJsonOptions);

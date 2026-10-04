@@ -53,25 +53,9 @@ public partial class Main
         if (resource.TreeKind is { } species)
             sprite = TreeArtManifest.For(species, resource.TreeStage ?? "mature")?.Sprite ?? TreeArtManifest.For(species, "mature")?.Sprite;
         else if (resource.NaturalObjectKind is { } kind)
-        {
-            var spent = resource.Quantity == 0 || resource.State != "available";
-            sprite = spent ? (resource.IsRenewable ? NatureSprite.Regrowing : NatureSprite.Depleted) : kind switch
-            {
-                "berry_bush" => NatureSprite.BerryBush,
-                "wild_greens" => NatureSprite.WildGreens,
-                "fiber_plant" => NatureSprite.FiberPlant,
-                "reeds" => NatureSprite.Reeds,
-                "stone_outcrop" => NatureSprite.StoneOutcrop,
-                "wild_seed_patch" => NatureSprite.WildSeedPatch,
-                "fertile_soil" => NatureSprite.FertileSoil,
-                "iron_outcrop" => NatureSprite.IronOutcrop,
-                "gold_outcrop" => NatureSprite.GoldOutcrop,
-                "diamond_outcrop" => NatureSprite.DiamondOutcrop,
-                "clay_bank" => NatureSprite.ClayBank,
-                _ => null,
-            };
-        }
-        else sprite = NatureSprites.ForCampResource(resource.Kind);
+            sprite = NatureSprites.ForNaturalObject(kind, resource.Quantity == 0 || resource.State != "available", resource.IsRenewable);
+        else
+            sprite = NatureSprites.ForCampResource(resource.Kind, resource.Quantity == 0 || resource.State != "available", resource.IsRenewable);
         return sprite is { } found ? NatureSprites.Sprite(found, 16) : null;
     }
 

@@ -1,6 +1,8 @@
 using ClankerWorld.Simulation.Harness;
+using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.World;
+using ClankerWorld.Viewer.Observation;
 
 namespace ClankerWorld.Simulation.Tests;
 
@@ -44,6 +46,164 @@ public sealed class FirstTownLayoutPlannerTests
         Assert.Equal(1, restored.Society.Inventory.Lots.Count(lot => lot.Id == "first-town-wooden-pickaxe"));
         Assert.Contains(restored.ExportState().Events, item => item.Kind == "first_town_layout_redone");
         restored.Validate();
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    public void RedoAfterRemovingEmptyStarterBuildingsReplacesLayoutAndPreservesStock(bool removeFarmhouse, bool reload)
+    {
+        var geography = new GeographyOptions("audit-town-invariants", WorldSizePreset.Small);
+        using var world = new PrivateWorldRuntime(geography.Seed,
+            startPace: WorldStartPace.FounderSetup, geographyOptions: geography);
+        world.InitializeFirstTownContent();
+        var map = world.ExportState().Map;
+        var initialSite = map.Resources.Single(item => item.Id == "berry-patch").Position;
+        var first = world.AcceptFirstTownLayout(initialSite);
+        var owners = world.WorldSimulation.Buildings.ToDictionary(building => building.InstanceId,
+            building => (building.TownId, building.HouseholdId), StringComparer.Ordinal);
+        var stock = InventoryCheckpointCodec.Encode(world.Society.Inventory);
+        string[] removedIds = removeFarmhouse ? ["first-town-blacksmith", "first-town-farmhouse"] : ["first-town-blacksmith"];
+        foreach (var id in removedIds)
+        {
+            var building = world.WorldSimulation.Buildings.Single(item => item.InstanceId == id);
+            var removed = world.RemoveBuilding(id, building.TownId, building.HouseholdId);
+            Assert.True(removed.Applied, removed.Failure);
+        }
+        Assert.Equal(5 - removedIds.Length, world.WorldSimulation.Buildings.Count);
+        world.Validate();
+        using var restored = reload ? PrivateWorldRuntime.Restore(
+            PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState()))) : null;
+        var target = restored ?? world;
+        Assert.True(new OwnerWorldObservationStore(target).GetSnapshot().FounderSetup?.CanChooseTownSite);
+        var newSite = map.FootNeighbors(initialSite).First(point => point != initialSite &&
+            FirstTownLayoutPlanner.Plan(map, point) is not null);
+
+        var second = target.AcceptFirstTownLayout(newSite);
+
+        Assert.Equal(stock, InventoryCheckpointCodec.Encode(target.Society.Inventory));
+        Assert.False(first.RoadTiles.SequenceEqual(second.RoadTiles));
+        Assert.Equal(second.RoadTiles, target.RoadTiles);
+        Assert.Equal(5, target.WorldSimulation.Buildings.Count);
+        foreach (var planned in second.Buildings)
+        {
+            var actual = target.WorldSimulation.Buildings.Single(item => item.InstanceId == "first-town-" + planned.Role);
+            Assert.Equal(planned.DefinitionId, actual.DefinitionId);
+            Assert.Equal(planned.Position, actual.Position);
+            Assert.Equal(planned.Entrance, actual.Entrance);
+            Assert.Equal(owners[actual.InstanceId], (actual.TownId, actual.HouseholdId));
+        }
+        var town = Assert.Single(target.Towns);
+        Assert.Equal(newSite, town.OriginSite);
+        Assert.Equal(target.WorldSimulation.Buildings.Select(building => building.InstanceId), town.AssignedBuildingIds);
+        Assert.True(town.BorderTiles.ToHashSet().SetEquals(target.TownLandTitles.SelectMany(title => title.Tiles)));
+        Assert.All(target.TownLandTitles, title => Assert.Equal(town.Id, title.TownId));
+        foreach (var household in target.WorldSimulation.Buildings.Where(building => building.HouseholdId is not null)
+                     .GroupBy(building => building.HouseholdId, StringComparer.Ordinal))
+        {
+            var footprints = household.SelectMany(building => WorldContentSimulationRules.Footprint(
+                target.WorldContent.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId), building)).ToHashSet();
+            var rights = target.HouseholdLandUseRights.Where(right => right.HouseholdId == household.Key).ToArray();
+            Assert.True(footprints.SetEquals(rights.SelectMany(right => right.Tiles)));
+            Assert.All(rights, right =>
+            {
+                Assert.Equal(town.Id, right.TownId);
+                Assert.Equal(TownLandRightsRules.StarterAllocationSource, right.GrantSource);
+            });
+        }
+        Assert.Empty(target.HouseholdLandUseRequests);
+        Assert.Single(target.ExportState().Events, item => item.Kind == "first_town_layout_redone");
+        Assert.True(target.Society.IsPaused);
+        Assert.Equal(0, target.WorldTick);
+        Assert.Empty(target.FounderSetup!.FounderIds);
+        target.Validate();
+        var bytes = PrivateWorldRuntimeCodec.Encode(target.ExportState());
+        using var reloaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes));
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
+    }
+
+    [Theory]
+    [InlineData("owner-added-blacksmith")]
+    [InlineData("first-town-custom-blacksmith")]
+    public void RedoDoesNotReplaceUnrelatedBuildingWork(string unrelatedId)
+    {
+        var geography = new GeographyOptions("audit-town-invariants", WorldSizePreset.Small);
+        using var world = new PrivateWorldRuntime(geography.Seed,
+            startPace: WorldStartPace.FounderSetup, geographyOptions: geography);
+        world.InitializeFirstTownContent();
+        var site = world.ExportState().Map.Resources.Single(item => item.Id == "berry-patch").Position;
+        world.AcceptFirstTownLayout(site);
+        var state = world.ExportState();
+        const string originalId = "first-town-blacksmith";
+        state = state with
+        {
+            WorldSimulation = state.WorldSimulation! with
+            {
+                Buildings = state.WorldSimulation.Buildings.Select(building => building.InstanceId == originalId
+                    ? building with { InstanceId = unrelatedId } : building).OrderBy(building => building.InstanceId, StringComparer.Ordinal).ToArray(),
+            },
+            Towns = state.Towns!.Select(town => town with
+            {
+                AssignedBuildingIds = town.AssignedBuildingIds.Select(id => id == originalId ? unrelatedId : id)
+                    .Order(StringComparer.Ordinal).ToArray(),
+            }).ToArray(),
+        };
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)));
+        var bytes = PrivateWorldRuntimeCodec.Encode(restored.ExportState());
+
+        Assert.Throws<InvalidOperationException>(() => restored.AcceptFirstTownLayout(site));
+
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+        Assert.Contains(restored.WorldSimulation.Buildings, building => building.InstanceId == unrelatedId);
+    }
+
+    [Fact]
+    public void RedoStillResetsStarterOwnershipAfterAnEmptyBuildingIsReassigned()
+    {
+        var geography = new GeographyOptions("audit-town-invariants", WorldSizePreset.Small);
+        using var world = new PrivateWorldRuntime(geography.Seed,
+            startPace: WorldStartPace.FounderSetup, geographyOptions: geography);
+        world.InitializeFirstTownContent();
+        var site = world.ExportState().Map.Resources.Single(item => item.Id == "berry-patch").Position;
+        world.AcceptFirstTownLayout(site);
+        var blacksmith = world.WorldSimulation.Buildings.Single(item => item.InstanceId == "first-town-blacksmith");
+        var reassigned = world.ReassignBuilding(blacksmith.InstanceId, blacksmith.TownId, blacksmith.HouseholdId,
+            targetTownId: null, targetHouseholdId: "household:camp-alpha");
+        Assert.True(reassigned.Applied, reassigned.Failure);
+        Assert.Equal("household:camp-alpha", world.WorldSimulation.Buildings.Single(item => item.InstanceId == blacksmith.InstanceId).HouseholdId);
+        var stock = InventoryCheckpointCodec.Encode(world.Society.Inventory);
+
+        world.AcceptFirstTownLayout(site);
+
+        Assert.Equal(blacksmith.HouseholdId, world.WorldSimulation.Buildings.Single(item => item.InstanceId == blacksmith.InstanceId).HouseholdId);
+        Assert.Equal(stock, InventoryCheckpointCodec.Encode(world.Society.Inventory));
+        world.Validate();
+    }
+
+    [Fact]
+    public void RedoAfterRemovalStillRequiresNoPlacedFounders()
+    {
+        var geography = new GeographyOptions("audit-town-invariants", WorldSizePreset.Small);
+        using var world = new PrivateWorldRuntime(geography.Seed,
+            startPace: WorldStartPace.FounderSetup, geographyOptions: geography);
+        world.InitializeFirstTownContent();
+        var map = world.ExportState().Map;
+        var site = map.Resources.Single(item => item.Id == "berry-patch").Position;
+        var layout = world.AcceptFirstTownLayout(site);
+        var blacksmith = world.WorldSimulation.Buildings.Single(item => item.InstanceId == "first-town-blacksmith");
+        Assert.True(world.RemoveBuilding(blacksmith.InstanceId, blacksmith.TownId, blacksmith.HouseholdId).Applied);
+        var occupied = layout.Buildings.SelectMany(Footprint).Concat(layout.RoadTiles)
+            .Concat(map.CampObjects.Select(item => item.Position)).Concat(map.Resources.Select(item => item.Position)).ToHashSet();
+        var founderSite = Assert.Single(world.Towns).BorderTiles.First(point => map.IsBuildable(point) && !occupied.Contains(point));
+        world.PlaceFounder("founder:00000000000000000000000000000001", founderSite);
+        Assert.Single(world.FounderSetup!.FounderIds);
+        Assert.False(new OwnerWorldObservationStore(world).GetSnapshot().FounderSetup?.CanChooseTownSite);
+        var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+
+        Assert.Throws<InvalidOperationException>(() => world.AcceptFirstTownLayout(site));
+
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+        world.Validate();
     }
 
     [Fact]
