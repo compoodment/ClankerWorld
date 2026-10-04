@@ -47,6 +47,7 @@ public partial class Main
         BuildingKind.Clinic => LitDesign.Clinic,
         BuildingKind.Restaurant => LitDesign.Restaurant,
         BuildingKind.TownHall => LitDesign.TownHall,
+        BuildingKind.Market => LitDesign.MarketHall,
         BuildingKind.Blacksmith => LitDesign.Blacksmith,
         BuildingKind.Warehouse or BuildingKind.Storehouse => LitDesign.Warehouse,
         BuildingKind.Silo => LitDesign.Silo,

@@ -1494,9 +1494,65 @@ Store stocking also keeps each adult's best usable work tool. Optional shelf
 restocking waits behind gathering materials needed by household work.
 Rates, the eight-unit shelf target and four-unit carried loads are provisional.
 Blacksmiths can sell real refined iron for another household's tool work.
-Market stalls and meals remain tracked in #564 and its domain
+Meals remain tracked in #564 and its domain
 issues; currency remains later work. The Clinic sells actual medicine
 and bandages through the same inventory and physical business authority.
+
+**Markets** use the same inventory authority with separate saved paid-building
+and occupancy records. The Council-approved starter project pays for the 2×2
+hall and only two 1×1 stalls on the fixed 7×4 plaza, in slots 0 and 4. When
+every standing stall is borrowed and no further stall is proposed or under
+construction, the next unused fixed slot may be proposed as a separate
+Council-approved Town project. A standing Market's site tiles count as occupied
+for other buildings, Town project sites, expansions, fields, tree planting and
+household land requests. The provisional starter budget is 24 wood,
+8 stone and 4 fiber with 10 work units; another stall costs 4 wood and 2 fiber
+with 3 work units. General plaza growth has no implementation or agreed rule.
+Physical stock receipts retain the personal or household owner. One named
+active adult borrows a stall while they remain inside the hall-and-plaza area;
+leaving, household change, death or removal ends borrowing and releases
+unfinished offer claims without transferring leftovers.
+
+Loads, borrowing, deposits, collection and barter mutations need a fresh
+accepted, non-fallback personal LLM choice; their candidates rank above
+`safe_idle`, so built-in rules never pick them. Continued intentions walk only;
+owner orders do not authorize these mutations. A member carrying their own
+household's goods may return them to its House through `household_return`, and
+the household hauling, farm stock and planting routines skip stock on a stall
+while a member of that household borrows it. Usable loose surplus (the food
+reserve counts the owner's other usable stock of that kind), actual
+carrying and stall room, active claims, current household rights and protected
+equipment constrain the offered choices. The provisional one-for-one quote is
+an actual `Inventory.Offers` exchange. Buyers may belong to any Town or have no
+Town membership; walking into the Market and completing a purchase change
+neither their household nor their Town. The named seller accepts only after
+both people meet at the stall. Purchased stock
+becomes the buyer's personal cargo; payment is physically set down as the
+seller's household stock, including payment for personally owned goods. A
+later stall borrower cannot sell an earlier borrower's stock. Its recorded
+owner, or a current member of the owning household, may physically collect it.
+Live inventory ownership remains authoritative after inheritance or collection.
+Customer access remains limited to the named transaction. See the
+[Market save rules](saves-and-replay.md#paid-markets-and-stall-trade) for the
+saved layout, stock and offer checks.
+
+Missing-input demand checks the buyer's actual production owner, keeping each
+household's available materials separate. A nonterminal recipe plan marked
+`RequiresFreshChoice` may choose a Market purchase while remaining paused; an
+actively continuing plan keeps the adult at its work. Resuming the recipe
+still requires its ordinary choice and physical ingredient-delivery rules.
+
+`WantsFieldPlantingStock` reuses the actual field and planting-stock checks for
+grain seed, cultivated-green seed and loose potatoes. The adult must belong to
+a household holding a Farmhouse, have a usable hoe and have no urgent survival
+need or actively continuing project. That household must need food, and the
+adult must be able to reach its idle `Prepared` or `Harvested` field without
+another person's planting claim. A usable personally carried planting unit,
+accessible household stock or that field's reserved replanting lot satisfies
+the same-kind need. The exact one-unit purchase remains personal cargo until
+ordinary field work consumes it; a held unit suppresses further same-kind seed
+quotes even when the seller still has stock. Other goods may still be wanted.
+Demand creates no future seed buffer or access to another household's stores.
 
 ### Blacksmith tool-making requests
 
@@ -1585,11 +1641,30 @@ hearth or leave warmth-seeking available. Fuel is consumed only at the hearth.
 Clothing comes from a household's Tailor Shop (`clankerworld-tailor-v1`), which
 replaced the Weaving frame and its "Woven clothing" recipe outright. The shop
 weaves 3 fiber into 1 cloth in 20 ticks and sews 2 cloth into 1 clothing in 24
-ticks, and costs 8 wood and 2 fiber to build; all of these are provisional
+ticks. Its 1×1 size costs 8 wood and 2 fiber to build; all of these are provisional
 values. First-Town setup stores each starting agent's garment in their
 household's House. A package is staged for older worlds on the first tick, but
 the settlement package's digest changed when the Weaving frame was removed, so
 saves made before this change are refused.
+
+The five alternative household building sizes have separate shipped packages;
+their original definitions and first-Town defaults keep their identities.
+Each alternative includes companion recipes bound to its own exact building
+definition. Their package identities cover the complete building, recipes and
+dependency ranges, including the Smith's Ornament recipes and the Tailor's
+Care recipe. First-Town setup activates them after their dependencies. Normal
+runtime staging requires every declared dependency to be active at a compatible
+version and never restages a package already recorded, including a rolled-back
+or quarantined one.
+
+The ordinary household planner, paid construction, full-footprint site checks,
+workstation reservations and physical supply paths serve both sizes. Exact
+recipe-to-building equality stays authoritative. Personal handcart planning
+chooses the recipe bound to the household's actual Blacksmith, including when
+checking work already running or materials the adult keeps for that cart.
+Storage still follows `BuildingStorageRules`; production capacity remains one.
+The current sizes and provisional costs are listed in
+[What works today](../what-works.md#household-building-sizes).
 
 Workstation recipes use only stock already at the building. A household
 building without its own dedicated hauling (every kind except the House,
