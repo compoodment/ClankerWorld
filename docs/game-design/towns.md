@@ -242,7 +242,7 @@ Any move between Towns still follows the admission rules in issue
 Adult departure, personal ownership, limited physical collection, the once-only
 food allowance, care-group moves and solo formation are implemented through
 [#593](https://github.com/compoodment/ClankerWorld/issues/593). Overcrowding
-notice and relocation selection remain separate work in
+notice and relocation selection are implemented through
 [#599](https://github.com/compoodment/ClankerWorld/issues/599). The agreed
 response to losing a dependent's last active primary caregiver is described in
 [Agents and families](agents-and-families.md#dependent-care-after-loss-of-the-last-active-primary-caregiver).
@@ -371,7 +371,7 @@ and [storage-expansion work](https://github.com/compoodment/ClankerWorld/issues/
 remain their original implementation slices. Resident limits, admission checks,
 birth placement and expansion for more places are implemented in
 [#598](https://github.com/compoodment/ClankerWorld/issues/598). Notice,
-departure and relocation for existing overcrowding remain separate work in
+departure and relocation for existing overcrowding are implemented in
 [#599](https://github.com/compoodment/ClankerWorld/issues/599).
 
 ### Town membership
@@ -613,6 +613,16 @@ or blocking a project must preserve its goods and safely release unspent
 reservations. This is a supported construction effect; free-form law text
 cannot execute it. The existing resident rule for Warehouse expansion stays
 in place. Costs, quantities and work times remain provisional for playtesting.
+
+**Street lanterns, agreed by the owner on October 3, 2026:** agents build
+street lanterns beside Roads; the map does not place them by itself. A lantern
+needs **no fuel**: once built it lights itself at dusk and goes out at dawn.
+There are two designs, a round **stone lamp** with an open flame and a
+**hanging lantern** on a roadside post with an arm over the Road
+([look](interface-and-art.md#pixel-art-and-generated-images)). Still open:
+what each costs, whether a lantern needs the Council's approval as a shared
+Town project, and where lanterns stand. A suggestion is stone lamps at Road
+junctions and hanging lanterns every few tiles along a Road.
 
 The intended building roles now include House, Warehouse, Workshop,
 Farmhouse, farm fields, an adjacent private farm Silo, optional household-run
@@ -1116,10 +1126,12 @@ action authority.
 - **Approval starts a handover lasting at most three unpaused world days.**
   This is an initial trial duration. The existing government continues until
   a valid replacement is ready; the new form takes effect at that recorded
-  handover, rather than immediately when the approval vote passes. Elective
-  offices need willing, eligible officeholders selected through the agreed
-  voting rules. If a mayoral vote ties, another vote between the tied highest
-  candidates is required; do not use the council's random tie-break. If no
+  handover, rather than immediately when the approval vote passes. Newly added
+  elective mandates need willing, eligible officeholders selected through the
+  agreed voting rules. Retained mandates keep their ordinary vacancy rules;
+  an explicit replacement vote still needs a valid successor. If a mayoral
+  vote ties, another vote between the tied highest candidates is required;
+  do not use the council's random tie-break. If no
   valid replacement is ready by the handover deadline, cancel the attempted
   transition. An all-adult council consists automatically of eligible adults
   and does not require each resident to consent to taking a seat.
@@ -1180,8 +1192,11 @@ remains separate in [#426](https://github.com/compoodment/ClankerWorld/issues/42
   is no turnout minimum, but a winner needs at least one actual vote in the
   deciding round. Most votes wins; tied highest candidates face another vote,
   repeatedly if necessary, with fresh eligible voters and only the tied,
-  still-eligible candidates. Never use the council's draw. Failed attempts
-  retry after one unpaused day, or earlier following a material change.
+  still-eligible candidates. Never use the council's draw. Open a new mayoral
+  contest only when an eligible resident has agreed to stand for its exact
+  mandates. An existing contest can still fail if it loses every candidate.
+  Failed attempts retry after one unpaused day, or earlier following a
+  material change.
 - **Keep one active election process per Town, with scheduled full council
   elections taking priority.** Queue mayoral voting while that election runs.
   An interrupted mayoral round closes without a result and its unfinished

@@ -1,8 +1,8 @@
 namespace ClankerWorld.Simulation.World;
 
 /// <summary>
-/// Time of day, derived only from the saved world tick and the world's ticks
-/// per day; nothing about it is saved. Night is 40% of every day, the same
+/// Time of day, derived from the saved world tick and calendar configuration.
+/// Night is 40% of every day, the same
 /// all year (agreed in #641), centred on midnight of the 24-hour clock the
 /// game shows: it runs from 19:12 to 04:48. Dusk and dawn each fade over the
 /// clock hour centred on those times (18:42–19:42 and 04:18–05:18), so the
@@ -47,6 +47,7 @@ public static class DaylightRules
     public static int DarknessBasisPoints(WorldSystemsState state)
     {
         ArgumentNullException.ThrowIfNull(state);
-        return DarknessBasisPoints(state.WorldTick, state.Config.TicksPerDay);
+        var calendar = WorldCalendarRules.FromTick(state.WorldTick, state.Config);
+        return DarknessBasisPoints(calendar.TickOfDay, state.Config.TicksPerDay);
     }
 }

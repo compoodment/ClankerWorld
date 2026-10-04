@@ -344,6 +344,7 @@ public sealed class WorldTerrainMap
         "gold_outcrop" => "Gold outcrop",
         "diamond_outcrop" => "Diamond outcrop",
         "clay_bank" => "Clay bank",
+        "medicinal_herb_patch" => "Medicinal herb patch",
         "wild_seed_patch" => "Wild seed patch",
         "fertile_soil" => "Fertile soil",
         _ => null,

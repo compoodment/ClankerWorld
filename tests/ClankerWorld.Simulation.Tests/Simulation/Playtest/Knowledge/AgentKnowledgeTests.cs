@@ -13,7 +13,7 @@ public sealed class AgentKnowledgeTests
     [Theory]
     [InlineData(8, false)]
     [InlineData(7, true)]
-    public async Task ExplorationKeepsLearnedFactsWhenThereIsNoRoomForAFieldRecord(int cargo, bool recordFits)
+    public async Task ExplorationKeepsLearnedFactsWhenThereIsNoPaperForAFieldRecord(int cargo, bool recordFits)
     {
         using var seed = new PrivateWorldRuntime("personal-map-records");
         var initial = seed.ExportState();
@@ -23,13 +23,17 @@ public sealed class AgentKnowledgeTests
             Lots = initial.Society.Society.Inventory.Lots.Where(lot => lot.OwnerId != actor).ToArray(),
         };
         inventory = InventoryFixture.AddLot(inventory, "scout-cargo", "wood", actor, cargo);
+        if (recordFits)
+            inventory = InventoryFixture.AddLot(inventory, "writing-paper", "paper", actor, 1);
+        var provider = new CandidateProvider(actor, "explore");
         using var world = PrivateWorldRuntime.Restore(initial with
         {
             Inhabitants = initial.Inhabitants.Select(person => person with { HungerBasisPoints = 9_500 }).ToArray(),
             Society = initial.Society with { Society = initial.Society.Society with { Inventory = inventory } },
-        }, _ => new CandidateProvider(actor, "explore"));
+        }, _ => provider);
         for (var tick = 0; tick < 75; tick++)
             _ = await world.AdvanceOneTickAsync();
+        await WriteFieldRecord(world, provider, actor);
 
         var saved = world.ExportState();
         Assert.Contains(saved.Events, item => item.Kind == "exploration_completed");
@@ -37,9 +41,7 @@ public sealed class AgentKnowledgeTests
         Assert.Equal(recordFits, saved.Knowledge.Artifacts.Any(artifact => artifact.CreatorId == actor));
         Assert.Equal(cargo, saved.Society.Society.Inventory.GetLot("scout-cargo").Quantity);
         Assert.Equal(8, saved.Society.Society.Inventory.Lots.Where(lot => lot.OwnerId == actor).Sum(lot => lot.Quantity));
-        if (!recordFits)
-            Assert.Contains(saved.Events, item => item.Kind == "agent_knowledge_artifact_limited" &&
-                item.Detail.Contains("carrying_full", StringComparison.Ordinal));
+        Assert.DoesNotContain(saved.Society.Society.Inventory.Lots, lot => lot.ItemKind == "paper");
         using var restored = PrivateWorldRuntime.Restore(
             PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(saved)));
         Assert.Equal(saved.Knowledge.Facts.Select(FactKey), restored.ExportState().Knowledge!.Facts.Select(FactKey));
@@ -58,7 +60,7 @@ public sealed class AgentKnowledgeTests
         for (var generation = 0; generation < generations; generation++)
         {
             var partner = generation == 0 ? "founder-mira" : "founder-rowan";
-            var society = state.Society.Society;
+            var society = ChosenBirthNameTestFixture.NameParent(state.Society.Society, parent);
             var relationshipId = $"descendant-partnership-{generation}";
             society = SocietyFixture.ProposeRelationship(society, new(relationshipId, 1,
                 SocietyRelationshipType.Partnership, parent, partner, society.WorldTick)).Checkpoint;
@@ -69,7 +71,7 @@ public sealed class AgentKnowledgeTests
                 .Append(parent).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
             var birth = SocietyFixture.CommitBirth(society, new($"family:{parent}:{society.WorldTick}", 1,
                 parent, partner, caregiverHousehold, caregivers, [parent, partner],
-                "food:camp-alpha", 2, society.WorldTick, ChildName: "Explorer",
+                "food:camp-alpha", 2, society.WorldTick, ChildName: ChosenBirthNameTestFixture.ChildName(society, parent, $"Explorer{generation}"),
                 PrimaryCaregiverId: parent));
             parent = Assert.IsType<string>(birth.CreatedId);
             society = birth.Checkpoint;
@@ -96,6 +98,7 @@ public sealed class AgentKnowledgeTests
             };
         }
         Assert.True(parent.Length > 128);
+        state = WithWritingPaper(state, parent);
         var provider = new CandidateProvider(parent, "explore");
         using var world = PrivateWorldRuntime.Restore(
             PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)), _ => provider);
@@ -105,6 +108,7 @@ public sealed class AgentKnowledgeTests
             world.Validate();
             _ = PrivateWorldRuntimeCodec.Encode(world.ExportState());
         }
+        await WriteFieldRecord(world, provider, parent);
         var saved = world.ExportState();
         Assert.Contains(saved.Knowledge!.Facts, fact => fact.OwnerId == parent);
         Assert.All(saved.Knowledge.Facts.Where(fact => fact.OwnerId == parent),
@@ -138,12 +142,15 @@ public sealed class AgentKnowledgeTests
         using var seed = new PrivateWorldRuntime("inherited-natural-record");
         var initial = seed.ExportState();
         var creator = initial.Inhabitants[0].InhabitantId;
+        initial = WithWritingPaper(initial, creator);
+        var provider = new CandidateProvider(creator, "explore");
         using var scout = PrivateWorldRuntime.Restore(initial with
         {
             Inhabitants = initial.Inhabitants.Select(person => person with { HungerBasisPoints = 9_500 }).ToArray(),
-        }, _ => new CandidateProvider(creator, "explore"));
+        }, _ => provider);
         for (var tick = 0; tick < 75 && scout.ExportState().Knowledge!.Artifacts.Count == 0; tick++)
             _ = await scout.AdvanceOneTickAsync();
+        await WriteFieldRecord(scout, provider, creator);
         var state = scout.ExportState();
         var artifact = Assert.Single(state.Knowledge!.Artifacts);
         var physical = state.Inhabitants.Single(person => person.InhabitantId == creator);
@@ -207,6 +214,7 @@ public sealed class AgentKnowledgeTests
         using var seed = new PrivateWorldRuntime("personal-map-records");
         var initial = seed.ExportState();
         var explorerId = initial.Inhabitants[0].InhabitantId;
+        initial = WithWritingPaper(initial, explorerId);
         var provider = new CandidateProvider(explorerId, "explore");
         using var world = PrivateWorldRuntime.Restore(initial with
         {
@@ -215,6 +223,7 @@ public sealed class AgentKnowledgeTests
 
         for (var tick = 0; tick < 75; tick++)
             _ = await world.AdvanceOneTickAsync();
+        await WriteFieldRecord(world, provider, explorerId);
 
         var saved = world.ExportState();
         var facts = saved.Knowledge!.Facts.Where(fact => fact.OwnerId == explorerId).ToArray();
@@ -292,15 +301,18 @@ public sealed class AgentKnowledgeTests
         }
     }
 
-    [Fact]
-    public async Task TradingAPhysicalMapTransfersItsKnowledgeOnlyToTheBuyer()
+    [Theory]
+    [InlineData("field_map")]
+    [InlineData("book")]
+    public async Task TradingAPhysicalArtifactTransfersItsKnowledgeOnlyToTheBuyer(string kind)
     {
         using var seed = new PrivateWorldRuntime("traded-field-map");
         var state = seed.ExportState();
         var sellerId = state.Inhabitants[0].InhabitantId;
         var buyerId = state.Inhabitants[1].InhabitantId;
         var otherId = state.Inhabitants[2].InhabitantId;
-        state = WithArtifact(state, sellerId, state.Inhabitants[0].Position, "field_map");
+        state = WithArtifact(state, sellerId, state.Inhabitants[0].Position, kind);
+        var artifact = Assert.Single(state.Knowledge!.Artifacts);
         state = SettlementTradeTests.AtTradeMeeting(state, sellerId, buyerId);
         var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory,
             "trade-clothing-for-map", "clothing", buyerId, 2);
@@ -326,8 +338,9 @@ public sealed class AgentKnowledgeTests
         }
 
         var final = world.ExportState();
-        Assert.Contains(final.Society.Society.Inventory.Lots,
-            lot => lot.ItemKind == "field_map" && lot.OwnerId == buyerId);
+        var physical = Assert.Single(final.Society.Society.Inventory.Lots, lot => lot.ItemKind == kind);
+        Assert.Equal((artifact.LotId, buyerId, 1), (physical.Id, physical.OwnerId, physical.Quantity));
+        Assert.Equal(ArtifactKey(artifact), ArtifactKey(Assert.Single(final.Knowledge!.Artifacts)));
         Assert.Contains(final.Society.Society.Inventory.Lots,
             lot => lot.ItemKind == "clothing" && lot.OwnerId == sellerId);
         var learned = Assert.Single(final.Knowledge!.Facts, fact => fact.OwnerId == buyerId);
@@ -355,9 +368,25 @@ public sealed class AgentKnowledgeTests
                 "field_record", "Field record · 1 site", state.Society.Society.WorldTick, [fact]))
             .ToArray();
         var inventory = state.Society.Society.Inventory;
-        foreach (var artifact in artifacts)
+        for (var index = 0; index < artifacts.Length; index++)
+        {
+            var artifact = artifacts[index];
+            var projectId = $"bounded-writing-{index}";
+            var paperId = $"bounded-paper-{index}";
+            var reservationId = projectId + ":paper";
+            inventory = InventoryFixture.AddLot(inventory, paperId, "paper", creatorId, 1,
+                state.Society.Society.WorldTick);
+            inventory = InventoryFixture.Reserve(inventory, reservationId, creatorId, paperId, 1,
+                $"knowledge_writing:{projectId}:paper", long.MaxValue);
+            inventory = InventoryFixture.ConsumeReservation(inventory, reservationId);
             inventory = InventoryFixture.AddLot(inventory, artifact.LotId, artifact.Kind, creatorId, 1,
                 state.Society.Society.WorldTick);
+            artifacts[index] = artifact with
+            {
+                WritingProjectId = projectId,
+                Materials = [new(reservationId, paperId, "paper", 1)],
+            };
+        }
         var malformed = state with
         {
             Knowledge = new PrivateWorldKnowledgeState([fact], artifacts),
@@ -368,6 +397,42 @@ public sealed class AgentKnowledgeTests
         };
 
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(malformed));
+        using var atLimit = PrivateWorldRuntime.Restore(malformed with
+        {
+            Knowledge = malformed.Knowledge! with { Artifacts = artifacts.Take(8).ToArray() },
+            Society = malformed.Society with
+            {
+                Society = malformed.Society.Society with
+                {
+                    Inventory = inventory with { Lots = inventory.Lots.Where(lot => lot.Id != artifacts[8].LotId).ToArray() },
+                },
+            },
+        });
+        atLimit.Validate();
+    }
+
+    private static PrivateWorldRuntimeState WithWritingPaper(PrivateWorldRuntimeState state, string actor) =>
+        state with
+        {
+            Society = state.Society with
+            {
+                Society = state.Society.Society with
+                {
+                    Inventory = InventoryFixture.AddLot(state.Society.Society.Inventory,
+                        "writing-paper", "paper", actor, 1),
+                },
+            },
+        };
+
+    private static async Task WriteFieldRecord(PrivateWorldRuntime world, CandidateProvider provider, string actor)
+    {
+        provider.PreferredPrefix = "knowledge_write:field_record";
+        // A real owner message requests a fresh planning turn after this fixture's
+        // completed exploration phase; changing a test provider alone does not.
+        _ = world.SubmitInstruction(new OwnerInstructionRequest("write-discoveries", "owner:test", actor,
+            OwnerInstructionKind.Suggestive, "Write a field record of what you discovered."));
+        for (var tick = 0; tick < 64 && !world.ExportState().Knowledge!.Artifacts.Any(item => item.CreatorId == actor); tick++)
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
     }
 
     private static PrivateWorldRuntimeState WithArtifact(
@@ -383,10 +448,34 @@ public sealed class AgentKnowledgeTests
             position, terrain, ["private-secret-resource"], state.Society.Society.WorldTick, "firsthand");
         var artifactId = $"knowledge-artifact-{sequence:D6}";
         var lotId = $"knowledge-lot-{sequence:D6}";
+        var projectId = $"writing-fixture-{sequence:D6}";
+        var paperId = $"fixture-paper-{sequence:D6}";
+        var reservationId = projectId + ":paper";
+        var paperQuantity = kind == "book" ? 2 : 1;
+        var materials = new List<AgentKnowledgeMaterial> { new(reservationId, paperId, "paper", paperQuantity) };
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, paperId, "paper", creatorId, paperQuantity,
+            state.Society.Society.WorldTick);
+        inventory = InventoryFixture.Reserve(inventory, reservationId, creatorId, paperId, paperQuantity,
+            $"knowledge_writing:{projectId}:paper", long.MaxValue);
+        inventory = InventoryFixture.ConsumeReservation(inventory, reservationId);
+        if (kind == "book")
+        {
+            var clothId = $"fixture-cloth-{sequence:D6}";
+            var clothReservationId = projectId + ":cloth";
+            inventory = InventoryFixture.AddLot(inventory, clothId, "cloth", creatorId, 1, state.Society.Society.WorldTick);
+            inventory = InventoryFixture.Reserve(inventory, clothReservationId, creatorId, clothId, 1,
+                $"knowledge_writing:{projectId}:cloth", long.MaxValue);
+            inventory = InventoryFixture.ConsumeReservation(inventory, clothReservationId);
+            materials.Add(new(clothReservationId, clothId, "cloth", 1));
+        }
         var artifact = new AgentKnowledgeArtifact(artifactId, creatorId, lotId, kind,
-            kind == "field_map" ? "Field map · 1 site" : "Field record · 1 site",
-            state.Society.Society.WorldTick, [fact]);
-        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory,
+            kind == "book" ? "Book · 1 site" : kind == "field_map" ? "Field map · 1 site" : "Field record · 1 site",
+            state.Society.Society.WorldTick, [fact])
+        {
+            WritingProjectId = projectId,
+            Materials = materials,
+        };
+        inventory = InventoryFixture.AddLot(inventory,
             lotId, kind, creatorId, 1, state.Society.Society.WorldTick);
         return state with
         {
@@ -414,6 +503,7 @@ public sealed class AgentKnowledgeTests
 
     private sealed class CandidateProvider(string targetId, string prefix, bool onlyTarget = true) : IDecisionProvider
     {
+        public string PreferredPrefix { get; set; } = prefix;
         public ConcurrentDictionary<string, IReadOnlyList<CognitionKnowledgeFact>> KnownMapFactsByAgent { get; } = new(StringComparer.Ordinal);
 
         public DecisionProviderKind Kind => DecisionProviderKind.Deterministic;
@@ -426,7 +516,8 @@ public sealed class AgentKnowledgeTests
             KnownMapFactsByAgent[request.Observation.InhabitantId] = request.Observation.KnownMapFacts ?? [];
             var selected = onlyTarget && request.Observation.InhabitantId != targetId
                 ? null
-                : request.Observation.Candidates.FirstOrDefault(item => item.Id.StartsWith(prefix, StringComparison.Ordinal));
+                : request.Observation.Candidates.FirstOrDefault(item => item.Id.StartsWith(PreferredPrefix, StringComparison.Ordinal))
+                  ?? request.Observation.Candidates.FirstOrDefault(item => item.Id == "knowledge_continue");
             selected ??= request.Observation.Candidates.SingleOrDefault(item => item.Id == "safe_idle")
                 ?? request.Observation.Candidates[0];
             return new DeterministicDecisionProvider().DecideAsync(request with

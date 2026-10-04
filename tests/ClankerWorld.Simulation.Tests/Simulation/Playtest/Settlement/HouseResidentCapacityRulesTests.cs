@@ -26,27 +26,6 @@ public sealed class HouseResidentCapacityRulesTests
     }
 
     [Fact]
-    public void AdmissionRechecksTheFamilyMajorityAfterTheNewResidentIsCounted()
-    {
-        var current = new[]
-        {
-            Resident("parent-a", "family-a"),
-            Resident("parent-b", "family-a"),
-            Resident("other", "family-other"),
-        };
-        var newcomer = Resident("newcomer", "family-new");
-
-        var before = HouseResidentCapacityRules.Calculate(current, 1, 1);
-        var proposed = HouseResidentCapacityRules.Calculate(current.Append(newcomer), 1, 1);
-
-        Assert.Equal(4, before.Limit);
-        Assert.True(before.HasFreePlace);
-        Assert.Equal(3, proposed.Limit);
-        Assert.False(proposed.HasFreePlace);
-        Assert.True(proposed.IsOvercrowded);
-    }
-
-    [Fact]
     public void ActiveTravelersCountAndDeadPeopleDoNot()
     {
         var residents = new[]

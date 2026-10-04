@@ -21,15 +21,19 @@ public static class TownAdmissionDeadlineRules
         AcceptanceDeadline(proposal, ticksPerDay) is { } deadline && worldTick >= deadline;
 
     /// <summary>Readable deadline and remaining world time from the same captured clock, without saved state.</summary>
-    public static string DescribeWindow(long deadline, long worldTick, int ticksPerDay)
+    public static string DescribeWindow(long deadline, long worldTick, int ticksPerDay, int calendarOffsetTicks = 0)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(deadline);
         ArgumentOutOfRangeException.ThrowIfNegative(worldTick);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(ticksPerDay);
-        // Decimal keeps the one-based day safe even at the largest long-valued
-        // deadline. Divide duration before converting to minutes to avoid overflow.
-        var dayNumber = (decimal)(deadline / ticksPerDay) + 1;
-        var minuteOfDay = (int)((deadline % ticksPerDay) * DaylightRules.ClockMinutesPerDay / ticksPerDay);
+        ArgumentOutOfRangeException.ThrowIfNegative(calendarOffsetTicks);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(calendarOffsetTicks, ticksPerDay);
+        // Calendar days and clock time, as WorldCalendarRules counts them: the offset moves
+        // midnight, not elapsed time. Decimal keeps the one-based day safe even at the largest
+        // long-valued deadline. Divide duration before converting to minutes to avoid overflow.
+        var shiftedTickOfDay = deadline % ticksPerDay + calendarOffsetTicks;
+        var dayNumber = (decimal)(deadline / ticksPerDay) + shiftedTickOfDay / ticksPerDay + 1;
+        var minuteOfDay = (int)((shiftedTickOfDay % ticksPerDay) * DaylightRules.ClockMinutesPerDay / ticksPerDay);
         var remaining = deadline > worldTick ? deadline - worldTick : 0;
         var days = remaining / ticksPerDay;
         var minutes = (int)(((remaining % ticksPerDay) * DaylightRules.ClockMinutesPerDay + ticksPerDay - 1) / ticksPerDay);

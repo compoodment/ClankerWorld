@@ -29,6 +29,9 @@ logs/
 tmp/
 dist/
 
+# Evidence for work in progress; see "Disk space" in docs/development/build-and-test.md
+.evidence/
+
 # OS/editor noise
 .DS_Store
 .idea/

@@ -89,7 +89,7 @@ public sealed class SettlementSurvivalTests
             {
                 Society = society.Checkpoint with
                 {
-                    Inhabitants = society.Checkpoint.Inhabitants.Select(person => person with { Name = "sk-private-production-test" }).ToArray(),
+                    Inhabitants = society.Checkpoint.Inhabitants.Select(person => person with { Name = $"sk-private-production-test-{person.Id}" }).ToArray(),
                 },
             },
             Inhabitants = state.Inhabitants.Where(person => person.InhabitantId != worker.InhabitantId).ToArray(),
@@ -234,10 +234,31 @@ public sealed class SettlementSurvivalTests
     {
         var (state, actor, _, point) = await FarmFieldTests.ReadyFarmer("crop-dry-streak");
         state = SettlementWeatherTestFixture.WithWeather(state, WeatherKind.Clear);
-        using var drying = FarmFieldTests.Restore(state);
-        var ticksThroughTwoDays = drying.WorldSystems.Config.TicksPerDay * 2;
-        while (drying.WorldTick < ticksThroughTwoDays)
-            Assert.True((await drying.AdvanceOneTickAsync()).Advanced);
+        // Moisture is derived from three weather days, not accumulated by
+        // private-world ticks. Prepare the idle fixture just before the third
+        // clear day, then cross that boundary through the real runtime.
+        Assert.All(state.Inhabitants, person =>
+        {
+            Assert.Null(person.Project);
+            Assert.Null(person.Exploration);
+        });
+        Assert.Null(Assert.Single(state.Fields!).Work);
+        Assert.Empty(state.WorldSimulation!.ProductionJobs);
+        Assert.Empty(state.WorldSimulation.CropBuilds ?? []);
+        Assert.Empty(state.Survival!.Fires);
+        Assert.Empty(state.Conversations!);
+        var systems = state.WorldSystems!;
+        var calendar = WorldCalendarRules.FromTick(systems.WorldTick, systems.Config);
+        var lastTickBeforeDryDay = systems.WorldTick +
+            (2 - calendar.DayIndex) * systems.Config.TicksPerDay - calendar.TickOfDay - 1;
+        using var society = SocietyWorldRuntime.Restore(state.Society);
+        society.AdvanceTo(lastTickBeforeDryDay);
+        while (systems.WorldTick < lastTickBeforeDryDay)
+            systems = WorldSystemsRules.AdvanceOneTick(systems);
+        state = state with { Society = society.ExportState(), WorldSystems = systems };
+        using var drying = FarmFieldTests.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)));
+        Assert.InRange(WeatherRules.SoilMoistureAt(drying.WorldSystems, point, state.Map.Height), 15, 100);
+        Assert.True((await drying.AdvanceOneTickAsync()).Advanced);
         state = drying.ExportState();
         Assert.InRange(WeatherRules.SoilMoistureAt(state.WorldSystems!, point, state.Map.Height), 0, 14);
         var rawYield = 4 + new LandFertility(state.Map, state.WorldSeed).At(point) / 25;
@@ -289,13 +310,18 @@ public sealed class SettlementSurvivalTests
                     Position = heater.Position,
                     HungerBasisPoints = 9_000,
                     Survival = person.Survival! with { WarmthBasisPoints = 0 },
-                    // Only the heater is under test: no unfinished outing or
-                    // project may walk the agent away from it.
+                    // Only the heater is under test: no unfinished outing,
+                    // project or lesson may walk the agent away from it.
                     Project = null,
                     Exploration = null,
+                    Lesson = null,
                     LastDecisionContext = null,
                 }
-                : person.Position == heater.Position ? person with { Position = recoveringPosition } : person).ToArray(),
+                : (person.Position == heater.Position ? person with { Position = recoveringPosition } : person) with
+                {
+                    // Nor may a lesson they are teaching call them to the camp.
+                    Lesson = person.Lesson?.TeacherId == recoveringId ? null : person.Lesson,
+                }).ToArray(),
             Society = state.Society with
             {
                 Society = state.Society.Society with
