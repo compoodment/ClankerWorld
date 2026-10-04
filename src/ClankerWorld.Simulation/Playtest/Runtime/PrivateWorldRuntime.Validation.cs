@@ -833,7 +833,7 @@ public sealed partial class PrivateWorldRuntime
     private static bool IsValidShelterOrderShape(OwnerInstructionOrder order, OwnerQueuedInstruction instruction, long worldTick)
     {
         var seeking = order.Action == "seek_shelter";
-        if (order.TargetBuildingKind is not (null or "house") || order.TargetFoodKind is not null ||
+        if (order.TargetAgentId is not null || order.TargetBuildingKind is not (null or "house") || order.TargetFoodKind is not null ||
             order.TargetResourceId is not null || order.RequestedUnits != 1 || order.CompletedUnits is < 0 or > 1 ||
             order.RepeatUntilCancelled || order.QuantityIsExplicit || order.ProgressUnit != (seeking ? "shelters" : "fires") ||
             order.Status == "not_understood" || (order.Status == "finished") != (order.CompletedUnits == 1) ||
