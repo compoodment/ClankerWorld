@@ -1127,10 +1127,12 @@ action authority.
 - **Approval starts a handover lasting at most three unpaused world days.**
   This is an initial trial duration. The existing government continues until
   a valid replacement is ready; the new form takes effect at that recorded
-  handover, rather than immediately when the approval vote passes. Elective
-  offices need willing, eligible officeholders selected through the agreed
-  voting rules. If a mayoral vote ties, another vote between the tied highest
-  candidates is required; do not use the council's random tie-break. If no
+  handover, rather than immediately when the approval vote passes. Newly added
+  elective mandates need willing, eligible officeholders selected through the
+  agreed voting rules. Retained mandates keep their ordinary vacancy rules;
+  an explicit replacement vote still needs a valid successor. If a mayoral
+  vote ties, another vote between the tied highest candidates is required;
+  do not use the council's random tie-break. If no
   valid replacement is ready by the handover deadline, cancel the attempted
   transition. An all-adult council consists automatically of eligible adults
   and does not require each resident to consent to taking a seat.
@@ -1191,8 +1193,11 @@ remains separate in [#426](https://github.com/compoodment/ClankerWorld/issues/42
   is no turnout minimum, but a winner needs at least one actual vote in the
   deciding round. Most votes wins; tied highest candidates face another vote,
   repeatedly if necessary, with fresh eligible voters and only the tied,
-  still-eligible candidates. Never use the council's draw. Failed attempts
-  retry after one unpaused day, or earlier following a material change.
+  still-eligible candidates. Never use the council's draw. Open a new mayoral
+  contest only when an eligible resident has agreed to stand for its exact
+  mandates. An existing contest can still fail if it loses every candidate.
+  Failed attempts retry after one unpaused day, or earlier following a
+  material change.
 - **Keep one active election process per Town, with scheduled full council
   elections taking priority.** Queue mayoral voting while that election runs.
   An interrupted mayoral round closes without a result and its unfinished

@@ -460,8 +460,10 @@ Any adult resident can initiate a protected government-change vote at the
 Town's notice place. It needs
 more than half the remaining opening electorate to approve within one day;
 cast votes are final. Equivalent proposals share the window and different
-proposals queue. Approval gives at most three days to seat a valid successor,
-while lawful incumbents continue. Supported arrangements include all adults,
+proposals queue. Approval gives at most three days to seat a valid successor
+for newly added offices or an explicit replacement, while lawful incumbents
+continue. An unrelated office may remain vacant during the change.
+Supported arrangements include all adults,
 elected representatives and one elected governing leader. Ordinary laws cannot
 remove the protected resident vote or invent new powers.
 
@@ -471,7 +473,9 @@ candidacy needs separate personal agreement. Each resident chooses one willing
 candidate; tied leaders face further votes, never a draw. Scheduled Council
 elections interrupt mayoral voting and discard its unfinished ballots. Death,
 resignation, departure and expiry create vacancies. Land and ordinary governing
-mandates stay separate, even when one person holds both. A governing vacancy
+mandates stay separate, even when one person holds both. A new mayoral election
+waits for a willing eligible candidate, without posting failed elections each
+day while nobody agrees to stand. A governing vacancy
 restores all-adult decisions until lawful succession; land cases wait.
 
 The Towns page shows the approved arrangement, offices, recent government
