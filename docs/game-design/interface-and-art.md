@@ -432,6 +432,10 @@ everything that is available in the current build. See [what works today](../wha
   keeps the same person,
   relationships and memories; old conversation text remains as originally
   spoken rather than being rewritten to use the new name.
+  **Agreed with computment on October 3:** a surname change for a married agent
+  updates both spouses together, keeping the other spouse's first and middle
+  names. The name check happens before either change; refusal leaves both
+  names unchanged. The original marriage surname conversation stays as it was.
 
 **Existing agreed handling, from September 30:** an order the game cannot act
 on is accepted and closed at once as not understood, without a model request.
