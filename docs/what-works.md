@@ -549,6 +549,8 @@ continue. An unrelated office may remain vacant during the change.
 Supported arrangements include all adults,
 elected representatives and one elected governing leader. Ordinary laws cannot
 remove the protected resident vote or invent new powers.
+An unrelated government handover does not delay or cancel the Council's own
+election when an adult leaves during voting, or stop its retry after failure.
 
 Residents can create an elected land mayor without a population gate. Each
 mandate lasts twenty days, with renewal voting one day before expiry. Mayor

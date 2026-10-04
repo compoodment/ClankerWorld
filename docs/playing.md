@@ -336,6 +336,8 @@ The one-day resident vote needs a majority of its opening adult electorate;
 death or departure removes a voter, while travel does not. Approval begins a
 handover of at most three days. The Towns page distinguishes an approved proposal
 from a completed handover and explains a failed transition.
+An election the current Council opened on its own continues independently,
+even if someone leaves the Town while the proposed change waits for a successor.
 
 An elected mayor may hold the land mandate, ordinary governing authority, or
 both separately. Candidates personally agree to those specific mandates.

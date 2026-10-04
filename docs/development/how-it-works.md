@@ -1251,6 +1251,10 @@ targeted mandate. A retained vacancy follows its existing succession rules.
 Explicit all-adult government disables automatic representation, and explicit
 elected government seeks three representatives above three adults. The initial
 arrangement retains the eight-adult threshold.
+Each transition records the exact Council election it caused to open, including
+an attempt that fails immediately. Only that election waits for the transition
+or is cancelled when it lapses. An ordinary election keeps its own result and
+retry policy when population changes during an unrelated handover.
 
 Mayoral contests bind consent to exact mandates and ballots to a contest/round
 opening token. A new contest starts only with an eligible willing candidate,
