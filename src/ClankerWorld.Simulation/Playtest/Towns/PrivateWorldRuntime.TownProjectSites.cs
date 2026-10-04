@@ -1,4 +1,5 @@
 using System.Globalization;
+using ClankerWorld.Simulation.Content;
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Harness;
 
@@ -36,6 +37,7 @@ public sealed partial class PrivateWorldRuntime
         string? projectId = null, string? actor = null, bool ignorePendingRequests = false)
     {
         var definition = TownProjectRules.DefinitionFor(plan.DefinitionId);
+        var lantern = StreetLanternContent.IsLantern(plan.DefinitionId);
         if (definition is null || !worldContent.Buildings.Any(d => d.CanonicalId == plan.DefinitionId))
             return "The Town building content is no longer available.";
         var footprint = TownProjectRules.Footprint(plan).ToArray();
@@ -49,6 +51,9 @@ public sealed partial class PrivateWorldRuntime
         if (definition.Tags.Contains(MarketContent.HallTag, StringComparer.Ordinal) && town.Markets
                 .Where(market => market.RemovedTick is null).Any(market => MarketContent.SiteTiles(market.Site).Intersect(footprint).Any()))
             return "The new Market site overlaps an existing Market.";
+        if (lantern && (!StreetLanternContent.IsRoadEdge(plan.Site, plan.Entrance) ||
+            !roadTiles.Contains(plan.Entrance) || !legal.Contains(plan.Entrance)))
+            return "The lantern must stand beside an actual Road on uncontested Town-titled land.";
         if (!CanPlaceBuilding(definition, plan.Site, out var failure, projectId)) return failure;
         var occupied = map.Resources.Select(resource => resource.Position).Concat(map.CampObjects.Select(item => item.Position))
             .Concat(fields.Select(field => field.Position))
@@ -90,7 +95,7 @@ public sealed partial class PrivateWorldRuntime
 
     private void AddTownProjectProposalCandidates(List<CognitionCandidate> candidates, string actor, TownRuntimeState town)
     {
-        foreach (var definition in TownProjectRules.Definitions.Where(item => !item.Tags.Contains(MarketContent.StallTag, StringComparer.Ordinal)))
+        foreach (var definition in TownProjectRules.Definitions.Where(item => !item.Tags.Contains(MarketContent.StallTag, StringComparer.Ordinal) && !StreetLanternContent.IsLantern(item.CanonicalId)))
         {
             if (!worldContent.Buildings.Any(item => item.CanonicalId == definition.CanonicalId)) continue;
             var layout = CreateTownLayoutContext(actor, building: definition, forTownProject: true);
@@ -104,6 +109,8 @@ public sealed partial class PrivateWorldRuntime
                 if (++offered == TownLayoutService.DefaultCandidateLimit) break;
             }
         }
+        AddStreetLanternProposalCandidates(candidates, actor, town, StreetLanternContent.Stone());
+        AddStreetLanternProposalCandidates(candidates, actor, town, StreetLanternContent.Hanging());
         var stallDefinition = MarketContent.Stall1x1();
         if (!worldContent.Buildings.Any(item => item.CanonicalId == stallDefinition.CanonicalId)) return;
         foreach (var market in town.Markets.Where(item => item.RemovedTick is null && MarketNeedsMoreStalls(town, item)))
@@ -142,6 +149,32 @@ public sealed partial class PrivateWorldRuntime
             $"Propose a named {definition.DisplayName} at ({coordinates}) in {town.Name}, with a provisional budget of {budget}; put its name in civic_proposal. Council approval creates no goods or private-stock access.", 191));
     }
 
+    private void AddStreetLanternProposalCandidates(List<CognitionCandidate> candidates, string actor,
+        TownRuntimeState town, BuildingDefinition definition)
+    {
+        if (!worldContent.Buildings.Any(item => item.CanonicalId == definition.CanonicalId)) return;
+        var ordinary = CreateTownLayoutContext(actor, building: definition);
+        var legal = TownProjectLandTiles(town);
+        var layout = new TownLayoutContext(map, town, ordinary.OccupiedTiles, ordinary.ReachableFootCosts,
+            ordinary.Resources, ordinary.Buildings, roadTiles: roadTiles, requiredLandTiles: legal);
+        var edges = new List<(TownConstructionSiteCandidate Site, GridPoint Road)>();
+        foreach (var road in roadTiles.Where(legal.Contains).OrderBy(point => point.Y).ThenBy(point => point.X))
+            foreach (var post in map.FootNeighbors(road).Where(point => StreetLanternContent.IsRoadEdge(point, road)))
+                if (TownLayoutService.TryEvaluateConstructionSite(layout, definition, post, out var site) && site is not null &&
+                    TownProjectSiteFailure(town, new(definition.DisplayName, definition.CanonicalId, post, road, definition.BuildCosts)) is null)
+                    edges.Add((site, road));
+        foreach (var edge in edges.OrderByDescending(edge => edge.Site.Score)
+                     .ThenBy(edge => edge.Site.TownBorderGrowthTiles).ThenBy(edge => edge.Site.RouteCost)
+                     .ThenBy(edge => edge.Site.Position.Y).ThenBy(edge => edge.Site.Position.X)
+                     .ThenBy(edge => edge.Road.Y).ThenBy(edge => edge.Road.X).Take(4))
+        {
+            var coordinates = FormattableString.Invariant($"{edge.Site.Position.X},{edge.Site.Position.Y},{edge.Road.X},{edge.Road.Y}");
+            var budget = definition.CanonicalId == StreetLanternContent.Stone().CanonicalId ? "4 stone" : "4 wood and 1 refined iron";
+            candidates.Add(new(CivicAction(town.Id, "project", definition.LocalId, coordinates),
+                FormattableString.Invariant($"Propose a named {definition.DisplayName} at ({edge.Site.Position.X},{edge.Site.Position.Y}) beside Road ({edge.Road.X},{edge.Road.Y}) in {town.Name}, with a provisional budget of {budget}; put its name in civic_proposal. Council approval creates no goods or private-stock access."), 190));
+        }
+    }
+
     private static TownProjectPayload? PlanFor(TownRuntimeState town, ClankerWorld.Simulation.Content.BuildingDefinition definition,
         GridPoint site, string name)
     {
@@ -159,11 +192,20 @@ public sealed partial class PrivateWorldRuntime
     {
         var point = coordinates.Split(',');
         var supported = TownProjectRules.Definitions.SingleOrDefault(item => item.LocalId == definition);
-        if (supported is null || point.Length != 2 ||
+        var lantern = supported is not null && StreetLanternContent.IsLantern(supported.CanonicalId);
+        if (supported is null || point.Length != (lantern ? 4 : 2) ||
             !int.TryParse(point[0], NumberStyles.None, CultureInfo.InvariantCulture, out var x) ||
             !int.TryParse(point[1], NumberStyles.None, CultureInfo.InvariantCulture, out var y)) return null;
         var label = string.IsNullOrWhiteSpace(name) ? supported.DisplayName : name.Trim();
-        var plan = PlanFor(town, supported, new(x, y), label);
+        GridPoint? road = null;
+        if (lantern)
+        {
+            if (!int.TryParse(point[2], NumberStyles.None, CultureInfo.InvariantCulture, out var roadX) ||
+                !int.TryParse(point[3], NumberStyles.None, CultureInfo.InvariantCulture, out var roadY)) return null;
+            road = new(roadX, roadY);
+        }
+        var plan = road is { } edge ? new TownProjectPayload(label, supported.CanonicalId, new(x, y), edge, supported.BuildCosts)
+            : PlanFor(town, supported, new(x, y), label);
         if (plan is null) return null;
         try { TownProjectRules.ValidatePayload(plan); }
         catch (InvalidDataException) { return null; }

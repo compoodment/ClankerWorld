@@ -165,6 +165,7 @@ public partial class Main
         public TaskCompletionSource? ReleaseDeveloperEdit { get; set; }
         public OwnerControlReceipt? DeveloperEditReceipt { get; set; }
         public bool FailDeveloperEdit { get; set; }
+        public Func<OwnerWorldCreationAction, Task<OwnerWorldPreview>>? PreviewHandler { get; set; }
         public int PauseCount => Volatile.Read(ref pauseCount);
         public int DeleteCount => Volatile.Read(ref deleteCount);
         public int SaveCreateCount => Volatile.Read(ref saveCreateCount);
@@ -226,7 +227,11 @@ public partial class Main
             {
                 case OwnerPairingEndpoints.ChallengeIssue:
                     response = new OwnerChallenge(Authority, "smoke-device", Guid.NewGuid().ToString("N"),
-                        "smoke-nonce", DateTimeOffset.UtcNow.AddMinutes(1), SupportedActionPayloads);
+                        "smoke-nonce", DateTimeOffset.UtcNow.AddMinutes(1),
+                        SupportedActionPayloads ?? (PreviewHandler is null ? null : [OwnerWorldActionPayload.WorldCreationPayloadDomain]));
+                    break;
+                case OwnerPairingEndpoints.OwnerWorldPreview when PreviewHandler is not null:
+                    response = await PreviewHandler(envelope.GetProperty("action").Deserialize<OwnerWorldCreationAction>(JsonOptions)!).ConfigureAwait(false);
                     break;
                 case OwnerPairingEndpoints.OwnerWorldList:
                     response = Catalog;

@@ -566,7 +566,8 @@ public partial class Main
             if (proposal.Project is { } plan && proposal.Status == "pending")
             {
                 lines.Add($"{plan.ProposerName} proposes {plan.Name} · {plan.DisplayName} · {plan.Width} × {plan.Height} tiles at ({plan.Site.X}, {plan.Site.Y})");
-                lines.Add($"Entrance: ({plan.Entrance.X}, {plan.Entrance.Y}) · Provisional budget: " +
+                var neighbour = StreetLanternLight.IsLantern(plan.Tags) ? "Road beside the post" : "Entrance";
+                lines.Add($"{neighbour}: ({plan.Entrance.X}, {plan.Entrance.Y}) · Provisional budget: " +
                     string.Join(" · ", plan.Budget.Select(q => $"{q.Quantity} {GameUiText.ItemName(q.Kind)}")));
             }
         }
@@ -590,7 +591,8 @@ public partial class Main
         {
             lines.Add($"{project.Name} · {project.DisplayName} · {Pretty(project.Stage)}");
             lines.Add($"Proposed by {project.ProposerName} · {project.Width} × {project.Height} tiles at ({project.Site.X}, {project.Site.Y})");
-            lines.Add($"Entrance: ({project.Entrance.X}, {project.Entrance.Y})");
+            var neighbour = StreetLanternLight.IsLantern(project.Tags) ? "Road beside the post" : "Entrance";
+            lines.Add($"{neighbour}: ({project.Entrance.X}, {project.Entrance.Y})");
             lines.Add("Provisional budget · supplied: " + string.Join(" · ", project.Materials.Select(q =>
                 $"{q.Supplied} / {q.Budget} {GameUiText.ItemName(q.Kind)}")));
             lines.Add($"Provisional work: {project.WorkDone} / {project.WorkRequired} units");

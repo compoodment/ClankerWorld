@@ -58,4 +58,25 @@ public partial class BuildingHeader : HBoxContainer
         roofKey = key;
         Roof.Texture = ImageTexture.CreateFromImage(BuildingSprites.Render(kind, size.X, size.Y, 32, door));
     }
+
+    /// <summary>The approved unlit fitting, using the same orientation as the map.</summary>
+    public void SetLantern(StreetLanternLight lantern)
+    {
+        var key = $"lantern|{lantern.Style}|{lantern.Edge}";
+        if (roofKey == key) return;
+        roofKey = key;
+        var cells = NightLightShapes.StreetLantern(lantern.Style, lantern.Post, lantern.Inward, 0, 0, 0);
+        var bounds = cells.Select(cell => cell.Area).Aggregate((first, next) => first.Merge(next));
+        var size = (int)MathF.Ceiling(Math.Max(bounds.Size.X, bounds.Size.Y)) + 4;
+        var offset = (Vector2.One * size - bounds.Size) / 2 - bounds.Position;
+        using var image = Image.CreateEmpty(size, size, false, Image.Format.Rgba8);
+        foreach (var cell in cells)
+        {
+            var area = cell.Area with { Position = cell.Area.Position + offset };
+            var start = (Vector2I)area.Position.Floor();
+            var end = (Vector2I)area.End.Ceil();
+            PixelArt.Fill(image, new Rect2I(start, end - start), cell.Color);
+        }
+        Roof.Texture = ImageTexture.CreateFromImage(image);
+    }
 }

@@ -28,6 +28,7 @@ public static class TownProjectValidation
             {
                 if (project is null || !projects.Add(project.Id)) throw Invalid("Town project identities must be unique.");
                 TownProjectRules.ValidatePayload(project.Plan);
+                var lantern = StreetLanternContent.IsLantern(project.Plan.DefinitionId);
                 var requiredWork = TownProjectRules.RequiredWork(project.Plan);
                 var proposal = town.Governance?.Proposals.SingleOrDefault(item => item.Id == project.ProposalId);
                 if (proposal is not { Kind: "project", Status: "passed", Project: not null } ||
@@ -45,6 +46,9 @@ public static class TownProjectValidation
                     TownProjectRules.Footprint(project.Plan).Any(point => !map.Contains(point) || !map.IsBuildable(point)) ||
                     !map.IsBuildable(project.Plan.Entrance))
                     throw Invalid("A Town project's approved footprint or doorway is invalid.");
+                if (lantern && project.RemovedTick is null && project.Stage is ("supplying" or "working" or "completed") &&
+                    !roads.Contains(project.Plan.Entrance))
+                    throw Invalid("A live street lantern must retain its approved adjacent Road.");
                 if (project.Stage is "supplying" or "working")
                     ValidateLiveSite(towns, town, project, map, simulation, content, titles, rights, requests, fields, roads, bridges);
                 var liveQuantities = new Dictionary<string, long>(StringComparer.Ordinal);
@@ -122,7 +126,8 @@ public static class TownProjectValidation
                     if (project.RemovedTick is { } removed && (removed < project.LastTransitionTick || removed > society.WorldTick || building is not null) ||
                         project.RemovedTick is null && (building is null || building.DefinitionId != project.Plan.DefinitionId ||
                             building.Position != project.Plan.Site || building.Entrance != project.Plan.Entrance ||
-                            building.TownId != town.Id || building.HouseholdId is not null || building.PlacedTick != project.LastTransitionTick))
+                            building.TownId != town.Id || building.HouseholdId is not null || building.PlacedTick != project.LastTransitionTick ||
+                            lantern && building.Footprint is not null))
                         throw Invalid("A completed Town building disagrees with its paid approval or retained removal.");
                 }
             }
@@ -174,7 +179,9 @@ public static class TownProjectValidation
             .ToHashSet();
         if (footprint.Any(point => !title.Contains(point) || claimed.Contains(point) || occupied.Contains(point)) ||
             buildingTiles.Any(roads.Contains) || bridges.SelectMany(bridge => bridge.Entrances).Any(footprint.Contains) ||
-            occupied.Contains(project.Plan.Entrance))
+            occupied.Contains(project.Plan.Entrance) ||
+            StreetLanternContent.IsLantern(project.Plan.DefinitionId) &&
+                (!title.Contains(project.Plan.Entrance) || claimed.Contains(project.Plan.Entrance) || !roads.Contains(project.Plan.Entrance)))
             throw Invalid("An active Town construction site must remain clear and uncontested Town-titled land.");
     }
 
