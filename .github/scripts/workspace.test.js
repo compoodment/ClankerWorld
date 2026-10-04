@@ -163,6 +163,30 @@ function worktree(main, env, name, { push = true, deleteRemote = true } = {}) {
   return folder;
 }
 
+test('cleanup keeps the script checkout and includes locked cache removals in its totals', t => {
+  const { root, env } = sandbox(t);
+  const { main } = cleanupRepo(root, env);
+  const sibling = path.join(root, 'script-owner');
+  git(main, env, 'worktree', 'add', '-q', '-b', 'script-owner', sibling, 'main');
+  age(sibling, env);
+  const script = path.join(sibling, 'scripts', 'clean-workspace.sh');
+  const kept = path.join(env.CLANKERWORLD_TOOL_CACHE, 'downloads', pinned);
+  const obsolete = path.join(env.CLANKERWORLD_TOOL_CACHE, 'downloads', 'e'.repeat(64));
+  for (const folder of [kept, obsolete]) {
+    fs.mkdirSync(folder, { recursive: true });
+    fs.writeFileSync(path.join(folder, 'tool.zip'), 'tool');
+    ageFiles(folder, 40);
+  }
+  const listing = ok('bash', [script, '--offline'], { cwd: main, env });
+  assert.match(listing, /Would remove 1 item\(s\)/);
+  assert.match(listing, /Run again with --apply/);
+  const applied = ok('bash', [script, '--offline', '--apply'], { cwd: main, env });
+  assert.ok(fs.existsSync(script));
+  assert.ok(fs.existsSync(kept));
+  assert.ok(!fs.existsSync(obsolete));
+  assert.match(applied, /Removed 1 item\(s\)/);
+});
+
 test('cleanup lists first, then removes only finished, idle and rebuildable files', t => {
   const { root, env } = sandbox(t);
   const { main, script } = cleanupRepo(root, env);

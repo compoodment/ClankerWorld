@@ -61,6 +61,7 @@ script_repo="$(git -C "${script_dir}" rev-parse --show-toplevel)"
 common_dir="$(cd "$(git rev-parse --git-common-dir)" && pwd -P)"
 script_common="$(cd "${script_repo}" && cd "$(git rev-parse --git-common-dir)" && pwd -P)"
 current_gitdir="$(git rev-parse --absolute-git-dir)"
+script_gitdir="$(git -C "${script_repo}" rev-parse --absolute-git-dir)"
 if [[ "${common_dir}" != "${script_common}" ]]; then
     printf 'Run this cleanup inside its own repository; this working directory belongs to another repository.\n' >&2
     exit 1
@@ -177,6 +178,10 @@ handle_worktree() {
         note "${path}: kept, you are running from it"
         return 0
     fi
+    if [[ "${gitdir}" == "${script_gitdir}" ]]; then
+        note "${path}: kept, contains this cleanup script"
+        return 0
+    fi
     if [[ "${locked}" == true ]]; then
         note "${path}: kept, locked"
         return 0
@@ -274,13 +279,26 @@ prune_cache_entry() {
         done
     fi
 }
+prune_cache_counted() {
+    # The cache lock runs its callback in a subshell. Return counts separately
+    # from the human-readable listing so they reach the final summary.
+    listed=0
+    listed_kib=0
+    prune_cache_entry "$@"
+    printf '%s %s\n' "${listed}" "${listed_kib}" >&3
+}
+cache_counts="$(mktemp "${temp_root}/clankerworld-clean-counts.XXXXXX")"
+trap 'rm -f -- "${cache_counts}"' EXIT
 for kind in downloads unpacked; do
     [[ -d "${tool_cache_root}/${kind}" ]] || continue
     for entry in "${tool_cache_root}/${kind}"/*; do
         [[ -e "${entry}" ]] || continue
         name="${entry##*/}"
         [[ "${name}" =~ ^[0-9a-f]{64}(\.partial\.[A-Za-z0-9]+)?$ ]] || continue
-        tool_cache_locked "${name%%.partial.*}" prune_cache_entry "${entry}" "${name}"
+        tool_cache_locked "${name%%.partial.*}" prune_cache_counted "${entry}" "${name}" 3>"${cache_counts}"
+        read -r cache_count cache_kib < "${cache_counts}"
+        listed=$((listed + cache_count))
+        listed_kib=$((listed_kib + cache_kib))
     done
 done
 
