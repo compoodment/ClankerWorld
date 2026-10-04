@@ -1706,11 +1706,30 @@ hearth or leave warmth-seeking available. Fuel is consumed only at the hearth.
 Clothing comes from a household's Tailor Shop (`clankerworld-tailor-v1`), which
 replaced the Weaving frame and its "Woven clothing" recipe outright. The shop
 weaves 3 fiber into 1 cloth in 20 ticks and sews 2 cloth into 1 clothing in 24
-ticks, and costs 8 wood and 2 fiber to build; all of these are provisional
+ticks. Its 1×1 size costs 8 wood and 2 fiber to build; all of these are provisional
 values. First-Town setup stores each starting agent's garment in their
 household's House. A package is staged for older worlds on the first tick, but
 the settlement package's digest changed when the Weaving frame was removed, so
 saves made before this change are refused.
+
+The five alternative household building sizes have separate shipped packages;
+their original definitions and first-Town defaults keep their identities.
+Each alternative includes companion recipes bound to its own exact building
+definition. Their package identities cover the complete building, recipes and
+dependency ranges, including the Smith's Ornament recipes and the Tailor's
+Care recipe. First-Town setup activates them after their dependencies. Normal
+runtime staging requires every declared dependency to be active at a compatible
+version and never restages a package already recorded, including a rolled-back
+or quarantined one.
+
+The ordinary household planner, paid construction, full-footprint site checks,
+workstation reservations and physical supply paths serve both sizes. Exact
+recipe-to-building equality stays authoritative. Personal handcart planning
+chooses the recipe bound to the household's actual Blacksmith, including when
+checking work already running or materials the adult keeps for that cart.
+Storage still follows `BuildingStorageRules`; production capacity remains one.
+The current sizes and provisional costs are listed in
+[What works today](../what-works.md#household-building-sizes).
 
 Workstation recipes use only stock already at the building. A household
 building without its own dedicated hauling (every kind except the House,
