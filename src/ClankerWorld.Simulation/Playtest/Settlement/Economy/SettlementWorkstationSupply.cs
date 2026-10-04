@@ -280,7 +280,7 @@ public sealed partial class PrivateWorldRuntime
                 ? container ? ContainerFamilyQuantity(inventory, carrier.Id) <=
                     WorkstationDeliveryRoom(inventory, need.Building.InstanceId) ? 1 : 0
                     : Math.Min(maximumQuantity, Math.Min(WorkstationDeliveryRoom(inventory, need.Building.InstanceId),
-                        Math.Min(need.Missing, AvailableLotQuantity(carrier))))
+                        Math.Min(need.Missing, SpareCarriedQuantity(actor, carrier))))
                 : WorkstationPickupQuantity(actor, inventory, carrier, need.Building.InstanceId,
                     Math.Min(need.Missing, maximumQuantity));
             if (quantity <= 0) continue;

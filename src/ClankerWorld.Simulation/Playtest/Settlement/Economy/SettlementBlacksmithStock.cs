@@ -399,7 +399,8 @@ public sealed partial class PrivateWorldRuntime
             .Sum(AvailableLotQuantity);
         var missing = BlacksmithInputTarget(blacksmith.InstanceId, input.ItemKind) - stocked - incoming;
         var quantity = Math.Min(maximumQuantity, Math.Min(missing,
-            Math.Min(StorageRoomAfterInboundDeliveries(blacksmith.InstanceId), AvailableLotQuantity(input))));
+            Math.Min(StorageRoomAfterInboundDeliveries(blacksmith.InstanceId),
+                direct ? SpareCarriedQuantity(actor, input) : AvailableLotQuantity(input))));
         // Personal mined ore has a dedicated native delivery without the loose-input load limit.
         if (!direct || input.ItemKind != "iron_ore") quantity = Math.Min(quantity, HouseHaulLoadQuantity);
         if (!direct) quantity = Math.Min(quantity, FreeCarryCapacity(actor));

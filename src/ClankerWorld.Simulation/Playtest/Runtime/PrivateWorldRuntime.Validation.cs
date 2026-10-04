@@ -627,7 +627,7 @@ public sealed partial class PrivateWorldRuntime
         if (order.Action == "deliver_stock")
             return PrivateWorldDeliveryOrderCatalog.IsValidTarget(order.DeliveryPurpose, order.TargetItemKind,
                     order.TargetBuildingKind, PrivateWorldDeliveryOrderCatalog.AvailableInputs(worldContent)) &&
-                order.TargetFoodKind is null && order.TargetResourceId is null &&
+                order.TargetAgentId is null && order.TargetFoodKind is null && order.TargetResourceId is null &&
                 order.RequestedUnits is >= 1 and <= 1000 && order.CompletedUnits is >= 0 and <= 1_000_000 &&
                 (order.RepeatUntilCancelled || order.CompletedUnits <= order.RequestedUnits) &&
                 order.Status != "not_understood" &&
