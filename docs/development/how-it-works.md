@@ -257,7 +257,10 @@ recipe ownership. Cancelling or replacing an order releases its unfinished
 job's inputs without adopting or cancelling another project. Survival pauses
 the bound job before it can finish and resumes its remaining duration after
 the actor returns. Recipe, project, job and order references are validated
-together on restore.
+together on restore. Content removal checks retained production orders,
+including cancelled history, against the remaining definitions before changing
+the registry. Retired generic cooking recipes are excluded; named-meal orders
+remain separate catalogue work.
 
 A MustDo with no recognized action is closed when it is submitted: it is added
 to the completed instructions with an `instruction_not_understood` event

@@ -59,10 +59,7 @@ internal static class PrivateWorldProductionOrderCatalog
         }
         return (package, recipe) switch
         {
-            (StarterContent.PackageId, "meal") => (["food", "meal", "meals", "camp meal", "camp meals"], ["cook"]),
             (StarterContent.PackageId, "tools") => (["workshop tool", "workshop tools"], ["make", "craft"]),
-            (SettlementContent.PackageId, "hearty-meal") => (["food", "meal", "meals", "hearty meal", "hearty meals"], ["cook"]),
-            (HouseCookingContent.PackageId, "house-meal") => (["food", "meal", "meals", "household meal", "household meals"], ["cook"]),
             (HouseContent.PackageId, "twist-rope") => (["rope", "ropes"], ["make", "craft", "twist"]),
             (HouseContent.PackageId, "weave-basket") => (["basket", "baskets"], ["make", "craft", "weave"]),
             (FarmContent.PackageId, "mill-grain") => (["flour"], ["make", "mill"]),

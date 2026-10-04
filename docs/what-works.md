@@ -309,10 +309,8 @@ production time. Goods keep the recipe's usual ownership and location.
 The default is one batch. Explicit item quantities must be an exact number
 of whole batches; the game refuses a count that would require making extra
 items. Only completed production advances the displayed item or batch count.
-Cooking distinguishes "household meals" and "camp meals" (four food items
-per batch) from "hearty meals" (five). Bandages distinguish "house bandages"
-from "tailor bandages". These names select exact recipes; an ambiguous plain
-"meals" or "bandages" request is not understood.
+Bandages distinguish "house bandages" from "tailor bandages". These names
+select exact recipes; an ambiguous plain "bandages" request is not understood.
 
 An optional "at (12, 4)" pins the work site to that tile. The task keeps its
 chosen recipe and work site while it waits or repeats; it does not redirect
