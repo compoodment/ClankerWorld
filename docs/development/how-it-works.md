@@ -92,9 +92,8 @@ unable to save.
 `ParseInstructionOrder` reads a complete, bounded grammar for eating food,
 seeking a food source, harvesting food, gathering supported raw materials,
 storing or collecting personal raw materials, repairing supported personal
-clothing and carrying aids, and moving to an exact tile. Harvest and
-food-source travel orders must name a
-supported kind or resource; explicit resource names must match a complete
+clothing, carrying aids and tools, household field work, and moving to an exact
+tile. Harvest and food-source travel orders must name a supported kind or resource; explicit resource names must match a complete
 identifier and the requested kind. Unsupported
 objects or operations, mixed tasks, unknown explicit targets, and invalid
 quantities or leftover words are rejected as not understood rather than mapped
@@ -157,17 +156,22 @@ Collection orders use `PersonalGoodsAwaitingCollection` and the shared
 carried, reserved in full, promised for delivery or inside another container.
 Storage must belong to the current household or one recorded in that actor's
 departures. Ground lots use normal pickup range. The nearest reachable eligible
-lot is chosen, with stable identity ordering for ties; an explicit source is
-not yet recognized. Physical pickup preserves ownership, condition, provenance
+lot is chosen, with stable identity ordering for ties. An optional source tile
+filters this same set by its current physical position, at both selection and
+execution. Moving goods away or exhausting the tile leaves the remaining order
+blocked; it never falls back to another location. Building storage uses the
+building's listed position. Physical pickup preserves ownership, condition, provenance
 and reserved portions, with the final quantity capped by carrying space and
 the requested remainder. Only the committed relocation earns progress, using
 a bounded hashed receipt. Former-household collection grants no other access.
 
 Repair orders save a separate `TargetEquipmentKind` for basic clothing, padded
-coats, rain cloaks, baskets or sacks. The parser refuses other equipment and
+coats, rain cloaks, baskets or sacks. The parser refuses unsupported equipment and
 explicit sites. Orders filter the normal worn-item rules by this exact kind,
 collect real materials through `CollectEquipment`, then use `RepairEquipment`
-and `ContinueEquipmentRepair`. Ordinary item preference remains unchanged.
+and `ContinueEquipmentRepair`. Ordinary repair chooses the first feasible worn item, preferring the equipped
+carry aid when its materials, carrying space and private work site are usable.
+Candidate selection and execution use the same feasibility checks.
 A repair work record links to the active instruction; only the returned completed
 repair advances its item count, with a bounded receipt derived from the actor,
 start time and lot identity. New orders release any previous repair's unspent
@@ -175,6 +179,34 @@ inputs before starting their own work. Cancellation or replacement releases
 reservations immediately. Survival interruption follows ordinary repair rules:
 release unused inputs and restart unfinished work when the order can resume.
 Save/reload retains a running repair's work counter and exact reservations.
+
+Tool repair orders use `repair_tool` and the same `TargetEquipmentKind` field,
+restricted to the 13 supported tool kinds. The parser requires the material and
+tool name. `RepairableTools` shares ordinary private Blacksmith, material,
+carrying and route checks; orders additionally require personal ownership and
+positive remaining condition. Ordinary repair retains its borrowed-household
+behavior. Order preparation protects every matching worn personal tool from
+spare-cargo storage and refuses gathering that would break a requested tool.
+`RepairTool` performs physical pickup, gathering, spare-cargo storage
+and walking, returning a repaired lot only after the real inventory transition.
+That return alone earns one repair, with a bounded receipt derived from actor,
+time and repaired lot identity. Stacked worn lots split into individual repaired
+units. Preparation has no reservation or timed job to unwind: cancellation keeps
+already collected goods and spent tool wear. Remaining quantities and queued
+work survive reload; survival can interrupt before repair resumes.
+
+Field orders use `till_field`, `plant_field`, `tend_field` and `harvest_field`,
+with an optional `TargetCropKind` limited to the three existing crops. Explicit
+quantities require the word "field" or "fields" and count finished work sites.
+Selection uses household access, physical routes, usable tools and actual
+planting stock without the ordinary food-demand preference. It never substitutes
+a different named crop. `ApplyFieldCandidate` performs normal walking and stock
+collection; `StartFieldWorkCore` binds new work to the instruction. Only a
+completed result from `ContinueFarmWork` credits a bounded receipt. Cancellation
+releases unused seed reservations and removes a partly tilled field. Ordinary
+work retains its existing priorities and behavior; urgent survival cancels the
+current work under normal field rules and the order resumes its remaining count.
+Saved work must match the actor's active instruction, action and crop.
 Validation refuses links to another agent, task or equipment kind.
 
 A MustDo with no recognized action is closed when it is submitted: it is added
@@ -268,19 +300,29 @@ does not establish arbitrary mid-tick rollback or crash durability.
 
 ### Time of day and night
 
-Time of day is worked out from the elapsed tick, the world's saved ticks per
-day and its calendar offset. Darkness itself is not saved. `DaylightRules` follows the 24-hour clock the
-game shows, where a tick's clock minute is its tick of day × 1,440 ÷ ticks per
-day. Night is 40% of every day, the same all year
-([#641](https://github.com/compoodment/ClankerWorld/issues/641)), centred on
-midnight: 19:12 to 04:48. Dusk and dawn each fade over the clock hour centred
-on those times (18:42–19:42 and 04:18–05:18), so the darker half of each fade
-counts as night and night covers exactly 40% of the day. At 360 ticks a day
-that is 144 ticks of night with 15-tick fades. Darkness is reported in basis
-points, 0 in daylight and 10,000 at full night. New playable worlds and their
-founder setup begin at 06:00, after the dawn fade. A saved zero-offset world
-keeps midnight at elapsed tick zero. The first day of a new world therefore
-has 18 hours left; later days retain their full duration.
+Time of day is worked out from the elapsed tick and the world's saved calendar
+(ticks per day, season lengths and calendar offset). Darkness itself is not
+saved. `DaylightRules` follows the 24-hour clock the game shows, where a tick's
+clock minute is its tick of day × 1,440 ÷ ticks per day. Night follows the
+seasons ([#891](https://github.com/compoodment/ClankerWorld/issues/891),
+replacing the same-all-year night of
+[#641](https://github.com/compoodment/ClankerWorld/issues/641)):
+`DaylightRules.NightShare` gives 30% of the day on the first day of summer,
+50% on the first day of winter and 40% on the first days of spring and autumn,
+with an even daily step between them across each season's own length. Night is
+centred on midnight: 19:12 to 04:48 at 40%, 20:24 to 03:36 at 30% and 18:00 to
+06:00 at 50%. Dusk and dawn each fade over the clock hour centred on the start
+and end of night (18:42–19:42 and 04:18–05:18 at 40%), so the darker half of
+each fade counts as night and night covers exactly its share of the day. At
+360 ticks a day a 40% night is 144 ticks, a summer-start night 108 and a
+winter-start night 180, with 15-tick fades. Each tick uses its own calendar
+day's share, so a night's evening follows that day and its morning the next;
+both are fully dark around midnight, so nothing jumps. The rule uses whole
+numbers only, so every platform agrees on every tick. Darkness is reported in
+basis points, 0 in daylight and 10,000 at full night. New playable worlds and
+their founder setup begin at 06:00, after the dawn fade. A saved zero-offset
+world keeps midnight at elapsed tick zero. The first day of a new world
+therefore has 18 hours left; later days retain their full duration.
 
 Night adds a provisional chill of 15 exposure points per tick at full night,
 faded in and out with the darkness (`NightChillAtFullDarkness`). It is added to
@@ -292,8 +334,8 @@ making garments. Wear on a worn garment still follows the weather alone, so a
 mild night adds no repair work. In mild clear weather a basic garment or any
 shelter cancels the chill; with no protection an agent loses about a fifth of
 their warmth over a night. There are no night-only limits on choices, travel,
-work or conversation, and no sleep or energy. Night does not change weather or
-crops yet, and night length does not vary by season.
+work or conversation, and no sleep or energy. Longer winter nights mean more
+hours of chill. Night does not change weather or crops yet.
 
 The owner snapshot carries `darknessBasisPoints`, decided by the host from the
 same rule. The Godot client's `NightLayer` draws a deep blue wash, at most 40%
@@ -301,6 +343,25 @@ opaque, over the visible map just above the ground, roads, buildings and trees,
 and below map labels, agent markers, weather and panels. It eases between the
 once-a-tick readings, shows a newly opened world's darkness at once, and looks
 the same in both themes. The World Map panel is not darkened.
+
+Night lights ([#890](https://github.com/compoodment/ClankerWorld/issues/890))
+are drawn by `NightLightsLayer`, just above the wash and under labels and
+agents. It takes each placed building's family, footprint, door side and the
+roof, yard and door spots from `BuildingSprites.Plan`, and decides from the
+snapshot whether it is occupied (a living agent stands within its footprint)
+or working (a production job runs there); nothing new comes from the host and
+nothing is saved. `NightLightShapes` turns that into rows of light in the
+building's 32-unit tile space: spills from windows on the front and both
+sides, never the back, and from the door; a forge pool in a Blacksmith's yard;
+and a Warehouse's wall lantern, whose unlit fitting also shows by day. Pools
+have ragged edges from three slow sine waves seeded per tile; fires move
+faster. The layer steps that drift every eighth of a second, scales light by
+the eased darkness and draws rows weakest first through a shader that
+brightens the ground and pulls its hue toward the light, so the ground keeps
+its texture. At overview zoom a lit building is a warm speck. The same shapes
+draw the art preview's night proposal (`tools/ArtPreview/Proposed/NightLights.md`),
+including designs not in the game yet and the street lanterns of
+[#892](https://github.com/compoodment/ClankerWorld/issues/892).
 
 ## Model inputs, usage and memories
 
@@ -1441,9 +1502,65 @@ Store stocking also keeps each adult's best usable work tool. Optional shelf
 restocking waits behind gathering materials needed by household work.
 Rates, the eight-unit shelf target and four-unit carried loads are provisional.
 Blacksmiths can sell real refined iron for another household's tool work.
-Market stalls and meals remain tracked in #564 and its domain
+Meals remain tracked in #564 and its domain
 issues; currency remains later work. The Clinic sells actual medicine
 and bandages through the same inventory and physical business authority.
+
+**Markets** use the same inventory authority with separate saved paid-building
+and occupancy records. The Council-approved starter project pays for the 2×2
+hall and only two 1×1 stalls on the fixed 7×4 plaza, in slots 0 and 4. When
+every standing stall is borrowed and no further stall is proposed or under
+construction, the next unused fixed slot may be proposed as a separate
+Council-approved Town project. A standing Market's site tiles count as occupied
+for other buildings, Town project sites, expansions, fields, tree planting and
+household land requests. The provisional starter budget is 24 wood,
+8 stone and 4 fiber with 10 work units; another stall costs 4 wood and 2 fiber
+with 3 work units. General plaza growth has no implementation or agreed rule.
+Physical stock receipts retain the personal or household owner. One named
+active adult borrows a stall while they remain inside the hall-and-plaza area;
+leaving, household change, death or removal ends borrowing and releases
+unfinished offer claims without transferring leftovers.
+
+Loads, borrowing, deposits, collection and barter mutations need a fresh
+accepted, non-fallback personal LLM choice; their candidates rank above
+`safe_idle`, so built-in rules never pick them. Continued intentions walk only;
+owner orders do not authorize these mutations. A member carrying their own
+household's goods may return them to its House through `household_return`, and
+the household hauling, farm stock and planting routines skip stock on a stall
+while a member of that household borrows it. Usable loose surplus (the food
+reserve counts the owner's other usable stock of that kind), actual
+carrying and stall room, active claims, current household rights and protected
+equipment constrain the offered choices. The provisional one-for-one quote is
+an actual `Inventory.Offers` exchange. Buyers may belong to any Town or have no
+Town membership; walking into the Market and completing a purchase change
+neither their household nor their Town. The named seller accepts only after
+both people meet at the stall. Purchased stock
+becomes the buyer's personal cargo; payment is physically set down as the
+seller's household stock, including payment for personally owned goods. A
+later stall borrower cannot sell an earlier borrower's stock. Its recorded
+owner, or a current member of the owning household, may physically collect it.
+Live inventory ownership remains authoritative after inheritance or collection.
+Customer access remains limited to the named transaction. See the
+[Market save rules](saves-and-replay.md#paid-markets-and-stall-trade) for the
+saved layout, stock and offer checks.
+
+Missing-input demand checks the buyer's actual production owner, keeping each
+household's available materials separate. A nonterminal recipe plan marked
+`RequiresFreshChoice` may choose a Market purchase while remaining paused; an
+actively continuing plan keeps the adult at its work. Resuming the recipe
+still requires its ordinary choice and physical ingredient-delivery rules.
+
+`WantsFieldPlantingStock` reuses the actual field and planting-stock checks for
+grain seed, cultivated-green seed and loose potatoes. The adult must belong to
+a household holding a Farmhouse, have a usable hoe and have no urgent survival
+need or actively continuing project. That household must need food, and the
+adult must be able to reach its idle `Prepared` or `Harvested` field without
+another person's planting claim. A usable personally carried planting unit,
+accessible household stock or that field's reserved replanting lot satisfies
+the same-kind need. The exact one-unit purchase remains personal cargo until
+ordinary field work consumes it; a held unit suppresses further same-kind seed
+quotes even when the seller still has stock. Other goods may still be wanted.
+Demand creates no future seed buffer or access to another household's stores.
 
 ### Blacksmith tool-making requests
 

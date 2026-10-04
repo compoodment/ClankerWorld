@@ -31,6 +31,9 @@ public partial class WorldTerrainLayer : Control
     private readonly Dictionary<Vector2I, string> weatherRegions = [];
     private readonly HashSet<Vector2I> townBorderTiles = [];
     private readonly HashSet<Vector2I> roadTiles = [];
+    // Paid Market plazas use the Road drawing without changing terrain passability.
+    private readonly HashSet<Vector2I> marketPlazaTiles = [];
+    private readonly HashSet<string> marketStallBuildingIds = new(StringComparer.Ordinal);
     // Saved bridge decks, true when the deck runs east-west.
     private readonly Dictionary<Vector2I, bool> bridgeDecks = [];
     private readonly Dictionary<Vector2I, string> householdPropertyTiles = [];
@@ -127,6 +130,8 @@ public partial class WorldTerrainLayer : Control
         WeatherVersion++;
         townBorderTiles.Clear();
         roadTiles.Clear();
+        marketPlazaTiles.Clear();
+        marketStallBuildingIds.Clear();
         bridgeDecks.Clear();
         householdPropertyTiles.Clear();
         QueueRedraw();
@@ -298,6 +303,28 @@ public partial class WorldTerrainLayer : Control
         QueueRedraw();
     }
 
+    /// <summary>Draws committed Market ground; only actual paid buildings occupy its stall slots.</summary>
+    public void SetMarkets(IReadOnlyList<OwnerWorldTown> towns)
+    {
+        ArgumentNullException.ThrowIfNull(towns);
+        var nextTiles = new HashSet<Vector2I>();
+        var nextStalls = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var market in towns.SelectMany(town => town.Markets).Where(market => market.RemovedTick is null))
+        {
+            if (market.PlazaWidth != 7 || market.PlazaHeight != 4) continue;
+            for (var y = market.PlazaPosition.Y; y < market.PlazaPosition.Y + market.PlazaHeight; y++)
+                for (var x = market.PlazaPosition.X; x < market.PlazaPosition.X + market.PlazaWidth; x++)
+                    nextTiles.Add(new Vector2I(wrapsEastWest && world is not null ? Mod(x, world.Width) : x, y));
+            foreach (var stall in market.Stalls) nextStalls.Add(stall.BuildingInstanceId);
+        }
+        if (nextTiles.SetEquals(marketPlazaTiles) && nextStalls.SetEquals(marketStallBuildingIds)) return;
+        marketPlazaTiles.Clear();
+        marketPlazaTiles.UnionWith(nextTiles);
+        marketStallBuildingIds.Clear();
+        marketStallBuildingIds.UnionWith(nextStalls);
+        QueueRedraw();
+    }
+
     /// <summary>Draws the same saved bridge decks that movement uses; a deck is not drawn from terrain alone.</summary>
     public void SetBridges(IReadOnlyList<OwnerWorldBridge> bridges)
     {
@@ -341,7 +368,14 @@ public partial class WorldTerrainLayer : Control
                 var footprint = new Rect2I(building.Position.X, building.Position.Y,
                     Math.Max(1, building.Width), Math.Max(1, building.Height));
                 var entrance = building.Entrance is { } tile ? new Vector2I(tile.X, tile.Y) : (Vector2I?)null;
-                return (footprint, BuildingSprites.KindFor(building.Tags), BuildingDoor.Facing(footprint, entrance));
+                var kind = BuildingSprites.KindFor(building.Tags);
+                var door = BuildingDoor.Facing(footprint, entrance);
+                // The approved plaza already supplies the open aisle; a paid stall
+                // faces its actual entrance without painting a standalone doorstep path.
+                if (kind == BuildingKind.MarketStall && footprint.Size == Vector2I.One &&
+                    marketStallBuildingIds.Contains(building.InstanceId) && marketPlazaTiles.Contains(footprint.Position))
+                    door = door with { Tile = null };
+                return (footprint, kind, door);
             })
             .Concat(objects.Where(item => BuildingSprites.KindForObject(item.Kind) is not null)
                 .Select(item => (new Rect2I(item.Position.X, item.Position.Y, 1, 1), BuildingSprites.KindForObject(item.Kind)!.Value,
@@ -531,7 +565,7 @@ public partial class WorldTerrainLayer : Control
     {
         if (world is null || !world.IsCactusCoverAt(x, y)) return null;
         var tile = new Vector2I(x, y);
-        if (roadTiles.Contains(tile) || bridgeDecks.ContainsKey(tile) || doorsteps.ContainsKey(tile) ||
+        if (roadTiles.Contains(tile) || marketPlazaTiles.Contains(tile) || bridgeDecks.ContainsKey(tile) || doorsteps.ContainsKey(tile) ||
             fields.ContainsKey(tile) || buildingTiles.Contains(tile))
             return null;
         return CactusSprites.ForTile(x, y);
@@ -1075,9 +1109,13 @@ public partial class WorldTerrainLayer : Control
     /// </summary>
     private void DrawRoads((int Left, int Top, int Width, int Height) bounds, int stride)
     {
-        if (world is null || roadTiles.Count == 0 || tileSize <= 0) return;
+        if (world is null || roadTiles.Count == 0 && marketPlazaTiles.Count == 0 || tileSize <= 0) return;
         if (tileSize < SpriteTileMinimum)
         {
+            for (var y = bounds.Top; y < bounds.Top + bounds.Height; y++)
+                for (var x = bounds.Left; x < bounds.Left + bounds.Width; x++)
+                    if (marketPlazaTiles.Contains(new Vector2I(wrapsEastWest ? Mod(x, world.Width) : x, y)))
+                        DrawRect(new Rect2(x * stride, y * stride, tileSize, tileSize), RoadSprites.Dirt);
             DrawRoadLines(bounds, stride, RoadSprites.WornEdge, Math.Clamp(tileSize / 2.2f, 1.5f, 6f));
             DrawRoadLines(bounds, stride, RoadSprites.Dirt, Math.Clamp(tileSize / 3.5f, 1f, 4f));
             return;
@@ -1122,9 +1160,11 @@ public partial class WorldTerrainLayer : Control
         return links;
     }
 
+    // This is a drawing query; Market ground does not become a walkable stall footprint.
     private bool IsRoad(int x, int y) => world is not null && y >= 0 && y < world.Height &&
         (wrapsEastWest || x >= 0 && x < world.Width) &&
-        roadTiles.Contains(new Vector2I(wrapsEastWest ? Mod(x, world.Width) : x, y));
+        (roadTiles.Contains(new Vector2I(wrapsEastWest ? Mod(x, world.Width) : x, y)) ||
+         marketPlazaTiles.Contains(new Vector2I(wrapsEastWest ? Mod(x, world.Width) : x, y)));
 
     /// <summary>Whether a bridge deck running along the given axis lies on this tile.</summary>
     private bool IsDeck(int x, int y, bool eastWest) => world is not null && y >= 0 && y < world.Height &&

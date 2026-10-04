@@ -51,7 +51,10 @@ public sealed class TownLayoutContext
         IEnumerable<GridPoint>? roadTiles = null,
         IEnumerable<GridPoint>? requiredNeighborTiles = null,
         IEnumerable<GridPoint>? requiredLandTiles = null,
-        GridPoint? requiredEntranceOffset = null)
+        GridPoint? requiredEntranceOffset = null,
+        IEnumerable<GridPoint>? requiredFootprintOffsets = null,
+        IEnumerable<GridPoint>? permittedRoadOffsets = null,
+        IEnumerable<GridPoint>? protectedTiles = null)
     {
         ArgumentNullException.ThrowIfNull(map);
         ArgumentNullException.ThrowIfNull(occupiedTiles);
@@ -72,6 +75,9 @@ public sealed class TownLayoutContext
         RequiredNeighborTiles = requiredNeighborTiles?.ToHashSet();
         RequiredLandTiles = requiredLandTiles?.ToHashSet();
         RequiredEntranceOffset = requiredEntranceOffset;
+        RequiredFootprintOffsets = requiredFootprintOffsets?.ToHashSet();
+        PermittedRoadOffsets = (permittedRoadOffsets ?? []).ToHashSet();
+        ProtectedTiles = (protectedTiles ?? []).ToHashSet();
         RoadTiles = (roadTiles ?? []).ToHashSet();
         CandidateAnchors = town is null
             ? ReachableFootCosts.Keys.OrderBy(point => point.Y).ThenBy(point => point.X).ToArray()
@@ -104,6 +110,13 @@ public sealed class TownLayoutContext
     public IReadOnlySet<GridPoint>? RequiredLandTiles { get; }
 
     public GridPoint? RequiredEntranceOffset { get; }
+
+    public IReadOnlySet<GridPoint>? RequiredFootprintOffsets { get; }
+
+    public IReadOnlySet<GridPoint> PermittedRoadOffsets { get; }
+
+    /// <summary>Occupied tiles, such as another project's site or doorway, that stay closed even where a Road is permitted.</summary>
+    public IReadOnlySet<GridPoint> ProtectedTiles { get; }
 
     /// <summary>How far, in tiles including diagonals, a site may be from its required neighbor. Provisional.</summary>
     public const int NeighborReach = 2;
@@ -186,8 +199,13 @@ public static class TownLayoutService
         var map = context.Map;
         if (!map.Contains(position))
             return false;
-        var footprint = Footprint(definition, position).ToArray();
-        if (footprint.Any(point => !map.IsBuildable(point) || context.OccupiedTiles.Contains(point)))
+        var footprint = context.RequiredFootprintOffsets is { } offsets
+            ? offsets.Select(offset => new GridPoint(position.X + offset.X, position.Y + offset.Y)).ToArray()
+            : Footprint(definition, position).ToArray();
+        if (footprint.Any(point => !map.Contains(point) || !map.IsBuildable(point) ||
+                context.OccupiedTiles.Contains(point) && !(context.RoadTiles.Contains(point) &&
+                    !context.ProtectedTiles.Contains(point) &&
+                    context.PermittedRoadOffsets.Contains(new GridPoint(point.X - position.X, point.Y - position.Y)))))
             return false;
         if (context.RequiredLandTiles is { } titled && footprint.Any(point => !titled.Contains(point)))
             return false;

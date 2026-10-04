@@ -127,7 +127,8 @@ goods again. Older alpha saves are refused and preserved without migration.
 
 Private-world schema 67 adds `collect_material` orders for the same material
 catalogue. Their source is selected through ordinary personal-goods collection
-rules, so explicit source, food, guardian and coordinate targets are refused. Progress
+rules; schema 74 adds an optional coordinate constraint below. Food, guardian
+and resource identity targets remain invalid. Progress
 counts collected loads or exact item quantities, and a bounded committed-move
 receipt prevents replay from duplicating pickup. Unavailable goods and full
 carrying space preserve the remaining task. Older alpha saves are refused and
@@ -174,6 +175,32 @@ loading rejects missing approval or consent evidence and orphaned Council
 land-use proposals. Closed requests remain history without competing claims.
 Prepared-tick rollback and current-format reload preserve approval progress and
 commit the final grant once. Older alpha schemas are refused without migration.
+
+Private-world schema 72 adds field orders and their optional `TargetCropKind`.
+`FarmFieldWork.OrderInstructionId` binds work to its actor's active field order.
+Restoration validates that link, action, crop, work time and ordinary seed/tool
+state; a cancelled, queued, unrelated or missing instruction cannot retain bound
+work. Only finished work earns a bounded receipt and one completed field. Replay
+covers partial planting, queues, released seeds, real tool wear and household
+harvest ownership. This version follows the integrated guardian-placement schema 71. Older alpha saves
+are refused and preserved unchanged without migration.
+
+Private-world schema 73 adds `repair_tool` orders using the existing
+`TargetEquipmentKind` field. Validation restricts the action to supported tool
+kinds and repair counts. Only a completed inventory repair earns a bounded
+`repair:tool:` receipt. Replay covers partly completed quantities, preparation,
+queues and cancellation without charging the materials twice. This version
+follows integrated field-order schema 72. Older alpha saves are refused and preserved
+unchanged without migration.
+
+Private-world schema 74 allows an optional `TargetPosition` on collection orders.
+Coordinates keep the existing bounded integer validation; an off-map target is
+a valid instruction that waits with a reason. The exact tile survives queued
+work, travel, partial pickup, cancellation and reload. Runtime selection and
+execution both recheck the lot's current position along with ordinary personal
+collection permissions, so moved or depleted goods cannot redirect the order.
+This version follows integrated tool-repair-order schema 73. Older alpha saves
+are refused and preserved unchanged without migration.
 
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
@@ -386,10 +413,10 @@ the only record of membership; an admission record says what one approval did to
 - `admitted`: membership changed. It keeps the Town the newcomer left, if any,
   and the sorted IDs of the newcomer and the dependent children who moved.
 - `lapsed`: the approval could not be applied, with the reason `unavailable`,
-  `already_resident`, `affiliation_changed`, `joined_elsewhere` or, in schema 72,
+  `already_resident`, `affiliation_changed`, `joined_elsewhere` or, in schema 76,
   `acceptance_expired`.
 
-Schema 72 gives a sponsored approval one unpaused world day for acceptance. Its
+Schema 76 gives a sponsored approval one unpaused world day for acceptance. Its
 deadline is derived from the saved passed proposal's original `SettledTick` plus
 the configured `TicksPerDay`; no separate deadline field is stored. The approval
 expires at that tick, and its admission record keeps the lapse reason and actual
@@ -555,7 +582,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 72. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 76. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
@@ -581,9 +608,10 @@ and barter, exact land-claim coordinates on Council proposals, household
 land requests with their Council proposal and each adult's consent, physical
 knowledge writing with exact material reservations and completed-artifact
 receipts, exact-tile movement orders with their destination and arrival
-receipt, overcrowding move-out notices, material-gathering targets and receipts, and
+receipt, overcrowding move-out notices, material-gathering targets and receipts,
 typed Council-approved Town-project plans, shared construction progress and
-exact physical delivery receipts.
+exact physical delivery receipts, and paid Market layouts, stall borrowing,
+stock receipts and physical barter records.
 Land records are checked against the saved map, Towns, households and one
 another before load. Building reassignment moves only existing footprint use rights;
 connected remainder plots keep their holder and original grant terms. Split
@@ -623,8 +651,9 @@ physical knowledge writing, schema 63 for exact-tile movement orders, schema 64
 for overcrowding move-out notices, schemas 65 to 67 for material gathering,
 storage and collection orders, schema 68 for shared Town-project construction,
 schema 69 for equipment-repair orders, schema 70 for explicit chosen names and
-unique first names, schema 71 for physical guardian placements and schema 72
-for sponsored admission approval expiry record when those fields or behaviors
+unique first names, schema 71 for physical guardian placements, schema 75
+for paid Markets and physical stall trade, and schema 76 for sponsored admission
+approval expiry record when those fields or behaviors
 were introduced; they do not allow an earlier checkpoint schema past the
 current alpha cutoff.
 
@@ -682,7 +711,8 @@ current alpha cutoff.
 | Schema 69 | Equipment-repair orders retain the equipment kind and progress in finished repairs, and an in-progress repair names the order it belongs to. Loading refuses mixed target fields, unearned progress and a repair bound to another order or item kind. Queue, cancellation and partial work replay without duplicate material costs; older alpha saves are refused and preserved without migration. |
 | Schema 70 and society/runtime v2 | Required chosen-name markers distinguish temporary labels from chosen identities, even after automatic naming ends. Chosen first names are unique across living and deceased inhabitants. Current-format reload and compaction retain the marker and pending retry; older alpha formats are refused and preserved without inference or migration. |
 | Schema 71 | Pending guardian placements retain exact accepted care authority, collecting or escorting progress, a selected House and current blocker. Household and Town membership change together only on valid arrival. Earlier alpha checkpoints are refused and preserved without migration. |
-| Schema 72 | A sponsored admission approval expires one unpaused world day after its passed proposal settled, with `acceptance_expired` recorded when no acceptance occurred. The deadline uses saved world time and the original council decision, so pause and reload do not restart it. Earlier alpha saves are refused and preserved without migration. |
+| Schema 75 | Required Market lists bind paid halls and stalls to their completed Town projects, with named borrowing, physical stock receipts and exact inventory barter history. Earlier alpha checkpoints are refused and preserved without migration. |
+| Schema 76 | A sponsored admission approval expires one unpaused world day after its passed proposal settled, with `acceptance_expired` recorded when no acceptance occurred. The deadline uses saved world time and the original council decision, so pause and reload do not restart it. Earlier alpha saves are refused and preserved without migration. |
 
 ### Tool-making requests
 
@@ -732,7 +762,11 @@ save made before night existed loads unchanged; nights, and their chill on
 outdoor warmth, apply from its next tick. Its recorded history is not
 re-simulated. A world saved during dawn reloads at the same darkness and
 advances to the same bytes as the live world, which `SettlementSurvivalTests`
-checks.
+checks. Seasonal night length
+([#891](https://github.com/compoodment/ClankerWorld/issues/891)) is derived the
+same way, from the saved tick and the saved season lengths, so it adds no saved
+field either: an existing save loads, and from its next tick its nights follow
+the season it is in.
 
 ## Council-approved Town projects
 
@@ -781,6 +815,57 @@ generated-world gathering and donation, genuine Warehouse loads, intermediate
 restore/replay, discarded prepared ticks, stale votes, retained removal and
 coherently altered receipt/source references. Earlier
 alpha schemas, including 53, are refused visibly and preserved without migration.
+
+## Paid Markets and stall trade
+
+Schema 75 adds a required, non-null `Markets` list to each Town. Each Market
+binds its hall and fixed 7×4 plaza to the completed starter project, which pays
+for exactly two stalls in slots 0 and 4. Each additional stall requires its own
+completed project with the exact definition, slot, site and material budget.
+Loading rejects unpaid or duplicate slots, altered plans, unmatched buildings
+and inconsistent removal history. Approved, partly supplied and completed
+Market construction retains the shared Town project's physical load,
+reservation, consumption and work records.
+
+Named borrowing records bind actual living adults to a paid stall while they
+remain inside the hall-and-plaza area. Stock receipts keep the personal or
+household owner recorded at deposit, physical lot, quantity and occupancy
+identity; live inventory remains authoritative after inheritance or collection.
+Another borrower gains no right to sell those goods. Barter records bind the
+exact inventory offer, named seller and buyer, lots, reservations and outcome.
+Completed or cancelled trades retain their history without requiring spent
+goods to remain live. Loading checks owners, locations and the actual physical
+occupancy instead of reconstructing authority from a stall's current borrower;
+retained active claims of an open offer must bind its exact parties, lots, quantities,
+purpose, expiry and exclusive reservation state. Missing or released claims remain
+loadable and are cancelled before trade continues. Goods on a stall tile are not capped at load,
+because a death or a removed stall can leave more there than a borrower may
+deposit. Two standing Markets in one Town cannot share ground. Loading also
+keeps a standing plaza clear of unrelated buildings, fields, claims, expansions,
+resources, camp objects and bridge ends; only its paid stalls and aisle Roads fit.
+
+Leaving, household change, death or removal ends borrowing and cancels open
+offers. Removed Market buildings keep their paid history and stock receipts,
+so recorded owners can still collect physical leftovers. Current-format
+restore must preserve intermediate construction, borrowing, stock and open
+trades without duplicating goods or approval. `MarketConstructionRuntimeTests`
+covers a generated paid Market and additional stall, personal and household
+stocking and barter, fresh consent, paused-plan ingredient buying, retrieval,
+intermediate restores and malformed state. A buyer added outside all Town land
+retains its independent household and no Town membership; open and settled
+trades reload strictly, and its live and restored continuations remain
+byte-identical after each continuing step.
+
+Planting-stock demand reuses existing fields, inventory and reservations and
+adds no saved field. The seed scenario creates its prepared field through
+actual tilling, buys one grain seed, retains the supplier's remaining unit,
+suppresses another same-kind purchase while the bought unit is held, then
+consumes that exact unit through ordinary planting. Intermediate states reload
+strictly with the same physical lots and claims. Stock, food consumption,
+equipment and phase wakes are controlled test arrangements; title, field
+placement and actor positions are retained from actual work and movement.
+Earlier alpha checkpoints are refused and preserved
+without migration.
 
 ## Pending model work and estates
 

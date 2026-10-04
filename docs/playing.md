@@ -225,6 +225,15 @@ one load; a quantity stops exactly at that number. Full hands or unavailable
 goods leave the task waiting. These orders cover the same seven raw materials;
 requests naming a particular source or destination are not understood yet.
 
+To work on household fields, try **Till two fields**, **Plant grain**,
+**Plant two fields of potatoes**, **Tend cultivated greens**, or **Keep
+harvesting fields of grain**. Adults need a household with a Farmhouse and
+suitable fields, stock and tools. Counts mean completed fields, so include
+**fields** when giving a number; **Harvest five potatoes** is not understood.
+A named crop is never replaced with another. Harvests remain on the field
+until carried. Cancel or replace the order to stop the current work and release
+unused planting stock. Named field locations are not supported yet.
+
 To mend worn personal equipment, use **Repair my basket**, **Repair two padded
 coats**, or **Keep repairing basic garments**. Adults and elders can repair basic
 clothing, padded coats, rain cloaks, baskets and sacks. They collect real supplies
@@ -246,10 +255,15 @@ who may use it, when it was built, which side its door faces, the work in
 progress, a larger storage grid with each item's name, and who is inside or
 lives there. Back (or **Escape**) returns to the small card.
 
-Every day has a night, from 19:12 to 04:48 on the clock in the top bar, with a
-short dusk and dawn. In a six-minute day that is about 2 min 24 s of night. The
-map turns a gentle dark blue but stays readable; names, agents and panels keep
-their daytime colors. Nights are colder outdoors, so an agent with no clothing,
+Every day has a night, with a short dusk and dawn. Nights are longest in winter
+and shortest in summer: from 19:12 to 04:48 on the clock in the top bar at the
+start of spring and autumn, about 2 min 24 s of a six-minute day; from 20:24
+to 03:36 at the start of summer; and from 18:00 to 06:00 at the start of
+winter. The map turns a gentle dark blue but stays readable; names, agents and
+panels keep their daytime colors. Buildings in use glow from their windows and
+doors: a House while someone is home, a workshop while someone works there,
+the Blacksmith's forge while it is busy, and a Warehouse's door lantern while
+goods are fetched. Nights are colder outdoors, so an agent with no clothing,
 shelter or fire loses warmth, and their warmth bar shows it. New worlds start
 in the morning; loading a saved world keeps its recorded time.
 
@@ -350,6 +364,23 @@ project and the Towns page says why; its leftover materials stay Town
 property where they are. See [What works today](what-works.md#life-work-and-society)
 for this first version's limits and provisional amounts. Its
 [hands-on checklist](../playtest/767-town-projects.md) remains pending.
+
+To begin a Market, use **Speak → Suggest** to ask an adult resident to consider a
+named Market proposal. **World Info → Towns** shows its site, exact budget,
+Council result, supplied materials and work. Its first project pays for the
+hall and two stalls on a fixed 7×4 plaza. Once the existing stalls are borrowed,
+another stall needs its own Council approval and delivered materials.
+
+Once it is built, select the hall or a stall to see who borrows it, the goods
+actually there, their owners and any offered exchange. Adults may choose to
+carry surplus there and borrow a free stall. Buyers, including visitors who
+belong to no Town, bring personal payment, and the named seller chooses whether
+to accept when both have reached the stall. The buyer carries the purchase;
+payment becomes the seller's household stock there. Leaving frees the stall;
+leftover goods still belong to their
+recorded owner. Suggestions can guide these choices, but an Order cannot force
+a sale or give away goods. The
+[Market hands-on checklist](../playtest/564-market-stalls.md) remains pending.
 
 ## Pause, settings and controls
 

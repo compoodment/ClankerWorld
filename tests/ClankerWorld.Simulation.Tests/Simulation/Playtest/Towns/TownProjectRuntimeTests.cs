@@ -497,7 +497,7 @@ internal sealed class TownProjectScenario : IDisposable
         policy.ActorAtSite = actor => World.Towns[0].Projects.Count == 1 &&
             World.Inhabitants.Single(person => person.InhabitantId == actor).Position == Project.Plan.Site;
         policy.MaterialStillNeeded = material => World.Towns[0].Projects.Count == 1 &&
-            Project.Plan.Budget.Single(cost => cost.ResourceId == material).Amount >
+            Project.Plan.Budget.SingleOrDefault(cost => cost.ResourceId == material) is { } cost && cost.Amount >
             TownProjectRules.DeliveredQuantity(Project, World.Towns[0].Id, World.Society.Inventory, material);
         policy.MayStoreSpareTool = lotId =>
         {
@@ -514,10 +514,11 @@ internal sealed class TownProjectScenario : IDisposable
             throw new InvalidOperationException("A normal generated fixture must retain all independent map layers.");
     }
 
-    internal static TownProjectScenario Create(string seed, TownProjectPolicy? policy = null, bool initialTownStock = false)
+    internal static TownProjectScenario Create(string seed, TownProjectPolicy? policy = null, bool initialTownStock = false,
+        GridPoint? roughTownSite = null)
     {
         policy ??= new();
-        var world = NormalPathWorld.CreateGenerated(seed, policy.CreateProvider);
+        var world = NormalPathWorld.CreateGenerated(seed, policy.CreateProvider, roughTownSite);
         if (initialTownStock)
         {
             // Controlled initial stock only: no tick, proposal or project has run yet.
@@ -633,6 +634,8 @@ internal sealed class TownProjectScenario : IDisposable
 
 internal sealed class TownProjectPolicy
 {
+    internal string ProjectLocalId { get; init; } = TownHallContent.Hall3x4().LocalId;
+    internal string ProjectName { get; init; } = TownProjectScenario.Name;
     internal bool Proposed { get; set; }
     internal bool OrdinaryLaw { get; init; }
     internal bool Supply { get; set; }
@@ -679,11 +682,12 @@ internal sealed class TownProjectPolicy
             string? text = null;
             if (selected is null && actor == TownProjectScenario.Author && !policy.Proposed)
             {
-                selected = candidates.FirstOrDefault(c => c.Id.Contains(policy.OrdinaryLaw ? "|propose|" : "|project|", StringComparison.Ordinal));
+                selected = candidates.FirstOrDefault(c => c.Id.Contains(policy.OrdinaryLaw
+                    ? "|propose|" : "|project|" + policy.ProjectLocalId + "|", StringComparison.Ordinal));
                 if (selected is not null)
                 {
                     policy.Proposed = true;
-                    text = policy.OrdinaryLaw ? "Hall: Build a Communal Hall with all the Town's wood." : TownProjectScenario.Name;
+                    text = policy.OrdinaryLaw ? "Hall: Build a Communal Hall with all the Town's wood." : policy.ProjectName;
                 }
             }
             if (selected is null && actor == TownProjectScenario.Author && policy.LawAfterHall && !policy.LawProposed &&
@@ -698,6 +702,7 @@ internal sealed class TownProjectPolicy
                 {
                     "founder:00000000000000000000000000000002" => "wood",
                     TownProjectScenario.Author => "stone",
+                    "founder:00000000000000000000000000000003" when policy.ProjectLocalId == MarketContent.Hall2x2().LocalId => "fiber",
                     _ => null,
                 };
                 // Real starter tools, collected by separate people so a whole harvest fits.

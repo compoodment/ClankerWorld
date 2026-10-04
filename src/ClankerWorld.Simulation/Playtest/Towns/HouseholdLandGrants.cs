@@ -158,6 +158,7 @@ public sealed partial class PrivateWorldRuntime
         taken.UnionWith(fields.Select(field => field.Position));
         taken.UnionWith(TownProjectProtectedSites());
         taken.UnionWith(PendingTownProjectSiteTiles());
+        taken.UnionWith(MarketSiteTiles());
         return townLandTitles.Where(title => title.TownId == town.Id).SelectMany(title => title.Tiles)
             .Where(tile => map.IsLand(tile) && !taken.Contains(tile)).Distinct()
             .OrderBy(tile => map.FootDistance(from, tile)).ThenBy(tile => tile.Y).ThenBy(tile => tile.X)

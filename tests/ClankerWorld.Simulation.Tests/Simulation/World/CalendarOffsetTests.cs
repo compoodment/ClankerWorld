@@ -43,17 +43,19 @@ public sealed class CalendarOffsetTests
     }
 
     [Fact]
-    public void OffsetChangesDaylightPhaseButKeepsFortyPercentNight()
+    public void OffsetChangesDaylightPhaseButNotEachCalendarDaysNight()
     {
         var state = WorldSystemsRules.CreateGenesis("offset-daylight", Config());
         var darkness = Enumerable.Range(0, 360)
             .Select(tick => DaylightRules.DarknessBasisPoints(state with { WorldTick = tick })).ToArray();
         Assert.Equal(0, darkness[0]);
         Assert.Equal(DaylightRules.FullDarkness, darkness[270]);
-        Assert.Equal(360 * 2 * DaylightRules.NightShareBasisPoints / DaylightRules.FullDarkness,
-            darkness.Count(value => value > 5_000) * 2 + darkness.Count(value => value == 5_000));
+        // Elapsed tick 0 is 06:00 on the first calendar day, whose night is 40%; from midnight
+        // the next calendar day's own seasonal night applies.
+        Assert.Equal(DaylightRules.NightShareBasisPoints, DaylightRules.NightShare(Config(), 0));
         Assert.All(Enumerable.Range(0, 360), tick => Assert.Equal(
-            DaylightRules.DarknessBasisPoints((tick + 90) % 360, 360), darkness[tick]));
+            DaylightRules.DarknessBasisPoints((tick + 90) % 360, 360, DaylightRules.NightShare(Config(), (tick + 90) / 360)),
+            darkness[tick]));
     }
 
     [Fact]

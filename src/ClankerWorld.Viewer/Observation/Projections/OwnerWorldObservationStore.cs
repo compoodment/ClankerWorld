@@ -281,7 +281,8 @@ public sealed class OwnerWorldObservationStore
             election.SettledSeats.Select(id => inhabitantsById.GetValueOrDefault(id)?.Name ?? id).ToArray());
         ViewerTownProjectPlan ProjectPlan(TownProjectPayload plan, string proposerId)
         {
-            var definition = buildingDefinitions?.GetValueOrDefault(plan.DefinitionId) ?? TownHallContent.Hall3x4();
+            var definition = buildingDefinitions?.GetValueOrDefault(plan.DefinitionId) ??
+                TownProjectRules.DefinitionFor(plan.DefinitionId) ?? throw new InvalidDataException("Unsupported Town project definition.");
             return new ViewerTownProjectPlan(plan.Name, proposerId,
                 inhabitantsById.GetValueOrDefault(proposerId)?.Name ?? proposerId,
                 plan.DefinitionId, definition.DisplayName, ToPosition(plan.Site), ToPosition(plan.Entrance),
@@ -304,8 +305,48 @@ public sealed class OwnerWorldObservationStore
                 plan.Width, plan.Height, project.Plan.Budget.Select(q => new ViewerTownProjectMaterial(
                     q.ResourceId, q.Amount, TownProjectRules.DeliveredQuantity(project, town.Id,
                         state.Society.Society.Inventory, q.ResourceId))).ToArray(),
-                project.WorkDone, TownProjectRules.WorkTicks, project.Stage, project.Blocker,
+                project.WorkDone, TownProjectRules.RequiredWork(project.Plan), project.Stage, project.Blocker,
                 project.CompletedBuildingId, ProjectProposal(approval));
+        }
+        string MarketOwnerName(string id) => inhabitantsById.GetValueOrDefault(id)?.Name ??
+            state.Society.Society.Households.FirstOrDefault(household => household.Id == id)?.Name ??
+            state.Towns?.FirstOrDefault(town => town.Id == id)?.Name ?? id;
+        ViewerMarket ProjectMarket(TownMarketState market)
+        {
+            var inventory = state.Society.Society.Inventory;
+            var plaza = MarketContent.PlazaOrigin(market.Site);
+            var stalls = market.Stalls.Where(stall => stall.RemovedTick is null)
+                .OrderBy(stall => stall.SlotIndex).Select(stall =>
+                {
+                    var building = state.WorldSimulation?.Buildings.FirstOrDefault(item => item.InstanceId == stall.BuildingId);
+                    if (building is null) return null;
+                    var occupancy = market.RemovedTick is null ? market.Occupancies
+                        .LastOrDefault(item => item.StallBuildingId == stall.BuildingId && item.EndedTick is null) : null;
+                    var stock = MarketTradeRules.StockAt(market, stall.BuildingId, building.Position, inventory)
+                        .OrderBy(lot => lot.OwnerId, StringComparer.Ordinal).ThenBy(lot => lot.ItemKind, StringComparer.Ordinal)
+                        .ThenBy(lot => lot.Id, StringComparer.Ordinal).Select(lot => new ViewerMarketStock(
+                            lot.Id, lot.ContainerLotId, lot.OwnerId, MarketOwnerName(lot.OwnerId), lot.ItemKind,
+                            lot.Quantity, MarketTradeRules.AvailableQuantity(inventory, lot))).ToArray();
+                    var trades = market.Trades.Where(trade => trade.StallBuildingId == stall.BuildingId)
+                        .OrderByDescending(trade => inventory.GetOffer(trade.OfferId).State == DirectBarterState.Open)
+                        .ThenByDescending(trade => trade.ProposedTick).ThenBy(trade => trade.OfferId, StringComparer.Ordinal)
+                        .Take(8).Select(trade =>
+                        {
+                            var offer = inventory.GetOffer(trade.OfferId);
+                            return new ViewerMarketTrade(trade.OfferId, trade.SellerAgentId, MarketOwnerName(trade.SellerAgentId),
+                                trade.GoodsOwnerId, MarketOwnerName(trade.GoodsOwnerId), trade.PaymentOwnerId,
+                                MarketOwnerName(trade.PaymentOwnerId), trade.BuyerId, MarketOwnerName(trade.BuyerId),
+                                trade.GoodsKind, offer.FirstQuantity, trade.PaymentKind, offer.SecondQuantity,
+                                offer.State.ToString().ToLowerInvariant(), trade.CancellationReason,
+                                offer.AcceptedBy.Contains(offer.FirstPartyId, StringComparer.Ordinal),
+                                offer.AcceptedBy.Contains(offer.SecondPartyId, StringComparer.Ordinal));
+                        }).ToArray();
+                    return new ViewerMarketStall(stall.BuildingId, stall.SlotIndex, ToPosition(building.Position),
+                        occupancy?.SellerAgentId, occupancy is null ? null : MarketOwnerName(occupancy.SellerAgentId),
+                        occupancy?.StartedTick, stock, trades);
+                }).OfType<ViewerMarketStall>().ToArray();
+            return new ViewerMarket(market.Id, market.ProjectId, market.HallBuildingId, ToPosition(market.Site),
+                ToPosition(plaza), MarketContent.PlazaWidth, MarketContent.PlazaHeight, stalls, market.RemovedTick);
         }
         var physicalById = state.Inhabitants.ToDictionary(item => item.InhabitantId, StringComparer.Ordinal);
         var deceasedById = (state.DeceasedInhabitants ?? []).ToDictionary(item => item.InhabitantId, StringComparer.Ordinal);
@@ -485,6 +526,8 @@ public sealed class OwnerWorldObservationStore
                     Projects = item.Projects.OrderBy(project => project.ApprovedTick)
                         .ThenBy(project => project.Id, StringComparer.Ordinal)
                         .Select(project => ProjectConstruction(item, project)).ToArray(),
+                    Markets = item.Markets.OrderBy(market => market.Id, StringComparer.Ordinal)
+                        .Select(ProjectMarket).ToArray(),
                 })
                 .ToArray(),
             TownLandTitles = (state.TownLandTitles ?? []).OrderBy(item => item.Id, StringComparer.Ordinal)
@@ -561,7 +604,7 @@ public sealed class OwnerWorldObservationStore
                         order.Action, order.Status, order.RequestedUnits, order.CompletedUnits,
                         order.ProgressUnit, order.RepeatUntilCancelled, order.TargetFoodKind,
                         order.TargetResourceId, order.TargetPosition?.X, order.TargetPosition?.Y,
-                        order.BlockedReason, order.TargetAgentId, order.TargetMaterialKind, order.TargetEquipmentKind) : null))
+                        order.BlockedReason, order.TargetAgentId, order.TargetMaterialKind, order.TargetEquipmentKind, order.TargetCropKind) : null))
                 .ToArray(),
             Cognition = ToCognition(state),
             ContentPackages = state.Content?.Packages
@@ -1370,6 +1413,8 @@ public sealed class OwnerWorldObservationStore
         "move_to" => "walking to the ordered tile",
         "harvest_food" => "gathering food",
         "gather_material" => "gathering the ordered material",
+        "work_field" => "working on a household field",
+        "repair_tool" => "repairing a personal tool",
         "repair_equipment" => "repairing personal equipment",
         "collect_material" => "collecting personal materials",
         "store_material" => "storing personal materials in the House",

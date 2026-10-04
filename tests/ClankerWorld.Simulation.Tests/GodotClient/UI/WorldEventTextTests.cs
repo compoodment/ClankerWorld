@@ -233,6 +233,23 @@ public sealed class WorldEventTextTests
     }
 
     [Theory]
+    [InlineData("market_built", "town:first|town:first:proposal:1:construction:market|hall|2", "Riverbend's Market was built. Adults can borrow one of its stalls to sell goods.")]
+    [InlineData("market_stall_built", "town:first|market|stall|1", "Riverbend's Market gained another stall.")]
+    [InlineData("market_stock_loaded", "town:first|market|stall|" + AgentId + "|lot", "Aster picked up household goods to carry to the Market; their recorded owner is unchanged.")]
+    [InlineData("market_stock_collected", "town:first|market|stall|" + AgentId + "|lot", "Aster collected their goods from a Market stall.")]
+    [InlineData("market_trade_offered", "town:first|market|stall|" + AgentId + "|" + FounderId + "|offer", "Mira offered Aster an exchange at a Market stall. See the stall for its exact terms.")]
+    [InlineData("market_trade_completed", "town:first|market|stall|" + AgentId + "|" + FounderId + "|offer", "Mira received a Market purchase from Aster; the real payment stays with the seller's household.")]
+    public void MarketEventsNameTheTownAndTheRightTrader(string kind, string detail, string expected)
+    {
+        Assert.True(GameUiText.IsPlayerFacingEvent(kind));
+        var snapshot = Snapshot(Person(AgentId, "Aster"), Person(FounderId, "Mira")) with
+        {
+            Towns = [new("town:first", "Riverbend", "founded", 0, [], [], [])],
+        };
+        Assert.Equal(expected, WorldEventText.Describe(new(1, 4, kind, detail), snapshot));
+    }
+
+    [Theory]
     [InlineData("voluntary", "Aster left their household and may collect their personal belongings.")]
     [InlineData("displaced", "Aster moved out because their House was overcrowded and may collect their personal belongings.")]
     public void DepartureDistinguishesDisplacementFromAnOrdinaryMove(string reason, string expected)
