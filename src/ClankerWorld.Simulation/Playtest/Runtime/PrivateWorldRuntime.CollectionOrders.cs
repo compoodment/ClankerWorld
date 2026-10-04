@@ -28,9 +28,13 @@ public sealed partial class PrivateWorldRuntime
 
     private IEnumerable<InventoryLot> CollectionOrderGoods(OwnerQueuedInstruction instruction) =>
         PersonalGoodsAwaitingCollection(instruction.TargetInhabitantId).Where(lot =>
-            (instruction.Order!.Action == "collect_food"
-                ? IsEdibleFood(lot.ItemKind) && (instruction.Order.TargetFoodKind is null || lot.ItemKind == instruction.Order.TargetFoodKind)
-                : lot.ItemKind == instruction.Order.TargetMaterialKind) &&
+            (instruction.Order!.Action switch
+            {
+                "collect_food" => IsEdibleFood(lot.ItemKind) &&
+                    (instruction.Order.TargetFoodKind is null || lot.ItemKind == instruction.Order.TargetFoodKind),
+                "collect_equipment" => lot.ItemKind == instruction.Order.TargetEquipmentKind,
+                _ => lot.ItemKind == instruction.Order.TargetMaterialKind,
+            }) &&
             (instruction.Order.TargetPosition is null || HouseholdStockPosition(lot) == instruction.Order.TargetPosition));
 
     private void ExecuteCollectionOrderStep(OwnerQueuedInstruction instruction, PlaytestInhabitantState person)
@@ -53,13 +57,18 @@ public sealed partial class PrivateWorldRuntime
     }
 
     private static string CollectionOrderGoodsName(OwnerInstructionOrder order) =>
-        order.Action == "collect_food" ? "food" : "material";
+        order.Action switch
+        {
+            "collect_food" => "food",
+            "collect_equipment" => "equipment",
+            _ => "material",
+        };
 
     private string CollectionOrderBlockedReason(OwnerQueuedInstruction instruction, PlaytestInhabitantState person)
     {
         var actor = instruction.TargetInhabitantId;
         var goods = CollectionOrderGoodsName(instruction.Order!);
-        var pluralGoods = instruction.Order!.Action == "collect_food" ? "food" : "materials";
+        var pluralGoods = instruction.Order!.Action == "collect_material" ? "materials" : goods;
         if (!AgePermitsCandidate(actor, instruction.Order.Action))
             return $"This agent is too young to collect stored {pluralGoods}.";
         if (instruction.Order!.TargetPosition is { } target && !map.Contains(target))

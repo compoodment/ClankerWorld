@@ -541,6 +541,7 @@ public static class GameUiText
             "repair_equipment" => "repair personal equipment",
             "collect_material" => "collect personal materials",
             "collect_food" => "collect personal food",
+            "collect_equipment" => "collect personal equipment",
             "store_material" => "store personal materials",
             "inspect_material_site" => "look for the requested material",
             "storage_pot" => "storage pot",
