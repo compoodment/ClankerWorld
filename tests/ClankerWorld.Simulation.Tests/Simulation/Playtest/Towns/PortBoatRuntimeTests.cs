@@ -182,7 +182,11 @@ public sealed class PortBoatRuntimeTests
         await scenario.UntilAsync(() => scenario.World.BoatRequests.Count == 2, 120);
         Assert.All(scenario.World.BoatRequests, request => Assert.Equal("waiting", request.Status));
         Assert.Null(scenario.World.Boats[0].Journey);
-        policy.IdleActors.Clear();
+        // Clear one landing through an ordinary owner movement instruction.
+        // Scouting can legitimately be unavailable in the current weather.
+        scenario.World.SubmitInstruction(new("clear-landing", "owner:test", Blockers[0],
+            OwnerInstructionKind.MustDo, "move to 194,10"));
+        policy.IdleActors.Remove(Blockers[0]);
         await scenario.UntilAsync(() => scenario.World.Boats[0].Journey is not null, 30);
         Assert.Equal(Follower, scenario.World.Boats[0].Journey!.PassengerId);
         Assert.Equal(first, scenario.World.BoatRequests[0]);
@@ -384,7 +388,7 @@ public sealed class PortBoatRuntimeTests
                 var candidates = request.Observation.Candidates;
                 policy.Observations.Enqueue(request.Observation);
                 var selected = policy.IdleActors.Contains(actor) ? candidates.Single(candidate => candidate.Id == "safe_idle") :
-                    Blockers.Contains(actor, StringComparer.Ordinal) ? candidates.FirstOrDefault(candidate => candidate.Id == "explore") : null;
+                    Blockers.Contains(actor, StringComparer.Ordinal) ? candidates.FirstOrDefault(candidate => candidate.Id == "move_to") : null;
                 selected ??= candidates.Where(candidate => candidate.DeterministicPriority <= 5 && candidate.Id is
                         "consume_food" or "collect_shared_food" or "take_food_from_pot" or "harvest_food" or "seek_food" or "seek_warmth" or "wear_clothing")
                     .OrderBy(candidate => candidate.DeterministicPriority).FirstOrDefault() ??
@@ -430,6 +434,8 @@ public sealed class PortBoatRuntimeTests
                 return ValueTask.FromResult(new CognitionDecisionResponse(request.RequestId, actor, Kind, ProviderEpoch,
                     request.Observation.RunEpoch, request.Observation.DecisionGeneration, request.Observation.ObservationDigest,
                     selected.Id, 1, candidates.ToDictionary(candidate => candidate.Id, candidate => candidate.Id == selected.Id ? 1d : 0d, StringComparer.Ordinal),
+                    ChosenPersonality: request.Observation.NeedsPersonality ? "Patient and curious" : null,
+                    ChosenAspiration: request.Observation.NeedsAspiration ? "Explore the coast" : null,
                     CivicProposal: text));
             }
         }
