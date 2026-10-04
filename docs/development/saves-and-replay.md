@@ -274,7 +274,7 @@ condition survive reload and rollback. This version follows equipment-collection
 schema 82, Council-election schema 81, food schema 80 and lantern schema 79.
 Older alpha checkpoints are refused and preserved without migration.
 
-Private-world schema 84 adds `produce_item` orders with an exact recipe and
+Private-world schema 85 adds `produce_item` orders with an exact recipe and
 output kind, an optional requested site, and the selected building, project
 start and production-job identities. A production job's optional
 `OrderInstructionId` records which order started it; matching a recipe and
@@ -282,7 +282,7 @@ start time alone cannot adopt an unrelated job. Progress counts finished output
 items or whole batches. Loading validates recipe yields, cross-record ownership and
 job references, pause state and completion receipts together. Queued work,
 partial progress, cancellation and survival pauses retain their state through
-reload and replay. This version follows equipment-storage schema 83; older alpha checkpoints are refused and preserved
+reload and replay. This version follows marriage schema 84 and equipment-storage schema 83; older alpha checkpoints are refused and preserved
 without migration.
 
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
@@ -695,7 +695,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 84. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 85. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 bounded model-attempt status and last accepted model choice per agent, plus
