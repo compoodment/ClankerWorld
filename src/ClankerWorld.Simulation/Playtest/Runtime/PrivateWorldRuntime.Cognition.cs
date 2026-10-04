@@ -490,6 +490,12 @@ public sealed partial class PrivateWorldRuntime
                     ContinueTownProjectDonationWalk(inhabitant.Id, intention.CandidateId);
                 continue;
             }
+            if (IsMarketCandidate(intention.CandidateId))
+            {
+                if (intention.Provider == DecisionProviderKind.LargeLanguageModel && intention.OperativeOrderInstructionId is null)
+                    ContinueMarketWalk(inhabitant.Id, intention.CandidateId);
+                continue;
+            }
             if (IsOrnamentCandidate(intention.CandidateId))
             {
                 if (intention.Provider == DecisionProviderKind.LargeLanguageModel)
@@ -600,6 +606,11 @@ public sealed partial class PrivateWorldRuntime
             {
                 if (!decision.Admission.FellBack && decision.Admission.Intention.Provider == DecisionProviderKind.LargeLanguageModel)
                     ApplyTownProjectDonation(decision.InhabitantId, candidateId);
+            }
+            else if (IsMarketCandidate(candidateId))
+            {
+                if (!decision.Admission.FellBack && decision.Admission.Intention.Provider == DecisionProviderKind.LargeLanguageModel)
+                    ApplyMarketCandidate(decision.InhabitantId, state, candidateId);
             }
             else if (!ApplyToolMakingRequestDecision(decision))
                 ApplyCandidate(decision.InhabitantId, state, candidateId, reportIdle: true);
@@ -753,6 +764,7 @@ public sealed partial class PrivateWorldRuntime
             ApplyTownProjectCandidate(inhabitantId, state, candidateId);
             return;
         }
+        if (IsMarketCandidate(candidateId)) return;
         if (candidateId.StartsWith("council_", StringComparison.Ordinal))
         {
             ApplyCouncilCandidate(inhabitantId, candidateId);
@@ -1204,6 +1216,7 @@ public sealed partial class PrivateWorldRuntime
             AddTownCivicCandidates(candidates, inhabitantId);
             AddTownProjectCandidates(candidates, inhabitantId);
             AddTownProjectDonationCandidates(candidates, inhabitantId);
+            AddMarketCandidates(candidates, inhabitantId);
             AddLearningCandidates(candidates, inhabitantId);
             AddExplorationCandidate(candidates, inhabitantId, state);
         }

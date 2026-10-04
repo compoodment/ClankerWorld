@@ -44,6 +44,7 @@ public sealed partial class PrivateWorldRuntime
                 BuildingExpansions = PreserveExpansionDefinitionIdentity(instanceId, definitionId),
                 GuestInvitations = RemoveHouseInvitations(instanceId),
             };
+            RecordMarketBuildingRemoval(instanceId);
             if (survivalState is { } survival && survival.Fires.Any(item => item.BuildingId == instanceId))
             {
                 survivalState = survival with { Fires = survival.Fires.Where(item => item.BuildingId != instanceId).ToArray() };
