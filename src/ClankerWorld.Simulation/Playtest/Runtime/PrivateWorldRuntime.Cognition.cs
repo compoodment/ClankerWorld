@@ -137,7 +137,9 @@ public sealed partial class PrivateWorldRuntime
                 MedicalCareNote: MedicalCareNoteCore(inhabitant.Id), TownMembershipNote: TownMembershipNote(inhabitant.Id),
                 ToolMakingRequestNote: ToolMakingRequestNoteCore(inhabitant.Id),
                 AllowedChildSurnames: inhabitant.NeedsName && InhabitantNameRules.RequiresParentSurname(checkpoint, inhabitant.Id)
-                    ? InhabitantNameRules.AllowedChildSurnames(checkpoint, inhabitant.Id) : null);
+                    ? InhabitantNameRules.AllowedChildSurnames(checkpoint, inhabitant.Id) : null,
+                MarriageNote: marriages.SingleOrDefault(item => AgentMarriageRules.HasParticipant(item, inhabitant.Id)) is { } marriage
+                    ? AgentMarriageRules.Note(marriage, inhabitant.Id, checkpoint) : null);
             var observation = new InhabitantObservation(
                 inhabitant.Id,
                 WorldTick,

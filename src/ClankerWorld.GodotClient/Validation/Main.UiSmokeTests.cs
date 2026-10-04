@@ -316,6 +316,28 @@ public partial class Main
             OpenConversationReader(conversationMap, thirdAgentId, "conversation:ui-interrupted");
             if (!conversationReaderStatus.Text.StartsWith("Interrupted · world paused", StringComparison.Ordinal))
                 throw new InvalidOperationException("An interrupted conversation must keep its pause reason visible in the summary.");
+
+            var surname = new OwnerWorldConversation("conversation:ui-surname", firstAgentId, "Aster Ash", secondAgentId, "Rowan Ash",
+                "closed", null, "surname_draw", 8, 12,
+                Enumerable.Range(0, 4).Select(index => new OwnerWorldConversationTurn(
+                    $"conversation:ui-surname:turn:{index + 1}", index % 2 == 0 ? firstAgentId : secondAgentId,
+                    index % 2 == 0 ? "Aster Ash" : "Rowan Ash", "I have a surname in mind.", index + 9,
+                    [index % 2 == 0 ? secondAgentId : firstAgentId], false, index % 2 == 0 ? "Ash" : "Reed")).ToArray())
+            {
+                Kind = "marriage_surname",
+                ChosenSurname = "Ash",
+            };
+            var surnameMap = conversationMap with { WorldTick = 12, Conversations = [surname] };
+            OpenConversationReader(surnameMap, firstAgentId, surname.Id);
+            if (!conversationReaderTitle.Text.StartsWith("Shared surname ·", StringComparison.Ordinal) ||
+                !conversationReaderStatus.Text.Contains("draw", StringComparison.Ordinal) ||
+                !conversationReaderSummary.Text.Contains("Chosen surname: Ash", StringComparison.Ordinal))
+                throw new InvalidOperationException("The surname reader must show the session, shared result and disclosed draw.");
+            conversationHistoryExpanded = true;
+            RenderConversationReader(surnameMap, surname, firstAgentId, 0);
+            if (!conversationHistoryText.Text.Contains("Surname choice: Reed", StringComparison.Ordinal) ||
+                !conversationHistoryText.Text.Contains("Surname choice: Ash", StringComparison.Ordinal))
+                throw new InvalidOperationException("The surname history must display each partner's admitted choice.");
         }
         finally
         {
