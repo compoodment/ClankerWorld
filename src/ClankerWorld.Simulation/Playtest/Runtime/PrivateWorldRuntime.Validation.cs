@@ -36,6 +36,7 @@ public sealed partial class PrivateWorldRuntime
         ValidatePhysicalInventoryLocations(society.Checkpoint.Inventory, worldSimulation, worldContent,
             society.Checkpoint.Inhabitants, map, society.Checkpoint.Estates);
         ValidateFarmFields(fields.ToArray(), map, worldSeed, society.Checkpoint, worldSimulation, worldContent, RoadAndBridgeTiles().ToArray());
+        ValidateFieldOrderBindings(fields, instructionsByIdempotency.Values);
         if (worldSimulation.Buildings.Any(building => building.HouseholdId is { } householdId &&
             !society.Checkpoint.Households.Any(household => household.Id == householdId)))
             throw new InvalidDataException("A House references a missing household.");
@@ -454,6 +455,7 @@ public sealed partial class PrivateWorldRuntime
         ValidateFarmFields(state.Fields!.ToArray(), state.Map, state.WorldSeed, state.Society.Society,
             state.WorldSimulation, state.WorldContent, state.RoadTiles.Concat(
                 state.Bridges.SelectMany(bridge => bridge.Entrances)).ToArray());
+        ValidateFieldOrderBindings(state.Fields!, state.Instructions ?? []);
         if (state.WorldSimulation.Buildings.Any(building => building.HouseholdId is { } householdId &&
             !state.Society.Society.Households.Any(household => household.Id == householdId)))
             throw new InvalidDataException("A House references a missing household.");
@@ -580,6 +582,7 @@ public sealed partial class PrivateWorldRuntime
             order.TargetResourceId is { Length: > 128 } || order.TargetResourceId?.Any(char.IsControl) == true ||
             order.TargetFoodKind is not (null or "berries" or "fruit" or "wild_greens") &&
                 (order.Action != "consume_food" || !IsEdibleFood(order.TargetFoodKind)) ||
+            !IsFieldOrder(order.Action) && order.TargetCropKind is not null ||
             order.Action != "repair_equipment" && order.TargetEquipmentKind is not null ||
             order.Action is not ("gather_material" or "store_material" or "collect_material") && order.TargetMaterialKind is not null ||
             order.TargetPosition is { X: < -10_000_000 or > 10_000_000 } ||
@@ -594,6 +597,17 @@ public sealed partial class PrivateWorldRuntime
                 order.ProgressUnit == "none" && !order.RepeatUntilCancelled && order.TargetFoodKind is null &&
                 order.TargetResourceId is null && order.TargetPosition is null && order.LastEffectId is null &&
                 order.TargetAgentId is null;
+
+        if (IsFieldOrder(order.Action))
+            return (order.Action == "till_field" ? order.TargetCropKind is null :
+                    order.TargetCropKind is null ? order.Action != "plant_field" : FarmFieldRules.IsCrop(order.TargetCropKind)) &&
+                order.TargetAgentId is null && order.TargetFoodKind is null && order.TargetResourceId is null && order.TargetPosition is null &&
+                order.RequestedUnits is >= 1 and <= 1000 && order.CompletedUnits is >= 0 and <= 1_000_000 &&
+                (order.QuantityIsExplicit || order.RequestedUnits == 1) && order.ProgressUnit == "fields" &&
+                (order.RepeatUntilCancelled || order.CompletedUnits <= order.RequestedUnits) &&
+                order.Status != "not_understood" &&
+                (order.Status == "finished") == (!order.RepeatUntilCancelled && order.CompletedUnits >= order.RequestedUnits) &&
+                (order.CompletedUnits == 0 ? order.LastEffectId is null : order.LastEffectId?.StartsWith("field:work:", StringComparison.Ordinal) == true);
 
         if (order.Action == "repair_equipment")
             return PrivateWorldInstructionOrderParser.IsEquipmentKind(order.TargetEquipmentKind) &&

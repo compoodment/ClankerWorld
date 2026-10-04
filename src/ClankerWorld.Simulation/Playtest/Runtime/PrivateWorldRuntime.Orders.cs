@@ -17,6 +17,9 @@ public sealed partial class PrivateWorldRuntime
         if (order.TargetPosition is { } requestedPosition && !map.Contains(requestedPosition))
             return null;
 
+        if (IsFieldOrder(order.Action))
+            return FieldOrderCandidateFor(instruction, person);
+
         if (order.Action == "repair_equipment")
             return RepairOrderCandidateFor(instruction, person);
 
@@ -169,6 +172,9 @@ public sealed partial class PrivateWorldRuntime
         }
         switch (candidate.Id)
         {
+            case "work_field":
+                ExecuteFieldOrderStep(instruction, person);
+                return;
             case "repair_equipment":
                 ExecuteRepairOrderStep(instruction, person);
                 return;
@@ -312,6 +318,8 @@ public sealed partial class PrivateWorldRuntime
 
     private string OrderBlockedReason(OwnerQueuedInstruction instruction, PlaytestInhabitantState person)
     {
+        if (instruction.Order is { } fieldOrder && IsFieldOrder(fieldOrder.Action))
+            return FieldOrderBlockedReason(instruction);
         if (instruction.Order?.Action == "repair_equipment")
             return RepairOrderBlockedReason(instruction);
         if (instruction.Order?.Action == "collect_material")

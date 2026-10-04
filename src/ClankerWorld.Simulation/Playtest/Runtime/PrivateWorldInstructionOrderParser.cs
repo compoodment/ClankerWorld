@@ -4,7 +4,7 @@ using ClankerWorld.Simulation.Harness;
 namespace ClankerWorld.Simulation.Playtest;
 
 /// <summary>
-/// Parses only the direct food, material, storage, collection, equipment-repair and movement orders that the runtime can execute.
+/// Parses only the direct food, material, storage, collection, equipment-repair, field-work and movement orders that the runtime can execute.
 /// Every token must belong to one of these forms; unconsumed text is not guessed.
 /// </summary>
 internal static class PrivateWorldInstructionOrderParser
@@ -137,6 +137,10 @@ internal static class PrivateWorldInstructionOrderParser
             var keepPrefix = ReadWord("keep");
             var repeatPrefix = keepPrefix || ReadWord("repeat") || ReadWord("repeatedly");
 
+            var actionStart = position;
+            if (TryReadFieldOrder(end, repeatPrefix, keepPrefix) is { } fieldOrder) return fieldOrder;
+            position = actionStart;
+
             if (!TryReadAction(out var action, out var actionVerb))
                 return null;
 
@@ -219,6 +223,45 @@ internal static class PrivateWorldInstructionOrderParser
                 targetPosition,
                 TargetMaterialKind: materialKind,
                 TargetEquipmentKind: equipmentKind);
+        }
+
+        private OwnerInstructionOrder? TryReadFieldOrder(int end, bool repeat, bool keep)
+        {
+            string action;
+            if (TryReadAnyWord("till", "tills", "tilling")) action = "till_field";
+            else if (TryReadAnyWord("plant", "plants", "planting")) action = "plant_field";
+            else if (TryReadAnyWord("tend", "tends", "tending")) action = "tend_field";
+            else if (TryReadAnyWord("harvest", "harvests", "harvesting")) action = "harvest_field";
+            else return null;
+            if (keep && tokens[position - 1].Value is not ("tilling" or "planting" or "tending" or "harvesting")) return null;
+            _ = ReadWord("my");
+            var explicitQuantity = TryReadQuantity(out var quantity);
+            if (!explicitQuantity && !ReadWord("a")) _ = ReadWord("the");
+            var hasField = TryReadAnyWord("field", "fields");
+            var crop = (string?)null;
+            if (action != "till_field")
+            {
+                var requiresCrop = hasField && ReadWord("of");
+                if (ReadWord("grain")) crop = FarmFieldRules.Grain;
+                else if (TryReadAnyWord("potato", "potatoes")) crop = FarmFieldRules.Potatoes;
+                else
+                {
+                    _ = ReadWord("cultivated");
+                    if (ReadWord("greens")) crop = FarmFieldRules.Greens;
+                    else if (position > 0 && tokens[position - 1].Value == "cultivated") return null;
+                }
+                if (requiresCrop && crop is null || action == "plant_field" && crop is null) return null;
+            }
+            if (!hasField && (explicitQuantity || crop is null)) return null;
+            if (ReadWord("until"))
+            {
+                if (!ReadWord("cancelled") && !ReadWord("canceled")) return null;
+                repeat = true;
+            }
+            if (!ReadWord("now")) _ = ReadWord("please");
+            if (position != end) return null;
+            return new(action, "queued", explicitQuantity ? quantity : 1, 0, "fields", repeat,
+                explicitQuantity, TargetCropKind: crop);
         }
 
         private bool TryReadHomeStorageLocation()
