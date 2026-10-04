@@ -118,6 +118,11 @@ everything that is available in the current build. See [what works today](../wha
   still require an active player. Unmarried parents may have different
   surnames, so their child's surname choice is meaningful; married parents
   already share one surname, so either parent's surname is the same choice.
+  **Player renaming, agreed with computment on October 3:** changing a married
+  agent's surname changes both spouses' surnames together. The other spouse
+  keeps their first and middle names. A taken first name refuses the whole
+  rename and leaves both names unchanged. This later player change does not
+  rewrite the couple's original surname conversation or its result.
   The low-population continuity rule may encourage marriage but must not make
   it a prerequisite for having a child.
 - **A child uses their own selected personal AI model once they leave infancy.**
