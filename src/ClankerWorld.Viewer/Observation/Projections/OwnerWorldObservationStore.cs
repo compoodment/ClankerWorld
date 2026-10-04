@@ -1367,6 +1367,7 @@ public sealed class OwnerWorldObservationStore
         "harvest_food" => "gathering food",
         "gather_material" => "gathering the ordered material",
         "work_field" => "working on a household field",
+        "repair_tool" => "repairing a personal tool",
         "repair_equipment" => "repairing personal equipment",
         "collect_material" => "collecting personal materials",
         "store_material" => "storing personal materials in the House",

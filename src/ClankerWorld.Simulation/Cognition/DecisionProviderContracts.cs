@@ -358,6 +358,7 @@ public sealed record InhabitantObservation(
                         "collect your own stored or dropped material" or
                         "store your own carried material in your House" or
                         "repair your own worn clothing or carrying aid" or
+                        "repair your own worn tool" or
                         "till a field for your household" or
                         "plant the requested crop in your household field" or
                         "tend your household crop" or

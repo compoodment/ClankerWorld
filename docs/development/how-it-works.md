@@ -92,9 +92,8 @@ unable to save.
 `ParseInstructionOrder` reads a complete, bounded grammar for eating food,
 seeking a food source, harvesting food, gathering supported raw materials,
 storing or collecting personal raw materials, repairing supported personal
-clothing and carrying aids, household field work, and moving to an exact tile. Harvest and
-food-source travel orders must name a
-supported kind or resource; explicit resource names must match a complete
+clothing, carrying aids and tools, household field work, and moving to an exact
+tile. Harvest and food-source travel orders must name a supported kind or resource; explicit resource names must match a complete
 identifier and the requested kind. Unsupported
 objects or operations, mixed tasks, unknown explicit targets, and invalid
 quantities or leftover words are rejected as not understood rather than mapped
@@ -164,7 +163,7 @@ the requested remainder. Only the committed relocation earns progress, using
 a bounded hashed receipt. Former-household collection grants no other access.
 
 Repair orders save a separate `TargetEquipmentKind` for basic clothing, padded
-coats, rain cloaks, baskets or sacks. The parser refuses other equipment and
+coats, rain cloaks, baskets or sacks. The parser refuses unsupported equipment and
 explicit sites. Orders filter the normal worn-item rules by this exact kind,
 collect real materials through `CollectEquipment`, then use `RepairEquipment`
 and `ContinueEquipmentRepair`. Ordinary repair chooses the first feasible worn item, preferring the equipped
@@ -177,6 +176,21 @@ inputs before starting their own work. Cancellation or replacement releases
 reservations immediately. Survival interruption follows ordinary repair rules:
 release unused inputs and restart unfinished work when the order can resume.
 Save/reload retains a running repair's work counter and exact reservations.
+
+Tool repair orders use `repair_tool` and the same `TargetEquipmentKind` field,
+restricted to the 13 supported tool kinds. The parser requires the material and
+tool name. `RepairableTools` shares ordinary private Blacksmith, material,
+carrying and route checks; orders additionally require personal ownership and
+positive remaining condition. Ordinary repair retains its borrowed-household
+behavior. Order preparation protects every matching worn personal tool from
+spare-cargo storage and refuses gathering that would break a requested tool.
+`RepairTool` performs physical pickup, gathering, spare-cargo storage
+and walking, returning a repaired lot only after the real inventory transition.
+That return alone earns one repair, with a bounded receipt derived from actor,
+time and repaired lot identity. Stacked worn lots split into individual repaired
+units. Preparation has no reservation or timed job to unwind: cancellation keeps
+already collected goods and spent tool wear. Remaining quantities and queued
+work survive reload; survival can interrupt before repair resumes.
 
 Field orders use `till_field`, `plant_field`, `tend_field` and `harvest_field`,
 with an optional `TargetCropKind` limited to the three existing crops. Explicit

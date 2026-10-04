@@ -527,6 +527,7 @@ public static class GameUiText
             "tend_field" => "tend a household field",
             "harvest_field" => "harvest a household field",
             "work_field" => "work on a household field",
+            "repair_tool" => "repair a personal tool",
             "repair_equipment" => "repair personal equipment",
             "collect_material" => "collect personal materials",
             "store_material" => "store personal materials",
