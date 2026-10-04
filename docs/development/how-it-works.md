@@ -1048,20 +1048,30 @@ Household land requests use the same bounded `civic_land_tiles` field for
 already titled land. The choice names the agent's tile and up to six free Town
 tiles nearest first: no use right, pending request, building, expansion, road
 or field.
-Filing refuses tiles the household already holds and other owners' buildings
-and running expansions with no recorded right; another household's recorded
+Filing refuses tiles the household already holds and other owners' buildings,
+running expansions and fields with no recorded right; another household's recorded
 right is contested as a dispute.
 A nonconflicting request opens an ordinary `land_use`
 Council proposal. Its canonical key includes the household, exact tiles and
 optional agreed end date. Filing posts a notice but supplies no acceptance.
 Each current adult in the household must learn that notice and explicitly
 choose `accept_land_use`; Council votes are separate. Grant settlement rechecks
-the current adult roster and competing rights/requests. A dispute leaves the
+the current adult roster, competing rights/requests and foreign fields. An
+older pending request cannot grant another household's worked field merely
+because its Council vote and household acceptance have finished. A dispute leaves the
 request pending; refusal, withdrawal, an elapsed requested term and a Council
 change that cancels the vote close it, and the household may ask again.
 A grant preserves its Council proposal, individual consent records and the
 adult roster at settlement. Closed requests remain in the save history but do
 not contribute competing claims to the map or Add Agent.
+
+Ordinary and ordered field-site choices and authoritative tilling exclude land another
+household holds or has requested; unclaimed land and the farmer's own household
+land keep their ordinary physical requirements. New Roads and bridge entrances
+exclude every household's held or requested tiles. Routing may still join an
+existing Road or reuse an existing bridge on claimed land, but it rechecks
+both banks before adding a new crossing. These construction checks do not
+change walking permissions or remove existing infrastructure.
 
 `request_expansion_land` derives the extra House tiles from a currently legal
 larger footprint, so agents can request them before gathering materials.

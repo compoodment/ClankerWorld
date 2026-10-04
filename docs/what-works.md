@@ -689,11 +689,16 @@ actual planting, visitors and current-format saves. The nine checks in the
 
 Towns grow along their streets. Building sites that can face an existing Road
 rank higher. Each new building's street runs on a few tiles past it, and a
-building away from the Roads gets a new side street. Town borders and
+building away from the Roads gets a new side street. New Road tiles and bridge
+entrances avoid household use rights and pending requests; existing Roads and
+bridges remain usable. Town borders and
 building-site ranking are provisional. The first accepted layout records Town
 title over its then-connected land; later border expansion does not add title.
 Starter household use rights cover the footprints of the buildings assigned to
-each household. Add Agent uses building/field ownership and recorded use
+each household. New fields cannot occupy land another household holds or has
+requested. Ordinary household land requests and grants cannot take over another
+household's field; challenges to recorded use rights remain disputes.
+Add Agent uses building/field ownership and recorded use
 rights, then Town title or border: one clear household claim sets the household,
 and land claimed by one Town gives Town membership. A building's current owner
 comes before another household's use right on its footprint. Reassigning a
