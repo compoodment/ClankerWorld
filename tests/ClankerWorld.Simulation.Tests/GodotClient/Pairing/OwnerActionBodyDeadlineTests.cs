@@ -13,10 +13,18 @@ public sealed class OwnerActionBodyDeadlineTests
     [InlineData(false, false)]
     [InlineData(true, true)]
     [InlineData(false, true)]
-    public async Task StalledBodyReleasesGateAndNextPauseSucceeds(bool challengeBody, bool callerCancels)
+    public Task StalledBodyReleasesGateAndNextPauseSucceeds(bool challengeBody, bool callerCancels) =>
+        // The response read and gate must observe cancellation without waiting for the test
+        // runner's synchronization context, which other parallel tests can keep busy.
+        Task.Run(() => AssertStalledBodyReleasesGateAsync(challengeBody, callerCancels));
+
+    private static async Task AssertStalledBodyReleasesGateAsync(bool challengeBody, bool callerCancels)
     {
         using var handler = new HeldBodyHandler(challengeBody);
-        using var client = new HttpClient(handler) { Timeout = TimeSpan.FromMilliseconds(500) };
+        using var client = new HttpClient(handler)
+        {
+            Timeout = callerCancels ? Timeout.InfiniteTimeSpan : TimeSpan.FromMilliseconds(500),
+        };
         using var signer = new Signer();
         using var cancellation = new CancellationTokenSource();
         var api = new OwnerWorldApi(client);

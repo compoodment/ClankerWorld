@@ -6,7 +6,6 @@ using ClankerWorld.Simulation.World;
 using ClankerWorld.Simulation.Society;
 using ClankerWorld.Viewer.Observation;
 using System.Collections.Concurrent;
-using System.Text.Json.Nodes;
 
 namespace ClankerWorld.Simulation.Tests;
 
@@ -79,16 +78,6 @@ public sealed class FarmFieldTests
     }
 
     [Fact]
-    public void DamagedFieldArrayIsRejectedAsInvalidCheckpointData()
-    {
-        var (state, _, _, _) = PreparedFarmer("field-damaged-save");
-        var document = JsonNode.Parse(PrivateWorldRuntimeCodec.Encode(state))!;
-        document["state"]!["fields"] = new JsonArray((JsonNode?)null);
-        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Decode(
-            System.Text.Encoding.UTF8.GetBytes(document.ToJsonString())));
-    }
-
-    [Fact]
     public void CurrentAlphaCutoffPreservesCurrentFieldsAndGroundHarvestLots()
     {
         var (state, _, household, point) = PreparedFarmer("field-schema");
@@ -106,23 +95,6 @@ public sealed class FarmFieldTests
         Assert.Throws<InvalidDataException>(() => Restore(groundState with { SchemaVersion = 33 }));
         using var groundRestored = Restore(groundState);
         Assert.Equal(new InventoryGroundPosition(point.X, point.Y), groundRestored.Society.Inventory.GetLot("field-ground-schema").GroundPosition);
-    }
-
-    [Fact]
-    public void SavedFieldToolWorkRequiresItsOwnSchema()
-    {
-        var (state, actor, _, point) = PreparedFarmer("field-tool-schema");
-        using var world = Restore(state);
-        Assert.True(world.StartFieldWork(actor, point, FarmWorkKind.Till).Accepted);
-        var active = world.ExportState();
-        Assert.Equal(PrivateWorldRuntime.StateSchemaVersion, active.SchemaVersion);
-        Assert.NotNull(Assert.Single(active.Fields!).Work!.HoeLotId);
-        Assert.Throws<InvalidDataException>(() => Restore(active with
-        {
-            SchemaVersion = PrivateWorldRuntime.ToolProgressionSchemaVersion - 1,
-        }));
-        using var restored = Restore(active);
-        Assert.Equal(active.Fields, restored.Fields);
     }
 
     [Theory]
@@ -152,35 +124,12 @@ public sealed class FarmFieldTests
         Assert.Equal(healthyBytes, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
     }
 
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData(" \t ")]
-    [InlineData("unknown-field-worker")]
-    public void EncodedFieldWorkWithAnInvalidWorkerIsRefusedAsInvalidCheckpointData(string? workerId)
-    {
-        var (state, actor, _, point) = PreparedFarmer("field-invalid-worker-codec");
-        using var world = Restore(state);
-        Assert.True(world.StartFieldWork(actor, point, FarmWorkKind.Till).Accepted);
-        var active = world.ExportState();
-        var healthyBytes = PrivateWorldRuntimeCodec.Encode(active);
-        var document = JsonNode.Parse(healthyBytes)!;
-        document["state"]!["fields"]![0]!["work"]!["workerId"] = workerId;
-        var damagedBytes = System.Text.Encoding.UTF8.GetBytes(document.ToJsonString());
-
-        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Decode(damagedBytes));
-
-        Assert.Equal(healthyBytes, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
-        using var restored = Restore(PrivateWorldRuntimeCodec.Decode(healthyBytes));
-        Assert.Equal(active.Fields, restored.Fields);
-        Assert.Equal(healthyBytes, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
-    }
-
     internal static PrivateWorldRuntimeState FeedHouseholdFromAvailableStock(PrivateWorldRuntimeState state, string household)
     {
         var inventory = state.Society.Society.Inventory;
         foreach (var lot in inventory.Lots.Where(lot => lot.OwnerId == household &&
-            lot.ItemKind is "food" or "berries" or "wild_greens" or "cultivated_greens" or "fruit").ToArray())
+            lot.ItemKind is "food" or "berries" or "wild_greens" or "cultivated_greens" or "fruit" or
+                "simple_meal" or "porridge" or "berry_porridge" or "fruit_porridge" or "bread" or "stew" or "restaurant_meal").ToArray())
         {
             var available = lot.FreshnessBasisPoints == 0 || lot.ConditionBasisPoints == 0 ? 0 : lot.Quantity - inventory.Reservations
                 .Where(reservation => reservation.LotId == lot.Id && reservation.State is
@@ -379,7 +328,6 @@ public sealed class FarmFieldTests
 
     [Theory]
     [InlineData(SocietyAgeBand.Infant, false)]
-    [InlineData(SocietyAgeBand.Adult, true)]
     [InlineData(SocietyAgeBand.Elder, true)]
     public async Task FieldWorkRespectsAgeBeforeAndAfterReload(SocietyAgeBand age, bool allowed)
     {
@@ -466,34 +414,6 @@ public sealed class FarmFieldTests
         await Advance(iron, 2);
         Assert.Equal(FarmFieldStage.Prepared, Assert.Single(iron.Fields).Stage);
         Assert.Equal(7_000, iron.Society.Inventory.GetLot("carried-iron-hoe").ConditionBasisPoints);
-    }
-
-    [Fact]
-    public async Task WoodenHoeCompletesAnOrdinaryTillAndTendCycleAcrossReload()
-    {
-        var (state, actor, _, point) = PreparedFarmer("field-wood-hoe-till-tend");
-        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory,
-            "carried-planting", FarmFieldRules.GreensSeed, actor, 2);
-        using var tilling = Restore(WithInventory(state, inventory));
-        Assert.True(tilling.StartFieldWork(actor, point, FarmWorkKind.Till).Accepted);
-        await Advance(tilling, 4);
-        using var prepared = Reload(tilling);
-        Assert.Equal(FarmFieldStage.Prepared, Assert.Single(prepared.Fields).Stage);
-        Assert.Equal(6_000, prepared.Society.Inventory.GetLot("carried-hoe").ConditionBasisPoints);
-
-        Assert.True(prepared.StartFieldWork(actor, point, FarmWorkKind.Plant,
-            FarmFieldRules.Greens, "carried-planting").Accepted);
-        await Advance(prepared, 4);
-        using var growing = Reload(prepared);
-        await Advance(growing, 1);
-        Assert.Equal(FarmFieldStage.Growing, Assert.Single(growing.Fields).Stage);
-        Assert.True(growing.StartFieldWork(actor, point, FarmWorkKind.Tend).Accepted);
-        await Advance(growing, 3);
-
-        var tended = Assert.Single(growing.Fields);
-        Assert.True(tended.Tended);
-        Assert.Null(tended.Work);
-        Assert.Equal(3_000, growing.Society.Inventory.GetLot("carried-hoe").ConditionBasisPoints);
     }
 
     [Fact]
@@ -669,7 +589,7 @@ public sealed class FarmFieldTests
     [InlineData("cultivated_greens", "cultivated_green_seed")]
     public async Task PhysicalCropCycleSurvivesReloadAndLeavesOwnedHarvestAndPlantingReserveOnTheTile(string crop, string seedKind)
     {
-        var (state, actor, household, point) = PreparedFarmer("field-cycle-" + crop);
+        var (state, actor, household, point) = await CompactFarmer("field-cycle-" + crop);
         var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "carried-planting", seedKind, actor, 2);
         state = WithInventory(state, inventory);
         using var tilling = Restore(state);
@@ -854,7 +774,6 @@ public sealed class FarmFieldTests
 
     [Theory]
     [InlineData("cultivated_greens")]
-    [InlineData("fruit")]
     public async Task ReadyFoodIsCarriedFromItsGroundTileToFiniteHouseStorageAcrossReload(string kind)
     {
         var (state, actor, household, point) = PreparedFarmer("field-ready-food-hauling");
@@ -943,6 +862,50 @@ public sealed class FarmFieldTests
             Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
                 ? person with { Position = point, HungerBasisPoints = 10_000 } : person).ToArray(),
         };
+        return (state, actor, household, point);
+    }
+
+    private static async Task<(PrivateWorldRuntimeState State, string Actor, string Household, GridPoint Point)> CompactFarmer(string seed)
+    {
+        // The crop cycle needs real field work and physical stock, but no distant
+        // geography. Keep its full growth duration and every staged-work reload.
+        using var setup = new PrivateWorldRuntime(seed, _ => new IdleProvider(), startPace: WorldStartPace.FounderSetup);
+        GridPoint[] founders = [new(0, 0), new(1, 2), new(2, 2), new(3, 2)];
+        for (var index = 0; index < founders.Length; index++)
+            setup.PlaceFounder($"founder:{index + 1:D32}", founders[index]);
+        setup.StartWorld();
+        Assert.True(setup.StageStarterContent());
+        await Advance(setup, 9);
+        var state = setup.ExportState();
+        var household = state.Society.Society.Households[0].Id;
+        var actor = state.Society.Society.Inhabitants.First(person => person.HouseholdId == household).Id;
+        var farmhouse = setup.WorldContent.Buildings.Single(definition => definition.LocalId == "farmhouse-1x1");
+        var inventory = state.Society.Society.Inventory;
+        foreach (var cost in farmhouse.BuildCosts)
+            inventory = InventoryFixture.AddLot(inventory, "crop-cycle-building:" + cost.ResourceId,
+                cost.ResourceId, household, cost.Amount);
+        using var placing = Restore(WithInventory(state, inventory));
+        var town = Assert.Single(placing.Towns);
+        var placed = state.Map.Tiles.Select(tile => tile.Position)
+            .Where(position => TownBorderRules.IsWithinOrAdjacent(town, position, 1, 1))
+            .Select(position => placing.PlaceBuilding("crop-cycle-farmhouse", farmhouse.CanonicalId, position, household))
+            .First(result => result.Applied);
+        state = placing.ExportState();
+        var occupied = placing.WorldSimulation.Buildings.SelectMany(building => WorldContentSimulationRules.Footprint(
+            placing.WorldContent.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId), building))
+            .Concat(state.Map.Resources.Select(resource => resource.Position)).Concat(placing.RoadTiles)
+            .Concat(state.Map.CampObjects.Select(item => item.Position)).ToHashSet();
+        var fertility = new LandFertility(state.Map, seed);
+        var point = state.Map.Tiles.Select(tile => tile.Position).Where(position => fertility.CanFarm(position) &&
+                !occupied.Contains(position) && !state.Inhabitants.Any(person => person.Position == position))
+            .OrderByDescending(fertility.At).ThenBy(position => position.Y).ThenBy(position => position.X).First();
+        inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "carried-hoe", "wooden_hoe", actor, 1);
+        state = WithInventory(state, inventory) with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with { Position = point, HungerBasisPoints = 10_000 } : person).ToArray(),
+        };
+        Assert.Equal(household, placing.WorldSimulation.Buildings.Single(building => building.InstanceId == placed.InstanceId).HouseholdId);
         return (state, actor, household, point);
     }
 

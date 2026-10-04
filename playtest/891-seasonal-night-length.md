@@ -1,0 +1,3 @@
+- Play from spring into summer. Each evening the dusk starts a little later, and on the first day of summer the night runs from about 20:24 to 03:36. ([#891](https://github.com/compoodment/ClankerWorld/issues/891))
+- Play on into winter. On its first day the night runs from about 18:00 to 06:00, and an unprotected agent loses more warmth over the longer night. ([#891](https://github.com/compoodment/ClankerWorld/issues/891))
+- Save during a winter dusk and load it. The darkness and the clock carry on from where they were. ([#891](https://github.com/compoodment/ClankerWorld/issues/891))

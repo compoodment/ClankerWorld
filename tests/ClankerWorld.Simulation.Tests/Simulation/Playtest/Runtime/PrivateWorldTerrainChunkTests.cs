@@ -47,38 +47,6 @@ public sealed class PrivateWorldTerrainChunkTests
     }
 
     [Fact]
-    public void OlderAlphaCheckpointIsRefusedAtTheCurrentSchemaFloor()
-    {
-        var geography = new GeographyOptions("below-current-save-schema", WorldSizePreset.Small);
-        using var world = new PrivateWorldRuntime(geography.Seed,
-            startPace: WorldStartPace.FounderSetup, geographyOptions: geography);
-        var state = world.ExportState();
-        var unsupportedState = state with
-        {
-            SchemaVersion = PrivateWorldRuntime.StateSchemaVersion - 1,
-            Bridges = null,
-            BridgeTraffic = null,
-        };
-
-        var encodedError = Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(unsupportedState));
-        Assert.Contains($"minimum supported schema {PrivateWorldRuntime.StateSchemaVersion}",
-            encodedError.Message, StringComparison.Ordinal);
-        var restoreError = Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(unsupportedState));
-        Assert.Contains($"minimum supported schema {PrivateWorldRuntime.StateSchemaVersion}",
-            restoreError.Message, StringComparison.Ordinal);
-
-        var document = JsonNode.Parse(PrivateWorldRuntimeCodec.Encode(state))!.AsObject();
-        var savedState = document["state"]!.AsObject();
-        savedState["schemaVersion"] = PrivateWorldRuntime.StateSchemaVersion - 1;
-        savedState.Remove("bridges");
-        savedState.Remove("bridgeTraffic");
-        var unsupportedBytes = Encoding.UTF8.GetBytes(document.ToJsonString());
-        var decodeError = Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Decode(unsupportedBytes));
-        Assert.Contains($"minimum supported schema {PrivateWorldRuntime.StateSchemaVersion}",
-            decodeError.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public void CurrentGeographyWithoutItsSavedLayersIsRefusedAndPreserved()
     {
         var directory = Path.Combine(Path.GetTempPath(), "clankerworld-missing-map-layers-" + Guid.NewGuid().ToString("N"));

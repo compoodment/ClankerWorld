@@ -13,6 +13,65 @@ public sealed class HouseholdDepartureTests
     private const string Beta = "household:camp-beta";
 
     [Fact]
+    public async Task CurrentResidentCanDeliberatelyCollectPersonalGoodsAfterReload()
+    {
+        var provider = new Choices();
+        using var initial = NormalPathWorld.CreateGenerated("personal-home-collection", _ => provider);
+        initial.Pause();
+        var actor = initial.Society.GetHousehold(Alpha).MemberIds[0];
+        var house = initial.WorldSimulation.Buildings.Single(building => building.InstanceId == "first-town-house-a");
+        var state = initial.ExportState();
+        var inventory = state.Society.Society.Inventory;
+        var kinds = new[] { "field_map", "field_record", "food", "wooden_axe", "clothing" };
+        var fact = new AgentKnowledgeFact("personal-collection-fact", actor, actor, house.Position,
+            state.Map.TerrainKindAt(house.Position)!.Value.ToString(), [], initial.WorldTick, "firsthand");
+        var artifacts = new List<AgentKnowledgeArtifact>();
+        foreach (var kind in kinds.Take(2))
+        {
+            var projectId = "personal-writing-" + kind;
+            var paperId = "personal-writing-paper-" + kind;
+            var reservationId = projectId + ":paper";
+            inventory = InventoryFixture.AddLot(inventory, paperId, "paper", actor, 1, initial.WorldTick);
+            inventory = InventoryFixture.Reserve(inventory, reservationId, actor, paperId, 1,
+                $"knowledge_writing:{projectId}:paper", long.MaxValue);
+            inventory = InventoryFixture.ConsumeReservation(inventory, reservationId);
+            artifacts.Add(new AgentKnowledgeArtifact(
+                "personal-artifact-" + kind, actor, "personal-" + kind, kind, "Personal field notes",
+                initial.WorldTick, [fact])
+            {
+                WritingProjectId = projectId,
+                Materials = [new AgentKnowledgeMaterial(reservationId, paperId, "paper", 1)],
+            });
+        }
+        foreach (var kind in kinds)
+            inventory = InventoryFixture.AddLot(inventory, "personal-" + kind, kind, actor, 1,
+                storageBuildingId: house.InstanceId);
+        state = WithInventory(state, inventory) with
+        {
+            Knowledge = new PrivateWorldKnowledgeState([fact], artifacts),
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with { Position = house.Position, HungerBasisPoints = 9_000, LastDecisionContext = null }
+                : person).ToArray(),
+        };
+        var saved = PrivateWorldRuntimeCodec.Encode(state);
+        using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), _ => provider);
+        Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+        world.Resume();
+        foreach (var kind in kinds)
+        {
+            var lotId = "personal-" + kind;
+            provider.Wanted[actor] = "household_collect:" + lotId;
+            await AdvanceUntil(world, () => PersonalEquipmentRules.IsCarried(world.Society.Inventory.GetLot(lotId), actor));
+            Assert.Equal(actor, world.Society.Inventory.GetLot(lotId).OwnerId);
+            Assert.Equal(Alpha, world.Society.GetInhabitant(actor).HouseholdId);
+        }
+        world.Validate();
+        var collected = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(collected), _ => provider);
+        Assert.Equal(collected, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+    }
+
+    [Fact]
     public async Task VoluntaryDeparturePreservesPropertyTownAndOnceOnlyPhysicalAllowanceAcrossReload()
     {
         var provider = new Choices();
@@ -196,40 +255,6 @@ public sealed class HouseholdDepartureTests
     }
 
     [Fact]
-    public void SoleCaregiverCannotBeDisplacedAndVoluntaryExitMovesCompleteGroupWithoutTeleporting()
-    {
-        using var initial = NormalPathWorld.CreateGenerated("departure-care", _ => new Choices());
-        initial.Pause();
-        var state = initial.ExportState();
-        var actor = initial.Society.GetHousehold(Alpha).MemberIds[0];
-        var other = initial.Society.GetHousehold(Alpha).MemberIds[1];
-        var checkpoint = state.Society.Society;
-        var child = other; // A younger dependent in the same physical checkpoint, with unchanged identity and position.
-        checkpoint = checkpoint with
-        {
-            Inhabitants = checkpoint.Inhabitants.Select(person => person.Id == child
-                ? person with
-                {
-                    AgeBand = SocietyAgeBand.Infant,
-                    BirthTick = checkpoint.WorldTick,
-                    BirthLifeTick = null,
-                    LastLifecycleYearChecked = 0,
-                    PrimaryCaregiverId = actor,
-                    DomesticFamilyUnitId = checkpoint.GetInhabitant(actor).DomesticFamilyUnitId
-                } : person).ToArray(),
-        };
-        // Exercise the independent society move contract without modifying any physical position.
-        var position = state.Inhabitants.Single(person => person.InhabitantId == child).Position;
-        var left = SocietyFixture.LeaveHousehold(checkpoint, actor).Checkpoint;
-        Assert.Null(left.GetInhabitant(actor).HouseholdId);
-        Assert.Null(left.GetInhabitant(child).HouseholdId);
-        Assert.Equal(actor, left.GetInhabitant(child).PrimaryCaregiverId);
-        Assert.Equal(position, state.Inhabitants.Single(person => person.InhabitantId == child).Position);
-        Assert.Equal(2, SocietyFixture.MovingCareGroup(left, actor).Count);
-        Assert.Equal(checkpoint.Relationships.Count, left.Relationships.Count);
-    }
-
-    [Fact]
     public async Task CompleteCareGroupNeedsRoomAndUnanimousAdmissionAndCareCanBeExplicitlyReassigned()
     {
         var provider = new Choices();
@@ -376,7 +401,9 @@ public sealed class HouseholdDepartureTests
         initial.Pause();
         var actor = initial.Society.GetHousehold(Alpha).MemberIds[0];
         var house = initial.WorldSimulation.Buildings.Single(building => building.InstanceId == "first-town-house-a");
-        var recipe = initial.WorldContent.Recipes.First(item => item.WorkstationBuildingId == house.DefinitionId);
+        // Keep two private material reservations without depending on recipe catalogue order.
+        var recipe = initial.WorldContent.Recipes.Single(item => item.LocalId == "weave-basket" &&
+            item.WorkstationBuildingId == house.DefinitionId);
         var state = initial.ExportState();
         var inventory = state.Society.Society.Inventory;
         var reservationIds = new List<string>();

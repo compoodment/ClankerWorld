@@ -277,14 +277,14 @@ public sealed class PrivateWorldToolRepairOrderTests
         Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(resumed.ExportState()));
         foreach (var invalid in new[]
         {
-            order with { TargetEquipmentKind = "wooden_knife" }, order with { TargetEquipmentKind = "basket" },
+            order with { TargetAgentId = actor }, order with { TargetEquipmentKind = "wooden_knife" }, order with { TargetEquipmentKind = "basket" },
             order with { TargetMaterialKind = "iron" }, order with { TargetFoodKind = "berries" },
             order with { TargetPosition = new(1, 2) }, order with { TargetCropKind = "grain" },
             order with { TargetResourceId = "tree" }, order with { ProgressUnit = "material_items" },
             order with { CompletedUnits = 2 }, order with { LastEffectId = "repair:equipment:wrong" },
         })
             Assert.Throws<InvalidDataException>(() => Restore(saved with { Instructions = saved.Instructions!.Select(item => item.InstructionId == receipt.InstructionId ? item with { Order = invalid } : item).ToArray() }));
-        Assert.Throws<InvalidDataException>(() => Restore(saved with { SchemaVersion = 57 }));
+        Assert.Throws<InvalidDataException>(() => Restore(saved with { SchemaVersion = 72 }));
     }
 
     [Theory]
@@ -335,6 +335,88 @@ public sealed class PrivateWorldToolRepairOrderTests
         Assert.Equal(("finished", 1), (Order(resumed, receipt).Status, Order(resumed, receipt).CompletedUnits));
         Assert.Equal(gather ? 5 : 0, Quantity(resumed, actor, "wood"));
         Assert.Equal(10_000, resumed.Society.Inventory.GetLot("target").ConditionBasisPoints);
+        resumed.Validate();
+    }
+
+    [Theory]
+    [InlineData(1_000)]
+    [InlineData(2_000)]
+    public async Task PreparationCannotBreakItsOwnRepairTargetAndSuppliesUnblockItAcrossReload(int condition)
+    {
+        var state = Prepared();
+        var actor = Actor(state);
+        var smith = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == "first-town-blacksmith");
+        var tree = state.Map.Resources.Where(resource => TreeGrowthRules.IsWoodTree(resource.TreeKind) &&
+                state.Map.IsReachableOnFoot(smith.Position, resource.Position))
+            .OrderBy(resource => state.Map.FootDistance(smith.Position, resource.Position)).First();
+        state = WithInventory(state, InventoryFixture.AddLot(state.Society.Society.Inventory,
+            "target", "wooden_axe", actor, 1, conditionBasisPoints: condition)) with
+        {
+            WorldSystems = state.WorldSystems! with
+            {
+                Ecology = state.WorldSystems.Ecology with
+                {
+                    Resources = state.WorldSystems.Ecology.Resources.Select(resource => resource.Id == tree.Id
+                        ? resource with { Quantity = 1, State = EcologyResourceState.Available }
+                        : resource with { Quantity = 0, State = EcologyResourceState.Depleted }).ToArray(),
+                },
+            },
+            Resources = state.Resources.Select(resource => resource with
+            { State = resource.ResourceId == tree.Id ? ResourceState.Available : ResourceState.Depleted }).ToArray(),
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor ? person with
+            { Position = tree.Position } : person).ToArray(),
+        };
+        using var world = Restore(state);
+        var receipt = Submit(world, actor, "fragile", "repair wooden axe");
+        for (var tick = 0; tick < 3; tick++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal(condition, world.Society.Inventory.GetLot("target").ConditionBasisPoints);
+        Assert.Equal(0, Quantity(world, actor, "wood"));
+        Assert.Equal(("blocked", 0), (Order(world, receipt).Status, Order(world, receipt).CompletedUnits));
+        Assert.Equal(1, world.ExportState().WorldSystems!.Ecology.GetResource(tree.Id).Quantity);
+        var saved = world.ExportState();
+        saved = WithInventory(saved, InventoryFixture.AddLot(saved.Society.Society.Inventory,
+            "supplied-wood", "wood", actor, 1));
+        using var resumed = Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(saved)));
+        await Finish(resumed, receipt, 100);
+        Assert.Equal(("finished", 1), (Order(resumed, receipt).Status, Order(resumed, receipt).CompletedUnits));
+        Assert.Equal(10_000, resumed.Society.Inventory.GetLot("target").ConditionBasisPoints);
+        Assert.Equal(0, Quantity(resumed, actor, "wood"));
+        resumed.Validate();
+    }
+
+    [Fact]
+    public async Task CountedRepairPreparationKeepsEveryRequestedPersonalToolAcrossReload()
+    {
+        var state = Prepared();
+        var actor = Actor(state);
+        var house = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == House(state));
+        var inventory = AddTool(AddTool(state.Society.Society.Inventory, actor,
+            "a-target", "iron_knife"), actor, "b-target", "iron_knife");
+        inventory = InventoryFixture.AddLot(inventory, "z-ballast", "fiber", actor, 6);
+        inventory = InventoryFixture.AddLot(inventory, "shared-iron", "iron", Household(state), 2,
+            storageBuildingId: house.InstanceId);
+        state = WithInventory(state, inventory) with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor ? person with
+            { Position = house.Position } : person).ToArray(),
+        };
+        using var world = Restore(state);
+        var receipt = Submit(world, actor, "all-targets", "repair two iron knives");
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal(actor, world.Society.Inventory.GetLot("a-target").OwnerId);
+        Assert.Equal(actor, world.Society.Inventory.GetLot("b-target").OwnerId);
+        Assert.Equal(0, Order(world, receipt).CompletedUnits);
+        Assert.Contains(world.ExportState().Events, item => item.Kind == "spare_cargo_stored");
+        using var resumed = Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState())));
+        await Finish(resumed, receipt, 100);
+        Assert.Equal(("finished", 2), (Order(resumed, receipt).Status, Order(resumed, receipt).CompletedUnits));
+        foreach (var id in new[] { "a-target", "b-target" })
+        {
+            Assert.Equal(actor, resumed.Society.Inventory.GetLot(id).OwnerId);
+            Assert.Equal(10_000, resumed.Society.Inventory.GetLot(id).ConditionBasisPoints);
+        }
+        Assert.Equal(0, resumed.Society.Inventory.Lots.Where(lot => lot.ItemKind == "iron").Sum(lot => lot.Quantity));
+        Assert.Equal(6, resumed.Society.Inventory.Lots.Where(lot => lot.ItemKind == "fiber").Sum(lot => lot.Quantity));
         resumed.Validate();
     }
 

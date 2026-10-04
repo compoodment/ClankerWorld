@@ -1,0 +1,1 @@
+- Clinics, Restaurants, medicinal herb patches and picked or depleted natural sites now use their approved drawings. Potatoes, cultivated green seeds, medicinal herbs, diamond ornaments and simple meals show their matching item icons in stock, inventory and trade views.

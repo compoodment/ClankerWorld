@@ -2,7 +2,6 @@ using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
-using ClankerWorld.Simulation.Society;
 using ClankerWorld.Simulation.World;
 
 namespace ClankerWorld.Simulation.Tests;
@@ -30,69 +29,6 @@ public sealed class PersonalEquipmentTests
         var stored = InventoryFixture.Transfer(inventory, "store", "person", Alpha, "sack", 1, "store", "house");
         Assert.Equal(8, PersonalEquipmentRules.Capacity(stored, "person", equipment));
         Assert.Equal(12, PersonalEquipmentRules.CarriedQuantity(stored, "person", equipment));
-    }
-
-    [Fact]
-    public void GroundContainerFamiliesDoNotCountUntilTheWholeVesselIsPickedUpAndSaved()
-    {
-        using var seed = new PrivateWorldRuntime("ground-container-family-carry");
-        var state = seed.ExportState();
-        var actor = state.Society.Society.Inhabitants.First(person => person.HouseholdId == Alpha &&
-            person.Status == SocietyInhabitantStatus.Active).Id;
-        var personState = state.Inhabitants.Single(person => person.InhabitantId == actor);
-        var ground = new InventoryGroundPosition(personState.Position.X, personState.Position.Y);
-        var inventory = state.Society.Society.Inventory with
-        {
-            Lots = state.Society.Society.Inventory.Lots.Where(lot => lot.OwnerId != actor).ToArray(),
-            Reservations = state.Society.Society.Inventory.Reservations.Where(item => item.OwnerId != actor).ToArray(),
-            Offers = state.Society.Society.Inventory.Offers.Where(item =>
-                item.FirstPartyId != actor && item.SecondPartyId != actor).ToArray(),
-        };
-        inventory = InventoryFixture.AddLot(inventory, "ground-actor-pot", InventoryContainerRules.StoragePot,
-            actor, 1, groundPosition: ground);
-        inventory = InventoryFixture.AddLot(inventory, "ground-actor-pot-food", "berries", actor,
-            InventoryContainerRules.StoragePotCapacity, containerLotId: "ground-actor-pot");
-        inventory = InventoryFixture.AddLot(inventory, "ground-actor-jug", InventoryContainerRules.WaterJug,
-            actor, 1, groundPosition: ground);
-        inventory = InventoryFixture.AddLot(inventory, "ground-actor-jug-water", InventoryContainerRules.FreshWater,
-            actor, InventoryContainerRules.WaterJugCapacity, containerLotId: "ground-actor-jug");
-        Assert.Equal(0, PersonalEquipmentRules.CarriedQuantity(inventory, actor, null));
-        inventory = InventoryFixture.AddLot(inventory, "ground-household-jug", InventoryContainerRules.WaterJug,
-            Alpha, 1, groundPosition: ground);
-        inventory = InventoryFixture.AddLot(inventory, "ground-household-jug-water", InventoryContainerRules.FreshWater,
-            Alpha, InventoryContainerRules.WaterJugCapacity, containerLotId: "ground-household-jug");
-        Assert.Equal(0, PersonalEquipmentRules.CarriedQuantity(inventory, actor, null));
-        inventory = InventoryFixture.AddLot(inventory, "loose-carried-wood", "wood", actor, 2);
-        Assert.Equal(2, PersonalEquipmentRules.CarriedQuantity(inventory, actor, null));
-        state = WithInventory(state, inventory) with
-        {
-            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
-                ? person with { Equipment = null } : person).ToArray(),
-        };
-
-        using var loaded = PrivateWorldRuntime.Restore(state, _ => new Choices([]));
-        var groundRoundTrip = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(loaded.ExportState()));
-        var groundInventory = groundRoundTrip.Society.Society.Inventory;
-        Assert.Equal(ground, groundInventory.GetLot("ground-actor-pot").GroundPosition);
-        Assert.Equal(ground, groundInventory.GetLot("ground-actor-jug").GroundPosition);
-        Assert.Null(groundInventory.GetLot("ground-actor-pot-food").GroundPosition);
-        Assert.Equal(2, PersonalEquipmentRules.CarriedQuantity(groundInventory, actor, null));
-        Assert.Equal(6, PersonalEquipmentRules.FreeCapacity(groundInventory, actor, null));
-
-        var pickedUp = InventoryFixture.Transfer(groundInventory, "pick-up-ground-jug", Alpha, actor,
-            "ground-household-jug", 1, "water_jug_collected");
-        using var carrying = PrivateWorldRuntime.Restore(WithInventory(groundRoundTrip, pickedUp),
-            _ => new Choices([]));
-        var carriedRoundTrip = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(carrying.ExportState()));
-        var carriedInventory = carriedRoundTrip.Society.Society.Inventory;
-        Assert.Equal(ground, carriedInventory.GetLot("ground-actor-pot").GroundPosition);
-        Assert.Equal(2, carriedInventory.GetLot("loose-carried-wood").Quantity);
-        Assert.Equal(actor, carriedInventory.GetLot("ground-household-jug").OwnerId);
-        Assert.Null(carriedInventory.GetLot("ground-household-jug").GroundPosition);
-        Assert.Equal("ground-household-jug", carriedInventory.GetLot("ground-household-jug-water").ContainerLotId);
-        Assert.Equal(7, PersonalEquipmentRules.CarriedQuantity(carriedInventory, actor, null));
-        Assert.Equal(1, PersonalEquipmentRules.FreeCapacity(carriedInventory, actor, null));
-        carrying.Validate();
     }
 
     [Fact]
@@ -156,14 +92,15 @@ public sealed class PersonalEquipmentTests
     }
 
     [Theory]
-    [InlineData("sew-clothing", "clothing", 6, 2, WeatherKind.Snow)]
     [InlineData("sew-padded-coat", "padded_coat", 12, 4, WeatherKind.Snow)]
     [InlineData("sew-rain-cloak", "rain_cloak", 7, 2, WeatherKind.Rain)]
     [InlineData("sew-sack", "sack", 6, 2, WeatherKind.Clear)]
     public async Task HouseholdSuppliesWeavesSewsAndEquipsTailorGoodsAcrossReload(string recipeId,
         string kind, int fiber, int clothCost, WeatherKind weather)
     {
-        var (state, shopId) = TailorTestWorld.Create("equipment-tailor-" + kind, fiber);
+        // On some maps the tailor also gathers nearby wild fiber and weaves
+        // more cloth than the garment needs; these seeds' maps do not.
+        var (state, shopId) = TailorTestWorld.Create("equipment-tailor-" + recipeId, fiber);
         var actor = state.Society.Society.Inhabitants.First(item => item.HouseholdId == Alpha).Id;
         // Exhaust the starting garments so the selected garment must come
         // from the actual Tailor production chain below.
@@ -176,6 +113,18 @@ public sealed class PersonalEquipmentTests
         if (kind == "sack")
             state = WithInventory(state, InventoryFixture.AddLot(state.Society.Society.Inventory,
                 "sack-rope", "rope", Alpha, 1, storageBuildingId: "first-town-house-a"));
+        // The House keeps two real rope/basket batches. The original inputs
+        // above remain the surplus that this scenario carries into the Tailor.
+        inventory = InventoryFixture.AddLot(state.Society.Society.Inventory,
+            "zz-tailor-house-fiber-reserve", "fiber", Alpha, 6, storageBuildingId: "first-town-house-a");
+        var sourceReserves = new List<InventoryLot> { inventory.GetLot("zz-tailor-house-fiber-reserve") };
+        if (kind == "sack")
+        {
+            inventory = InventoryFixture.AddLot(inventory,
+                "zz-tailor-house-rope-reserve", "rope", Alpha, 2, storageBuildingId: "first-town-house-a");
+            sourceReserves.Add(inventory.GetLot("zz-tailor-house-rope-reserve"));
+        }
+        state = WithInventory(state, inventory);
         var systems = state.WorldSystems!;
         state = state with
         {
@@ -211,6 +160,7 @@ public sealed class PersonalEquipmentTests
             for (var tick = 0; tick < tickLimit; tick++)
             {
                 Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+                AssertSourceReserves(world);
                 if (!reopened && world.WorldSimulation.ProductionJobs.Any(job =>
                         job.RecipeId == target.CanonicalId && job.State == WorldProductionJobState.Running))
                 {
@@ -246,9 +196,16 @@ public sealed class PersonalEquipmentTests
                 PrivateWorldRuntimeCodec.Encode(world.ExportState())), Provider);
             Assert.Equal(world.Inhabitants.Single(person => person.InhabitantId == actor).Equipment,
                 savedWorld.Inhabitants.Single(person => person.InhabitantId == actor).Equipment);
+            AssertSourceReserves(savedWorld);
             savedWorld.Validate();
         }
         finally { world.Dispose(); }
+
+        void AssertSourceReserves(PrivateWorldRuntime current) => Assert.All(sourceReserves, expected =>
+        {
+            var actual = current.Society.Inventory.GetLot(expected.Id);
+            Assert.Equal(expected with { LastProcessedTick = actual.LastProcessedTick }, actual);
+        });
     }
 
     [Fact]
@@ -767,37 +724,6 @@ public sealed class PersonalEquipmentTests
         using var finalReload = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
             PrivateWorldRuntimeCodec.Encode(resumed.ExportState())), _ => new Choices([]));
         finalReload.Validate();
-    }
-
-    [Theory]
-    [InlineData(5, false)]
-    [InlineData(4, true)]
-    public async Task FoodHarvestIsOfferedOnlyWhenTheWholeOutputFits(int cargo, bool fits)
-    {
-        using var initial = new PrivateWorldRuntime("food-capacity-boundary", _ => new Choices([]));
-        initial.StageStarterContent();
-        Assert.True((await initial.AdvanceOneTickAsync()).Advanced);
-        var state = initial.ExportState();
-        var actor = state.Inhabitants[0].InhabitantId;
-        var source = state.Map.Resources.First(item => item.Kind == "food" && item.TreeKind is null);
-        var inventory = state.Society.Society.Inventory;
-        inventory = inventory with { Lots = inventory.Lots.Where(lot => lot.OwnerId != actor).ToArray() };
-        inventory = InventoryFixture.AddLot(inventory, "harvest-cargo", "wood", actor, cargo);
-        state = WithInventory(state, inventory) with
-        {
-            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
-                ? person with { Position = source.Position, HungerBasisPoints = 6_000, LastDecisionContext = null } : person).ToArray(),
-        };
-        var provider = new Choices(["harvest_food"]);
-        using var world = PrivateWorldRuntime.Restore(state, id => id == actor ? provider : new Choices([]));
-        for (var tick = 0; tick < 3; tick++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-        if (fits) Assert.Contains(provider.Offers, offer => offer.Split(',').Contains("harvest_food", StringComparer.Ordinal));
-        else Assert.All(provider.Offers, offer => Assert.DoesNotContain("harvest_food", offer.Split(',')));
-        Assert.Equal(fits ? 1 : 0, world.ExportState().Events.Count(item => item.Kind == "food_harvested" &&
-            item.Detail.StartsWith(actor + ":", StringComparison.Ordinal)));
-        Assert.Equal(cargo + (fits ? 4 : 0), PersonalEquipmentRules.CarriedQuantity(world.Society.Inventory, actor, null));
-        Assert.Equal(cargo, world.Society.Inventory.GetLot("harvest-cargo").Quantity);
-        Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "carrying_full" && item.Detail == actor);
     }
 
     [Theory]

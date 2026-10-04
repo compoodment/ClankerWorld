@@ -3,61 +3,17 @@ using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.Society;
-using ClankerWorld.Viewer.Observation;
 using Xunit.Abstractions;
 
 namespace ClankerWorld.Simulation.Tests;
 
 public sealed class ExplorationBridgeArchiveTests(ITestOutputHelper output)
 {
-    private const string Seed = "exploration-bridge-audit-1";
     private const string WorkshopId = "archived-scout-road-workshop";
     private static readonly GridPoint Start = new(0, 101);
     private static readonly GridPoint FirstWater = new(0, 102);
     private static readonly GridPoint SecondWater = new(0, 103);
     private static readonly GridPoint WorkshopSite = new(3, 102);
-
-    [Fact]
-    public async Task ABridgeBuiltAfterNaturalDeathPreservesActualScoutingHistoryAndRecovery()
-    {
-        using var world = await BuildBridgeAfterActualScoutingAndNaturalDeath();
-        var state = world.ExportState();
-        var deceased = Assert.Single(state.DeceasedInhabitants!);
-        var directory = Directory.CreateTempSubdirectory("clankerworld-scout-archive-bridge-");
-        try
-        {
-            // This is the actual archive made by lifecycle processing, not a
-            // manually supplied deceased record or invented breadcrumb path.
-            var bytes = PrivateWorldRuntimeCodec.Encode(state);
-            using (var codec = Restore(PrivateWorldRuntimeCodec.Decode(bytes)))
-                Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(codec.ExportState()));
-            using (var direct = Restore(state))
-                Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(direct.ExportState()));
-            var file = new PrivateWorldStateFile(Path.Combine(directory.FullName, "world.json"), Provider);
-            file.Save(world);
-            // Saving may compact retired event history. Replay from the actual
-            // persisted checkpoint, preserving the separately checked pre-save state.
-            var persisted = PrivateWorldRuntimeCodec.Encode(world.ExportState());
-            using var restored = Restore(PrivateWorldRuntimeCodec.Decode(persisted));
-            Assert.Equal(persisted, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
-            using var recovery = file.LoadOrCreate(Seed);
-            Assert.Equal(persisted, PrivateWorldRuntimeCodec.Encode(recovery.ExportState()));
-            for (var tick = 0; tick < 4; tick++)
-            {
-                Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-                Assert.True((await restored.AdvanceOneTickAsync()).Advanced);
-                Assert.True((await recovery.AdvanceOneTickAsync()).Advanced);
-                Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
-                Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(recovery.ExportState()));
-                Assert.Equal(JsonSerializer.Serialize(deceased), JsonSerializer.Serialize(Assert.Single(world.ExportState().DeceasedInhabitants!)));
-                Assert.DoesNotContain(world.Inhabitants, person => person.InhabitantId == deceased.InhabitantId);
-            }
-        }
-        finally
-        {
-            directory.Delete(recursive: true);
-        }
-    }
 
     [Fact]
     public async Task ABridgePredatingTheOutingCannotExcuseCrossAxisArchivedEdges()

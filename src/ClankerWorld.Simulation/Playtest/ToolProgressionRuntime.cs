@@ -180,7 +180,7 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
-    private InventoryLot[] RepairableTools(string actor)
+    private InventoryLot[] RepairableTools(string actor, IReadOnlyList<string>? protectedToolIds = null)
     {
         if (!AdultResident(actor) || society.Checkpoint.GetInhabitant(actor).HouseholdId is not { } householdId ||
             HouseholdBuildingWithTag(householdId, "blacksmith") is not { } blacksmith ||
@@ -195,7 +195,7 @@ public sealed partial class PrivateWorldRuntime
                 lot.ConditionBasisPoints < 10_000 && UnreservedQuantity(inventory, lot) > 0)
             .OrderBy(lot => lot.Id, StringComparer.Ordinal)
             .Where(tool => ToolProgressionRules.RepairMaterials(tool.ItemKind) is { Count: > 0 } materials &&
-                CanPrepareRepairInputs(actor, tool.Id, materials)).ToArray();
+                CanPrepareRepairInputs(actor, tool.Id, materials, protectedToolIds)).ToArray();
         if (tools.Length == 0 || !IsWithinInteractionRange(state.Position, blacksmith.Position, 0) &&
             FindUnoccupiedRoute(actor, state.Position, blacksmith.Position, 0).Count == 0)
             return [];
@@ -203,7 +203,7 @@ public sealed partial class PrivateWorldRuntime
     }
 
     private bool CanPrepareRepairInputs(string actor, string repairToolId,
-        IReadOnlyList<ContentQuantity> repairMaterials)
+        IReadOnlyList<ContentQuantity> repairMaterials, IReadOnlyList<string>? protectedToolIds = null)
     {
         if (!inhabitants.TryGetValue(actor, out var state)) return false;
 
@@ -230,6 +230,9 @@ public sealed partial class PrivateWorldRuntime
             if (MaterialSource(input.ResourceId, actor) is not { } source ||
                 ProjectMaterialHarvest(actor, input.ResourceId, source) is not { } plan)
                 return false;
+            if (plan.ToolLotId is { } harvestToolId && protectedToolIds?.Contains(harvestToolId, StringComparer.Ordinal) == true &&
+                inventory.GetLot(harvestToolId).ConditionBasisPoints <= plan.WearLossBasisPoints)
+                return false;
             requiredCarryUnits = checked(requiredCarryUnits + plan.Quantity + plan.TreeSeedQuantity);
             if (plan.ToolLotId is not null)
                 harvestToolIds.Add(plan.ToolLotId);
@@ -239,7 +242,7 @@ public sealed partial class PrivateWorldRuntime
         if (missingCarryUnits <= 0)
             return true;
 
-        var protectedLotIds = protectedMaterials.Append(repairToolId).Concat(harvestToolIds)
+        var protectedLotIds = protectedMaterials.Append(repairToolId).Concat(harvestToolIds).Concat(protectedToolIds ?? [])
             .Distinct(StringComparer.Ordinal).ToArray();
         var primaryProtectedLotId = harvestToolIds.FirstOrDefault() ?? repairToolId;
         var cargo = SpareCargoForFood(actor, missingCarryUnits, primaryProtectedLotId,
@@ -258,17 +261,19 @@ public sealed partial class PrivateWorldRuntime
     }
 
     private bool MakeRoomForToolRepairInput(string actor, PlaytestInhabitantState state,
-        string repairToolId, int requiredUnits, string? harvestToolId, IReadOnlyList<ContentQuantity> repairMaterials)
+        string repairToolId, int requiredUnits, string? harvestToolId, IReadOnlyList<ContentQuantity> repairMaterials,
+        IReadOnlyList<string>? protectedToolIds = null)
     {
         var missing = checked(requiredUnits - FreeCarryCapacity(actor));
         if (missing <= 0) return false;
-        var protectedMaterials = CarriedRepairMaterialLotIds(actor, repairMaterials).Append(repairToolId)
+        var protectedMaterials = CarriedRepairMaterialLotIds(actor, repairMaterials).Append(repairToolId).Concat(protectedToolIds ?? [])
             .Where(id => id != harvestToolId).ToArray();
         return StoreSpareCargo(actor, state, HouseholdFor(actor)!,
             SpareCargoForFood(actor, missing, harvestToolId ?? repairToolId, protectedMaterials));
     }
 
-    private string? RepairTool(string actor, PlaytestInhabitantState state, string lotId)
+    private string? RepairTool(string actor, PlaytestInhabitantState state, string lotId,
+        IReadOnlyList<string>? protectedToolIds = null)
     {
         var inventory = society.Checkpoint.Inventory;
         var tool = inventory.Lots.FirstOrDefault(lot => lot.Id == lotId &&
@@ -287,7 +292,7 @@ public sealed partial class PrivateWorldRuntime
             if (HasCarriedMaterial(actor, input.ResourceId, input.Amount)) continue;
             if (SharedItem(input.ResourceId, actor) is not null)
             {
-                if (MakeRoomForToolRepairInput(actor, state, lotId, input.Amount, null, materialNeeds))
+                if (MakeRoomForToolRepairInput(actor, state, lotId, input.Amount, null, materialNeeds, protectedToolIds))
                     return null;
                 CollectEquipment(actor, state, input.ResourceId);
                 return null;
@@ -296,7 +301,7 @@ public sealed partial class PrivateWorldRuntime
             {
                 if (ProjectMaterialHarvest(actor, input.ResourceId, source) is { } plan &&
                     MakeRoomForToolRepairInput(actor, state, lotId,
-                        checked(plan.Quantity + plan.TreeSeedQuantity), plan.ToolLotId, materialNeeds))
+                        checked(plan.Quantity + plan.TreeSeedQuantity), plan.ToolLotId, materialNeeds, protectedToolIds))
                     return null;
                 GatherProjectMaterial(actor, state, input.ResourceId, source);
                 return null;
