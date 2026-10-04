@@ -97,7 +97,7 @@ public static class NightLightShapes
     {
         var cells = new List<LightCell>();
         var pen = new Pen(cells, snap, plan.Roof, time, seed);
-        var lived = occupied || working;
+        var lived = plan.Design == LitDesign.House ? occupied : occupied || working;
         switch (plan.Design)
         {
             case LitDesign.Silo or LitDesign.MarketStall:
@@ -144,7 +144,40 @@ public static class NightLightShapes
                 if (lived) Openings(pen, plan, windowGap: 32, doorReach: 9);
                 break;
         }
-        return cells;
+        Rect2[] roofs = plan.Wing is { } wing ? [plan.Roof, wing] : [plan.Roof];
+        return cells.SelectMany(cell => cell.Kind == LightCellKind.Light
+            ? OutsideRoofs(cell.Area, roofs).Select(area => cell with { Area = area })
+            : [cell]).ToList();
+    }
+
+    /// <summary>Keep ground-light rectangles outside all roofs, including an unlit neighbour's.</summary>
+    public static IReadOnlyList<Rect2> OutsideRoofs(Rect2 area, IReadOnlyList<Rect2> roofs)
+    {
+        List<Rect2> pieces = [area];
+        foreach (var roof in roofs)
+        {
+            var remaining = new List<Rect2>();
+            foreach (var piece in pieces)
+            {
+                var overlap = piece.Intersection(roof);
+                if (overlap.Size.X <= 0 || overlap.Size.Y <= 0)
+                {
+                    remaining.Add(piece);
+                    continue;
+                }
+                void Add(float x, float y, float w, float h)
+                {
+                    if (w > 0 && h > 0) remaining.Add(new Rect2(x, y, w, h));
+                }
+                Add(piece.Position.X, piece.Position.Y, piece.Size.X, overlap.Position.Y - piece.Position.Y);
+                Add(piece.Position.X, overlap.End.Y, piece.Size.X, piece.End.Y - overlap.End.Y);
+                Add(piece.Position.X, overlap.Position.Y, overlap.Position.X - piece.Position.X, overlap.Size.Y);
+                Add(overlap.End.X, overlap.Position.Y, piece.End.X - overlap.End.X, overlap.Size.Y);
+            }
+            pieces = remaining;
+            if (pieces.Count == 0) break;
+        }
+        return pieces;
     }
 
     /// <summary>

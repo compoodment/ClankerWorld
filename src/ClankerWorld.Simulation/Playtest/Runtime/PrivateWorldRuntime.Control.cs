@@ -45,7 +45,7 @@ public sealed partial class PrivateWorldRuntime
 
             var text = request.Text.Trim();
             var hasPendingOrder = PendingInstructionFor(targetId) is not null;
-            var parsedOrder = request.Kind == OwnerInstructionKind.MustDo ? ParseInstructionOrder(text) : null;
+            var parsedOrder = request.Kind == OwnerInstructionKind.MustDo ? ParseInstructionOrder(text, targetId) : null;
             if (parsedOrder is not null && !request.Queue)
                 ReplacePendingOrders(targetId);
             if (parsedOrder is not null)
@@ -121,6 +121,7 @@ public sealed partial class PrivateWorldRuntime
                     },
                 };
                 completedInstructionIds.Add(instruction.InstructionId);
+                CancelRepairForOrder(instruction);
                 status = "cancelled";
                 AppendEvent("instruction_order_cancelled", $"{instruction.TargetInhabitantId}:{instruction.InstructionId}:owner");
             }
@@ -322,6 +323,7 @@ public sealed partial class PrivateWorldRuntime
                 },
             };
             completedInstructionIds.Add(instruction.InstructionId);
+            CancelRepairForOrder(instruction);
             AppendEvent("instruction_order_cancelled", $"{inhabitantId}:{instruction.InstructionId}:replaced");
         }
         checkpointSchemaVersion = StateSchemaVersion;
@@ -374,14 +376,20 @@ public sealed partial class PrivateWorldRuntime
     private static string? UnderstoodTaskFor(string? candidate) => candidate switch
     {
         "consume_food" => "eat one carried food item",
+        "move_to" => "travel to the exact tile named in this order",
         "seek_food" => "travel within gathering range of an available food source",
         "harvest_food" => "gather several food servings from a nearby food source",
+        "gather_material" => "gather the requested material from a natural source",
+        "repair_equipment" => "repair your own worn clothing or carrying aid",
+        "collect_material" => "collect your own stored or dropped material",
+        "store_material" => "store your own carried material in your House",
+        "accept_guardianship" => "accept primary care of the named child through their guardian search",
         _ => null,
     };
 
-    private OwnerInstructionOrder? ParseInstructionOrder(string text)
+    private OwnerInstructionOrder? ParseInstructionOrder(string text, string actor)
     {
-        return PrivateWorldInstructionOrderParser.Parse(text, map.Resources, FoodKnowledgeKind);
+        return ParseGuardianOrder(text, actor) ?? PrivateWorldInstructionOrderParser.Parse(text, map.Resources, FoodKnowledgeKind);
     }
 
     // A direct order that names no action the game can carry out is closed

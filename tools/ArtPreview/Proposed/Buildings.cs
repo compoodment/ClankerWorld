@@ -19,7 +19,7 @@ namespace ArtPreview.Proposed.Buildings;
 /// feature per kind (B1 to B7).
 /// </para>
 /// <para>
-/// Market, Market stall, Town Hall, Port, Restaurant and Clinic are
+/// Market, Market stall, Town Hall and Port are
 /// agreed but have no <see cref="BuildingKind"/> yet, so they are drawn
 /// through the private <see cref="Design"/> list and only yielded for review.
 /// </para>
@@ -248,6 +248,27 @@ public sealed class BuildingsProposal : IArtProposal, IArtSetProvider
         };
         var sprite = Draw(design, w, h, 32, door);
         var ground = design == Design.Port ? Shore(w, h, PortLandSide(w, h, side)) : Grass(w, h, 32);
+        BuildingKind? built = lit switch
+        {
+            LitDesign.House => BuildingKind.House,
+            LitDesign.Farmhouse => BuildingKind.Farmhouse,
+            LitDesign.Store => BuildingKind.Store,
+            LitDesign.TailorShop => BuildingKind.TailorShop,
+            LitDesign.Clinic => BuildingKind.Clinic,
+            LitDesign.Restaurant => BuildingKind.Restaurant,
+            LitDesign.Workshop => BuildingKind.Workshop,
+            LitDesign.Generic => BuildingKind.Generic,
+            LitDesign.Blacksmith => BuildingKind.Blacksmith,
+            LitDesign.Warehouse => BuildingKind.Warehouse,
+            LitDesign.Silo => BuildingKind.Silo,
+            LitDesign.TownHall => BuildingKind.TownHall,
+            _ => null,
+        };
+        if (built is { } kind)
+        {
+            var (roof, yard, middle, wing) = BuildingSprites.Plan(kind, w, h, door);
+            return (sprite, ground, new LightPlan(lit, roof, yard, side, middle, Wing: wing));
+        }
         int uw = w * 32, uh = h * 32;
         LightPlan plan;
         switch (design)
@@ -311,6 +332,8 @@ public sealed class BuildingsProposal : IArtProposal, IArtSetProvider
             : BuildingSprites.Render(kind, width, height, tilePixels, door);
     }
 
+    internal static bool HasApprovedDrawing(BuildingKind kind) => DesignFor(kind) is not null;
+
     private static Design? DesignFor(BuildingKind kind) => kind switch
     {
         BuildingKind.House => Design.House,
@@ -322,6 +345,8 @@ public sealed class BuildingsProposal : IArtProposal, IArtSetProvider
         BuildingKind.Store => Design.Store,
         BuildingKind.Workshop => Design.Workshop,
         BuildingKind.Generic => Design.Generic,
+        BuildingKind.Clinic => Design.Clinic,
+        BuildingKind.Restaurant => Design.Restaurant,
         _ => null,
     };
 

@@ -172,6 +172,14 @@ public struct Rect2 : IEquatable<Rect2>
     public readonly bool HasPoint(Vector2 point) =>
         point.X >= Position.X && point.Y >= Position.Y && point.X < End.X && point.Y < End.Y;
     public readonly Rect2 Grow(float by) => new(Position - new Vector2(by, by), Size + new Vector2(by * 2, by * 2));
+    public readonly Rect2 Intersection(Rect2 other)
+    {
+        var left = Math.Max(Position.X, other.Position.X);
+        var top = Math.Max(Position.Y, other.Position.Y);
+        var right = Math.Min(End.X, other.End.X);
+        var bottom = Math.Min(End.Y, other.End.Y);
+        return new Rect2(left, top, Math.Max(0, right - left), Math.Max(0, bottom - top));
+    }
     public readonly bool Equals(Rect2 other) => Position == other.Position && Size == other.Size;
     public override readonly bool Equals(object? obj) => obj is Rect2 r && Equals(r);
     public override readonly int GetHashCode() => HashCode.Combine(Position, Size);

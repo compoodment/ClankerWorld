@@ -9,6 +9,7 @@ public readonly record struct BuildingLight(Rect2I Footprint, LightPlan Plan, bo
     public bool Shines => Plan.Design switch
     {
         LitDesign.Silo or LitDesign.MarketStall => false,
+        LitDesign.House => Occupied,
         LitDesign.Port => true,
         _ => Occupied || Working,
     };
@@ -108,20 +109,22 @@ public partial class NightLightsLayer : Control
         if (source.TileSize < WorldTerrainLayer.SpriteTileMinimum)
         {
             if (drawnDarkness > 0)
-                foreach (var building in buildings)
-                    if (building.Shines && building.Footprint.Intersects(visible)) DrawSpeck(building, stride);
+                foreach (var (building, _) in VisibleBuildings(visible))
+                    if (building.Shines) DrawSpeck(building, stride);
             return;
         }
 
         var snap = BuildingSprites.AtlasTileSize(source.TileSize) == 16 ? 2 : 1;
         var unit = stride / 32f;
         var placed = new List<(Vector2 Origin, LightCell Cell)>();
-        foreach (var building in buildings)
+        var roofs = new List<Rect2>();
+        foreach (var (building, seed) in VisibleBuildings(visible))
         {
-            if (!building.Footprint.Intersects(visible)) continue;
             var origin = new Vector2(building.Footprint.Position.X, building.Footprint.Position.Y) * stride;
+            roofs.Add(Scaled(origin, building.Plan.Roof, unit));
+            if (building.Plan.Wing is { } wing) roofs.Add(Scaled(origin, wing, unit));
             foreach (var cell in NightLightShapes.Building(building.Plan, building.Occupied, building.Working,
-                drawnDarkness > 0.05f, drawnTime, Seed(building.Footprint.Position), snap))
+                drawnDarkness > 0.05f, drawnTime, seed, snap))
                 placed.Add((origin, cell));
         }
         // Weakest light first, so where pools overlap the stronger one shows; fittings go on top.
@@ -129,9 +132,11 @@ public partial class NightLightsLayer : Control
         if (drawnDarkness > 0)
             foreach (var (origin, cell) in placed.Where(item => item.Cell.Kind == LightCellKind.Light).OrderBy(item => item.Cell.Strength))
             {
-                var area = Scaled(origin, cell.Area, unit);
-                DrawRect(area, cell.Color with { A = Math.Min(0.98f, cell.Strength * drawnDarkness) });
-                drawn.Add((area, cell.Kind));
+                foreach (var area in NightLightShapes.OutsideRoofs(Scaled(origin, cell.Area, unit), roofs))
+                {
+                    DrawRect(area, cell.Color with { A = Math.Min(0.98f, cell.Strength * drawnDarkness) });
+                    drawn.Add((area, cell.Kind));
+                }
             }
         foreach (var (origin, cell) in placed.Where(item => item.Cell.Kind != LightCellKind.Light))
         {
@@ -143,6 +148,18 @@ public partial class NightLightsLayer : Control
             drawn.Add((area, cell.Kind));
         }
         DrawnCells = drawn;
+    }
+
+    private IEnumerable<(BuildingLight Building, int Seed)> VisibleBuildings(Rect2I visible)
+    {
+        var shifts = source!.WrapsEastWest ? new[] { -source.World!.Width, 0, source.World.Width } : [0];
+        foreach (var building in buildings)
+            foreach (var shift in shifts)
+            {
+                var footprint = building.Footprint with { Position = building.Footprint.Position + new Vector2I(shift, 0) };
+                if (footprint.Intersects(visible))
+                    yield return (building with { Footprint = footprint }, Seed(building.Footprint.Position));
+            }
     }
 
     private static Rect2 Scaled(Vector2 origin, Rect2 units, float unit) =>

@@ -94,6 +94,8 @@ public sealed partial class PrivateWorldRuntime
             TownGovernmentValidation.Validate(town, society.Checkpoint, townLandTitles, worldSystems.Config.TicksPerDay);
         }
         ValidateTownAdmissions(towns, society.Checkpoint, checkpointSchemaVersion);
+        TownProjectValidation.Validate(towns, society.Checkpoint, map, worldSimulation, worldContent,
+            townLandTitles, householdLandUseRights, householdLandUseRequests, fields, RoadTiles, Bridges);
         ValidateRoads(RoadTiles, map, founderSetup);
         ValidateBridges(Bridges, bridgeTraffic, map, RoadTiles, worldSimulation, worldContent,
             society.Checkpoint, inhabitants.Values);
@@ -104,8 +106,10 @@ public sealed partial class PrivateWorldRuntime
         AgentKnowledgeRules.Validate(knowledge, map, society.Checkpoint, WorldTick);
         ValidateHousing(inhabitants.Values, society.Checkpoint, checkpointSchemaVersion);
         ValidateDependentCare(inhabitants.Values, society.Checkpoint, towns, checkpointSchemaVersion);
+        ValidateGuardianPlacements(inhabitants.Values, society.Checkpoint, towns, map, checkpointSchemaVersion);
         ValidateDepartures(inhabitants.Values, society.Checkpoint, checkpointSchemaVersion);
         ValidateEquipment(inhabitants.Values, society.Checkpoint, worldSimulation, worldContent, checkpointSchemaVersion);
+        ValidateRepairOrderBindings(inhabitants.Values, society.Checkpoint.Inventory, instructionsByIdempotency.Values);
         ValidateContinuity(continuity, society.Checkpoint, checkpointSchemaVersion);
 
         foreach (var inhabitant in inhabitants.Values)
@@ -399,11 +403,15 @@ public sealed partial class PrivateWorldRuntime
             TownGovernmentValidation.Validate(town, society.Checkpoint, state.TownLandTitles!, state.WorldSystems!.Config.TicksPerDay);
         }
         ValidateTownAdmissions(state.Towns ?? [], society.Checkpoint, state.SchemaVersion);
+        TownProjectValidation.Validate(state.Towns ?? [], society.Checkpoint, state.Map, state.WorldSimulation!, state.WorldContent!,
+            state.TownLandTitles!, state.HouseholdLandUseRights!, state.HouseholdLandUseRequests!, state.Fields!, state.RoadTiles!, state.Bridges!);
         ValidateLessons(state);
         ValidateHousing(state.Inhabitants, state.Society.Society, state.SchemaVersion);
         ValidateDependentCare(state.Inhabitants, state.Society.Society, state.Towns ?? [], state.SchemaVersion);
+        ValidateGuardianPlacements(state.Inhabitants, state.Society.Society, state.Towns ?? [], travelMap, state.SchemaVersion);
         ValidateDepartures(state.Inhabitants, state.Society.Society, state.SchemaVersion);
         ValidateEquipment(state.Inhabitants, state.Society.Society, state.WorldSimulation, state.WorldContent, state.SchemaVersion);
+        ValidateRepairOrderBindings(state.Inhabitants, state.Society.Society.Inventory, state.Instructions ?? []);
         foreach (var person in state.Inhabitants)
         {
             if (person.LastModelAttempt is { } attempt &&
@@ -520,7 +528,7 @@ public sealed partial class PrivateWorldRuntime
                 instruction.Kind == OwnerInstructionKind.Suggestive && instruction.Order is not null ||
                 instruction.Kind == OwnerInstructionKind.MustDo && instruction.Order is null ||
                 instruction.Order is { } order && !IsValidSavedOrder(order, instruction, completedInstructionIds,
-                    checkpoint.WorldTick))
+                    people))
                 throw new InvalidDataException("The saved owner instruction or observer response is invalid.");
         }
 
@@ -560,7 +568,7 @@ public sealed partial class PrivateWorldRuntime
         OwnerInstructionOrder order,
         OwnerQueuedInstruction instruction,
         IReadOnlyList<string> completedInstructionIds,
-        long worldTick)
+        HashSet<string> people)
     {
         var knownStatus = order.Status is "queued" or "waiting" or "doing" or "interrupted" or "blocked" or
             "finished" or "cancelled" or "not_understood";
@@ -572,6 +580,8 @@ public sealed partial class PrivateWorldRuntime
             order.TargetResourceId is { Length: > 128 } || order.TargetResourceId?.Any(char.IsControl) == true ||
             order.TargetFoodKind is not (null or "berries" or "fruit" or "wild_greens") &&
                 (order.Action != "consume_food" || !IsEdibleFood(order.TargetFoodKind)) ||
+            order.Action != "repair_equipment" && order.TargetEquipmentKind is not null ||
+            order.Action is not ("gather_material" or "store_material" or "collect_material") && order.TargetMaterialKind is not null ||
             order.TargetPosition is { X: < -10_000_000 or > 10_000_000 } ||
             order.TargetPosition is { Y: < -10_000_000 or > 10_000_000 } ||
             order.WaitForDecisionAfterFailure && (order.Status != "blocked" || order.BlockedReason is null) ||
@@ -582,9 +592,65 @@ public sealed partial class PrivateWorldRuntime
         if (order.Action == "unknown")
             return order.Status == "not_understood" && order.RequestedUnits == 0 && order.CompletedUnits == 0 &&
                 order.ProgressUnit == "none" && !order.RepeatUntilCancelled && order.TargetFoodKind is null &&
-                order.TargetResourceId is null && order.TargetPosition is null && order.LastEffectId is null;
+                order.TargetResourceId is null && order.TargetPosition is null && order.LastEffectId is null &&
+                order.TargetAgentId is null;
 
-        if (order.Action is not ("consume_food" or "seek_food" or "harvest_food") ||
+        if (order.Action == "repair_equipment")
+            return PrivateWorldInstructionOrderParser.IsEquipmentKind(order.TargetEquipmentKind) &&
+                order.TargetAgentId is null && order.TargetFoodKind is null && order.TargetResourceId is null && order.TargetPosition is null &&
+                order.RequestedUnits is >= 1 and <= 1000 && order.CompletedUnits is >= 0 and <= 1_000_000 &&
+                (order.QuantityIsExplicit || order.RequestedUnits == 1) && order.ProgressUnit == "repairs" &&
+                (order.RepeatUntilCancelled || order.CompletedUnits <= order.RequestedUnits) &&
+                order.Status != "not_understood" &&
+                (order.Status == "finished") == (!order.RepeatUntilCancelled && order.CompletedUnits >= order.RequestedUnits) &&
+                (order.CompletedUnits == 0 ? order.LastEffectId is null : order.LastEffectId?.StartsWith("repair:equipment:", StringComparison.Ordinal) == true);
+
+        if (order.Action == "collect_material")
+            return PrivateWorldInstructionOrderParser.IsMaterialKind(order.TargetMaterialKind) &&
+                order.TargetAgentId is null && order.TargetFoodKind is null && order.TargetResourceId is null && order.TargetPosition is null &&
+                order.RequestedUnits is >= 1 and <= 1000 && order.CompletedUnits is >= 0 and <= 1_000_000 &&
+                (order.RepeatUntilCancelled || order.CompletedUnits <= order.RequestedUnits) &&
+                order.Status != "not_understood" &&
+                (order.Status == "finished") == (!order.RepeatUntilCancelled && order.CompletedUnits >= order.RequestedUnits) &&
+                (order.QuantityIsExplicit ? order.ProgressUnit == "material_items" : order.ProgressUnit == "collection_loads" && order.RequestedUnits == 1) &&
+                (order.CompletedUnits == 0 ? order.LastEffectId is null : order.LastEffectId?.StartsWith("collect:personal:", StringComparison.Ordinal) == true);
+
+        if (order.Action == "store_material")
+            return PrivateWorldInstructionOrderParser.IsMaterialKind(order.TargetMaterialKind) &&
+                order.TargetAgentId is null && order.TargetFoodKind is null && order.TargetResourceId is null && order.TargetPosition is null &&
+                order.RequestedUnits is >= 1 and <= 1000 && order.CompletedUnits is >= 0 and <= 1_000_000 &&
+                (order.RepeatUntilCancelled || order.CompletedUnits <= order.RequestedUnits) &&
+                order.Status != "not_understood" &&
+                (order.Status == "finished") == (!order.RepeatUntilCancelled && order.CompletedUnits >= order.RequestedUnits) &&
+                (order.QuantityIsExplicit ? order.ProgressUnit == "material_items" : order.ProgressUnit == "storage_loads" && order.RequestedUnits == 1) &&
+                (order.CompletedUnits == 0 ? order.LastEffectId is null : order.LastEffectId?.StartsWith("store:personal:", StringComparison.Ordinal) == true);
+
+        if (order.Action == "gather_material")
+            return PrivateWorldInstructionOrderParser.IsMaterialKind(order.TargetMaterialKind) &&
+                order.TargetAgentId is null && order.TargetFoodKind is null && !(order.TargetResourceId is not null && order.TargetPosition is not null) &&
+                order.RequestedUnits is >= 1 and <= 1000 && order.CompletedUnits is >= 0 and <= 1_000_000 &&
+                order.Status != "not_understood" &&
+                (order.Status == "finished") == (!order.RepeatUntilCancelled && order.CompletedUnits >= order.RequestedUnits) &&
+                (order.QuantityIsExplicit ? order.ProgressUnit == "material_items" : order.ProgressUnit == "harvests" && order.RequestedUnits == 1) &&
+                (order.CompletedUnits == 0 ? order.LastEffectId is null : order.LastEffectId?.StartsWith("gather:material:", StringComparison.Ordinal) == true);
+
+        if (order.Action == "move_to")
+            return order.TargetPosition is { } destination && order.TargetFoodKind is null && order.TargetResourceId is null &&
+                order.TargetAgentId is null &&
+                order.RequestedUnits == 1 && order.CompletedUnits is 0 or 1 &&
+                (order.Status == "finished") == (order.CompletedUnits == 1) && order.Status != "not_understood" &&
+                order.ProgressUnit == "arrivals" && !order.RepeatUntilCancelled && !order.QuantityIsExplicit &&
+                order.LastEffectId == (order.CompletedUnits == 1 ? MovementOrderEffectId(destination) : null);
+
+        if (order.Action == "accept_guardianship")
+            return order.TargetAgentId is { } child && people.Contains(child) && child != instruction.TargetInhabitantId &&
+                order.RequestedUnits == 1 && order.CompletedUnits is 0 or 1 &&
+                (order.Status == "finished") == (order.CompletedUnits == 1) && order.Status != "not_understood" &&
+                order.ProgressUnit == "guardianships" && !order.RepeatUntilCancelled && !order.QuantityIsExplicit &&
+                order.TargetFoodKind is null && order.TargetResourceId is null && order.TargetPosition is null &&
+                order.LastEffectId == (order.CompletedUnits == 1 ? GuardianOrderEffectId(instruction.TargetInhabitantId, child) : null);
+
+        if (order.TargetAgentId is not null || order.Action is not ("consume_food" or "seek_food" or "harvest_food") ||
             order.RequestedUnits is < 1 or > 1000 || order.CompletedUnits is < 0 or > 1_000_000 ||
             order.Status == "finished" && (order.RepeatUntilCancelled || order.CompletedUnits < order.RequestedUnits) ||
             order.Action == "consume_food" && order.ProgressUnit != "food_items" ||
@@ -601,9 +667,7 @@ public sealed partial class PrivateWorldRuntime
         var conversations = state.Conversations ?? [];
         var budgets = state.ConversationBudgets ?? [];
         var knownAgents = checkpoint.Inhabitants.Select(item => item.Id).ToHashSet(StringComparer.Ordinal);
-        var worldDay = checkpoint.Config.TicksPerWorldDay <= 0
-            ? 0
-            : checkpoint.WorldTick / checkpoint.Config.TicksPerWorldDay;
+        var worldDay = WorldCalendarRules.FromTick(checkpoint.WorldTick, state.WorldSystems!.Config).DayIndex;
         if (conversations.Any(item => item is null) || budgets.Any(item => item is null) ||
             conversations.Count > AgentConversationRules.MaximumSavedConversations ||
             conversations.Select(item => item.Id).Distinct(StringComparer.Ordinal).Count() != conversations.Count ||
@@ -699,6 +763,7 @@ public sealed partial class PrivateWorldRuntime
                 !deathMap.IsPassable(person.LastPhysical.Position) ||
                 person.LastPhysical.HungerBasisPoints is < 0 or > 10_000 ||
                 person.LastPhysical.Equipment?.OrnamentLotId is not null ||
+                person.LastPhysical.GuardianPlacement is not null ||
                 person.TownId is { } townId && !townIds.Contains(townId))
                 throw new InvalidDataException("The deceased inhabitant archive contains an invalid final state.");
             ValidatePrivateThoughts(person.LastPhysical.RecentThoughts, person.DeathTick);

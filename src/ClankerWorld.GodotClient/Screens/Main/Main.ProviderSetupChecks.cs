@@ -94,6 +94,7 @@ public partial class Main
         }
 
         var testedRevision = currentRevision();
+        var generation = observationSession.RequestGeneration;
         button.Disabled = true;
         resultLabel.Show();
         resultLabel.Text = $"Checking {provider} / {model}. This sends one paid call.";
@@ -103,13 +104,14 @@ public partial class Main
             {
                 try
                 {
-                    var result = await ownerApi.CheckProviderSetupAsync(
-                        ResolveWorldUri(), authority, deviceId, action, signer, CancellationToken.None);
+                    var result = await AwaitCurrentWorldResultAsync(ownerApi.CheckProviderSetupAsync(
+                        ResolveWorldUri(), authority, deviceId, action, signer, CancellationToken.None));
                     if (currentRevision() == testedRevision)
                         resultLabel.Text = $"{ProviderDisplayName(provider)} / {model}: {result.Message}";
                     return $"{ProviderDisplayName(provider)} / {model}: {result.Message}";
                 }
-                catch (Exception exception) when (exception is not OutOfMemoryException)
+                catch (Exception exception) when (exception is not OutOfMemoryException &&
+                    exception is not ObsoleteWorldRequestException)
                 {
                     if (currentRevision() == testedRevision)
                         resultLabel.Text = $"{ProviderDisplayName(provider)} / {model}: No result was received. Check paid-call usage before trying again.";
@@ -119,7 +121,7 @@ public partial class Main
         }
         finally
         {
-            button.Disabled = false;
+            if (IsCurrentWorldRequest(generation)) button.Disabled = false;
             RefreshControlAvailability();
         }
     }

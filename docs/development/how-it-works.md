@@ -56,9 +56,13 @@ host's versioned HTTP contract. Legacy web assets are diagnostic tools.
 
 The current host aims for one tick per real second. New worlds save 360 ticks
 per day and a 40-day year with four ten-day seasons; lifecycle thresholds are
-3/15/45/60 days. Load can affect real-time pace. The old development calendar
+3/15/45/60 days. Newly created playable worlds start at 06:00 on Spring 1,
+Year 1. A saved 90-tick calendar offset sets that clock while elapsed world
+time still begins at zero, preserving founder setup, seeded ages and elapsed
+deadlines. Calendar dates and daily conversation allowances turn over at the
+displayed midnight. Load can affect real-time pace. The old development calendar
 is not silently reinterpreted; the observation carries the saved clock values.
-Its calendar pace includes the saved season lengths, so the game names dates
+Its calendar pace includes the saved season lengths and clock offset, so the game names dates
 such as Autumn 2, Year 1 from the world's own calendar instead of a copy. With
 no season lengths, from an older host, the game shows numeric dates.
 
@@ -85,10 +89,13 @@ error; the world, its message numbering and its save stay unchanged. These are
 the same limits a save applies, so an accepted message cannot leave the world
 unable to save.
 
-`ParseInstructionOrder` reads a complete, bounded food-task grammar: eating food,
-seeking a food source, and harvesting food. Harvest and travel orders must name
-food (or a supported food resource); explicit resource names must match a
-complete identifier, and food kinds must match that resource. Unsupported
+`ParseInstructionOrder` reads a complete, bounded grammar for eating food,
+seeking a food source, harvesting food, gathering supported raw materials,
+storing or collecting personal raw materials, repairing supported personal
+clothing and carrying aids, and moving to an exact tile. Harvest and
+food-source travel orders must name a
+supported kind or resource; explicit resource names must match a complete
+identifier and the requested kind. Unsupported
 objects or operations, mixed tasks, unknown explicit targets, and invalid
 quantities or leftover words are rejected as not understood rather than mapped
 to a nearby candidate. A recognized order retains the player's original text and the
@@ -97,6 +104,78 @@ the requested physical effect before recording progress. Names in the prompt
 do not create map knowledge. Optional observer replies are tied to the exact
 message ID and stored separately from private thoughts and conversation
 speech. Local deterministic decisions do not mark messages as heard.
+
+Material orders save the requested kind separately from food targets. They use
+known resource facts or observation within normal interaction range; a named
+unobserved site first requires physical travel. Untargeted orders may use normal
+exploration. Gathering uses the existing tool pickup, whole-load capacity,
+inventory, tool-wear and ecology transitions. Only a returned physical harvest
+receipt advances progress. One load is the default; explicit quantities count
+actual output, including a final whole load that exceeds the requested amount.
+Discovery, tool collection and movement never count as harvested goods.
+Only the observed resource site joins map memory; walking there adds no facts,
+so the journey cannot fill the agent's bounded ledger before arrival.
+
+`Move to tile (12, 4)`, `Go to (12, 4)` and `Travel to (12, 4)` create a
+`move_to` order with a saved `TargetPosition` and one arrival. The common
+unoccupied-route finder and `MoveToward` enforce walking rules, occupancy,
+travel cooldowns and illness delays. House destinations check current household
+membership or a saved guest invitation. An unavailable destination stays blocked;
+it is never substituted. The order completes only when the actor occupies the
+exact target tile. Repetition, quantities and extra task words are rejected.
+Arrival records one firsthand fact, for the destination tile. Submission,
+waiting and the walk itself add none, so a long trip cannot fill the agent's
+bounded map memory.
+Children and adolescents can walk under an order; infants still cannot take
+instructions. The normal queue, cancellation, stale-reply and survival rules
+apply without a separate model request for each step.
+
+The strict guardian-order form is `Become guardian for <full name or exact ID>`.
+It resolves one active child with an open search and saves that child's ID as
+`TargetAgentId`. Only an adult can carry out this task; renames cannot retarget it.
+`CanAcceptGuardian` is checked again for each step, and acceptance goes through
+the existing dependent-care transition. Completion requires the actual primary
+care assignment. A search that closes first leaves the order blocked rather
+than replacing its accepted guardian. Queue, cancellation, stale-response
+checks and urgent survival interruptions use the common order lifecycle.
+
+Storage orders reuse the material-kind catalogue and normal personal-storage
+eligibility. `StorePersonalGoods` serves both ordinary choices and orders: it
+walks to the House entrance, then uses `InventoryFixture.Relocate` to preserve
+ownership, condition and provenance. Reserved goods, promised deliveries,
+container contents, food and selected equipment are excluded. Only a committed
+relocation receipt advances the order; its identity is hashed to a fixed length
+because split inventory identifiers can grow. Walking and survival actions earn
+no storage progress. Default tasks count one stored lot, while explicit quantities
+limit the final relocation to the remaining amount. Repetition keeps waiting
+for further personal material or space until cancelled. The destination is the
+agent's current household House; named foreign buildings and map coordinates
+are not recognized storage targets.
+
+Collection orders use `PersonalGoodsAwaitingCollection` and the shared
+`CollectPersonalGoods` action. The actor must own the lot, which cannot be
+carried, reserved in full, promised for delivery or inside another container.
+Storage must belong to the current household or one recorded in that actor's
+departures. Ground lots use normal pickup range. The nearest reachable eligible
+lot is chosen, with stable identity ordering for ties; an explicit source is
+not yet recognized. Physical pickup preserves ownership, condition, provenance
+and reserved portions, with the final quantity capped by carrying space and
+the requested remainder. Only the committed relocation earns progress, using
+a bounded hashed receipt. Former-household collection grants no other access.
+
+Repair orders save a separate `TargetEquipmentKind` for basic clothing, padded
+coats, rain cloaks, baskets or sacks. The parser refuses other equipment and
+explicit sites. Orders filter the normal worn-item rules by this exact kind,
+collect real materials through `CollectEquipment`, then use `RepairEquipment`
+and `ContinueEquipmentRepair`. Ordinary item preference remains unchanged.
+A repair work record links to the active instruction; only the returned completed
+repair advances its item count, with a bounded receipt derived from the actor,
+start time and lot identity. New orders release any previous repair's unspent
+inputs before starting their own work. Cancellation or replacement releases
+reservations immediately. Survival interruption follows ordinary repair rules:
+release unused inputs and restart unfinished work when the order can resume.
+Save/reload retains a running repair's work counter and exact reservations.
+Validation refuses links to another agent, task or equipment kind.
 
 A MustDo with no recognized action is closed when it is submitted: it is added
 to the completed instructions with an `instruction_not_understood` event
@@ -107,8 +186,9 @@ separate from the strict MustDo grammar.
 
 Recognized MustDo instructions complete only when their requested legal action
 actually progresses. Default gathering counts one harvest; explicit quantities
-count food acquired or consumed. Travel finishes only on arrival within
-interaction range of the requested food site; counted travel is refused.
+count goods acquired or food consumed. Food-source travel finishes on arrival within
+interaction range of the requested food site; exact-tile travel requires the
+tile itself. Counted travel is refused.
 An unrelated action, blocked movement or unavailable food leaves the instruction
 pending, including across reload. A recognized new order replaces outstanding
 orders unless `Queue` is true; queued orders run in submission order. Cancel
@@ -127,6 +207,27 @@ every 30 ticks, and idle agents reevaluate when their legal choices change or
 after 300 ticks. A blocked order therefore cannot request a paid model call on
 every tick.
 
+When a hosted decision is still running, a newly queued choice or observer
+message remains pending after its older reply is accepted. The next prepared
+tick refreshes that work against the resulting world before another request
+starts. Ordinary planning waits while the agent is busy talking; pending work
+remains available after the conversation. It also waits for a life-event
+identity reply, then uses the accepted identity in its refreshed observation.
+Ordinary changes to the clock or need values do
+not by themselves request another paid decision. Pending work is kept only for
+a choice the earlier request lacked, a change in urgent hunger or warmth, or new
+observer guidance; choices that merely disappeared leave the accepted reply
+valid. An agent whose reply was accepted takes no extra waiting routine in that
+tick, and pending work with no call in flight is rebuilt before it is sent.
+Work for an order that finished before any reply carrying it was accepted is
+still sent unchanged, so the agent can acknowledge it; a pause, a load or newer
+guidance rebuilds that work without it. A suggestion carried by a reply that is
+set aside because its order has since finished stays open for the next fresh
+request. Pending observations survive
+save/load and are refreshed for the resumed world before dispatch. The usual
+request, provider, conversation and legal-choice checks still reject stale
+replies.
+
 Local order steps can continue while a hosted reply is pending. An accepted
 decision and a local continuation do not execute the same order twice in one
 tick. If local work finishes first, a valid reply to that exact original
@@ -139,14 +240,19 @@ starting a step. A provider fallback leaves the order blocked for a bounded
 normal retry; it cannot strand the task permanently on `safe_idle`.
 
 The owner snapshot sends every open message, plus the six most recently
-submitted closed messages for each agent, whether or not a personal model heard
-them. An order the game could not act on, or one carried out by local rules,
-therefore still appears on the agent card as closed and not heard. The card
-shows up to four messages per agent, newest first by submission but always
-preferring open messages over closed ones, then lists them in the order they
-were sent. Newer closed messages therefore cannot hide an order that is still
-waiting. The save keeps
-every message; only the snapshot is bounded.
+submitted closed orders and, separately, the six most recently submitted closed
+suggestions for each agent, whether or not a personal model heard them. An
+order the game could not act on, or one carried out by local rules, therefore
+still appears on the agent card as closed and not heard, and heard suggestions
+cannot push the latest closed orders out. **Your messages** shows up to four
+messages per agent, newest first by submission but always preferring open
+messages over closed ones, then lists them in the order they were sent. Newer
+closed messages therefore cannot hide an order that is still waiting. The
+card's order line and the **All orders** reader read the same snapshot: the
+oldest open order is the current one, the other open orders follow in
+submission order, and closed orders come newest first. The client keeps no
+order list of its own. The save keeps every message; only the snapshot is
+bounded.
 
 Pause, quit and loss of presence cancel external work without inventing an
 answer. Restore can retry a still-relevant saved decision. Synchronous fixture
@@ -162,8 +268,8 @@ does not establish arbitrary mid-tick rollback or crash durability.
 
 ### Time of day and night
 
-Time of day is worked out from the saved tick and the world's saved ticks per
-day; nothing about it is saved. `DaylightRules` follows the 24-hour clock the
+Time of day is worked out from the elapsed tick, the world's saved ticks per
+day and its calendar offset. Darkness itself is not saved. `DaylightRules` follows the 24-hour clock the
 game shows, where a tick's clock minute is its tick of day × 1,440 ÷ ticks per
 day. Night is 40% of every day, the same all year
 ([#641](https://github.com/compoodment/ClankerWorld/issues/641)), centred on
@@ -171,8 +277,10 @@ midnight: 19:12 to 04:48. Dusk and dawn each fade over the clock hour centred
 on those times (18:42–19:42 and 04:18–05:18), so the darker half of each fade
 counts as night and night covers exactly 40% of the day. At 360 ticks a day
 that is 144 ticks of night with 15-tick fades. Darkness is reported in basis
-points, 0 in daylight and 10,000 at full night. Tick 0 is midnight, so a new
-world, and its founder setup, starts at night.
+points, 0 in daylight and 10,000 at full night. New playable worlds and their
+founder setup begin at 06:00, after the dawn fade. A saved zero-offset world
+keeps midnight at elapsed tick zero. The first day of a new world therefore
+has 18 hours left; later days retain their full duration.
 
 Night adds a provisional chill of 15 exposure points per tick at full night,
 faded in and out with the darkness (`NightChillAtFullDarkness`). It is added to
@@ -297,30 +405,50 @@ and belief confidence remain explicit.
 When an unnamed agent is asked to choose a full name, the personal-model
 request includes a soft first-letter hint derived from that agent's stable ID.
 The hint stays the same if the request is retried, is computed per agent, and
-does not reveal anyone else's name. If a current reply supplies a valid full
-name already used by another agent, the scheduler queues one extra metered
-personal-model request. That request marks `name_retry` and says the chosen
-name is taken, but it still does not include anyone else's name. Names are
-compared after Unicode normalization, case folding and collapsing whitespace;
-deceased agents count too. A second duplicate, a missing or invalid name, or an
-unusable retry reply leaves the placeholder for the player to rename. The
+does not reveal anyone else's name. If a current reply supplies a valid name
+whose first token is already chosen by another agent, the scheduler queues one
+extra metered personal-model request. That request marks `name_retry` and says
+the first name is taken, without including anyone else's name. First names use
+NFC normalization, collapsed Unicode whitespace and `OrdinalIgnoreCase`;
+different middle names or surnames do not avoid a collision. Deceased agents
+with chosen names count too. A second duplicate, a missing or invalid name, or
+an unusable retry reply leaves the placeholder for the player to rename. The
 retry marker uses the existing saved cognition queue trigger list, so it
-survives pause and restore without a new per-agent save field. The name check
+survives pause and restore. Separately, required saved `HasChosenName` records
+whether the display name was chosen. `NeedsName` schedules automatic naming;
+closing that opportunity preserves a placeholder's unchosen status. Neither
+open nor closed placeholders reserve first names, and recent-event compaction
+cannot turn one into a chosen name. The name check
 is separate from action admission: a valid name from a current legal-choice,
 low-confidence or rejected-action reply is kept, while malformed replies and
 stale replies cannot name the agent.
 
 Player renames reuse `InhabitantNameRules`, including NFC normalization,
 collapsed Unicode whitespace and `OrdinalIgnoreCase` comparison. The runtime
-checks all other recorded inhabitants, living or deceased, under the same
-world gate that commits the rename. A taken name returns `name_taken` from
+checks the first names of all other inhabitants with `HasChosenName`, living
+or deceased, under the same world gate that commits the rename. Keeping one's
+own first name is allowed. A taken first name returns `name_taken` from
 the signed owner endpoint; the client translates only that refusal into a
 name-specific explanation. The Profile's open name field then keeps the
 refused text through ordinary refreshes (`RefusedAgentRename`) until the
 player edits or closes it, renames successfully, or another agent or world is
-shown; its name labels always follow the host's snapshot. An unchanged name
-is a no-op. No name check rewrites saved dialogue or identity references, and
-player choices still supersede late model naming replies.
+shown; its name labels always follow the host's snapshot. An unchanged chosen
+name is a no-op; deliberately choosing the exact displayed placeholder makes
+it a chosen name and reserves its first token. No name check rewrites saved
+dialogue or identity references, and player choices still supersede late model
+naming replies.
+
+Native births omit a chosen name and retain a placeholder with `NeedsName`.
+Infants remain excluded from personal-model dispatch. Once ordinary eligibility
+allows a naming request, bounded `self.allowed_child_surnames` lists only the
+chosen biological parents' surnames; an empty list means none is available.
+Player renames and explicit `CommitBirth` names use the same admission rule
+for a child: the final name token must match one biological parent's surname.
+An explicit birth name is checked before food or child records change. The
+rule includes deceased biological parents and does not substitute caregivers.
+An invalid surname follows the existing unusable-name outcome; only a taken
+first name earns the extra paid retry. Parent renames do not retroactively
+invalidate a child's name or saved state.
 
 The response must select a legal candidate. Any finite confidence from 0 to 1
 is accepted; confidence does not veto the choice or a valid chosen name.
@@ -412,9 +540,33 @@ previously unassessed records; only linked salience/confidence values are saved.
 It adds no separate paid request or generated prose. Local retrieval works with
 Jev off. Automatic experience capture and narrative summarization are unfinished.
 
-Exploration can create a one-site field record or a map of up to nine sites.
-Sharing nearby or bartering teaches only those sites to the recipient, retaining
-the discoverer and source agent. It does not grant access to unrelated knowledge.
+Exploration records personal knowledge; it does not create free inventory.
+Households make paper at an authorized House from physically delivered fiber
+and fresh water in a reusable jug. The provisional batch uses two fiber and
+one water to make two paper in sixteen work ticks, leaving the jug intact.
+
+An adult can write a one-site field record, draw a map or bind a book from
+facts they have actually learned. The provisional writing costs are one paper
+and four work ticks for a record, one paper and six work ticks for a map, or
+two paper, one cloth and twelve work ticks for a book. Each artifact holds at
+most nine sites. Writing reserves real personal materials and creates one
+distinct physical lot only when the work completes. Saved progress and
+material reservations survive temporary interruptions and reload. If the
+writer or copying source becomes unavailable, or the artifact limit is
+reached, the unfinished work releases its unused supplies. The agent's Profile
+shows the writing or copying progress.
+
+Reading or sharing a held artifact teaches only its recorded sites to the
+actual recipient, retaining the original discoverer and the source artifact.
+Copying needs the source, learned facts and new writing materials; sharing
+does not create another physical copy. Barter transfers the existing lot and
+teaches its recipient, without granting access to unrelated knowledge or
+anyone else's private stock.
+
+Outward scouting checks occupied destinations and both diagonal corner tiles
+before ranking neighboring exits. If no legal outward exit remains, the scout
+uses the existing return path instead of repeatedly targeting a blocked corner.
+Only completed movement adds a visited tile.
 
 If intervening legal movement interrupts outward scouting, a new outward path
 starts at the actual position without inventing missing steps. On the return
@@ -571,7 +723,10 @@ one quarter after climate and latitude adjustments. The removed share goes to
 clear and cloudy weather. Integer weights use four units per old weight point,
 so small weights keep the same exact reduction. Explicit custom weather
 profiles retain their declared weights. Episode neighbor and persistence
-bonuses use the same weight scale. Further tuning remains provisional in
+bonuses use the same weight scale. Custom profile totals may reach
+`int.MaxValue`; climate conversion uses wider intermediate arithmetic, and
+episode weights remain wide through persistence bonuses and storm cooldown.
+These adjustments cannot wrap into negative weights. Further tuning remains provisional in
 [#204](https://github.com/compoodment/ClankerWorld/issues/204).
 Wet neighbors add at most four rain-weight points;
 a reduction to base precipitation weights offsets that bonus. The fixed-seed
@@ -787,6 +942,13 @@ implements all-adult and representative councils from recorded living adult
 residents, independently of geometry and household affiliation. A separate
 `SettlementCouncil` remains the household-food steward prototype.
 
+Household food-policy ballots last 120 ticks and can pass through their saved
+`ExpiryTick`, inclusive, with a strict majority of the remaining eligible
+electorate. After that tick, resolution closes the ballot without changing the
+food policy, even if a death reduces the number of approvals needed. Resolution
+records its tick and adopted or rejected event, then clears the pending ballot;
+save/load preserves the original deadline and votes.
+
 The civic engine keeps final proposal votes, continuing candidate agreements,
 opening voter/candidate lists, latest election ballots, cutoff runoffs, settled
 seats, fair draw order, ten-day terms and retry snapshots. A failed election may
@@ -881,7 +1043,7 @@ council/vote/status counts without proposal text, notices, names or per-read
 polling noise.
 
 **Town admission** (`PrivateWorldRuntime.TownMembership`). `TownRuntimeState.ResidentIds`
-is the only record of Town membership; household, House and position never
+is the only record of Town membership; household, House and position alone never
 change it. After every saved council decision, every Town roster change and on
 every tick, `SettleTownAdmissions` reads each Town's passed admission proposals
 and records exactly one `TownAdmissionRecord` per proposal, rereading the Towns
@@ -1012,7 +1174,10 @@ household planning and ownership rules, with 1×1 and 1×2 footprints.
 Harvests remain household-owned lots on their actual field tile. An adult
 carries a load of at most four raw crops or planting items to the household's Farmhouse or Silo.
 Each holds a provisional 96 items, counting deliveries already on their way;
-pickup and delivery both check remaining space. Grain prefers the Farmhouse,
+pickup and delivery both check remaining space. Source selection checks the
+adult's route to each pile or vessel and the route from there to farm storage;
+an earlier blocked source does not hide later reachable stock. The same checks
+run again when the hauling action executes. Grain prefers the Farmhouse,
 while other farm stock prefers the Silo. Ready-to-eat greens and fruit go to
 the household's House. Neither stock nor ownership moves
 remotely.
@@ -1041,7 +1206,7 @@ the existing family, quantity, destination and reservation guards. They
 remain unusable for eating, recipes and new reservations. No agent disposal
 action or player discard control is added.
 
-**Household departure and personal custody** (`SettlementDeparture`). Ordinary decision candidates allow an adult to leave without a vote, store or collect their own goods, return borrowed household tools, explicitly accept replacement care, and found a solo household only when no suitable existing home can currently be asked. Membership exits and admissions include the complete primary-care group. The same completed House-capacity calculation checks all incoming residents; children never apply alone. The displacement transition refuses adults with a moving dependent group, leaving overcrowding eligibility and notice to #599.
+**Household departure and personal custody** (`SettlementDeparture`). Ordinary decision candidates allow an adult to leave without a vote, store or collect their own goods, return borrowed household tools, explicitly accept replacement care, and found a solo household only when no suitable existing home can currently be asked. Membership exits and admissions include the complete primary-care group. The same completed House-capacity calculation checks all incoming residents; children never apply alone. Forced displacement refuses sole caregivers, including a guardian whose dependent lives in another household. Voluntary departures keep the existing care-group rules.
 
 `InventoryLot.OwnerId` records property; optional `CarrierId` records physical custody without donation. Personal goods may remain in House storage after departure. `InventoryFixture.Relocate` preserves ownership, condition, provenance and reservations while moving an unreserved quantity. A stored personal lot is collected physically, with carrying limits, under the current household membership or a recorded departure's limited collection right. Recovery from the ground or a former household remains a routine errand. Collecting a map or field record from the current home stays available as a deliberate choice, but ranks below idle for the built-in chooser so it does not immediately retrieve knowledge goods it has just stored. Other goods retain their normal collection priority, so the built-in chooser stores only maps and field records; storing other belongings is a deliberate choice, because routine collection would fetch them straight back. Borrowed tools retain the lender's owner ID while carried and are returned physically. Shared delivery loads retain their owning household on departure. Shared buildings, stock and job records are never reassigned to the new household. A departing worker's private production and expansion jobs pause with their existing owners and reservations, except work for the worker's own goods, such as building their handcart, which nobody else may finish: it is cancelled and its reserved materials are released and stay with the worker; their previous work plan is retained on the departure record instead of resuming under a new household. A remaining member can take over paused work at its physical site, using the same still-available committed inputs and remaining work time. Private materials held by the former worker are not reassigned; these keep the task blocked. Held reservations keep their exact owner and stock, receive a new deadline only on resumption, and are released if the materials become unusable; canceled job records retain the original property owner.
 
@@ -1049,19 +1214,20 @@ Each departure allocates at most two unreserved ready-to-eat portions once. Owne
 
 Production jobs capture their owner when the original inputs are reserved. Completion uses that saved owner, including at a public workstation when the worker leaves or forms a household during the job; membership changes cannot redirect the finished goods.
 
-**Housing requests** (`SettlementHousing`). An adult whose household holds no
-House has a saved `Housing` record on their physical state: a pending request,
-recent refusals and the current blocker. Each tick `MaintainHousing` resolves
+**Housing requests** (`SettlementHousing`). An agent's saved `Housing` record
+holds its current blocker and, for an adult, any pending request, recent refusals
+or move-out notice. Each tick `MaintainHousing` resolves
 requests, then recomputes the blocker and appends `housing_blocked` when it
 changes. The blocker codes are `no_household`, `no_authorized_home` (the
 household can plan or is building a House), `missing_materials`,
 `no_legal_site` (the household has the build costs but `TownLayoutService`
 ranks no site), `awaiting_answer` and `overcrowded` (the household's House
-has more permanent residents than places). The code is shown on the owner's agent
-card and sent to the agent's own model as a `housing` line in its self context.
-An adult with no household is offered `household_ask:{household}` for each
-household that holds a House in the same Town, has an adult who can answer and
-has not refused within the last two world days. Asking records that household's
+has more permanent residents than places). The state is explained on the owner's
+agent card and sent to the agent's own model as a `housing` line in its self context.
+An adult with no household, or with a currently valid move-out notice, is offered
+`household_ask:{household}` for each other household that holds a House in the
+same Town, has room for the entire moving care group, has an adult who can answer
+and has not refused within the last two world days. Asking records that household's
 adult members in the request, which expires after 120 ticks like other
 proposals. Adults who join the household or reach adulthood while it is pending
 must also answer; existing answers are retained and adults who die or leave no
@@ -1070,35 +1236,105 @@ longer need to answer. Each current adult is offered `household_admit:{applicant
 they answer. An ongoing lesson waits while either participant owes a housing
 answer, retaining its progress and already learned skills.
 One refusal by a living member ends the request; when every living
-member has agreed, `SocietyFixture.JoinHousehold` records the membership and
+member has agreed, `SocietyFixture.JoinHouseholdCareGroup` records the membership and
 `household_joined` is appended. A refusal or an unanswered request is remembered
 as a refusal for the cooldown. The request grants nothing while pending: stock,
-shelter and route rules still check household membership. Adults who already
-have a household are never offered a request in the current implementation.
-[Household departure and solo formation](../game-design/towns.md#household-membership),
-including [ownership, collection access, the food allowance and dependent care](../game-design/towns.md#household-goods-and-departure),
-are agreed but remain implementation work in
-[#593](https://github.com/compoodment/ClankerWorld/issues/593).
+shelter and route rules still check household membership. A resident with notice
+leaves through `DepartHousehold` before joining, preserving the
+[departure rules](../game-design/towns.md#household-goods-and-departure) for goods,
+food allowance and care. Before that exit, live relocation eligibility and
+destination capacity are checked again. A cancelled notice also cancels a
+resident's pending request elsewhere; an adult who already left keeps seeking
+a home.
 
 **House resident capacity** (`HouseResidentCapacityRules`). A completed House
 provides three permanent-resident places per footprint tile, or four per tile
 when one explicitly recorded domestic family unit has at least two residents
 and a strict majority of the House's residents. The unit is saved separately
-from ancestry; traveling residents and infants count, dead people and invited
+from ancestry. A partnership changes these units only when it is accepted or
+when an accepted partnership ends. Withdrawing, refusing or expiring an
+unaccepted proposal leaves each person's existing unit and the resulting
+House limit alone. Traveling residents and infants count, dead people and invited
 storm guests do not. Joining a household is offered only when the proposed
 resident fits after their arrival is counted. The server checks again after
 unanimous admission, and Add Agent checks the selected household property
 before placement. A birth always goes to the primary caregiver's current
 household, even when that puts the House over its limit; the building card,
 agent context and the newborn's saved housing status show the resulting need.
-An unavailable House is recorded the same way without delaying birth. This
-status gives dependents no adult admission or construction choices. House
-expansion can start for a
+An unavailable House is recorded the same way without delaying an agreed birth.
+The birth still needs food and an unoccupied, buildable tile for the newborn:
+near an accessible shelter, or near the primary caregiver when there is none.
+Losing a House does not bypass the food or consent checks. This status gives
+dependents no adult admission or construction choices. House expansion can
+start for a
 storage need or when there is no resident place, but added places use only the
 completed footprint. Unfinished expansion does not reserve room for another
-resident. The game does not yet relocate people who already live in an
-overcrowded House; that remains in
-[#599](https://github.com/compoodment/ClankerWorld/issues/599).
+resident.
+
+**Overcrowding relocation** (`HouseRelocationRules`, `SettlementRelocation`).
+Selection uses the completed House footprint and active permanent residents.
+Volunteers come first, then existing notices and the latest eligible arrivals,
+with ordinal agent IDs breaking equal arrival times. Forced selection protects
+the dominant domestic family; when no family has a majority, the arrival order
+does not favor a family. The majority is checked again after each selected
+departure, so a family that gains it part-way is protected from then on.
+Sole caregivers are ineligible for the notice timer,
+including when their dependent lives elsewhere. Capacity is recalculated after
+each proposed departure, and a departure that would not reduce overcrowding is
+skipped. Selection stops when the remaining residents fit.
+
+`Housing.Relocation` stores the household, original notice tick, fixed deadline
+and selection reason. The initial period is one world day. Pausing and loading
+do not consume or restart it; a volunteer or other replacement adult inherits
+the existing notice period. Births, age changes and unfinished expansion do not
+restart a notice. Reconciliation cancels obsolete notices after changes in
+residents, family, care or completed capacity. Admission and departure actions
+recheck that eligibility before acting on a saved or delayed choice.
+
+At expiry, each still-eligible adult leaves through the ordinary departure
+transition, in the order selection planned, rechecking remaining need before
+the next exit. No location or
+inventory is transferred remotely. The once-only food allowance, personal
+collection rights, borrowed goods and paused work retain their existing rules.
+An adult without a new home keeps a visible housing task. An overcrowded House
+with no eligible adult remains blocked while its members arrange expansion or
+a voluntary household split; sole caregivers are never forced out with their
+children. The split is offered only when the House cannot grow: no expansion
+is running, and either no larger footprint fits or its extra land is neither
+the household's to use nor free Town land it can still ask the Council for. While only that land permission
+is missing, the housing line names it as the next step, and the expansion
+land request prefers a footprint whose extra land no other household holds or
+has asked for. Built-in rules do not found a household while the adult still
+has a home, so the notice period can end in a completed expansion or an
+accepted request. Agent observations and owner inspection show resident
+counts, notice reason and time, pending requests and expansion state.
+`relocation_notice` and `relocation_cancelled` record changes without
+repeating them on reload.
+
+**Guardian placement** (`SettlementGuardianPlacement`). An adult's explicit
+acceptance records primary care separately from the child's move. When a child
+cannot yet join that adult's household, their physical state keeps a pending
+placement tied to the exact accepted care relationship and its revision. The
+guardian needs a recorded Town and a completed household House with room;
+acceptance creates neither a House nor a resident place.
+
+The guardian first reaches the child, then accompanies them to the selected
+House through ordinary movement. The guardian waits for a child who falls
+behind. Urgent food and warmth needs may interrupt the journey without
+removing accepted care. Capacity, current care authority, Town membership and
+the House's identity are checked again before placement. Only arrival together
+commits the child's household and Town membership in the same world transition,
+using the existing rule that dependents follow their accepted primary caregiver.
+The destination guardian is already a Town resident; the move does not invent a
+Council admission proposal or give an unrelated adult membership. Parenthood,
+birth records and property ownership do not change.
+
+Pending placements retry after temporary blockers clear. A change of caregiver,
+death or the child reaching adulthood ends the old placement. The owner's
+agent card and People section distinguish accepted care, a blocked home and
+travel through existing observation notes. `guardian_placement_pending`,
+`guardian_placement_completed` and `guardian_placement_cancelled` record the
+placement lifecycle separately from `guardian_assigned` and `guardian_needed`.
 
 **Continuity rule** (`SettlementContinuity`). The owner's answer on
 [#654](https://github.com/compoodment/ClankerWorld/issues/654) sets provisional
@@ -1289,6 +1525,10 @@ New proposals for Shelters, Storehouses, Cooking fires and Stone hearths are
 retired. Existing buildings, projects and recorded proposals remain for old-world
 compatibility. Approved owner building designs stay active but are not household
 kinds, so agents do not plan them; they wait for shared buildings. House fires supply heat. General invention is later Workshop work.
+Fire-tending selects an unlit hearth the adult can reach, using the same
+household access and interaction distance as movement. Selection is repeated
+when tending begins, so changed occupancy can redirect the adult to another
+hearth or leave warmth-seeking available. Fuel is consumed only at the hearth.
 
 Clothing comes from a household's Tailor Shop (`clankerworld-tailor-v1`), which
 replaced the Weaving frame and its "Woven clothing" recipe outright. The shop
@@ -1444,6 +1684,14 @@ seed with a reserved planting unit. An adult carries that seed to legal free
 land and plants a sapling; tree growth, fruiting and the reserve survive reload.
 Ordinary wood-tree seeds remain distinct.
 
+Urgent food recovery first sets down ordinary spare cargo. If that cannot free
+enough carrying room, it may also select the actor's own orchard propagation
+seeds. Their selected planting reservations are released in the same inventory
+transition that stores the seeds with the household, after reaching the House
+or camp pile. Walking, an unavailable destination or a refused transfer does
+not release them. Other reservations, delivery loads and borrowed goods remain
+protected; crafting does not use this exception.
+
 The Godot map draws worked soil and crop growth above the terrain, including
 wrapped map edges; the overview marks field tiles. Fields join the household
 property display, and inspection shows the household, stage, crop, worker and
@@ -1496,16 +1744,28 @@ Road tiles, the building's entrance and new bridges are then committed together
 in the same tick, and the border grows around the new Road tiles on both banks.
 If there is no legal side street, nothing changes and a `town_road_unconnected`
 event records the reason (`no_entrance`, `route_unavailable` or
-`redundant_crossing`). A bridge with Road at both ends joins its two streets,
-so the run-on rule does not treat either end as a dead end.
+`redundant_crossing`). A bridge with Road at both ends counts as a link between
+them when finding street ends. If that bridge is an end's only link, its
+canonical entrance order supplies the outward heading for the run-on. This
+keeps the street heading away from the river across the east/west world seam,
+including on narrow wrapped maps. The same clearance and three-tile frontage
+checks apply.
 
 **Same connected banks.** Two crossings join the same banks only when they
 cross the same river, joined through its water, and each end of one reaches an
 opposite end of the other by walking along that water's shore without crossing
-it. A tributary mouth or a separate stream breaks the shore, so a bridge over a
+it. Each shore step obeys the ordinary foot-movement rules: impassable Peaks
+break the connection, while walkable Mountain terrain does not. A tributary
+mouth or a separate stream breaks the shore, so a bridge over a
 different nearby stream never blocks another. There is no distance limit; the
 comparison examines at most 4,096 river tiles and, if that runs out, does not
-treat the banks as the same. Along one unbranched stretch of river this allows
+treat the banks as the same. It first checks the shore beside the connecting
+water path. If that is incomplete because the river widens, it follows the
+water between the crossing spans to include the wider shore, staying within
+eight tiles of the connecting water. The spans and that reach stop the
+expansion from going around distant headwaters and joining separate
+tributaries; a locally proven connection needs no whole-river search.
+Along one unbranched stretch of river this allows
 one bridge, however long the stretch. A new crossing over the same banks as an
 existing bridge is not built; a Road uses the existing bridge instead, and one
 route never builds two bridges over the same banks.
@@ -1572,6 +1832,27 @@ Godot uses it to keep an **Add a newcomer** offer in the Event Log while the
 rule is on in a started world, even when the transition event has left bounded
 history. The link opens the existing Add Agent controls and rechecks the current
 snapshot when clicked; it neither places an agent nor asks for a paid model call.
+
+## Developer edits
+
+The F12 panel submits one signed `POST /api/v1/owner/developer-edit` command for
+the selected agent. The signature binds the world ID, expected latest event ID,
+agent, operation, value, amount and optional other agent. The host shares the
+world-selection mutation gate, then the runtime checks that the world is paused
+and the observation is current. Changes are prepared on an isolated checkpoint,
+fully validated, and persisted before the live runtime accepts them. Failed
+validation or persistence leaves the prior world unchanged.
+
+Needs use whole percentages from 0 to 100. Goods use the bounded list in
+`PrivateWorldRuntime.DeveloperGoods`, quantities from 1 to 100 and the existing
+carrying limit. Removal consumes unreserved personal carried goods, excluding
+equipped items, delivery goods, knowledge records and vessels with contents.
+Skills use the four existing learned skills. Relationship edits start or end
+partnerships with the existing age, availability and close-kin constraints;
+parentage, guardianship and household membership retain their lifecycle rules.
+Every accepted command appends a player-facing `developer_edit` event containing
+the complete command, including its world and observation precondition.
+See [Saves and replay](saves-and-replay.md#developer-edits) for retries and replay.
 
 ## Developer tools readouts
 
@@ -1796,6 +2077,16 @@ skill name so older clients can still display it; new code calls it `Skill`.
 This is separate from the saved lesson record, which now stores a skill.
 
 ## World-list requests
+
+The private host can retain an untouched, nongenerated bootstrap checkpoint
+before the player creates a world. Its founder observation reports
+`requiresWorldCreation`; this is derived from the saved state, independent of
+whether the response includes cached terrain. Continue and Load World route
+that observation into the ordinary New World screen before entering play or
+resuming time. Preview selection, explicit acceptance of missed coverage
+targets and signed creation remain the only way through that screen. The
+redirect neither replaces the checkpoint nor removes its catalog entry, and
+founders or authored progress prevent it.
 
 The manual Save World and Load Save dialog owns one list read per opening.
 Closing it, creating, overwriting or deleting a save, or starting another opening
