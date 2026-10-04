@@ -1043,7 +1043,9 @@ statements remain allegations; actual nearby observations and inspected rights,
 title, law versions and earlier rulings retain their sources. The current land
 mayor must inspect the file and revalidate authority, conflicts and the response
 window before ruling. A permission past its agreed end must be renewed, amended
-or ended; it cannot be confirmed or left as it is. An amend ruling reassigns
+or ended; it cannot be confirmed or left as it is. A renewal renews every lapsed
+permission on the plot for its own household, so several lapsed households need
+no chosen winner. Ending is not offered for an unrepresented household. An amend ruling reassigns
 existing permissions and the pending requests it heard; other free Town land
 stays free. A conflicted holder steps aside for a willing independent
 adult elected through the shared civic scheduler for this case only. A valid
@@ -1051,9 +1053,10 @@ acting judge survives ordinary mayor succession; missing authority leaves the
 case pending. Reopening needs assessed material evidence or a demonstrated
 procedural error, retains earlier rulings and publishes a fresh notice. Grounds
 are judged against the latest ruling, and only while the case is settled. A
-settled case with no rehearing request offers its ruling to adults who have not
-read it and a rehearing request to its parties; statements, observations and
-relays resume while a request is pending. A Council-approved Town filing that
+settled case with no rehearing request offers its file to adults who have not
+read its ruling or whose plot's right, title or law has changed since, and offers
+its parties nearby observations and a rehearing request; statements and relays
+resume while a request is pending. A Council-approved Town filing that
 can no longer open when its vote passes keeps the vote and posts the reason.
 
 Bounded permission adjustments retain original grant receipts and replayable

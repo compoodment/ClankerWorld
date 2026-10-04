@@ -288,14 +288,32 @@ public static class TownLandHearingRules
             Pieces(right, right.Tiles.Where(t => !plot.Contains(t)), right.HouseholdId, right.AgreedEndTick);
             var inside = right.Tiles.Where(plot.Contains);
             if (outcome.Kind == "end" && right.HouseholdId == outcome.HouseholdId) continue;
+            // A renewal also renews every other permission on the plot that has lapsed, each for its own household,
+            // so a ruling never has to pick between households merely to bring their lapsed permissions back.
             Pieces(right, inside, outcome.Kind == "amend" ? outcome.HouseholdId! : right.HouseholdId,
-                outcome.Kind == "amend" || outcome.Kind == "renew" && right.HouseholdId == outcome.HouseholdId ? outcome.AgreedEndTick : right.AgreedEndTick);
+                outcome.Kind == "amend" || outcome.Kind == "renew" && (right.HouseholdId == outcome.HouseholdId || right.AgreedEndTick <= tick)
+                    ? outcome.AgreedEndTick : right.AgreedEndTick);
         }
         // Free Town land with no heard request stays free: an ordinary grant needs Town approval and household acceptance.
         var free = tiles.Where(t => requested?.Contains(t) == true && prior.All(r => !r.Tiles.Contains(t))).ToArray();
         if (outcome.Kind == "amend" && free.Length > 0)
             Pieces(new("", townId, outcome.HouseholdId!, [], tick, "hearing:" + Digest(rulingId)[..32], outcome.AgreedEndTick), free, outcome.HouseholdId!, outcome.AgreedEndTick);
         return result.OrderBy(r => r.Id, StringComparer.Ordinal).ToArray();
+    }
+
+    private static readonly string[] RulingKinds = ["confirm", "renew", "amend", "end", "reject"];
+
+    /// <summary>
+    /// The rulings a judge is offered now, and the households whose permission on the plot is past its agreed end.
+    /// A lapsed permission must be renewed, amended or ended; renewing covers every lapsed permission on the plot,
+    /// and ending is offered for a single lapsed household only while it has an adult to represent it.
+    /// </summary>
+    public static (string[] Kinds, string[] Lapsed) RulingChoices(IReadOnlyList<HouseholdLandUseRight> currentRights,
+        IReadOnlyList<GridPoint> plot, IReadOnlyList<TownLandCaseParty> parties, long tick)
+    {
+        var lapsed = Ordered(currentRights.Where(r => r.AgreedEndTick <= tick && r.Tiles.Any(plot.Contains)).Select(r => r.HouseholdId));
+        var mayEnd = lapsed.Length == 0 || lapsed.Length == 1 && parties.Any(p => p.HouseholdId == lapsed[0] && p.AdultIds.Count > 0);
+        return (RulingKinds.Where(kind => lapsed.Length == 0 || kind is "renew" or "amend" || kind == "end" && mayEnd).ToArray(), lapsed);
     }
 
     public static bool IsAdverseChange(IEnumerable<HouseholdLandUseRight> prior, IEnumerable<HouseholdLandUseRight> result, string householdId)
@@ -446,9 +464,12 @@ public static class TownLandHearingRules
     /// <summary>
     /// The ruling a request's grounds are judged against: the latest one when it is assessed. A request filed
     /// before that ruling was made cannot ground another rehearing, because the rehearing has already heard it.
+    /// A rehearing the request itself opened is published at its assessment, so a ruling on that notice comes after it.
     /// </summary>
     private static TownLandRuling? AssessedRuling(TownLandCase item, TownLandReopenRequest request) =>
-        item.Rulings.LastOrDefault(r => r.Tick <= (request.AssessedTick ?? long.MaxValue)) is { } ruling && ruling.Tick <= request.Tick ? ruling : null;
+        item.Rulings.LastOrDefault(r => request.AssessedTick is not { } assessed || r.Tick < assessed ||
+            r.Tick == assessed && item.Revisions.Single(v => v.Number == r.Revision).PublishedTick < assessed) is { } ruling &&
+        ruling.Tick <= request.Tick ? ruling : null;
 
     private static TownLandCase Pending(TownLandHearingState state, string id) =>
         state.Cases.Single(c => c.Id == id && c.Status == "pending");

@@ -212,6 +212,66 @@ public sealed class TownLandHearingRuntimeTests
     }
 
     [Fact]
+    public async Task AfterEveryoneReadsTheRulingAPartyCanStillRecordANewObservationAndReopenTheCaseOnIt()
+    {
+        var settled = await SettledDispute.Value;
+        var state = PrivateWorldRuntimeCodec.Decode(settled.Save);
+        var board = state.Towns![0].OriginSite!.Value;
+        // The filer stands where both the notice place and a tile of the settled plot are within reach.
+        var spot = new[] { board, new GridPoint(board.X + 1, board.Y), new GridPoint(board.X - 1, board.Y), new GridPoint(board.X, board.Y + 1), new GridPoint(board.X, board.Y - 1) }
+            .Select(state.Map.WrapColumn).First(point => state.Map.IsLand(point) && state.Map.FootDistance(point, board) <= 1 &&
+                settled.Plot.Any(tile => state.Map.FootDistance(point, tile) <= 1));
+        var provider = new HearingProvider { Plot = settled.Plot, InspectWhenOffered = true, AcceptRehearings = true };
+        using var world = PrivateWorldRuntime.Restore(state with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == Filer ? person with { Position = spot } : person).ToArray()
+        }, _ => provider);
+        var adults = world.Towns[0].Governance!.Members;
+        foreach (var adult in adults) Prompt(world, adult, "Read the land ruling posted at the notice place.");
+        for (var step = 0; step < 8; step++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        var item = Assert.Single(world.Towns[0].LandHearings.Cases);
+        Assert.Equal("settled", item.Status);
+        Assert.All(adults, adult => Assert.Contains(item.Reads, read => read.AgentId == adult && read.ReadTick > item.Rulings[0].Tick));
+        Assert.DoesNotContain(item.Evidence, evidence => evidence.Kind == "observation");
+        var token = "|" + TownLandHearingRules.RevisionToken(item) + "|";
+        // Having read the ruling, the filer can still record what is on the plot; a resident who is not a party cannot.
+        Assert.Contains(provider.Offered[Filer], id => id.Contains("|hearing_observe" + token, StringComparison.Ordinal));
+        Assert.DoesNotContain(provider.Offered[Judge], id => id.Contains(token, StringComparison.Ordinal));
+
+        // A recorded permission on the plot changes, so its file is offered again to read the new version.
+        var changedState = world.ExportState();
+        changedState = changedState with
+        {
+            HouseholdLandUseRights = changedState.HouseholdLandUseRights!.Select(right => right.Id == settled.RightId
+                ? right with { AgreedEndTick = settled.End + Day } : right).ToArray()
+        };
+        using var changed = PrivateWorldRuntime.Restore(changedState, _ => provider);
+        Prompt(changed, Judge, "Look at the notice place again.");
+        Assert.True((await changed.AdvanceOneTickAsync()).Advanced);
+        Assert.Contains(changed.Towns[0].LandHearings.Cases[0].Evidence, evidence => evidence.Kind == "record" &&
+            evidence.SourceRecordId == settled.RightId && evidence.Text.Contains(" agreed end " + (settled.End + Day) + ".", StringComparison.Ordinal));
+
+        // The filer observes the plot, reads the updated file, cites the observation and the land mayor accepts it.
+        provider.ObserveAndReopen = true;
+        Prompt(world, Filer, "Look at your household's plot.");
+        await UntilAsync(world, () => world.Towns[0].LandHearings.Cases[0].Evidence.Any(evidence => evidence.Kind == "observation"), 10, provider);
+        Prompt(world, Filer, "Read the case file again and consider whether the ruling should be heard again.");
+        await UntilAsync(world, () => world.Towns[0].LandHearings.Cases[0].Status == "pending", 30, provider);
+        var reopened = world.Towns[0].LandHearings.Cases[0];
+        var request = Assert.Single(reopened.ReopenRequests);
+        Assert.Equal(("material_evidence", "accepted", Filer), (request.Kind, request.Status, request.AgentId));
+        var observed = Assert.Single(reopened.Evidence, evidence => evidence.Kind == "observation");
+        Assert.Equal(new[] { observed.Id }, request.EvidenceIds);
+        Assert.True(observed.SubmittedTick > reopened.Rulings[0].Tick);
+        Assert.Equal(2, reopened.Revisions.Count);
+        world.Validate();
+        var saved = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), _ => new ActionCoverageRecorder(chooseIdle: true));
+        restored.Validate();
+        Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+    }
+
+    [Fact]
     public async Task APermissionEndingAfterItsDisputeWasSettledStillGetsAReviewThatMustRenewAmendOrEndIt()
     {
         var settled = await SettledDispute.Value;
@@ -526,6 +586,9 @@ public sealed class TownLandHearingRuntimeTests
         public bool SeekMayor { get; set; } = true;
         public bool InspectWhenOffered { get; set; }
         public bool AcceptRehearings { get; set; }
+        /// <summary>The filer observes the plot once, then asks for a rehearing citing that observation.</summary>
+        public bool ObserveAndReopen { get; set; }
+        public bool Observed { get; private set; }
         public bool VoteYes { get; set; }
         /// <summary>Exact plots and requests the Council member proposes for the Town, one attempt each.</summary>
         public ConcurrentQueue<(GridPoint[] Plot, CognitionLandHearingChoice Request)> TownProposals { get; } = new();
@@ -541,8 +604,13 @@ public sealed class TownLandHearingRuntimeTests
             if (AcceptRehearings && observation.InhabitantId == Judge)
                 choice ??= choices.FirstOrDefault(candidate => candidate.Id.Contains("|hearing_assess_reopen|", StringComparison.Ordinal) &&
                     candidate.Id.EndsWith(":accept", StringComparison.Ordinal));
+            if (ObserveAndReopen && !Observed && observation.InhabitantId == Filer)
+                choice ??= choices.FirstOrDefault(candidate => candidate.Id.Contains("|hearing_observe|", StringComparison.Ordinal));
             if (InspectWhenOffered)
                 choice ??= choices.FirstOrDefault(candidate => candidate.Id.Contains("|hearing_inspect|", StringComparison.Ordinal));
+            if (ObserveAndReopen && Observed && observation.InhabitantId == Filer)
+                choice ??= choices.FirstOrDefault(candidate => candidate.Id.Contains("|hearing_reopen|", StringComparison.Ordinal) &&
+                    candidate.Id.EndsWith("|material_evidence", StringComparison.Ordinal));
             if (VoteYes)
                 choice ??= choices.FirstOrDefault(candidate => candidate.Id.Contains("|yes|", StringComparison.Ordinal));
             if (choice is null && observation.InhabitantId == Judge && !TownProposals.IsEmpty)
@@ -581,6 +649,13 @@ public sealed class TownLandHearingRuntimeTests
                 tiles = proposal.Plot.Select(point => new CognitionLandTile(point.X, point.Y)).ToArray();
                 hearing = proposal.Request;
             }
+            else if (choice.Id.Contains("|hearing_observe|", StringComparison.Ordinal))
+                Observed = true;
+            else if (choice.Id.Contains("|hearing_reopen|", StringComparison.Ordinal))
+                hearing = new(Grounds: "I personally observed the plot after the ruling; that observation was not before the judge.",
+                    EvidenceIds: choice.Description.Split([' ', ';', ','], StringSplitOptions.RemoveEmptyEntries)
+                        .Where(token => token.StartsWith("land-evidence:", StringComparison.Ordinal) && token.EndsWith("=observation", StringComparison.Ordinal))
+                        .Select(token => token.Split('=')[0]).Distinct(StringComparer.Ordinal).ToArray());
             else if (choice.Id.Contains("|hearing_assess_reopen|", StringComparison.Ordinal))
                 hearing = new(Statement: "The newly recorded observation was not before the earlier ruling.");
             else if (choice.Id.Contains("|hearing_answer|", StringComparison.Ordinal))

@@ -767,9 +767,95 @@ public sealed class TownLandHearingRulesTests
         Assert.Null(state.Cases[0].Contest);
     }
 
-    private static TownLandHearingState File(IReadOnlyList<TownLandCaseParty>? parties = null, long end = 10, IReadOnlyList<GridPoint>? plot = null) =>
+    [Fact]
+    public void ARenewalBringsBackEveryLapsedPermissionOnThePlotWithoutPickingAWinnerEvenWhenNoHouseholdIsRepresented()
+    {
+        GridPoint[] plot = [new(3, 0), new(4, 0)];
+        var beta = new HouseholdLandUseRight("beta-right", "town", "beta", [new(4, 0), new(5, 0)], 0, "council:beta", 10);
+        var fixture = Ready(end: 10, plot: plot, others: [beta]);
+        var judge = fixture.State.Cases[0].Judge!;
+        TownLandCaseParty[] unrepresented = [.. Parties.Select(party => party with { AdultIds = [] })];
+        // Both households' permissions on the plot have lapsed, so leaving them is not offered, and neither is ending one.
+        var choices = TownLandHearingRules.RulingChoices(fixture.Rights, plot, Parties, 11);
+        Assert.Equal(["renew", "amend"], choices.Kinds);
+        Assert.Equal(["alpha", "beta"], choices.Lapsed);
+        Assert.Equal(["renew", "amend"], TownLandHearingRules.RulingChoices(fixture.Rights, plot, unrepresented, 11).Kinds);
+        foreach (var kind in new[] { "confirm", "reject" })
+            Assert.Throws<InvalidOperationException>(() => TownLandHearingRules.Rule(fixture.State, Map(), fixture.Id, 1, judge, 11,
+                new(kind), ["record:right"], [], "Leave the lapsed permissions", fixture.Rights, Parties, true));
+        // Neither household has an adult, so giving the plot to either one is refused.
+        foreach (var household in new[] { "alpha", "beta" })
+            Assert.Throws<InvalidOperationException>(() => TownLandHearingRules.Rule(fixture.State, Map(), fixture.Id, 1, judge, 11,
+                new("amend", household, 50), ["record:right"], [], "Give the plot to one household", fixture.Rights, unrepresented, true));
+
+        foreach (var parties in new[] { Parties, unrepresented })
+        {
+            var (state, rights) = TownLandHearingRules.Rule(fixture.State, Map(), fixture.Id, 1, judge, 11,
+                new("renew", "alpha", 50), ["record:right"], [], "Renew each household's recorded permission", fixture.Rights, parties, true);
+            Assert.Equal(("alpha", (long?)50), (Assert.Single(rights, right => right.Tiles.Contains(new GridPoint(3, 0))).HouseholdId,
+                Assert.Single(rights, right => right.Tiles.Contains(new GridPoint(3, 0))).AgreedEndTick));
+            Assert.Equal(("beta", (long?)50), (Assert.Single(rights, right => right.Tiles.Contains(new GridPoint(4, 0))).HouseholdId,
+                Assert.Single(rights, right => right.Tiles.Contains(new GridPoint(4, 0))).AgreedEndTick));
+            // Only the noticed plot was heard; the rest of each permission keeps its own terms.
+            Assert.Equal(10, Assert.Single(rights, right => right.Tiles.Contains(new GridPoint(0, 0))).AgreedEndTick);
+            Assert.Equal(10, Assert.Single(rights, right => right.Tiles.Contains(new GridPoint(5, 0))).AgreedEndTick);
+            TownLandTitleRecord[] titles = [new("title", "town", [new(0, 0), new(1, 0), new(2, 0), new(3, 0), new(4, 0), new(5, 0)], 0)];
+            void Check(TownLandHearingState saved) => TownLandHearingValidation.Validate(Map(), 11, "town", saved, rights, titles, Adults.ToHashSet(),
+                Households.Values.OfType<string>().ToHashSet(), fixture.Council, 10, Government());
+            Check(state);
+            Check(JsonSerializer.Deserialize<TownLandHearingState>(JsonSerializer.Serialize(state))!);
+        }
+    }
+
+    [Fact]
+    public void EndingASingleLapsedPermissionIsOfferedOnlyWhileItsHouseholdIsRepresented()
+    {
+        TownLandCaseParty[] unrepresented = [Parties[0] with { AdultIds = [] }, Parties[1]];
+        var choices = TownLandHearingRules.RulingChoices([Right(10)], Plot, Parties, 11);
+        Assert.Equal(["renew", "amend", "end"], choices.Kinds);
+        Assert.Equal(["alpha"], choices.Lapsed);
+        Assert.Equal(["renew", "amend"], TownLandHearingRules.RulingChoices([Right(10)], Plot, unrepresented, 11).Kinds);
+        Assert.Equal(["confirm", "renew", "amend", "end", "reject"], TownLandHearingRules.RulingChoices([Right(40)], Plot, unrepresented, 11).Kinds);
+        var fixture = Ready();
+        Assert.Throws<InvalidOperationException>(() => TownLandHearingRules.Rule(fixture.State, Map(), fixture.Id, 1, fixture.State.Cases[0].Judge!, 11,
+            new("end", "alpha"), ["record:right"], [], "End the lapsed permission", fixture.Rights, unrepresented, true));
+        Assert.Equal("settled", TownLandHearingRules.Rule(fixture.State, Map(), fixture.Id, 1, fixture.State.Cases[0].Judge!, 11,
+            new("renew", "alpha", 50), ["record:right"], [], "Renew the lapsed permission", fixture.Rights, unrepresented, true).State.Cases[0].Status);
+    }
+
+    [Fact]
+    public void ARehearingRuledInTheTickItWasAcceptedLeavesItsAcceptedRequestValid()
+    {
+        var fixture = Ready(end: 40);
+        var (state, rights) = TownLandHearingRules.Rule(fixture.State, Map(), fixture.Id, 1, fixture.State.Cases[0].Judge!, 11,
+            new("confirm"), ["record:right"], [], "Keep the recorded permission", fixture.Rights, Parties, true);
+        var observation = new TownLandEvidence("new-observation", 1, "observation", "firsthand", "a", null, null, 12, "a", 12, "I actually observed new plot conditions");
+        state = TownLandHearingRules.AddEvidence(state, fixture.Id, 1, observation, fixture.Council.Knowledge);
+        state = TownLandHearingRules.RequestReopen(state, fixture.Id, "a", "material_evidence", [observation.Id], "New plot evidence", 13);
+        var request = state.Cases[0].ReopenRequests[0];
+        state = TownLandHearingRules.AssignJudge(state, fixture.Id, state.Cases[0].Rulings[0].Judge with { AssignedTick = 14 });
+        state = TownLandHearingRules.Inspect(state, fixture.Id, 1, "judge", 14);
+        var council = fixture.Council;
+        state = TownLandHearingRules.Reopen(state, fixture.Id, request.Id, state.Cases[0].Judge!, true, "The new observation warrants a hearing",
+            rights, Parties, 14, 10, "notice:" + (council.Notices.Count + 1), true);
+        // Both parties learn the fresh notice and answer at once, so the rehearing is ruled in the same tick.
+        council = TownGovernanceRules.PostNotice(council, "land_hearing", fixture.Id + ":2", "Fresh formal plot hearing", 14);
+        foreach (var adult in Adults) council = TownGovernanceRules.LearnNotice(council, adult, council.Notices[^1].Id, 14);
+        state = TownLandHearingRules.Respond(state, fixture.Id, 2, "a", "answer", "My household answers again", 14, council.Knowledge, Parties, "alpha");
+        state = TownLandHearingRules.Respond(state, fixture.Id, 2, "b", "waive", "I waive my response", 14, council.Knowledge, Parties, "beta");
+        state = TownLandHearingRules.Inspect(state, fixture.Id, 2, "judge", 14);
+        (state, rights) = TownLandHearingRules.Rule(state, Map(), fixture.Id, 2, state.Cases[0].Judge!, 14,
+            new("confirm"), [observation.Id], [], "The new observation changes nothing", rights, Parties, true);
+        Assert.Equal((14L, 14L), (state.Cases[0].Rulings[^1].Tick, state.Cases[0].ReopenRequests[0].AssessedTick!.Value));
+        Assert.True(TownLandHearingRules.MaterialNewEvidence(state.Cases[0], state.Cases[0].ReopenRequests[0], state));
+        Validate(state, rights, council, 14);
+        Validate(JsonSerializer.Deserialize<TownLandHearingState>(JsonSerializer.Serialize(state))!, rights, council, 14);
+    }
+
+    private static TownLandHearingState File(IReadOnlyList<TownLandCaseParty>? parties = null, long end = 10, IReadOnlyList<GridPoint>? plot = null,
+        IReadOnlyList<HouseholdLandUseRight>? others = null) =>
         TownLandHearingRules.File(TownLandHearingState.Create(), "town", new("b", "dispute", "Consider the competing permission", new("amend", "beta"), 0),
-            plot ?? Plot, [Right(end)], parties ?? Parties, 0, 10, "notice:1");
+            plot ?? Plot, [Right(end), .. others ?? []], parties ?? Parties, 0, 10, "notice:1");
     private static HouseholdLandUseRight Right(long end = 10) => new("right", "town", "alpha", [new(0, 0), new(1, 0), new(2, 0), new(3, 0)], 0, "council:original", end);
     private static SeededMap Map() => new(8, 2, 0,
         (from y in Enumerable.Range(0, 2) from x in Enumerable.Range(0, 8) select new TerrainTile(new(x, y), TerrainKind.Meadow)).ToArray(), [], [], "hearing-fixture");
@@ -783,9 +869,9 @@ public sealed class TownLandHearingRulesTests
         return council;
     }
     private static (TownLandHearingState State, IReadOnlyList<HouseholdLandUseRight> Rights, TownGovernanceState Council, string Id) Ready(
-        long end = 10, IReadOnlyList<GridPoint>? plot = null)
+        long end = 10, IReadOnlyList<GridPoint>? plot = null, IReadOnlyList<HouseholdLandUseRight>? others = null)
     {
-        var state = File(end: end, plot: plot);
+        var state = File(end: end, plot: plot, others: others);
         var id = state.Cases[0].Id;
         var council = Council(id);
         state = TownLandCaseJudgeRules.Register(state, id, "judge", Adults, Households, 0);
@@ -796,7 +882,7 @@ public sealed class TownLandHearingRulesTests
         state = TownLandHearingRules.AddEvidence(state, id, 1,
             new("record:right", 1, "record", "record_inspection", "a", right.Id, TownLandHearingRules.Version(right), 1, "a", 1, "The recorded permission and end date"), council.Knowledge);
         state = TownLandHearingRules.Inspect(state, id, 1, "judge", 10);
-        return (state, new[] { right }, council, id);
+        return (state, [right, .. others ?? []], council, id);
     }
     private static void Validate(TownLandHearingState state, IReadOnlyList<HouseholdLandUseRight> rights, TownGovernanceState council, long tick) =>
         TownLandHearingValidation.Validate(Map(), tick, "town", state, rights, [Title()], Adults.ToHashSet(),

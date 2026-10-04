@@ -352,7 +352,7 @@ keeps the parties who were represented when it was made.
 
 The land mayor may confirm, renew, change or end use permission, recording the
 evidence and reasons. A permission past its agreed end must be renewed, changed
-or ended. A mayor with a personal or household conflict stands aside;
+or ended; renewing renews every lapsed permission on the plot for its own household. A mayor with a personal or household conflict stands aside;
 residents can elect a willing, independent adult for that case only. A case waits
 if nobody qualifies. A rehearing requires material new evidence or a demonstrated
 procedural error. The old ruling remains recorded and current rights stay in

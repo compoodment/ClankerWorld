@@ -51,22 +51,24 @@ public sealed partial class PrivateWorldRuntime
             if (!open && !atBoard && !knows) continue;
             var parties = LandHearingParties(town, revision.Tiles, item);
             var isParty = parties.Any(party => party.AdultIds.Contains(actor, StringComparer.Ordinal) || party.RepresentativeId == actor);
+            // A changed right, title or law on the plot is new record evidence, so its file is offered again.
             if (atBoard && LandHearingMayInspect(town, item, actor) && (!LandHearingReadCurrent(item, actor) ||
                     item.Status == "settled" && (!LandHearingReadRuling(item, actor) || item.ReopenRequests.Any(request => request.Status == "pending" &&
                         !item.Reads.Any(read => read.AgentId == actor && read.Revision == revision.Number &&
-                            read.ReopenRequestIds.Contains(request.Id, StringComparer.Ordinal))))))
+                            read.ReopenRequestIds.Contains(request.Id, StringComparer.Ordinal))) || LandHearingUnreadRecords(town, item).Length > 0)))
                 candidates.Add(new(CivicAction(town.Id, "hearing_inspect", token),
                     "Read the actual public land-case file and formal records for " + TownLandClaimRules.DescribeTiles(revision.Tiles) +
                     ". Reading supplies evidence awareness and grants no private-building access.", 177));
             if (!knows) continue;
             if (open && (isParty || TownAdults(town).Contains(actor, StringComparer.Ordinal)))
-            {
                 candidates.Add(new(CivicAction(town.Id, "hearing_statement", token),
                     "Submit your own statement to the current land-case file via civic_land_hearing.statement. It remains an allegation with your identity, not a verified fact.", 182));
-                if (revision.Tiles.Any(tile => IsWithinInteractionRange(inhabitants[actor].Position, tile, ResourceInteractionRange)))
-                    candidates.Add(new(CivicAction(town.Id, "hearing_observe", token),
-                        "Record what you can physically see on the nearby disputed plot. This supplies no unseen events, building access or permission.", 181));
-            }
+            // A party may still record a new physical fact on a settled plot: that is how material new evidence arises.
+            // Seeing the same thing again adds nothing.
+            if ((open && TownAdults(town).Contains(actor, StringComparer.Ordinal) || isParty) &&
+                revision.Tiles.Any(tile => IsWithinInteractionRange(inhabitants[actor].Position, tile, ResourceInteractionRange)))
+                candidates.Add(new(CivicAction(town.Id, "hearing_observe", token),
+                    "Record what you can physically see on the nearby disputed plot. This supplies no unseen events, building access or permission.", 181));
             foreach (var party in parties.Where(party => item.Status == "pending" &&
                          (party.AdultIds.Contains(actor, StringComparer.Ordinal) || party.RepresentativeId == actor)))
             {
@@ -96,17 +98,15 @@ public sealed partial class PrivateWorldRuntime
             {
                 if (item.Status == "pending" && TownLandHearingRules.CanCloseResponses(item, parties, WorldTick))
                 {
-                    // A permission past its agreed end stays provisional until a ruling renews, amends or ends it, so a
-                    // ruling that would leave one lapsed is not offered: renewing or ending names one household only.
-                    var lapsed = householdLandUseRights.Where(right => right.AgreedEndTick <= WorldTick && right.Tiles.Any(revision.Tiles.Contains))
-                        .Select(right => right.HouseholdId).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
-                    foreach (var kind in new[] { "confirm", "renew", "amend", "end", "reject" })
-                        if (lapsed.Length == 0 || kind == "amend" || lapsed.Length == 1 && kind is "renew" or "end")
-                            candidates.Add(new(CivicAction(town.Id, "hearing_rule", token, kind),
-                                "Personally rule to " + kind + " only the recorded plot permission. Supply civic_land_hearing.statement reasons, actual evidence_ids and law_ids" +
-                                (kind == "end" ? ", and household_id from affected households" : kind is "renew" or "amend" ? ", household_id from affected households and any agreed_end_tick" : "") + ". " +
-                                (lapsed.Length == 0 ? "" : "The permission of household " + string.Join(", ", lapsed) +
-                                    " on this plot is past its agreed end, so the ruling must renew, amend or end it. ") + LandHearingCaseChoices(town, item, actor), 165));
+                    // A ruling that would leave a lapsed permission as it is, or end one for an unrepresented household, is not offered.
+                    var (kinds, lapsed) = TownLandHearingRules.RulingChoices(householdLandUseRights, revision.Tiles, parties, WorldTick);
+                    foreach (var kind in kinds)
+                        candidates.Add(new(CivicAction(town.Id, "hearing_rule", token, kind),
+                            "Personally rule to " + kind + " only the recorded plot permission. Supply civic_land_hearing.statement reasons, actual evidence_ids and law_ids" +
+                            (kind == "end" ? ", and household_id from affected households" : kind is "renew" or "amend" ? ", household_id from affected households and any agreed_end_tick" : "") + ". " +
+                            (lapsed.Length == 0 ? "" : "The permission of household " + string.Join(", ", lapsed) +
+                                " on this plot is past its agreed end, so the ruling must renew, amend or end it. Renewing also renews every lapsed permission on this plot for its own household. ") +
+                            LandHearingCaseChoices(town, item, actor), 165));
                 }
                 // Grounds are assessed only on a settled case; a rehearing already under way decides before any other request.
                 foreach (var request in item.ReopenRequests.Where(request => item.Status == "settled" && request.Status == "pending" &&
