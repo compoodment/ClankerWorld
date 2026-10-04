@@ -1055,7 +1055,7 @@ A grant preserves its Council proposal, individual consent records and the
 adult roster at settlement. Closed requests remain in the save history but do
 not contribute competing claims to the map or Add Agent.
 
-Field-site choices and authoritative tilling both exclude land another
+Ordinary and ordered field-site choices and authoritative tilling exclude land another
 household holds or has requested; unclaimed land and the farmer's own household
 land keep their ordinary physical requirements. New Roads and bridge entrances
 exclude every household's held or requested tiles. Routing may still join an

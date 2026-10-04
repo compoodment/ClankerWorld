@@ -743,7 +743,8 @@ New fields cannot occupy land another household holds or has requested.
 Ordinary land requests cannot cover another household's field, and grant
 settlement checks that the field is still clear of that conflict. A challenge
 to a recorded use right still follows the dispute procedure.
-Pending disputes supply no grant; hearings and transfers remain in #633.
+Pending disputes supply no grant; hearings and transfers follow the case
+procedure below.
 
 Competing requests are visible as **pending disputes**. While one is pending,
 conflicting formal rights transfers pause; residents are not evicted, goods
@@ -761,9 +762,8 @@ the final decision on disputes and what happens when an agreed period ends.
 These rules do not imply automatic confiscation or unilateral household
 transfers. Evidence, hearings, outcomes and conflicts of interest follow the
 agreed [case procedure](#land-hearings-and-rulings). Disputed land is striped
-on the map, and inspecting a tile lists each household's claim. Nonconflicting
-household grants and individual acceptance work; transfers and case actions
-are not built yet
+on the map, and inspecting a tile lists each household's claim. Household
+grants, individual acceptance, consensual transfers and land hearings work
 ([what works today](../what-works.md)).
 
 ### How Roads and bridges appear
