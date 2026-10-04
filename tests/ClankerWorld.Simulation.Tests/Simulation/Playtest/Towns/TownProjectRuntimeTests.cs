@@ -361,6 +361,8 @@ public sealed class TownProjectRuntimeTests
         scenario.World.AddAgent("agent:00000000000000000000000000000099", site);
         Assert.Equal("cancelled", scenario.World.Towns[0].Governance!.Proposals[0].Status);
         policy.ReleaseVote.TrySetResult(true);
+        var lateReply = await policy.VoteReturned.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(DecisionProviderKind.LargeLanguageModel, lateReply.Provider);
         for (var tick = 0; tick < 8; tick++)
         {
             await scenario.World.AdvanceOneTickNonBlockingAsync();
@@ -655,6 +657,7 @@ internal sealed class TownProjectPolicy
     internal bool NoVotes { get; init; }
     internal TaskCompletionSource<bool> VoteStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     internal TaskCompletionSource<bool> ReleaseVote { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    internal TaskCompletionSource<CognitionDecisionResponse> VoteReturned { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     internal ConcurrentQueue<(string Actor, string Id, long Tick)> Choices { get; } = new();
     internal ConcurrentQueue<InhabitantObservation> Observations { get; } = new();
 
@@ -664,6 +667,12 @@ internal sealed class TownProjectPolicy
     {
         public DecisionProviderKind Kind => DecisionProviderKind.LargeLanguageModel;
         public long ProviderEpoch => 1;
+
+        // The stale-vote scenario defers only its held personal vote. Preparatory
+        // proposal/read replies must settle before more game ticks consume the window.
+        public DecisionProviderKind KindFor(InhabitantObservation observation) => policy.HoldVote &&
+            (actor != TownProjectScenario.Author || !observation.Candidates.Any(candidate => candidate.Id.Contains("|yes|", StringComparison.Ordinal)))
+                ? DecisionProviderKind.Deterministic : Kind;
 
         public async ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
         {
@@ -749,10 +758,13 @@ internal sealed class TownProjectPolicy
                 // Deliberately ignore cancellation so admission must reject the old Council reply.
                 await policy.ReleaseVote.Task;
             }
-            return new CognitionDecisionResponse(request.RequestId, observation.InhabitantId,
-                Kind, ProviderEpoch, observation.RunEpoch, observation.DecisionGeneration, observation.ObservationDigest,
+            var response = new CognitionDecisionResponse(request.RequestId, observation.InhabitantId,
+                KindFor(observation), ProviderEpoch, observation.RunEpoch, observation.DecisionGeneration, observation.ObservationDigest,
                 selected.Id, 1, candidates.ToDictionary(c => c.Id, c => c.Id == selected.Id ? 1d : 0d, StringComparer.Ordinal),
                 CivicProposal: text);
+            if (policy.HoldVote && actor == TownProjectScenario.Author && selected.Id.Contains("|yes|", StringComparison.Ordinal))
+                policy.VoteReturned.TrySetResult(response);
+            return response;
         }
     }
 }
