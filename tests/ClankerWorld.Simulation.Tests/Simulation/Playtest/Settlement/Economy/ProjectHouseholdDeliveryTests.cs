@@ -14,6 +14,86 @@ public sealed class ProjectHouseholdDeliveryTests
     private const string Ballast = "project-delivery-protected-stone";
     private const string Workshop = "project-delivery-paid-workshop";
 
+    [Fact]
+    public async Task AFullHouseDeliveryWaitsWithoutGatheringThenResumesAfterAResidentCollectsFoodAcrossReload()
+    {
+        var fixture = await Prepared(toWorkstation: false, includeAxe: true);
+        var state = fixture.State;
+        var definition = state.WorldContent!.Buildings.Single(building => building.CanonicalId == fixture.Destination.DefinitionId);
+        var capacity = BuildingStorageRules.Capacity(definition, fixture.Destination)!.Value;
+        var stored = state.Society.Society.Inventory.Lots.Where(lot => lot.StorageBuildingId == fixture.Destination.InstanceId)
+            .Sum(lot => lot.Quantity);
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "full-house-food", "food", Household,
+            capacity - stored, storageBuildingId: fixture.Destination.InstanceId);
+        var collector = state.Society.Society.Inhabitants.First(person => person.HouseholdId == Household &&
+            person.Id != fixture.Actor && person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder).Id;
+        state = FoodCapacityTestFixture.WithInventory(state, inventory) with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == collector
+                ? person with { Position = fixture.Destination.Position, LastDecisionContext = null }
+                : person.InhabitantId == fixture.Actor ? person with { Project = null } : person).ToArray(),
+        };
+        var allowed = new[] { "", "" };
+        IDecisionProvider Provider(string actor) => actor == collector
+            ? new FoodCapacityTestFixture.Choices(allowed) : actor == fixture.Actor
+                ? new FoodCapacityTestFixture.Choices(fixture.ProjectCandidate) : new Idle();
+        using var world = PrivateWorldRuntime.Restore(state, Provider);
+        var cargo = world.Society.Inventory.GetLot(fixture.CargoId);
+        for (var tick = 0; tick < 8; tick++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        var project = world.Inhabitants.Single(person => person.InhabitantId == fixture.Actor).Project;
+        Assert.NotNull(project);
+        Assert.Equal("blocked", project.Stage);
+        Assert.Contains("storage", project.Blocker, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(fixture.ProjectCandidate, project.CandidateId);
+        Assert.Equal(cargo with { LastProcessedTick = world.WorldTick }, world.Society.Inventory.GetLot(cargo.Id));
+        Assert.DoesNotContain(world.ExportState().Events, item => item.WorldTick > fixture.StartTick &&
+            item.Kind == "carrying_full" && (item.Detail == fixture.Actor || item.Detail.StartsWith(fixture.Actor + ":", StringComparison.Ordinal)));
+        AssertProtectedStock(world, fixture);
+        var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        Assert.False((await world.AdvanceOneTickAsync(() => false)).Advanced);
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes), Provider);
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+        // A real household member collects food, freeing storage without
+        // removing the builder's delivery, claims or project from the fixture.
+        allowed[0] = "collect_shared_food";
+        allowed[1] = "consume_food";
+        restored.Pause();
+        var paused = restored.ExportState();
+        var edit = restored.ApplyDeveloperEdit(new(paused.Society.Society.WorldId, paused.Events[^1].EventId,
+            collector, "set_need", "fullness", 5));
+        Assert.True(edit.Applied, edit.Failure);
+        restored.Resume();
+        int StoredUnits() => restored.Society.Inventory.Lots.Where(lot => lot.StorageBuildingId == fixture.Destination.InstanceId)
+            .Sum(lot => lot.Quantity);
+        for (var tick = 0; tick < 24 && StoredUnits() > capacity - 2; tick++)
+            Assert.True((await restored.AdvanceOneTickAsync()).Advanced);
+        Assert.True(StoredUnits() <= capacity - 2, $"House stock={StoredUnits()}; collector load={Load(restored, collector)}");
+        var map = restored.ExportState().Map;
+        var clear = map.Tiles.Select(tile => tile.Position).Where(point => map.IsBuildable(point) &&
+                !restored.Inhabitants.Any(person => person.Position == point))
+            .OrderBy(point => map.FootDistance(fixture.Destination.Position, point)).First();
+        restored.SubmitInstruction(new("clear-house", "owner:test", collector, OwnerInstructionKind.MustDo,
+            $"move to {clear.X},{clear.Y}"));
+        allowed[0] = "move_to";
+        allowed[1] = "safe_idle";
+        for (var tick = 0; tick < 96 && !CompletedTools(restored, fixture); tick++)
+            Assert.True((await restored.AdvanceOneTickAsync()).Advanced);
+        Assert.True(CompletedTools(restored, fixture), Failure(restored, fixture));
+        Assert.Contains(restored.ExportState().Events, item => item.Kind == "household_stock_delivered" &&
+            item.Detail.StartsWith(fixture.Actor + ":" + fixture.CargoId + ":", StringComparison.Ordinal));
+        Assert.DoesNotContain(restored.ExportState().Events, item => item.WorldTick > fixture.StartTick &&
+            item.Kind == "carrying_full" && (item.Detail == fixture.Actor || item.Detail.StartsWith(fixture.Actor + ":", StringComparison.Ordinal)));
+        AssertProtectedStock(restored, fixture);
+        var finalBytes = PrivateWorldRuntimeCodec.Encode(restored.ExportState());
+        using var replay = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(finalBytes), Provider);
+        Assert.Equal(finalBytes, PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
+        Assert.True((await restored.AdvanceOneTickAsync()).Advanced);
+        Assert.True((await replay.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal(PrivateWorldRuntimeCodec.Encode(restored.ExportState()), PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
+        restored.Validate();
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -138,7 +218,7 @@ public sealed class ProjectHouseholdDeliveryTests
         Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
     }
 
-    private static async Task<Fixture> Prepared(bool toWorkstation)
+    private static async Task<Fixture> Prepared(bool toWorkstation, bool includeAxe = false)
     {
         var (initial, _, _) = await FoodCapacityTestFixture.Generated("probe-a");
         var actor = initial.Society.Society.Inhabitants.First(person => person.HouseholdId == Household &&
@@ -193,8 +273,11 @@ public sealed class ProjectHouseholdDeliveryTests
             toWorkstation ? "smith_input_picked_up" : "household_stock_picked_up",
             destinationDeliveryBuildingId: destination.InstanceId);
         var cargo = Assert.Single(inventory.Lots, lot => lot.OwnerId == actor && lot.ProvenanceLotId == SourceWood);
-        inventory = InventoryFixture.AddLot(inventory, Ballast, "stone", actor, 6);
-        inventory = InventoryFixture.Reserve(inventory, "project-delivery-ballast-claim", actor, Ballast, 6,
+        var ballast = includeAxe ? 5 : 6;
+        inventory = InventoryFixture.AddLot(inventory, Ballast, "stone", actor, ballast);
+        if (includeAxe)
+            inventory = InventoryFixture.AddLot(inventory, "project-delivery-personal-axe", "wooden_axe", actor, 1);
+        inventory = InventoryFixture.Reserve(inventory, "project-delivery-ballast-claim", actor, Ballast, ballast,
             "fixture-protected-personal-material", long.MaxValue);
         protectedClaims.Add(inventory.GetReservation("project-delivery-ballast-claim"));
         var candidate = TownConstructionCandidateIds.Recipe(recipe.CanonicalId);

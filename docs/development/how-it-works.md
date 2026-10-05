@@ -2,7 +2,7 @@
 title: How the game works
 type: architecture
 status: active
-updated: 2026-10-03
+updated: 2026-10-05
 ---
 
 # How the game works
@@ -71,6 +71,13 @@ tick boundary. The unresolved queue entry is saved; the HTTP task is not save
 authority. Admission checks the request ID, provider/run epochs and current
 candidate legality. An epoch is a generation marker that makes replies from
 an earlier configuration or run obsolete. Other agents continue while one waits.
+
+The OpenAI-compatible adapter can complete one omitted empty final field of a
+five-field civic candidate ID when the completed ID exactly matches a uniquely
+offered choice, with no other offered ID sharing that prefix. An already exact
+offered ID keeps its meaning. The adapter does
+not guess a subject, a nonempty choice or multiple missing fields, and the usual
+epoch and candidate-legality checks still admit the completed reply.
 
 Owner instructions are suggestions (**Suggest** on the agent card,
 `Suggestive`) or orders (**Order**, `MustDo`). The next ordinary personal
@@ -275,6 +282,12 @@ Warehouse never becomes a household delivery destination. A matching carried
 shipment can be explicitly bound before its final delivery. Continuing a bound
 shipment does not repeat ingredient-demand selection, because inbound stock
 already reduces that demand. Each deposit rechecks custody, access and room.
+
+Personal building and crafting projects finish a valid carried household
+delivery before acquiring missing inputs. When its destination cannot fit the
+whole load, the project retains its existing blocked state and cargo instead
+of retrying a capacity-impossible harvest. Ordinary project reconsideration
+still applies, and delivery rechecks available room before it resumes.
 
 Typed committed movement effects provide the actual transfer identity and
 quantity. Only final delivery credits `goods_items` or `delivery_loads`, never
