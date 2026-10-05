@@ -318,7 +318,7 @@ public sealed class ProviderConfigurationStore
         ArgumentException.ThrowIfNullOrWhiteSpace(childId);
         ArgumentNullException.ThrowIfNull(frozen);
         ArgumentNullException.ThrowIfNull(commit);
-        if (childId.Length > 128 || childId != childId.Trim())
+        if (childId != childId.Trim())
             throw new ArgumentException("A child model choice requires a valid inhabitant ID.", nameof(childId));
         var boundSelection = frozen.Selection;
         if (boundSelection.ChoiceReason is not (PrivateWorldRuntime.ChildModelChoiceParentsAgreed or
@@ -472,7 +472,7 @@ public sealed class ProviderConfigurationStore
     private OwnerProviderConfigurationStatus ConfigureInhabitant(OwnerProviderConfigurationAction action, string role)
     {
         var id = action.InhabitantId!;
-        if (string.IsNullOrWhiteSpace(id) || id.Length > 128 || id != id.Trim())
+        if (string.IsNullOrWhiteSpace(id) || id != id.Trim())
         {
             throw new ArgumentException("An assignment requires a valid inhabitant ID.", nameof(action));
         }

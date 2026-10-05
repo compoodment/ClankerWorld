@@ -377,6 +377,11 @@ personal-model calls; normal presence, budget and admission checks still apply
 after infancy. Living and deceased profiles validate the descriptor against its
 recorded birth and schema. While provider storage is being recovered, the Model
 panel keeps showing the selected provider and model with a setup message.
+Birth bindings and owner role overrides retain the complete generated
+inhabitant ID. A valid long-seed newborn can bind both roles, including when
+reloading a birth saved before provider storage recovered; no identity is
+truncated or replaced. Repeated recovery preserves later owner overrides and
+the separate historical birth descriptor.
 
 Schema 50 saves an unresolved dependent-guardian search, including its current
 relative, household or Town stage, start tick and offered adults. Each stage
