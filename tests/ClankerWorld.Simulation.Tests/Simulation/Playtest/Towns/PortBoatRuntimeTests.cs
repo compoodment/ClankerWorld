@@ -157,6 +157,18 @@ public sealed class PortBoatRuntimeTests
         Assert.Equal(boatId, scenario.World.ExportState().DeceasedInhabitants!
             .Single(person => person.InhabitantId == BoatPolicy.Author).BoatIdAtDeath);
         Assert.Contains("travel-jug", scenario.World.Boats[0].GroundCargoLotIds!);
+        var aboardState = scenario.World.ExportState();
+        var cargoBoat = aboardState.BoatTransport.Boats[0];
+        foreach (var missing in new IReadOnlyList<string>?[]
+        {
+            null,
+            [],
+            cargoBoat.GroundCargoLotIds!.Where(id => id != "travel-jug").ToArray(),
+        })
+            Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(aboardState with
+            {
+                BoatTransport = aboardState.BoatTransport with { Boats = [cargoBoat with { GroundCargoLotIds = missing }] },
+            }));
         var aboardBytes = PrivateWorldRuntimeCodec.Encode(scenario.World.ExportState());
         using (var replay = new BoatScenario(PrivateWorldRuntimeCodec.Decode(aboardBytes), new()))
         {

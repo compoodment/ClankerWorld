@@ -94,6 +94,14 @@ public sealed partial class PrivateWorldRuntime
             }
             else if (boat.DockedPortId is null || !Geometry(boat.DockedPortId).DockingTiles.Contains(boat.Position))
                 throw new InvalidDataException("An idle boat must be moored in a real Port's docking space.");
+            if (boat.Journey is { } cargoJourney && people[cargoJourney.PassengerId].Status == SocietyInhabitantStatus.Dead)
+            {
+                var physicalCargo = state.Society.Society.Inventory.Lots.Where(lot => lot.Quantity > 0 &&
+                    lot.ContainerLotId is null && lot.GroundPosition == new InventoryGroundPosition(boat.Position.X, boat.Position.Y))
+                    .Select(lot => lot.Id).ToHashSet(StringComparer.Ordinal);
+                if (boat.GroundCargoLotIds is null || !physicalCargo.SetEquals(boat.GroundCargoLotIds))
+                    throw new InvalidDataException("A deceased boat passenger must retain every physical cargo root until safe landing.");
+            }
             if (boat.GroundCargoLotIds is { } cargo)
             {
                 if (cargo.Distinct(StringComparer.Ordinal).Count() != cargo.Count || boat.Journey is not { } estateJourney ||
