@@ -191,6 +191,7 @@ public sealed class PortBoatRuntimeTests
         var receipt = scenario.World.SubmitInstruction(new("aboard-collect", "owner:test", BoatPolicy.Author,
             OwnerInstructionKind.MustDo, "collect my rope"));
         Assert.True((await scenario.World.AdvanceOneTickNonBlockingAsync()).Advanced);
+        await policy.HeldStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Contains(policy.Observations, observation => observation.InhabitantId == BoatPolicy.Author);
         var lot = scenario.World.Society.Inventory.GetLot("waiting-shore-rope");
         Assert.Null(lot.CarrierId);
@@ -620,6 +621,7 @@ public sealed class PortBoatRuntimeTests
         internal bool LeaveToTown { get; set; }
         internal string? HoldActor { get; set; }
         internal TaskCompletionSource<CognitionDecisionResponse> HeldReply { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal TaskCompletionSource<bool> HeldStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         internal HashSet<string> IdleActors { get; } = new(StringComparer.Ordinal);
         internal ConcurrentQueue<string> Choices { get; } = new();
         internal ConcurrentQueue<InhabitantObservation> Observations { get; } = new();
@@ -633,7 +635,10 @@ public sealed class PortBoatRuntimeTests
                 var candidates = request.Observation.Candidates;
                 policy.Observations.Enqueue(request.Observation);
                 if (actor == policy.HoldActor)
+                {
+                    policy.HeldStarted.TrySetResult(true);
                     return new(policy.HeldReply.Task.WaitAsync(cancellationToken));
+                }
                 var selected = policy.LeaveToTown && request.Observation.Will is not null ? candidates.Single(candidate => candidate.Id == CognitionWillContext.HeirsCandidateId) :
                     policy.IdleActors.Contains(actor) ? candidates.Single(candidate => candidate.Id == "safe_idle") :
                     Blockers.Contains(actor, StringComparer.Ordinal) ? candidates.FirstOrDefault(candidate => candidate.Id == "move_to") : null;

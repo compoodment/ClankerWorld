@@ -2,7 +2,7 @@
 title: Saves and replay
 type: persistence-reference
 status: active
-updated: 2026-10-04
+updated: 2026-10-05
 ---
 
 # Saves and replay
@@ -108,6 +108,19 @@ original owner instructions. Loading validates these records together so an
 unrelated action or a stale order cannot advance a replacement task. Alpha saves
 must use the current checkpoint schema; older saves are refused without
 migration and remain unchanged.
+
+Food consumption progress keeps a fixed-length SHA-256 receipt derived from
+the actual consumption's world time, actor and complete lot identity. Valid
+inventory splits can lengthen that lot identity without lengthening the saved
+order receipt. A completed order retains its progress through reload and
+cannot consume or credit the same completed task again.
+
+The last accepted model choice keeps the complete offered candidate ID, just
+like the current intention. Inventory-backed actions may exceed 512 characters;
+this historical ID has no separate length limit and is never truncated or
+replaced with a different action. Loading still refuses blank IDs, control
+characters, invalid statuses and inconsistent acceptance times. A later model
+failure keeps the last accepted choice independently of its safe fallback.
 
 Private-world schema 65 adds material-gathering orders with a distinct
 `TargetMaterialKind`, exact optional source or position, and progress measured
@@ -761,7 +774,7 @@ The alpha accepts only the current private-world checkpoint schema, currently
 `PrivateWorldRuntime.StateSchemaVersion` 92. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
-bounded model-attempt status and last accepted model choice per agent, plus
+a bounded model-attempt status and exact last accepted model choice per agent, plus
 building footprint revisions, reserved expansion jobs, House guest invitations,
 learned skills and skill-based lessons, birth-model choices, household fields
 with ground harvest lots, bounded conversations with daily allowances, personal
