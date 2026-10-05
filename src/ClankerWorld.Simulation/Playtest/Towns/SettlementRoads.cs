@@ -58,7 +58,8 @@ public sealed partial class PrivateWorldRuntime
                 (!buildingDesign.Tags.Contains(TownHallContent.HallTag, StringComparer.Ordinal) ||
                  point == TownHallContent.Entrance(building.Position)) &&
                 (!buildingDesign.Tags.Any(tag => tag is MarketContent.HallTag or MarketContent.StallTag) ||
-                 point == building.Entrance))
+                 point == building.Entrance) &&
+                (!PortNavigationRules.IsPort(buildingDesign) || point == building.Entrance))
             .Distinct().OrderBy(point => point.Y).ThenBy(point => point.X).ToArray();
         if (entrances.Length == 0)
         {

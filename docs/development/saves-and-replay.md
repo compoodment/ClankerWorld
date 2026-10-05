@@ -771,7 +771,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 91. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 92. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 a bounded model-attempt status and exact last accepted model choice per agent, plus
@@ -1013,6 +1013,37 @@ generated-world gathering and donation, genuine Warehouse loads, intermediate
 restore/replay, discarded prepared ticks, stale votes, retained removal and
 coherently altered receipt/source references. Earlier
 alpha schemas, including 53, are refused visibly and preserved without migration.
+
+## Ports and communal boats
+
+Private-world schema 92 adds required, non-null `BoatTransport` state. Empty
+boat and request lists record that no asset or trip exists. Each boat binds a
+Town, one completed paid boat project, its current water position and either a
+real mooring or one saved journey. Every completed boat project must retain its
+physical asset, completed asset ID and exact consumed wood, rope and refined-iron
+receipts. A missing boat or invented removal record is refused.
+
+Journeys retain one passenger, origin and destination Port IDs, reserved dock,
+cardinal water path, current index, start and next movement ticks, blocked-arrival
+start time and return direction. Requests retain sequence, traveler, owning Town,
+Ports, status, boat and settlement time. Validation rejects mismatched payment,
+owner, passenger or request, duplicate physical or incoming dock claims, invalid
+water steps and an active passenger separated from the boat. Waiting requests
+hold no boat reservation; terminal history remains saved.
+
+Council boat permission is an explicit typed field on its proposal draft and
+adopted law version. The exact known visitor or standing grant, canonical rule,
+original vote and adoption/repeal history must agree. Matching freeform text
+cannot supply the field or permission. Generic amendments cannot turn a grant
+into a different authorization. Deceased profiles retain their actual boat ID;
+aboard estate cargo retains unique ground roots and follows the boat until landing.
+
+Capture, prepared-tick commit, codec restore and owner projections retain these
+records together. Native checks build both Ports and the boat through personal
+choices, real votes, supply and work, then exercise travel, mid-voyage replay,
+queues, cancellation, permissions, blocked arrival and damaged current-format
+records. Earlier alpha checkpoints are refused visibly and preserved without
+migration.
 
 ## Paid Markets and stall trade
 

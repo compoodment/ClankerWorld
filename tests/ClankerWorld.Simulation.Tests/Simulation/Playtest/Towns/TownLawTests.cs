@@ -57,6 +57,32 @@ public sealed class TownLawTests
     }
 
     [Theory]
+    [InlineData(null)]
+    [InlineData("visitor:a")]
+    public void OnlyAnAdoptedTypedGrantPermitsBoatUseAndRepealEndsIt(string? visitor)
+    {
+        var grant = new TownBoatAccessGrant(visitor);
+        var ordinary = Adopt(TownBoatAccessRules.Text(grant));
+        var town = new TownRuntimeState(Town, "Test Town", "founded", 0, Adults, [], [], Government: ordinary.Item2);
+        Assert.False(TownBoatAccessRules.Allows(town, "visitor:a", 2));
+        var (council, government) = Fresh();
+        var pending = TownLawRules.ProposeBoatAccess(council, government, Town, "a", visitor, Adults, 4, Day);
+        Assert.False(TownBoatAccessRules.Allows(town with { Government = pending.Government }, "visitor:a", 5));
+        var passed = Pass(pending, 5, "a", "b");
+        town = town with { Government = passed.Item2 };
+        Assert.False(TownBoatAccessRules.Allows(town, "visitor:a", 4));
+        Assert.True(TownBoatAccessRules.Allows(town, "visitor:a", 5));
+        Assert.Equal(visitor is null, TownBoatAccessRules.Allows(town, "visitor:b", 5));
+        var law = Assert.Single(passed.Item2.Laws);
+        Assert.Throws<InvalidOperationException>(() => TownLawRules.ProposeAmendment(passed.Item1, passed.Item2,
+            Town, "a", law.Id, "Boat access: Allow every visitor.", Adults, 6, Day));
+        var repealed = Pass(TownLawRules.ProposeRepeal(passed.Item1, passed.Item2, Town, "a", law.Id, Adults, 6, Day), 7, "a", "b");
+        town = town with { Government = repealed.Item2 };
+        Assert.True(TownBoatAccessRules.Allows(town, "visitor:a", 6));
+        Assert.False(TownBoatAccessRules.Allows(town, "visitor:a", 7));
+    }
+
+    [Theory]
     [InlineData("Do not cut trees in the north grove.")]
     [InlineData(": Do not cut trees.")]
     [InlineData("Grove:")]

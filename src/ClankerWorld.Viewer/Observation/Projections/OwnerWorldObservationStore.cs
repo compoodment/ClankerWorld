@@ -25,7 +25,7 @@ public sealed partial class OwnerWorldObservationStore
             government.Laws.TakeLast(16).Select(l =>
             {
                 var v = TownLawRules.Current(l);
-                return new ViewerTownLaw(l.Id, v.Subject, v.Rule, v.Scope, v.SiteTiles.Count, v.Version, v.AdoptedTick, v.EndedTick)
+                return new ViewerTownLaw(l.Id, v.Subject, v.Rule, v.BoatAccess is null ? v.Scope : "communal_boats", v.SiteTiles.Count, v.Version, v.AdoptedTick, v.EndedTick)
                 { Site = v.SiteTiles.Select(ToPosition).ToArray() };
             }).ToArray(), government.Laws.Count,
             government.Offices.Select(o => new ViewerTownOffice(TownArrangementRules.MandateLabel(o.Mandates),
@@ -459,11 +459,12 @@ public sealed partial class OwnerWorldObservationStore
                 TownProjectRules.DefinitionFor(plan.DefinitionId) ?? throw new InvalidDataException("Unsupported Town project definition.");
             return new ViewerTownProjectPlan(plan.Name, proposerId,
                 inhabitantsById.GetValueOrDefault(proposerId)?.Name ?? proposerId,
-                plan.DefinitionId, definition.DisplayName, ToPosition(plan.Site), ToPosition(plan.Entrance),
-                definition.Width, definition.Height,
+                plan.DefinitionId, plan.BoatPortId is null ? definition.DisplayName : "Communal boat", ToPosition(plan.BoatPortId is null ? plan.Site : TownProjectRules.WorkSite(plan)), ToPosition(plan.Entrance),
+                plan.BoatPortId is null ? definition.Width : 1, plan.BoatPortId is null ? definition.Height : 1,
                 plan.Budget.Select(q => new ViewerTownProjectBudget(q.ResourceId, q.Amount)).ToArray())
             {
-                Tags = definition.Tags.ToArray(),
+                Tags = plan.BoatPortId is null ? definition.Tags.ToArray() : ["boat_project"],
+                BoatPortId = plan.BoatPortId,
             };
         }
         ViewerCivicProposal ProjectProposal(TownProposal proposal) => new(proposal.Id, proposal.Kind,
@@ -486,6 +487,7 @@ public sealed partial class OwnerWorldObservationStore
                 project.CompletedBuildingId, ProjectProposal(approval))
             {
                 Tags = plan.Tags,
+                CompletedBoatId = project.CompletedBoatId,
             };
         }
         string MarketOwnerName(string id) => inhabitantsById.GetValueOrDefault(id)?.Name ??
@@ -605,6 +607,8 @@ public sealed partial class OwnerWorldObservationStore
                 field.Stage.ToString().ToLowerInvariant(), field.Crop, fertility.At(field.Position),
                 field.Work?.WorkerId, field.Work?.RemainingTicks)).ToArray(),
             Handcarts = ProjectHandcarts(state),
+            Boats = ProjectBoats(state),
+            BoatRequests = ProjectBoatRequests(state),
             GroundStocks = state.Society.Society.Inventory.Lots.Where(lot => lot.GroundPosition is not null && lot.Quantity > 0 &&
                 lot.ItemKind != InventoryContainerRules.Handcart)
                 .GroupBy(lot => (Position: lot.GroundPosition!.Value, lot.OwnerId, lot.ItemKind))
@@ -1672,6 +1676,33 @@ public sealed partial class OwnerWorldObservationStore
             repair?.WorkDone ?? 0, PersonalEquipmentRules.RepairWorkTicks, ornament?.ItemKind);
     }
 
+    private static string BoatPassengerName(PrivateWorldRuntimeState state, string id) =>
+        state.Society.Society.Inhabitants.Single(person => person.Id == id).Name;
+
+    private static ViewerBoat[] ProjectBoats(PrivateWorldRuntimeState state) => state.BoatTransport.Boats.Select(boat =>
+    {
+        var journey = boat.Journey;
+        var roots = boat.GroundCargoLotIds ?? [];
+        var cargo = state.Society.Society.Inventory.Lots.Where(lot => lot.Quantity > 0 &&
+            (journey is not null && PersonalEquipmentRules.IsCarried(lot, journey.PassengerId) || roots.Contains(lot.Id, StringComparer.Ordinal) ||
+             lot.ContainerLotId is { } container && roots.Contains(container, StringComparer.Ordinal)));
+        return new ViewerBoat(boat.Id, boat.TownId, state.Towns!.Single(town => town.Id == boat.TownId).Name,
+            ToPosition(boat.Position), boat.DockedPortId, journey?.PassengerId,
+            journey is null ? null : BoatPassengerName(state, journey.PassengerId),
+            journey is null ? null : journey.Returning ? journey.OriginPortId : journey.DestinationPortId,
+            journey is null ? "moored" : journey.WaitingSinceTick is not null ? "waiting" : journey.Returning ? "returning" : "underway",
+            journey is null ? null : ToPosition(journey.ReservedDock),
+            cargo.GroupBy(lot => lot.ItemKind, StringComparer.Ordinal).OrderBy(group => group.Key, StringComparer.Ordinal)
+                .Select(group => new ViewerInventoryEntry(group.Key, group.Sum(lot => lot.Quantity))).ToArray());
+    }).ToArray();
+
+    private static ViewerBoatTripRequest[] ProjectBoatRequests(PrivateWorldRuntimeState state) =>
+        state.BoatTransport.Requests.Where(request => request.Status is "waiting" or "underway")
+            .Concat(state.BoatTransport.Requests.Where(request => request.Status is not ("waiting" or "underway")).TakeLast(40))
+            .OrderBy(request => request.Sequence).Select(request => new ViewerBoatTripRequest(request.Id, request.Sequence,
+            request.PassengerId, BoatPassengerName(state, request.PassengerId), request.BoatTownId,
+            request.OriginPortId, request.DestinationPortId, request.Status, request.BoatId)).ToArray();
+
     private static ViewerHandcart[] ProjectHandcarts(PrivateWorldRuntimeState state)
     {
         string Name(string id) => state.Society.Society.Inhabitants.FirstOrDefault(person => person.Id == id)?.Name ??
@@ -1707,6 +1738,10 @@ public sealed partial class OwnerWorldObservationStore
         PlaytestInhabitantState physical,
         IReadOnlyList<ViewerInventoryEntry> inventory)
     {
+        if (state.BoatTransport.Boats.FirstOrDefault(boat => boat.Journey?.PassengerId == physical.InhabitantId) is { Journey: { } journey })
+            return new ViewerRoute(journey.WaitingSinceTick is not null ? "boat_waiting" : journey.Returning ? "boat_returning" : "boat_travel",
+                journey.Returning ? journey.OriginPortId : journey.DestinationPortId, ToPosition(journey.ReservedDock),
+                journey.WaterPath.Skip(journey.PathIndex + 1).Select(ToPosition).ToArray(), state.Map.ManifestDigest);
         var food = inventory.FirstOrDefault(item => item.Kind == "food");
         if (food is { Quantity: > 0 } && physical.HungerBasisPoints < 8_500)
         {

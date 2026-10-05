@@ -29,6 +29,10 @@ public static class TownProjectValidation
                 if (project is null || !projects.Add(project.Id)) throw Invalid("Town project identities must be unique.");
                 TownProjectRules.ValidatePayload(project.Plan);
                 var lantern = StreetLanternContent.IsLantern(project.Plan.DefinitionId);
+                var definition = TownProjectRules.DefinitionFor(project.Plan.DefinitionId)!;
+                var port = PortNavigationRules.IsPort(definition);
+                var boat = project.Plan.BoatPortId is not null;
+                var geometry = port ? PortNavigationRules.Geometry(map, definition, project.Plan.Site) : null;
                 var requiredWork = TownProjectRules.RequiredWork(project.Plan);
                 var proposal = town.Governance?.Proposals.SingleOrDefault(item => item.Id == project.ProposalId);
                 if (proposal is not { Kind: "project", Status: "passed", Project: not null } ||
@@ -43,7 +47,9 @@ public static class TownProjectValidation
                     project.Stage is "supplying" or "working" or "completed" && project.Blocker is not null)
                     throw Invalid("A Town project disagrees with its Council approval or construction stage.");
                 if (content.Buildings.All(item => item.CanonicalId != project.Plan.DefinitionId) ||
-                    TownProjectRules.Footprint(project.Plan).Any(point => !map.Contains(point) || !map.IsBuildable(point)) ||
+                    TownProjectRules.Footprint(project.Plan).Any(point => !map.Contains(point) || !port && !map.IsBuildable(point)) ||
+                    port && (geometry!.LandTiles.Any(point => !map.IsBuildable(point)) ||
+                        geometry.WaterTiles.Concat(geometry.DockingTiles).Any(point => !PortNavigationRules.NavigableWater(map, point))) ||
                     !map.IsBuildable(project.Plan.Entrance))
                     throw Invalid("A Town project's approved footprint or doorway is invalid.");
                 if (lantern && project.RemovedTick is null && project.Stage is ("supplying" or "working" or "completed") &&
@@ -101,7 +107,7 @@ public static class TownProjectValidation
                         throw Invalid("Town project materials need an exact, usable, Town-owned physical lot.");
                     if (delivery.DeliveredTick is not null)
                     {
-                        if (lot.CarrierId is not null || lot.GroundPosition != new InventoryGroundPosition(project.Plan.Site.X, project.Plan.Site.Y))
+                        if (lot.CarrierId is not null || lot.GroundPosition != new InventoryGroundPosition(TownProjectRules.WorkSite(project.Plan).X, TownProjectRules.WorkSite(project.Plan).Y))
                             throw Invalid("Delivered Town materials must actually be at the approved site.");
                     }
                     else if (lot.CarrierId != delivery.ContributorId || lot.GroundPosition is not null ||
@@ -115,12 +121,13 @@ public static class TownProjectValidation
                 var allDelivered = project.Plan.Budget.All(cost => TownProjectRules.DeliveredQuantity(project, town.Id, inventory, cost.ResourceId) == cost.Amount);
                 if (project.Stage == "working" && !allDelivered || project.Stage == "completed" &&
                     (project.WorkDone != requiredWork || !allDelivered ||
-                     project.CompletedBuildingId != TownProjectRules.BuildingId(project.Id) ||
-                     !completedBuildings.Add(project.CompletedBuildingId)))
+                     (boat ? project.CompletedBoatId != TownProjectRules.BuildingId(project.Id) || project.CompletedBuildingId is not null
+                         : project.CompletedBuildingId != TownProjectRules.BuildingId(project.Id) || project.CompletedBoatId is not null ||
+                           !completedBuildings.Add(project.CompletedBuildingId))))
                     throw Invalid("A working or completed Town project lacks its exact delivered material budget.");
-                if (project.Stage != "completed" && (project.CompletedBuildingId is not null || project.RemovedTick is not null))
+                if (project.Stage != "completed" && (project.CompletedBuildingId is not null || project.CompletedBoatId is not null || project.RemovedTick is not null))
                     throw Invalid("An unfinished Town project cannot own a completed building.");
-                if (project.Stage == "completed")
+                if (project.Stage == "completed" && !boat)
                 {
                     var building = simulation.Buildings.SingleOrDefault(item => item.InstanceId == project.CompletedBuildingId);
                     if (project.RemovedTick is { } removed && (removed < project.LastTransitionTick || removed > society.WorldTick || building is not null) ||
@@ -148,6 +155,9 @@ public static class TownProjectValidation
         IReadOnlyList<FarmFieldState> fields, IReadOnlyList<GridPoint> roads, IReadOnlyList<BridgeState> bridges)
     {
         var definition = TownProjectRules.DefinitionFor(project.Plan.DefinitionId)!;
+        var isPort = PortNavigationRules.IsPort(definition);
+        var geometry = isPort ? PortNavigationRules.Geometry(map, definition, project.Plan.Site) : null;
+        var boat = project.Plan.BoatPortId is not null;
         var footprint = TownProjectRules.Footprint(project.Plan).ToHashSet();
         var buildingTiles = WorldContentSimulationRules.Footprint(definition, project.Plan.Site).ToHashSet();
         if (definition.Tags.Contains(MarketContent.StallTag, StringComparer.Ordinal) &&
@@ -169,15 +179,23 @@ public static class TownProjectValidation
             .Concat(titles.Where(item => item.TownId != town.Id).SelectMany(item => item.Tiles)).ToHashSet();
         var occupied = map.Resources.Select(item => item.Position).Concat(map.CampObjects.Select(item => item.Position))
             .Concat(fields.Select(item => item.Position))
-            .Concat(simulation.Buildings.SelectMany(building => WorldContentSimulationRules.Footprint(
-                content.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId), building)))
+            .Concat(simulation.Buildings.Where(building => building.InstanceId != project.Plan.BoatPortId).SelectMany(building => PortNavigationRules.ProtectedBuildingTiles(
+                map, content.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId), building)))
             .Concat((simulation.BuildingExpansions ?? []).Where(job => job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused)
                 .SelectMany(job => Enumerable.Range(0, job.TargetFootprint.Height).SelectMany(y =>
                     Enumerable.Range(0, job.TargetFootprint.Width).Select(x => new GridPoint(job.TargetPosition.X + x, job.TargetPosition.Y + y)))))
-            .Concat(towns.SelectMany(item => item.Projects).Where(other => other.Id != project.Id && other.Stage is not ("completed" or "cancelled"))
+            .Concat(towns.SelectMany(item => item.Projects).Where(other => other.Id != project.Id && other.Plan.BoatPortId is null && other.Stage is not ("completed" or "cancelled"))
                 .SelectMany(other => TownProjectRules.Footprint(other.Plan).Append(other.Plan.Entrance)))
             .ToHashSet();
-        if (footprint.Any(point => !title.Contains(point) || claimed.Contains(point) || occupied.Contains(point)) ||
+        var legalLand = isPort ? geometry!.LandTiles.Append(project.Plan.Entrance) : footprint;
+        if (boat && !simulation.Buildings.Any(building => building.InstanceId == project.Plan.BoatPortId &&
+                building.DefinitionId == project.Plan.DefinitionId && building.TownId == town.Id &&
+                building.Position == project.Plan.Site && building.Entrance == project.Plan.Entrance))
+            throw Invalid("A boat project needs its approved completed Town Port.");
+        if (isPort && !PortNavigationRules.Fits(map, definition, project.Plan.Site, occupied, out _, roads.ToHashSet()))
+            throw Invalid("A live Port project must retain its land end, approach and six clear docking spaces.");
+        if (legalLand.Any(point => !title.Contains(point) || claimed.Contains(point)) ||
+            !boat && footprint.Any(occupied.Contains) ||
             buildingTiles.Any(roads.Contains) || bridges.SelectMany(bridge => bridge.Entrances).Any(footprint.Contains) ||
             occupied.Contains(project.Plan.Entrance) ||
             StreetLanternContent.IsLantern(project.Plan.DefinitionId) &&

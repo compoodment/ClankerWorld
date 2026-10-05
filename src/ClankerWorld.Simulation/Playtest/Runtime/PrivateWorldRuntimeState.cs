@@ -77,7 +77,11 @@ public sealed record PlaytestDeceasedInhabitantState(
     long DeathTick,
     int AgeAtDeath,
     PlaytestInhabitantState LastPhysical,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? TownId = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? TownId = null)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? BoatIdAtDeath { get; init; }
+}
 
 public sealed record PlaytestWorldEvent(
     long EventId,
@@ -129,6 +133,9 @@ public sealed record PrivateWorldRuntimeState(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<ToolMakingRequestState>? ToolMakingRequests = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<HandcartHitch>? HandcartHitches = null)
 {
+    [JsonRequired]
+    public BoatTransportState BoatTransport { get; init; } = BoatTransportState.Empty();
+
     [JsonRequired]
     public IReadOnlyList<AgentMarriage> Marriages { get; init; } = [];
 }

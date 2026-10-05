@@ -159,7 +159,7 @@ public sealed partial class PrivateWorldRuntime
                      .ThenBy(item => item.Id, StringComparer.Ordinal))
         {
             if (!HasConversationAllowance(target.Id) || !HasExplicitConversationProvider(target.Id) ||
-                ConversationFor(target.Id) is not null ||
+                ConversationFor(target.Id) is not null || PassengerBoat(target.Id) is not null ||
                 NeedsUrgentFood(inhabitants[target.Id]) || NeedsUrgentWarmth(inhabitants[target.Id]) ||
                 !IsWithinInteractionRange(state.Position, inhabitants[target.Id].Position, ResourceInteractionRange))
                 continue;
@@ -191,7 +191,8 @@ public sealed partial class PrivateWorldRuntime
 
     private bool ProposeConversation(string initiatorId, string inviteeId)
     {
-        if (initiatorId == inviteeId || !inhabitants.TryGetValue(initiatorId, out var initiator) ||
+        if (initiatorId == inviteeId || PassengerBoat(initiatorId) is not null || PassengerBoat(inviteeId) is not null ||
+            !inhabitants.TryGetValue(initiatorId, out var initiator) ||
             !inhabitants.TryGetValue(inviteeId, out var invitee) ||
             society.Checkpoint.GetInhabitant(initiatorId).Status != SocietyInhabitantStatus.Active ||
             society.Checkpoint.GetInhabitant(inviteeId).Status != SocietyInhabitantStatus.Active ||

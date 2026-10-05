@@ -528,11 +528,11 @@ rules are not implemented here.
 | Feature | Status | Current limits |
 | --- | --- | --- |
 | Food, warmth, illness, clothing and shelter | Available in the game | Basic diet/recovery. Agents treat 40% fullness and 60% warmth as comfortable, and survival becomes urgent below 20% fullness, or below 35% warmth while exposure continues. These are provisional values ([#140](https://github.com/compoodment/ClankerWorld/issues/140)). Nights are colder outdoors by a provisional amount; clothing, shelter and a lit fire help at night as they do by day ([#673](https://github.com/compoodment/ClankerWorld/issues/673)). No energy meter or sleep. Medicine supports gradual illness recovery, described below. |
-| Gathering and carrying | Basic version | Agents gather named berries, wild greens and orchard fruit, keep a hearth burning, and collect shared tools. Field harvests remain on their tiles until carried. Agents carry raw crops and seeds to private Farmhouse/Silo storage, ready-to-eat greens and fruit to the House, flour back to the House, and wood and iron ore into the Blacksmith. An adult with a building or crafting project completes a valid household delivery before gathering more project materials. If the destination has no room for the load, the project shows the storage blocker and keeps its cargo and plan; it can resume when room is available. |
+| Gathering and carrying | Basic version | Agents gather named berries, wild greens and orchard fruit, keep a hearth burning, and collect shared tools. Field harvests remain on their tiles until carried. Agents carry raw crops and seeds to private Farmhouse/Silo storage, ready-to-eat greens and fruit to the House, flour back to the House, and wood and iron ore into the Blacksmith. An adult with a building or crafting project completes a valid household delivery before gathering more project materials. If the destination has no room for the load, the project shows the storage blocker and keeps its cargo and plan; it can resume when room is available. A well-fed child can help by giving one spare serving to the household store when the House has room. Space promised to other deliveries also counts; if the House fills before arrival, the child keeps the serving. |
 | Farming and crafting | Basic version | Adults from a household holding a Farmhouse use wooden or iron hoes to prepare fertile land, carry grain seed, potatoes or cultivated-green seed, tend the crop and harvest it. Illness slows field work and tool wear. Planting supplies stay held until the work finishes or is interrupted. Wooden and iron sickles make harvesting faster. Fields show each stage on the map and overview; inspection names the soil's fertility and the household. Harvests stay on the field, with planting stock reserved for another crop, until physically carried into finite private farm storage. Orchard seeds grow saplings that mature and fruit in autumn. A household makes crude wooden axes and pickaxes at its own House from on-site wood, including fallen wood gathered by hand. They unlock tree felling and stone without a Town or Blacksmith, gather less and wear out sooner than smith-made wooden tools, and keep distinct inventory and Event Log names with a generic item icon. The household holding a Blacksmith makes and repairs better tools from real materials: axes fell trees, pickaxes unlock finite stone, iron and rare deposits, and hammers speed building work. Iron knives speed food preparation and suitable crafting. Tools wear during successful work; loose fallen wood can be gathered by hand if an axe breaks. Adults carry needed grain back from their Silo to the Farmhouse, where it mills into flour. Houses cook potatoes or greens into simple meals, grain into porridge, flour into bread, and potatoes with cultivated greens into stew. Porridge, bread and stew need carried fresh water and wood. Berries or fruit improve porridge; Restaurants also turn bread and greens into better meals. Cooking uses private on-site ingredients and stores its output in that House or Restaurant. A Tailor Shop makes cloth and clothing. If a household workshop recipe cannot get its ingredients, it pauses so an adult can choose another task; its saved plan can resume when supplies return to the building. Rates remain provisional. |
 | Handcarts | Basic version | Adults in the Blacksmith household can craft a personal cart from carried wood, iron fittings and rope. The visible cart carries up to 32 loose goods separately from the agent's load. Its owner reaches and attaches it, loads physically nearby authorized goods, pulls legal cardinal routes, parks, unloads, repairs or gives the cart and its cargo to a nearby adult. Roads reduce movement waits and wear; broken carts keep their cargo. Map, tile and agent inspection show ownership, position, load and condition. |
 | Clay, pottery and water | Basic version | A household can dig finite clay and make storage pots and water jugs at its House. A pot holds up to 8 food and slows spoilage; hungry household children, adolescents and adults, and caregivers feeding an infant, take ready-to-eat servings from it. A jug holds up to 4 fresh water, which an adult can collect from a reachable riverbank or lakeshore and return to the House. Collecting a jug requires carrying room for the jug, its contents and some water. The Clinic uses delivered fresh water to make medicine, leaving the jug reusable. The related [empty-vessel return fix](https://github.com/compoodment/ClankerWorld/issues/749) carries empty household pots and jugs from workstations back to the House; automated checks cover its return and reuse. Porridge, bread and stew also consume fresh water while leaving the jug reusable. Empty jugs at Houses or Restaurants can be collected and refilled. Animal care remains unfinished. |
-| Building new buildings | Basic version | A household plans a House, Farmhouse, Blacksmith, Silo, Tailor Shop, Clinic, Restaurant or optional Store it does not hold yet, one of each, once it has the materials in hand. It gathers missing materials first. Only a household holding a Farmhouse builds a Silo, within two tiles of it; farm stock reaches either building in carried loads. Adult residents can supply and build a Town Hall, Market or street lantern after the Council approves its exact site and budget, as described below; Ports and communal boats remain unfinished. |
+| Building new buildings | Basic version | A household plans a House, Farmhouse, Blacksmith, Silo, Tailor Shop, Clinic, Restaurant or optional Store it does not hold yet, one of each, once it has the materials in hand. It gathers missing materials first. Only a household holding a Farmhouse builds a Silo, within two tiles of it; farm stock reaches either building in carried loads. Adult residents can supply and build a Town Hall, Market, street lantern, Port or communal boat after the Council approves its exact site and budget, as described below. |
 | House resident places, expansion and guests | Basic version | A House gives three resident places per tile, or four when one recorded domestic family unit is at least two people and a strict majority. Travelers and infants count; dead people and invited storm guests do not. A full House can be expanded for more places when the work completes. Add Agent and unanimous household admission check the House's room before adding someone to a household that holds one. Birth still completes into the primary caregiver's current household and can make it overcrowded; the building card and agent context show the count and limit. Existing overcrowding gives eligible adults one unpaused world day to move, with volunteers first and sole caregivers protected; notices, requests and expansion progress appear in agent inspection. Adult household members may also expand a nearly full House for storage; adult Town residents may expand a nearly full Warehouse from 2×2 to 2×3. Expansion keeps identity, stock and cooking jobs, reserves materials and cancels safely if space or permission changes. Any adult household member may invite or revoke a named storm guest. Guests cannot use House stock or cooking. Storage limits, costs and work time are trial values. |
 | Local exploration and physical knowledge goods | Basic version | Short outings record personal knowledge. A House makes paper from real fiber and jug-carried water; adults use paper to write field records and maps, or paper and cloth to bind books. Reading, sharing and trading teach only their actual contents to the recipient. Copies cost fresh materials. Purposeful distant exploration is unfinished. |
 | Trade, relationships, conversations and teaching | Basic version | One-for-one barter, where both people must meet and have room for what they receive, positive trust, accepted/refused partnerships, and bounded public conversations with mutual consent for a structured trust effect. Close biological relatives cannot become partners or plan a child together: parents and children, grandparents and grandchildren, full or half siblings, and aunts or uncles with their nieces or nephews. First cousins can; shared households and caregiving do not count as kinship. Each agent has at most two conversation starts or acceptances per world day; this and the six-turn limit are provisional. Adults can ask a free, healthy agent with a saved skill for a practical lesson; the learner keeps the skill, teacher and time, and the agent card shows them. Skills currently change no access or work speed. Pricing, currency, conflict and broader group dialogue remain unfinished. |
@@ -679,8 +679,9 @@ the permission provisional while that review is pending.
 Councils can adopt, amend and repeal laws with a named subject and scope:
 formally claimed land (including visitors), a recorded site within that land,
 or an explicit duty of residents wherever they travel. Earlier wordings remain
-saved, and laws apply only from adoption. A law never blocks a physical action,
-creates goods or changes ownership.
+saved, and laws apply only from adoption. Ordinary law text grants no physical
+authority. The supported boat-access vote can permit one visitor or all visitors
+to use a Town’s communal boats; it grants no goods, ownership or membership.
 
 Any adult resident can initiate a protected government-change vote at the
 Town's notice place. It needs
@@ -798,8 +799,39 @@ notice place; it adds no private storage or new government powers.
 Automated checks cover gathering, carried deliveries, fresh donations, paid
 construction, saves and civic notices. The
 [Windows checklist](../playtest/767-town-projects.md) is unchecked. This Hall
-supplies the shared construction rules used by the Market below; Ports and
-communal boats remain later work.
+supplies the shared construction rules used by Markets, Ports and communal boats.
+
+A Council can approve a Port in any of four shoreline directions. Its two-tile
+land end needs Town title and a clear approach; three rows extend into water,
+with six clear docking spaces beside the pier. The provisional budget is
+16 wood and 4 stone, with 10 work units. A separate approved boat project at a
+completed Port spends 8 wood, 2 rope and 2 refined iron, with 16 work units.
+Both use actual Town stock or fresh voluntary donations and the shared paid
+construction ledger. Approval alone creates no boat or building.
+
+An adult requests a trip at the departure Port’s land approach. A boat carries
+one passenger and their carried goods between completed, usable Ports along
+connected water, including the world’s east/west seam. Boats remain Town
+property. Residents may use their Town’s boats; visitors need a Council-adopted
+individual or standing permission. Permission grants no membership or stock
+access. Ordinary law text does not authorize travel.
+
+The oldest currently usable request boards first. A blocked request keeps its
+place without holding a boat or blocking another usable traveler. Departure
+reserves the actual boat and one destination space; incoming boats count toward
+six spaces. Waiting travelers may cancel. A blocked arrival waits one unpaused
+world day before returning to a usable origin, keeping passenger and goods
+aboard. If neither landing is usable, it continues waiting. Ordinary survival
+still applies aboard; passengers may eat carried food.
+
+Boat positions, passengers, cargo and active requests appear on the map and
+Towns page. Port inspection shows moored boats and incoming reservations.
+The approved drawings cover four Port rotations and eight boat headings with
+rowing and shipped oars. The pier lantern lights at night. Medium zoom scales
+the approved drawing while [#914](https://github.com/compoodment/ClankerWorld/issues/914)
+tracks missing 16-pixel art. Automated checks cover paid construction, travel,
+save/load, permissions, queues and recovery; the
+[Windows checklist](../playtest/411-ports-boats.md) awaits hands-on play.
 
 A Council can also approve a Market: a Town-owned 2×2 hall beside a fixed 7×4
 packed-earth plaza. Its first paid project includes two 1×1 stalls, one in each
@@ -1013,8 +1045,8 @@ vegetation layers, resource sites and individual trees. Foot travel supports
 diagonal steps and slower mountain travel. Agents wade straight across rivers
 one or two tiles wide, from bank to bank: a one-tile river at half walking
 speed, and a two-tile river at a provisional third of walking speed. Wider
-rivers, lakes and the sea cannot be crossed on foot, and there are no boats
-yet. Wading two-tile rivers has not been checked in hands-on Windows play.
+rivers, lakes and the sea cannot be crossed on foot. Communal boats travel
+between completed Ports over connected water. Wading two-tile rivers has not been checked in hands-on Windows play.
 Peaks are impassable; mountains and peaks cannot hold construction. Town
 streets take diagonals where the land allows.
 

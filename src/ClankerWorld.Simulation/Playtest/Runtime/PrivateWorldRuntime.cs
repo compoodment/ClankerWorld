@@ -20,7 +20,7 @@ namespace ClankerWorld.Simulation.Playtest;
 /// </summary>
 public sealed partial class PrivateWorldRuntime : IDisposable
 {
-    public const int StateSchemaVersion = 91;
+    public const int StateSchemaVersion = 92;
     // Founded Towns save laws, protected government changes and the mayor's office from this schema.
     public const int TownGovernmentSchemaVersion = 55;
     public const int ObserverGuidanceSchemaVersion = 41;
@@ -315,6 +315,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         runtime.worldSimulation = state.WorldSimulation! with { CropBuilds = state.WorldSimulation.CropBuilds ?? [] };
         runtime.fertility = new LandFertility(runtime.map, state.WorldSeed);
         runtime.handcartHitches = state.HandcartHitches!.ToList();
+        runtime.boatTransport = state.BoatTransport;
         runtime.fields = state.Fields!.OrderBy(field => field.Position.Y)
             .ThenBy(field => field.Position.X).ToList();
         runtime.towns = state.Towns!.OrderBy(item => item.Id, StringComparer.Ordinal).ToList();
@@ -494,6 +495,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         handcartHitches.OrderBy(item => item.CartLotId, StringComparer.Ordinal).ToArray())
     {
         Marriages = marriages.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(),
+        BoatTransport = boatTransport,
     };
 
     private void AppendEvent(string kind, string detail, GridPoint? eventPosition = null)

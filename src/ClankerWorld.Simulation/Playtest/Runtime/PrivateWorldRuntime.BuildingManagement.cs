@@ -177,6 +177,10 @@ public sealed partial class PrivateWorldRuntime
     private string? BuildingMutationBlocker(PlacedBuilding building)
     {
         var id = building.InstanceId;
+        if (Port(id) is not null && (boatTransport.Boats.Any(boat => boat.DockedPortId == id ||
+                boat.Journey is { } trip && (trip.OriginPortId == id || trip.DestinationPortId == id)) ||
+            towns.SelectMany(town => town.Projects).Any(project => IsLiveTownProject(project) && project.Plan.BoatPortId == id)))
+            return "Let boat trips and boat construction finish, and move moored boats before changing this Port's owner or removing it.";
         if (toolMakingRequests.Any(request => request.BuildingInstanceId == id && !ToolMakingRequestRules.IsTerminal(request.Status)))
             return "Finish, refuse or withdraw the active tool request before changing this Blacksmith's owner or removing it.";
         if (society.Checkpoint.Inventory.Lots.Any(lot =>

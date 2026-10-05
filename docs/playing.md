@@ -2,7 +2,7 @@
 title: Playing the current game
 type: player-guide
 status: active
-updated: 2026-10-03
+updated: 2026-10-04
 ---
 
 # Playing the current game
@@ -172,6 +172,14 @@ state, condition and actual cargo.
 The owner's agent card also lists their carts. A broken cart keeps its goods;
 its owner can unload here or repair it with carried wood, iron fittings and rope.
 A cart holds loose goods separately from the agent's own carrying limit.
+
+Boats show their last heading and rowing or shipped oars. Hover over one or
+inspect its tile to see its Town, passenger, carried goods and travel state.
+A Port’s card shows how many of its six spaces are moored or reserved for
+incoming boats. **World Info → Towns** shows boats and active trip requests.
+Agents may propose paid Ports and boats through the Council, then request
+travel between completed Ports. Visitors need Council permission. A blocked
+arrival waits one world day before returning to a usable departure Port.
 
 When agents talk, a chat bubble appears above each participant and nearby
 listeners. Click a bubble to see who spoke and whether the conversation is
