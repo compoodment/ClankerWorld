@@ -6,6 +6,34 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class TownHearingProcedureTests
 {
     [Fact]
+    public void AnEmptyCaseElectionWaitsForNewConsentInsteadOfRecordingFailuresEveryDay()
+    {
+        string[] adults = ["subject", "judge", "witness"];
+        var households = new Dictionary<string, string?>
+        { ["subject"] = "subject-home", ["judge"] = "judge-home", ["witness"] = "witness-home" };
+        var council = TownGovernanceState.Create(adults);
+        var government = TownGovernmentState.Create() with
+        {
+            Arrangement = TownArrangementRules.Initial with { NonLand = TownArrangementRules.Mayor },
+            Offices = [new("non_land", "subject", 0, 1_000, null, null, "election:subject")],
+        };
+        var state = TownNonviolentRulesTests.Pending();
+        (state, council) = TownCaseJudgeRules.Advance(state, council, government, adults, households, 10, 10);
+        Assert.Equal("failed", Assert.Single(state.Cases[0].ContestHistory).Stage);
+        var failed = JsonSerializer.Serialize(state);
+        for (var day = 2; day <= 5; day++)
+            (state, council) = TownCaseJudgeRules.Advance(state, council, government, adults, households, day * 10, 10);
+        Assert.Equal(failed, JsonSerializer.Serialize(state));
+        state = TownCaseJudgeRules.Register(state, state.Cases[0].Id, "judge", adults, households, 51);
+        (state, council) = TownCaseJudgeRules.Advance(state, council, government, adults, households, 51, 10);
+        var contest = Assert.IsType<TownCaseJudgeContest>(state.Cases[0].Contest);
+        Assert.Equal("voting", contest.Stage);
+        Assert.Equal("judge", Assert.Single(contest.Candidates));
+        Assert.Equal(61, contest.RoundDeadlineTick);
+        Assert.Single(state.Cases[0].ContestHistory);
+    }
+
+    [Fact]
     public void TiedLeadersAndActualBallotsSurviveInterruptionBeforeAFullNewDay()
     {
         string[] adults = ["a", "b", "c"];

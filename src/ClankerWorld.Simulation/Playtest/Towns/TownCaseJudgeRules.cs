@@ -99,7 +99,8 @@ public static class TownCaseJudgeRules
             if (contest is null)
             {
                 var last = item.ContestHistory.Count == 0 ? null : item.ContestHistory[^1];
-                if (last is { Stage: "failed", SettledTick: { } failed } && tick < failed + day && last.Candidates.SequenceEqual(candidates)) continue;
+                if (last is { Stage: "failed", SettledTick: { } failed } &&
+                    (tick < failed + day || candidates.Length == 0) && last.Candidates.SequenceEqual(candidates)) continue;
                 contest = new(item.Id + ":judge:" + (item.ContestHistory.Count + 1).ToString(CultureInfo.InvariantCulture), "waiting", 0,
                     tick, null, null, [], [], [], [], 0, []);
             }
