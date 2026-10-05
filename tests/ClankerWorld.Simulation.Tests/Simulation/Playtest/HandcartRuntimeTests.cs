@@ -46,7 +46,8 @@ public sealed class HandcartRuntimeTests
         using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), Provider);
         Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
         var decisionsBeforeReload = chooser.Chosen.Values.Sum();
-        for (var tick = 0; tick < 20; tick++)
+        // Ordinary work can span the reload without asking for another choice immediately.
+        for (var tick = 0; tick < 80 && (tick < 20 || chooser.Chosen.Values.Sum() == decisionsBeforeReload); tick++)
             Assert.True((await restored.AdvanceOneTickAsync()).Advanced);
 
         Assert.True(decisionsBeforeReload >= 5);
