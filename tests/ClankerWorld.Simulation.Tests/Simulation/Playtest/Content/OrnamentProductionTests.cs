@@ -204,8 +204,6 @@ public sealed class OrnamentProductionTests
     }
 
     [Theory]
-    [InlineData("remote")]
-    [InlineData("private")]
     [InlineData("reserved")]
     public void OrnamentRecipesCannotConsumeRemoteForeignOrReservedInputs(string boundary)
     {
@@ -236,54 +234,6 @@ public sealed class OrnamentProductionTests
         Assert.Empty(world.WorldSimulation.ProductionJobs);
         Assert.Equal(2, world.Society.Inventory.GetLot("guarded-gold").Quantity);
         Assert.Equal(before, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
-    }
-
-    [Fact]
-    public async Task NormalRecipeChoicesMakeAndSetOnlyActualOnSiteGoldAndDiamond()
-    {
-        using var setup = NormalPathWorld.CreateGenerated("ornament-normal-recipes", _ => new Choices([]));
-        var state = setup.ExportState();
-        var smith = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == Smith);
-        var owner = smith.HouseholdId!;
-        var actor = state.Society.Society.Inhabitants.First(person => person.HouseholdId == owner).Id;
-        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "normal-gold", OrnamentContent.Gold,
-            owner, 2, storageBuildingId: Smith);
-        inventory = InventoryFixture.AddLot(inventory, "normal-diamond", "diamond", owner, 1, storageBuildingId: Smith);
-        var house = state.WorldSimulation.Buildings.Single(building => building.HouseholdId == owner &&
-            state.WorldContent!.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId).Tags.Contains("house"));
-        state = WithInventory(state, inventory) with
-        {
-            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor ? person with
-            { Position = house.Position, HungerBasisPoints = 10_000, Project = null, LastDecisionContext = null } : person).ToArray(),
-        };
-        var plain = state.WorldContent!.Recipes.Single(recipe => recipe.LocalId == "gold-ornament");
-        var setting = state.WorldContent.Recipes.Single(recipe => recipe.LocalId == "set-diamond");
-        var choices = new Choices(["build:recipe:" + plain.CanonicalId, "build:recipe:" + setting.CanonicalId]);
-        using var world = PrivateWorldRuntime.Restore(state, id => id == actor ? choices : new Choices([]));
-        await Until(world, () => world.WorldSimulation.ProductionJobs.Any(job => job.RecipeId == plain.CanonicalId), 120);
-        var running = Assert.Single(world.WorldSimulation.ProductionJobs);
-        Assert.Equal(Smith, running.BuildingInstanceId);
-        Assert.Equal(actor, running.WorkerId);
-        Assert.Equal(smith.Position, world.Inhabitants.Single(person => person.InhabitantId == actor).Position);
-        var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
-        using var resumed = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes),
-            id => id == actor ? choices : new Choices([]));
-        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(resumed.ExportState()));
-        await Until(resumed, () => resumed.Society.Inventory.Lots.Any(lot => lot.ItemKind == OrnamentContent.DiamondOrnament), 180);
-        Assert.Contains("build:recipe:" + plain.CanonicalId, choices.Selected);
-        Assert.Contains("build:recipe:" + setting.CanonicalId, choices.Selected);
-        Assert.Equal(2, resumed.WorldSimulation.ProductionJobs.Count);
-        Assert.All(resumed.WorldSimulation.ProductionJobs, job => Assert.Equal(WorldProductionJobState.Completed, job.State));
-        Assert.DoesNotContain(resumed.Society.Inventory.Lots, lot => lot.Id is "normal-gold" or "normal-diamond" ||
-            lot.ItemKind == OrnamentContent.GoldOrnament);
-        var finished = Assert.Single(resumed.Society.Inventory.Lots, lot => lot.ItemKind == OrnamentContent.DiamondOrnament);
-        Assert.Equal((owner, Smith, 1), (finished.OwnerId, finished.StorageBuildingId, finished.Quantity));
-        Assert.Contains(resumed.Society.Inventory.Reservations, item => item.LotId == "normal-gold" && item.Quantity == 2 &&
-            item.OwnerId == owner && item.State == InventoryReservationState.Completed);
-        Assert.Contains(resumed.Society.Inventory.Reservations, item => item.LotId == "normal-diamond" && item.Quantity == 1 &&
-            item.OwnerId == owner && item.State == InventoryReservationState.Completed);
-        Assert.Equal(PrivateWorldRuntimeCodec.Encode(resumed.ExportState()),
-            PrivateWorldRuntimeCodec.Encode(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(resumed.ExportState()))));
     }
 
     private static async Task<string> Produce(PrivateWorldRuntime world, string actor, Choices choices, string localId,

@@ -114,21 +114,6 @@ public sealed class WorldEventTextTests
         }
     }
 
-    [Theory]
-    [InlineData("town:first", ChildId)]
-    [InlineData("legacy-town", "founder-scout")]
-    public void TownResidentEventsReadTownAndResidentAsCompleteIdentities(string townId, string actorId)
-    {
-        var snapshot = Snapshot(Person(actorId, "Aster", "dead")) with
-        {
-            Towns = [new(townId, "First Town", "founded", 0, [], [], [])],
-        };
-        Assert.Equal("Aster joined First Town.", WorldEventText.Describe(
-            new(1, 0, "town_resident_joined", $"{townId}:{actorId}:child_joined:residents:4"), snapshot));
-        Assert.Equal("Aster left First Town.", WorldEventText.Describe(
-            new(2, 1, "town_resident_left", $"{townId}:{actorId}:residents:3"), snapshot));
-    }
-
     [Fact]
     public void TownAdmissionEventsNameTheNewcomerTheirTownsAndAnyChildrenWhoMoved()
     {

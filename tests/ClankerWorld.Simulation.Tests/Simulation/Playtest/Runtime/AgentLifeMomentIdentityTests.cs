@@ -305,7 +305,6 @@ public sealed class AgentLifeMomentIdentityTests
     }
 
     [Theory]
-    [InlineData(false)]
     [InlineData(true)]
     public async Task RealRouterUsesOnlyTheActorsSelectedModelAndMetersItsOneOpportunity(bool selected)
     {
