@@ -1198,7 +1198,8 @@ Windows interaction and real preview latency still need playtesting.
 
 ## Permanent deletion
 
-The save list offers confirmed deletion of one snapshot; Load World offers
+The save list offers confirmed deletion of one snapshot, including from the
+title screen before entering the current world. Load World offers
 separate deletion of an inactive world and all its saves. Other worlds, provider
 credentials and pairing remain unchanged. Interrupted deletion stays hidden
 from loading and is retried on host startup. Native Windows interaction still
