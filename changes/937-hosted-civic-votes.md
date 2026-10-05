@@ -1,0 +1,1 @@
+- Council votes can recover a model reply that omits the empty final field of an otherwise uniquely offered civic choice, while unoffered actions still fail safely.
