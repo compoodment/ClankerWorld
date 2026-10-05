@@ -330,10 +330,10 @@ public sealed partial class PrivateWorldRuntime
         {
             if (cartHere.Id != candidateId[RepairCartPrefix.Length..] || cartHere.ConditionBasisPoints >= 10_000 ||
                 !HasCarriedMaterial(actor, "wood", 1) || !HasCarriedMaterial(actor, "iron_fittings", 1) || !HasCarriedMaterial(actor, "rope", 1)) return true;
+            var reservations = new List<string>();
             ApplyInventoryTransition(inventory =>
             {
                 var updated = inventory;
-                var reservations = new List<string>();
                 foreach (var kind in CartRepairKinds)
                 {
                     var material = updated.Lots.Where(lot => lot.ItemKind == kind && ToolProgressionRules.IsTopLevelCarriedLot(lot, actor) &&
@@ -344,6 +344,8 @@ public sealed partial class PrivateWorldRuntime
                 }
                 return InventoryFixture.RepairSingleUnit(updated, cartHere.Id, 10_000, reservations);
             });
+            RecordNonviolentRepairCompletion(actor, cartHere, cartHere.Id,
+                $"repair-handcart:{WorldTick}:{actor}:{cartHere.Id}", person.Position, reservations);
             AppendEvent("handcart_repaired", $"{actor}:{cartHere.Id}");
         }
         else if (isTransfer && AttachedHandcart(actor) is null)

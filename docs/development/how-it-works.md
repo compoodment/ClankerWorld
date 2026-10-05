@@ -1305,8 +1305,30 @@ transferred by a hearing. Owner projection carries all active cases and pending
 rehearing assessments plus eight recent settled cases; complete ledgers remain
 in the checkpoint. Town, plot and property views use public names, sources and
 world clocks. Lifecycle telemetry carries identifiers, status and counts, with
-no statements, model replies or private memories. Wider law enforcement remains
-separate work.
+no statements, model replies or private memories.
+
+`TownRuntimeState.Nonviolent` records non-land allegations, notice revisions,
+sources, responses and civil findings separately from permission adjustments.
+`TownHearingProcedure` supplies shared response, conflict and case-election
+rules. The non-land mandate needs protected resident approval and personal
+agreement. An extension names its existing office and retains that office's
+original term; its added authority begins only at the actual handover.
+
+Native completed actions capture applicable law wording, title and membership
+at the time of conduct. Actual observations and communication chains determine
+which agents can report them; the ledger itself supplies no global awareness.
+Case-linked records survive event compaction. A passed `law_case` Council
+proposal authorizes the exact report, without deciding its truth. Current
+authority, conflicts, notice and the freshest case file are checked again when
+an admitted personal-model response executes.
+
+`TownRemedyRules` keeps offers, exact terms, each contributor's informed answer,
+agreements and completion receipts. Accepted terms create no forced plan or
+reservation over another person's goods. Existing physical delivery and repair
+paths supply receipts only after their actual changes commit. One receipt can
+credit only one term, and the saved effect cannot exceed that term's remaining
+quantity. Declined, unanswered, pending, overdue and completed states remain
+distinct. Findings and overdue work never create physical punishment powers.
 
 Formal civic acts require an admitted personal-model choice. Built-in decisions,
 failed replies and continued intentions supply no votes or candidate agreement.
@@ -1375,7 +1397,7 @@ ordinary request can be approved and accepted again. `town_admission`
 telemetry records the Town, outcome, previous Town and counts only.
 
 `TownGovernmentState` stores scoped law versions, protected resident processes,
-mayoral consent and contests, and separate land/ordinary mandate terms.
+mayoral consent and contests, and separate land, ordinary and non-land mandate terms.
 `TownGovernmentRules` coordinates them with the existing Council engine. Law
 adoption consumes passed structured Council proposals once; amendment and repeal
 bind their base version, so a stale passed proposal cannot overwrite a later law.

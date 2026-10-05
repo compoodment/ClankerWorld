@@ -308,6 +308,10 @@ public static class GameUiText
             "town_resident_joined" or "town_resident_left" or "town_membership_evaluated" or
             "town_admission_accepted" or "town_admission_approved" or "town_admission_lapsed" or
             "land_use_requested" or "land_use_granted" or "town_building_assigned" or "town_border_expanded" or "town_land_claimed" or "town_founded" or "bridge_built" or
+            "town_civic_nonviolent_hearing" or "town_civic_law_case" or "town_civic_remedy" or "law_case_opened" or "law_case_evidence" or
+            "law_case_response" or "law_case_inspected" or "law_case_relayed" or "law_case_judge_consent" or
+            "law_case_judge_election" or "law_case_judge_assigned" or "law_case_finding" or "law_case_reopen_requested" or
+            "law_case_reopened" or "law_case_rejected" or "law_case_offer" or "law_case_offer_response" or "law_case_remedy_effect" or
             "town_civic_land_hearing" or "land_case_opened" or "land_case_notice" or "land_case_evidence" or "land_case_response" or
             "land_case_judge_consent" or "land_case_judge_election" or "land_case_judge_assigned" or "land_case_ruling" or
             "land_case_reopen_requested" or "land_case_reopened" or "land_case_inspected" or "land_case_relayed" or "land_case_rejected" or
@@ -482,9 +486,33 @@ public static class GameUiText
             return normalized.StartsWith("lesson_decline:", StringComparison.Ordinal) || normalized == "lesson_cancel"
                 ? "turn down or stop a lesson" : "take a lesson";
         }
+        if (normalized.StartsWith("nonviolent_remedy:", StringComparison.Ordinal)) return "carry out an agreed voluntary remedy";
+        if (normalized.StartsWith("nonviolent_relay:", StringComparison.Ordinal)) return "share a witnessed report";
         if (normalized.StartsWith("civic|", StringComparison.Ordinal))
             return normalized.Split('|').ElementAtOrDefault(2) switch
             {
+                "government_extend_non_land" => "propose added non-land adjudication duties",
+                "government_accept_non_land" => "personally accept added non-land duties",
+                "law_case_file" or "law_case_file_town" => "file a known report for a non-land hearing",
+                "law_case_propose_town" => "ask the Council to authorize a report",
+                "law_case_inspect" => "inspect a non-land hearing file",
+                "law_case_statement" => "record a personal hearing statement",
+                "law_case_evidence" => "submit sourced hearing evidence",
+                "law_case_answer" => "answer a non-land hearing notice",
+                "law_case_waive" => "waive a personal hearing response",
+                "law_case_judge_register" => "stand as an independent case adjudicator",
+                "law_case_judge_withdraw" => "withdraw case adjudicator candidacy",
+                "law_case_judge_resign" => "resign as case adjudicator",
+                "law_case_judge_vote" => "vote for an independent case adjudicator",
+                "law_case_find" => "assess the hearing evidence",
+                "law_case_assess_reopen" => "assess grounds for a rehearing",
+                "law_case_reopen" => "request a rehearing",
+                "law_case_relay" => "relay learned hearing evidence",
+                "remedy_offer" => "offer a voluntary remedy",
+                "remedy_read" => "read a voluntary remedy offer",
+                "remedy_accept" => "personally accept a voluntary contribution",
+                "remedy_decline" => "decline a voluntary remedy",
+                "remedy_counter" or "remedy_renegotiate" => "propose different voluntary terms",
                 "visit" => "visit the Town notice place",
                 "read" => "read Town notices",
                 "relay" => "relay Town notices",

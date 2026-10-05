@@ -905,6 +905,8 @@ public sealed partial class PrivateWorldRuntime
             },
         };
         SyncEcologyResourceStates();
+        RecordNonviolentConduct(inhabitantId, plan.FellTree ? "fell_tree" : "gather_material", source.Position,
+            source.Id, itemKind, plan.Quantity, $"gather-material:{WorldTick}:{inhabitantId}:{nextEventId}");
         AppendEvent("material_gathered", $"{inhabitantId}:{itemKind}:{plan.Quantity}");
         if (plan.FellTree)
             AppendEvent("tree_harvested", $"{inhabitantId}:{source.Id}:{source.TreeKind}:stump");
