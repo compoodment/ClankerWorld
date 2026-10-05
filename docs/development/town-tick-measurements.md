@@ -117,6 +117,21 @@ more buildings here. Versions can admit different actions and alter the map,
 even with the same starting seed and sampling interval. Read those differences
 with the timing values; these sweeps do not isolate a pure feature cost.
 
+The cells below show actual Roads / Town buildings at tick 320. Resident
+counts match the four/sixteen targets in every fixture. This makes the
+composition difference around Markets visible alongside the matched counts
+around lanterns and their scan fix.
+
+| Version | 4/96 | 4/384 | 16/96 | 16/384 |
+| --- | ---: | ---: | ---: | ---: |
+| Before Markets | 99 / 22 | 386 / 84 | 98 / 32 | 387 / 94 |
+| After Markets | 100 / 24 | 385 / 86 | 96 / 36 | 392 / 99 |
+| Before lanterns | 100 / 24 | 385 / 86 | 96 / 35 | 390 / 98 |
+| After lanterns | 100 / 24 | 385 / 86 | 96 / 35 | 390 / 98 |
+| Before scan fix | 100 / 24 | 385 / 86 | 96 / 35 | 390 / 98 |
+| After scan fix | 100 / 24 | 385 / 86 | 96 / 35 | 390 / 98 |
+| Current runtime | 100 / 24 | 385 / 86 | 96 / 35 | 390 / 98 |
+
 ### Fresh-process repeats
 
 Each cell lists the original sweep and two additional fresh-process medians
