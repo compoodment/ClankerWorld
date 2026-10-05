@@ -283,6 +283,12 @@ shipment can be explicitly bound before its final delivery. Continuing a bound
 shipment does not repeat ingredient-demand selection, because inbound stock
 already reduces that demand. Each deposit rechecks custody, access and room.
 
+Personal building and crafting projects finish a valid carried household
+delivery before acquiring missing inputs. When its destination cannot fit the
+whole load, the project retains its existing blocked state and cargo instead
+of retrying a capacity-impossible harvest. Ordinary project reconsideration
+still applies, and delivery rechecks available room before it resumes.
+
 Typed committed movement effects provide the actual transfer identity and
 quantity. Only final delivery credits `goods_items` or `delivery_loads`, never
 pickup, walking, an inventory difference or an unrelated event. A selected
