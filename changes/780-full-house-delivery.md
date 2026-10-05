@@ -1,0 +1,1 @@
+- A building or crafting project carrying supplies to full household storage now shows that storage blocker instead of repeatedly trying to gather into a full load. The delivery and project remain available to resume when storage has room.
