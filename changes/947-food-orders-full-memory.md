@@ -1,0 +1,1 @@
+- Agents can follow orders to gather nearby berries and fruit even when their map memory is full.
