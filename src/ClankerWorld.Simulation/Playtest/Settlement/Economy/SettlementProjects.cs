@@ -745,10 +745,19 @@ public sealed partial class PrivateWorldRuntime
         if (!AdultResident(actor) || society.Checkpoint.GetInhabitant(actor).HouseholdId is not { } householdId ||
             CarriedHouseDelivery(actor) is not { } carried || carried.OwnerId != actor ||
             worldSimulation.Buildings.SingleOrDefault(building => building.InstanceId == carried.DeliveryBuildingId &&
-                building.HouseholdId == householdId) is not { } destination ||
-            !CanDeliverHouseDelivery(carried) ||
-            state.Position != destination.Position &&
-                FindUnoccupiedRoute(actor, state.Position, destination.Position, 0).Count == 0)
+                building.HouseholdId == householdId) is not { } destination)
+            return false;
+        if (!CanDeliverHouseDelivery(carried))
+        {
+            SetProject(actor, state.Project! with
+            {
+                Stage = "blocked",
+                Blocker = "Household storage is full; make room for the carried delivery.",
+            });
+            return true;
+        }
+        if (state.Position != destination.Position &&
+            FindUnoccupiedRoute(actor, state.Position, destination.Position, 0).Count == 0)
             return false;
         SetProject(actor, state.Project! with { Stage = "delivering", Blocker = "Completing the household supply delivery" });
         HaulHouseholdStock(actor, inhabitants[actor]);

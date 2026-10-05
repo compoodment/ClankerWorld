@@ -1375,7 +1375,9 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                 .GetString();
             using var answer = JsonDocument.Parse(NormalizeJsonContent(content));
             var answerRoot = answer.RootElement;
-            var selected = answerRoot.GetProperty("selected_candidate_id").GetString();
+            var selected = CompleteOfferedCivicCandidate(
+                NormalizeRequiredText(answerRoot.GetProperty("selected_candidate_id").GetString() ?? string.Empty, "selected_candidate_id"),
+                request.Observation.Candidates);
             var confidence = answerRoot.GetProperty("confidence").GetDouble();
             var probabilities = answerRoot.TryGetProperty("probabilities", out var probabilitiesProperty)
                 ? probabilitiesProperty.EnumerateObject().ToDictionary(
@@ -1430,7 +1432,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                 }).ToArray();
             }
 
-            var will = request.Observation.Will is null ? null : ParseWillChoice(answerRoot, selected?.Trim());
+            var will = request.Observation.Will is null ? null : ParseWillChoice(answerRoot, selected);
             var civicProposal = answerRoot.TryGetProperty("civic_proposal", out var civicText) && civicText.ValueKind == JsonValueKind.String
                 ? CognitionDecisionResponse.NormalizeIdentityText(civicText.GetString()) : null;
             var civicBallot = ParseCivicBallot(answerRoot);
@@ -1443,7 +1445,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                 request.Observation.RunEpoch,
                 request.Observation.DecisionGeneration,
                 request.Observation.ObservationDigest,
-                NormalizeRequiredText(selected ?? string.Empty, "selected_candidate_id"),
+                selected,
                 confidence,
                 probabilities,
                 usage,
@@ -1466,6 +1468,17 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
         {
             throw new InvalidDataException("The OpenAI-compatible provider returned no choices.", exception);
         }
+    }
+
+    private static string CompleteOfferedCivicCandidate(string selected, IReadOnlyList<CognitionCandidate> offered)
+    {
+        // Civic IDs have five fields. Complete only an omitted empty final field,
+        // never an unknown subject/choice or an already exact offered identifier.
+        if (!selected.StartsWith("civic|", StringComparison.Ordinal) || selected.Count(c => c == '|') != 3 ||
+            offered.Any(candidate => candidate.Id == selected)) return selected;
+        var completed = selected + "|";
+        var matches = offered.Where(candidate => candidate.Id.StartsWith(completed, StringComparison.Ordinal)).Take(2).ToArray();
+        return matches.Length == 1 && matches[0].Id == completed ? completed : selected;
     }
 
     private static CognitionLandTile[]? ParseCivicLandTiles(JsonElement root)

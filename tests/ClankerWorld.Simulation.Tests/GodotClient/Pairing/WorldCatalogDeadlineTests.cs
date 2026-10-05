@@ -31,18 +31,36 @@ public sealed class WorldCatalogDeadlineTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task CatalogStillHonorsShorterHttpTimeoutAndScreenCancellation(bool screenCancels)
+    public async Task CatalogHonorsListDeadlineAndScreenCancellationAfterASlowChallenge(bool screenCancels)
     {
-        using var handler = new CatalogHandler(Timeout.InfiniteTimeSpan);
-        using var client = new HttpClient(handler) { Timeout = TimeSpan.FromMilliseconds(500) };
+        using var handler = new CatalogHandler(Timeout.InfiniteTimeSpan, TimeSpan.FromSeconds(1));
+        using var client = new HttpClient(handler);
         using var signer = new Signer();
         using var request = new WorldListRequest();
+        using var listDeadline = new CancellationTokenSource();
         var api = new OwnerWorldApi(client);
-        var loading = request.RefreshAsync(token => api.ListWorldsAsync(
-            new("http://127.0.0.1:5188"), new("server", "world"), "device", signer, token));
-        await handler.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        if (screenCancels) request.Cancel();
-        await loading.WaitAsync(TimeSpan.FromSeconds(5));
+        var loading = request.RefreshAsync(async token =>
+        {
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(token, listDeadline.Token);
+            return await api.ListWorldsAsync(new("http://127.0.0.1:5188"),
+                new("server", "world"), "device", signer, linked.Token);
+        });
+        try
+        {
+            var first = await Task.WhenAny(handler.Started.Task, loading).WaitAsync(TimeSpan.FromSeconds(5));
+            if (first == loading)
+            {
+                await loading;
+                Assert.Fail($"Catalog request completed before the list request began: {request.Failure}");
+            }
+            Assert.True(request.IsLoading);
+            // Keep the short deadline out of the challenge exchange. The delay above
+            // reproduces the old client-wide timeout without depending on runner load.
+            if (screenCancels) request.Cancel();
+            else listDeadline.CancelAfter(TimeSpan.FromMilliseconds(500));
+            await loading.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        finally { listDeadline.Cancel(); }
         Assert.True(handler.Cancelled);
         Assert.False(request.IsLoading);
         Assert.Null(request.Catalog);
@@ -53,18 +71,26 @@ public sealed class WorldCatalogDeadlineTests
         Assert.True(receipt.IsPaused);
     }
 
-    private sealed class CatalogHandler(TimeSpan delay) : HttpMessageHandler
+    private sealed class CatalogHandler(TimeSpan delay, TimeSpan firstChallengeDelay = default) : HttpMessageHandler
     {
         public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public bool Cancelled { get; private set; }
+        private bool firstChallenge = true;
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             if (request.RequestUri!.AbsolutePath == OwnerPairingEndpoints.ChallengeIssue)
+            {
+                if (firstChallenge)
+                {
+                    firstChallenge = false;
+                    await Task.Delay(firstChallengeDelay, cancellationToken).ConfigureAwait(false);
+                }
                 return Reply(new OwnerChallenge(new("server", "world"), "device", "challenge", "nonce", DateTimeOffset.UtcNow.AddMinutes(1)));
+            }
             if (request.RequestUri.AbsolutePath != OwnerPairingEndpoints.OwnerWorldList)
                 return Reply(new OwnerControlReceipt("pause", true, true, 1, 1, 1));
             Started.TrySetResult();
-            try { await Task.Delay(delay, cancellationToken); }
+            try { await Task.Delay(delay, cancellationToken).ConfigureAwait(false); }
             catch (OperationCanceledException) { Cancelled = true; throw; }
             return Reply(new WorldCatalogSnapshot("active",
                 [new CatalogWorld("blocked", "Blocked world", "world", "seed", DateTimeOffset.UnixEpoch, [], null,

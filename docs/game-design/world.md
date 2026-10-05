@@ -2,7 +2,7 @@
 title: The world, time and survival
 type: game-design
 status: active
-updated: 2026-10-03
+updated: 2026-10-04
 ---
 
 # The world, time and survival
@@ -401,17 +401,29 @@ journey at a time, and persist the boat, traveler and carried goods together
 across save/load. A blocked destination cannot teleport or duplicate any of
 them.
 
-**Agreed on October 1, 2026:** if the destination Port becomes blocked during
-a journey, return to the departure Port when it is usable. Otherwise the boat
-and traveler wait safely, keeping their carried goods together until a safe
-return or arrival becomes possible.
+**Agreed on October 1, 2026, clarified on October 4
+([#919](https://github.com/compoodment/ClankerWorld/issues/919)):** if the
+destination Port becomes blocked during a journey, wait one game day, then
+return to the departure Port when it is usable. Otherwise the boat and traveler
+wait safely, keeping their carried goods together until a safe return or
+arrival becomes possible.
 
 **Agreed on October 1, 2026
 ([#411](https://github.com/compoodment/ClankerWorld/issues/411)):** a visitor
 may use a Town's boat when its Council votes to allow it. A Town may also adopt
 a standing law that grants that permission, using the same Council process.
-Exact recipes, costs,
-travel speed and queueing remain open for implementation and playtesting.
+**Agreed on October 4, 2026 ([#919](https://github.com/compoodment/ClankerWorld/issues/919)):**
+agents request a trip at a Port's legal land approach. Serve the oldest
+currently usable request first; blocked requests keep their place for retry
+without preventing another usable request. Before boarding, reserve one actual
+Town boat and a free dock at the destination. Incoming reservations count
+toward its six spaces. A request waiting for destination space does not hold a
+boat indefinitely. Cancellation before boarding or lost departure permission
+releases the request and any unused reservation. Once underway, the boat,
+traveler, carried goods and destination reservation stay together.
+
+Exact recipes, costs and travel speed remain provisional for implementation
+and playtesting.
 Later transport inventions do not silently change this first-stage Port rule.
 
 ### Still to decide
