@@ -436,7 +436,7 @@ public sealed partial class PrivateWorldRuntime
                     return true;
 
                 if (candidate.Id == "haul_smith_input" && candidate.DestinationId == building.InstanceId &&
-                    BlacksmithInputForDelivery(householdId, building.InstanceId, resident) is { } smithInput &&
+                    BlacksmithInputForDelivery(householdId, building, resident) is { } smithInput &&
                     missingKinds.Contains(smithInput.ItemKind))
                     return true;
 

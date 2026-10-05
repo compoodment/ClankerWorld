@@ -1742,6 +1742,12 @@ elsewhere in the household is not on-site stock. Missing inputs block the
 project under its existing retry rules, without granting another household's
 materials or implicitly transporting remote goods.
 
+Blacksmith input hauling checks the actor's current unoccupied pickup route
+and the source-to-shop route before selecting household or permitted Town
+Warehouse stock. An occupied earlier lot does not hide later reachable stock.
+The same selection is repeated when hauling or planning a supply order; exact
+lot/item targets, carrying limits and receiving-space checks still apply.
+
 If an unpaid household recipe remains blocked for 60 ticks and no household
 member has an actionable way to supply its missing ingredients, the runtime
 pauses its saved plan and stops trying to continue it automatically. The adult
