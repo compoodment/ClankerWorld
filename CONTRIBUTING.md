@@ -373,6 +373,9 @@ Use a short title about the effect, such as
   full CI run, and no run finishes before its slowest test. If CI warns about a
   slow test you added or changed, make it faster before marking the pull
   request ready ([how CI runs](docs/development/build-and-test.md#how-ci-runs)).
+  If it warns that tests got slower than on main, find out why first: tests
+  that slow down without changing usually mean a slower simulation. Fix it, or
+  say in the description why the extra time is needed.
 - Run the applicable [build and test checks](docs/development/build-and-test.md#which-checks-to-run)
   and put commands and results in the PR, including anything that could not
   run. A passing export is not a Windows playtest.
