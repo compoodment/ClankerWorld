@@ -13,9 +13,9 @@ namespace ClankerWorld.Viewer.Observation;
 /// distinction between the live fixture topology, cognition state, and paused
 /// authoring state.
 /// </summary>
-public sealed class OwnerWorldObservationStore
+public sealed partial class OwnerWorldObservationStore
 {
-    private static ViewerTownGovernment ProjectGovernment(TownGovernmentState government, Func<string, string> name)
+    private static ViewerTownGovernment ProjectGovernment(TownGovernmentState government, Func<string, string> name, long tick)
     {
         ViewerMayoralElection Election(TownMayoralContest contest) => new(contest.Id,
             TownArrangementRules.MandateLabel(contest.Mandates), contest.Stage, contest.Round, contest.RoundDeadlineTick,
@@ -33,9 +33,22 @@ public sealed class OwnerWorldObservationStore
             government.Changes.TakeLast(8).Select(c => new ViewerGovernmentChange(c.Id,
                 (c.Kind == "replace_mayor" ? "Replace the elected mayoral mandates. " : "") + TownArrangementRules.Declaration(c.Target),
                 c.Status, c.Votes.Count(v => v.Yes), c.Votes.Count(v => !v.Yes), c.Voters.Count / 2 + 1,
-                c.DeadlineTick, c.HandoverDeadlineTick, c.Reason)).ToArray(),
+                c.DeadlineTick, c.HandoverDeadlineTick, c.Reason)
+            {
+                NonLandExtension = c.NonLandExtension is { } extension ? new(extension.HolderId, name(extension.HolderId),
+                    TownArrangementRules.MandateLabel(extension.BaseMandate), extension.TermStartTick, extension.TermEndTick, extension.ConsentTick) : null,
+            }).ToArray(),
             government.Contest is { } live ? Election(live) : null,
-            government.ContestHistory.Count > 0 ? Election(government.ContestHistory[^1]) : null, government.MayoralRetryTick);
+            government.ContestHistory.Count > 0 ? Election(government.ContestHistory[^1]) : null, government.MayoralRetryTick)
+        {
+            NonLandAuthorized = government.Arrangement.NonLand == TownArrangementRules.Mayor,
+            NonLandAuthority = TownGovernmentRules.CurrentNonLandAuthority(government, tick) is { } authority
+                ? new(authority.HolderId, name(authority.HolderId), authority.AuthorityId, authority.EffectiveTick,
+                    authority.TermStartTick, authority.TermEndTick) : null,
+            NonLandGrants = government.NonLandGrants.Select(grant => new ViewerNonLandGrant(grant.Id, grant.HolderId,
+                name(grant.HolderId), TownArrangementRules.MandateLabel(grant.BaseMandate), grant.ConsentTick,
+                grant.EffectiveTick, grant.TermStartTick, grant.TermEndTick)).ToArray(),
+        };
     }
 
     private static ViewerTownLandHearing[] ProjectLandHearings(PrivateWorldRuntimeState state, TownRuntimeState town)
@@ -678,10 +691,12 @@ public sealed class OwnerWorldObservationStore
                 {
                     LandHearings = ProjectLandHearings(state, item),
                     LandHearingCount = item.LandHearings?.Cases.Count ?? 0,
+                    NonviolentCases = ProjectNonviolentCases(state, item),
+                    NonviolentCaseCount = item.Nonviolent.Cases.Count,
                     LandTransfers = ProjectLandTransfers(state, item),
                     LandTransferCount = item.LandHearings?.Transfers.Count ?? 0,
                     Government = item.Government is { } government ? ProjectGovernment(government,
-                        id => inhabitantsById.GetValueOrDefault(id)?.Name ?? id) : null,
+                        id => inhabitantsById.GetValueOrDefault(id)?.Name ?? id, state.Society.Society.WorldTick) : null,
                     Governance = item.Governance is { } civic ? new ViewerTownGovernance(
                         civic.Form, civic.Fallback, civic.Members.Select(id => inhabitantsById.GetValueOrDefault(id)?.Name ?? id).ToArray(),
                         civic.TermEndTick, civic.RetryTick, civic.Candidates.Select(c =>

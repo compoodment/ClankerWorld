@@ -23,7 +23,7 @@ public sealed partial class PrivateWorldRuntime
             StringComparer.Ordinal);
         (hearings, council) = TownLandCaseJudgeRules.Advance(hearings, council, government, TownAdults(town),
             LandHearingHouseholds(), WorldTick, CivicDay,
-            ordinaryContestBusy: government.Contest is { Stage: "voting" or "ready" } || council.Election is { Stage: "ready" },
+            ordinaryContestBusy: TownNonviolentElectionBusy(town) || government.Contest is { Stage: "voting" or "ready" } || council.Election is { Stage: "ready" },
             currentPartiesByCase: parties);
         foreach (var old in open)
         {

@@ -2,7 +2,7 @@
 title: How the game works
 type: architecture
 status: active
-updated: 2026-10-04
+updated: 2026-10-05
 ---
 
 # How the game works
@@ -71,6 +71,13 @@ tick boundary. The unresolved queue entry is saved; the HTTP task is not save
 authority. Admission checks the request ID, provider/run epochs and current
 candidate legality. An epoch is a generation marker that makes replies from
 an earlier configuration or run obsolete. Other agents continue while one waits.
+
+The OpenAI-compatible adapter can complete one omitted empty final field of a
+five-field civic candidate ID when the completed ID exactly matches a uniquely
+offered choice, with no other offered ID sharing that prefix. An already exact
+offered ID keeps its meaning. The adapter does
+not guess a subject, a nonempty choice or multiple missing fields, and the usual
+epoch and candidate-legality checks still admit the completed reply.
 
 Owner instructions are suggestions (**Suggest** on the agent card,
 `Suggestive`) or orders (**Order**, `MustDo`). The next ordinary personal
@@ -275,6 +282,12 @@ Warehouse never becomes a household delivery destination. A matching carried
 shipment can be explicitly bound before its final delivery. Continuing a bound
 shipment does not repeat ingredient-demand selection, because inbound stock
 already reduces that demand. Each deposit rechecks custody, access and room.
+
+Personal building and crafting projects finish a valid carried household
+delivery before acquiring missing inputs. When its destination cannot fit the
+whole load, the project retains its existing blocked state and cargo instead
+of retrying a capacity-impossible harvest. Ordinary project reconsideration
+still applies, and delivery rechecks available room before it resumes.
 
 Typed committed movement effects provide the actual transfer identity and
 quantity. Only final delivery credits `goods_items` or `delivery_loads`, never
@@ -1292,8 +1305,30 @@ transferred by a hearing. Owner projection carries all active cases and pending
 rehearing assessments plus eight recent settled cases; complete ledgers remain
 in the checkpoint. Town, plot and property views use public names, sources and
 world clocks. Lifecycle telemetry carries identifiers, status and counts, with
-no statements, model replies or private memories. Wider law enforcement remains
-separate work.
+no statements, model replies or private memories.
+
+`TownRuntimeState.Nonviolent` records non-land allegations, notice revisions,
+sources, responses and civil findings separately from permission adjustments.
+`TownHearingProcedure` supplies shared response, conflict and case-election
+rules. The non-land mandate needs protected resident approval and personal
+agreement. An extension names its existing office and retains that office's
+original term; its added authority begins only at the actual handover.
+
+Native completed actions capture applicable law wording, title and membership
+at the time of conduct. Actual observations and communication chains determine
+which agents can report them; the ledger itself supplies no global awareness.
+Case-linked records survive event compaction. A passed `law_case` Council
+proposal authorizes the exact report, without deciding its truth. Current
+authority, conflicts, notice and the freshest case file are checked again when
+an admitted personal-model response executes.
+
+`TownRemedyRules` keeps offers, exact terms, each contributor's informed answer,
+agreements and completion receipts. Accepted terms create no forced plan or
+reservation over another person's goods. Existing physical delivery and repair
+paths supply receipts only after their actual changes commit. One receipt can
+credit only one term, and the saved effect cannot exceed that term's remaining
+quantity. Declined, unanswered, pending, overdue and completed states remain
+distinct. Findings and overdue work never create physical punishment powers.
 
 Formal civic acts require an admitted personal-model choice. Built-in decisions,
 failed replies and continued intentions supply no votes or candidate agreement.
@@ -1362,7 +1397,7 @@ ordinary request can be approved and accepted again. `town_admission`
 telemetry records the Town, outcome, previous Town and counts only.
 
 `TownGovernmentState` stores scoped law versions, protected resident processes,
-mayoral consent and contests, and separate land/ordinary mandate terms.
+mayoral consent and contests, and separate land, ordinary and non-land mandate terms.
 `TownGovernmentRules` coordinates them with the existing Council engine. Law
 adoption consumes passed structured Council proposals once; amendment and repeal
 bind their base version, so a stale passed proposal cannot overwrite a later law.

@@ -32,6 +32,9 @@ public sealed record TownRuntimeState(
 
     [JsonRequired]
     public IReadOnlyList<TownMarketState> Markets { get; init; } = [];
+
+    [JsonRequired]
+    public TownNonviolentState Nonviolent { get; init; } = TownNonviolentState.Create();
 }
 
 /// <summary>
@@ -130,7 +133,13 @@ public static class TownBorderRules
     public static bool IsWithinOrAdjacent(TownRuntimeState town, GridPoint position, int width, int height)
     {
         ArgumentNullException.ThrowIfNull(town);
-        var border = town.BorderTiles.ToHashSet();
+        return IsWithinOrAdjacent(town.BorderTiles.ToHashSet(), position, width, height);
+    }
+
+    /// <summary>The same check against a border already gathered into a set.</summary>
+    public static bool IsWithinOrAdjacent(IReadOnlySet<GridPoint> border, GridPoint position, int width, int height)
+    {
+        ArgumentNullException.ThrowIfNull(border);
         return Rectangle(position, width, height).All(tile =>
             Enumerable.Range(-1, 3).Any(dy => Enumerable.Range(-1, 3).Any(dx =>
                 border.Contains(new GridPoint(tile.X + dx, tile.Y + dy)))));

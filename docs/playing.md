@@ -459,11 +459,12 @@ An election the current Council opened on its own continues independently,
 even if someone leaves the Town while the proposed change waits for a successor.
 
 An elected mayor may hold the land mandate, ordinary governing authority, or
-both separately. Candidates personally agree to those specific mandates.
+the separate non-land hearing mandate. Candidates personally agree to those specific mandates.
 Residents choose one candidate and may revise their ballot. A tie means another
 vote, never a draw. The term lasts twenty days, and a vacancy needs a new election.
 Pausing stops votes, terms and handovers. The page shows officeholders and vacant
-mandates. Wider law enforcement and punishment are not available yet.
+mandates. Giving an existing mayor the non-land duty needs their own acceptance
+as well as the resident vote; it keeps the end date of the named existing term.
 
 An adult in an affected household can propose transferring an exact plot of
 recorded use permission to another household. Every current adult in all giving
@@ -498,6 +499,24 @@ effect until a valid correction. These decisions leave Town title, household
 membership, buildings, crops and goods with their holders; they neither evict
 occupants nor grant entry to private buildings. Plot and building details show
 the hearing, and the disputed-land filter marks plots still under review.
+
+Witnesses, affected people and the legitimate Town government can report
+specific conduct under a law that applied when it happened. Visitors have the
+same response rights for local conduct. A report keeps its sources separate
+from the eventual finding. The non-land adjudicator must hear the parties,
+inspect the evidence and record reasons and uncertainty; a conflicted holder
+stands aside for an independent case judge. Without lawful authority the case
+waits. A child's notice and response are supported by their caregiver, without
+making the household responsible for the child's conduct.
+
+The result can be an explanation, warning or censure. Restitution, repair and
+public service are voluntary offers with exact named contributions. Each adult
+contributor must learn and accept their terms; declining or leaving an offer
+unanswered adds no offence. The response window lasts one unpaused day and the
+usual completion period is three days after acceptance. A delivery or repair
+counts only when it actually happens. The Towns page distinguishes unanswered,
+declined, accepted, overdue and completed work. These hearings do not impose
+fines, seize property, expel people or force work.
 
 An adult resident can propose a named Town Hall on clear Town-titled land, and
 the Council votes through the same process as an ordinary proposal. In

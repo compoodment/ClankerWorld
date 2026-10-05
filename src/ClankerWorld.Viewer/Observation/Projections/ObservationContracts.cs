@@ -398,6 +398,8 @@ public sealed record ViewerTown(
     public int LandHearingCount { get; init; }
     public IReadOnlyList<ViewerLandTransfer> LandTransfers { get; init; } = [];
     public int LandTransferCount { get; init; }
+    public IReadOnlyList<ViewerTownNonviolentCase> NonviolentCases { get; init; } = [];
+    public int NonviolentCaseCount { get; init; }
 }
 
 public sealed record ViewerLandTransferParty(string HouseholdId, string Kind, string HouseholdName, string RosterKind,
@@ -469,12 +471,20 @@ public sealed record ViewerTownLaw(string Id, string Subject, string Rule, strin
 }
 public sealed record ViewerTownOffice(string Mandate, string? HolderName, long? TermEndTick, string? VacancyReason);
 public sealed record ViewerGovernmentChange(string Id, string Declaration, string Status, int Yes, int No, int RequiredYes,
-    long? DeadlineTick, long? HandoverDeadlineTick, string? Reason);
+    long? DeadlineTick, long? HandoverDeadlineTick, string? Reason)
+{
+    public ViewerNonLandExtension? NonLandExtension { get; init; }
+}
 public sealed record ViewerMayoralElection(string Id, string Mandates, string Stage, int Round, long? DeadlineTick,
     IReadOnlyList<ViewerCivicCandidate> Candidates, string? WinnerName, string? Reason);
 public sealed record ViewerTownGovernment(string Declaration, IReadOnlyList<ViewerTownLaw> Laws, int LawCount,
     IReadOnlyList<ViewerTownOffice> Offices, IReadOnlyList<ViewerGovernmentChange> Changes,
-    ViewerMayoralElection? Election, ViewerMayoralElection? LatestElection, long RetryTick);
+    ViewerMayoralElection? Election, ViewerMayoralElection? LatestElection, long RetryTick)
+{
+    public bool NonLandAuthorized { get; init; }
+    public ViewerNonLandAuthority? NonLandAuthority { get; init; }
+    public IReadOnlyList<ViewerNonLandGrant> NonLandGrants { get; init; } = [];
+}
 
 public sealed record ViewerMarket(string Id, string ProjectId, string HallBuildingId,
     ViewerPosition Site, ViewerPosition PlazaPosition, int PlazaWidth, int PlazaHeight,
@@ -821,4 +831,65 @@ public sealed class SeededWorldObservationStore
         PersistenceEventKind.MigrationApplied => "migration_applied",
         _ => throw new ArgumentOutOfRangeException(nameof(kind)),
     };
+}
+
+public sealed record ViewerNonLandAuthority(string HolderId, string HolderName, string AuthorityId,
+    long EffectiveTick, long TermStartTick, long TermEndTick);
+public sealed record ViewerNonLandExtension(string HolderId, string HolderName, string BaseMandate,
+    long TermStartTick, long TermEndTick, long? ConsentTick);
+public sealed record ViewerNonLandGrant(string Id, string HolderId, string HolderName, string BaseMandate,
+    long ConsentTick, long EffectiveTick, long TermStartTick, long TermEndTick);
+public sealed record ViewerCaseParty(string Id, string Role, string SubjectId, string SubjectName,
+    string? RespondingAdultId, string? RespondingAdultName, string? HouseholdName, bool NoticeAware);
+public sealed record ViewerCaseRevision(int Number, string NoticeId, long PublishedTick, long DeadlineTick,
+    IReadOnlyList<ViewerCaseParty> Parties);
+public sealed record ViewerCaseFiling(string AgentId, string AgentName, string Kind, long Tick,
+    string Statement, IReadOnlyList<string> EvidenceIds);
+public sealed record ViewerCaseEvidence(string Id, int Revision, string Kind, string Acquisition,
+    string SourceAgentId, string SourceAgentName, string? SourceRecordId, string? SourceVersion,
+    long ObservedTick, string SubmittedByAgentId, string SubmittedByName, long SubmittedTick, string Text);
+public sealed record ViewerCaseRead(int Revision, string AgentId, string AgentName, long ReadTick,
+    IReadOnlyList<string> EvidenceIds, IReadOnlyList<string> ReopenRequestIds, string? SourceAgentName);
+public sealed record ViewerCaseResponse(int Revision, string PartyId, string AgentId, string AgentName,
+    string RepresentedAgentId, string RepresentedAgentName, string Kind, string Text, long Tick);
+public sealed record ViewerCaseJudge(string AgentId, string AgentName, string Kind, string AuthorityId, long AssignedTick);
+public sealed record ViewerCaseJudgeTerm(ViewerCaseJudge Judge, long EndedTick, string Reason);
+public sealed record ViewerCaseElection(string Id, string Stage, int Round, long? DeadlineTick,
+    IReadOnlyList<ViewerCivicCandidate> Candidates, string? WinnerName, string? Reason);
+public sealed record ViewerCaseReopenRequest(string Id, string AgentName, long Tick, string Kind,
+    IReadOnlyList<string> EvidenceIds, string Reasons, string Status, ViewerCaseJudge? AssessedBy,
+    long? AssessedTick, string? Assessment);
+public sealed record ViewerViolationFinding(string Id, int Revision, ViewerCaseJudge Judge, long Tick,
+    string Result, string Standard, IReadOnlyList<string> EvidenceIds, string Reasons, string Uncertainty,
+    string Consequence, IReadOnlyList<ViewerCaseParty> Parties);
+public sealed record ViewerRemedyTerm(string Id, string Kind, string ContributorId, string ContributorName,
+    string? BeneficiaryId, string? BeneficiaryName, string? ItemKind, int Quantity, string? TargetId, string? TargetName);
+public sealed record ViewerRemedyResponse(string AgentId, string AgentName, int Revision, string Kind,
+    long Tick, string? Reason);
+public sealed record ViewerRemedyOffer(string Id, string FindingId, int Revision,
+    IReadOnlyList<ViewerRemedyTerm> Terms, string Reason, string NoticeId, long PublishedTick,
+    long ResponseDeadlineTick, long CompletionTicks, string Status, IReadOnlyList<ViewerRemedyResponse> Responses,
+    IReadOnlyList<string> NoticeAwareContributorIds, string? ReplacesOfferId, string? AgreementId);
+public sealed record ViewerRemedyEffect(string Id, string TermId, string ActorId, string ActorName,
+    long Tick, string Kind, string? BeneficiaryName, string? ItemKind, int Quantity, string? TargetName,
+    string NativeReceiptId);
+public sealed record ViewerRestorativeAgreement(string Id, string OfferId, int OfferRevision,
+    IReadOnlyList<ViewerRemedyTerm> Terms, IReadOnlyList<ViewerRemedyResponse> Consents,
+    long AcceptedTick, long DeadlineTick, string Status, string? ReplacesAgreementId,
+    IReadOnlyList<ViewerRemedyEffect> Effects)
+{
+    public bool Superseded { get; init; }
+}
+public sealed record ViewerTownNonviolentCase(string Id, string Status, long FiledTick, long? SettledTick,
+    string SubjectId, string SubjectName, string ConductKind, ViewerPosition Position, long ConductTick,
+    string Statement, ViewerTownLaw? ApplicableLaw, int AllegedLawVersion,
+    IReadOnlyList<ViewerCaseRevision> Revisions, IReadOnlyList<ViewerCaseFiling> Filings,
+    IReadOnlyList<ViewerCaseEvidence> Evidence, IReadOnlyList<ViewerCaseRead> Reads,
+    IReadOnlyList<ViewerCaseResponse> Responses, IReadOnlyList<ViewerViolationFinding> Findings,
+    ViewerCaseJudge? Judge, IReadOnlyList<ViewerCaseJudgeTerm> JudgeHistory,
+    ViewerCaseElection? JudgeElection, ViewerCaseElection? LatestJudgeElection,
+    IReadOnlyList<ViewerCaseReopenRequest> ReopenRequests, IReadOnlyList<ViewerRemedyOffer> Offers,
+    IReadOnlyList<ViewerRestorativeAgreement> Agreements)
+{
+    public IReadOnlyList<ViewerCaseParty> CurrentParties { get; init; } = [];
 }

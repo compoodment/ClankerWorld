@@ -68,7 +68,8 @@ public sealed record CognitionAdmissionResult(
     string? CivicProposal = null, IReadOnlyList<string>? CivicBallot = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] CognitionObserverGuidanceResult? ObserverGuidance = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<CognitionLandTile>? CivicLandTiles = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] CognitionLandHearingChoice? CivicLandHearing = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] CognitionLandHearingChoice? CivicLandHearing = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] CognitionNonviolentChoice? CivicNonviolent = null);
 
 /// <summary>
 /// The first Phase 3 cognition boundary. It owns request admission and
@@ -272,7 +273,7 @@ public sealed class CognitionRuntime
                 intention,
                 response.Provider == DecisionProviderKind.Jev ? response.MemoryCompactionScores : null,
                 response.CivicProposal, response.CivicBallot,
-                observedGuidance, response.CivicLandTiles, response.CivicLandHearing);
+                observedGuidance, response.CivicLandTiles, response.CivicLandHearing, response.CivicNonviolent);
         }
     }
 

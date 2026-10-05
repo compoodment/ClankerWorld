@@ -67,6 +67,8 @@ public sealed partial class PrivateWorldRuntime
         RecordPlannedRoute(inhabitantId, reason, destination, route);
         RecordBridgeTraffic(inhabitantId, state.Position, next);
         WearCarryAid(inhabitantId);
+        RecordNonviolentConduct(inhabitantId, "travel", next, null, null, 1,
+            $"move:{WorldTick}:{inhabitantId}:{nextEventId}");
         AppendEvent("inhabitant_moved", $"{inhabitantId}:{state.Position.X},{state.Position.Y}->{next.X},{next.Y}:{reason}");
     }
 
@@ -239,6 +241,9 @@ public sealed partial class PrivateWorldRuntime
             harvestYield,
             WorldTick));
 
+        RecordNonviolentConduct(inhabitantId, "gather_food", source.Position, source.Id,
+            source.Kind == "fruit" ? "fruit" : source.NaturalObjectKind == "wild_greens" ? "wild_greens" : "berries",
+            harvestYield, $"gather-food:{WorldTick}:{inhabitantId}:{nextEventId}");
         AppendEvent("food_harvested", $"{inhabitantId}:{harvestYield}");
         if (source.TreeKind == TreeGrowthRules.Orchard)
         {

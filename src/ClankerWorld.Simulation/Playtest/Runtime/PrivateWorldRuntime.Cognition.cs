@@ -487,6 +487,16 @@ public sealed partial class PrivateWorldRuntime
                 intention.OperativeOrderInstructionId != order?.InstructionId)
                 continue;
 
+            if (intention.CandidateId.StartsWith(NonviolentRemedyPrefix, StringComparison.Ordinal))
+            {
+                // Continue only the physical contribution the agent already chose. Every step
+                // checks the live agreement, remaining goods, access and care needs again.
+                if (intention.Provider == DecisionProviderKind.LargeLanguageModel)
+                    foreach (var town in towns.ToArray())
+                        if (ApplyNonviolentRemedyAction(town, inhabitant.Id, intention.CandidateId)) break;
+                continue;
+            }
+            if (intention.CandidateId.StartsWith(NonviolentRelayPrefix, StringComparison.Ordinal)) continue;
             if (intention.CandidateId.StartsWith("civic|", StringComparison.Ordinal))
             {
                 // Formal civic acts require a fresh admitted personal choice. Only the physical trip
@@ -622,7 +632,13 @@ public sealed partial class PrivateWorldRuntime
             {
                 if (!decision.Admission.FellBack && decision.Admission.Intention.Provider == DecisionProviderKind.LargeLanguageModel)
                     ApplyTownCivicCandidate(decision.InhabitantId, candidateId, decision.Admission.CivicProposal,
-                        decision.Admission.CivicBallot, decision.Admission.CivicLandTiles, decision.Admission.CivicLandHearing);
+                        decision.Admission.CivicBallot, decision.Admission.CivicLandTiles, decision.Admission.CivicLandHearing, decision.Admission.CivicNonviolent);
+            }
+            else if (candidateId.StartsWith("nonviolent_remedy:", StringComparison.Ordinal) || candidateId.StartsWith("nonviolent_relay:", StringComparison.Ordinal))
+            {
+                if (!decision.Admission.FellBack && decision.Admission.Intention.Provider == DecisionProviderKind.LargeLanguageModel)
+                    foreach (var town in towns.ToArray())
+                        if (ApplyNonviolentRemedyAction(town, decision.InhabitantId, candidateId)) break;
             }
             else if (IsTownProjectDonationCandidate(candidateId))
             {
@@ -1238,6 +1254,7 @@ public sealed partial class PrivateWorldRuntime
         if (!NeedsUrgentWarmth(state) && ChildResident(inhabitantId))
         {
             AddChildCandidates(candidates, inhabitantId, state);
+            AddChildNonviolentCandidates(candidates, inhabitantId);
         }
         if (!NeedsUrgentFood(state) && AdultResident(inhabitantId))
         {

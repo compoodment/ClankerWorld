@@ -1361,9 +1361,10 @@ public partial class Main
             };
             Render(sample with { WorldTick = 3_600, Towns = [governmentTown] }, []);
             foreach (var phrase in new[] { "Approved government:", "Mira Vale: land disputes", "handover due by",
-                         "Mayoral election: Voting", "round 2", "Law: Grove", "recorded site (5 land tiles)", "Version 2", "Wider law enforcement remains unavailable" })
+                         "Mayoral election: Voting", "round 2", "Law: Grove", "recorded site (5 land tiles)", "Version 2", "Non-land adjudication is not authorized" })
                 if (!TownListText().Contains(phrase, StringComparison.Ordinal))
                     throw new InvalidOperationException("The Town page must show actual law scope, government handovers and separate office authority: " + phrase);
+            await RunNonviolentTownUiChecks(sample, governmentTown);
             var revisedCivicTown = civicTown with
             {
                 Governance = civicTown.Governance! with

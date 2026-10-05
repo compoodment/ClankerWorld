@@ -167,6 +167,8 @@ public sealed record OwnerWorldTown(
     public int LandHearingCount { get; init; }
     public IReadOnlyList<OwnerLandTransfer> LandTransfers { get; init; } = [];
     public int LandTransferCount { get; init; }
+    public IReadOnlyList<OwnerTownNonviolentCase> NonviolentCases { get; init; } = [];
+    public int NonviolentCaseCount { get; init; }
 }
 
 public sealed record OwnerLandTransferParty(string HouseholdId, string Kind, string HouseholdName, string RosterKind,
@@ -238,12 +240,20 @@ public sealed record OwnerTownLaw(string Id, string Subject, string Rule, string
 }
 public sealed record OwnerTownOffice(string Mandate, string? HolderName, long? TermEndTick, string? VacancyReason);
 public sealed record OwnerGovernmentChange(string Id, string Declaration, string Status, int Yes, int No, int RequiredYes,
-    long? DeadlineTick, long? HandoverDeadlineTick, string? Reason);
+    long? DeadlineTick, long? HandoverDeadlineTick, string? Reason)
+{
+    public OwnerNonLandExtension? NonLandExtension { get; init; }
+}
 public sealed record OwnerMayoralElection(string Id, string Mandates, string Stage, int Round, long? DeadlineTick,
     IReadOnlyList<OwnerCivicCandidate> Candidates, string? WinnerName, string? Reason);
 public sealed record OwnerTownGovernment(string Declaration, IReadOnlyList<OwnerTownLaw> Laws, int LawCount,
     IReadOnlyList<OwnerTownOffice> Offices, IReadOnlyList<OwnerGovernmentChange> Changes,
-    OwnerMayoralElection? Election, OwnerMayoralElection? LatestElection, long RetryTick);
+    OwnerMayoralElection? Election, OwnerMayoralElection? LatestElection, long RetryTick)
+{
+    public bool NonLandAuthorized { get; init; }
+    public OwnerNonLandAuthority? NonLandAuthority { get; init; }
+    public IReadOnlyList<OwnerNonLandGrant> NonLandGrants { get; init; } = [];
+}
 
 public sealed record OwnerWorldMarket(string Id, string ProjectId, string HallBuildingId,
     OwnerWorldPosition Site, OwnerWorldPosition PlazaPosition, int PlazaWidth, int PlazaHeight,
@@ -977,3 +987,64 @@ public sealed record OwnerContentPackageReceipt(
     long? ActivationTick,
     string? Failure,
     string? ManifestDigest = null);
+
+public sealed record OwnerNonLandAuthority(string HolderId, string HolderName, string AuthorityId,
+    long EffectiveTick, long TermStartTick, long TermEndTick);
+public sealed record OwnerNonLandExtension(string HolderId, string HolderName, string BaseMandate,
+    long TermStartTick, long TermEndTick, long? ConsentTick);
+public sealed record OwnerNonLandGrant(string Id, string HolderId, string HolderName, string BaseMandate,
+    long ConsentTick, long EffectiveTick, long TermStartTick, long TermEndTick);
+public sealed record OwnerCaseParty(string Id, string Role, string SubjectId, string SubjectName,
+    string? RespondingAdultId, string? RespondingAdultName, string? HouseholdName, bool NoticeAware);
+public sealed record OwnerCaseRevision(int Number, string NoticeId, long PublishedTick, long DeadlineTick,
+    IReadOnlyList<OwnerCaseParty> Parties);
+public sealed record OwnerCaseFiling(string AgentId, string AgentName, string Kind, long Tick,
+    string Statement, IReadOnlyList<string> EvidenceIds);
+public sealed record OwnerCaseEvidence(string Id, int Revision, string Kind, string Acquisition,
+    string SourceAgentId, string SourceAgentName, string? SourceRecordId, string? SourceVersion,
+    long ObservedTick, string SubmittedByAgentId, string SubmittedByName, long SubmittedTick, string Text);
+public sealed record OwnerCaseRead(int Revision, string AgentId, string AgentName, long ReadTick,
+    IReadOnlyList<string> EvidenceIds, IReadOnlyList<string> ReopenRequestIds, string? SourceAgentName);
+public sealed record OwnerCaseResponse(int Revision, string PartyId, string AgentId, string AgentName,
+    string RepresentedAgentId, string RepresentedAgentName, string Kind, string Text, long Tick);
+public sealed record OwnerCaseJudge(string AgentId, string AgentName, string Kind, string AuthorityId, long AssignedTick);
+public sealed record OwnerCaseJudgeTerm(OwnerCaseJudge Judge, long EndedTick, string Reason);
+public sealed record OwnerCaseElection(string Id, string Stage, int Round, long? DeadlineTick,
+    IReadOnlyList<OwnerCivicCandidate> Candidates, string? WinnerName, string? Reason);
+public sealed record OwnerCaseReopenRequest(string Id, string AgentName, long Tick, string Kind,
+    IReadOnlyList<string> EvidenceIds, string Reasons, string Status, OwnerCaseJudge? AssessedBy,
+    long? AssessedTick, string? Assessment);
+public sealed record OwnerViolationFinding(string Id, int Revision, OwnerCaseJudge Judge, long Tick,
+    string Result, string Standard, IReadOnlyList<string> EvidenceIds, string Reasons, string Uncertainty,
+    string Consequence, IReadOnlyList<OwnerCaseParty> Parties);
+public sealed record OwnerRemedyTerm(string Id, string Kind, string ContributorId, string ContributorName,
+    string? BeneficiaryId, string? BeneficiaryName, string? ItemKind, int Quantity, string? TargetId, string? TargetName);
+public sealed record OwnerRemedyResponse(string AgentId, string AgentName, int Revision, string Kind,
+    long Tick, string? Reason);
+public sealed record OwnerRemedyOffer(string Id, string FindingId, int Revision,
+    IReadOnlyList<OwnerRemedyTerm> Terms, string Reason, string NoticeId, long PublishedTick,
+    long ResponseDeadlineTick, long CompletionTicks, string Status, IReadOnlyList<OwnerRemedyResponse> Responses,
+    IReadOnlyList<string> NoticeAwareContributorIds, string? ReplacesOfferId, string? AgreementId);
+public sealed record OwnerRemedyEffect(string Id, string TermId, string ActorId, string ActorName,
+    long Tick, string Kind, string? BeneficiaryName, string? ItemKind, int Quantity, string? TargetName,
+    string NativeReceiptId);
+public sealed record OwnerRestorativeAgreement(string Id, string OfferId, int OfferRevision,
+    IReadOnlyList<OwnerRemedyTerm> Terms, IReadOnlyList<OwnerRemedyResponse> Consents,
+    long AcceptedTick, long DeadlineTick, string Status, string? ReplacesAgreementId,
+    IReadOnlyList<OwnerRemedyEffect> Effects)
+{
+    public bool Superseded { get; init; }
+}
+public sealed record OwnerTownNonviolentCase(string Id, string Status, long FiledTick, long? SettledTick,
+    string SubjectId, string SubjectName, string ConductKind, OwnerWorldPosition Position, long ConductTick,
+    string Statement, OwnerTownLaw? ApplicableLaw, int AllegedLawVersion,
+    IReadOnlyList<OwnerCaseRevision> Revisions, IReadOnlyList<OwnerCaseFiling> Filings,
+    IReadOnlyList<OwnerCaseEvidence> Evidence, IReadOnlyList<OwnerCaseRead> Reads,
+    IReadOnlyList<OwnerCaseResponse> Responses, IReadOnlyList<OwnerViolationFinding> Findings,
+    OwnerCaseJudge? Judge, IReadOnlyList<OwnerCaseJudgeTerm> JudgeHistory,
+    OwnerCaseElection? JudgeElection, OwnerCaseElection? LatestJudgeElection,
+    IReadOnlyList<OwnerCaseReopenRequest> ReopenRequests, IReadOnlyList<OwnerRemedyOffer> Offers,
+    IReadOnlyList<OwnerRestorativeAgreement> Agreements)
+{
+    public IReadOnlyList<OwnerCaseParty> CurrentParties { get; init; } = [];
+}

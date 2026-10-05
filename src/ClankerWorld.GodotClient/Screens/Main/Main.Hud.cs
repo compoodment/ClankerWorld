@@ -583,6 +583,10 @@ public partial class Main
             lines.Add($"Showing {town.LandHearings.Count} active or recent land hearings of {town.LandHearingCount}.");
         foreach (var hearing in town.LandHearings)
             lines.AddRange(LandHearingText.Details(hearing, DisplayWorldClock, town.Government?.Laws));
+        if (town.NonviolentCaseCount > town.NonviolentCases.Count)
+            lines.Add($"Showing {town.NonviolentCases.Count} active or recent non-land hearings of {town.NonviolentCaseCount}.");
+        foreach (var hearing in town.NonviolentCases)
+            lines.AddRange(NonviolentHearingText.Details(hearing, DisplayWorldClock, observedCalendarPace?.TicksPerDay ?? 1_440));
         if (town.LandTransferCount > town.LandTransfers.Count)
             lines.Add($"Showing {town.LandTransfers.Count} pending or recent permission transfers of {town.LandTransferCount}.");
         foreach (var transfer in town.LandTransfers)
@@ -617,12 +621,27 @@ public partial class Main
         foreach (var office in government.Offices)
             lines.Add(office.HolderName is { } holder ? $"{holder}: {office.Mandate}; term ends " + DisplayWorldClock(office.TermEndTick!.Value)
                 : $"Vacant: {office.Mandate}. {office.VacancyReason}");
-        if (government.Offices.Count > 0) lines.Add("A land mayor may decide use-permission hearings. Wider law enforcement remains unavailable; an office grants no ownership.");
+        lines.Add(government.NonLandAuthorized
+            ? "Non-land hearings are separately authorized by residents; remedies require each contributor's consent."
+            : "Non-land adjudication is not authorized. Formal cases wait; Council mediation remains voluntary.");
+        if (government.NonLandAuthority is { } authority)
+            lines.Add("Non-land authority: " + authority.HolderName + " · effective " + DisplayWorldClock(authority.EffectiveTick) +
+                " · existing term ends " + DisplayWorldClock(authority.TermEndTick) + ".");
+        else if (government.NonLandAuthorized) lines.Add("No current non-land officeholder; eligible independent case elections remain available.");
+        if (government.Offices.Count > 0) lines.Add("Land permission and non-land hearings are separate mandates. An office grants no ownership.");
+        foreach (var grant in government.NonLandGrants)
+            lines.Add(grant.HolderName + " accepted added non-land duties · " + DisplayWorldClock(grant.ConsentTick) +
+                " · effective " + DisplayWorldClock(grant.EffectiveTick) + "; original " + grant.BaseMandate +
+                " term ends " + DisplayWorldClock(grant.TermEndTick) + ".");
         foreach (var change in government.Changes)
         {
             lines.Add($"{Pretty(change.Status)} resident proposal: {change.Declaration}");
             if (change.Status == "voting") lines.Add($"{change.Yes} yes / {change.No} no · {change.RequiredYes} yes needed · closes " + DisplayWorldClock(change.DeadlineTick!.Value));
             if (change.Status == "handover") lines.Add("Incumbent authority continues; handover due by " + DisplayWorldClock(change.HandoverDeadlineTick!.Value));
+            if (change.NonLandExtension is { } extension)
+                lines.Add("Proposed added non-land duties for " + extension.HolderName + " · " +
+                    (extension.ConsentTick is { } consent ? "personally accepted " + DisplayWorldClock(consent) : "awaiting personal acceptance") +
+                    "; existing term still ends " + DisplayWorldClock(extension.TermEndTick) + ".");
             if (change.Reason is { } reason) lines.Add(reason);
         }
         void Election(OwnerMayoralElection election, bool latest)

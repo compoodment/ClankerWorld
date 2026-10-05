@@ -12,7 +12,7 @@ public sealed partial class PrivateWorldRuntime
     {
         var adults = TownAdults(town);
         return TownGovernmentRules.Advance(council, government, town.Id, town.Name, worldSeed, adults, WorldTick, CivicDay,
-            TownLandHearingElectionBusy(town));
+            TownLandHearingElectionBusy(town) || TownNonviolentElectionBusy(town));
     }
 
     private void AddTownLawCandidates(List<CognitionCandidate> candidates, string actor, TownRuntimeState town)

@@ -28,34 +28,67 @@ public sealed partial class PrivateWorldRuntime
                 .Where(job => job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused)
                 .SelectMany(ExpansionTiles)).Concat(TownProjectProtectedSites(exceptProjectId)).ToHashSet();
 
-    private bool PortIsLegal(PlacedBuilding port) => port.TownId is { } townId &&
+    private sealed record PortProjectSiteWorld(HashSet<GridPoint> Common,
+        IReadOnlyDictionary<string, HashSet<GridPoint>> BuildingTiles, HashSet<GridPoint> Occupied)
+    {
+        internal Dictionary<string, HashSet<GridPoint>> WithoutPort { get; } = new(StringComparer.Ordinal);
+    }
+
+    private PortProjectSiteWorld CreatePortProjectSiteWorld(string? projectId)
+    {
+        var common = map.Resources.Select(resource => resource.Position).Concat(map.CampObjects.Select(item => item.Position))
+            .Concat(fields.Select(field => field.Position)).Concat(RoadAndBridgeTiles())
+            .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused)
+                .SelectMany(ExpansionTiles)).Concat(TownProjectProtectedSites(projectId)).ToHashSet();
+        var buildings = worldSimulation.Buildings.ToDictionary(building => building.InstanceId,
+            building => PortNavigationRules.ProtectedBuildingTiles(map,
+                worldContent.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId), building).ToHashSet(), StringComparer.Ordinal);
+        return new(common, buildings, common.Concat(buildings.Values.SelectMany(tiles => tiles)).ToHashSet());
+    }
+
+    private static HashSet<GridPoint> PortConstructionObstacles(TownProjectSiteWorld world, string? exceptPortId = null)
+    {
+        var ports = world.Ports.Value;
+        if (exceptPortId is null) return ports.Occupied;
+        if (!ports.WithoutPort.TryGetValue(exceptPortId, out var occupied))
+        {
+            occupied = ports.Common.Concat(ports.BuildingTiles.Where(item => item.Key != exceptPortId)
+                .SelectMany(item => item.Value)).ToHashSet();
+            ports.WithoutPort.Add(exceptPortId, occupied);
+        }
+        return occupied;
+    }
+
+    private bool PortIsLegal(PlacedBuilding port) => PortIsLegal(port, null);
+
+    private bool PortIsLegal(PlacedBuilding port, TownProjectSiteWorld? world) => port.TownId is { } townId &&
         towns.SingleOrDefault(town => town.Id == townId) is { } town && port.Entrance is { } approach &&
-        PortGeometryFor(port).LandTiles.Append(approach).All(TownProjectLandTiles(town).Contains) &&
-        (!PortObstacles(exceptPortId: port.InstanceId, protectDocks: true).Contains(approach) || roadTiles.Contains(approach)) &&
+        PortGeometryFor(port).LandTiles.Append(approach).All((world?.Legal.Value ?? TownProjectLandTiles(town)).Contains) &&
+        (!(world is null ? PortObstacles(exceptPortId: port.InstanceId, protectDocks: true) : PortConstructionObstacles(world, port.InstanceId)).Contains(approach) || roadTiles.Contains(approach)) &&
         PortNavigationRules.Fits(map, worldContent.Buildings.Single(item => item.CanonicalId == port.DefinitionId),
-            port.Position, PortObstacles(exceptPortId: port.InstanceId, protectDocks: true), out _, roadTiles);
+            port.Position, world is null ? PortObstacles(exceptPortId: port.InstanceId, protectDocks: true) : PortConstructionObstacles(world, port.InstanceId), out _, roadTiles);
 
     private string? PortProjectSiteFailure(TownRuntimeState town, TownProjectPayload plan,
-        BuildingDefinition definition, string? projectId, string? actor, bool ignorePendingRequests)
+        BuildingDefinition definition, string? projectId, string? actor, TownProjectSiteWorld world)
     {
         var geometry = PortNavigationRules.Geometry(map, definition, plan.Site);
-        var legal = TownProjectLandTiles(town, ignorePendingRequests);
+        var legal = world.Legal.Value;
         if (geometry.LandTiles.Any(point => !legal.Contains(point)) || !legal.Contains(plan.Entrance))
             return "The Port's land end and approach need uncontested Town title.";
         if (plan.BoatPortId is { } portId)
         {
             var port = Port(portId);
             if (port is null || port.TownId != town.Id || port.DefinitionId != plan.DefinitionId ||
-                port.Position != plan.Site || port.Entrance != plan.Entrance || !PortIsLegal(port))
+                port.Position != plan.Site || port.Entrance != plan.Entrance || !PortIsLegal(port, world))
                 return "The boat needs its approved, usable Town Port.";
             if (FreePortDock(port) is null) return "The Port has no free docking space for the finished boat.";
         }
         else
         {
             if (projectId is null && geometry.LandTiles.Concat(geometry.WaterTiles).Concat(geometry.DockingTiles)
-                    .Append(plan.Entrance).Any(PendingTownProjectSiteTiles().Contains))
+                    .Append(plan.Entrance).Any(world.Pending.Value.Contains))
                 return "Another proposed Town project already uses the Port site or docking space.";
-            var occupied = PortObstacles(projectId, protectDocks: true);
+            var occupied = PortConstructionObstacles(world);
             if (!PortNavigationRules.Fits(map, definition, plan.Site, occupied, out var failure, roadTiles)) return failure;
             if (occupied.Contains(plan.Entrance) && !roadTiles.Contains(plan.Entrance))
                 return "The approved Port's land approach is blocked.";
@@ -87,11 +120,11 @@ public sealed partial class PrivateWorldRuntime
                 $"Ask the Council to allow {society.Checkpoint.GetInhabitant(visitor).Name} to use the Town's communal boats; this grants no ownership or membership.", 194));
     }
 
-    private void AddPortProjectProposalCandidates(List<CognitionCandidate> candidates, string actor, TownRuntimeState town)
+    private void AddPortProjectProposalCandidates(List<CognitionCandidate> candidates, string actor, TownRuntimeState town, TownProjectSiteWorld world)
     {
         var ports = worldSimulation.Buildings.Where(building => building.TownId == town.Id && Port(building.InstanceId) is not null).ToArray();
-        var legal = TownProjectLandTiles(town);
-        var occupied = PortObstacles(protectDocks: true);
+        var legal = world.Legal.Value;
+        var occupied = PortConstructionObstacles(world);
         foreach (var definition in PortContent.Definitions.Where(definition => worldContent.Buildings.Any(d => d.CanonicalId == definition.CanonicalId)))
         {
             var offered = 0;
@@ -106,18 +139,18 @@ public sealed partial class PrivateWorldRuntime
                 if (!PortNavigationRules.Fits(map, definition, site, occupied, out _, roadTiles)) continue;
                 var geometry = PortNavigationRules.Geometry(map, definition, site);
                 if (geometry.LandTiles.Any(point => !legal.Contains(point)) || !geometry.ApproachTiles.Any(legal.Contains)) continue;
-                var plan = PlanFor(town, definition, site, definition.DisplayName);
-                if (plan is null || TownProjectSiteFailure(town, plan, actor: actor) is not null) continue;
+                var plan = PlanFor(town, definition, site, definition.DisplayName, world);
+                if (plan is null || TownProjectSiteFailure(town, plan, actor: actor, world: world) is not null) continue;
                 AddTownProjectProposalCandidate(candidates, town, definition, site);
                 if (++offered == 2) break;
             }
         }
-        foreach (var port in ports.Where(PortIsLegal).OrderBy(port => port.InstanceId, StringComparer.Ordinal))
+        foreach (var port in ports.Where(port => PortIsLegal(port, world)).OrderBy(port => port.InstanceId, StringComparer.Ordinal))
         {
             if (FreePortDock(port) is null || town.Projects.Any(project => IsLiveTownProject(project) && project.Plan.BoatPortId == port.InstanceId) ||
                 (town.Governance?.Proposals ?? []).Any(proposal => proposal.Status == "pending" && proposal.Project?.BoatPortId == port.InstanceId)) continue;
             var plan = BoatProjectPlan(port, "Communal boat");
-            if (TownProjectSiteFailure(town, plan, actor: actor) is not null) continue;
+            if (TownProjectSiteFailure(town, plan, actor: actor, world: world) is not null) continue;
             candidates.Add(new(CivicAction(town.Id, "boat_project", port.InstanceId, ""),
                 $"Propose building a communal boat at this Town's Port, with 8 wood, 2 rope and 2 refined iron; put its name in civic_proposal. Council approval creates no goods.", 192));
         }
