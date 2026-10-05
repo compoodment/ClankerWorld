@@ -190,6 +190,7 @@ public sealed partial class PrivateWorldRuntime
                 AddTownLawCandidates(candidates, actor, town);
                 if (town.Government is not null) AddTownGovernmentCandidates(candidates, actor, town);
                 AddTownProjectProposalCandidates(candidates, actor, town);
+                AddBoatAccessCandidates(candidates, actor, town);
                 var here = inhabitants[actor].Position;
                 // The model sees no map grid, so name real claimable tiles it can choose from.
                 if (TownLandClaimRules.ClaimableNear(map, town, townLandTitles, here, 6) is { Length: > 0 } nearest)
@@ -334,6 +335,22 @@ public sealed partial class PrivateWorldRuntime
                 case "propose" or "amend" or "repeal":
                     if (proposalText is null && parts[2] != "repeal") return;
                     (state, government) = ApplyTownLawAction(town, actor, parts[2], parts[3], parts[4], proposalText, state, government);
+                    break;
+                case "boat_access":
+                    var visitorId = parts[3] == "all" ? null : ResolveCivicAgentToken(parts[3]);
+                    if (visitorId is not null && (!inhabitants.ContainsKey(visitorId) || town.ResidentIds.Contains(visitorId, StringComparer.Ordinal))) return;
+                    (state, government) = TownLawRules.ProposeBoatAccess(state, government, town.Id, actor,
+                        visitorId, TownAdults(town), WorldTick, CivicDay);
+                    break;
+                case "boat_project":
+                    var boatPort = Port(parts[3]);
+                    if (boatPort is null || boatPort.TownId != town.Id) return;
+                    var boatPlan = BoatProjectPlan(boatPort, string.IsNullOrWhiteSpace(proposalText) ? "Communal boat" : proposalText.Trim());
+                    if (boatPlan.Name.Length > TownProjectRules.MaximumNameLength || boatPlan.Name.Any(char.IsControl)) return;
+                    if (TownProjectSiteFailure(town, boatPlan, actor: actor) is not null) return;
+                    state = TownGovernanceRules.SubmitProposal(state, town.Id, actor, "project", null,
+                        TownProjectRules.ProposalText(boatPlan), "council:" + state.Revision,
+                        TownAdults(town), WorldTick, CivicDay, project: boatPlan);
                     break;
                 case "project":
                     var plan = OfferedTownProjectPlan(town, actor, parts[3], parts[4], proposalText);

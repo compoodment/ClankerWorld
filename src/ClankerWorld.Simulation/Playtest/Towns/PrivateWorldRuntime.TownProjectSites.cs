@@ -14,14 +14,22 @@ public sealed partial class PrivateWorldRuntime
 
     private IEnumerable<GridPoint> TownProjectProtectedSites(string? exceptProjectId = null) =>
         TownProjectFootprintTiles(exceptProjectId).Concat(towns.SelectMany(town => town.Projects)
-            .Where(project => project.Id != exceptProjectId && project.Stage is not ("completed" or "cancelled"))
-            .Select(project => project.Plan.Entrance));
+            .Where(project => project.Id != exceptProjectId && project.Plan.BoatPortId is null && project.Stage is not ("completed" or "cancelled"))
+            .Select(project => project.Plan.Entrance))
+        .Concat(towns.SelectMany(town => town.Projects)
+            .Where(project => project.Id != exceptProjectId && project.Stage is not ("completed" or "cancelled") &&
+                project.Plan.BoatPortId is null && TownProjectRules.DefinitionFor(project.Plan.DefinitionId) is { } definition &&
+                PortNavigationRules.IsPort(definition))
+            .SelectMany(project => PortNavigationRules.Geometry(map,
+                TownProjectRules.DefinitionFor(project.Plan.DefinitionId)!, project.Plan.Site).DockingTiles));
 
     // Proposed project sites, so a second proposal or a household request cannot overlap one while its vote is open.
     private HashSet<GridPoint> PendingTownProjectSiteTiles() => towns
         .SelectMany(town => town.Governance?.Proposals ?? [])
-        .Where(proposal => proposal is { Kind: "project", Status: "pending", Project: not null })
-        .SelectMany(proposal => TownProjectRules.Footprint(proposal.Project!).Append(proposal.Project!.Entrance))
+        .Where(proposal => proposal is { Kind: "project", Status: "pending", Project: { BoatPortId: null } })
+        .SelectMany(proposal => TownProjectRules.Footprint(proposal.Project!).Append(proposal.Project!.Entrance)
+            .Concat(proposal.Project!.BoatPortId is null && TownProjectRules.DefinitionFor(proposal.Project.DefinitionId) is { } definition &&
+                PortNavigationRules.IsPort(definition) ? PortNavigationRules.Geometry(map, definition, proposal.Project.Site).DockingTiles : []))
         .ToHashSet();
 
     private HashSet<GridPoint> TownProjectLandTiles(TownRuntimeState town, bool ignorePendingRequests = false)
@@ -38,7 +46,7 @@ public sealed partial class PrivateWorldRuntime
     // gathered when a check first needs it, so a site refused early never gathers the rest.
     private sealed record TownProjectSiteWorld(string TownId, string? ProjectId, bool IgnorePendingRequests,
         Lazy<HashSet<GridPoint>> Legal, Lazy<HashSet<GridPoint>> Pending, Lazy<HashSet<GridPoint>> Occupied,
-        Lazy<HashSet<GridPoint>> BridgeEnds);
+        Lazy<HashSet<GridPoint>> BridgeEnds, Lazy<PortProjectSiteWorld> Ports);
 
     private TownProjectSiteWorld CreateTownProjectSiteWorld(TownRuntimeState town, string? projectId = null,
         bool ignorePendingRequests = false) => new(town.Id, projectId, ignorePendingRequests,
@@ -50,7 +58,8 @@ public sealed partial class PrivateWorldRuntime
                 worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId), building)))
             .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused)
                 .SelectMany(ExpansionTiles)).Concat(TownProjectProtectedSites(projectId)).ToHashSet(), LazyThreadSafetyMode.None),
-        new(() => bridges.SelectMany(bridge => bridge.Entrances).ToHashSet(), LazyThreadSafetyMode.None));
+        new(() => bridges.SelectMany(bridge => bridge.Entrances).ToHashSet(), LazyThreadSafetyMode.None),
+        new(() => CreatePortProjectSiteWorld(projectId), LazyThreadSafetyMode.None));
 
     private string? TownProjectSiteFailure(TownRuntimeState town, TownProjectPayload plan,
         string? projectId = null, string? actor = null, bool ignorePendingRequests = false, TownProjectSiteWorld? world = null)
@@ -62,6 +71,8 @@ public sealed partial class PrivateWorldRuntime
         if (world is not null && (world.TownId != town.Id || world.ProjectId != projectId || world.IgnorePendingRequests != ignorePendingRequests))
             throw new InvalidOperationException("A Town project site check was given tiles gathered for another check.");
         world ??= CreateTownProjectSiteWorld(town, projectId, ignorePendingRequests);
+        if (PortNavigationRules.IsPort(definition))
+            return PortProjectSiteFailure(town, plan, definition, projectId, actor, world);
         var footprint = TownProjectRules.Footprint(plan).ToArray();
         var legal = world.Legal.Value;
         if (footprint.Any(p => !legal.Contains(p)))
@@ -114,7 +125,9 @@ public sealed partial class PrivateWorldRuntime
         var basis = new Lazy<TownLayoutBasis>(() => CreateTownLayoutBasis(actor, building: TownHallContent.Hall3x4()),
             LazyThreadSafetyMode.None);
         var siteWorld = CreateTownProjectSiteWorld(town);
-        foreach (var definition in TownProjectRules.Definitions.Where(item => !item.Tags.Contains(MarketContent.StallTag, StringComparer.Ordinal) && !StreetLanternContent.IsLantern(item.CanonicalId)))
+        AddPortProjectProposalCandidates(candidates, actor, town, siteWorld);
+        foreach (var definition in TownProjectRules.Definitions.Where(item => !item.Tags.Contains(MarketContent.StallTag, StringComparer.Ordinal) &&
+                     !StreetLanternContent.IsLantern(item.CanonicalId) && !PortNavigationRules.IsPort(item)))
         {
             if (!worldContent.Buildings.Any(item => item.CanonicalId == definition.CanonicalId)) continue;
             var layout = CreateTownLayoutContext(actor, building: definition, forTownProject: true, basis: basis.Value);
@@ -207,10 +220,16 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
-    private static TownProjectPayload? PlanFor(TownRuntimeState town, ClankerWorld.Simulation.Content.BuildingDefinition definition,
-        GridPoint site, string name)
+    private TownProjectPayload? PlanFor(TownRuntimeState town, ClankerWorld.Simulation.Content.BuildingDefinition definition,
+        GridPoint site, string name, TownProjectSiteWorld? world = null)
     {
-        var entrance = definition.Tags.Contains(TownHallContent.HallTag, StringComparer.Ordinal)
+        if (PortNavigationRules.IsPort(definition))
+            world ??= CreateTownProjectSiteWorld(town);
+        var entrance = PortNavigationRules.IsPort(definition)
+            ? PortNavigationRules.Geometry(map, definition, site).ApproachTiles.Where(point => map.IsBuildable(point) &&
+                world!.Legal.Value.Contains(point) && (!PortConstructionObstacles(world).Contains(point) || roadTiles.Contains(point)))
+                .Cast<GridPoint?>().FirstOrDefault()
+            : definition.Tags.Contains(TownHallContent.HallTag, StringComparer.Ordinal)
             ? TownHallContent.Entrance(site) : definition.Tags.Contains(MarketContent.HallTag, StringComparer.Ordinal)
                 ? MarketContent.HallEntrance(site) : Enumerable.Range(0, MarketContent.MaximumStalls)
                     .SelectMany(slot => town.Markets.Where(market => market.RemovedTick is null &&

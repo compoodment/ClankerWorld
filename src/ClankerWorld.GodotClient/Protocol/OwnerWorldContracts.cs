@@ -34,6 +34,12 @@ public sealed record OwnerWorldHandcart(string Id, string OwnerId, string OwnerN
     int Capacity, int ConditionPercent, string? PullerId, string? PullerName,
     IReadOnlyList<OwnerWorldInventoryEntry> Cargo);
 
+public sealed record OwnerWorldBoat(string Id, string TownId, string TownName, OwnerWorldPosition Position,
+    string? DockedPortId, string? PassengerId, string? PassengerName, string? DestinationPortId,
+    string Status, OwnerWorldPosition? ReservedDock, IReadOnlyList<OwnerWorldInventoryEntry> Cargo);
+public sealed record OwnerWorldBoatTripRequest(string Id, long Sequence, string PassengerId, string PassengerName,
+    string BoatTownId, string OriginPortId, string DestinationPortId, string Status, string? BoatId);
+
 public sealed record OwnerWorldGroundStock(OwnerWorldPosition Position, string OwnerId, string Kind, int Quantity);
 
 public sealed record OwnerWorldObject(string Id, string Kind, OwnerWorldPosition Position);
@@ -275,6 +281,7 @@ public sealed record OwnerWorldTownProjectPlan(string Name, string ProposerId, s
     int Width, int Height, IReadOnlyList<OwnerWorldTownProjectBudget> Budget)
 {
     public IReadOnlyList<string> Tags { get; init; } = [];
+    public string? BoatPortId { get; init; }
 }
 public sealed record OwnerWorldTownProjectMaterial(string Kind, int Budget, int Supplied);
 public sealed record OwnerWorldTownProject(string Id, string ProposalId, string Name,
@@ -284,6 +291,7 @@ public sealed record OwnerWorldTownProject(string Id, string ProposalId, string 
     string Stage, string? Blocker, string? CompletedBuildingId, OwnerCivicProposal Approval)
 {
     public IReadOnlyList<string> Tags { get; init; } = [];
+    public string? CompletedBoatId { get; init; }
 }
 public sealed record OwnerCivicCandidate(string Id, string Name, int Votes);
 public sealed record OwnerTownElection(string Id, string Kind, string Stage, int Seats, long DeadlineTick,
@@ -576,6 +584,8 @@ public sealed record OwnerWorldSnapshot(
     public IReadOnlyList<OwnerWorldFarmField> Fields { get; init; } = [];
     public IReadOnlyList<OwnerWorldGroundStock> GroundStocks { get; init; } = [];
     public IReadOnlyList<OwnerWorldHandcart> Handcarts { get; init; } = [];
+    public IReadOnlyList<OwnerWorldBoat> Boats { get; init; } = [];
+    public IReadOnlyList<OwnerWorldBoatTripRequest> BoatRequests { get; init; } = [];
     public IReadOnlyList<OwnerWorldStockpile> Stockpiles { get; init; } = [];
     public OwnerWorldCouncil? Council { get; init; }
     public int? LifePaceRate { get; init; }

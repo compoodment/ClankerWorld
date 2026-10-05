@@ -425,7 +425,7 @@ public partial class Main
     private void RenderTownList(OwnerWorldSnapshot snapshot)
     {
         var signature = string.Join("\n", snapshot.Towns.Select(town =>
-            $"{town.Id}|{town.Name}|{town.FoundingState}|{town.FoundedTick}|{town.ResidentIds.Count}|{town.BorderTiles.Count}|{ResidentPortraitsKey(snapshot, town)}|{TownCivicText(town, snapshot.WorldTick)}|{TownProjectText(town)}|{TownMarketText(town)}")) +
+            $"{town.Id}|{town.Name}|{town.FoundingState}|{town.FoundedTick}|{town.ResidentIds.Count}|{town.BorderTiles.Count}|{ResidentPortraitsKey(snapshot, town)}|{TownCivicText(town, snapshot.WorldTick)}|{TownProjectText(town)}|{TownMarketText(town)}|{TownBoatText(snapshot, town)}")) +
             "|" + displayPreferences.DateStyle + "|" + observedCalendarPace + "|" + UiTheme.Current.Name;
         if (renderedTownList == signature) return;
         renderedTownList = signature;
@@ -486,6 +486,13 @@ public partial class Main
                 text.AddChild(new Label
                 {
                     Text = TownMarketText(town),
+                    AutowrapMode = TextServer.AutowrapMode.WordSmart,
+                    CustomMinimumSize = new Vector2(300, 0),
+                });
+            if (snapshot.Boats.Any(boat => boat.TownId == town.Id) || snapshot.BoatRequests.Any(request => request.BoatTownId == town.Id && request.Status is "waiting" or "underway"))
+                text.AddChild(new Label
+                {
+                    Text = TownBoatText(snapshot, town),
                     AutowrapMode = TextServer.AutowrapMode.WordSmart,
                     CustomMinimumSize = new Vector2(300, 0),
                 });
@@ -602,6 +609,7 @@ public partial class Main
             lines.Add($"Provisional work: {project.WorkDone} / {project.WorkRequired} units");
             lines.Add($"Council approval: {project.Approval.Yes} yes / {project.Approval.No} no · {project.Approval.RequiredYes} yes needed");
             if (project.Blocker is { } blocker) lines.Add((project.Stage == "cancelled" ? "Not built: " : "Waiting: ") + blocker);
+            if (project.CompletedBoatId is not null) lines.Add("Built · select the moored boat on the map for details.");
             if (project.CompletedBuildingId is not null) lines.Add($"Built · select the {project.DisplayName} on the map for details.");
         }
         return GameUiText.PlainEllipses(string.Join("\n", lines));
@@ -653,6 +661,7 @@ public partial class Main
         {
             var scope = law.Scope switch
             {
+                "communal_boats" => "the Town's communal boats at usable Ports; no ownership or membership",
                 "resident_duty" => "duty of residents, wherever they are",
                 "site" => $"the recorded site ({law.SiteTiles} land tiles), visitors included",
                 _ => "the Town's formally claimed land, visitors included",

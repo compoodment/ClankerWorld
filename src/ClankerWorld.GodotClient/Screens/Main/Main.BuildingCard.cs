@@ -304,6 +304,8 @@ public partial class Main
         signature += $"|{townHall}|{lantern}|{(lantern && lit)}";
         var market = MarketForBuilding(snapshot, building.InstanceId);
         signature += "|" + (market is null ? string.Empty : MarketBuildingText(market, building.InstanceId));
+        var port = IsPortBuilding(building);
+        signature += "|" + (port ? PortUsageText(snapshot, building) : string.Empty);
         if (renderedBuildingStatus == signature) return;
         renderedBuildingStatus = signature;
         ClearChildren(buildingQuickStatus);
@@ -335,6 +337,8 @@ public partial class Main
                 Text = MarketBuildingText(market, building.InstanceId),
                 AutowrapMode = TextServer.AutowrapMode.WordSmart,
             });
+        if (port)
+            buildingQuickStatus.AddChild(new Label { Text = PortUsageText(snapshot, building), AutowrapMode = TextServer.AutowrapMode.WordSmart });
         if (lantern)
         {
             buildingQuickStatus.AddChild(new Label
@@ -379,7 +383,8 @@ public partial class Main
         var townHall = building.Tags?.Contains("town_hall", StringComparer.Ordinal) == true;
         var market = MarketForBuilding(snapshot, building.InstanceId);
         var lantern = StreetLanternLight.IsLantern(building.Tags);
-        var usedBy = lantern ? "Road lighting" : townHall ? "Town civic notice place" : market is not null
+        var port = IsPortBuilding(building);
+        var usedBy = port ? "Town residents and visitors with Council permission" : lantern ? "Road lighting" : townHall ? "Town civic notice place" : market is not null
             ? "Market sellers and customers · goods keep their recorded owners" : household ?? (town is not null && building.Tags?.Contains("warehouse") == true
             ? $"{town} residents" : "Any agent");
         var facts = new List<(string Key, string Value)>
@@ -389,7 +394,7 @@ public partial class Main
             ("Built", SplitClock(DisplayWorldClock(building.PlacedTick)).Date),
             ("Footprint", $"{building.Width} × {building.Height} tiles"),
         };
-        if ((townHall || market is not null || lantern) && snapshot.Towns.SelectMany(item => item.Projects)
+        if ((townHall || market is not null || lantern || port) && snapshot.Towns.SelectMany(item => item.Projects)
                 .FirstOrDefault(project => project.CompletedBuildingId == building.InstanceId) is { } project)
         {
             facts.Add(("Town project", project.Name));
@@ -398,6 +403,12 @@ public partial class Main
             facts.Add(("Materials spent", string.Join(" · ", project.Materials.Select(q =>
                 $"{q.Supplied} {GameUiText.ItemName(q.Kind)}")) + " · provisional budget"));
             facts.Add(("Construction", $"{project.WorkDone} / {project.WorkRequired} units · provisional work"));
+        }
+        if (port)
+        {
+            facts.Add(("Docking spaces", PortUsageText(snapshot, building)));
+            facts.Add(("Travel", "One passenger with carried goods · boats remain Town property"));
+            facts.Add(("Night lantern", "Lights automatically at dusk · no fuel"));
         }
         if (building.StorageCapacity is { } capacity)
             facts.Add(("Storage", $"{building.StoredQuantity} / {capacity} items"));

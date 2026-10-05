@@ -160,6 +160,9 @@ public partial class Main
             AddTileThing(PixelIcons.Themed(PixelGlyph.House, palette.Name == "dark" ? new Color("D89A5A") : new Color("B8733A"), 1),
                 building.DisplayName ?? Pretty(building.DefinitionId), owner);
         }
+        foreach (var boat in snapshot.Boats.Where(item => item.Position.X == tile.X && item.Position.Y == tile.Y))
+            AddTileThing(BoatSprites.Texture(AgentSprites.South, boat.Status is "underway" or "returning"),
+                "Boat", GameUiText.BoatDescription(boat));
         foreach (var resource in snapshot.Resources.Where(item => item.Position.X == tile.X && item.Position.Y == tile.Y))
         {
             var name = resource.TreeKind is { } tree ? $"{Pretty(tree)} tree"

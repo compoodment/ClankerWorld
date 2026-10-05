@@ -101,7 +101,7 @@ public sealed partial class PrivateWorldRuntime
                 WarehouseContent.Create(), FarmContent.Create(), BlacksmithContent.Create(),
                 HouseCookingContent.Create(), PotteryContent.Create(), SiloContent.Create(), TailorContent.Create(),
                 RestaurantContent.Create(), BusinessContent.Create(), CareContent.Create(), OrnamentContent.Create(), TownHallContent.Create(),
-                KnowledgeContent.Create(), MarketContent.Create(), StreetLanternContent.Create(),
+                KnowledgeContent.Create(), MarketContent.Create(), StreetLanternContent.Create(), PortContent.Create(),
                 FarmhouseVariantContent.Create(), BlacksmithVariantContent.Create(), TailorVariantContent.Create(),
                 ClinicVariantContent.Create(), RestaurantVariantContent.Create(),
             ];
@@ -221,6 +221,10 @@ public sealed partial class PrivateWorldRuntime
                     position,
                     $"Building definition '{normalizedDefinitionId}' is not active.");
             }
+
+            if (PortNavigationRules.IsPort(definition))
+                return BuildingPlacementResult.Rejected(normalizedInstanceId, normalizedDefinitionId, position,
+                    "A Port needs a Council-approved project, delivered Town materials and completed building work.");
 
             if (definition.Tags.Contains(TownHallContent.HallTag, StringComparer.Ordinal) ||
                 StreetLanternContent.IsLantern(definition.CanonicalId))

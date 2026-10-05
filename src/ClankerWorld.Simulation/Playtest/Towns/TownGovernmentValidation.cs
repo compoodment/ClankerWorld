@@ -30,12 +30,12 @@ public static class TownGovernmentValidation
             .Concat(state.NonLandGrants.Select(grant => grant.Id)).ToArray();
         if (ids.Distinct(StringComparer.Ordinal).Count() != ids.Length)
             throw new InvalidDataException("A Town's saved law, government-change and election identities must be unique.");
-        ValidateLaws(town, state, council, titles, tick);
+        ValidateLaws(town, state, council, titles, tick, society.Inhabitants.Select(person => person.Id).ToHashSet(StringComparer.Ordinal));
         TownGovernmentStateValidation.Validate(town, state, council, society, day);
     }
 
     private static void ValidateLaws(TownRuntimeState town, TownGovernmentState state, TownGovernanceState council,
-        IReadOnlyList<TownLandTitleRecord> titles, long tick)
+        IReadOnlyList<TownLandTitleRecord> titles, long tick, IReadOnlySet<string> known)
     {
         var proposals = council.Proposals.ToDictionary(p => p.Id, StringComparer.Ordinal);
         var recorded = new HashSet<string>(StringComparer.Ordinal);
@@ -64,6 +64,7 @@ public static class TownGovernmentValidation
                         !proposals.TryGetValue(version.EndedByProposalId!, out var ending) || ending.Kind != "law" ||
                         ending.Status != "passed" || ending.SettledTick != ended))
                     throw new InvalidDataException("A Town law's saved version history is invalid.");
+                TownBoatAccessRules.Validate(version.BoatAccess, version.Subject, version.Rule, version.Scope, known);
                 recorded.Add(version.ProposalId!);
                 if (version.EndedByProposalId is { } endedBy) recorded.Add(endedBy);
             }
@@ -73,9 +74,11 @@ public static class TownGovernmentValidation
             throw new InvalidDataException("A Town's saved law proposals are invalid.");
         foreach (var draft in state.LawDrafts)
         {
+            TownBoatAccessRules.Validate(draft.BoatAccess, draft.Subject, draft.Rule, draft.Scope, known);
             var law = draft.LawId is null ? null : state.Laws.SingleOrDefault(l => l.Id == draft.LawId);
             if (!proposals.TryGetValue(draft.ProposalId, out var proposal) || proposal.Kind != "law" ||
                 draft.Action is not ("adopt" or "amend" or "repeal") || draft.SiteTiles is null ||
+                draft.Action == "amend" && (draft.BoatAccess is not null || law is not null && TownLawRules.Current(law).BoatAccess is not null) ||
                 !TownLawRules.TryParse(TownLawRules.Text(draft.Subject ?? "", draft.Rule ?? ""), out var subject, out var rule) ||
                 subject != draft.Subject || rule != draft.Rule || !TownLawRules.IsScope(draft.Scope) ||
                 draft.Scope == TownLawRules.Site != draft.SiteTiles.Count > 0 ||
@@ -109,14 +112,14 @@ public static class TownGovernmentValidation
             {
                 var source = drafts[version.ProposalId];
                 if (source.LawId != law.Id || source.Subject != version.Subject || source.Rule != version.Rule ||
-                    source.Scope != version.Scope || !source.SiteTiles.SequenceEqual(version.SiteTiles) ||
+                    source.Scope != version.Scope || source.BoatAccess != version.BoatAccess || !source.SiteTiles.SequenceEqual(version.SiteTiles) ||
                     (version.Version == 1 ? source.Action != "adopt" : source.Action != "amend" || source.BaseVersion != version.Version - 1))
                     throw new InvalidDataException("A law version must match the exact wording and scope approved by its Council.");
                 if (version.EndedByProposalId is not { } endId) continue;
                 var ending = drafts[endId];
                 if (ending.LawId != law.Id || ending.BaseVersion != version.Version || ending.Action is not ("amend" or "repeal") ||
                     ending.Action == "amend" && (version.Version >= law.Versions.Count || law.Versions[version.Version].ProposalId != endId) ||
-                    ending.Action == "repeal" && (version.Version != law.Versions.Count || ending.Subject != version.Subject || ending.Rule != version.Rule))
+                    ending.Action == "repeal" && (version.Version != law.Versions.Count || ending.Subject != version.Subject || ending.Rule != version.Rule || ending.BoatAccess != version.BoatAccess))
                     throw new InvalidDataException("An ended law version needs the exact amendment or repeal of that version.");
             }
     }

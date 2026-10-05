@@ -318,6 +318,7 @@ public sealed partial class PrivateWorldRuntime
         fertility = proposed.fertility;
         fields = proposed.fields;
         handcartHitches = proposed.handcartHitches;
+        boatTransport = proposed.boatTransport;
         geographyOptions = proposed.geographyOptions;
         contentRegistry = proposed.contentRegistry;
         worldSystems = proposed.worldSystems;
@@ -461,6 +462,7 @@ public sealed partial class PrivateWorldRuntime
             StageBuiltInContent(TownHallContent.PackageId, HouseContent.PackageId, TownHallContent.Create, "town_hall_content_staged");
             StageBuiltInContent(KnowledgeContent.PackageId, HouseContent.PackageId, KnowledgeContent.Create, "knowledge_content_staged");
             StageBuiltInContent(MarketContent.PackageId, TownHallContent.PackageId, MarketContent.Create, "market_content_staged");
+            StageBuiltInContent(PortContent.PackageId, TownHallContent.PackageId, PortContent.Create, "port_content_staged");
             StageBuiltInContent(StreetLanternContent.PackageId, HouseContent.PackageId, StreetLanternContent.Create, "street_lantern_content_staged");
             StageBuiltInContent(BusinessContent.PackageId, HouseContent.PackageId, BusinessContent.Create, "business_content_staged");
             StageBuildingVariantContent();
@@ -490,6 +492,8 @@ public sealed partial class PrivateWorldRuntime
             MaintainConstructionOrdersBeforeTick();
             MaintainExpansionOrdersBeforeTick();
             society.AdvanceTo(targetTick, TownStoresForDueEstates(targetTick));
+            foreach (var boat in boatTransport.Boats.Where(boat => boat.GroundCargoLotIds is { Count: > 0 }).ToArray())
+                MoveBoatGroundCargo(boat, preserveCustody: true);
             var previousClimate = worldSystems.Climate;
             var campPosition = WeatherAnchor;
             var previousCampWeather = WeatherAt(campPosition);
@@ -548,6 +552,7 @@ public sealed partial class PrivateWorldRuntime
             DrainNeeds();
             AdvanceMedicalTreatments();
             RemoveDeadPhysicalState();
+            ProcessBoatTransport(targetTick);
             ReconcileHandcartHitches();
             CancelFieldWorkForUnavailableWorkers();
             AdvanceSettlementCouncil();
@@ -660,6 +665,7 @@ public sealed partial class PrivateWorldRuntime
             MaintainToolMakingRequests();
             RefreshTownLandHearings();
             MaintainKnowledgeWriting();
+            ProcessBoatQueue();
 
             AppendEvent("tick_advanced", targetTick.ToString(System.Globalization.CultureInfo.InvariantCulture));
             var newEvents = events.Skip(startingEvent).ToArray();
