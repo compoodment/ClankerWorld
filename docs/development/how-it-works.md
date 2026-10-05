@@ -1491,6 +1491,21 @@ or chooses another action; refusal starts no project. Accepted projects retain
 their tile. If it becomes illegal, the project blocks and retries after sixty
 ticks. An unchanged idle choice is reconsidered after 300 ticks, sooner if
 urgent needs or legal choices change. Weights and retry values are provisional.
+Material scoring searches at most five map tiles from a site, including the
+east-west seam; farther resources cannot change its rank. Recipe and expansion
+input checks share reachable-tool results only within one inhabitant's
+read-only candidate query. Later queries and actions check current stock and
+routes again; neither optimization adds saved state or a persistent cache.
+Purpose scoring filters related buildings once per context and keeps its
+distance, building-ID and tag tie rules. Border-growth scoring counts the same
+rounded footprint margin that actual placement adds, without sorting those
+tiles for every candidate.
+Continuing an idle intention skips a second full candidate query after the
+ordinary enqueue phase has reconsidered current choices. Orders, conversations,
+care and ongoing work keep their earlier continuation guards, and the ordinary
+idle action still runs its cleanup.
+See [construction query measurements](construction-query-measurements.md) for
+matched native timings, candidate/state equivalence and remaining limits.
 Building plans follow what a household needs, not a role. An adult whose
 household lacks a House, Farmhouse, Blacksmith, Silo, Tailor Shop, Clinic or Restaurant is offered ranked sites
 for it once the household has the build costs in hand: stock the household
