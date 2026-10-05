@@ -32,6 +32,7 @@ public sealed partial class PrivateWorldRuntime
         ValidateAssetReservationsAgainstActivePackages();
         WorldContentSimulationRules.Validate(worldSimulation, worldContent, map, WorldTick);
         ValidateBuildingExpansionState(worldSimulation, worldContent, society.Checkpoint, map, checkpointSchemaVersion);
+        ValidateBoatTransport(CaptureState());
         ValidateHandcarts(handcartHitches, society.Checkpoint.Inventory, inhabitants.Values.ToArray(), map);
         ValidatePhysicalInventoryLocations(society.Checkpoint.Inventory, worldSimulation, worldContent,
             society.Checkpoint.Inhabitants, map, society.Checkpoint.Estates);
@@ -139,7 +140,7 @@ public sealed partial class PrivateWorldRuntime
             {
                 ValidateProject(project, WorldTick);
             }
-            if (!map.IsPassable(inhabitant.Position) ||
+            if (!map.IsPassable(inhabitant.Position) && !IsSavedBoatPassenger(boatTransport, inhabitant.InhabitantId, inhabitant.Position) ||
                 inhabitant.HungerBasisPoints is < 0 or > 10_000 ||
                 inhabitant.MoveWaitTicks < 0 || inhabitant.TravelCooldownTicks < 0)
             {
@@ -233,7 +234,7 @@ public sealed partial class PrivateWorldRuntime
                 if (!byInstance.TryGetValue(buildingId, out var building) ||
                     !definitions.TryGetValue(building.DefinitionId, out var definition))
                     throw new InvalidDataException("A Town references a building that is not placed.");
-                if (WorldContentSimulationRules.Footprint(definition, building).Any(tile => !border.Contains(tile)) &&
+                if (WorldContentSimulationRules.Footprint(definition, building).Where(map.IsLand).Any(tile => !border.Contains(tile)) &&
                     !definition.Tags.Contains("warehouse", StringComparer.Ordinal))
                     throw new InvalidDataException("The saved Town border does not cover an assigned building.");
             }
@@ -479,6 +480,7 @@ public sealed partial class PrivateWorldRuntime
             state.Instructions ?? [], state.Society.Society.WorldTick);
         ValidateBuildingExpansionState(state.WorldSimulation, state.WorldContent, state.Society.Society,
             state.Map, state.SchemaVersion);
+        ValidateBoatTransport(state);
         ValidateHandcarts(state.HandcartHitches, state.Society.Society.Inventory, state.Inhabitants, travelMap);
         ValidatePhysicalInventoryLocations(state.Society.Society.Inventory, state.WorldSimulation,
             state.WorldContent, state.Society.Society.Inhabitants, state.Map, state.Society.Society.Estates);
@@ -1006,7 +1008,8 @@ public sealed partial class PrivateWorldRuntime
             if (!deceasedById.TryGetValue(person.InhabitantId, out var deceased) ||
                 deceased.DeathTick != person.DeathTick || person.DeathTick < 0 || person.DeathTick > society.WorldTick ||
                 person.AgeAtDeath < 0 || person.LastPhysical.InhabitantId != person.InhabitantId ||
-                !deathMap.IsPassable(person.LastPhysical.Position) ||
+                !deathMap.IsPassable(person.LastPhysical.Position) &&
+                    !(person.BoatIdAtDeath is not null && PortNavigationRules.NavigableWater(deathMap, person.LastPhysical.Position)) ||
                 person.LastPhysical.HungerBasisPoints is < 0 or > 10_000 ||
                 person.LastPhysical.Equipment?.OrnamentLotId is not null ||
                 person.LastPhysical.GuardianPlacement is not null ||

@@ -334,6 +334,12 @@ public sealed class BuildingsProposal : IArtProposal, IArtSetProvider
 
     internal static bool HasApprovedDrawing(BuildingKind kind) => DesignFor(kind) is not null;
 
+    internal static Image ApprovedBoat(int facing, bool rowing) => Boat(facing switch
+    {
+        0 => Facing.South, 1 => Facing.SouthWest, 2 => Facing.West, 3 => Facing.NorthWest,
+        4 => Facing.North, 5 => Facing.NorthEast, 6 => Facing.East, _ => Facing.SouthEast,
+    }, rowing);
+
     private static Design? DesignFor(BuildingKind kind) => kind switch
     {
         BuildingKind.House => Design.House,
@@ -347,6 +353,7 @@ public sealed class BuildingsProposal : IArtProposal, IArtSetProvider
         BuildingKind.Generic => Design.Generic,
         BuildingKind.Clinic => Design.Clinic,
         BuildingKind.Restaurant => Design.Restaurant,
+        BuildingKind.Port => Design.Port,
         _ => null,
     };
 

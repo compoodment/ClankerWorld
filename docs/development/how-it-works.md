@@ -909,8 +909,8 @@ Immutable map connectivity is cached once per map; movement rechecks
 occupancy before each step. An agent gathering for its own project, and the check
 that a project's inputs exist, still need a route from the original camp. Heating,
 helping another agent's project and Blacksmith ore use the actor's current
-reachable area (see [Material gathering](#material-gathering)). Boat access
-remains unfinished. Trees and planting are described in
+reachable area (see [Material gathering](#material-gathering)). Boat transport uses physical Town assets and typed Council permission, as
+described in [Ports and communal boats](#ports-and-communal-boats). Trees and planting are described in
 [Trees and planting](#trees-and-planting).
 
 Godot draws camera-visible tiles from a compact terrain index and samples it
@@ -2372,6 +2372,50 @@ time. Repair consumes the recipe materials carried by that tool's owner; it
 does not restore condition for free. Hammer use speeds building work, and an
 iron knife speeds food or other preparation recipes. Recipe and field records
 keep their exact selected tool lot through save and reload.
+
+## Ports and communal boats
+
+`PortContent` supplies four approved shoreline definitions. `PortNavigationRules`
+checks the two land tiles, chosen approach, three water rows and six clear
+one-tile docking spaces. A Port footprint fits inside the map; its water routes
+may cross the east/west seam. Foot construction and supply target the land end,
+not the water anchor of a north- or west-facing drawing.
+
+Ports and boats use the same Council-approved `TownConstructionProject` ledger
+as Halls and Markets. A boat plan pins its completed launch Port and exact
+wood/rope/refined-iron budget. Actual delivered lots and completed consumption
+receipts pay for one physical `BoatState`; direct unpaid Port placement is
+refused. Costs, work and three-tick water steps remain provisional.
+
+Only residents or a Council-adopted typed `TownBoatAccessGrant` may depart in a
+Town’s boat. A grant targets one exact visitor or all visitors and is retained
+on the ordinary law’s adopted version. Freeform law text supplies no authority.
+Repeal ends future permission; it does not abandon a passenger already aboard.
+A grant changes no membership, ownership or Warehouse access.
+
+Native personal decisions approach the Port and create a sequenced trip request.
+Queue processing chooses the oldest currently usable request, atomically binds
+one idle boat and a free destination dock, and boards only that passenger with
+their actual carried goods. Blocked requests retain their sequence; cancellation
+or lost departure permission settles unused requests. Six moored or incoming
+claims exhaust a Port. All free docks are tried for a connected route.
+
+Transport follows saved cardinal water steps while avoiding other boats and
+reservations. Underway cognition permits waiting and eating carried food;
+foot work and conversations cannot move the passenger away from the boat.
+A blocked arrival retains its reservation for one world day, then reserves a
+usable origin for return. When neither landing works, it keeps waiting. Native
+death and estate handling keep dropped cargo at the physical boat until landing.
+Prepared-tick commit and current-format replay retain boat state with the other
+world facts. Save validation binds assets to paid projects and journeys to exact
+passengers, requests, docks and connected water routes.
+
+The owner snapshot projects physical boats, cargo, incoming docks and all active
+requests, plus recent settled requests. Godot retains one marker per boat,
+observes its heading and wrap behavior, uses the approved art unchanged at close
+zoom, and shows travel and dock use in tile, Port and Town inspection. Port night
+lights use the approved T-head lantern. Smaller views scale the approved 32-pixel
+boat until #914 supplies approved 16-pixel art.
 
 ## Physical handcarts
 

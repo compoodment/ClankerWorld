@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json.Serialization;
 using ClankerWorld.Simulation.Harness;
 
 namespace ClankerWorld.Simulation.Playtest;
@@ -10,7 +11,11 @@ namespace ClankerWorld.Simulation.Playtest;
 /// </summary>
 public sealed record TownLawVersion(int Version, string Subject, string Rule, string Scope,
     IReadOnlyList<GridPoint> SiteTiles, string ProposalId, long AdoptedTick,
-    long? EndedTick = null, string? EndedByProposalId = null);
+    long? EndedTick = null, string? EndedByProposalId = null)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public TownBoatAccessGrant? BoatAccess { get; init; }
+}
 
 /// <summary>A Town law and its complete version history. Repealed laws keep their history.</summary>
 public sealed record TownLaw(string Id, IReadOnlyList<TownLawVersion> Versions);
@@ -21,12 +26,16 @@ public sealed record TownLaw(string Id, IReadOnlyList<TownLawVersion> Versions);
 /// records. Statuses: pending, enacted, not_passed, stale.
 /// </summary>
 public sealed record TownLawDraft(string ProposalId, string Action, string? LawId, int? BaseVersion,
-    string Subject, string Rule, string Scope, IReadOnlyList<GridPoint> SiteTiles, string Status = "pending");
+    string Subject, string Rule, string Scope, IReadOnlyList<GridPoint> SiteTiles, string Status = "pending")
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public TownBoatAccessGrant? BoatAccess { get; init; }
+}
 
 /// <summary>
-/// Town laws are recorded social rules. They never block physical actions,
-/// change ownership or create offices; they only say which rule applied to
-/// whom, where and when.
+/// Ordinary laws record social rules without changing physical authority.
+/// The explicit typed boat-access grant permits visitor travel; law text
+/// alone never changes ownership, creates offices or authorizes an action.
 /// </summary>
 public static class TownLawRules
 {
@@ -137,6 +146,8 @@ public static class TownLawRules
         if (law is null || !IsInForce(law) || !TryParse(text, out var subject, out var rule))
             throw new InvalidOperationException("An amendment must identify a law in force and give 'subject: rule' text.");
         var current = Current(law);
+        if (current.BoatAccess is not null)
+            throw new InvalidOperationException("Revoke a supported boat grant by repealing it; free-form wording cannot alter boat permission.");
         if (expectedVersion is { } expected && current.Version != expected)
             throw new InvalidOperationException("The law changed after this amendment was chosen.");
         if (current.Subject == subject && current.Rule == rule)
@@ -161,7 +172,19 @@ public static class TownLawRules
         var key = $"law_repeal:{law.Id}:{current.Version.ToString(CultureInfo.InvariantCulture)}";
         return Submit(council, government, townId, actor, label, key, adults, tick, day,
             proposalId => new TownLawDraft(proposalId, "repeal", law.Id, current.Version, current.Subject, current.Rule,
-                current.Scope, current.SiteTiles));
+                current.Scope, current.SiteTiles)
+            { BoatAccess = current.BoatAccess });
+    }
+
+    public static (TownGovernanceState Council, TownGovernmentState Government) ProposeBoatAccess(
+        TownGovernanceState council, TownGovernmentState government, string townId, string actor,
+        string? visitorId, IEnumerable<string> adults, long tick, int day)
+    {
+        var grant = new TownBoatAccessGrant(visitorId);
+        var text = TownBoatAccessRules.Text(grant);
+        if (!TryParse(text, out var subject, out var rule)) throw new InvalidOperationException("Invalid boat access text.");
+        return Submit(council, government, townId, actor, text, TownBoatAccessRules.RequestKey(grant), adults, tick, day,
+            proposalId => new TownLawDraft(proposalId, "adopt", null, null, subject, rule, Jurisdiction, []) { BoatAccess = grant });
     }
 
     private static (TownGovernanceState, TownGovernmentState) Submit(TownGovernanceState council,
@@ -200,13 +223,15 @@ public static class TownLawRules
             if (draft.Action == "adopt")
             {
                 var id = townId + ":law:" + (government.Sequence + 1).ToString(CultureInfo.InvariantCulture);
-                var version = new TownLawVersion(1, draft.Subject, draft.Rule, draft.Scope, draft.SiteTiles, draft.ProposalId, at);
+                var version = new TownLawVersion(1, draft.Subject, draft.Rule, draft.Scope, draft.SiteTiles, draft.ProposalId, at)
+                { BoatAccess = draft.BoatAccess };
                 government = Replace(government with { Sequence = government.Sequence + 1, Laws = government.Laws.Append(new TownLaw(id, [version])).ToArray() },
                     draft with { Status = "enacted", LawId = id });
                 council = TownGovernanceRules.PostNotice(council, "law", id,
                     $"Law {Number(id).ToString(CultureInfo.InvariantCulture)} adopted: {Text(draft.Subject, draft.Rule)} It applies to " +
                     $"{ScopeLabel(draft.Scope, townName, draft.SiteTiles.Count)} from tick {at.ToString(CultureInfo.InvariantCulture)}, not to earlier conduct. " +
-                    "It records a social rule: it does not block actions or change ownership.", tick);
+                    (draft.BoatAccess is null ? "It records a social rule: it does not block actions or change ownership."
+                        : "It grants use of the Town's communal boats; ownership and membership stay with their holders."), tick);
                 continue;
             }
             var law = government.Laws.Single(l => l.Id == draft.LawId);
@@ -242,7 +267,8 @@ public static class TownLawRules
     public static string VoteText(TownLawDraft draft) =>
         (draft.Action == "adopt" ? "Adopt law: " : draft.Action == "amend" ? $"Amend law {Number(draft.LawId!)} (version {draft.BaseVersion}) to: "
             : $"Repeal law {Number(draft.LawId!)} (version {draft.BaseVersion}): ") + Text(draft.Subject, draft.Rule) +
-        ". Scope: " + ScopeLabel(draft.Scope, "this Town", draft.SiteTiles.Count) +
+        ". Scope: " + (draft.BoatAccess is not null ? "this Town's communal boats at usable Ports; no ownership or membership"
+            : ScopeLabel(draft.Scope, "this Town", draft.SiteTiles.Count)) +
         (draft.SiteTiles.Count > 0 ? ". Site tiles: " + SiteKey(draft.SiteTiles.ToArray()) : "") + ".";
 
     internal static string ProposalText(TownLawDraft draft) => draft.Action switch
@@ -253,12 +279,14 @@ public static class TownLawRules
     };
     internal static string RequestKey(TownLawDraft draft) => draft.Action switch
     {
-        "adopt" => $"law:{draft.Scope}:{SiteKey(draft.SiteTiles.ToArray())}:{Normalize(Text(draft.Subject, draft.Rule))}",
+        "adopt" => draft.BoatAccess is { } grant ? TownBoatAccessRules.RequestKey(grant)
+            : $"law:{draft.Scope}:{SiteKey(draft.SiteTiles.ToArray())}:{Normalize(Text(draft.Subject, draft.Rule))}",
         "amend" => $"law_amend:{draft.LawId}:{draft.BaseVersion?.ToString(CultureInfo.InvariantCulture)}:{Normalize(Text(draft.Subject, draft.Rule))}",
         _ => $"law_repeal:{draft.LawId}:{draft.BaseVersion?.ToString(CultureInfo.InvariantCulture)}",
     };
     internal static bool IsStructuredRequest(string key) =>
         key.StartsWith("law_amend:", StringComparison.Ordinal) || key.StartsWith("law_repeal:", StringComparison.Ordinal) ||
+        key.StartsWith("boat-access:", StringComparison.Ordinal) ||
         new[] { Jurisdiction, Site, ResidentDuty }.Any(scope => key.StartsWith("law:" + scope + ":", StringComparison.Ordinal));
 
     private static string Normalize(string text) =>

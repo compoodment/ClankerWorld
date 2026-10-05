@@ -211,7 +211,7 @@ public static class WorldContentSimulationRules
         ArgumentNullException.ThrowIfNull(existingBuildings);
         ArgumentNullException.ThrowIfNull(definition);
         var footprint = Footprint(definition, position).ToArray();
-        if (footprint.Any(point => !map.IsBuildable(point)))
+        if (!PortNavigationRules.IsPort(definition) && footprint.Any(point => !map.IsBuildable(point)))
         {
             return false;
         }
@@ -228,7 +228,9 @@ public static class WorldContentSimulationRules
             }
         }
 
-        return footprint.All(point => !occupied.Contains(point));
+        return PortNavigationRules.IsPort(definition)
+            ? PortNavigationRules.Fits(map, definition, position, occupied, out _)
+            : footprint.All(point => !occupied.Contains(point));
     }
 
     /// <summary>

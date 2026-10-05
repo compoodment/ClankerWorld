@@ -24,6 +24,7 @@ public enum BuildingKind : byte
     TownHall,
     Market,
     MarketStall,
+    Port,
 }
 
 /// <summary>The edge of a building's footprint that its door is on.</summary>
@@ -91,6 +92,7 @@ public static partial class BuildingSprites
         if (Has("town_hall")) return BuildingKind.TownHall;
         if (Has("market_stall")) return BuildingKind.MarketStall;
         if (Has("market")) return BuildingKind.Market;
+        if (Has("port")) return BuildingKind.Port;
         if ((Has("cooking") || Has("warmth")) && !Has("shelter")) return BuildingKind.Hearth;
         if (Has("storage")) return BuildingKind.Storehouse;
         if (Has("shelter")) return BuildingKind.Shelter;
@@ -421,11 +423,17 @@ public static partial class BuildingSprites
         };
 
         /// <summary>Whether this kind uses the approved drawing.</summary>
-        public static bool Draws(BuildingKind kind) => kind is BuildingKind.Silo or BuildingKind.MarketStall || RecipeFor(kind) is not null;
+        public static bool Draws(BuildingKind kind) => kind is BuildingKind.Silo or BuildingKind.MarketStall or BuildingKind.Port || RecipeFor(kind) is not null;
 
         /// <summary>Where a roofed kind's roof, yard and door are, in 32-unit tile space; null for the others.</summary>
         public static (Rect2 Roof, Rect2? Yard, float DoorMiddle, Rect2? Wing)? PlanFor(BuildingKind kind, int tilesWide, int tilesHigh, BuildingDoor door, int tilePixels)
         {
+            if (kind == BuildingKind.Port)
+            {
+                var frame = new PortFrame(PortLandSide(tilesWide, tilesHigh, door.Side), tilesWide * 32, tilesHigh * 32);
+                var shed = frame.Map(9, 5, frame.Breadth - 18, 22);
+                return (shed, null, Fit(door.Tile is { } tile ? tile * 32 + 16 : frame.Breadth / 2f, 15, frame.Breadth - 15), null);
+            }
             if (RecipeFor(kind) is not { } recipe) return null;
             var w = Math.Clamp(tilesWide, 1, 8) * 32;
             var h = Math.Clamp(tilesHigh, 1, 8) * 32;
@@ -459,6 +467,7 @@ public static partial class BuildingSprites
         public static Color? MainRoof(BuildingKind kind) => kind switch
         {
             BuildingKind.Silo => SiloWood.Base,
+            BuildingKind.Port => Timber.Base,
             BuildingKind.MarketStall => Berry.Base,
             _ => RecipeFor(kind)?.Roof.Base,
         };
@@ -468,10 +477,17 @@ public static partial class BuildingSprites
         {
             tilesWide = Math.Clamp(tilesWide, 1, 8);
             tilesHigh = Math.Clamp(tilesHigh, 1, 8);
+            if (kind == BuildingKind.Port && tilePixels != 32)
+            {
+                var approved = Draw(kind, tilesWide, tilesHigh, 32, door);
+                approved.Resize(tilesWide * tilePixels, tilesHigh * tilePixels, Image.Interpolation.Nearest);
+                return approved;
+            }
             var plate = new Plate(tilesWide * tilePixels, tilesHigh * tilePixels, tilePixels / 32f);
             var w = tilesWide * 32;
             var h = tilesHigh * 32;
-            if (kind == BuildingKind.MarketStall) PaintStallLot(plate, w, h, door);
+            if (kind == BuildingKind.Port) PaintPort(plate, w, h, door, paintedBoat: false);
+            else if (kind == BuildingKind.MarketStall) PaintStallLot(plate, w, h, door);
             else if (RecipeFor(kind) is { } recipe)
             {
                 if (kind == BuildingKind.Market) PaintMarket(plate, recipe, w, h, door);
@@ -1959,6 +1975,7 @@ public static partial class BuildingSprites
             public int Height { get; }
             public float Scale { get; }
             public bool Small => Scale < 1;
+            public PixelCanvas Canvas => new(Image, new Rect2I(0, 0, Width, Height), Scale, snap: true);
 
             /// <summary>Units to pixels, rounded.</summary>
             public int P(float units) => (int)MathF.Round(units * Scale);
