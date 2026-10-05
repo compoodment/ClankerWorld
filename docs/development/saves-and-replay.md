@@ -753,8 +753,11 @@ stale notice as authority to move someone.
 
 Current-format roundtrips retain notice deadlines, volunteer replacements,
 housing requests and the ordinary departure's collection rights and once-only
-food allowance. Replacing the selected adult keeps the original notice period;
-pause/load, births and unfinished expansion do not restart it. Replay must
+food allowance. A forced replacement inherits a future deadline; one notified
+at or after it receives a fresh day from the current world tick. Its saved
+notice tick and deadline describe that new period. Volunteers retain the
+original deadline, and other residents’ notices do not restart. Pause/load,
+births and unfinished expansion do not restart the saved period. Replay must
 produce the same cancellation or departure without duplicating events or goods.
 Only completed footprints add resident places. Sole caregivers are protected
 from timed displacement even when their dependent lives in another household.

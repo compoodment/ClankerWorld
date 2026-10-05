@@ -952,8 +952,10 @@ An overcrowded House gives eligible adults one unpaused world day to move out.
 Volunteers go first, followed by the most recent arrivals outside its dominant
 family; without a family majority, no family gets priority. The agent's housing
 details show the reason, remaining time, requests to other households and
-expansion progress. Notices keep their deadline across save/load and changes
-of selected adult. Only a completed expansion adds places, and changed
+expansion progress. Save/load keeps the remaining time. A forced replacement
+inherits a deadline that is still in the future; when notified at or after it,
+the replacement gets one fresh world day. Volunteers keep the original deadline,
+and other residents’ notices do not restart. Only a completed expansion adds places, and changed
 residents, family or care arrangements cancel notices that are no longer needed.
 Children and their sole caregivers never receive forced notices. If nobody
 can safely be required to leave, the House stays visibly overcrowded while

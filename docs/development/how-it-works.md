@@ -1619,9 +1619,10 @@ skipped. Selection stops when the remaining residents fit.
 
 `Housing.Relocation` stores the household, original notice tick, fixed deadline
 and selection reason. The initial period is one world day. Pausing and loading
-do not consume or restart it; a volunteer or other replacement adult inherits
-the existing notice period. Births, age changes and unfinished expansion do not
-restart a notice. Reconciliation cancels obsolete notices after changes in
+do not consume or restart it. A forced replacement inherits a still-future
+deadline; when notified at or after it, they receive one fresh world day from
+the current world tick. Volunteers keep their original deadline. Other residents’
+notices, births, age changes and unfinished expansion do not restart a notice. Reconciliation cancels obsolete notices after changes in
 residents, family, care or completed capacity. Admission and departure actions
 recheck that eligibility before acting on a saved or delayed choice.
 
