@@ -285,6 +285,8 @@ internal sealed class NonviolentTestProvider(DecisionProviderKind kind = Decisio
     public long ProviderEpoch => 1;
     internal Func<InhabitantObservation, CognitionCandidate?>? Choose { get; init; }
     internal Func<InhabitantObservation, CognitionCandidate, CognitionNonviolentChoice?>? Payload { get; init; }
+    internal Func<InhabitantObservation, CognitionCandidate, CognitionLandHearingChoice?>? LandPayload { get; init; }
+    internal Func<InhabitantObservation, CognitionCandidate, IReadOnlyList<CognitionLandTile>?>? LandTiles { get; init; }
     internal ConcurrentQueue<InhabitantObservation> Observations { get; } = new();
     internal ConcurrentQueue<string> Selected { get; } = new();
 
@@ -297,6 +299,7 @@ internal sealed class NonviolentTestProvider(DecisionProviderKind kind = Decisio
         return ValueTask.FromResult(new CognitionDecisionResponse(request.RequestId, observation.InhabitantId, Kind, ProviderEpoch,
             observation.RunEpoch, observation.DecisionGeneration, observation.ObservationDigest, choice.Id, 1,
             observation.Candidates.ToDictionary(candidate => candidate.Id, candidate => candidate.Id == choice.Id ? 1d : 0d, StringComparer.Ordinal),
-            CivicNonviolent: Payload?.Invoke(observation, choice)));
+            CivicNonviolent: Payload?.Invoke(observation, choice),
+            CivicLandHearing: LandPayload?.Invoke(observation, choice), CivicLandTiles: LandTiles?.Invoke(observation, choice)));
     }
 }

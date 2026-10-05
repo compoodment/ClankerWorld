@@ -144,7 +144,9 @@ public sealed partial class PrivateWorldRuntime
         .Where(item => item.AgentId == actor && item.ConductId == file.Allegation.IncidentId)
         .OrderBy(item => item.Id, StringComparer.Ordinal)
         .Select(item => NonviolentEvidence(town.Nonviolent.ConductRecords.Single(record => record.Id == item.ConductId),
-            item, actor, file.Revisions[^1].Number)).ToArray();
+            item, actor, file.Revisions[^1].Number))
+        .Concat(NonviolentKnownPublicRecords(town, householdLandUseRights, townLandTitles, actor,
+            file.Allegation.Position, file.Revisions[^1].Number, WorldTick)).ToArray();
 
     private TownCaseEvidence NonviolentEvidence(TownConductRecord record, TownConductAcquisition acquired,
         string actor, int revision) => new(acquired.Id, revision,

@@ -7,7 +7,8 @@ namespace ClankerWorld.Simulation.Playtest;
 public sealed partial class PrivateWorldRuntime
 {
     private static void ValidateNonviolentPhysicalState(SeededMap map, SocietyCheckpoint society,
-        IReadOnlyList<TownRuntimeState> towns, IReadOnlyList<TownLandTitleRecord> titles)
+        IReadOnlyList<TownRuntimeState> towns, IReadOnlyList<TownLandTitleRecord> titles,
+        IReadOnlyList<HouseholdLandUseRight> rights)
     {
         var tick = society.WorldTick;
         var agents = society.Inhabitants.Select(person => person.Id).ToHashSet(StringComparer.Ordinal);
@@ -126,6 +127,15 @@ public sealed partial class PrivateWorldRuntime
                     if (evidence.Kind == "allegation" && evidence.Acquisition == "statement" &&
                         evidence.SourceRecordId is null && evidence.SourceVersion is null &&
                         evidence.SourceAgentId == evidence.SubmittedByAgentId && evidence.ObservedTick == evidence.SubmittedTick)
+                        continue;
+                    if (evidence.Kind == "record" && evidence.Acquisition == "record_inspection" &&
+                        NonviolentKnownPublicRecords(town, rights, titles, evidence.SubmittedByAgentId,
+                            file.Allegation.Position, evidence.Revision, evidence.SubmittedTick).Any(record =>
+                            (record with
+                            {
+                                Id = "case-evidence:" + NonviolentToken(file.Id + "|" + record.Id + "|" +
+                                evidence.SubmittedByAgentId + "|" + evidence.Revision)
+                            }) == evidence))
                         continue;
                     var law = town.Government?.Laws.FirstOrDefault(item => item.Id == file.Allegation.LawId);
                     var wording = law?.Versions.FirstOrDefault(version => version.Version == file.Allegation.LawVersion);
