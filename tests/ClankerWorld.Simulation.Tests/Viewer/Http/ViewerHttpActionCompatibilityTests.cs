@@ -18,6 +18,46 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed partial class ViewerHttpTests
 {
     [Theory]
+    [InlineData(null, false)]
+    [InlineData("clankerworld.owner-autosave-configuration.v1", false)]
+    [InlineData("clankerworld.owner-autosave-configuration.v2", true)]
+    public async Task AutosaveClientRequiresTheWorldBoundFormatAndKeepsPairingUsable(string? advertisedDomain, bool supported)
+    {
+        using var baseHost = new ViewerWebApplicationFactory(null, privateWorld: true);
+        var metadata = new LegacyWorldActionFilter(advertisedDomain);
+        using var host = baseHost.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services => services.AddSingleton<IStartupFilter>(metadata)));
+        using var client = host.CreateClient();
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        using var signer = new ActionCompatibilitySigner(key);
+        var device = await StartAndActivateAsync(host, client, key);
+        var runtime = host.Services.GetRequiredService<PrivateWorldRuntime>();
+        runtime.Pause();
+        var identity = host.Services.GetRequiredService<OwnerAuthorityStore>().Identity;
+        var authority = new OwnerAuthorityIdentity(identity.ServerAuthorityId, identity.WorldId);
+        var api = new Client.OwnerWorldApi(client);
+        var uri = new UriBuilder(client.BaseAddress!) { Host = "127.0.0.1" }.Uri;
+        var before = await api.GetAutosaveSettingsAsync(uri, authority, device.DeviceId, signer, default);
+        var action = new Client.OwnerAutosaveConfigurationAction(false, 1, 0, before.WorldId);
+        if (supported)
+        {
+            var updated = await api.ConfigureAutosaveAsync(uri, authority, device.DeviceId, action, signer, default);
+            Assert.Equal((before.WorldId, false, 1, 0),
+                (updated.WorldId, updated.Enabled, updated.IntervalMinutes, updated.RotationCount));
+            Assert.Equal(updated, await api.GetAutosaveSettingsAsync(uri, authority, device.DeviceId, signer, default));
+        }
+        else
+        {
+            var failure = await Assert.ThrowsAsync<OwnerActionCompatibilityException>(() =>
+                api.ConfigureAutosaveAsync(uri, authority, device.DeviceId, action, signer, default));
+            Assert.Contains("matching updates", Client.GameUiText.FriendlyFailure(failure), StringComparison.Ordinal);
+            Assert.Contains("pairing can stay", Client.GameUiText.FriendlyFailure(failure), StringComparison.Ordinal);
+            Assert.Equal(before, await api.GetAutosaveSettingsAsync(uri, authority, device.DeviceId, signer, default));
+        }
+        Assert.Equal(supported ? 1 : 0, metadata.AutosaveConfigurationRequests);
+    }
+
+    [Theory]
     [InlineData(null)]
     [InlineData("clankerworld.owner-world-creation.v1")]
     [InlineData("clankerworld.owner-world-creation.v2")]
@@ -137,6 +177,7 @@ public sealed partial class ViewerHttpTests
     {
         public int WorldActionRequests { get; private set; }
         public int AgentPlacementRequests { get; private set; }
+        public int AutosaveConfigurationRequests { get; private set; }
 
         public static string V1Payload(OwnerWorldCreationAction action) => string.Join('\n',
             OwnerHttpBinding.WorldCreationPayload(action).Split('\n').Take(10))
@@ -173,6 +214,10 @@ public sealed partial class ViewerHttpTests
                 if (context.Request.Path == OwnerPairingEndpoints.OwnerAgentPlace)
                 {
                     AgentPlacementRequests++;
+                }
+                if (context.Request.Path == OwnerPairingEndpoints.OwnerAutosaveConfigure)
+                {
+                    AutosaveConfigurationRequests++;
                 }
                 await continuation(context);
             });

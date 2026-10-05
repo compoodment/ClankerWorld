@@ -581,6 +581,8 @@ stay crisp: 100% on small screens, 200% at 1080p and 1440p and 300% at 4K.
 There is no setting for this. World Settings contains that world's autosaves,
 Jev and agent model settings. Main Menu Settings exposes Game Settings only.
 Autosave Apply stays unavailable until the current world's settings have loaded.
+If the world changes before Apply reaches the host, its settings stay unchanged.
+Reopen World Settings before trying again.
 
 Press **F1** or **?** for the in-game controls list, with keys drawn as keycaps
 and grouped by what they do. With no menu or text field

@@ -146,7 +146,8 @@ public sealed class OwnerWorldApi
         pairing.SendSignedActionAsync<OwnerAutosaveConfigurationAction, WorldAutosaveSettings>(
             serverUri, authority, deviceId, OwnerPairingEndpoints.OwnerAutosaveConfigure,
             OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.AutosaveConfiguration(action),
-            action, deviceKey, cancellationToken);
+            action, deviceKey, cancellationToken,
+            requiredPayloadDomain: OwnerWorldActionPayload.AutosaveConfigurationPayloadDomain);
 
     public Task<ManualWorldSave> CreateManualSaveAsync(
         Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,

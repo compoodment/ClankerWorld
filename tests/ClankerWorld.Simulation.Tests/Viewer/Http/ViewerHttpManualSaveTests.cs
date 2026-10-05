@@ -99,7 +99,7 @@ public sealed partial class ViewerHttpTests
                 .ToDictionary(name => name, name => File.ReadAllBytes(Path.Combine(root, name)));
             var activeSettings = settings with { WorldId = runtime.Society.WorldId };
             for (var n = 0; n < 12; n++) saves.CreateAutosave(runtime, [], activeSettings);
-            var action = new OwnerAutosaveConfigurationAction(true, 1, rotation);
+            var action = new OwnerAutosaveConfigurationAction(true, 1, rotation, runtime.Society.WorldId);
             using var response = await SendSignedAsync(host, client, key, device.DeviceId,
                 "/api/v1/owner/saves/autosave/configure", action, OwnerHttpBinding.AutosaveConfigurationPayload(action));
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -596,7 +596,7 @@ public sealed partial class ViewerHttpTests
                     OwnerHttpBinding.EmptyPayload("autosave-status"));
                 Assert.Equal(HttpStatusCode.OK, status.StatusCode);
                 Assert.Equal(5, (await status.Content.ReadFromJsonAsync<WorldAutosaveSettings>())!.IntervalMinutes);
-                var autosaveAction = new OwnerAutosaveConfigurationAction(true, 1, 0);
+                var autosaveAction = new OwnerAutosaveConfigurationAction(true, 1, 0, runtime.Society.WorldId);
                 const string autosavePath = "/api/v1/owner/saves/autosave/configure";
                 var autosaveEnvelope = await CreateSignedRequestAsync(host, client, key, device.DeviceId,
                     autosavePath, autosaveAction, OwnerHttpBinding.AutosaveConfigurationPayload(autosaveAction));
