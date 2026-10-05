@@ -202,6 +202,7 @@ public sealed class TownNonviolentRemedyRuntimeTests
                 new("return_goods", actor, NonviolentRuntimeFixture.Judge, "wood", 1, NonviolentRuntimeFixture.ReturnLot)]);
         var inventory = InventoryFixture.Reserve(state.Society.Society.Inventory, "other-native-work", actor,
             NonviolentRuntimeFixture.ReturnLot, 1, "independent-work", long.MaxValue);
+        inventory = InventoryFixture.AddLot(inventory, "unrelated-spare-wood", "wood", actor, 1);
         var provider = new NonviolentTestProvider
         {
             Choose = observation => observation.InhabitantId == actor
@@ -216,6 +217,58 @@ public sealed class TownNonviolentRemedyRuntimeTests
         Assert.Empty(world.Towns[0].Nonviolent.Agreements);
         Assert.Empty(world.Towns[0].Nonviolent.Effects);
         Assert.Equal(2, world.Society.Inventory.GetLot(NonviolentRuntimeFixture.ReturnLot).Quantity);
+        Assert.Equal(1, world.Society.Inventory.GetLot("unrelated-spare-wood").Quantity);
+        NonviolentRuntimeFixture.Strict(world.ExportState());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ConsentRequiresRoomForAllPromisedGoodsAtTheDestination(bool townService)
+    {
+        var state = await NonviolentRuntimeFixture.FindingAsync();
+        var actor = NonviolentRuntimeFixture.Subject;
+        var town = state.Towns![0];
+        var warehouse = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == "first-town-warehouse");
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "capacity-test-stone", "stone", actor, 6);
+        var kind = townService ? "public_service_goods" : "return_goods";
+        var beneficiary = townService ? town.Id : NonviolentRuntimeFixture.Witness;
+        var target = townService ? warehouse.InstanceId : NonviolentRuntimeFixture.ReturnLot;
+        state = await NonviolentRuntimeFixture.OfferRemedyAsync(WithInventory(state, inventory),
+            [new(kind, actor, beneficiary, townService ? "stone" : "wood", 1, target),
+                new(kind, actor, beneficiary, townService ? "stone" : "wood", 1, target)]);
+        inventory = state.Society.Society.Inventory;
+        int room;
+        if (townService)
+        {
+            using var setup = NonviolentRuntimeFixture.Create(state, new NonviolentTestProvider());
+            var definition = setup.WorldContent.Buildings.Single(building => building.CanonicalId == warehouse.DefinitionId);
+            room = BuildingStorageRules.Capacity(definition, warehouse)!.Value -
+                inventory.Lots.Where(lot => lot.StorageBuildingId == warehouse.InstanceId).Sum(lot => lot.Quantity);
+            inventory = InventoryFixture.AddLot(inventory, "destination-filler", "wood", town.Id, room - 1,
+                storageBuildingId: warehouse.InstanceId);
+        }
+        else
+        {
+            var recipient = state.Inhabitants.Single(person => person.InhabitantId == beneficiary);
+            room = PersonalEquipmentRules.FreeCapacity(inventory, beneficiary, recipient.Equipment);
+            inventory = InventoryFixture.AddLot(inventory, "destination-filler", "stone", beneficiary, room - 1);
+        }
+        Assert.True(room >= 2);
+        var provider = new NonviolentTestProvider
+        {
+            Choose = observation => observation.InhabitantId == actor
+                ? observation.Candidates.FirstOrDefault(candidate => candidate.Id.Contains("|remedy_accept|", StringComparison.Ordinal)) : null,
+        };
+        using var world = NonviolentRuntimeFixture.Create(WithInventory(state, inventory), provider);
+        NonviolentRuntimeFixture.Wake(world, actor, "consider-destination-room");
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        var observation = Assert.Single(provider.Observations, item => item.InhabitantId == actor);
+        Assert.DoesNotContain(observation.Candidates, candidate => candidate.Id.Contains("|remedy_accept|", StringComparison.Ordinal));
+        Assert.Contains(observation.Candidates, candidate => candidate.Id.Contains("|remedy_decline|", StringComparison.Ordinal));
+        Assert.Empty(world.Towns[0].Nonviolent.Agreements);
+        Assert.Empty(world.Towns[0].Nonviolent.Effects);
+        Assert.Equal(room - 1, world.Society.Inventory.GetLot("destination-filler").Quantity);
         NonviolentRuntimeFixture.Strict(world.ExportState());
     }
 

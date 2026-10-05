@@ -268,7 +268,8 @@ public sealed partial class PrivateWorldRuntime
 
     private bool NonviolentRemedyDurationFeasible(TownRuntimeState town, TownRemedyTerm[] terms, long ticks)
     {
-        if (ticks <= 0 || terms.Length == 0 || terms.Any(term => !NonviolentRemedyFeasible(town, term))) return false;
+        if (ticks <= 0 || terms.Length == 0 || terms.Any(term => !NonviolentRemedyFeasible(town, term)) ||
+            !NonviolentRemedyCapacityFeasible(terms)) return false;
         foreach (var group in terms.GroupBy(term => term.ContributorId, StringComparer.Ordinal))
         {
             var actor = group.Key;
@@ -276,6 +277,7 @@ public sealed partial class PrivateWorldRuntime
             var position = person.Position;
             long needed = 0;
             var used = new Dictionary<string, long>(StringComparer.Ordinal);
+            var namedReturns = new Dictionary<string, long>(StringComparer.Ordinal);
             var repaired = new HashSet<string>(StringComparer.Ordinal);
             foreach (var term in group)
             {
@@ -309,6 +311,8 @@ public sealed partial class PrivateWorldRuntime
                 else
                 {
                     used[term.ItemKind!] = used.GetValueOrDefault(term.ItemKind!) + term.Quantity;
+                    if (term.Kind == "return_goods" && term.TargetId is { } source)
+                        namedReturns[source] = namedReturns.GetValueOrDefault(source) + term.Quantity;
                     destination = term.Kind == "return_goods" ? inhabitants[term.BeneficiaryId!].Position : WarehouseForResident(actor)!.Position;
                     work = term.Kind == "return_goods" ? 1 : ((long)term.Quantity + WarehouseLoadQuantity - 1) / WarehouseLoadQuantity;
                 }
@@ -329,6 +333,8 @@ public sealed partial class PrivateWorldRuntime
                 needed += work;
                 if (needed > ticks) return false;
             }
+            foreach (var promise in namedReturns)
+                if (AvailableLotQuantity(society.Checkpoint.Inventory.GetLot(promise.Key)) < promise.Value) return false;
             foreach (var expenditure in used)
             {
                 var stock = society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == actor &&
@@ -339,6 +345,19 @@ public sealed partial class PrivateWorldRuntime
                 if (stock - reserve < expenditure.Value) return false;
             }
         }
+        return true;
+    }
+
+    private bool NonviolentRemedyCapacityFeasible(IEnumerable<TownRemedyTerm> terms)
+    {
+        foreach (var returns in terms.Where(term => term.Kind == "return_goods")
+                     .GroupBy(term => term.BeneficiaryId!, StringComparer.Ordinal))
+            if (!inhabitants.ContainsKey(returns.Key) || returns.Sum(term => (long)term.Quantity) > FreeCarryCapacity(returns.Key)) return false;
+        var deliveries = terms.Where(term => term.Kind == "public_service_goods")
+            .Select(term => (Term: term, Warehouse: WarehouseForResident(term.ContributorId))).ToArray();
+        if (deliveries.Any(delivery => delivery.Warehouse is null)) return false;
+        foreach (var storage in deliveries.GroupBy(delivery => delivery.Warehouse!.InstanceId, StringComparer.Ordinal))
+            if (storage.Sum(delivery => (long)delivery.Term.Quantity) > StorageRoom(storage.Key)) return false;
         return true;
     }
 

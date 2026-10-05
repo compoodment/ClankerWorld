@@ -89,6 +89,7 @@ public sealed partial class PrivateWorldRuntime
             }
             else state = TownRemedyRules.Respond(state, offer.Id, offer.Revision, actor, action == "remedy_accept" ? "accept" : "decline",
                 payload?.Statement, WorldTick, CivicDay, council.Knowledge,
+                NonviolentRemedyCapacityFeasible(offer.Terms) &&
                 NonviolentRemedyDurationFeasible(town, offer.Terms.Where(term => term.ContributorId == actor).ToArray(), offer.CompletionTicks));
             NonviolentEvent("offer_response", town, offer.Id, actor);
             return (council, state);
