@@ -310,7 +310,8 @@ public sealed partial class PrivateWorldRuntime
                              .DistinctBy(item => item.LotId))
                 {
                     var lot = society.Checkpoint.Inventory.Lots.SingleOrDefault(item => item.Id == delivery.LotId);
-                    if (lot is null || lot.OwnerId != town.Id || lot.CarrierId != actor || lot.ContainerLotId is not null ||
+                    if (lot is null || lot.OwnerId != town.Id || lot.ItemKind != delivery.ItemKind ||
+                        lot.CarrierId != actor || lot.ContainerLotId is not null ||
                         lot.DeliveryBuildingId is not null || PhysicalUnreservedQuantity(lot) <= 0 || IsActiveTownProjectDelivery(lot.Id)) continue;
                     var person = inhabitants[actor];
                     // A temporary pedestrian obstruction should wait, not cause a drop/pickup loop.
@@ -351,7 +352,8 @@ public sealed partial class PrivateWorldRuntime
         foreach (var project in town.Projects.OrderBy(item => item.Id, StringComparer.Ordinal))
             foreach (var delivery in project.Deliveries.Where(item => item.ReleasedTick is not null))
             {
-                if (!seen.Add(delivery.LotId) || !ground.TryGetValue(delivery.LotId, out var lot)) continue;
+                if (!ground.TryGetValue(delivery.LotId, out var lot) || lot.ItemKind != delivery.ItemKind ||
+                    !seen.Add(delivery.LotId)) continue;
                 var position = HouseholdStockPosition(lot);
                 if (!CanWalkForTownProject(actor, inhabitants[actor].Position, position)) continue;
                 var warehouse = WarehousesForTown(townId).FirstOrDefault(item =>
@@ -385,7 +387,8 @@ public sealed partial class PrivateWorldRuntime
                     : $"Return the released Town-owned {choice.ItemKind} load to its Town Warehouse.",
             };
             candidates.Add(new(choice.Id, description, choice.Kind == "return" && (NeedsUrgentFood(inhabitants[actor]) || NeedsUrgentWarmth(inhabitants[actor]))
-                    ? 0 : choice.Kind is "deliver" or "return" ? 24 : choice.Kind == "recover" ? 40 : 36,
+                    ? FreeCarryCapacity(actor) == 0 ? 0 : 10
+                    : choice.Kind is "deliver" or "return" ? 24 : choice.Kind == "recover" ? 40 : 36,
                 choice.Warehouse?.InstanceId ?? choice.Project.Id, choice.Project.Plan.Name));
         }
     }

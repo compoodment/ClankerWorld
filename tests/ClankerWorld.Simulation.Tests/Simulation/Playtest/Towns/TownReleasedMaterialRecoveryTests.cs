@@ -64,6 +64,7 @@ public sealed class TownReleasedMaterialRecoveryTests
     [InlineData("private")]
     [InlineData("full-warehouse")]
     [InlineData("already-carried-return")]
+    [InlineData("different-material")]
     public async Task RecoveryLeavesSurvivalSpaceAndRefusesUnavailableOrForeignGoods(string situation)
     {
         var (state, lot, actor) = await AtReleasedGroundAsync();
@@ -96,6 +97,11 @@ public sealed class TownReleasedMaterialRecoveryTests
         }
         if (situation == "full-warehouse")
             inventory = FillWarehouse(state, inventory, room: 0);
+        if (situation == "different-material")
+            inventory = inventory with
+            {
+                Lots = inventory.Lots.Select(item => item.Id == lot.Id ? item with { ItemKind = "fiber" } : item).ToArray(),
+            };
         if (situation == "already-carried-return")
         {
             var other = inventory.Lots.First(item => item.Id != lot.Id && released.Contains(item.Id) &&
@@ -165,6 +171,12 @@ public sealed class TownReleasedMaterialRecoveryTests
         var (state, lot, actor) = await AtReleasedGroundAsync();
         var inventory = InventoryFixture.Relocate(state.Society.Society.Inventory, "recovery:held-load", lot.Id,
             lot.OwnerId, lot.Quantity, carrierId: actor);
+        var otherLoad = inventory.Lots.First(item => item.OwnerId == lot.OwnerId && item.ItemKind == "wood" &&
+            item.GroundPosition is not null && state.Towns![0].Projects[0].Deliveries.Any(delivery => delivery.LotId == item.Id));
+        inventory = InventoryFixture.ReleaseReservation(inventory, "recovery:fixture-claim:" + otherLoad.Id, "fixture_custody");
+        inventory = InventoryFixture.Relocate(inventory, "recovery:full-carrier", otherLoad.Id, otherLoad.OwnerId,
+            otherLoad.Quantity, carrierId: actor);
+        Assert.Equal(PersonalEquipmentRules.BaseCapacity, PersonalEquipmentRules.CarriedQuantity(inventory, actor, null));
         if (reservedRemainder)
             inventory = InventoryFixture.Reserve(inventory, "recovery:held-claim", lot.OwnerId, lot.Id, 1,
                 "unrelated-job", long.MaxValue);
@@ -181,10 +193,14 @@ public sealed class TownReleasedMaterialRecoveryTests
         using var world = PrivateWorldRuntime.Restore(state, _ => policy);
         if (ownerOrder)
         {
-            var warehouse = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == "first-town-warehouse");
+            var origin = state.Inhabitants.Single(person => person.InhabitantId == actor).Position;
+            var destination = state.Map.Tiles.Select(tile => tile.Position).Where(point => point.X < 100 && point.Y < 100 &&
+                state.Map.IsReachableOnFoot(origin, point)).OrderBy(point => Math.Abs(point.X - origin.X) + Math.Abs(point.Y - origin.Y)).First();
             var receipt = world.SubmitInstruction(new("recovery:order", "owner:test", actor, OwnerInstructionKind.MustDo,
-                $"move to {warehouse.Position.X},{warehouse.Position.Y}"));
-            Assert.Contains(world.ExportState().Instructions!, instruction => instruction.InstructionId == receipt.InstructionId);
+                $"move to {destination.X},{destination.Y}"));
+            var instruction = Assert.Single(world.ExportState().Instructions!, instruction => instruction.InstructionId == receipt.InstructionId);
+            Assert.NotNull(instruction.Order);
+            Assert.Equal("move_to", instruction.Order.Action);
         }
         Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         var dropped = Assert.Single(world.Society.Inventory.Lots, item =>
@@ -203,6 +219,9 @@ public sealed class TownReleasedMaterialRecoveryTests
             Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
         }
         Assert.True(world.Inhabitants.Single(person => person.InhabitantId == actor).HungerBasisPoints > 1_000);
+        // Once there is room, collect and eat before dropping another Town load.
+        Assert.Equal(actor, world.Society.Inventory.GetLot(otherLoad.Id).CarrierId);
+        Assert.Equal(otherLoad.OwnerId, world.Society.Inventory.GetLot(otherLoad.Id).OwnerId);
         if (reservedRemainder)
         {
             Assert.Equal(InventoryReservationState.Reserved, world.Society.Inventory.GetReservation("recovery:held-claim").State);
