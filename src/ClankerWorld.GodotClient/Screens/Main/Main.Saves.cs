@@ -148,10 +148,10 @@ public partial class Main
 
     private async Task ApplyAutosaveSettingsAsync()
     {
-        if (!autosaveSettingsLoaded || !IsCurrentAutosaveSettingsContext() ||
+        if (!autosaveSettingsLoaded || autosaveSettingsWorldId is not { } worldId || !IsCurrentAutosaveSettingsContext() ||
             !TryGetOwner(out var authority, out var deviceId, out var signer)) return;
         var action = new OwnerAutosaveConfigurationAction(autosaveEnabledToggle.ButtonPressed,
-            autosaveIntervalChoice.GetSelectedId(), autosaveRotationChoice.GetSelectedId());
+            autosaveIntervalChoice.GetSelectedId(), autosaveRotationChoice.GetSelectedId(), worldId);
         await RunOwnerActionAsync(async () =>
         {
             var updated = await AwaitCurrentWorldResultAsync(ownerApi.ConfigureAutosaveAsync(ResolveWorldUri(), authority,

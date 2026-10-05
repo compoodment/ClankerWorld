@@ -63,7 +63,9 @@ channel approves a pending pairing only, never supplies the device key.
 An approved device can reconnect even when a particular action needs a newer
 host. Authenticated challenge responses advertise supported action payloads;
 New World preview and creation require `clankerworld.owner-world-creation.v3`.
-The client checks each fresh challenge before signing or posting either action.
+Autosave configuration requires `clankerworld.owner-autosave-configuration.v2`,
+which signs the world whose settings the player opened. The client checks each
+fresh challenge before signing or posting these actions.
 An absent or different format produces an update message while keeping the
 existing pairing. Older hosts without this advertisement need an update too.
 Other signed actions, including reconnect, keep their existing contracts.

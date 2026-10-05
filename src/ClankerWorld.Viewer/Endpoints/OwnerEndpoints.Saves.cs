@@ -61,31 +61,45 @@ internal static partial class OwnerEndpoints
             WorldAutosaveStore autosave,
             ManualWorldSaveStore saves,
             PrivateWorldRuntime runtime,
+            ProviderConfigurationStore providers,
             ILogger<PrivateWorldRuntimeService> logger) =>
         {
             if (request?.Action is not { } action)
                 return Results.BadRequest(new { error = "Autosave settings are required." });
-            var authorization = authorizer.Authorize(request, "POST", "/api/v1/owner/saves/autosave/configure",
-                OwnerHttpBinding.AutosaveConfigurationPayload(action));
-            if (!authorization.IsSuccess) return OwnerFailures.ToHttpResult(authorization.Failure);
-            if (!isPrivateWorld) return Results.Conflict(new { error = "Autosave settings require a private world." });
-            if (!runtime.Society.IsPaused)
-            {
-                ManualWorldSaveTelemetry.Rejected(logger, "autosave_configure", "not_paused");
-                return Results.Conflict(new { error = "Pause the world before changing autosave settings." });
-            }
-            try
-            {
-                var updated = autosave.Configure(action.Enabled, action.IntervalMinutes, action.RotationCount);
-                saves.KeepNewestAutosaves(Math.Max(1, updated.RotationCount), worldId: updated.WorldId);
-                ManualWorldSaveTelemetry.AutosaveConfigured(logger, updated.Enabled,
-                    updated.IntervalMinutes, updated.RotationCount, runtime.WorldTick);
-                return Results.Ok(updated);
-            }
+            string payload;
+            try { payload = OwnerHttpBinding.AutosaveConfigurationPayload(action); }
             catch (ArgumentException)
             {
-                ManualWorldSaveTelemetry.Rejected(logger, "autosave_configure", "invalid_option");
-                return Results.BadRequest(new { error = "Choose an offered interval and rotation count." });
+                return Results.BadRequest(new { error = "Read this world's autosave settings before changing them." });
+            }
+            var authorization = authorizer.Authorize(request, "POST", "/api/v1/owner/saves/autosave/configure", payload);
+            if (!authorization.IsSuccess) return OwnerFailures.ToHttpResult(authorization.Failure);
+            if (!isPrivateWorld) return Results.Conflict(new { error = "Autosave settings require a private world." });
+            lock (providers.WorldMutationGate)
+            {
+                if (action.WorldId != runtime.Society.WorldId || action.WorldId != autosave.Capture().WorldId)
+                {
+                    ManualWorldSaveTelemetry.Rejected(logger, "autosave_configure", "world_changed");
+                    return Results.Conflict(new { error = "The world changed. Reopen World Settings before changing autosaves." });
+                }
+                if (!runtime.Society.IsPaused)
+                {
+                    ManualWorldSaveTelemetry.Rejected(logger, "autosave_configure", "not_paused");
+                    return Results.Conflict(new { error = "Pause the world before changing autosave settings." });
+                }
+                try
+                {
+                    var updated = autosave.Configure(action.Enabled, action.IntervalMinutes, action.RotationCount);
+                    saves.KeepNewestAutosaves(Math.Max(1, updated.RotationCount), worldId: updated.WorldId);
+                    ManualWorldSaveTelemetry.AutosaveConfigured(logger, updated.Enabled,
+                        updated.IntervalMinutes, updated.RotationCount, runtime.WorldTick);
+                    return Results.Ok(updated);
+                }
+                catch (ArgumentException)
+                {
+                    ManualWorldSaveTelemetry.Rejected(logger, "autosave_configure", "invalid_option");
+                    return Results.BadRequest(new { error = "Choose an offered interval and rotation count." });
+                }
             }
         });
 

@@ -1163,6 +1163,10 @@ these copies have no settled retention policy. Rotating autosaves are a separate
 mechanism and must not delete another world's checkpoints, or another branch's.
 Updating autosave configuration trims only that configured world, including
 rotation off, and counts each branch's autosaves separately.
+The signed action names the world whose settings were opened. Its identity
+check, configuration write and rotation share the world-mutation gate with
+selection and loading. A request delayed across a world switch is refused
+without changing either world's settings or checkpoint copies.
 
 Load and overwrite validate required manual-save metadata before creating a
 recovery backup or changing the active world. Malformed JSON, missing save

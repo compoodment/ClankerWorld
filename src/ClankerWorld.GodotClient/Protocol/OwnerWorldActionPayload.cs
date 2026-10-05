@@ -67,9 +67,12 @@ public static class OwnerWorldActionPayload
         $"expected-map-layers-digest={EncodeOptional(action.ExpectedMapLayersDigest)}",
         $"accept-unmet-targets={action.AcceptUnmetTargets.ToString().ToLowerInvariant()}");
 
+    public const string AutosaveConfigurationPayloadDomain = "clankerworld.owner-autosave-configuration.v2";
+
     public static string AutosaveConfiguration(OwnerAutosaveConfigurationAction action) => string.Join(
         '\n',
-        "clankerworld.owner-autosave-configuration.v1",
+        AutosaveConfigurationPayloadDomain,
+        $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}",
         $"enabled={action.Enabled.ToString().ToLowerInvariant()}",
         $"interval-minutes={action.IntervalMinutes.ToString(CultureInfo.InvariantCulture)}",
         $"rotation-count={action.RotationCount.ToString(CultureInfo.InvariantCulture)}");
