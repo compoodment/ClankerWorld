@@ -87,11 +87,14 @@ the prepared world before advancing it.
 
 ## Recorded comparison
 
-The [raw dataset](measurements/944-town-ticks.json) preserves all timing samples,
-actual world counts and admitted actions. The comparison uses ticks 257–320
-on Debian 13, .NET 10.0.12 and an AMD EPYC 9V74 shared host with a four-core
-CPU quota and `DOTNET_PROCESSOR_COUNT=4`. Runs are sequential. Values below
-are median tick milliseconds; the columns are requested residents/Roads.
+The [raw dataset](measurements/944-town-ticks.json) preserves every ordinary
+timing sample, actual world counts and admitted actions. The comparison uses
+ticks 257–320 on Debian 13, SDK 10.0.401, .NET 10.0.12 and an AMD EPYC 9V74
+shared host with a four-core CPU quota and `DOTNET_PROCESSOR_COUNT=4`. Runs
+are sequential. Founder-start clock settings match across all seven runtimes
+(360 ticks per world day, calendar offset 90); source digests are in the dataset.
+Values below are median tick milliseconds; the columns are
+requested residents/Roads. Medians and p95 use nearest-rank order statistics.
 
 | Version | 4/96 | 4/384 | 16/96 | 16/384 |
 | --- | ---: | ---: | ---: | ---: |
@@ -100,22 +103,58 @@ are median tick milliseconds; the columns are requested residents/Roads.
 | Before lanterns (`e00bb4b3`) | 96.0 | 131.9 | 432.5 | 724.5 |
 | After lanterns (`477c50f7`) | 180.2 | 266.4 | 681.4 | 1,310.2 |
 | Before scan fix (`96108882`) | 175.7 | 255.8 | 738.2 | 1,363.4 |
+| After scan fix (`1a000c30`) | 81.4 | 112.7 | 412.1 | 651.7 |
+| Current runtime (`bfef85e8`) | 83.4 | 130.3 | 408.4 | 729.8 |
 
-The after-scan-fix and current-main sweeps, representative
-repeats and final assessment are still in progress. Actual Road counts in
-these completed sweeps range from 96–100 and 385–392. World counts and map
-digests describe the final native state after tick 320. Versions can admit
-different actions and alter the map, even with the same starting seed and
-sampling interval. Read those differences with the timing values.
+The current-runtime row measures the simulation sources from main `bfef85e8`
+on measurement branch head `8413a130`; the complete checkout SHA is
+recorded in JSON. This branch changes development tooling and evidence only.
+Each historical checkout uses its native content and save schema.
+
+Actual Road counts range from 96–100 and 385–392. World counts and map
+digests describe the final native state after tick 320. More Roads also mean
+more buildings here. Versions can admit different actions and alter the map,
+even with the same starting seed and sampling interval. Read those differences
+with the timing values; these sweeps do not isolate a pure feature cost.
+
+### Fresh-process repeats
+
+Each cell lists the original sweep and two additional fresh-process medians
+in execution order, with 64 ticks per run. The p95 values remain in the raw
+dataset alongside every sample.
+
+| Fixture | Median tick milliseconds |
+| --- | --- |
+| Before scan fix, 4 residents / 384 Roads | 255.8, 246.3, 258.3 |
+| After scan fix, 4 residents / 384 Roads | 112.7, 111.3, 114.8 |
+| Current runtime, 16 residents / 384 Roads | 729.8, 720.1, 751.5 |
+
+### Assessment and remaining work
+
+The scan fix reduces the medians in all four matched fixtures. Its pair has
+matching actual resident, Road and Town-building counts and admitted action
+families. The repeated road-heavy pair preserves that improvement across fresh
+processes on this shared host. The Market and lantern sweeps are useful
+historical comparisons, with differing native content and decision workloads.
+
+Using #944’s rough thresholds, no canonical fixture has a median below 50 ms;
+all sixteen-resident fixtures exceed 200 ms. The largest current median is close
+to the pre-lantern median; the pre-Market version was already expensive at
+sixteen residents. Growing Roads from about 100 to about 390 increases current
+tick time, and quadrupling residents increases it
+further. The large current-runtime fixture remains expensive after the lantern
+scan fix. These are tick measurements; a Windows/F12 and visible-stutter check
+is still pending, so they do not establish a frame-performance threshold.
 
 A separate measured-phase profile on unchanged main (`bfef85e8`), with
 16 residents and 390 Roads, sampled native managed thread time. Candidate
 generation appeared in approximately 96% of the sampled native tick stack
 time. Civic project proposals, private building choices, layout/route
-construction and project-input/warehouse enumeration account for substantial
-inclusive samples. These methods overlap; the figures are neither additive
+construction and project-input/warehouse/shared-tool access account for
+substantial inclusive samples. These methods overlap; the figures are neither additive
 nor exact CPU measurements, and may include GC or waiting. The profile had
-41 deterministic admissions and no admission fallbacks.
+41 deterministic admissions and no admission fallbacks. Profiled timing
+samples are excluded from the ordinary comparison tables.
 
 [Bug #998](https://github.com/compoodment/ClankerWorld/issues/998) records this
 remaining construction-choice workload and the reproduction. Existing
