@@ -1230,8 +1230,10 @@ public sealed partial class OwnerWorldObservationStore
                 .Concat(state.Inhabitants.Where(person => person.Parenthood is { } plan &&
                     (person.InhabitantId == inhabitant.Id || plan.PartnerId == inhabitant.Id)).Select(person =>
                     person.Parenthood!.Stage == "preparing" ? ContinuityPlanDue(state, person.InhabitantId, person.Parenthood.PartnerId)
-                        ? "Preparing for parenthood under the continuity rule; food and shelter are still required."
-                        : "Preparing for parenthood; food, shelter and both parents' consent are still required."
+                        ? "Preparing for parenthood under the continuity rule. " +
+                            PrivateWorldRuntime.ParenthoodFoodNote(state.Society.Society, person.Parenthood.PrimaryCaregiverId!)
+                        : "Preparing for parenthood. " +
+                            PrivateWorldRuntime.ParenthoodFoodNote(state.Society.Society, person.Parenthood.PrimaryCaregiverId!)
                     : person.Parenthood.Stage == "requested" ? "Parenthood proposed; waiting for a separate decision."
                     : person.Parenthood.Stage == "postponed" ? "Parenthood put off for now."
                     : person.Parenthood.Stage == "completed" ? "Caring for a child in the household." : "Parenthood plan withdrawn."))
