@@ -1,0 +1,1 @@
+- Towns with many Roads no longer slow the world down: residents choosing civic projects, such as street lanterns, Markets and Town Halls, now check possible sites far faster, with the same choices as before.

@@ -82,6 +82,23 @@ public sealed class TownLayoutContext
         CandidateAnchors = town is null
             ? ReachableFootCosts.Keys.OrderBy(point => point.Y).ThenBy(point => point.X).ToArray()
             : CandidateBounds(map, town);
+        TownBorder = town?.BorderTiles.ToHashSet();
+    }
+
+    // Gathered once per layout rather than for every site a ranking scores.
+    internal IReadOnlySet<GridPoint>? TownBorder { get; }
+
+    private readonly Dictionary<string, GridPoint[]> availableMaterialPositions = new(StringComparer.Ordinal);
+
+    internal GridPoint[] AvailableMaterialPositions(string kind, Func<string, string, bool> matches)
+    {
+        if (!availableMaterialPositions.TryGetValue(kind, out var positions))
+        {
+            positions = Resources.Where(item => item.Available && matches(item.Resource.Kind, kind))
+                .Select(item => item.Resource.Position).ToArray();
+            availableMaterialPositions[kind] = positions;
+        }
+        return positions;
     }
 
     public SeededMap Map { get; }
@@ -223,8 +240,8 @@ public static class TownLayoutService
             : 0;
         if (neighborDistance > TownLayoutContext.NeighborReach)
             return false;
-        if (context.Town is { } town &&
-            !TownBorderRules.IsWithinOrAdjacent(town, position, definition.Width, definition.Height))
+        if (context.TownBorder is { } border &&
+            !TownBorderRules.IsWithinOrAdjacent(border, position, definition.Width, definition.Height))
             return false;
         if (!context.ReachableFootCosts.TryGetValue(position, out var routeCost))
             return false;
@@ -293,8 +310,8 @@ public static class TownLayoutService
         foreach (var kind in definition.BuildCosts.Select(item => item.ResourceId).Distinct(StringComparer.Ordinal)
                      .Order(StringComparer.Ordinal))
         {
-            var nearest = context.Resources.Where(item => item.Available && ResourceMatches(item.Resource.Kind, kind))
-                .Select(item => context.Map.FootDistance(position, item.Resource.Position))
+            var nearest = context.AvailableMaterialPositions(kind, ResourceMatches)
+                .Select(source => context.Map.FootDistance(position, source))
                 .DefaultIfEmpty(int.MaxValue)
                 .Min();
             if (nearest > 5)
@@ -339,14 +356,14 @@ public static class TownLayoutService
             .Where(step => step.X == 0 || step.Y == 0)
             .Any(step => context.RoadTiles.Contains(new GridPoint(tile.X + step.X, tile.Y + step.Y))));
 
+    // The tiles the border would gain: those around the footprint it doesn't already hold, which is what
+    // TownBorderRules.ExpandForBuilding adds, without copying and sorting the whole border for every site.
     private static int ExpansionFor(TownLayoutContext context, BuildingDefinition definition, GridPoint position)
     {
-        if (context.Town is not { } town)
+        if (context.TownBorder is not { } border)
             return 0;
 
-        var current = town.BorderTiles.ToHashSet();
-        return TownBorderRules.ExpandForBuilding(context.Map, town, position, definition.Width, definition.Height)
-            .Count(point => !current.Contains(point));
+        return TownBorderRules.Around(context.Map, Footprint(definition, position)).Count(point => !border.Contains(point));
     }
 
     private static IEnumerable<GridPoint> Footprint(BuildingDefinition definition, GridPoint origin)

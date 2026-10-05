@@ -170,6 +170,10 @@ change needs, and what will stay unchecked.
 - List the tests a filter selects before you trust it, especially for classes
   split across files. Check that the tests and theory cases you meant actually
   ran: zero tests, or the wrong ones, is not a check.
+- Read the **test-times** summary CI posts. A pull request that makes tests
+  much slower than on main needs a fix or a stated reason before it merges:
+  slower tests usually mean slower ticks for players, and every later merge
+  waits longer for CI.
 - Use the [test-audit skill](../test-audit/SKILL.md) when judging, adding or
   removing tests. A repaired test must still exercise the real change and keep
   the contract's assertions. Prefer a small world close to the moment being

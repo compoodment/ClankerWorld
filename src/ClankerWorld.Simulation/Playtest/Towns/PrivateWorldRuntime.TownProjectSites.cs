@@ -33,18 +33,40 @@ public sealed partial class PrivateWorldRuntime
             .Where(p => !claimed.Contains(p)).ToHashSet();
     }
 
+    // The world's tiles a Town project site check reads. Gathering them walks every resource, building,
+    // field, title and proposal, so a caller checking many sites in one go gathers them once. Each set is
+    // gathered when a check first needs it, so a site refused early never gathers the rest.
+    private sealed record TownProjectSiteWorld(string TownId, string? ProjectId, bool IgnorePendingRequests,
+        Lazy<HashSet<GridPoint>> Legal, Lazy<HashSet<GridPoint>> Pending, Lazy<HashSet<GridPoint>> Occupied,
+        Lazy<HashSet<GridPoint>> BridgeEnds);
+
+    private TownProjectSiteWorld CreateTownProjectSiteWorld(TownRuntimeState town, string? projectId = null,
+        bool ignorePendingRequests = false) => new(town.Id, projectId, ignorePendingRequests,
+        new(() => TownProjectLandTiles(town, ignorePendingRequests), LazyThreadSafetyMode.None),
+        new(PendingTownProjectSiteTiles, LazyThreadSafetyMode.None),
+        new(() => map.Resources.Select(resource => resource.Position).Concat(map.CampObjects.Select(item => item.Position))
+            .Concat(fields.Select(field => field.Position))
+            .Concat(worldSimulation.Buildings.SelectMany(building => WorldContentSimulationRules.Footprint(
+                worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId), building)))
+            .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused)
+                .SelectMany(ExpansionTiles)).Concat(TownProjectProtectedSites(projectId)).ToHashSet(), LazyThreadSafetyMode.None),
+        new(() => bridges.SelectMany(bridge => bridge.Entrances).ToHashSet(), LazyThreadSafetyMode.None));
+
     private string? TownProjectSiteFailure(TownRuntimeState town, TownProjectPayload plan,
-        string? projectId = null, string? actor = null, bool ignorePendingRequests = false)
+        string? projectId = null, string? actor = null, bool ignorePendingRequests = false, TownProjectSiteWorld? world = null)
     {
         var definition = TownProjectRules.DefinitionFor(plan.DefinitionId);
         var lantern = StreetLanternContent.IsLantern(plan.DefinitionId);
         if (definition is null || !worldContent.Buildings.Any(d => d.CanonicalId == plan.DefinitionId))
             return "The Town building content is no longer available.";
+        if (world is not null && (world.TownId != town.Id || world.ProjectId != projectId || world.IgnorePendingRequests != ignorePendingRequests))
+            throw new InvalidOperationException("A Town project site check was given tiles gathered for another check.");
+        world ??= CreateTownProjectSiteWorld(town, projectId, ignorePendingRequests);
         var footprint = TownProjectRules.Footprint(plan).ToArray();
-        var legal = TownProjectLandTiles(town, ignorePendingRequests);
+        var legal = world.Legal.Value;
         if (footprint.Any(p => !legal.Contains(p)))
             return "The full project site needs uncontested Town title without a household right or pending land request.";
-        if (projectId is null && footprint.Append(plan.Entrance).Any(PendingTownProjectSiteTiles().Contains))
+        if (projectId is null && footprint.Append(plan.Entrance).Any(world.Pending.Value.Contains))
             return "Another proposed Town project already uses part of this site.";
         if (definition.Tags.Contains(MarketContent.StallTag, StringComparer.Ordinal) && MarketForStallPlan(town, plan) is null)
             return "An additional stall needs an unused slot in this Town's paid, usable Market.";
@@ -55,26 +77,17 @@ public sealed partial class PrivateWorldRuntime
             !roadTiles.Contains(plan.Entrance) || !legal.Contains(plan.Entrance)))
             return "The lantern must stand beside an actual Road on uncontested Town-titled land.";
         if (!CanPlaceBuilding(definition, plan.Site, out var failure, projectId)) return failure;
-        var occupied = map.Resources.Select(resource => resource.Position).Concat(map.CampObjects.Select(item => item.Position))
-            .Concat(fields.Select(field => field.Position))
-            .Concat(worldSimulation.Buildings.SelectMany(building => WorldContentSimulationRules.Footprint(
-                worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId), building)))
-            .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused)
-                .SelectMany(ExpansionTiles)).Concat(TownProjectProtectedSites(projectId)).ToHashSet();
+        var occupied = world.Occupied.Value;
         if (footprint.Any(point => !map.IsBuildable(point) || occupied.Contains(point)))
             return "The approved building and its plaza need clear buildable ground.";
-        if (bridges.SelectMany(bridge => bridge.Entrances).Any(footprint.Contains))
+        if (footprint.Any(world.BridgeEnds.Value.Contains))
             return "The approved building and its plaza cannot cover a bridge end.";
         if (definition.Tags.Contains(MarketContent.HallTag, StringComparer.Ordinal) &&
             Enumerable.Range(0, MarketContent.MaximumStalls).Any(slot => RoadTiles.Contains(MarketContent.StallSite(plan.Site, slot))))
             return "The Market's stall layout crosses an existing Road.";
-        if (!map.IsBuildable(plan.Entrance) ||
-            map.Resources.Any(r => r.Position == plan.Entrance) || map.CampObjects.Any(c => c.Position == plan.Entrance) ||
-            fields.Any(f => f.Position == plan.Entrance) ||
-            worldSimulation.Buildings.Any(b => WorldContentSimulationRules.Footprint(
-                worldContent.Buildings.Single(d => d.CanonicalId == b.DefinitionId), b).Contains(plan.Entrance)) ||
-            (worldSimulation.BuildingExpansions ?? []).Any(j => j.State is WorldProductionJobState.Running or WorldProductionJobState.Paused &&
-                ExpansionTiles(j).Contains(plan.Entrance)) || TownProjectProtectedSites(projectId).Contains(plan.Entrance))
+        // The occupied tiles are exactly the resources, camp objects, fields, buildings, running or paused
+        // expansions and protected project sites that can block a doorway.
+        if (!map.IsBuildable(plan.Entrance) || occupied.Contains(plan.Entrance))
             return "The approved building's doorway is blocked.";
         if (actor is not null && inhabitants.TryGetValue(actor, out var person) &&
             person.Position != plan.Site && FindUnoccupiedRoute(actor, person.Position, plan.Site, 0).Count == 0)
@@ -95,22 +108,27 @@ public sealed partial class PrivateWorldRuntime
 
     private void AddTownProjectProposalCandidates(List<CognitionCandidate> candidates, string actor, TownRuntimeState town)
     {
+        // Every Town project building is communal, so all of them read the same occupied tiles and foot
+        // routes, and all of their site checks read the same world tiles: gather each once, when first needed.
+        // A basis built for another kind of building is refused by CreateTownLayoutContext.
+        var basis = new Lazy<TownLayoutBasis>(() => CreateTownLayoutBasis(actor, building: TownHallContent.Hall3x4()),
+            LazyThreadSafetyMode.None);
+        var siteWorld = CreateTownProjectSiteWorld(town);
         foreach (var definition in TownProjectRules.Definitions.Where(item => !item.Tags.Contains(MarketContent.StallTag, StringComparer.Ordinal) && !StreetLanternContent.IsLantern(item.CanonicalId)))
         {
             if (!worldContent.Buildings.Any(item => item.CanonicalId == definition.CanonicalId)) continue;
-            var layout = CreateTownLayoutContext(actor, building: definition, forTownProject: true);
+            var layout = CreateTownLayoutContext(actor, building: definition, forTownProject: true, basis: basis.Value);
             var offered = 0;
             foreach (var site in TownLayoutService.RankConstructionSites(layout, definition, TownLayoutService.MaximumCandidateLimit))
             {
                 var plan = PlanFor(town, definition, site.Position, definition.DisplayName);
                 // The site check also refuses a site that overlaps another proposal whose vote is still open.
-                if (plan is null || TownProjectSiteFailure(town, plan, actor: actor) is not null) continue;
+                if (plan is null || TownProjectSiteFailure(town, plan, actor: actor, world: siteWorld) is not null) continue;
                 AddTownProjectProposalCandidate(candidates, town, definition, site.Position);
                 if (++offered == TownLayoutService.DefaultCandidateLimit) break;
             }
         }
-        AddStreetLanternProposalCandidates(candidates, actor, town, StreetLanternContent.Stone());
-        AddStreetLanternProposalCandidates(candidates, actor, town, StreetLanternContent.Hanging());
+        AddStreetLanternProposalCandidates(candidates, actor, town, basis, siteWorld);
         var stallDefinition = MarketContent.Stall1x1();
         if (!worldContent.Buildings.Any(item => item.CanonicalId == stallDefinition.CanonicalId)) return;
         foreach (var market in town.Markets.Where(item => item.RemovedTick is null && MarketNeedsMoreStalls(town, item)))
@@ -119,7 +137,7 @@ public sealed partial class PrivateWorldRuntime
                 if (market.Stalls.Any(stall => stall.SlotIndex == slot)) continue;
                 var site = MarketContent.StallSite(market.Site, slot);
                 var plan = PlanFor(town, stallDefinition, site, "Market stall");
-                if (plan is null || TownProjectSiteFailure(town, plan, actor: actor) is not null) continue;
+                if (plan is null || TownProjectSiteFailure(town, plan, actor: actor, world: siteWorld) is not null) continue;
                 // One more stall at a time: the next waits until this one is built and borrowed too.
                 AddTownProjectProposalCandidate(candidates, town, stallDefinition, site);
                 break;
@@ -149,29 +167,43 @@ public sealed partial class PrivateWorldRuntime
             $"Propose a named {definition.DisplayName} at ({coordinates}) in {town.Name}, with a provisional budget of {budget}; put its name in civic_proposal. Council approval creates no goods or private-stock access.", 191));
     }
 
-    private void AddStreetLanternProposalCandidates(List<CognitionCandidate> candidates, string actor,
-        TownRuntimeState town, BuildingDefinition definition)
+    // Both lantern designs stand on one tile beside a Road and share the caller's layout basis. Every Road
+    // edge is scored, but the full site check runs only in rank order until four edges pass: the same
+    // four that checking every edge would give.
+    private void AddStreetLanternProposalCandidates(List<CognitionCandidate> candidates, string actor, TownRuntimeState town,
+        Lazy<TownLayoutBasis> basis, TownProjectSiteWorld siteWorld)
     {
-        if (!worldContent.Buildings.Any(item => item.CanonicalId == definition.CanonicalId)) return;
-        var ordinary = CreateTownLayoutContext(actor, building: definition);
-        var legal = TownProjectLandTiles(town);
+        var designs = new[] { StreetLanternContent.Stone(), StreetLanternContent.Hanging() }
+            .Where(definition => worldContent.Buildings.Any(item => item.CanonicalId == definition.CanonicalId)).ToArray();
+        if (designs.Length == 0) return;
+        var ordinary = CreateTownLayoutContext(actor, building: designs[0], basis: basis.Value);
+        var legal = siteWorld.Legal.Value;
         var layout = new TownLayoutContext(map, town, ordinary.OccupiedTiles, ordinary.ReachableFootCosts,
             ordinary.Resources, ordinary.Buildings, roadTiles: roadTiles, requiredLandTiles: legal);
-        var edges = new List<(TownConstructionSiteCandidate Site, GridPoint Road)>();
-        foreach (var road in roadTiles.Where(legal.Contains).OrderBy(point => point.Y).ThenBy(point => point.X))
-            foreach (var post in map.FootNeighbors(road).Where(point => StreetLanternContent.IsRoadEdge(point, road)))
-                if (TownLayoutService.TryEvaluateConstructionSite(layout, definition, post, out var site) && site is not null &&
-                    TownProjectSiteFailure(town, new(definition.DisplayName, definition.CanonicalId, post, road, definition.BuildCosts)) is null)
-                    edges.Add((site, road));
-        foreach (var edge in edges.OrderByDescending(edge => edge.Site.Score)
-                     .ThenBy(edge => edge.Site.TownBorderGrowthTiles).ThenBy(edge => edge.Site.RouteCost)
-                     .ThenBy(edge => edge.Site.Position.Y).ThenBy(edge => edge.Site.Position.X)
-                     .ThenBy(edge => edge.Road.Y).ThenBy(edge => edge.Road.X).Take(4))
+        var roadEdges = roadTiles.Where(legal.Contains).OrderBy(point => point.Y).ThenBy(point => point.X)
+            .SelectMany(road => map.FootNeighbors(road).Where(point => StreetLanternContent.IsRoadEdge(point, road))
+                .Select(post => (Post: post, Road: road)))
+            .ToArray();
+        foreach (var definition in designs)
         {
-            var coordinates = FormattableString.Invariant($"{edge.Site.Position.X},{edge.Site.Position.Y},{edge.Road.X},{edge.Road.Y}");
-            var budget = definition.CanonicalId == StreetLanternContent.Stone().CanonicalId ? "4 stone" : "4 wood and 1 refined iron";
-            candidates.Add(new(CivicAction(town.Id, "project", definition.LocalId, coordinates),
-                FormattableString.Invariant($"Propose a named {definition.DisplayName} at ({edge.Site.Position.X},{edge.Site.Position.Y}) beside Road ({edge.Road.X},{edge.Road.Y}) in {town.Name}, with a provisional budget of {budget}; put its name in civic_proposal. Council approval creates no goods or private-stock access."), 190));
+            var edges = new List<(TownConstructionSiteCandidate Site, GridPoint Road)>();
+            foreach (var (post, road) in roadEdges)
+                if (TownLayoutService.TryEvaluateConstructionSite(layout, definition, post, out var site) && site is not null)
+                    edges.Add((site, road));
+            var offered = 0;
+            foreach (var edge in edges.OrderByDescending(edge => edge.Site.Score)
+                         .ThenBy(edge => edge.Site.TownBorderGrowthTiles).ThenBy(edge => edge.Site.RouteCost)
+                         .ThenBy(edge => edge.Site.Position.Y).ThenBy(edge => edge.Site.Position.X)
+                         .ThenBy(edge => edge.Road.Y).ThenBy(edge => edge.Road.X))
+            {
+                if (TownProjectSiteFailure(town, new(definition.DisplayName, definition.CanonicalId, edge.Site.Position, edge.Road,
+                        definition.BuildCosts), world: siteWorld) is not null) continue;
+                var coordinates = FormattableString.Invariant($"{edge.Site.Position.X},{edge.Site.Position.Y},{edge.Road.X},{edge.Road.Y}");
+                var budget = definition.CanonicalId == StreetLanternContent.Stone().CanonicalId ? "4 stone" : "4 wood and 1 refined iron";
+                candidates.Add(new(CivicAction(town.Id, "project", definition.LocalId, coordinates),
+                    FormattableString.Invariant($"Propose a named {definition.DisplayName} at ({edge.Site.Position.X},{edge.Site.Position.Y}) beside Road ({edge.Road.X},{edge.Road.Y}) in {town.Name}, with a provisional budget of {budget}; put its name in civic_proposal. Council approval creates no goods or private-stock access."), 190));
+                if (++offered == 4) break;
+            }
         }
     }
 
