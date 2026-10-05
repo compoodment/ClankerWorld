@@ -13,7 +13,7 @@ public sealed class PrivateWorldDeliveryOrderParserTests
     [
         StarterContent.Create(), SettlementContent.Create(), HouseContent.Create(), FarmContent.Create(),
         BlacksmithContent.Create(), TailorContent.Create(), PotteryContent.Create(), OrnamentContent.Create(),
-        CareContent.Create(), HouseCookingContent.Create(),
+        CareContent.Create(), HouseCookingContent.Create(), RestaurantContent.Create(),
     ];
 
     [Theory]
@@ -25,7 +25,15 @@ public sealed class PrivateWorldDeliveryOrderParserTests
     [InlineData("supply two fresh water to my Clinic", "workstation_input", "fresh_water", "clinic")]
     [InlineData("supply two cloth to my Tailor Shop", "workstation_input", "cloth", "tailor")]
     [InlineData("supply two clay to my House", "workstation_input", "clay", "house")]
+    [InlineData("supply two potatoes to my House", "workstation_input", "potatoes", "house")]
+    [InlineData("supply two grain to my House", "workstation_input", "grain", "house")]
+    [InlineData("supply two flour to my Restaurant", "workstation_input", "flour", "restaurant")]
+    [InlineData("supply two fresh water to my Restaurant", "workstation_input", "fresh_water", "restaurant")]
+    [InlineData("supply two bread to my Restaurant", "workstation_input", "bread", "restaurant")]
     [InlineData("deliver two berries to my House", "household_food", "berries", "house")]
+    [InlineData("deliver two porridge to my House", "household_food", "porridge", "house")]
+    [InlineData("deliver two berry porridge to my House", "household_food", "berry_porridge", "house")]
+    [InlineData("stock two restaurant meals in my Store", "store_stock", "restaurant_meal", "store")]
     [InlineData("donate two tree seeds to my Town Warehouse", "town_surplus", "tree_seed", "warehouse")]
     [InlineData("stock two iron knives in my Store", "store_stock", "iron_knife", "store")]
     [InlineData("stock two diamond ornaments in my Store", "store_stock", "diamond_ornament", "store")]
@@ -80,7 +88,7 @@ public sealed class PrivateWorldDeliveryOrderParserTests
     [InlineData("stock iron in my Store")]
     [InlineData("stock water jugs in my Store")]
     [InlineData("stock tools in my Store")]
-    [InlineData("deliver porridge to my House")]
+    [InlineData("deliver porridge to my Restaurant")]
     [InlineData("haul 0 grain to my Farmhouse")]
     [InlineData("donate -1 wood to my Town Warehouse")]
     [InlineData("stock 1001 cloth in my Store")]

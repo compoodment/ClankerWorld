@@ -265,7 +265,9 @@ Older alpha saves are refused and preserved unchanged without migration.
 
 Private-world schema 80 adds `collect_food` orders using the existing
 `TargetFoodKind` and optional `TargetPosition` fields. Food targets are generic
-or one of berries, fruit, wild greens and cultivated greens. They use
+or one of berries, fruit, wild greens, cultivated greens and the seven named
+prepared foods. The named-food catalogue extends the same fields and receipts;
+raw grain and potatoes remain invalid food targets. They use
 `food_items` for exact quantities or `collection_loads` for default pickups,
 with the same bounded `collect:personal:` receipts as material collection.
 Validation refuses mixed material, equipment, crop or resource targets, wrong
