@@ -1,3 +1,10 @@
+---
+title: Measuring Town tick time
+type: development-reference
+status: active
+updated: 2026-10-05
+---
+
 # Measuring Town tick time
 
 Use `scripts/measure-town-ticks.sh` to compare native private-world ticks on
