@@ -49,7 +49,7 @@ public sealed record OwnerWorldCreationAction(string Name, string Seed, string S
     string MountainRelief = "Normal", string RiverAbundance = "Normal",
     int? CandidateAttempt = null, string? ExpectedManifestDigest = null,
     string? ExpectedMapLayersDigest = null, bool AcceptUnmetTargets = false);
-public sealed record OwnerAutosaveConfigurationAction(bool Enabled, int IntervalMinutes, int RotationCount);
+public sealed record OwnerAutosaveConfigurationAction(bool Enabled, int IntervalMinutes, int RotationCount, string WorldId);
 public sealed record OwnerDeveloperEditAction(string WorldId, long ExpectedEventId, string AgentId,
     string Operation, string Value, int Amount = 0, string? OtherAgentId = null);
 
@@ -283,9 +283,12 @@ public static class OwnerHttpBinding
         $"expected-map-layers-digest={EncodeOptional(action.ExpectedMapLayersDigest)}",
         $"accept-unmet-targets={action.AcceptUnmetTargets.ToString().ToLowerInvariant()}");
 
+    public const string AutosaveConfigurationPayloadDomain = "clankerworld.owner-autosave-configuration.v2";
+
     public static string AutosaveConfigurationPayload(OwnerAutosaveConfigurationAction action) => string.Join(
         '\n',
-        "clankerworld.owner-autosave-configuration.v1",
+        AutosaveConfigurationPayloadDomain,
+        $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}",
         $"enabled={action.Enabled.ToString().ToLowerInvariant()}",
         $"interval-minutes={action.IntervalMinutes.ToString(CultureInfo.InvariantCulture)}",
         $"rotation-count={action.RotationCount.ToString(CultureInfo.InvariantCulture)}");

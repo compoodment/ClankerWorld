@@ -19,7 +19,10 @@ public partial class Main
         var previousGameSettingsVisible = gameSettingsContent.Visible;
         System.Environment.SetEnvironmentVariable("CI", "true");
         using var signer = OwnerDeviceKey.CreateEphemeralForContinuousIntegration();
-        using var host = new WorldActionSmokeHost(signer.PublicKeySpkiBase64);
+        using var host = new WorldActionSmokeHost(signer.PublicKeySpkiBase64)
+        {
+            SupportedActionPayloads = [OwnerWorldActionPayload.AutosaveConfigurationPayloadDomain],
+        };
         try
         {
             registration = new(host.Authority, "smoke-device", signer.PublicKeyFingerprint, host.Address);
@@ -77,7 +80,7 @@ public partial class Main
                 var count = host.AutosaveConfigurations.Count;
                 await ApplyAutosaveSettingsAsync();
                 if (host.AutosaveConfigurations.Count != count + 1 ||
-                    host.AutosaveConfigurations[^1] != new OwnerAutosaveConfigurationAction(true, 10, 5))
+                    host.AutosaveConfigurations[^1] != new OwnerAutosaveConfigurationAction(true, 10, 5, settingsB.WorldId))
                     throw new InvalidOperationException("Signed Apply must send the displayed settings for the current world.");
             }
             var delayedOpening = new TaskCompletionSource<WorldAutosaveSettings>();

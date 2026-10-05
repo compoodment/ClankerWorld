@@ -338,7 +338,10 @@ for one real ignition. Their saved binding pins a natural-cover position or
 the exact building, owner, anchor and placement generation. Own and invited
 homes are known targets; other buildings must be locally observable. An
 explicit distant coordinate is approached before its shelter facts are
-inspected. Natural cover uses the existing bounded local search.
+inspected. Firsthand map facts record only passable tiles. Inspecting an
+impassable shelter or fire target can record the legal approach tile, but
+leaves the unusable order blocked without adding an invalid target fact or
+interrupting saving. Natural cover uses the existing bounded local search.
 
 Arrival requires live native coverage and permission at the actor's actual
 position; it does not certify warmth recovery. Ignition uses native fuel

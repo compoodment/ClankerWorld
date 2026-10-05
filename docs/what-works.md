@@ -463,6 +463,8 @@ invitations remain authoritative. An agent keeps its selected building or
 natural cover; lost permission or a changed target leaves a visible blocker.
 Own and invited homes are known destinations. Other shelters must be locally
 observable; a supplied distant coordinate is visited and checked on arrival.
+Water and other impassable sites leave the order blocked while the world
+continues running and saving.
 
 Adults can follow "light a fire", "tend the fire" or "light the fire in my
 House", with optional coordinates. These use normal fuel collection,
