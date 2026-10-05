@@ -17,12 +17,13 @@ public sealed partial class PrivateWorldRuntime
     private PortGeometry PortGeometryFor(PlacedBuilding port) => PortNavigationRules.Geometry(map,
         worldContent.Buildings.Single(definition => definition.CanonicalId == port.DefinitionId), port.Position);
 
-    private HashSet<GridPoint> PortObstacles(string? exceptProjectId = null, string? exceptPortId = null) =>
+    private HashSet<GridPoint> PortObstacles(string? exceptProjectId = null, string? exceptPortId = null, bool protectDocks = false) =>
         map.Resources.Select(resource => resource.Position).Concat(map.CampObjects.Select(item => item.Position))
             .Concat(fields.Select(field => field.Position)).Concat(RoadAndBridgeTiles())
             .Concat(worldSimulation.Buildings.Where(building => building.InstanceId != exceptPortId)
-                .SelectMany(building => WorldContentSimulationRules.Footprint(
-                    worldContent.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId), building)))
+                .SelectMany(building => protectDocks
+                    ? PortNavigationRules.ProtectedBuildingTiles(map, worldContent.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId), building)
+                    : WorldContentSimulationRules.Footprint(worldContent.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId), building)))
             .Concat((worldSimulation.BuildingExpansions ?? [])
                 .Where(job => job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused)
                 .SelectMany(ExpansionTiles)).Concat(TownProjectProtectedSites(exceptProjectId)).ToHashSet();
@@ -30,9 +31,9 @@ public sealed partial class PrivateWorldRuntime
     private bool PortIsLegal(PlacedBuilding port) => port.TownId is { } townId &&
         towns.SingleOrDefault(town => town.Id == townId) is { } town && port.Entrance is { } approach &&
         PortGeometryFor(port).LandTiles.Append(approach).All(TownProjectLandTiles(town).Contains) &&
-        (!PortObstacles(exceptPortId: port.InstanceId).Contains(approach) || roadTiles.Contains(approach)) &&
+        (!PortObstacles(exceptPortId: port.InstanceId, protectDocks: true).Contains(approach) || roadTiles.Contains(approach)) &&
         PortNavigationRules.Fits(map, worldContent.Buildings.Single(item => item.CanonicalId == port.DefinitionId),
-            port.Position, PortObstacles(exceptPortId: port.InstanceId), out _, roadTiles);
+            port.Position, PortObstacles(exceptPortId: port.InstanceId, protectDocks: true), out _, roadTiles);
 
     private string? PortProjectSiteFailure(TownRuntimeState town, TownProjectPayload plan,
         BuildingDefinition definition, string? projectId, string? actor, bool ignorePendingRequests)
@@ -54,7 +55,7 @@ public sealed partial class PrivateWorldRuntime
             if (projectId is null && geometry.LandTiles.Concat(geometry.WaterTiles).Concat(geometry.DockingTiles)
                     .Append(plan.Entrance).Any(PendingTownProjectSiteTiles().Contains))
                 return "Another proposed Town project already uses the Port site or docking space.";
-            var occupied = PortObstacles(projectId);
+            var occupied = PortObstacles(projectId, protectDocks: true);
             if (!PortNavigationRules.Fits(map, definition, plan.Site, occupied, out var failure, roadTiles)) return failure;
             if (occupied.Contains(plan.Entrance) && !roadTiles.Contains(plan.Entrance))
                 return "The approved Port's land approach is blocked.";
@@ -90,7 +91,7 @@ public sealed partial class PrivateWorldRuntime
     {
         var ports = worldSimulation.Buildings.Where(building => building.TownId == town.Id && Port(building.InstanceId) is not null).ToArray();
         var legal = TownProjectLandTiles(town);
-        var occupied = PortObstacles();
+        var occupied = PortObstacles(protectDocks: true);
         foreach (var definition in PortContent.Definitions.Where(definition => worldContent.Buildings.Any(d => d.CanonicalId == definition.CanonicalId)))
         {
             var offered = 0;

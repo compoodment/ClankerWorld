@@ -17,6 +17,10 @@ public static class PortNavigationRules
 {
     public static bool IsPort(BuildingDefinition definition) => definition.Tags.Contains("port", StringComparer.Ordinal);
 
+    public static IEnumerable<GridPoint> ProtectedBuildingTiles(SeededMap map, BuildingDefinition definition, PlacedBuilding building) =>
+        WorldContentSimulationRules.Footprint(definition, building)
+            .Concat(IsPort(definition) ? Geometry(map, definition, building.Position).DockingTiles : []);
+
     public static PortFacing Facing(BuildingDefinition definition) => definition.Tags.FirstOrDefault(tag => tag.StartsWith("port-facing-", StringComparison.Ordinal)) switch
     {
         "port-facing-north" => PortFacing.North,

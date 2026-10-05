@@ -179,8 +179,8 @@ public static class TownProjectValidation
             .Concat(titles.Where(item => item.TownId != town.Id).SelectMany(item => item.Tiles)).ToHashSet();
         var occupied = map.Resources.Select(item => item.Position).Concat(map.CampObjects.Select(item => item.Position))
             .Concat(fields.Select(item => item.Position))
-            .Concat(simulation.Buildings.Where(building => building.InstanceId != project.Plan.BoatPortId).SelectMany(building => WorldContentSimulationRules.Footprint(
-                content.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId), building)))
+            .Concat(simulation.Buildings.Where(building => building.InstanceId != project.Plan.BoatPortId).SelectMany(building => PortNavigationRules.ProtectedBuildingTiles(
+                map, content.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId), building)))
             .Concat((simulation.BuildingExpansions ?? []).Where(job => job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused)
                 .SelectMany(job => Enumerable.Range(0, job.TargetFootprint.Height).SelectMany(y =>
                     Enumerable.Range(0, job.TargetFootprint.Width).Select(x => new GridPoint(job.TargetPosition.X + x, job.TargetPosition.Y + y)))))

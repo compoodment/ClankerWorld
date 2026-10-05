@@ -13,7 +13,7 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed class PortBoatRuntimeTests
 {
-    private static readonly Lazy<Task<byte[]>> PaidBoat = new(BuildPaidBoatAsync);
+    private static readonly Lazy<Task<byte[]>> PaidBoat = new(() => BuildPaidBoatAsync());
     private static readonly Lazy<Task<byte[]>> Underway = new(StartVoyageAsync);
     private static readonly string[] ReservedKinds = ["wood", "stone", "rope", "iron"];
     private const string Follower = "founder:00000000000000000000000000000002";
@@ -121,6 +121,46 @@ public sealed class PortBoatRuntimeTests
         foreach (var dock in geometry.DockingTiles)
             Assert.False(PortNavigationRules.Fits(map, definition, site, new HashSet<GridPoint> { dock }, out _));
         Assert.False(PortNavigationRules.Fits(map, definition, site, geometry.ApproachTiles.ToHashSet(), out _));
+    }
+
+    [Fact]
+    public async Task PaidPortCompletionKeepsTheCouncilApprovedApproachWhenAnotherEdgeHasARoad()
+    {
+        var state = PrivateWorldRuntimeCodec.Decode(await BuildPaidBoatAsync(stopBeforeFirstPort: true));
+        var project = Assert.Single(state.Towns![0].Projects);
+        var definition = PortContent.Definitions.Single(item => item.CanonicalId == project.Plan.DefinitionId);
+        var otherApproach = PortNavigationRules.Geometry(state.Map, definition, project.Plan.Site).ApproachTiles
+            .Single(point => point != project.Plan.Entrance);
+        state = state with
+        {
+            RoadTiles = state.RoadTiles!.Where(point => point != project.Plan.Entrance)
+            .Append(otherApproach).Distinct().OrderBy(point => point.Y).ThenBy(point => point.X).ToArray()
+        };
+        using var scenario = new BoatScenario(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)), new() { Build = true });
+        await scenario.UntilAsync(() => scenario.World.Towns[0].Projects.Single().Stage == "completed", 40);
+        var completed = scenario.World.Towns[0].Projects.Single();
+        Assert.Equal(project.Plan.Entrance, scenario.World.WorldSimulation.Buildings.Single(building => building.InstanceId == completed.CompletedBuildingId).Entrance);
+        scenario.World.Validate();
+    }
+
+    [Fact]
+    public void APortFootprintCannotCoverACompletedPortsDockingSpace()
+    {
+        var land = new HashSet<GridPoint> { new(10, 13), new(11, 13), new(10, 14), new(11, 14),
+            new(15, 11), new(15, 12), new(16, 11), new(16, 12) };
+        var map = new SeededMap(32, 32, 0, Enumerable.Range(0, 32).SelectMany(y => Enumerable.Range(0, 32)
+            .Select(x => new TerrainTile(new(x, y), land.Contains(new(x, y)) ? TerrainKind.Meadow : TerrainKind.Water))).ToArray(), [], [], "port-dock-geometry");
+        var existingDefinition = PortContent.Definitions.Single(item => PortNavigationRules.Facing(item) == PortFacing.North);
+        var existing = new PlacedBuilding("completed-port", existingDefinition.CanonicalId, new(10, 10), 0);
+        var proposedDefinition = PortContent.Definitions.Single(item => PortNavigationRules.Facing(item) == PortFacing.West);
+        var proposed = new GridPoint(12, 11);
+        Assert.True(PortNavigationRules.Fits(map, existingDefinition, existing.Position, new HashSet<GridPoint>(), out _));
+        Assert.True(PortNavigationRules.Fits(map, proposedDefinition, proposed,
+            WorldContentSimulationRules.Footprint(existingDefinition, existing).ToHashSet(), out _));
+        var protectedTiles = PortNavigationRules.ProtectedBuildingTiles(map, existingDefinition, existing).ToHashSet();
+        Assert.False(PortNavigationRules.Fits(map, proposedDefinition, proposed, protectedTiles, out _));
+        Assert.All(PortNavigationRules.Geometry(map, existingDefinition, existing.Position).DockingTiles,
+            dock => Assert.Contains(dock, protectedTiles));
     }
 
     [Theory]
@@ -459,7 +499,7 @@ public sealed class PortBoatRuntimeTests
         scenario.World.Resume();
     }
 
-    private static async Task<byte[]> BuildPaidBoatAsync()
+    private static async Task<byte[]> BuildPaidBoatAsync(bool stopBeforeFirstPort = false)
     {
         var policy = new BoatPolicy { Build = true };
         using var created = new PrivateWorldRuntime("probe-a", policy.CreateProvider,
@@ -526,6 +566,11 @@ public sealed class PortBoatRuntimeTests
         };
         using var scenario = new BoatScenario(state, policy);
         await scenario.UntilAsync(() => scenario.World.Towns[0].Projects.Count > 0, 80);
+        if (stopBeforeFirstPort)
+        {
+            await scenario.UntilAsync(() => scenario.World.Towns[0].Projects.Single() is { Stage: "working", WorkDone: > 0 }, 300);
+            return PrivateWorldRuntimeCodec.Encode(scenario.World.ExportState());
+        }
         await scenario.UntilAsync(() => scenario.World.Boats.Count == 1, 600);
         policy.Build = false;
         return PrivateWorldRuntimeCodec.Encode(scenario.World.ExportState());
