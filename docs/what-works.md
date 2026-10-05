@@ -789,6 +789,9 @@ not enough; a Council land claim can add title first.
 
 The implemented path lets adult residents who learned the proposal carry
 Town-owned materials from the Warehouse or recover released Town loads.
+Eligible Warehouse users can share its collection tile, and residents can share
+the work tile of their Town's active project. One resident standing there does
+not stop the others from collecting, returning, supplying, donating or building.
 Gathering more materials gives the gatherer personal goods; donating those
 requires a fresh, explicit choice by their personal model at the approved site.
 Built-in choices and owner orders cannot donate private goods, and household
