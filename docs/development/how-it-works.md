@@ -72,6 +72,13 @@ authority. Admission checks the request ID, provider/run epochs and current
 candidate legality. An epoch is a generation marker that makes replies from
 an earlier configuration or run obsolete. Other agents continue while one waits.
 
+The OpenAI-compatible adapter can complete one omitted empty final field of a
+five-field civic candidate ID when the completed ID exactly matches a uniquely
+offered choice, with no other offered ID sharing that prefix. An already exact
+offered ID keeps its meaning. The adapter does
+not guess a subject, a nonempty choice or multiple missing fields, and the usual
+epoch and candidate-legality checks still admit the completed reply.
+
 Owner instructions are suggestions (**Suggest** on the agent card,
 `Suggestive`) or orders (**Order**, `MustDo`). The next ordinary personal
 planning request for that agent can include the exact original words with an
