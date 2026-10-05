@@ -2,7 +2,7 @@
 title: Planned game content
 type: game-design-content
 status: active
-updated: 2026-10-02
+updated: 2026-10-04
 ---
 
 # Planned game content
@@ -171,7 +171,7 @@ and an inspection-panel identity/icon. There are **no room-interior assets**.
 | 6.9 | Agreed | Workshop: 2×2 | Inventions/mods and work access for outsiders; communal, held by the Town. **Late-development mechanics/code**, after the base simulation and assets are fuller. Not guaranteed at the start. The one shared building a household may plan; the Town holds it once built. |
 | 6.10 | Agreed | Market: 2×2; stalls: 1×1 | Main building plus separate stall assets. The Market building is a hall without stalls; stalls stand on an open plaza of packed earth around it, and the market need not be as large as the earlier approximately 10×12 plot (October 1 art review). Sellers may use any empty stall until they leave, without Town assignment (see [physical trade rules](towns.md#physical-trade-and-production-safeguards)). The Town owns the stalls: a new Market comes with a starter set, and the Town builds more on the plaza when sellers need them, using Town materials (see [Towns](towns.md#agreed-content-and-building-sizes)). Plot reservation and how the plaza grows remain open. Trading admits any Town's agents. |
 | 6.11 | Agreed | Town Hall: 3×4 | Civic governance, laws and elections. |
-| 6.12 | Agreed | Port: 2×4, four rotations | One tile of its four-tile length on land, three over water; keep open docking space on both long sides of the three-tile water section so boats can dock; up to **six boats** moor there, three per side (October 1 art review). Exact clearance/approach rule open. |
+| 6.12 | Agreed | Port: 2×4, four rotations | One tile of its four-tile length on land, three over water; **six adjacent water docking tiles**, one per water row on each long side, stay clear of construction. Up to **six boats** moor there, three per side. A legal land approach is required; see the [October 4 docking and queue decision](world.md#first-boat-and-port-travel). |
 | 6.13 | Agreed | Restaurant: 1×2 or 2×2 | Optional agent-founded food business with on-site ingredients and meals; no required starter Restaurant. |
 | 6.14 | Agreed | Clinic / healer's shop: 1×1 or 1×2 | Household-held care stock; the first Clinic is 1×2. Patients buy supplies or accepted caregivers deliver them; medicine consumes a real dose and supports gradual illness recovery. Bandage treatment is deferred. Quantities and recovery rates are provisional; see [Clinic supplies and illness care](towns.md#clinic-supplies-and-illness-care) and [current availability](../what-works.md#life-work-and-society). |
 | 6.15 | Agreed | Road | **One** road type; straight, corner, junction, end, diagonal and connection pieces as needed for readable automatic routes. Packed dirt with worn, feathered edges and pebbles; rounded bends; a doorstep path to each building's entrance, which may face any side ([road review](towns.md#how-roads-and-bridges-appear)). Roads remain after their building or Town disappears. Roads cost no materials. |
@@ -188,8 +188,9 @@ water:     · P P ·
 water:     · P P · ← 3 rows over water, side docking clearance
 ```
 
-The clear `·` cells are **not** extra footprint tiles. Their exact number and
-approach/occupancy rules are still to be designed.
+The six clear `·` cells are **not** extra footprint tiles. They are protected
+docking water. Requests wait at the legal land approach; boats reserve a free
+destination space before boarding under the [agreed procedure](world.md#first-boat-and-port-travel).
 
 **Do not include as base buildings:** Shelter, Storehouse, separate Cooking
 fire/Campfire, Stone hearth, Weaving frame, bed/bedroll, or the player-facing
@@ -203,7 +204,7 @@ alternatives are not fixed by this roster.
 | --- | --- | --- | --- |
 | 7.1 | Agreed | Agent sprites | **Straight top-down**, showing the tops of heads/bodies/objects; infant, child, adult and elder silhouettes and a few appearance variants per stage without genders. Directional walking, working, carrying, talking, eating/cooking and hurt states as needed. Worn clothing does not alter the sprite; worn-armor display is open. No sleep cycle. Exact frames open. |
 | 7.2 | Agreed | Social indicators | Chat bubble, selected/hover state, household/Town affiliation and conversation popup. Family lines, partnerships and deceased profiles belong in the family-tree UI, not automatically on the ground sprite. |
-| 7.3 | Agreed | Boat | Wood, rope and iron fittings, crafted at a Port; one agent and their carried cargo. Communal Town property; journeys need two completed Ports and follow the [agreed blocked-destination recovery rule](world.md#first-boat-and-port-travel). Visitors may use a boat when the Town Council votes to allow it or a standing Town law grants it. Quantities and speed are provisional; queueing remains open. |
+| 7.3 | Agreed | Boat | Wood, rope and iron fittings, crafted at a Port; one agent and their carried cargo. Communal Town property; journeys need two completed Ports and follow the [agreed queue, reservation and blocked-destination recovery rules](world.md#first-boat-and-port-travel). Visitors may use a boat when the Town Council votes to allow it or a standing Town law grants it. Quantities and speed are provisional. |
 | 7.4 | Agreed | Livestock | **Chicken (eggs), sheep (wool), cow (milk)**; husbandry art/mechanics are **late-development**. No hostile predators. Animals face eight directions like agents. |
 | 7.5 | Agreed | Mount | **Horse** with rider/cargo states; riding and care mechanics are **late-development**. Horses face eight directions like agents. |
 | 7.6 | Agreed | Weapon | Axe also works as a tool; wood-and-iron **spear and simple sword** are Blacksmith-made equipment with wear, repair and replacement. Detailed combat and lethality remain open. |
@@ -275,7 +276,7 @@ Food, crops, pottery, water, rope, tools, carry aids and care supplies no longer
 wait on a first recipe proposal. Medicinal herbs, paper, hides and ornaments
 are also agreed additions.
 
-Still open: exact Port clearance and boat queueing; Market plot reservation
+Still open: Market plot reservation
 and how the plaza grows; currency and
 governance rules; detailed animal breeding/mortality, injury and combat rules;
 and late-development invention/mod art generation and fallback. Recipe
