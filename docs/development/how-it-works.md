@@ -313,6 +313,17 @@ definition, owner, site and paid-material evidence after the project is
 replaced or the building is removed; an unrelated existing building is never
 completion proof.
 
+The construction adapter can replace an unpaid ordinary project rather than
+waiting on the project the operative order itself paused. It creates a fresh
+order-bound project, with no inherited work or placement credit. A Store-stocking
+order instead keeps that ordinary project while its typed delivery proceeds;
+ordinary automatic Store stocking still waits for unfinished projects. Both
+paths wait for a live paid production job to finish, retaining its reservations,
+goods and history. Projects bound to another order or an accepted tool-making
+request keep their existing checks. The shared eligibility check adds no saved
+state, and neither adapter adopts the ordinary project's payment or output as
+order completion proof.
+
 An `expand_building` order binds the original building, definition, owner,
 position and revision, plus the chosen next footprint and anchor. It then
 links its real expansion job through `OrderInstructionId`. Normal permission,
