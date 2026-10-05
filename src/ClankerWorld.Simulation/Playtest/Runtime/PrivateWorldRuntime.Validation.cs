@@ -438,7 +438,8 @@ public sealed partial class PrivateWorldRuntime
                  (attempt.LastAcceptedCandidateId is null) != (attempt.LastAcceptedTick is null) ||
                  attempt.LastAcceptedTick is < 0 || attempt.LastAcceptedTick > attempt.WorldTick ||
                  attempt.LastAcceptedCandidateId is { } candidate &&
-                    (string.IsNullOrWhiteSpace(candidate) || candidate.Length > 512 || candidate.Any(char.IsControl)) ||
+                    // Offered action IDs can include an entire valid inventory lineage.
+                    (string.IsNullOrWhiteSpace(candidate) || candidate.Any(char.IsControl)) ||
                  attempt.SetupBlocker is not (null or "unsupported_request") ||
                  attempt.SetupBlocker is not null && attempt.Status != "model_unavailable"))
                 throw new InvalidDataException("The saved model attempt is invalid.");

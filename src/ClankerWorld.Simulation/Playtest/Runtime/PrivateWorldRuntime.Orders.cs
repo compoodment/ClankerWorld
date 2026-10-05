@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Kernel;
@@ -265,7 +267,11 @@ public sealed partial class PrivateWorldRuntime
                 return;
             case "consume_food":
                 if (ConsumeFood(actor, person, order.TargetFoodKind) is { } consumedLotId)
-                    CreditOrderEffect(instruction, $"consume:{WorldTick:D10}:{actor}:{consumedLotId}", 1);
+                {
+                    var identity = $"consume:{WorldTick:D10}:{actor}:{consumedLotId}";
+                    var receipt = "consume:" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(identity)));
+                    CreditOrderEffect(instruction, receipt, 1);
+                }
                 else
                     SetOrderStatus(instruction, "blocked", "No matching food is available to eat.");
                 return;
