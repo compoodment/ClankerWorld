@@ -15,6 +15,7 @@ public sealed partial class PrivateWorldRuntime
     private const string TownProjectDeliverPrefix = "town_project_deliver:";
     private const string TownProjectWorkPrefix = "town_project_work:";
     private const string TownProjectGatherPrefix = "town_project_gather:";
+    private const string TownProjectRecoverPrefix = "town_project_recover:";
     private const string TownProjectReturnPrefix = "town_project_return:";
     private const string TownProjectDonatePrefix = "town_project_donate:";
 
@@ -37,7 +38,8 @@ public sealed partial class PrivateWorldRuntime
         id.StartsWith(TownProjectDeliverPrefix, StringComparison.Ordinal) ||
         id.StartsWith(TownProjectWorkPrefix, StringComparison.Ordinal) ||
         id.StartsWith(TownProjectGatherPrefix, StringComparison.Ordinal) ||
-        id.StartsWith(TownProjectReturnPrefix, StringComparison.Ordinal);
+        id.StartsWith(TownProjectReturnPrefix, StringComparison.Ordinal) ||
+        id.StartsWith(TownProjectRecoverPrefix, StringComparison.Ordinal);
 
     private bool IsActiveTownProjectDelivery(string lotId) => towns.Any(town => town.Projects.Any(project =>
         IsLiveTownProject(project) && project.Deliveries.Any(delivery => delivery.LotId == lotId &&
@@ -221,6 +223,10 @@ public sealed partial class PrivateWorldRuntime
 
     private IEnumerable<TownProjectChoice> TownProjectChoices(string actor)
     {
+        // Released cargo must not prevent its carrier from meeting urgent needs.
+        var urgent = NeedsUrgentFood(inhabitants[actor]) || NeedsUrgentWarmth(inhabitants[actor]);
+        if (urgent || ReadyForTownProject(actor))
+            foreach (var choice in TownProjectReturnChoices(actor)) yield return choice;
         if (!ReadyForTownProject(actor)) yield break;
         var person = inhabitants[actor];
         foreach (var (town, project) in KnownTownProjects(actor))
@@ -265,7 +271,7 @@ public sealed partial class PrivateWorldRuntime
                     town, project, cost.ResourceId, Resource: source);
             }
         }
-        foreach (var choice in TownProjectReturnChoices(actor)) yield return choice;
+        foreach (var choice in TownProjectRecoveryChoices(actor)) yield return choice;
     }
 
     private IEnumerable<InventoryLot> PersonalTownProjectDonationLots(string actor, string itemKind) =>
@@ -300,14 +306,17 @@ public sealed partial class PrivateWorldRuntime
     {
         foreach (var town in towns.OrderBy(item => item.Id, StringComparer.Ordinal))
             foreach (var project in town.Projects.OrderBy(item => item.Id, StringComparer.Ordinal))
-                foreach (var delivery in project.Deliveries.Where(item => item.ReleasedTick is not null && item.ContributorId == actor)
+                foreach (var delivery in project.Deliveries.Where(item => item.ReleasedTick is not null)
                              .DistinctBy(item => item.LotId))
                 {
                     var lot = society.Checkpoint.Inventory.Lots.SingleOrDefault(item => item.Id == delivery.LotId);
                     if (lot is null || lot.OwnerId != town.Id || lot.CarrierId != actor || lot.ContainerLotId is not null ||
                         lot.DeliveryBuildingId is not null || PhysicalUnreservedQuantity(lot) <= 0 || IsActiveTownProjectDelivery(lot.Id)) continue;
-                    var warehouse = WarehousesForTown(town.Id).FirstOrDefault(item => StorageRoomAfterInboundDeliveries(item.InstanceId) > 0 &&
-                        CanWalkForTownProject(actor, inhabitants[actor].Position, item.Position));
+                    var person = inhabitants[actor];
+                    // A temporary pedestrian obstruction should wait, not cause a drop/pickup loop.
+                    var warehouse = NeedsUrgentFood(person) || NeedsUrgentWarmth(person) ? null :
+                        WarehousesForTown(town.Id).FirstOrDefault(item => StorageRoomAfterInboundDeliveries(item.InstanceId) > 0 &&
+                            map.IsReachableOnFoot(person.Position, item.Position));
                     if (warehouse is null)
                     {
                         yield return new(TownProjectChoiceId(TownProjectReturnPrefix, project.Id, lot.Id, "ground"),
@@ -321,12 +330,52 @@ public sealed partial class PrivateWorldRuntime
                 }
     }
 
+    private IEnumerable<TownProjectChoice> TownProjectRecoveryChoices(string actor)
+    {
+        if (TownForResident(actor) is not { } townId || FreeCarryCapacity(actor) <= 1) yield break;
+        var town = towns.Single(item => item.Id == townId);
+        var released = town.Projects.SelectMany(project => project.Deliveries)
+            .Where(delivery => delivery.ReleasedTick is not null).Select(delivery => delivery.LotId).ToHashSet(StringComparer.Ordinal);
+        var carried = society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == townId && released.Contains(lot.Id) &&
+            lot.CarrierId is not null && lot.ContainerLotId is null && lot.DeliveryBuildingId is null &&
+            !IsActiveTownProjectDelivery(lot.Id)).ToArray();
+        // A retained choice must finish its current return before collecting another load.
+        if (carried.Any(lot => lot.CarrierId == actor && PhysicalUnreservedQuantity(lot) > 0)) yield break;
+        var inbound = carried.Sum(PhysicalUnreservedQuantity);
+        var ground = society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == townId &&
+            lot.GroundPosition is not null && lot.ContainerLotId is null && lot.DeliveryBuildingId is null &&
+            AvailableLotQuantity(lot) > 0 && !IsActiveTownProjectDelivery(lot.Id))
+            .ToDictionary(lot => lot.Id, StringComparer.Ordinal);
+        if (ground.Count == 0) yield break;
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var project in town.Projects.OrderBy(item => item.Id, StringComparer.Ordinal))
+            foreach (var delivery in project.Deliveries.Where(item => item.ReleasedTick is not null))
+            {
+                if (!seen.Add(delivery.LotId) || !ground.TryGetValue(delivery.LotId, out var lot)) continue;
+                var position = HouseholdStockPosition(lot);
+                if (!CanWalkForTownProject(actor, inhabitants[actor].Position, position)) continue;
+                var warehouse = WarehousesForTown(townId).FirstOrDefault(item =>
+                    StorageRoomAfterInboundDeliveries(item.InstanceId) > inbound &&
+                    CanWalkForTownProject(actor, position, item.Position));
+                if (warehouse is null) continue;
+                // Keep one carrying space available for food; never promise more than the real storage room.
+                var quantity = Math.Min(project.Plan.Budget.Single(cost => cost.ResourceId == lot.ItemKind).Amount,
+                    Math.Min(AvailableLotQuantity(lot), Math.Min(WarehouseLoadQuantity,
+                        Math.Min(FreeCarryCapacity(actor) - 1, StorageRoomAfterInboundDeliveries(warehouse.InstanceId) - inbound))));
+                if (quantity <= 0) continue;
+                yield return new(TownProjectChoiceId(TownProjectRecoverPrefix, project.Id, lot.Id,
+                    quantity.ToString(CultureInfo.InvariantCulture), warehouse.InstanceId), "recover",
+                    town, project, lot.ItemKind, lot, quantity, delivery, Warehouse: warehouse);
+            }
+    }
+
     private void AddTownProjectCandidates(List<CognitionCandidate> candidates, string actor)
     {
         foreach (var choice in TownProjectChoices(actor).Take(16))
         {
             var description = choice.Kind switch
             {
+                "recover" => $"Pick up {choice.Quantity} unused Town-owned {choice.ItemKind} from {choice.Project.Plan.Name} to return to its Town Warehouse.",
                 "supply" => $"Carry {choice.Quantity} Town-owned {choice.ItemKind} to the approved {choice.Project.Plan.Name} site.",
                 "deliver" => $"Deliver your actual Town-owned {choice.ItemKind} load to {choice.Project.Plan.Name}.",
                 "work" => $"Help build {choice.Project.Plan.Name} at its approved site using the delivered Town materials.",
@@ -335,7 +384,8 @@ public sealed partial class PrivateWorldRuntime
                     ? $"Set down the released Town-owned {choice.ItemKind} load at your actual position. It stays Town property."
                     : $"Return the released Town-owned {choice.ItemKind} load to its Town Warehouse.",
             };
-            candidates.Add(new(choice.Id, description, choice.Kind is "deliver" or "return" ? 24 : 36,
+            candidates.Add(new(choice.Id, description, choice.Kind == "return" && (NeedsUrgentFood(inhabitants[actor]) || NeedsUrgentWarmth(inhabitants[actor]))
+                    ? 0 : choice.Kind is "deliver" or "return" ? 24 : choice.Kind == "recover" ? 40 : 36,
                 choice.Warehouse?.InstanceId ?? choice.Project.Id, choice.Project.Plan.Name));
         }
     }
@@ -355,6 +405,7 @@ public sealed partial class PrivateWorldRuntime
         if (choice is null) return true;
         switch (choice.Kind)
         {
+            case "recover": RecoverTownProjectLoad(actor, state, choice); break;
             case "supply": PickUpTownProjectLoad(actor, state, choice); break;
             case "deliver": DeliverTownProjectLoad(actor, state, choice); break;
             case "work": WorkOnTownProject(actor, state, choice); break;
@@ -452,13 +503,51 @@ public sealed partial class PrivateWorldRuntime
         AppendEvent("town_project_material_delivered", $"{actor}:{choice.Project.Id}:{delivery.LotId}:{delivery.Quantity}:{delivery.ItemKind}", TownProjectRules.WorkSite(choice.Project.Plan));
     }
 
+    private void RecoverTownProjectLoad(string actor, PlaytestInhabitantState state, TownProjectChoice choice)
+    {
+        var lot = choice.Lot!;
+        var position = HouseholdStockPosition(lot);
+        if (state.Position != position)
+        {
+            MoveToward(actor, state, position, "town_project_recovery", 0);
+            return;
+        }
+        var id = NextTownProjectDeliveryId(choice.Project, actor, lot.Id);
+        var operation = id + ":recovery";
+        var movedId = choice.Quantity == lot.Quantity ? lot.Id : lot.Id + "#move:" + operation;
+        ApplyInventoryTransition(inventory => InventoryFixture.Relocate(inventory, operation, lot.Id,
+            choice.Town.Id, choice.Quantity, carrierId: actor));
+        // Retain custody of a split load without reviving its cancelled construction commitment.
+        var delivery = new TownProjectDelivery(id, actor, lot.Id, movedId, lot.ItemKind, choice.Quantity,
+            WorldTick, ReleasedTick: WorldTick, ReleaseReason: "Unused construction materials are being returned.");
+        SetTownProject(choice.Town.Id, choice.Project with
+        {
+            Deliveries = choice.Project.Deliveries.Append(delivery).ToArray(),
+        });
+        AppendEvent("town_project_material_recovered", $"{actor}:{choice.Project.Id}:{movedId}:{choice.Quantity}:{choice.ItemKind}", position);
+    }
+
     private void ReturnTownProjectLoad(string actor, PlaytestInhabitantState state, TownProjectChoice choice)
     {
         if (choice.Warehouse is not { } warehouse)
         {
+            var lot = choice.Lot!;
+            var operation = $"{choice.Id}:{WorldTick}";
             ApplyInventoryTransition(inventory => InventoryFixture.Relocate(inventory,
-                $"{choice.Id}:{WorldTick}", choice.Lot!.Id, choice.Town.Id, choice.Quantity,
+                operation, lot.Id, choice.Town.Id, choice.Quantity,
                 groundPosition: new(state.Position.X, state.Position.Y)));
+            if (choice.Quantity < lot.Quantity)
+            {
+                // An unrelated claim can keep part of the original load in custody.
+                // Retain the new ground lot so its unclaimed portion can be recovered later.
+                var delivery = new TownProjectDelivery(NextTownProjectDeliveryId(choice.Project, actor, lot.Id),
+                    actor, lot.Id, lot.Id + "#move:" + operation, lot.ItemKind, choice.Quantity, WorldTick,
+                    ReleasedTick: WorldTick, ReleaseReason: "Unused construction materials were set down.");
+                SetTownProject(choice.Town.Id, choice.Project with
+                {
+                    Deliveries = choice.Project.Deliveries.Append(delivery).ToArray(),
+                });
+            }
             AppendEvent("town_project_material_returned",
                 $"{actor}:{choice.Project.Id}:{choice.Lot!.Id}:{choice.Quantity}:ground", TownProjectRules.WorkSite(choice.Project.Plan));
             return;
