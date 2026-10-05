@@ -1,0 +1,1 @@
+- Children keep their spare food when their House has no unpromised storage space. If another delivery fills the House after a helping action was offered, the child safely keeps the serving and the world continues running.
