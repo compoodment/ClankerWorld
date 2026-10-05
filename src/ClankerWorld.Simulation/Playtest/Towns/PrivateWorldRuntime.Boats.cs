@@ -242,17 +242,19 @@ public sealed partial class PrivateWorldRuntime
         return boat.Id;
     }
 
-    private BoatState MoveBoatGroundCargo(BoatState boat, GridPoint? destination = null)
+    private BoatState MoveBoatGroundCargo(BoatState boat, GridPoint? destination = null, bool preserveCustody = false)
     {
         if (boat.GroundCargoLotIds is not { Count: > 0 } roots) return boat;
         var remaining = society.Checkpoint.Inventory.Lots.Where(lot => lot.ContainerLotId is null && lot.Quantity > 0 &&
             (roots.Contains(lot.Id, StringComparer.Ordinal) || lot.ProvenanceLotId is { } source && roots.Contains(source, StringComparer.Ordinal)) &&
-            lot.GroundPosition is not null).Select(lot => lot.Id).Order(StringComparer.Ordinal).ToArray();
+            (preserveCustody || lot.GroundPosition is not null)).Select(lot => lot.Id).Order(StringComparer.Ordinal).ToArray();
         var position = destination ?? boat.Position;
         ApplyInventoryTransition(inventory => inventory with
         {
             Lots = inventory.Lots.Select(lot => remaining.Contains(lot.Id, StringComparer.Ordinal)
-                ? lot with { GroundPosition = new(position.X, position.Y) } : lot).ToArray(),
+                ? lot with { GroundPosition = new(position.X, position.Y), StorageBuildingId = null, CarrierId = null, DeliveryBuildingId = null }
+                : preserveCustody && lot.ContainerLotId is { } container && remaining.Contains(container, StringComparer.Ordinal)
+                    ? lot with { GroundPosition = null, StorageBuildingId = null, CarrierId = null, DeliveryBuildingId = null } : lot).ToArray(),
         });
         boat = boat with { GroundCargoLotIds = remaining };
         SetBoat(boat);

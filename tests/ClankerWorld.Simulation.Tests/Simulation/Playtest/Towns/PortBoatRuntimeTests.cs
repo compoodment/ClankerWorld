@@ -18,7 +18,8 @@ public sealed class PortBoatRuntimeTests
     private static readonly string[] ReservedKinds = ["wood", "stone", "rope", "iron"];
     private const string Follower = "founder:00000000000000000000000000000002";
     private const string Visitor = "agent:00000000000000000000000000000010";
-    private static readonly string[] Blockers = ["agent:00000000000000000000000000000011", "agent:00000000000000000000000000000012"];
+    private static readonly string[] Blockers = ["agent:00000000000000000000000000000011", "agent:00000000000000000000000000000012",
+        "agent:00000000000000000000000000000013", "agent:00000000000000000000000000000014"];
 
     [Fact]
     public async Task CouncilProjectsBuildPortsAndOnePhysicalBoatUsingUnreservedTownStock()
@@ -162,10 +163,12 @@ public sealed class PortBoatRuntimeTests
         scenario.World.Validate();
     }
 
-    [Fact]
-    public async Task DeathAboardKeepsAContainerAndItsContentsTogetherUntilSafeLanding()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DeathAboardKeepsAContainerAndItsContentsTogetherUntilSafeLanding(bool settleTownWill)
     {
-        var policy = new BoatPolicy();
+        var policy = new BoatPolicy { LeaveToTown = settleTownWill };
         policy.IdleActors.Add(BoatPolicy.Author);
         var state = PrivateWorldRuntimeCodec.Decode(await Underway.Value);
         var checkpoint = state.Society.Society;
@@ -179,6 +182,7 @@ public sealed class PortBoatRuntimeTests
             {
                 Society = checkpoint with
                 {
+                    Inventory = InventoryFixture.AddLot(checkpoint.Inventory, "aboard-bequest-wood", "wood", BoatPolicy.Author, 2),
                     Config = checkpoint.Config with { BaseNaturalMortalityBasisPoints = 0, NaturalMortalitySlopeBasisPoints = 0 },
                     Inhabitants = checkpoint.Inhabitants.Select(person => person.Id == BoatPolicy.Author ? person with
                     {
@@ -197,6 +201,64 @@ public sealed class PortBoatRuntimeTests
         Assert.Equal(boatId, scenario.World.ExportState().DeceasedInhabitants!
             .Single(person => person.InhabitantId == BoatPolicy.Author).BoatIdAtDeath);
         Assert.Contains("travel-jug", scenario.World.Boats[0].GroundCargoLotIds!);
+        if (settleTownWill)
+        {
+            AddLandingBlockers(scenario, scenario.World.Boats[0].Journey!.DestinationPortId);
+            AddLandingBlockers(scenario, scenario.World.Boats[0].Journey!.OriginPortId, 2);
+            for (var attempt = 0; attempt < 30 && scenario.World.Society.Estates.Single().WillStatus != "accepted"; attempt++)
+            {
+                Assert.True((await scenario.World.AdvanceOneTickNonBlockingAsync()).Advanced);
+                await Task.Delay(10);
+            }
+            var estate = Assert.Single(scenario.World.Society.Estates);
+            Assert.Equal("accepted", estate.WillStatus);
+            var saved = scenario.World.ExportState();
+            var due = saved with
+            {
+                Society = saved.Society with
+                {
+                    Society = saved.Society.Society with
+                    {
+                        Estates = saved.Society.Society.Estates.Select(item => item.Id == estate.Id
+                            ? item with { ExpiryTick = saved.Society.Society.WorldTick + 1 } : item).ToArray(),
+                    },
+                },
+            };
+            using var settling = new BoatScenario(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(due)), policy);
+            Assert.True((await settling.World.AdvanceOneTickAsync()).Advanced);
+            Assert.True(settling.World.Society.GetEstate(estate.Id).Settled);
+            var inherited = Assert.Single(settling.World.Society.Inventory.Lots, lot => lot.ProvenanceLotId == "aboard-bequest-wood");
+            Assert.Equal(TownBorderRules.FirstTownId, inherited.OwnerId);
+            Assert.Null(inherited.StorageBuildingId);
+            Assert.Equal(new InventoryGroundPosition(settling.World.Boats[0].Position.X, settling.World.Boats[0].Position.Y), inherited.GroundPosition);
+            var inheritedJug = settling.World.Society.Inventory.GetLot("travel-jug");
+            Assert.Equal(TownBorderRules.FirstTownId, inheritedJug.OwnerId);
+            Assert.Null(inheritedJug.StorageBuildingId);
+            Assert.Contains(inherited.Id, settling.World.Boats[0].GroundCargoLotIds!);
+            settling.World.Validate();
+            var settledBytes = PrivateWorldRuntimeCodec.Encode(settling.World.ExportState());
+            using var settledReplay = new BoatScenario(PrivateWorldRuntimeCodec.Decode(settledBytes), new());
+            for (var tick = 0; tick < 3; tick++)
+            {
+                Assert.True((await settling.World.AdvanceOneTickAsync()).Advanced);
+                Assert.True((await settledReplay.World.AdvanceOneTickAsync()).Advanced);
+                Assert.Equal(PrivateWorldRuntimeCodec.Encode(settling.World.ExportState()), PrivateWorldRuntimeCodec.Encode(settledReplay.World.ExportState()));
+            }
+            settling.World.SubmitInstruction(new("estate-clear-landing", "owner:test", Blockers[0],
+                OwnerInstructionKind.MustDo, "move to 194,10"));
+            policy.IdleActors.Remove(Blockers[0]);
+            await settling.UntilAsync(() => settling.World.Boats[0].Journey is null, 100);
+            var landedJug = settling.World.Society.Inventory.GetLot("travel-jug");
+            var landedWater = settling.World.Society.Inventory.GetLot("travel-water");
+            Assert.Equal(landedJug.Id, landedWater.ContainerLotId);
+            Assert.Equal(landedJug.OwnerId, landedWater.OwnerId);
+            Assert.Equal(1, landedWater.Quantity);
+            Assert.Null(landedWater.GroundPosition);
+            Assert.True(settling.World.ExportState().Map.IsBuildable(new(landedJug.GroundPosition!.Value.X, landedJug.GroundPosition.Value.Y)));
+            Assert.Equal(landedJug.GroundPosition, settling.World.Society.Inventory.GetLot(inherited.Id).GroundPosition);
+            settling.World.Validate();
+            return;
+        }
         var aboardState = scenario.World.ExportState();
         var cargoBoat = aboardState.BoatTransport.Boats[0];
         foreach (var missing in new IReadOnlyList<string>?[]
@@ -383,7 +445,7 @@ public sealed class PortBoatRuntimeTests
         }));
     }
 
-    private static void AddLandingBlockers(BoatScenario scenario, string portId)
+    private static void AddLandingBlockers(BoatScenario scenario, string portId, int blockerOffset = 0)
     {
         var port = scenario.World.WorldSimulation.Buildings.Single(building => building.InstanceId == portId);
         var definition = scenario.World.WorldContent.Buildings.Single(definition => definition.CanonicalId == port.DefinitionId);
@@ -391,8 +453,8 @@ public sealed class PortBoatRuntimeTests
         scenario.World.Pause();
         for (var index = 0; index < land.Count; index++)
         {
-            Assert.Null(scenario.World.AddAgent(Blockers[index], land[index]));
-            scenario.Policy.IdleActors.Add(Blockers[index]);
+            Assert.Null(scenario.World.AddAgent(Blockers[index + blockerOffset], land[index]));
+            scenario.Policy.IdleActors.Add(Blockers[index + blockerOffset]);
         }
         scenario.World.Resume();
     }
@@ -510,6 +572,7 @@ public sealed class PortBoatRuntimeTests
         internal string TripActor { get; set; } = Author;
         internal bool CancelWaiting { get; set; }
         internal bool GrantAll { get; set; }
+        internal bool LeaveToTown { get; set; }
         internal string? HoldActor { get; set; }
         internal TaskCompletionSource<CognitionDecisionResponse> HeldReply { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         internal HashSet<string> IdleActors { get; } = new(StringComparer.Ordinal);
@@ -526,7 +589,8 @@ public sealed class PortBoatRuntimeTests
                 policy.Observations.Enqueue(request.Observation);
                 if (actor == policy.HoldActor)
                     return new(policy.HeldReply.Task.WaitAsync(cancellationToken));
-                var selected = policy.IdleActors.Contains(actor) ? candidates.Single(candidate => candidate.Id == "safe_idle") :
+                var selected = policy.LeaveToTown && request.Observation.Will is not null ? candidates.Single(candidate => candidate.Id == CognitionWillContext.HeirsCandidateId) :
+                    policy.IdleActors.Contains(actor) ? candidates.Single(candidate => candidate.Id == "safe_idle") :
                     Blockers.Contains(actor, StringComparer.Ordinal) ? candidates.FirstOrDefault(candidate => candidate.Id == "move_to") : null;
                 selected ??= candidates.Where(candidate => candidate.DeterministicPriority <= 5 && candidate.Id is
                         "consume_food" or "collect_shared_food" or "take_food_from_pot" or "harvest_food" or "seek_food" or "seek_warmth" or "wear_clothing")
@@ -575,6 +639,8 @@ public sealed class PortBoatRuntimeTests
                     selected.Id, 1, candidates.ToDictionary(candidate => candidate.Id, candidate => candidate.Id == selected.Id ? 1d : 0d, StringComparer.Ordinal),
                     ChosenPersonality: request.Observation.NeedsPersonality ? "Patient and curious" : null,
                     ChosenAspiration: request.Observation.NeedsAspiration ? "Explore the coast" : null,
+                    Will: policy.LeaveToTown && request.Observation.Will is { } will
+                        ? new([will.Heirs.Single(heir => heir.Key.StartsWith("will:town:", StringComparison.Ordinal)).Key], CognitionWillContext.EqualSplit) : null,
                     CivicProposal: text));
             }
         }
