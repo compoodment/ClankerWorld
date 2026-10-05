@@ -415,6 +415,13 @@ public sealed partial class PrivateWorldRuntime
             {
                 continue;
             }
+            if (PassengerBoat(inhabitant.Id) is not null)
+            {
+                if (!pendingHosted.Contains(inhabitant.Id) && NeedsUrgentFood(state) &&
+                    CreateCandidates(inhabitant.Id, state).Any(candidate => candidate.Id == "consume_food"))
+                    ApplyCandidate(inhabitant.Id, state, "consume_food", reportIdle: false);
+                continue;
+            }
             var order = PendingInstructionFor(inhabitant.Id);
             if (order is null && ContinueGuardianPlacement(inhabitant.Id)) continue;
             if (pendingHosted.Contains(inhabitant.Id) && order is null)

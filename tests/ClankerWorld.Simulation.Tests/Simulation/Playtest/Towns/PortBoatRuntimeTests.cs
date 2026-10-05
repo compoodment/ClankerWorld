@@ -123,6 +123,39 @@ public sealed class PortBoatRuntimeTests
     }
 
     [Fact]
+    public async Task AContinuingOwnerOrderWaitsAboardWhileTheHostedReplyIsHeld()
+    {
+        var state = PrivateWorldRuntimeCodec.Decode(await Underway.Value);
+        var boat = state.BoatTransport.Boats[0];
+        var shore = state.Map.Tiles.First(tile => state.Map.IsBuildable(tile.Position) &&
+            state.Map.FootDistance(tile.Position, boat.Position) <= 1).Position;
+        state = state with
+        {
+            Society = state.Society with
+            {
+                Society = state.Society.Society with
+                {
+                    Inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "waiting-shore-rope", "rope",
+                        BoatPolicy.Author, 2, groundPosition: new(shore.X, shore.Y)),
+                },
+            },
+        };
+        var policy = new BoatPolicy { HoldActor = BoatPolicy.Author };
+        using var scenario = new BoatScenario(state, policy);
+        var receipt = scenario.World.SubmitInstruction(new("aboard-collect", "owner:test", BoatPolicy.Author,
+            OwnerInstructionKind.MustDo, "collect my rope"));
+        Assert.True((await scenario.World.AdvanceOneTickNonBlockingAsync()).Advanced);
+        Assert.Contains(policy.Observations, observation => observation.InhabitantId == BoatPolicy.Author);
+        var lot = scenario.World.Society.Inventory.GetLot("waiting-shore-rope");
+        Assert.Null(lot.CarrierId);
+        Assert.Equal(new InventoryGroundPosition(shore.X, shore.Y), lot.GroundPosition);
+        Assert.Equal(0, scenario.World.ExportState().Instructions!.Single(item => item.InstructionId == receipt.InstructionId).Order!.CompletedUnits);
+        Assert.Equal(scenario.World.Boats[0].Position,
+            scenario.World.Inhabitants.Single(person => person.InhabitantId == BoatPolicy.Author).Position);
+        scenario.World.Validate();
+    }
+
+    [Fact]
     public async Task DeathAboardKeepsAContainerAndItsContentsTogetherUntilSafeLanding()
     {
         var policy = new BoatPolicy();
@@ -470,6 +503,8 @@ public sealed class PortBoatRuntimeTests
         internal string TripActor { get; set; } = Author;
         internal bool CancelWaiting { get; set; }
         internal bool GrantAll { get; set; }
+        internal string? HoldActor { get; set; }
+        internal TaskCompletionSource<CognitionDecisionResponse> HeldReply { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         internal HashSet<string> IdleActors { get; } = new(StringComparer.Ordinal);
         internal ConcurrentQueue<string> Choices { get; } = new();
         internal ConcurrentQueue<InhabitantObservation> Observations { get; } = new();
@@ -482,6 +517,8 @@ public sealed class PortBoatRuntimeTests
             {
                 var candidates = request.Observation.Candidates;
                 policy.Observations.Enqueue(request.Observation);
+                if (actor == policy.HoldActor)
+                    return new(policy.HeldReply.Task.WaitAsync(cancellationToken));
                 var selected = policy.IdleActors.Contains(actor) ? candidates.Single(candidate => candidate.Id == "safe_idle") :
                     Blockers.Contains(actor, StringComparer.Ordinal) ? candidates.FirstOrDefault(candidate => candidate.Id == "move_to") : null;
                 selected ??= candidates.Where(candidate => candidate.DeterministicPriority <= 5 && candidate.Id is
