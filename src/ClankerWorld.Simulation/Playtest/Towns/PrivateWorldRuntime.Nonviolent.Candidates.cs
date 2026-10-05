@@ -108,7 +108,7 @@ public sealed partial class PrivateWorldRuntime
             if (adult && item.Findings.Count > 0 && item.Findings[^1] is { Result: "supported" } finding && NonviolentReadCurrent(item, actor) &&
                 (isParty || finding.Judge.AgentId == actor && NonviolentJudgeValid(town, item, finding.Judge)))
                 candidates.Add(new(CivicAction(town.Id, "remedy_offer", token, finding.Id),
-                    "Offer feasible named goods, repair or Town resource delivery in civic_nonviolent.terms, with reasons and optional completion_ticks (default three days after consent). Each contributing adult must personally agree. No stock is reserved and no work forced.", 183));
+                    "Offer feasible named goods, repair or Town resource delivery in civic_nonviolent.terms, with reasons and optional completion_ticks (default three days after consent). Each contributing adult must personally agree. No stock is reserved and no work forced." + NonviolentRemedyReferences(town, actor), 183));
             foreach (var recipient in inhabitants.Values.Where(person => person.InhabitantId != actor &&
                          IsWithinInteractionRange(person.Position, actorState.Position, ResourceInteractionRange)))
                 if (NonviolentReadCurrent(item, actor) && NonviolentMayInspect(town, item, recipient.InhabitantId) && !NonviolentReadCurrent(item, recipient.InhabitantId))
@@ -121,23 +121,48 @@ public sealed partial class PrivateWorldRuntime
             var file = town.Nonviolent.Cases.Single(item => item.Id == original.CaseId);
             if (NonviolentReadCurrent(file, actor) && !town.Nonviolent.Offers.Any(offer => offer.CaseId == file.Id && offer.Status == "pending"))
                 candidates.Add(new(CivicAction(town.Id, "remedy_renegotiate", agreement.Id, agreement.TermsHash),
-                    "Request a feasible change to your unfinished voluntary agreement via civic_nonviolent.terms. Prior work remains recorded; replacement terms require fresh consent. Inability is no new offense.", 183));
+                    "Request a feasible change to your unfinished voluntary agreement via civic_nonviolent.terms. Prior work remains recorded; replacement terms require fresh consent. Inability is no new offense." + NonviolentRemedyReferences(town, actor), 183));
         }
         foreach (var offer in town.Nonviolent.Offers.Where(offer => offer.Status == "pending" && WorldTick < offer.ResponseDeadlineTick &&
                      offer.Terms.Any(term => term.ContributorId == actor)))
         {
             if (atBoard && !history.Known(actor).Contains(offer.NoticeId))
-                candidates.Add(new(CivicAction(town.Id, "remedy_read", NonviolentOfferToken(offer)), "Read the actual voluntary offer: " + NonviolentTermsText(offer.Terms) + ". Publication alone is not your awareness or consent.", 177));
+                candidates.Add(new(CivicAction(town.Id, "remedy_read", NonviolentOfferToken(offer)), "Read the actual voluntary offer: " + NonviolentTermsText(offer.Terms) + ". " + NonviolentOfferTiming(offer) + " Publication alone is not your awareness or consent.", 177));
             if (!adult || !history.Known(actor).Contains(offer.NoticeId) || offer.Responses.Any(response => response.AgentId == actor && response.Kind == "accept")) continue;
             if (NonviolentRemedyCapacityFeasible(offer.Terms) &&
                 NonviolentRemedyDurationFeasible(town, offer.Terms.Where(term => term.ContributorId == actor).ToArray(), offer.CompletionTicks))
-                candidates.Add(new(CivicAction(town.Id, "remedy_accept", NonviolentOfferToken(offer)), "Personally accept your exact contribution: " + NonviolentTermsText(offer.Terms.Where(term => term.ContributorId == actor)) + ". This does not start work or reserve goods.", 165));
+                candidates.Add(new(CivicAction(town.Id, "remedy_accept", NonviolentOfferToken(offer)), "Personally accept your exact contribution: " + NonviolentTermsText(offer.Terms.Where(term => term.ContributorId == actor)) + ". " + NonviolentOfferTiming(offer) + " This does not start work or reserve goods.", 165));
             candidates.Add(new(CivicAction(town.Id, "remedy_decline", NonviolentOfferToken(offer)), "Decline this voluntary offer. Declining creates no offense or automatic penalty.", 166));
-            candidates.Add(new(CivicAction(town.Id, "remedy_counter", NonviolentOfferToken(offer)), "Counter with feasible named terms in civic_nonviolent.terms; everyone must read and consent to the new offer.", 183));
+            candidates.Add(new(CivicAction(town.Id, "remedy_counter", NonviolentOfferToken(offer)), "Counter with feasible named terms in civic_nonviolent.terms; everyone must read and consent to the new offer." + NonviolentRemedyReferences(town, actor), 183));
         }
     }
 
     private static string NonviolentTermsText(IEnumerable<TownRemedyTerm> terms) => string.Join("; ", terms.Select(term =>
-        term.Quantity + " " + (term.ItemKind ?? term.Kind).Replace('_', ' ') + " by " + term.ContributorId +
-        (term.BeneficiaryId is { } beneficiary ? " for " + beneficiary : "") + (term.TargetId is { } target ? " at " + target : "")));
+        term.Quantity + " " + (term.ItemKind ?? term.Kind).Replace('_', ' ') + " by " + CivicAgentToken(term.ContributorId) +
+        (term.BeneficiaryId is { } beneficiary ? " for " + CivicAgentToken(beneficiary) : "") + (term.TargetId is { } target ? " at " + CivicAgentToken(target) : "")));
+
+    private string NonviolentDaysText(long ticks) =>
+        ((decimal)ticks / CivicDay).ToString("0.################", System.Globalization.CultureInfo.InvariantCulture) +
+        (ticks == CivicDay ? " world day" : " world days");
+
+    private string NonviolentOfferTiming(TownRemedyOffer offer) =>
+        "Complete within " + NonviolentDaysText(offer.CompletionTicks) + " after everyone accepts. Answer within " +
+        NonviolentDaysText(offer.ResponseDeadlineTick - offer.PublishedTick) + " of publication.";
+
+    private string NonviolentRemedyReferences(TownRuntimeState town, string actor)
+    {
+        var people = inhabitants.Values.Where(person => person.InhabitantId == actor || town.ResidentIds.Contains(person.InhabitantId) ||
+            IsWithinInteractionRange(person.Position, inhabitants[actor].Position, ResourceInteractionRange)).ToArray();
+        var lots = society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == actor || lot.OwnerId == HouseholdFor(actor) ||
+            inhabitants.TryGetValue(lot.OwnerId, out var holder) && ToolProgressionRules.IsTopLevelCarriedLot(lot, lot.OwnerId) &&
+            IsWithinInteractionRange(holder.Position, inhabitants[actor].Position, ResourceInteractionRange) &&
+            CanObserveNonviolentAct(actor, lot.OwnerId, holder.Position));
+        var warehouses = worldSimulation.Buildings.Where(building => building.TownId == town.Id &&
+            (TownForResident(actor) == town.Id || IsWithinInteractionRange(building.Position, inhabitants[actor].Position, ResourceInteractionRange)));
+        return " Use these references in terms. People: " + string.Join("; ", people.Select(person =>
+            society.Checkpoint.GetInhabitant(person.InhabitantId).Name + " (" + CivicAgentToken(person.InhabitantId) + ")")) +
+            ". Town: " + town.Name + " (" + CivicAgentToken(town.Id) + "). Known goods: " + string.Join("; ", lots.Select(lot =>
+                lot.ItemKind.Replace('_', ' ') + " (" + CivicAgentToken(lot.Id) + ") held by " + CivicAgentToken(lot.OwnerId))) +
+            ". Known Town buildings: " + string.Join("; ", warehouses.Select(building => CivicAgentToken(building.InstanceId))) + ".";
+    }
 }

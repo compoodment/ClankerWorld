@@ -110,7 +110,7 @@ public sealed partial class PrivateWorldRuntime
         var findings = reads.SelectMany(read => read.FindingIds).ToHashSet(StringComparer.Ordinal);
         return (reads.Length == 0 ? "" : " Inspected allegation: " + NonviolentKnownAllegationText(town, item.Allegation) + ".") +
             " Inspected evidence: " + string.Join("; ", item.Evidence.Where(evidence => known.Contains(evidence.Id)).TakeLast(8)
-            .Select(evidence => evidence.Id + " (" + evidence.Kind + ", " + evidence.Acquisition + "): " + NonviolentExcerpt(evidence.Text, 256))) +
+            .Select(evidence => CivicAgentToken(evidence.Id) + " (" + evidence.Kind + ", " + evidence.Acquisition + "): " + NonviolentExcerpt(evidence.Text, 256))) +
             ". Inspected responses: " + string.Join("; ", item.Responses.Where(response => responses.Contains(TownNonviolentRules.ResponseToken(response))).TakeLast(8)
                 .Select(response => NonviolentExcerpt(society.Checkpoint.GetInhabitant(response.AgentId).Name, 80) + " " + response.Kind + ": " + NonviolentExcerpt(response.Text, 256))) +
             ". Inspected prior findings: " + string.Join("; ", item.Findings.Where(finding => findings.Contains(finding.Id)).TakeLast(4)

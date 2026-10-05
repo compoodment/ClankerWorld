@@ -222,6 +222,40 @@ public sealed class TownNonviolentRemedyRuntimeTests
     }
 
     [Theory]
+    [InlineData(10, "0.5 world days")]
+    [InlineData(20, "1 world day")]
+    public async Task ThePublishedOfferAndPersonalChoicesDiscloseTheExactCompletionPeriodBeforeConsent(long completionTicks, string period)
+    {
+        var state = await NonviolentRuntimeFixture.OfferRemedyAsync(await NonviolentRuntimeFixture.FindingAsync(),
+            [new("return_goods", NonviolentRuntimeFixture.Subject, NonviolentRuntimeFixture.Witness, "wood", 1, NonviolentRuntimeFixture.ReturnLot)],
+            completionTicks);
+        var town = state.Towns![0];
+        var offer = Assert.Single(town.Nonviolent.Offers);
+        var timing = "Complete within " + period + " after everyone accepts. Answer within 1 world day of publication.";
+        Assert.Contains(timing, town.Governance!.Notices.Single(notice => notice.Id == offer.NoticeId).Text, StringComparison.Ordinal);
+        state = state with
+        {
+            Towns = [town with { Governance = town.Governance with
+        { Knowledge = town.Governance.Knowledge.Where(receipt => receipt.AgentId != NonviolentRuntimeFixture.Subject || receipt.NoticeId != offer.NoticeId).ToArray() } }]
+        };
+        var provider = new NonviolentTestProvider
+        {
+            Choose = observation => observation.InhabitantId == NonviolentRuntimeFixture.Subject
+                ? observation.Candidates.FirstOrDefault(candidate => candidate.Id.Contains("|remedy_read|", StringComparison.Ordinal)) ??
+                    observation.Candidates.FirstOrDefault(candidate => candidate.Id.Contains("|remedy_accept|", StringComparison.Ordinal)) : null,
+        };
+        using var world = NonviolentRuntimeFixture.Create(NonviolentRuntimeFixture.Strict(state), provider);
+        NonviolentRuntimeFixture.Wake(world, NonviolentRuntimeFixture.Subject, "read-exact-completion-period");
+        await NonviolentRuntimeFixture.UntilAsync(world, () => world.Towns[0].Nonviolent.Agreements.Count > 0, 6);
+        var choices = provider.Observations.SelectMany(observation => observation.Candidates).ToArray();
+        Assert.Contains(choices, candidate => candidate.Id.Contains("|remedy_read|", StringComparison.Ordinal) && candidate.Description.Contains(timing, StringComparison.Ordinal));
+        Assert.Contains(choices, candidate => candidate.Id.Contains("|remedy_accept|", StringComparison.Ordinal) && candidate.Description.Contains(timing, StringComparison.Ordinal));
+        var agreement = Assert.Single(world.Towns[0].Nonviolent.Agreements);
+        Assert.Equal(agreement.AcceptedTick + completionTicks, agreement.DeadlineTick);
+        NonviolentRuntimeFixture.Strict(world.ExportState());
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task ConsentRequiresRoomForAllPromisedGoodsAtTheDestination(bool townService)

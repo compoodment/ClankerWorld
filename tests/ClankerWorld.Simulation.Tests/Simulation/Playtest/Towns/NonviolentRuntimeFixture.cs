@@ -25,32 +25,43 @@ internal static class NonviolentRuntimeFixture
     internal static PrivateWorldRuntime Create(PrivateWorldRuntimeState state, IDecisionProvider provider) =>
         PrivateWorldRuntime.Restore(state, _ => provider);
 
-    internal static async Task<PrivateWorldRuntimeState> ConductAsync()
+    internal static async Task<PrivateWorldRuntimeState> ConductAsync(string? subjectId = null)
     {
+        subjectId ??= Subject;
         var provider = new NonviolentTestProvider
         {
-            Choose = observation => observation.InhabitantId == Subject
+            Choose = observation => observation.InhabitantId == subjectId
                 ? observation.Candidates.FirstOrDefault(candidate => candidate.Id.Contains("|visit|", StringComparison.Ordinal)) : null
         };
-        using var world = Create(Prepared(), provider);
+        var prepared = Prepared();
+        if (subjectId != Subject)
+        {
+            prepared = PrivateWorldRuntimeCodec.Decode(System.Text.Encoding.UTF8.GetBytes(
+                System.Text.Encoding.UTF8.GetString(PrivateWorldRuntimeCodec.Encode(prepared))
+                    .Replace(Subject, subjectId, StringComparison.Ordinal)));
+        }
+        using var world = Create(prepared, provider);
         await UntilAsync(world, () => world.Towns[0].Nonviolent.ConductRecords.Count > 0, 6);
         var conduct = Assert.Single(world.Towns[0].Nonviolent.ConductRecords);
-        Assert.Equal(Subject, conduct.ActorId);
+        Assert.Equal(subjectId, conduct.ActorId);
         Assert.Equal("travel", conduct.ConductKind);
-        Assert.Contains(world.ExportState().Events, item => item.Kind == "inhabitant_moved" && item.Detail.StartsWith(Subject + ":", StringComparison.Ordinal));
+        Assert.Contains(world.ExportState().Events, item => item.Kind == "inhabitant_moved" && item.Detail.StartsWith(subjectId + ":", StringComparison.Ordinal));
         return Strict(world.ExportState());
     }
 
-    internal static async Task<PrivateWorldRuntimeState> FiledAsync()
+    internal static async Task<PrivateWorldRuntimeState> FiledAsync(string? subjectId = null)
     {
         var provider = FilingProvider();
-        using var world = Create(await ConductAsync(), provider);
+        using var world = Create(await ConductAsync(subjectId), provider);
         await UntilAsync(world, () => world.Towns[0].Nonviolent.Cases.Count > 0, 8);
         return Strict(world.ExportState());
     }
 
     internal static async Task<PrivateWorldRuntimeState> ReadyToFindAsync() =>
         PrivateWorldRuntimeCodec.Decode(await Hearing.Value);
+
+    internal static async Task<PrivateWorldRuntimeState> ReadyToFindAsync(string subjectId) =>
+        PrivateWorldRuntimeCodec.Decode(await PrepareReadyHearingAsync(await FiledAsync(subjectId)));
 
     internal static async Task<PrivateWorldRuntimeState> AcceptedRemedyAsync() =>
         PrivateWorldRuntimeCodec.Decode(await Accepted.Value);
@@ -93,10 +104,10 @@ internal static class NonviolentRuntimeFixture
         IReadOnlyList<CognitionRemedyTerm> terms) => PrepareRemedyAsync(state, terms, accept: true);
 
     internal static Task<PrivateWorldRuntimeState> OfferRemedyAsync(PrivateWorldRuntimeState state,
-        IReadOnlyList<CognitionRemedyTerm> terms) => PrepareRemedyAsync(state, terms, accept: false);
+        IReadOnlyList<CognitionRemedyTerm> terms, long? completionTicks = null) => PrepareRemedyAsync(state, terms, accept: false, completionTicks);
 
     private static async Task<PrivateWorldRuntimeState> PrepareRemedyAsync(PrivateWorldRuntimeState state,
-        IReadOnlyList<CognitionRemedyTerm> terms, bool accept)
+        IReadOnlyList<CognitionRemedyTerm> terms, bool accept, long? completionTicks = null)
     {
         var offered = false;
         var consent = new NonviolentTestProvider
@@ -116,7 +127,7 @@ internal static class NonviolentRuntimeFixture
                 return choice;
             },
             Payload = (_, candidate) => candidate.Id.Contains("|remedy_offer|", StringComparison.Ordinal)
-                ? new(Statement: "I offer my own named goods or work, voluntarily.", Terms: terms) : null
+                ? new(Statement: "I offer my own named goods or work, voluntarily.", Terms: terms, CompletionTicks: completionTicks) : null
         };
         using var world = Create(state, consent);
         Wake(world, Subject, "consider-voluntary-return");
@@ -137,9 +148,10 @@ internal static class NonviolentRuntimeFixture
         world.SubmitInstruction(new(key, "owner:test", actor, OwnerInstructionKind.Suggestive,
             "Consider the current public case and make your own choice."));
 
-    private static async Task<byte[]> CreateReadyHearingAsync()
+    private static async Task<byte[]> CreateReadyHearingAsync() => await PrepareReadyHearingAsync(await FiledAsync());
+
+    private static async Task<byte[]> PrepareReadyHearingAsync(PrivateWorldRuntimeState state)
     {
-        var state = await FiledAsync();
         var town = state.Towns![0];
         var tick = state.Society.Society.WorldTick;
         var (council, government) = TownGovernmentRules.RegisterMayor(town.Governance!, town.Government!,
@@ -183,7 +195,7 @@ internal static class NonviolentRuntimeFixture
         };
         using var prepared = Create(state, provider);
         await UntilAsync(prepared, () => TownNonviolentRules.ReadCurrent(prepared.Towns[0].Nonviolent.Cases[0], Judge, prepared.WorldTick) &&
-            prepared.Towns[0].Nonviolent.Cases[0].Responses.Any(response => response.AgentId == Subject), 16);
+            prepared.Towns[0].Nonviolent.Cases[0].Responses.Any(response => response.AgentId == prepared.Towns[0].Nonviolent.Cases[0].Allegation.SubjectId), 16);
         Wake(prepared, Judge, "fresh-reasoned-choice");
         return PrivateWorldRuntimeCodec.Encode(Strict(prepared.ExportState()));
     }

@@ -96,6 +96,12 @@ public sealed partial class PrivateWorldRuntime
         }
         var item = state.Cases.Single(item => NonviolentActionToken(item) == subject || item.Contest is { } contest &&
             NonviolentActionToken(item) + "#" + TownCaseJudgeRules.RoundToken(contest) == subject);
+        if (payload?.EvidenceIds is { } references)
+            payload = payload with
+            {
+                EvidenceIds = references.Select(reference => item.Evidence.FirstOrDefault(evidence =>
+                evidence.Id == reference || CivicAgentToken(evidence.Id) == reference)?.Id ?? reference).ToArray()
+            };
         var revision = NonviolentRevision(item);
         var parties = NonviolentParties(town, item);
         switch (action)
@@ -194,8 +200,11 @@ public sealed partial class PrivateWorldRuntime
         string? PhysicalReference(string? reference) => reference is null ? null :
             society.Checkpoint.Inventory.Lots.Select(lot => lot.Id).Concat(worldSimulation.Buildings.Select(building => building.InstanceId))
                 .FirstOrDefault(id => id == reference || CivicAgentToken(id) == reference) ?? reference;
+        string BeneficiaryReference(string reference) => society.Checkpoint.Inhabitants.Select(person => person.Id)
+            .Concat(society.Checkpoint.Households.Select(household => household.Id)).Concat(towns.Select(item => item.Id))
+            .FirstOrDefault(id => id == reference || CivicAgentToken(id) == reference) ?? reference;
         var result = terms.Select((term, index) => new TownRemedyTerm("term:" + NonviolentToken(caseId + "|" + town.Nonviolent.Sequence + "|" + index),
-            term.Kind, ResolveCivicAgentToken(term.ContributorId), term.BeneficiaryId is { } beneficiary ? ResolveCivicAgentToken(beneficiary) : null,
+            term.Kind, ResolveCivicAgentToken(term.ContributorId), term.BeneficiaryId is { } beneficiary ? BeneficiaryReference(beneficiary) : null,
             term.ItemKind, term.Quantity, PhysicalReference(term.TargetId))).ToArray();
         if (replacingAgreementId is not null)
             town = town with
@@ -211,7 +220,7 @@ public sealed partial class PrivateWorldRuntime
         return result;
     }
 
-    private static TownGovernanceState PostNonviolentOffer(TownGovernanceState council, TownRemedyOffer offer) =>
+    private TownGovernanceState PostNonviolentOffer(TownGovernanceState council, TownRemedyOffer offer) =>
         TownGovernanceRules.PostNotice(council, "remedy", offer.Id, "Voluntary restorative offer: " + NonviolentTermsText(offer.Terms) +
-            ". Each contributing adult may accept, decline or counter; silence is not consent and declining is no offense.", offer.PublishedTick);
+            ". " + NonviolentOfferTiming(offer) + " Each contributing adult may accept, decline or counter; silence is not consent and declining is no offense.", offer.PublishedTick);
 }

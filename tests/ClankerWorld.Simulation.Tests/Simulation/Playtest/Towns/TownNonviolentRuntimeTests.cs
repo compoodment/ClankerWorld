@@ -1,13 +1,94 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using ClankerWorld.Simulation.Cognition;
+using ClankerWorld.Simulation.Harness;
+using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
 
 namespace ClankerWorld.Simulation.Tests;
 
 public sealed class TownNonviolentRuntimeTests
 {
+    [Fact]
+    public async Task LongDescendantConductReferencesCanBeCitedInAnActualFindingThroughShortAliases()
+    {
+        // Keep the fixture's canonical roster order while extending this opaque actor ID.
+        var subject = NonviolentRuntimeFixture.Subject + ":child:" + new string('a', 250);
+        var state = await NonviolentRuntimeFixture.ReadyToFindAsync(subject);
+        Assert.True(Assert.Single(state.Towns![0].Nonviolent.ConductRecords).Id.Length > 256);
+        var provider = new NonviolentTestProvider
+        {
+            Choose = observation => observation.InhabitantId == NonviolentRuntimeFixture.Judge
+                ? observation.Candidates.FirstOrDefault(candidate => candidate.Id.Contains("|law_case_find|", StringComparison.Ordinal) &&
+                    candidate.Id.EndsWith("|warning", StringComparison.Ordinal)) : null,
+            Payload = (_, candidate) =>
+            {
+                if (!candidate.Id.Contains("|law_case_find|", StringComparison.Ordinal)) return null;
+                var payload = NonviolentRuntimeFixture.FindingPayload(candidate);
+                Assert.NotEmpty(payload.EvidenceIds!);
+                Assert.All(payload.EvidenceIds!, reference => Assert.InRange(reference.Length, 1, 256));
+                payload.Validate();
+                return payload;
+            },
+        };
+        using var world = NonviolentRuntimeFixture.Create(state, provider);
+        await NonviolentRuntimeFixture.UntilAsync(world, () => world.Towns[0].Nonviolent.Cases[0].Findings.Count > 0, 8);
+        var item = Assert.Single(world.Towns[0].Nonviolent.Cases);
+        var finding = Assert.Single(item.Findings);
+        Assert.Equal("supported", finding.Result);
+        Assert.Equal("warning", finding.Consequence);
+        Assert.Contains(finding.EvidenceIds, id => id.Length > 256 && item.Evidence.Any(evidence => evidence.Id == id));
+        var found = NonviolentRuntimeFixture.Strict(world.ExportState());
+        var household = found.Society.Society.GetInhabitant(subject).HouseholdId!;
+        var lotId = "personal-stone:" + subject;
+        var inventory = InventoryFixture.AddLot(found.Society.Society.Inventory, lotId, "stone", subject, 1);
+        var toolId = "borrowed-axe:" + subject;
+        inventory = InventoryFixture.AddLot(inventory, toolId, "wooden_axe", household, 1, conditionBasisPoints: 3_000);
+        inventory = InventoryFixture.Relocate(inventory, "borrow-for-remedy", toolId, household, 1, carrierId: subject);
+        var carriedToolId = inventory.Lots.Single(lot => lot.Id == toolId && lot.CarrierId == subject).Id;
+        found = found with { Society = found.Society with { Society = found.Society.Society with { Inventory = inventory } } };
+        var name = found.Society.Society.GetInhabitant(subject).Name;
+        var offering = new NonviolentTestProvider
+        {
+            Choose = observation => observation.InhabitantId == subject
+                ? observation.Candidates.FirstOrDefault(candidate => candidate.Id.Contains("|read|", StringComparison.Ordinal)) ??
+                    observation.Candidates.FirstOrDefault(candidate => candidate.Id.Contains("|law_case_inspect|", StringComparison.Ordinal)) ??
+                    observation.Candidates.FirstOrDefault(candidate => candidate.Id.Contains("|remedy_offer|", StringComparison.Ordinal)) : null,
+            Payload = (_, candidate) =>
+            {
+                if (!candidate.Id.Contains("|remedy_offer|", StringComparison.Ordinal)) return null;
+                var contributor = Regex.Match(candidate.Description, Regex.Escape(name) + @" \(([^)]+)\)").Groups[1].Value;
+                var target = Regex.Match(candidate.Description, @"stone \(([^)]+)\) held by " + Regex.Escape(contributor)).Groups[1].Value;
+                Assert.NotEmpty(contributor);
+                Assert.NotEmpty(target);
+                Assert.InRange(contributor.Length, 1, 256);
+                Assert.InRange(target.Length, 1, 256);
+                Assert.DoesNotContain(lotId, candidate.Description, StringComparison.Ordinal);
+                var tool = Regex.Match(candidate.Description, @"wooden axe \(([^)]+)\) held by (\S+)");
+                Assert.True(tool.Success);
+                var toolReference = tool.Groups[1].Value;
+                var householdReference = tool.Groups[2].Value.TrimEnd(';', '.');
+                Assert.InRange(householdReference.Length, 1, 256);
+                return new(Statement: "I offer this named personal stone voluntarily.",
+                    Terms: [new("return_goods", contributor, NonviolentRuntimeFixture.Witness, "stone", 1, target),
+                        new("repair_equipment", contributor, householdReference, "wooden_axe", 1, toolReference)]);
+            },
+        };
+        using var remedy = NonviolentRuntimeFixture.Create(found, offering);
+        NonviolentRuntimeFixture.Wake(remedy, subject, "offer-through-short-references");
+        await NonviolentRuntimeFixture.UntilAsync(remedy, () => remedy.Towns[0].Nonviolent.Offers.Count > 0, 10);
+        var terms = Assert.Single(remedy.Towns[0].Nonviolent.Offers).Terms;
+        var term = Assert.Single(terms, term => term.Kind == "return_goods");
+        Assert.Equal(subject, term.ContributorId);
+        Assert.Equal(lotId, term.TargetId);
+        var repair = Assert.Single(terms, term => term.Kind == "repair_equipment");
+        Assert.Equal(household, repair.BeneficiaryId);
+        Assert.Equal(carriedToolId, repair.TargetId);
+        NonviolentRuntimeFixture.Strict(remedy.ExportState());
+    }
+
     [Fact]
     public async Task ActualTravelProducesOnlyNearbyKnowledgeAndAPersonalReportRemainsAnAllegation()
     {
