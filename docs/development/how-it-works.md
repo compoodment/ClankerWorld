@@ -1484,6 +1484,12 @@ fewer than three tiles past its nearest door carries on in its own direction
 where the land allows (`town_road_extended`). The border grows around all the
 new Road tiles.
 
+Street neighbours, headings, diagonal corners and clearance use the map's
+east-west wrap. A Road across the seam counts toward the distance to the last
+door, and a short dead end can carry on through that seam in its original
+direction. Rows do not wrap, building footprints still stay within map bounds,
+and bridge headings follow their saved axis and span.
+
 `TownLayoutService` captures one immutable layout context per decision and
 normally offers at most five legal sites with reasons for footprint, route,
 resources, purpose and compact growth. A model selects a site-specific candidate
