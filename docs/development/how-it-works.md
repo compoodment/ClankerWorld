@@ -307,7 +307,9 @@ Building orders use separate construction and expansion adapters. A
 `construct_building` order selects one active household building definition,
 then binds its household, exact site, project start and unique instance
 identity. Its own settlement project performs normal material acquisition,
-travel and work. Only successful placement creates the retained construction
+travel and work. The catalogue includes the exact shipped 1×2 Restaurant,
+using its normal 8 wood and 2 stone cost and household ownership rules.
+Only successful placement creates the retained construction
 receipt and credits the order. The receipt preserves the actor, order,
 definition, owner, site and paid-material evidence after the project is
 replaced or the building is removed; an unrelated existing building is never
