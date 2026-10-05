@@ -1087,6 +1087,7 @@ public partial class Main
                 await VerifyFirstWorldListAsync();
                 await VerifyWorldActionSelectionAsync();
                 await VerifyFreshHostEntryAsync();
+                await VerifyContinueSettingsNavigationAsync();
                 await VerifyNewWorldCompatibilityMessageAsync();
                 await VerifyWorldPreviewRerollAsync();
                 await VerifyAutosaveSettingsOwnershipAsync();
