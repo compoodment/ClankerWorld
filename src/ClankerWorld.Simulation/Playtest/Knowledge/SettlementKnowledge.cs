@@ -20,7 +20,7 @@ public sealed partial class PrivateWorldRuntime
         if (ownedCount >= AgentKnowledgeRules.MaximumFactsPerAgent)
             return false;
 
-        if (map.TerrainKindAt(position) is not { } terrain)
+        if (!map.IsPassable(position) || map.TerrainKindAt(position) is not { } terrain)
             return false;
         var resourcesAtTile = map.Resources.Where(item => item.Position == position)
             .Select(FoodKnowledgeKind).Distinct(StringComparer.Ordinal)
