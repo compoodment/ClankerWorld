@@ -283,7 +283,8 @@ wood", "collect three clay", or "keep collecting stone". Add "from (12, 4)"
 or "at tile 12,4" to collect only from that tile, including storage at a
 building's listed coordinates. If the requested goods are unavailable there,
 the order waits instead of collecting somewhere else. Adults and elders
-walk to their own available goods in current or former household storage, or
+walk to their own available goods in current or former household storage,
+belongings left to them by a settled will in another household's House, or goods
 on the ground, and physically pick them up. Household or other people's goods,
 reserved portions and promised deliveries remain unavailable. A default task
 collects one load within carrying space; quantities stop exactly at the requested
