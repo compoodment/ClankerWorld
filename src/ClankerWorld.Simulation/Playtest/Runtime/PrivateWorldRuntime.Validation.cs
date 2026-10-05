@@ -20,7 +20,7 @@ public sealed partial class PrivateWorldRuntime
         society.Validate();
         ValidateBusinessTrades(BusinessTrades, society.Checkpoint, map, WorldTick);
         ValidateToolMakingRequests(ToolMakingRequests, worldSimulation, worldContent, society.Checkpoint, inhabitants.Values, BusinessTrades, WorldTick);
-        ValidateMedicalCare(inhabitants.Values, deceasedInhabitants.Values, society.Checkpoint);
+        ValidateMedicalCare(inhabitants.Values, deceasedInhabitants.Values, society.Checkpoint, map);
         contentRegistry.Validate();
         worldContent.Validate();
         var expectedWorldContent = RebuildWorldContent(contentRegistry.ExportState());

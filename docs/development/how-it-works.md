@@ -1891,7 +1891,16 @@ Self-treatment is allowed, and a dependent's effective accepted `Caregiver`
 relationship supplies their existing authority. Treatment checks living adult
 caregivers, permission, local patient observation and actual usable medicine.
 An unrelated household's stock must be bought through ordinary barter first.
-Models receive no distant patient's hidden health or location through care.
+Models receive no distant patient's hidden health or location through care. A
+caregiver starting an offered medicine fetch records that locally observed
+patient and their last-seen position in `MedicalSupplyTrip`. The same intention
+continues to accessible stock, collects one real dose, then returns to the
+recorded position. Leaving interaction range does not cancel the fetch.
+Treatment still requires finding the consenting patient nearby; a patient who
+has moved out of sight is not tracked remotely. Permission loss or death ends
+the trip. Returning to an empty last-seen location, observing that care is no
+longer needed, or starting treatment also clears it. Current-format reload
+preserves both outward and return travel without reserving or inventing a dose.
 
 Starting medicine reserves and consumes one actual dose through the inventory
 authority. Its completed reservation binds the patient, caregiver, owner and
