@@ -449,6 +449,26 @@ public partial class Main
             fresh.Free();
             if (freshModel.Length > 0 || freshProblem != cantUseLuna)
                 throw new InvalidOperationException("A new agent must not start on another model when the key can't use the default.");
+            picker.SetModel("gpt-6-luna", isNewAgent: true);
+            picker.BeginLoading("gpt-6-luna");
+            picker.ShowList(listed, "gpt-6-luna");
+            const string cloudDefault = "glm-5.3-flash:cloud";
+            picker.SetModel(cloudDefault, isNewAgent: true);
+            picker.BeginLoading(cloudDefault);
+            OwnerProviderModelChoice[] cloudModels = [new(cloudDefault, false), new("glm-5.3:cloud", true)];
+            picker.ShowList(cloudModels, cloudDefault);
+            if (picker.Model.Length > 0 || picker.IsTyping || picker.Problem != $"This key can't use {cloudDefault}. Choose a model it can use." ||
+                picker.Choice.GetItemText(picker.Choice.Selected) != ModelPicker.ChooseText)
+                throw new InvalidOperationException($"Switching providers must not treat an unavailable automatic default as a typed model: model={picker.Model}, typing={picker.IsTyping}, problem={picker.Problem}.");
+            picker.SetModel("gpt-6-luna", isNewAgent: true);
+            picker.BeginLoading("gpt-6-luna");
+            picker.ShowList(listed, "gpt-6-luna");
+            picker.SetModel(cloudDefault, isNewAgent: true);
+            picker.BeginLoading(cloudDefault);
+            picker.ShowList([new(cloudDefault, true)], cloudDefault);
+            if (picker.Model != cloudDefault || picker.IsTyping || picker.Problem.Length > 0)
+                throw new InvalidOperationException("An available default after switching providers must remain a listed choice.");
+            picker.ShowList(listed, "gpt-6-luna");
             picker.SetModel("my-fine-tune");
             if (!picker.TypedInput.Visible || picker.TypedInput.Text != "my-fine-tune" || picker.Model != "my-fine-tune" ||
                 picker.Choice.GetItemText(picker.Choice.Selected) != ModelPicker.TypeOwnText)
@@ -463,6 +483,10 @@ public partial class Main
             picker.ShowList(listed, "gpt-6-luna");
             if (picker.Model != "my-other-model" || !picker.TypedInput.Visible)
                 throw new InvalidOperationException("A new list must not replace a typed model name.");
+            picker.BeginLoading(cloudDefault);
+            picker.ShowList(cloudModels, cloudDefault);
+            if (picker.Model != "my-other-model" || !picker.IsTyping)
+                throw new InvalidOperationException("Refreshing the model list must preserve an intentionally typed name.");
             picker.SetModel("gpt-6-luna");
             picker.ShowList(listed, "gpt-6-luna", "OpenAI refused this key.");
             if (picker.Problem != "OpenAI refused this key." || !picker.CanRetry || picker.Model != "gpt-6-luna" ||
