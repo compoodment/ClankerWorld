@@ -4,6 +4,7 @@ using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
+using ClankerWorld.Simulation.Society;
 
 namespace ClankerWorld.Simulation.Tests;
 
@@ -91,7 +92,7 @@ public sealed class TownNonviolentRemedyRuntimeTests
     }
 
     [Fact]
-    public async Task AgreedRepairTargetsTheNamedCoatInsteadOfThePreferredBasketAndSpendsMaterialsOnlyOnCompletion()
+    public async Task AgreedCoatRepairPausesForDependentCareAndSpendsItsReservedMaterialsOnlyOnCompletion()
     {
         var state = await NonviolentRuntimeFixture.FindingAsync();
         var actor = NonviolentRuntimeFixture.Subject;
@@ -119,6 +120,10 @@ public sealed class TownNonviolentRemedyRuntimeTests
             Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor ? person with
             { Equipment = new(ClothingLotId: "remedy-coat", CarryAidLotId: "remedy-basket") } : person).ToArray(),
         };
+        var care = SocietyFixture.ProposeRelationship(state.Society.Society,
+            new("remedy-dependent-care", 1, SocietyRelationshipType.Caregiver, actor, NonviolentRuntimeFixture.Witness, state.Society.Society.WorldTick)).Checkpoint;
+        care = SocietyFixture.AcceptRelationship(care, "remedy-dependent-care", 1, NonviolentRuntimeFixture.Witness).Checkpoint;
+        state = state with { Society = state.Society with { Society = care } };
         state = await NonviolentRuntimeFixture.AcceptRemedyAsync(state,
             [new("repair_equipment", actor, actor, "padded_coat", 1, "remedy-coat")]);
         var shop = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == "remedy-tailor");
@@ -127,13 +132,36 @@ public sealed class TownNonviolentRemedyRuntimeTests
             Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
             ? person with { Position = shop.Position } : person).ToArray()
         };
-        using var world = NonviolentRuntimeFixture.Create(state, CompletionProvider());
-        NonviolentRuntimeFixture.Wake(world, actor, "perform-named-repair");
-        await NonviolentRuntimeFixture.UntilAsync(world, () => world.Inhabitants.Single(person => person.InhabitantId == actor).Equipment!.Repair is not null, 4);
-        var repair = world.Inhabitants.Single(person => person.InhabitantId == actor).Equipment!.Repair!;
+        using var starting = NonviolentRuntimeFixture.Create(state, CompletionProvider());
+        NonviolentRuntimeFixture.Wake(starting, actor, "perform-named-repair");
+        await NonviolentRuntimeFixture.UntilAsync(starting, () => starting.Inhabitants.Single(person => person.InhabitantId == actor).Equipment!.Repair is not null, 4);
+        var repair = starting.Inhabitants.Single(person => person.InhabitantId == actor).Equipment!.Repair!;
         Assert.Equal("remedy-coat", repair.LotId);
-        Assert.Empty(world.Towns[0].Nonviolent.Effects);
-        Assert.Equal(1, world.Society.Inventory.GetLot("remedy-cloth").Quantity);
+        Assert.Empty(starting.Towns[0].Nonviolent.Effects);
+        Assert.Equal(1, starting.Society.Inventory.GetLot("remedy-cloth").Quantity);
+        var needingCare = starting.ExportState() with
+        {
+            Inhabitants = starting.ExportState().Inhabitants.Select(person => person.InhabitantId == NonviolentRuntimeFixture.Witness
+                ? person with { Survival = (person.Survival ?? new()) with { IllnessBasisPoints = 5_000 } } : person).ToArray(),
+        };
+        using var paused = NonviolentRuntimeFixture.Create(NonviolentRuntimeFixture.Strict(needingCare), CompletionProvider());
+        for (var tick = 0; tick < 10; tick++) Assert.True((await paused.AdvanceOneTickAsync()).Advanced);
+        Assert.Null(paused.Inhabitants.Single(person => person.InhabitantId == actor).Equipment!.Repair);
+        Assert.InRange(paused.Society.Inventory.GetLot("remedy-coat").ConditionBasisPoints, 2_900, 3_000);
+        Assert.Equal(1, paused.Society.Inventory.GetLot("remedy-cloth").Quantity);
+        Assert.All(repair.MaterialReservationIds, id => Assert.Equal(InventoryReservationState.Released, paused.Society.Inventory.GetReservation(id).State));
+        Assert.Empty(paused.Towns[0].Nonviolent.Effects);
+        Assert.Empty(paused.Towns[0].Nonviolent.NativeReceipts);
+        var cared = paused.ExportState() with
+        {
+            Inhabitants = paused.ExportState().Inhabitants.Select(person => person.InhabitantId == NonviolentRuntimeFixture.Witness
+                ? person with { Survival = person.Survival! with { IllnessBasisPoints = 0 } } : person).ToArray(),
+        };
+        using var world = NonviolentRuntimeFixture.Create(NonviolentRuntimeFixture.Strict(cared), CompletionProvider());
+        NonviolentRuntimeFixture.Wake(world, actor, "resume-after-dependent-care");
+        await NonviolentRuntimeFixture.UntilAsync(world, () => world.Inhabitants.Single(person => person.InhabitantId == actor).Equipment!.Repair is not null, 4);
+        var resumedRepair = world.Inhabitants.Single(person => person.InhabitantId == actor).Equipment!.Repair!;
+        Assert.Equal(repair.LotId, resumedRepair.LotId);
         var checkpoint = NonviolentRuntimeFixture.Strict(world.ExportState());
         using var replay = NonviolentRuntimeFixture.Create(checkpoint, CompletionProvider());
         for (var tick = 0; tick < PersonalEquipmentRules.RepairWorkTicks + 2; tick++)
@@ -151,7 +179,7 @@ public sealed class TownNonviolentRemedyRuntimeTests
         Assert.DoesNotContain(replay.Society.Inventory.Lots, lot => lot.Id == "remedy-cloth");
         Assert.Equal(1, replay.Society.Inventory.GetLot("remedy-fiber").Quantity);
         Assert.Equal(1, replay.Society.Inventory.GetLot("remedy-rope").Quantity);
-        Assert.All(repair.MaterialReservationIds, id => Assert.Equal(InventoryReservationState.Completed, replay.Society.Inventory.GetReservation(id).State));
+        Assert.All(resumedRepair.MaterialReservationIds, id => Assert.Equal(InventoryReservationState.Completed, replay.Society.Inventory.GetReservation(id).State));
         NonviolentRuntimeFixture.Strict(replay.ExportState());
     }
 

@@ -166,6 +166,7 @@ public sealed partial class PrivateWorldRuntime
     }
 
     private bool CanContinueEquipmentRepair(string actor) => inhabitants[actor].Equipment?.Repair is { } repair &&
+        !NonviolentEquipmentRepairPaused(actor) &&
         !NeedsUrgentFood(inhabitants[actor]) && !NeedsUrgentWarmth(inhabitants[actor]) &&
         repair.MaterialReservationIds.All(id => society.Checkpoint.Inventory.GetReservation(id) is
         { State: InventoryReservationState.Reserved } reservation && reservation.ExpiryTick >= WorldTick);

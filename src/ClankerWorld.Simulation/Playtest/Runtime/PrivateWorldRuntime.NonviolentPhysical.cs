@@ -211,6 +211,12 @@ public sealed partial class PrivateWorldRuntime
         !ChildrenNeedingCare(actor).Any() &&
         SettlementIllnessRules.AllowsWork(actor, WorldTick, person.Survival?.IllnessBasisPoints ?? 0);
 
+    private bool NonviolentEquipmentRepairPaused(string actor) => inhabitants[actor].Equipment?.Repair is { } repair &&
+        towns.Any(town => town.Nonviolent.Agreements.Any(agreement => agreement.Status is "pending" or "overdue" &&
+            !TownRemedyRules.IsSuperseded(town.Nonviolent, agreement.Id) && agreement.Terms.Any(term =>
+                term.Kind == "repair_equipment" && term.ContributorId == actor && term.TargetId == repair.LotId &&
+                NonviolentRemaining(town.Nonviolent, agreement, term) > 0))) && !NonviolentWorkAllowed(actor);
+
     private InventoryLot? NonviolentReturnLot(TownRemedyTerm term) => society.Checkpoint.Inventory.Lots
         .Where(lot => lot.OwnerId == term.ContributorId && ToolProgressionRules.IsTopLevelCarriedLot(lot, term.ContributorId) &&
             lot.DeliveryBuildingId is null && lot.ItemKind == term.ItemKind && (term.TargetId is null || lot.Id == term.TargetId) &&
