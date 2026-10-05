@@ -603,6 +603,15 @@ threshold and two days are provisional; a check based on the real risk of the
 world dying out comes later. This has automated checks but no Windows playtest
 yet.
 
+Both parents' cards show a preparing plan's food shortage: the
+caregiver household's available ready-to-eat portions and how many more it
+needs: two for each living household member, plus four for the birth. Grain
+and flour need cooking. Reserved, spoiled, privately owned food, food carried
+by someone other than the caregiver, and food in a broken pot do not count.
+A parent in another household gets the resource blocker in their model
+guidance without the caregiver household's private quantities. Ordinary food
+acquisition and cooking priorities still apply.
+
 When an agent with a personal model dies owning something, their model is
 asked once for a final will. It can leave everything to the household or name
 up to three heirs: living people of any age, including children, or the Town

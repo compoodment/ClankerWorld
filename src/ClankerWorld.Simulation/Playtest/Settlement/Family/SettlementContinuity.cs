@@ -130,6 +130,16 @@ public sealed partial class PrivateWorldRuntime
     private string? ContinuityNote(string actor)
     {
         if (ContinuityCoupleOf(actor) is not { } couple) return null;
+        var preparing = inhabitants.Values.FirstOrDefault(person => person.Parenthood is { Stage: "preparing" } plan &&
+            (person.InhabitantId == actor || plan.PartnerId == actor));
+        if (preparing?.Parenthood?.PrimaryCaregiverId is { } caregiver)
+        {
+            var deadline = !ContinuityAllowsPostponement(couple) ? "Your two days are up. "
+                : $"Your two days end in about {((couple.DeadlineTick - WorldTick) * 24 + worldSystems.Config.TicksPerDay - 1) / worldSystems.Config.TicksPerDay} hours. ";
+            return "Continuity rule: you may put off a child for two days but may not refuse. " + deadline +
+                "Preparing for parenthood. " + ParenthoodFoodNote(society.Checkpoint, caregiver,
+                    society.Checkpoint.GetInhabitant(actor).HouseholdId == society.Checkpoint.GetInhabitant(caregiver).HouseholdId);
+        }
         const string rule = "Continuity rule: while fewer than eight non-elders are alive, you and your partner " +
             "may put off having a child for up to two days but may not refuse.";
         if (!ContinuityAllowsPostponement(couple))

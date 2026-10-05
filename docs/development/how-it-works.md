@@ -2260,6 +2260,15 @@ rule is on in a started world, even when the transition event has left bounded
 history. The link opens the existing Add Agent controls and rechecks the current
 snapshot when clicked; it neither places an agent nor asks for a paid model call.
 
+Preparing parenthood notes derive the caregiver household's usable edible
+reserve and required amount from the same captured society/inventory checkpoint
+as the owner snapshot. Birth and these notes share the lot ownership, carrier,
+edibility, usable-vessel and reservation predicates. The reserve remains two
+portions per active household member plus four for birth. A parent's continuity
+guidance includes the amount only when they belong to the caregiver's current
+household; a partner living elsewhere gets the blocker without stock quantities.
+These notes add no saved fields, events or birth authority.
+
 ## Developer edits
 
 The F12 panel submits one signed `POST /api/v1/owner/developer-edit` command for
