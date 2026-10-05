@@ -540,7 +540,8 @@ public sealed record CognitionDecisionResponse(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<CognitionObserverReply>? ObserverReplies = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] CognitionWillChoice? Will = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<CognitionLandTile>? CivicLandTiles = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] CognitionLandHearingChoice? CivicLandHearing = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] CognitionLandHearingChoice? CivicLandHearing = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] CognitionNonviolentChoice? CivicNonviolent = null)
 {
     public const int MaximumCivicLandTiles = 64;
     public const int MaximumPrivateThoughtLength = 160;
@@ -621,6 +622,7 @@ public sealed record CognitionDecisionResponse(
         if (CivicLandTiles is { Count: 0 or > MaximumCivicLandTiles } || CivicLandTiles?.Any(tile => tile is null) == true)
             throw new ArgumentOutOfRangeException(nameof(CivicLandTiles));
         CivicLandHearing?.Validate();
+        CivicNonviolent?.Validate();
         var observerReplyIds = new HashSet<string>(StringComparer.Ordinal);
         foreach (var reply in ObserverReplies ?? [])
         {
@@ -1126,6 +1128,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                         "For civic ballot actions include civic_ballot, an array of up to the stated number of distinct eligible candidate IDs, or an empty array to abstain. " +
                         "For hearing actions, civic_land_hearing may contain statement (testimony or reasons, at most 256 characters), household_id, agreed_end_tick (an integer), evidence_ids and law_ids (up to 16 distinct exact offered references each), grounds (a reopening claim, at most 256 characters), and requested_outcome (confirm, renew, amend, end or reject when filing). hearing_file also supplies civic_land_tiles. The selected hearing candidate fixes a ruling or reopening assessment; your submission supplies no authority, household consent or verified fact. Only cite case evidence you actually inspected or received. " +
                         "For land_transfer_propose, supply exact civic_land_tiles within existing permissions and the offered receiving household_id in civic_land_hearing. A voluntary transfer retains permission terms and moves no private buildings, crops or goods. Each current affected adult must separately read the actual transfer notice and choose their own offered land_transfer_accept or land_transfer_decline action; filing supplies no consent. " +
+                        "For law_case and remedy actions, civic_nonviolent may contain statement and uncertainty (at most 256 characters each), evidence_ids (up to 16 exact inspected references), grounds, terms (up to eight objects with kind return_goods, repair_equipment or public_service_goods, contributor_id, optional beneficiary_id/item_kind/target_id, and positive quantity), and positive completion_ticks. Terms propose voluntary named feasible goods or work only; no transfer, authority, consent or completion is created by prose. The selected candidate fixes the case, response, finding or offer revision. Silence and rumor alone do not establish a violation. " +
                         "Civic candidates come only from notices you actually read or heard; registration records your own willingness. " +
                         "When needs_name is true, also include chosen_name (your own full name, " +
                         "including a given name and family/surname; a middle name is optional; " +
@@ -1450,7 +1453,8 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                 chosenName,
                 ChosenPersonality: chosenPersonality, ChosenAspiration: chosenAspiration, CivicProposal: civicProposal, CivicBallot: civicBallot,
                 ObserverReplies: observerReplies, Will: will, CivicLandTiles: ParseCivicLandTiles(answerRoot),
-                CivicLandHearing: CognitionLandHearingChoice.Parse(answerRoot));
+                CivicLandHearing: CognitionLandHearingChoice.Parse(answerRoot),
+                CivicNonviolent: CognitionNonviolentChoice.Parse(answerRoot));
         }
         catch (JsonException exception)
         {

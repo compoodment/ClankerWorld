@@ -15,6 +15,16 @@ public sealed partial class PrivateWorldRuntime
             candidates.Add(new(CivicAction(town.Id, "government_propose", TownArrangementRules.Key(target)),
                 $"Initiate a protected resident vote in {town.Name}: {TownArrangementRules.Declaration(target)} " +
                 "More than half the eligible adult residents must approve; incumbent permission is not needed. No power changes before a valid handover.", 195));
+        if (atNoticePlace && government.Arrangement.NonLand == "none")
+            foreach (var office in government.Offices.Where(office => office.Mandates is "land" or "ordinary" && office.HolderId is not null && office.TermEndTick > WorldTick))
+                candidates.Add(new(CivicAction(town.Id, "government_extend_non_land", TownArrangementRules.Key(government.Arrangement with { NonLand = TownArrangementRules.Mayor }), NonLandExtensionToken(office)),
+                    "Propose adding nonviolent civil adjudication to " + society.Checkpoint.GetInhabitant(office.HolderId!).Name +
+                    "'s existing " + TownArrangementRules.MandateLabel(office.Mandates) + " term. Resident majority and their separate personal consent are required; the existing term deadline stays unchanged.", 195));
+        foreach (var change in government.Changes.Where(change => change.Status is "queued" or "voting" or "handover" &&
+                     change.NonLandExtension is { ConsentTick: null } extension && extension.HolderId == actor &&
+                     TownGovernmentRules.CanAcceptNonLandDuties(town.Governance!, government, change.Id, actor, TownAdults(town), WorldTick)))
+            candidates.Add(new(CivicAction(town.Id, "government_accept_non_land", change.Id),
+                "Personally accept these proposed additional nonviolent adjudication duties for your existing term. This supplies no resident vote, and does not restart your term.", 185));
         if (atNoticePlace && TownArrangementRules.HasOffice(government.Arrangement))
             candidates.Add(new(CivicAction(town.Id, "government_replace", TownArrangementRules.Key(government.Arrangement)),
                 $"Ask {town.Name}'s adult residents to approve early replacement of the elected mayoral mandates. Approval requires a resident majority and a valid successor election.", 196));
@@ -31,13 +41,13 @@ public sealed partial class PrivateWorldRuntime
         }
         var officeInPlay = TownArrangementRules.HasOffice(government.Arrangement) || government.Contest is not null ||
             government.Changes.Any(c => c.Status is "queued" or "voting" or "handover" && TownArrangementRules.HasOffice(c.Target));
-        foreach (var mandates in new[] { "land", "ordinary", "land+ordinary" })
+        foreach (var mandates in TownArrangementRules.SupportedMandates)
         {
             var willing = government.Consents.Any(c => c.AgentId == actor && c.Mandates == mandates);
             if (!officeInPlay && !willing) continue;
             candidates.Add(new(CivicAction(town.Id, willing ? "mayor_withdraw" : "mayor_register", mandates),
                 willing ? $"Withdraw willingness to seek election for {TownArrangementRules.MandateLabel(mandates)} in {town.Name}; this does not resign a held office."
-                    : $"Personally agree to seek election for {TownArrangementRules.MandateLabel(mandates)} in {town.Name}, if residents authorize that office. This grants no authority or Council candidacy.", 190));
+                    : $"Personally agree to seek election for {TownArrangementRules.MandateLabel(mandates)} in {town.Name}, if residents authorize that office. This grants no authority or Council candidacy. To add duties to a current office, use its protected extension; this registration cannot restart that term.", 190));
         }
         foreach (var office in government.Offices.Where(o => o.HolderId == actor))
             candidates.Add(new(CivicAction(town.Id, "mayor_resign", office.Mandates),
@@ -50,6 +60,11 @@ public sealed partial class PrivateWorldRuntime
                     $"Round {contest.Round} closes on world day {CivicDayNumber(closes)}. A tie requires another vote, never a draw.", 167));
     }
 
+    private static string NonLandExtensionToken(TownOffice office) => NonviolentToken(office.Mandates + "|" + office.ElectionId);
+    private static TownOffice NonLandExtensionOffice(TownGovernmentState government, string token) =>
+        government.Offices.SingleOrDefault(office => NonLandExtensionToken(office) == token) ??
+            throw new InvalidOperationException("The proposed added duties refer to an earlier office term.");
+
     private (TownGovernanceState Council, TownGovernmentState Government) ApplyTownGovernmentAction(
         TownRuntimeState town, string actor, string action, string subject, string choice,
         TownGovernanceState council, TownGovernmentState government) => action switch
@@ -57,6 +72,12 @@ public sealed partial class PrivateWorldRuntime
             "government_propose" or "government_replace" => TownGovernmentRules.Propose(council, government, town.Id, actor,
                 TownArrangementRules.Parse(subject) ?? throw new InvalidOperationException("Unsupported government arrangement."),
                 action == "government_replace", TownAdults(town), WorldTick, CivicDay),
+            "government_extend_non_land" => TownGovernmentRules.Propose(council, government, town.Id, actor,
+                TownArrangementRules.Parse(subject) ?? throw new InvalidOperationException("Unsupported government arrangement."),
+                false, TownAdults(town), WorldTick, CivicDay,
+                nonLandBaseMandate: NonLandExtensionOffice(government, choice).Mandates,
+                expectedNonLandBaseElectionId: NonLandExtensionOffice(government, choice).ElectionId),
+            "government_accept_non_land" => TownGovernmentRules.AcceptNonLandDuties(council, government, subject, actor, TownAdults(town), WorldTick),
             "government_yes" or "government_no" => (council, TownGovernmentRules.Vote(government, subject, actor, action == "government_yes", WorldTick)),
             "government_withdraw" => TownGovernmentRules.Withdraw(council, government, subject, actor, WorldTick),
             "mayor_register" => TownGovernmentRules.RegisterMayor(council, government, actor, subject, TownAdults(town), WorldTick),

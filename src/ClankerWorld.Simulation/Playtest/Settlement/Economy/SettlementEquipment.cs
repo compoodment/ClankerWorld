@@ -166,6 +166,7 @@ public sealed partial class PrivateWorldRuntime
     }
 
     private bool CanContinueEquipmentRepair(string actor) => inhabitants[actor].Equipment?.Repair is { } repair &&
+        !NonviolentEquipmentRepairPaused(actor) &&
         !NeedsUrgentFood(inhabitants[actor]) && !NeedsUrgentWarmth(inhabitants[actor]) &&
         repair.MaterialReservationIds.All(id => society.Checkpoint.Inventory.GetReservation(id) is
         { State: InventoryReservationState.Reserved } reservation && reservation.ExpiryTick >= WorldTick);
@@ -238,6 +239,8 @@ public sealed partial class PrivateWorldRuntime
         ApplyInventoryTransition(inventory => InventoryFixture.RepairSingleUnit(inventory, repair.LotId, 6_000, repair.MaterialReservationIds));
         inhabitants[actor] = inhabitants[actor] with { Equipment = person.Equipment with { Repair = null } };
         GainSkill(actor, SettlementSkillKind.Crafting);
+        RecordNonviolentRepairCompletion(actor, target, repair.LotId,
+            $"repair-equipment:{repair.StartedTick}:{WorldTick}:{actor}:{repair.LotId}", person.Position, repair.MaterialReservationIds);
         AppendEvent("equipment_repaired", $"{actor}|{repair.LotId}");
         return repair;
     }

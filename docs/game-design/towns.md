@@ -2,7 +2,7 @@
 title: Towns, buildings and government
 type: game-design
 status: active
-updated: 2026-10-03
+updated: 2026-10-04
 ---
 
 # Towns, buildings and government
@@ -328,6 +328,13 @@ resident counts.
   shelter is still possible under the guest rules. No person or goods are
   teleported to a new home. Goods, collection access and care follow the
   [departure rules](#household-goods-and-departure).
+- **Late forced replacements get time to look, agreed on October 4
+  ([#909](https://github.com/compoodment/ClankerWorld/issues/909)).** If the
+  adult holding a notice becomes ineligible, an eligible replacement inherits
+  the case's deadline while it is still in the future. A forced replacement
+  notified at or after that deadline instead gets one fresh unpaused world
+  day. This does not restart other residents' notices or the overcrowding
+  case. Volunteers always inherit the original deadline.
 - **Expansion can solve crowding.** The household may plan its next supported
   footprint for a storage or housing need, under the ordinary terrain,
   overlap, land-use, materials and work rules. Reserved space or an unfinished
@@ -558,7 +565,13 @@ and invented content are not silently approved. In particular:
   are required. Boats are communal Town
   property, usable by residents or visitors with permission; the first
   [boat journey](world.md#first-boat-and-port-travel) needs a completed Port at
-  each end. Exact queue and construction-cost rules remain open.
+  each end. **Agreed on October 4, 2026
+  ([#919](https://github.com/compoodment/ClankerWorld/issues/919)):** each of
+  the three water rows has one adjacent water dock on each long side, six in
+  total. Keep those six tiles clear of construction. Agents request trips at
+  a legal land approach and use the [boat queue and reservation
+  procedure](world.md#first-boat-and-port-travel). Construction costs remain
+  provisional.
 - Combat gear includes a spear, sword, shield and armor alongside the
   dual-purpose axe. Clothing does not change an agent's map appearance; the
   visual treatment of worn armor remains open.
@@ -1753,4 +1766,4 @@ These remain open; they are not new decisions.
     choices raise storage and House resident capacity under the agreed
     footprint table above. The other chosen building
     footprints are in the accepted roster above. Decide storage capacities, costs,
-    other expansion triggers and Port clearance details.
+    other expansion triggers.

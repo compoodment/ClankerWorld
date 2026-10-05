@@ -32,6 +32,9 @@ public sealed record TownRuntimeState(
 
     [JsonRequired]
     public IReadOnlyList<TownMarketState> Markets { get; init; } = [];
+
+    [JsonRequired]
+    public TownNonviolentState Nonviolent { get; init; } = TownNonviolentState.Create();
 }
 
 /// <summary>

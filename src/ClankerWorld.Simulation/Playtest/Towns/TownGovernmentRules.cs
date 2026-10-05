@@ -24,13 +24,15 @@ public static partial class TownGovernmentRules
     private static string Circumstances(TownGovernmentState state, string[] adults) =>
         Fingerprint(adults.Prepend(TownArrangementRules.Key(state.Arrangement))
             .Concat(state.Offices.OrderBy(o => o.Mandates, StringComparer.Ordinal).Select(o => o.Mandates + ":" + o.HolderId)));
-    private static string ElectionCircumstances(TownGovernmentState state, string[] adults, string mandates) =>
-        Fingerprint(adults.Prepend(mandates).Concat(Willing(state, adults, mandates).Select(id => "candidate:" + id)));
-    private static string[] Willing(TownGovernmentState state, string[] adults, string mandates) =>
-        adults.Where(id => state.Consents.Any(c => c.AgentId == id && c.Mandates == mandates)).ToArray();
+    private static string ElectionCircumstances(TownGovernmentState state, string[] adults, string mandates, string? changeId = null) =>
+        Fingerprint(adults.Prepend(mandates).Concat(Willing(state, adults, mandates, changeId).Select(id => "candidate:" + id)));
+    private static string[] Willing(TownGovernmentState state, string[] adults, string mandates, string? changeId = null) =>
+        adults.Where(id => state.Consents.Any(c => c.AgentId == id && c.Mandates == mandates) &&
+            CanStandForMayoralContest(state, id, mandates, changeId)).ToArray();
     private static string[] RequiredSuccessorMandates(TownArrangement current, TownGovernmentChange change) =>
         change.Kind == "replace_mayor" ? Mandates(change.Target) :
-            Mandates(change.Target).Except(Mandates(current), StringComparer.Ordinal).ToArray();
+            Mandates(change.Target).Except(Mandates(current), StringComparer.Ordinal)
+                .Where(m => m != "non_land" || change.NonLandExtension is null).ToArray();
     private static TownGovernmentState Replace(TownGovernmentState state, TownGovernmentChange change) =>
         state with { Changes = state.Changes.Select(c => c.Id == change.Id ? change : c).ToArray() };
     private static TownGovernanceState Notice(TownGovernanceState council, string kind, string subject, string text, long tick) =>
@@ -38,15 +40,28 @@ public static partial class TownGovernmentRules
 
     public static (TownGovernanceState Council, TownGovernmentState Government) Propose(
         TownGovernanceState council, TownGovernmentState state, string townId, string actor,
-        TownArrangement target, bool replaceMayor, IEnumerable<string> adultResidents, long tick, int day)
+        TownArrangement target, bool replaceMayor, IEnumerable<string> adultResidents, long tick, int day,
+        string? nonLandBaseMandate = null, string? expectedNonLandBaseElectionId = null)
     {
         var adults = Ordered(adultResidents);
         if (!Has(adults, actor) || !TownArrangementRules.IsSupported(target) ||
             replaceMayor && (target != state.Arrangement || !TownArrangementRules.HasOffice(target)) ||
-            !replaceMayor && target == state.Arrangement)
+            !replaceMayor && target == state.Arrangement || nonLandBaseMandate is null && expectedNonLandBaseElectionId is not null)
             throw new InvalidOperationException("Only an adult resident may propose a supported, different arrangement or replace an existing elected office.");
         var kind = replaceMayor ? "replace_mayor" : "arrangement";
-        var key = kind + ":" + TownArrangementRules.Key(target);
+        TownNonLandExtension? extension = null;
+        if (nonLandBaseMandate is not null)
+        {
+            var source = state.Offices.SingleOrDefault(office => office.Mandates == nonLandBaseMandate && office.HolderId is not null);
+            if (replaceMayor || nonLandBaseMandate is not ("land" or "ordinary") ||
+                target.NonLand != TownArrangementRules.Mayor || state.Arrangement.NonLand != TownArrangementRules.NoOffice ||
+                !Has(Mandates(target), nonLandBaseMandate) || source is not { ElectionId: not null, TermStartTick: not null, TermEndTick: not null } ||
+                source.TermEndTick <= tick || !Has(adults, source.HolderId!) ||
+                expectedNonLandBaseElectionId is not null && source.ElectionId != expectedNonLandBaseElectionId)
+                throw new InvalidOperationException("Added duties must name a current elected term retained by the proposed arrangement.");
+            extension = new(source.HolderId!, source.Mandates, source.ElectionId, source.TermStartTick.Value, source.TermEndTick.Value);
+        }
+        var key = ChangeRequestKey(kind, target, extension);
         if (state.Changes.Any(c => c.RequestKey == key && c.Status is "queued" or "voting" or "handover"))
             return (council, state);
         var circumstances = Circumstances(state, adults);
@@ -54,11 +69,12 @@ public static partial class TownGovernmentRules
             tick < prior.SettledTick + day && prior.Circumstances == circumstances)
             throw new InvalidOperationException("This resident proposal must wait one unpaused day or a material change before retrying.");
         var id = townId + ":government:" + (state.Sequence + 1).ToString(CultureInfo.InvariantCulture);
-        var change = new TownGovernmentChange(id, key, kind, target, actor, circumstances, tick, "queued", null, null, [], []);
+        var change = new TownGovernmentChange(id, key, kind, target, actor, circumstances, tick, "queued", null, null, [], [])
+        { NonLandExtension = extension };
         state = state with { Sequence = state.Sequence + 1, Changes = state.Changes.Append(change).ToArray() };
         council = Notice(council, "government", id, $"{actor} proposed a protected resident vote. " +
             (replaceMayor ? "Elect a replacement for the current mayoral mandates. " : "") +
-            TownArrangementRules.Declaration(target) + " The resident-majority safeguard cannot be removed.", tick);
+            TownArrangementRules.Declaration(target) + ExtensionDeclaration(extension) + " The resident-majority safeguard cannot be removed.", tick);
         return OpenNext(council, state, adults, tick, day);
     }
 
@@ -88,7 +104,9 @@ public static partial class TownGovernmentRules
         foreach (var queued in state.Changes.Where(c => c.Status == "queued").ToArray())
         {
             if (!Has(adults, queued.AuthorId) || queued.Kind == "arrangement" && queued.Target == state.Arrangement ||
-                queued.Kind == "replace_mayor" && queued.Target != state.Arrangement)
+                queued.Kind == "replace_mayor" && queued.Target != state.Arrangement ||
+                queued.NonLandExtension is { } extension && (state.Arrangement.NonLand != TownArrangementRules.NoOffice ||
+                    !ExtensionBaseCurrent(state, extension, tick)))
             {
                 state = Replace(state, queued with { Status = "cancelled", SettledTick = tick, Reason = "The queued request is no longer applicable." });
                 council = Notice(council, "government", queued.Id, "Queued government proposal cancelled because its author or requested arrangement changed.", tick);
@@ -105,7 +123,7 @@ public static partial class TownGovernmentRules
                 Circumstances = Circumstances(state, adults)
             });
             council = Notice(council, "government", VoteNoticeToken(state.Changes.Single(c => c.Id == queued.Id)),
-                $"Resident government vote opened: {TownArrangementRules.Declaration(queued.Target)} " +
+                $"Resident government vote opened: {TownArrangementRules.Declaration(queued.Target)}{ExtensionDeclaration(queued.NonLandExtension)} " +
                 $"Needs more than half of the {adults.Length} eligible opening residents to vote yes by tick {tick + day}. Votes are final; silence is not approval.", tick);
             break;
         }
@@ -191,7 +209,8 @@ public static partial class TownGovernmentRules
         if (handover is not null)
         {
             var winner = state.Contest is { Stage: "ready", Purpose: "handover" } contest && contest.ChangeId == handover.Id ? contest : null;
-            var officeReady = RequiredSuccessorMandates(state.Arrangement, handover).All(m =>
+            var officeReady = (handover.NonLandExtension is null || ExtensionReady(state, handover, tick)) &&
+                RequiredSuccessorMandates(state.Arrangement, handover).All(m =>
                 winner is not null && Has(winner.Mandates.Split('+'), m));
             var councilReady = !targetNeedsCouncil || council.Form == "representative" && council.Members.Count == TownGovernanceRules.Seats ||
                 council.Election is { Stage: "ready", SettledSeats.Count: TownGovernanceRules.Seats };
@@ -200,6 +219,8 @@ public static partial class TownGovernmentRules
                 if (winner is not null) (council, state) = SeatMayor(council, state, winner, tick, day);
                 if (state.Contest?.ChangeId == handover.Id)
                     (council, state) = ArchiveContest(council, state, "cancelled", "The government handover completed without needing this election.", adults, tick, day);
+                if (handover.NonLandExtension is not null)
+                    (council, state) = ExtendNonLandOffice(council, state, handover, tick);
                 foreach (var office in state.Offices.Where(o => !Has(Mandates(handover.Target), o.Mandates)).ToArray())
                 {
                     if (office.HolderId is not null) (council, state) = EndOffice(council, state, office, tick, "Residents ended this mandate.");
@@ -209,7 +230,12 @@ public static partial class TownGovernmentRules
                 if (state.Contest is { Purpose: not "handover" } obsolete &&
                     obsolete.Mandates.Split('+').Any(m => !Has(Mandates(handover.Target), m)))
                     (council, state) = ArchiveContest(council, state, "cancelled", "The protected handover ended a mandate this contest would fill.", adults, tick, day);
-                state = Replace(state, handover with { Status = "completed", SettledTick = tick, SuccessorId = winner?.WinnerId });
+                state = Replace(state, handover with
+                {
+                    Status = "completed",
+                    SettledTick = tick,
+                    SuccessorId = handover.NonLandExtension?.HolderId ?? winner?.WinnerId
+                });
                 if (targetNeedsCouncil && council.Election is { Stage: "ready" } successor)
                     council = TownGovernanceRules.SeatFullCouncil(council, successor, tick, day);
                 else if (changesOrdinaryAuthority && !targetNeedsCouncil)

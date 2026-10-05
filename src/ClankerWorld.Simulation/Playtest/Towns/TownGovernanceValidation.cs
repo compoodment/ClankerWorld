@@ -36,13 +36,17 @@ public static partial class TownGovernanceValidation
         foreach (var proposal in state.Proposals)
         {
             if (!ValidGeneratedId(proposal.Id, town.Id + ":proposal:", state.Sequence) ||
-                string.IsNullOrWhiteSpace(proposal.RequestKey) || proposal.Kind is not ("law" or "admission" or "land_claim" or "land_use" or "land_hearing" or "project") || !known.Contains(proposal.AuthorId) ||
+                string.IsNullOrWhiteSpace(proposal.RequestKey) || proposal.Kind is not ("law" or "admission" or "land_claim" or "land_use" or "land_hearing" or "project" or "law_case") || !known.Contains(proposal.AuthorId) ||
                 proposal.Kind == "land_use" && string.IsNullOrWhiteSpace(proposal.SubjectId) ||
                 proposal.Kind == "admission" && (proposal.SubjectId is null || !known.Contains(proposal.SubjectId)) ||
-                proposal.Kind is "law" or "land_claim" or "land_hearing" or "project" && proposal.SubjectId is not null ||
+                proposal.Kind is "law" or "land_claim" or "land_hearing" or "project" or "law_case" && proposal.SubjectId is not null ||
                 proposal.Kind == "land_hearing" && (!TownLandGovernmentFilingRules.IsValid(proposal.LandHearingRequest, proposal.OpenedTick) ||
                     proposal.RequestKey != TownLandGovernmentFilingRules.RequestKey(proposal.LandHearingRequest!)) ||
                 proposal.Kind != "land_hearing" && proposal.LandHearingRequest is not null ||
+                proposal.Kind == "law_case" && (!TownNonviolentGovernmentFilingRules.IsValid(proposal.NonviolentRequest, proposal.OpenedTick) ||
+                    proposal.RequestKey != TownNonviolentGovernmentFilingRules.RequestKey(proposal.NonviolentRequest!) ||
+                    !known.Contains(proposal.NonviolentRequest!.Allegation.SubjectId)) ||
+                proposal.Kind != "law_case" && proposal.NonviolentRequest is not null ||
                 proposal.Kind == "land_claim" && proposal.LandClaimTiles is not { Count: > 0 } ||
                 proposal.Kind != "land_claim" && proposal.LandClaimTiles is not null ||
                 string.IsNullOrWhiteSpace(proposal.Text) || proposal.Text.Length > TownGovernanceRules.MaximumProposalText || proposal.Text.Any(char.IsControl) ||
@@ -104,7 +108,7 @@ public static partial class TownGovernanceValidation
             var notice = state.Notices[index];
             if (notice.Id != "notice:" + (index + 1).ToString(CultureInfo.InvariantCulture) || string.IsNullOrWhiteSpace(notice.SubjectId) ||
                 notice.Kind is not ("council" or "candidate" or "nomination" or "election" or "runoff" or "result" or "proposal" or "cancelled" or
-                    "law" or "government" or "mayor" or "land_use" or "land_hearing" or "land_transfer") ||
+                    "law" or "government" or "mayor" or "land_use" or "land_hearing" or "land_transfer" or "law_case" or "remedy" or "nonviolent_hearing") ||
                 string.IsNullOrWhiteSpace(notice.Text) || notice.Text.Length > 32768 || notice.PostedTick < 0 || notice.PostedTick > tick)
                 throw new InvalidDataException("A saved Town civic notice is invalid.");
         }

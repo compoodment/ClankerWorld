@@ -348,6 +348,19 @@ to remain available forever. Unfinished targets are revalidated when work
 continues. This version follows building-order schema 89; older alpha checkpoints are
 refused and preserved without migration.
 
+Schema 91 adds the required non-land case ledger, protected non-land mandate
+scope and retained-term extension receipts. It saves exact allegations,
+historical conduct and law context, actual observation and communication
+sources, notice and response history, independent adjudicator authority,
+findings, voluntary offers and each contributor's consent. Completion effects
+refer to native physical receipts rather than mutable stock or the event log.
+Loading rejects missing, duplicate, future or inconsistent evidence and
+authority links. Historical records remain meaningful after law changes,
+departure, death, consumption or removal of the physical target. Prepared-tick
+rollback includes these ledgers alongside the actual goods or work. Earlier
+alpha checkpoints are refused and preserved; no inferred case history or
+migration is added.
+
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
 Matching parent assignments are disclosed as agreement; when they differ, the
@@ -758,7 +771,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 90. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 91. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 a bounded model-attempt status and exact last accepted model choice per agent, plus
@@ -897,6 +910,7 @@ current alpha cutoff.
 | Schema 78 | A sponsored admission approval expires one unpaused world day after its passed proposal settled, with `acceptance_expired` recorded when no acceptance occurred. The deadline uses saved world time and the original council decision, so pause and reload do not restart it. Earlier alpha saves are refused and preserved without migration. |
 | Schema 81 | A protected government change records the exact initial Council election it forced, including failed attempts. Current-format saves require the explicit nullable link and validate its Town, ownership and lifecycle. Ordinary elections remain independent; earlier alpha saves are refused and preserved without migration. |
 | Schema 84 | Required marriage consent receipts and dedicated surname conversations preserve the original surnames, admitted turns and seeded result, including across history compaction. Later player surname changes update both spouses together without rewriting the original decision. |
+| Schema 91 | Non-land mandate consent, conduct-time law context, public hearings and voluntary remedy agreements retain their sources and real physical completion receipts. Earlier alpha saves are refused and preserved without migration. |
 
 ### Tool-making requests
 

@@ -41,17 +41,26 @@ public sealed partial class PrivateWorldRuntime
         var revision = TownLandHearingRules.CurrentRevision(item);
         var records = householdLandUseRights.Where(right => right.TownId == town.Id && right.Tiles.Any(revision.Tiles.Contains))
             .Select(right => (right.Id, TownLandHearingRules.Version(right),
-                FormattableString.Invariant($"Recorded household {right.HouseholdId} permission for {right.Tiles.Count} tiles; grant {right.GrantSource}; granted {right.GrantedTick}; agreed end {right.AgreedEndTick?.ToString(CultureInfo.InvariantCulture) ?? "none"}.")))
+                LandHearingRightText(right)))
             .Concat(townLandTitles.Where(title => title.TownId == town.Id && title.Tiles.Any(revision.Tiles.Contains))
                 .Select(title => (title.Id, TownLandHearingRules.Digest(JsonSerializer.Serialize(title)),
-                    FormattableString.Invariant($"Town {title.TownId} holds formal title to {title.Tiles.Count} recorded tiles from {title.RecordedTick}."))))
+                    LandHearingTitleText(title))))
             .Concat(LandHearingApplicableLaws(town, item).Select(pair => (LandHearingLawToken(pair.Law, pair.Version),
                 TownLandHearingRules.LawVersion(pair.Version), TownLawRules.Text(pair.Version.Subject, pair.Version.Rule))))
             .Concat(item.Rulings.Select(ruling => (ruling.Id, TownLandHearingRules.Digest(JsonSerializer.Serialize(ruling)),
-                FormattableString.Invariant($"Recorded ruling {ruling.Id}, hearing {ruling.Revision}, made at {ruling.Tick}: {ruling.Outcome.Kind}."))));
+                LandHearingRulingText(ruling))));
         return records.Where(record => !item.Evidence.Any(evidence => evidence.Revision == revision.Number && evidence.Kind == "record" &&
             evidence.SourceRecordId == record.Item1 && evidence.SourceVersion == record.Item2)).ToArray();
     }
+
+    private static string LandHearingRightText(HouseholdLandUseRight right) =>
+        FormattableString.Invariant($"Recorded household {right.HouseholdId} permission for {right.Tiles.Count} tiles; grant {right.GrantSource}; granted {right.GrantedTick}; agreed end {right.AgreedEndTick?.ToString(CultureInfo.InvariantCulture) ?? "none"}.");
+
+    private static string LandHearingTitleText(TownLandTitleRecord title) =>
+        FormattableString.Invariant($"Town {title.TownId} holds formal title to {title.Tiles.Count} recorded tiles from {title.RecordedTick}.");
+
+    private static string LandHearingRulingText(TownLandRuling ruling) =>
+        FormattableString.Invariant($"Recorded ruling {ruling.Id}, hearing {ruling.Revision}, made at {ruling.Tick}: {ruling.Outcome.Kind}.");
 
     private static string LandHearingEvidenceId(TownLandCase item, string actor, string kind, string source) =>
         "land-evidence:" + TownLandHearingRules.Digest(item.Id + "|" + TownLandHearingRules.CurrentRevision(item).Number +
