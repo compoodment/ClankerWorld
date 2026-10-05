@@ -186,6 +186,13 @@ public static class WorldEventText
             "town_civic_land_use" => $"A household land request in {civicTownName} has new information. See its plot for approval progress.",
             "land_use_granted" => "A household received an approved land-use right. The household use filter shows its plot.",
             "land_use_requested" => "A household requested a land-use right. Filing grants no permission.",
+            "town_civic_nonviolent_hearing" => $"{civicTownName} updated an independent non-land hearing election. See Towns for its stage and result.",
+            "town_civic_law_case" => $"{civicTownName} published a non-land hearing notice. See Towns for the allegation and response deadline.",
+            "town_civic_remedy" => $"{civicTownName} published a voluntary remedy offer. Publication is not anyone's acceptance.",
+            "law_case_opened" or "law_case_evidence" or "law_case_response" or "law_case_inspected" or
+            "law_case_relayed" or "law_case_judge_consent" or "law_case_judge_election" or "law_case_judge_assigned" or
+            "law_case_finding" or "law_case_reopen_requested" or "law_case_reopened" or "law_case_rejected" or
+            "law_case_offer" or "law_case_offer_response" or "law_case_remedy_effect" => DescribeNonviolentHearing(worldEvent, snapshot),
             "town_civic_land_hearing" => $"{civicTownName} published a formal land-hearing notice. See the Towns page for its plot and response deadline.",
             "land_case_opened" or "land_case_notice" or "land_case_evidence" or "land_case_response" or
             "land_case_judge_consent" or "land_case_judge_election" or "land_case_judge_assigned" or
@@ -243,6 +250,31 @@ public static class WorldEventText
             "resumed" => "The world resumed.",
             "model_call_warning" => DescribeModelCallWarning(parts),
             _ => $"{GameUiText.HumanizeIdentifier(worldEvent.Kind)}.",
+        };
+    }
+
+    private static string DescribeNonviolentHearing(OwnerWorldEvent worldEvent, OwnerWorldSnapshot? snapshot)
+    {
+        var fields = worldEvent.Detail.Split('|', 3);
+        var town = snapshot?.Towns.FirstOrDefault(item => item.Id == fields[0])?.Name ?? "A Town";
+        var actor = fields.Length == 3 ? snapshot?.Inhabitants.FirstOrDefault(person => person.Id == fields[2])?.DisplayName : null;
+        return worldEvent.Kind switch
+        {
+            "law_case_opened" => $"{town} opened a non-land hearing about reported conduct. An allegation is not a finding.",
+            "law_case_evidence" => $"Evidence was added to a non-land hearing in {town}; the public file records its source.",
+            "law_case_response" => $"{actor ?? "A participant"} recorded their response in a non-land hearing in {town}.",
+            "law_case_inspected" => $"{actor ?? "A participant"} inspected a non-land hearing file in {town}.",
+            "law_case_relayed" => $"{actor ?? "An informed participant"} relayed learned hearing information to someone nearby.",
+            "law_case_judge_consent" => $"{town} recorded an adult's willingness to adjudicate a non-land case. This alone grants no authority.",
+            "law_case_judge_election" => $"{town} updated an independent non-land case election. See Towns for its stage and result.",
+            "law_case_judge_assigned" => $"{town} assigned an eligible adjudicator to a non-land hearing.",
+            "law_case_finding" => $"{town} recorded a reasoned finding in a non-land hearing. See Towns for the assessment and uncertainty.",
+            "law_case_reopen_requested" => $"A rehearing was requested in {town}; earlier findings and completed work remain recorded.",
+            "law_case_reopened" => $"{town} reopened a non-land hearing with a new response notice.",
+            "law_case_offer" => $"A voluntary remedy was offered in {town}; each contributor must personally agree.",
+            "law_case_offer_response" => $"{actor ?? "A contributor"} answered a voluntary remedy offer. Acceptance and completed work are separate records.",
+            "law_case_remedy_effect" => $"{actor ?? "A contributor"} carried out an agreed voluntary contribution in {town}. See Towns for the recorded work and any remainder.",
+            _ => $"A hearing request in {town} was rejected without imposing a remedy.",
         };
     }
 

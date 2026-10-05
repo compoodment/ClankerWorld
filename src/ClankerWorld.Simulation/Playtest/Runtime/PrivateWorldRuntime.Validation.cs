@@ -110,6 +110,9 @@ public sealed partial class PrivateWorldRuntime
         ValidatePaidMarkets(towns, society.Checkpoint, map, worldSimulation, worldContent,
             fields, householdLandUseRights, householdLandUseRequests, RoadTiles, Bridges);
         MarketTradeValidation.Validate(towns, society.Checkpoint, map, worldSimulation, worldContent, WorldTick, inhabitants.Values);
+        foreach (var town in towns)
+            TownNonviolentValidation.Validate(map, society.Checkpoint, town, townLandTitles, worldSystems.Config.TicksPerDay);
+        ValidateNonviolentPhysicalState(map, society.Checkpoint, towns, townLandTitles, householdLandUseRights);
         ValidateRoads(RoadTiles, map, founderSetup);
         ValidateBridges(Bridges, bridgeTraffic, map, RoadTiles, worldSimulation, worldContent,
             society.Checkpoint, inhabitants.Values);
@@ -438,7 +441,8 @@ public sealed partial class PrivateWorldRuntime
                  (attempt.LastAcceptedCandidateId is null) != (attempt.LastAcceptedTick is null) ||
                  attempt.LastAcceptedTick is < 0 || attempt.LastAcceptedTick > attempt.WorldTick ||
                  attempt.LastAcceptedCandidateId is { } candidate &&
-                    (string.IsNullOrWhiteSpace(candidate) || candidate.Length > 512 || candidate.Any(char.IsControl)) ||
+                    // Offered action IDs can include an entire valid inventory lineage.
+                    (string.IsNullOrWhiteSpace(candidate) || candidate.Any(char.IsControl)) ||
                  attempt.SetupBlocker is not (null or "unsupported_request") ||
                  attempt.SetupBlocker is not null && attempt.Status != "model_unavailable"))
                 throw new InvalidDataException("The saved model attempt is invalid.");
@@ -492,6 +496,9 @@ public sealed partial class PrivateWorldRuntime
             state.Society.Society);
         ValidateLandHearings(state.Map, society.Checkpoint, state.Towns ?? [], state.HouseholdLandUseRights!,
             state.HouseholdLandUseRequests!, state.TownLandTitles!, state.WorldSystems!.Config.TicksPerDay);
+        foreach (var town in state.Towns ?? [])
+            TownNonviolentValidation.Validate(state.Map, society.Checkpoint, town, state.TownLandTitles!, state.WorldSystems.Config.TicksPerDay);
+        ValidateNonviolentPhysicalState(state.Map, society.Checkpoint, state.Towns ?? [], state.TownLandTitles!, state.HouseholdLandUseRights!);
         ValidateRoads(state.RoadTiles, state.Map, state.FounderSetup);
         ValidateBridges(state.Bridges, state.BridgeTraffic, travelMap,
             state.RoadTiles, state.WorldSimulation, state.WorldContent, state.Society.Society,
