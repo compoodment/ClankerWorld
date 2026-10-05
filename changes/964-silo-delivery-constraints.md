@@ -1,0 +1,1 @@
+- Orders for unavailable farm goods no longer take grain from a Silo instead, and supplying a Silo no longer counts its own stock as a delivery.
