@@ -217,7 +217,8 @@ public sealed partial class PrivateWorldRuntime
         towns.Any(town => town.Nonviolent.Agreements.Any(agreement => agreement.Status is "pending" or "overdue" &&
             !TownRemedyRules.IsSuperseded(town.Nonviolent, agreement.Id) && agreement.Terms.Any(term =>
                 term.Kind == "repair_equipment" && term.ContributorId == actor && term.TargetId == repair.LotId &&
-                NonviolentRemaining(town.Nonviolent, agreement, term) > 0))) && !NonviolentWorkAllowed(actor);
+                NonviolentRemaining(town.Nonviolent, agreement, term) > 0))) &&
+        (IllDependentsNeedingCare(actor).Any() || ChildrenNeedingCare(actor).Any());
 
     private InventoryLot? NonviolentReturnLot(TownRemedyTerm term) => society.Checkpoint.Inventory.Lots
         .Where(lot => lot.OwnerId == term.ContributorId && ToolProgressionRules.IsTopLevelCarriedLot(lot, term.ContributorId) &&

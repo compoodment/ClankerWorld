@@ -139,10 +139,26 @@ public sealed class TownNonviolentRemedyRuntimeTests
         Assert.Equal("remedy-coat", repair.LotId);
         Assert.Empty(starting.Towns[0].Nonviolent.Effects);
         Assert.Equal(1, starting.Society.Inventory.GetLot("remedy-cloth").Quantity);
-        var needingCare = starting.ExportState() with
+        var recoveringState = starting.ExportState() with
         {
-            Inhabitants = starting.ExportState().Inhabitants.Select(person => person.InhabitantId == NonviolentRuntimeFixture.Witness
+            Inhabitants = starting.ExportState().Inhabitants.Select(person => person.InhabitantId == actor
                 ? person with { Survival = (person.Survival ?? new()) with { IllnessBasisPoints = 5_000 } } : person).ToArray(),
+        };
+        using var recovering = NonviolentRuntimeFixture.Create(NonviolentRuntimeFixture.Strict(recoveringState), CompletionProvider());
+        for (var tick = 0; tick < 4; tick++) Assert.True((await recovering.AdvanceOneTickAsync()).Advanced);
+        var recoveringRepair = recovering.Inhabitants.Single(person => person.InhabitantId == actor).Equipment!.Repair;
+        Assert.NotNull(recoveringRepair);
+        Assert.InRange(recoveringRepair.WorkDone - repair.WorkDone, 1, 3);
+        Assert.Equal(repair.MaterialReservationIds, recoveringRepair.MaterialReservationIds);
+        Assert.All(repair.MaterialReservationIds, id => Assert.Equal(InventoryReservationState.Reserved, recovering.Society.Inventory.GetReservation(id).State));
+        Assert.Equal(1, recovering.Society.Inventory.GetLot("remedy-cloth").Quantity);
+        Assert.Empty(recovering.Towns[0].Nonviolent.Effects);
+        var needingCare = recovering.ExportState() with
+        {
+            Inhabitants = recovering.ExportState().Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with { Survival = person.Survival! with { IllnessBasisPoints = 0 } }
+                : person.InhabitantId == NonviolentRuntimeFixture.Witness
+                    ? person with { Survival = (person.Survival ?? new()) with { IllnessBasisPoints = 5_000 } } : person).ToArray(),
         };
         using var paused = NonviolentRuntimeFixture.Create(NonviolentRuntimeFixture.Strict(needingCare), CompletionProvider());
         for (var tick = 0; tick < 10; tick++) Assert.True((await paused.AdvanceOneTickAsync()).Advanced);
