@@ -1795,6 +1795,14 @@ active adult borrows a stall while they remain inside the hall-and-plaza area;
 leaving, household change, death or removal ends borrowing and releases
 unfinished offer claims without transferring leftovers.
 
+Market live records retain recent outcomes and the exact borrowing, deposit,
+open-offer and payment bindings still needed by actual stock. Receipt sequences
+survive retirement; an explicit boundary allows closed source history to leave
+without granting selling authority. Closed inventory offers and claims retire
+with their Market records, while paid construction/removal and physical property
+remain intact. The [Market save rules](saves-and-replay.md#paid-markets-and-stall-trade)
+explain live bindings and archive/recovery behavior.
+
 Loads, borrowing, deposits, collection and barter mutations need a fresh
 accepted, non-fallback personal LLM choice; their candidates rank above
 `safe_idle`, so built-in rules never pick them. Continued intentions walk only;
