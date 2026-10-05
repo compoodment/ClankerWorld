@@ -417,7 +417,7 @@ public sealed partial class PrivateWorldRuntime
             }
             if (PassengerBoat(inhabitant.Id) is not null)
             {
-                if (!pendingHosted.Contains(inhabitant.Id) && NeedsUrgentFood(state) &&
+                if ((!pendingHosted.Contains(inhabitant.Id) || PendingInstructionFor(inhabitant.Id) is not null) && NeedsUrgentFood(state) &&
                     CreateCandidates(inhabitant.Id, state).Any(candidate => candidate.Id == "consume_food"))
                     ApplyCandidate(inhabitant.Id, state, "consume_food", reportIdle: false);
                 continue;

@@ -122,8 +122,10 @@ public sealed class PortBoatRuntimeTests
         Assert.False(PortNavigationRules.Fits(map, definition, site, geometry.ApproachTiles.ToHashSet(), out _));
     }
 
-    [Fact]
-    public async Task AContinuingOwnerOrderWaitsAboardWhileTheHostedReplyIsHeld()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AContinuingOwnerOrderWaitsAboardWhileTheHostedReplyIsHeld(bool urgentlyHungry)
     {
         var state = PrivateWorldRuntimeCodec.Decode(await Underway.Value);
         var boat = state.BoatTransport.Boats[0];
@@ -131,6 +133,8 @@ public sealed class PortBoatRuntimeTests
             state.Map.FootDistance(tile.Position, boat.Position) <= 1).Position;
         state = state with
         {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == BoatPolicy.Author && urgentlyHungry
+                ? person with { HungerBasisPoints = 1000 } : person).ToArray(),
             Society = state.Society with
             {
                 Society = state.Society.Society with
@@ -142,6 +146,7 @@ public sealed class PortBoatRuntimeTests
         };
         var policy = new BoatPolicy { HoldActor = BoatPolicy.Author };
         using var scenario = new BoatScenario(state, policy);
+        var foodBefore = scenario.World.Society.Inventory.Lots.Where(lot => lot.OwnerId == BoatPolicy.Author && lot.ItemKind == "food").Sum(lot => lot.Quantity);
         var receipt = scenario.World.SubmitInstruction(new("aboard-collect", "owner:test", BoatPolicy.Author,
             OwnerInstructionKind.MustDo, "collect my rope"));
         Assert.True((await scenario.World.AdvanceOneTickNonBlockingAsync()).Advanced);
@@ -150,6 +155,8 @@ public sealed class PortBoatRuntimeTests
         Assert.Null(lot.CarrierId);
         Assert.Equal(new InventoryGroundPosition(shore.X, shore.Y), lot.GroundPosition);
         Assert.Equal(0, scenario.World.ExportState().Instructions!.Single(item => item.InstructionId == receipt.InstructionId).Order!.CompletedUnits);
+        if (urgentlyHungry)
+            Assert.Equal(foodBefore - 1, scenario.World.Society.Inventory.Lots.Where(lot => lot.OwnerId == BoatPolicy.Author && lot.ItemKind == "food").Sum(lot => lot.Quantity));
         Assert.Equal(scenario.World.Boats[0].Position,
             scenario.World.Inhabitants.Single(person => person.InhabitantId == BoatPolicy.Author).Position);
         scenario.World.Validate();
