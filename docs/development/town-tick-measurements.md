@@ -85,6 +85,45 @@ fallbacks so a change in decision workload is visible. Fixture construction
 and setup ticks are excluded from the timing samples. The script validates
 the prepared world before advancing it.
 
+## Recorded comparison
+
+The [raw dataset](measurements/944-town-ticks.json) preserves all timing samples,
+actual world counts and admitted actions. The comparison uses ticks 257–320
+on Debian 13, .NET 10.0.12 and an AMD EPYC 9V74 shared host with a four-core
+CPU quota and `DOTNET_PROCESSOR_COUNT=4`. Runs are sequential. Values below
+are median tick milliseconds; the columns are requested residents/Roads.
+
+| Version | 4/96 | 4/384 | 16/96 | 16/384 |
+| --- | ---: | ---: | ---: | ---: |
+| Before Markets (`0875e37c`) | 58.0 | 75.8 | 414.6 | 616.8 |
+| After Markets (`a52b6ea8`) | 88.1 | 116.3 | 484.9 | 766.3 |
+| Before lanterns (`e00bb4b3`) | 96.0 | 131.9 | 432.5 | 724.5 |
+| After lanterns (`477c50f7`) | 180.2 | 266.4 | 681.4 | 1,310.2 |
+| Before scan fix (`96108882`) | 175.7 | 255.8 | 738.2 | 1,363.4 |
+
+The after-scan-fix and current-main sweeps, representative
+repeats and final assessment are still in progress. Actual Road counts in
+these completed sweeps range from 96–100 and 385–392. World counts and map
+digests describe the final native state after tick 320. Versions can admit
+different actions and alter the map, even with the same starting seed and
+sampling interval. Read those differences with the timing values.
+
+A separate measured-phase profile on unchanged main (`bfef85e8`), with
+16 residents and 390 Roads, sampled native managed thread time. Candidate
+generation appeared in approximately 96% of the sampled native tick stack
+time. Civic project proposals, private building choices, layout/route
+construction and project-input/warehouse enumeration account for substantial
+inclusive samples. These methods overlap; the figures are neither additive
+nor exact CPU measurements, and may include GC or waiting. The profile had
+41 deterministic admissions and no admission fallbacks.
+
+[Bug #998](https://github.com/compoodment/ClankerWorld/issues/998) records this
+remaining construction-choice workload and the reproduction. Existing
+[Bug #953](https://github.com/compoodment/ClankerWorld/issues/953) records
+built-in actors selecting personal model tool requests. The lantern scan
+itself was addressed by [#946](https://github.com/compoodment/ClankerWorld/pull/946).
+This measurement does not change simulation behavior.
+
 ## Profile only the measured phase
 
 An optional seventh argument is a fresh gate-file prefix. The probe writes
