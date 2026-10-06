@@ -111,8 +111,12 @@ still open normally.
    undone; incomplete setup can be saved and resumed later.
 
 Keys stay on the server installation, separately from world saves. Cloud
-providers charge you for usage. Jev is an optional helper for the world; change
-its on/off setting while the world is paused.
+providers charge you for usage. While paused, open **Settings → World → Routine
+helper** to choose **Off**, **Jev** or **OpenAI Decisions**, pick its model and
+press **Apply helper**. Decisions uses your default OpenAI key or a named saved
+OpenAI key you choose; Jev uses the saved TypeSafe key. Switching helpers keeps
+memories and their scores. Decisions currently offers `gpt-6-luna`; **Type a
+model name...** also remains available.
 
 To save keys before placing any agents, open **Settings → Game → API keys**.
 Choose OpenAI or Ollama Cloud, name the key, paste it and press **Save API key**.
@@ -613,7 +617,7 @@ YYYY-MM-DD), and the top bar then names the season beside the weather.
 Menus, panels and text grow with your screen in whole steps, so pixel letters
 stay crisp: 100% on small screens, 200% at 1080p and 1440p and 300% at 4K.
 There is no setting for this. World Settings contains that world's autosaves,
-Jev and agent model settings. Main Menu Settings exposes Game Settings only.
+the routine helper and agent model settings. Main Menu Settings exposes Game Settings only.
 Autosave Apply stays unavailable until the current world's settings have loaded.
 If the world changes before Apply reaches the host, its settings stay unchanged.
 Reopen World Settings before trying again.

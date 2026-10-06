@@ -276,13 +276,23 @@ public partial class Main
         });
     }
 
-    private async Task SaveJevAssistanceAsync(bool enabled)
+    private async Task SaveRoutineHelperAsync()
     {
-        if (!TryGetOwner(out var authority, out var deviceId, out var signer)) return;
+        if (observationSession.Current?.Baseline.Snapshot is not { } snapshot ||
+            !TryGetOwner(out var authority, out var deviceId, out var signer)) return;
+        var provider = SelectedRoutineHelper();
+        var model = provider == "off" ? string.Empty : routineHelperModelPicker.Model;
+        if (provider != "off" && (model.Length is < 1 or > 128 || model.Any(char.IsControl)))
+        {
+            SetStatus("Choose a model name of 128 characters or fewer.", good: false);
+            return;
+        }
+        var action = new OwnerRoutineHelperAction(snapshot.WorldId, provider, model, provider == "decisions" ? SelectedRoutineHelperKey() : null);
         await RunOwnerActionAsync(async () =>
         {
-            _ = await AwaitCurrentWorldResultAsync(ownerApi.SetJevAssistanceAsync(ResolveWorldUri(), authority, deviceId, enabled, signer, CancellationToken.None));
-            return enabled ? "Jev assistance enabled for this world" : "Jev assistance disabled for this world";
+            _ = await AwaitCurrentWorldResultAsync(ownerApi.SetRoutineHelperAsync(ResolveWorldUri(), authority, deviceId,
+                action, signer, CancellationToken.None));
+            return provider == "off" ? "Routine helper turned off for this world" : $"{ProviderDisplayName(provider)} will help in this world";
         });
     }
 
@@ -424,9 +434,15 @@ public partial class Main
         apiKeyInput.Editable = !actionDisabled;
         autosaveApplyButton.Disabled = actionDisabled || !paused || !autosaveSettingsLoaded;
         var supportsLifePace = snapshot?.LifePaceRate is not null;
-        var supportsJevAssistance = snapshot?.JevEnabled is not null &&
-            observationSession.Current?.Handshake.ServerCapabilities.Contains("owner-jev-assistance.v1", StringComparer.Ordinal) == true;
-        jevAssistanceToggle.Disabled = actionDisabled || !paused || !supportsJevAssistance;
+        var supportsRoutineHelper = snapshot?.RoutineHelperProvider is not null &&
+            observationSession.Current?.Handshake.ServerCapabilities.Contains("owner-routine-helper.v1", StringComparer.Ordinal) == true;
+        routineHelperChoice.Disabled = actionDisabled || !paused || !supportsRoutineHelper;
+        routineHelperModelPicker.Editable = !routineHelperChoice.Disabled;
+        var helper = SelectedRoutineHelper();
+        var helperModel = helper == "off" ? string.Empty : routineHelperModelPicker.Model;
+        applyRoutineHelperButton.Disabled = routineHelperChoice.Disabled ||
+            helper != "off" && (helperModel.Length is < 1 or > 128 || helperModel.Any(char.IsControl));
+        routineHelperKeyChoice.Disabled = routineHelperChoice.Disabled;
         applyLifePaceButton.Disabled = actionDisabled || !paused || !supportsLifePace;
         lifePaceChoice.Disabled = actionDisabled || !paused || !supportsLifePace;
         applyLifePaceButton.TooltipText = !supportsLifePace ? "This host does not support life pacing." :

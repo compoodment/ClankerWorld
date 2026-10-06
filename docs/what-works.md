@@ -110,8 +110,12 @@ choices and rename the person. For OpenAI and Ollama Cloud, the model is picked
 from the game's own short list, newest at the top, or typed by name. The host checks
 the chosen key with the provider and greys out listed models it can't use. That
 check and the listed model names have been tested against recorded sample
-replies, not yet against live provider accounts. Jev can be switched on or off
-for a paused world.
+replies, not yet against live provider accounts. A paused world's routine
+helper can be Off, Jev or OpenAI Decisions, with its own model picker. Decisions
+uses a saved OpenAI key and handles the same routine choices and owner-private
+memory scoring as Jev. Switching cancels pending work and preserves memories.
+The Decisions integration is checked against the published API contract and
+sample replies; the live-account Windows check is still [pending](../playtest/magical-heisenberg-mwvofv-routine-helper.md).
 When a personal model names a new agent, it gets a stable first-letter hint to
 encourage varied names. Each chosen first name is unique across the world,
 including deceased agents. Different surnames, capitalization or spacing do
