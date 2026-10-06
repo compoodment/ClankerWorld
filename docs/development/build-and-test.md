@@ -146,9 +146,12 @@ the failed report and its diagnostics when investigating one.
 For the unexplained overwrite investigation in [#778](https://github.com/compoodment/ClankerWorld/issues/778),
 [Trace Windows checkpoints](../../.github/workflows/windows-checkpoint-trace.yml)
 is a manual Windows job. Choose `target` for the unchanged 2,500-save test,
-with one to twenty runs, or `full-suite` for one unfiltered Release run. It first
+with one to twenty runs, or `full-suite` for one unfiltered Release run with
+SingleHit coverage, matching the original failure's instrumentation. It first
 runs the existing three intentional overwrite-refusal controls to check the
-native trace. It builds once, uses four test processors and records all six
+native trace, including an access-denied operation completion for each
+synthetic fixture in the test process. It builds once, uses four test processors
+and records all six
 Simulation/Viewer/test DLL and PDB hashes before and after the unchanged tests.
 
 On an administrator Windows machine with PowerShell 7 and the pinned .NET SDK:
@@ -170,6 +173,12 @@ hashes and existing exception evidence as `windows-checkpoint-trace`. Raw ETL
 and decoded whole-machine XML stay in the local `raw` directory, outside the
 upload paths. The filtered event file keeps original native XML and resolves
 file-object, file-key and IRP identities to synthetic checkpoint paths. The
+runner retires file identities on close/delete and IRPs at operation completion
+to limit reuse of old associations. Resolved paths are inferred correlations;
+always inspect the original fields before attributing an operation.
+In a passing full-suite run, earlier checkpoint activity may have fallen out
+of the circular window; zero selected events then means no retained checkpoint
+activity, not proof that the original failure is fixed. The
 trace summary records its capture statistics; check it for lost events or a
 truncated window before treating missing activity as evidence.
 

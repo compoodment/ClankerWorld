@@ -40,13 +40,14 @@ function Get-BinaryPins {
     return $pins
 }
 
-function Export-CheckpointEvents([string]$TracePath, [string]$Name) {
+function Export-CheckpointEvents([string]$TracePath, [string]$Name, [bool]$AllowEmpty) {
     $decoded = Join-Path $rawRoot "$Name.xml"
     $summary = Join-Path $outputRoot "$Name-trace-summary.txt"
     & tracerpt.exe $TracePath -of XML -o $decoded -summary $summary -y > (Join-Path $outputRoot "$Name-decode.log") 2>&1
     if ($LASTEXITCODE -ne 0) { throw "Native trace decoding failed for $Name ($LASTEXITCODE)." }
     $related = [Collections.Generic.Dictionary[string, string]]::new([StringComparer]::OrdinalIgnoreCase)
     $counts = [Collections.Generic.Dictionary[string, int]]::new([StringComparer]::OrdinalIgnoreCase)
+    $refusals = [Collections.Generic.Dictionary[string, int]]::new([StringComparer]::OrdinalIgnoreCase)
     $readCount = 0
     $selectedCount = 0
     $reader = [Xml.XmlReader]::Create($decoded)
@@ -60,6 +61,7 @@ function Export-CheckpointEvents([string]$TracePath, [string]$Name) {
             $rawEvent = $reader.ReadOuterXml()
             $readCount++
             [xml]$eventXml = $rawEvent
+            $eventId = $eventXml.SelectSingleNode("//*[local-name()='System']/*[local-name()='EventID']").InnerText
             $data = [Collections.Generic.Dictionary[string, string]]::new([StringComparer]::OrdinalIgnoreCase)
             foreach ($field in $eventXml.SelectNodes("//*[local-name()='EventData']/*[local-name()='Data']")) {
                 $fieldName = $field.GetAttribute('Name')
@@ -69,6 +71,12 @@ function Export-CheckpointEvents([string]$TracePath, [string]$Name) {
                 $data[$field.LocalName] = $field.InnerText
             }
             $keys = @($data.Keys | Where-Object { $_ -match '^(FileObject|FileKey|Irp|IrpPtr)$' -and $data[$_] -notmatch '^(?:0x)?0+$' })
+            # An IRP describes one operation, not the lifetime of a file. A new
+            # operation must resolve through its own name or file identities.
+            $irpKeys = @($keys | Where-Object { $_ -match '^Irp(?:Ptr)?$' })
+            if ($eventId -ne '24') {
+                foreach ($key in $irpKeys) { [void]$related.Remove("$key=$($data[$key])") }
+            }
             $namedPaths = @($data.Keys | Where-Object { $_ -match '^(FileName|OpenPath|FilePath|Path|Name)$' } | ForEach-Object { $data[$_] })
             $path = $null
             foreach ($candidate in $namedPaths) {
@@ -84,27 +92,45 @@ function Export-CheckpointEvents([string]$TracePath, [string]$Name) {
                     if ($related.TryGetValue("$key=$($data[$key])", [ref]$known)) { $path = $known; break }
                 }
             }
+            if ($eventId -eq '24') {
+                foreach ($key in $irpKeys) { [void]$related.Remove("$key=$($data[$key])") }
+            }
             if (-not $path) { continue }
-            foreach ($key in $keys) { $related["$key=$($data[$key])"] = $path }
+            if ($eventId -ne '24') {
+                foreach ($key in $keys) { $related["$key=$($data[$key])"] = $path }
+            }
             $fixture = [regex]::Match($path, $fixturePattern).Groups[1].Value
             if (-not $counts.ContainsKey($fixture)) { $counts[$fixture] = 0 }
             $counts[$fixture]++
             $selectedCount++
+            if ($eventId -eq '24' -and $data.ContainsKey('Status') -and $data['Status'] -eq '0xC0000022') {
+                $processId = $eventXml.SelectSingleNode("//*[local-name()='System']/*[local-name()='Execution']").GetAttribute('ProcessID')
+                $refusalKey = "$fixture|$processId"
+                if (-not $refusals.ContainsKey($refusalKey)) { $refusals[$refusalKey] = 0 }
+                $refusals[$refusalKey]++
+            }
             # Preserve the event's original fields, native process/thread IDs and status.
             # Association supplies a path for operation-end events that carry only an IRP.
             $writer.WriteLine(([ordered]@{ Fixture = $fixture; ResolvedPath = $path; Xml = $rawEvent } | ConvertTo-Json -Compress))
+            # Kernel-File Close retires the file object; NameDelete retires its key.
+            foreach ($key in $keys) {
+                if (($eventId -eq '14' -and $key -eq 'FileObject') -or ($eventId -eq '11' -and $key -eq 'FileKey')) {
+                    [void]$related.Remove("$key=$($data[$key])")
+                }
+            }
         }
     }
     finally { $reader.Dispose(); $writer.Dispose() }
-    if ($selectedCount -eq 0) { throw 'The trace contained no decoded synthetic checkpoint activity.' }
+    if ($selectedCount -eq 0 -and -not $AllowEmpty) { throw 'The trace contained no decoded synthetic checkpoint activity.' }
     return [ordered]@{
         DecodedEvents = $readCount
         CheckpointEvents = $selectedCount
         Fixtures = $counts
+        AccessDeniedCompletionsByFixtureAndProcess = $refusals
         RawTraceSha256 = (Get-FileHash -LiteralPath $TracePath -Algorithm SHA256).Hash
         RawTraceBytes = (Get-Item -LiteralPath $TracePath).Length
         SummaryFile = [IO.Path]::GetFileName($summary)
-        Association = 'FileObject/FileKey/IRP, reset when a new name reuses an identity; no root-cause inference'
+        Association = 'File identities reset on names/close/delete; IRP retained only until operation end; inferred paths are not root-cause evidence'
     }
 }
 
@@ -131,6 +157,12 @@ function Invoke-TracedTests([string]$Name, [string]$Filter, [bool]$Calibration) 
             $process.StartInfo.ArgumentList.Add($argument)
         }
         if ($Filter) { $process.StartInfo.ArgumentList.Add('--filter'); $process.StartInfo.ArgumentList.Add($Filter) }
+        elseif (-not $Calibration) {
+            foreach ($argument in @('--collect', 'XPlat Code Coverage', '--settings',
+                (Join-Path $repoRoot 'skills/test-audit/references/coverage.runsettings'))) {
+                $process.StartInfo.ArgumentList.Add($argument)
+            }
+        }
         if (-not $process.Start()) { throw 'Could not start the unchanged checkpoint test process.' }
         $standardOutput = $process.StandardOutput.ReadToEndAsync()
         $standardError = $process.StandardError.ReadToEndAsync()
@@ -164,7 +196,7 @@ function Invoke-TracedTests([string]$Name, [string]$Filter, [bool]$Calibration) 
         }
         $process.Dispose()
     }
-    $traceResult = Export-CheckpointEvents $trace $Name
+    $traceResult = Export-CheckpointEvents $trace $Name (-not $Calibration -and -not $Filter)
     if ($Calibration) {
         $controls = @(Get-ChildItem -LiteralPath $evidenceRoot -Filter 'first-chance.json' -File -Recurse | ForEach-Object {
             [IO.File]::ReadAllText($_.FullName) | ConvertFrom-Json
@@ -173,6 +205,9 @@ function Invoke-TracedTests([string]$Name, [string]$Filter, [bool]$Calibration) 
         foreach ($control in $controls) {
             $fixture = [IO.Path]::GetFileName($control.DirectoryPath)
             if (-not $traceResult.Fixtures.ContainsKey($fixture)) { throw "Calibration trace did not resolve $fixture." }
+            if (-not $traceResult.AccessDeniedCompletionsByFixtureAndProcess.ContainsKey("$fixture|$($control.ProcessId)")) {
+                throw "Calibration trace did not retain a native access-denied completion for $fixture in the control process."
+            }
         }
     }
     Write-Json (Join-Path $outputRoot "$Name-result.json") ([ordered]@{

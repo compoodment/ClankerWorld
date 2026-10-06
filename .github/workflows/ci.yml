@@ -235,7 +235,7 @@ jobs:
     # Temporary validation of this draft's manual trace runner; removed before readiness.
     if: github.head_ref == 'codex/778-native-file-io-trace-f50d65f1'
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 150
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-dotnet@v5
@@ -243,7 +243,7 @@ jobs:
           global-json-file: global.json
       - name: Calibrate native checkpoint file-I/O tracing
         shell: pwsh
-        run: ./scripts/trace-windows-checkpoints.ps1 -OutputDirectory "$env:RUNNER_TEMP/checkpoint-trace"
+        run: ./scripts/trace-windows-checkpoints.ps1 -Mode full-suite -OutputDirectory "$env:RUNNER_TEMP/checkpoint-trace"
       - name: Retain filtered native trace calibration
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
