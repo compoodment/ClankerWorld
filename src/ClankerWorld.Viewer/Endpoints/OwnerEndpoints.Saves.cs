@@ -26,6 +26,21 @@ internal static partial class OwnerEndpoints
             return Results.Ok(saves.List(runtime.Society.WorldId));
         });
 
+        app.MapPost("/api/v1/owner/saves/timeline", (
+            OwnerSignedHttpRequest<OwnerControlAction> request,
+            OwnerRequestAuthorizer authorizer,
+            ManualWorldSaveStore saves,
+            PrivateWorldRuntime runtime) =>
+        {
+            if (!IsControl(request, "save-timeline"))
+                return Results.BadRequest(new { error = "A save-timeline action is required." });
+            var authorization = authorizer.Authorize(request, "POST", "/api/v1/owner/saves/timeline",
+                OwnerHttpBinding.EmptyPayload("save-timeline"));
+            if (!authorization.IsSuccess) return OwnerFailures.ToHttpResult(authorization.Failure);
+            if (!isPrivateWorld) return Results.Conflict(new { error = "Manual saves require a private world." });
+            return Results.Ok(saves.CurrentPosition(runtime.Society.WorldId));
+        });
+
         app.MapPost("/api/v1/owner/saves/autosave/status", (
             OwnerSignedHttpRequest<OwnerControlAction> request,
             OwnerRequestAuthorizer authorizer,
@@ -46,31 +61,45 @@ internal static partial class OwnerEndpoints
             WorldAutosaveStore autosave,
             ManualWorldSaveStore saves,
             PrivateWorldRuntime runtime,
+            ProviderConfigurationStore providers,
             ILogger<PrivateWorldRuntimeService> logger) =>
         {
             if (request?.Action is not { } action)
                 return Results.BadRequest(new { error = "Autosave settings are required." });
-            var authorization = authorizer.Authorize(request, "POST", "/api/v1/owner/saves/autosave/configure",
-                OwnerHttpBinding.AutosaveConfigurationPayload(action));
-            if (!authorization.IsSuccess) return OwnerFailures.ToHttpResult(authorization.Failure);
-            if (!isPrivateWorld) return Results.Conflict(new { error = "Autosave settings require a private world." });
-            if (!runtime.Society.IsPaused)
-            {
-                ManualWorldSaveTelemetry.Rejected(logger, "autosave_configure", "not_paused");
-                return Results.Conflict(new { error = "Pause the world before changing autosave settings." });
-            }
-            try
-            {
-                var updated = autosave.Configure(action.Enabled, action.IntervalMinutes, action.RotationCount);
-                saves.KeepNewestAutosaves(Math.Max(1, updated.RotationCount), worldId: updated.WorldId);
-                ManualWorldSaveTelemetry.AutosaveConfigured(logger, updated.Enabled,
-                    updated.IntervalMinutes, updated.RotationCount, runtime.WorldTick);
-                return Results.Ok(updated);
-            }
+            string payload;
+            try { payload = OwnerHttpBinding.AutosaveConfigurationPayload(action); }
             catch (ArgumentException)
             {
-                ManualWorldSaveTelemetry.Rejected(logger, "autosave_configure", "invalid_option");
-                return Results.BadRequest(new { error = "Choose an offered interval and rotation count." });
+                return Results.BadRequest(new { error = "Read this world's autosave settings before changing them." });
+            }
+            var authorization = authorizer.Authorize(request, "POST", "/api/v1/owner/saves/autosave/configure", payload);
+            if (!authorization.IsSuccess) return OwnerFailures.ToHttpResult(authorization.Failure);
+            if (!isPrivateWorld) return Results.Conflict(new { error = "Autosave settings require a private world." });
+            lock (providers.WorldMutationGate)
+            {
+                if (action.WorldId != runtime.Society.WorldId || action.WorldId != autosave.Capture().WorldId)
+                {
+                    ManualWorldSaveTelemetry.Rejected(logger, "autosave_configure", "world_changed");
+                    return Results.Conflict(new { error = "The world changed. Reopen World Settings before changing autosaves." });
+                }
+                if (!runtime.Society.IsPaused)
+                {
+                    ManualWorldSaveTelemetry.Rejected(logger, "autosave_configure", "not_paused");
+                    return Results.Conflict(new { error = "Pause the world before changing autosave settings." });
+                }
+                try
+                {
+                    var updated = autosave.Configure(action.Enabled, action.IntervalMinutes, action.RotationCount);
+                    saves.KeepNewestAutosaves(Math.Max(1, updated.RotationCount), worldId: updated.WorldId);
+                    ManualWorldSaveTelemetry.AutosaveConfigured(logger, updated.Enabled,
+                        updated.IntervalMinutes, updated.RotationCount, runtime.WorldTick);
+                    return Results.Ok(updated);
+                }
+                catch (ArgumentException)
+                {
+                    ManualWorldSaveTelemetry.Rejected(logger, "autosave_configure", "invalid_option");
+                    return Results.BadRequest(new { error = "Choose an offered interval and rotation count." });
+                }
             }
         });
 
@@ -199,10 +228,14 @@ internal static partial class OwnerEndpoints
                         ManualWorldSaveTelemetry.Rejected(logger, "load", "different_world");
                         return Results.Conflict(new { error = "This save belongs to a different world." });
                     }
-                    // A rewind must never destroy the current timeline. The backup is a
-                    // normal named checkpoint, visible in Load Saves immediately.
-                    var backup = saves.Create("Before loading", runtime,
-                        providers.CaptureRuntimeConfiguration().Assignments ?? [], autosave.Capture());
+                    // Loading must never lose the world being left. Its unsaved progress
+                    // becomes a normal save on its own branch, unless the world is
+                    // still exactly the save it continues from.
+                    var currentAssignments = providers.CaptureRuntimeConfiguration().Assignments ?? [];
+                    var currentAutosave = autosave.Capture();
+                    var backup = saves.FindUnchangedSave(runtime, currentAssignments, currentAutosave)
+                        ?? saves.Create("Before loading", runtime, currentAssignments, currentAutosave);
+                    var timelineRestore = saves.ContinueFrom(action.Value);
                     try
                     {
                         runtime.LoadPausedCheckpoint(checkpoint);
@@ -210,6 +243,7 @@ internal static partial class OwnerEndpoints
                         providers.RestoreWorldAssignments(assignments);
                         if (autosaveSettings is not null) autosave.RestoreFromCheckpoint(autosaveSettings);
                         jevPolicy.Initialize(runtime.JevEnabled, runtime.JevPolicyRevision);
+                        saves.RecordLoadedState(runtime);
                     }
                     catch
                     {
@@ -219,6 +253,7 @@ internal static partial class OwnerEndpoints
                         if (saves.ReadAutosaveSettings(backup.Id) is { } previousAutosave)
                             autosave.RestoreFromCheckpoint(previousAutosave);
                         jevPolicy.Initialize(runtime.JevEnabled, runtime.JevPolicyRevision);
+                        saves.RestoreTimeline(timelineRestore);
                         throw;
                     }
                     ManualWorldSaveTelemetry.Loaded(logger, action.Value, backup.Id, runtime.WorldTick);

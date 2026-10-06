@@ -1,0 +1,1 @@
+- Applying autosave settings after a world switch no longer changes the other world's settings or deletes its saved copies. Older hosts show an update message before the client sends the change.

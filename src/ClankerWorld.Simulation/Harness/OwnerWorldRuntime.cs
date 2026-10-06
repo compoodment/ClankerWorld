@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json.Serialization;
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Kernel;
+using ClankerWorld.Simulation.Playtest;
 
 namespace ClankerWorld.Simulation.Harness;
 
@@ -36,7 +37,101 @@ public sealed record OwnerInstructionRequest(
     string IssuerId,
     string TargetInhabitantId,
     OwnerInstructionKind Kind,
-    string Text);
+    string Text,
+    bool Queue = false);
+
+/// <summary>
+/// Authoritative progress for the small set of order tasks currently supported
+/// by the private-world simulation. The original instruction text remains on
+/// its own message record; this typed state is the physical task the host understood.
+/// </summary>
+public sealed record OwnerInstructionOrder(
+    string Action,
+    string Status,
+    int RequestedUnits,
+    int CompletedUnits,
+    string ProgressUnit,
+    bool RepeatUntilCancelled,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool QuantityIsExplicit = false,
+    string? TargetFoodKind = null,
+    string? TargetResourceId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] GridPoint? TargetPosition = null,
+    string? BlockedReason = null,
+    string? LastEffectId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool WaitForDecisionAfterFailure = false,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? TargetAgentId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? TargetMaterialKind = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? TargetEquipmentKind = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? TargetCropKind = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? TargetRecipeId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? TargetOutputKind = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ProductionBuildingId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ProductionJobId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] long? ProductionProjectStartedTick = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? TargetItemKind = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? TargetStorageBuildingId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? TargetStorageOwnerId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] GridPoint? TargetStoragePosition = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? TargetLotId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? DeliveryPurpose = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? TargetBuildingKind = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? DeliveryRoute = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? DeliveryLotId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? DeliveryQuantity = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? TargetDefinitionId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ConstructionOwnerId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] GridPoint? ConstructionPosition = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] long? ConstructionStartedTick = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ConstructionInstanceId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] OwnerBuildingExpansionBinding? ExpansionBinding = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] OwnerShelterBinding? ShelterBinding = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] OwnerShelterCompletion? ShelterCompletion = null);
+
+public sealed record OwnerShelterBinding(
+    string Kind,
+    GridPoint Position,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? BuildingInstanceId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? DefinitionId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? OwnerId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] GridPoint? BuildingPosition = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] long? BuildingPlacedTick = null);
+
+public sealed record OwnerShelterCompletion(
+    long WorldTick,
+    GridPoint Position,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? FuelReservationId = null);
+
+public sealed record OwnerBuildingExpansionBinding(
+    string BuildingInstanceId,
+    string DefinitionId,
+    string OwnerId,
+    GridPoint ExpectedPosition,
+    int ExpectedRevision,
+    GridPoint TargetPosition,
+    BuildingFootprintRevision TargetFootprint,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? JobId = null);
+
+public sealed record OwnerOrderCancelRequest(
+    string IdempotencyKey,
+    string IssuerId,
+    string WorldId,
+    string TargetInhabitantId,
+    string OrderId);
+
+public sealed record OwnerOrderControlReceipt(
+    string OrderId,
+    string Status,
+    bool Changed,
+    long WorldTick,
+    long LatestEventId);
+
+public sealed record OwnerOrderCancellation(
+    string IdempotencyKey,
+    string IssuerId,
+    string WorldId,
+    string TargetInhabitantId,
+    string OrderId,
+    OwnerOrderControlReceipt Receipt);
 
 /// <summary>
 /// The authoritative queued record retained by the world runtime.
@@ -51,7 +146,16 @@ public sealed record OwnerQueuedInstruction(
     long SubmittedTick,
     long RunEpoch,
     long SubmissionSequence,
-    OwnerInstructionState State);
+    OwnerInstructionState State,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] long? ObservedTick = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ObserverReply = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] long? GuidancePromptedTick = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool Queue = false,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] OwnerInstructionOrder? Order = null)
+{
+    public const int MaximumTextLength = 512;
+    public const int MaximumIdentifierLength = 128;
+}
 
 /// <summary>
 /// A stable reply to an instruction submission. Repeating the same request
@@ -400,7 +504,6 @@ public sealed class OwnerWorldRuntime
     private readonly object sync = new();
     private readonly IOwnerApprovedAssetReferencePolicy approvedAssetReferencePolicy;
     private readonly IDecisionProvider decisionProvider;
-    private readonly double minimumCognitionConfidence;
     private readonly Dictionary<string, OwnerQueuedInstruction> instructionsByIdempotency =
         new(StringComparer.Ordinal);
     private readonly Dictionary<string, OwnerInstructionReceipt> instructionReceipts =
@@ -432,24 +535,15 @@ public sealed class OwnerWorldRuntime
     public OwnerWorldRuntime(
         string worldSeed,
         IOwnerApprovedAssetReferencePolicy? approvedAssetReferencePolicy = null,
-        IDecisionProvider? decisionProvider = null,
-        double minimumCognitionConfidence = 0.5)
+        IDecisionProvider? decisionProvider = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(worldSeed);
         this.approvedAssetReferencePolicy = approvedAssetReferencePolicy ??
             DenyAllApprovedAssetReferencePolicy.Instance;
         this.decisionProvider = decisionProvider ?? new DeterministicDecisionProvider();
-        if (double.IsNaN(minimumCognitionConfidence) ||
-            double.IsInfinity(minimumCognitionConfidence) ||
-            minimumCognitionConfidence is < 0 or > 1)
-        {
-            throw new ArgumentOutOfRangeException(nameof(minimumCognitionConfidence));
-        }
-
-        this.minimumCognitionConfidence = minimumCognitionConfidence;
         world = ScriptedHarness.CreateGenesis(worldSeed);
         currentMap = CloneMap(world.Map);
-        cognition = new CognitionRuntime(world.Actor.Id, this.decisionProvider, minimumCognitionConfidence);
+        cognition = new CognitionRuntime(world.Actor.Id, this.decisionProvider);
     }
 
     /// <summary>
@@ -506,8 +600,7 @@ public sealed class OwnerWorldRuntime
         OwnerWorldRuntimeState state,
         string? expectedWorldSeed = null,
         IOwnerApprovedAssetReferencePolicy? approvedAssetReferencePolicy = null,
-        IDecisionProvider? decisionProvider = null,
-        double minimumCognitionConfidence = 0.5)
+        IDecisionProvider? decisionProvider = null)
     {
         ArgumentNullException.ThrowIfNull(state);
         if (state.SchemaVersion != StateSchemaVersion)
@@ -530,8 +623,7 @@ public sealed class OwnerWorldRuntime
         var runtime = new OwnerWorldRuntime(
             state.World.Identity.WorldSeed,
             approvedAssetReferencePolicy,
-            decisionProvider,
-            minimumCognitionConfidence);
+            decisionProvider);
         runtime.ImportState(state);
         return runtime;
     }
@@ -706,7 +798,8 @@ public sealed class OwnerWorldRuntime
                 world.Identity.WorldTick,
                 runEpoch,
                 sequence,
-                OwnerInstructionState.Queued);
+                OwnerInstructionState.Queued,
+                Queue: request.Queue);
             instructionsByIdempotency.Add(queued.IdempotencyKey, queued);
             AppendGlobalEvent("instruction_queued", $"{queued.InstructionId}:{ToWireValue(queued.Kind)}");
             var receipt = new OwnerInstructionReceipt(
@@ -897,8 +990,8 @@ public sealed class OwnerWorldRuntime
         }
 
         var restoredCognition = state.Cognition is null
-            ? new CognitionRuntime(restoredWorld.Actor.Id, decisionProvider, minimumCognitionConfidence)
-            : CognitionRuntime.Restore(state.Cognition, decisionProvider, minimumCognitionConfidence);
+            ? new CognitionRuntime(restoredWorld.Actor.Id, decisionProvider)
+            : CognitionRuntime.Restore(state.Cognition, decisionProvider);
         if (state.Cognition is null && state.IsPaused)
         {
             _ = restoredCognition.Pause(restoredWorld.Identity.WorldTick);
@@ -1917,7 +2010,8 @@ public sealed class OwnerWorldRuntime
         string.Equals(instruction.IssuerId, request.IssuerId.Trim(), StringComparison.Ordinal) &&
         string.Equals(instruction.TargetInhabitantId, request.TargetInhabitantId.Trim(), StringComparison.Ordinal) &&
         instruction.Kind == request.Kind &&
-        string.Equals(instruction.Text, request.Text.Trim(), StringComparison.Ordinal);
+        string.Equals(instruction.Text, request.Text.Trim(), StringComparison.Ordinal) &&
+        instruction.Queue == request.Queue;
 
     private static bool Matches(
         AppliedAuthoringBatch applied,

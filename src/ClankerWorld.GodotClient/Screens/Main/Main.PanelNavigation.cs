@@ -17,6 +17,7 @@ public partial class Main
         worldOverviewPanel.Hide();
         worldInfoPanel.Hide();
         rosterPanel.Visible = show;
+        if (show) QueueHudListsFit();
     }
 
     private void ToggleEvents()
@@ -28,6 +29,7 @@ public partial class Main
         worldOverviewPanel.Hide();
         worldInfoPanel.Hide();
         eventsPanel.Visible = show;
+        if (show) QueueHudListsFit();
         if (show) MarkEventsSeen();
     }
 
@@ -52,6 +54,9 @@ public partial class Main
     private void ShowFamilyTree(OwnerWorldSnapshot snapshot, string id)
     {
         memoriesPanel.Hide();
+        thoughtsPanel.Hide();
+        ordersPanel.Hide();
+        conversationPanel.Hide();
         familyTreeView.SetPeople(snapshot.WorldId, snapshot.Inhabitants, id);
         UpdateFamilyTreeStatus();
         rosterPanel.Hide();
@@ -65,9 +70,10 @@ public partial class Main
 
     private void UpdateFamilyTreeStatus()
     {
-        familyTreeStatus.Text = familyTreeView.ParentEdgeCount + familyTreeView.PartnerEdgeCount == 0
-            ? "No family links recorded yet. Housemates are not automatically relatives."
-            : "Green: parent–child   ·   Pink: partnership   ·   Click a person to inspect";
+        // The key explains lines that are there; with none, say why the tree is just them.
+        var empty = familyTreeView.ParentEdgeCount + familyTreeView.PartnerEdgeCount == 0;
+        familyTreeStatus.Visible = empty;
+        familyLegend.Visible = !empty;
     }
 
     private void SelectFromFamilyTree(string id)
@@ -77,7 +83,6 @@ public partial class Main
         if (observationSession.Current is not { } current) return;
         var snapshot = current.Baseline.Snapshot;
         RenderInhabitantList(snapshot);
-        RenderInhabitantDetails(snapshot);
         RenderSelectedInhabitantCard(snapshot);
         RenderMap(snapshot);
     }
@@ -90,6 +95,9 @@ public partial class Main
         eventsPanel.Hide();
         worldOverviewPanel.Hide();
         worldInfoPanel.Hide();
+        thoughtsPanel.Hide();
+        ordersPanel.Hide();
+        conversationPanel.Hide();
         memoriesPanel.Show();
         ApplyResponsiveLayout();
     }
@@ -112,9 +120,15 @@ public partial class Main
         eventsPanel.Hide();
         familyTreePanel.Hide();
         memoriesPanel.Hide();
+        thoughtsPanel.Hide();
+        ordersPanel.Hide();
+        conversationPanel.Hide();
         returnToMainMenu = false;
         menuResumeButton.Text = "Resume";
         SetWorldMenuActionsVisible(true);
+        settingsPanel.Hide();
+        modLibraryPanel.Hide();
+        menuActions.Show();
         menuHeadingLabel.Text = "Paused";
         StyleIconButton(menuCloseButton, PixelGlyph.Close);
         menuCloseButton.TooltipText = "Return to the world";
@@ -130,8 +144,39 @@ public partial class Main
         menuPauseConfirmed = false;
         if (observationSession.Current is not null)
         {
-            menuPauseConfirmed = await SetPausedAsync(paused: true);
+            var generation = observationSession.RequestGeneration;
+            var confirmed = await SetPausedAsync(paused: true);
+            if (IsCurrentWorldRequest(generation)) menuPauseConfirmed = confirmed;
         }
+    }
+
+    /// <summary>Whether Settings or the Mod Library covers the pause menu's buttons.</summary>
+    private bool PauseMenuPageOpen => !returnToMainMenu && gameMenuPanel.Visible && !menuActions.Visible;
+
+    /// <summary>
+    /// Settings and the Mod Library open in place of the pause menu's buttons,
+    /// with a back arrow, so the menu stays one screen tall like Main Menu
+    /// Settings.
+    /// </summary>
+    private void ShowPauseMenuPage(string title)
+    {
+        if (returnToMainMenu || !gameMenuPanel.Visible) return;
+        menuActions.Hide();
+        menuHeadingLabel.Text = title;
+        StyleIconButton(menuCloseButton, PixelGlyph.Back);
+        menuCloseButton.TooltipText = "Back (Esc)";
+    }
+
+    private void ShowPauseMenuButtons()
+    {
+        CloseAgentModelEditor();
+        settingsPanel.Hide();
+        modLibraryPanel.Hide();
+        menuActions.Show();
+        menuHeadingLabel.Text = "Paused";
+        StyleIconButton(menuCloseButton, PixelGlyph.Close);
+        menuCloseButton.TooltipText = "Return to the world";
+        ApplyResponsiveLayout();
     }
 
     private async Task CloseGameMenuAsync()
@@ -157,7 +202,7 @@ public partial class Main
         menuShade.Hide();
         settingsPanel.Hide();
         modLibraryPanel.Hide();
-        developerScroll.Hide();
+        menuActions.Show();
         menuPausedWorld = false;
         menuPauseConfirmed = false;
         StyleIconButton(menuCloseButton, PixelGlyph.Close);
@@ -197,6 +242,7 @@ public partial class Main
 
     public override void _Process(double delta)
     {
+        UpdateDeveloperFrameTime(delta);
         if (!GetWindow().HasFocus()) return;
         var direction = new Vector2(
             (Input.IsPhysicalKeyPressed(Key.D) || Input.IsPhysicalKeyPressed(Key.Right) ? 1 : 0) -
@@ -225,19 +271,20 @@ public partial class Main
             GetViewport().GuiGetFocusOwner()!.ReleaseFocus();
             return true;
         }
-        if (worldMenuOverlay.Visible)
-        {
-            if (!worldMenuBusy) worldMenuOverlay.Hide();
-            return true;
-        }
         if (manualSaveOverlay.Visible)
         {
             manualSaveOverlay.Hide();
             return true;
         }
+        if (worldMenuOverlay.Visible)
+        {
+            if (!worldMenuBusy) worldMenuOverlay.Hide();
+            return true;
+        }
         if (gameMenuPanel.Visible)
         {
-            _ = CloseGameMenuAsync();
+            if (PauseMenuPageOpen) ShowPauseMenuButtons();
+            else _ = CloseGameMenuAsync();
             return true;
         }
         if (mainMenuOverlay.Visible || !isInWorld) return false;
@@ -263,7 +310,7 @@ public partial class Main
             placingAddedAgent = false;
             return true;
         }
-        foreach (var panel in new Control[] { familyTreePanel, memoriesPanel })
+        foreach (var panel in new Control[] { conversationPanel, familyTreePanel, memoriesPanel, thoughtsPanel, ordersPanel })
         {
             if (!panel.Visible) continue;
             panel.Hide();
@@ -280,14 +327,30 @@ public partial class Main
             foreach (var panel in overlays) panel.Hide();
             return true;
         }
-        if (selectedAgentModelScroll.Visible)
+        if (buildingDetailsPanel.Visible)
         {
-            CloseAgentModelEditor();
+            BuildingDetailsBack();
+            return true;
+        }
+        if (buildingQuickCard.Visible)
+        {
+            ClearBuildingSelection();
+            return true;
+        }
+        if (agentProfilePanel.Visible)
+        {
+            AgentProfileBack();
             return true;
         }
         if (selectedInhabitantCard.Visible)
         {
             ClearInhabitantSelection();
+            return true;
+        }
+        // Developer tools often stay open while testing, so they close last.
+        if (developerPanel.Visible)
+        {
+            CloseDeveloperTools();
             return true;
         }
         _ = ToggleGameMenuAsync();

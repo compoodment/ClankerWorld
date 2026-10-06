@@ -1,0 +1,1 @@
+- Agents can follow orders to build household buildings or complete the next supported House or Town Warehouse expansion. Tasks use real materials and work, keep their selected site and building, and preserve cancellation, survival pauses and completion across saves.

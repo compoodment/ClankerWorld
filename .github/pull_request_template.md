@@ -12,10 +12,20 @@
 
 ## Scope and related work
 
-- Related issue, or reason no issue is needed:
+<!-- GitHub only closes an issue written as "Closes #<number>", with one keyword
+before each number. "Implements" does not close anything, and "Fixes" followed
+by two numbers closes only the first. See
+https://github.com/compoodment/ClankerWorld/blob/main/CONTRIBUTING.md#link-issues-from-the-pull-request -->
+
+- Author (tool and session ID, such as `Claude Code session 1a2b3c4d`, of each session that pushed while it was a draft, or your name):
+- Closes #  <!-- one keyword directly before each issue number: "Closes #<number>, closes #<number>" -->
+- Refs #  (and what remains)
+- Reason no issue is needed, if none:
 - Agreed design or existing behavior this follows:
 - Other open PRs that overlap:
-- Work left for later:
+- Stacked on (the pull request this is based on, if any; merge after it):
+- Work left for later, and where it is tracked:
+- Needs a hands-on check after merge (file added in `playtest/`):
 - If draft, unfinished work or decision needed before marking ready:
 
 ## Checks
@@ -40,6 +50,6 @@ Explain any compatibility or recovery impact:
 
 - [ ] Changed docs and game text follow [Writing clearly](https://github.com/compoodment/ClankerWorld/blob/main/CONTRIBUTING.md#writing-clearly), or no text changed.
 - [ ] Affected docs are updated in their proper home, or no docs are affected.
-- [ ] CHANGELOG.md has an Unreleased entry, or this change does not need one under [the contribution rules](https://github.com/compoodment/ClankerWorld/blob/main/CONTRIBUTING.md#keep-documentation-and-the-changelog-useful).
+- [ ] A changelog entry is added as a new file in `changes/`, or this change does not need one under [the contribution rules](https://github.com/compoodment/ClankerWorld/blob/main/CONTRIBUTING.md#keep-documentation-and-the-changelog-useful).
 
 <!-- Bug reports and repair progress belong in Issues. Link to them rather than maintaining a second bug list. -->

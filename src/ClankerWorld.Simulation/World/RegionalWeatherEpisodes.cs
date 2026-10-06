@@ -27,17 +27,19 @@ public static class RegionalWeatherRules
                 var start = state.WorldTick;
                 var duration = Duration(state, x, y, start, weather);
                 // Import the current daily storm's original age; migration must
-                // not restart its maximum three-quarter-day allowance.
+                // not restart its maximum three-quarter-day allowance. The
+                // first civil midnight can precede the world's raw tick zero.
                 if (weather == WeatherKind.Storm)
                 {
-                    start -= state.WorldTick % state.Config.TicksPerDay;
-                    duration = (int)((long)state.Config.TicksPerDay * 3 / 4);
+                    var tickOfDay = WorldCalendarRules.FromTick(state.WorldTick, state.Config).TickOfDay;
+                    start = Math.Max(0, state.WorldTick - tickOfDay);
+                    duration = (int)((long)state.Config.TicksPerDay * 3 / 4 - tickOfDay + (state.WorldTick - start));
                 }
                 var end = checked(start + duration);
                 episodes.Add(new(x, y, climate, weather, start, end,
                     weather == WeatherKind.Storm ? checked(end + HalfDay(state)) : checked(state.WorldTick + HalfDay(state))));
             }
-        return state with { SchemaVersion = WorldSystemsRules.SchemaVersion, RegionalWeather = new(1, columns, rows, episodes, map.WrapsEastWest) };
+        return state with { SchemaVersion = Math.Max(state.SchemaVersion, 2), RegionalWeather = new(1, columns, rows, episodes, map.WrapsEastWest) };
     }
 
     public static RegionalWeatherState? Advance(WorldSystemsState state, long tick)
@@ -50,7 +52,10 @@ public static class RegionalWeatherRules
         {
             if (tick < previous.EndsAt) return previous;
             var season = WorldCalendarRules.FromTick(tick, state.Config).Season;
-            var weights = WeatherRules.RegionalWeights(season, state.Config, previous.Y, regions.Rows, previous.Climate);
+            // Valid base totals fit in int, but persistence can exceed that
+            // limit before storm cooldown combines weights into Cloudy.
+            var weights = WeatherRules.RegionalWeights(season, state.Config, previous.Y, regions.Rows, previous.Climate)
+                .Select(weight => (long)weight).ToArray();
             // A conservative wet-weight reduction pays for the modest neighbor
             // and persistence bonuses. Distribution evidence accompanies this prototype.
             foreach (var wet in new[] { WeatherKind.Rain, WeatherKind.Storm, WeatherKind.Snow })
@@ -64,21 +69,22 @@ public static class RegionalWeatherRules
                 .Select(key => regions.WrapsEastWest ? ((key.Item1 + regions.Columns) % regions.Columns, key.Item2) : key)
                 .Where(key => key != (previous.X, previous.Y)).Distinct()
                 .Count(key => snapshot.TryGetValue(key, out var neighbor) && neighbor.Weather is WeatherKind.Rain or WeatherKind.Storm);
-            var bonus = Math.Min(weights[(int)WeatherKind.Clear], wetNeighbors);
+            var weightScale = state.Config.WeatherProfiles is null ? 4 : 1;
+            var bonus = Math.Min(weights[(int)WeatherKind.Clear], wetNeighbors * weightScale);
             if (weights[(int)WeatherKind.Rain] > 0)
             {
                 weights[(int)WeatherKind.Rain] += bonus;
                 weights[(int)WeatherKind.Clear] -= bonus;
             }
-            if (previous.Weather != WeatherKind.Storm && weights[(int)previous.Weather] <= int.MaxValue - 3)
-                weights[(int)previous.Weather] += 3;
+            if (previous.Weather != WeatherKind.Storm)
+                weights[(int)previous.Weather] += 3 * weightScale;
             if (tick < previous.SevereAllowedAt || state.Config.TicksPerDay < 2)
             {
                 weights[(int)WeatherKind.Cloudy] += weights[(int)WeatherKind.Storm];
                 weights[(int)WeatherKind.Storm] = 0;
             }
             var random = Pcg32XshRrV1.Create(state.WorldSeed, FormattableString.Invariant($"weather/episode:{tick}/region:{previous.X},{previous.Y}/choice"));
-            var roll = (long)random.NextUInt() % weights.Sum(weight => (long)weight);
+            var roll = (long)random.NextUInt() % weights.Sum();
             var selected = WeatherKind.Clear;
             foreach (var weather in Enum.GetValues<WeatherKind>())
             {

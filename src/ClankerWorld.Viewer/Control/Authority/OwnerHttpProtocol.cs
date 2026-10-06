@@ -46,8 +46,13 @@ public sealed record OwnerWorldCreationAction(string Name, string Seed, string S
     int WaterPercent, bool WrapEastWest, string ClimateMode = "Balanced",
     string SelectedClimate = "Temperate", bool LatitudeCooling = true,
     string ResourceAbundance = "Normal", string ForestCover = "Normal",
-    string MountainRelief = "Normal", string RiverAbundance = "Normal");
-public sealed record OwnerAutosaveConfigurationAction(bool Enabled, int IntervalMinutes, int RotationCount);
+    string MountainRelief = "Normal", string RiverAbundance = "Normal",
+    int? CandidateAttempt = null, string? ExpectedManifestDigest = null,
+    string? ExpectedMapLayersDigest = null, bool AcceptUnmetTargets = false);
+public sealed record OwnerAutosaveConfigurationAction(bool Enabled, int IntervalMinutes, int RotationCount, string WorldId);
+public sealed record OwnerDeveloperEditAction(string WorldId, long ExpectedEventId, string AgentId,
+    string Operation, string Value, int Amount = 0, string? OtherAgentId = null);
+
 public sealed record OwnerLifePaceAction(int Rate);
 public sealed record OwnerJevAssistanceAction(bool Enabled);
 
@@ -72,6 +77,41 @@ public sealed record OwnerUsageStatusAction;
 
 public sealed record OwnerCredentialSlotDeletionAction(string CredentialSlotId);
 
+public sealed record OwnerCredentialSlotCreationAction(string CredentialSlotId, string Provider, string Label, string ApiKey);
+
+/// <summary>
+/// Asks the host for the game's model list for a provider. With
+/// <see cref="CheckKey"/>, the host also asks the provider which of those
+/// models a key can use. <see cref="ApiKey"/> is a key the owner has just
+/// pasted and not saved yet; it is used for this check only. Without it, the
+/// named key slot or the provider's saved key is used.
+/// </summary>
+public sealed record OwnerProviderModelListAction(
+    string Provider, string? CredentialSlotId = null, string? ApiKey = null, bool CheckKey = true);
+
+/// <summary>
+/// Explicitly tests one hosted model with either a saved provider key, a named
+/// key slot, or a key pasted for this request only. This action does not change
+/// provider configuration and always represents one metered model call.
+/// </summary>
+public sealed record OwnerProviderSetupCheckAction(
+    string Provider, string Model, string? CredentialSlotId = null, string? ApiKey = null);
+
+/// <summary>A bounded result for an owner-triggered, metered model setup check.</summary>
+public sealed record OwnerProviderSetupCheckResult(string Outcome, string Message, bool IsReady);
+
+/// <summary>One listed model, and whether the checked key can use it.</summary>
+public sealed record OwnerProviderModelChoice(string Model, bool Available);
+
+/// <summary>
+/// The game's models for a provider, in display order. <see cref="DefaultModel"/>
+/// is the game's default for this provider, chosen for a new agent when the
+/// key can use it. <see cref="Error"/> explains, in plain words, a key that
+/// couldn't be checked; the models are then all shown as usable.
+/// </summary>
+public sealed record OwnerProviderModelList(
+    string Provider, IReadOnlyList<OwnerProviderModelChoice> Models, string DefaultModel, string? Error);
+
 public sealed record OwnerProviderConfigurationAction(
     string Role,
     string Provider,
@@ -82,7 +122,13 @@ public sealed record OwnerProviderConfigurationAction(
     string? CredentialSlotId = null,
     string? NewCredentialLabel = null);
 
-public sealed record InhabitantProviderAssignment(string InhabitantId, string Role, string Provider, string? Model = null, string? CredentialSlotId = null);
+public sealed record InhabitantProviderAssignment(
+    string InhabitantId,
+    string Role,
+    string Provider,
+    string? Model = null,
+    string? CredentialSlotId = null,
+    string? SelectionReason = null);
 
 public sealed record OwnerProviderCredentialStatus(string Id, string Provider, string Label);
 
@@ -98,9 +144,10 @@ public sealed record OwnerFirstTownLayoutAction(int X, int Y);
 public sealed record OwnerFirstTownLayoutReceipt(int X, int Y, int Buildings, int RoadTiles);
 
 public sealed record OwnerAgentPlacementAction(
-    string AgentId, int X, int Y, OwnerProviderConfigurationAction Cognition);
+    string AgentId, int X, int Y, OwnerProviderConfigurationAction Cognition,
+    string? ExpectedHouseholdId, string? ExpectedTownId);
 
-public sealed record OwnerAgentPlacementReceipt(string AgentId, string? HouseholdId);
+public sealed record OwnerAgentPlacementReceipt(string AgentId, string? HouseholdId, string? TownId = null);
 
 public sealed record OwnerAgentRenameAction(string AgentId, string Name);
 
@@ -123,7 +170,15 @@ public sealed record OwnerInstructionAction(
     string IdempotencyKey,
     string TargetInhabitantId,
     string Kind,
-    string Text);
+    string Text,
+    string WorldId,
+    bool Queue = false);
+
+public sealed record OwnerOrderCancelAction(
+    string IdempotencyKey,
+    string TargetInhabitantId,
+    string OrderId,
+    string WorldId);
 
 /// <summary>
 /// A stable scalar representation keeps authoring requests independent of a
@@ -205,9 +260,12 @@ public static class OwnerHttpBinding
         $"operation={EncodeRequired(action.Operation, nameof(action.Operation))}",
         $"value={EncodeRequired(action.Value, nameof(action.Value))}");
 
+    public const string WorldCreationPayloadDomain = "clankerworld.owner-world-creation.v3";
+    public const string AgentPlacementPayloadDomain = "clankerworld.owner-agent-placement.v2";
+
     public static string WorldCreationPayload(OwnerWorldCreationAction action) => string.Join(
         '\n',
-        "clankerworld.owner-world-creation.v2",
+        WorldCreationPayloadDomain,
         $"name={EncodeRequired(action.Name, nameof(action.Name))}",
         $"seed={EncodeRequired(action.Seed, nameof(action.Seed))}",
         $"size={EncodeRequired(action.Size, nameof(action.Size))}",
@@ -219,14 +277,31 @@ public static class OwnerHttpBinding
         $"resource-abundance={EncodeRequired(action.ResourceAbundance, nameof(action.ResourceAbundance))}",
         $"forest-cover={EncodeRequired(action.ForestCover, nameof(action.ForestCover))}",
         $"mountain-relief={EncodeRequired(action.MountainRelief, nameof(action.MountainRelief))}",
-        $"river-abundance={EncodeRequired(action.RiverAbundance, nameof(action.RiverAbundance))}");
+        $"river-abundance={EncodeRequired(action.RiverAbundance, nameof(action.RiverAbundance))}",
+        $"candidate-attempt={action.CandidateAttempt?.ToString(CultureInfo.InvariantCulture) ?? "-"}",
+        $"expected-manifest-digest={EncodeOptional(action.ExpectedManifestDigest)}",
+        $"expected-map-layers-digest={EncodeOptional(action.ExpectedMapLayersDigest)}",
+        $"accept-unmet-targets={action.AcceptUnmetTargets.ToString().ToLowerInvariant()}");
+
+    public const string AutosaveConfigurationPayloadDomain = "clankerworld.owner-autosave-configuration.v2";
 
     public static string AutosaveConfigurationPayload(OwnerAutosaveConfigurationAction action) => string.Join(
         '\n',
-        "clankerworld.owner-autosave-configuration.v1",
+        AutosaveConfigurationPayloadDomain,
+        $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}",
         $"enabled={action.Enabled.ToString().ToLowerInvariant()}",
         $"interval-minutes={action.IntervalMinutes.ToString(CultureInfo.InvariantCulture)}",
         $"rotation-count={action.RotationCount.ToString(CultureInfo.InvariantCulture)}");
+
+    public static string DeveloperEditPayload(OwnerDeveloperEditAction action) => string.Join(
+        '\n', "clankerworld.owner-developer-edit.v1",
+        $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}",
+        $"expected-event-id={action.ExpectedEventId.ToString(CultureInfo.InvariantCulture)}",
+        $"agent-id={EncodeRequired(action.AgentId, nameof(action.AgentId))}",
+        $"operation={EncodeRequired(action.Operation, nameof(action.Operation))}",
+        $"value={EncodeRequired(action.Value, nameof(action.Value))}",
+        $"amount={action.Amount.ToString(CultureInfo.InvariantCulture)}",
+        $"other-agent-id={EncodeOptional(action.OtherAgentId)}");
 
     public static string LifePacePayload(OwnerLifePaceAction action) =>
         "clankerworld.owner-life-pace.v1\nrate=" + action.Rate.ToString(CultureInfo.InvariantCulture);
@@ -262,11 +337,60 @@ public static class OwnerHttpBinding
             $"additional-calls={action.AdditionalCalls.ToString(CultureInfo.InvariantCulture)}");
     }
 
+    public static string CredentialSlotCreationPayload(OwnerCredentialSlotCreationAction action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        ArgumentException.ThrowIfNullOrWhiteSpace(action.ApiKey);
+        return string.Join('\n', "clankerworld.owner-credential-slot-creation.v1",
+            $"credential-slot={EncodeRequired(action.CredentialSlotId, nameof(action.CredentialSlotId))}",
+            $"provider={EncodeRequired(action.Provider, nameof(action.Provider))}",
+            $"label={EncodeRequired(action.Label, nameof(action.Label))}",
+            $"api-key-sha256={ToBase64Url(SHA256.HashData(Encoding.UTF8.GetBytes(action.ApiKey)))}");
+    }
+
     public static string CredentialSlotDeletionPayload(OwnerCredentialSlotDeletionAction action)
     {
         ArgumentNullException.ThrowIfNull(action);
         return string.Join('\n', "clankerworld.owner-credential-slot-deletion.v1",
             $"credential-slot={EncodeRequired(action.CredentialSlotId, nameof(action.CredentialSlotId))}");
+    }
+
+    public static string ProviderModelListPayload(OwnerProviderModelListAction action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        var apiKeyDigest = action.ApiKey is null
+            ? "-"
+            : ToBase64Url(SHA256.HashData(Encoding.UTF8.GetBytes(action.ApiKey)));
+        return string.Join('\n', "clankerworld.owner-provider-models.v1",
+            $"provider={EncodeRequired(action.Provider, nameof(action.Provider))}",
+            $"credential-slot={EncodeOptional(action.CredentialSlotId)}",
+            $"api-key-sha256={apiKeyDigest}",
+            $"check-key={action.CheckKey.ToString().ToLowerInvariant()}");
+    }
+
+    public static string ProviderSetupCheckPayload(OwnerProviderSetupCheckAction action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        var provider = PlayerDecisionProviders.Normalize(action.Provider);
+        if (provider is not (PlayerDecisionProviders.OpenAi or PlayerDecisionProviders.OllamaCloud))
+            throw new ArgumentException("Choose OpenAI or Ollama Cloud for a personal model check.", nameof(action));
+        ArgumentException.ThrowIfNullOrWhiteSpace(action.Model);
+        if (action.Model.Length > 200 || action.Model.Any(char.IsControl))
+            throw new ArgumentException("Model names must be 200 characters or fewer and contain no control characters.", nameof(action));
+        if (action.ApiKey?.Length > 4096)
+            throw new ArgumentException("API keys must be 4096 characters or fewer.", nameof(action));
+        if (action.CredentialSlotId is { } slotId && !Guid.TryParseExact(slotId, "N", out _))
+            throw new ArgumentException("Choose a valid saved key.", nameof(action));
+        if (action.ApiKey is not null && action.CredentialSlotId is not null)
+            throw new ArgumentException("Choose a pasted key or a saved key, not both.", nameof(action));
+        var apiKeyDigest = action.ApiKey is null
+            ? "-"
+            : ToBase64Url(SHA256.HashData(Encoding.UTF8.GetBytes(action.ApiKey)));
+        return string.Join('\n', "clankerworld.owner-provider-setup-check.v1",
+            $"provider={EncodeRequired(provider, nameof(action.Provider))}",
+            $"model={EncodeRequired(action.Model.Trim(), nameof(action.Model))}",
+            $"credential-slot={EncodeOptional(action.CredentialSlotId)}",
+            $"api-key-sha256={apiKeyDigest}");
     }
 
     public static string ProviderConfigurationPayload(OwnerProviderConfigurationAction action)
@@ -333,10 +457,12 @@ public static class OwnerHttpBinding
         var cognition = ProviderConfigurationPayload(action.Cognition);
         var digest = ToBase64Url(SHA256.HashData(Encoding.UTF8.GetBytes(cognition)));
         return string.Join('\n',
-            "clankerworld.owner-agent-placement.v1",
+            AgentPlacementPayloadDomain,
             $"agent={EncodeRequired(action.AgentId, nameof(action.AgentId))}",
             $"x={action.X.ToString(CultureInfo.InvariantCulture)}",
             $"y={action.Y.ToString(CultureInfo.InvariantCulture)}",
+            $"expected-household={EncodeOptional(action.ExpectedHouseholdId)}",
+            $"expected-town={EncodeOptional(action.ExpectedTownId)}",
             $"cognition-sha256={digest}");
     }
 
@@ -352,11 +478,21 @@ public static class OwnerHttpBinding
 
     public static string InstructionPayload(OwnerInstructionAction action) => string.Join(
         '\n',
-        "clankerworld.owner-instruction.v1",
+        action.Queue ? "clankerworld.owner-instruction.v3" : "clankerworld.owner-instruction.v2",
+        $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}",
         $"idempotency-key={EncodeRequired(action.IdempotencyKey, nameof(action.IdempotencyKey))}",
         $"target-inhabitant-id={EncodeRequired(action.TargetInhabitantId, nameof(action.TargetInhabitantId))}",
         $"kind={EncodeRequired(action.Kind, nameof(action.Kind))}",
-        $"text={EncodeRequired(action.Text, nameof(action.Text))}");
+        $"text={EncodeRequired(action.Text, nameof(action.Text))}" +
+            (action.Queue ? "\nqueue=true" : string.Empty));
+
+    public static string OrderCancelPayload(OwnerOrderCancelAction action) => string.Join(
+        '\n',
+        "clankerworld.owner-order-cancel.v1",
+        $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}",
+        $"idempotency-key={EncodeRequired(action.IdempotencyKey, nameof(action.IdempotencyKey))}",
+        $"target-inhabitant-id={EncodeRequired(action.TargetInhabitantId, nameof(action.TargetInhabitantId))}",
+        $"order-id={EncodeRequired(action.OrderId, nameof(action.OrderId))}");
 
     public static string AuthoringPayload(OwnerAuthoringBatchAction action)
     {

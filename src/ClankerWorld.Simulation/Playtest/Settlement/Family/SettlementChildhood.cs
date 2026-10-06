@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Society;
@@ -21,13 +23,15 @@ public sealed partial class PrivateWorldRuntime
         if (age is SocietyAgeBand.Adult or SocietyAgeBand.Elder)
             return !candidate.StartsWith("child_", StringComparison.Ordinal);
         return candidate is "safe_idle" or "consume_food" or "collect_shared_food" or
-            "seek_food" or "harvest_food" or "wear_clothing" or "seek_warmth" ||
+            "seek_food" or "harvest_food" or "move_to" or "wear_clothing" or "seek_warmth" or "seek_shelter" or "inspect_shelter_site" ||
             candidate.StartsWith("guardian_accept:", StringComparison.Ordinal) ||
             candidate.StartsWith("guardian_refuse:", StringComparison.Ordinal) ||
             candidate.StartsWith("guardian_end:", StringComparison.Ordinal) ||
             candidate.StartsWith("child_converse:", StringComparison.Ordinal) ||
             candidate.StartsWith("child_play:", StringComparison.Ordinal) ||
             candidate.StartsWith("child_learn:", StringComparison.Ordinal) ||
+            candidate.StartsWith("talk:", StringComparison.Ordinal) ||
+            candidate.StartsWith("conversation_", StringComparison.Ordinal) ||
             candidate == "child_help_food";
     }
 
@@ -62,6 +66,7 @@ public sealed partial class PrivateWorldRuntime
         var householdId = society.Checkpoint.GetInhabitant(actor).HouseholdId;
         var house = householdId is null ? null : HouseForHousehold(householdId);
         if (state.HungerBasisPoints >= 6_000 && PreferredFood(actor, actor).Any(lot => AvailableLotQuantity(lot) > 1) &&
+            (house is null || StorageRoomAfterInboundDeliveries(house.InstanceId) > 0) &&
             FindUnoccupiedRoute(actor, state.Position,
                 house?.Position ?? SettlementStoragePosition,
                 house is null ? ResourceInteractionRange : 0).Count > 0)
@@ -78,6 +83,8 @@ public sealed partial class PrivateWorldRuntime
                 return;
             var householdId = society.Checkpoint.GetInhabitant(actor).HouseholdId;
             var house = householdId is null ? null : HouseForHousehold(householdId);
+            if (house is not null && StorageRoomAfterInboundDeliveries(house.InstanceId) == 0)
+                return;
             var store = house?.Position ?? SettlementStoragePosition;
             var interactionRange = house is null ? ResourceInteractionRange : 0;
             if (!IsWithinInteractionRange(state.Position, store, interactionRange))
@@ -105,8 +112,13 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
 
+        var memoryKey = $"child-social:{kind}:{actor}:{target}:{WorldTick}";
+        // Keep short keys and cooldown prefixes; hash the complete identity when
+        // ancestry makes it exceed the cognition memory boundary.
+        var memoryId = memoryKey.Length <= 128 ? memoryKey :
+            $"child-social:{kind}:sha256:{Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(memoryKey)))}";
         society.Apply(checkpoint => SocietyFixture.RecordSocialMemory(checkpoint,
-            new($"child-social:{kind}:{actor}:{target}:{WorldTick}", actor, target,
+            new(memoryId, actor, target,
                 kind switch
                 {
                     "converse" => "Talked with another person.",

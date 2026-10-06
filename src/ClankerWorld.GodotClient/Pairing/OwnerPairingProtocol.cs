@@ -112,7 +112,8 @@ public sealed record OwnerChallenge(
     string DeviceId,
     string ChallengeId,
     string Nonce,
-    DateTimeOffset ExpiresAtUtc);
+    DateTimeOffset ExpiresAtUtc,
+    IReadOnlyList<string>? SupportedActionPayloads = null);
 
 /// <summary>
 /// Signed challenge-consumption proof. HTTP action envelopes flatten these

@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Serialization;
+using ClankerWorld.Simulation.Harness;
 
 namespace ClankerWorld.Simulation.World;
 
@@ -64,7 +65,10 @@ public sealed record GeographyOptions(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] int HydrologyVersion = 0,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] GenerationAmount ForestCover = GenerationAmount.Normal,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] GenerationAmount MountainRelief = GenerationAmount.Normal,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] GenerationAmount RiverAbundance = GenerationAmount.Normal);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] GenerationAmount RiverAbundance = GenerationAmount.Normal,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] int CandidateAttempt = 0,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+        int BalancedVisibilityVersion = GeographyGenerator.CurrentBalancedVisibilityVersion);
 
 public readonly record struct GeographyTile(byte Elevation, byte Rainfall, WaterKind Water,
     byte Temperature, ClimateZone Climate);
@@ -130,7 +134,20 @@ public sealed class GeneratedGeography
 public static class GeographyGenerator
 {
     public const int CurrentHydrologyVersion = 1;
+
+    /// <summary>
+    /// The terrain version saved with every generated world. Version 1 added
+    /// the Balanced forest and mountain visibility rules; version 2 shapes
+    /// mountains as a few large massifs with foothills (issue #683). Only the
+    /// current version can be generated or loaded.
+    /// </summary>
+    public const int CurrentBalancedVisibilityVersion = 2;
+
+    public const string OlderTerrainVersionMessage =
+        "This world's map was made by an older terrain generator, before mountains formed massifs. " +
+        "This build cannot rebuild that map, so the world is not loaded; its save is kept.";
     public const int ChunkSize = 64;
+    public const int MaximumCandidateAttempts = 3;
 
     public static (int Width, int Height) Dimensions(WorldSizePreset size) => size switch
     {
@@ -152,6 +169,13 @@ public static class GeographyGenerator
             !Enum.IsDefined(options.ResourceAbundance) || !Enum.IsDefined(options.ForestCover) ||
             !Enum.IsDefined(options.MountainRelief) || !Enum.IsDefined(options.RiverAbundance))
             throw new ArgumentOutOfRangeException(nameof(options), "The climate selection is invalid.");
+        if (options.CandidateAttempt is < 0 or >= MaximumCandidateAttempts)
+            throw new ArgumentOutOfRangeException(nameof(options), "The selected geography candidate is invalid.");
+        // Version 2 shapes mountains as massifs for every world. Older terrain
+        // cannot be rebuilt by this build, so it is refused rather than
+        // replaced by a different map.
+        if (options.BalancedVisibilityVersion != CurrentBalancedVisibilityVersion)
+            throw new ArgumentOutOfRangeException(nameof(options), OlderTerrainVersionMessage);
 
         if (options.HydrologyVersion is < 0 or > CurrentHydrologyVersion)
             throw new ArgumentOutOfRangeException(nameof(options), "The hydrology version is unsupported.");
@@ -162,10 +186,13 @@ public static class GeographyGenerator
         var water = new byte[length];
         var temperature = new byte[length];
         var climate = new byte[length];
-        var elevationNoise = NewNoise(NoiseSeed(options.Seed, "elevation"), 0.012f);
-        var rainNoise = NewNoise(NoiseSeed(options.Seed, "rainfall"), 0.018f);
-        var temperatureNoise = NewNoise(NoiseSeed(options.Seed, "temperature"), 0.007f);
-        var dominanceNoise = NewNoise(NoiseSeed(options.Seed, "climate-dominance"), 0.006f);
+        var candidateSeed = options.CandidateAttempt == 0
+            ? options.Seed
+            : DeriveCandidateSeed(options.Seed, options.CandidateAttempt);
+        var elevationNoise = NewNoise(NoiseSeed(candidateSeed, "elevation"), 0.012f);
+        var rainNoise = NewNoise(NoiseSeed(candidateSeed, "rainfall"), 0.018f);
+        var temperatureNoise = NewNoise(NoiseSeed(candidateSeed, "temperature"), 0.007f);
+        var dominanceNoise = NewNoise(NoiseSeed(candidateSeed, "climate-dominance"), 0.006f);
 
         // A circle in noise-input space makes the *flat* map's east and west
         // edges neighbors. Its third coordinate never becomes a game axis.
@@ -179,6 +206,11 @@ public static class GeographyGenerator
                 circleX[x] = radius * MathF.Cos(angle);
                 circleZ[x] = radius * MathF.Sin(angle);
             }
+        // Warmth before height cooling, and where a dominant climate holds.
+        // Climate is decided last, from the finished elevation, so mountains
+        // and their foothills are cooler than the land around them.
+        var heatBeforeCooling = new float[length];
+        var dominantHolds = new bool[length];
         var histogram = new int[256];
         for (var y = 0; y < height; y++)
         {
@@ -196,31 +228,23 @@ public static class GeographyGenerator
                 var dominantVariation = options.WrapEastWest
                     ? dominanceNoise.GetNoise(circleX[x], y, circleZ[x])
                     : dominanceNoise.GetNoise(x, y);
-                var scaled = (byte)Math.Clamp((int)MathF.Round((value + 1f) * 127.5f), 0, 255);
-                scaled = (byte)Math.Clamp(scaled + (options.MountainRelief switch
-                {
-                    GenerationAmount.Low => -Math.Max(0, scaled - 130) / 2,
-                    GenerationAmount.High => Math.Max(0, scaled - 130) / 2,
-                    _ => 0,
-                }), 0, 255);
+                var scaled = Math.Clamp((int)MathF.Round((value + 1f) * 127.5f), 0, 255);
+                // Mountains come only from massifs: high noise ground is
+                // squeezed into the band just below mountain height.
+                if (scaled >= TerrainPlacementRules.HighlandFlattenStart)
+                    scaled = TerrainPlacementRules.HighlandFlattenStart +
+                        (scaled - TerrainPlacementRules.HighlandFlattenStart) *
+                        (SeededMap.MountainElevationThreshold - 1 - TerrainPlacementRules.HighlandFlattenStart) /
+                        (255 - TerrainPlacementRules.HighlandFlattenStart);
                 var index = y * width + x;
-                elevation[index] = scaled;
+                elevation[index] = (byte)scaled;
                 rainfall[index] = (byte)Math.Clamp((int)MathF.Round((wetness + 1f) * 127.5f), 0, 255);
                 var latitude = Math.Abs((y + 0.5f) / height - 0.5f) * 2f;
-                var heat = (options.LatitudeCooling ? 224f - 178f * latitude : 160f) +
-                    temperatureVariation * 25f - Math.Max(0, scaled - 175) * 0.45f;
-                temperature[index] = (byte)Math.Clamp((int)MathF.Round(heat), 0, 255);
-                var natural = NaturalClimate(temperature[index], rainfall[index]);
-                var polarCap = options.LatitudeCooling && latitude >= 0.9f;
-                var chosen = polarCap ? ClimateZone.Polar : options.ClimateMode switch
-                {
-                    ClimateMode.Uniform => options.SelectedClimate,
-                    // Coherent noise makes the dominant climate form broad
-                    // regions; its exact land share is a playtest target.
-                    ClimateMode.Dominant when dominantVariation > -0.18f => options.SelectedClimate,
-                    _ => natural,
-                };
-                climate[index] = (byte)chosen;
+                heatBeforeCooling[index] = (options.LatitudeCooling ? 224f - 178f * latitude : 160f) +
+                    temperatureVariation * 25f;
+                // Coherent noise makes the dominant climate form broad
+                // regions; its exact land share is a playtest target.
+                dominantHolds[index] = dominantVariation > -0.18f;
                 histogram[scaled]++;
             }
         }
@@ -236,10 +260,50 @@ public static class GeographyGenerator
         ClassifyOceans(water, width, height, options.WrapEastWest);
         if (options.HydrologyVersion >= 1)
             BoundInlandLakes(elevation, water, width, height, options.WrapEastWest);
+        MountainMassifs.Raise(options, candidateSeed, elevation, water, width, height);
         var drainage = RouteRivers(elevation, rainfall, water, width, height, options.WrapEastWest,
             lakesAreTerminals: options.HydrologyVersion >= 1, options.RiverAbundance);
+        MountainMassifs.OpenPeakPasses(elevation, water, width, height, options.WrapEastWest);
+
+        for (var y = 0; y < height; y++)
+        {
+            var latitude = Math.Abs((y + 0.5f) / height - 0.5f) * 2f;
+            var polarCap = options.LatitudeCooling && latitude >= 0.9f;
+            for (var x = 0; x < width; x++)
+            {
+                var index = y * width + x;
+                var heat = heatBeforeCooling[index] - Math.Max(0, elevation[index] - 175) * 0.45f;
+                temperature[index] = (byte)Math.Clamp((int)MathF.Round(heat), 0, 255);
+                var natural = NaturalClimate(temperature[index], rainfall[index]);
+                var chosen = polarCap ? ClimateZone.Polar : options.ClimateMode switch
+                {
+                    ClimateMode.Uniform => options.SelectedClimate,
+                    ClimateMode.Dominant when dominantHolds[index] => options.SelectedClimate,
+                    _ => natural,
+                };
+                climate[index] = (byte)chosen;
+            }
+        }
         return new GeneratedGeography(width, height, options.WrapEastWest, elevation, rainfall, water,
             temperature, climate, drainage);
+    }
+
+    /// <summary>
+    /// A seeded, coherent noise field for a later map layer, such as where
+    /// beaches or groves form. Values are about -1 to 1, and the field stays
+    /// continuous across an enabled east/west seam like the geography itself.
+    /// </summary>
+    public static Func<int, int, float> LayerNoise(string worldSeed, string layer, float frequency,
+        int width, bool wrapEastWest)
+    {
+        var noise = NewNoise(NoiseSeed(worldSeed, layer), frequency);
+        if (!wrapEastWest) return (x, y) => noise.GetNoise(x, y);
+        var radius = width / (2f * MathF.PI);
+        return (x, y) =>
+        {
+            var angle = 2f * MathF.PI * x / width;
+            return noise.GetNoise(radius * MathF.Cos(angle), y, radius * MathF.Sin(angle));
+        };
     }
 
     private static ClimateZone NaturalClimate(byte temperature, byte rainfall) =>
@@ -262,6 +326,12 @@ public static class GeographyGenerator
     {
         var digest = SHA256.HashData(Encoding.UTF8.GetBytes(worldSeed + ":" + layer));
         return BinaryPrimitives.ReadInt32LittleEndian(digest);
+    }
+
+    private static string DeriveCandidateSeed(string seed, int attempt)
+    {
+        var input = Encoding.UTF8.GetBytes($"clankerworld/balanced-candidate/v1\n{seed}\n{attempt.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+        return Convert.ToHexStringLower(SHA256.HashData(input));
     }
 
     private static void ClassifyOceans(byte[] water, int width, int height, bool wrap)
@@ -443,9 +513,11 @@ public static class GeographyGenerator
 
         // Larger catchments have wider/longer rivers. The threshold is a
         // provisional visual-tuning value, not a climate or hydrology law.
+        // Rivers rise at the foot of a massif rather than cutting it apart.
         var threshold = abundance switch { GenerationAmount.Low => 288, GenerationAmount.High => 72, _ => 144 };
         for (var index = 0; index < length; index++)
-            if (water[index] == (byte)WaterKind.Land && flow[index] >= threshold)
+            if (water[index] == (byte)WaterKind.Land && flow[index] >= threshold &&
+                elevation[index] < SeededMap.MountainElevationThreshold)
                 water[index] = (byte)WaterKind.River;
         return downstream;
     }

@@ -16,6 +16,8 @@ public partial class Main : Control
     private const int DefaultTileSize = 96;
     private const int TileGap = 0;
     private const int RefreshSeconds = 1;
+    /// <summary>Space between the settings boxes and the scrollbar, in interface pixels.</summary>
+    private const int SettingsScrollGap = 10;
     private const long StatusToastMilliseconds = 6_000;
     private const int SettingCaptionWidth = 135;
     private const string AppIconPath = "res://icon.ico";
@@ -53,11 +55,12 @@ public partial class Main : Control
     private readonly Button pairAgainButton = new();
     private readonly Label connectionStatusLabel = new();
     private readonly PanelContainer cognitionSettingsPanel = new();
+    private readonly PanelContainer usageLimitPanel = new();
     private readonly OptionButton cognitionRoleChoice = new();
     private readonly OptionButton cognitionTargetChoice = new();
     private readonly OptionButton cognitionProviderChoice = new();
     private readonly OptionButton cognitionCredentialChoice = new();
-    private readonly LineEdit cognitionModelInput = new();
+    private readonly ModelPicker cognitionModelPicker = new();
     private readonly LineEdit cognitionApiKeyInput = new();
     private readonly LineEdit cognitionCredentialLabelInput = new();
     private readonly Label cognitionConfigurationStatus = new();
@@ -70,6 +73,7 @@ public partial class Main : Control
     private readonly Button saveCognitionProviderButton = new();
     private readonly Button forgetCognitionCredentialButton = new();
     private readonly Button deleteCognitionCredentialSlotButton = new();
+    private readonly Button openModelSettingsButton = new();
     private readonly Button refreshCognitionProviderButton = new();
     private readonly PanelContainer pairingPanel = new();
     private readonly Label pairingInstructionLabel = new();
@@ -89,6 +93,8 @@ public partial class Main : Control
     private readonly ColorRect topBarShade = new();
     private readonly WorldTerrainLayer terrainLayer = new();
     private readonly WeatherLayer weatherLayer = new();
+    private readonly NightLayer nightLayer = new();
+    private readonly NightLightsLayer nightLightsLayer = new();
     private WorldTerrainMap? terrainMap;
     private string? terrainWorldId;
     private string? terrainManifestDigest;
@@ -102,7 +108,6 @@ public partial class Main : Control
     private readonly Label rosterSummaryLabel = new();
     private readonly PanelContainer selectedInhabitantCard = new();
     private readonly VBoxContainer selectedAgentOverview = new();
-    private readonly ScrollContainer selectedAgentOverviewScroll = new() { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled };
     private readonly ScrollContainer selectedAgentModelScroll = new();
     private readonly VBoxContainer selectedAgentModelContent = new();
     private readonly Button modelSettingsButton = new();
@@ -116,16 +121,13 @@ public partial class Main : Control
     private readonly Button familyTreeButton = new();
     private readonly PanelContainer familyTreePanel = new();
     private readonly FamilyTreeView familyTreeView = new();
+    private readonly ScrollContainer familyTreeScroll = new();
     private readonly Label familyTreeStatus = new();
     private readonly ItemList inhabitantList = new();
     private readonly RichTextLabel inhabitantDetails = new();
-    private readonly RichTextLabel inhabitantSocialDetails = new();
-    private readonly RichTextLabel privateThoughtHistory = new();
+    private readonly Label privateThoughtHistory = new();
     private readonly Button memoriesButton = new();
     private readonly PanelContainer memoriesPanel = new();
-    private readonly RichTextLabel memoryHistory = new();
-    private readonly RichTextLabel worldDetails = new();
-    private readonly RichTextLabel worldInfoText = new();
     private readonly RichTextLabel eventLog = new();
     private readonly PanelContainer rosterPanel = new();
     private readonly PanelContainer eventsPanel = new();
@@ -134,6 +136,7 @@ public partial class Main : Control
     private readonly RichTextLabel selectedTileText = new();
     private Vector2I? selectedTile;
     private readonly PanelContainer gameMenuPanel = new();
+    private readonly VBoxContainer menuActions = new();
     private readonly PanelContainer settingsPanel = new();
     private readonly ColorRect menuShade = new();
     private readonly ColorRect appBackdrop = new();
@@ -148,15 +151,12 @@ public partial class Main : Control
     private readonly ConfirmationDialog quitGameConfirmation = new();
     private readonly CheckButton fullscreenToggle = new();
     private readonly OptionButton windowSizeChoice = new();
-    private readonly OptionButton renderResolutionChoice = new();
-    private readonly OptionButton uiScaleChoice = new();
     private static readonly Vector2I[] DisplaySizePresets =
     [
         new(1280, 720),
         new(1600, 900),
         new(1920, 1080),
     ];
-    private readonly List<Vector2I> renderSizeOptions = [];
     private readonly OptionButton clockFormatChoice = new();
     private readonly OptionButton dateFormatChoice = new();
     private readonly OptionButton lifePaceChoice = new();
@@ -165,8 +165,7 @@ public partial class Main : Control
     private int? lastObservedLifePace;
     private string? lastLifePaceWorldId;
 
-    private readonly Button pauseButton = new();
-    private readonly OptionButton instructionKind = new();
+    private readonly BoldTextButton pauseButton = new() { Captions = ["Pause", "Paused"] };
     private readonly LineEdit instructionText = new();
     private readonly Button submitInstructionButton = new();
     private readonly Label pendingSubmissionLabel = new();
@@ -188,9 +187,6 @@ public partial class Main : Control
     private readonly ItemList pairedDeviceList = new();
     private readonly LineEdit revokeDeviceId = new();
     private readonly Button revokeDeviceButton = new();
-    private readonly Button developerToggleButton = new();
-    private readonly ScrollContainer developerScroll = new();
-    private readonly VBoxContainer developerBody = new();
 
     private OwnerDeviceKey? deviceKey;
     private OwnerDeviceRegistration? registration
@@ -214,6 +210,7 @@ public partial class Main : Control
     private OwnerPendingSubmission? pendingSubmission;
     private string? selectedInhabitantId;
     private string? renamingAgentId;
+    private readonly RefusedAgentRename refusedAgentRename = new();
     private bool isRefreshing;
     private CancellationTokenSource? refreshCancellation;
     private int successfulRefreshCount;
@@ -263,9 +260,14 @@ public partial class Main : Control
         BuildLayout();
         UiTheme.Changed += ApplyThemeColors;
         ApplyThemeColors();
-        ApplyUiScale(displayPreferences.UiScalePercent);
-        GetWindow().SizeChanged += RefreshAutomaticRenderResolution;
+        ApplyUiScale();
+        GetWindow().SizeChanged += RefreshRenderSize;
         ShowMainMenu();
+        if (OS.GetCmdlineUserArgs().Contains("--measure-map-draw", StringComparer.Ordinal))
+        {
+            _ = MeasureMapDrawAsync();
+            return;
+        }
         if (OS.GetCmdlineUserArgs().Contains("--ui-smoke-test", StringComparer.Ordinal))
         {
             _ = VerifyMenuLayoutAsync();
@@ -286,7 +288,9 @@ public partial class Main : Control
 
     public override void _ExitTree()
     {
+        CancelManualSaveListRead();
         refreshCancellation?.Cancel();
+        CancelAutosaveSettingsRead();
         worldListRequest.Dispose();
         UiTheme.Changed -= ApplyThemeColors;
         deviceKey?.Dispose();

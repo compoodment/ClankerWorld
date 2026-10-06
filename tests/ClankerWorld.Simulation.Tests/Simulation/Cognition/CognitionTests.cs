@@ -8,29 +8,14 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class CognitionTests
 {
     [Fact]
-    public async Task DeterministicCognitionChoosesAndExecutesARealMovementIntention()
-    {
-        var runtime = new OwnerWorldRuntime("camp-alpha");
-
-        var result = await runtime.AdvanceOneActionAsync();
-        var snapshot = runtime.Capture().Snapshot;
-
-        Assert.True(result.Advanced);
-        Assert.False(result.PausedForProviderOutage);
-        Assert.False(result.Cognition?.FellBack);
-        Assert.Equal("seek_food", result.CandidateId);
-        Assert.Equal("seek_food", snapshot.Cognition?.CurrentIntention?.CandidateId);
-        Assert.NotEqual(new GridPoint(0, 0), snapshot.World.Actor.Position);
-        Assert.Contains(snapshot.Cognition!.Events, worldEvent => worldEvent.Kind == "cognition_requested");
-        Assert.Contains(snapshot.Cognition.Events, worldEvent => worldEvent.Kind == "cognition_decision_applied");
-        Assert.Equal("moved", result.MovementEvents.Single().Kind);
-    }
-
-    [Fact]
     public async Task CognitionAndWorldStateSurviveAValidatedRestart()
     {
         var runtime = new OwnerWorldRuntime("camp-alpha");
-        _ = await runtime.AdvanceOneActionAsync();
+        var first = await runtime.AdvanceOneActionAsync();
+        Assert.True(first.Advanced);
+        Assert.False(first.Cognition?.FellBack);
+        Assert.Equal("seek_food", first.CandidateId);
+        Assert.Equal("moved", Assert.Single(first.MovementEvents).Kind);
         var state = JsonSerializer.Deserialize<OwnerWorldRuntimeState>(
             JsonSerializer.Serialize(runtime.ExportState())) ?? throw new InvalidDataException();
 
@@ -72,10 +57,15 @@ public sealed class CognitionTests
         Assert.True((await runtime.AdvanceOneActionAsync()).Advanced);
     }
 
-    [Fact]
-    public async Task JevAdapterSendsOnlyTheCompactChoiceContractAndRecordsUsage()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task JevAdapterSendsOnlyTheCompactChoiceContractAndRecordsUsage(bool includesProbabilityMap)
     {
-        var handler = new RecordingHandler(JsonResponse());
+        var reply = System.Text.Json.Nodes.JsonNode.Parse(JsonResponse())!;
+        if (!includesProbabilityMap)
+            reply["answers"]!["selected_candidate"]!.AsObject().Remove("probabilities");
+        var handler = new RecordingHandler(reply.ToJsonString());
         using var client = new HttpClient(handler);
         var provider = new JevDecisionProvider(
             client,
@@ -194,7 +184,7 @@ public sealed class CognitionTests
                 SourceAgentId: "friend", SourceEventId: 9, IsCorrected: true,
                 ImportanceBasisPoints: 7_500, ImportanceConfidenceBasisPoints: 8_200)],
             Self: new CognitionSelfContext("actor-scout", "Aster Vale", "Adult", "Curious", "Explore",
-                "household:one", 4_000, 1_000, "I remember the path."));
+                "household:one", 4_000, 1_000, "I remember the path.", "Aster's household", "First Town"));
         var request = new CognitionDecisionRequest("cognition-openai-test", 2, observation);
 
         var response = await provider.DecideAsync(request);
@@ -240,10 +230,132 @@ public sealed class CognitionTests
         Assert.Equal(4_200, memory.GetProperty("confidence_basis_points").GetInt32());
         Assert.Equal(9, memory.GetProperty("source_event_id").GetInt64());
         Assert.True(memory.GetProperty("is_corrected").GetBoolean());
-        Assert.Equal(7_500, memory.GetProperty("jev_importance_basis_points").GetInt32());
+        Assert.False(memory.TryGetProperty("jev_importance_basis_points", out _));
+        Assert.False(memory.TryGetProperty("jev_importance_confidence_basis_points", out _));
+        Assert.Equal("Aster's household", self.GetProperty("household").GetString());
+        Assert.Equal("First Town", self.GetProperty("town").GetString());
+        Assert.False(self.TryGetProperty("household_id", out _));
         Assert.Equal("test-model", response.Usage?.ModelId);
         Assert.Equal(44, response.Usage?.InputTokens);
         Assert.Equal(9, response.Usage?.OutputTokens);
+    }
+
+    [Fact]
+    public async Task OpenAiCompatibleAdapterSendsExactOutsideObserverMessagesAndParsesOnlyExactReplies()
+    {
+        const string suggestionId = "private-instruction-0000000001";
+        const string orderId = "private-instruction-0000000002";
+        var handler = new RecordingHandler(
+            """
+            {"model":"test-model","choices":[{"message":{"role":"assistant","content":"{\"selected_candidate_id\":\"safe_idle\",\"confidence\":1,\"observer_replies\":[{\"instruction_id\":\"private-instruction-0000000001\",\"text\":\"I will keep that in mind.\"}] }"}}]}
+            """);
+        using var client = new HttpClient(handler);
+        var provider = new OpenAiCompatibleDecisionProvider(
+            client, () => "guidance-provider-secret", new Uri("https://model.test/v1/chat/completions"), "test-model");
+        var suggestion = new CognitionObserverGuidance(suggestionId, "owner:private", "actor-scout",
+            "suggestive", "Try the shore berries after the rain.", 9, 1, 1, null, true);
+        var order = new CognitionObserverGuidance(orderId, "owner:private", "actor-scout",
+            "must_do", "Please eat one carried food item now.", 9, 1, 2,
+            "eat one carried food item", true);
+        var observation = new InhabitantObservation(
+            "actor-scout", 9, 1, 3, "sha256:guidance-provider-test", 3_000,
+            [new CognitionCandidate("safe_idle", "Continue safely.")])
+        {
+            WorldId = "world-guidance-provider-test",
+            ObserverGuidance = [suggestion, order],
+        };
+
+        var response = await provider.DecideAsync(new("guidance-provider-request", 2, observation));
+        using var outer = JsonDocument.Parse(handler.Body ?? throw new InvalidDataException());
+        using var input = JsonDocument.Parse(outer.RootElement.GetProperty("messages")[1].GetProperty("content").GetString()!);
+        var guidance = input.RootElement.GetProperty("observer_guidance");
+        Assert.Equal("world-guidance-provider-test", input.RootElement.GetProperty("world_id").GetString());
+        Assert.Equal("actor-scout", input.RootElement.GetProperty("agent_id").GetString());
+        Assert.Contains("outside observer", outer.RootElement.GetProperty("messages")[0].GetProperty("content").GetString(),
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(2, guidance.GetArrayLength());
+        Assert.Equal(suggestionId, guidance[0].GetProperty("instruction_id").GetString());
+        Assert.Equal("outside_observer", guidance[0].GetProperty("source").GetString());
+        Assert.Equal("suggestive", guidance[0].GetProperty("kind").GetString());
+        Assert.Equal("Try the shore berries after the rain.", guidance[0].GetProperty("text").GetString());
+        Assert.True(guidance[0].GetProperty("reply_allowed").GetBoolean());
+        Assert.Equal(orderId, guidance[1].GetProperty("instruction_id").GetString());
+        Assert.Equal("Please eat one carried food item now.", guidance[1].GetProperty("text").GetString());
+        Assert.Equal("eat one carried food item", guidance[1].GetProperty("understood_task").GetString());
+        var retrievedMemories = input.RootElement.GetProperty("retrieved_memories");
+        var knownMapFacts = input.RootElement.GetProperty("known_map_facts");
+        Assert.True(retrievedMemories.ValueKind == JsonValueKind.Null ||
+            retrievedMemories.ValueKind == JsonValueKind.Array && retrievedMemories.GetArrayLength() == 0);
+        Assert.True(knownMapFacts.ValueKind == JsonValueKind.Null ||
+            knownMapFacts.ValueKind == JsonValueKind.Array && knownMapFacts.GetArrayLength() == 0);
+        Assert.Equal(new CognitionObserverReply(suggestionId, "I will keep that in mind."),
+            Assert.Single(response.ObserverReplies!));
+        Assert.DoesNotContain("owner:private", handler.Body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task NamingHintVariesBetweenAgentsButStaysStableForRetries()
+    {
+        var handler = new RecordingHandler(OpenAiCompatibleJsonResponse());
+        using var client = new HttpClient(handler);
+        var provider = new OpenAiCompatibleDecisionProvider(
+            client, () => "synthetic-test-key", new Uri("https://model.test/v1/chat/completions"), "test-model");
+
+        static CognitionDecisionRequest Request(string actor, bool needsName, string requestId) =>
+            new(requestId, 2, new InhabitantObservation(actor, 9, 1, 3, "sha256:test-observation", 9_000,
+                [new CognitionCandidate("safe_idle", "Continue safely.")], NeedsName: needsName));
+
+        async Task<string> SystemPrompt(CognitionDecisionRequest request)
+        {
+            _ = await provider.DecideAsync(request);
+            using var payload = JsonDocument.Parse(handler.Body ?? throw new InvalidDataException());
+            return payload.RootElement.GetProperty("messages")[0].GetProperty("content").GetString()!;
+        }
+
+        var first = await SystemPrompt(Request("actor-alpha", true, "first"));
+        var retry = await SystemPrompt(Request("actor-alpha", true, "retry"));
+        var other = await SystemPrompt(Request("actor-gamma", true, "other"));
+        var named = await SystemPrompt(Request("actor-alpha", false, "named"));
+        var regularNameRequest = Request("actor-alpha", true, "name-retry");
+        var nameRetryRequest = regularNameRequest with
+        {
+            Observation = regularNameRequest.Observation with { IsNameRetry = true },
+        };
+        var nameRetry = await SystemPrompt(nameRetryRequest);
+        using var retryPayload = JsonDocument.Parse(handler.Body ?? throw new InvalidDataException());
+        using var retryInput = JsonDocument.Parse(
+            retryPayload.RootElement.GetProperty("messages")[1].GetProperty("content").GetString()!);
+
+        Assert.Equal(first, retry);
+        Assert.NotEqual(first, other);
+        Assert.NotEqual(first, nameRetry);
+        Assert.Contains("given name starting with", first, StringComparison.Ordinal);
+        Assert.DoesNotContain("given name starting with", named, StringComparison.Ordinal);
+        Assert.Contains("first name you chose is already taken", nameRetry, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Do not list or ask for anyone else’s name", nameRetry, StringComparison.Ordinal);
+        Assert.True(retryInput.RootElement.GetProperty("name_retry").GetBoolean());
+
+        var child = regularNameRequest with
+        {
+            Observation = regularNameRequest.Observation with
+            {
+                Self = new CognitionSelfContext("actor-alpha", "Child one", "Child", "Curious", "Learn",
+                    null, null, null, null, AllowedChildSurnames: ["Vale", "Lake"]),
+            },
+        };
+        var childPrompt = await SystemPrompt(child);
+        Assert.Contains("self.allowed_child_surnames", childPrompt, StringComparison.Ordinal);
+        using var childPayload = JsonDocument.Parse(handler.Body ?? throw new InvalidDataException());
+        using var childInput = JsonDocument.Parse(childPayload.RootElement.GetProperty("messages")[1].GetProperty("content").GetString()!);
+        Assert.Equal(["Vale", "Lake"], childInput.RootElement.GetProperty("self").GetProperty("allowed_child_surnames")
+            .EnumerateArray().Select(item => Assert.IsType<string>(item.GetString())).ToArray());
+        var unnamedParents = child with
+        {
+            Observation = child.Observation with { Self = child.Observation.Self! with { AllowedChildSurnames = [] } },
+        };
+        Assert.Contains("Omit chosen_name", await SystemPrompt(unnamedParents), StringComparison.Ordinal);
+        var alreadyNamedChild = child with { Observation = child.Observation with { NeedsName = false } };
+        Assert.DoesNotContain("self.allowed_child_surnames", await SystemPrompt(alreadyNamedChild), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -273,7 +385,7 @@ public sealed class CognitionTests
     public void CognitionAdmissionRejectsJevCompactionScoresForAnotherOwner()
     {
         var provider = new ThrowingProvider();
-        var runtime = new CognitionRuntime("actor-scout", provider, minimumConfidence: 0);
+        var runtime = new CognitionRuntime("actor-scout", provider);
         var observation = new InhabitantObservation(
             "actor-scout", 9, 0, 1, "sha256:owner-check", 2_000,
             [new CognitionCandidate("safe_idle", "Continue safely.")],

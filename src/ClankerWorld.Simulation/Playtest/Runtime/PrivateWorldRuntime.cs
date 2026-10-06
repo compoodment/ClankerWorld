@@ -20,7 +20,27 @@ namespace ClankerWorld.Simulation.Playtest;
 /// </summary>
 public sealed partial class PrivateWorldRuntime : IDisposable
 {
-    public const int StateSchemaVersion = 26;
+    public const int StateSchemaVersion = 93;
+    // Founded Towns save laws, protected government changes and the mayor's office from this schema.
+    public const int TownGovernmentSchemaVersion = 55;
+    public const int ObserverGuidanceSchemaVersion = 41;
+    public const int OrderLifecycleSchemaVersion = 49;
+    public const int ChildModelSelectionSchemaVersion = 33;
+    public const int ConversationSchemaVersion = 35;
+    public const int PersonalEquipmentSchemaVersion = 37;
+    private const int OrnamentEquipmentSchemaVersion = 52;
+    public const int ReusableContainerSchemaVersion = 39;
+    // Wills with several heirs, a Town heir, final words and the dead agent's Town.
+    public const int WillHeirsSchemaVersion = 53;
+    public const int DependentGuardianSearchSchemaVersion = 50;
+    public const int GuardianPlacementSchemaVersion = 71;
+    public const int ToolProgressionSchemaVersion = 42;
+    public const int LifeMomentIdentitySchemaVersion = 43;
+    public const int ContinuitySchemaVersion = 46;
+    public const int TownAdmissionSchemaVersion = 54;
+    internal const int MinimumSupportedStateSchemaVersion = StateSchemaVersion;
+    // Trees planted on new tiles are saved as map resources from this schema.
+    private const int PlantedTreeSchemaVersion = 27;
     private const int MaximumRecentThoughts = 8;
     private const string HouseholdId = "household:camp-alpha";
     private const string SecondHouseholdId = "household:camp-beta";
@@ -36,9 +56,10 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     private string worldSeed;
     private GeographyOptions? geographyOptions;
     private readonly Func<string, IDecisionProvider>? providerFactory;
-    private readonly double minimumCognitionConfidence;
     private readonly int maxCognitionDispatchPerCycle;
     private SeededMap map;
+    private LandFertility fertility;
+    private List<FarmFieldState> fields = [];
     private SocietyWorldRuntime society;
     private ContentPackageRegistry contentRegistry;
     private WorldSystemsState worldSystems;
@@ -53,6 +74,8 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         new(StringComparer.Ordinal);
     private Dictionary<string, OwnerInstructionReceipt> instructionReceipts =
         new(StringComparer.Ordinal);
+    private Dictionary<string, OwnerOrderCancellation> orderCancellations =
+        new(StringComparer.Ordinal);
     private HashSet<string> completedInstructionIds = new(StringComparer.Ordinal);
     private List<PlaytestWorldEvent> events = [];
     private long nextEventId = 1;
@@ -63,7 +86,14 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     private long jevPolicyRevision;
     private FounderSetupState? founderSetup;
     private List<TownRuntimeState> towns = [];
+    private List<TownLandTitleRecord> townLandTitles = [];
+    private List<HouseholdLandUseRight> householdLandUseRights = [];
+    private List<HouseholdLandUseRequest> householdLandUseRequests = [];
     private HashSet<GridPoint> roadTiles = [];
+    private List<HandcartHitch> handcartHitches = [];
+    private List<AgentConversation> conversations = [];
+    private List<AgentMarriage> marriages = [];
+    private List<AgentConversationDailyBudget> conversationBudgets = [];
     private GridPoint SettlementStoragePosition =>
         map.CampObjects.FirstOrDefault(item => item.Id == "storage")?.Position ??
         worldSimulation.Buildings.FirstOrDefault(item => item.InstanceId == "first-town-warehouse")?.Position ??
@@ -75,24 +105,30 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         SettlementStoragePosition;
     private long nextInstructionSequence = 1;
     private readonly Dictionary<string, PendingHostedDecision> pendingHosted = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, PendingConversationTurn> pendingConversationTurns = new(StringComparer.Ordinal);
     private readonly List<PrivateWorldMemoryCompactionTransition> memoryCompactionTransitions = [];
 
     private sealed record HostedDecisionOutcome(CognitionDecisionResponse? Response, string? Failure);
     private sealed record PendingHostedDecision(
         CognitionDecisionRequest Request,
         Task<HostedDecisionOutcome> Task,
-        CancellationTokenSource Cancellation);
+        CancellationTokenSource Cancellation,
+        string? DecisionContext);
+    private sealed record ConversationTurnOutcome(AgentConversationTurnResponse? Response, Exception? Failure);
+    private sealed record PendingConversationTurn(
+        AgentConversationTurnRequest Request,
+        Task<ConversationTurnOutcome> Task,
+        CancellationTokenSource Cancellation,
+        long ProviderEpoch);
 
     public PrivateWorldRuntime(
         string worldSeed,
         Func<string, IDecisionProvider>? providerFactory = null,
         int maxCognitionQueueLength = 64,
         int maxCognitionDispatchPerCycle = 4,
-        double minimumCognitionConfidence = 0.5,
         WorldStartPace startPace = WorldStartPace.Legacy,
         GeographyOptions? geographyOptions = null)
-        : this(worldSeed, providerFactory, maxCognitionQueueLength, maxCognitionDispatchPerCycle,
-            minimumCognitionConfidence, startPace, geographyOptions, preparedMap: null)
+        : this(worldSeed, providerFactory, maxCognitionQueueLength, maxCognitionDispatchPerCycle, startPace, geographyOptions, preparedMap: null)
     {
     }
 
@@ -101,7 +137,6 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         Func<string, IDecisionProvider>? providerFactory,
         int maxCognitionQueueLength,
         int maxCognitionDispatchPerCycle,
-        double minimumCognitionConfidence,
         WorldStartPace startPace,
         GeographyOptions? geographyOptions,
         SeededMap? preparedMap,
@@ -119,14 +154,6 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             throw new ArgumentOutOfRangeException(nameof(maxCognitionQueueLength));
         }
 
-        if (double.IsNaN(minimumCognitionConfidence) ||
-            double.IsInfinity(minimumCognitionConfidence) ||
-            minimumCognitionConfidence is < 0 or > 1)
-        {
-            throw new ArgumentOutOfRangeException(nameof(minimumCognitionConfidence));
-        }
-
-        this.minimumCognitionConfidence = minimumCognitionConfidence;
         this.maxCognitionDispatchPerCycle = maxCognitionDispatchPerCycle;
         contentRegistry = new ContentPackageRegistry();
         worldContent = new DeclarativeWorldContentState([], []);
@@ -135,15 +162,15 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         map = preparedMap ?? (startPace == WorldStartPace.FounderSetup
             ? geographyOptions is null
                 ? BaseCampMapGenerator.Generate(this.worldSeed, includeLegacyBedroll)
-                : GeneratedCampMapGenerator.Generate(geographyOptions, includeLegacyBedroll)
+                : GeographyCandidateSelector.GenerateCandidate(geographyOptions, includeLegacyBedroll: includeLegacyBedroll)
             : SeededMapGenerator.Generate(this.worldSeed, includeLegacyBedroll));
+        fertility = new LandFertility(map, this.worldSeed);
         worldSystems = CreateWorldSystems(this.worldSeed, map, startPace);
         society = CreateSociety(
             this.worldSeed,
             providerFactory,
             maxCognitionQueueLength,
             maxCognitionDispatchPerCycle,
-            minimumCognitionConfidence,
             startPace);
         if (startPace is WorldStartPace.DecidedPlaytest or WorldStartPace.FounderSetup)
         {
@@ -161,9 +188,35 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         {
             resources.Add(resource.Id, ResourceState.Available);
         }
+        // Out-of-season orchard trees start without fruit.
+        SyncEcologyResourceStates();
 
         AppendEvent("world_created", $"{this.worldSeed}:inhabitants:{inhabitants.Count}");
         if (towns.Count > 0) AppendEvent("town_founding_started", TownBorderRules.FirstTownId);
+        StartContinuityRule();
+    }
+
+    /// <summary>Creates a world from the already previewed deterministic map.</summary>
+    public static PrivateWorldRuntime CreateFromGeneratedGeography(string worldSeed,
+        GeographyOptions geographyOptions, SeededMap preparedMap,
+        Func<string, IDecisionProvider>? providerFactory = null)
+    {
+        ArgumentNullException.ThrowIfNull(geographyOptions);
+        ArgumentNullException.ThrowIfNull(preparedMap);
+        if (!MatchesGeneratedCandidate(preparedMap, geographyOptions))
+            throw new ArgumentException("The prepared map does not match the selected geography candidate.", nameof(preparedMap));
+
+        return new PrivateWorldRuntime(worldSeed, providerFactory, 64, 4,
+            WorldStartPace.FounderSetup, geographyOptions, preparedMap);
+    }
+
+    private static bool MatchesGeneratedCandidate(SeededMap map, GeographyOptions options)
+    {
+        var (width, height) = GeographyGenerator.Dimensions(options.Size);
+        return map.Width == width && map.Height == height &&
+            map.WrapsEastWest == options.WrapEastWest &&
+            map.GenerationAttempt == options.CandidateAttempt &&
+            string.Equals(MapManifestCodec.Digest(map), map.ManifestDigest, StringComparison.Ordinal);
     }
 
     public long WorldTick => society.Checkpoint.WorldTick;
@@ -181,6 +234,15 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     public FounderSetupState? FounderSetup => founderSetup;
 
     public IReadOnlyList<TownRuntimeState> Towns => towns
+        .OrderBy(item => item.Id, StringComparer.Ordinal).ToArray();
+
+    public IReadOnlyList<TownLandTitleRecord> TownLandTitles => townLandTitles
+        .OrderBy(item => item.Id, StringComparer.Ordinal).ToArray();
+
+    public IReadOnlyList<HouseholdLandUseRight> HouseholdLandUseRights => householdLandUseRights
+        .OrderBy(item => item.Id, StringComparer.Ordinal).ToArray();
+
+    public IReadOnlyList<HouseholdLandUseRequest> HouseholdLandUseRequests => householdLandUseRequests
         .OrderBy(item => item.Id, StringComparer.Ordinal).ToArray();
 
     public IReadOnlyList<GridPoint> RoadTiles => roadTiles.OrderBy(item => item.Y).ThenBy(item => item.X).ToArray();
@@ -211,17 +273,15 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     public static PrivateWorldRuntime Restore(
         PrivateWorldRuntimeState state,
         Func<string, IDecisionProvider>? providerFactory = null,
-        int maxCognitionDispatchPerCycle = 4,
-        double minimumCognitionConfidence = 0.5)
-        => RestoreCore(state, providerFactory, maxCognitionDispatchPerCycle,
-            minimumCognitionConfidence, trustedPreparedState: false);
+        int maxCognitionDispatchPerCycle = 4)
+        => RestoreCore(state, providerFactory, maxCognitionDispatchPerCycle, trustedPreparedState: false);
 
     private static PrivateWorldRuntime RestoreCore(
         PrivateWorldRuntimeState state,
         Func<string, IDecisionProvider>? providerFactory,
         int maxCognitionDispatchPerCycle,
-        double minimumCognitionConfidence,
-        bool trustedPreparedState)
+        bool trustedPreparedState,
+        bool applyLoadTransitions = true)
     {
         if (!trustedPreparedState) ValidateStateForCodec(state);
         var runtime = new PrivateWorldRuntime(
@@ -229,7 +289,6 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             providerFactory,
             state.Society.Cognition.MaxQueueLength,
             maxCognitionDispatchPerCycle,
-            minimumCognitionConfidence,
             state.FounderSetup is null ? WorldStartPace.Legacy : WorldStartPace.FounderSetup,
             state.Geography,
             trustedPreparedState ? state.Map : null,
@@ -240,21 +299,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             throw new InvalidDataException("The private-world map does not match deterministic regeneration.");
         }
 
-        // Older generated checkpoints did not serialize the route-topology flag.
-        // Geography already binds that choice, while the v1 terrain manifest
-        // remains byte-compatible with existing saves.
-        runtime.map = state.Geography is null ? state.Map :
-            state.Map with
-            {
-                WrapsEastWest = state.Geography.WrapEastWest,
-                // Schema 19 saved only climate and the flattened terrain. Its
-                // deterministic generator still recovers the original layers
-                // without changing the v1 manifest or resource topology.
-                ElevationLevels = state.Map.ElevationLevels ?? runtime.map.ElevationLevels,
-                HydrologyKinds = state.Map.HydrologyKinds ?? runtime.map.HydrologyKinds,
-                SurfaceKinds = state.Map.SurfaceKinds ?? runtime.map.SurfaceKinds,
-                VegetationKinds = state.Map.VegetationKinds ?? runtime.map.VegetationKinds,
-            };
+        runtime.map = state.Map;
         runtime.eventHistoryFloor = state.EventHistoryFloor;
         runtime.historyArchiveHead = state.HistoryArchiveHead;
         runtime.checkpointSchemaVersion = StateSchemaVersion;
@@ -264,23 +309,35 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         runtime.society.Dispose();
         runtime.society = SocietyWorldRuntime.Restore(
             state.Society,
-            providerFactory,
-            minimumCognitionConfidence);
+            providerFactory);
         runtime.contentRegistry = ContentPackageRegistry.Restore(state.Content);
-        runtime.worldContent = state.WorldContent ?? RebuildWorldContent(runtime.contentRegistry.ExportState());
-        runtime.worldSimulation = state.WorldSimulation is null
-            ? WorldContentSimulationState.Empty
-            : state.WorldSimulation with { CropBuilds = state.WorldSimulation.CropBuilds ?? [] };
-        runtime.towns = (state.Towns ?? MigrateTowns(state)).OrderBy(item => item.Id, StringComparer.Ordinal).ToList();
-        runtime.roadTiles = (state.RoadTiles ?? []).ToHashSet();
+        runtime.worldContent = state.WorldContent!;
+        runtime.worldSimulation = state.WorldSimulation! with { CropBuilds = state.WorldSimulation.CropBuilds ?? [] };
+        runtime.fertility = new LandFertility(runtime.map, state.WorldSeed);
+        runtime.handcartHitches = state.HandcartHitches!.ToList();
+        runtime.boatTransport = state.BoatTransport;
+        runtime.fields = state.Fields!.OrderBy(field => field.Position.Y)
+            .ThenBy(field => field.Position.X).ToList();
+        runtime.towns = state.Towns!.OrderBy(item => item.Id, StringComparer.Ordinal).ToList();
+        runtime.townLandTitles = state.TownLandTitles!.OrderBy(item => item.Id, StringComparer.Ordinal).ToList();
+        runtime.householdLandUseRights = state.HouseholdLandUseRights!
+            .OrderBy(item => item.Id, StringComparer.Ordinal).ToList();
+        runtime.householdLandUseRequests = state.HouseholdLandUseRequests!
+            .OrderBy(item => item.Id, StringComparer.Ordinal).ToList();
+        runtime.roadTiles = state.RoadTiles!.ToHashSet();
+        runtime.bridges = state.Bridges!.OrderBy(item => item.Id, StringComparer.Ordinal).ToList();
+        runtime.bridgeTraffic = state.BridgeTraffic!;
+        runtime.conversations = state.Conversations!.ToList();
+        runtime.marriages = state.Marriages.ToList();
+        runtime.conversationBudgets = state.ConversationBudgets!.ToList();
+        runtime.businessTrades = state.BusinessTrades!.ToList();
+        runtime.toolMakingRequests = state.ToolMakingRequests!.ToList();
+        runtime.ApplyBridgeDecks();
         runtime.assetReservations = WorldAssetReservationLedger.Restore(state.AssetReservations);
         runtime.survivalState = state.Survival;
         runtime.council = state.Council;
-        runtime.worldSystems = state.WorldSystems is null
-            ? AdvanceWorldSystemsTo(
-                CreateWorldSystems(state.WorldSeed, state.Map, regionalWeather: false),
-                state.Society.Society.WorldTick)
-            : state.WorldSystems;
+        runtime.continuity = state.Continuity!;
+        runtime.worldSystems = state.WorldSystems!;
         RegionalWeatherRules.ValidateMap(runtime.worldSystems, runtime.map);
         runtime.inhabitants.Clear();
         foreach (var inhabitant in state.Inhabitants)
@@ -298,10 +355,11 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         {
             runtime.resources.Add(resource.ResourceId, resource.State);
         }
-        runtime.knowledge = state.Knowledge ?? PrivateWorldKnowledgeState.Empty;
+        runtime.knowledge = state.Knowledge!;
 
         runtime.instructionsByIdempotency.Clear();
         runtime.instructionReceipts.Clear();
+        runtime.orderCancellations.Clear();
         runtime.completedInstructionIds.Clear();
         foreach (var instruction in state.Instructions ?? [])
         {
@@ -326,6 +384,15 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             runtime.completedInstructionIds.Add(completedInstructionId);
         }
 
+        foreach (var cancellation in state.OrderCancellations ?? [])
+        {
+            if (!runtime.orderCancellations.TryAdd(cancellation.IdempotencyKey, cancellation))
+            {
+                runtime.Dispose();
+                throw new InvalidDataException("The private-world order cancellation idempotency keys are duplicated.");
+            }
+        }
+
         runtime.nextInstructionSequence = runtime.instructionsByIdempotency.Count == 0
             ? 1
             : checked(runtime.instructionsByIdempotency.Values.Max(item => item.SubmissionSequence) + 1);
@@ -335,7 +402,11 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         runtime.nextEventId = runtime.events.Count == 0 ? checked(runtime.eventHistoryFloor + 1) : checked(runtime.events[^1].EventId + 1);
         if (!trustedPreparedState)
         {
-            runtime.RepairSavedRoadFootprints();
+            if (applyLoadTransitions)
+            {
+                runtime.SuspendRestoredConversations();
+                runtime.RepairSavedRoadFootprints();
+            }
             runtime.Validate();
         }
         return runtime;
@@ -343,9 +414,15 @@ public sealed partial class PrivateWorldRuntime : IDisposable
 
     public void Dispose()
     {
-        foreach (var id in pendingHosted.Keys.ToArray()) CancelPendingHosted(id);
-        foreach (var id in pendingWills.Keys.ToArray()) CancelPendingWill(id);
+        // Disposal does not hold the runtime gate; its provider callbacks can
+        // still apply their usage effects synchronously before the gate closes.
+        foreach (var id in pendingHosted.Keys.ToArray()) CancelPendingHosted(id, underRuntimeGate: false);
+        foreach (var id in pendingWills.Keys.ToArray()) CancelPendingWill(id, underRuntimeGate: false);
+        CancelIdentityMoments(underRuntimeGate: false);
+        foreach (var id in pendingConversationTurns.Keys.ToArray()) CancelPendingConversationTurn(id,
+            AgentConversationInterruption.Disconnected, underRuntimeGate: false);
         society.Dispose();
+        ReleaseRouteSearches();
         gate.Dispose();
         tickGate.Dispose();
     }
@@ -360,13 +437,13 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             {
                 // Keep the live world paused throughout the write. A failed write
                 // discards this proposal, including its resume event and epoch.
-                using var proposed = RestoreCore(CaptureState(), providerFactory, maxCognitionDispatchPerCycle,
-                    minimumCognitionConfidence, trustedPreparedState: true);
+                using var proposed = RestoreCore(CaptureState(), providerFactory, maxCognitionDispatchPerCycle, trustedPreparedState: true);
                 proposed.Resume();
                 var persisted = persist(proposed.CaptureState());
                 if (persisted.HistoryArchiveHead != proposed.historyArchiveHead)
                 {
-                    using var compacted = Restore(persisted, providerFactory, maxCognitionDispatchPerCycle, minimumCognitionConfidence);
+                    using var compacted = RestoreCore(persisted, providerFactory, maxCognitionDispatchPerCycle,
+                        trustedPreparedState: false, applyLoadTransitions: false);
                     CommitPreparedTick(compacted);
                 }
                 else CommitPreparedTick(proposed);
@@ -375,7 +452,10 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             var saved = persist(CaptureState());
             if (saved.HistoryArchiveHead != historyArchiveHead)
             {
-                using var compacted = Restore(saved, providerFactory, maxCognitionDispatchPerCycle, minimumCognitionConfidence);
+                // Compaction still validates the persisted state, but it is not
+                // a load: live conversations and pending turn identities survive.
+                using var compacted = RestoreCore(saved, providerFactory, maxCognitionDispatchPerCycle,
+                    trustedPreparedState: false, applyLoadTransitions: false);
                 CommitPreparedTick(compacted);
             }
         }
@@ -406,12 +486,22 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         deceasedInhabitants.Count == 0 ? null : deceasedInhabitants.Values.OrderBy(item => item.InhabitantId, StringComparer.Ordinal).ToArray(),
         jevPolicyRevision == 0 && jevEnabled ? null : jevEnabled, jevPolicyRevision, founderSetup,
         geographyOptions, towns.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(), knowledge,
-        RoadTiles);
-
-    private void AppendEvent(string kind, string detail)
+        RoadTiles, Bridges, bridgeTraffic, fields.ToArray(),
+        conversations.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(),
+        conversationBudgets.OrderBy(item => item.AgentId, StringComparer.Ordinal).ToArray(),
+        TownLandTitles, HouseholdLandUseRights, HouseholdLandUseRequests, BusinessTrades, continuity,
+        orderCancellations.Values.OrderBy(item => item.Receipt.WorldTick)
+            .ThenBy(item => item.IdempotencyKey, StringComparer.Ordinal).ToArray(), ToolMakingRequests,
+        handcartHitches.OrderBy(item => item.CartLotId, StringComparer.Ordinal).ToArray())
     {
-        GridPoint? position = null;
-        for (var length = detail.Length; length > 0; length = detail.LastIndexOf(':', length - 1))
+        Marriages = marriages.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(),
+        BoatTransport = boatTransport,
+    };
+
+    private void AppendEvent(string kind, string detail, GridPoint? eventPosition = null)
+    {
+        GridPoint? position = eventPosition;
+        for (var length = detail.Length; position is null && length > 0; length = detail.LastIndexOf(':', length - 1))
         {
             var prefix = detail[..length];
             if (inhabitants.TryGetValue(prefix, out var living))

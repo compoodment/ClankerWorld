@@ -15,8 +15,8 @@ public sealed partial class PrivateWorldRuntime
             return saved.Trust;
         }
 
-        // Older saves already contain durable cooperation memories. Preserve
-        // their meaning until the next trusted event materializes schema 12.
+        // Durable cooperation memories provide the projection until a direct
+        // trust transition materializes this bounded snapshot.
         return Math.Min(10, society.Checkpoint.Memories.Where(memory =>
                 memory.OwnerId == owner && memory.SubjectId == subject && memory.TombstonedTick is null)
             .Sum(memory => memory.Id.StartsWith("project-gratitude:", StringComparison.Ordinal) ? 2
@@ -49,18 +49,12 @@ public sealed partial class PrivateWorldRuntime
     private static void ValidateSocialStanding(
         PlaytestInhabitantState person,
         IEnumerable<string> knownInhabitants,
-        int schema,
         long worldTick)
     {
         if (person.SocialStanding is null)
         {
             return;
         }
-        if (schema < 12)
-        {
-            throw new InvalidDataException("Social standing requires private-world schema 12.");
-        }
-
         var known = knownInhabitants.ToHashSet(StringComparer.Ordinal);
         if (person.SocialStanding.Select(item => item.SubjectId).Distinct(StringComparer.Ordinal).Count() != person.SocialStanding.Count ||
             person.SocialStanding.Any(item => item.SubjectId == person.InhabitantId || !known.Contains(item.SubjectId) ||

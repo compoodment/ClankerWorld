@@ -11,6 +11,8 @@ internal static partial class OwnerEndpoints
 {
     private static void MapRuntimeControl(WebApplication app, bool isPrivateWorld)
     {
+        MapDeveloperEdits(app, isPrivateWorld);
+
         app.MapPost("/api/v1/owner/control/life-pace", (
             OwnerSignedHttpRequest<OwnerLifePaceAction> request,
             OwnerRequestAuthorizer authorizer,
@@ -150,7 +152,7 @@ internal static partial class OwnerEndpoints
                 if (services.GetRequiredService<ProviderUsageStore>().Capture().AccountingError is { } accountingError)
                     return Results.Conflict(new { message = accountingError });
                 if (services.GetRequiredService<ProviderUsageStore>().Capture().LimitReached)
-                    return Results.Conflict(new { message = "The paid-call limit is reached. Grant more calls or turn off the limit in World Settings before resuming." });
+                    return Results.Conflict(new { message = "The model-call limit is reached. Raise the limit or allow more calls in Settings → Game, then resume." });
                 var privateStateFile = services.GetRequiredService<PrivateWorldStateFile>();
                 var wasPaused = privateRuntime.Society.IsPaused;
                 // Persist every acknowledgement, including an already-running

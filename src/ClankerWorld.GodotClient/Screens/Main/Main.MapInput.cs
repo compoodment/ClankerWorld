@@ -66,6 +66,8 @@ public partial class Main
         RefreshTileHoverAtMouse();
         RenderWorldHud(snapshot);
         RenderWorldInfo(snapshot);
+        // The path follows the camera and zoom, and the short way round a wrapped seam.
+        if (developerPanel.Visible) RenderPlannedPath();
     }
 
     private static float CameraAxis(float centerTile, float stagePixels, float viewportPixels, float stride) =>
@@ -112,6 +114,7 @@ public partial class Main
         cameraCenterTiles = tileCenter;
         UpdateMapGeometry(snapshot);
         PositionSelectedInhabitantCard(snapshot);
+        PositionBuildingQuickCard(snapshot);
     }
 
     private void PanCamera(Vector2 deltaTiles)
@@ -181,8 +184,15 @@ public partial class Main
             else if (mouse.Pressed && mouse.ButtonIndex == MouseButton.Left)
             {
                 var tile = TileAtCanvas(mouse.Position, snapshot);
-                if (MapContains(snapshot, tile.X, tile.Y))
+                if (MapContains(snapshot, tile.X, tile.Y) && BuildingAt(snapshot, tile, mouse.Position) is { } building)
                 {
+                    // A building opens its own card instead of the tile's.
+                    SelectBuilding(building.InstanceId);
+                    mapCanvas.AcceptEvent();
+                }
+                else if (MapContains(snapshot, tile.X, tile.Y))
+                {
+                    ClearBuildingSelection();
                     selectedTile = tile;
                     terrainLayer.SetSelectedTile(tile);
                     // Show first: hidden containers report no content size.
@@ -203,7 +213,14 @@ public partial class Main
         }
     }
 
-    private void RefreshTileHoverAtMouse() => UpdateTileHover(mapCanvas.GetLocalMousePosition());
+    private void RefreshTileHoverAtMouse()
+    {
+        // Observation refreshes also update map geometry. A pointer in a HUD
+        // panel must not preview the map tile hidden beneath that panel.
+        if (GetViewport().GuiGetHoveredControl() is { } hovered && uiLayer.IsAncestorOf(hovered))
+            return;
+        UpdateTileHover(mapCanvas.GetLocalMousePosition());
+    }
 
     private Vector2I TileAtCanvas(Vector2 canvasPosition, OwnerWorldSnapshot snapshot)
     {
@@ -250,10 +267,19 @@ public partial class Main
         var hydrology = WorldTerrainMap.HydrologyName(terrainMap.HydrologyAt(tile.X, tile.Y));
         var surface = WorldTerrainMap.SurfaceName(terrainMap.SurfaceAt(tile.X, tile.Y));
         var vegetation = WorldTerrainMap.VegetationName(terrainMap.VegetationAt(tile.X, tile.Y));
-        var town = snapshot.Towns.FirstOrDefault(item => item.BorderTiles.Any(point => point.X == tile.X && point.Y == tile.Y));
+        var town = snapshot.Towns.FirstOrDefault(item => item.BorderTiles.Any(point => point.X == tile.X && point.Y == tile.Y) ||
+            snapshot.TownLandTitles.Any(title => title.TownId == item.Id &&
+                title.Tiles.Any(point => point.X == tile.X && point.Y == tile.Y)));
+        var titles = snapshot.TownLandTitles.Where(title =>
+            title.Tiles.Any(point => point.X == tile.X && point.Y == tile.Y)).ToArray();
+        var useRights = snapshot.HouseholdLandUseRights.Where(right =>
+            right.Tiles.Any(point => point.X == tile.X && point.Y == tile.Y)).ToArray();
+        var useRequests = snapshot.HouseholdLandUseRequests.Where(request =>
+            request.Tiles.Any(point => point.X == tile.X && point.Y == tile.Y)).ToArray();
         var propertyOwnerId = snapshot.PlacedBuildings.FirstOrDefault(item => item.HouseholdId is not null &&
             tile.X >= item.Position.X && tile.X < item.Position.X + item.Width &&
-            tile.Y >= item.Position.Y && tile.Y < item.Position.Y + item.Height)?.HouseholdId;
+            tile.Y >= item.Position.Y && tile.Y < item.Position.Y + item.Height)?.HouseholdId ??
+            snapshot.Fields.FirstOrDefault(field => field.Position.X == tile.X && field.Position.Y == tile.Y)?.HouseholdId;
         var lines = new List<string>
         {
             $"Tile {tile.X}, {tile.Y}",
@@ -261,18 +287,114 @@ public partial class Main
         };
         if (climate is not null) lines.Add($"Climate: {climate}");
         if (surface is not null) lines.Add($"Surface: {surface}");
+        if (terrainMap.FertilityAt(tile.X, tile.Y) is { } fertility)
+            lines.Add(fertility == 0 ? "Soil: not farmable" : $"Soil fertility: {WorldTerrainMap.FertilityName(fertility)}");
+        if (snapshot.Fields.FirstOrDefault(field => field.Position.X == tile.X && field.Position.Y == tile.Y) is { } field)
+        {
+            lines.Add($"Field: {Pretty(field.Stage)}" + (field.Crop is null ? "" : $" · {Pretty(field.Crop)}"));
+            lines.Add($"Used by: {snapshot.Stockpiles.FirstOrDefault(stock => stock.OwnerId == field.HouseholdId)?.Name ?? field.HouseholdId}");
+            if (field.WorkerId is { } worker) lines.Add($"Worker: {snapshot.Inhabitants.FirstOrDefault(person => person.Id == worker)?.DisplayName ?? worker}");
+        }
+        foreach (var cart in snapshot.Handcarts.Where(cart => cart.Position.X == tile.X && cart.Position.Y == tile.Y))
+            lines.Add(GameUiText.HandcartDescription(cart));
+        foreach (var stock in snapshot.GroundStocks.Where(stock => stock.Position.X == tile.X && stock.Position.Y == tile.Y))
+            lines.Add($"On the ground: {stock.Quantity} {GameUiText.ItemName(stock.Kind)} · {snapshot.Stockpiles.FirstOrDefault(owner => owner.OwnerId == stock.OwnerId)?.Name ?? stock.OwnerId}");
         if (hydrology is not null and not "Land") lines.Add($"Water: {hydrology}");
         if (vegetation is not null and not "None") lines.Add($"Vegetation: {vegetation}");
+        if (terrainMap.IsHillAt(tile.X, tile.Y)) lines.Add("Landform: Hills");
         if ((region?.Weather ?? snapshot.Authoring?.Weather) is { } weather)
             lines.Add($"Weather: {Pretty(weather)}");
         if (region?.SoilMoisture is { } moisture)
             lines.Add($"Soil moisture: {moisture}%");
         if (elevation is { } level) lines.Add($"Elevation: {level}/255");
         if (town is not null) lines.Add($"Town: {town.Name}");
+        // Title, use rights, requests and disputes go on the card under shorter names.
+        var landFacts = new List<(string Key, string Value)>();
+        foreach (var title in titles)
+        {
+            var titleTown = snapshot.Towns.FirstOrDefault(item => item.Id == title.TownId);
+            lines.Add($"Town land title: {titleTown?.Name ?? title.TownId}");
+            landFacts.Add(("Land title", titleTown?.Name ?? title.TownId));
+        }
+        foreach (var right in useRights)
+        {
+            var holder = GameUiText.PartyName(snapshot, right.HouseholdId) +
+                (right.AgreedEndTick is { } endTick ? $" · agreed end {DisplayWorldClock(endTick)}" : string.Empty);
+            lines.Add($"Household use right: {holder}");
+            landFacts.Add(("Use right", holder));
+        }
+        foreach (var request in useRequests)
+        {
+            var requester = snapshot.Inhabitants.FirstOrDefault(person => person.Id == request.RequestedByAgentId)?.DisplayName;
+            var claimant = GameUiText.PartyName(snapshot, request.HouseholdId) +
+                (requester is null ? string.Empty : $" · filed by {requester}");
+            lines.Add($"Pending use request: {claimant} · {request.ApprovalDetail}");
+            landFacts.Add(("Use request", claimant + " · " + request.ApprovalDetail));
+        }
+        foreach (var hearing in LandHearingText.ForInspection(snapshot.Towns.SelectMany(item => item.LandHearings)
+                     .Where(item => item.Tiles.Any(point => point.X == tile.X && point.Y == tile.Y))))
+        {
+            var summary = LandHearingText.Summary(hearing);
+            lines.Add(summary);
+            landFacts.Add(("Case", summary));
+            var notice = LandHearingText.NoticeSummary(hearing, DisplayWorldClock);
+            lines.Add(notice);
+            landFacts.Add(("Formal notice", notice));
+            if (hearing.Judge is { } judge)
+            {
+                var authority = judge.AgentName + (judge.Kind == "case_elected" ? " · this case only" : " · land mayor");
+                landFacts.Add(("Adjudicator", authority));
+                lines.Add("Adjudicator: " + authority);
+            }
+            else if (hearing.SettledTick is null || hearing.ReopenRequests.Any(request => request.Status == "pending"))
+            {
+                landFacts.Add(("Adjudicator", "Waiting for a valid independent adjudicator"));
+                lines.Add("Adjudicator: waiting for a valid independent adjudicator");
+            }
+            if (hearing.Rulings.Count > 0)
+            {
+                var outcome = LandHearingText.Outcome(hearing.Rulings[^1].Outcome, DisplayWorldClock);
+                landFacts.Add(("Latest ruling", outcome));
+                lines.Add("Latest ruling: " + outcome);
+            }
+            if (hearing.Kind == "expiry" && hearing.SettledTick is null)
+            {
+                landFacts.Add(("Use permission", "Previous permission remains provisional during review"));
+                lines.Add("Previous permission remains provisional during review");
+            }
+        }
+        foreach (var transfer in LandTransferText.ForInspection(snapshot.Towns.SelectMany(item => item.LandTransfers)
+                     .Where(item => item.Tiles.Any(point => point.X == tile.X && point.Y == tile.Y))))
+        {
+            var summary = LandTransferText.Summary(transfer);
+            var acceptance = LandTransferText.Acceptance(transfer);
+            landFacts.Add(("Permission transfer", summary));
+            landFacts.Add(("Household acceptance", acceptance));
+            landFacts.Add(("Proposed", DisplayWorldClock(transfer.ProposedTick)));
+            lines.Add(summary);
+            lines.Add(acceptance);
+            foreach (var terms in LandTransferText.Terms(transfer, DisplayWorldClock))
+            {
+                landFacts.Add(("Exact permission terms", terms));
+                lines.Add(terms);
+            }
+        }
+        var landClaimants = useRights.Select(right => right.HouseholdId)
+            .Concat(useRequests.Select(request => request.HouseholdId))
+            .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
+        if (landClaimants.Length > 1)
+        {
+            var claimants = string.Join("; ", landClaimants.Select(id => GameUiText.PartyName(snapshot, id)));
+            lines.Add($"Disputed household claims: {claimants}");
+            landFacts.Add(("Disputed", claimants));
+        }
         if (propertyOwnerId is not null)
             lines.Add($"Household property: {snapshot.Stockpiles.FirstOrDefault(item => item.OwnerId == propertyOwnerId)?.Name ?? propertyOwnerId}");
         if (snapshot.RoadTiles.Any(point => point.X == tile.X && point.Y == tile.Y)) lines.Add("Road");
+        if (BridgeAt(snapshot, tile) is { } bridge)
+            lines.Add(bridge.Trigger == "road" ? "Bridge: part of a Road" : "Bridge: built where agents often waded across");
         if (objects.Length > 0) lines.Add($"Objects: {string.Join(", ", objects)}");
+        RenderTileCard(snapshot, tile, town, landFacts, region?.Weather ?? snapshot.Authoring?.Weather, region?.SoilMoisture);
         SetPanelText(selectedTileText, string.Join('\n', lines));
         PositionSelectedTilePanel();
     }
@@ -294,6 +416,14 @@ public partial class Main
             UpdateHoverReadout(null, null);
             return;
         }
+
+        // Popups have their own viewport, so the main viewport can report no
+        // hovered control. Keep the last placement preview while a menu is
+        // open, or while the pointer is inside the scaled Add Agent panel.
+        if (founderSetupPanel.IsVisibleInTree() &&
+            (GetViewport().GetEmbeddedSubwindows().Any(window => window.Visible) ||
+             founderSetupPanel.GetGlobalRect().HasPoint(mapCanvas.GetGlobalTransform() * canvasPosition)))
+            return;
 
         var stagePosition = canvasPosition - mapStage.Position;
         var tile = TileAtCanvas(canvasPosition, snapshot);

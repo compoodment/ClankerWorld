@@ -23,7 +23,7 @@ public sealed record SocietyDispatchCycleResult(
 /// </summary>
 public sealed class SocietyWorldRuntime : IDisposable
 {
-    public const int StateSchemaVersion = 1;
+    public const int StateSchemaVersion = 2;
 
     private readonly SemaphoreSlim gate = new(1, 1);
     private SocietyCheckpoint society;
@@ -33,8 +33,7 @@ public sealed class SocietyWorldRuntime : IDisposable
         SocietyCheckpoint checkpoint,
         Func<string, IDecisionProvider>? providerFactory = null,
         int maxCognitionQueueLength = 64,
-        int maxCognitionDispatchPerCycle = 8,
-        double minimumCognitionConfidence = 0.5)
+        int maxCognitionDispatchPerCycle = 8)
     {
         SocietyFixture.Validate(checkpoint);
         society = checkpoint;
@@ -42,8 +41,7 @@ public sealed class SocietyWorldRuntime : IDisposable
             checkpoint.Inhabitants,
             providerFactory,
             maxCognitionQueueLength,
-            maxCognitionDispatchPerCycle,
-            minimumCognitionConfidence);
+            maxCognitionDispatchPerCycle);
     }
 
     public SocietyCheckpoint Checkpoint => society;
@@ -69,8 +67,7 @@ public sealed class SocietyWorldRuntime : IDisposable
 
     public static SocietyWorldRuntime Restore(
         SocietyWorldRuntimeState state,
-        Func<string, IDecisionProvider>? providerFactory = null,
-        double minimumCognitionConfidence = 0.5)
+        Func<string, IDecisionProvider>? providerFactory = null)
     {
         ArgumentNullException.ThrowIfNull(state);
         if (state.SchemaVersion != StateSchemaVersion)
@@ -81,16 +78,14 @@ public sealed class SocietyWorldRuntime : IDisposable
         SocietyFixture.Validate(state.Society);
         var scheduler = SocietyCognitionScheduler.Restore(
             state.Cognition,
-            providerFactory,
-            minimumCognitionConfidence);
+            providerFactory);
         scheduler.SyncInhabitants(state.Society.Inhabitants,
             state.Society.Births.Select(birth => birth.ChildId).ToHashSet(StringComparer.Ordinal));
         var runtime = new SocietyWorldRuntime(
             state.Society,
             providerFactory,
             state.Cognition.MaxQueueLength,
-            state.Cognition.MaxDispatchPerCycle,
-            minimumCognitionConfidence)
+            state.Cognition.MaxDispatchPerCycle)
         {
             cognition = scheduler,
         };
@@ -117,8 +112,8 @@ public sealed class SocietyWorldRuntime : IDisposable
         }
     }
 
-    public SocietyOperationResult AdvanceTo(long targetTick) =>
-        Apply(checkpoint => SocietyFixture.AdvanceTo(checkpoint, targetTick));
+    public SocietyOperationResult AdvanceTo(long targetTick, IReadOnlyList<SocietyTownStore>? townStores = null) =>
+        Apply(checkpoint => SocietyFixture.AdvanceTo(checkpoint, targetTick, townStores));
 
     public SocietyOperationResult Pause() => Apply(SocietyFixture.Pause);
 
@@ -172,14 +167,20 @@ public sealed class SocietyWorldRuntime : IDisposable
         }
     }
 
-    public async ValueTask<SocietyDispatchCycleResult> DispatchDeterministicCognitionAsync(
-        CancellationToken cancellationToken = default)
+    public ValueTask<SocietyDispatchCycleResult> DispatchDeterministicCognitionAsync(
+        CancellationToken cancellationToken = default) =>
+        DispatchDeterministicCognitionAsync(null, null, cancellationToken);
+
+    internal async ValueTask<SocietyDispatchCycleResult> DispatchDeterministicCognitionAsync(
+        IReadOnlySet<string>? excludedInhabitantIds, Func<InhabitantObservation, bool>? observationIsCurrent,
+        CancellationToken cancellationToken)
     {
         await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             return new SocietyDispatchCycleResult(society,
-                await cognition.DispatchDeterministicAsync(cancellationToken).ConfigureAwait(false));
+                await cognition.DispatchDeterministicAsync(excludedInhabitantIds, observationIsCurrent,
+                    cancellationToken).ConfigureAwait(false));
         }
         finally
         {
@@ -187,10 +188,14 @@ public sealed class SocietyWorldRuntime : IDisposable
         }
     }
 
-    public IReadOnlyList<SocietyDeferredCognitionRequest> PreviewHostedRequests(IReadOnlySet<string> excludedIds)
+    public IReadOnlyList<SocietyDeferredCognitionRequest> PreviewHostedRequests(IReadOnlySet<string> excludedIds) =>
+        PreviewHostedRequests(excludedIds, null);
+
+    internal IReadOnlyList<SocietyDeferredCognitionRequest> PreviewHostedRequests(
+        IReadOnlySet<string> excludedIds, Func<InhabitantObservation, bool>? observationIsCurrent)
     {
         gate.Wait();
-        try { return cognition.PreviewHostedRequests(excludedIds); }
+        try { return cognition.PreviewHostedRequests(excludedIds, observationIsCurrent); }
         finally { gate.Release(); }
     }
 
@@ -210,10 +215,17 @@ public sealed class SocietyWorldRuntime : IDisposable
 
     public SocietyCognitionDispatchResult? CompleteDeferredCognition(
         CognitionDecisionRequest request, CognitionDecisionResponse? response, string? failure,
-        IReadOnlySet<string> legalCandidateIds)
+        IReadOnlySet<string> legalCandidateIds, bool? decisionContextChanged = null)
     {
         gate.Wait();
-        try { return cognition.CompleteDeferred(request, response, failure, society.RunEpoch, legalCandidateIds); }
+        try { return cognition.CompleteDeferred(request, response, failure, society.RunEpoch, legalCandidateIds, decisionContextChanged); }
+        finally { gate.Release(); }
+    }
+
+    internal void CompleteQueuedIdentityChoice(string inhabitantId, string personality, string aspiration)
+    {
+        gate.Wait();
+        try { cognition.CompleteQueuedIdentityChoice(inhabitantId, society.GetInhabitant(inhabitantId).Name, personality, aspiration); }
         finally { gate.Release(); }
     }
 

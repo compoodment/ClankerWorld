@@ -8,30 +8,11 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed class SettlementSocialStandingTests
 {
-    [Theory]
-    [InlineData(0, 12, false)]
-    [InlineData(1, 12, true)]
-    public void InvalidStandingFailsClosed(int trust, int schema, bool unknownSubject)
-    {
-        using var world = new PrivateWorldRuntime("invalid-social-standing");
-        var state = world.ExportState();
-        var owner = state.Inhabitants[0];
-        var subject = unknownSubject ? "missing-person" : state.Inhabitants[1].InhabitantId;
-        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(state with
-        {
-            SchemaVersion = schema,
-            Inhabitants = state.Inhabitants.Select(person => person == owner ? person with
-            {
-                SocialStanding = [new(subject, trust, state.Society.Society.WorldTick)],
-            } : person).ToArray(),
-        }));
-    }
-
     [Fact]
-    public void LegacyCooperationProjectsAsTrustWithoutRewritingCheckpoint()
+    public void CooperationMemoriesProjectAsTrustWithoutRewritingCurrentCheckpoint()
     {
-        using var seed = new PrivateWorldRuntime("legacy-social-standing");
-        var state = seed.ExportState() with { SchemaVersion = 11 };
+        using var seed = new PrivateWorldRuntime("cooperation-social-standing");
+        var state = seed.ExportState();
         var owner = state.Inhabitants[0].InhabitantId;
         var subject = state.Inhabitants[1].InhabitantId;
         using var society = SocietyWorldRuntime.Restore(state.Society);
@@ -79,6 +60,7 @@ public sealed class SettlementSocialStandingTests
             var state = seed.ExportState();
             var first = state.Inhabitants[0].InhabitantId;
             var second = state.Inhabitants[1].InhabitantId;
+            state = SettlementTradeTests.AtTradeMeeting(state, first, second);
             state = state with
             {
                 Inhabitants = state.Inhabitants.Select(person => person with

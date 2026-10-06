@@ -1,14 +1,16 @@
 ---
 title: Regional weather episode experiment
 type: experiment-report
-status: proposal
+status: complete
 updated: 2026-09-30
 ---
 
 # Regional weather episode experiment
 
 This implements the experiment in [#375](https://github.com/compoodment/ClankerWorld/issues/375),
-not a final rain-frequency decision. [#204](https://github.com/compoodment/ClankerWorld/issues/204)
+not a final rain-frequency decision. It was merged to `main` on 30 September
+(`dd59e3d`), so new worlds use it, and an older save switches to it on its
+first resumed tick. [#204](https://github.com/compoodment/ClankerWorld/issues/204)
 stays open for the owner's playtest and tuning choices.
 
 ## Provisional rules
@@ -21,7 +23,7 @@ days cannot generate a storm.
 
 Climate/season weights are inherited from the daily baseline. Each transition
 moves one-quarter of each precipitation weight (rounded down) into Clear.
-Each wet cardinal neighbor adds one rain point, taken from Clear, up to four;
+Each rainy or stormy cardinal neighbor adds one rain point, taken from Clear, up to four;
 a zero rain weight stays zero. The prior non-storm condition gains three points.
 These are experimental weights, not accepted percentages. Horizontal neighbors
 wrap only on maps that already wrap. Every region sees the same prior snapshot.

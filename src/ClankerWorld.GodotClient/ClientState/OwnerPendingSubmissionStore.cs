@@ -8,13 +8,15 @@ namespace ClankerWorld.GodotClient.ClientState;
 /// <summary>
 /// The non-secret identity boundary for one locally retained owner request.
 /// A pending request cannot be replayed against a different world, device key,
-/// or server origin after a pairing changes.
+/// server origin or observed timeline after a pairing or loaded world changes.
 /// </summary>
 public sealed record OwnerPendingSubmissionBinding(
     OwnerAuthorityIdentity Authority,
     string DeviceId,
     string PublicKeyFingerprint,
-    string ServerOrigin)
+    string ServerOrigin,
+    OwnerObserverTimeline? Timeline = null,
+    string? ObservedWorldId = null)
 {
     /// <summary>
     /// Creates a validated, canonical binding. Only HTTPS is accepted remotely;
@@ -24,22 +26,38 @@ public sealed record OwnerPendingSubmissionBinding(
         OwnerAuthorityIdentity authority,
         string deviceId,
         string publicKeyFingerprint,
-        Uri serverOrigin)
+        Uri serverOrigin,
+        OwnerObserverTimeline? timeline = null,
+        string? observedWorldId = null)
     {
         ArgumentNullException.ThrowIfNull(authority);
         ArgumentException.ThrowIfNullOrWhiteSpace(authority.ServerAuthorityId);
         ArgumentException.ThrowIfNullOrWhiteSpace(authority.WorldId);
         ArgumentException.ThrowIfNullOrWhiteSpace(deviceId);
         ArgumentException.ThrowIfNullOrWhiteSpace(publicKeyFingerprint);
+        if (timeline is { IsValid: false }) throw new ArgumentException("The observer timeline is invalid.", nameof(timeline));
+        if (observedWorldId is not null) ArgumentException.ThrowIfNullOrWhiteSpace(observedWorldId);
 
         return new OwnerPendingSubmissionBinding(
             authority,
             deviceId,
             publicKeyFingerprint,
-            CanonicalizeServerOrigin(serverOrigin));
+            CanonicalizeServerOrigin(serverOrigin), timeline, observedWorldId);
     }
 
     internal bool Matches(OwnerPendingSubmissionBinding expected) =>
+        MatchesRegistration(expected) && Timeline == expected.Timeline &&
+        string.Equals(ObservedWorldId, expected.ObservedWorldId, StringComparison.Ordinal);
+
+    public bool CanRetryOnTimeline(OwnerObserverTimeline? timeline) => Timeline == timeline;
+
+    public bool CanRetryIn(string? worldId, OwnerObserverTimeline? timeline) =>
+        !string.IsNullOrWhiteSpace(worldId) && CanRetryOnTimeline(timeline) &&
+        (ObservedWorldId is not null
+            ? string.Equals(ObservedWorldId, worldId, StringComparison.Ordinal)
+            : Timeline is null && timeline is null);
+
+    internal bool MatchesRegistration(OwnerPendingSubmissionBinding expected) =>
         Authority is not null &&
         expected.Authority is not null &&
         string.Equals(Authority.ServerAuthorityId, expected.Authority.ServerAuthorityId, StringComparison.Ordinal) &&
@@ -55,6 +73,8 @@ public sealed record OwnerPendingSubmissionBinding(
             string.IsNullOrWhiteSpace(binding.Authority.WorldId) ||
             string.IsNullOrWhiteSpace(binding.DeviceId) ||
             string.IsNullOrWhiteSpace(binding.PublicKeyFingerprint) ||
+            binding.Timeline is { IsValid: false } ||
+            binding.ObservedWorldId is not null && string.IsNullOrWhiteSpace(binding.ObservedWorldId) ||
             !Uri.TryCreate(binding.ServerOrigin, UriKind.Absolute, out var origin))
         {
             return false;
@@ -95,15 +115,20 @@ public sealed record OwnerPendingInstructionSubmission(
     string IdempotencyKey,
     string TargetInhabitantId,
     string Kind,
-    string Text)
+    string Text,
+    string WorldId,
+    bool Queue = false)
 {
     internal bool IsValid =>
+        !string.IsNullOrWhiteSpace(WorldId) &&
         !string.IsNullOrWhiteSpace(IdempotencyKey) &&
         !string.IsNullOrWhiteSpace(TargetInhabitantId) &&
         !string.IsNullOrWhiteSpace(Kind) &&
         !string.IsNullOrWhiteSpace(Text);
 
-    public OwnerInstructionAction ToAction() => new(IdempotencyKey, TargetInhabitantId, Kind, Text);
+    public bool CanRetryIn(string? worldId) => !string.IsNullOrWhiteSpace(WorldId) && WorldId == worldId;
+
+    public OwnerInstructionAction ToAction() => new(IdempotencyKey, TargetInhabitantId, Kind, Text, WorldId, Queue);
 
     public static OwnerPendingInstructionSubmission FromAction(OwnerInstructionAction action)
     {
@@ -112,7 +137,31 @@ public sealed record OwnerPendingInstructionSubmission(
             action.IdempotencyKey,
             action.TargetInhabitantId,
             action.Kind,
-            action.Text);
+            action.Text,
+            action.WorldId,
+            action.Queue);
+    }
+}
+
+/// <summary>A world-bound order cancellation whose idempotency key survives a lost response.</summary>
+public sealed record OwnerPendingOrderCancelSubmission(
+    string IdempotencyKey,
+    string TargetInhabitantId,
+    string OrderId,
+    string WorldId)
+{
+    internal bool IsValid => new[] { IdempotencyKey, TargetInhabitantId, OrderId, WorldId }
+        .All(value => !string.IsNullOrWhiteSpace(value) && value.Length <= 128 && !value.Any(char.IsControl));
+
+    public bool CanRetryIn(string? worldId) => !string.IsNullOrWhiteSpace(WorldId) && WorldId == worldId;
+
+    public OwnerOrderCancelAction ToAction() => new(IdempotencyKey, TargetInhabitantId, OrderId, WorldId);
+
+    public static OwnerPendingOrderCancelSubmission FromAction(OwnerOrderCancelAction action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        return new OwnerPendingOrderCancelSubmission(
+            action.IdempotencyKey, action.TargetInhabitantId, action.OrderId, action.WorldId);
     }
 }
 
@@ -174,25 +223,29 @@ public sealed record OwnerPendingAuthoringSubmission(
 }
 
 /// <summary>
-/// A strict one-of document. Exactly one instruction or authoring batch is
+/// A strict one-of document. Exactly one instruction, order cancellation or authoring batch is
 /// retained, so one explicit retry can preserve the server idempotency token
 /// without becoming a local offline command queue.
 /// </summary>
 public sealed record OwnerPendingSubmission(
     OwnerPendingSubmissionBinding Binding,
     OwnerPendingInstructionSubmission? Instruction,
-    OwnerPendingAuthoringSubmission? Authoring)
+    OwnerPendingAuthoringSubmission? Authoring,
+    OwnerPendingOrderCancelSubmission? OrderCancel = null)
 {
     public bool IsInstruction => Instruction is not null;
 
     public bool IsAuthoring => Authoring is not null;
 
-    public string LogicalId => Instruction?.IdempotencyKey ?? Authoring?.BatchId ?? string.Empty;
+    public bool IsOrderCancel => OrderCancel is not null;
+
+    public string LogicalId => Instruction?.IdempotencyKey ?? Authoring?.BatchId ?? OrderCancel?.IdempotencyKey ?? string.Empty;
 
     internal bool IsValid =>
         OwnerPendingSubmissionBinding.IsValid(Binding) &&
-        ((Instruction is { IsValid: true } && Authoring is null) ||
-         (Authoring is { IsValid: true } && Instruction is null));
+        ((Instruction is { IsValid: true } && Authoring is null && OrderCancel is null) ||
+         (Authoring is { IsValid: true } && Instruction is null && OrderCancel is null) ||
+         (OrderCancel is { IsValid: true } && Instruction is null && Authoring is null));
 
     public static OwnerPendingSubmission ForInstruction(
         OwnerPendingSubmissionBinding binding,
@@ -200,6 +253,14 @@ public sealed record OwnerPendingSubmission(
     {
         ArgumentNullException.ThrowIfNull(binding);
         return new OwnerPendingSubmission(binding, OwnerPendingInstructionSubmission.FromAction(action), null);
+    }
+
+    public static OwnerPendingSubmission ForOrderCancel(
+        OwnerPendingSubmissionBinding binding,
+        OwnerOrderCancelAction action)
+    {
+        ArgumentNullException.ThrowIfNull(binding);
+        return new OwnerPendingSubmission(binding, null, null, OwnerPendingOrderCancelSubmission.FromAction(action));
     }
 
     public static OwnerPendingSubmission ForAuthoring(
@@ -246,7 +307,17 @@ public sealed class OwnerPendingSubmissionStore
     /// <paramref name="expectedBinding"/>. Missing, corrupt, stale, or
     /// mismatched records fail closed as <see langword="null"/>.
     /// </summary>
-    public OwnerPendingSubmission? TryLoad(OwnerPendingSubmissionBinding expectedBinding)
+    public OwnerPendingSubmission? TryLoad(OwnerPendingSubmissionBinding expectedBinding) =>
+        TryLoad(expectedBinding, registrationOnly: false);
+
+    /// <summary>
+    /// Loads a record for display and explicit recovery without changing its
+    /// original world or timeline. Retry still requires the complete binding.
+    /// </summary>
+    public OwnerPendingSubmission? TryLoadForRegistration(OwnerPendingSubmissionBinding expectedBinding) =>
+        TryLoad(expectedBinding, registrationOnly: true);
+
+    private OwnerPendingSubmission? TryLoad(OwnerPendingSubmissionBinding expectedBinding, bool registrationOnly)
     {
         ArgumentNullException.ThrowIfNull(expectedBinding);
         if (!OwnerPendingSubmissionBinding.IsValid(expectedBinding) || !File.Exists(path))
@@ -257,7 +328,8 @@ public sealed class OwnerPendingSubmissionStore
         try
         {
             var pending = JsonSerializer.Deserialize<OwnerPendingSubmission>(File.ReadAllText(path), JsonOptions);
-            return pending is { IsValid: true } && pending.Binding.Matches(expectedBinding)
+            return pending is { IsValid: true } &&
+                (registrationOnly ? pending.Binding.MatchesRegistration(expectedBinding) : pending.Binding.Matches(expectedBinding))
                 ? pending
                 : null;
         }

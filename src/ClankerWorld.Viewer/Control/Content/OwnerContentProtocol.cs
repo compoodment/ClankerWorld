@@ -51,6 +51,20 @@ public sealed record OwnerBuildingPlacementAction(
     int X,
     int Y);
 
+public sealed record OwnerBuildingRemovalAction(
+    string InstanceId,
+    string? ExpectedTownId,
+    string? ExpectedHouseholdId,
+    string WorldId);
+
+public sealed record OwnerBuildingReassignmentAction(
+    string InstanceId,
+    string? ExpectedTownId,
+    string? ExpectedHouseholdId,
+    string? TargetTownId,
+    string? TargetHouseholdId,
+    string WorldId);
+
 public sealed record OwnerProductionStartAction(
     string RecipeId,
     string BuildingInstanceId,
@@ -179,6 +193,24 @@ public static class OwnerContentBinding
         $"definition-id={EncodeRequired(action.DefinitionId, nameof(action.DefinitionId))}",
         $"x={action.X.ToString(CultureInfo.InvariantCulture)}",
         $"y={action.Y.ToString(CultureInfo.InvariantCulture)}");
+
+    public static string BuildingRemovalPayload(OwnerBuildingRemovalAction action) => string.Join(
+        '\n',
+        "clankerworld.owner-building-removal.v1",
+        $"instance-id={EncodeRequired(action.InstanceId, nameof(action.InstanceId))}",
+        $"expected-town-id={EncodeOptional(action.ExpectedTownId)}",
+        $"expected-household-id={EncodeOptional(action.ExpectedHouseholdId)}",
+        $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}");
+
+    public static string BuildingReassignmentPayload(OwnerBuildingReassignmentAction action) => string.Join(
+        '\n',
+        "clankerworld.owner-building-reassignment.v1",
+        $"instance-id={EncodeRequired(action.InstanceId, nameof(action.InstanceId))}",
+        $"expected-town-id={EncodeOptional(action.ExpectedTownId)}",
+        $"expected-household-id={EncodeOptional(action.ExpectedHouseholdId)}",
+        $"target-town-id={EncodeOptional(action.TargetTownId)}",
+        $"target-household-id={EncodeOptional(action.TargetHouseholdId)}",
+        $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}");
 
     public static string ProductionStartPayload(OwnerProductionStartAction action) => string.Join(
         '\n',

@@ -1,0 +1,1 @@
+- Food orders and personal-model actions involving repeatedly split inventory now save successfully and keep the world running. Food-order completion receipts stay bounded, and the last accepted model choice keeps its exact identity through save and reload.

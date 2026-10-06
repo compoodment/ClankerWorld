@@ -8,6 +8,69 @@ namespace ClankerWorld.GodotClient;
 
 public partial class Main
 {
+    // Facing is presentation inferred from accepted positions, never saved world state.
+    private readonly Dictionary<string, (OwnerWorldPosition Position, int Facing)> handcartFacings = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, (OwnerWorldPosition Position, int Facing)> boatFacings = new(StringComparer.Ordinal);
+
+    private void ResetDisplayedWorldContext()
+    {
+        knownEvents.Clear();
+        eventsWorldId = null;
+        lastSeenEventId = long.MinValue;
+        newEventsAfter = long.MaxValue;
+        unreadEvents = 0;
+        renderedEventLog = null;
+        conversationReadWorldId = null;
+        locallyReadConversationTurns.Clear();
+        openConversationId = null;
+        openConversationAgentId = null;
+        conversationPanel.Hide();
+        familyTreePanel.Hide();
+        memoriesPanel.Hide();
+        thoughtsPanel.Hide();
+        selectedInhabitantId = null;
+        renamingAgentId = null;
+        refusedAgentRename.Forget();
+        renameRow.Hide();
+        ClearTileSelection();
+        ClearBuildingSelection();
+        CancelBuildingRemoval();
+        CancelAutosaveSettingsRead();
+        CancelManualSaveListRead();
+        worldListRequest.Cancel();
+        manualSaveOverlay.Hide();
+        pendingOverwriteSaveId = null;
+        pendingDeletion = null;
+        choosingFirstTownSite = false;
+        movingFounderId = null;
+        placingAddedAgent = false;
+        founderSetupPanel.Hide();
+        providerConfiguration = null;
+        cognitionModelContext = null;
+        cognitionModelLookup = null;
+        founderKeyEdits++;
+        cognitionKeyEdits++;
+        ClearFounderModelSetupCheck();
+        ClearCognitionModelSetupCheck();
+        menuPauseConfirmed = false;
+        menuPausedWorld = false;
+        renderedMapSnapshot = null;
+        terrainMap = null;
+        terrainWorldId = null;
+        cameraWorldId = null;
+        usagePauseWorldId = null;
+        lastLifePaceWorldId = null;
+        renderedTownList = null;
+        foreach (var marker in inhabitantVisuals.Values) marker.QueueFree();
+        inhabitantVisuals.Clear();
+        inhabitantCanonicalXs.Clear();
+        foreach (var visual in mapObjectVisuals.Values) visual.QueueFree();
+        mapObjectVisuals.Clear();
+        mapObjectCanonicalXs.Clear();
+        handcartFacings.Clear();
+        boatFacings.Clear();
+    }
+
     private void Render(OwnerWorldSnapshot snapshot, IReadOnlyList<OwnerWorldEvent> appendedEvents)
     {
         if (usagePauseWorldId != snapshot.WorldId)
@@ -25,7 +88,10 @@ public partial class Main
             knownEvents.Clear();
             familyTreePanel.Hide();
             memoriesPanel.Hide();
+            thoughtsPanel.Hide();
+            ordersPanel.Hide();
             ClearTileSelection();
+            ClearBuildingSelection();
         }
         foreach (var worldEvent in appendedEvents)
         {
@@ -42,16 +108,17 @@ public partial class Main
         if (checkUsagePause && registration is not null) _ = ObserveUsagePauseAsync();
         RenderFounderSetup(snapshot);
         RenderWorldInfo(snapshot);
-        RenderInhabitantDetails(snapshot);
         RenderSelectedInhabitantCard(snapshot);
+        RenderBuildingCard(snapshot);
         if (familyTreePanel.Visible && selectedInhabitantId is { } center)
         {
             familyTreeView.SetPeople(snapshot.WorldId, snapshot.Inhabitants, center);
             UpdateFamilyTreeStatus();
         }
-        RenderWorldDetails(snapshot);
+        RenderTownExtras(snapshot);
         RenderModLibrary(snapshot);
         RenderEventLog();
+        RenderDeveloperTools(snapshot);
         RefreshControlAvailability();
     }
 
@@ -71,10 +138,22 @@ public partial class Main
 
     private void RenderMap(OwnerWorldSnapshot snapshot)
     {
+        if (renderedMapSnapshot is not { } previous ||
+            previous.WorldId != snapshot.WorldId || snapshot.WorldTick < previous.WorldTick ||
+            (previous.Authoring?.CurrentMapManifestDigest ?? previous.MapManifestDigest) !=
+                (snapshot.Authoring?.CurrentMapManifestDigest ?? snapshot.MapManifestDigest) ||
+            previous.MapLayersDigest != snapshot.MapLayersDigest ||
+            previous.WrapsEastWest != snapshot.WrapsEastWest || MapDimensions(previous) != MapDimensions(snapshot))
+        {
+            handcartFacings.Clear();
+            boatFacings.Clear();
+        }
         renderedMapSnapshot = snapshot;
         var objectIds = snapshot.Resources.Where(resource => resource.TreeKind is null)
             .Select(resource => "resource:" + resource.Id)
             .Concat(snapshot.Objects.Select(item => "object:" + item.Id))
+            .Concat(snapshot.Handcarts.Select(item => "handcart:" + item.Id))
+            .Concat(snapshot.Boats.Select(item => "boat:" + item.Id))
             .Concat(snapshot.PlacedBuildings.Select(item => "building:" + item.InstanceId)).ToHashSet(StringComparer.Ordinal);
         foreach (var id in mapObjectVisuals.Keys.Where(id => !objectIds.Contains(id)).ToArray())
         {
@@ -82,13 +161,20 @@ public partial class Main
             mapObjectVisuals.Remove(id);
             mapObjectCanonicalXs.Remove(id);
         }
+        foreach (var id in handcartFacings.Keys.Where(id => !objectIds.Contains("handcart:" + id)).ToArray())
+            handcartFacings.Remove(id);
+        foreach (var id in boatFacings.Keys.Where(id => !objectIds.Contains("boat:" + id)).ToArray())
+            boatFacings.Remove(id);
 
         if (!HasMap(snapshot))
         {
+            handcartFacings.Clear();
+            boatFacings.Clear();
             foreach (var visual in inhabitantVisuals.Values) visual.QueueFree();
             inhabitantVisuals.Clear();
             inhabitantCanonicalXs.Clear();
             terrainLayer.SetHoveredTile(null);
+            UpdateTownSiteGuidance(null);
             return;
         }
 
@@ -100,8 +186,8 @@ public partial class Main
         {
             var (width, height) = MapDimensions(snapshot);
             terrainMap = snapshot.PackedTerrain is { } packed
-                ? WorldTerrainMap.FromPacked(packed, snapshot.PackedMapLayers)
-                : WorldTerrainMap.FromTiles(snapshot.Tiles, width, height, snapshot.PackedMapLayers);
+                ? WorldTerrainMap.FromPacked(packed, snapshot.PackedMapLayers, snapshot.WrapsEastWest)
+                : WorldTerrainMap.FromTiles(snapshot.Tiles, width, height, snapshot.PackedMapLayers, snapshot.WrapsEastWest);
             terrainWorldId = snapshot.WorldId;
             terrainManifestDigest = manifest;
             terrainLayersDigest = snapshot.MapLayersDigest;
@@ -112,19 +198,34 @@ public partial class Main
         terrainLayer.SetNaturalObjects(snapshot.Resources);
         terrainLayer.SetWeatherRegions(snapshot.WeatherRegionSize, snapshot.WeatherRegions);
         terrainLayer.SetRoads(snapshot.RoadTiles);
+        terrainLayer.SetBridges(snapshot.Bridges);
+        terrainLayer.SetFields(snapshot.Fields);
+        worldOverview.SetFields(snapshot.Fields);
+        terrainLayer.SetMarkets(snapshot.Towns);
         terrainLayer.SetBuildings(snapshot.PlacedBuildings, snapshot.Objects);
-        worldOverview.SetRoads(snapshot.RoadTiles);
+        nightLightsLayer.SetBuildings(BuildingLights(snapshot));
+        nightLightsLayer.SetLanterns(StreetLanterns(snapshot), snapshot.WrapsEastWest);
+        worldOverview.SetRoads([.. snapshot.RoadTiles, .. snapshot.Bridges.SelectMany(bridge => bridge.Span)]);
         ApplyMapFilters(snapshot);
         var mapWidth = terrainMap.Width;
         var mapHeight = terrainMap.Height;
         worldOverview.WrapsEastWest = snapshot.WrapsEastWest;
+        worldOverview.Backdrop = UiTheme.Current.Inset;
+        worldOverview.AtlasEdge = UiTheme.Current.WoodEdge;
+        worldOverview.SetMarkers(
+            snapshot.Towns.Where(town => town.BorderTiles.Count > 0).Select(town => TownMarkerTile(town, mapWidth, snapshot.WrapsEastWest)),
+            snapshot.Inhabitants.Where(person => !person.IsDraft && IsLiving(person))
+                .Select(person => new Vector2(person.Position.X + 0.5f, person.Position.Y + 0.5f)));
+        nightLayer.Darkness = NightLayer.FromBasisPoints(snapshot.DarknessBasisPoints);
         if (!string.Equals(cameraWorldId, snapshot.WorldId, StringComparison.Ordinal))
         {
             cameraWorldId = snapshot.WorldId;
             cameraZoom = 1;
             cameraCenterTiles = InitialCameraCenter(snapshot, terrainMap);
+            nightLayer.Settle();
         }
         UpdateMapGeometry(snapshot);
+        UpdateTownSiteGuidance(snapshot);
 
         foreach (var resource in snapshot.Resources)
         {
@@ -139,6 +240,59 @@ public partial class Main
                     ? ResourceGlyph(resource.Kind, resource.NaturalObjectKind) : string.Empty,
                 GameUiText.ResourceMapCaption(resource, currentTileSize),
                 GameUiText.ResourceTooltip(resource));
+        }
+
+        foreach (var boat in snapshot.Boats)
+        {
+            var id = "boat:" + boat.Id;
+            AddMapObjectVisual(id, boat.Position, string.Empty, string.Empty, GameUiText.BoatDescription(boat));
+            var marker = mapObjectVisuals[id];
+            var sprite = marker.GetNodeOrNull<TextureRect>("BoatSprite");
+            if (sprite is null)
+            {
+                sprite = new TextureRect
+                {
+                    Name = "BoatSprite",
+                    MouseFilter = Control.MouseFilterEnum.Ignore,
+                    TextureFilter = CanvasItem.TextureFilterEnum.Nearest,
+                };
+                marker.AddChild(sprite);
+            }
+            var facing = ObserveBoatFacing(boat, mapWidth, snapshot.WrapsEastWest);
+            sprite.Texture = BoatSprites.Texture(facing, boat.Status is "underway" or "returning");
+            // The approved boat is 32 px. Smaller views scale that drawing until #914 supplies approved 16 px art.
+            var size = currentTileSize >= 40 ? 32 : Math.Max(1, currentTileSize - 8);
+            sprite.Size = new(size, size);
+            sprite.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
+            sprite.Position = new(0, Math.Max(0, marker.Size.Y - size));
+        }
+
+        foreach (var cart in snapshot.Handcarts)
+        {
+            var id = "handcart:" + cart.Id;
+            AddMapObjectVisual(id, cart.Position, string.Empty, string.Empty, GameUiText.HandcartDescription(cart));
+            var marker = mapObjectVisuals[id];
+            var sprite = marker.GetNodeOrNull<TextureRect>("HandcartSprite");
+            if (sprite is null)
+            {
+                sprite = new TextureRect
+                {
+                    Name = "HandcartSprite",
+                    MouseFilter = Control.MouseFilterEnum.Ignore,
+                    TextureFilter = CanvasItem.TextureFilterEnum.Nearest
+                };
+                marker.AddChild(sprite);
+            }
+            var facing = ObserveHandcartFacing(cart, mapWidth, snapshot.WrapsEastWest);
+            // The approved vehicle is 32px; the marker has a 4px inset on each
+            // side. Smaller views retain the item icon until 16px art is approved.
+            var size = currentTileSize >= 40 ? 32 : 16;
+            sprite.Texture = size == 32
+                ? HandcartSprites.Texture(facing, cart.Cargo.Any(item => item.Quantity > 0), cart.PullerId is not null)
+                : ItemIcons.Texture("handcart", 16);
+            sprite.Size = new(size, size);
+            sprite.Position = new(0, Math.Max(0, marker.Size.Y - size));
+            sprite.Modulate = cart.ConditionPercent == 0 ? new Color("A89279") : Colors.White;
         }
 
         foreach (var mapObject in snapshot.Objects)
@@ -157,13 +311,25 @@ public partial class Main
             var assignedTown = snapshot.Towns.FirstOrDefault(item => item.Id == building.TownId)?.Name;
             var household = snapshot.Stockpiles.FirstOrDefault(item => item.OwnerId == building.HouseholdId);
             var stored = building.StoredItems is { Count: > 0 }
-                ? string.Join(" · ", building.StoredItems.Select(item => $"{Pretty(item.Kind)} {item.Quantity}"))
+                ? string.Join(" · ", building.StoredItems.Select(item => $"{GameUiText.ItemName(item.Kind)} {item.Quantity}"))
                 : "none recorded";
-            // The terrain layer draws the roof; the marker keeps the name and hover help.
-            AddMapObjectVisual("building:" + building.InstanceId, building.Position, string.Empty, name,
+            // The terrain or night-light layer draws the roof or fitting. Buildings show no name on the map;
+            // the marker keeps the hover help that names them.
+            AddMapObjectVisual("building:" + building.InstanceId, building.Position, string.Empty, string.Empty,
                 $"{name}\nBuilt · {building.Width} × {building.Height} tiles" +
+                (StreetLanternLight.IsLantern(building.Tags) && building.Entrance is { } road
+                    ? $"\nRoad beside the post · ({road.X}, {road.Y})\nLights at dusk · no fuel" : "") +
                 (assignedTown is null ? "\nNo Town assignment" : $"\nTown · {assignedTown}") +
-                (household is null ? "" : $"\nHousehold · {household.Name}\nStored here · {stored}"),
+                (household is null ? "" : $"\nHousehold · {household.Name}") +
+                (building.StoredItems is null ? "" : $"\nStored here · {stored}") +
+                (building.StorageCapacity is { } capacity ? $"\nStorage · {building.StoredQuantity} / {capacity}" : "") +
+                (building.InvitedGuests is { Count: > 0 } guests ? $"\nStorm guests · {string.Join(", ", guests)}" : "") +
+                (building.ExpansionState == "running"
+                    ? building.Tags?.Contains("house", StringComparer.Ordinal) == true
+                        ? "\nHouse expansion underway · more storage and resident places when finished"
+                        : "\nExpanding storage"
+                    : "") +
+                (building.ExpansionFailure is { } failure ? $"\nExpansion stopped · {failure}" : ""),
                 building.Width, building.Height);
         }
 
@@ -204,18 +370,29 @@ public partial class Main
                         else
                             SelectInhabitant(inhabitant.Id);
                     };
+                    actorMarker.ConversationActivated += () => OpenAgentConversation(inhabitant.Id);
                     actorMarker.MouseEntered += RefreshTileHoverAtMouse;
                     actorMarker.MouseExited += RefreshTileHoverAtMouse;
                     entityLayer.AddChild(actorMarker);
                     inhabitantVisuals.Add(inhabitant.Id, actorMarker);
                 }
-                actorMarker.Caption = $"{GameUiText.ActivityMapGlyph(inhabitant.PublicIntention?.CandidateId)} {GameUiText.ActorMapLabel(inhabitant.DisplayName)}";
+                actorMarker.Caption = GameUiText.ActorMapLabel(inhabitant.DisplayName);
                 actorMarker.Variant = AgentSprites.VariantFor(inhabitant.Id);
                 actorMarker.Stage = AgentSprites.StageIndex(
                     inhabitant.DecisionFactors.FirstOrDefault(factor => factor.Key == "age-band")?.Detail);
-                actorMarker.ShowNameTag = occupants.Length == 1;
+                // Facing and frame only present what the observation says:
+                // the tile the host reports and what the agent is doing there.
+                actorMarker.ObserveTile(snapshot.WorldId, new Vector2I(inhabitant.Position.X, inhabitant.Position.Y),
+                    mapWidth, snapshot.WrapsEastWest);
+                actorMarker.Activity = AgentMarker.ActivityFor(inhabitant);
                 var actorTooltip = $"{inhabitant.DisplayName} · {Pretty(inhabitant.Lifecycle)} · " +
                     (inhabitant.PublicIntention?.Summary ?? "taking in the world");
+                var conversation = LatestConversationFor(snapshot, inhabitant.Id);
+                actorMarker.ConversationBadgeVisible = conversation is not null;
+                actorMarker.ConversationUnread = conversation is not null &&
+                    ConversationUnreadCount(snapshot.WorldId, conversation, inhabitant.Id) > 0;
+                if (conversation is not null)
+                    actorTooltip += "\n" + ConversationTooltipSummary(inhabitant.Id, conversation);
                 if (actorMarker.TooltipText != actorTooltip) actorMarker.TooltipText = actorTooltip;
                 actorMarker.Selected = string.Equals(inhabitant.Id, selectedInhabitantId, StringComparison.Ordinal);
                 inhabitantCanonicalXs[inhabitant.Id] = targetPosition.X;
@@ -239,8 +416,45 @@ public partial class Main
         }
 
         RenderTileInspection(snapshot);
+        RenderAgentConversationReader(snapshot);
         PositionSelectedInhabitantCard(snapshot);
+        PositionBuildingQuickCard(snapshot);
         RefreshTileHoverAtMouse();
+    }
+
+    private int ObserveHandcartFacing(OwnerWorldHandcart cart, int mapWidth, bool wrapsEastWest)
+    {
+        var facing = AgentSprites.South;
+        if (handcartFacings.TryGetValue(cart.Id, out var previous))
+        {
+            facing = previous.Facing;
+            var dx = cart.Position.X - previous.Position.X;
+            var dy = cart.Position.Y - previous.Position.Y;
+            if (wrapsEastWest && mapWidth > 0)
+                dx -= (int)Math.Round(dx / (double)mapWidth) * mapWidth;
+            if (Math.Max(Math.Abs(dx), Math.Abs(dy)) > AgentMarker.MaxStepTiles)
+                facing = AgentSprites.South;
+            else if (dx != 0 || dy != 0)
+                facing = AgentSprites.FacingToward(dx, dy);
+        }
+        handcartFacings[cart.Id] = (cart.Position, facing);
+        return facing;
+    }
+
+    private int ObserveBoatFacing(OwnerWorldBoat boat, int mapWidth, bool wrapsEastWest)
+    {
+        var facing = AgentSprites.South;
+        if (boatFacings.TryGetValue(boat.Id, out var previous))
+        {
+            facing = previous.Facing;
+            var dx = boat.Position.X - previous.Position.X;
+            var dy = boat.Position.Y - previous.Position.Y;
+            if (wrapsEastWest && mapWidth > 0) dx -= (int)Math.Round(dx / (double)mapWidth) * mapWidth;
+            if (Math.Max(Math.Abs(dx), Math.Abs(dy)) > AgentMarker.MaxStepTiles) facing = AgentSprites.South;
+            else if (dx != 0 || dy != 0) facing = AgentSprites.FacingToward(dx, dy);
+        }
+        boatFacings[boat.Id] = (boat.Position, facing);
+        return facing;
     }
 
     // Clipped captions degrade into unreadable fragments such as "rehou", so a
@@ -385,25 +599,8 @@ public partial class Main
 
     private void RenderWorldInfo(OwnerWorldSnapshot snapshot)
     {
-        var (width, height) = MapDimensions(snapshot);
-        var localWeather = snapshot.Authoring is { } authoring
-            ? $"{Pretty(authoring.Season)} · {Pretty(WeatherAtCamera(snapshot))}"
-            : "Not reported";
         RenderTownList(snapshot);
-        worldInfoText.Text =
-            $"Date and time: {DisplayWorldClock(snapshot.WorldTick)}\n" +
-            (snapshot.CalendarPace is { } pace ? $"Year length: {pace.DaysPerYear} days\n" : "") +
-            $"Living agents: {LivingPopulation(snapshot)}\n" +
-            $"Map size: {width} × {height}\n" +
-            $"Buildings: {snapshot.PlacedBuildings.Count}\n" +
-            $"Roads: {snapshot.RoadTiles.Count} tiles\n" +
-            $"Towns: {snapshot.Towns.Count}\n" +
-            $"Resource locations: {snapshot.Resources.Count}\n" +
-            $"Season and weather here: {localWeather}" +
-            (WeatherRegionAtCamera(snapshot)?.SoilMoisture is { } moisture
-                ? $"\nSoil moisture here: {moisture}%"
-                : "") +
-            "\n\nPress F1 for keyboard and mouse controls.";
+        RenderWorldStats(snapshot);
     }
 
 }

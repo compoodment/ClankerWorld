@@ -1,0 +1,99 @@
+using ClankerWorld.Simulation.Content;
+using ClankerWorld.Simulation.Harness;
+using ClankerWorld.Simulation.Kernel;
+using ClankerWorld.Simulation.Society;
+
+namespace ClankerWorld.Simulation.Playtest;
+
+public sealed partial class PrivateWorldRuntime
+{
+    private static void ValidateBuildingExpansionState(WorldContentSimulationState simulation,
+        DeclarativeWorldContentState content, SocietyCheckpoint society, SeededMap map, int schemaVersion)
+    {
+        if (schemaVersion < 30 && (simulation.Buildings.Any(item => item.Footprint is not null) ||
+                simulation.BuildingExpansions is { Count: > 0 } || simulation.GuestInvitations is { Count: > 0 }))
+            throw new InvalidDataException("Building expansions and guest invitations require private-world schema 30.");
+        var buildings = simulation.Buildings.ToDictionary(item => item.InstanceId, StringComparer.Ordinal);
+        var definitions = content.Buildings.ToDictionary(item => item.CanonicalId, StringComparer.Ordinal);
+        var people = society.Inhabitants.ToDictionary(item => item.Id, StringComparer.Ordinal);
+        var allJobIds = simulation.ProductionJobs.Concat(simulation.CropBuilds ?? []).Select(item => item.JobId)
+            .ToHashSet(StringComparer.Ordinal);
+        var activeBuildings = new HashSet<string>(StringComparer.Ordinal);
+        var activeExpansionTiles = new HashSet<GridPoint>();
+        var expansionJobs = simulation.BuildingExpansions ?? [];
+        foreach (var job in expansionJobs)
+        {
+            ContentPackageRules.ValidateLocalId(job.JobId);
+            if (job.State == WorldProductionJobState.Paused &&
+                (job.PausedAtTick is not { } paused || paused < job.StartedTick || paused > society.WorldTick || paused >= job.CompletionTick) ||
+                job.State != WorldProductionJobState.Paused && job.PausedAtTick is not null && job.State != WorldProductionJobState.Cancelled)
+                throw new InvalidDataException("The saved expansion pause is invalid.");
+            var hasBuilding = buildings.TryGetValue(job.BuildingInstanceId, out var building);
+            var definitionId = job.DefinitionId ?? building?.DefinitionId;
+            // Paused work keeps its building and footprint exactly as running work does.
+            var active = job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused;
+            if (!allJobIds.Add(job.JobId) || !people.ContainsKey(job.WorkerId) ||
+                string.IsNullOrWhiteSpace(job.OwnerId) ||
+                active && (!hasBuilding || job.OwnerId != (building!.HouseholdId ?? building.TownId)) ||
+                !hasBuilding && (active || schemaVersion < 35 || string.IsNullOrWhiteSpace(job.DefinitionId)) ||
+                active && hasBuilding &&
+                    job.DefinitionId is not null && job.DefinitionId != building!.DefinitionId ||
+                definitionId is null || !definitions.TryGetValue(definitionId, out var definition) ||
+                job.TargetFootprint is null || !BuildingStorageRules.IsSupported(definition, job.TargetFootprint) ||
+                job.ExpectedRevision != job.TargetFootprint.Revision - 1 ||
+                job.StartedTick < 0 || job.StartedTick > society.WorldTick || job.CompletionTick <= job.StartedTick ||
+                job.State is not (WorldProductionJobState.Running or WorldProductionJobState.Completed or WorldProductionJobState.Cancelled or WorldProductionJobState.Paused) ||
+                job.State == WorldProductionJobState.Running && job.CompletionTick <= society.WorldTick ||
+                job.InputReservationIds is null || job.InputReservationIds.Count == 0 ||
+                job.InputReservationIds.Distinct(StringComparer.Ordinal).Count() != job.InputReservationIds.Count ||
+                !map.Contains(job.TargetPosition))
+                throw new InvalidDataException("The saved building expansion is malformed.");
+            if (job.State is not (WorldProductionJobState.Running or WorldProductionJobState.Paused)) continue;
+            if (!hasBuilding || !activeBuildings.Add(job.BuildingInstanceId) || building!.Position != job.ExpectedPosition ||
+                (building.Footprint?.Revision ?? 0) != job.ExpectedRevision)
+                throw new InvalidDataException("The saved expansion no longer refers to its original building footprint.");
+            var target = BuildingStorageRules.WithSize(definition!, job.TargetFootprint.Width, job.TargetFootprint.Height);
+            var targetTiles = WorldContentSimulationRules.Footprint(target, job.TargetPosition).ToArray();
+            if (!WorldContentSimulationRules.Footprint(definition, building).All(targetTiles.Contains) ||
+                targetTiles.Any(tile => !map.IsBuildable(tile)) ||
+                targetTiles.Any(tile => !activeExpansionTiles.Add(tile)))
+                throw new InvalidDataException("The saved expansion has an invalid or competing footprint.");
+            var reserved = new Dictionary<string, int>(StringComparer.Ordinal);
+            var buildingSite = new InventoryGroundPosition(building.Position.X, building.Position.Y);
+            foreach (var id in job.InputReservationIds)
+            {
+                var reservation = society.Inventory.Reservations.SingleOrDefault(item => item.Id == id);
+                var lot = reservation is null ? null : society.Inventory.Lots.SingleOrDefault(item => item.Id == reservation.LotId);
+                if (reservation is null || lot is null || reservation.Purpose != job.JobId ||
+                    reservation.OwnerId != lot.OwnerId || lot.OwnerId != job.OwnerId && lot.OwnerId != job.WorkerId ||
+                    (lot.OwnerId == job.OwnerId
+                        ? lot.StorageBuildingId != building.InstanceId && lot.GroundPosition != buildingSite ||
+                            lot.DeliveryBuildingId is not null
+                        : lot.StorageBuildingId is not null || lot.DeliveryBuildingId is not null ||
+                            lot.GroundPosition is not null) ||
+                    reservation.State != InventoryReservationState.Reserved || reservation.ExpiryTick != (job.State == WorldProductionJobState.Paused ? long.MaxValue : job.CompletionTick))
+                    throw new InvalidDataException("The expansion is missing its reserved materials.");
+                reserved[lot.ItemKind] = reserved.GetValueOrDefault(lot.ItemKind) + reservation.Quantity;
+            }
+            var expected = BuildingStorageRules.ExpansionCosts(definition, building, job.TargetFootprint);
+            if (expected.Count != reserved.Count || expected.Any(cost => reserved.GetValueOrDefault(cost.ResourceId) != cost.Amount))
+                throw new InvalidDataException("The expansion's reserved materials do not match its footprint.");
+        }
+        if (!expansionJobs.Select(item => item.JobId).SequenceEqual(expansionJobs.Select(item => item.JobId).Order(StringComparer.Ordinal)))
+            throw new InvalidDataException("Building expansions are not in canonical order.");
+        var invitationIds = new HashSet<(string House, string Guest)>();
+        var invitations = simulation.GuestInvitations ?? [];
+        foreach (var invitation in invitations)
+        {
+            if (!invitationIds.Add((invitation.HouseInstanceId, invitation.GuestId)) ||
+                !buildings.TryGetValue(invitation.HouseInstanceId, out var house) || house.HouseholdId is null ||
+                !definitions[house.DefinitionId].Tags.Contains("house", StringComparer.Ordinal) ||
+                !people.ContainsKey(invitation.GuestId) || !people.ContainsKey(invitation.InvitedById) ||
+                invitation.ChangedTick < 0 || invitation.ChangedTick > society.WorldTick)
+                throw new InvalidDataException("The saved House guest invitation is malformed.");
+        }
+        if (!invitations.SequenceEqual(invitations.OrderBy(item => item.HouseInstanceId, StringComparer.Ordinal)
+                .ThenBy(item => item.GuestId, StringComparer.Ordinal)))
+            throw new InvalidDataException("House guest invitations are not in canonical order.");
+    }
+}

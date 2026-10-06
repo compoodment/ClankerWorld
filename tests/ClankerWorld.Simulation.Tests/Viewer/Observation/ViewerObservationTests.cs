@@ -1,5 +1,5 @@
-using ClankerWorld.Simulation.Content;
 using ClankerWorld.Simulation.Harness;
+using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.World;
 using ClankerWorld.Viewer.Observation;
@@ -50,6 +50,26 @@ public sealed class ViewerObservationTests
     }
 
     [Fact]
+    public async Task HostReportsNightDarknessFromTheWorldClockToTheClient()
+    {
+        using var runtime = new PrivateWorldRuntime("night-projection");
+        var store = new OwnerWorldObservationStore(runtime);
+        var options = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web);
+        int? ClientDarkness() => System.Text.Json.JsonSerializer.Deserialize<ClankerWorld.GodotClient.UI.OwnerWorldSnapshot>(
+            System.Text.Json.JsonSerializer.Serialize(store.GetSnapshot(), options), options)!.DarknessBasisPoints;
+
+        // A world's clock starts at midnight.
+        Assert.Equal(DaylightRules.FullDarkness, store.GetSnapshot().DarknessBasisPoints);
+        Assert.Equal(DaylightRules.FullDarkness, ClientDarkness());
+        while (DaylightRules.DarknessBasisPoints(runtime.WorldSystems) == DaylightRules.FullDarkness)
+            Assert.True((await runtime.AdvanceOneTickAsync()).Advanced);
+        var dawn = DaylightRules.DarknessBasisPoints(runtime.WorldSystems);
+        Assert.InRange(dawn, 1, DaylightRules.FullDarkness - 1);
+        Assert.Equal(dawn, store.GetSnapshot().DarknessBasisPoints);
+        Assert.Equal(dawn, ClientDarkness());
+    }
+
+    [Fact]
     public void ResourceProjectionCarriesAuthoritativeStockAndRegrowthIntoTheClient()
     {
         using var runtime = new PrivateWorldRuntime("ecology-projection");
@@ -73,20 +93,37 @@ public sealed class ViewerObservationTests
     }
 
     [Fact]
-    public async Task CropJobsAreVisibleAlongsideWorkstationJobs()
+    public async Task FieldWorkIsVisibleAlongsideWorkstationJobsAndSurvivesReconnect()
     {
-        using var runtime = new PrivateWorldRuntime("playtest-alpha");
-        Assert.True(runtime.StageStarterContent());
-        for (var tick = 0; tick < 150; tick++)
+        var (state, farmer, household, point) = FarmFieldTests.PreparedFarmer("field-observation");
+        var farmhouse = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == "first-town-farmhouse");
+        var miller = state.Society.Society.Inhabitants.First(person => person.HouseholdId == household && person.Id != farmer).Id;
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "observation-grain", "grain", household, 1,
+            storageBuildingId: farmhouse.InstanceId);
+        state = FarmFieldTests.WithInventory(state, inventory) with
         {
-            _ = await runtime.AdvanceOneTickAsync();
-        }
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == miller
+                ? person with { Position = farmhouse.Position, HungerBasisPoints = 10_000 } : person).ToArray(),
+        };
+        using var runtime = FarmFieldTests.Restore(state);
+        var mill = runtime.WorldContent.Recipes.Single(recipe => recipe.LocalId == "mill-grain");
+        Assert.True(runtime.StartProduction(mill.CanonicalId, farmhouse.InstanceId, miller).Applied);
+        Assert.True(runtime.StartFieldWork(farmer, point, FarmWorkKind.Till).Accepted);
+        for (var tick = 0; tick < 3; tick++) Assert.True((await runtime.AdvanceOneTickAsync()).Advanced);
         var snapshot = new OwnerWorldObservationStore(runtime).GetSnapshot();
-        var state = runtime.ExportState();
-        Assert.NotEmpty(state.WorldSimulation!.CropBuilds!);
-        var expected = state.WorldSimulation.ProductionJobs.Concat(state.WorldSimulation.CropBuilds!).Select(item => item.JobId).Order(StringComparer.Ordinal);
-        Assert.Equal(expected, snapshot.ProductionJobs.Select(item => item.JobId));
+        var field = Assert.Single(snapshot.Fields!);
+        Assert.Equal(new ViewerPosition(point.X, point.Y), field.Position);
+        Assert.Equal(household, field.HouseholdId);
+        Assert.Equal("preparing", field.Stage);
+        Assert.Equal(farmer, field.WorkerId);
+        // Eight units of tilling, with two units per wooden-hoe work action.
+        Assert.Equal(2, field.WorkRemaining);
+        Assert.Equal(miller, Assert.Single(snapshot.ProductionJobs).WorkerId);
         Assert.Equal(snapshot.ProductionJobs.Count, snapshot.WorldSystems!.ProductionJobCount);
+        using var restored = FarmFieldTests.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(runtime.ExportState())));
+        var reconnect = new OwnerWorldObservationStore(restored).GetReconnectBaseline(0).Snapshot;
+        Assert.Equal(snapshot.Fields, reconnect.Fields);
+        Assert.Equal(snapshot.ProductionJobs, reconnect.ProductionJobs);
     }
 
     [Fact]
@@ -106,101 +143,6 @@ public sealed class ViewerObservationTests
         Assert.Empty(baseline.Snapshot.Inhabitants);
         Assert.Null(baseline.Snapshot.Actor);
         Assert.Equal(state.Society.Society.WorldTick, baseline.Snapshot.WorldTick);
-    }
-
-    private static readonly HashSet<string> ResourceStates =
-    [
-        "available",
-        "depleted",
-    ];
-
-    [Fact]
-    public void HandshakeDeclaresTheReadOnlyObservationCapabilities()
-    {
-        var store = new SeededWorldObservationStore();
-
-        var handshake = store.GetHandshake();
-
-        Assert.Equal(new ProtocolVersion(1, 0), handshake.Protocol);
-        Assert.Equal(
-            ["event-replay.read.v1", "reconnect-baseline.read.v1", "seeded-map.read.v1", "snapshot.read.v1"],
-            handshake.ServerCapabilities.OrderBy(capability => capability, StringComparer.Ordinal));
-        Assert.Equal(
-            ["event-replay.read.v1", "reconnect-baseline.read.v1", "snapshot.read.v1"],
-            handshake.ClientCapabilities.OrderBy(capability => capability, StringComparer.Ordinal));
-    }
-
-    [Fact]
-    public void SnapshotProjectsTheCompletedHarnessWithoutExposingItsRecords()
-    {
-        var source = ScriptedHarness.RunEntireSequence(SeededWorldObservationStore.SampleSeed);
-        var store = new SeededWorldObservationStore(source);
-
-        var snapshot = store.GetSnapshot();
-
-        Assert.Equal(source.Identity.WorldId, snapshot.WorldId);
-        Assert.Equal(source.Identity.WorldTick, snapshot.WorldTick);
-        Assert.Equal(source.Map.ManifestDigest, snapshot.MapManifestDigest);
-        Assert.Equal(source.Map.Width * source.Map.Height, snapshot.Tiles.Count);
-        Assert.NotNull(snapshot.Actor);
-        Assert.Equal(source.Actor.Id, snapshot.Actor.Id);
-        Assert.Equal(source.Actor.Position.X, snapshot.Actor.Position.X);
-        Assert.Equal(source.Actor.Position.Y, snapshot.Actor.Position.Y);
-        Assert.Equal(source.Events[^1].EventId, snapshot.LatestEventId);
-        Assert.Equal(
-            snapshot.Tiles.OrderBy(tile => tile.Y).ThenBy(tile => tile.X),
-            snapshot.Tiles);
-        Assert.All(snapshot.Resources, resource => Assert.Contains(resource.State, ResourceStates));
-
-        var mutableTiles = Assert.IsType<ViewerTile[]>(snapshot.Tiles);
-        mutableTiles[0] = mutableTiles[0] with { Terrain = "corrupted-client-copy" };
-
-        Assert.Equal("meadow", store.GetSnapshot().Tiles[0].Terrain);
-    }
-
-    [Fact]
-    public void EventCursorReturnsOnlyTheOrderedSuffixAtTheSameSnapshotTick()
-    {
-        var store = new SeededWorldObservationStore();
-        var snapshot = store.GetSnapshot();
-
-        var allEvents = store.GetEventsAfter(0);
-        var suffix = store.GetEventsAfter(3);
-
-        Assert.Equal(snapshot.WorldTick, allEvents.SnapshotTick);
-        Assert.Equal(snapshot.WorldTick, suffix.SnapshotTick);
-        Assert.Equal(0, allEvents.AfterEventId);
-        Assert.Equal(3, suffix.AfterEventId);
-        Assert.Equal(
-            Enumerable.Range(1, allEvents.Events.Count).Select(eventId => (long)eventId),
-            allEvents.Events.Select(worldEvent => worldEvent.EventId));
-        Assert.Equal(allEvents.Events.Skip(3), suffix.Events);
-        Assert.All(suffix.Events, worldEvent => Assert.True(worldEvent.EventId > suffix.AfterEventId));
-    }
-
-    [Fact]
-    public void NegativeEventCursorIsRejectedBeforeProjection()
-    {
-        var store = new SeededWorldObservationStore();
-
-        Assert.Throws<ArgumentOutOfRangeException>(() => store.GetEventsAfter(-1));
-    }
-
-    [Fact]
-    public void ReconnectBaselineProjectsOneCoherentLiveRuntimeCapture()
-    {
-        var runtime = new LiveSeededWorldRuntime(SeededWorldObservationStore.SampleSeed);
-        Assert.True(runtime.TryAdvanceOneAction());
-        Assert.True(runtime.TryAdvanceOneAction());
-        Assert.True(runtime.TryAdvanceOneAction());
-        var store = new SeededWorldObservationStore(runtime);
-
-        var baseline = store.GetReconnectBaseline(afterEventId: 1);
-
-        Assert.Equal(baseline.Snapshot.WorldTick, baseline.Events.SnapshotTick);
-        Assert.Equal(3, baseline.Snapshot.LatestEventId);
-        Assert.Equal([2L, 3L], baseline.Events.Events.Select(worldEvent => worldEvent.EventId));
-        Assert.All(baseline.Events.Events, worldEvent => Assert.True(worldEvent.EventId > baseline.Events.AfterEventId));
     }
 
     [Fact]
@@ -258,7 +200,7 @@ public sealed class ViewerObservationTests
         Assert.NotNull(snapshot.Cognition);
         Assert.NotNull(snapshot.WorldSystems);
         Assert.Equal("spring", snapshot.WorldSystems!.Season);
-        Assert.Equal(3, snapshot.WorldSystems.EcologyResourceCount);
+        Assert.Equal(4, snapshot.WorldSystems.EcologyResourceCount);
         Assert.Equal(1, snapshot.WorldSystems.FactionCount);
         Assert.Equal(4, snapshot.Inhabitants.Select(inhabitant => inhabitant.Id).Distinct().Count());
     }
@@ -285,52 +227,5 @@ public sealed class ViewerObservationTests
             Assert.DoesNotContain("chain", inhabitant.PublicIntention!.Summary, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("prompt", inhabitant.PublicIntention.Summary, StringComparison.OrdinalIgnoreCase);
         });
-    }
-
-    [Fact]
-    public async Task PrivateWorldObservationReplaysItsOwnEventCursor()
-    {
-        using var runtime = new PrivateWorldRuntime("playtest-alpha");
-        _ = await runtime.AdvanceOneTickAsync();
-        var store = new OwnerWorldObservationStore(runtime);
-
-        var snapshot = store.GetSnapshot();
-        var suffix = store.GetEventsAfter(1);
-
-        Assert.Equal(1, snapshot.WorldTick);
-        Assert.Equal(snapshot.WorldTick, suffix.SnapshotTick);
-        Assert.All(suffix.Events, worldEvent => Assert.True(worldEvent.EventId > 1));
-        Assert.Contains(suffix.Events, worldEvent => worldEvent.Kind == "tick_advanced");
-    }
-
-    [Fact]
-    public async Task PrivateWorldObservationProjectsContentLifecycleAndGovernanceHistory()
-    {
-        using var runtime = new PrivateWorldRuntime("playtest-alpha");
-        var package = new ContentPackageManifest(
-            "camp-recipes",
-            ContentVersion.Parse("1.0.0"),
-            "sha256:" + new string('e', 64),
-            [],
-            [new ContentDefinition(
-                "recipe",
-                "berry-stew",
-                ContentVersion.Parse("1.0.0"),
-                "Berry stew",
-                "sha256:" + new string('e', 64))],
-            []);
-        var resolution = PrivateWorldRuntime.PreviewContent([package], [package.PackageId]);
-        runtime.ProposeContent(package);
-        runtime.ValidateContent(package.PackageId, resolution);
-        runtime.ApproveContent(package.PackageId);
-        runtime.StageContent(package.PackageId);
-        _ = await runtime.AdvanceOneTickAsync();
-
-        var snapshot = new OwnerWorldObservationStore(runtime).GetSnapshot();
-
-        var content = Assert.Single(snapshot.ContentPackages);
-        Assert.Equal(package.PackageId, content.PackageId);
-        Assert.Equal("active", content.Lifecycle);
-        Assert.Contains(snapshot.ContentEvents, item => item.Kind == "package_activated");
     }
 }

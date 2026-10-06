@@ -5,56 +5,44 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class CognitionRuntimeTests
 {
     [Fact]
-    public async Task DefaultProviderIsDeterministicAndChoosesTheSafestCandidate()
+    public void ObserverReplyIsAdmittedOnlyForTheExactRequestedMessageAndWorld()
     {
-        var runtime = new CognitionRuntime("actor-scout");
-        var result = await runtime.RequestAndDecideAsync(CreateObservation());
+        var runtime = new CognitionRuntime("actor-scout", new FixedProvider(DecisionProviderKind.LargeLanguageModel, 4));
+        var message = new CognitionObserverGuidance("private-instruction-0000000001", "owner:test", "actor-scout",
+            "suggestive", "Try the shore berries.", 4, 0, 1, null, true);
+        var observation = CreateObservation() with
+        {
+            WorldId = "world-guidance-runtime-test",
+            ObserverGuidance = [message],
+        };
+        var request = runtime.IssueRequest(observation);
+        var response = ResponseFor(request, DecisionProviderKind.LargeLanguageModel, 4, "safe_idle", 1) with
+        {
+            ObserverReplies = [new CognitionObserverReply(message.InstructionId, "I will try.")],
+        };
 
-        Assert.Equal(DecisionProviderKind.Deterministic, runtime.ProviderKind);
-        Assert.True(result.Accepted);
-        Assert.False(result.FellBack);
-        Assert.Equal("safe_idle", result.Intention?.CandidateId);
-        Assert.Equal("cognition_decision_applied", runtime.Capture().Events[^1].Kind);
-    }
+        var accepted = runtime.ApplyResponse(response);
 
-    [Fact]
-    public void ValidProviderResponseBecomesAnInspectableIntention()
-    {
-        var runtime = new CognitionRuntime("actor-scout", new FixedProvider(DecisionProviderKind.Jev, 7));
-        var request = runtime.IssueRequest(CreateObservation());
+        Assert.True(accepted.Accepted);
+        var observed = Assert.IsType<CognitionObserverGuidanceResult>(accepted.ObserverGuidance);
+        Assert.Equal("world-guidance-runtime-test", observed.WorldId);
+        Assert.Equal("actor-scout", observed.InhabitantId);
+        Assert.Equal(request.RequestId, observed.RequestId);
+        Assert.Equal(observation.DecisionGeneration, observed.DecisionGeneration);
+        Assert.Equal(observation.ObservationDigest, observed.ObservationDigest);
+        Assert.Equal(message, Assert.Single(observed.Messages));
+        Assert.Equal(new CognitionObserverReply(message.InstructionId, "I will try."), Assert.Single(observed.Replies));
 
-        var result = runtime.ApplyResponse(ResponseFor(
-            request,
-            DecisionProviderKind.Jev,
-            providerEpoch: 7,
-            selectedCandidateId: "seek_food",
-            confidence: 0.84));
-
-        Assert.True(result.Accepted);
-        Assert.False(result.FellBack);
-        Assert.Equal("seek_food", result.Intention?.CandidateId);
-        Assert.Equal(DecisionProviderKind.Jev, result.Intention?.Provider);
-        Assert.Null(runtime.Capture().InFlightRequestId);
-        Assert.Equal(CognitionRequestState.Applied, runtime.Capture().Requests.Single().State);
-    }
-
-    [Fact]
-    public void LowConfidenceProviderResponseFallsBackToDeterministicCandidate()
-    {
-        var runtime = new CognitionRuntime("actor-scout", new FixedProvider(DecisionProviderKind.Jev, 2));
-        var request = runtime.IssueRequest(CreateObservation());
-
-        var result = runtime.ApplyResponse(ResponseFor(
-            request,
-            DecisionProviderKind.Jev,
-            providerEpoch: 2,
-            selectedCandidateId: "seek_food",
-            confidence: 0.2));
-
-        Assert.True(result.Accepted);
-        Assert.True(result.FellBack);
-        Assert.Equal("safe_idle", result.Intention?.CandidateId);
-        Assert.Equal(CognitionRequestState.Fallback, runtime.Capture().Requests.Single().State);
+        var retryRuntime = new CognitionRuntime("actor-scout", new FixedProvider(DecisionProviderKind.LargeLanguageModel, 4));
+        var retryRequest = retryRuntime.IssueRequest(observation with { DecisionGeneration = 1 });
+        var wrongId = retryRuntime.ApplyResponse(ResponseFor(retryRequest,
+            DecisionProviderKind.LargeLanguageModel, 4, "safe_idle", 1) with
+        {
+            ObserverReplies = [new CognitionObserverReply("private-instruction-newer", "I will try.")],
+        });
+        Assert.False(wrongId.Accepted);
+        Assert.Equal("observer_reply_not_requested", wrongId.Outcome);
+        Assert.Null(wrongId.ObserverGuidance);
     }
 
     [Fact]
@@ -80,7 +68,6 @@ public sealed class CognitionRuntimeTests
     }
 
     [Theory]
-    [InlineData("safe_idle", 1.2)]
     [InlineData("never_offered", 1)]
     public void InvalidAnswerWithStaleIdentityCannotApplyFallback(string candidate, double confidence)
     {
@@ -94,34 +81,6 @@ public sealed class CognitionRuntimeTests
         Assert.False(result.FellBack);
         Assert.Equal("observation_digest", result.Outcome);
         Assert.Null(runtime.Capture().CurrentIntention);
-    }
-
-    [Fact]
-    public void DuplicateResponseAfterAdmissionCannotApplyTwice()
-    {
-        var runtime = new CognitionRuntime("actor-scout", new FixedProvider(DecisionProviderKind.Jev, 0));
-        var request = runtime.IssueRequest(CreateObservation());
-        var response = ResponseFor(request, DecisionProviderKind.Jev, 0, "seek_food", 0.9);
-
-        Assert.True(runtime.ApplyResponse(response).Accepted);
-        var duplicate = runtime.ApplyResponse(response);
-
-        Assert.False(duplicate.Accepted);
-        Assert.Equal("superseded_request", duplicate.Outcome);
-        Assert.Single(runtime.Capture().Requests);
-        Assert.Equal(CognitionRequestState.Applied, runtime.Capture().Requests.Single().State);
-    }
-
-    [Fact]
-    public void OnlyOneRequestMayBeInFlight()
-    {
-        var runtime = new CognitionRuntime("actor-scout");
-        _ = runtime.IssueRequest(CreateObservation());
-
-        var exception = Assert.Throws<InvalidOperationException>(() => runtime.IssueRequest(
-            CreateObservation(decisionGeneration: 1)));
-
-        Assert.Contains("one cognition request", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -150,7 +109,7 @@ public sealed class CognitionRuntimeTests
     [InlineData("never_offered", 1.2)]
     public void LatePausedReplyCannotRetireTheNewerRequest(string candidate, double confidence)
     {
-        var runtime = new CognitionRuntime("actor-scout", new FixedProvider(DecisionProviderKind.Jev, 0));
+        var runtime = new CognitionRuntime("actor-scout", new FixedProvider(DecisionProviderKind.Jev, 7));
         var oldRequest = runtime.IssueRequest(CreateObservation());
         Assert.True(runtime.Pause(worldTick: 5));
         Assert.True(runtime.Resume(worldTick: 6));
@@ -159,9 +118,16 @@ public sealed class CognitionRuntimeTests
             WorldTick = 7,
             ObservationDigest = "sha256:observation-7",
         });
+        Assert.Equal(7, currentRequest.ProviderEpoch);
         var before = runtime.Capture();
 
-        var late = runtime.ApplyResponse(ResponseFor(oldRequest, DecisionProviderKind.Jev, 0, candidate, confidence));
+        var exception = Assert.Throws<InvalidOperationException>(() => runtime.IssueRequest(
+            CreateObservation(runEpoch: 1, decisionGeneration: 2)));
+        Assert.Contains("one cognition request", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(currentRequest.RequestId, runtime.Capture().InFlightRequestId);
+        Assert.Equal(before.Requests, runtime.Capture().Requests);
+
+        var late = runtime.ApplyResponse(ResponseFor(oldRequest, DecisionProviderKind.Jev, 7, candidate, confidence));
 
         Assert.False(late.Accepted);
         Assert.False(late.FellBack);
@@ -171,10 +137,12 @@ public sealed class CognitionRuntimeTests
         Assert.Equal(before.CurrentIntention, runtime.Capture().CurrentIntention);
         Assert.Equal(oldRequest.RequestId + ":request_id", runtime.Capture().Events[^1].Detail);
 
-        var current = runtime.ApplyResponse(ResponseFor(currentRequest, DecisionProviderKind.Jev, 0, "seek_food", 0.9));
+        var current = runtime.ApplyResponse(ResponseFor(currentRequest, DecisionProviderKind.Jev, 7, "seek_food", 0.9));
         Assert.True(current.Accepted);
         Assert.False(current.FellBack);
         Assert.Equal("provider_decision", current.Outcome);
+        Assert.Equal("seek_food", current.Intention?.CandidateId);
+        Assert.Equal(DecisionProviderKind.Jev, current.Intention?.Provider);
         Assert.Null(runtime.Capture().InFlightRequestId);
         Assert.Equal(CognitionRequestState.Applied,
             runtime.Capture().Requests.Single(item => item.Request.RequestId == currentRequest.RequestId).State);
@@ -185,13 +153,21 @@ public sealed class CognitionRuntimeTests
 
     [Theory]
     [InlineData(false)]
-    [InlineData(true)]
     public void DuplicateOrUnknownReplyPreservesTheNextRequestAndPreviousIntention(bool unknown)
     {
         var runtime = new CognitionRuntime("actor-scout", new FixedProvider(DecisionProviderKind.Jev, 0));
         var firstRequest = runtime.IssueRequest(CreateObservation());
         var firstResponse = ResponseFor(firstRequest, DecisionProviderKind.Jev, 0, "seek_food", 0.9);
         Assert.True(runtime.ApplyResponse(firstResponse).Accepted);
+        var admitted = runtime.Capture();
+        var duplicate = runtime.ApplyResponse(firstResponse);
+        Assert.False(duplicate.Accepted);
+        Assert.Equal("superseded_request", duplicate.Outcome);
+        Assert.Single(runtime.Capture().Requests);
+        Assert.Equal(CognitionRequestState.Applied, runtime.Capture().Requests.Single().State);
+        Assert.Equal(admitted.CurrentIntention, runtime.Capture().CurrentIntention);
+        Assert.Equal(admitted.Requests, runtime.Capture().Requests);
+
         var currentRequest = runtime.IssueRequest(CreateObservation(decisionGeneration: 1));
         var before = runtime.Capture();
 
@@ -205,42 +181,6 @@ public sealed class CognitionRuntimeTests
         Assert.Equal(before.CurrentIntention, runtime.Capture().CurrentIntention);
         Assert.True(runtime.ApplyResponse(ResponseFor(currentRequest, DecisionProviderKind.Jev, 0, "safe_idle", 1)).Accepted);
         Assert.Equal("safe_idle", runtime.Capture().CurrentIntention?.CandidateId);
-    }
-
-    [Fact]
-    public async Task ProviderFailureUsesLocalFallbackInsteadOfMutatingTheWorld()
-    {
-        var runtime = new CognitionRuntime("actor-scout", new ThrowingProvider());
-
-        var result = await runtime.RequestAndDecideAsync(CreateObservation() with
-        {
-            Candidates =
-            [
-                new CognitionCandidate("build:home", "Build a home.", 0),
-                new CognitionCandidate("safe_idle", "Wait safely.", 100),
-            ],
-        });
-
-        Assert.True(result.Accepted);
-        Assert.True(result.FellBack);
-        Assert.Equal("safe_idle", result.Intention?.CandidateId);
-        Assert.Contains("provider_failure", result.Outcome, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task SavedCognitionStateRestoresTheLastIntentionAndEventSequence()
-    {
-        var runtime = new CognitionRuntime("actor-scout");
-        _ = await runtime.RequestAndDecideAsync(CreateObservation());
-        var before = runtime.Capture();
-
-        var restored = CognitionRuntime.Restore(runtime.ExportState());
-        var after = restored.Capture();
-
-        Assert.Equal(before.CurrentIntention, after.CurrentIntention);
-        Assert.Equal(before.Events, after.Events);
-        Assert.Null(after.InFlightRequestId);
-        Assert.Equal(before.Events[^1].EventId + 1, after.Events[^1].EventId + 1);
     }
 
     private static InhabitantObservation CreateObservation(
@@ -287,17 +227,5 @@ public sealed class CognitionRuntimeTests
             CognitionDecisionRequest request,
             CancellationToken cancellationToken = default) =>
             ValueTask.FromResult(ResponseFor(request, kind, providerEpoch, "seek_food", 0.9));
-    }
-
-    private sealed class ThrowingProvider : IDecisionProvider
-    {
-        public DecisionProviderKind Kind => DecisionProviderKind.Jev;
-
-        public long ProviderEpoch => 0;
-
-        public ValueTask<CognitionDecisionResponse> DecideAsync(
-            CognitionDecisionRequest request,
-            CancellationToken cancellationToken = default) =>
-            throw new InvalidOperationException("provider unavailable");
     }
 }

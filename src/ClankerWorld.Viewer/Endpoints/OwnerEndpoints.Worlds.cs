@@ -14,7 +14,8 @@ internal static partial class OwnerEndpoints
         app.MapPost("/api/v1/owner/worlds/list", (
             OwnerSignedHttpRequest<OwnerControlAction> request,
             OwnerRequestAuthorizer authorizer,
-            IServiceProvider services) =>
+            IServiceProvider services,
+            HttpContext context) =>
         {
             if (!IsControl(request, "list-worlds"))
                 return Results.BadRequest(new { error = "A world-list action is required." });
@@ -22,7 +23,15 @@ internal static partial class OwnerEndpoints
                 OwnerHttpBinding.EmptyPayload("list-worlds"));
             if (!authorization.IsSuccess) return OwnerFailures.ToHttpResult(authorization.Failure);
             if (!isPrivateWorld) return Results.Conflict(new { error = "World selection requires a private world." });
-            return Results.Ok(services.GetRequiredService<WorldSelectionCoordinator>().List());
+            try
+            {
+                return Results.Ok(services.GetRequiredService<WorldSelectionCoordinator>().List(context.RequestAborted));
+            }
+            catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
+            {
+                // The client left Load World; listing changed nothing and nobody reads this reply.
+                return Results.StatusCode(StatusCodes.Status499ClientClosedRequest);
+            }
         });
 
         app.MapPost("/api/v1/owner/worlds/create", (
@@ -39,14 +48,23 @@ internal static partial class OwnerEndpoints
                 creationPayload);
             if (!authorization.IsSuccess) return OwnerFailures.ToHttpResult(authorization.Failure);
             if (!isPrivateWorld) return Results.Conflict(new { error = "World creation requires a private world." });
+            if (!HasCreateIdentity(action))
+                return Results.BadRequest(new { error = "Preview the map before creating it." });
             if (!TryWorldOptions(action, out var options))
                 return Results.BadRequest(new { error = "World seed, size, or water choice is invalid." });
             try
             {
-                var entry = services.GetRequiredService<WorldSelectionCoordinator>().Create(action.Name, options!);
+                var entry = services.GetRequiredService<WorldSelectionCoordinator>().Create(action.Name, options!,
+                    action.CandidateAttempt!.Value, action.ExpectedManifestDigest!, action.ExpectedMapLayersDigest!,
+                    action.AcceptUnmetTargets);
                 return Results.Ok(entry);
             }
             catch (ArgumentException exception) { return Results.BadRequest(new { error = exception.Message }); }
+            catch (GeographyClearingUnavailableException)
+            {
+                return Results.Conflict(new OwnerControlFailure("no_playable_candidate",
+                    "There is no room for a first Town with these settings."));
+            }
             catch (InvalidOperationException exception) { return Results.Conflict(new { error = exception.Message }); }
         });
 
@@ -63,10 +81,17 @@ internal static partial class OwnerEndpoints
             var authorization = authorizer.Authorize(request, "POST", "/api/v1/owner/worlds/preview", payload);
             if (!authorization.IsSuccess) return OwnerFailures.ToHttpResult(authorization.Failure);
             if (!isPrivateWorld) return Results.Conflict(new { error = "World preview requires a private world." });
+            if (!HasNoPreviewIdentity(action))
+                return Results.BadRequest(new { error = "Preview requests cannot carry a candidate acceptance." });
             if (!TryWorldOptions(action, out var options))
                 return Results.BadRequest(new { error = "World seed, size, or water choice is invalid." });
             try { return Results.Ok(services.GetRequiredService<WorldSelectionCoordinator>().Preview(options!)); }
             catch (ArgumentException exception) { return Results.BadRequest(new { error = exception.Message }); }
+            catch (GeographyClearingUnavailableException)
+            {
+                return Results.Conflict(new OwnerControlFailure("no_playable_candidate",
+                    "There is no room for a first Town with these settings."));
+            }
             catch (InvalidOperationException exception) { return Results.Conflict(new { error = exception.Message }); }
         });
 

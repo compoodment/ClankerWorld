@@ -1,0 +1,3 @@
+- Choose a first Town site. Helpful land is tinted more green, and hovering describes nearby food, fertile ground, wood, stone and space for Roads. ([#424](https://github.com/compoodment/ClankerWorld/issues/424))
+- Choose a less promising area that still has room for the starter Town. It remains selectable, and a failed layout leaves a readable explanation so you can choose again. ([#424](https://github.com/compoodment/ClankerWorld/issues/424))
+- Try a wrapped world near its east or west edge, then switch worlds. Advice follows the current map and disappears when site selection ends. ([#424](https://github.com/compoodment/ClankerWorld/issues/424))

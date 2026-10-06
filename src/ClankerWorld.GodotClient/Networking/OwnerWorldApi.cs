@@ -117,6 +117,17 @@ public sealed class OwnerWorldApi
             action, deviceKey, cancellationToken);
     }
 
+    public Task<SaveTimelinePosition> GetSaveTimelinePositionAsync(
+        Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
+        IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken)
+    {
+        var action = new OwnerControlAction("save-timeline");
+        return pairing.SendSignedActionAsync<OwnerControlAction, SaveTimelinePosition>(
+            serverUri, authority, deviceId, OwnerPairingEndpoints.OwnerSaveTimeline,
+            OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.Control("save-timeline"),
+            action, deviceKey, cancellationToken);
+    }
+
     public Task<WorldAutosaveSettings> GetAutosaveSettingsAsync(
         Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
         IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken)
@@ -135,7 +146,8 @@ public sealed class OwnerWorldApi
         pairing.SendSignedActionAsync<OwnerAutosaveConfigurationAction, WorldAutosaveSettings>(
             serverUri, authority, deviceId, OwnerPairingEndpoints.OwnerAutosaveConfigure,
             OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.AutosaveConfiguration(action),
-            action, deviceKey, cancellationToken);
+            action, deviceKey, cancellationToken,
+            requiredPayloadDomain: OwnerWorldActionPayload.AutosaveConfigurationPayloadDomain);
 
     public Task<ManualWorldSave> CreateManualSaveAsync(
         Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
@@ -167,7 +179,9 @@ public sealed class OwnerWorldApi
         return pairing.SendSignedActionAsync<OwnerControlAction, WorldCatalogSnapshot>(
             serverUri, authority, deviceId, OwnerPairingEndpoints.OwnerWorldList,
             OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.Control("list-worlds"),
-            action, deviceKey, cancellationToken);
+            // Listing checks every checkpoint. A cold catalog can take longer
+            // than an ordinary control action; Back still cancels this request.
+            action, deviceKey, cancellationToken, maximumDuration: TimeSpan.FromSeconds(60));
     }
 
     public Task<CatalogWorld> CreateWorldAsync(
@@ -176,7 +190,7 @@ public sealed class OwnerWorldApi
         pairing.SendSignedActionAsync<OwnerWorldCreationAction, CatalogWorld>(
             serverUri, authority, deviceId, OwnerPairingEndpoints.OwnerWorldCreate,
             OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.WorldCreation(action),
-            action, deviceKey, cancellationToken);
+            action, deviceKey, cancellationToken, OwnerWorldActionPayload.WorldCreationPayloadDomain);
 
     public Task<OwnerWorldPreview> PreviewWorldAsync(
         Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
@@ -184,7 +198,7 @@ public sealed class OwnerWorldApi
         pairing.SendSignedActionAsync<OwnerWorldCreationAction, OwnerWorldPreview>(
             serverUri, authority, deviceId, OwnerPairingEndpoints.OwnerWorldPreview,
             OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.WorldCreation(action),
-            action, deviceKey, cancellationToken);
+            action, deviceKey, cancellationToken, OwnerWorldActionPayload.WorldCreationPayloadDomain);
 
     public Task<CatalogWorld> SelectWorldAsync(
         Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
@@ -251,7 +265,7 @@ public sealed class OwnerWorldApi
         pairing.SendSignedActionAsync<OwnerAgentPlacementAction, OwnerAgentPlacementReceipt>(
             serverUri, authority, deviceId, OwnerPairingEndpoints.OwnerAgentPlace,
             OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.AgentPlacement(action),
-            action, deviceKey, cancellationToken);
+            action, deviceKey, cancellationToken, OwnerWorldActionPayload.AgentPlacementPayloadDomain);
 
     public Task<OwnerAgentRenameReceipt> RenameAgentAsync(
         Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
@@ -261,6 +275,12 @@ public sealed class OwnerWorldApi
             serverUri, authority, deviceId, OwnerPairingEndpoints.OwnerAgentRename,
             OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.AgentRename(action),
             action, deviceKey, cancellationToken);
+
+    public Task<OwnerControlReceipt> ApplyDeveloperEditAsync(Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
+        OwnerDeveloperEditAction action, IOwnerDeviceSigner signer, CancellationToken cancellationToken) =>
+        pairing.SendSignedActionAsync<OwnerDeveloperEditAction, OwnerControlReceipt>(serverUri, authority, deviceId,
+            OwnerPairingEndpoints.OwnerDeveloperEdit, OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.DeveloperEdit(action),
+            action, signer, cancellationToken);
 
     public Task<OwnerControlReceipt> SetLifePaceAsync(Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
         int rate, IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken)
@@ -294,6 +314,24 @@ public sealed class OwnerWorldApi
             OwnerPairingEndpoints.OwnerInstructions,
             OwnerPairingProtocol.CreateRequestId(),
             OwnerWorldActionPayload.Instruction(action),
+            action,
+            deviceKey,
+            cancellationToken);
+
+    public Task<OwnerOrderControlReceipt> CancelOrderAsync(
+        Uri serverUri,
+        OwnerAuthorityIdentity authority,
+        string deviceId,
+        OwnerOrderCancelAction action,
+        IOwnerDeviceSigner deviceKey,
+        CancellationToken cancellationToken) =>
+        pairing.SendSignedActionAsync<OwnerOrderCancelAction, OwnerOrderControlReceipt>(
+            serverUri,
+            authority,
+            deviceId,
+            OwnerPairingEndpoints.OwnerOrderCancel,
+            OwnerPairingProtocol.CreateRequestId(),
+            OwnerWorldActionPayload.OrderCancel(action),
             action,
             deviceKey,
             cancellationToken);
@@ -333,6 +371,30 @@ public sealed class OwnerWorldApi
             action,
             deviceKey,
             cancellationToken);
+
+    public Task<OwnerBuildingManagementResult> RemoveBuildingAsync(
+        Uri serverUri,
+        OwnerAuthorityIdentity authority,
+        string deviceId,
+        OwnerBuildingRemovalAction action,
+        IOwnerDeviceSigner deviceKey,
+        CancellationToken cancellationToken) =>
+        pairing.SendSignedActionAsync<OwnerBuildingRemovalAction, OwnerBuildingManagementResult>(
+            serverUri, authority, deviceId, OwnerPairingEndpoints.OwnerBuildingRemoval,
+            OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.BuildingRemoval(action),
+            action, deviceKey, cancellationToken);
+
+    public Task<OwnerBuildingManagementResult> ReassignBuildingAsync(
+        Uri serverUri,
+        OwnerAuthorityIdentity authority,
+        string deviceId,
+        OwnerBuildingReassignmentAction action,
+        IOwnerDeviceSigner deviceKey,
+        CancellationToken cancellationToken) =>
+        pairing.SendSignedActionAsync<OwnerBuildingReassignmentAction, OwnerBuildingManagementResult>(
+            serverUri, authority, deviceId, OwnerPairingEndpoints.OwnerBuildingReassignment,
+            OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.BuildingReassignment(action),
+            action, deviceKey, cancellationToken);
 
     public Task<OwnerProductionStartResult> StartProductionAsync(
         Uri serverUri,
@@ -585,6 +647,15 @@ public sealed class OwnerWorldApi
             deviceKey,
             cancellationToken);
 
+    public Task<OwnerProviderConfigurationStatus> CreateCredentialSlotAsync(
+        Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
+        OwnerCredentialSlotCreationAction action, IOwnerDeviceSigner deviceKey,
+        CancellationToken cancellationToken) =>
+        pairing.SendSignedActionAsync<OwnerCredentialSlotCreationAction, OwnerProviderConfigurationStatus>(
+            serverUri, authority, deviceId, OwnerPairingEndpoints.OwnerCredentialSlotCreate,
+            OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.CredentialSlotCreation(action),
+            action, deviceKey, cancellationToken);
+
     public Task<OwnerProviderConfigurationStatus> DeleteCredentialSlotAsync(
         Uri serverUri,
         OwnerAuthorityIdentity authority,
@@ -605,4 +676,40 @@ public sealed class OwnerWorldApi
             deviceKey,
             cancellationToken);
     }
+
+    public Task<OwnerProviderModelList> ListProviderModelsAsync(
+        Uri serverUri,
+        OwnerAuthorityIdentity authority,
+        string deviceId,
+        OwnerProviderModelListAction action,
+        IOwnerDeviceSigner deviceKey,
+        CancellationToken cancellationToken) =>
+        pairing.SendSignedActionAsync<OwnerProviderModelListAction, OwnerProviderModelList>(
+            serverUri,
+            authority,
+            deviceId,
+            OwnerPairingEndpoints.OwnerProviderModels,
+            OwnerPairingProtocol.CreateRequestId(),
+            OwnerWorldActionPayload.ProviderModelList(action),
+            action,
+            deviceKey,
+            cancellationToken);
+
+    public Task<OwnerProviderSetupCheckResult> CheckProviderSetupAsync(
+        Uri serverUri,
+        OwnerAuthorityIdentity authority,
+        string deviceId,
+        OwnerProviderSetupCheckAction action,
+        IOwnerDeviceSigner deviceKey,
+        CancellationToken cancellationToken) =>
+        pairing.SendSignedActionAsync<OwnerProviderSetupCheckAction, OwnerProviderSetupCheckResult>(
+            serverUri,
+            authority,
+            deviceId,
+            OwnerPairingEndpoints.OwnerProviderSetupCheck,
+            OwnerPairingProtocol.CreateRequestId(),
+            OwnerWorldActionPayload.ProviderSetupCheck(action),
+            action,
+            deviceKey,
+            cancellationToken);
 }

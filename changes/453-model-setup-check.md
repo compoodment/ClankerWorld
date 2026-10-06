@@ -1,0 +1,1 @@
+- Add an explicit model setup check that makes one paid call and reports a bounded result.

@@ -1,4 +1,5 @@
 using ClankerWorld.GodotClient.UI;
+using ClankerWorld.AgentPlacement;
 using Godot;
 
 namespace ClankerWorld.GodotClient;
@@ -13,9 +14,10 @@ public partial class Main
     private readonly Button startWorldButton = new();
     private readonly PanelContainer founderSetupPanel = new();
     private readonly Label founderSetupHint = new();
+    private readonly TextureRect founderPlacementIcon = new();
     private readonly OptionButton founderProviderChoice = new();
     private readonly OptionButton founderCredentialChoice = new();
-    private readonly LineEdit founderModelInput = new();
+    private readonly ModelPicker founderModelPicker = new();
     private readonly LineEdit founderKeyLabelInput = new();
     private readonly LineEdit founderApiKeyInput = new();
     private bool placingAddedAgent;
@@ -61,8 +63,8 @@ public partial class Main
         if (!TryGetOwner(out var authority, out var deviceId, out var signer)) return;
         await RunOwnerActionAsync(async () =>
         {
-            var result = await ownerApi.MoveFounderAsync(ResolveWorldUri(), authority, deviceId,
-                new OwnerFounderMoveAction(founderId, tile.X, tile.Y), signer, CancellationToken.None);
+            var result = await AwaitCurrentWorldResultAsync(ownerApi.MoveFounderAsync(ResolveWorldUri(), authority, deviceId,
+                new OwnerFounderMoveAction(founderId, tile.X, tile.Y), signer, CancellationToken.None));
             movingFounderId = null;
             moveFounderButton.Text = "Move founder";
             return result.Changed ? $"Founder moved to {result.X}, {result.Y}" : "The founder is already there";
@@ -78,13 +80,13 @@ public partial class Main
         if (founderId is null) return;
         await RunOwnerActionAsync(async () =>
         {
-            var result = await ownerApi.UndoFounderAsync(ResolveWorldUri(), authority, deviceId,
-                new OwnerFounderUndoAction(founderId), signer, CancellationToken.None);
+            var result = await AwaitCurrentWorldResultAsync(ownerApi.UndoFounderAsync(ResolveWorldUri(), authority, deviceId,
+                new OwnerFounderUndoAction(founderId), signer, CancellationToken.None));
             if (selectedInhabitantId == founderId) selectedInhabitantId = null;
             movingFounderId = null;
             founderApiKeyInput.Text = string.Empty;
-            providerConfiguration = await ownerApi.GetProviderStatusAsync(
-                ResolveWorldUri(), authority, deviceId, signer, CancellationToken.None);
+            providerConfiguration = await AwaitCurrentWorldResultAsync(ownerApi.GetProviderStatusAsync(
+                ResolveWorldUri(), authority, deviceId, signer, CancellationToken.None));
             PopulateFounderCredentials();
             return $"Last founder removed · {result.Placed}/{result.Required} placed. Add another when you're ready.";
         });
@@ -97,34 +99,56 @@ public partial class Main
             CancelFirstTownSiteSelection();
             return;
         }
-        if (observationSession.Current?.Baseline.Snapshot.FounderSetup is not
-            { CanChooseTownSite: true }) return;
+        if (observationSession.Current?.Baseline.Snapshot is not
+            { FounderSetup: { CanChooseTownSite: true } } snapshot) return;
         choosingFirstTownSite = true;
-        townSiteButton.Text = TownSiteButtonText(observationSession.Current.Baseline.Snapshot.FounderSetup);
+        townSiteButton.Text = TownSiteButtonText(snapshot.FounderSetup);
         founderApiKeyInput.Text = string.Empty;
         founderSetupPanel.Hide();
-        SetStatus("Click buildable land to generate the first Town. Choose again to redo before placing founders.", good: true,
+        UpdateTownSiteGuidance(snapshot, force: true);
+        SetStatus("Town-site tips are guidance only: greener land has more nearby food, fertile ground, wood and stone, plus room for Roads. Layout fit is checked when chosen.", good: true,
             StatusToastKind.Sticky);
+        UpdateHoverReadout(snapshot, hoverReadoutTile);
     }
 
     private void CancelFirstTownSiteSelection()
     {
         choosingFirstTownSite = false;
         townSiteButton.Text = TownSiteButtonText(observationSession.Current?.Baseline.Snapshot.FounderSetup);
+        UpdateTownSiteGuidance(null);
+        UpdateHoverReadout(observationSession.Current?.Baseline.Snapshot, hoverReadoutTile);
         SetStatus("Town-site selection closed", good: true);
     }
 
+    private void UpdateTownSiteGuidance(OwnerWorldSnapshot? snapshot, bool force = false)
+    {
+        if (!choosingFirstTownSite || terrainMap is null ||
+            snapshot?.FounderSetup is not { CanChooseTownSite: true })
+        {
+            terrainLayer.SetTownSiteGuidance(null);
+            return;
+        }
+        if (force || terrainLayer.CurrentTownSiteGuidance is null)
+            terrainLayer.SetTownSiteGuidance(TownSiteGuidance.Create(terrainMap, snapshot));
+    }
+
+    private bool CanSubmitFirstTownSiteChoice(OwnerWorldSnapshot snapshot, Vector2I tile) =>
+        choosingFirstTownSite && snapshot.FounderSetup is { CanChooseTownSite: true } &&
+        MapContains(snapshot, tile.X, tile.Y);
+
     private async Task AcceptFirstTownSiteAtAsync(Vector2I tile)
     {
-        if (!choosingFirstTownSite || isOwnerAction ||
-            observationSession.Current?.Baseline.Snapshot is not { FounderSetup: { CanChooseTownSite: true } } snapshot ||
-            !MapContains(snapshot, tile.X, tile.Y) ||
+        if (isOwnerAction ||
+            observationSession.Current?.Baseline.Snapshot is not { } snapshot ||
+            !CanSubmitFirstTownSiteChoice(snapshot, tile) ||
             !TryGetOwner(out var authority, out var deviceId, out var signer)) return;
         await RunOwnerActionAsync(async () =>
         {
-            var result = await ownerApi.AcceptFirstTownLayoutAsync(ResolveWorldUri(), authority, deviceId,
-                new OwnerFirstTownLayoutAction(tile.X, tile.Y), signer, CancellationToken.None);
+            var result = await AwaitCurrentWorldResultAsync(ownerApi.AcceptFirstTownLayoutAsync(ResolveWorldUri(), authority, deviceId,
+                new OwnerFirstTownLayoutAction(tile.X, tile.Y), signer, CancellationToken.None));
             choosingFirstTownSite = false;
+            UpdateTownSiteGuidance(null);
+            UpdateHoverReadout(snapshot, hoverReadoutTile);
             return $"Your Town is set: {result.Buildings} buildings and {result.RoadTiles} road tiles near {result.X}, {result.Y}. Add founders, or pick a different spot.";
         });
     }
@@ -135,7 +159,6 @@ public partial class Main
         body.AddThemeConstantOverride("separation", 7);
         founderSetupHint.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         founderSetupHint.CustomMinimumSize = new Vector2(320, 0);
-        body.AddChild(founderSetupHint);
 
         founderProviderChoice.AddItem("OpenAI");
         founderProviderChoice.SetItemMetadata(0, "openai");
@@ -143,22 +166,57 @@ public partial class Main
         founderProviderChoice.SetItemMetadata(1, "ollama-cloud");
         founderProviderChoice.ItemSelected += _ =>
         {
-            founderModelInput.Text = DefaultProviderModel(SelectedFounderProvider());
+            founderModelPicker.SetModel(DefaultProviderModel(SelectedFounderProvider()), isNewAgent: true);
+            ClearFounderModelSetupCheck();
             PopulateFounderCredentials();
         };
+        body.AddChild(FieldCaption("Provider", founderProviderChoice));
         body.AddChild(founderProviderChoice);
 
-        founderModelInput.PlaceholderText = "Model name for this agent";
-        founderModelInput.Text = DefaultProviderModel("openai");
-        body.AddChild(founderModelInput);
-
-        founderCredentialChoice.ItemSelected += _ => RenderFounderCredentialInputs();
+        // The key comes before the model, since the key decides which models are offered.
+        founderCredentialChoice.ItemSelected += _ =>
+        {
+            ClearFounderModelSetupCheck();
+            RenderFounderCredentialInputs();
+            RequestFounderModels();
+        };
+        body.AddChild(FieldCaption("API key", founderCredentialChoice));
         body.AddChild(founderCredentialChoice);
         founderKeyLabelInput.PlaceholderText = "Name this key (for example, Personal account)";
         body.AddChild(founderKeyLabelInput);
         founderApiKeyInput.Secret = true;
         founderApiKeyInput.PlaceholderText = "Paste API key";
+        founderApiKeyInput.TextChanged += _ => OnFounderKeyEdited();
         body.AddChild(founderApiKeyInput);
+
+        founderModelPicker.SetModel(DefaultProviderModel("openai"), isNewAgent: true);
+        founderModelPicker.RetryRequested += RequestFounderModels;
+        founderModelPicker.ModelChanged += ClearFounderModelSetupCheck;
+        body.AddChild(FieldCaption("Model", founderModelPicker));
+        body.AddChild(founderModelPicker);
+        founderModelSetupCheckButton.Text = "Test model · 1 paid call";
+        founderModelSetupCheckButton.TooltipText = "Sends one request with this model and key. It counts toward your paid-call limit.";
+        StyleButton(founderModelSetupCheckButton);
+        founderModelSetupCheckButton.Pressed += () => _ = RunFounderModelSetupCheckAsync();
+        body.AddChild(founderModelSetupCheckButton);
+        founderModelSetupCheckStatus.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        founderModelSetupCheckStatus.ThemeTypeVariation = "DimLabel";
+        body.AddChild(founderModelSetupCheckStatus);
+        // Placement hints wrap differently as the pointer crosses the map.
+        // Keep them after the fields so those click targets never move.
+        body.AddChild(new HSeparator());
+        var placement = new HBoxContainer();
+        placement.AddThemeConstantOverride("separation", 8);
+        placement.AddChild(founderPlacementIcon);
+        founderPlacementIcon.StretchMode = TextureRect.StretchModeEnum.KeepCentered;
+        founderPlacementIcon.SizeFlagsVertical = Control.SizeFlags.ShrinkBegin;
+        // The mouse says the next step happens on the map; it follows the theme's ink.
+        void PaintPlacementIcon() => founderPlacementIcon.Texture = PixelIcons.Texture(PixelGlyph.Mouse, UiTheme.Current.Ink, UiTheme.Current.Primary, 1);
+        PaintPlacementIcon();
+        founderPlacementIcon.ThemeChanged += PaintPlacementIcon;
+        founderSetupHint.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        placement.AddChild(founderSetupHint);
+        body.AddChild(placement);
 
         AddClosablePanelContents(founderSetupPanel, "Add an agent", body, () =>
         {
@@ -168,6 +226,7 @@ public partial class Main
         });
         founderSetupPanel.Position = new Vector2(350, 14);
         founderSetupPanel.ZIndex = 90;
+        founderSetupPanel.VisibilityChanged += ApplyMapFiltersFromCurrentSnapshot;
         founderSetupPanel.Hide();
         canvas.AddChild(founderSetupPanel);
         PopulateFounderCredentials();
@@ -179,6 +238,7 @@ public partial class Main
 
     private void PopulateFounderCredentials()
     {
+        ClearFounderModelSetupCheck();
         founderCredentialChoice.Clear();
         founderCredentialChoice.AddItem("Default key for this provider");
         founderCredentialChoice.SetItemMetadata(0, "default");
@@ -188,12 +248,13 @@ public partial class Main
             founderCredentialChoice.AddItem(slot.Label);
             founderCredentialChoice.SetItemMetadata(founderCredentialChoice.ItemCount - 1, slot.Id);
         }
-        founderCredentialChoice.AddItem("Add a new API key…");
+        founderCredentialChoice.AddItem("Add a new API key...");
         founderCredentialChoice.SetItemMetadata(founderCredentialChoice.ItemCount - 1, "new");
         var defaultAvailable = providerConfiguration?.Providers.Any(option =>
             option.Provider == SelectedFounderProvider() && option.HasCredential) == true;
         founderCredentialChoice.Select(founderCredentialChoice.ItemCount > 2 ? 1 : defaultAvailable ? 0 : founderCredentialChoice.ItemCount - 1);
         RenderFounderCredentialInputs();
+        RequestFounderModels();
     }
 
     private void RenderFounderCredentialInputs()
@@ -224,11 +285,11 @@ public partial class Main
         if (!TryGetOwner(out var authority, out var deviceId, out var signer)) return;
         await RunOwnerActionAsync(async () =>
         {
-            providerConfiguration = await ownerApi.GetProviderStatusAsync(
-                ResolveWorldUri(), authority, deviceId, signer, CancellationToken.None);
-            PopulateFounderCredentials();
+            providerConfiguration = await AwaitCurrentWorldResultAsync(ownerApi.GetProviderStatusAsync(
+                ResolveWorldUri(), authority, deviceId, signer, CancellationToken.None));
             founderSetupPanel.Show();
-            return "Pick a model and key, then click an empty spot to place the founder.";
+            PopulateFounderCredentials();
+            return "Pick a key and model, then click an empty spot to place the founder.";
         });
     }
 
@@ -241,24 +302,29 @@ public partial class Main
             placingAddedAgent = false;
             return;
         }
+        await OpenAddAgentAsync();
+    }
+
+    private async Task OpenAddAgentAsync()
+    {
+        if (founderSetupPanel.Visible && placingAddedAgent) return;
         if (observationSession.Current?.Baseline.Snapshot is not { FounderSetup: { Started: true } }) return;
         if (!TryGetOwner(out var authority, out var deviceId, out var signer)) return;
         await RunOwnerActionAsync(async () =>
         {
-            providerConfiguration = await ownerApi.GetProviderStatusAsync(
-                ResolveWorldUri(), authority, deviceId, signer, CancellationToken.None);
-            PopulateFounderCredentials();
+            providerConfiguration = await AwaitCurrentWorldResultAsync(ownerApi.GetProviderStatusAsync(
+                ResolveWorldUri(), authority, deviceId, signer, CancellationToken.None));
             placingAddedAgent = true;
-            townBorderFilter.ButtonPressed = true;
-            householdPropertyFilter.ButtonPressed = true;
             ResetAddAgentPlacementHint();
             founderSetupPanel.Show();
+            PopulateFounderCredentials();
             return "Click empty land or a House to place the new agent.";
         });
     }
 
     private async Task PlaceAgentAtAsync(Vector2I tile)
     {
+        var generation = observationSession.RequestGeneration;
         if (isOwnerAction || observationSession.Current?.Baseline.Snapshot is not { FounderSetup: { Started: true } } snapshot ||
             !MapContains(snapshot, tile.X, tile.Y) ||
             (snapshot.Inhabitants.Any(item => item.Lifecycle == "active" &&
@@ -270,9 +336,15 @@ public partial class Main
             SetStatus("Click empty land or a House.", good: false);
             return;
         }
+        var membership = ResolveAgentPlacement(snapshot, tile);
+        if (membership.IsAmbiguous)
+        {
+            SetStatus(PlacementRefusalText(membership.Ambiguity), good: false);
+            return;
+        }
         if (!TryGetOwner(out var authority, out var deviceId, out var signer)) return;
         var provider = SelectedFounderProvider();
-        var model = founderModelInput.Text.Trim();
+        var model = founderModelPicker.Model;
         var choice = SelectedFounderCredential();
         var newKey = choice == "new";
         if (model.Length == 0)
@@ -296,32 +368,36 @@ public partial class Main
         {
             await RunOwnerActionAsync(async () =>
             {
-                var receipt = await ownerApi.PlaceAgentAsync(ResolveWorldUri(), authority, deviceId,
-                    new OwnerAgentPlacementAction(agentId, tile.X, tile.Y, cognition), signer, CancellationToken.None);
-                providerConfiguration = await ownerApi.GetProviderStatusAsync(
-                    ResolveWorldUri(), authority, deviceId, signer, CancellationToken.None);
+                var receipt = await AwaitCurrentWorldResultAsync(ownerApi.PlaceAgentAsync(ResolveWorldUri(), authority, deviceId,
+                    new OwnerAgentPlacementAction(agentId, tile.X, tile.Y, cognition,
+                        membership.HouseholdIdFor(agentId), membership.TownId), signer, CancellationToken.None));
+                providerConfiguration = await AwaitCurrentWorldResultAsync(ownerApi.GetProviderStatusAsync(
+                    ResolveWorldUri(), authority, deviceId, signer, CancellationToken.None));
                 placingAddedAgent = false;
                 founderSetupPanel.Hide();
                 if (receipt.HouseholdId is null)
                 {
-                    var townName = snapshot.Towns.FirstOrDefault(item =>
-                        item.BorderTiles.Any(point => point.X == tile.X && point.Y == tile.Y))?.Name ?? "a Town";
+                    var townName = snapshot.Towns.FirstOrDefault(item => item.Id == receipt.TownId)?.Name ?? "a Town";
                     return $"Agent joined {townName} without a household";
                 }
                 var newHousehold = receipt.HouseholdId == "household:" + agentId;
                 return newHousehold ? "Agent placed in a new independent household"
                     : $"Agent joined {GameUiText.PartyName(snapshot, receipt.HouseholdId)}";
-            });
+            }, conflictMessage: "The placement changed. Check the tile and try again.");
         }
         finally
         {
-            founderApiKeyInput.Text = string.Empty;
-            founderKeyLabelInput.Text = string.Empty;
+            if (IsCurrentWorldRequest(generation))
+            {
+                founderApiKeyInput.Text = string.Empty;
+                founderKeyLabelInput.Text = string.Empty;
+            }
         }
     }
 
     private async Task PlaceFounderAtAsync(Vector2I tile)
     {
+        var generation = observationSession.RequestGeneration;
         if (isOwnerAction || observationSession.Current?.Baseline.Snapshot is not { FounderSetup: { Started: false } } snapshot ||
             !MapContains(snapshot, tile.X, tile.Y) ||
             snapshot.Inhabitants.Any(item => item.Position.X == tile.X && item.Position.Y == tile.Y) ||
@@ -333,7 +409,7 @@ public partial class Main
         }
         if (!TryGetOwner(out var authority, out var deviceId, out var signer)) return;
         var provider = SelectedFounderProvider();
-        var model = founderModelInput.Text.Trim();
+        var model = founderModelPicker.Model;
         var choice = SelectedFounderCredential();
         var newKey = choice == "new";
         if (model.Length == 0)
@@ -357,18 +433,21 @@ public partial class Main
         {
             await RunOwnerActionAsync(async () =>
             {
-                var receipt = await ownerApi.PlaceFounderAsync(ResolveWorldUri(), authority, deviceId,
-                    new OwnerFounderPlacementAction(founderId, tile.X, tile.Y, cognition), signer, CancellationToken.None);
-                providerConfiguration = await ownerApi.GetProviderStatusAsync(
-                    ResolveWorldUri(), authority, deviceId, signer, CancellationToken.None);
+                var receipt = await AwaitCurrentWorldResultAsync(ownerApi.PlaceFounderAsync(ResolveWorldUri(), authority, deviceId,
+                    new OwnerFounderPlacementAction(founderId, tile.X, tile.Y, cognition), signer, CancellationToken.None));
+                providerConfiguration = await AwaitCurrentWorldResultAsync(ownerApi.GetProviderStatusAsync(
+                    ResolveWorldUri(), authority, deviceId, signer, CancellationToken.None));
                 PopulateFounderCredentials();
                 return $"Founder {receipt.Placed}/{receipt.Required} placed · joins {GameUiText.PartyName(snapshot, receipt.HouseholdId)}";
             });
         }
         finally
         {
-            founderApiKeyInput.Text = string.Empty;
-            founderKeyLabelInput.Text = string.Empty;
+            if (IsCurrentWorldRequest(generation))
+            {
+                founderApiKeyInput.Text = string.Empty;
+                founderKeyLabelInput.Text = string.Empty;
+            }
         }
     }
 
@@ -377,7 +456,7 @@ public partial class Main
         if (!TryGetOwner(out var authority, out var deviceId, out var signer)) return;
         await RunOwnerActionAsync(async () =>
         {
-            _ = await ownerApi.StartWorldAsync(ResolveWorldUri(), authority, deviceId, signer, CancellationToken.None);
+            _ = await AwaitCurrentWorldResultAsync(ownerApi.StartWorldAsync(ResolveWorldUri(), authority, deviceId, signer, CancellationToken.None));
             founderSetupPanel.Hide();
             return "World started";
         });
@@ -396,12 +475,21 @@ public partial class Main
         addAgentButton.Visible = setup is { Started: true };
         if (setup is not { Started: false })
         {
+            var wasChoosingTownSite = choosingFirstTownSite;
             choosingFirstTownSite = false;
+            UpdateTownSiteGuidance(null);
+            if (wasChoosingTownSite) UpdateHoverReadout(snapshot, hoverReadoutTile);
             movingFounderId = null;
             if (!placingAddedAgent) founderSetupPanel.Hide();
             return;
         }
-        if (!setup.CanChooseTownSite) choosingFirstTownSite = false;
+        if (!setup.CanChooseTownSite)
+        {
+            var wasChoosingTownSite = choosingFirstTownSite;
+            choosingFirstTownSite = false;
+            UpdateTownSiteGuidance(null);
+            if (wasChoosingTownSite) UpdateHoverReadout(snapshot, hoverReadoutTile);
+        }
         townSiteButton.Text = TownSiteButtonText(setup);
         if (movingFounderId is not null && !snapshot.Inhabitants.Any(person => person.Id == movingFounderId))
         {
@@ -410,7 +498,7 @@ public partial class Main
         }
         founderSetupButton.Text = $"Add founders {setup.Placed}/{setup.Required}";
         founderSetupHint.Text = setup.Placed < setup.Required
-            ? $"Choose this founder’s model and key, then place them near your Town. The first two share one household; the next two share another. {setup.Placed}/{setup.Required} placed."
+            ? $"Choose this founder's model and key, then place them near your Town. The first two share one household; the next two share another. {setup.Placed}/{setup.Required} placed."
             : "All four founders are placed. Move or undo one if you need to, then choose Start World to let time run.";
     }
 
@@ -421,7 +509,7 @@ public partial class Main
 
     private void ResetAddAgentPlacementHint()
     {
-        founderSetupHint.Text = "Pick a provider, model and key for this adult, then point at a tile. On a household's property they join that household. On other Town land they join the Town only. Outside the Town they start their own household. House tiles can be shared.";
+        founderSetupHint.Text = "Click on land to place them. Point first to see which household and Town they would join.";
     }
 
     private void PreviewAddAgentPlacement(OwnerWorldSnapshot snapshot, Vector2I tile)
@@ -434,19 +522,69 @@ public partial class Main
             snapshot.Objects.Any(item => item.Position.X == tile.X && item.Position.Y == tile.Y) ||
             snapshot.Resources.Any(item => item.Position.X == tile.X && item.Position.Y == tile.Y))
         {
-            founderSetupHint.Text = "Point at empty land or a House to see where this adult would belong.";
+            founderSetupHint.Text = "Point at empty land or a House to see where they would belong.";
             return;
         }
-        var ownerId = snapshot.PlacedBuildings.FirstOrDefault(item => item.HouseholdId is not null &&
-            tile.X >= item.Position.X && tile.X < item.Position.X + item.Width &&
-            tile.Y >= item.Position.Y && tile.Y < item.Position.Y + item.Height)?.HouseholdId;
-        var town = snapshot.Towns.FirstOrDefault(item =>
-            item.BorderTiles.Any(point => point.X == tile.X && point.Y == tile.Y));
-        var home = ownerId is not null
-            ? GameUiText.PartyName(snapshot, ownerId)
-            : town is null ? "new independent household" : "none";
-        founderSetupHint.Text = $"Tile {tile.X}, {tile.Y} · Household: {home} · Town: {town?.Name ?? "no Town"}. " +
-            "Placement requires a passable tile, no conflicting occupant outside a House, and server validation.";
+        var membership = ResolveAgentPlacement(snapshot, tile);
+        if (membership.IsAmbiguous)
+        {
+            founderSetupHint.Text = PlacementRefusalText(membership.Ambiguity);
+            return;
+        }
+        var town = membership.TownId is null
+            ? null
+            : snapshot.Towns.FirstOrDefault(item => item.Id == membership.TownId);
+        founderSetupHint.Text = (membership.HouseholdPropertyOwnerId, town) switch
+        {
+            ({ } ownerId, { } inTown) => $"Click to place them here. They would join {GameUiText.PartyName(snapshot, ownerId)} in {inTown.Name}.",
+            ({ } ownerId, null) => $"Click to place them here. They would join {GameUiText.PartyName(snapshot, ownerId)}, outside any Town.",
+            (null, { } inTown) => $"Click to place them here. They would join {inTown.Name} without a household.",
+            _ => "Click to place them here. They would start their own household, outside any Town.",
+        };
+    }
+
+    private static AgentPlacementResolution ResolveAgentPlacement(OwnerWorldSnapshot snapshot, Vector2I tile)
+    {
+        var buildingOwners = snapshot.PlacedBuildings
+            .Where(item => item.HouseholdId is not null &&
+                tile.X >= item.Position.X && tile.X < item.Position.X + item.Width &&
+                tile.Y >= item.Position.Y && tile.Y < item.Position.Y + item.Height)
+            .Select(item => item.HouseholdId)
+            .ToArray();
+        var householdOwners = buildingOwners
+            .Concat(snapshot.Fields.Where(item => item.Position.X == tile.X && item.Position.Y == tile.Y)
+                .Select(item => (string?)item.HouseholdId));
+        var rights = snapshot.HouseholdLandUseRights
+            .Where(item => item.Tiles.Any(point => point.X == tile.X && point.Y == tile.Y)).ToArray();
+        var requests = snapshot.HouseholdLandUseRequests
+            .Where(item => item.Tiles.Any(point => point.X == tile.X && point.Y == tile.Y)).ToArray();
+        var claimants = rights.Select(item => item.HouseholdId)
+            .Concat(requests.Select(item => item.HouseholdId))
+            .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
+        // Matches the server: a dispute always counts, and otherwise a use right
+        // counts only where no household building stands.
+        if (claimants.Length > 1) householdOwners = householdOwners.Concat(claimants);
+        else if (buildingOwners.Length == 0)
+            householdOwners = householdOwners.Concat(rights.Select(item => item.HouseholdId));
+        var townIds = snapshot.Towns
+            .Where(item => item.BorderTiles.Any(point => point.X == tile.X && point.Y == tile.Y) ||
+                snapshot.TownLandTitles.Any(title => title.TownId == item.Id &&
+                    title.Tiles.Any(point => point.X == tile.X && point.Y == tile.Y)))
+            .Select(item => item.Id);
+        return AgentPlacementRules.Resolve(householdOwners, townIds);
+    }
+
+    private static string PlacementRefusalText(AgentPlacementAmbiguity ambiguity)
+    {
+        var household = (ambiguity & AgentPlacementAmbiguity.HouseholdProperty) != 0;
+        var town = (ambiguity & AgentPlacementAmbiguity.TownBorders) != 0;
+        return (household, town) switch
+        {
+            (true, true) => "Household property and Town borders overlap here. Choose another tile.",
+            (true, false) => "Household property or land claims overlap here. Choose a tile with one clear household owner.",
+            (false, true) => "Town borders overlap here. Choose a tile inside only one Town.",
+            _ => "This tile cannot be used for Add Agent.",
+        };
     }
 
     private static bool IsHouseAt(OwnerWorldSnapshot snapshot, Vector2I tile) =>

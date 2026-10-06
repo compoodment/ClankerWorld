@@ -1,12 +1,32 @@
 using System.Net;
 using ClankerWorld.Simulation.Cognition;
+using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Viewer.Control;
-using ClankerWorld.Viewer.Observation;
 
 namespace ClankerWorld.Simulation.Tests;
 
 public sealed class ProviderConfigurationStoreTests
 {
+    [Fact]
+    public async Task FirstIdentityChoiceUsesPersonalPlannerEvenWithOnlyRoutineCandidates()
+    {
+        var directory = Directory.CreateTempSubdirectory("clankerworld-identity-provider-");
+        try
+        {
+            var store = new ProviderConfigurationStore(Path.Combine(directory.FullName, "providers.json"), EmptySeed());
+            _ = store.Configure(new("routine", "jev", "jev-test", "routine-secret", false));
+            _ = store.Configure(new("planning", "openai", "personal-model", "personal-secret", false));
+            var handler = new ProviderResponseHandler();
+            var router = new ConfigurableDecisionProvider(store, new FixedHttpClientFactory(handler));
+            var observation = Request(router.ProviderEpoch).Observation with { NeedsPersonality = true, NeedsAspiration = true };
+            Assert.Equal(DecisionProviderKind.LargeLanguageModel, router.KindFor(observation));
+            _ = await router.DecideAsync(new("first-identity", router.ProviderEpoch, observation));
+            Assert.Equal("api.openai.com", handler.LastUri!.Host);
+            Assert.Equal("personal-model", handler.LastModel);
+        }
+        finally { directory.Delete(recursive: true); }
+    }
+
     [WindowsCredentialFact]
     public void WindowsProtectionMigratesLegacyKeysAndPreservesUnreadableProtectedBytes()
     {
@@ -73,8 +93,212 @@ public sealed class ProviderConfigurationStoreTests
             Assert.Equal("child-model", handler.LastModel);
             Assert.Equal("Bearer child-secret", handler.LastAuthorization);
 
-            _ = restoredStore.Configure(new("personal", "inherit", null, null, false, "inhabitant-test"));
-            Assert.Equal(DecisionProviderKind.Deterministic, restored.KindFor(planning));
+            _ = restoredStore.Configure(new("personal", PlayerDecisionProviders.Inherit, null, null, false, "inhabitant-test"));
+            var inheritedAssignments = restoredStore.CaptureStatus().Assignments!;
+            Assert.Equal(2, inheritedAssignments.Count);
+            Assert.All(inheritedAssignments, assignment =>
+            {
+                Assert.Equal(PlayerDecisionProviders.Inherit, assignment.Provider);
+                Assert.Null(assignment.Model);
+                Assert.Null(assignment.CredentialSlotId);
+                Assert.Null(assignment.SelectionReason);
+            });
+
+            var afterOwnerChoice = new ProviderConfigurationStore(path, EmptySeed());
+            var afterOwnerChoiceHandler = new ProviderResponseHandler();
+            var afterOwnerChoiceRouter = new ConfigurableDecisionProvider(
+                afterOwnerChoice, new FixedHttpClientFactory(afterOwnerChoiceHandler));
+            Assert.Equal(DecisionProviderKind.Deterministic, afterOwnerChoiceRouter.KindFor(planning));
+            Assert.Equal(DecisionProviderKind.LargeLanguageModel,
+                afterOwnerChoiceRouter.KindFor(RequestObservation(strategic: true)));
+            Assert.Null(afterOwnerChoiceHandler.LastUri);
+        }
+        finally { directory.Delete(recursive: true); }
+    }
+
+    [Fact]
+    public async Task GuidanceUsesAdultPlanningInheritanceButLeavesUnconfiguredChildAndOffAdultLocal()
+    {
+        var directory = Directory.CreateTempSubdirectory("clankerworld-guidance-routing-");
+        try
+        {
+            var path = Path.Combine(directory.FullName, "providers.json");
+            var store = new ProviderConfigurationStore(path, EmptySeed());
+            _ = store.Configure(new("routine", "jev", "jev-test", "world-jev-secret", false));
+            _ = store.Configure(new("planning", "openai", "world-planner", "world-planner-secret", false));
+            var handler = new ProviderResponseHandler();
+            var router = new ConfigurableDecisionProvider(store, new FixedHttpClientFactory(handler));
+            var adultObservation = GuidanceObservation() with { RequiresPersonalProvider = false };
+
+            Assert.Equal(DecisionProviderKind.LargeLanguageModel, router.KindFor(adultObservation));
+            _ = await router.DecideAsync(new("adult-guidance", router.ProviderEpoch, adultObservation));
+            Assert.Equal("api.openai.com", handler.LastUri!.Host);
+            Assert.Equal("world-planner", handler.LastModel);
+            Assert.DoesNotContain("world-jev-secret", handler.LastBody, StringComparison.Ordinal);
+            Assert.Equal(1, handler.RequestCount);
+
+            var unconfiguredChild = GuidanceObservation() with { RequiresPersonalProvider = true };
+            Assert.Equal(DecisionProviderKind.Deterministic, router.KindFor(unconfiguredChild));
+            Assert.Equal(DecisionProviderKind.Deterministic,
+                (await router.DecideAsync(new("child-guidance", router.ProviderEpoch, unconfiguredChild))).Provider);
+            Assert.Equal(1, handler.RequestCount);
+
+            _ = store.Configure(new("planning", PlayerDecisionProviders.Deterministic,
+                null, null, false, "inhabitant-test"));
+            var offRouter = new ConfigurableDecisionProvider(store, new FixedHttpClientFactory(handler));
+            Assert.Equal(DecisionProviderKind.Deterministic, offRouter.KindFor(adultObservation));
+            Assert.Equal(DecisionProviderKind.Deterministic,
+                (await offRouter.DecideAsync(new("adult-guidance-off", offRouter.ProviderEpoch, adultObservation))).Provider);
+            Assert.Equal(1, handler.RequestCount);
+        }
+        finally { directory.Delete(recursive: true); }
+    }
+
+    [Fact]
+    public void OwnerCanChangeOneRoleWithoutOverwritingTheOtherBirthRoute()
+    {
+        var directory = Directory.CreateTempSubdirectory("clankerworld-child-role-override-");
+        try
+        {
+            var path = Path.Combine(directory.FullName, "providers.json");
+            var store = new ProviderConfigurationStore(path, EmptySeed());
+            _ = store.Configure(new("planning", "openai", "world-model", "world-key", false));
+            var selection = new ChildPersonalModelSelection("personal", "openai",
+                PrivateWorldRuntime.OpenAiModelEndpointIdentity, "birth-model", null,
+                PrivateWorldRuntime.ChildModelChoiceParentsAgreed);
+            var bound = store.ConfigureChildModelSelectionWithCommit("inhabitant-test", selection, static _ => { });
+
+            _ = store.Configure(new(PlayerDecisionProviders.PlanningRole, PlayerDecisionProviders.Deterministic,
+                null, null, false, "inhabitant-test"));
+
+            var reloaded = new ProviderConfigurationStore(path, EmptySeed());
+            var assignments = reloaded.CaptureStatus().Assignments!;
+            var routine = Assert.Single(assignments, item => item.Role == PlayerDecisionProviders.RoutineRole);
+            var planning = Assert.Single(assignments, item => item.Role == PlayerDecisionProviders.PlanningRole);
+            Assert.Equal("openai", routine.Provider);
+            Assert.Equal("birth-model", routine.Model);
+            Assert.Equal(bound.CredentialSlotId, routine.CredentialSlotId);
+            Assert.Equal(PrivateWorldRuntime.ChildModelChoiceParentsAgreed, routine.SelectionReason);
+            Assert.Equal(PlayerDecisionProviders.Deterministic, planning.Provider);
+            Assert.Null(planning.SelectionReason);
+
+            var router = new ConfigurableDecisionProvider(reloaded, new FixedHttpClientFactory(new ProviderResponseHandler()));
+            Assert.Equal(DecisionProviderKind.LargeLanguageModel,
+                router.KindFor(RequestObservation(strategic: false) with { RequiresPersonalProvider = true }));
+            Assert.Equal(DecisionProviderKind.Deterministic,
+                router.KindFor(RequestObservation(strategic: true) with { RequiresPersonalProvider = true }));
+        }
+        finally { directory.Delete(recursive: true); }
+    }
+
+    [Fact]
+    public async Task InheritedChildModelKeepsItsChoiceButUsesLocalRulesWhenItsKeyIsMissing()
+    {
+        var directory = Directory.CreateTempSubdirectory("clankerworld-child-model-key-");
+        try
+        {
+            var original = new ProviderConfigurationStore(Path.Combine(directory.FullName, "original.json"), EmptySeed());
+            var slotId = Guid.NewGuid().ToString("N");
+            _ = original.CreateCredentialSlot(new(slotId, "openai", "Parent model", "parent-model-secret"));
+            var selection = new ChildPersonalModelSelection("personal", "openai",
+                PrivateWorldRuntime.OpenAiModelEndpointIdentity, "inherited-private-model", slotId,
+                PrivateWorldRuntime.ChildModelChoiceInitiatingParent);
+            original.ConfigureChildModelSelectionWithCommit("inhabitant-test", selection, static _ => { });
+            var savedAssignments = original.CaptureStatus().Assignments!;
+            Assert.Equal(2, savedAssignments.Count);
+            Assert.All(savedAssignments, assignment =>
+            {
+                Assert.Equal("inherited-private-model", assignment.Model);
+                Assert.Equal(slotId, assignment.CredentialSlotId);
+                Assert.Equal(PrivateWorldRuntime.ChildModelChoiceInitiatingParent, assignment.SelectionReason);
+            });
+            var selectedHandler = new ProviderResponseHandler();
+            var selectedRouter = new ConfigurableDecisionProvider(original, new FixedHttpClientFactory(selectedHandler));
+            var selectedRequest = Request(selectedRouter.ProviderEpoch, strategic: true) with
+            {
+                Observation = RequestObservation(strategic: true) with { RequiresPersonalProvider = true },
+            };
+            Assert.Equal(DecisionProviderKind.LargeLanguageModel, selectedRouter.KindFor(selectedRequest.Observation));
+            _ = await selectedRouter.DecideAsync(selectedRequest);
+            Assert.Equal("api.openai.com", selectedHandler.LastUri!.Host);
+            Assert.Equal("inherited-private-model", selectedHandler.LastModel);
+            Assert.Equal("Bearer parent-model-secret", selectedHandler.LastAuthorization);
+
+            var moved = new ProviderConfigurationStore(Path.Combine(directory.FullName, "moved.json"), EmptySeed());
+            _ = moved.Configure(new("planning", "ollama-cloud", "world-paid-model", "world-paid-secret", false));
+            Assert.True(moved.CanRestoreWorldAssignments(savedAssignments));
+            moved.RestoreWorldAssignments(savedAssignments);
+            var handler = new ProviderResponseHandler();
+            var router = new ConfigurableDecisionProvider(moved, new FixedHttpClientFactory(handler));
+            var childRequest = Request(router.ProviderEpoch, strategic: true) with
+            {
+                Observation = RequestObservation(strategic: true) with { RequiresPersonalProvider = true },
+            };
+            Assert.Equal(DecisionProviderKind.Deterministic, router.KindFor(childRequest.Observation));
+            Assert.Equal(DecisionProviderKind.Deterministic, (await router.DecideAsync(childRequest)).Provider);
+            Assert.Null(handler.LastUri);
+            var retained = Assert.Single(moved.CaptureStatus().Assignments!, item => item.Role == "planning");
+            Assert.Equal("inherited-private-model", retained.Model);
+            Assert.Equal(slotId, retained.CredentialSlotId);
+            Assert.Equal(PrivateWorldRuntime.ChildModelChoiceInitiatingParent, retained.SelectionReason);
+
+            original.DeleteCredentialSlot(slotId);
+            Assert.Equal("inherited-private-model", Assert.Single(original.CaptureStatus().Assignments!,
+                item => item.Role == "planning").Model);
+            var deletedKeyRouter = new ConfigurableDecisionProvider(original, new FixedHttpClientFactory(handler));
+            Assert.Equal(DecisionProviderKind.Deterministic,
+                deletedKeyRouter.KindFor(RequestObservation(strategic: true) with { RequiresPersonalProvider = true }));
+            Assert.Null(handler.LastUri);
+
+            _ = moved.Configure(new("planning", "openai", "world-openai-model", "world-openai-secret", false));
+            _ = moved.Configure(new("planning", "openai", "world-openai-model", null, true));
+            Assert.Equal("inherited-private-model", Assert.Single(moved.CaptureStatus().Assignments!,
+                item => item.Role == "planning").Model);
+            var afterForget = new ConfigurableDecisionProvider(moved, new FixedHttpClientFactory(handler));
+            Assert.Equal(DecisionProviderKind.Deterministic,
+                afterForget.KindFor(RequestObservation(strategic: true) with { RequiresPersonalProvider = true }));
+            Assert.Null(handler.LastUri);
+
+            var defaultKeyStore = new ProviderConfigurationStore(Path.Combine(directory.FullName, "default-key.json"), EmptySeed());
+            _ = defaultKeyStore.Configure(new("planning", "openai", "default-model", "default-key-secret", false));
+            var defaultKeySelection = selection with { CredentialSlotId = null, ModelId = "default-model" };
+            var boundDefaultSelection = defaultKeyStore.ConfigureChildModelSelectionWithCommit(
+                "inhabitant-test", defaultKeySelection, static _ => { });
+            var localSlotId = Assert.IsType<string>(boundDefaultSelection.CredentialSlotId);
+            Assert.Contains(defaultKeyStore.CaptureStatus().CredentialSlots!, item => item.Id == localSlotId && item.Provider == "openai");
+            var defaultAssignments = defaultKeyStore.CaptureStatus().Assignments!;
+            Assert.All(defaultAssignments, assignment =>
+            {
+                Assert.Equal("default-model", assignment.Model);
+                Assert.Equal(localSlotId, assignment.CredentialSlotId);
+            });
+
+            var movedDefaultKeyStore = new ProviderConfigurationStore(Path.Combine(directory.FullName, "moved-default.json"), EmptySeed());
+            _ = movedDefaultKeyStore.Configure(new("planning", "openai", "different-machine-model", "different-machine-key", false));
+            Assert.True(movedDefaultKeyStore.CanRestoreWorldAssignments(defaultAssignments));
+            movedDefaultKeyStore.RestoreWorldAssignments(defaultAssignments);
+            var movedDefaultHandler = new ProviderResponseHandler();
+            var movedDefaultRouter = new ConfigurableDecisionProvider(movedDefaultKeyStore,
+                new FixedHttpClientFactory(movedDefaultHandler));
+            var movedDefaultRequest = Request(movedDefaultRouter.ProviderEpoch, strategic: true) with
+            {
+                Observation = RequestObservation(strategic: true) with { RequiresPersonalProvider = true },
+            };
+            Assert.Equal(DecisionProviderKind.Deterministic, movedDefaultRouter.KindFor(movedDefaultRequest.Observation));
+            Assert.Equal(DecisionProviderKind.Deterministic, (await movedDefaultRouter.DecideAsync(movedDefaultRequest)).Provider);
+            Assert.Null(movedDefaultHandler.LastUri);
+            var retainedDefault = Assert.Single(movedDefaultKeyStore.CaptureStatus().Assignments!,
+                item => item.Role == PlayerDecisionProviders.PlanningRole);
+            Assert.Equal("default-model", retainedDefault.Model);
+            Assert.Equal(localSlotId, retainedDefault.CredentialSlotId);
+
+            defaultKeyStore.DeleteCredentialSlot(localSlotId);
+            var afterDelete = new ConfigurableDecisionProvider(defaultKeyStore, new FixedHttpClientFactory(handler));
+            Assert.Equal(DecisionProviderKind.Deterministic,
+                afterDelete.KindFor(RequestObservation(strategic: true) with { RequiresPersonalProvider = true }));
+            Assert.Null(handler.LastUri);
+            Assert.Equal("default-model", Assert.Single(defaultKeyStore.CaptureStatus().Assignments!,
+                item => item.Role == "planning").Model);
         }
         finally { directory.Delete(recursive: true); }
     }
@@ -145,25 +369,6 @@ public sealed class ProviderConfigurationStoreTests
             Assert.DoesNotContain("jev-memory-secret", File.ReadAllText(Path.Combine(directory.FullName, "usage.json")));
         }
         finally { directory.Delete(recursive: true); }
-    }
-
-    [Fact]
-    public void SlotDeletionTelemetryReportsOutcomeWithoutCredentialMaterial()
-    {
-        var logger = new RecordingLogger<ProviderConfigurationStore>();
-        var slotId = Guid.NewGuid().ToString("N");
-        OwnerCredentialSlotTelemetry.Deleted(logger, "deleted", slotId);
-        var message = Assert.Single(logger.Messages);
-        Assert.Contains("outcome=deleted", message, StringComparison.Ordinal);
-        Assert.DoesNotContain("secret", message, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public void WorldJevChangeLogReportsOnlyTickAndAvailability()
-    {
-        var logger = new RecordingLogger<PrivateWorldRuntimeService>();
-        OwnerJevAssistanceTelemetry.Changed(logger, 123, false);
-        Assert.Equal("world_jev_assistance tick=123 enabled=False", Assert.Single(logger.Messages));
     }
 
     [Fact]
@@ -294,7 +499,10 @@ public sealed class ProviderConfigurationStoreTests
             Assert.Equal("world-model", handler.LastModel);
 
             _ = store.Configure(new("planning", "inherit", null, null, false, "inhabitant-test"));
-            Assert.Empty(store.CaptureStatus().Assignments!);
+            var inherited = store.CaptureStatus().Assignments!;
+            var inheritedPlanning = Assert.Single(inherited);
+            Assert.Equal(PlayerDecisionProviders.PlanningRole, inheritedPlanning.Role);
+            Assert.Equal(PlayerDecisionProviders.Inherit, inheritedPlanning.Provider);
             _ = await router.DecideAsync(Request(router.ProviderEpoch, strategic: true));
             Assert.Equal("ollama.com", handler.LastUri!.Host);
 
@@ -377,7 +585,9 @@ public sealed class ProviderConfigurationStoreTests
             _ = store.Configure(new("personal", "inherit", null, null, false, "inhabitant-test"));
             var deleted = store.DeleteCredentialSlot(slotId);
             Assert.Empty(deleted.CredentialSlots!);
-            Assert.Empty(deleted.Assignments!);
+            Assert.Equal(2, deleted.Assignments!.Count);
+            Assert.All(deleted.Assignments, assignment =>
+                Assert.Equal(PlayerDecisionProviders.Inherit, assignment.Provider));
             Assert.DoesNotContain(secret, File.ReadAllText(path), StringComparison.Ordinal);
             Assert.DoesNotContain(secret, System.Text.Json.JsonSerializer.Serialize(deleted), StringComparison.Ordinal);
             Assert.Throws<ArgumentException>(() => store.DeleteCredentialSlot(slotId));
@@ -436,7 +646,9 @@ public sealed class ProviderConfigurationStoreTests
             Assert.Equal("chosen-model", handler.LastModel);
 
             _ = store.Configure(new("personal", "inherit", null, null, false, "inhabitant-test"));
-            Assert.Empty(store.CaptureStatus().Assignments!);
+            var inherited = store.CaptureStatus().Assignments!;
+            Assert.Equal(2, inherited.Count);
+            Assert.All(inherited, assignment => Assert.Equal(PlayerDecisionProviders.Inherit, assignment.Provider));
         }
         finally
         {
@@ -709,6 +921,16 @@ public sealed class ProviderConfigurationStoreTests
             5_000,
             candidates);
     }
+
+    private static InhabitantObservation GuidanceObservation() => RequestObservation(strategic: false) with
+    {
+        WorldId = "world-provider-test",
+        ObserverGuidance =
+        [
+            new CognitionObserverGuidance("private-instruction-0000000001", "owner:test", "inhabitant-test",
+                "suggestive", "Try berries near the shore.", 12, 0, 1, null, true),
+        ],
+    };
 
     private sealed class FixedHttpClientFactory(HttpMessageHandler handler) : IHttpClientFactory
     {

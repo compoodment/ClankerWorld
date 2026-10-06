@@ -1,11 +1,11 @@
 name: Bug report
 description: Something in the game or server behaves wrongly.
-labels: ["bug"]
+labels: ["type:bug", "priority:p2"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for the report. Please do not paste API keys, pairing codes, private saves or raw provider payloads.
+        Thanks for the report. Please do not paste API keys, pairing codes, private saves or raw provider payloads. This repository is public: if someone could exploit this problem now to get at keys, saves or a host, don't describe it here: [report it privately](https://github.com/compoodment/ClankerWorld/security/advisories/new) instead (agents tell the owner in chat).
   - type: textarea
     id: what-happened
     attributes:
@@ -34,7 +34,7 @@ body:
     id: build
     attributes:
       label: Build or commit
-      description: The game version or the commit hash.
+      description: The build line shown in Settings (version and commit), or the commit hash.
     validations:
       required: true
   - type: dropdown

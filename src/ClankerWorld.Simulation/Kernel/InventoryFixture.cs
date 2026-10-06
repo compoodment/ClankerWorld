@@ -34,6 +34,8 @@ public enum DirectBarterState
 /// Immutable inventory identity. A split retains the source lot as provenance;
 /// quantities, condition and freshness are never fabricated by a transfer.
 /// </summary>
+public readonly record struct InventoryGroundPosition(int X, int Y);
+
 public sealed record InventoryLot(
     string Id,
     string ItemKind,
@@ -44,7 +46,10 @@ public sealed record InventoryLot(
     long LastProcessedTick,
     string? ProvenanceLotId = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? StorageBuildingId = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? DeliveryBuildingId = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? DeliveryBuildingId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ContainerLotId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] InventoryGroundPosition? GroundPosition = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? CarrierId = null);
 
 public sealed record InventoryReservation(
     string Id,
@@ -95,18 +100,58 @@ public sealed record DirectBarterProposal(
     int SecondQuantity,
     long ExpiryTick);
 
+/// <summary>Current physical containers and provisional playtest capacity limits.</summary>
+public static class InventoryContainerRules
+{
+    public const string Handcart = "handcart";
+    public const int HandcartCapacity = 32;
+    public const string StoragePot = "storage_pot";
+    public const string WaterJug = "water_jug";
+    public const string FreshWater = "fresh_water";
+    public const int StoragePotCapacity = 8;
+    public const int WaterJugCapacity = 4;
+
+    private static readonly HashSet<string> FoodKinds = new(StringComparer.Ordinal)
+    {
+        "food", "berries", "wild_greens", "fruit", "grain", "flour", "potato", "potatoes",
+        "greens", "cultivated_greens", "bread", "porridge", "stew",
+        "simple_meal", "berry_porridge", "fruit_porridge", "restaurant_meal",
+    };
+
+    public static bool IsContainer(string itemKind) => itemKind is StoragePot or WaterJug or Handcart;
+
+    public static int Capacity(string itemKind) => itemKind switch
+    {
+        Handcart => HandcartCapacity,
+        StoragePot => StoragePotCapacity,
+        WaterJug => WaterJugCapacity,
+        _ => throw new InvalidOperationException($"'{itemKind}' is not a container."),
+    };
+
+    public static bool Allows(string containerKind, string contentKind) => containerKind switch
+    {
+        Handcart => !IsContainer(contentKind) && contentKind != FreshWater,
+        StoragePot => FoodKinds.Contains(contentKind),
+        WaterJug => contentKind == FreshWater,
+        _ => false,
+    };
+
+    public static bool IsFood(string itemKind) => FoodKinds.Contains(itemKind);
+}
+
 /// <summary>
 /// Compact authoritative inventory fixture. Every public transition validates
 /// before it creates replacement records, so a rejection leaves its supplied
 /// checkpoint untouched.
 /// </summary>
-public static class InventoryFixture
+public static partial class InventoryFixture
 {
     public static InventoryCheckpoint CreateGenesis(IEnumerable<InventoryLot> lots)
     {
         ArgumentNullException.ThrowIfNull(lots);
         var orderedLots = lots.OrderBy(lot => lot.Id, StringComparer.Ordinal).ToArray();
         ValidateLots(orderedLots);
+        ValidateContainerGroups(orderedLots);
         return new InventoryCheckpoint(0, orderedLots, [], [], []);
     }
 
@@ -150,12 +195,17 @@ public static class InventoryFixture
         long? targetTick = null,
         int conditionBasisPoints = 10_000,
         int freshnessBasisPoints = 10_000,
-        string? storageBuildingId = null)
+        string? storageBuildingId = null,
+        string? containerLotId = null,
+        InventoryGroundPosition? groundPosition = null)
     {
         ValidateCheckpoint(checkpoint);
         ArgumentException.ThrowIfNullOrWhiteSpace(lotId);
         ArgumentException.ThrowIfNullOrWhiteSpace(itemKind);
         ArgumentException.ThrowIfNullOrWhiteSpace(ownerId);
+        var container = containerLotId is null ? null : checkpoint.GetLot(containerLotId);
+        if (container is not null)
+            EnsureUsableContainer(container);
         var nextTick = targetTick ?? checkpoint.WorldTick;
         if (nextTick < checkpoint.WorldTick)
         {
@@ -176,7 +226,11 @@ public static class InventoryFixture
             conditionBasisPoints,
             freshnessBasisPoints,
             nextTick,
-            StorageBuildingId: storageBuildingId);
+            StorageBuildingId: storageBuildingId,
+            ContainerLotId: containerLotId,
+            GroundPosition: groundPosition,
+            CarrierId: container?.CarrierId);
+        ValidateLots([lot]);
         var lots = checkpoint.Lots
             .Append(lot)
             .OrderBy(candidate => candidate.Id, StringComparer.Ordinal)
@@ -194,10 +248,12 @@ public static class InventoryFixture
         long targetTick,
         int freshnessLossPerTick,
         IReadOnlySet<string>? itemKinds = null,
-        IReadOnlySet<string>? protectedOwnerIds = null)
+        IReadOnlySet<string>? protectedOwnerIds = null,
+        IReadOnlyDictionary<string, int>? itemFreshnessLossPerTick = null)
     {
         ValidateCheckpoint(checkpoint);
-        if (targetTick < checkpoint.WorldTick || freshnessLossPerTick < 0)
+        if (targetTick < checkpoint.WorldTick || freshnessLossPerTick < 0 ||
+            itemFreshnessLossPerTick?.Values.Any(rate => rate < 0) == true)
         {
             throw new ArgumentOutOfRangeException(nameof(targetTick));
         }
@@ -211,12 +267,23 @@ public static class InventoryFixture
                 return lot;
             }
 
-            var rate = itemKinds is not null && !itemKinds.Contains(lot.ItemKind) ? 0 : freshnessLossPerTick;
+            var rate = itemKinds is not null && !itemKinds.Contains(lot.ItemKind) ? 0
+                : itemFreshnessLossPerTick?.GetValueOrDefault(lot.ItemKind, freshnessLossPerTick) ?? freshnessLossPerTick;
+            var cadence = 1;
+            if (lot.ContainerLotId is { } containerId &&
+                checkpoint.Lots.Any(container => container.Id == containerId && container.ItemKind == InventoryContainerRules.StoragePot))
+            {
+                // Use a stable two-tick cadence so a one-point-per-tick decay
+                // rate still decays at half speed instead of truncating to zero.
+                cadence = 2;
+            }
             if (protectedOwnerIds?.Contains(lot.OwnerId) == true)
             {
-                rate /= 2;
+                if (rate % 2 == 0) rate /= 2;
+                else cadence *= 2;
             }
-            var freshnessLoss = checked(elapsed * rate);
+            var elapsedAtRate = targetTick / cadence - lot.LastProcessedTick / cadence;
+            var freshnessLoss = checked(elapsedAtRate * rate);
             var freshness = freshnessLoss >= lot.FreshnessBasisPoints
                 ? 0
                 : lot.FreshnessBasisPoints - checked((int)freshnessLoss);
@@ -252,6 +319,9 @@ public static class InventoryFixture
         }
 
         var lot = checkpoint.GetLot(lotId);
+        EnsureContainerUsableForContents(checkpoint, lot);
+        if (InventoryContainerRules.IsContainer(lot.ItemKind))
+            throw new InvalidOperationException("A reusable vessel cannot be consumed as a production input.");
         EnsureOwnerAndAvailableQuantity(checkpoint, lot, ownerId, quantity);
         var reservation = new InventoryReservation(
             reservationId, ownerId, lotId, quantity, purpose, expiryTick, isExclusive, InventoryReservationState.Reserved);
@@ -275,6 +345,7 @@ public static class InventoryFixture
         }
 
         var lot = checkpoint.GetLot(reservation.LotId);
+        EnsureContainerUsableForContents(checkpoint, lot);
         EnsureOwnerAndExactQuantity(lot, reservation.OwnerId, reservation.Quantity);
         var lots = lot.Quantity == reservation.Quantity
             ? checkpoint.Lots.Where(candidate => candidate.Id != lot.Id).ToArray()
@@ -322,6 +393,26 @@ public static class InventoryFixture
             detail: $"{reservationId}:{purpose}");
     }
 
+    /// <summary>Releases only the requested part of a live claim, retaining protection for its remaining quantity.</summary>
+    public static InventoryCheckpoint ReleaseReservationQuantity(
+        InventoryCheckpoint checkpoint, string reservationId, int quantity, string purpose)
+    {
+        ValidateCheckpoint(checkpoint);
+        ArgumentException.ThrowIfNullOrWhiteSpace(reservationId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(purpose);
+        var reservation = checkpoint.GetReservation(reservationId);
+        if (reservation.State is not (InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed) ||
+            checkpoint.WorldTick > reservation.ExpiryTick || quantity <= 0 || quantity > reservation.Quantity)
+            throw new InvalidOperationException("Only a positive quantity from a live reservation can be released.");
+        if (quantity == reservation.Quantity)
+            return ReleaseReservation(checkpoint, reservationId, $"{purpose}:quantity:{quantity}");
+        var reservations = checkpoint.Reservations.Select(candidate => candidate.Id == reservationId
+            ? candidate with { Quantity = candidate.Quantity - quantity }
+            : candidate).ToArray();
+        return Commit(checkpoint, reservations: reservations, eventKind: "reservation_partly_released",
+            detail: $"{reservationId}:{purpose}:quantity:{quantity}");
+    }
+
     public static InventoryCheckpoint Transfer(
         InventoryCheckpoint checkpoint,
         string transferId,
@@ -331,7 +422,8 @@ public static class InventoryFixture
         int quantity,
         string purpose,
         string? destinationStorageBuildingId = null,
-        string? destinationDeliveryBuildingId = null)
+        string? destinationDeliveryBuildingId = null,
+        InventoryGroundPosition? destinationGroundPosition = null)
     {
         ValidateCheckpoint(checkpoint);
         ArgumentException.ThrowIfNullOrWhiteSpace(transferId);
@@ -345,14 +437,45 @@ public static class InventoryFixture
         }
 
         var source = checkpoint.GetLot(lotId);
-        EnsureOwnerAndAvailableQuantity(checkpoint, source, senderId, quantity);
+        // Physical transfers preserve condition and freshness. Usability is
+        // checked by consumption and barter, not by moving owned stock.
+        EnsureOwnerAndAvailablePhysicalQuantity(checkpoint, source, senderId, quantity);
+        if (source.ContainerLotId is not null)
+            throw new InvalidOperationException("Container contents require an explicit physical take before they can move.");
+
+        if (InventoryContainerRules.IsContainer(source.ItemKind))
+        {
+            if (quantity != 1 || source.Quantity != 1)
+                throw new InvalidOperationException("A reusable vessel must move as one indivisible container.");
+            var members = checkpoint.Lots.Where(lot => lot.Id == source.Id || lot.ContainerLotId == source.Id).ToArray();
+            EnsureNoActiveReservations(checkpoint, members.Select(lot => lot.Id));
+            var moved = members.Select(lot => lot with
+            {
+                OwnerId = recipientId,
+                CarrierId = null,
+                StorageBuildingId = destinationStorageBuildingId,
+                DeliveryBuildingId = destinationDeliveryBuildingId,
+                GroundPosition = lot.Id == source.Id
+                    ? destinationGroundPosition ?? (source.ItemKind == InventoryContainerRules.Handcart ? source.GroundPosition : null)
+                    : null,
+            })
+                .ToDictionary(lot => lot.Id, StringComparer.Ordinal);
+            return Commit(
+                checkpoint,
+                lots: checkpoint.Lots.Select(lot => moved.GetValueOrDefault(lot.Id) ?? lot)
+                    .OrderBy(lot => lot.Id, StringComparer.Ordinal).ToArray(),
+                eventKind: "container_transferred",
+                detail: $"{transferId}:{senderId}:{recipientId}:{source.Id}:{purpose}");
+        }
         var lots = quantity == source.Quantity
             ? checkpoint.Lots.Select(lot => lot.Id == source.Id
                     ? lot with
                     {
                         OwnerId = recipientId,
+                        CarrierId = null,
                         StorageBuildingId = destinationStorageBuildingId,
                         DeliveryBuildingId = destinationDeliveryBuildingId,
+                        GroundPosition = destinationGroundPosition,
                     }
                     : lot)
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal)
@@ -364,10 +487,12 @@ public static class InventoryFixture
                 {
                     Id = $"{source.Id}#transfer:{transferId}",
                     OwnerId = recipientId,
+                    CarrierId = null,
                     Quantity = quantity,
                     ProvenanceLotId = source.Id,
                     StorageBuildingId = destinationStorageBuildingId,
                     DeliveryBuildingId = destinationDeliveryBuildingId,
+                    GroundPosition = destinationGroundPosition,
                 })
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal)
                 .ToArray();
@@ -376,6 +501,234 @@ public static class InventoryFixture
             lots: lots,
             eventKind: "inventory_transferred",
             detail: $"{transferId}:{senderId}:{recipientId}:{lotId}:{quantity}:{purpose}");
+    }
+
+    /// <summary>Stores owned goods in a colocated vessel without changing their total quantity.</summary>
+    public static InventoryCheckpoint PutIntoContainer(
+        InventoryCheckpoint checkpoint,
+        string operationId,
+        string ownerId,
+        string containerLotId,
+        string contentLotId,
+        int quantity)
+    {
+        ValidateCheckpoint(checkpoint);
+        ArgumentException.ThrowIfNullOrWhiteSpace(operationId);
+        var container = checkpoint.GetLot(containerLotId);
+        var source = checkpoint.GetLot(contentLotId);
+        EnsureUsableContainer(container);
+        EnsureOwnerAndAvailableQuantity(checkpoint, source, ownerId, quantity);
+        EnsureContainerOwnerAndLocation(container, source, ownerId);
+        if (source.ContainerLotId is not null || InventoryContainerRules.IsContainer(source.ItemKind) ||
+            !InventoryContainerRules.Allows(container.ItemKind, source.ItemKind))
+            throw new InvalidOperationException("Only compatible loose contents can be placed into this vessel.");
+
+        var familyIds = checkpoint.Lots.Where(lot => lot.Id == container.Id || lot.ContainerLotId == container.Id)
+            .Select(lot => lot.Id).ToArray();
+        EnsureNoActiveReservations(checkpoint, familyIds);
+        var currentContents = checkpoint.Lots.Where(lot => lot.ContainerLotId == container.Id).Sum(lot => lot.Quantity);
+        if (currentContents + quantity > InventoryContainerRules.Capacity(container.ItemKind))
+            throw new InvalidOperationException("The container does not have room for that much content.");
+
+        InventoryLot[] lots;
+        if (quantity == source.Quantity)
+        {
+            lots = checkpoint.Lots.Select(lot => lot.Id == source.Id
+                    ? lot with { ContainerLotId = container.Id, GroundPosition = null }
+                    : lot)
+                .OrderBy(lot => lot.Id, StringComparer.Ordinal).ToArray();
+        }
+        else
+        {
+            var splitId = $"{source.Id}#contained:{container.Id}:{operationId}";
+            if (checkpoint.Lots.Any(lot => lot.Id == splitId))
+                throw new InvalidOperationException("The container placement ID is already in use.");
+            lots = checkpoint.Lots.Select(lot => lot.Id == source.Id
+                    ? lot with { Quantity = lot.Quantity - quantity }
+                    : lot)
+                .Append(source with
+                {
+                    Id = splitId,
+                    Quantity = quantity,
+                    ProvenanceLotId = source.Id,
+                    ContainerLotId = container.Id,
+                    GroundPosition = null,
+                })
+                .OrderBy(lot => lot.Id, StringComparer.Ordinal).ToArray();
+        }
+
+        return Commit(checkpoint, lots: lots, eventKind: "container_contents_stored",
+            detail: $"{operationId}:{container.Id}:{source.Id}:{quantity}");
+    }
+
+    /// <summary>
+    /// Takes a physical quantity out of a vessel. Partial takes create a new
+    /// lot ID; the vessel and any remaining contents keep their identities.
+    /// </summary>
+    public static InventoryCheckpoint TakeFromContainer(
+        InventoryCheckpoint checkpoint,
+        string operationId,
+        string ownerId,
+        string recipientId,
+        string containerLotId,
+        string contentLotId,
+        int quantity,
+        string? destinationStorageBuildingId = null,
+        string? destinationDeliveryBuildingId = null)
+    {
+        ValidateCheckpoint(checkpoint);
+        ArgumentException.ThrowIfNullOrWhiteSpace(operationId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(recipientId);
+        var container = checkpoint.GetLot(containerLotId);
+        var source = checkpoint.GetLot(contentLotId);
+        EnsureUsableContainer(container);
+        if (source.ContainerLotId != container.Id)
+            throw new InvalidOperationException("The requested lot is not stored in this vessel.");
+        EnsureOwnerAndAvailablePhysicalQuantity(checkpoint, source, ownerId, quantity);
+        EnsureContainerOwnerAndLocation(container, source, ownerId);
+        EnsureNoActiveReservations(checkpoint,
+            checkpoint.Lots.Where(lot => lot.Id == container.Id || lot.ContainerLotId == container.Id).Select(lot => lot.Id));
+        if (destinationStorageBuildingId is not null && destinationDeliveryBuildingId is not null)
+            throw new InvalidOperationException("A lot cannot be stored and assigned to a delivery at once.");
+
+        // Taken goods stay with whoever carries the vessel unless they go
+        // into storage, a delivery or the carrier's own hands.
+        var takenCarrier = destinationStorageBuildingId is null && destinationDeliveryBuildingId is null &&
+            source.CarrierId != recipientId ? source.CarrierId : null;
+        InventoryLot[] lots;
+        if (quantity == source.Quantity)
+        {
+            lots = checkpoint.Lots.Select(lot => lot.Id == source.Id
+                    ? lot with
+                    {
+                        OwnerId = recipientId,
+                        CarrierId = takenCarrier,
+                        ContainerLotId = null,
+                        StorageBuildingId = destinationStorageBuildingId,
+                        DeliveryBuildingId = destinationDeliveryBuildingId,
+                        GroundPosition = null,
+                    }
+                    : lot)
+                .OrderBy(lot => lot.Id, StringComparer.Ordinal).ToArray();
+        }
+        else
+        {
+            var splitId = $"{source.Id}#taken:{operationId}";
+            if (checkpoint.Lots.Any(lot => lot.Id == splitId))
+                throw new InvalidOperationException("The container take ID is already in use.");
+            lots = checkpoint.Lots.Select(lot => lot.Id == source.Id
+                    ? lot with { Quantity = lot.Quantity - quantity }
+                    : lot)
+                .Append(source with
+                {
+                    Id = splitId,
+                    OwnerId = recipientId,
+                    CarrierId = takenCarrier,
+                    Quantity = quantity,
+                    ProvenanceLotId = source.Id,
+                    ContainerLotId = null,
+                    StorageBuildingId = destinationStorageBuildingId,
+                    DeliveryBuildingId = destinationDeliveryBuildingId,
+                    GroundPosition = null,
+                })
+                .OrderBy(lot => lot.Id, StringComparer.Ordinal).ToArray();
+        }
+
+        return Commit(checkpoint, lots: lots, eventKind: "container_contents_taken",
+            detail: $"{operationId}:{container.Id}:{source.Id}:{quantity}:{recipientId}");
+    }
+
+    /// <summary>Moves physical custody without donating or changing recorded ownership.</summary>
+    public static InventoryCheckpoint Relocate(InventoryCheckpoint checkpoint, string moveId,
+        string lotId, string ownerId, int quantity, string? carrierId = null,
+        string? storageBuildingId = null, InventoryGroundPosition? groundPosition = null)
+    {
+        ValidateCheckpoint(checkpoint);
+        ArgumentException.ThrowIfNullOrWhiteSpace(moveId);
+        var source = checkpoint.GetLot(lotId);
+        var movedId = $"{lotId}#move:{moveId}";
+        // An owner carrying their own goods is recorded without a separate carrier.
+        if (carrierId == ownerId && storageBuildingId is null && groundPosition is null) carrierId = null;
+        if (source.OwnerId != ownerId || quantity <= 0 || quantity > source.Quantity ||
+            checkpoint.Lots.Any(lot => lot.Id == movedId))
+            throw new InvalidOperationException("The exact owned physical quantity is unavailable.");
+        if (source.ContainerLotId is not null)
+            throw new InvalidOperationException("Container contents require an explicit physical take before they can move.");
+        if (InventoryContainerRules.IsContainer(source.ItemKind))
+        {
+            // A vessel and its contents move together and keep their owner.
+            if (quantity != 1 || source.Quantity != 1)
+                throw new InvalidOperationException("A reusable vessel must move as one indivisible container.");
+            var members = checkpoint.Lots.Where(lot => lot.Id == source.Id || lot.ContainerLotId == source.Id).ToArray();
+            EnsureNoActiveReservations(checkpoint, members.Select(lot => lot.Id));
+            var family = members.Select(lot => lot with
+            {
+                CarrierId = carrierId,
+                StorageBuildingId = storageBuildingId,
+                GroundPosition = lot.Id == source.Id ? groundPosition : null,
+                DeliveryBuildingId = null,
+            }).ToDictionary(lot => lot.Id, StringComparer.Ordinal);
+            var relocated = checkpoint.Lots.Select(lot => family.GetValueOrDefault(lot.Id) ?? lot)
+                .OrderBy(lot => lot.Id, StringComparer.Ordinal).ToArray();
+            ValidateLots(relocated);
+            return Commit(checkpoint, lots: relocated,
+                eventKind: "inventory_relocated", detail: $"{moveId}:{ownerId}:{lotId}:{quantity}");
+        }
+        EnsureUnreservedQuantity(checkpoint, source, quantity);
+        var moved = source with
+        {
+            Id = quantity == source.Quantity ? source.Id : movedId,
+            Quantity = quantity,
+            ProvenanceLotId = quantity == source.Quantity ? source.ProvenanceLotId : source.Id,
+            CarrierId = carrierId,
+            StorageBuildingId = storageBuildingId,
+            GroundPosition = groundPosition,
+            DeliveryBuildingId = null,
+        };
+        var lots = checkpoint.Lots.Where(lot => lot.Id != source.Id).Append(moved);
+        if (quantity < source.Quantity)
+            lots = lots.Append(source with { Quantity = source.Quantity - quantity });
+        var ordered = lots.OrderBy(lot => lot.Id, StringComparer.Ordinal).ToArray();
+        ValidateLots(ordered);
+        return Commit(checkpoint, lots: ordered,
+            eventKind: "inventory_relocated", detail: $"{moveId}:{ownerId}:{lotId}:{quantity}");
+    }
+
+    /// <summary>Paused shared work keeps its exact committed inputs instead of losing them at the former worker's deadline.</summary>
+    public static InventoryCheckpoint HoldReservations(InventoryCheckpoint checkpoint, IReadOnlyList<string> reservationIds) =>
+        SetReservationDeadline(checkpoint, reservationIds, long.MaxValue);
+
+    public static InventoryCheckpoint SetReservationDeadline(InventoryCheckpoint checkpoint,
+        IReadOnlyList<string> reservationIds, long deadline)
+    {
+        ValidateCheckpoint(checkpoint);
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(deadline, checkpoint.WorldTick);
+        var ids = reservationIds.ToHashSet(StringComparer.Ordinal);
+        if (ids.Count != reservationIds.Count || ids.Any(id => checkpoint.Reservations.All(item => item.Id != id ||
+            item.State is not (InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed))))
+            throw new InvalidOperationException("Only existing active work reservations can be held.");
+        var reservations = checkpoint.Reservations.Select(item => ids.Contains(item.Id)
+            ? item with { ExpiryTick = deadline } : item).ToArray();
+        return Commit(checkpoint, reservations: reservations, eventKind: "work_reservation_deadline_changed", detail: $"{deadline}:{string.Join(',', reservationIds)}");
+    }
+
+    /// <summary>Unavailable carriers set down all custody at their last real position; ownership and reservations stay intact.</summary>
+    public static InventoryCheckpoint DropCarrierGoods(InventoryCheckpoint checkpoint, string carrierId, InventoryGroundPosition position)
+    {
+        ValidateCheckpoint(checkpoint);
+        ArgumentException.ThrowIfNullOrWhiteSpace(carrierId);
+        // A dropped vessel lands on the ground; its contents stay inside it.
+        var lots = checkpoint.Lots.Select(lot => lot.CarrierId == carrierId
+            ? lot with
+            {
+                CarrierId = null,
+                GroundPosition = lot.ContainerLotId is null ? position : null,
+                StorageBuildingId = null,
+                DeliveryBuildingId = null,
+            }
+            : lot).ToArray();
+        ValidateLots(lots);
+        return Commit(checkpoint, lots: lots, eventKind: "carrier_goods_set_down", detail: carrierId);
     }
 
     public static InventoryCheckpoint ReleaseExpiredReservations(InventoryCheckpoint checkpoint, long targetTick)
@@ -417,6 +770,8 @@ public static class InventoryFixture
 
         var firstLot = checkpoint.GetLot(proposal.FirstLotId);
         var secondLot = checkpoint.GetLot(proposal.SecondLotId);
+        if (IsContainerRelated(firstLot) || IsContainerRelated(secondLot))
+            throw new InvalidOperationException("Vessels and their contents cannot be traded separately.");
         EnsureOwnerAndAvailableQuantity(checkpoint, firstLot, proposal.FirstPartyId, proposal.FirstQuantity);
         EnsureOwnerAndAvailableQuantity(checkpoint, secondLot, proposal.SecondPartyId, proposal.SecondQuantity);
         var firstReservation = new InventoryReservation(
@@ -533,10 +888,12 @@ public static class InventoryFixture
         string recipientId,
         string offerId)
     {
+        if (IsContainerRelated(source))
+            throw new InvalidOperationException("Vessels and their contents cannot be settled through a lot-only trade.");
         if (source.Quantity == quantity)
         {
             return lots.Select(lot => lot.Id == source.Id
-                    ? lot with { OwnerId = recipientId, StorageBuildingId = null, DeliveryBuildingId = null } : lot)
+                    ? lot with { OwnerId = recipientId, CarrierId = null, StorageBuildingId = null, DeliveryBuildingId = null } : lot)
                 .OrderBy(lot => lot.Id, StringComparer.Ordinal).ToArray();
         }
 
@@ -550,6 +907,7 @@ public static class InventoryFixture
         {
             Id = transferId,
             OwnerId = recipientId,
+            CarrierId = null,
             Quantity = quantity,
             ProvenanceLotId = source.Id,
             StorageBuildingId = null,
@@ -566,6 +924,17 @@ public static class InventoryFixture
         int requestedQuantity)
     {
         EnsureOwnerAndExactQuantity(lot, expectedOwnerId, requestedQuantity);
+        EnsureUnreservedQuantity(checkpoint, lot, requestedQuantity);
+    }
+
+    private static void EnsureOwnerAndAvailablePhysicalQuantity(
+        InventoryCheckpoint checkpoint,
+        InventoryLot lot,
+        string expectedOwnerId,
+        int requestedQuantity)
+    {
+        if (lot.OwnerId != expectedOwnerId || requestedQuantity <= 0 || lot.Quantity < requestedQuantity)
+            throw new InvalidOperationException("The exact owned physical lot quantity is unavailable.");
         EnsureUnreservedQuantity(checkpoint, lot, requestedQuantity);
     }
 
@@ -590,6 +959,18 @@ public static class InventoryFixture
         {
             throw new InvalidOperationException("The exact owned usable lot quantity is unavailable.");
         }
+    }
+
+    private static void EnsureContainerUsableForContents(InventoryCheckpoint checkpoint, InventoryLot lot)
+    {
+        if (lot.ContainerLotId is { } containerId)
+            EnsureUsableContainer(checkpoint.GetLot(containerId));
+    }
+
+    private static void EnsureUsableContainer(InventoryLot container)
+    {
+        if (!InventoryContainerRules.IsContainer(container.ItemKind) || container.ConditionBasisPoints <= 0)
+            throw new InvalidOperationException("A broken or invalid vessel cannot hold, serve, or supply contents.");
     }
 
     private static InventoryCheckpoint Commit(
@@ -617,12 +998,14 @@ public static class InventoryFixture
             }
         }
 
-        return new InventoryCheckpoint(
+        var next = new InventoryCheckpoint(
             nextTick,
             lots ?? checkpoint.Lots,
             reservations ?? checkpoint.Reservations,
             offers ?? checkpoint.Offers,
             events, checkpoint.EventHistoryFloor);
+        ValidateCheckpoint(next);
+        return next;
     }
 
     private static void ValidateCheckpoint(InventoryCheckpoint checkpoint)
@@ -634,8 +1017,80 @@ public static class InventoryFixture
         }
 
         ValidateLots(checkpoint.Lots);
+        ValidateContainerGroups(checkpoint.Lots);
         EnsureCanonicalIds(checkpoint.Reservations.Select(reservation => reservation.Id), "reservations");
         EnsureCanonicalIds(checkpoint.Offers.Select(offer => offer.Id), "offers");
+        var lotsById = checkpoint.Lots.ToDictionary(lot => lot.Id, StringComparer.Ordinal);
+        foreach (var reservation in checkpoint.Reservations.Where(reservation =>
+                     reservation.State is InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed or InventoryReservationState.Committed))
+        {
+            if (!lotsById.TryGetValue(reservation.LotId, out var lot) || lot.OwnerId != reservation.OwnerId ||
+                InventoryContainerRules.IsContainer(lot.ItemKind))
+                throw new InvalidDataException($"Active inventory reservation '{reservation.Id}' has no movable content lot.");
+        }
+        foreach (var offer in checkpoint.Offers.Where(offer => offer.State == DirectBarterState.Open))
+        {
+            if (!lotsById.TryGetValue(offer.FirstLotId, out var firstLot) ||
+                !lotsById.TryGetValue(offer.SecondLotId, out var secondLot))
+                throw new InvalidDataException($"Open barter offer '{offer.Id}' references a missing lot.");
+            if (IsContainerRelated(firstLot) || IsContainerRelated(secondLot))
+                throw new InvalidDataException($"Open barter offer '{offer.Id}' references a vessel or contained lot.");
+        }
+    }
+
+    internal static void ValidateCheckpointForCodec(InventoryCheckpoint checkpoint) => ValidateCheckpoint(checkpoint);
+
+    private static bool IsContainerRelated(InventoryLot lot) =>
+        lot.ContainerLotId is not null || InventoryContainerRules.IsContainer(lot.ItemKind);
+
+    private static void EnsureContainerOwnerAndLocation(InventoryLot container, InventoryLot content, string ownerId)
+    {
+        if (!InventoryContainerRules.IsContainer(container.ItemKind) || container.Quantity != 1 ||
+            container.ContainerLotId is not null || container.OwnerId != ownerId || content.OwnerId != ownerId ||
+            container.StorageBuildingId != content.StorageBuildingId ||
+            container.DeliveryBuildingId != content.DeliveryBuildingId || container.CarrierId != content.CarrierId ||
+            (content.ContainerLotId == container.Id
+                ? content.GroundPosition is not null
+                : container.GroundPosition != content.GroundPosition))
+            throw new InvalidOperationException("The vessel and contents must share an owner and physical location.");
+    }
+
+    private static void EnsureNoActiveReservations(InventoryCheckpoint checkpoint, IEnumerable<string> lotIds)
+    {
+        var ids = lotIds.ToHashSet(StringComparer.Ordinal);
+        if (checkpoint.Reservations.Any(reservation => ids.Contains(reservation.LotId) &&
+                reservation.State is InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed or InventoryReservationState.Committed))
+            throw new InvalidOperationException("A vessel or its contents are reserved and cannot be moved.");
+    }
+
+    private static void ValidateContainerGroups(IReadOnlyList<InventoryLot> lots)
+    {
+        var byId = lots.ToDictionary(lot => lot.Id, StringComparer.Ordinal);
+        foreach (var lot in lots)
+        {
+            if (InventoryContainerRules.IsContainer(lot.ItemKind) && (lot.Quantity != 1 || lot.ContainerLotId is not null))
+                throw new InvalidDataException($"Reusable vessel lot '{lot.Id}' must be a single top-level item.");
+            if (lot.ItemKind == InventoryContainerRules.Handcart &&
+                (lot.GroundPosition is null || lot.StorageBuildingId is not null || lot.DeliveryBuildingId is not null))
+                throw new InvalidDataException($"Handcart lot '{lot.Id}' must have a physical ground position.");
+            if (lot.ItemKind == InventoryContainerRules.FreshWater && lot.ContainerLotId is null)
+                throw new InvalidDataException($"Fresh water lot '{lot.Id}' must be contained in a water jug.");
+            if (lot.ContainerLotId is not { } containerId) continue;
+            if (!byId.TryGetValue(containerId, out var container) ||
+                !InventoryContainerRules.IsContainer(container.ItemKind) || container.ContainerLotId is not null ||
+                !InventoryContainerRules.Allows(container.ItemKind, lot.ItemKind) ||
+                container.OwnerId != lot.OwnerId || container.StorageBuildingId != lot.StorageBuildingId ||
+                container.DeliveryBuildingId != lot.DeliveryBuildingId || container.CarrierId != lot.CarrierId ||
+                lot.GroundPosition is not null)
+                throw new InvalidDataException($"Inventory lot '{lot.Id}' has an invalid container relationship.");
+        }
+
+        foreach (var container in lots.Where(lot => InventoryContainerRules.IsContainer(lot.ItemKind)))
+        {
+            var containedQuantity = lots.Where(lot => lot.ContainerLotId == container.Id).Sum(lot => lot.Quantity);
+            if (containedQuantity > InventoryContainerRules.Capacity(container.ItemKind))
+                throw new InvalidDataException($"Container lot '{container.Id}' exceeds its capacity.");
+        }
     }
 
     private static void ValidateLots(IReadOnlyList<InventoryLot> lots)
@@ -652,11 +1107,20 @@ public static class InventoryFixture
                 (string.IsNullOrWhiteSpace(deliveryBuildingId) || deliveryBuildingId != deliveryBuildingId.Trim() ||
                  lot.StorageBuildingId is not null))
                 throw new InvalidDataException($"Inventory lot '{lot.Id}' has an invalid delivery building ID.");
+            if (lot.ContainerLotId is { } containerLotId &&
+                (string.IsNullOrWhiteSpace(containerLotId) || containerLotId != containerLotId.Trim()))
+                throw new InvalidDataException($"Inventory lot '{lot.Id}' has an invalid container ID.");
+            if (lot.CarrierId is { } carrier && (string.IsNullOrWhiteSpace(carrier) || carrier != carrier.Trim() ||
+                lot.StorageBuildingId is not null || lot.GroundPosition is not null))
+                throw new InvalidDataException($"Inventory lot '{lot.Id}' has invalid physical custody.");
             if (lot.Quantity <= 0 || lot.LastProcessedTick < 0 ||
                 lot.ConditionBasisPoints is < 0 or > 10_000 || lot.FreshnessBasisPoints is < 0 or > 10_000)
             {
                 throw new ArgumentOutOfRangeException(nameof(lots));
             }
+            if (lot.GroundPosition is { } ground &&
+                (ground.X < 0 || ground.Y < 0 || lot.StorageBuildingId is not null || lot.DeliveryBuildingId is not null))
+                throw new InvalidDataException($"Inventory lot '{lot.Id}' has an invalid ground location.");
         }
     }
 
@@ -704,6 +1168,7 @@ public static class InventoryCheckpointCodec
     public static byte[] Encode(InventoryCheckpoint checkpoint)
     {
         ArgumentNullException.ThrowIfNull(checkpoint);
+        InventoryFixture.ValidateCheckpointForCodec(checkpoint);
         var document = new InventoryCheckpointDocument(
             checkpoint.WorldTick,
             checkpoint.Lots.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(),

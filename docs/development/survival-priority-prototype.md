@@ -1,11 +1,16 @@
 ---
 title: Survival priority prototype measurements
 type: prototype-report
-status: proposal
+status: complete
 updated: 2026-09-30
 ---
 
 # Survival priority prototype measurements
+
+This prototype was merged to `main` on 30 September (`7d48830`), so every world
+now uses these priorities. The values are still provisional:
+[#140](https://github.com/compoodment/ClankerWorld/issues/140) stays open for
+tuning, and native Windows playtests have not been done.
 
 This is experimental evidence for [#378](https://github.com/compoodment/ClankerWorld/issues/378),
 not approved final balance. The [agreed starting references](../game-design/world.md#starting-survival-balance-for-playtesting)
@@ -16,12 +21,13 @@ stays open. There is no approved target action share.
 ## Method and limitations
 
 `SurvivalPriorityPrototypeTests.ReportFixedSeedSurvivalPriorities` uses the normal
-private-world decision and settlement paths with the real deterministic provider.
+private-world decision and survival code with the real deterministic provider.
 Three compatibility-map worlds use seeds `survival-priority-0`, `-1`, and `-2`.
 After three idle-provider setup ticks, each starts with identical food stock (32),
 45% fullness and 55% warmth. Each runs 360 ticks with fixed clear, rain or storm
 weather respectively. Seasonal profiles are held constant to isolate priorities;
-this does not include the separate regional-weather proposal. The baseline is
+the fixture switches off the regional weather episodes that new worlds now use.
+The baseline is
 main `77f2aaf`; the prototype uses the same fixture and seeds.
 
 These are short, small-map controlled runs, not Windows playtests, large generated
@@ -94,8 +100,8 @@ Do not call this settled balance or close #140. Before adopting the tuning,
 playtest longer wet-weather runs and inspect whether warmth choices make useful
 progress, whether outings leave adequate protection, and whether nearby social
 opportunities actually get selected. Compare generated worlds and household
-food production as well as these small controlled fixtures. The prototype is
-reviewable code and measurements, not deployment or native game verification.
+food production as well as these small controlled fixtures. These are code and
+test measurements, not native game verification.
 
 
 ## Repair of the first prototype
@@ -162,6 +168,12 @@ cover now counts as a protective decision, not an additional trip; decision
 share still cannot establish elapsed time spent on survival. Generated-world,
 native Windows and model-backed playtests remain required before adoption.
 
+**Rerun on `98ea3cd` (30 September).** Later fixes changed the activity counts,
+so the table above no longer reproduces exactly. At 360 ticks, clear/rain/storm
+decisions were 101/105/107 and clear-weather exploration moves were 37. At
+1,200 ticks, decisions were 142/176/180, exploration moves 133/132/80 and storm
+food 32/21/21. Peak illness (0%/0%/2.48%) and deaths (none) are unchanged.
+
 ### Baseline and integration verification
 
 The unchanged `77f2aaf` baseline was rerun with the identical extended fixture.
@@ -174,15 +186,14 @@ Both baseline measurement cases passed; the below-35%-exposure priority case
 failed on main as expected. That is a negative control for the changed urgency
 policy, not a claim that the baseline recovery-in-shelter behavior was broken.
 
-The revised table above is the matched pre-integration `71cf659` comparison.
+The revised table above is the matched comparison from the pull request's last commit before integration.
 Main then gained the independent reachable-Workshop fix (`eeecaee`). After
-integration (`e7b8d0e`), both measurement cases passed again: peak illness
+integration, both measurement cases passed again: peak illness
 remained 0%/0%/2.48% at both lengths, without deaths. Activity counts changed
 with the Workshop fix, so they must not be attributed only to survival tuning.
 
-Full CI at `e7b8d0e` passed 651 Release tests (2 skipped), formatting, Godot
+Full CI on the integrated pull request passed 651 Release tests (2 skipped), formatting, Godot
 headless checks, Windows checks and Windows export. The local integration run
 completed its two measurement cases, then aborted with AccessViolationException
 in a later boundary test; it was not a successful whole run. The clean CI suite
-is the final full-suite verification. Independent review and native playtests
-remain outstanding.
+is the final full-suite verification. Native playtests remain outstanding.

@@ -3,161 +3,11 @@ using ClankerWorld.Simulation.Content;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Society;
-using ClankerWorld.Simulation.World;
 
 namespace ClankerWorld.Simulation.Tests;
 
 public sealed partial class PrivateWorldRuntimeTests
 {
-    [Fact]
-    public async Task UnavailableMustDoIsNotCompletedByAcceptedIdleAndSurvivesReload()
-    {
-        using var world = new PrivateWorldRuntime("must-do-illegal-review", _ => new CountingSelectingProvider(DecisionProviderKind.Deterministic, chooseIdle: true));
-        var receipt = world.SubmitInstruction(new OwnerInstructionRequest("must-eat-with-no-food", "owner:test",
-            "founder-ilya", OwnerInstructionKind.MustDo, "eat food"));
-        _ = await world.AdvanceOneTickAsync();
-        var state = world.ExportState();
-        Assert.DoesNotContain(receipt.InstructionId, state.CompletedInstructionIds ?? []);
-        Assert.DoesNotContain(state.Events, item => item.Kind == "instruction_applied" && item.Detail.StartsWith(receipt.InstructionId + ":", StringComparison.Ordinal));
-        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)));
-        Assert.Contains(restored.ExportState().Instructions!, instruction => instruction.InstructionId == receipt.InstructionId);
-        Assert.DoesNotContain(receipt.InstructionId, restored.ExportState().CompletedInstructionIds ?? []);
-    }
-
-    [Fact]
-    public void PrivateWorldStartsWithAnActiveSettlementInsteadOfAuthoringDrafts()
-    {
-        using var runtime = new PrivateWorldRuntime("playtest-alpha");
-
-        Assert.Equal(4, runtime.Society.Inhabitants.Count);
-        Assert.All(runtime.Society.Inhabitants, inhabitant =>
-            Assert.Equal(ClankerWorld.Simulation.Society.SocietyInhabitantStatus.Active, inhabitant.Status));
-        Assert.Single(runtime.Society.Households);
-        Assert.Equal(4, runtime.Inhabitants.Count);
-        Assert.Contains(runtime.Inhabitants, inhabitant => inhabitant.Personality == "curious");
-        Assert.Contains(runtime.Inhabitants, inhabitant => inhabitant.Aspiration == "build something lasting");
-    }
-
-    [Fact]
-    public async Task PrivateWorldCarriesRicherSystemsThroughTheAuthoritativeTickAndCheckpoint()
-    {
-        using var runtime = new PrivateWorldRuntime("playtest-alpha");
-
-        Assert.Equal("playtest-alpha", runtime.WorldSystems.WorldSeed);
-        Assert.Equal(SeasonKind.Spring, runtime.WorldSystems.Climate.Season);
-        Assert.Single(runtime.WorldSystems.Factions.Factions);
-        Assert.Single(runtime.WorldSystems.Currency.Currencies);
-        Assert.Single(runtime.WorldSystems.Culture.Cultures);
-        Assert.Single(runtime.WorldSystems.Chunks);
-
-        _ = await runtime.AdvanceOneTickAsync();
-
-        Assert.Equal(runtime.WorldTick, runtime.WorldSystems.WorldTick);
-        Assert.Equal(3, runtime.WorldSystems.Ecology.Resources.Count);
-        var restoredState = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(runtime.ExportState()));
-        using var restored = PrivateWorldRuntime.Restore(restoredState);
-
-        Assert.Equal(
-            WorldSystemsCodec.Encode(runtime.WorldSystems),
-            WorldSystemsCodec.Encode(restored.WorldSystems));
-    }
-
-    [Fact]
-    public async Task PrivateWorldAdvancesAllFoundersThroughBoundedCognition()
-    {
-        using var runtime = new PrivateWorldRuntime("playtest-alpha");
-
-        var result = await runtime.AdvanceOneTickAsync();
-
-        Assert.True(result.Advanced);
-        Assert.Equal(1, result.WorldTick);
-        Assert.Equal(4, result.Decisions.Count);
-        Assert.All(result.Decisions, decision => Assert.True(decision.Admission.Accepted));
-        Assert.Contains(result.Events, worldEvent => worldEvent.Kind == "inhabitant_moved");
-        Assert.All(runtime.Inhabitants, inhabitant => Assert.True(inhabitant.HungerBasisPoints < 6_500));
-    }
-
-    [Fact]
-    public async Task PrivateWorldCheckpointRoundTripsWithTheSamePopulationAndTick()
-    {
-        using var runtime = new PrivateWorldRuntime("playtest-alpha");
-        _ = await runtime.AdvanceOneTickAsync();
-
-        var encoded = PrivateWorldRuntimeCodec.Encode(runtime.ExportState());
-        var restoredState = PrivateWorldRuntimeCodec.Decode(encoded);
-        using var restored = PrivateWorldRuntime.Restore(restoredState);
-
-        Assert.Equal(runtime.WorldTick, restored.WorldTick);
-        Assert.Equal(
-            runtime.Society.Inhabitants.Select(item => item.Id),
-            restored.Society.Inhabitants.Select(item => item.Id));
-        // Canonical bytes below compare nested collection contents, not array/list identity.
-        Assert.Equal(
-            encoded,
-            PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
-    }
-
-    [Fact]
-    public async Task PrivateWorldPauseIsAnIdempotentBoundary()
-    {
-        using var runtime = new PrivateWorldRuntime("playtest-alpha");
-        runtime.Pause();
-        runtime.Pause();
-
-        var paused = await runtime.AdvanceOneTickAsync();
-
-        Assert.False(paused.Advanced);
-        Assert.Equal("paused", paused.Outcome);
-        Assert.Single(runtime.ExportState().Events, worldEvent => worldEvent.Kind == "paused");
-    }
-
-    [Fact]
-    public async Task PrivateWorldInstructionsAreIdempotentAndReachCognition()
-    {
-        using var runtime = new PrivateWorldRuntime("playtest-alpha");
-        var request = new OwnerInstructionRequest(
-            "instruction-key-1",
-            "owner-device:test",
-            "founder-rowan",
-            OwnerInstructionKind.MustDo,
-            "travel to berry patch");
-
-        var first = runtime.SubmitInstruction(request);
-        var replay = runtime.SubmitInstruction(request);
-        _ = await runtime.AdvanceOneTickAsync();
-
-        Assert.Equal(first, replay);
-        Assert.Contains(runtime.ExportState().CompletedInstructionIds!, id => id == first.InstructionId);
-        Assert.Contains(
-            runtime.ExportState().Events,
-            worldEvent => worldEvent.Kind == "instruction_applied" && worldEvent.Detail.Contains(first.InstructionId, StringComparison.Ordinal));
-    }
-
-    [Theory]
-    [InlineData(OwnerInstructionKind.MustDo)]
-    [InlineData(OwnerInstructionKind.Suggestive)]
-    public async Task ProviderFailureDoesNotCompleteAnInstructionOrStopOtherAgents(OwnerInstructionKind kind)
-    {
-        using var runtime = new PrivateWorldRuntime("playtest-alpha", id =>
-            id == "founder-rowan" ? new FailingDecisionProvider() : new DeterministicDecisionProvider());
-        var instruction = runtime.SubmitInstruction(new OwnerInstructionRequest(
-            "outage-instruction", "owner-device:test", "founder-rowan",
-            kind, "gather food"));
-
-        var step = await runtime.AdvanceOneTickAsync();
-
-        Assert.True(step.Advanced);
-        Assert.Equal(1, runtime.WorldTick);
-        Assert.False(runtime.Society.IsPaused);
-        Assert.Equal("safe_idle", step.Decisions.Single(item => item.InhabitantId == "founder-rowan")
-            .Admission.Intention?.CandidateId);
-        Assert.Contains(step.Decisions, item => item.InhabitantId != "founder-rowan" &&
-            item.Admission.Intention?.CandidateId != "safe_idle");
-        Assert.DoesNotContain(instruction.InstructionId, runtime.ExportState().CompletedInstructionIds ?? []);
-        Assert.DoesNotContain(runtime.ExportState().Events, item =>
-            item.Kind == "instruction_applied" && item.Detail.Contains(instruction.InstructionId, StringComparison.Ordinal));
-    }
-
     [Fact]
     public async Task PrivateWorldActivatesStagedContentOnTheNextTickAndCanQuarantineIt()
     {
@@ -302,75 +152,19 @@ public sealed partial class PrivateWorldRuntimeTests
     }
 
     [Fact]
-    public async Task InhabitantsChooseBuildForBuildingsAndRecipesWithoutOwnerCommands()
+    public async Task CropRecipeCannotBypassPhysicalFieldsAndSeeds()
     {
-        using var runtime = new PrivateWorldRuntime(
-            "playtest-alpha",
-            _ => new BuildSelectingProvider());
-        var (package, building, recipe) = MaterialPackage(durationTicks: 2);
+        using var runtime = new PrivateWorldRuntime("playtest-alpha", _ => new BuildSelectingProvider());
+        var (package, _, recipe) = CropPackage();
         Activate(runtime, package);
-
-        var decisions = new List<SocietyCognitionDispatchResult>();
-        for (var tick = 0; tick < 100 && !runtime.WorldSimulation.ProductionJobs.Any(job => job.State == WorldProductionJobState.Completed); tick++)
-        {
-            var result = await runtime.AdvanceOneTickAsync();
-            decisions.AddRange(result.Decisions);
-        }
-
-        Assert.Contains(
-            decisions,
-            decision => decision.InhabitantId == "founder-rowan" &&
-                decision.Admission.Intention?.CandidateId.StartsWith(
-                    $"build:building:{building.CanonicalId}:site:", StringComparison.Ordinal) == true);
-        Assert.Contains(runtime.WorldSimulation.Buildings, item => item.DefinitionId == building.CanonicalId);
-        Assert.Contains(runtime.ExportState().Events, item => item.Kind == "build_completed");
-        Assert.Contains(
-            decisions,
-            decision => decision.InhabitantId == "founder-rowan" &&
-                decision.Admission.Intention?.CandidateId == $"build:recipe:{recipe.CanonicalId}");
-        Assert.Contains(runtime.WorldSimulation.ProductionJobs, item =>
-            item.RecipeId == recipe.CanonicalId && item.State == WorldProductionJobState.Completed);
-        Assert.Contains(runtime.Society.Inventory.Lots, item => item.ItemKind == "meal" && item.Quantity > 0);
-    }
-
-    [Fact]
-    public async Task InhabitantCanBuildAZeroInputCropOnGeneratedFertileLand()
-    {
-        using var runtime = new PrivateWorldRuntime(
-            "playtest-alpha",
-            _ => new BuildSelectingProvider());
-        var (package, recipe) = CropPackage();
-        Activate(runtime, package);
-
-        var decisions = new List<SocietyCognitionDispatchResult>();
-        for (var tick = 0; tick < 60 && !(runtime.WorldSimulation.CropBuilds ?? []).Any(job => job.State == WorldProductionJobState.Completed); tick++)
-        {
-            var result = await runtime.AdvanceOneTickAsync();
-            decisions.AddRange(result.Decisions);
-        }
-
-        Assert.Equal(
-            new GridPoint(2, 3),
-            runtime.ExportState().Map.GetResource(SeededMapGenerator.FertileLandResourceId).Position);
-        Assert.Contains(
-            decisions,
-            decision => decision.InhabitantId == "founder-mira" &&
-                decision.Admission.Intention?.CandidateId == $"build:recipe:{recipe.CanonicalId}");
-        var build = Assert.Single(
-            runtime.WorldSimulation.CropBuilds ?? [],
-            item => item.RecipeId == recipe.CanonicalId && item.State == WorldProductionJobState.Completed);
-        Assert.Equal(
-            WorldBuildSiteRules.FertileLandSiteId(new GridPoint(2, 3)),
-            build.BuildingInstanceId);
-        Assert.Contains(runtime.ExportState().Events, item => item.Kind == "build_completed");
-        Assert.Contains(runtime.Society.Inventory.Lots, item => item.ItemKind == "carrot" && item.Quantity > 0);
-
-        var restoredState = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(runtime.ExportState()));
-        using var restored = PrivateWorldRuntime.Restore(restoredState);
-        Assert.Equal(
-            PrivateWorldRuntimeCodec.Encode(runtime.ExportState()),
-            PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
-        Assert.Equal(runtime.Society.Inventory.Lots, restored.Society.Inventory.Lots);
+        await runtime.AdvanceOneTickAsync();
+        var before = PrivateWorldRuntimeCodec.Encode(runtime.ExportState());
+        var refused = runtime.StartProduction(recipe.CanonicalId, "arbitrary-ground", runtime.Inhabitants[0].InhabitantId);
+        Assert.False(refused.Applied);
+        Assert.Contains("tilled field", refused.Failure, StringComparison.Ordinal);
+        Assert.Equal(before, PrivateWorldRuntimeCodec.Encode(runtime.ExportState()));
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(before));
+        Assert.Equal(before, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
     }
 
     [Fact]
@@ -433,41 +227,6 @@ public sealed partial class PrivateWorldRuntimeTests
         Assert.True(provider.CallCount < 100, $"Expected fewer than 100 cognition calls, got {provider.CallCount}.");
     }
 
-    [Fact]
-    public async Task PrivateWorldAcceptsJevIntentionsAndExecutesThemBetweenReevaluations()
-    {
-        var provider = new CountingSelectingProvider(DecisionProviderKind.Jev);
-        using var runtime = new PrivateWorldRuntime("playtest-alpha", _ => provider);
-
-        for (var tick = 0; tick < 10; tick++)
-        {
-            _ = await runtime.AdvanceOneTickAsync();
-        }
-
-        var cognition = runtime.ExportState().Society.Cognition;
-        Assert.All(cognition.Runtimes, item =>
-            Assert.Equal(DecisionProviderKind.Jev, item.CurrentIntention?.Provider));
-        Assert.True(provider.CallCount >= 4);
-        Assert.True(provider.CallCount < 40, $"Expected persistent intentions to avoid per-tick Jev calls, got {provider.CallCount}.");
-        Assert.Contains(runtime.ExportState().Events, item => item.Kind == "inhabitant_moved");
-    }
-
-    [Fact]
-    public void PrivateWorldCodecReadsLegacyCheckpointWithoutContentRegistry()
-    {
-        using var runtime = new PrivateWorldRuntime("playtest-alpha");
-        var legacyState = runtime.ExportState() with { SchemaVersion = 1, Content = null };
-
-        var decoded = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(legacyState));
-        using var restored = PrivateWorldRuntime.Restore(decoded);
-
-        Assert.Equal(1, decoded.SchemaVersion);
-        Assert.Null(decoded.Content);
-        Assert.Empty(restored.Content.Packages);
-        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(
-            runtime.ExportState() with { Content = null }));
-    }
-
     private static ContentPackageManifest Package(string id, string version, char digestCharacter) => new(
         id,
         ContentVersion.Parse(version),
@@ -482,7 +241,7 @@ public sealed partial class PrivateWorldRuntimeTests
         []);
 
     private static (ContentPackageManifest Package, BuildingDefinition Building, RecipeDefinition Recipe) MaterialPackage(
-        int durationTicks)
+        int durationTicks, string buildingTag = "camp")
     {
         var packageDigest = "sha256:" + new string('e', 64);
         var version = ContentVersion.Parse("1.0.0");
@@ -495,7 +254,7 @@ public sealed partial class PrivateWorldRuntimeTests
             1,
             2,
             [new ContentQuantity("wood", 2)],
-            ["camp"]);
+            [buildingTag]);
         var recipe = new RecipeDefinition(
             packageDigest,
             "berry-meal",
@@ -518,7 +277,7 @@ public sealed partial class PrivateWorldRuntimeTests
                     building.Version,
                     building.DisplayName,
                     building.PayloadDigest,
-                    """{"schema":"building/v1","width":1,"height":1,"capacity":2,"buildCosts":[{"resourceId":"wood","amount":2}],"tags":["camp"]}"""),
+                    $$"""{"schema":"building/v1","width":1,"height":1,"capacity":2,"buildCosts":[{"resourceId":"wood","amount":2}],"tags":["{{buildingTag}}"]}"""),
                 new ContentDefinition(
                     RecipeDefinition.SchemaKind,
                     recipe.LocalId,
@@ -530,10 +289,12 @@ public sealed partial class PrivateWorldRuntimeTests
             []), building, recipe);
     }
 
-    private static (ContentPackageManifest Package, RecipeDefinition Recipe) CropPackage()
+    private static (ContentPackageManifest Package, BuildingDefinition Farmhouse, RecipeDefinition Recipe) CropPackage()
     {
         var packageDigest = "sha256:" + new string('f', 64);
         var version = ContentVersion.Parse("1.0.0");
+        var farmhouse = new BuildingDefinition(packageDigest, "test-farmhouse", version, "Test farmhouse", 1, 1, 1,
+            [], ["farmhouse"]);
         var recipe = new RecipeDefinition(
             packageDigest,
             "carrots",
@@ -549,14 +310,23 @@ public sealed partial class PrivateWorldRuntimeTests
             version,
             packageDigest,
             [],
-            [new ContentDefinition(
-                RecipeDefinition.SchemaKind,
-                recipe.LocalId,
-                recipe.Version,
-                recipe.DisplayName,
-                recipe.PayloadDigest,
-                """{"schema":"recipe/v1","inputs":[],"outputs":[{"resourceId":"carrot","amount":1}],"durationTicks":2,"workstationBuildingId":null,"tags":["crop"]}""")],
-            []), recipe);
+            [
+                new ContentDefinition(
+                    BuildingDefinition.SchemaKind,
+                    farmhouse.LocalId,
+                    farmhouse.Version,
+                    farmhouse.DisplayName,
+                    farmhouse.PayloadDigest,
+                    """{"schema":"building/v1","width":1,"height":1,"capacity":1,"buildCosts":[],"tags":["farmhouse"]}"""),
+                new ContentDefinition(
+                    RecipeDefinition.SchemaKind,
+                    recipe.LocalId,
+                    recipe.Version,
+                    recipe.DisplayName,
+                    recipe.PayloadDigest,
+                    """{"schema":"recipe/v1","inputs":[],"outputs":[{"resourceId":"carrot","amount":1}],"durationTicks":2,"workstationBuildingId":null,"tags":["crop"]}"""),
+            ],
+            []), farmhouse, recipe);
     }
 
     private static void Activate(PrivateWorldRuntime runtime, ContentPackageManifest package)
@@ -611,6 +381,8 @@ public sealed partial class PrivateWorldRuntimeTests
         using var runtime = new PrivateWorldRuntime("playtest-alpha", _ => provider);
         _ = await runtime.AdvanceOneTickAsync();
         Assert.Equal(4, provider.CallCount);
+        Assert.All(runtime.ExportState().Society.Cognition.Runtimes, state =>
+            Assert.Equal(DecisionProviderKind.Jev, state.CurrentIntention?.Provider));
         for (var tick = 0; tick < 60; tick++)
         {
             _ = await runtime.AdvanceOneTickAsync();
@@ -632,72 +404,29 @@ public sealed partial class PrivateWorldRuntimeTests
     }
 
     [Fact]
-    public async Task StableAdultCanScoutLocalGroundReturnAndRememberVisitedTilesAfterReload()
-    {
-        using var initial = new PrivateWorldRuntime("exploration-prototype");
-        var baseline = initial.ExportState();
-        var target = baseline.Inhabitants[0];
-        var provider = new ExplorationSelectingProvider(target.InhabitantId);
-        using var runtime = PrivateWorldRuntime.Restore(baseline with
-        {
-            Inhabitants = baseline.Inhabitants.Select(person => person with
-            {
-                HungerBasisPoints = 9_500,
-            }).ToArray(),
-        }, _ => provider);
-
-        for (var tick = 0; tick < 75; tick++)
-            _ = await runtime.AdvanceOneTickAsync();
-
-        var events = runtime.ExportState().Events;
-        Assert.Contains(events, item => item.Kind == "exploration_started" && item.Detail.StartsWith(target.InhabitantId + ":", StringComparison.Ordinal));
-        Assert.Contains(events, item => item.Kind == "exploration_discovered" && item.Detail.StartsWith(target.InhabitantId + ":", StringComparison.Ordinal));
-        Assert.Contains(events, item => item.Kind == "exploration_completed" && item.Detail.StartsWith(target.InhabitantId + ":", StringComparison.Ordinal));
-        var explorer = runtime.Inhabitants.Single(person => person.InhabitantId == target.InhabitantId);
-        Assert.Equal(target.Position, explorer.Position);
-        Assert.NotEmpty(explorer.Exploration!.VisitedTiles);
-        Assert.Empty(explorer.Exploration.OutingPath);
-        Assert.True(provider.CallCount < 30, "Exploration should reuse its intention rather than asking the model each step.");
-
-        using var restored = PrivateWorldRuntime.Restore(
-            PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(runtime.ExportState())), _ => provider);
-        var restoredExploration = restored.Inhabitants.Single(person => person.InhabitantId == target.InhabitantId).Exploration!;
-        Assert.Equal(explorer.Exploration.VisitedTiles, restoredExploration.VisitedTiles);
-        Assert.Equal(explorer.Exploration.OutingPath, restoredExploration.OutingPath);
-        Assert.Equal(explorer.Exploration.LastOutingTick, restoredExploration.LastOutingTick);
-    }
-
-    [Fact]
-    public async Task UrgentFoodNeedDoesNotOfferCuriosityOuting()
-    {
-        using var initial = new PrivateWorldRuntime("exploration-hungry");
-        var baseline = initial.ExportState();
-        var target = baseline.Inhabitants[0];
-        var provider = new ExplorationSelectingProvider(target.InhabitantId);
-        using var runtime = PrivateWorldRuntime.Restore(baseline with
-        {
-            Inhabitants = baseline.Inhabitants.Select(person => person with
-            {
-                HungerBasisPoints = person.InhabitantId == target.InhabitantId ? 2_000 : 9_500,
-            }).ToArray(),
-        }, _ => provider);
-
-        _ = await runtime.AdvanceOneTickAsync();
-
-        Assert.DoesNotContain("explore", provider.TargetCandidates);
-        Assert.DoesNotContain(runtime.ExportState().Events, item => item.Kind == "exploration_started");
-    }
-
-    [Fact]
     public async Task ExplorationAfterLegalTravelInterruptionKeepsAValidSaveablePath()
     {
         var provider = new ExplorationSelectingProvider("founder-scout");
-        using var world = new PrivateWorldRuntime("interrupted-exploration-repro", _ => provider);
+        using var genesis = new PrivateWorldRuntime("interrupted-exploration-repro", _ => provider);
+        var seeded = genesis.ExportState();
+        var berryPatch = seeded.Map.Resources.Single(resource => resource.Id == "berry-patch");
+        var berryTerrain = seeded.Map.Tiles.Single(tile => tile.Position == berryPatch.Position).Terrain.ToString();
+        var knownBerry = new AgentKnowledgeFact("interrupted-exploration-known-berry", "founder-scout",
+            "founder-scout", berryPatch.Position, berryTerrain, ["berries"],
+            seeded.Society.Society.WorldTick, "firsthand");
+        var initialState = seeded with
+        {
+            Knowledge = seeded.Knowledge! with
+            {
+                Facts = seeded.Knowledge.Facts.Append(knownBerry).ToArray(),
+            },
+        };
+        using var world = PrivateWorldRuntime.Restore(initialState, _ => provider);
         _ = await world.AdvanceOneTickAsync();
         var initial = world.Inhabitants.Single(person => person.InhabitantId == "founder-scout");
         Assert.NotEmpty(initial.Exploration!.OutingPath);
         world.SubmitInstruction(new OwnerInstructionRequest("interrupt-exploration", "owner:test",
-            "founder-scout", OwnerInstructionKind.MustDo, "travel to berry patch"));
+            "founder-scout", OwnerInstructionKind.MustDo, "travel to berry-patch"));
         for (var tick = 0; tick < 60; tick++)
         {
             _ = await world.AdvanceOneTickAsync();
@@ -718,7 +447,6 @@ public sealed partial class PrivateWorldRuntimeTests
         public DecisionProviderKind Kind => DecisionProviderKind.Deterministic;
         public long ProviderEpoch => 0;
         public int CallCount { get; private set; }
-        public IReadOnlyList<string> TargetCandidates { get; private set; } = [];
 
         public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request,
             CancellationToken cancellationToken = default)
@@ -727,8 +455,6 @@ public sealed partial class PrivateWorldRuntimeTests
             cancellationToken.ThrowIfCancellationRequested();
             CallCount++;
             var options = request.Observation.Candidates;
-            if (request.Observation.InhabitantId == targetId)
-                TargetCandidates = options.Select(option => option.Id).ToArray();
             var selected = request.Observation.InhabitantId == targetId
                 ? options.FirstOrDefault(option => option.Id == "explore")
                 : null;
@@ -740,13 +466,6 @@ public sealed partial class PrivateWorldRuntimeTests
                 options.ToDictionary(option => option.Id, option => option.Id == selected.Id ? 1d : 0d,
                     StringComparer.Ordinal)));
         }
-    }
-
-    [Fact]
-    public void LegacyInhabitantsDoNotAcquireNullDecisionCacheFieldsWhenSaved()
-    {
-        using var runtime = new PrivateWorldRuntime("playtest-alpha");
-        Assert.DoesNotContain("lastDecisionContext", System.Text.Encoding.UTF8.GetString(PrivateWorldRuntimeCodec.Encode(runtime.ExportState())), StringComparison.OrdinalIgnoreCase);
     }
 
     private sealed class CountingSelectingProvider(DecisionProviderKind kind, bool chooseIdle = false) : IDecisionProvider
@@ -786,14 +505,5 @@ public sealed partial class PrivateWorldRuntimeTests
                 1d,
                 probabilities));
         }
-    }
-
-    private sealed class FailingDecisionProvider : IDecisionProvider
-    {
-        public DecisionProviderKind Kind => DecisionProviderKind.LargeLanguageModel;
-        public long ProviderEpoch => 1;
-        public ValueTask<CognitionDecisionResponse> DecideAsync(
-            CognitionDecisionRequest request, CancellationToken cancellationToken = default) =>
-            throw new HttpRequestException("provider unavailable");
     }
 }

@@ -21,6 +21,7 @@ public sealed partial class PrivateWorldRuntimeService(
     private bool recoveryWritePending;
     private bool invalidStateHalt;
     private bool writingCheckpoint;
+    private readonly Dictionary<string, FrozenChildModelBinding> pendingChildModelBindings = new(StringComparer.Ordinal);
 
     [LoggerMessage(EventId = 2287, Level = LogLevel.Error,
         Message = "world_recovery outcome={Outcome} tick={WorldTick} reason={Reason}")]
@@ -35,13 +36,17 @@ public sealed partial class PrivateWorldRuntimeService(
         Message = "social_standing tick={WorldTick} inhabitant={InhabitantId} subject={SubjectId} trust={Trust} reason={Reason}")]
     private static partial void LogSocialStanding(ILogger logger, long worldTick, string inhabitantId, string subjectId, int trust, string reason);
 
-    [LoggerMessage(EventId = 2270, Level = LogLevel.Information,
-        Message = "retired_buildings tick={WorldTick} standing={Standing} projects={Projects} outcome=kept_not_offered")]
-    private static partial void LogRetiredBuildings(ILogger logger, long worldTick, int standing, int projects);
+    [LoggerMessage(EventId = 2271, Level = LogLevel.Information,
+        Message = "tree_planting tick={WorldTick} inhabitant={InhabitantId} outcome={Outcome} detail={Detail}")]
+    private static partial void LogTreePlanting(ILogger logger, long worldTick, string inhabitantId, string outcome, string detail);
 
     [LoggerMessage(EventId = 2218, Level = LogLevel.Information,
         Message = "hosted_decision tick={WorldTick} inhabitant={InhabitantId} outcome={Outcome}")]
     private static partial void LogHostedDecision(ILogger logger, long worldTick, string inhabitantId, string outcome);
+
+    [LoggerMessage(EventId = 2288, Level = LogLevel.Information,
+        Message = "agent_identity_changed tick={WorldTick} inhabitant={InhabitantId}")]
+    private static partial void LogIdentityChanged(ILogger logger, long worldTick, string inhabitantId);
 
     [LoggerMessage(EventId = 2255, Level = LogLevel.Information,
         Message = "estate_will tick={WorldTick} estate={EstateId} deceased={DeceasedId} outcome={Outcome} reason={Reason}")]
@@ -78,27 +83,8 @@ public sealed partial class PrivateWorldRuntimeService(
             foreach (var town in runtime.Towns)
                 TownTelemetry.Transition(logger, runtime.WorldTick, town.Id, TownTransitionKind.StateLoaded,
                     town.ResidentIds.Count, town.AssignedBuildingIds.Count, town.BorderTiles.Count);
-            LogRetiredBuildingsLoaded(logger);
         }
         return base.StartAsync(cancellationToken);
-    }
-
-    /// <summary>
-    /// Old saves keep their retired buildings and finish projects already under
-    /// way; one line on load explains why agents never start another.
-    /// </summary>
-    private void LogRetiredBuildingsLoaded(ILogger logger)
-    {
-        var retired = runtime.WorldContent.Buildings.Where(RetiredBuildings.Contains)
-            .Select(definition => definition.CanonicalId).ToHashSet(StringComparer.Ordinal);
-        if (retired.Count == 0) return;
-        var standing = runtime.WorldSimulation.Buildings.Count(building => retired.Contains(building.DefinitionId));
-        var projects = runtime.Inhabitants.Count(person =>
-            person.Project is { Stage: not ("completed" or "cancelled") } project &&
-            TownConstructionCandidateIds.TryParse(project.CandidateId, out var selection) &&
-            selection.IsBuilding && retired.Contains(selection.DefinitionId));
-        if (standing > 0 || projects > 0)
-            LogRetiredBuildings(logger, runtime.WorldTick, standing, projects);
     }
 
     public override Task StopAsync(CancellationToken cancellationToken)
@@ -186,14 +172,29 @@ public sealed partial class PrivateWorldRuntimeService(
             return false;
         }
 
+        if (!TryBindPendingChildModels(out var recoveredChildBindings))
+        {
+            LogGateTransition("waiting_for_child_model_binding", runtime.WorldTick);
+            return false;
+        }
+        if (recoveredChildBindings)
+        {
+            writingCheckpoint = true;
+            _ = stateFile.Save(runtime);
+            writingCheckpoint = false;
+        }
+
         _ = runtime.StageStarterContent();
         using var monitorLifetime = new CancellationTokenSource();
         using var tickCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var monitor = MonitorTickGateAsync(tickCancellation, monitorLifetime.Token);
+        var preparedChildBindings = new Dictionary<string, FrozenChildModelBinding>(StringComparer.Ordinal);
         PrivateWorldStepResult result;
         try
         {
-            result = await runtime.AdvanceOneTickNonBlockingAsync(() => clientPresence.HasActiveClient, tickCancellation.Token);
+            result = await runtime.AdvanceOneTickNonBlockingAsync(() => clientPresence.HasActiveClient,
+                (proposed, events) => PrepareChildModelSelections(proposed, events, preparedChildBindings),
+                tickCancellation.Token);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && tickCancellation.IsCancellationRequested)
         {
@@ -208,6 +209,32 @@ public sealed partial class PrivateWorldRuntimeService(
         LogGateTransition(result.Advanced ? "advancing" : result.Outcome, result.WorldTick);
         if (result.Advanced)
         {
+            foreach (var (childId, binding) in preparedChildBindings)
+                pendingChildModelBindings[childId] = binding;
+            var bornChildren = result.Events.Where(item => item.Kind == "child_born").Select(item => item.Detail)
+                .Distinct(StringComparer.Ordinal).ToArray();
+            if (bornChildren.Length > 0)
+            {
+                // The birth descriptor is part of the runtime tick commit. Persist it
+                // before touching provider storage, so manual saves, world switches,
+                // and shutdown cannot publish an unbound newborn.
+                writingCheckpoint = true;
+                if (providers is null)
+                {
+                    _ = stateFile.Save(runtime);
+                }
+                else
+                {
+                    lock (providers.WorldMutationGate)
+                        _ = stateFile.Save(runtime);
+                }
+                writingCheckpoint = false;
+                if (!TryBindPendingChildModels(out _))
+                {
+                    LogGateTransition("waiting_for_child_model_binding", runtime.WorldTick);
+                    return false;
+                }
+            }
             writingCheckpoint = true;
             var compacted = stateFile.Save(runtime);
             writingCheckpoint = false;
@@ -248,6 +275,15 @@ public sealed partial class PrivateWorldRuntimeService(
                     LogHostedDecision(logger, result.WorldTick, actor,
                         worldEvent.Kind["hosted_decision_".Length..] + worldEvent.Detail[actor.Length..]);
                 }
+                foreach (var worldEvent in result.Events.Where(item => item.Kind is "tree_planted" or
+                             "tree_planting_refused" or "tree_replanted" or "tree_seed_collected"))
+                {
+                    // Details after the actor are bounded IDs, species and refusal codes.
+                    var actor = EventActor(worldEvent.Detail);
+                    if (actor is null || worldEvent.Detail.Length <= actor.Length + 1) continue;
+                    LogTreePlanting(logger, result.WorldTick, actor, worldEvent.Kind,
+                        worldEvent.Detail[(actor.Length + 1)..]);
+                }
                 foreach (var worldEvent in result.Events.Where(item => item.Kind.StartsWith("estate_will_", StringComparison.Ordinal)))
                 {
                     var estate = runtime.Society.Estates.FirstOrDefault(item =>
@@ -262,7 +298,13 @@ public sealed partial class PrivateWorldRuntimeService(
                 }
                 var projects = runtime.Inhabitants.Where(person => person.Project is not null)
                     .ToDictionary(person => person.InhabitantId, person => person.Project!, StringComparer.Ordinal);
-                foreach (var worldEvent in result.Events.Where(item => item.Kind.StartsWith("town_", StringComparison.Ordinal)))
+                foreach (var worldEvent in result.Events.Where(item => item.Kind == "agent_identity_revised"))
+                {
+                    var actor = EventActor(worldEvent.Detail);
+                    if (actor is not null) LogIdentityChanged(logger, worldEvent.WorldTick, actor);
+                }
+                foreach (var worldEvent in result.Events.Where(item => item.Kind.StartsWith("town_", StringComparison.Ordinal) ||
+                             item.Kind is "bridge_built" or "traffic_bridge_not_built"))
                     LogTownEvent(worldEvent);
                 foreach (var worldEvent in result.Events.Where(item => item.Kind == "work_practice_earned"))
                 {
@@ -283,17 +325,21 @@ public sealed partial class PrivateWorldRuntimeService(
                     LogSocialStanding(logger, result.WorldTick, actor, subject, standing.Trust, reason);
                 }
                 foreach (var worldEvent in result.Events.Where(item => item.Kind is "project_chosen" or "project_progress" or
-                             "project_request_fulfilled" or "town_resources_stored" or "town_resource_collected"))
+                             "project_request_fulfilled" or "town_resources_stored" or "town_resource_collected" or
+                             "owner_stock_picked_up" or "owner_stock_delivered"))
                 {
                     var actor = EventActor(worldEvent.Detail);
                     if (actor is null) continue;
-                    var project = projects.GetValueOrDefault(actor);
+                    var delivery = worldEvent.Kind is "owner_stock_picked_up" or "owner_stock_delivered";
+                    var project = delivery ? null : projects.GetValueOrDefault(actor);
                     LogSettlementActivity(logger, result.WorldTick, worldEvent.Kind, actor,
                         worldEvent.Kind is "town_resources_stored" or "town_resource_collected"
-                            ? "warehouse" : project?.Stage ?? "helping", project?.WorkDone ?? 0,
+                            ? "warehouse" : delivery ? "delivery" : project?.Stage ?? "helping", project?.WorkDone ?? 0,
                         worldEvent.Kind is not ("town_resources_stored" or "town_resource_collected") &&
                         project?.Blocker is not null);
                 }
+                foreach (var worldEvent in result.Events.Where(item => item.Kind.StartsWith("handcart_", StringComparison.Ordinal)))
+                    HandcartTelemetry.Record(logger, worldEvent, runtime.Society.Inventory, actors);
                 foreach (var worldEvent in result.Events.Where(item => item.Kind == "survival_condition_changed"))
                 {
                     var actor = EventActor(worldEvent.Detail);
@@ -338,11 +384,23 @@ public sealed partial class PrivateWorldRuntimeService(
                 foreach (var worldEvent in result.Events.Where(item => item.Kind is "partnership_proposed" or "partnership_accepted" or
                              "partnership_refused" or "partnership_ended" or "partnership_expired" or
                              "parenthood_requested" or "parenthood_preparing" or "parenthood_cancelled" or "parenthood_completed" or
-                             "child_born" or "child_cared_for" or "caregiver_proposed" or "caregiver_assigned" or
+                             "parenthood_postponed" or "continuity_rule_on" or "continuity_rule_off" or "continuity_plan_proceeded" or
+                             "child_born" or "child_cared_for" or "guardian_needed" or "guardian_assigned" or
+                             "guardian_placement_pending" or "guardian_placement_completed" or "guardian_placement_cancelled" or
+                             "primary_caregiver_assigned" or "caregiver_proposed" or "caregiver_assigned" or
                              "caregiver_accepted" or "caregiver_refused" or "caregiver_proposal_expired" or "caregiver_ended" or
                              "dependent_cared_for"))
                 {
                     LogSettlementFamily(logger, result.WorldTick, worldEvent.Kind);
+                }
+                foreach (var worldEvent in result.Events.Where(item => item.Kind is "housing_request_made" or
+                             "housing_answer_recorded" or "household_joined" or "housing_request_refused" or
+                             "housing_request_expired" or "housing_request_cancelled" or "housing_blocked" or
+                             "relocation_notice" or "relocation_cancelled" or
+                             "household_left" or "household_founded" or "personal_goods_collected" or "personal_goods_stored" or
+                             "borrowed_goods_returned" or "replacement_care_accepted" or "household_work_resumed"))
+                {
+                    LogSettlementHousing(logger, result.WorldTick, worldEvent.Kind);
                 }
             }
         }
@@ -372,9 +430,214 @@ public sealed partial class PrivateWorldRuntimeService(
         return result.Advanced;
     }
 
+    private bool TryBindPendingChildModels(out bool changed)
+    {
+        changed = false;
+        if (providers is null) return true;
+
+        try
+        {
+            lock (providers.WorldMutationGate)
+            {
+                var configuration = providers.CaptureRuntimeConfiguration();
+                var people = runtime.Inhabitants.ToDictionary(item => item.InhabitantId, StringComparer.Ordinal);
+                foreach (var childId in pendingChildModelBindings.Keys.ToArray())
+                {
+                    if (!people.TryGetValue(childId, out var child))
+                    {
+                        pendingChildModelBindings.Remove(childId);
+                        continue;
+                    }
+                    if (child.ChildModelSelection is null)
+                        throw new InvalidDataException("A newly born child has no birth-bound model choice.");
+                    if (pendingChildModelBindings[childId].Selection != child.ChildModelSelection)
+                        pendingChildModelBindings[childId] = new FrozenChildModelBinding(child.ChildModelSelection, null);
+                }
+
+                foreach (var child in people.Values.Where(item => item.ChildModelSelection is not null))
+                {
+                    var selection = child.ChildModelSelection!;
+                    var childRows = (configuration.Assignments ?? []).Where(item =>
+                        item.InhabitantId == child.InhabitantId &&
+                        item.Role is PlayerDecisionProviders.RoutineRole or PlayerDecisionProviders.PlanningRole).ToArray();
+                    var birthRows = childRows.Where(item => item.SelectionReason is not null).ToArray();
+                    if (selection.Provider is null)
+                    {
+                        if (birthRows.Length > 0)
+                            throw new InvalidDataException("An unconfigured child has a saved birth model assignment.");
+                        if (!pendingChildModelBindings.ContainsKey(child.InhabitantId))
+                            continue;
+                    }
+                    else
+                    {
+                        if (birthRows.Any(item => item.Provider != selection.Provider || item.Model != selection.ModelId ||
+                                item.CredentialSlotId != selection.CredentialSlotId || item.SelectionReason != selection.ChoiceReason))
+                            throw new InvalidDataException("A child's saved route does not match its birth model choice.");
+                        var bothRolesConfigured = new[] { PlayerDecisionProviders.RoutineRole, PlayerDecisionProviders.PlanningRole }
+                            .All(role => childRows.Any(item => item.Role == role));
+                        if (bothRolesConfigured)
+                        {
+                            pendingChildModelBindings.Remove(child.InhabitantId);
+                            continue;
+                        }
+                    }
+                    if (!pendingChildModelBindings.ContainsKey(child.InhabitantId))
+                        pendingChildModelBindings.Add(child.InhabitantId, new FrozenChildModelBinding(selection, null));
+                }
+
+                foreach (var childId in pendingChildModelBindings.Keys.Order(StringComparer.Ordinal).ToArray())
+                {
+                    if (!people.TryGetValue(childId, out var child)) continue;
+                    var binding = pendingChildModelBindings[childId];
+                    if (child.ChildModelSelection != binding.Selection)
+                        throw new InvalidDataException("The pending child model choice no longer matches the saved birth descriptor.");
+                    providers.ConfigureChildModelSelectionWithCommit(childId, binding,
+                        boundSelection => runtime.ApplyChildModelSelection(childId, boundSelection));
+                    pendingChildModelBindings.Remove(childId);
+                    changed = true;
+                }
+            }
+            return true;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or
+            InvalidOperationException or ArgumentException)
+        {
+            runtime.Pause();
+            runtime.CancelPendingHostedDecisions();
+            if (logger is not null)
+                LogRecovery(logger, "waiting_for_child_model_binding", runtime.WorldTick, exception.GetType().Name);
+            return false;
+        }
+    }
+
+    private List<PreparedChildModelSelection> PrepareChildModelSelections(
+        PrivateWorldRuntime proposed,
+        IReadOnlyList<PlaytestWorldEvent> events,
+        Dictionary<string, FrozenChildModelBinding> preparedBindings)
+    {
+        if (providers is null) return [];
+        var births = events.Where(item => item.Kind == "child_born")
+            .Select(item => item.Detail).Distinct(StringComparer.Ordinal).ToArray();
+        if (births.Length == 0) return [];
+
+        var configuration = providers.CaptureRuntimeConfiguration();
+        var people = proposed.Inhabitants.ToDictionary(item => item.InhabitantId, StringComparer.Ordinal);
+        var selections = new List<PreparedChildModelSelection>(births.Length);
+        foreach (var childId in births)
+        {
+            if (!people.TryGetValue(childId, out var child) || child.ChildModelSelection is not null)
+                throw new InvalidDataException("A newborn child cannot receive a second model choice.");
+            var initiator = people.Values.FirstOrDefault(item => item.Parenthood?.ChildId == childId);
+            if (initiator?.Parenthood is not { } plan)
+                throw new InvalidDataException("A newly born child has no initiating parent record.");
+
+            var selection = ChildModelSelectionResolver.Choose(initiator.InhabitantId, plan.PartnerId, configuration);
+            var frozen = ProviderConfigurationStore.FreezeChildModelSelection(selection, configuration);
+            preparedBindings.Add(childId, frozen);
+            selections.Add(new PreparedChildModelSelection(childId, frozen.Selection));
+        }
+        return selections;
+    }
+
     private void LogTownEvent(PlaytestWorldEvent worldEvent)
     {
         if (logger is null) return;
+        var transferKind = worldEvent.Kind switch
+        {
+            "land_transfer_proposed" => TownLandTransferTransitionKind.Proposed,
+            "land_transfer_read" => TownLandTransferTransitionKind.Read,
+            "land_transfer_consent" => TownLandTransferTransitionKind.Consent,
+            "land_transfer_withdrawn" => TownLandTransferTransitionKind.Withdrawn,
+            "land_transfer_settled" => TownLandTransferTransitionKind.Settled,
+            "land_transfer_blocked" => TownLandTransferTransitionKind.Blocked,
+            _ => (TownLandTransferTransitionKind?)null,
+        };
+        if (transferKind is { } transferTransition)
+        {
+            var fields = worldEvent.Detail.Split('|', 5);
+            var transferTown = fields.Length == 5 ? runtime.Towns.FirstOrDefault(item => item.Id == fields[0]) : null;
+            var transfer = transferTown?.LandHearings.Transfers.FirstOrDefault(item => item.Id == fields[1]);
+            if (transferTown is not null && transfer is not null)
+                TownTelemetry.LandTransfer(logger, worldEvent.WorldTick, transferTown.Id, transfer.Id, transferTransition,
+                    transfer.Status, transfer.Parties.Count, transfer.Responses.Count, transfer.Tiles.Count);
+            return;
+        }
+        var hearingKind = worldEvent.Kind switch
+        {
+            "land_case_opened" => TownLandHearingTransitionKind.Opened,
+            "land_case_notice" => TownLandHearingTransitionKind.NoticePublished,
+            "land_case_evidence" => TownLandHearingTransitionKind.EvidenceAdded,
+            "land_case_response" => TownLandHearingTransitionKind.ResponseRecorded,
+            "land_case_judge_consent" => TownLandHearingTransitionKind.JudgeConsent,
+            "land_case_judge_election" => TownLandHearingTransitionKind.JudgeElection,
+            "land_case_judge_assigned" => TownLandHearingTransitionKind.JudgeAssigned,
+            "land_case_ruling" => TownLandHearingTransitionKind.Ruling,
+            "land_case_reopen_requested" => TownLandHearingTransitionKind.ReopenRequested,
+            "land_case_reopened" => TownLandHearingTransitionKind.Reopened,
+            "land_case_inspected" => TownLandHearingTransitionKind.Inspected,
+            "land_case_relayed" => TownLandHearingTransitionKind.Relayed,
+            "land_case_rejected" => TownLandHearingTransitionKind.Rejected,
+            _ => (TownLandHearingTransitionKind?)null,
+        };
+        if (hearingKind is { } hearingTransition)
+        {
+            var fields = worldEvent.Detail.Split('|', 5);
+            var hearingTown = fields.Length >= 3 ? runtime.Towns.FirstOrDefault(item => item.Id == fields[0]) : null;
+            var hearing = hearingTown?.LandHearings?.Cases.FirstOrDefault(item => item.Id == fields[1]);
+            if (hearingTown is not null && hearing is not null)
+                TownTelemetry.LandHearing(logger, worldEvent.WorldTick, hearingTown.Id, hearing.Id, hearingTransition,
+                    hearing.Status, hearing.Revisions[^1].Number, hearing.Revisions[^1].Parties.Count,
+                    hearing.Evidence.Count, hearing.Responses.Count, hearing.Rulings.Count);
+            return;
+        }
+        var civicKind = worldEvent.Kind switch
+        {
+            "town_civic_law" => TownCivicTransitionKind.LawRecorded,
+            "town_civic_government" => TownCivicTransitionKind.GovernmentRecorded,
+            "town_civic_mayor" => TownCivicTransitionKind.MayorRecorded,
+            "town_civic_council" => TownCivicTransitionKind.CouncilChanged,
+            "town_civic_election" => TownCivicTransitionKind.ElectionOpened,
+            "town_civic_runoff" => TownCivicTransitionKind.RunoffOpened,
+            "town_civic_proposal" => TownCivicTransitionKind.ProposalOpened,
+            "town_civic_result" or "town_civic_land_use" or "land_use_granted" or "town_land_claimed" => TownCivicTransitionKind.DecisionRecorded,
+            "town_civic_cancelled" => TownCivicTransitionKind.ElectionCancelled,
+            _ => (TownCivicTransitionKind?)null,
+        };
+        if (civicKind is { } civicTransition)
+        {
+            var fields = worldEvent.Detail.Split('|', 3);
+            var civicTown = fields.Length == 3 ? runtime.Towns.FirstOrDefault(t => t.Id == fields[0]) : null;
+            if (civicTown?.Governance is { } governance)
+            {
+                var proposal = governance.Proposals.FirstOrDefault(p => p.Id == fields[1]);
+                var election = governance.Election?.Id == fields[1] ? governance.Election :
+                    governance.ElectionHistory.FirstOrDefault(e => e.Id == fields[1]);
+                var change = civicTown.Government?.Changes.FirstOrDefault(c => c.Id == fields[1]);
+                var mayor = civicTown.Government?.Contest ?? (civicTown.Government?.ContestHistory is { Count: > 0 } history ? history[^1] : null);
+                TownTelemetry.Civic(logger, worldEvent.WorldTick, civicTown.Id, civicTransition,
+                    governance.Form == "representative", governance.Members.Count, proposal?.Status ?? election?.Stage ?? change?.Status ?? mayor?.Stage ?? "none",
+                    proposal?.Votes.Count(v => v.Yes) ?? change?.Votes.Count(v => v.Yes) ?? 0,
+                    proposal?.Votes.Count(v => !v.Yes) ?? change?.Votes.Count(v => !v.Yes) ?? 0, election?.Ballots.Count ?? mayor?.Ballots.Count ?? 0);
+            }
+            return;
+        }
+        if (worldEvent.Kind is "town_admission_accepted" or "town_admission_approved" or "town_admission_lapsed")
+        {
+            var fields = worldEvent.Detail.Split('|');
+            var accepted = worldEvent.Kind == "town_admission_accepted";
+            // An approval names the Town, newcomer and proposal; acceptance and lapse add a fourth field.
+            if (fields.Length == (worldEvent.Kind == "town_admission_approved" ? 3 : 4) &&
+                runtime.Towns.FirstOrDefault(t => t.Id == fields[0]) is { } admittingTown)
+            {
+                TownTelemetry.Admission(logger, worldEvent.WorldTick, admittingTown.Id,
+                    accepted ? "admitted" : worldEvent.Kind == "town_admission_approved" ? "awaiting_acceptance" : "lapsed:" + fields[3],
+                    accepted ? fields[2] : "none",
+                    accepted && int.TryParse(fields[3], System.Globalization.NumberStyles.None,
+                        System.Globalization.CultureInfo.InvariantCulture, out var members) ? members : 0,
+                    admittingTown.ResidentIds.Count);
+            }
+            return;
+        }
         if (worldEvent.Kind == "town_layout_site_rejected")
         {
             var fields = worldEvent.Detail.Split('|', StringSplitOptions.None);
@@ -386,6 +649,11 @@ public sealed partial class PrivateWorldRuntimeService(
                 TownTelemetry.SiteRejected(logger, worldEvent.WorldTick, fields[0], fields[1],
                     fields[2], x, y, fields[5]);
             }
+            return;
+        }
+        if (worldEvent.Kind is "bridge_built" or "traffic_bridge_not_built" or "town_road_unconnected")
+        {
+            LogRoadOrBridgeEvent(logger, worldEvent, runtime.Towns);
             return;
         }
         var kind = worldEvent.Kind switch
@@ -409,10 +677,37 @@ public sealed partial class PrivateWorldRuntimeService(
             town?.ResidentIds.Count ?? 0, town?.AssignedBuildingIds.Count ?? 0, town?.BorderTiles.Count ?? 0);
     }
 
+    /// <summary>Bounded Road and bridge outcomes from accepted events; details carry only IDs and reason codes.</summary>
+    private static void LogRoadOrBridgeEvent(ILogger logger, PlaytestWorldEvent worldEvent,
+        IReadOnlyList<TownRuntimeState> towns)
+    {
+        var detail = worldEvent.Detail;
+        var reasonAt = detail.LastIndexOf(':');
+        switch (worldEvent.Kind)
+        {
+            case "bridge_built":
+                var fields = detail.Split(':', 3);
+                if (fields.Length >= 2)
+                    TownTelemetry.Bridge(logger, worldEvent.WorldTick, fields[1], fields[0], "built", "none");
+                break;
+            case "traffic_bridge_not_built" when reasonAt > 0:
+                TownTelemetry.Bridge(logger, worldEvent.WorldTick, detail[..reasonAt], "traffic", "not_built",
+                    detail[(reasonAt + 1)..]);
+                break;
+            case "town_road_unconnected":
+                var town = towns.OrderByDescending(item => item.Id.Length)
+                    .FirstOrDefault(item => detail.StartsWith(item.Id + ":", StringComparison.Ordinal));
+                if (town is not null && reasonAt > town.Id.Length + 1)
+                    TownTelemetry.RoadUnconnected(logger, worldEvent.WorldTick, town.Id,
+                        detail[(town.Id.Length + 1)..reasonAt], detail[(reasonAt + 1)..]);
+                break;
+        }
+    }
+
     private static string EstateWillReason(PlaytestWorldEvent worldEvent, string estateId, string outcome)
     {
         if (outcome == "started") return "decision_dispatch_attempted";
-        if (outcome == "accepted") return "valid_heir_selected";
+        if (outcome == "accepted") return "valid_will_accepted";
         if (outcome != "default" || !worldEvent.Detail.StartsWith(estateId + ":", StringComparison.Ordinal))
             return "unspecified";
 
@@ -504,6 +799,10 @@ public sealed partial class PrivateWorldRuntimeService(
     [LoggerMessage(EventId = 2208, Level = LogLevel.Information,
         Message = "settlement_council tick={WorldTick} event={EventKind}")]
     private static partial void LogSettlementCouncil(ILogger logger, long worldTick, string eventKind);
+
+    [LoggerMessage(EventId = 2211, Level = LogLevel.Information,
+        Message = "settlement_housing tick={WorldTick} event={EventKind}")]
+    private static partial void LogSettlementHousing(ILogger logger, long worldTick, string eventKind);
 
     [LoggerMessage(EventId = 2207, Level = LogLevel.Information,
         Message = "settlement_trade tick={WorldTick} event={EventKind}")]

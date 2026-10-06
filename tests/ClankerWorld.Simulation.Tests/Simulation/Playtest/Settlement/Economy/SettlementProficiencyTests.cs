@@ -9,11 +9,12 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class SettlementProficiencyTests
 {
     [Theory]
-    [InlineData(0, false)]
-    [InlineData(10, false)]
-    [InlineData(0, true)]
-    [InlineData(30, true)]
-    public async Task PracticeImprovesWorkAndOnlySuccessfulCompletionEarnsCredit(int experience, bool finish)
+    [InlineData(0, false, false)]
+    [InlineData(10, false, false)]
+    [InlineData(0, true, false)]
+    [InlineData(30, true, false)]
+    [InlineData(0, true, true)]
+    public async Task PracticeImprovesWorkAndOnlySuccessfulCompletionEarnsCredit(int experience, bool finish, bool knownSkill)
     {
         using var seed = new PrivateWorldRuntime("practice-work", _ => new IdleProvider());
         seed.StageStarterContent();
@@ -31,8 +32,8 @@ public sealed class SettlementProficiencyTests
             {
                 Society = state.Society.Society with
                 {
-                    Inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "practice-tool", "tool", actor.InhabitantId, 1),
-                    Inhabitants = state.Society.Society.Inhabitants.Select(person => person with { Name = "sk-private-practice-name" }).ToArray(),
+                    Inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "practice-tool", "wooden_hammer", actor.InhabitantId, 1),
+                    Inhabitants = state.Society.Society.Inhabitants.Select(person => person with { Name = $"sk-private-practice-name-{person.Id}" }).ToArray(),
                 }
             },
             Inhabitants = state.Inhabitants.Select(person => person == actor ? person with
@@ -40,6 +41,7 @@ public sealed class SettlementProficiencyTests
                 Position = site,
                 HungerBasisPoints = 9_000,
                 Proficiency = new(experience),
+                Skills = knownSkill ? [new(SettlementSkillKind.Building, 0)] : null,
                 Project = new("build:building:" + definition.CanonicalId, definition.DisplayName, seed.WorldTick, "working",
                     finish ? 10 : 0, LastTransitionTick: seed.WorldTick),
             } : person).ToArray(),
@@ -57,33 +59,29 @@ public sealed class SettlementProficiencyTests
             Assert.Equal(finish ? Math.Min(30, experience + 1) : experience, result.Proficiency!.Building);
             Assert.Equal(finish ? 10 : 2 + experience / 10, result.Project!.WorkDone);
             Assert.Equal(finish ? "completed" : "working", result.Project.Stage);
+            if (finish || knownSkill)
+            {
+                var skill = Assert.Single(result.Skills!);
+                Assert.Equal(SettlementSkillKind.Building, skill.Kind);
+                Assert.Null(skill.TeacherId);
+                Assert.Equal(knownSkill ? 0 : world.WorldTick, skill.LearnedTick);
+            }
+            else Assert.Empty(result.Skills ?? []);
             Assert.Equal(finish && experience < 30, logger.Messages.Any(message => message.Contains("work_practice tick=", StringComparison.Ordinal)));
             Assert.DoesNotContain(logger.Messages, message => message.Contains("sk-private-practice-name", StringComparison.Ordinal));
             var projection = new OwnerWorldObservationStore(world).GetSnapshot().Inhabitants.Single(person => person.Id == actor.InhabitantId);
             Assert.Equal(result.Proficiency.Building, projection.Proficiency!.Building);
+            Assert.Equal(finish || knownSkill ? 1 : 0, projection.Skills.Count);
             using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState())), _ => new IdleProvider());
             Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
             if (finish)
             {
                 await restored.AdvanceOneTickAsync();
                 Assert.Equal(result.Proficiency, restored.Inhabitants.Single(person => person.InhabitantId == actor.InhabitantId).Proficiency);
+                Assert.Equal(result.Skills, restored.Inhabitants.Single(person => person.InhabitantId == actor.InhabitantId).Skills);
             }
         }
         finally { directory.Delete(recursive: true); }
-    }
-
-    [Theory]
-    [InlineData(-1, 11)]
-    [InlineData(1, 10)]
-    public void InvalidOrOldSchemaPracticeFailsClosed(int experience, int schema)
-    {
-        using var world = new PrivateWorldRuntime("invalid-practice");
-        var state = world.ExportState();
-        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(state with
-        {
-            SchemaVersion = schema,
-            Inhabitants = state.Inhabitants.Select(person => person with { Proficiency = new(experience) }).ToArray(),
-        }));
     }
 
     private sealed class IdleProvider : IDecisionProvider

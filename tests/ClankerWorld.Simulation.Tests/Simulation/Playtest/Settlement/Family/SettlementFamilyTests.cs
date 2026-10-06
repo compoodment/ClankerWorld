@@ -34,7 +34,6 @@ public sealed class SettlementFamilyTests
     }
 
     [Theory]
-    [InlineData(false, false)]
     [InlineData(true, true)]
     public async Task AncestryAndSiblingExclusionsSurviveInterveningRelativeDeath(bool ancestor, bool relativeDies)
     {
@@ -69,6 +68,92 @@ public sealed class SettlementFamilyTests
         using var world = PrivateWorldRuntime.Restore(state, actor => new FamilyProvider(actor == first ? "partner_propose:" : "safe_idle"));
         await world.AdvanceOneTickAsync();
         Assert.DoesNotContain(world.Society.Relationships, edge => edge.Type == SocietyRelationshipType.Partnership);
+    }
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task AuntsAndUnclesCannotPairWithNiecesOrNephews(bool auntProposes, bool fullSiblings)
+    {
+        var state = await PreparedState();
+        var proposer = state.Inhabitants[0].InhabitantId;
+        var other = state.Inhabitants[1].InhabitantId;
+        var (aunt, niece) = auntProposes ? (proposer, other) : (other, proposer);
+        var nieceParent = state.Inhabitants[2].InhabitantId;
+        var grandparent = state.Inhabitants[3].InhabitantId;
+        state = FamilyTreeFixture.WithRelationships(state, SocietyRelationshipType.BiologicalParentage,
+            (grandparent, aunt), (grandparent, nieceParent), (nieceParent, niece));
+        if (fullSiblings)
+        {
+            (state, var otherGrandparent) = FamilyTreeFixture.WithDeadAncestor(state, "grandparent");
+            state = FamilyTreeFixture.WithRelationships(state, SocietyRelationshipType.BiologicalParentage,
+                (otherGrandparent, aunt), (otherGrandparent, nieceParent));
+        }
+        using var world = PrivateWorldRuntime.Restore(state, actor => new FamilyProvider(actor == proposer ? "partner_propose:" : "partner_accept:"));
+        for (var tick = 0; tick < 3; tick++)
+        {
+            await world.AdvanceOneTickAsync();
+        }
+        Assert.DoesNotContain(world.Society.Relationships, edge => edge.Type == SocietyRelationshipType.Partnership);
+    }
+
+    [Fact]
+    public async Task NieceOrNephewCannotAcceptAnAuntOrUnclesProposal()
+    {
+        var state = await PreparedState();
+        var aunt = state.Inhabitants[0].InhabitantId;
+        var niece = state.Inhabitants[1].InhabitantId;
+        var nieceParent = state.Inhabitants[2].InhabitantId;
+        var grandparent = state.Inhabitants[3].InhabitantId;
+        state = FamilyTreeFixture.WithRelationships(state, SocietyRelationshipType.BiologicalParentage,
+            (grandparent, aunt), (grandparent, nieceParent), (nieceParent, niece));
+        using (var society = SocietyWorldRuntime.Restore(state.Society))
+        {
+            society.Apply(checkpoint => SocietyFixture.ProposeRelationship(checkpoint,
+                new("earlier-proposal", 1, SocietyRelationshipType.Partnership, aunt, niece, checkpoint.WorldTick, PrivacyClass: "public")));
+            state = state with { Society = society.ExportState() };
+        }
+        using var world = PrivateWorldRuntime.Restore(state, actor => new FamilyProvider(actor == niece ? "partner_accept:" : "safe_idle"));
+        for (var tick = 0; tick < 3; tick++)
+        {
+            await world.AdvanceOneTickAsync();
+        }
+        Assert.Equal(SocietyRelationshipState.Proposed, world.Society.GetRelationship("earlier-proposal").State);
+    }
+
+    [Fact]
+    public async Task FirstCousinsCanStillPair()
+    {
+        var state = await PreparedState();
+        var first = state.Inhabitants[0].InhabitantId;
+        var second = state.Inhabitants[1].InhabitantId;
+        var firstParent = state.Inhabitants[2].InhabitantId;
+        var secondParent = state.Inhabitants[3].InhabitantId;
+        (state, var grandparent) = FamilyTreeFixture.WithDeadAncestor(state, "grandparent");
+        state = FamilyTreeFixture.WithRelationships(state, SocietyRelationshipType.BiologicalParentage,
+            (grandparent, firstParent), (grandparent, secondParent), (firstParent, first), (secondParent, second));
+        using var world = PrivateWorldRuntime.Restore(state, actor => new FamilyProvider(actor == first ? "partner_propose:" : "partner_accept:"));
+        await world.AdvanceOneTickAsync();
+        await world.AdvanceOneTickAsync();
+        var partnership = Assert.Single(world.Society.Relationships, edge => edge.Type == SocietyRelationshipType.Partnership);
+        Assert.Equal((first, second, SocietyRelationshipState.Accepted), (partnership.ProposerId, partnership.TargetId, partnership.State));
+    }
+
+    [Fact]
+    public async Task SharedHouseholdsAndCaregiversDoNotCountAsKinship()
+    {
+        var state = await PreparedState();
+        var first = state.Inhabitants[0].InhabitantId;
+        var second = state.Inhabitants[1].InhabitantId;
+        var caregiver = state.Inhabitants[2].InhabitantId;
+        Assert.Equal(state.Society.Society.GetInhabitant(first).HouseholdId, state.Society.Society.GetInhabitant(second).HouseholdId);
+        state = FamilyTreeFixture.WithRelationships(state, SocietyRelationshipType.Caregiver,
+            (caregiver, first), (caregiver, second), (first, second));
+        using var world = PrivateWorldRuntime.Restore(state, actor => new FamilyProvider(actor == first ? "partner_propose:" : "partner_accept:"));
+        await world.AdvanceOneTickAsync();
+        await world.AdvanceOneTickAsync();
+        Assert.Equal(SocietyRelationshipState.Accepted,
+            Assert.Single(world.Society.Relationships, edge => edge.Type == SocietyRelationshipType.Partnership).State);
     }
 
     [Theory]
@@ -186,7 +271,7 @@ public sealed class SettlementFamilyTests
                 {
                     Society = state.Society.Society with
                     {
-                        Inhabitants = state.Society.Society.Inhabitants.Select(person => person with { Name = "family-private-text-secret" }).ToArray(),
+                        Inhabitants = state.Society.Society.Inhabitants.Select(person => person with { Name = $"family-private-text-secret-{person.Id}" }).ToArray(),
                     },
                 },
             };

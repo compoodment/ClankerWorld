@@ -1,0 +1,3 @@
+- On the paired world: if a model chooses a first name already chosen by another agent, the new agent keeps its placeholder while it is asked once more. A different surname does not avoid the collision. ([#456](https://github.com/compoodment/ClankerWorld/issues/456))
+- On the paired world: if the second choice is also taken or unusable, the placeholder stays and no further automatic naming request follows. The player can rename the agent. ([#456](https://github.com/compoodment/ClankerWorld/issues/456))
+- On the paired world: save and load while a retry is waiting, or rename the agent yourself. The player's name stays and an old reply does not overwrite it. ([#456](https://github.com/compoodment/ClankerWorld/issues/456))

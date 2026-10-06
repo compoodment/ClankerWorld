@@ -8,6 +8,8 @@ namespace ClankerWorld.GodotClient;
 
 public partial class Main
 {
+    private long renderedObservationGeneration = -1;
+
     private async Task InitializeAsync()
     {
         try
@@ -144,7 +146,7 @@ public partial class Main
                     pairingInstructionLabel.Text = "Waiting for host approval. Give the host the pairing ID and comparison code exactly as shown.";
                     break;
                 case OwnerPairingState.Approved:
-                    pairingInstructionLabel.Text = "Host approval received. Proving possession of this Windows device key…";
+                    pairingInstructionLabel.Text = "Host approval received. Proving possession of this Windows device key...";
                     await ActivatePendingPairingAsync();
                     break;
                 case OwnerPairingState.Active:
@@ -274,8 +276,9 @@ public partial class Main
         refreshCancellation = refresh;
         try
         {
-            var requestedCursor = observationSession.EventCursor;
-            var cachedTerrain = observationSession.Current is { } held &&
+            var request = observationSession.CaptureRequest();
+            var requestedCursor = request.AfterEventId;
+            var cachedTerrain = !request.RequiresFullBaseline && observationSession.Current is { } held &&
                 held.Handshake.ServerCapabilities.Contains("owner-terrain-delta.v1", StringComparer.Ordinal) &&
                 held.Baseline.Snapshot.PackedTerrain is not null &&
                 (held.Baseline.Snapshot.MapLayersDigest is null ||
@@ -297,24 +300,34 @@ public partial class Main
                 refresh.Token);
             // An owner action or shutdown superseded this snapshot.
             if (refresh.IsCancellationRequested) return;
-            if (!observationSession.TryAccept(reconnect, requestedCursor, out var failure))
+            if (!observationSession.TryAccept(reconnect, request, out var failure, out var timelineChanged))
             {
+                if (observationSession.AwaitingFreshBaseline)
+                {
+                    CancelAutosaveSettingsRead();
+                    CancelManualSaveListRead();
+                    worldListRequest.Cancel();
+                }
                 ShowHeldState(failure);
                 return;
             }
 
-            if (reconnect.Baseline.Events.ResetRequired)
+            if (timelineChanged || renderedObservationGeneration != observationSession.RequestGeneration)
+            {
+                ResetDisplayedWorldContext();
+            }
+            else if (reconnect.Baseline.Events.ResetRequired)
             {
                 knownEvents.Clear();
             }
             Render(observationSession.Current!.Baseline.Snapshot, reconnect.Baseline.Events.Events);
+            renderedObservationGeneration = observationSession.RequestGeneration;
             successfulRefreshCount++;
             if (!isOwnerAction)
             {
                 if (usageStatus?.LimitReached == true && reconnect.Baseline.Snapshot.Authoring?.IsPaused == true)
                 {
-                    SetStatus("Paid-call limit reached. The world is paused; open World Settings to allow more calls.",
-                        good: false, StatusToastKind.UsageLimit);
+                    SetStatus(UsageLimitPausedMessage, good: false, StatusToastKind.UsageLimit);
                 }
                 else
                 {
@@ -335,6 +348,42 @@ public partial class Main
             refreshCancellation = null;
             isRefreshing = false;
             RefreshControlAvailability();
+        }
+    }
+
+    private bool IsCurrentWorldRequest(long generation) =>
+        generation == observationSession.RequestGeneration && !observationSession.AwaitingFreshBaseline;
+
+    private sealed class ObsoleteWorldRequestException : OperationCanceledException { }
+
+    // A request already sent may still commit on the host. Only its late local
+    // result is discarded here; this never retries or rewrites its payload.
+    private async Task<T> AwaitCurrentWorldResultAsync<T>(Task<T> request)
+    {
+        var generation = observationSession.RequestGeneration;
+        try
+        {
+            var result = await request;
+            if (generation != observationSession.RequestGeneration) throw new ObsoleteWorldRequestException();
+            return result;
+        }
+        catch (Exception) when (generation != observationSession.RequestGeneration)
+        {
+            throw new ObsoleteWorldRequestException();
+        }
+    }
+
+    private async Task AwaitCurrentWorldResultAsync(Task request)
+    {
+        var generation = observationSession.RequestGeneration;
+        try
+        {
+            await request;
+            if (generation != observationSession.RequestGeneration) throw new ObsoleteWorldRequestException();
+        }
+        catch (Exception) when (generation != observationSession.RequestGeneration)
+        {
+            throw new ObsoleteWorldRequestException();
         }
     }
 
@@ -372,7 +421,7 @@ public partial class Main
 
             var previousRefreshCount = successfulRefreshCount;
             var previousToastTime = statusToastShownAtMsec;
-            connectionStatusLabel.Text = "Checking connection…";
+            connectionStatusLabel.Text = "Checking connection...";
             connectionStatusLabel.Show();
             connectButton.Disabled = true;
             await RefreshAsync();

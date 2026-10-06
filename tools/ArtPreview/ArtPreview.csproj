@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>preview</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>ArtPreview</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <NoWarn>CS1591;CS8632</NoWarn>
+    <!-- A developer-only renderer: the repository's analyzer rules are relaxed here so the small Godot stand-in can mirror Godot's own field-based structs. -->
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <EnableNETAnalyzers>false</EnableNETAnalyzers>
+    <AnalysisLevel>none</AnalysisLevel>
+    <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- The repository's own art generators, compiled unchanged against the shim. -->
+    <Compile Include="../../src/ClankerWorld.GodotClient/UI/Graphics/*.cs" Link="Game/Graphics/%(Filename)%(Extension)" />
+    <Compile Include="../../src/ClankerWorld.GodotClient/UI/Map/CoastEdges.cs" Link="Game/Map/CoastEdges.cs" />
+    <Compile Include="../../src/ClankerWorld.GodotClient/UI/Map/HillBand.cs" Link="Game/Map/HillBand.cs" />
+    <Compile Include="../../src/ClankerWorld.GodotClient/UI/Map/ReliefRenderer.cs" Link="Game/Map/ReliefRenderer.cs" />
+    <Compile Include="../../src/ClankerWorld.GodotClient/UI/Map/SnowEdges.cs" Link="Game/Map/SnowEdges.cs" />
+    <Compile Include="../../src/ClankerWorld.GodotClient/UI/Map/TerrainTransitions.cs" Link="Game/Map/TerrainTransitions.cs" />
+    <Compile Include="../../src/ClankerWorld.GodotClient/UI/Map/WorldTerrainMap.cs" Link="Game/Map/WorldTerrainMap.cs" />
+    <Compile Include="../../src/ClankerWorld.GodotClient/UI/MenuLogo.cs" Link="Game/MenuLogo.cs" />
+    <Compile Include="../../src/ClankerWorld.GodotClient/UI/MenuScene.cs" Link="Game/MenuScene.cs" />
+  </ItemGroup>
+</Project>

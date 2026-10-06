@@ -27,7 +27,11 @@
     <Compile Include="..\..\src\ClankerWorld.GodotClient\Pairing\OwnerDeviceKey.cs" Link="GodotClient\Pairing\OwnerDeviceKey.cs" />
     <Compile Include="..\..\src\ClankerWorld.GodotClient\Pairing\OwnerPairingClient.cs" Link="GodotClient\Pairing\OwnerPairingClient.cs" />
     <Compile Include="..\..\src\ClankerWorld.GodotClient\UI\Theme\GameUiText.cs" Link="GodotClient\UI\Theme\GameUiText.cs" />
+    <Compile Include="..\..\src\ClankerWorld.GodotClient\UI\Theme\LandHearingText.cs" Link="GodotClient\UI\Theme\LandHearingText.cs" />
+    <Compile Include="..\..\src\ClankerWorld.GodotClient\UI\Theme\LandTransferText.cs" Link="GodotClient\UI\Theme\LandTransferText.cs" />
+    <Compile Include="..\..\src\ClankerWorld.GodotClient\UI\Theme\NonviolentHearingText.cs" Link="GodotClient\UI\Theme\NonviolentHearingText.cs" />
     <Compile Include="..\..\src\ClankerWorld.GodotClient\UI\Theme\WorldEventText.cs" Link="GodotClient\UI\Theme\WorldEventText.cs" />
+    <Compile Include="..\..\src\ClankerWorld.GodotClient\UI\Map\HillBand.cs" Link="GodotClient\UI\Map\HillBand.cs" />
     <Compile Include="..\..\src\ClankerWorld.GodotClient\Networking\OwnerWorldApi.cs" Link="GodotClient\Networking\OwnerWorldApi.cs" />
     <Compile Include="..\..\src\ClankerWorld.GodotClient\Protocol\OwnerWorldContracts.cs" Link="GodotClient\Protocol\OwnerWorldContracts.cs" />
     <Compile Include="..\..\src\ClankerWorld.GodotClient\Protocol\OwnerWorldObservationSession.cs" Link="GodotClient\Protocol\OwnerWorldObservationSession.cs" />
@@ -37,6 +41,7 @@
     <Compile Include="..\..\src\ClankerWorld.GodotClient\ClientState\GameDisplayPreferencesStore.cs" Link="GodotClient\ClientState\GameDisplayPreferencesStore.cs" />
     <Compile Include="..\..\src\ClankerWorld.GodotClient\ClientState\OwnerActionGate.cs" Link="GodotClient\ClientState\OwnerActionGate.cs" />
     <Compile Include="..\..\src\ClankerWorld.GodotClient\ClientState\OwnerPendingSubmissionStore.cs" Link="GodotClient\ClientState\OwnerPendingSubmissionStore.cs" />
+    <Compile Include="..\..\src\ClankerWorld.GodotClient\ClientState\RefusedAgentRename.cs" Link="GodotClient\ClientState\RefusedAgentRename.cs" />
     <Compile Include="..\..\src\ClankerWorld.GodotClient\ClientState\WorldListRequest.cs" Link="GodotClient\ClientState\WorldListRequest.cs" />
   </ItemGroup>
 

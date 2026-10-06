@@ -82,7 +82,7 @@ public sealed partial class PrivateWorldRuntime
         var required = living.Length / 2 + 1;
         var approvals = ballot.Approvals.Count(id => living.Contains(id, StringComparer.Ordinal));
         var rejections = ballot.Rejections.Count(id => living.Contains(id, StringComparer.Ordinal));
-        if (living.Length > 0 && approvals >= required)
+        if (WorldTick <= ballot.ExpiryTick && living.Length > 0 && approvals >= required)
         {
             council = council with { FoodPolicy = ballot.Policy, LastResolutionTick = WorldTick, Ballot = null };
             AppendEvent("council_policy_adopted", ballot.Policy);
@@ -150,7 +150,7 @@ public sealed partial class PrivateWorldRuntime
         }
         var tick = state.Society.Society.WorldTick;
         var known = state.Society.Society.Inhabitants.Select(person => person.Id).ToHashSet(StringComparer.Ordinal);
-        if (state.SchemaVersion < 7 || saved.FoodPolicy is not ("open" or "essential_first") ||
+        if (saved.FoodPolicy is not ("open" or "essential_first") ||
             saved.LastResolutionTick < 0 || saved.LastResolutionTick > tick ||
             saved.StewardId is not null && !known.Contains(saved.StewardId))
         {

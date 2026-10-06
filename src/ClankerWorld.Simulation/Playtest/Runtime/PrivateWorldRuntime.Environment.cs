@@ -19,18 +19,7 @@ public sealed partial class PrivateWorldRuntime
         var config = WorldStartPaceRules.WorldSystems(startPace);
         var resources = map.Resources
             .Select(resource => resource.TreeKind is not null
-                ? new EcologyResource(
-                    resource.Id,
-                    resource.Kind,
-                    resource.Position,
-                    resource.IsRenewable,
-                    1,
-                    1,
-                    resource.IsRenewable ? 1 : 0,
-                    resource.IsRenewable ? resource.TreeKind == "orchard" ? 3 : 6 : 0,
-                    SeasonKind.Spring,
-                    resource.TreeKind == "orchard" ? 3 : 6,
-                    EcologyResourceState.Available)
+                ? TreeGrowthRules.GeneratedTree(resource)
                 : resource.IsRenewable
                 ? new EcologyResource(
                     resource.Id,
@@ -141,16 +130,16 @@ public sealed partial class PrivateWorldRuntime
         Func<string, IDecisionProvider>? providerFactory,
         int maxCognitionQueueLength,
         int maxCognitionDispatchPerCycle,
-        double minimumCognitionConfidence,
         WorldStartPace startPace)
     {
         var config = WorldStartPaceRules.Society(startPace);
+        int Age(int index) => SocietyFixture.FounderArrivalAge(config, worldSeed, index);
         var founders = new[]
         {
-            SocietyFixture.CreateFounder("founder-scout", "Scout", "model:scout", config: config),
-            SocietyFixture.CreateFounder("founder-mira", "Mira", "model:mira", config: config),
-            SocietyFixture.CreateFounder("founder-rowan", "Rowan", "model:rowan", config: config),
-            SocietyFixture.CreateFounder("founder-ilya", "Ilya", "model:ilya", config: config),
+            SocietyFixture.CreateFounder("founder-scout", "Scout", "model:scout", config: config, startingAge: Age(0)),
+            SocietyFixture.CreateFounder("founder-mira", "Mira", "model:mira", config: config, startingAge: Age(1)),
+            SocietyFixture.CreateFounder("founder-rowan", "Rowan", "model:rowan", config: config, startingAge: Age(2)),
+            SocietyFixture.CreateFounder("founder-ilya", "Ilya", "model:ilya", config: config, startingAge: Age(3)),
         };
         var initialFounders = startPace == WorldStartPace.FounderSetup ? [] : founders;
         var checkpoint = SocietyFixture.CreateGenesis(
@@ -160,14 +149,23 @@ public sealed partial class PrivateWorldRuntime
                 new InventoryLot(FoodLotId, "food", HouseholdId, 32, 10_000, 10_000, 0),
                 new InventoryLot("wood:camp-alpha", "wood", HouseholdId, 48, 10_000, 10_000, 0),
                 new InventoryLot("tools:camp-alpha", "tool", HouseholdId, 4, 10_000, 10_000, 0),
+                ..(startPace == WorldStartPace.Legacy ? new InventoryLot[]
+                {
+                    new("legacy-wooden-axe:camp-alpha", "wooden_axe", HouseholdId, 1, 10_000, 10_000, 0),
+                    new("legacy-wooden-pickaxe:camp-alpha", "wooden_pickaxe", HouseholdId, 1, 10_000, 10_000, 0),
+                } : []),
                 ..(startPace == WorldStartPace.FounderSetup ? new InventoryLot[]
                 {
                     new("food:camp-beta", "food", SecondHouseholdId, 16, 10_000, 10_000, 0),
                     new("wood:camp-beta", "wood", SecondHouseholdId, 24, 10_000, 10_000, 0),
                     new("tools:camp-beta", "tool", SecondHouseholdId, 2, 10_000, 10_000, 0),
-                    new("seeds:camp-alpha", "seed", HouseholdId, 8, 10_000, 10_000, 0),
+                    new("seeds:camp-alpha", "grain_seed", HouseholdId, 8, 10_000, 10_000, 0),
+                    new("green-seeds:camp-alpha", "cultivated_green_seed", HouseholdId, 4, 10_000, 10_000, 0),
+                    new("potatoes:camp-alpha", "potatoes", HouseholdId, 4, 10_000, 10_000, 0),
                     new("clothing:camp-alpha", "clothing", HouseholdId, 2, 10_000, 10_000, 0),
-                    new("seeds:camp-beta", "seed", SecondHouseholdId, 8, 10_000, 10_000, 0),
+                    new("seeds:camp-beta", "grain_seed", SecondHouseholdId, 8, 10_000, 10_000, 0),
+                    new("green-seeds:camp-beta", "cultivated_green_seed", SecondHouseholdId, 4, 10_000, 10_000, 0),
+                    new("potatoes:camp-beta", "potatoes", SecondHouseholdId, 4, 10_000, 10_000, 0),
                     new("clothing:camp-beta", "clothing", SecondHouseholdId, 2, 10_000, 10_000, 0),
                 } : []),
             ],
@@ -191,8 +189,7 @@ public sealed partial class PrivateWorldRuntime
             checkpoint,
             providerFactory,
             maxCognitionQueueLength,
-            maxCognitionDispatchPerCycle,
-            minimumCognitionConfidence);
+            maxCognitionDispatchPerCycle);
     }
 
     private void CreatePhysicalState()
@@ -245,10 +242,53 @@ public sealed partial class PrivateWorldRuntime
             .ToHashSet(StringComparer.Ordinal);
         foreach (var id in inhabitants.Keys.Where(id => !activeIds.Contains(id)).ToArray())
         {
+            if (PendingInstructionFor(id) is { Order.Action: "construct_building" or "expand_building" } buildingOrder)
+            {
+                CancelConstructionForOrder(buildingOrder);
+                CancelExpansionForOrder(buildingOrder);
+                SetOrderStatus(buildingOrder, "blocked", "The ordered building worker is no longer alive.");
+            }
+            if (PendingInstructionFor(id) is { Order.Action: "produce_item" } productionOrder)
+            {
+                CancelProductionForOrder(productionOrder);
+                SetOrderStatus(productionOrder, "blocked", "The ordered production worker is no longer alive.");
+            }
+            if (society.Checkpoint.Inventory.Lots.Any(lot => lot.CarrierId == id))
+            {
+                var position = inhabitants[id].Position;
+                ApplyInventoryTransition(inventory => InventoryFixture.DropCarrierGoods(inventory, id,
+                    new InventoryGroundPosition(position.X, position.Y)));
+            }
             var deceased = society.Checkpoint.GetInhabitant(id);
             var deathTick = deceased.DeathTick ?? throw new InvalidDataException("A removed inhabitant has no committed death.");
+            // Society escrows ownership at death. Goods that had no separate
+            // custodian or storage were carried by their owner; keep their
+            // physical position at the deceased's tile after that owner is gone.
+            var estate = society.Checkpoint.Estates.SingleOrDefault(item => item.DeceasedId == id);
+            if (estate is not null)
+            {
+                var position = inhabitants[id].Position;
+                foreach (var lot in society.Checkpoint.Inventory.Lots.Where(item => item.OwnerId == estate.Id &&
+                             item.ContainerLotId is null && item.CarrierId is null &&
+                             item.StorageBuildingId is null && item.GroundPosition is null).ToArray())
+                    ApplyInventoryTransition(inventory => InventoryFixture.Relocate(inventory,
+                        $"death:{id}:{lot.Id}", lot.Id, estate.Id, lot.Quantity,
+                        groundPosition: new InventoryGroundPosition(position.X, position.Y)));
+            }
+            foreach (var moment in (inhabitants[id].IdentityMoments ?? [])
+                         .Where(item => item.Outcome is "waiting" or "requested").ToArray())
+                FinishIdentityMoment(id, moment.Kind, "interrupted");
             deceasedInhabitants.Add(id, new PlaytestDeceasedInhabitantState(
-                id, deathTick, society.Checkpoint.AgeAt(deceased, deathTick), inhabitants[id]));
+                id, deathTick, society.Checkpoint.AgeAt(deceased, deathTick),
+                inhabitants[id] with
+                {
+                    MedicalTreatment = null,
+                    MedicalSupplyTrip = null,
+                    GuardianPlacement = null,
+                    Equipment = inhabitants[id].Equipment is { } equipment
+                        ? equipment with { OrnamentLotId = null } : null,
+                }, TownForResident(id))
+            { BoatIdAtDeath = RecordBoatDeath(id) });
             inhabitants.Remove(id);
             RemoveTownResident(id);
             checkpointSchemaVersion = StateSchemaVersion;

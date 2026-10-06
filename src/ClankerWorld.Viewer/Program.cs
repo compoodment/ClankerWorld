@@ -98,6 +98,10 @@ builder.Services.AddSingleton(new ProviderConfigurationStore(
         Environment.GetEnvironmentVariable("OPENAI_API_KEY"),
         configuredOllamaCloudModel,
         Environment.GetEnvironmentVariable("OLLAMA_API_KEY"))));
+builder.Services.AddSingleton(services => new ProviderModelCatalog(
+    services.GetRequiredService<ProviderConfigurationStore>(),
+    services.GetRequiredService<IHttpClientFactory>()));
+builder.Services.AddSingleton<ProviderSetupCheckService>();
 builder.Services.AddSingleton<ConfigurableDecisionProvider>();
 builder.Services.AddSingleton<IDecisionProvider>(services =>
     services.GetRequiredService<ConfigurableDecisionProvider>());
@@ -201,6 +205,7 @@ if (advanceRuntime)
             services.GetRequiredService<WorldAutosaveStore>(),
             services.GetRequiredService<ManualWorldSaveStore>(),
             services.GetRequiredService<ProviderConfigurationStore>()));
+        builder.Services.AddHostedService<WorldCatalogWarmUpService>();
     }
     else
     {
@@ -214,23 +219,30 @@ if (isPrivateWorld) _ = app.Services.GetRequiredService<WorldCatalogStore>();
 if (app.Services.GetRequiredService<ProviderUsageStore>().Capture().AccountingError is not null)
     ProviderUsageTelemetry.AccountingBlocked(app.Logger);
 ProviderCredentialTelemetry.Ready(app.Logger, OperatingSystem.IsWindows() ? "windows_current_user" : "private_file_permissions");
-app.Services.GetRequiredService<ProviderUsageStore>().LimitReached += () =>
+var providerUsage = app.Services.GetRequiredService<ProviderUsageStore>();
+if (isPrivateWorld)
 {
-    if (isPrivateWorld)
-    {
-        var runtime = app.Services.GetRequiredService<PrivateWorldRuntime>();
-        runtime.Pause();
-        app.Services.GetRequiredService<PrivateWorldStateFile>().Save(runtime);
-        ProviderUsageTelemetry.LimitReached(app.Logger, runtime.WorldTick);
-    }
-    else
+    var usageEffects = new Lazy<ProviderUsageWorldEffects>(() => new ProviderUsageWorldEffects(
+        app.Services.GetRequiredService<PrivateWorldRuntime>(),
+        app.Services.GetRequiredService<PrivateWorldStateFile>(),
+        app.Services.GetRequiredService<ProviderConfigurationStore>().WorldMutationGate,
+        app.Logger));
+    providerUsage.LimitReached += () => usageEffects.Value.PauseAtLimit();
+    providerUsage.WarningReached += warning => usageEffects.Value.RecordWarning(warning);
+}
+else
+{
+    providerUsage.LimitReached += () =>
     {
         var runtime = app.Services.GetRequiredService<OwnerWorldRuntime>();
         if (runtime.Pause("provider_usage_limit"))
             app.Services.GetRequiredService<OwnerWorldStateFile>().Save(runtime);
-        ProviderUsageTelemetry.LimitReached(app.Logger, 0);
-    }
-};
+        ProviderUsageTelemetry.LimitReached(app.Logger, "paused", 0);
+    };
+    // The fixture world has no Event Log line for this; the log still records it.
+    providerUsage.WarningReached += warning =>
+        ProviderUsageTelemetry.WarningReached(app.Logger, "logged_only", warning.Attempts, warning.AttemptLimit, 0);
+}
 app.UseDefaultFiles();
 app.UseStaticFiles();
 

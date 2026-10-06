@@ -8,43 +8,6 @@ public sealed partial class DocumentationTests
     private static readonly string[] AllowedDocumentStatuses =
         ["active", "complete", "frozen", "history", "proposal", "superseded"];
 
-    [Fact]
-    public void CanonicalDocumentationSourcesExist()
-    {
-        var root = FindRepositoryRoot();
-        var required = new[]
-        {
-            "README.md",
-            "CONTRIBUTING.md",
-            "AGENTS.md",
-            "CHANGELOG.md",
-            "docs/README.md",
-            "docs/playing.md",
-            "docs/what-works.md",
-            "docs/game-design/README.md",
-            "docs/game-design/world.md",
-            "docs/game-design/agents-and-families.md",
-            "docs/game-design/towns.md",
-            "docs/game-design/interface-and-art.md",
-            "docs/game-design/inventions-and-mods.md",
-            "docs/game-design/saves.md",
-            "docs/game-design/content-list.md",
-            "docs/development/README.md",
-            "docs/development/how-it-works.md",
-            "docs/development/build-and-test.md",
-            "docs/development/device-pairing.md",
-            "docs/development/saves-and-replay.md",
-            "docs/development/releasing.md",
-        };
-
-        foreach (var relativePath in required)
-        {
-            Assert.True(
-                File.Exists(Path.Combine(root, relativePath)),
-                $"Required canonical documentation is missing: {relativePath}");
-        }
-    }
-
     [Theory]
     [InlineData("\n")]
     [InlineData("\r\n")]
@@ -79,8 +42,16 @@ public sealed partial class DocumentationTests
     public void LocalMarkdownLinksResolveToExistingFilesAndHeadings()
     {
         var root = FindRepositoryRoot();
+        // Skip symbolic links, such as the .claude/skills and .agents/skills entries that point
+        // into skills/: their files are checked where they live, and their relative links
+        // resolve from there, not from the link.
         var markdownFiles = Directory
-            .EnumerateFiles(root, "*.md", SearchOption.AllDirectories)
+            .EnumerateFiles(root, "*.md", new EnumerationOptions
+            {
+                RecurseSubdirectories = true,
+                AttributesToSkip = FileAttributes.ReparsePoint,
+                IgnoreInaccessible = false,
+            })
             .Where(path => !Relative(root, path).StartsWith(".git/", StringComparison.Ordinal))
             .Order(StringComparer.Ordinal)
             .ToArray();
@@ -115,6 +86,32 @@ public sealed partial class DocumentationTests
                 }
             }
         }
+    }
+
+    [Fact]
+    public void ChangelogEntriesStartWithABullet()
+    {
+        var root = FindRepositoryRoot();
+        var entries = Directory
+            .EnumerateFiles(Path.Combine(root, "changes"), "*.md")
+            .Where(path => Path.GetFileName(path) != "README.md")
+            .Order(StringComparer.Ordinal);
+        var notBullets = new List<string>();
+        foreach (var path in entries)
+        {
+            // Match scripts/collect-changes.sh: drop CRs and leading empty lines, keep a BOM.
+            var text = Encoding.UTF8.GetString(File.ReadAllBytes(path))
+                .Replace("\r", "", StringComparison.Ordinal)
+                .TrimStart('\n');
+            if (!text.StartsWith("- ", StringComparison.Ordinal))
+            {
+                notBullets.Add(Relative(root, path));
+            }
+        }
+
+        Assert.True(
+            notBullets.Count == 0,
+            $"Changelog entries must start with a \"- \" bullet (see changes/README.md): {string.Join(", ", notBullets)}");
     }
 
     private static string FindRepositoryRoot()

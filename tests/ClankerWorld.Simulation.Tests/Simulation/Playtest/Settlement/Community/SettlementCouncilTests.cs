@@ -1,6 +1,7 @@
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.Society;
+using ClankerWorld.Simulation.World;
 using ClankerWorld.Viewer.Observation;
 
 namespace ClankerWorld.Simulation.Tests;
@@ -44,8 +45,10 @@ public sealed class SettlementCouncilTests
         {
             Council = state.Council! with { FoodPolicy = policy },
             Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == collector
-                ? person with { HungerBasisPoints = hunger } : person).ToArray(),
+                ? person with { HungerBasisPoints = hunger, LastDecisionContext = null } : person).ToArray(),
         };
+        // Food-policy access is independent of weather's urgent shelter decisions.
+        state = SettlementWeatherTestFixture.WithWeather(state, WeatherKind.Clear);
         using var world = PrivateWorldRuntime.Restore(state, id => new CouncilProvider(id == collector ? "collect_shared_food" : "safe_idle"));
         for (var tick = 0; tick < 40; tick++)
         {
@@ -116,10 +119,9 @@ public sealed class SettlementCouncilTests
     }
 
     [Fact]
-    public async Task ForgedBallotsAndOldSchemaCouncilStateFailClosed()
+    public async Task ForgedBallotsFailClosed()
     {
         var state = await PreparedState();
-        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(state with { SchemaVersion = 6 }));
         var actor = state.Inhabitants[0].InhabitantId;
         var invalid = state with
         {

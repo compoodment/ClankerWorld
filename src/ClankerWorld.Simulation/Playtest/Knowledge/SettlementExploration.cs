@@ -46,10 +46,9 @@ public sealed partial class PrivateWorldRuntime
         if (person.Survival is not { } condition) return true;
         // Budget the short out-and-back trip using adjacent exposure and actual movement costs.
         // Shelter at the starting tile is not protection carried along on the outing.
-        var clothing = HasCarriedItem(person.InhabitantId, "clothing") ? 35 : 0;
         return map.FootNeighbors(person.Position).Where(map.IsPassable).All(next =>
         {
-            var loss = Math.Max(0, WeatherExposure(next) - clothing);
+            var loss = Math.Max(0, OutdoorExposure(next) - ClothingProtection(person.InhabitantId, next));
             var stepTicks = (RoadStepCost(person.Position, next) + 99) / 100 +
                 SettlementIllnessRules.TravelDelayTicks(condition.IllnessBasisPoints);
             return loss == 0 || condition.WarmthBasisPoints - loss * stepTicks * ExplorationStepsPerOuting * 2 >= UrgentWarmth;
@@ -59,7 +58,9 @@ public sealed partial class PrivateWorldRuntime
     private void Explore(string actor, PlaytestInhabitantState person)
     {
         var exploration = person.Exploration ?? new SettlementExploration([], [], WorldTick, false);
-        if (exploration.OutingPath.Count > 0 && exploration.OutingPath[^1] != person.Position)
+        // A return path holds remaining waypoints, not each intermediate detour.
+        // Only the outward path must end at the actor's current position.
+        if (!exploration.Returning && exploration.OutingPath.Count > 0 && exploration.OutingPath[^1] != person.Position)
         {
             // Another legal intention moved the actor. Never splice that move
             // into a stale scouting path or pretend its intermediate tiles were visited.
@@ -93,6 +94,10 @@ public sealed partial class PrivateWorldRuntime
         var next = map.FootNeighbors(person.Position)
             .Where(point => map.IsPassable(point) && !occupied.Contains(point) &&
                 !exploration.OutingPath.Contains(point))
+            // Match movement's corner occupancy rules before ranking exits.
+            .Where(point => !map.IsDiagonalFootStep(person.Position, point) ||
+                !occupied.Contains(new GridPoint(point.X, person.Position.Y)) &&
+                !occupied.Contains(new GridPoint(person.Position.X, point.Y)))
             .OrderBy(point => exploration.VisitedTiles.Contains(point) ? 1 : 0)
             .ThenByDescending(point => map.FootDistance(point, exploration.OutingPath[0]))
             .ThenBy(point => point.Y).ThenBy(point => point.X)
@@ -104,7 +109,7 @@ public sealed partial class PrivateWorldRuntime
         }
 
         // Movement still obeys the ordinary travel delay, weather, occupancy,
-        // narrow-river and mountain rules. Only a completed step joins memory.
+        // river-wading and mountain rules. Only a completed step joins memory.
         inhabitants[actor] = person with { Exploration = exploration };
         MoveToward(actor, inhabitants[actor], next.Value, "explore");
         var moved = inhabitants[actor];
@@ -137,9 +142,8 @@ public sealed partial class PrivateWorldRuntime
 
     private void ReturnFromExploration(string actor, PlaytestInhabitantState person, SettlementExploration exploration)
     {
-        if (exploration.OutingPath.Count == 1)
+        if (exploration.OutingPath.Count == 1 && person.Position == exploration.OutingPath[0])
         {
-            CreateKnowledgeArtifact(actor, exploration.OutingDiscoveries ?? []);
             inhabitants[actor] = person with
             {
                 Exploration = exploration with
@@ -153,11 +157,11 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
 
-        var destination = exploration.OutingPath[^2];
+        var destination = exploration.OutingPath.Count == 1 ? exploration.OutingPath[0] : exploration.OutingPath[^2];
         inhabitants[actor] = person with { Exploration = exploration };
         MoveToward(actor, inhabitants[actor], destination, "explore_return");
         var moved = inhabitants[actor];
-        if (moved.Position == destination)
+        if (moved.Position == destination && exploration.OutingPath.Count > 1)
             inhabitants[actor] = moved with
             {
                 Exploration = exploration with
@@ -167,7 +171,6 @@ public sealed partial class PrivateWorldRuntime
             };
         else if (moved.MoveWaitTicks >= 30)
         {
-            CreateKnowledgeArtifact(actor, exploration.OutingDiscoveries ?? []);
             inhabitants[actor] = moved with
             {
                 Exploration = exploration with
@@ -181,7 +184,8 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
-    private static void ValidateExploration(SettlementExploration? exploration, SeededMap map, long worldTick)
+    private static void ValidateExploration(SettlementExploration? exploration, SeededMap map,
+        IEnumerable<BridgeState> bridges, long worldTick)
     {
         if (exploration is null) return;
         if (exploration.VisitedTiles is null || exploration.OutingPath is null ||
@@ -192,9 +196,28 @@ public sealed partial class PrivateWorldRuntime
             exploration.VisitedTiles.Any(point => !map.IsPassable(point)) ||
             exploration.OutingPath.Any(point => !map.IsPassable(point)) ||
             (exploration.OutingDiscoveries ?? []).Any(point => !map.IsPassable(point)) ||
-            (exploration.OutingDiscoveries ?? []).Distinct().Count() != (exploration.OutingDiscoveries?.Count ?? 0) ||
-            exploration.OutingPath.Zip(exploration.OutingPath.Skip(1),
-                (first, second) => map.CanFootStep(first, second)).Any(legal => !legal))
+            (exploration.OutingDiscoveries ?? []).Distinct().Count() != (exploration.OutingDiscoveries?.Count ?? 0))
             throw new InvalidDataException("The saved local exploration record is invalid.");
+
+        SeededMap? beforeOuting = null;
+        for (var index = 1; index < exploration.OutingPath.Count; index++)
+        {
+            var first = exploration.OutingPath[index - 1];
+            var second = exploration.OutingPath[index];
+            if (map.CanFootStep(first, second)) continue;
+            // These are committed outward steps, or remaining return waypoints.
+            // A later deck can forbid an earlier wade through its tile. Bridges
+            // built on the outing's first tick may also have appeared after a
+            // step; only earlier ticks prove a deck existed throughout the trip.
+            beforeOuting ??= MapWithBridges(map, bridges.Where(bridge => bridge.BuiltTick < exploration.LastOutingTick));
+            if (!beforeOuting.CanFootStep(first, second))
+                throw new InvalidDataException("The saved local exploration record is invalid.");
+        }
+    }
+
+    private static SeededMap MapWithBridges(SeededMap map, IEnumerable<BridgeState> bridges)
+    {
+        var decks = RiverBridgeRules.Decks(bridges);
+        return RiverBridgeRules.SameDecks(map.BridgeDecks, decks) ? map : map with { BridgeDecks = decks };
     }
 }

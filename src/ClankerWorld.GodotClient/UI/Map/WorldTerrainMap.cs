@@ -11,28 +11,33 @@ public sealed class WorldTerrainMap
     private readonly byte[]? hydrology;
     private readonly byte[]? surface;
     private readonly byte[]? vegetation;
+    private readonly byte[]? fertility;
     private TerrainStyle[]? styles;
+    private bool[]? hills;
 
     private WorldTerrainMap(int width, int height, byte[] terrain, byte[]? climate = null,
         byte[]? elevation = null, byte[]? hydrology = null, byte[]? surface = null,
-        byte[]? vegetation = null)
+        byte[]? vegetation = null, bool wrapsEastWest = false, byte[]? fertility = null)
     {
         Width = width;
         Height = height;
+        WrapsEastWest = wrapsEastWest;
         this.terrain = terrain;
         this.climate = climate;
         this.elevation = elevation;
         this.hydrology = hydrology;
         this.surface = surface;
         this.vegetation = vegetation;
+        this.fertility = fertility;
     }
 
     public int Width { get; }
     public int Height { get; }
+    public bool WrapsEastWest { get; }
     public bool HasMapLayers => climate is not null;
 
     public static WorldTerrainMap FromTiles(IReadOnlyList<OwnerWorldTile> tiles, int width, int height,
-        OwnerWorldPackedMapLayers? layers = null)
+        OwnerWorldPackedMapLayers? layers = null, bool wrapsEastWest = false)
     {
         ArgumentNullException.ThrowIfNull(tiles);
         if (width <= 0 || height <= 0) throw new ArgumentOutOfRangeException(nameof(width));
@@ -55,11 +60,11 @@ public sealed class WorldTerrainMap
                 _ => 0,
             };
         }
-        return WithLayers(width, height, terrain, layers);
+        return WithLayers(width, height, terrain, layers, wrapsEastWest);
     }
 
     public static WorldTerrainMap FromPacked(OwnerWorldPackedTerrain packed,
-        OwnerWorldPackedMapLayers? layers = null)
+        OwnerWorldPackedMapLayers? layers = null, bool wrapsEastWest = false)
     {
         ArgumentNullException.ThrowIfNull(packed);
         if (packed.Encoding != "terrain-kind-v1" || packed.Width <= 0 || packed.Height <= 0)
@@ -83,7 +88,7 @@ public sealed class WorldTerrainMap
                 9 => 9, // snow
                 _ => throw new InvalidDataException("The packed world terrain contains an unknown kind."),
             };
-        return WithLayers(packed.Width, packed.Height, terrain, layers);
+        return WithLayers(packed.Width, packed.Height, terrain, layers, wrapsEastWest);
     }
 
     public byte At(int x, int y) => terrain[y * Width + x];
@@ -92,6 +97,8 @@ public sealed class WorldTerrainMap
     public byte? HydrologyAt(int x, int y) => LayerAt(hydrology, x, y);
     public byte? SurfaceAt(int x, int y) => LayerAt(surface, x, y);
     public byte? VegetationAt(int x, int y) => LayerAt(vegetation, x, y);
+    public byte? FertilityAt(int x, int y) => LayerAt(fertility, x, y);
+    public static string FertilityName(int value) => value <= 0 ? "Not farmable" : value < 35 ? "Poor" : value < 55 ? "Fair" : value < 75 ? "Good" : "Rich";
 
     /// <summary>Render-only legacy projection; inspection keeps missing layer facts unavailable.</summary>
     public byte RenderSurfaceAt(int x, int y) => SurfaceAt(x, y) ?? At(x, y) switch
@@ -135,8 +142,31 @@ public sealed class WorldTerrainMap
         return mask;
     }
 
-    /// <summary>Flat overview color: the base of the tile's pixel-art ground style.</summary>
-    public Color DisplayColorAt(int x, int y) => TerrainTextures.BaseColor(StyleAt(x, y));
+    /// <summary>Flat overview color: the base of the tile's pixel-art ground style, warmed on hills.</summary>
+    public Color DisplayColorAt(int x, int y) => IsHillAt(x, y)
+        ? TerrainTextures.HillColor(TerrainTextures.BaseColor(StyleAt(x, y)))
+        : TerrainTextures.BaseColor(StyleAt(x, y));
+
+    /// <summary>
+    /// Whether the world marks the tile as cactus cover: dry desert sand or
+    /// brush where cacti grow. The ground draws as desert brush, with a cactus
+    /// on some of these tiles (<see cref="CactusSprites.ForTile"/>).
+    /// </summary>
+    public bool IsCactusCoverAt(int x, int y) =>
+        x >= 0 && y >= 0 && x < Width && y < Height && VegetationAt(x, y) == 5 && StyleAt(x, y) == TerrainStyle.DesertBrush;
+
+    /// <summary>
+    /// Whether the tile is in the hill band at a mountain's base: dry land
+    /// below mountain height but at least 190 high, within a reach that widens
+    /// with the size of the massif (<see cref="HillBand"/>). Hills are drawn
+    /// over the ground; they walk like grass.
+    /// </summary>
+    public bool IsHillAt(int x, int y)
+    {
+        if (!HasMapLayers || x < 0 || y < 0 || x >= Width || y >= Height) return false;
+        hills ??= HillBand.Classify(elevation!, hydrology!, Width, Height, WrapsEastWest);
+        return hills[y * Width + x];
+    }
 
     /// <summary>
     /// Ground style from independent surface/cover facts, falling back to the
@@ -219,9 +249,9 @@ public sealed class WorldTerrainMap
             ? layer[y * Width + x] : null;
 
     private static WorldTerrainMap WithLayers(int width, int height, byte[] terrain,
-        OwnerWorldPackedMapLayers? layers)
+        OwnerWorldPackedMapLayers? layers, bool wrapsEastWest)
     {
-        if (layers is null) return new WorldTerrainMap(width, height, terrain);
+        if (layers is null) return new WorldTerrainMap(width, height, terrain, wrapsEastWest: wrapsEastWest);
         if (layers.Width != width || layers.Height != height ||
             layers.Encoding is not ("map-layers-v1" or "map-layers-v2"))
             throw new InvalidDataException("The packed world map layers have an unsupported encoding or dimensions.");
@@ -231,7 +261,9 @@ public sealed class WorldTerrainMap
         var hydrology = DecodeLayer(layers.Hydrology, length, 3, "hydrology");
         var surface = DecodeLayer(layers.Surface, length, 7, "surface");
         var vegetation = DecodeLayer(layers.Vegetation, length, 5, "vegetation");
-        return new WorldTerrainMap(width, height, terrain, climate, elevation, hydrology, surface, vegetation);
+        var fertility = layers.Fertility is null ? null : DecodeLayer(layers.Fertility, length, 100, "fertility");
+        return new WorldTerrainMap(width, height, terrain, climate, elevation, hydrology, surface, vegetation,
+            wrapsEastWest, fertility);
     }
 
     private static byte[] DecodeLayer(string encoded, int expectedLength, int? maximumValue, string name)
@@ -307,10 +339,12 @@ public sealed class WorldTerrainMap
         "fiber_plant" => "Fiber plant",
         "reeds" => "Reeds",
         "stone_outcrop" => "Stone outcrop",
+        "fallen_wood" => "Fallen wood",
         "iron_outcrop" => "Iron outcrop",
         "gold_outcrop" => "Gold outcrop",
         "diamond_outcrop" => "Diamond outcrop",
         "clay_bank" => "Clay bank",
+        "medicinal_herb_patch" => "Medicinal herb patch",
         "wild_seed_patch" => "Wild seed patch",
         "fertile_soil" => "Fertile soil",
         _ => null,

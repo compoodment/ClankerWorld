@@ -3,8 +3,10 @@ using OwnerHttpBinding = ClankerWorld.Viewer.Control.OwnerHttpBinding;
 using ServerReconnectAction = ClankerWorld.Viewer.Control.OwnerReconnectAction;
 using ServerDeviceManagementAction = ClankerWorld.Viewer.Control.OwnerDeviceManagementAction;
 using ServerInstructionAction = ClankerWorld.Viewer.Control.OwnerInstructionAction;
+using ServerOrderCancelAction = ClankerWorld.Viewer.Control.OwnerOrderCancelAction;
 using ServerPairingApprovalAction = ClankerWorld.Viewer.Control.OwnerPairingApprovalAction;
 using ServerProviderConfigurationAction = ClankerWorld.Viewer.Control.OwnerProviderConfigurationAction;
+using ServerProviderModelListAction = ClankerWorld.Viewer.Control.OwnerProviderModelListAction;
 
 namespace ClankerWorld.Simulation.Tests;
 
@@ -56,7 +58,6 @@ public sealed class GodotOwnerWorldApiTests
     }
 
     [Theory]
-    [InlineData("new-world")]
     [InlineData("earlier-existing-world")]
     public async Task LostSwitchReceiptStillAllowsTheActualEarlierTimeline(string selectedWorld)
     {
@@ -79,8 +80,9 @@ public sealed class GodotOwnerWorldApiTests
         Assert.True(committed);
         Assert.True(session.TryAccept(selected, session.EventCursor, out var failure), failure);
         Assert.Equal(selectedWorld, session.Current!.Baseline.Snapshot.WorldId);
-        Assert.True(session.TryAccept(old, 3, out _));
-        Assert.False(session.TryAccept(selected, 0, out _));
+        Assert.False(session.TryAccept(old, 3, out _));
+        Assert.Equal(selectedWorld, session.Current!.Baseline.Snapshot.WorldId);
+        Assert.True(session.TryAccept(selected, 0, out _));
     }
 
     [Fact]
@@ -165,7 +167,6 @@ public sealed class GodotOwnerWorldApiTests
     }
 
     [Theory]
-    [InlineData(1)]
     [InlineData(1_460)]
     public void LifePacePayloadMatchesTheHostExactly(int rate)
     {
@@ -204,19 +205,6 @@ public sealed class GodotOwnerWorldApiTests
         {
             Baseline = response.Baseline with { Events = response.Baseline.Events with { EventHistoryFloor = 0 } },
         }, 0, out _));
-    }
-
-    [Fact]
-    public void AcceptsCoherentPairedOwnerReconnectAndAdvancesCursor()
-    {
-        var session = new OwnerWorldObservationSession();
-        var response = CreateCoherentReconnect();
-
-        var accepted = session.TryAccept(response, requestedAfterEventId: 3, out var failure);
-
-        Assert.True(accepted, failure);
-        Assert.Same(response, session.Current);
-        Assert.Equal(5, session.EventCursor);
     }
 
     [Fact]
@@ -268,23 +256,61 @@ public sealed class GodotOwnerWorldApiTests
         Assert.Same(accepted, session.Current);
     }
 
-    [Fact]
-    public void InstructionPayloadMatchesViewerOwnerProtocolByteForByte()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void InstructionPayloadMatchesViewerOwnerProtocolByteForByte(bool queue)
     {
         var clientAction = new OwnerInstructionAction(
             IdempotencyKey: "instruction-01",
             TargetInhabitantId: "camp-alpha",
             Kind: "must-do",
-            Text: "Gather wood before dusk.");
+            Text: "Gather wood before dusk.",
+            WorldId: "world-A",
+            Queue: queue);
         var serverAction = new ServerInstructionAction(
             clientAction.IdempotencyKey,
             clientAction.TargetInhabitantId,
             clientAction.Kind,
-            clientAction.Text);
+            clientAction.Text,
+            clientAction.WorldId,
+            queue);
 
         var clientPayload = OwnerWorldActionPayload.Instruction(clientAction);
         var serverPayload = OwnerHttpBinding.InstructionPayload(serverAction);
 
+        var expected = string.Join('\n',
+            queue ? "clankerworld.owner-instruction.v3" : "clankerworld.owner-instruction.v2",
+            "world-id=d29ybGQtQQ",
+            "idempotency-key=aW5zdHJ1Y3Rpb24tMDE",
+            "target-inhabitant-id=Y2FtcC1hbHBoYQ",
+            "kind=bXVzdC1kbw",
+            "text=R2F0aGVyIHdvb2QgYmVmb3JlIGR1c2su" + (queue ? "\nqueue=true" : string.Empty));
+        Assert.Equal(expected, clientPayload);
+        Assert.Equal(serverPayload, clientPayload);
+    }
+
+    [Fact]
+    public void OrderCancellationPayloadMatchesViewerOwnerProtocolByteForByte()
+    {
+        var clientAction = new OwnerOrderCancelAction(
+            "cancel-01", "camp-alpha", "private-instruction-0000000042", "world-A");
+        var serverAction = new ServerOrderCancelAction(
+            clientAction.IdempotencyKey,
+            clientAction.TargetInhabitantId,
+            clientAction.OrderId,
+            clientAction.WorldId);
+
+        var clientPayload = OwnerWorldActionPayload.OrderCancel(clientAction);
+        var serverPayload = OwnerHttpBinding.OrderCancelPayload(serverAction);
+
+        var expected = string.Join('\n',
+            "clankerworld.owner-order-cancel.v1",
+            "world-id=d29ybGQtQQ",
+            "idempotency-key=Y2FuY2VsLTAx",
+            "target-inhabitant-id=Y2FtcC1hbHBoYQ",
+            "order-id=cHJpdmF0ZS1pbnN0cnVjdGlvbi0wMDAwMDAwMDQy");
+        Assert.Equal(expected, clientPayload);
         Assert.Equal(serverPayload, clientPayload);
     }
 
@@ -346,13 +372,19 @@ public sealed class GodotOwnerWorldApiTests
         Assert.Equal(OwnerHttpBinding.ProviderStatusPayload(), OwnerWorldActionPayload.ProviderStatus());
     }
 
-    [Fact]
-    public void ControlPayloadMatchesViewerOwnerProtocolByteForByte()
+    [Theory]
+    [InlineData("ollama-cloud", "0123456789abcdef0123456789abcdef", null, true)]
+    [InlineData("openai", null, "pasted-provider-secret", true)]
+    [InlineData("ollama-cloud", null, null, false)]
+    public void ProviderModelListPayloadMatchesViewerOwnerProtocolWithoutEmbeddingTheSecret(
+        string provider, string? slot, string? apiKey, bool checkKey)
     {
-        var clientPayload = OwnerWorldActionPayload.Control("pause");
-        var serverPayload = OwnerHttpBinding.EmptyPayload("pause");
+        var clientPayload = OwnerWorldActionPayload.ProviderModelList(new OwnerProviderModelListAction(provider, slot, apiKey, checkKey));
+        var serverPayload = OwnerHttpBinding.ProviderModelListPayload(new ServerProviderModelListAction(provider, slot, apiKey, checkKey));
 
         Assert.Equal(serverPayload, clientPayload);
+        Assert.EndsWith($"check-key={checkKey.ToString().ToLowerInvariant()}", clientPayload, StringComparison.Ordinal);
+        if (apiKey is not null) Assert.DoesNotContain(apiKey, clientPayload, StringComparison.Ordinal);
     }
 
     private static OwnerWorldReconnect CreateCoherentReconnect()

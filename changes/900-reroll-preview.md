@@ -1,0 +1,1 @@
+- Reroll in New World now clears the old map and refreshes the preview for the latest seed, even if another preview is still generating. An empty world name no longer leaves a stale map or an enabled Create World button behind.

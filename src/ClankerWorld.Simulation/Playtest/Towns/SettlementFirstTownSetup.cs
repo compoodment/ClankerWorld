@@ -13,11 +13,11 @@ public sealed partial class PrivateWorldRuntime
         {
             if (geographyOptions is null || founderSetup is not { Started: false, FounderIds.Count: 0 } ||
                 !society.Checkpoint.IsPaused || WorldTick != 0 ||
-                worldSimulation.ProductionJobs.Count != 0 || (worldSimulation.CropBuilds?.Count ?? 0) != 0)
+                worldSimulation.ProductionJobs.Count != 0 || (worldSimulation.CropBuilds?.Count ?? 0) != 0 ||
+                (worldSimulation.BuildingExpansions?.Count ?? 0) != 0)
                 throw new InvalidOperationException("Choose the first Town layout during paused setup before placing founders.");
             var existing = worldSimulation.Buildings;
-            if (existing.Any(building => !building.InstanceId.StartsWith("first-town-", StringComparison.Ordinal)) ||
-                existing.Count is not (0 or 5))
+            if (bridges.Count != 0)
                 throw new InvalidOperationException("Other building work prevents replacing the initial layout.");
             var plan = FirstTownLayoutPlanner.Plan(map, roughSite)
                 ?? throw new ArgumentException("No connected five-building layout fits near this rough site.", nameof(roughSite));
@@ -28,28 +28,41 @@ public sealed partial class PrivateWorldRuntime
             var placed = plan.Buildings.Select(building => new PlacedBuilding(
                 "first-town-" + building.Role, building.DefinitionId, building.Position, 0,
                 TownBorderRules.FirstTownId,
+                // Each starting household holds one productive building; the
+                // Warehouse stays communal Town property.
                 building.Role switch
                 {
-                    "house-a" => HouseholdId,
-                    "house-b" => SecondHouseholdId,
+                    "house-a" or "farmhouse" => HouseholdId,
+                    "house-b" or "blacksmith" => SecondHouseholdId,
                     _ => null,
-                })).OrderBy(building => building.InstanceId, StringComparer.Ordinal).ToArray();
+                }, building.Entrance)).OrderBy(building => building.InstanceId, StringComparer.Ordinal).ToArray();
+            // Removing an empty building can leave only part of the starter
+            // layout. Only its known identities and unexpanded definitions may
+            // be reset; Redo also restores any reassigned starter's initial owner.
+            if (existing.Any(building => building.PlacedTick != 0 || building.Footprint is not null ||
+                !placed.Any(starter => starter.InstanceId == building.InstanceId &&
+                    starter.DefinitionId == building.DefinitionId && starter.TownId == building.TownId)))
+                throw new InvalidOperationException("Other building work prevents replacing the initial layout.");
             var town = TownBorderRules.CreateFirstTown(map, originSite: roughSite);
-            foreach (var building in placed)
+            town = town with
             {
-                var definition = definitions[building.DefinitionId];
-                town = town with
-                {
-                    AssignedBuildingIds = town.AssignedBuildingIds.Append(building.InstanceId)
-                        .Order(StringComparer.Ordinal).ToArray(),
-                    BorderTiles = TownBorderRules.ExpandForBuilding(map, town, building.Position,
-                        definition.Width, definition.Height),
-                };
-            }
+                AssignedBuildingIds = placed.Select(building => building.InstanceId).Order(StringComparer.Ordinal).ToArray(),
+                BorderTiles = TownBorderRules.Expand(map, town, placed
+                    .SelectMany(building => WorldContentSimulationRules.Footprint(definitions[building.DefinitionId], building))
+                    .Concat(plan.RoadTiles)),
+            };
             var starterInventory = PrepareFirstTownStock(society.Checkpoint.Inventory);
             var firstTownWasUnplaced = towns.Count == 0;
             worldSimulation = WorldContentSimulationState.Empty with { Buildings = placed };
             towns = [town];
+            townLandTitles = TownLandRightsRules.InitialTitles(map, town, WorldTick).ToList();
+            householdLandUseRights = TownLandRightsRules.InitialUseRights(map, town.Id,
+                placed.Where(building => building.HouseholdId is not null)
+                    .GroupBy(building => building.HouseholdId!, StringComparer.Ordinal)
+                    .Select(group => (group.Key, (IEnumerable<GridPoint>)group.SelectMany(building =>
+                        WorldContentSimulationRules.Footprint(definitions[building.DefinitionId], building)))),
+                WorldTick).ToList();
+            householdLandUseRequests = [];
             roadTiles = plan.RoadTiles.ToHashSet();
             ApplyInventoryTransition(_ => starterInventory);
             checkpointSchemaVersion = StateSchemaVersion;
@@ -79,17 +92,29 @@ public sealed partial class PrivateWorldRuntime
                 throw new InvalidOperationException("The starting households need usable food before a Town site can be accepted.");
         }
 
+        // Each starting agent's garment is kept in their household's House,
+        // so nobody is cold while the first Tailor Shop is built.
+        var garmentLocations = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["clothing:camp-alpha"] = firstHouse,
+            ["clothing:camp-beta"] = secondHouse,
+        };
         var stock = source with
         {
             Lots = source.Lots.Select(lot => foodLocations.TryGetValue(lot.Id, out var location)
                 ? lot with { StorageBuildingId = location.BuildingId }
-                : lot).ToArray(),
+                : garmentLocations.TryGetValue(lot.Id, out var house) && lot.ItemKind == "clothing"
+                    ? lot with { StorageBuildingId = house }
+                    : lot).ToArray(),
         };
         if (!stock.Lots.Any(lot => lot.Id == "first-town-wooden-axe"))
             stock = InventoryFixture.AddLot(stock, "first-town-wooden-axe", "wooden_axe",
                 TownBorderRules.FirstTownId, 1, storageBuildingId: warehouse);
         if (!stock.Lots.Any(lot => lot.Id == "first-town-wooden-pickaxe"))
             stock = InventoryFixture.AddLot(stock, "first-town-wooden-pickaxe", "wooden_pickaxe",
+                TownBorderRules.FirstTownId, 1, storageBuildingId: warehouse);
+        if (!stock.Lots.Any(lot => lot.Id == "first-town-wooden-hoe"))
+            stock = InventoryFixture.AddLot(stock, "first-town-wooden-hoe", "wooden_hoe",
                 TownBorderRules.FirstTownId, 1, storageBuildingId: warehouse);
         return stock;
     }

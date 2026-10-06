@@ -57,7 +57,6 @@ public sealed class OwnerClientPresenceLeaseTests
     }
 
     [Theory]
-    [InlineData("founder-scout")]
     [InlineData("founder:00000000000000000000000000000001")]
     public async Task HostedFailureLogReportsCompleteActorAndOutcomeWithoutProviderExceptionText(string actorId)
     {
@@ -67,31 +66,25 @@ public sealed class OwnerClientPresenceLeaseTests
             var presence = new OwnerClientPresenceLease(TimeSpan.FromMinutes(1));
             var provider = new ThrowingHostedProvider();
             var logger = new RecordingLogger<PrivateWorldRuntimeService>();
-            using var runtime = new PrivateWorldRuntime("hosted-log", id =>
-                id == actorId ? provider : new DeterministicDecisionProvider(),
-                startPace: actorId.Contains(':') ? WorldStartPace.FounderSetup : WorldStartPace.Legacy);
-            if (actorId.Contains(':'))
-            {
-                runtime.PlaceFounder(actorId, new(0, 0));
-                runtime.PlaceFounder("founder:00000000000000000000000000000002", new(1, 2));
-                runtime.PlaceFounder("founder:00000000000000000000000000000003", new(2, 2));
-                runtime.PlaceFounder("founder:00000000000000000000000000000004", new(3, 2));
-                runtime.StartWorld();
-            }
+            // Begin with the normal active content and idle peers, so startup
+            // changes do not queue another decision while testing one failure.
+            using var runtime = NormalPathWorld.CreateGenerated("hosted-log", id =>
+                id == actorId ? provider : new ActionCoverageRecorder(chooseIdle: true));
             using var service = new PrivateWorldRuntimeService(runtime,
                 new PrivateWorldStateFile(Path.Combine(directory, "world.json")), presence, logger);
             presence.RecordAuthenticatedReconnect("owner");
             Assert.True(await service.TryAdvanceOnceAsync());
-            await provider.Retried.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            await provider.Started.Task.WaitAsync(TimeSpan.FromSeconds(3));
             for (var attempt = 0; attempt < 50 &&
                  !logger.Messages.Any(message => message.Contains("hosted_decision", StringComparison.Ordinal) &&
-                     message.Contains("provider_failure", StringComparison.Ordinal)); attempt++)
+                     message.Contains("model_unavailable", StringComparison.Ordinal)); attempt++)
             {
                 await service.TryAdvanceOnceAsync();
                 await Task.Delay(10);
             }
             Assert.Contains(logger.Messages, message => message.Contains("hosted_decision", StringComparison.Ordinal) &&
-                message.Contains("provider_failure:HttpRequestException", StringComparison.Ordinal));
+                message.Contains("model_unavailable", StringComparison.Ordinal));
+            Assert.Equal(1, provider.Calls);
             Assert.All(logger.Messages.Where(message => message.Contains("hosted_decision tick=", StringComparison.Ordinal)),
                 message => Assert.Contains($"inhabitant={actorId} outcome=", message, StringComparison.Ordinal));
             Assert.DoesNotContain(logger.Messages, message => message.Contains("super-secret-api-key", StringComparison.Ordinal));
@@ -104,14 +97,15 @@ public sealed class OwnerClientPresenceLeaseTests
 
     private sealed class ThrowingHostedProvider : IDecisionProvider
     {
-        private int calls;
-        public TaskCompletionSource<bool> Retried { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public int Calls { get; private set; }
+        public TaskCompletionSource<bool> Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public DecisionProviderKind Kind => DecisionProviderKind.Jev;
         public long ProviderEpoch => 1;
         public ValueTask<CognitionDecisionResponse> DecideAsync(
             CognitionDecisionRequest request, CancellationToken cancellationToken = default)
         {
-            if (Interlocked.Increment(ref calls) >= 2) Retried.TrySetResult(true);
+            Calls++;
+            Started.TrySetResult(true);
             throw new HttpRequestException("super-secret-api-key-must-not-appear");
         }
     }

@@ -48,26 +48,31 @@ public partial class Main
             else
             {
                 PositionSelectedInhabitantCard(snapshot);
+                PositionBuildingQuickCard(snapshot);
             }
         }
 
         if (controlsPanel.Visible) PositionControlsPanel();
+        PositionDeveloperTools();
+        PositionAgentProfile();
+        PositionBuildingDetails();
         PositionMapHud();
         // Panels open just below the floating HUD, under the button that opened them.
         var hudTop = HudTop;
         PlaceHudPanels();
         PositionSelectedTilePanel();
-        var familySize = new Vector2(Math.Clamp(viewport.X - 28, 320, 840),
-            Math.Clamp(viewport.Y - 28, 280, 600));
-        familyTreePanel.Size = familySize;
-        familyTreePanel.Position = new Vector2(
-            Math.Max(14, (viewport.X - familySize.X) / 2),
-            Math.Max(hudTop, (viewport.Y - familySize.Y) / 2));
-        memoriesPanel.CustomMinimumSize = new Vector2(Math.Clamp(viewport.X - 28, 320, 600), 0);
-        CenterMemoriesPanel();
+        PositionFamilyTreePanel(viewport, hudTop);
+        FitHudLists();
+        foreach (var reader in new[] { memoriesPanel, thoughtsPanel, ordersPanel, conversationPanel })
+        {
+            reader.CustomMinimumSize = new Vector2(Math.Clamp(viewport.X - 28, 320, ReaderWidth), 0);
+            if (reader == memoriesPanel && reader.Visible) FitMemoryCards();
+            PlaceReaderPanel(reader);
+        }
 
         var menuWidth = panelWidth(560);
         gameMenuPanel.CustomMinimumSize = new Vector2(menuWidth, 0);
+        FitMenuScrolls(viewport.Y);
 
         var toastSize = statusToast.GetCombinedMinimumSize();
         statusToast.Position = new Vector2(
@@ -75,24 +80,43 @@ public partial class Main
             Math.Max(14, viewport.Y - toastSize.Y - 18));
     }
 
-    /// <summary>Memories fit their text and sit in the middle of the screen, below the top bar.</summary>
-    private void CenterMemoriesPanel()
+    private void PositionFamilyTreePanel(Vector2 viewport, float hudTop)
     {
-        var size = memoriesPanel.GetCombinedMinimumSize();
-        memoriesPanel.Size = size;
-        memoriesPanel.Position = new Vector2(
-            Math.Max(14, (UiSize.X - size.X) / 2),
-            Math.Max(HudTop, (UiSize.Y - size.Y) / 2));
-    }
+        familyTreePanel.CustomMinimumSize = Vector2.Zero;
+        familyTreeScroll.CustomMinimumSize = Vector2.Zero;
 
-    /// <summary>The card's profile scrolls when the whole card would not fit below the top bar.</summary>
-    private void FitSelectedCardHeight()
-    {
-        var profileHeight = selectedAgentOverview.GetCombinedMinimumSize().Y;
-        selectedAgentOverviewScroll.CustomMinimumSize = new Vector2(0, profileHeight);
-        var excess = selectedInhabitantCard.GetCombinedMinimumSize().Y - (UiSize.Y - HudTop - 12);
-        if (excess > 0)
-            selectedAgentOverviewScroll.CustomMinimumSize = new Vector2(0, Math.Max(120, profileHeight - excess));
+        // Measure the panel with the whole tree in view, then cap it to the
+        // screen. Long or wide trees scroll inside this bounded area instead
+        // of making the panel run off-screen.
+        var tree = familyTreeView.GetCombinedMinimumSize();
+        familyTreeScroll.CustomMinimumSize = new Vector2(Math.Max(0, tree.X), 0);
+        var wanted = familyTreePanel.GetCombinedMinimumSize();
+        var topLimit = Math.Min(Math.Max(14, hudTop), Math.Max(14, viewport.Y - 14));
+        var availableHeight = Math.Max(1, viewport.Y - topLimit - 14);
+        var panelWidth = Math.Max(1, Math.Min(Math.Max(320, wanted.X), viewport.X - 28));
+        // The scroll area is measured at the tree's width but no height, so
+        // everything else in the panel is the width beside it and the height above it.
+        var chromeWidth = Math.Max(0, wanted.X - tree.X);
+        var chromeHeight = wanted.Y;
+        familyTreeScroll.CustomMinimumSize = new Vector2(
+            Math.Max(0, Math.Min(tree.X, panelWidth - chromeWidth)),
+            Math.Min(Math.Max(0, tree.Y), Math.Max(0, availableHeight - chromeHeight)));
+        familyTreePanel.CustomMinimumSize = new Vector2(panelWidth, 0);
+
+        var panelHeight = Math.Min(availableHeight, familyTreePanel.GetCombinedMinimumSize().Y);
+        familyTreePanel.Size = new Vector2(panelWidth, panelHeight);
+        // Beside the Profile it was opened from when there is room, so both stay readable.
+        var beside = agentProfilePanel.Position.X + agentProfilePanel.Size.X + 12;
+        if (agentProfilePanel.Visible && beside + panelWidth <= viewport.X - 14)
+        {
+            familyTreePanel.Position = new Vector2(beside, topLimit);
+            return;
+        }
+        var maximumY = Math.Max(14, viewport.Y - panelHeight - 14);
+        var minimumY = Math.Min(topLimit, maximumY);
+        var centeredY = (viewport.Y - panelHeight) / 2;
+        familyTreePanel.Position = new Vector2((viewport.X - panelWidth) / 2,
+            Math.Clamp(centeredY, minimumY, maximumY));
     }
 
     private void PositionSelectedInhabitantCard(OwnerWorldSnapshot snapshot)
@@ -110,22 +134,27 @@ public partial class Main
             return;
         }
 
-        var cardWidth = Math.Min(370, Math.Max(300, ui.X - 24));
-        selectedInhabitantCard.CustomMinimumSize = new Vector2(cardWidth, 0);
-        FitSelectedCardHeight();
-        var cardSize = selectedInhabitantCard.GetCombinedMinimumSize();
-        selectedInhabitantCard.Size = cardSize;
-        if (string.Equals(inhabitant.Lifecycle, "dead", StringComparison.OrdinalIgnoreCase))
-        {
-            selectedInhabitantCard.Position = new Vector2(Math.Max(12, ui.X - cardWidth - 12), CardTop(cardSize.Y));
-            return;
-        }
+        selectedInhabitantCard.CustomMinimumSize = new Vector2(Math.Min(QuickCardWidth, Math.Max(1, ui.X - 24)), 0);
         // The map is drawn at screen resolution; the card lives in interface pixels.
         var stride = currentTileSize + TileGap;
         var tile = currentTileSize / (float)uiLayer.Factor;
-        var actorCenter = (mapStage.Position + new Vector2(
-            (inhabitant.Position.X * stride) + (currentTileSize / 2f),
-            (inhabitant.Position.Y * stride) + (currentTileSize / 2f))) / uiLayer.Factor;
+        var actorCorner = (mapStage.Position + new Vector2(inhabitant.Position.X * stride, inhabitant.Position.Y * stride)) / uiLayer.Factor;
+        PlaceQuickCard(selectedInhabitantCard, new Rect2(actorCorner, new Vector2(tile, tile)));
+    }
+
+    /// <summary>
+    /// Places a quick card above what it describes, or below it when there is
+    /// no room above, keeping clear of open top-bar panels. A tall card on a
+    /// short screen moves beside its target rather than covering it.
+    /// <paramref name="target"/> is in interface pixels.
+    /// </summary>
+    private void PlaceQuickCard(PanelContainer card, Rect2 target)
+    {
+        var ui = UiSize;
+        var cardSize = card.GetCombinedMinimumSize();
+        var cardWidth = cardSize.X;
+        card.Size = cardSize;
+        var center = target.GetCenter();
         // Keep clear of open top-bar panels, such as the Event Log, when there is room beside them.
         var (left, right) = (12f, ui.X - 12);
         foreach (var panel in HudPanels().Where(panel => panel.Visible))
@@ -134,26 +163,43 @@ public partial class Main
             else right = Math.Min(right, panel.Position.X - 12);
         }
         if (right - left < cardWidth) (left, right) = (12f, ui.X - 12);
-        var x = Math.Clamp(actorCenter.X - (cardWidth / 2), left, Math.Max(left, right - cardWidth));
-        var y = actorCenter.Y - (tile / 2f) - cardSize.Y - 12;
+        var x = Math.Clamp(center.X - (cardWidth / 2), left, Math.Max(left, right - cardWidth));
+        var y = target.Position.Y - cardSize.Y - 12;
         if (y < 12)
         {
-            y = actorCenter.Y + (tile / 2f) + 12;
+            y = target.End.Y + 12;
         }
 
         y = Math.Clamp(y, CardTop(cardSize.Y), Math.Max(CardTop(cardSize.Y), ui.Y - cardSize.Y - 12));
-        // A tall card on a short screen cannot fit above or below the agent,
-        // so it moves beside them rather than covering the person it describes.
-        var actorRect = new Rect2(actorCenter - new Vector2(tile, tile) / 2, new Vector2(tile, tile));
-        if (new Rect2(x, y, cardSize).Intersects(actorRect))
+        if (new Rect2(x, y, cardSize).Intersects(target))
         {
-            var besideRight = actorRect.End.X + 12;
-            var besideLeft = actorRect.Position.X - cardWidth - 12;
+            var besideRight = target.End.X + 12;
+            var besideLeft = target.Position.X - cardWidth - 12;
             if (besideRight + cardWidth <= right) x = besideRight;
             else if (besideLeft >= left) x = besideLeft;
-            y = Math.Clamp(actorCenter.Y - cardSize.Y / 2, CardTop(cardSize.Y), Math.Max(CardTop(cardSize.Y), ui.Y - cardSize.Y - 12));
+            y = Math.Clamp(center.Y - cardSize.Y / 2, CardTop(cardSize.Y), Math.Max(CardTop(cardSize.Y), ui.Y - cardSize.Y - 12));
         }
-        selectedInhabitantCard.Position = new Vector2(x, y);
+        card.Position = new Vector2(x, y);
+    }
+
+    /// <summary>
+    /// Settings scrolls inside the menu panel, as tall as its contents but
+    /// never taller than the screen leaves room for.
+    /// </summary>
+    private void FitMenuScrolls(float viewportHeight)
+    {
+        // Game and World share one width, so switching between them does not resize the menu.
+        settingsScroll.CustomMinimumSize = new Vector2(
+            Math.Max(gameSettingsContent.GetCombinedMinimumSize().X, worldSettingsContent.GetCombinedMinimumSize().X) +
+            SettingsScrollGap + settingsScroll.GetVScrollBar().GetCombinedMinimumSize().X, settingsScroll.CustomMinimumSize.Y);
+        if (settingsScroll.IsVisibleInTree() && settingsScroll.GetChildCount() > 0 && settingsScroll.GetChild(0) is Control content)
+        {
+            settingsScroll.CustomMinimumSize = new Vector2(settingsScroll.CustomMinimumSize.X, 0);
+            var around = gameMenuPanel.GetCombinedMinimumSize().Y;
+            var height = Math.Clamp(content.GetCombinedMinimumSize().Y, 120, Math.Max(120, viewportHeight - 28 - around));
+            settingsScroll.CustomMinimumSize = new Vector2(settingsScroll.CustomMinimumSize.X, height);
+        }
+        gameMenuPanel.Size = gameMenuPanel.GetCombinedMinimumSize();
     }
 
     /// <summary>The agent card sits below the HUD when it fits, and slides up over it only when it is taller than the room left.</summary>

@@ -37,6 +37,62 @@ internal static partial class OwnerEndpoints
             return Results.Ok(providers.CaptureStatus());
         });
 
+        // Lists the chat models a key can use so the owner can pick one. The
+        // key never leaves the host, and a pasted key is used without saving it.
+        app.MapPost("/api/v1/owner/providers/models", async (
+            OwnerSignedHttpRequest<OwnerProviderModelListAction> request,
+            OwnerRequestAuthorizer authorizer,
+            ProviderModelCatalog catalog,
+            CancellationToken cancellationToken) =>
+        {
+            if (request?.Action is null)
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["action"] = ["A model-list action is required."],
+                });
+            string payload;
+            try { payload = OwnerHttpBinding.ProviderModelListPayload(request.Action); }
+            catch (ArgumentException exception)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["action"] = [exception.Message] });
+            }
+            var authorization = authorizer.Authorize(request, "POST", "/api/v1/owner/providers/models", payload);
+            if (!authorization.IsSuccess) return OwnerFailures.ToHttpResult(authorization.Failure);
+            try
+            {
+                return Results.Ok(await catalog.ListAsync(request.Action, cancellationToken).ConfigureAwait(false));
+            }
+            catch (ArgumentException exception)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["action"] = [exception.Message] });
+            }
+        });
+
+        // A setup check is an explicit paid call through the game's actual
+        // personal-model adapter. It never stores the supplied key or changes
+        // provider configuration, and never retries with different options.
+        app.MapPost("/api/v1/owner/providers/setup-check", async (
+            OwnerSignedHttpRequest<OwnerProviderSetupCheckAction> request,
+            OwnerRequestAuthorizer authorizer,
+            ProviderSetupCheckService setupCheck,
+            CancellationToken cancellationToken) =>
+        {
+            if (request?.Action is null)
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["action"] = ["A provider setup-check action is required."],
+                });
+            string payload;
+            try { payload = OwnerHttpBinding.ProviderSetupCheckPayload(request.Action); }
+            catch (ArgumentException exception)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["action"] = [exception.Message] });
+            }
+            var authorization = authorizer.Authorize(request, "POST", "/api/v1/owner/providers/setup-check", payload);
+            if (!authorization.IsSuccess) return OwnerFailures.ToHttpResult(authorization.Failure);
+            return Results.Ok(await setupCheck.CheckAsync(request.Action, cancellationToken).ConfigureAwait(false));
+        });
+
         app.MapPost("/api/v1/owner/usage/status", (
             OwnerSignedHttpRequest<OwnerUsageStatusAction> request,
             OwnerRequestAuthorizer authorizer,
@@ -72,6 +128,32 @@ internal static partial class OwnerEndpoints
                 return Results.Ok(status);
             }
             catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or OverflowException)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["action"] = [exception.Message] });
+            }
+        });
+
+        app.MapPost("/api/v1/owner/providers/slots/create", (
+            OwnerSignedHttpRequest<OwnerCredentialSlotCreationAction> request,
+            OwnerRequestAuthorizer authorizer,
+            ProviderConfigurationStore providers) =>
+        {
+            if (request?.Action is null)
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["action"] = ["A named API key is required."],
+                });
+            string payload;
+            try { payload = OwnerHttpBinding.CredentialSlotCreationPayload(request.Action); }
+            catch (ArgumentException exception)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["action"] = [exception.Message] });
+            }
+            var authorization = authorizer.Authorize(request,
+                "POST", "/api/v1/owner/providers/slots/create", payload);
+            if (!authorization.IsSuccess) return OwnerFailures.ToHttpResult(authorization.Failure);
+            try { return Results.Ok(providers.CreateCredentialSlot(request.Action)); }
+            catch (ArgumentException exception)
             {
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["action"] = [exception.Message] });
             }

@@ -44,9 +44,12 @@ public static class OwnerWorldActionPayload
         $"operation={EncodeRequired(action.Operation, nameof(action.Operation))}",
         $"value={EncodeRequired(action.Value, nameof(action.Value))}");
 
+    public const string WorldCreationPayloadDomain = "clankerworld.owner-world-creation.v3";
+    public const string AgentPlacementPayloadDomain = "clankerworld.owner-agent-placement.v2";
+
     public static string WorldCreation(OwnerWorldCreationAction action) => string.Join(
         '\n',
-        "clankerworld.owner-world-creation.v2",
+        WorldCreationPayloadDomain,
         $"name={EncodeRequired(action.Name, nameof(action.Name))}",
         $"seed={EncodeRequired(action.Seed, nameof(action.Seed))}",
         $"size={EncodeRequired(action.Size, nameof(action.Size))}",
@@ -58,14 +61,31 @@ public static class OwnerWorldActionPayload
         $"resource-abundance={EncodeRequired(action.ResourceAbundance, nameof(action.ResourceAbundance))}",
         $"forest-cover={EncodeRequired(action.ForestCover, nameof(action.ForestCover))}",
         $"mountain-relief={EncodeRequired(action.MountainRelief, nameof(action.MountainRelief))}",
-        $"river-abundance={EncodeRequired(action.RiverAbundance, nameof(action.RiverAbundance))}");
+        $"river-abundance={EncodeRequired(action.RiverAbundance, nameof(action.RiverAbundance))}",
+        $"candidate-attempt={action.CandidateAttempt?.ToString(CultureInfo.InvariantCulture) ?? "-"}",
+        $"expected-manifest-digest={EncodeOptional(action.ExpectedManifestDigest)}",
+        $"expected-map-layers-digest={EncodeOptional(action.ExpectedMapLayersDigest)}",
+        $"accept-unmet-targets={action.AcceptUnmetTargets.ToString().ToLowerInvariant()}");
+
+    public const string AutosaveConfigurationPayloadDomain = "clankerworld.owner-autosave-configuration.v2";
 
     public static string AutosaveConfiguration(OwnerAutosaveConfigurationAction action) => string.Join(
         '\n',
-        "clankerworld.owner-autosave-configuration.v1",
+        AutosaveConfigurationPayloadDomain,
+        $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}",
         $"enabled={action.Enabled.ToString().ToLowerInvariant()}",
         $"interval-minutes={action.IntervalMinutes.ToString(CultureInfo.InvariantCulture)}",
         $"rotation-count={action.RotationCount.ToString(CultureInfo.InvariantCulture)}");
+
+    public static string DeveloperEdit(OwnerDeveloperEditAction action) => string.Join(
+        '\n', "clankerworld.owner-developer-edit.v1",
+        $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}",
+        $"expected-event-id={action.ExpectedEventId.ToString(CultureInfo.InvariantCulture)}",
+        $"agent-id={EncodeRequired(action.AgentId, nameof(action.AgentId))}",
+        $"operation={EncodeRequired(action.Operation, nameof(action.Operation))}",
+        $"value={EncodeRequired(action.Value, nameof(action.Value))}",
+        $"amount={action.Amount.ToString(CultureInfo.InvariantCulture)}",
+        $"other-agent-id={EncodeOptional(action.OtherAgentId)}");
 
     public static string LifePace(OwnerLifePaceAction action) =>
         "clankerworld.owner-life-pace.v1\nrate=" + action.Rate.ToString(CultureInfo.InvariantCulture);
@@ -101,11 +121,60 @@ public static class OwnerWorldActionPayload
             $"additional-calls={action.AdditionalCalls.ToString(CultureInfo.InvariantCulture)}");
     }
 
+    public static string CredentialSlotCreation(OwnerCredentialSlotCreationAction action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        ArgumentException.ThrowIfNullOrWhiteSpace(action.ApiKey);
+        return string.Join('\n', "clankerworld.owner-credential-slot-creation.v1",
+            $"credential-slot={EncodeRequired(action.CredentialSlotId, nameof(action.CredentialSlotId))}",
+            $"provider={EncodeRequired(action.Provider, nameof(action.Provider))}",
+            $"label={EncodeRequired(action.Label, nameof(action.Label))}",
+            $"api-key-sha256={ToBase64Url(SHA256.HashData(Encoding.UTF8.GetBytes(action.ApiKey)))}");
+    }
+
     public static string CredentialSlotDeletion(OwnerCredentialSlotDeletionAction action)
     {
         ArgumentNullException.ThrowIfNull(action);
         return string.Join('\n', "clankerworld.owner-credential-slot-deletion.v1",
             $"credential-slot={EncodeRequired(action.CredentialSlotId, nameof(action.CredentialSlotId))}");
+    }
+
+    public static string ProviderModelList(OwnerProviderModelListAction action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        var apiKeyDigest = action.ApiKey is null
+            ? "-"
+            : ToBase64Url(SHA256.HashData(Encoding.UTF8.GetBytes(action.ApiKey)));
+        return string.Join('\n', "clankerworld.owner-provider-models.v1",
+            $"provider={EncodeRequired(action.Provider, nameof(action.Provider))}",
+            $"credential-slot={EncodeOptional(action.CredentialSlotId)}",
+            $"api-key-sha256={apiKeyDigest}",
+            $"check-key={action.CheckKey.ToString().ToLowerInvariant()}");
+    }
+
+    public static string ProviderSetupCheck(OwnerProviderSetupCheckAction action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        var provider = action.Provider?.Trim().ToLowerInvariant();
+        if (provider is not ("openai" or "ollama-cloud"))
+            throw new ArgumentException("Choose OpenAI or Ollama Cloud for a personal model check.", nameof(action));
+        ArgumentException.ThrowIfNullOrWhiteSpace(action.Model);
+        if (action.Model.Length > 200 || action.Model.Any(char.IsControl))
+            throw new ArgumentException("Model names must be 200 characters or fewer and contain no control characters.", nameof(action));
+        if (action.ApiKey?.Length > 4096)
+            throw new ArgumentException("API keys must be 4096 characters or fewer.", nameof(action));
+        if (action.CredentialSlotId is { } slotId && !Guid.TryParseExact(slotId, "N", out _))
+            throw new ArgumentException("Choose a valid saved key.", nameof(action));
+        if (action.ApiKey is not null && action.CredentialSlotId is not null)
+            throw new ArgumentException("Choose a pasted key or a saved key, not both.", nameof(action));
+        var apiKeyDigest = action.ApiKey is null
+            ? "-"
+            : ToBase64Url(SHA256.HashData(Encoding.UTF8.GetBytes(action.ApiKey)));
+        return string.Join('\n', "clankerworld.owner-provider-setup-check.v1",
+            $"provider={EncodeRequired(provider, nameof(action.Provider))}",
+            $"model={EncodeRequired(action.Model.Trim(), nameof(action.Model))}",
+            $"credential-slot={EncodeOptional(action.CredentialSlotId)}",
+            $"api-key-sha256={apiKeyDigest}");
     }
 
     public static string ProviderConfiguration(OwnerProviderConfigurationAction action)
@@ -165,10 +234,12 @@ public static class OwnerWorldActionPayload
         var cognition = ProviderConfiguration(action.Cognition);
         var digest = ToBase64Url(SHA256.HashData(Encoding.UTF8.GetBytes(cognition)));
         return string.Join('\n',
-            "clankerworld.owner-agent-placement.v1",
+            AgentPlacementPayloadDomain,
             $"agent={EncodeRequired(action.AgentId, nameof(action.AgentId))}",
             $"x={action.X.ToString(CultureInfo.InvariantCulture)}",
             $"y={action.Y.ToString(CultureInfo.InvariantCulture)}",
+            $"expected-household={EncodeOptional(action.ExpectedHouseholdId)}",
+            $"expected-town={EncodeOptional(action.ExpectedTownId)}",
             $"cognition-sha256={digest}");
     }
 
@@ -184,11 +255,21 @@ public static class OwnerWorldActionPayload
 
     public static string Instruction(OwnerInstructionAction action) => string.Join(
         '\n',
-        "clankerworld.owner-instruction.v1",
+        action.Queue ? "clankerworld.owner-instruction.v3" : "clankerworld.owner-instruction.v2",
+        $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}",
         $"idempotency-key={EncodeRequired(action.IdempotencyKey, nameof(action.IdempotencyKey))}",
         $"target-inhabitant-id={EncodeRequired(action.TargetInhabitantId, nameof(action.TargetInhabitantId))}",
         $"kind={EncodeRequired(action.Kind, nameof(action.Kind))}",
-        $"text={EncodeRequired(action.Text, nameof(action.Text))}");
+        $"text={EncodeRequired(action.Text, nameof(action.Text))}" +
+            (action.Queue ? "\nqueue=true" : string.Empty));
+
+    public static string OrderCancel(OwnerOrderCancelAction action) => string.Join(
+        '\n',
+        "clankerworld.owner-order-cancel.v1",
+        $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}",
+        $"idempotency-key={EncodeRequired(action.IdempotencyKey, nameof(action.IdempotencyKey))}",
+        $"target-inhabitant-id={EncodeRequired(action.TargetInhabitantId, nameof(action.TargetInhabitantId))}",
+        $"order-id={EncodeRequired(action.OrderId, nameof(action.OrderId))}");
 
     public static string Authoring(OwnerAuthoringBatchAction action)
     {
@@ -312,6 +393,24 @@ public static class OwnerWorldActionPayload
         $"definition-id={EncodeRequired(action.DefinitionId, nameof(action.DefinitionId))}",
         $"x={action.X.ToString(CultureInfo.InvariantCulture)}",
         $"y={action.Y.ToString(CultureInfo.InvariantCulture)}");
+
+    public static string BuildingRemoval(OwnerBuildingRemovalAction action) => string.Join(
+        '\n',
+        "clankerworld.owner-building-removal.v1",
+        $"instance-id={EncodeRequired(action.InstanceId, nameof(action.InstanceId))}",
+        $"expected-town-id={EncodeOptional(action.ExpectedTownId)}",
+        $"expected-household-id={EncodeOptional(action.ExpectedHouseholdId)}",
+        $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}");
+
+    public static string BuildingReassignment(OwnerBuildingReassignmentAction action) => string.Join(
+        '\n',
+        "clankerworld.owner-building-reassignment.v1",
+        $"instance-id={EncodeRequired(action.InstanceId, nameof(action.InstanceId))}",
+        $"expected-town-id={EncodeOptional(action.ExpectedTownId)}",
+        $"expected-household-id={EncodeOptional(action.ExpectedHouseholdId)}",
+        $"target-town-id={EncodeOptional(action.TargetTownId)}",
+        $"target-household-id={EncodeOptional(action.TargetHouseholdId)}",
+        $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}");
 
     public static string ProductionStart(OwnerProductionStartAction action) => string.Join(
         '\n',

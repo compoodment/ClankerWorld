@@ -16,6 +16,99 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed partial class ViewerHttpTests
 {
+    [Theory]
+    [InlineData("openai")]
+    [InlineData("ollama-cloud")]
+    public async Task SignedOwnerCanSaveAReusableKeyBeforePlacingAnyAgents(string provider)
+    {
+        var directory = Directory.CreateTempSubdirectory("clankerworld-settings-key-");
+        try
+        {
+            using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+            using var host = new ViewerWebApplicationFactory(directory.FullName, null,
+                privateWorld: true, legacyPrivateWorld: false);
+            using var client = host.CreateClient(new WebApplicationFactoryClientOptions
+            {
+                BaseAddress = new Uri("http://127.0.0.1/"),
+            });
+            var device = await StartAndActivateAsync(host, client, key);
+            var store = host.Services.GetRequiredService<ProviderConfigurationStore>();
+            var observations = host.Services.GetRequiredService<OwnerWorldObservationStore>();
+            var beforeWorld = System.Text.Json.JsonSerializer.Serialize(observations.GetSnapshot());
+            var beforeRouting = store.CaptureRuntimeConfiguration();
+            const string secret = "test-only-settings-key-secret";
+            var action = new OwnerCredentialSlotCreationAction(Guid.NewGuid().ToString("N"), provider, "Personal account", secret);
+            const string endpoint = "/api/v1/owner/providers/slots/create";
+            var payload = OwnerHttpBinding.CredentialSlotCreationPayload(action);
+            Assert.DoesNotContain(secret, payload, StringComparison.Ordinal);
+            Assert.Equal(payload, ClankerWorld.GodotClient.UI.OwnerWorldActionPayload.CredentialSlotCreation(
+                new(action.CredentialSlotId, provider, action.Label, secret)));
+            foreach (var changed in new[]
+            {
+                action with { CredentialSlotId = Guid.NewGuid().ToString("N") },
+                action with { Provider = provider == "openai" ? "ollama-cloud" : "openai" },
+                action with { Label = "Someone else" },
+                action with { ApiKey = "a-different-test-secret" },
+            })
+            {
+                using var tampered = await SendSignedAsync(host, client, key, device.DeviceId,
+                    endpoint, changed, payload);
+                Assert.Equal(HttpStatusCode.Unauthorized, tampered.StatusCode);
+                Assert.Empty(store.CaptureStatus().CredentialSlots!);
+            }
+            var identity = host.Services.GetRequiredService<OwnerAuthorityStore>().Identity;
+            using var signer = new SettingsKeySigner(key);
+            var api = new ClankerWorld.GodotClient.UI.OwnerWorldApi(client);
+            var savedStatus = await api.CreateCredentialSlotAsync(client.BaseAddress!,
+                new(identity.ServerAuthorityId, identity.WorldId), device.DeviceId,
+                new(action.CredentialSlotId, provider, action.Label, secret), signer, CancellationToken.None);
+            Assert.Equal(action.CredentialSlotId, Assert.Single(savedStatus.CredentialSlots!).Id);
+            using var saved = await SendSignedAsync(host, client, key, device.DeviceId,
+                "/api/v1/owner/providers/status", new OwnerProviderStatusAction(), OwnerHttpBinding.ProviderStatusPayload());
+            Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
+            var text = await saved.Content.ReadAsStringAsync();
+            Assert.DoesNotContain(secret, text, StringComparison.Ordinal);
+            var status = await saved.Content.ReadFromJsonAsync<OwnerProviderConfigurationStatus>();
+            var slot = Assert.Single(status!.CredentialSlots!);
+            Assert.Equal(action.CredentialSlotId, slot.Id);
+            Assert.Equal(provider, slot.Provider);
+            Assert.Equal(action.Label, slot.Label);
+            Assert.Equal(beforeWorld, System.Text.Json.JsonSerializer.Serialize(observations.GetSnapshot()));
+            var afterRouting = store.CaptureRuntimeConfiguration();
+            Assert.Equal(beforeRouting.RoutineProvider, afterRouting.RoutineProvider);
+            Assert.Equal(beforeRouting.PlanningProvider, afterRouting.PlanningProvider);
+            Assert.Equal(beforeRouting.OpenAi, afterRouting.OpenAi);
+            Assert.Equal(beforeRouting.OllamaCloud, afterRouting.OllamaCloud);
+            Assert.Equal(beforeRouting.Assignments, afterRouting.Assignments);
+            Assert.Equal(0, host.Services.GetRequiredService<ProviderUsageStore>().Capture().Attempts);
+            if (OperatingSystem.IsWindows()) Assert.DoesNotContain(secret, File.ReadAllText(store.Path), StringComparison.Ordinal);
+            var reloaded = new ProviderConfigurationStore(store.Path,
+                new("deterministic", null, null, null, null, null, null));
+            Assert.Equal(secret, Assert.Single(reloaded.CaptureRuntimeConfiguration().CredentialSlots!).ApiKey);
+            // The saved key can be selected by a later agent without resubmitting it.
+            var assigned = reloaded.Configure(new("personal", provider, "test-model", null, false,
+                "later-agent", action.CredentialSlotId));
+            Assert.All(assigned.Assignments!, assignment => Assert.Equal(action.CredentialSlotId, assignment.CredentialSlotId));
+            using var duplicate = await SendSignedAsync(host, client, key, device.DeviceId, endpoint, action, payload);
+            Assert.Equal(HttpStatusCode.BadRequest, duplicate.StatusCode);
+            Assert.Single(store.CaptureStatus().CredentialSlots!);
+            var unsupported = action with { CredentialSlotId = Guid.NewGuid().ToString("N"), Provider = "jev" };
+            using var rejected = await SendSignedAsync(host, client, key, device.DeviceId,
+                endpoint, unsupported, OwnerHttpBinding.CredentialSlotCreationPayload(unsupported));
+            Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
+            Assert.Single(store.CaptureStatus().CredentialSlots!);
+        }
+        finally { directory.Delete(recursive: true); }
+    }
+
+    private sealed class SettingsKeySigner(ECDsa key) : ClankerWorld.GodotClient.Pairing.IOwnerDeviceSigner
+    {
+        public string PublicKeySpkiBase64 => Convert.ToBase64String(key.ExportSubjectPublicKeyInfo());
+        public string PublicKeyFingerprint => ClankerWorld.GodotClient.Pairing.OwnerPairingProtocol.CreatePublicKeyFingerprint(PublicKeySpkiBase64);
+        public string SignCanonicalProof(string canonicalProof) => Sign(key, canonicalProof);
+        public void Dispose() { } // The test owns the signing key.
+    }
+
     [Fact]
     public async Task DamagedUsageMeterKeepsHostReachableAndReportsBlockedAccountingToOwner()
     {
@@ -138,6 +231,93 @@ public sealed partial class ViewerHttpTests
     }
 
     [Fact]
+    public async Task ModelCallWarningReachesTheEventLogOnceAndOlderSavesKeepTheInstallationCount()
+    {
+        var directory = Directory.CreateTempSubdirectory("clankerworld-usage-warning-http-");
+        try
+        {
+            using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+            OwnerDevice device;
+            static IEnumerable<PlaytestWorldEvent> Warnings(PrivateWorldRuntime world) =>
+                world.ExportState().Events.Where(item => item.Kind == "model_call_warning");
+            static async Task WaitForWarningAsync(RecordingLogger<ViewerHttpTests> log, string counts)
+            {
+                using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                while (!log.Messages.Any(message => message.Contains(
+                    $"provider_usage_warning outcome=event_log scope=installation {counts}", StringComparison.Ordinal)))
+                    await Task.Delay(10, deadline.Token);
+            }
+
+            using (var host = new ViewerWebApplicationFactory(directory.FullName, null, privateWorld: true))
+            {
+                var log = new RecordingLogger<ViewerHttpTests>();
+                using var configured = host.WithWebHostBuilder(builder => builder.ConfigureLogging(logging =>
+                    logging.AddProvider(new RecordingLoggerProvider<ViewerHttpTests>(log))));
+                using var client = configured.CreateClient();
+                device = await StartAndActivateAsync(configured, client, key);
+                var runtime = configured.Services.GetRequiredService<PrivateWorldRuntime>();
+                runtime.Pause();
+                var usage = configured.Services.GetRequiredService<ProviderUsageStore>();
+                var raised = 0;
+                usage.WarningReached += _ => Interlocked.Increment(ref raised);
+                var cap = new ProviderUsageLimitAction(5);
+                using var limited = await SendSignedAsync(configured, client, key, device.DeviceId,
+                    "/api/v1/owner/usage/limit", cap, OwnerHttpBinding.UsageLimitPayload(cap));
+                Assert.Equal(HttpStatusCode.OK, limited.StatusCode);
+                var older = configured.Services.GetRequiredService<ManualWorldSaveStore>()
+                    .Create("Before the warning", runtime, []);
+
+                for (var call = 0; call < 5; call++)
+                    usage.Finish(usage.Begin("openai", "test-model", "planning"), "completed");
+                await WaitForWarningAsync(log, "attempts=4 limit=5");
+                Assert.Equal(1, raised);
+                Assert.Equal("used:4:limit:5", Assert.Single(Warnings(runtime)).Detail);
+                var stateFile = configured.Services.GetRequiredService<PrivateWorldStateFile>();
+                Assert.Single(PrivateWorldRuntimeCodec.Decode(File.ReadAllBytes(stateFile.Path)).Events,
+                    item => item.Kind == "model_call_warning");
+                Assert.True(usage.Capture().LimitReached);
+                Assert.True(runtime.Society.IsPaused);
+
+                // A save from before the warning brings back neither the warning nor a lower count.
+                var load = new OwnerManualSaveAction("load", older.Id);
+                using var loaded = await SendSignedAsync(configured, client, key, device.DeviceId,
+                    "/api/v1/owner/saves/load", load, OwnerHttpBinding.ManualSavePayload(load));
+                Assert.Equal(HttpStatusCode.OK, loaded.StatusCode);
+                Assert.Empty(Warnings(runtime));
+                Assert.Equal(5, usage.Capture().Attempts);
+                Assert.True(usage.Capture().LimitReached);
+                Assert.Equal(1, raised);
+            }
+
+            using (var restarted = new ViewerWebApplicationFactory(directory.FullName, null, privateWorld: true))
+            {
+                var log = new RecordingLogger<ViewerHttpTests>();
+                using var configured = restarted.WithWebHostBuilder(builder => builder.ConfigureLogging(logging =>
+                    logging.AddProvider(new RecordingLoggerProvider<ViewerHttpTests>(log))));
+                using var client = configured.CreateClient();
+                var runtime = configured.Services.GetRequiredService<PrivateWorldRuntime>();
+                var usage = configured.Services.GetRequiredService<ProviderUsageStore>();
+                var raised = 0;
+                usage.WarningReached += _ => Interlocked.Increment(ref raised);
+                Assert.Equal(5, usage.Capture().Attempts);
+
+                // A raised limit has a new 80% mark; only calls that cross it warn again.
+                var raise = new ProviderUsageLimitAction(10);
+                using var raisedLimit = await SendSignedAsync(configured, client, key, device.DeviceId,
+                    "/api/v1/owner/usage/limit", raise, OwnerHttpBinding.UsageLimitPayload(raise));
+                Assert.Equal(HttpStatusCode.OK, raisedLimit.StatusCode);
+                for (var call = 0; call < 4; call++)
+                    usage.Finish(usage.Begin("openai", "test-model", "planning"), "completed");
+                await WaitForWarningAsync(log, "attempts=8 limit=10");
+                Assert.Equal(1, raised);
+                Assert.Equal("used:8:limit:10", Assert.Single(Warnings(runtime)).Detail);
+                Assert.False(usage.Capture().LimitReached);
+            }
+        }
+        finally { directory.Delete(recursive: true); }
+    }
+
+    [Fact]
     public async Task PairedOwnerCanConfigureHostedCognitionWithoutEchoingOrSavingTheKeyInTheWorld()
     {
         var directory = System.IO.Path.Combine(
@@ -199,6 +379,23 @@ public sealed partial class ViewerHttpTests
                 Assert.Equal(HttpStatusCode.BadRequest, missingResponse.StatusCode);
                 Assert.Equal(personalStatus.Revision, host.Services.GetRequiredService<ProviderConfigurationStore>().CaptureStatus().Revision);
 
+                var inherit = new OwnerProviderConfigurationAction(
+                    "personal", "inherit", null, null, ForgetCredential: false, InhabitantId: "founder-scout");
+                using var inheritResponse = await SendSignedAsync(host, client, key, pairedDevice.DeviceId,
+                    "/api/v1/owner/providers/configure", inherit, OwnerHttpBinding.ProviderConfigurationPayload(inherit));
+                Assert.Equal(HttpStatusCode.OK, inheritResponse.StatusCode);
+                var inheritedStatus = await inheritResponse.Content.ReadFromJsonAsync<OwnerProviderConfigurationStatus>();
+                Assert.NotNull(inheritedStatus);
+                var inheritedRows = inheritedStatus!.Assignments!.Where(item => item.InhabitantId == "founder-scout").ToArray();
+                Assert.Equal(2, inheritedRows.Length);
+                Assert.All(inheritedRows, assignment =>
+                {
+                    Assert.Equal("inherit", assignment.Provider);
+                    Assert.Null(assignment.Model);
+                    Assert.Null(assignment.CredentialSlotId);
+                    Assert.Null(assignment.SelectionReason);
+                });
+
                 var providerPath = host.Services.GetRequiredService<ProviderConfigurationStore>().Path;
                 if (OperatingSystem.IsWindows())
                 {
@@ -238,6 +435,9 @@ public sealed partial class ViewerHttpTests
                 var restored = await statusResponse.Content.ReadFromJsonAsync<OwnerProviderConfigurationStatus>();
                 Assert.Equal(HttpStatusCode.OK, statusResponse.StatusCode);
                 Assert.Equal("openai", restored!.PlanningProvider);
+                var restoredInheritRows = restored.Assignments!.Where(item => item.InhabitantId == "founder-scout").ToArray();
+                Assert.Equal(2, restoredInheritRows.Length);
+                Assert.All(restoredInheritRows, assignment => Assert.Equal("inherit", assignment.Provider));
 
                 var forgetAction = new OwnerProviderConfigurationAction(
                     "planning",
@@ -321,6 +521,49 @@ public sealed partial class ViewerHttpTests
             var afterDeletion = new ProviderConfigurationStore(store.Path,
                 new("deterministic", null, null, null, null, null, null));
             Assert.Empty(afterDeletion.CaptureRuntimeConfiguration().CredentialSlots!);
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task OnlySignedOwnerCanListProviderModelsAndThePastedKeyIsBoundByDigest()
+    {
+        var directory = Directory.CreateTempSubdirectory("clankerworld-model-list-http-");
+        try
+        {
+            using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+            using var host = new ViewerWebApplicationFactory(directory.FullName, null, privateWorld: true);
+            using var client = host.CreateClient();
+            var device = await StartAndActivateAsync(host, client, key);
+            const string endpoint = "/api/v1/owner/providers/models";
+
+            var pasted = new OwnerProviderModelListAction("openai", ApiKey: "pasted-list-secret");
+            Assert.DoesNotContain("pasted-list-secret", OwnerHttpBinding.ProviderModelListPayload(pasted), StringComparison.Ordinal);
+            using var tampered = await SendSignedAsync(host, client, key, device.DeviceId, endpoint, pasted,
+                OwnerHttpBinding.ProviderModelListPayload(pasted with { ApiKey = "other-secret" }));
+            Assert.Equal(HttpStatusCode.Unauthorized, tampered.StatusCode);
+
+            var saved = new OwnerProviderModelListAction("ollama-cloud");
+            using var missing = await SendSignedAsync(host, client, key, device.DeviceId, endpoint, saved,
+                OwnerHttpBinding.ProviderModelListPayload(saved));
+            Assert.Equal(HttpStatusCode.OK, missing.StatusCode);
+            var list = await missing.Content.ReadFromJsonAsync<OwnerProviderModelList>();
+            Assert.Equal("Add an API key for Ollama Cloud first.", list!.Error);
+            Assert.Equal(PlayerDecisionProviders.DefaultOllamaCloudModel, list.DefaultModel);
+            Assert.Equal(ProviderModelCatalog.Curated[PlayerDecisionProviders.OllamaCloud], list.Models.Select(item => item.Model));
+
+            var listOnly = saved with { CheckKey = false };
+            using var tamperedCheck = await SendSignedAsync(host, client, key, device.DeviceId, endpoint, listOnly,
+                OwnerHttpBinding.ProviderModelListPayload(saved));
+            Assert.Equal(HttpStatusCode.Unauthorized, tamperedCheck.StatusCode);
+
+            var jev = new OwnerProviderModelListAction("jev");
+            using var unsupported = await SendSignedAsync(host, client, key, device.DeviceId, endpoint, jev,
+                OwnerHttpBinding.ProviderModelListPayload(jev));
+            Assert.Equal(HttpStatusCode.BadRequest, unsupported.StatusCode);
         }
         finally
         {

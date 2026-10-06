@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -111,15 +112,16 @@ public sealed record WorldSystemsConfig(
     int AutumnDays = 91,
     int WinterDays = 92,
     int MaxChunkCount = 256,
-    int MaxResourcesPerChunk = 64,
+    int MaxResourcesPerChunk = 1_024,
     int MaxCultureTags = 16,
-    IReadOnlyList<WeatherProfile>? WeatherProfiles = null)
+    IReadOnlyList<WeatherProfile>? WeatherProfiles = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] int CalendarOffsetTicks = 0)
 {
     public const int MaximumChunkCount = 1_024;
-    public const int MaximumResourcesPerChunk = 128;
+    public const int MaximumResourcesPerChunk = 2_048;
     public const int MaximumCultureTags = 32;
 
-    private static readonly WeatherProfile[] BuiltInWeatherProfiles =
+    private static readonly WeatherProfile[] BaselineWeatherProfiles =
     [
         new(SeasonKind.Spring, 45, 25, 25, 5, 0),
         new(SeasonKind.Summer, 55, 20, 15, 10, 0),
@@ -127,7 +129,14 @@ public sealed record WorldSystemsConfig(
         new(SeasonKind.Winter, 30, 30, 5, 5, 30),
     ];
 
-    public static WorldSystemsConfig Default { get; } = new(WeatherProfiles: BuiltInWeatherProfiles);
+    private static readonly WeatherProfile[] BuiltInWeatherProfiles = BaselineWeatherProfiles.Select(profile =>
+    {
+        var weights = ReduceDefaultPrecipitation([profile.ClearWeight, profile.CloudyWeight, profile.RainWeight,
+            profile.StormWeight, profile.SnowWeight]);
+        return new WeatherProfile(profile.Season, weights[0], weights[1], weights[2], weights[3], weights[4]);
+    }).ToArray();
+
+    public static WorldSystemsConfig Default { get; } = new();
 
     [JsonIgnore]
     public IReadOnlyList<WeatherProfile> EffectiveWeatherProfiles =>
@@ -136,9 +145,22 @@ public sealed record WorldSystemsConfig(
     public WeatherProfile GetWeatherProfile(SeasonKind season) =>
         EffectiveWeatherProfiles.Single(profile => profile.Season == season);
 
+    internal WeatherProfile GetRegionalBaseProfile(SeasonKind season) => WeatherProfiles is null
+        ? BaselineWeatherProfiles.Single(profile => profile.Season == season) : GetWeatherProfile(season);
+
+    internal static int[] ReduceDefaultPrecipitation(int[] weights)
+    {
+        // Scale by four so a 25% reduction is exact even for small weights.
+        // Reallocate the removed share between clear and cloudy conditions.
+        var removed = weights[2] + weights[3] + weights[4];
+        return [weights[0] * 4 + removed / 2, weights[1] * 4 + removed - removed / 2,
+            weights[2] * 3, weights[3] * 3, weights[4] * 3];
+    }
+
     public void Validate()
     {
         if (ContractVersion <= 0 || TicksPerDay <= 0 || DaysPerYear <= 0 ||
+            CalendarOffsetTicks < 0 || CalendarOffsetTicks >= TicksPerDay ||
             SpringDays <= 0 || SummerDays <= 0 || AutumnDays <= 0 || WinterDays <= 0 ||
             SpringDays + SummerDays + AutumnDays + WinterDays != DaysPerYear ||
             MaxChunkCount <= 0 || MaxChunkCount > MaximumChunkCount ||
@@ -177,7 +199,10 @@ public static class WorldCalendarRules
         config.Validate();
         ArgumentOutOfRangeException.ThrowIfNegative(worldTick);
 
-        var dayIndex = worldTick / config.TicksPerDay;
+        // Keep elapsed time unchanged, and carry only the day's remainder so
+        // adding the morning offset cannot overflow a long-running world tick.
+        var shiftedTickOfDay = worldTick % config.TicksPerDay + config.CalendarOffsetTicks;
+        var dayIndex = worldTick / config.TicksPerDay + shiftedTickOfDay / config.TicksPerDay;
         var dayOfYear = (int)(dayIndex % config.DaysPerYear);
         var (season, firstDayOfSeason) = SeasonAtDay(dayOfYear, config);
         return new(
@@ -185,7 +210,7 @@ public static class WorldCalendarRules
             dayIndex,
             dayOfYear,
             dayOfYear - firstDayOfSeason,
-            (int)(worldTick % config.TicksPerDay),
+            (int)(shiftedTickOfDay % config.TicksPerDay),
             season);
     }
 
@@ -333,7 +358,7 @@ public static class WeatherRules
     internal static int[] RegionalWeights(SeasonKind season, WorldSystemsConfig config,
         int regionY, int regionRows, ClimateZone? climate)
     {
-        var profile = config.GetWeatherProfile(season);
+        var profile = config.GetRegionalBaseProfile(season);
         // Snow is confined to cold latitudes. This is a coarse first climate
         // rule; long-run rainfall and individual weather events remain distinct.
         var latitude = Math.Abs(((regionY + 0.5) / regionRows) - 0.5) * 2;
@@ -361,11 +386,12 @@ public static class WeatherRules
         }
         else if (climate is ClimateZone.Cold or ClimateZone.Polar)
         {
-            var shifted = rainWeight * (climate == ClimateZone.Polar ? 4 : 2) / 5;
+            var shifted = (int)((long)rainWeight * (climate == ClimateZone.Polar ? 4 : 2) / 5);
             rainWeight -= shifted;
             snowWeight += shifted;
         }
-        return [clearWeight, profile.CloudyWeight, rainWeight, stormWeight, snowWeight];
+        int[] weights = [clearWeight, profile.CloudyWeight, rainWeight, stormWeight, snowWeight];
+        return config.WeatherProfiles is null ? WorldSystemsConfig.ReduceDefaultPrecipitation(weights) : weights;
     }
 
     public static ClimateZone? RegionClimate(SeededMap map, GridPoint position)
@@ -474,8 +500,38 @@ public sealed record EcologyResource(
 
 public sealed record EcologyState(IReadOnlyList<EcologyResource> Resources)
 {
-    public EcologyResource GetResource(string id) =>
-        Resources.Single(resource => string.Equals(resource.Id, id, StringComparison.Ordinal));
+    // Source scans look up thousands of IDs a tick, so a linear search per ID
+    // grows with the square of the resource count. Each state gets one index;
+    // `with` makes a new state, so an index never outlives its list.
+    private static readonly ConditionalWeakTable<EcologyState, Dictionary<string, int>> Indexes = new();
+
+    public EcologyResource GetResource(string id)
+    {
+        var index = Indexes.GetValue(this, static state => IndexById(state.Resources));
+        if (id is not null && index.TryGetValue(id, out var position) && position >= 0 &&
+            position < Resources.Count && Resources[position] is { } resource &&
+            string.Equals(resource.Id, id, StringComparison.Ordinal))
+        {
+            return resource;
+        }
+
+        // Missing and duplicate IDs keep the original error.
+        return Resources.Single(resource => string.Equals(resource.Id, id, StringComparison.Ordinal));
+    }
+
+    private static Dictionary<string, int> IndexById(IReadOnlyList<EcologyResource> resources)
+    {
+        var index = new Dictionary<string, int>(resources.Count, StringComparer.Ordinal);
+        for (var position = 0; position < resources.Count; position++)
+        {
+            if (resources[position]?.Id is not { } id)
+                continue;
+            // A duplicate ID is marked rather than indexed, so its lookup fails as before.
+            index[id] = index.ContainsKey(id) ? -1 : position;
+        }
+
+        return index;
+    }
 }
 
 public sealed record EcologyHarvestResult(
@@ -532,13 +588,21 @@ public static class EcologyRules
         {
             if (calendar.DayIndex < resource.NextRegenerationDay)
                 return resource;
+            var fruitOutOfSeason = resource.Kind == "fruit" && calendar.Season != resource.RegenerationSeason;
             return resource with
             {
-                Quantity = 1,
-                NextRegenerationDay = checked(calendar.DayIndex + resource.RegenerationIntervalDays),
-                State = EcologyResourceState.Available,
+                Quantity = fruitOutOfSeason ? 0 : 1,
+                NextRegenerationDay = fruitOutOfSeason ? calendar.DayIndex : checked(calendar.DayIndex + resource.RegenerationIntervalDays),
+                State = fruitOutOfSeason ? EcologyResourceState.Regenerating : EcologyResourceState.Available,
                 IsPlanted = false,
             };
+        }
+
+        // Fruit is seasonal: it ripens only in its recorded season and falls
+        // once that season ends, so a tree never carries fruit out of season.
+        if (resource.Kind == "fruit" && calendar.Season != resource.RegenerationSeason)
+        {
+            return resource with { Quantity = 0, State = EcologyResourceState.Regenerating };
         }
 
         if (resource.Quantity >= resource.Capacity)
@@ -547,7 +611,7 @@ public static class EcologyRules
         }
 
         if (calendar.DayIndex < resource.NextRegenerationDay ||
-            resource.Kind != "fruit" && calendar.Season != resource.RegenerationSeason)
+            calendar.Season != resource.RegenerationSeason)
         {
             return resource with
             {
@@ -1421,7 +1485,7 @@ public sealed record WorldSystemsState(
 /// </summary>
 public static class WorldSystemsRules
 {
-    public const int SchemaVersion = 2;
+    public const int SchemaVersion = 3;
 
     public static WorldSystemsState CreateGenesis(
         string worldSeed,
@@ -1439,7 +1503,7 @@ public static class WorldSystemsRules
         var effectiveCurrency = currency ?? new CurrencyState([], [], []);
         var effectiveCulture = culture ?? new CultureState([], []);
         var state = new WorldSystemsState(
-            SchemaVersion,
+            effectiveConfig.CalendarOffsetTicks == 0 ? 2 : SchemaVersion,
             worldSeed.Trim(),
             0,
             effectiveConfig,
@@ -1482,6 +1546,8 @@ public static class WorldSystemsRules
 
         ArgumentNullException.ThrowIfNull(state.Config);
         state.Config.Validate();
+        if (state.SchemaVersion < 3 && state.Config.CalendarOffsetTicks != 0)
+            throw new InvalidDataException("The world-systems schema cannot store a calendar offset.");
         RegionalWeatherRules.Validate(state.RegionalWeather, state.WorldTick, state.Config);
         ArgumentNullException.ThrowIfNull(state.Climate);
         var calendar = WorldCalendarRules.FromTick(state.WorldTick, state.Config);

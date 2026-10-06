@@ -1,0 +1,1 @@
+- Households can make crude wooden axes and pickaxes at their own House from stored wood. They can fell trees and extract stone without a Blacksmith, but gather less and wear out sooner than smith-made tools. This changes the saved-world format; older alpha saves are refused and kept unchanged.

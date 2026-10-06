@@ -1,0 +1,1 @@
+- Founders and adults placed with Add Agent now arrive at an age from day 15 to day 25 instead of all at day 15, so founders reach old age at different times. The world seed picks the ages: the four founders always get different ages, and the same seed gives the same founder ages. Existing worlds keep their agents' saved ages; adults added to them later also get a seeded age.

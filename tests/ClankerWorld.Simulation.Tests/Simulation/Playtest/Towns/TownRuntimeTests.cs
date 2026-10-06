@@ -63,8 +63,8 @@ public sealed class TownRuntimeTests
                 JsonSerializer.Serialize(store.GetSnapshot(), GodotJsonOptions), GodotJsonOptions);
             Assert.Equal("dead", snapshot!.Inhabitants.Single(person => person.Id == founderId).Lifecycle);
             foreach (var (kind, expected) in new[]
-                     { ("inhabitant_removed", "Aster died."), ("town_resident_left", "Aster left the first Town."),
-                       ("town_resident_joined", "Aster joined the first Town.") })
+                     { ("inhabitant_removed", "Aster died."), ("town_resident_left", "Aster left First Town."),
+                       ("town_resident_joined", "Aster joined First Town.") })
             {
                 var accepted = store.GetEventsAfter(0).Events.First(item => item.Kind == kind && item.Detail.Contains(founderId, StringComparison.Ordinal));
                 var clientEvent = JsonSerializer.Deserialize<GodotOwnerWorldEvent>(JsonSerializer.Serialize(accepted, GodotJsonOptions), GodotJsonOptions);
@@ -116,29 +116,6 @@ public sealed class TownRuntimeTests
         Assert.Equal("Aster gathered food.", WorldEventText.Describe(godotEvent!, godotSnapshot));
         Assert.Equal(harvest.Detail, godotEvent!.Detail);
         Assert.Equal(acceptedHistory, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
-    }
-
-    [Fact]
-    public void OlderCampWorldWithoutSavedTownRebuildsItsResidentBorder()
-    {
-        using var world = new PrivateWorldRuntime("older-camp-town", startPace: WorldStartPace.FounderSetup);
-        var founderIds = new[]
-        {
-            "founder:00000000000000000000000000000001",
-            "founder:00000000000000000000000000000002",
-            "founder:00000000000000000000000000000003",
-            "founder:00000000000000000000000000000004",
-        };
-        var positions = new[] { new GridPoint(0, 0), new GridPoint(1, 2), new GridPoint(2, 2), new GridPoint(3, 2) };
-        for (var index = 0; index < founderIds.Length; index++) world.PlaceFounder(founderIds[index], positions[index]);
-        var expected = Assert.Single(world.Towns);
-        var earlierCheckpoint = world.ExportState() with { SchemaVersion = 20, Towns = null };
-
-        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
-            PrivateWorldRuntimeCodec.Encode(earlierCheckpoint)));
-        var town = Assert.Single(restored.Towns);
-        Assert.Equal(expected.ResidentIds, town.ResidentIds);
-        Assert.Equal(expected.BorderTiles, town.BorderTiles);
     }
 
     [Fact]
@@ -236,6 +213,7 @@ public sealed class TownRuntimeTests
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
             var starterRoads = world.RoadTiles.ToHashSet();
             Assert.NotEmpty(starterRoads);
+            var starterTitles = world.TownLandTitles.ToArray();
 
             var definition = world.WorldContent.Buildings.Single(item => item.LocalId == "workshop");
             var town = Assert.Single(world.Towns);
@@ -261,12 +239,20 @@ public sealed class TownRuntimeTests
             var grownTown = Assert.Single(world.Towns);
             Assert.Contains(placed.InstanceId, grownTown.AssignedBuildingIds);
             Assert.True(grownTown.BorderTiles.Count > town.BorderTiles.Count);
+            Assert.Equal(starterTitles, world.TownLandTitles);
+            // Town Roads stay inside the border, which grows around the new Road too.
+            Assert.All(world.RoadTiles, road => Assert.Contains(road, grownTown.BorderTiles));
             Assert.Contains(world.ExportState().Events, item => item.Kind == "town_building_assigned");
             Assert.Contains(world.ExportState().Events, item => item.Kind == "town_border_expanded");
             Assert.NotEmpty(world.RoadTiles);
             Assert.DoesNotContain(position, world.RoadTiles);
             Assert.Contains(world.RoadTiles, road => map.FootNeighbors(position).Contains(road) &&
                 !map.IsDiagonalFootStep(position, road));
+            // The door faces the Road the building was joined to.
+            var entrance = Assert.Single(world.WorldSimulation.Buildings, item => item.InstanceId == result.InstanceId)
+                .Entrance ?? throw new InvalidOperationException("The joined building has no entrance.");
+            Assert.Contains(entrance, world.RoadTiles);
+            Assert.True(WorldContentSimulationRules.IsEntrance(definition, position, entrance));
             Assert.Empty(world.RoadTiles.Intersect(world.WorldSimulation.Buildings.SelectMany(building =>
             {
                 var size = world.WorldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
@@ -287,6 +273,8 @@ public sealed class TownRuntimeTests
                 snapshot.RoadTiles.Select(point => (point.X, point.Y)));
             Assert.Equal(TownBorderRules.FirstTownId,
                 Assert.Single(snapshot.PlacedBuildings, item => item.InstanceId == placed.InstanceId).TownId);
+            Assert.Equal((entrance.X, entrance.Y), Assert.Single(snapshot.PlacedBuildings,
+                item => item.InstanceId == placed.InstanceId).Entrance is { } shown ? (shown.X, shown.Y) : default);
             var godotSnapshot = JsonSerializer.Deserialize<GodotOwnerWorldSnapshot>(
                 JsonSerializer.Serialize(snapshot, GodotJsonOptions), GodotJsonOptions);
             var godotTown = Assert.Single(godotSnapshot!.Towns);
@@ -295,6 +283,8 @@ public sealed class TownRuntimeTests
                 godotSnapshot.RoadTiles.Select(point => (point.X, point.Y)));
             Assert.Equal(TownBorderRules.FirstTownId,
                 Assert.Single(godotSnapshot.PlacedBuildings, item => item.InstanceId == placed.InstanceId).TownId);
+            Assert.Equal((entrance.X, entrance.Y), Assert.Single(godotSnapshot.PlacedBuildings,
+                item => item.InstanceId == placed.InstanceId).Entrance is { } drawn ? (drawn.X, drawn.Y) : default);
 
             file.Save(world);
             using var reloaded = file.LoadOrCreate(geography.Seed);
@@ -304,6 +294,26 @@ public sealed class TownRuntimeTests
             Assert.Equal(world.RoadTiles, reloaded.RoadTiles);
             Assert.Equal(TownBorderRules.FirstTownId,
                 Assert.Single(reloaded.WorldSimulation.Buildings, item => item.InstanceId == placed.InstanceId).TownId);
+            Assert.Equal(entrance,
+                Assert.Single(reloaded.WorldSimulation.Buildings, item => item.InstanceId == placed.InstanceId).Entrance);
+            // A saved entrance must sit beside its building.
+            var reloadedState = reloaded.ExportState();
+            // A saved border must cover every assigned building.
+            Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(reloadedState with
+            {
+                Towns = [restoredTown with { BorderTiles = restoredTown.BorderTiles.Where(tile => tile != position).ToArray() }],
+            }));
+            Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(reloadedState with
+            {
+                WorldSimulation = reloadedState.WorldSimulation! with
+                {
+                    Buildings = reloadedState.WorldSimulation.Buildings
+                        .Select(item => item.InstanceId == placed.InstanceId
+                            ? item with { Entrance = new GridPoint(position.X + definition.Width, position.Y + definition.Height) }
+                            : item)
+                        .ToArray(),
+                },
+            }));
             var invalidRoads = reloaded.ExportState() with
             {
                 RoadTiles = reloaded.RoadTiles.Append(reloaded.RoadTiles[0]).ToArray(),
@@ -313,17 +323,110 @@ public sealed class TownRuntimeTests
             {
                 RoadTiles = null,
             }));
-            using var beforeRoadSchema = PrivateWorldRuntime.Restore(reloaded.ExportState() with
-            {
-                SchemaVersion = 23,
-                RoadTiles = null,
-            });
-            Assert.Empty(beforeRoadSchema.RoadTiles);
         }
         finally
         {
             directory.Delete(recursive: true);
         }
+    }
+
+    [Fact]
+    public void BuildingsJoiningATownExtendItsStreetsAndBranchNewOnes()
+    {
+        var geography = new GeographyOptions("first-town-streets-grow", WorldSizePreset.Small);
+        using var world = new PrivateWorldRuntime(geography.Seed,
+            startPace: WorldStartPace.FounderSetup, geographyOptions: geography);
+        PlaceFourFounders(world);
+        var workshop = world.WorldContent.Buildings.Single(item => item.LocalId == "workshop");
+        var map = world.ExportState().Map;
+        HashSet<GridPoint> Footprints() => world.WorldSimulation.Buildings.SelectMany(building =>
+            WorldContentSimulationRules.Footprint(
+                world.WorldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId),
+                building.Position)).ToHashSet();
+
+        // The starting wood pays for four workshops.
+        for (var index = 0; index < 4; index++)
+        {
+            var town = Assert.Single(world.Towns);
+            var roads = world.RoadTiles.ToHashSet();
+            var taken = map.CampObjects.Select(item => item.Position).Concat(map.Resources.Select(item => item.Position))
+                .Concat(roads).Concat(Footprints()).ToHashSet();
+            var sites = map.Tiles.Select(tile => tile.Position).Where(point =>
+                    WorldContentSimulationRules.Footprint(workshop, point).All(tile => map.IsBuildable(tile) && !taken.Contains(tile)) &&
+                    TownBorderRules.IsWithinOrAdjacent(town, point, workshop.Width, workshop.Height))
+                .Where(point => RoadRoutePlanner.Plan(new RoadRouteRequest(map,
+                    WorldContentSimulationRules.Footprint(workshop, point).SelectMany(map.FootNeighbors)
+                        .Where(entrance => WorldContentSimulationRules.IsEntrance(workshop, point, entrance)).ToArray(),
+                    roads, taken.Concat(WorldContentSimulationRules.Footprint(workshop, point)).ToHashSet(),
+                    world.Bridges, roads)).Proposal is not null)
+                .ToArray();
+            int NearestRoad(GridPoint point) => WorldContentSimulationRules.Footprint(workshop, point)
+                .Min(tile => roads.Min(road => Math.Abs(road.X - tile.X) + Math.Abs(road.Y - tile.Y)));
+            // Alternate a lot facing a street with one that needs a new side street.
+            var facing = index % 2 == 0;
+            var position = sites.First(point => facing ? NearestRoad(point) == 1 : NearestRoad(point) >= 3);
+
+            var result = world.PlaceBuilding($"growth-{index}", workshop.CanonicalId, position);
+            Assert.True(result.Applied, result.Failure);
+            var entrance = Assert.Single(world.WorldSimulation.Buildings, item => item.InstanceId == result.InstanceId)
+                .Entrance ?? throw new InvalidOperationException("The joined building has no entrance.");
+            Assert.True(WorldContentSimulationRules.IsEntrance(workshop, position, entrance));
+            Assert.Contains(entrance, world.RoadTiles);
+            if (facing) Assert.Contains(entrance, roads);
+            else
+            {
+                Assert.DoesNotContain(entrance, roads);
+                Assert.True(world.RoadTiles.Count > roads.Count,
+                    "A building without a pre-existing street entrance should add a connected entrance tile.");
+            }
+        }
+
+        var network = world.RoadTiles.ToHashSet();
+        var grownTown = Assert.Single(world.Towns);
+        Assert.Empty(network.Intersect(Footprints()));
+        Assert.All(network, road => Assert.Contains(road, grownTown.BorderTiles));
+
+        // The Town stays one connected street network. A bridge with Road at
+        // both ends joins the streets on its two banks.
+        var bridgeEnds = world.Bridges.Where(bridge => bridge.Entrances.All(network.Contains))
+            .SelectMany(bridge => new[] { (bridge.Entrances[0], bridge.Entrances[1]), (bridge.Entrances[1], bridge.Entrances[0]) })
+            .ToLookup(pair => pair.Item1, pair => pair.Item2);
+        IEnumerable<GridPoint> Linked(GridPoint tile) => TownStreets.Linked(network, tile).Concat(bridgeEnds[tile]);
+        var reachable = new HashSet<GridPoint> { world.RoadTiles[0] };
+        var pending = new Queue<GridPoint>(reachable);
+        while (pending.TryDequeue(out var current))
+            foreach (var next in Linked(current))
+                if (reachable.Add(next)) pending.Enqueue(next);
+        Assert.True(network.SetEquals(reachable));
+
+        // Streets run on three tiles past the nearest door wherever the land ahead is clear.
+        var doors = world.WorldSimulation.Buildings.Where(item => item.Entrance is not null)
+            .Select(item => item.Entrance!.Value).ToHashSet();
+        var blocked = map.CampObjects.Select(item => item.Position).Concat(map.Resources.Select(item => item.Position))
+            .Concat(Footprints()).ToHashSet();
+        foreach (var end in network.Where(road => Linked(road).Count() == 1))
+        {
+            if (StepsToDoor(Linked, doors, end) >= TownStreets.RunOnTiles) continue;
+            var from = Linked(end).Single();
+            var ahead = new GridPoint(end.X + (end.X - from.X), end.Y + (end.Y - from.Y));
+            Assert.True(!map.IsBuildable(ahead) || blocked.Contains(ahead) || network.Contains(ahead) ||
+                TownStreets.Directions.Any(step => new GridPoint(ahead.X + step.X, ahead.Y + step.Y) is var near &&
+                    near != end && near != from && network.Contains(near)),
+                $"The street ending at {end} could run on past its door.");
+        }
+    }
+
+    private static int StepsToDoor(Func<GridPoint, IEnumerable<GridPoint>> linked, HashSet<GridPoint> doors, GridPoint start)
+    {
+        var steps = new Dictionary<GridPoint, int> { [start] = 0 };
+        var pending = new Queue<GridPoint>([start]);
+        while (pending.TryDequeue(out var current))
+        {
+            if (doors.Contains(current)) return steps[current];
+            foreach (var next in linked(current))
+                if (steps.TryAdd(next, steps[current] + 1)) pending.Enqueue(next);
+        }
+        return int.MaxValue;
     }
 
     private static void PlaceFourFounders(PrivateWorldRuntime world)

@@ -5,6 +5,25 @@ using System.Text.Json.Serialization;
 
 namespace ClankerWorld.GodotClient.Pairing;
 
+/// <summary>A host has not advertised the format required for this action.</summary>
+public sealed class OwnerActionCompatibilityException : InvalidOperationException
+{
+    public OwnerActionCompatibilityException()
+        : base("The host and client need matching updates for this action.") { }
+}
+
+public sealed class OwnerAgentNameTakenException : HttpRequestException
+{
+    public OwnerAgentNameTakenException()
+        : base("The agent name is already taken.", null, HttpStatusCode.Conflict) { }
+}
+
+public sealed class OwnerWorldGenerationException : HttpRequestException
+{
+    public OwnerWorldGenerationException()
+        : base("There is no room for a first Town with these settings.", null, HttpStatusCode.Conflict) { }
+}
+
 /// <summary>
 /// Default absolute-path endpoints for the owner pairing and signed-action
 /// protocol. These paths are relative to the supplied ClankerWorld server URI.
@@ -16,6 +35,7 @@ public static class OwnerPairingEndpoints
     public const string ChallengeIssue = "/api/v1/owner/challenges";
     public const string OwnerReconnect = "/api/v1/owner/reconnect";
     public const string OwnerPause = "/api/v1/owner/control/pause";
+    public const string OwnerDeveloperEdit = "/api/v1/owner/developer-edit";
     public const string OwnerLifePace = "/api/v1/owner/control/life-pace";
     public const string OwnerJevAssistance = "/api/v1/owner/control/jev-assistance";
     public const string OwnerResume = "/api/v1/owner/control/resume";
@@ -24,6 +44,7 @@ public static class OwnerPairingEndpoints
     public const string OwnerSaveCreate = "/api/v1/owner/saves/create";
     public const string OwnerSaveOverwrite = "/api/v1/owner/saves/overwrite";
     public const string OwnerSaveLoad = "/api/v1/owner/saves/load";
+    public const string OwnerSaveTimeline = "/api/v1/owner/saves/timeline";
     public const string OwnerWorldList = "/api/v1/owner/worlds/list";
     public const string OwnerWorldCreate = "/api/v1/owner/worlds/create";
     public const string OwnerWorldPreview = "/api/v1/owner/worlds/preview";
@@ -37,6 +58,7 @@ public static class OwnerPairingEndpoints
     public const string OwnerAgentPlace = "/api/v1/owner/agents/place";
     public const string OwnerAgentRename = "/api/v1/owner/agents/rename";
     public const string OwnerInstructions = "/api/v1/owner/instructions";
+    public const string OwnerOrderCancel = "/api/v1/owner/orders/cancel";
     public const string OwnerAuthoring = "/api/v1/owner/authoring";
     public const string OwnerContentPropose = "/api/v1/owner/content/propose";
     public const string OwnerContentValidate = "/api/v1/owner/content/validate";
@@ -44,6 +66,8 @@ public static class OwnerPairingEndpoints
     public const string OwnerContentStage = "/api/v1/owner/content/stage";
     public const string OwnerContentRollback = "/api/v1/owner/content/rollback";
     public const string OwnerBuildingPlacement = "/api/v1/owner/buildings/place";
+    public const string OwnerBuildingRemoval = "/api/v1/owner/buildings/remove";
+    public const string OwnerBuildingReassignment = "/api/v1/owner/buildings/reassign";
     public const string OwnerProductionStart = "/api/v1/owner/production/start";
     public const string OwnerPairingApproval = "/api/v1/owner/pairings/approve";
     public const string OwnerDeviceRevoke = "/api/v1/owner/devices/revoke";
@@ -53,6 +77,9 @@ public static class OwnerPairingEndpoints
     public const string OwnerUsageLimit = "/api/v1/owner/usage/limit";
     public const string OwnerProviderConfigure = "/api/v1/owner/providers/configure";
     public const string OwnerCredentialSlotDelete = "/api/v1/owner/providers/slots/delete";
+    public const string OwnerCredentialSlotCreate = "/api/v1/owner/providers/slots/create";
+    public const string OwnerProviderModels = "/api/v1/owner/providers/models";
+    public const string OwnerProviderSetupCheck = "/api/v1/owner/providers/setup-check";
 }
 
 /// <summary>
@@ -116,11 +143,12 @@ public sealed class OwnerPairingClient
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(deviceKey);
+        using var deadline = CreatePairingDeadline(cancellationToken);
         var pairing = await SendJsonAsync<OwnerPairingStartRequest, OwnerPairingStart>(
             HttpMethod.Post,
             BuildEndpointUri(serverBaseUri, endpoints.PairingsPath),
             new OwnerPairingStartRequest(deviceKey.PublicKeySpkiBase64),
-            cancellationToken).ConfigureAwait(false);
+            deadline.Token).ConfigureAwait(false);
 
         ValidatePairingStart(pairing, deviceKey);
         return pairing;
@@ -136,9 +164,10 @@ public sealed class OwnerPairingClient
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(pairingId);
+        using var deadline = CreatePairingDeadline(cancellationToken);
         var status = await GetJsonAsync<OwnerPairingStatus>(
             BuildEndpointUri(serverBaseUri, $"{endpoints.PairingsPath}/{Uri.EscapeDataString(pairingId)}"),
-            cancellationToken).ConfigureAwait(false);
+            deadline.Token).ConfigureAwait(false);
 
         if (!string.Equals(status.PairingId, pairingId, StringComparison.Ordinal) || status.Authority is null)
         {
@@ -176,11 +205,12 @@ public sealed class OwnerPairingClient
         CancellationToken cancellationToken)
     {
         var activation = CreateActivationRequest(pairing, deviceKey);
+        using var deadline = CreatePairingDeadline(cancellationToken);
         var device = await SendJsonAsync<OwnerPairingActivationRequest, OwnerDevice>(
             HttpMethod.Post,
             BuildEndpointUri(serverBaseUri, endpoints.PairingActivationPath),
             activation,
-            cancellationToken).ConfigureAwait(false);
+            deadline.Token).ConfigureAwait(false);
 
         if (!string.Equals(device.DeviceId, pairing.DeviceId, StringComparison.Ordinal) ||
             !string.Equals(device.PublicKeyFingerprint, deviceKey.PublicKeyFingerprint, StringComparison.Ordinal) ||
@@ -341,13 +371,15 @@ public sealed class OwnerPairingClient
         string canonicalPayload,
         TAction action,
         IOwnerDeviceSigner deviceKey,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? requiredPayloadDomain = null,
+        TimeSpan? maximumDuration = null)
         where TResponse : class
     {
         // ResponseHeadersRead ends HttpClient's timeout at the headers. Keep
         // a deadline alive across both JSON bodies and the complete signed flow.
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        var maximum = TimeSpan.FromSeconds(15);
+        var maximum = maximumDuration ?? TimeSpan.FromSeconds(15);
         deadline.CancelAfter(httpClient.Timeout == Timeout.InfiniteTimeSpan || httpClient.Timeout > maximum
             ? maximum : httpClient.Timeout);
         cancellationToken = deadline.Token;
@@ -358,6 +390,11 @@ public sealed class OwnerPairingClient
             requestId,
             deviceKey,
             cancellationToken).ConfigureAwait(false);
+        if (requiredPayloadDomain is not null &&
+            !(challenge.SupportedActionPayloads ?? []).Contains(requiredPayloadDomain, StringComparer.Ordinal))
+        {
+            throw new OwnerActionCompatibilityException();
+        }
         var request = CreateSignedActionRequest(
             authority,
             deviceId,
@@ -413,6 +450,17 @@ public sealed class OwnerPairingClient
         }
     }
 
+    private CancellationTokenSource CreatePairingDeadline(CancellationToken cancellationToken)
+    {
+        // HttpClient's timeout stops at successful headers with ResponseHeadersRead.
+        // Public pairing needs the same bounded body read as signed owner actions.
+        var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var maximum = TimeSpan.FromSeconds(15);
+        deadline.CancelAfter(httpClient.Timeout == Timeout.InfiniteTimeSpan || httpClient.Timeout > maximum
+            ? maximum : httpClient.Timeout);
+        return deadline;
+    }
+
     private async Task<TResponse> GetJsonAsync<TResponse>(Uri endpointUri, CancellationToken cancellationToken)
         where TResponse : class
     {
@@ -424,6 +472,8 @@ public sealed class OwnerPairingClient
         response.EnsureSuccessStatusCode();
         return await ReadRequiredJsonAsync<TResponse>(response, cancellationToken).ConfigureAwait(false);
     }
+
+    private sealed record OwnerActionFailure(string? Code);
 
     private async Task<TResponse> SendJsonAsync<TRequest, TResponse>(
         HttpMethod method,
@@ -440,6 +490,21 @@ public sealed class OwnerPairingClient
             request,
             HttpCompletionOption.ResponseHeadersRead,
             cancellationToken).ConfigureAwait(false);
+        var isRename = endpointUri.AbsolutePath == OwnerPairingEndpoints.OwnerAgentRename;
+        var isWorldGeneration = endpointUri.AbsolutePath is OwnerPairingEndpoints.OwnerWorldPreview or
+            OwnerPairingEndpoints.OwnerWorldCreate;
+        if ((isRename || isWorldGeneration) && response.StatusCode == HttpStatusCode.Conflict)
+        {
+            try
+            {
+                var failure = await response.Content.ReadFromJsonAsync<OwnerActionFailure>(
+                    JsonOptions, cancellationToken).ConfigureAwait(false);
+                if (isRename && failure?.Code == "name_taken") throw new OwnerAgentNameTakenException();
+                if (isWorldGeneration && failure?.Code == "no_playable_candidate")
+                    throw new OwnerWorldGenerationException();
+            }
+            catch (JsonException) { }
+        }
         response.EnsureSuccessStatusCode();
         return await ReadRequiredJsonAsync<TResponse>(response, cancellationToken).ConfigureAwait(false);
     }

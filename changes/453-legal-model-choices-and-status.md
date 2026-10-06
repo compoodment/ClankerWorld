@@ -1,0 +1,1 @@
+- Agents keep legal model choices and valid chosen names even at low confidence. Model replies no longer need a probability map, and failed attempts finish without an automatic paid retry. Agent cards show the latest model request's status separately from the last accepted choice, including after save/reload. Older builds may refuse these alpha saves.

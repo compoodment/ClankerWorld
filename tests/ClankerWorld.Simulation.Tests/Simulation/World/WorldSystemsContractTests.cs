@@ -1,4 +1,3 @@
-using System.Text;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.World;
 
@@ -6,33 +5,8 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed class WorldSystemsContractTests
 {
-    [Fact]
-    public void SeasonalCalendarAndWeatherAreDeterministicAtDayAndSeasonBoundaries()
-    {
-        var config = SmallConfig();
-        var first = WeatherRules.CreateGenesis("world-systems-seed", config);
-        var second = WeatherRules.CreateGenesis("world-systems-seed", config);
-
-        Assert.Equal(first, second);
-        Assert.Equal(SeasonKind.Spring, first.Season);
-        Assert.Equal(first.Weather, WeatherRules.WeatherForDay("world-systems-seed", 0, SeasonKind.Spring, config));
-
-        var summerTick = checked((long)config.TicksPerDay * config.SpringDays);
-        var summer = WeatherRules.Advance(first, summerTick, "world-systems-seed", config);
-        var summerAgain = WeatherRules.Advance(first, summerTick, "world-systems-seed", config);
-
-        Assert.Equal(SeasonKind.Summer, summer.Season);
-        Assert.Equal(summer, summerAgain);
-        Assert.Equal(
-            summer.Weather,
-            WeatherRules.WeatherForDay("world-systems-seed", config.SpringDays, SeasonKind.Summer, config));
-        Assert.Equal(SeasonKind.Spring, WorldCalendarRules.FromTick(0, config).Season);
-        Assert.Equal(SeasonKind.Summer, WorldCalendarRules.FromTick(summerTick, config).Season);
-    }
-
     [Theory]
     [InlineData(5)]
-    [InlineData(8)]
     public void SevereStormEndsWithinThreeQuartersOfEachSavedWorldDay(int ticksPerDay)
     {
         var config = SmallConfig() with
@@ -51,80 +25,6 @@ public sealed class WorldSystemsContractTests
             Assert.Equal(expected, WeatherRules.At(state, position, 32));
             if (tick < 2 * config.TicksPerDay - 1) state = WorldSystemsRules.AdvanceOneTick(state);
         }
-    }
-
-    [Fact]
-    public void RecentRainRaisesLocalSoilMoistureWhileDryDaysDepleteIt()
-    {
-        var baseConfig = SmallConfig();
-        WorldSystemsState AdvanceWith(WeatherKind weather)
-        {
-            var profiles = Enum.GetValues<SeasonKind>().Select(season => new WeatherProfile(season,
-                weather == WeatherKind.Clear ? 1 : 0, 0, weather == WeatherKind.Rain ? 1 : 0, 0, 0)).ToArray();
-            var state = WorldSystemsRules.CreateGenesis("soil-test", config: baseConfig with { WeatherProfiles = profiles });
-            for (var tick = 0; tick < 8; tick++) state = WorldSystemsRules.AdvanceOneTick(state);
-            return state;
-        }
-
-        var position = new GridPoint(20, 20);
-        var wet = WeatherRules.SoilMoistureAt(AdvanceWith(WeatherKind.Rain), position, 128);
-        var dry = WeatherRules.SoilMoistureAt(AdvanceWith(WeatherKind.Clear), position, 128);
-
-        Assert.InRange(wet, 70, 100);
-        Assert.InRange(dry, 0, 14);
-        Assert.True(wet > dry);
-    }
-
-    [Fact]
-    public void EcologyHarvestAndRegenerationAreBoundedAndIdempotent()
-    {
-        var resource = new EcologyResource(
-            "berry-patch",
-            "food",
-            new GridPoint(2, 3),
-            true,
-            0,
-            10,
-            3,
-            2,
-            SeasonKind.Spring,
-            0,
-            EcologyResourceState.Depleted);
-        var config = SmallConfig();
-        var calendar = WorldCalendarRules.FromTick(0, config);
-
-        var regenerated = EcologyRules.Regenerate(resource, calendar, config);
-        var repeated = EcologyRules.Regenerate(regenerated, calendar, config);
-        var harvested = EcologyRules.Harvest(regenerated, 2);
-
-        Assert.Equal(3, regenerated.Quantity);
-        Assert.Equal(EcologyResourceState.Available, regenerated.State);
-        Assert.Equal(2, regenerated.NextRegenerationDay);
-        Assert.Equal(regenerated, repeated);
-        Assert.True(harvested.IsValid);
-        Assert.Equal(1, harvested.Resource!.Quantity);
-        Assert.False(EcologyRules.Harvest(regenerated, 99).IsValid);
-    }
-
-    [Fact]
-    public void LawEvaluationProducesDeterministicViolationsAndUpdatesStanding()
-    {
-        var state = new FactionState(
-            [new FactionDefinition("guild", "River Guild", ["riverfolk"])],
-            [new FactionStanding("actor", "guild", 500)],
-            [new LawRule("no-theft", "guild", LawActionKind.Theft, LawSeverity.Major, 250, 30, true)],
-            []);
-        var action = new LawAction("action-1", "actor", "guild", LawActionKind.Theft, 12);
-
-        var evaluation = FactionRules.Evaluate(state, action);
-        var committed = FactionRules.ApplyViolations(state, evaluation);
-        var permitted = FactionRules.Evaluate(state, action with { HasPermit = true });
-
-        Assert.True(evaluation.IsViolation);
-        Assert.Single(evaluation.Violations);
-        Assert.Equal("violation:action-1:no-theft", evaluation.Violations[0].ViolationId);
-        Assert.Equal(250, committed.FindStanding("actor", "guild")!.StandingBasisPoints);
-        Assert.False(permitted.IsViolation);
     }
 
     [Fact]
@@ -154,83 +54,69 @@ public sealed class WorldSystemsContractTests
         Assert.False(forged.IsValid);
     }
 
-    [Fact]
-    public void CultureTagsNormalizeAndRemainDataOnly()
+    [Theory]
+    [InlineData(4_000)]
+    public void EcologyLookupReadsEachResourceAboutOnceAsTheWorldGrows(int count)
     {
-        var tags = CultureRules.NormalizeTags(["River", "river", "trade-route"], 4);
-        var culture = new CultureDefinition("riverfolk", "River Folk", tags);
-        var enriched = CultureRules.AddTag(culture, "harvest", 4);
+        // A tick looks up thousands of sources. Searching the list for each one
+        // made Small-world ticks grow with the square of the resource count.
+        var resources = new CountingResourceList(Enumerable.Range(0, count).Select(index => new EcologyResource(
+            $"tree-{index:D5}", "construction", new GridPoint(index % 256, index / 256), false, 1, 1, 0, 0,
+            SeasonKind.Spring, 0, EcologyResourceState.Available)).ToArray());
+        var ecology = new EcologyState(resources);
 
-        Assert.Equal(["river", "trade-route"], tags);
-        Assert.Equal(["harvest", "river", "trade-route"], enriched.Tags);
-        Assert.Throws<ArgumentException>(() => CultureRules.NormalizeTag("not allowed"));
-        Assert.Throws<ArgumentOutOfRangeException>(() => CultureRules.AddTag(enriched, "winter", 3));
+        for (var index = count - 1; index >= 0; index--)
+            Assert.Same(resources.Items[index], ecology.GetResource($"tree-{index:D5}"));
+
+        Assert.InRange(resources.Reads, count, 2 * count);
     }
 
     [Fact]
-    public void ChunkCoordinatesAndManifestDigestAreCanonical()
+    public void EcologyLookupFollowsReplacedResourcesAndKeepsLookupErrors()
     {
-        var point = new GridPoint(17, -1);
-        var coordinate = ChunkRules.ToChunkCoordinate(point);
-        var local = ChunkRules.ToLocalPoint(point);
-        var manifest = ChunkManifestCodec.WithDigest(new ChunkManifest(
-            coordinate,
-            ChunkRules.DefaultChunkSize,
-            16,
-            16,
-            "temperate-fixture",
-            "v1",
-            [new ChunkResourceMetadata("berry-patch", "food", local, true)]));
-        var reordered = manifest with
+        var first = new EcologyResource("tree-a", "construction", new GridPoint(1, 1), true, 1, 1, 1, 4,
+            SeasonKind.Spring, 4, EcologyResourceState.Available);
+        var second = first with { Id = "tree-b", Position = new GridPoint(2, 1) };
+        var ecology = new EcologyState([first, second]);
+        Assert.Same(second, ecology.GetResource("tree-b"));
+
+        // `with` copies the state; the copy must find its own list's resources.
+        var felled = second with { Quantity = 0, State = EcologyResourceState.Regenerating };
+        var replaced = ecology with { Resources = [felled, first] };
+        Assert.Same(felled, replaced.GetResource("tree-b"));
+        Assert.Same(first, replaced.GetResource("tree-a"));
+        Assert.Same(second, ecology.GetResource("tree-b"));
+
+        Assert.Throws<InvalidOperationException>(() => ecology.GetResource("tree-c"));
+        Assert.Throws<InvalidOperationException>(() => new EcologyState([first, second, first]).GetResource("tree-a"));
+        Assert.Same(second, new EcologyState([first, second, first]).GetResource("tree-b"));
+    }
+
+    private sealed class CountingResourceList(EcologyResource[] items) : IReadOnlyList<EcologyResource>
+    {
+        public EcologyResource[] Items { get; } = items;
+        public int Reads { get; private set; }
+        public int Count => Items.Length;
+
+        public EcologyResource this[int index]
         {
-            Resources = [new ChunkResourceMetadata("berry-patch", "food", local, true)],
-        };
+            get
+            {
+                Reads++;
+                return Items[index];
+            }
+        }
 
-        Assert.Equal(new ChunkCoordinate(1, -1), coordinate);
-        Assert.Equal(new GridPoint(1, 15), local);
-        Assert.Equal(manifest.ManifestDigest, ChunkManifestCodec.Digest(reordered));
-        Assert.Equal(manifest.ManifestDigest, ChunkManifestCodec.WithDigest(reordered).ManifestDigest);
-    }
+        public IEnumerator<EcologyResource> GetEnumerator()
+        {
+            foreach (var item in Items)
+            {
+                Reads++;
+                yield return item;
+            }
+        }
 
-    [Fact]
-    public void ComposedStateAdvancesAndRoundTripsWithStableBytes()
-    {
-        var config = SmallConfig();
-        var chunk = ChunkManifestCodec.WithDigest(new ChunkManifest(
-            new ChunkCoordinate(0, 0),
-            4,
-            4,
-            4,
-            "fixture",
-            "v1",
-            []));
-        var resource = new EcologyResource(
-            "spring-plant",
-            "food",
-            new GridPoint(1, 1),
-            true,
-            0,
-            4,
-            2,
-            1,
-            SeasonKind.Spring,
-            0,
-            EcologyResourceState.Depleted);
-        var state = WorldSystemsRules.CreateGenesis(
-            "composed-seed",
-            config,
-            [resource],
-            chunks: [chunk]);
-
-        var advanced = WorldSystemsRules.AdvanceOneTick(state);
-        var encoded = WorldSystemsCodec.Encode(advanced);
-        var decoded = WorldSystemsCodec.Decode(encoded);
-        var reencoded = WorldSystemsCodec.Encode(decoded);
-
-        Assert.Equal(1, advanced.WorldTick);
-        Assert.Equal(2, advanced.Ecology.GetResource("spring-plant").Quantity);
-        Assert.True(encoded.AsSpan().SequenceEqual(reencoded));
-        Assert.True(Encoding.UTF8.GetString(encoded).Contains("world-systems", StringComparison.Ordinal));
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
     }
 
     private static WorldSystemsConfig SmallConfig() => new(

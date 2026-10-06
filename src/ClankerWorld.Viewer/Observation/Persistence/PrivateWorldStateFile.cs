@@ -75,6 +75,12 @@ public sealed class PrivateWorldStateFile
         }
     }
 
+    public PrivateWorldDeveloperEditResult ApplyDeveloperEdit(PrivateWorldRuntime runtime, PrivateWorldDeveloperEdit edit)
+    {
+        lock (gate)
+            return runtime.ApplyDeveloperEdit(edit, state => SaveUnsafe(state));
+    }
+
     private PrivateWorldRuntimeState SaveUnsafe(PrivateWorldRuntimeState state, bool compactHistory = false)
     {
         if (compactHistory)
@@ -163,8 +169,13 @@ public sealed class PrivateWorldStateFile
     public void VerifyRequiredHistory(PrivateWorldRuntimeState checkpoint)
     {
         ArgumentNullException.ThrowIfNull(checkpoint);
-        if (checkpoint.HistoryArchiveHead is null) return;
-        lock (gate) VerifyHistory(checkpoint.HistoryArchiveHead);
+        VerifyRequiredHistory(checkpoint.HistoryArchiveHead);
+    }
+
+    internal void VerifyRequiredHistory(string? historyArchiveHead)
+    {
+        if (historyArchiveHead is null) return;
+        lock (gate) VerifyHistory(historyArchiveHead);
     }
 
     /// <summary>Call while holding the installation world mutation gate.</summary>

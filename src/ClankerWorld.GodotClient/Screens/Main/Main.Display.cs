@@ -17,8 +17,7 @@ public partial class Main
         windowSizeChoice.Disabled = enabled;
         if (!enabled)
             GetWindow().Size = DisplaySizePresets[windowSizeChoice.Selected];
-        RefreshAutomaticRenderResolution();
-        RefreshRenderResolutionOptions();
+        RefreshRenderSize();
     }
 
     private void ApplySavedDisplaySettings()
@@ -28,43 +27,35 @@ public partial class Main
             ? DisplayServer.WindowMode.Fullscreen
             : DisplayServer.WindowMode.Windowed);
         var windowSize = new Vector2I(displayPreferences.WindowWidth, displayPreferences.WindowHeight);
-        var renderSize = new Vector2I(displayPreferences.RenderWidth, displayPreferences.RenderHeight);
         window.ContentScaleMode = Window.ContentScaleModeEnum.Viewport;
         window.ContentScaleAspect = Window.ContentScaleAspectEnum.Keep;
         if (!displayPreferences.UsesFullscreen)
             window.Size = DisplaySizePresets[DisplaySizeIndex(windowSize)];
-        window.ContentScaleSize = displayPreferences.UsesAutomaticRenderResolution
-            ? AutomaticRenderSize()
-            : new DisplayDimensions(renderSize.X, renderSize.Y).IsReasonable
-                ? renderSize : AutomaticRenderSize();
-        ApplyUiScale(displayPreferences.UiScalePercent);
+        window.ContentScaleSize = AutomaticRenderSize();
+        ApplyUiScale();
     }
 
-    private void ApplyUiScale(int percent)
+    /// <summary>The interface size follows the screen in whole steps; there is no setting.</summary>
+    private void ApplyUiScale()
     {
         var area = Size.X > 0 && Size.Y > 0 ? Size : GetViewportRect().Size;
-        var factor = DisplayUiScalePolicy.FittingFactor(percent, area.X, area.Y);
+        SetUiFactor(DisplayUiScalePolicy.FittingFactor(area.X, area.Y));
+    }
+
+    /// <summary>Magnifies the interface, its windows and the names on the map by a whole number.</summary>
+    private void SetUiFactor(int factor)
+    {
         uiLayer.Factor = factor;
         menuLayer.Factor = factor;
         ScaleWindows(factor);
         ScaleMapText(factor);
-        // Automatic names the size it picked; sizes that would leave too little room are unavailable.
-        for (var index = 0; index < uiScaleChoice.ItemCount; index++)
-        {
-            var choice = DisplayUiScalePolicy.SupportedPercentages[index];
-            var fitting = DisplayUiScalePolicy.FittingFactor(choice, area.X, area.Y) * 100;
-            if (choice == DisplayUiScalePolicy.Automatic)
-                uiScaleChoice.SetItemText(index, $"Automatic ({fitting}%)");
-            else
-                uiScaleChoice.SetItemDisabled(index, fitting != choice);
-        }
         ApplyResponsiveLayout();
     }
 
     /// <summary>Dialogs, drop-down lists and tooltips are separate windows, so they scale on their own.</summary>
     private void ScaleWindows(int factor)
     {
-        foreach (var dialog in new[] { quitGameConfirmation, quitToMenuConfirmation, manualSaveLoadConfirmation, manualSaveOverwriteConfirmation, deletionConfirmation })
+        foreach (var dialog in new[] { quitGameConfirmation, quitToMenuConfirmation, manualSaveLoadConfirmation, manualSaveOverwriteConfirmation, deletionConfirmation, buildingRemoveConfirmation })
             UiTheme.ScaleDialog(dialog, factor);
         foreach (var node in FindChildren("*", nameof(OptionButton), recursive: true, owned: false))
             UiTheme.ScaleWindow(((OptionButton)node).GetPopup(), factor);
@@ -129,32 +120,12 @@ public partial class Main
         return new Vector2I(target.Width, target.Height);
     }
 
-    private void RefreshAutomaticRenderResolution()
+    /// <summary>The game always draws at the window's or screen's own resolution.</summary>
+    private void RefreshRenderSize()
     {
-        if (!displayPreferences.UsesAutomaticRenderResolution) return;
         var target = AutomaticRenderSize();
         if (GetWindow().ContentScaleSize != target)
             GetWindow().ContentScaleSize = target;
-        if (renderResolutionChoice.ItemCount > 0)
-            renderResolutionChoice.SetItemText(0, $"Automatic ({target.X} × {target.Y})");
-    }
-
-    private void RefreshRenderResolutionOptions()
-    {
-        var monitor = CurrentMonitorSize();
-        var saved = new DisplayDimensions(displayPreferences.RenderWidth, displayPreferences.RenderHeight);
-        renderSizeOptions.Clear();
-        renderSizeOptions.AddRange(DisplayResolutionPolicy.FixedRenderSizes(
-            new DisplayDimensions(monitor.X, monitor.Y), saved)
-            .Select(size => new Vector2I(size.Width, size.Height)));
-        renderResolutionChoice.Clear();
-        var automatic = AutomaticRenderSize();
-        renderResolutionChoice.AddItem($"Automatic ({automatic.X} × {automatic.Y})");
-        foreach (var size in renderSizeOptions)
-            renderResolutionChoice.AddItem($"{size.X} × {size.Y}");
-        renderResolutionChoice.Select(displayPreferences.UsesAutomaticRenderResolution ? 0 :
-            Math.Max(0, renderSizeOptions.IndexOf(saved.IsReasonable
-                ? new Vector2I(saved.Width, saved.Height) : automatic) + 1));
     }
 
     private static int DisplaySizeIndex(Vector2I size)
@@ -164,14 +135,17 @@ public partial class Main
         return 0;
     }
 
-    // Every labelled settings row shares one caption column so the choices
-    // line up; ApplyResponsiveLayout widens it with the caption text.
-    /// <summary>A small heading that groups related settings.</summary>
-    private static Label SettingsSection(string text)
+    /// <summary>A boxed group of settings under its own heading, like API keys.</summary>
+    private static PanelContainer SettingsBox(string title, params Control[] rows)
     {
-        return new Label { Text = text.ToUpperInvariant(), ThemeTypeVariation = "SectionLabel" };
+        var body = new VBoxContainer();
+        body.AddThemeConstantOverride("separation", 6);
+        foreach (var row in rows) body.AddChild(row);
+        return NewPanel(title, body);
     }
 
+    // Every labelled settings row shares one caption column so the choices
+    // line up; ApplyResponsiveLayout widens it with the caption text.
     private HBoxContainer DisplaySettingRow(string label, Control choice)
     {
         var row = new HBoxContainer();
@@ -189,33 +163,7 @@ public partial class Main
         SaveDisplayPreferences(displayPreferences with { WindowWidth = size.X, WindowHeight = size.Y });
         if (!fullscreenToggle.ButtonPressed)
             GetWindow().Size = size;
-        RefreshAutomaticRenderResolution();
-    }
-
-    private void SetRenderResolution(long index)
-    {
-        if (index == 0)
-        {
-            SaveDisplayPreferences(displayPreferences with { AutoRenderResolution = true });
-            RefreshAutomaticRenderResolution();
-            return;
-        }
-        var size = renderSizeOptions[(int)index - 1];
-        SaveDisplayPreferences(displayPreferences with
-        {
-            RenderWidth = size.X,
-            RenderHeight = size.Y,
-            AutoRenderResolution = false,
-        });
-        GetWindow().ContentScaleSize = size;
-    }
-
-    private void SetUiScale(long index)
-    {
-        if (index < 0 || index >= DisplayUiScalePolicy.SupportedPercentages.Count) return;
-        var percent = DisplayUiScalePolicy.SupportedPercentages[(int)index];
-        SaveDisplayPreferences(displayPreferences with { UiScalePercent = percent });
-        ApplyUiScale(percent);
+        RefreshRenderSize();
     }
 
     private void SetCloudHaze(bool enabled)
@@ -262,9 +210,9 @@ public partial class Main
         ScaleWindows(uiLayer.Factor);
         menuShade.Color = palette.Shade;
         familyTreeView.QueueRedraw();
+        FillFamilyLegend();
         RefreshHudIcons();
         renderedTownList = null;
-        renderedTownPanel = null;
         renderedEventLog = null;
         if (observationSession.Current is { } current)
             Render(current.Baseline.Snapshot, []);
@@ -277,20 +225,29 @@ public partial class Main
             Render(current.Baseline.Snapshot, []);
     }
 
-    private void SetDateFormat(long index)
+    /// <summary>The Date display choices in Game Settings, in list order: season first, then the numeric orders.</summary>
+    private static readonly (string Style, string Label)[] DateStyles =
+    [
+        (GameUiText.SeasonDates, "Season (Autumn 2, Year 1)"),
+        ("dmy", "DD-MM-YYYY"),
+        ("mdy", "MM-DD-YYYY"),
+        ("ymd", "YYYY-MM-DD"),
+    ];
+
+    private static int DateStyleIndex(string style) =>
+        Math.Max(0, Array.FindIndex(DateStyles, choice => choice.Style == style));
+
+    private void SetDateStyle(long index)
     {
-        var format = index switch { 1 => "mdy", 2 => "ymd", _ => "dmy" };
-        SaveDisplayPreferences(displayPreferences with { DateFormat = format });
+        var style = DateStyles[Math.Clamp((int)index, 0, DateStyles.Length - 1)].Style;
+        SaveDisplayPreferences(displayPreferences with { DateStyle = style });
         if (observationSession.Current is { } current)
             Render(current.Baseline.Snapshot, []);
     }
 
     private void SaveDisplayPreferences(GameDisplayPreferences updated)
     {
-        displayPreferences = updated with
-        {
-            UiScalePercent = DisplayUiScalePolicy.NormalizePercent(updated.UiScalePercent),
-        };
+        displayPreferences = updated;
         try
         {
             displayPreferencesStore.Save(displayPreferences);
@@ -303,6 +260,10 @@ public partial class Main
 
     private string DisplayWorldClock(long worldTick) =>
         GameUiText.FormatWorldClock(worldTick, displayPreferences.UseTwelveHourClock,
-            observedCalendarPace, displayPreferences.DateFormat);
+            observedCalendarPace, displayPreferences.DateStyle);
+
+    /// <summary>When the date already names the season, the season is not repeated beside it.</summary>
+    private bool DatesShowSeason =>
+        GameUiText.ShowsSeasonDates(observedCalendarPace, displayPreferences.DateStyle);
 
 }

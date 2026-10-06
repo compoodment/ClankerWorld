@@ -45,6 +45,7 @@ public sealed class DeceasedInhabitantArchiveTests
                 Config = state.WorldSystems!.Config with
                 {
                     TicksPerDay = 1,
+                    CalendarOffsetTicks = 0,
                     DaysPerYear = 4,
                     SpringDays = 1,
                     SummerDays = 1,
@@ -55,10 +56,14 @@ public sealed class DeceasedInhabitantArchiveTests
             Inhabitants = state.Inhabitants.Select(person => person with
             {
                 RecentThoughts = [new PlaytestPrivateThought(0, "I hope the camp lasts.")],
+                Skills = [new(SettlementSkillKind.Building, 0,
+                    person.InhabitantId == "founder-ilya" ? "founder-scout" : "founder-ilya")],
             }).ToArray(),
         };
         using var world = PrivateWorldRuntime.Restore(state, _ => new DeterministicDecisionProvider());
 
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         var archived = world.ExportState();
         Assert.NotEmpty(archived.DeceasedInhabitants ?? []);
@@ -77,6 +82,12 @@ public sealed class DeceasedInhabitantArchiveTests
         Assert.Null(historical.PublicIntention);
         Assert.Equal("I hope the camp lasts.", Assert.Single(historical.RecentPrivateThoughts).Text);
         Assert.Equal("I remember the first campfire.", Assert.Single(historical.RecentMemories).Summary);
+        var remembered = Assert.Single(historical.Skills);
+        var savedSkill = Assert.Single(deceased.LastPhysical.Skills!);
+        Assert.Equal("building", remembered.Kind);
+        Assert.Equal(savedSkill.LearnedTick, remembered.LearnedTick);
+        Assert.Equal(savedSkill.TeacherId, remembered.TeacherId);
+        Assert.Equal(restored.Society.GetInhabitant(savedSkill.TeacherId!).Name, remembered.TeacherName);
         Assert.DoesNotContain(restored.Inhabitants, person => person.InhabitantId == deceased.InhabitantId);
 
         var invalid = archived with
@@ -87,6 +98,18 @@ public sealed class DeceasedInhabitantArchiveTests
                     : person).ToArray(),
         };
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(invalid));
+        foreach (var forgedSkill in new[]
+        {
+            savedSkill with { TeacherId = "unknown-teacher" },
+            savedSkill with { LearnedTick = deceased.DeathTick + 1 },
+        })
+        {
+            Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(archived with
+            {
+                DeceasedInhabitants = archived.DeceasedInhabitants.Select(person => person.InhabitantId == deceased.InhabitantId
+                    ? person with { LastPhysical = person.LastPhysical with { Skills = [forgedSkill] } } : person).ToArray(),
+            }));
+        }
     }
 
     [Fact]

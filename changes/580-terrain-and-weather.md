@@ -1,0 +1,1 @@
+- New worlds have denser grass forests, beaches in shorter patches, cacti only on desert sand, and less frequent rain, storms and snow.

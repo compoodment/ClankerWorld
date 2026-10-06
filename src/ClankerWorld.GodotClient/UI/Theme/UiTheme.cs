@@ -52,7 +52,11 @@ public sealed record UiPalette(
     Color Good,
     Color Bad,
     Color Partner,
-    Color Selection);
+    Color Selection,
+    Color MeterFullness,
+    Color MeterWarmth,
+    Color MeterDiet,
+    Color MeterIllness);
 
 /// <summary>Which palette the player chose in Settings.</summary>
 public enum UiThemeChoice
@@ -120,7 +124,11 @@ public static class UiTheme
         Good: new Color("386126"),
         Bad: new Color("A4331F"),
         Partner: new Color("B8457A"),
-        Selection: new Color(0.33f, 0.5f, 0.23f, 0.35f));
+        Selection: new Color(0.33f, 0.5f, 0.23f, 0.35f),
+        MeterFullness: new Color("B77C10"),
+        MeterWarmth: new Color("C8502A"),
+        MeterDiet: new Color("4A7033"),
+        MeterIllness: new Color("7A4A96"));
 
     public static readonly UiPalette Dark = new(
         Name: "dark",
@@ -171,7 +179,11 @@ public static class UiTheme
         Good: new Color("9CCB7A"),
         Bad: new Color("F0A08C"),
         Partner: new Color("E88AAE"),
-        Selection: new Color(0.55f, 0.73f, 0.42f, 0.35f));
+        Selection: new Color(0.55f, 0.73f, 0.42f, 0.35f),
+        MeterFullness: new Color("E8B04A"),
+        MeterWarmth: new Color("F08A5A"),
+        MeterDiet: new Color("8DBA6A"),
+        MeterIllness: new Color("C08AD8"));
 
     /// <summary>The palette currently applied to the window.</summary>
     public static UiPalette Current { get; private set; } = Light;
@@ -243,13 +255,25 @@ public static class UiTheme
         theme.SetStylebox("panel", "HudPanel", Frame(p, 16, 2, 2, contentMargin: 7));
         theme.SetTypeVariation("InsetPanel", "PanelContainer");
         theme.SetStylebox("panel", "InsetPanel", Box(p.Inset, p.InsetEdge, 2, contentMargin: 8));
+        // An inset that opens something when clicked, under the pointer.
+        theme.SetTypeVariation("InsetPanelHover", "PanelContainer");
+        theme.SetStylebox("panel", "InsetPanelHover", Box(p.Field, p.FieldEdge, 2, contentMargin: 8));
+        // The chosen card in a list of worlds or saves.
+        theme.SetTypeVariation("InsetPanelSelected", "PanelContainer");
+        theme.SetStylebox("panel", "InsetPanelSelected", Box(p.Pressed, p.Ink, 2, contentMargin: 8));
+        // The same three, tighter, for rows in a long list such as the Agents list.
+        theme.SetTypeVariation("InsetRow", "PanelContainer");
+        theme.SetStylebox("panel", "InsetRow", Box(p.Inset, p.InsetEdge, 2, contentMargin: 5));
+        theme.SetTypeVariation("InsetRowHover", "PanelContainer");
+        theme.SetStylebox("panel", "InsetRowHover", Box(p.Field, p.FieldEdge, 2, contentMargin: 5));
+        theme.SetTypeVariation("InsetRowSelected", "PanelContainer");
+        theme.SetStylebox("panel", "InsetRowSelected", Box(p.Pressed, p.Ink, 2, contentMargin: 5));
+        // The tray holding a row of linked choice buttons such as Low, Normal and High.
+        theme.SetTypeVariation("SegmentedPanel", "PanelContainer");
+        theme.SetStylebox("panel", "SegmentedPanel", Box(p.Field, p.FieldEdge, 2, contentMargin: 2));
         theme.SetTypeVariation("TopBar", "PanelContainer");
         theme.SetStylebox("panel", "TopBar", TopBar(p));
         // A wax-seal count on a button's corner, and a small warning dot.
-        theme.SetTypeVariation("Badge", "PanelContainer");
-        theme.SetStylebox("panel", "Badge", Round(p.Seal, p.SealRing, 10, 2));
-        theme.SetTypeVariation("WarningDot", "PanelContainer");
-        theme.SetStylebox("panel", "WarningDot", Round(p.Ember, p.ButtonEdge, 4, 1));
 
         // Buttons.
         var button = Bevel(p.Button, p.ButtonLight, p.ButtonDark, p.ButtonEdge);
@@ -307,15 +331,19 @@ public static class UiTheme
         SetLabel(theme, "GoodLabel", p.Good, "Label");
         SetLabel(theme, "BadLabel", p.Bad, "Label");
         SetLabel(theme, "KeyLabel", p.Section, "Label");
-        SetLabel(theme, "BadgeLabel", p.SealInk, "Label");
         SetLabel(theme, "NewMarkLabel", p.Warning, "Label");
         // Text sitting straight on a wooden bar rather than on parchment.
         SetLabel(theme, "WoodLabel", p.OnWood, "Label");
         SetLabel(theme, "WoodSoftLabel", p.OnWoodSoft, "Label");
+        // Small tags on list cards: filled for the current world, outlined for notes.
+        SetLabel(theme, "TagLabel", p.PrimaryInk, "Label");
+        theme.SetStylebox("normal", "TagLabel", Flat(p.Primary, 5, 2, p.PrimaryEdge));
+        SetLabel(theme, "TagNoteLabel", p.InkMuted, "Label");
+        theme.SetStylebox("normal", "TagNoteLabel", Flat(new Color(0, 0, 0, 0), 5, 2, p.InkFaint));
         // Titles, headings, section labels and counts use the Timber lettering.
         SetLabel(theme, "TitleLabel", p.Ink, "Label");
         foreach (var (type, size) in new[] { ("TitleLabel", UiFonts.Title), ("HeadingLabel", UiFonts.Heading),
-            ("SectionLabel", UiFonts.Body), ("BadgeLabel", UiFonts.Body) })
+            ("SectionLabel", UiFonts.Body), ("TagLabel", UiFonts.Body), ("TagNoteLabel", UiFonts.Body) })
         {
             theme.SetFont("font", type, UiFonts.Headings);
             theme.SetFontSize("font_size", type, size);
@@ -325,6 +353,14 @@ public static class UiTheme
         theme.SetColor("selection_color", "RichTextLabel", p.Selection);
         theme.SetStylebox("normal", "RichTextLabel", new StyleBoxEmpty());
         theme.SetStylebox("focus", "RichTextLabel", new StyleBoxEmpty());
+
+        // Sliders: a sunken track that fills green up to a wooden knob.
+        theme.SetStylebox("slider", "HSlider", Box(p.Field, p.FieldEdge, 2, 0, 3));
+        theme.SetStylebox("grabber_area", "HSlider", Box(p.Primary, p.PrimaryEdge, 2, 0, 3));
+        theme.SetStylebox("grabber_area_highlight", "HSlider", Box(p.Primary, p.PrimaryEdge, 2, 0, 3));
+        theme.SetIcon("grabber", "HSlider", SliderKnob(p, hover: false));
+        theme.SetIcon("grabber_highlight", "HSlider", SliderKnob(p, hover: true));
+        theme.SetIcon("grabber_disabled", "HSlider", SliderKnob(p, hover: false));
 
         // Fields and choosers.
         var field = Box(p.Field, p.FieldEdge, 2, 10, 6);
@@ -480,8 +516,38 @@ public static class UiTheme
         // before the game's theme was applied.
         dialog.AddThemeFontOverride("title_font", UiFonts.Headings);
         dialog.AddThemeFontSizeOverride("title_font_size", UiFonts.Heading * factor);
-        dialog.AddThemeIconOverride("close", PixelIcons.Texture(PixelGlyph.Close, Current.Ink, Current.Ink, factor));
-        dialog.AddThemeIconOverride("close_pressed", PixelIcons.Texture(PixelGlyph.Close, Current.InkMuted, Current.InkMuted, factor));
+        dialog.AddThemeIconOverride("close", BoxedClose(Current, factor, pressed: false));
+        dialog.AddThemeIconOverride("close_pressed", BoxedClose(Current, factor, pressed: true));
+        // Inside the parchment, 6 pixels from its right edge and centred on the title.
+        dialog.AddThemeConstantOverride("close_h_offset", (BoxedCloseSize + 6) * factor);
+        dialog.AddThemeConstantOverride("close_v_offset", (TitleHeight + BoxedCloseSize) * factor / 2);
+    }
+
+    private const int BoxedCloseSize = 22;
+
+    /// <summary>A dialog's close cross on a small raised button face, like the panels' close buttons.</summary>
+    private static ImageTexture BoxedClose(UiPalette p, int factor, bool pressed)
+    {
+        const int Size = BoxedCloseSize;
+        var image = Image.CreateEmpty(Size, Size, false, Image.Format.Rgba8);
+        for (var y = 0; y < Size; y++)
+            for (var x = 0; x < Size; x++)
+            {
+                var edge = x == 0 || y == 0 || x == Size - 1 || y == Size - 1;
+                var color = edge ? p.ButtonEdge
+                    : pressed ? p.Pressed
+                    : y == 1 ? p.ButtonLight
+                    : y >= Size - 3 ? p.ButtonDark
+                    : p.Button;
+                image.SetPixel(x, y, color);
+            }
+        var cross = PixelIcons.Texture(PixelGlyph.Close, p.Ink, p.Ink, 1).GetImage();
+        cross.Convert(Image.Format.Rgba8);
+        // A pressed button's cross moves down a pixel with its face.
+        image.BlendRect(cross, new Rect2I(0, 0, PixelIcons.Grid, PixelIcons.Grid),
+            new Vector2I((Size - PixelIcons.Grid) / 2, (Size - PixelIcons.Grid) / 2 + (pressed ? 1 : 0)));
+        if (factor > 1) image.Resize(Size * factor, Size * factor, Image.Interpolation.Nearest);
+        return ImageTexture.CreateFromImage(image);
     }
 
     private static void SetButton(Theme theme, string type, StyleBox normal, StyleBox hover, StyleBox pressed,
@@ -526,20 +592,6 @@ public static class UiTheme
         }
         return box;
     }
-
-    private static StyleBoxFlat Round(Color fill, Color ring, int radius, int ringWidth) => new()
-    {
-        BgColor = fill,
-        BorderColor = ring,
-        BorderWidthLeft = ringWidth,
-        BorderWidthTop = ringWidth,
-        BorderWidthRight = ringWidth,
-        BorderWidthBottom = ringWidth,
-        CornerRadiusTopLeft = radius,
-        CornerRadiusTopRight = radius,
-        CornerRadiusBottomLeft = radius,
-        CornerRadiusBottomRight = radius,
-    };
 
     private static StyleBoxLine Line(Color color, bool vertical) =>
         new() { Color = color, Thickness = 2, Vertical = vertical };
@@ -722,29 +774,71 @@ public static class UiTheme
         return ImageTexture.CreateFromImage(image);
     }
 
-    /// <summary>A pixel on/off switch: a knob sitting left on a plain track, or right on a green one.</summary>
+    /// <summary>
+    /// A pixel on/off switch: a sunken track with rounded ends and a raised
+    /// wooden knob, sitting left on a plain track or right on a green one.
+    /// </summary>
     private static ImageTexture Switch(UiPalette p, bool on, bool disabled)
     {
         const int Width = 36;
         const int Height = 20;
         var image = Image.CreateEmpty(Width, Height, false, Image.Format.Rgba8);
         var edge = on ? p.PrimaryEdge : p.FieldEdge;
-        var fill = on ? p.Primary : p.Field;
+        var fill = on ? p.Primary : p.FieldDisabled;
+        var shadow = on ? p.PrimaryDark : p.PaperEdge;
         for (var y = 0; y < Height; y++)
             for (var x = 0; x < Width; x++)
             {
                 var ex = Math.Min(x, Width - 1 - x);
                 var ey = Math.Min(y, Height - 1 - y);
-                image.SetPixel(x, y, ex < 2 || ey < 2 ? edge : fill);
+                // Rounded ends: leave the outermost corner pixels clear.
+                if (ex + ey < 2) continue;
+                var color = ex < 2 || ey < 2 || ex + ey < 4 ? edge : y == 2 ? shadow : fill;
+                image.SetPixel(x, y, color);
             }
-        var knobLeft = on ? Width - 16 : 4;
-        for (var y = 4; y < Height - 4; y++)
-            for (var x = knobLeft; x < knobLeft + 12; x++)
+        const int KnobWidth = 14;
+        var knobLeft = on ? Width - KnobWidth - 2 : 2;
+        for (var y = 2; y < Height - 2; y++)
+            for (var x = knobLeft; x < knobLeft + KnobWidth; x++)
             {
-                var edgeHere = x == knobLeft || x == knobLeft + 11 || y == 4 || y == Height - 5;
-                image.SetPixel(x, y, on ? p.PrimaryInk : edgeHere ? p.ButtonEdge : p.Button);
+                var kx = Math.Min(x - knobLeft, knobLeft + KnobWidth - 1 - x);
+                var ky = Math.Min(y - 2, Height - 3 - y);
+                if (kx + ky < 1) continue;
+                var color = kx < 1 || ky < 1 ? p.ButtonEdge
+                    : y == 3 ? p.ButtonLight
+                    : y >= Height - 5 ? p.ButtonDark
+                    : p.Button;
+                image.SetPixel(x, y, color);
             }
+        // Two grip lines on the knob.
+        for (var y = 7; y < Height - 7; y++)
+        {
+            image.SetPixel(knobLeft + 5, y, p.ButtonDark);
+            image.SetPixel(knobLeft + 8, y, p.ButtonDark);
+        }
         if (disabled) Fade(image);
+        return ImageTexture.CreateFromImage(image);
+    }
+
+    /// <summary>A slider's knob: a small wooden block with a dark edge, lighter under the pointer.</summary>
+    private static ImageTexture SliderKnob(UiPalette p, bool hover)
+    {
+        const int Width = 12;
+        const int Height = 18;
+        var image = Image.CreateEmpty(Width, Height, false, Image.Format.Rgba8);
+        for (var y = 0; y < Height; y++)
+            for (var x = 0; x < Width; x++)
+            {
+                var edge = x < 2 || x >= Width - 2 || y < 2 || y >= Height - 2;
+                var lip = y is 2 or 3;
+                image.SetPixel(x, y, edge ? p.ButtonEdge : hover ? p.ButtonHover : lip ? p.ButtonLight : p.Button);
+            }
+        // Two grip lines in the middle.
+        for (var y = 6; y < Height - 6; y++)
+        {
+            image.SetPixel(4, y, p.ButtonDark);
+            image.SetPixel(7, y, p.ButtonDark);
+        }
         return ImageTexture.CreateFromImage(image);
     }
 

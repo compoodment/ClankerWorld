@@ -1,0 +1,1 @@
+- On the paired world: let a hosted personal model read a pending Council proposal and cast a yes or no vote. Its vote should appear once on the Towns page and remain after saving, loading and resuming; the proposal should not keep requesting that councillor's already recorded vote. ([#937](https://github.com/compoodment/ClankerWorld/issues/937))

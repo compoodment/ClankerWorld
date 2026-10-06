@@ -1,0 +1,1 @@
+- Town Councils can approve paid Ports and communal boats. Adults travel between usable Ports with their carried goods; visitors need Council permission. Dock reservations, queues, cancellation and blocked-arrival return survive saves. Boats and Ports use the approved drawings, with boat details and dock use in inspection. Older alpha saves are refused and preserved.

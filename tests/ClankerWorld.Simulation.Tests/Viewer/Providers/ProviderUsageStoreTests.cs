@@ -107,6 +107,79 @@ public sealed class ProviderUsageStoreTests
         finally { Directory.Delete(directory, recursive: true); }
     }
 
+    [Theory]
+    [InlineData(7, 6)]
+    [InlineData(1, 1)]
+    public void WarningMarkIsEightyPercentRoundedUp(long limit, long mark) =>
+        Assert.Equal(mark, ProviderUsageStore.WarningMark(limit));
+
+    [Fact]
+    public async Task EightyPercentWarningIsRaisedOncePerCrossingAcrossRestartsAndLimitChanges()
+    {
+        var directory = Directory.CreateTempSubdirectory("clankerworld-usage-warning-");
+        try
+        {
+            var path = Path.Combine(directory.FullName, "usage.json");
+            var store = new ProviderUsageStore(path);
+            var warnings = new System.Collections.Concurrent.ConcurrentQueue<ProviderUsageWarning>();
+            store.WarningReached += warnings.Enqueue;
+            store.Finish(store.Begin("openai", "test-model", "planning"), "completed");
+            Assert.Empty(warnings);
+
+            // Concurrent reservations cross 8 of 10 exactly once, not once per call.
+            _ = store.Configure(new ProviderUsageLimitAction(10));
+            var tickets = await Task.WhenAll(Enumerable.Range(0, 12).Select(_ => Task.Run(() =>
+            {
+                try { return store.Begin("openai", "test-model", "planning"); }
+                catch (ProviderUsageLimitReachedException) { return null; }
+            })));
+            Assert.Equal(9, tickets.Count(ticket => ticket is not null));
+            Assert.Equal(new ProviderUsageWarning(8, 10), Assert.Single(warnings));
+            foreach (var ticket in tickets.OfType<string>()) store.Finish(ticket, "failed");
+            Assert.True(store.Capture().LimitReached);
+
+            // A restart, a grant at the limit and a limit below the count make no new crossing.
+            var restarted = new ProviderUsageStore(path);
+            restarted.WarningReached += warnings.Enqueue;
+            Assert.Equal(10, restarted.Capture().Attempts);
+            _ = restarted.Configure(new ProviderUsageLimitAction(null, AdditionalCalls: 2));
+            restarted.Finish(restarted.Begin("openai", "test-model", "planning"), "completed");
+            _ = restarted.Configure(new ProviderUsageLimitAction(5));
+            Assert.Throws<ProviderUsageLimitReachedException>(() => restarted.Begin("openai", "test-model", "planning"));
+            Assert.Single(warnings);
+
+            // Raising the limit sets a new mark (16 of 20) that later calls cross once.
+            _ = restarted.Configure(new ProviderUsageLimitAction(20));
+            while (restarted.Capture().Attempts < 19)
+                restarted.Finish(restarted.Begin("openai", "test-model", "planning"), "completed");
+            Assert.Equal(new[] { new ProviderUsageWarning(8, 10), new ProviderUsageWarning(16, 20) }, warnings);
+            Assert.False(restarted.Capture().LimitReached);
+        }
+        finally { directory.Delete(recursive: true); }
+    }
+
+    [Fact]
+    public void ModelCallWarningIsASavedWorldEventAndNeverWaitsOnABusyRuntime()
+    {
+        using var world = new PrivateWorldRuntime("usage-warning-event", _ => new DeterministicDecisionProvider());
+        // Persisting holds the runtime gate, as a conversation turn does when it reserves a call.
+        world.PersistCheckpoint(state =>
+        {
+            Assert.False(world.TryRecordModelCallWarning(4, 5, TimeSpan.Zero));
+            return state;
+        });
+        Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "model_call_warning");
+        Assert.Throws<ArgumentOutOfRangeException>(() => world.TryRecordModelCallWarning(6, 5, TimeSpan.Zero));
+
+        Assert.True(world.TryRecordModelCallWarning(800, 1_000, TimeSpan.Zero));
+        var warning = Assert.Single(world.ExportState().Events, item => item.Kind == "model_call_warning");
+        Assert.Equal("used:800:limit:1000", warning.Detail);
+        Assert.Null(warning.Position);
+        using var restored = PrivateWorldRuntime.Restore(
+            PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState())));
+        Assert.Equal(warning, Assert.Single(restored.ExportState().Events, item => item.Kind == "model_call_warning"));
+    }
+
     [Fact]
     public void UsagePayloadMatchesGodotAndNeverContainsProviderSecrets()
     {
@@ -156,60 +229,5 @@ public sealed class ProviderUsageStoreTests
             Assert.Equal(1, new ProviderUsageStore(path).Capture().Completed);
         }
         finally { directory.Delete(recursive: true); }
-    }
-
-    [Fact]
-    public async Task LimitTriggeredInsideHostedCompletionPausesBeforeDecisionAdmission()
-    {
-        var directory = Directory.CreateTempSubdirectory("clankerworld-usage-tick-");
-        try
-        {
-            var usage = new ProviderUsageStore(Path.Combine(directory.FullName, "usage.json"));
-            _ = usage.Configure(new ProviderUsageLimitAction(1));
-            var provider = new HeldUsageProvider(usage);
-            using var world = new PrivateWorldRuntime("usage-pause-boundary", id =>
-                id == "founder-scout" ? provider : new DeterministicDecisionProvider());
-            usage.LimitReached += world.Pause;
-            Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
-            await provider.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
-            var concurrentTick = world.AdvanceOneTickNonBlockingAsync().AsTask();
-            provider.Release.TrySetResult(true);
-            var raced = await concurrentTick.WaitAsync(TimeSpan.FromSeconds(10));
-            await provider.Returned.Task.WaitAsync(TimeSpan.FromSeconds(10));
-            Assert.True(world.Society.IsPaused);
-            Assert.DoesNotContain(raced.Decisions, item => item.InhabitantId == "founder-scout");
-            Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "hosted_decision_completed");
-            Assert.Contains(world.ExportState().Society.Cognition.Queue,
-                item => item.InhabitantId == "founder-scout");
-            var stopped = await world.AdvanceOneTickNonBlockingAsync();
-            Assert.False(stopped.Advanced);
-            Assert.Equal(1, usage.Capture().Attempts);
-        }
-        finally { directory.Delete(recursive: true); }
-    }
-
-    private sealed class HeldUsageProvider(ProviderUsageStore usage) : IDecisionProvider
-    {
-        public TaskCompletionSource<bool> Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public TaskCompletionSource<bool> Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public TaskCompletionSource<bool> Returned { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public DecisionProviderKind Kind => DecisionProviderKind.LargeLanguageModel;
-        public long ProviderEpoch => 1;
-
-        public async ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request,
-            CancellationToken cancellationToken = default)
-        {
-            var ticket = usage.Begin("openai", "test-model", "planning");
-            Started.TrySetResult(true);
-            await Release.Task; // Intentionally ignore cancellation, like a late provider reply.
-            usage.Finish(ticket, "completed", 8, 2); // Synchronously fires pause before returning a decision.
-            var selected = request.Observation.Candidates.First(item => item.Id == "safe_idle");
-            Returned.TrySetResult(true);
-            return new CognitionDecisionResponse(request.RequestId, request.Observation.InhabitantId,
-                Kind, ProviderEpoch, request.Observation.RunEpoch,
-                request.Observation.DecisionGeneration, request.Observation.ObservationDigest,
-                selected.Id, 1d, request.Observation.Candidates.ToDictionary(item => item.Id,
-                    item => item.Id == selected.Id ? 1d : 0d, StringComparer.Ordinal));
-        }
     }
 }

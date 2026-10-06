@@ -14,11 +14,41 @@ public sealed partial class PrivateWorldRuntime
         (offer.FirstPartyId == actor || offer.SecondPartyId == actor) &&
         !offer.AcceptedBy.Contains(actor, StringComparer.Ordinal));
 
+    private bool WantsTradeFoodKind(string actor, string kind) => IsEdibleFood(kind) &&
+        inhabitants[actor].HungerBasisPoints < 8_500 &&
+        society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == actor && lot.ItemKind == kind)
+            .Sum(AvailableLotQuantity) < 2;
+
+    private bool PersonalTradeReceivingSpace(string first, string second, int firstQuantity, int secondQuantity)
+    {
+        var inventory = society.Checkpoint.Inventory;
+        return new[] { (Actor: first, Give: firstQuantity, Take: secondQuantity),
+                (Actor: second, Give: secondQuantity, Take: firstQuantity) }.All(party =>
+            inhabitants.TryGetValue(party.Actor, out var person) &&
+            (long)PersonalEquipmentRules.CarriedQuantity(inventory, party.Actor, person.Equipment) - party.Give +
+                party.Take + ReservedBusinessCarrySpace(party.Actor) <=
+                PersonalEquipmentRules.Capacity(inventory, party.Actor, person.Equipment));
+    }
+
     private bool WantsTradeItem(string actor, InventoryLot item)
     {
         var state = inhabitants[actor];
         var kind = item.ItemKind;
-        if (kind is "field_map" or "field_record")
+        if (MedicalSupplyWanted(actor, kind)) return true;
+        if (WantsOrnamentInput(actor, kind)) return true;
+        if (OrnamentContent.IsOrnament(kind))
+        {
+            // One personal ornament is enough. A diamond setting can replace
+            // a plain one; private household stock is never personal equipment.
+            var ornaments = society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == actor &&
+                PersonalEquipmentRules.IsCarried(lot, actor) && lot.ContainerLotId is null &&
+                lot.DeliveryBuildingId is null && OrnamentContent.IsOrnament(lot.ItemKind) &&
+                AvailableLotQuantity(lot) > 0).ToArray();
+            return kind == OrnamentContent.DiamondOrnament
+                ? !ornaments.Any(lot => lot.ItemKind == OrnamentContent.DiamondOrnament)
+                : ornaments.Length == 0;
+        }
+        if (AgentKnowledgeRules.IsArtifactKind(kind))
         {
             // An agent can offer a record they physically hold; a prospective
             // recipient wants it only if it contains a fact they have not learned.
@@ -29,13 +59,13 @@ public sealed partial class PrivateWorldRuntime
             return artifact?.Facts.Any(fact => !KnowsMapFact(actor, fact.Position)) == true;
         }
 
-        var owned = society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == actor && lot.ItemKind == kind)
-            .Sum(AvailableLotQuantity);
-        if (kind == "food")
+        if (IsEdibleFood(kind))
         {
             // Keeping a small trade reserve is different from taking a food errand.
-            return owned < 2 && state.HungerBasisPoints < 8_500;
+            return WantsTradeFoodKind(actor, kind);
         }
+        var owned = society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == actor && lot.ItemKind == kind)
+            .Sum(AvailableLotQuantity);
         if (kind is "tool" or "clothing")
         {
             return owned == 0;
@@ -46,15 +76,23 @@ public sealed partial class PrivateWorldRuntime
         }
         if (!TownConstructionCandidateIds.TryParse(project.CandidateId, out var selection))
             return false;
-        var inputs = selection.IsBuilding
-            ? worldContent.Buildings.FirstOrDefault(item => item.CanonicalId == selection.DefinitionId)?.BuildCosts
-            : worldContent.Recipes.FirstOrDefault(item => item.CanonicalId == selection.DefinitionId)?.Inputs;
-        return inputs?.Any(input => input.ResourceId == kind && !HasAvailableQuantities([input]) && owned < input.Amount) == true;
+        var building = selection.IsBuilding
+            ? worldContent.Buildings.FirstOrDefault(item => item.CanonicalId == selection.DefinitionId) : null;
+        var recipe = selection.IsBuilding
+            ? null : worldContent.Recipes.FirstOrDefault(item => item.CanonicalId == selection.DefinitionId);
+        if (building is null && recipe is null) return false;
+        var inputs = building?.BuildCosts ?? recipe!.Inputs;
+        // Match the owners used by the actual construction and recipe choices.
+        // Another household's stock cannot satisfy this actor's production plan.
+        var inputOwner = building is not null ? BuildingConstructionOwner(actor, building) : ProductionOwnerFor(null, actor);
+        return inputs.Any(input => input.ResourceId == kind && !HasAvailableQuantities([input], inputOwner) && owned < input.Amount);
     }
 
     private (InventoryLot Give, InventoryLot Take)? TradeOpportunity(string actor, string other)
     {
-        if (actor == other || NeedsUrgentWarmth(inhabitants[actor]) || NeedsUrgentWarmth(inhabitants[other]) ||
+        if (actor == other || !AdultResident(actor) || !AdultResident(other) ||
+            !PersonalTradeReceivingSpace(actor, other, 1, 1) ||
+            NeedsUrgentWarmth(inhabitants[actor]) || NeedsUrgentWarmth(inhabitants[other]) ||
             society.Checkpoint.Inventory.Offers.Any(offer =>
                 offer.State == DirectBarterState.Open &&
                 (offer.FirstPartyId == actor || offer.SecondPartyId == actor || offer.FirstPartyId == other || offer.SecondPartyId == other) ||
@@ -66,11 +104,11 @@ public sealed partial class PrivateWorldRuntime
         var lots = society.Checkpoint.Inventory.Lots;
         foreach (var give in lots.Where(lot => lot.OwnerId == actor && TradeQuantityAvailable(lot) &&
                      !WantsTradeItem(actor, lot) && WantsTradeItem(other, lot) &&
-                     (lot.ItemKind != "food" || inhabitants[actor].HungerBasisPoints >= 6_500)))
+                     (!IsEdibleFood(lot.ItemKind) || inhabitants[actor].HungerBasisPoints >= 6_500)))
         {
             var take = lots.FirstOrDefault(lot => lot.OwnerId == other && lot.ItemKind != give.ItemKind &&
                 TradeQuantityAvailable(lot) && !WantsTradeItem(other, lot) && WantsTradeItem(actor, lot) &&
-                (lot.ItemKind != "food" || inhabitants[other].HungerBasisPoints >= 6_500));
+                (!IsEdibleFood(lot.ItemKind) || inhabitants[other].HungerBasisPoints >= 6_500));
             if (take is not null)
             {
                 return (give, take);
@@ -91,6 +129,8 @@ public sealed partial class PrivateWorldRuntime
         {
             if (offer.AcceptedBy.Contains(actor, StringComparer.Ordinal))
             {
+                candidates.Add(new("trade_wait:" + offer.Id,
+                    "Meet the other trader at the settlement and wait for their answer.", 12));
                 candidates.Add(new("trade_decline:" + offer.Id, "Withdraw the pending exchange and release both reserved items.", 110));
                 continue;
             }
@@ -98,7 +138,7 @@ public sealed partial class PrivateWorldRuntime
             var takeId = offer.FirstPartyId == actor ? offer.SecondLotId : offer.FirstLotId;
             var give = society.Checkpoint.Inventory.GetLot(giveId);
             var take = society.Checkpoint.Inventory.GetLot(takeId);
-            var useful = WantsTradeItem(actor, take) && (give.ItemKind != "food" || inhabitants[actor].HungerBasisPoints >= 6_500);
+            var useful = WantsTradeItem(actor, take) && (!IsEdibleFood(give.ItemKind) || inhabitants[actor].HungerBasisPoints >= 6_500);
             candidates.Add(new("trade_accept:" + offer.Id, $"Accept exchange: give one {give.ItemKind}, receive one {take.ItemKind}.", useful ? 12 : 60));
             candidates.Add(new("trade_decline:" + offer.Id, "Decline this exchange and release both reserved items.", useful ? 60 : 12));
         }
@@ -122,11 +162,27 @@ public sealed partial class PrivateWorldRuntime
             {
                 return;
             }
+            if (!IsWithinInteractionRange(state.Position, SettlementStoragePosition, ResourceInteractionRange))
+            {
+                MoveToward(actor, state, SettlementStoragePosition, "trade", ResourceInteractionRange);
+                return;
+            }
             var id = $"{SettlementTradePrefix}{WorldTick}:{actor}:{other}";
             society.Apply(checkpoint => SocietyFixture.CreateBarterOffer(checkpoint,
                 new DirectBarterProposal(id, 1, actor, other, trade.Give.Id, 1, trade.Take.Id, 1, WorldTick + 120)));
             society.Apply(checkpoint => SocietyFixture.AcceptBarterOffer(checkpoint, id, 1, actor));
             AppendEvent("settlement_trade_offered", actor + ":" + other);
+            return;
+        }
+        if (candidate.StartsWith("trade_wait:", StringComparison.Ordinal))
+        {
+            var waitingId = candidate[11..];
+            var waiting = society.Checkpoint.Inventory.Offers.FirstOrDefault(offer => offer.Id == waitingId &&
+                offer.State == DirectBarterState.Open && offer.ExpiryTick >= WorldTick &&
+                offer.AcceptedBy.Contains(actor, StringComparer.Ordinal));
+            if (waiting is not null &&
+                !IsWithinInteractionRange(state.Position, SettlementStoragePosition, ResourceInteractionRange))
+                MoveToward(actor, state, SettlementStoragePosition, "trade", ResourceInteractionRange);
             return;
         }
         var accept = candidate.StartsWith("trade_accept:", StringComparison.Ordinal);
@@ -149,6 +205,12 @@ public sealed partial class PrivateWorldRuntime
             MoveToward(actor, state, camp, "trade", ResourceInteractionRange);
             return;
         }
+        var otherParty = offer.FirstPartyId == actor ? offer.SecondPartyId : offer.FirstPartyId;
+        if (!AdultResident(actor) || !AdultResident(otherParty) ||
+            !IsWithinInteractionRange(inhabitants[otherParty].Position, camp, ResourceInteractionRange) ||
+            !PersonalTradeReceivingSpace(offer.FirstPartyId, offer.SecondPartyId,
+                offer.FirstQuantity, offer.SecondQuantity))
+            return;
         society.Apply(checkpoint => SocietyFixture.AcceptBarterOffer(checkpoint, offerId, offer.Revision, actor));
         if (society.Checkpoint.Inventory.GetOffer(offerId).State == DirectBarterState.Settled)
         {
@@ -168,7 +230,12 @@ public sealed partial class PrivateWorldRuntime
     }
 
     private bool TradeQuantityAvailable(InventoryLot lot) =>
-        AvailableLotQuantity(lot) >= (lot.ItemKind is "field_map" or "field_record" ? 1 : 2);
+        PersonalEquipmentRules.IsCarried(lot, lot.OwnerId) && lot.ContainerLotId is null &&
+        !InventoryContainerRules.IsContainer(lot.ItemKind) && lot.DeliveryBuildingId is null &&
+        (!inhabitants.TryGetValue(lot.OwnerId, out var carrier) ||
+         !PersonalEquipmentRules.IsSelected(carrier.Equipment, lot.Id)) &&
+        AvailableLotQuantity(lot) >= (AgentKnowledgeRules.IsArtifactKind(lot.ItemKind) ||
+            OrnamentContent.IsOrnament(lot.ItemKind) ? 1 : 2);
 
     private void MaintainSettlementTrades()
     {
@@ -182,7 +249,11 @@ public sealed partial class PrivateWorldRuntime
                 (Owner: offer.SecondPartyId, Lot: offer.SecondLotId, Quantity: offer.SecondQuantity, Reservation: offer.Id + ":second"),
             };
             if (parties.Any(party => !society.Checkpoint.Inhabitants.Any(person => person.Id == party.Owner && person.Status == SocietyInhabitantStatus.Active) ||
-                    !currentInventory.Lots.Any(lot => lot.Id == party.Lot && lot.OwnerId == party.Owner && lot.Quantity >= party.Quantity &&
+                    !currentInventory.Lots.Any(lot => lot.Id == party.Lot && PersonalEquipmentRules.IsCarried(lot, party.Owner) &&
+                        lot.ContainerLotId is null && lot.DeliveryBuildingId is null &&
+                        !InventoryContainerRules.IsContainer(lot.ItemKind) &&
+                        !PersonalEquipmentRules.IsSelected(inhabitants[party.Owner].Equipment, lot.Id) &&
+                        lot.Quantity >= party.Quantity &&
                         lot.FreshnessBasisPoints > 0 && lot.ConditionBasisPoints > 0) ||
                     !currentInventory.Reservations.Any(reservation => reservation.Id == party.Reservation && reservation.State == InventoryReservationState.Reserved)))
             {

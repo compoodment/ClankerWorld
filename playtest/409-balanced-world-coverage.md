@@ -1,0 +1,4 @@
+- Preview Small and Medium Balanced worlds, wrapped and unwrapped. The text under the map describes its forest and mountains in words, and hovering that text shows their shares; creating the world keeps the exact map you previewed. ([#409](https://github.com/compoodment/ClankerWorld/issues/409))
+- If all tried maps miss the balance the default settings aim for, the text says how, and creation waits until you tick **Keep this map anyway** or choose another seed. Changing the settings clears the tick. ([#409](https://github.com/compoodment/ClankerWorld/issues/409))
+- Compare Low, Normal and High forest and mountain settings. Their effects remain distinct. Note how long preview takes and whether the map description fits at 720p and larger UI sizes. ([#409](https://github.com/compoodment/ClankerWorld/issues/409))
+- Save and load the created world. Its terrain and selected map remain the same. ([#409](https://github.com/compoodment/ClankerWorld/issues/409))

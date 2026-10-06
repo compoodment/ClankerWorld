@@ -16,6 +16,7 @@ public static class TownConstructionSiteReasonCodes
     public const string ForestPreservation = "terrain_forest";
     public const string NearbyMaterial = "nearby_material";
     public const string PurposeCluster = "purpose_cluster";
+    public const string RoadFrontage = "road_frontage";
 }
 
 /// <summary>
@@ -36,7 +37,7 @@ public sealed record TownLayoutBuilding(PlacedBuilding Building, BuildingDefinit
 /// <summary>
 /// Immutable runtime facts used by every construction-site query in one
 /// inhabitant decision or project continuation. Candidate anchors are clipped
-/// to the current first-Town rectangle plus its one-tile planning margin.
+/// to the bounds of the first Town's border plus its spare-land margin.
 /// </summary>
 public sealed class TownLayoutContext
 {
@@ -46,7 +47,14 @@ public sealed class TownLayoutContext
         IEnumerable<GridPoint> occupiedTiles,
         IReadOnlyDictionary<GridPoint, int> reachableFootCosts,
         IEnumerable<TownLayoutResource> resources,
-        IEnumerable<TownLayoutBuilding> buildings)
+        IEnumerable<TownLayoutBuilding> buildings,
+        IEnumerable<GridPoint>? roadTiles = null,
+        IEnumerable<GridPoint>? requiredNeighborTiles = null,
+        IEnumerable<GridPoint>? requiredLandTiles = null,
+        GridPoint? requiredEntranceOffset = null,
+        IEnumerable<GridPoint>? requiredFootprintOffsets = null,
+        IEnumerable<GridPoint>? permittedRoadOffsets = null,
+        IEnumerable<GridPoint>? protectedTiles = null)
     {
         ArgumentNullException.ThrowIfNull(map);
         ArgumentNullException.ThrowIfNull(occupiedTiles);
@@ -64,9 +72,33 @@ public sealed class TownLayoutContext
             throw new ArgumentException("Reachable site costs must be non-negative map positions.", nameof(reachableFootCosts));
         Resources = resources.ToArray();
         Buildings = buildings.ToArray();
+        RequiredNeighborTiles = requiredNeighborTiles?.ToHashSet();
+        RequiredLandTiles = requiredLandTiles?.ToHashSet();
+        RequiredEntranceOffset = requiredEntranceOffset;
+        RequiredFootprintOffsets = requiredFootprintOffsets?.ToHashSet();
+        PermittedRoadOffsets = (permittedRoadOffsets ?? []).ToHashSet();
+        ProtectedTiles = (protectedTiles ?? []).ToHashSet();
+        RoadTiles = (roadTiles ?? []).ToHashSet();
         CandidateAnchors = town is null
             ? ReachableFootCosts.Keys.OrderBy(point => point.Y).ThenBy(point => point.X).ToArray()
             : CandidateBounds(map, town);
+        TownBorder = town?.BorderTiles.ToHashSet();
+    }
+
+    // Gathered once per layout rather than for every site a ranking scores.
+    internal IReadOnlySet<GridPoint>? TownBorder { get; }
+
+    private readonly Dictionary<string, GridPoint[]> availableMaterialPositions = new(StringComparer.Ordinal);
+
+    internal GridPoint[] AvailableMaterialPositions(string kind, Func<string, string, bool> matches)
+    {
+        if (!availableMaterialPositions.TryGetValue(kind, out var positions))
+        {
+            positions = Resources.Where(item => item.Available && matches(item.Resource.Kind, kind))
+                .Select(item => item.Resource.Position).ToArray();
+            availableMaterialPositions[kind] = positions;
+        }
+        return positions;
     }
 
     public SeededMap Map { get; }
@@ -81,7 +113,30 @@ public sealed class TownLayoutContext
 
     public IReadOnlyList<TownLayoutBuilding> Buildings { get; }
 
+    public IReadOnlySet<GridPoint> RoadTiles { get; }
+
     public IReadOnlyList<GridPoint> CandidateAnchors { get; }
+
+    /// <summary>
+    /// When set, a legal footprint must lie within <see cref="NeighborReach"/>
+    /// tiles of one of these, as a Silo must stand near its household's
+    /// Farmhouse; sites that touch rank first.
+    /// </summary>
+    public IReadOnlySet<GridPoint>? RequiredNeighborTiles { get; }
+
+    public IReadOnlySet<GridPoint>? RequiredLandTiles { get; }
+
+    public GridPoint? RequiredEntranceOffset { get; }
+
+    public IReadOnlySet<GridPoint>? RequiredFootprintOffsets { get; }
+
+    public IReadOnlySet<GridPoint> PermittedRoadOffsets { get; }
+
+    /// <summary>Occupied tiles, such as another project's site or doorway, that stay closed even where a Road is permitted.</summary>
+    public IReadOnlySet<GridPoint> ProtectedTiles { get; }
+
+    /// <summary>How far, in tiles including diagonals, a site may be from its required neighbor. Provisional.</summary>
+    public const int NeighborReach = 2;
 
     public TerrainKind? TerrainAt(GridPoint position) => Map.TerrainKindAt(position);
 
@@ -161,11 +216,32 @@ public static class TownLayoutService
         var map = context.Map;
         if (!map.Contains(position))
             return false;
-        var footprint = Footprint(definition, position).ToArray();
-        if (footprint.Any(point => !map.IsBuildable(point) || context.OccupiedTiles.Contains(point)))
+        var footprint = context.RequiredFootprintOffsets is { } offsets
+            ? offsets.Select(offset => new GridPoint(position.X + offset.X, position.Y + offset.Y)).ToArray()
+            : Footprint(definition, position).ToArray();
+        if (footprint.Any(point => !map.Contains(point) || !map.IsBuildable(point) ||
+                context.OccupiedTiles.Contains(point) && !(context.RoadTiles.Contains(point) &&
+                    !context.ProtectedTiles.Contains(point) &&
+                    context.PermittedRoadOffsets.Contains(new GridPoint(point.X - position.X, point.Y - position.Y)))))
             return false;
-        if (context.Town is { } town &&
-            !TownBorderRules.IsWithinOrAdjacent(town, position, definition.Width, definition.Height))
+        if (context.RequiredLandTiles is { } titled && footprint.Any(point => !titled.Contains(point)))
+            return false;
+        if (context.RequiredEntranceOffset is { } offset)
+        {
+            var entrance = new GridPoint(position.X + offset.X, position.Y + offset.Y);
+            if (!map.IsBuildable(entrance) ||
+                context.OccupiedTiles.Contains(entrance) && !context.RoadTiles.Contains(entrance) ||
+                !context.ReachableFootCosts.ContainsKey(entrance))
+                return false;
+        }
+        var neighborDistance = context.RequiredNeighborTiles is { } neighbors
+            ? footprint.SelectMany(point => neighbors.Select(neighbor =>
+                Math.Max(Math.Abs(neighbor.X - point.X), Math.Abs(neighbor.Y - point.Y)))).DefaultIfEmpty(int.MaxValue).Min()
+            : 0;
+        if (neighborDistance > TownLayoutContext.NeighborReach)
+            return false;
+        if (context.TownBorder is { } border &&
+            !TownBorderRules.IsWithinOrAdjacent(border, position, definition.Width, definition.Height))
             return false;
         if (!context.ReachableFootCosts.TryGetValue(position, out var routeCost))
             return false;
@@ -191,6 +267,14 @@ public static class TownLayoutService
             }
         }
 
+        // New buildings prefer free frontage on an existing street, so the
+        // Town grows along its Roads.
+        if (FacesRoad(context, definition, position))
+        {
+            score += 24;
+            reasons.Add(new(TownConstructionSiteReasonCodes.RoadFrontage, "Its door can face an existing Road."));
+        }
+
         var terrain = context.TerrainAt(position);
         if (terrain == TerrainKind.Meadow)
         {
@@ -203,6 +287,13 @@ public static class TownLayoutService
             reasons.Add(new(TownConstructionSiteReasonCodes.ForestPreservation, "Open meadow sites rank ahead of forest ground."));
         }
 
+        if (context.RequiredNeighborTiles is not null)
+        {
+            score += neighborDistance == 1 ? 12 : 0;
+            reasons.Add(new(TownConstructionSiteReasonCodes.PurposeCluster, neighborDistance == 1
+                ? "Stands right beside the building it serves."
+                : $"Stands {neighborDistance} tiles from the building it serves."));
+        }
         AddMaterialReasons(context, definition, position, reasons, ref score);
         AddPurposeReason(context, definition, position, reasons, ref score);
         candidate = new TownConstructionSiteCandidate(position, score, routeCost, expansion, reasons.ToArray());
@@ -219,8 +310,8 @@ public static class TownLayoutService
         foreach (var kind in definition.BuildCosts.Select(item => item.ResourceId).Distinct(StringComparer.Ordinal)
                      .Order(StringComparer.Ordinal))
         {
-            var nearest = context.Resources.Where(item => item.Available && ResourceMatches(item.Resource.Kind, kind))
-                .Select(item => context.Map.FootDistance(position, item.Resource.Position))
+            var nearest = context.AvailableMaterialPositions(kind, ResourceMatches)
+                .Select(source => context.Map.FootDistance(position, source))
                 .DefaultIfEmpty(int.MaxValue)
                 .Min();
             if (nearest > 5)
@@ -260,14 +351,19 @@ public static class TownLayoutService
         reasons.Add(new(TownConstructionSiteReasonCodes.PurposeCluster, $"Near {relationship} {role} building."));
     }
 
+    private static bool FacesRoad(TownLayoutContext context, BuildingDefinition definition, GridPoint position) =>
+        context.RoadTiles.Count > 0 && Footprint(definition, position).Any(tile => TownStreets.Directions
+            .Where(step => step.X == 0 || step.Y == 0)
+            .Any(step => context.RoadTiles.Contains(new GridPoint(tile.X + step.X, tile.Y + step.Y))));
+
+    // The tiles the border would gain: those around the footprint it doesn't already hold, which is what
+    // TownBorderRules.ExpandForBuilding adds, without copying and sorting the whole border for every site.
     private static int ExpansionFor(TownLayoutContext context, BuildingDefinition definition, GridPoint position)
     {
-        if (context.Town is not { } town)
+        if (context.TownBorder is not { } border)
             return 0;
 
-        var current = town.BorderTiles.ToHashSet();
-        return TownBorderRules.ExpandForBuilding(context.Map, town, position, definition.Width, definition.Height)
-            .Count(point => !current.Contains(point));
+        return TownBorderRules.Around(context.Map, Footprint(definition, position)).Count(point => !border.Contains(point));
     }
 
     private static IEnumerable<GridPoint> Footprint(BuildingDefinition definition, GridPoint origin)

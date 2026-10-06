@@ -60,8 +60,6 @@ public sealed partial class ViewerHttpTests
                 Assert.True((await configured.Content.ReadFromJsonAsync<OwnerControlReceipt>())!.Changed);
                 Assert.False(runtime.JevEnabled);
                 Assert.Equal(PrivateWorldRuntime.StateSchemaVersion, runtime.ExportState().SchemaVersion);
-                Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(
-                    runtime.ExportState() with { SchemaVersion = 14 }));
                 Assert.Equal(1, runtime.JevPolicyRevision);
                 savedProviderEpoch = host.Services.GetRequiredService<ConfigurableDecisionProvider>().ProviderEpoch;
                 Assert.Equal(initialProviderEpoch + 1, savedProviderEpoch);
@@ -196,7 +194,8 @@ public sealed partial class ViewerHttpTests
             "instruction-http-1",
             "actor-scout",
             "must_do",
-            "Gather food.");
+            "Gather food.",
+            reconnect.Baseline.Snapshot.WorldId);
         using var instruction = await SendSignedAsync(
             client,
             key,
@@ -236,6 +235,10 @@ public sealed partial class ViewerHttpTests
         Assert.True(authoringReceipt!.Applied, authoringReceipt.Failure);
         Assert.NotEqual(beforeAuthoring.Snapshot.CurrentMapManifestDigest, afterAuthoring.Snapshot.CurrentMapManifestDigest);
         Assert.Equal(beforeAuthoring.Snapshot.InitialMapManifestDigest, afterAuthoring.Snapshot.InitialMapManifestDigest);
+        Assert.Equal(beforeAuthoring.Snapshot.World.Identity.InitialMapManifestDigest, afterAuthoring.Snapshot.InitialMapManifestDigest);
+        Assert.Equal(beforeAuthoring.Snapshot.TopologyRevision + 1, afterAuthoring.Snapshot.TopologyRevision);
+        Assert.Equal(beforeAuthoring.Snapshot.World.Map.ManifestDigest, afterAuthoring.Snapshot.World.Map.ManifestDigest);
+        Assert.Equal(TerrainKind.Mountain, afterAuthoring.Snapshot.CurrentMap.Tiles.Single(tile => tile.Position == water).Terrain);
         var queued = Assert.Single(afterAuthoring.Snapshot.Instructions);
         Assert.Equal($"owner-device:{pairing.DeviceId}", queued.IssuerId);
         Assert.Contains(

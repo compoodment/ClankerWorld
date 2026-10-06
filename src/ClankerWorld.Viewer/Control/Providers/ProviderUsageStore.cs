@@ -1,4 +1,5 @@
 using System.Text.Json;
+using ClankerWorld.Simulation.Cognition;
 
 namespace ClankerWorld.Viewer.Control;
 
@@ -12,9 +13,12 @@ public sealed record ProviderUsageStatus(long Attempts, long Completed, long Fai
 
 public sealed record ProviderUsageLimitAction(long? AttemptLimit, long AdditionalCalls = 0);
 
-public sealed class ProviderUsageLimitReachedException : InvalidOperationException
+/// <summary>The reservation that first reached 80% of the limit in force.</summary>
+public sealed record ProviderUsageWarning(long Attempts, long AttemptLimit);
+
+public sealed class ProviderUsageLimitReachedException : CognitionProviderUnavailableException
 {
-    public ProviderUsageLimitReachedException() : base("The optional paid-call limit was reached. Owner consent is required before another paid call.") { }
+    public ProviderUsageLimitReachedException() : base("usage_limit", "The optional paid-call limit was reached. Owner consent is required before another paid call.") { }
 }
 
 /// <summary>
@@ -39,6 +43,18 @@ public sealed class ProviderUsageStore
         List<ProviderUsageRow> Rows, List<Pending> Pending);
 
     public event Action? LimitReached;
+
+    /// <summary>
+    /// Raised once when a reservation brings the attempts to 80% of the limit,
+    /// rounded up. Attempts only grow, one per reservation, so a restart, a
+    /// world switch or an older save cannot repeat a crossing; a changed limit
+    /// sets a new mark that only later calls can cross. Handlers run on the
+    /// reserving thread, which may hold a world's runtime gate.
+    /// </summary>
+    public event Action<ProviderUsageWarning>? WarningReached;
+
+    /// <summary>The attempt count at which the 80% warning is due, rounded up.</summary>
+    public static long WarningMark(long attemptLimit) => attemptLimit - attemptLimit / 5;
 
     public ProviderUsageStore(string path)
     {
@@ -144,6 +160,7 @@ public sealed class ProviderUsageStore
     {
         bool notify = false;
         string? ticket = null;
+        ProviderUsageWarning? warning = null;
         lock (gate)
         {
             if (IsBlocked())
@@ -157,15 +174,19 @@ public sealed class ProviderUsageStore
                 // Bound the cardinality, preserving exact overall totals.
                 if (state.Rows.Count >= MaximumRows - 1 && !state.Rows.Any(row => Same(row, pending)))
                     pending = pending with { Provider = "other", Model = "other", Role = "other" };
+                var before = state.Rows.Sum(row => row.Attempts);
                 var next = Copy(state);
                 AddOutcome(next, pending, "started", 0, 0);
                 next.Pending.Add(pending);
                 Save(next);
                 state = next;
                 ticket = pending.Id;
+                if (state.AttemptLimit is { } cap && before < WarningMark(cap) && before + 1 >= WarningMark(cap))
+                    warning = new ProviderUsageWarning(before + 1, cap);
             }
         }
         if (notify) LimitReached?.Invoke();
+        if (warning is not null) WarningReached?.Invoke(warning);
         if (accountingError is not null) throw new InvalidOperationException(accountingError);
         return ticket ?? throw new ProviderUsageLimitReachedException();
     }

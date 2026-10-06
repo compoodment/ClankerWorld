@@ -80,7 +80,7 @@ public partial class Main
                 var deleting = DeleteConfirmedAsync();
                 await host.DeleteReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
                 ChooseWorldActionSmokeRow(2);
-                worldSelectionList.EmitSignal(ItemList.SignalName.ItemActivated, 2L);
+                worldSelectionList.EmitSignal(SlotList.SignalName.ItemActivated, 2L);
                 worldSelectButton.EmitSignal(BaseButton.SignalName.Pressed);
                 await SelectListedWorldAsync();
                 if (!worldSelectButton.Disabled || !worldDeleteButton.Disabled || host.PauseCount != 0)
@@ -130,7 +130,7 @@ public partial class Main
     private void ChooseWorldActionSmokeRow(int row)
     {
         worldSelectionList.Select(row);
-        worldSelectionList.EmitSignal(ItemList.SignalName.ItemSelected, (long)row);
+        worldSelectionList.EmitSignal(SlotList.SignalName.ItemSelected, (long)row);
     }
 
     private static WorldCatalogSnapshot WorldActionSmokeCatalog(string[] ids) => new("A", ids.Select((id, index) =>
@@ -144,6 +144,7 @@ public partial class Main
         private readonly string publicKey;
         private int pauseCount;
         private int deleteCount;
+        private int saveCreateCount;
         public OwnerAuthorityIdentity Authority { get; } = new("smoke-server", "smoke-authority");
         public string Address { get; }
         public WorldCatalogSnapshot Catalog { get; set; } = WorldActionSmokeCatalog([]);
@@ -153,8 +154,38 @@ public partial class Main
         public TaskCompletionSource ReleasePause { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource ReleaseSelect { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource ReleaseDelete { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<string> LoadReceived { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource? ReleaseLoad { get; set; }
+        public ManualSaveLoadReceipt? LoadReceipt { get; set; }
+        public TaskCompletionSource<OwnerProviderModelListAction> ModelsReceived { get; set; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource? ReleaseModels { get; set; }
+        public OwnerProviderModelList? Models { get; set; }
+        public bool FailModels { get; set; }
+        public TaskCompletionSource<OwnerDeveloperEditAction> DeveloperEditReceived { get; set; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource? ReleaseDeveloperEdit { get; set; }
+        public OwnerControlReceipt? DeveloperEditReceipt { get; set; }
+        public bool FailDeveloperEdit { get; set; }
+        public Func<OwnerWorldCreationAction, Task<OwnerWorldPreview>>? PreviewHandler { get; set; }
         public int PauseCount => Volatile.Read(ref pauseCount);
         public int DeleteCount => Volatile.Read(ref deleteCount);
+        public int SaveCreateCount => Volatile.Read(ref saveCreateCount);
+        public string AutosaveWorldId { get; set; } = "autosave-world-B";
+        public List<OwnerAutosaveConfigurationAction> AutosaveConfigurations { get; } = [];
+        /// <summary>The next signed refresh's world, or none to refuse refreshes.</summary>
+        public OwnerWorldReconnect? Reconnect { get; set; }
+        public IReadOnlyList<string>? SupportedActionPayloads { get; set; }
+        public OwnerWorldPreview? Preview { get; set; }
+        public CatalogWorld? SelectedWorld { get; set; }
+        public CatalogWorld? CreatedWorld { get; set; }
+        public OwnerWorldReconnect? CreatedObservation { get; set; }
+        public System.Collections.Concurrent.ConcurrentQueue<string> Requests { get; } = new();
+        public System.Collections.Concurrent.ConcurrentQueue<OwnerWorldCreationAction> WorldCreations { get; } = new();
+        /// <summary>Exact rename attempts given a name_taken response by this fixture.</summary>
+        public HashSet<string> TakenAgentNames { get; } = new(StringComparer.Ordinal);
+        public System.Collections.Concurrent.ConcurrentQueue<OwnerAgentRenameAction> RenameRequests { get; } = new();
+        public TaskCompletionSource RenameReceived { get; set; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        // When set, the host holds its rename reply until the check releases it.
+        public TaskCompletionSource? ReleaseRename { get; set; }
 
         public WorldActionSmokeHost(string publicKey)
         {
@@ -191,14 +222,57 @@ public partial class Main
                     envelope.GetProperty("canonicalProof").GetString()!, envelope.GetProperty("signatureBase64").GetString()!))
                 throw new InvalidOperationException("The smoke host must receive an actual signed owner request.");
             object response;
+            Requests.Enqueue(context.Request.Url!.AbsolutePath);
             switch (context.Request.Url!.AbsolutePath)
             {
                 case OwnerPairingEndpoints.ChallengeIssue:
                     response = new OwnerChallenge(Authority, "smoke-device", Guid.NewGuid().ToString("N"),
-                        "smoke-nonce", DateTimeOffset.UtcNow.AddMinutes(1));
+                        "smoke-nonce", DateTimeOffset.UtcNow.AddMinutes(1),
+                        SupportedActionPayloads ?? (PreviewHandler is null ? null : [OwnerWorldActionPayload.WorldCreationPayloadDomain]));
+                    break;
+                case OwnerPairingEndpoints.OwnerWorldPreview when PreviewHandler is not null:
+                    response = await PreviewHandler(envelope.GetProperty("action").Deserialize<OwnerWorldCreationAction>(JsonOptions)!).ConfigureAwait(false);
                     break;
                 case OwnerPairingEndpoints.OwnerWorldList:
                     response = Catalog;
+                    break;
+                case OwnerPairingEndpoints.OwnerSaveCreate:
+                    Interlocked.Increment(ref saveCreateCount);
+                    response = new ManualWorldSave("new-save", envelope.GetProperty("action").GetProperty("value").GetString()!,
+                        DateTimeOffset.UnixEpoch, 0);
+                    break;
+                case OwnerPairingEndpoints.OwnerSaveLoad when LoadReceipt is { } loadReceipt:
+                    LoadReceived.TrySetResult(envelope.GetProperty("action").GetProperty("value").GetString()!);
+                    if (ReleaseLoad is { } releaseLoad) await releaseLoad.Task.ConfigureAwait(false);
+                    response = loadReceipt;
+                    break;
+                case OwnerPairingEndpoints.OwnerProviderModels when Models is { } modelList:
+                    var failModels = FailModels;
+                    ModelsReceived.TrySetResult(envelope.GetProperty("action").Deserialize<OwnerProviderModelListAction>(JsonOptions)!);
+                    if (ReleaseModels is { } releaseModels) await releaseModels.Task.ConfigureAwait(false);
+                    if (failModels)
+                    {
+                        context.Response.StatusCode = (int)HttpStatusCode.ServiceUnavailable;
+                        response = new { error = "Controlled previous-timeline model-list failure." };
+                    }
+                    else response = modelList;
+                    break;
+                case OwnerPairingEndpoints.OwnerDeveloperEdit when DeveloperEditReceipt is { } editReceipt:
+                    var failEdit = FailDeveloperEdit;
+                    DeveloperEditReceived.TrySetResult(envelope.GetProperty("action").Deserialize<OwnerDeveloperEditAction>(JsonOptions)!);
+                    if (ReleaseDeveloperEdit is { } releaseEdit) await releaseEdit.Task.ConfigureAwait(false);
+                    if (failEdit)
+                    {
+                        context.Response.StatusCode = (int)HttpStatusCode.ServiceUnavailable;
+                        response = new { error = "Controlled previous-timeline developer-edit failure." };
+                    }
+                    else response = editReceipt;
+                    break;
+                case OwnerPairingEndpoints.OwnerAutosaveConfigure:
+                    var configuration = envelope.GetProperty("action").Deserialize<OwnerAutosaveConfigurationAction>(JsonOptions)!;
+                    AutosaveConfigurations.Add(configuration);
+                    response = new WorldAutosaveSettings(AutosaveWorldId, configuration.Enabled,
+                        configuration.IntervalMinutes, configuration.RotationCount, DateTimeOffset.UnixEpoch, -1);
                     break;
                 case OwnerPairingEndpoints.OwnerPause:
                     Interlocked.Increment(ref pauseCount);
@@ -209,9 +283,41 @@ public partial class Main
                 case OwnerPairingEndpoints.OwnerWorldSelect:
                     SelectReceived.TrySetResult(envelope.GetProperty("action").GetProperty("value").GetString()!);
                     await ReleaseSelect.Task.ConfigureAwait(false);
+                    if (SelectedWorld is { } selectedWorld)
+                    {
+                        response = selectedWorld;
+                        break;
+                    }
                     // Stop after recording the signed ID; this check does not claim a live-host playtest.
                     context.Response.StatusCode = (int)HttpStatusCode.Conflict;
                     response = new { error = "Controlled selection refusal." };
+                    break;
+                case OwnerPairingEndpoints.OwnerWorldPreview when Preview is not null:
+                    response = Preview;
+                    break;
+                case OwnerPairingEndpoints.OwnerWorldCreate when CreatedWorld is not null:
+                    WorldCreations.Enqueue(envelope.GetProperty("action").Deserialize<OwnerWorldCreationAction>(JsonOptions)!);
+                    Reconnect = CreatedObservation;
+                    response = CreatedWorld;
+                    break;
+                case OwnerPairingEndpoints.OwnerResume:
+                    response = new OwnerControlReceipt("resume", true, false, 0, 0, 0);
+                    break;
+                case OwnerPairingEndpoints.OwnerReconnect when Reconnect is not null:
+                    response = Reconnect;
+                    break;
+                case OwnerPairingEndpoints.OwnerAgentRename:
+                    var rename = envelope.GetProperty("action").Deserialize<OwnerAgentRenameAction>(JsonOptions)!;
+                    RenameRequests.Enqueue(rename);
+                    RenameReceived.TrySetResult();
+                    if (ReleaseRename is { } releaseRename) await releaseRename.Task.ConfigureAwait(false);
+                    if (TakenAgentNames.Contains(rename.Name))
+                    {
+                        // The same refusal the world host sends for a taken first name.
+                        context.Response.StatusCode = (int)HttpStatusCode.Conflict;
+                        response = new { code = "name_taken", message = "That first name belongs to another agent." };
+                    }
+                    else response = new OwnerAgentRenameReceipt(rename.AgentId, rename.Name, true);
                     break;
                 case "/api/v1/owner/delete":
                     Interlocked.Increment(ref deleteCount);

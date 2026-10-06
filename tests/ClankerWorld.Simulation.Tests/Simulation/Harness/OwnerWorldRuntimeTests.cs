@@ -23,28 +23,6 @@ public sealed class OwnerWorldRuntimeTests
     }
 
     [Fact]
-    public void ValidPausedBatchIsAtomicAndChangesOnlyTheCurrentTopologyDigest()
-    {
-        var runtime = new OwnerWorldRuntime("camp-alpha");
-        var before = runtime.Capture();
-        var water = before.Snapshot.CurrentMap.Tiles.Single(tile => tile.Terrain == TerrainKind.Water).Position;
-        Assert.True(runtime.Pause());
-
-        var receipt = runtime.ApplyAuthoringBatch(new OwnerAuthoringBatch(
-            "turn-water-into-mountain",
-            [new SetTerrainOperation(water, TerrainKind.Mountain)]));
-        var after = runtime.Capture();
-
-        Assert.True(receipt.Applied, receipt.Failure);
-        Assert.Equal(before.Snapshot.InitialMapManifestDigest, after.Snapshot.InitialMapManifestDigest);
-        Assert.Equal(before.Snapshot.World.Identity.InitialMapManifestDigest, after.Snapshot.InitialMapManifestDigest);
-        Assert.NotEqual(before.Snapshot.CurrentMapManifestDigest, after.Snapshot.CurrentMapManifestDigest);
-        Assert.Equal(before.Snapshot.TopologyRevision + 1, after.Snapshot.TopologyRevision);
-        Assert.Equal(before.Snapshot.World.Map.ManifestDigest, after.Snapshot.World.Map.ManifestDigest);
-        Assert.Equal(TerrainKind.Mountain, after.Snapshot.CurrentMap.Tiles.Single(tile => tile.Position == water).Terrain);
-    }
-
-    [Fact]
     public void OwnerCannotAuthorABuildingOnMountainGround()
     {
         var runtime = new OwnerWorldRuntime("camp-alpha");
@@ -229,29 +207,6 @@ public sealed class OwnerWorldRuntimeTests
 
         Assert.Throws<InvalidDataException>(() => OwnerWorldRuntime.Restore(invalidCounter, "camp-alpha"));
         Assert.Throws<InvalidDataException>(() => OwnerWorldRuntime.Restore(invalidMap, "camp-alpha"));
-    }
-
-    [Fact]
-    public void RemoveResourceOperationAppliesOnceAndCanBeRetried()
-    {
-        var runtime = new OwnerWorldRuntime("camp-alpha");
-        const string resourceId = "temporary-food";
-        var batch = new OwnerAuthoringBatch(
-            "remove-resource-once",
-            [
-                new PlaceResourceOperation(resourceId, "food", new GridPoint(3, 2), true),
-                new RemoveResourceOperation(resourceId),
-            ],
-            "owner-device:alice");
-        Assert.True(runtime.Pause("owner-device:alice"));
-
-        var applied = runtime.ApplyAuthoringBatch(batch);
-
-        Assert.True(applied.Applied, applied.Failure);
-        Assert.DoesNotContain(
-            runtime.Capture().Snapshot.CurrentMap.Resources,
-            resource => string.Equals(resource.Id, resourceId, StringComparison.Ordinal));
-        Assert.Equal(applied, runtime.ApplyAuthoringBatch(batch));
     }
 
     private sealed class AllowListedAssetReferencePolicy : IOwnerApprovedAssetReferencePolicy

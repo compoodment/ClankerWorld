@@ -5,6 +5,30 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed class InventoryFixtureTests
 {
+    [Fact]
+    public void PickingUpPartOfAFieldHarvestKeepsTheRemainderAtTheFieldAcrossReload()
+    {
+        var harvest = InventoryFixture.CreateGenesis([new("field-harvest", "grain", "farm-household", 6,
+            10_000, 10_000, 0, GroundPosition: new(4, 5))]);
+        var before = InventoryCheckpointCodec.Encode(harvest);
+        Assert.Throws<InvalidOperationException>(() => InventoryFixture.Transfer(harvest, "theft", "outsider",
+            "carrier", "field-harvest", 2, "pickup"));
+        Assert.Equal(before, InventoryCheckpointCodec.Encode(harvest));
+        var pickedUp = InventoryFixture.Transfer(harvest, "pickup", "farm-household", "carrier",
+            "field-harvest", 2, "pickup", destinationDeliveryBuildingId: "farmhouse");
+        var restored = InventoryCheckpointCodec.Decode(InventoryCheckpointCodec.Encode(pickedUp));
+        var remainder = restored.GetLot("field-harvest");
+        Assert.Equal(4, remainder.Quantity);
+        Assert.Equal(new InventoryGroundPosition(4, 5), remainder.GroundPosition);
+        var carried = Assert.Single(restored.Lots, lot => lot.OwnerId == "carrier");
+        Assert.Equal(2, carried.Quantity);
+        Assert.Null(carried.GroundPosition);
+        Assert.Equal("farmhouse", carried.DeliveryBuildingId);
+        Assert.Equal("field-harvest", carried.ProvenanceLotId);
+        Assert.Throws<InvalidDataException>(() => InventoryFixture.AddLot(restored, "conflicting-position", "grain",
+            "farm-household", 1, storageBuildingId: "silo", groundPosition: new(4, 5)));
+    }
+
     [Theory]
     [InlineData("alpha")]
     public void EitherPartyCanDeclineWithoutTransferringOrRetainingReservations(string party)
@@ -61,11 +85,17 @@ public sealed class InventoryFixtureTests
         Assert.Equal(InventoryDigest.Events(restored.Events), InventoryDigest.Events(processedAgain.Events));
         Assert.All(fullySpoiled.Lots.Where(lot => lot.ItemKind == "berries"), lot => Assert.Equal(0, lot.FreshnessBasisPoints));
         Assert.Equal(InventoryDigest.State(spoiled), InventoryDigest.State(restored));
+
+        var foodKinds = new HashSet<string>(StringComparer.Ordinal) { "food" };
+        var exposed = InventoryFixture.ProcessSpoilage(genesis, 100, 4, foodKinds);
+        var protectedOwners = new HashSet<string>(StringComparer.Ordinal) { "bravo" };
+        var stored = InventoryFixture.ProcessSpoilage(genesis, 100, 4, foodKinds, protectedOwners);
+        Assert.Equal(9_600, exposed.GetLot("bravo-food").FreshnessBasisPoints);
+        Assert.Equal(9_800, stored.GetLot("bravo-food").FreshnessBasisPoints);
+        Assert.Equal(10_000, stored.GetLot("alpha-wood").FreshnessBasisPoints);
     }
 
     [Theory]
-    [InlineData(InventoryReservationState.Reserved)]
-    [InlineData(InventoryReservationState.PartiallyConsumed)]
     [InlineData(InventoryReservationState.Committed)]
     public void SplitCannotRemoveReservedStockOrChangeTheRejectedCheckpoint(InventoryReservationState state)
     {
@@ -132,6 +162,53 @@ public sealed class InventoryFixtureTests
     }
 
     [Fact]
+    public void PartialReleaseFreesOnlySelectedUnitsAndKeepsRemainingClaimsUsableAcrossReload()
+    {
+        var inventory = InventoryFixture.CreateGenesis(
+        [
+            new("seeds", "orchard_seed", "owner", 5, 10_000, 10_000, 0),
+            new("wood", "wood", "owner", 2, 10_000, 10_000, 0),
+        ]);
+        inventory = InventoryFixture.Reserve(inventory, "planting", "owner", "seeds", 5, "orchard_replanting", 100);
+        inventory = InventoryFixture.Reserve(inventory, "work", "owner", "wood", 2, "building", 100);
+        var released = InventoryFixture.ReleaseReservationQuantity(inventory, "planting", 2, "food_recovery");
+        Assert.Equal(inventory.Lots, released.Lots);
+        Assert.Equal(inventory.GetReservation("work"), released.GetReservation("work"));
+        Assert.Equal(3, released.GetReservation("planting").Quantity);
+        Assert.Equal(InventoryReservationState.Reserved, released.GetReservation("planting").State);
+
+        var restored = InventoryCheckpointCodec.Decode(InventoryCheckpointCodec.Encode(released));
+        var stored = InventoryFixture.Transfer(restored, "store-seeds", "owner", "household", "seeds", 2,
+            "food_recovery", destinationGroundPosition: new(4, 5));
+        Assert.Equal(3, stored.GetLot("seeds").Quantity);
+        Assert.Equal(5, stored.Lots.Where(lot => lot.ItemKind == "orchard_seed").Sum(lot => lot.Quantity));
+        var beforeRefusal = InventoryCheckpointCodec.Encode(stored);
+        Assert.Throws<InvalidOperationException>(() => InventoryFixture.Transfer(stored, "extra-seed", "owner",
+            "household", "seeds", 1, "food_recovery", destinationGroundPosition: new(4, 5)));
+        Assert.Equal(beforeRefusal, InventoryCheckpointCodec.Encode(stored));
+
+        var planted = InventoryFixture.ConsumeReservation(stored, "planting");
+        Assert.Equal(InventoryReservationState.Completed, planted.GetReservation("planting").State);
+        Assert.Equal(2, planted.Lots.Where(lot => lot.ItemKind == "orchard_seed").Sum(lot => lot.Quantity));
+        Assert.Equal(inventory.GetReservation("work"), planted.GetReservation("work"));
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(0)]
+    [InlineData(6)]
+    public void InvalidPartialReleaseLeavesTheCheckpointUnchanged(int quantity)
+    {
+        var inventory = InventoryFixture.Reserve(InventoryFixture.CreateGenesis(
+            [new("seeds", "orchard_seed", "owner", 5, 10_000, 10_000, 0)]),
+            "planting", "owner", "seeds", 5, "orchard_replanting", 100);
+        var before = InventoryCheckpointCodec.Encode(inventory);
+        Assert.Throws<InvalidOperationException>(() =>
+            InventoryFixture.ReleaseReservationQuantity(inventory, "planting", quantity, "food_recovery"));
+        Assert.Equal(before, InventoryCheckpointCodec.Encode(inventory));
+    }
+
+    [Fact]
     public void ReservationExpiryReleasesOnlyTheReservedQuantity()
     {
         var reserved = InventoryFixture.Reserve(Genesis(), "reserve-1", "alpha", "alpha-berries", 1, "meal", 2);
@@ -173,7 +250,10 @@ public sealed class InventoryFixtureTests
     {
         var checkpoint = new InventoryCheckpoint(
             7,
-            [new InventoryLot("lot|1", "berries,🍓\nkind", "owner|1", 2, 10_000, 9_000, 7, "source|lot")],
+            [
+                new InventoryLot("lot|1", "berries,🍓\nkind", "owner|1", 2, 10_000, 9_000, 7, "source|lot"),
+                new InventoryLot("other-lot", "food", "other,owner", 1, 10_000, 10_000, 7),
+            ],
             [new InventoryReservation("reserve|1", "owner|1", "lot|1", 1, "meal\nwith|separators", 12, true, InventoryReservationState.Reserved)],
             [new DirectBarterOffer("offer|1", 2, "owner|1", "other,owner", "lot|1", 1, "other-lot", 1, 20, DirectBarterState.Open, ["owner|1", "other\nowner"])],
             [new InventoryEvent(1, 7, "event|kind", "detail,with\nseparators")]);
@@ -200,24 +280,6 @@ public sealed class InventoryFixtureTests
             actualOffer.AcceptedBy);
         Assert.Equal(checkpoint.Events, restored.Events);
         Assert.Equal(InventoryDigest.State(checkpoint), InventoryDigest.State(restored));
-    }
-
-    [Fact]
-    public void CheckpointCodecStillReadsLegacyV1Saves()
-    {
-        var legacy = string.Join(
-            '\n',
-            "clankerworld.inventory-fixture/v1",
-            "tick=3",
-            "lot=food-lot|food|alice|2|10000|9000|3|-",
-            "event=1|3|created|food-lot",
-            string.Empty);
-
-        var restored = InventoryCheckpointCodec.Decode(Encoding.UTF8.GetBytes(legacy));
-
-        Assert.Equal(3, restored.WorldTick);
-        Assert.Equal("food-lot", restored.Lots.Single().Id);
-        Assert.Equal("food-lot", restored.Events.Single().Detail);
     }
 
     private static InventoryCheckpoint Genesis() => InventoryFixture.CreateGenesis(

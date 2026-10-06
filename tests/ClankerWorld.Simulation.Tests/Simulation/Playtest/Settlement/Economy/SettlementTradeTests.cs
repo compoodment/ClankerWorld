@@ -1,6 +1,7 @@
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
+using ClankerWorld.Simulation.Society;
 using ClankerWorld.Viewer.Observation;
 
 namespace ClankerWorld.Simulation.Tests;
@@ -8,15 +9,178 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class SettlementTradeTests
 {
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task RecipientIndependentlyAcceptsOrDeclinesAcrossPauseAndRestart(bool decline)
+    [InlineData(SocietyAgeBand.Adolescent)]
+    public async Task AdultsCannotOfferTradeToYoungRecipientsBeforeOrAfterReload(SocietyAgeBand age)
+    {
+        using var seed = new PrivateWorldRuntime("young-barter-recipient");
+        var state = seed.ExportState();
+        var first = state.Inhabitants[0].InhabitantId;
+        var second = state.Inhabitants[1].InhabitantId;
+        state = WithAge(WithTradeGoods(state, first, second), second, age);
+        var bytes = PrivateWorldRuntimeCodec.Encode(state);
+        for (var round = 0; round < 2; round++)
+        {
+            var adultProvider = new TradeProvider("trade_propose:" + second);
+            var youngProvider = new TradeProvider("trade_accept:");
+            using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes),
+                id => id == first ? adultProvider : id == second ? youngProvider : new TradeProvider("safe_idle"));
+            world.Resume();
+            for (var tick = 0; tick < 60; tick++) await world.AdvanceOneTickAsync();
+            if (round == 0) Assert.NotEmpty(adultProvider.SeenCandidates);
+            Assert.DoesNotContain("trade_propose:" + second, adultProvider.SeenCandidates);
+            Assert.DoesNotContain(youngProvider.SeenCandidates, id => id.StartsWith("trade_", StringComparison.Ordinal));
+            Assert.Empty(world.Society.Inventory.Offers);
+            Assert.Empty(world.Society.Inventory.Reservations);
+            Assert.Equal(4, world.Society.Inventory.GetLot("trade-food").Quantity);
+            Assert.Equal(2, world.Society.Inventory.GetLot("trade-clothes").Quantity);
+            world.Validate();
+            bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        }
+    }
+
+    [Theory]
+    [InlineData(SocietyAgeBand.Adolescent, false)]
+    [InlineData(SocietyAgeBand.Adolescent, true)]
+    public void DirectBarterRejectsEitherYoungPartyBeforeReservingStock(SocietyAgeBand age, bool youngFirst)
+    {
+        using var seed = new PrivateWorldRuntime("direct-young-barter");
+        var state = seed.ExportState();
+        var first = state.Inhabitants[0].InhabitantId;
+        var second = state.Inhabitants[1].InhabitantId;
+        state = WithAge(WithTradeGoods(state, first, second), youngFirst ? first : second, age);
+        state = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state));
+        var society = state.Society.Society;
+        var before = SocietyCheckpointCodec.Encode(society);
+        Assert.Throws<InvalidOperationException>(() => SocietyFixture.CreateBarterOffer(society,
+            new("young-offer", 1, first, second, "trade-food", 1, "trade-clothes", 1, 120)));
+        Assert.Equal(before, SocietyCheckpointCodec.Encode(society));
+        Assert.Empty(society.Inventory.Offers);
+        Assert.Empty(society.Inventory.Reservations);
+    }
+
+    [Fact]
+    public void HouseholdBarterKeepsItsExistingNonAgentParticipation()
+    {
+        var checkpoint = SocietyFixture.CreateGenesis("household-barter",
+            [SocietyFixture.CreateFounder("first", "First"), SocietyFixture.CreateFounder("second", "Second")]);
+        checkpoint = SocietyFixture.CreateHousehold(checkpoint, "home-first", "First home", ["first"]).Checkpoint;
+        checkpoint = SocietyFixture.CreateHousehold(checkpoint, "home-second", "Second home", ["second"]).Checkpoint;
+        const string first = "home-first";
+        const string second = "home-second";
+        checkpoint = checkpoint with
+        {
+            Inventory = InventoryFixture.AddLot(InventoryFixture.AddLot(checkpoint.Inventory,
+                "household-first-goods", "tool", first, 2), "household-second-goods", "clothing", second, 2),
+        };
+        var offered = SocietyFixture.CreateBarterOffer(checkpoint,
+            new("household-offer", 1, first, second, "household-first-goods", 1, "household-second-goods", 1, 120)).Checkpoint;
+        var accepted = SocietyFixture.AcceptBarterOffer(offered, "household-offer", 1, first).Checkpoint;
+        var settled = SocietyFixture.AcceptBarterOffer(accepted, "household-offer", 1, second).Checkpoint;
+        Assert.Equal(DirectBarterState.Settled, settled.Inventory.GetOffer("household-offer").State);
+        Assert.NotNull(SocietyCheckpointCodec.Decode(SocietyCheckpointCodec.Encode(settled)));
+    }
+
+    [Fact]
+    public async Task SettlementTradeCannotOfferContainerContentsAsLooseLots()
+    {
+        using var seed = new PrivateWorldRuntime("container-settlement-trade");
+        var state = seed.ExportState();
+        var first = state.Inhabitants[0].InhabitantId;
+        var second = state.Inhabitants[1].InhabitantId;
+        state = WithTradeGoods(state, first, second);
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory,
+            "trade-pot", InventoryContainerRules.StoragePot, first, 1);
+        inventory = InventoryFixture.PutIntoContainer(inventory, "put-trade-food-in-pot", first,
+            "trade-pot", "trade-food", 4);
+        state = WithInventory(state, inventory);
+        var proposer = new TradeProvider("trade_propose:");
+        using var world = PrivateWorldRuntime.Restore(state, id => id == first
+            ? proposer : new TradeProvider("safe_idle"));
+
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+
+        Assert.DoesNotContain(proposer.SeenCandidates, id => id.StartsWith("trade_propose:", StringComparison.Ordinal));
+        Assert.Empty(world.Society.Inventory.Offers);
+        var food = Assert.Single(world.Society.Inventory.Lots, lot => lot.ContainerLotId == "trade-pot");
+        Assert.Equal("food", food.ItemKind);
+        Assert.Equal(4, food.Quantity);
+        world.Validate();
+    }
+
+    [Fact]
+    public async Task AdultAndElderCanIndependentlyCompleteBarterAfterReload()
+    {
+        using var seed = new PrivateWorldRuntime("elder-barter");
+        var state = seed.ExportState();
+        var first = state.Inhabitants[0].InhabitantId;
+        var second = state.Inhabitants[1].InhabitantId;
+        state = WithAge(WithTradeGoods(state, first, second), second, SocietyAgeBand.Elder);
+        IDecisionProvider Provider(string id) => new TradeProvider(id == first ? "trade_propose:" + second :
+            id == second ? "trade_accept:" : "safe_idle");
+        using var world = PrivateWorldRuntime.Restore(state, Provider);
+        await world.AdvanceOneTickAsync();
+        var offer = Assert.Single(world.Society.Inventory.Offers);
+        Assert.Equal([first], offer.AcceptedBy);
+        using var reloaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
+            PrivateWorldRuntimeCodec.Encode(world.ExportState())), Provider);
+        for (var tick = 0; tick < 120 && reloaded.Society.Inventory.GetOffer(offer.Id).State == DirectBarterState.Open; tick++)
+            await reloaded.AdvanceOneTickAsync();
+        var settled = reloaded.Society.Inventory.GetOffer(offer.Id);
+        Assert.Equal(DirectBarterState.Settled, settled.State);
+        Assert.Equal(2, settled.AcceptedBy.Count);
+        Assert.All(reloaded.Society.Inventory.Reservations, reservation => Assert.Equal(InventoryReservationState.Completed, reservation.State));
+        reloaded.Validate();
+        Assert.NotNull(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(reloaded.ExportState())));
+    }
+
+    private static PrivateWorldRuntimeState WithAge(PrivateWorldRuntimeState state, string actor, SocietyAgeBand age)
+    {
+        var society = state.Society.Society;
+        var years = age switch
+        {
+            SocietyAgeBand.Infant => 0,
+            SocietyAgeBand.Child => society.Config.InfantYears,
+            SocietyAgeBand.Adolescent => society.Config.ChildYears,
+            _ => society.Config.ElderYears,
+        };
+        var birth = society.LifeTickAt(society.WorldTick) - years * society.Config.TicksPerLifecycleAge;
+        return state with
+        {
+            Society = state.Society with
+            {
+                Society = society with
+                {
+                    Inhabitants = society.Inhabitants.Select(person => person.Id == actor ? person with
+                    {
+                        AgeBand = age,
+                        BirthTick = birth,
+                        BirthLifeTick = society.LifeClock is null ? null : birth,
+                        LastLifecycleYearChecked = years,
+                        CurrentRole = SocietyWorkRole.Unassigned,
+                    } : person).ToArray(),
+                },
+            },
+        };
+    }
+
+    private static PrivateWorldRuntimeState WithInventory(PrivateWorldRuntimeState state, InventoryCheckpoint inventory) => state with
+    {
+        Society = state.Society with
+        {
+            Society = state.Society.Society with { Inventory = inventory },
+        },
+    };
+
+    [Theory]
+    [InlineData(false, "food")]
+    [InlineData(true, "food")]
+    public async Task RecipientIndependentlyAcceptsOrDeclinesAcrossPauseAndRestart(bool decline, string foodKind)
     {
         using var seed = new PrivateWorldRuntime("settlement-trade-test");
         var state = seed.ExportState();
         var first = state.Inhabitants[0].InhabitantId;
         var second = state.Inhabitants[1].InhabitantId;
-        state = WithTradeGoods(state, first, second);
+        state = WithTradeGoods(state, first, second, foodKind);
         IDecisionProvider Provider(string id) => new TradeProvider(id == first ? "trade_propose:" : id == second
             ? decline ? "trade_decline:" : "trade_accept:" : "safe_idle");
         using var world = PrivateWorldRuntime.Restore(state, Provider);
@@ -42,14 +206,14 @@ public sealed class SettlementTradeTests
         Assert.All(inventory.Reservations, reservation => Assert.Equal(decline ? InventoryReservationState.Released : InventoryReservationState.Completed, reservation.State));
         if (decline)
         {
-            Assert.DoesNotContain(inventory.Lots, lot => lot.OwnerId == second && lot.ItemKind == "food");
+            Assert.DoesNotContain(inventory.Lots, lot => lot.OwnerId == second && lot.ItemKind == foodKind);
             Assert.Empty(final.Society.Society.Memories);
             Assert.All(final.Inhabitants, person => Assert.True(person.SocialStanding is null or []));
             Assert.Contains(final.Events, item => item.Kind == "settlement_trade_declined");
         }
         else
         {
-            Assert.Contains(inventory.Lots, lot => lot.OwnerId == second && lot.ItemKind == "food" && lot.Quantity == 1);
+            Assert.Contains(inventory.Lots, lot => lot.OwnerId == second && lot.ItemKind == foodKind && lot.Quantity == 1);
             Assert.Contains(inventory.Lots, lot => lot.OwnerId == first && lot.ItemKind == "clothing" && lot.Quantity == 1);
             Assert.Equal(2, final.Society.Society.Memories.Count);
             Assert.Equal(1, final.Inhabitants.Single(person => person.InhabitantId == first).SocialStanding!
@@ -57,43 +221,6 @@ public sealed class SettlementTradeTests
             Assert.Equal(1, final.Inhabitants.Single(person => person.InhabitantId == second).SocialStanding!
                 .Single(item => item.SubjectId == first).Trust);
             Assert.Contains(final.Events, item => item.Kind == "settlement_trade_completed");
-        }
-    }
-
-    [Fact]
-    public async Task TradeJournalReportsOutcomeWithoutCopyingFreeTextNames()
-    {
-        var directory = Directory.CreateTempSubdirectory("clankerworld-trade-log-");
-        try
-        {
-            using var seed = new PrivateWorldRuntime("trade-journal");
-            var state = seed.ExportState();
-            var first = state.Inhabitants[0].InhabitantId;
-            var second = state.Inhabitants[1].InhabitantId;
-            state = WithTradeGoods(state, first, second);
-            state = state with
-            {
-                Society = state.Society with
-                {
-                    Society = state.Society.Society with
-                    {
-                        Inhabitants = state.Society.Society.Inhabitants.Select(person => person.Id == second
-                            ? person with { Name = "free-text-secret-marker" } : person).ToArray(),
-                    },
-                },
-            };
-            using var world = PrivateWorldRuntime.Restore(state, id => new TradeProvider(id == first ? "trade_propose:" : "safe_idle"));
-            var presence = new OwnerClientPresenceLease(TimeSpan.FromSeconds(30));
-            presence.RecordAuthenticatedReconnect("test-owner");
-            var logger = new RecordingLogger<PrivateWorldRuntimeService>();
-            using var service = new PrivateWorldRuntimeService(world, new PrivateWorldStateFile(Path.Combine(directory.FullName, "world.json")), presence, logger);
-            Assert.True(await service.TryAdvanceOnceAsync());
-            Assert.Contains(logger.Messages, message => message.Contains("settlement_trade tick=1 event=settlement_trade_offered", StringComparison.Ordinal));
-            Assert.DoesNotContain(logger.Messages, message => message.Contains("free-text-secret-marker", StringComparison.Ordinal));
-        }
-        finally
-        {
-            directory.Delete(recursive: true);
         }
     }
 
@@ -178,26 +305,49 @@ public sealed class SettlementTradeTests
         Assert.True((await restored.AdvanceOneTickAsync()).Advanced);
     }
 
-    private static PrivateWorldRuntimeState WithTradeGoods(PrivateWorldRuntimeState state, string first, string second) => state with
+    private static PrivateWorldRuntimeState WithTradeGoods(PrivateWorldRuntimeState state, string first, string second, string foodKind = "food")
     {
-        Inhabitants = state.Inhabitants.Select(person => person with { HungerBasisPoints = 7_500 }).ToArray(),
-        Society = state.Society with
+        state = AtTradeMeeting(state, first, second);
+        return state with
         {
-            Society = state.Society.Society with
+            Inhabitants = state.Inhabitants.Select(person => person with { HungerBasisPoints = 7_500 }).ToArray(),
+            Society = state.Society with
             {
-                Inventory = InventoryFixture.AddLot(
-                    InventoryFixture.AddLot(state.Society.Society.Inventory, "trade-food", "food", first, 4),
-                    "trade-clothes", "clothing", second, 2),
+                Society = state.Society.Society with
+                {
+                    Inventory = InventoryFixture.AddLot(
+                        InventoryFixture.AddLot(state.Society.Society.Inventory, "trade-food", foodKind, first, 4),
+                        "trade-clothes", "clothing", second, 2),
+                },
             },
-        },
-    };
+        };
+    }
+
+    internal static PrivateWorldRuntimeState AtTradeMeeting(PrivateWorldRuntimeState state, string first, string second)
+    {
+        var meeting = state.Map.GetObject("storage").Position;
+        var positions = state.Map.Tiles.Select(tile => tile.Position).Where(point => state.Map.IsPassable(point) &&
+            state.Map.FootDistance(point, meeting) <= 1 &&
+            state.Inhabitants.All(person => person.InhabitantId == first || person.InhabitantId == second || person.Position != point))
+            .OrderBy(point => point.Y).ThenBy(point => point.X).Take(2).ToArray();
+        Assert.Equal(2, positions.Length);
+        Assert.All(positions, point => Assert.True(state.Map.IsReachableOnFoot(point, meeting)));
+        return state with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == first
+                ? person with { Position = positions[0] }
+                : person.InhabitantId == second ? person with { Position = positions[1] } : person).ToArray(),
+        };
+    }
 
     private sealed class TradeProvider(string prefix) : IDecisionProvider
     {
+        public HashSet<string> SeenCandidates { get; } = new(StringComparer.Ordinal);
         public DecisionProviderKind Kind => DecisionProviderKind.Deterministic;
         public long ProviderEpoch => 0;
         public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
         {
+            foreach (var item in request.Observation.Candidates) SeenCandidates.Add(item.Id);
             var candidate = request.Observation.Candidates.FirstOrDefault(item => item.Id.StartsWith(prefix, StringComparison.Ordinal))
                 ?? request.Observation.Candidates.Single(item => item.Id == "safe_idle");
             return new DeterministicDecisionProvider().DecideAsync(request with

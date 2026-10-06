@@ -1,13 +1,49 @@
+using System.Globalization;
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
+using ClankerWorld.AgentPlacement;
 using ClankerWorld.Viewer.Observation;
 
 namespace ClankerWorld.Simulation.Tests;
 
 public sealed class FounderSetupTests
 {
+    [Fact]
+    public void AgentPlacementRulesUseHouseholdThenTownAndRefuseEveryOverlapWithoutListOrder()
+    {
+        var householdAndTown = AgentPlacementRules.Resolve(["household:one"], ["town:first"]);
+        Assert.False(householdAndTown.IsAmbiguous);
+        Assert.Equal("household:one", householdAndTown.HouseholdIdFor("agent:one"));
+        Assert.Equal("town:first", householdAndTown.TownId);
+
+        var townOnly = AgentPlacementRules.Resolve([], ["town:first"]);
+        Assert.Null(townOnly.HouseholdIdFor("agent:town"));
+        var outside = AgentPlacementRules.Resolve([], []);
+        Assert.Equal("household:agent:outside", outside.HouseholdIdFor("agent:outside"));
+
+        var householdOverlap = AgentPlacementRules.Resolve(
+            ["household:one", "household:two"], ["town:first"]);
+        var reversedHouseholds = AgentPlacementRules.Resolve(
+            ["household:two", "household:one"], ["town:first"]);
+        Assert.Equal(AgentPlacementAmbiguity.HouseholdProperty, householdOverlap.Ambiguity);
+        Assert.Equal(householdOverlap.Ambiguity, reversedHouseholds.Ambiguity);
+        Assert.Null(householdOverlap.HouseholdPropertyOwnerId);
+
+        var townOverlap = AgentPlacementRules.Resolve(
+            ["household:one"], ["town:first", "town:second"]);
+        Assert.Equal(AgentPlacementAmbiguity.TownBorders, townOverlap.Ambiguity);
+        var bothOverlap = AgentPlacementRules.Resolve(
+            ["household:one", "household:two"], ["town:first", "town:second"]);
+        Assert.Equal(AgentPlacementAmbiguity.HouseholdProperty | AgentPlacementAmbiguity.TownBorders,
+            bothOverlap.Ambiguity);
+
+        var repeatedRecord = AgentPlacementRules.Resolve(
+            ["household:one", "household:one"], ["town:first", "town:first"]);
+        Assert.False(repeatedRecord.IsAmbiguous);
+    }
+
     [Fact]
     public void FounderCanMoveBeforeTimeStartsWithoutChangingIdentityOrMembership()
     {
@@ -48,6 +84,7 @@ public sealed class FounderSetupTests
 
         Assert.Throws<ArgumentException>(() => world.UndoLastFounder(ids[0]));
         Assert.Equal(4, world.FounderSetup!.FounderIds.Count);
+        var fourthAge = world.Society.AgeAt(world.Society.GetInhabitant(ids[3]), 0);
         Assert.Equal(3, world.UndoLastFounder(ids[3]));
         Assert.DoesNotContain(world.Inhabitants, person => person.InhabitantId == ids[3]);
         Assert.DoesNotContain(world.Society.Inhabitants, person => person.Id == ids[3]);
@@ -61,6 +98,8 @@ public sealed class FounderSetupTests
         var replacement = "founder:" + Guid.NewGuid().ToString("N");
         Assert.Equal("household:camp-beta", restored.PlaceFounder(replacement, positions[3]));
         Assert.Equal(2, restored.Society.GetHousehold("household:camp-beta").MemberIds.Count);
+        // The fourth place keeps its seeded age whoever fills it.
+        Assert.Equal(fourthAge, restored.Society.AgeAt(restored.Society.GetInhabitant(replacement), 0));
         restored.StartWorld();
         Assert.Throws<InvalidOperationException>(() => restored.UndoLastFounder(replacement));
 
@@ -71,6 +110,65 @@ public sealed class FounderSetupTests
         Assert.Empty(world.Towns.Single().ResidentIds);
         Assert.Empty(world.Society.GetHousehold("household:camp-alpha").MemberIds);
         Assert.Empty(world.Society.GetHousehold("household:camp-beta").MemberIds);
+    }
+
+    [Fact]
+    public async Task FoundersAndAddedAdultsArriveAtSeededAgesThatProfilesAndSavesKeep()
+    {
+        var positions = new[] { new GridPoint(0, 0), new GridPoint(1, 2), new GridPoint(2, 2), new GridPoint(3, 2) };
+        using var world = new PrivateWorldRuntime("seeded-founder-ages", startPace: WorldStartPace.FounderSetup);
+        using var sameSeed = new PrivateWorldRuntime("seeded-founder-ages", startPace: WorldStartPace.FounderSetup);
+        foreach (var position in positions)
+        {
+            world.PlaceFounder("founder:" + Guid.NewGuid().ToString("N"), position);
+            sameSeed.PlaceFounder("founder:" + Guid.NewGuid().ToString("N"), position);
+        }
+        static int[] Ages(PrivateWorldRuntime runtime, IEnumerable<string> ids) => ids
+            .Select(id => runtime.Society.AgeAt(runtime.Society.GetInhabitant(id), runtime.WorldTick)).ToArray();
+        static GridPoint FreeTownTile(PrivateWorldRuntime runtime)
+        {
+            var map = runtime.ExportState().Map;
+            return map.Tiles.Select(tile => tile.Position).First(point =>
+                map.IsBuildable(point) &&
+                runtime.Towns.Single().BorderTiles.Contains(point) &&
+                !map.CampObjects.Any(item => item.Position == point) &&
+                !map.Resources.Any(item => item.Position == point) &&
+                !runtime.Inhabitants.Any(item => item.Position == point));
+        }
+
+        var founderIds = world.FounderSetup!.FounderIds;
+        var founderAges = Ages(world, founderIds);
+        Assert.All(founderAges, age => Assert.InRange(age, 15, 25));
+        Assert.Equal(founderAges.Length, founderAges.Distinct().Count());
+        Assert.Equal(founderAges, Ages(sameSeed, sameSeed.FounderSetup!.FounderIds));
+
+        world.StartWorld();
+        sameSeed.StartWorld();
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        var agentId = "agent:" + Guid.NewGuid().ToString("N");
+        world.AddAgent(agentId, FreeTownTile(world));
+        var addedAge = Ages(world, [agentId]).Single();
+        Assert.InRange(addedAge, 15, 25);
+        var sameSeedAgentId = "agent:" + Guid.NewGuid().ToString("N");
+        sameSeed.AddAgent(sameSeedAgentId, FreeTownTile(sameSeed));
+        Assert.Equal(addedAge, Ages(sameSeed, [sameSeedAgentId]).Single());
+
+        // Profiles read "Adult · N days" from these factors.
+        string[] ids = [.. founderIds, agentId];
+        int[] ages = [.. founderAges, addedAge];
+        var snapshot = new OwnerWorldObservationStore(world).GetSnapshot();
+        foreach (var (id, age) in ids.Zip(ages))
+        {
+            var factors = snapshot.Inhabitants.Single(person => person.Id == id).DecisionFactors;
+            Assert.Equal("adult", factors.Single(factor => factor.Key == "age-band").Detail);
+            Assert.Equal(age.ToString(CultureInfo.InvariantCulture),
+                factors.Single(factor => factor.Key == "age-days").Detail);
+        }
+
+        var saved = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved));
+        Assert.Equal(ages, Ages(restored, ids));
+        Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
     }
 
     [Fact]
@@ -117,17 +215,25 @@ public sealed class FounderSetupTests
                 },
             },
         };
-        using var stocked = PrivateWorldRuntime.Restore(state);
+        // Keep the adult without a household while exercising personal production.
+        // Household admission is a separate autonomous choice.
+        using var stocked = PrivateWorldRuntime.Restore(state, _ => new CandidateCaptureProvider());
+        Assert.Null(stocked.Society.GetInhabitant(agentId).HouseholdId);
         var started = stocked.StartProduction(tools.CanonicalId, "town-workshop", agentId);
         Assert.True(started.Applied, started.Failure);
+        Assert.Equal(agentId, stocked.WorldSimulation.ProductionJobs.Single(job => job.JobId == started.JobId).OwnerId);
+        var saved = PrivateWorldRuntimeCodec.Encode(stocked.ExportState());
+        using var reloaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved));
+        Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
         for (var tick = 0; tick < tools.DurationTicks; tick++)
-            Assert.True((await stocked.AdvanceOneTickAsync()).Advanced);
-        var output = stocked.Society.Inventory.Lots.Single(lot => lot.Id == started.JobId + ":output:00");
+            Assert.True((await reloaded.AdvanceOneTickAsync()).Advanced);
+        Assert.NotNull(reloaded.Society.GetInhabitant(agentId).HouseholdId);
+        var output = reloaded.Society.Inventory.Lots.Single(lot => lot.Id == started.JobId + ":output:00");
         Assert.Equal(agentId, output.OwnerId);
     }
 
     [Fact]
-    public async Task AddedAdultOnRecordedHouseholdPropertyJoinsThatHouseholdAndEnclosingTown()
+    public async Task AddedAdultOnRecordedHouseholdPropertyJoinsOwnerAndRefusesStaleTownOnlyPreview()
     {
         using var world = new PrivateWorldRuntime("new-agent-house-property", startPace: WorldStartPace.FounderSetup);
         foreach (var position in new[]
@@ -142,40 +248,79 @@ public sealed class FounderSetupTests
 
         var state = world.ExportState();
         var house = world.WorldContent.Buildings.Single(building => building.LocalId == "house-1x1");
+        var town = world.Towns.Single();
+        var occupiedBuildingTiles = state.WorldSimulation!.Buildings.SelectMany(building =>
+            WorldContentSimulationRules.Footprint(world.WorldContent.Buildings.Single(definition =>
+                definition.CanonicalId == building.DefinitionId), building)).ToHashSet();
         var site = state.Map.Tiles.Select(tile => tile.Position).First(point =>
             state.Map.IsBuildable(point) &&
-            TownBorderRules.IsWithinOrAdjacent(world.Towns.Single(), point, house.Width, house.Height) &&
+            town.BorderTiles.Contains(point) &&
+            TownBorderRules.IsWithinOrAdjacent(town, point, house.Width, house.Height) &&
             !state.Map.CampObjects.Any(item => item.Position == point) &&
             !state.Map.Resources.Any(item => item.Position == point) &&
-            !state.Inhabitants.Any(person => person.Position == point));
+            !state.Inhabitants.Any(person => person.Position == point) &&
+            !occupiedBuildingTiles.Contains(point));
+        var agentId = "agent:" + Guid.NewGuid().ToString("N");
+        var townId = town.Id;
+        world.ValidateAgentPlacement(agentId, site, expectedHouseholdId: null, expectedTownId: townId);
         var placed = world.PlaceBuilding("starter-house-alpha", house.CanonicalId, site, "household:camp-alpha");
         Assert.True(placed.Applied, placed.Failure);
 
-        var agentId = "agent:" + Guid.NewGuid().ToString("N");
         var householdCount = world.Society.Households.Count;
-        Assert.Equal("household:camp-alpha", world.AddAgent(agentId, site));
+        Assert.Throws<AgentPlacementChangedException>(() =>
+        {
+            _ = world.AddAgent(agentId, site, expectedHouseholdId: null, expectedTownId: townId);
+        });
+        Assert.DoesNotContain(agentId, world.Inhabitants.Select(person => person.InhabitantId));
+        Assert.DoesNotContain(agentId, world.Towns.Single().ResidentIds);
+        Assert.Equal(householdCount, world.Society.Households.Count);
+        world.ValidateAgentPlacement(agentId, site, "household:camp-alpha", townId);
+        Assert.Equal("household:camp-alpha", world.AddAgent(agentId, site, "household:camp-alpha", townId));
+        Assert.Empty(world.Inhabitants.Single(person => person.InhabitantId == agentId).Skills ?? []);
         Assert.Equal(householdCount, world.Society.Households.Count);
         Assert.Contains(agentId, world.Society.GetHousehold("household:camp-alpha").MemberIds);
         Assert.Contains(agentId, world.Towns.Single().ResidentIds);
+
+        var capacity = HouseResidentCapacityRules.Calculate(
+            world.Society.Inhabitants.Where(person => person.HouseholdId == "household:camp-alpha"), 1, 1);
+        var addedForCapacity = new List<string>();
+        while (capacity.HasFreePlace)
+        {
+            var fillerId = "agent:" + Guid.NewGuid().ToString("N");
+            Assert.Equal("household:camp-alpha", world.AddAgent(fillerId, site));
+            addedForCapacity.Add(fillerId);
+            capacity = HouseResidentCapacityRules.Calculate(
+                world.Society.Inhabitants.Where(person => person.HouseholdId == "household:camp-alpha"), 1, 1);
+        }
+        Assert.Equal(capacity.Limit, capacity.ResidentCount);
         var secondAgentId = "agent:" + Guid.NewGuid().ToString("N");
-        Assert.Equal("household:camp-alpha", world.AddAgent(secondAgentId, site));
-        Assert.Equal(householdCount, world.Society.Households.Count);
-        Assert.Equal(site, world.Inhabitants.Single(item => item.InhabitantId == secondAgentId).Position);
+        Assert.Throws<InvalidOperationException>(() => world.AddAgent(secondAgentId, site));
+        Assert.DoesNotContain(secondAgentId, world.Inhabitants.Select(person => person.InhabitantId));
+        Assert.DoesNotContain(secondAgentId, world.Society.GetHousehold("household:camp-alpha").MemberIds);
 
         using var restored = PrivateWorldRuntime.Restore(
             PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState())));
         Assert.Equal("household:camp-alpha", restored.Society.GetInhabitant(agentId).HouseholdId);
-        Assert.Equal("household:camp-alpha", restored.Society.GetInhabitant(secondAgentId).HouseholdId);
+        Assert.All(addedForCapacity, id => Assert.Equal("household:camp-alpha", restored.Society.GetInhabitant(id).HouseholdId));
         Assert.Contains(agentId, restored.Towns.Single().ResidentIds);
-        Assert.Contains(secondAgentId, restored.Towns.Single().ResidentIds);
 
+        // The household holds a House, so with stone in hand it is offered the
+        // productive buildings it lacks, and never a second House.
         var capture = new CandidateCaptureProvider();
         var proposed = world.ExportState();
         proposed = proposed with
         {
             Inhabitants = proposed.Inhabitants.Select(person => person.InhabitantId == agentId
-                ? person with { Aspiration = "build a home", HungerBasisPoints = 9_000 }
+                ? person with { HungerBasisPoints = 9_000 }
                 : person).ToArray(),
+            Society = proposed.Society with
+            {
+                Society = proposed.Society.Society with
+                {
+                    Inventory = InventoryFixture.AddLot(proposed.Society.Society.Inventory, "alpha-stone", "stone",
+                        "household:camp-alpha", 4, storageBuildingId: "starter-house-alpha"),
+                },
+            },
         };
         using var observing = PrivateWorldRuntime.Restore(proposed,
             id => id == agentId ? capture : new CandidateCaptureProvider());
@@ -255,9 +400,10 @@ public sealed class FounderSetupTests
             Assert.Equal(position, resumedSetup.Inhabitants.Single(item => item.InhabitantId == agentId).Position);
             Assert.True((await resumedSetup.AdvanceOneTickAsync()).Advanced);
             var positionAfterTick = resumedSetup.Inhabitants.Single(item => item.InhabitantId == agentId).Position;
+            var householdAfterTick = resumedSetup.Society.GetInhabitant(agentId).HouseholdId;
             file.Save(resumedSetup);
             using var reloaded = file.LoadOrCreate("new-camp");
-            Assert.Null(reloaded.Society.GetInhabitant(agentId).HouseholdId);
+            Assert.Equal(householdAfterTick, reloaded.Society.GetInhabitant(agentId).HouseholdId);
             Assert.Equal(independentHouseholdId, reloaded.Society.GetInhabitant(independentId).HouseholdId);
             Assert.Equal("Nova", reloaded.Society.GetInhabitant(agentId).Name);
             Assert.Equal(positionAfterTick, reloaded.Inhabitants.Single(item => item.InhabitantId == agentId).Position);

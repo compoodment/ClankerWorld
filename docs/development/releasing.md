@@ -2,7 +2,7 @@
 title: Releasing
 type: release-policy
 status: active
-updated: 2026-09-30
+updated: 2026-10-03
 ---
 
 # Releasing
@@ -23,7 +23,33 @@ already identify exact builds.
 The current .NET version metadata comes from
 [`Directory.Build.props`](../../Directory.Build.props), not a second hand-maintained
 constant. See the [build reference](build-and-test.md) for the selected toolchain.
-A tagged release must report both its game version and source revision.
+Untagged development builds use `0.1.0-dev`; they do not claim an alpha release.
+The SDK includes the checked-out source revision in the assembly's informational
+version. Settings and Developer tools show that version with seven commit
+characters, and the tooltip gives the full commit. The host's `/api/v1/status`
+reply reports its own `build`, `version` and full `sourceRevision`, without world
+or device state. A tagged release must report both its game version and source
+revision.
+
+## Matching client and host builds
+
+For an owner-authorized private-server update, follow the
+[deployment checklist](private-server-deployment.md). It covers staging,
+paused backups, accounting, credentials and rollback; a private update does
+not require a public release or tag.
+
+When an action's signed format changes, ship or deploy the matching host before
+distributing the client. A bundled local host and client must come from the
+same verified source revision. Record both revisions for a private deployment;
+a successful reconnect alone does not prove that New World or another changed
+action is compatible.
+
+Before distribution, use an approved test device and a disposable world to
+preview and create with the accepted Advanced settings at the real signed HTTP
+boundary. Verify an older host produces the update explanation, preserves the
+pairing and cannot receive a downgraded action. The New World client now requires
+the host's authenticated v2 action advertisement, including on hosts that
+already verified v2 before they advertised it. See [Device pairing](device-pairing.md#client-and-host-updates).
 
 ## Save and content compatibility
 
@@ -45,27 +71,59 @@ notes remain in Git history rather than a growing checklist here.
 
 [Saves and replay](saves-and-replay.md) owns backup requirements, matching
 application/save rollback and the explicitly approved pre-release identifier
-reset. Do not use that one exception as permission to discard later saves.
+reset. That exception never permits deleting saves. During alpha an older save
+may stop loading, but it is refused with a reason and kept.
 
 ## Release gate
 
 Prepare a release when the owner requests it; do not tag every merged change.
 Before publishing:
 
-1. Choose the version, update runtime/package metadata and move relevant
-   `CHANGELOG.md` entries into a dated release section, leaving `Unreleased`.
-2. Run the applicable build, test, Godot-export and Windows playtest gates.
-   Check a real player path, not only isolated simulation fixtures.
+1. Choose the version and update runtime/package metadata. Run
+   `bash scripts/collect-changes.sh` to move the entries waiting in `changes/`
+   into `CHANGELOG.md`; the script requires full Git history. Rename
+   `## Unreleased` to the dated release heading and add a new empty
+   `## Unreleased` above it. Keep each release as one flat list without
+   categories.
+2. Run the applicable build, test and Godot-export gates. The owner also runs
+   the [Windows release smoke check](#windows-release-smoke-check) below.
+   List every remaining file in `playtest/`, except its README, in the release
+   notes as "not yet checked by hand".
 3. If compatibility changed, verify replay and rollback from a matching backup.
    Also verify migration and old-save handling when the release promises that
    older saves load.
-4. Merge the release changes through the [contribution review process](../../CONTRIBUTING.md#review-and-merge),
-   then fetch and verify the intended commit on GitHub's `origin/main`.
-5. Create and push the annotated tag, then verify that GitHub resolves it to
-   the intended commit. Publish a GitHub release when there is a distributable
-   artifact or useful release note.
+4. After merging main into the release branch for the last time, run
+   `bash scripts/collect-changes.sh` again. Move every newly collected bullet
+   from `Unreleased` to the start of the dated release section, leaving
+   `Unreleased` empty. Merge the release changes through the
+   [contribution review process](../../CONTRIBUTING.md#review-and-merge).
+5. The session that prepared the release fetches main and verifies the reviewed
+   release PR's squash commit on GitHub's `origin/main`. Confirm its required
+   checks passed and that `git ls-tree --name-only <commit> changes/` lists
+   only `changes/README.md`. If it still has entries, collect them through a
+   reviewed follow-up before tagging; do not tag an uncollected commit.
+6. That preparing session creates and pushes the annotated tag for the verified
+   release commit, then verifies that GitHub resolves it to that commit.
+   Never move or delete a pushed tag. Publish a GitHub release when there is a
+   distributable artifact or useful release note.
 
-Update `CHANGELOG.md` under `Unreleased` in the same commit as player-visible
+### Windows release smoke check
+
+Before each release, the owner checks the actual Windows bundle on an approved
+test device and disposable world:
+
+- Start the game.
+- Pair with the matching host.
+- Create a New World.
+- Load a saved World.
+- Save, then quit.
+
+Record the build and each result. A failed check gets a Bug issue and blocks
+the release unless the owner explicitly accepts it. This short release check
+does not claim that the remaining `playtest/` checks were performed.
+
+Add a changelog entry in `changes/` in the same commit as player-visible
 gameplay/UI, world-runtime, save-compatibility, deployment, packaging or
-security changes. Documentation-only and test-only edits need no changelog
-entry unless they alter an explicit supported promise.
+security changes; see [the contribution rules](../../CONTRIBUTING.md#keep-documentation-and-the-changelog-useful).
+Documentation-only and test-only edits need no changelog entry unless they
+alter an explicit supported promise.

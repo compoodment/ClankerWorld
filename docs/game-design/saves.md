@@ -2,7 +2,7 @@
 title: Saving and recovery
 type: game-design
 status: active
-updated: 2026-09-29
+updated: 2026-10-01
 ---
 
 # Saving and recovery
@@ -55,6 +55,27 @@ everything that is available in the current build. See [what works today](../wha
   provider credentials and graphical/device settings are global. The global
   library reads the latest save for each world rather than silently merging
   their creations.
+- **Save branches, agreed on October 1
+  ([#647](https://github.com/compoodment/ClankerWorld/issues/647)):** loading
+  an older save and playing on starts a **new branch** of that world instead
+  of rewinding the original. Every save belongs to one branch, and the saves
+  made after the loaded point stay in their original branch, unchanged.
+  Load World shows each world's branches, so the player can tell which saves
+  belong to which version of events, and each branch has its own latest save.
+  For example, loading **Before the flood** after saving **Big harvest** keeps
+  **Big harvest** in the first branch; **Hungry winter**, saved after playing
+  on, belongs to the new one. Load Save and Save World draw a world's
+  branches as a timeline; [Interface and art](interface-and-art.md) records
+  its look.
+
+**Agreed development playtest policy:** computment does not require old
+playtest worlds to remain loadable as the New World flow and save format change;
+they expect to create fresh worlds to test new features. No migration code is
+written only to keep an alpha save loading. An alpha build opens private-world
+saves only when they use its current checkpoint schema; an older schema is
+refused with a reason and its file is kept unchanged. This is not permission to
+delete or overwrite a save. Finished stable releases follow the migration rule
+above.
 
 ### Explicit deletion
 
@@ -71,17 +92,11 @@ still needs measurement and a choice; age alone must not trigger deletion.
 
 ### Still to decide
 
-Whether manual saves are checkpoints or divergent branches; restore/rewind
-behavior; disk-space warnings and the opt-in recovery-history budget; exactly
+How branches are named and how autosave rotation treats them; which branch
+the Mod Library's global view reads; disk-space warnings and the opt-in recovery-history budget; exactly
 when autosave occurs relative to model/conversation work; crash-recovery
 guarantees; and compatibility outside the preceding supported stable format
 or across changed mod requirements.
-
-**Agreed development playtest policy:** computment does not require old
-playtest worlds to remain loadable as the New World flow and save format change;
-they expect to create fresh worlds to test new features. This is not permission
-to delete or overwrite an active save and does not settle finished-release
-compatibility policy.
 
 ## Questions linking these systems
 

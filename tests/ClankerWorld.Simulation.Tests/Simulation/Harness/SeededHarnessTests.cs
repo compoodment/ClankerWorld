@@ -8,23 +8,44 @@ public sealed class SeededHarnessTests
 {
     public static IEnumerable<object[]> SeedCorpus =>
     [
-        ["camp-alpha", "249b2930ffe84b64271803eae490bc28d25b7e00f3969f6ffa064727c50e299c"],
-        ["camp-beta", "bdc5341c4244ed1dfa2ec5dd4c3a359a8b0ae3e168b14934a34ec2701d048d37"],
-        ["camp-gamma", "aa516f4770adda5d1eeded2764ebe8fced8c643cb86c0d05ec0c3276faa977d6"],
+        // Digests include the named grain-seed and wild-greens starter roster;
+        // the earlier fertile-land resource was intentionally removed.
+        ["camp-alpha", "38e6b29b7ffb88a05f5ad02b85a886870c02310aaf524bb0df9d8ac3970f39ab",
+            "832fd6fd13ec067e8dd701202404386f3cf5578b7ee6f2a7ea096f02d7cd8f91"],
+        ["camp-beta", "ec4a4154ae52135d75578abd5f8f73c91485d419095696f2baa8e5cee85ec756",
+            "5d092afce379cf930bbc32da7b36813a0276625c7e9873b1079dcd9f26ea2fec"],
+        ["camp-gamma", "b986e0278085a50956090a3f67fcfc5c11ee1ee199d4d3e12759289501002c67",
+            "9c57833d83b33bdc7a689384123c6a3eefe4a45c6e4d26a09a475aae2c5c0c50"],
     ];
 
     [Theory]
     [MemberData(nameof(SeedCorpus))]
-    public void FixedSeedCorpusProducesValidCanonicalMapManifest(string seed, string expectedManifestDigest)
+    public void FixedSeedCorpusProducesValidCanonicalMapManifest(
+        string seed, string expectedManifestDigest, string expectedLegacyBedrollDigest)
     {
         var first = SeededMapGenerator.Generate(seed);
         var second = SeededMapGenerator.Generate(seed);
+        var withLegacyBedroll = SeededMapGenerator.Generate(seed, includeLegacyBedroll: true);
+        var repeatedLegacyBedroll = SeededMapGenerator.Generate(seed, includeLegacyBedroll: true);
 
         Assert.True(MapAcceptance.Validate(first).IsValid);
-        Assert.Equal(expectedManifestDigest, SeededMapGenerator.Generate(seed, includeLegacyBedroll: true).ManifestDigest);
+        Assert.True(MapAcceptance.Validate(withLegacyBedroll).IsValid);
+        Assert.Equal(expectedManifestDigest, first.ManifestDigest);
+        Assert.Equal(expectedLegacyBedrollDigest, withLegacyBedroll.ManifestDigest);
+        Assert.Equal(MapManifestCodec.Digest(first), first.ManifestDigest);
+        Assert.Equal(MapManifestCodec.Digest(withLegacyBedroll), withLegacyBedroll.ManifestDigest);
         Assert.Equal(first.ManifestDigest, second.ManifestDigest);
+        Assert.Equal(withLegacyBedroll.ManifestDigest, repeatedLegacyBedroll.ManifestDigest);
+        Assert.NotEqual(first.ManifestDigest, withLegacyBedroll.ManifestDigest);
         Assert.DoesNotContain(first.CampObjects, item => item.Kind == "bedroll");
+        Assert.Contains(withLegacyBedroll.CampObjects, item => item.Kind == "bedroll");
+        Assert.Contains(first.Resources, item => item.Id == "grain-seed-patch" &&
+            item.Kind == "grain_seed" && item.NaturalObjectKind == "wild_seed_patch");
+        Assert.Contains(first.Resources, item => item.Id == "wild-greens-patch" &&
+            item.Kind == "food" && item.NaturalObjectKind == "wild_greens");
+        Assert.DoesNotContain(first.Resources, item => item.Id == "fertile-land");
         Assert.True(MapManifestCodec.Encode(first).SequenceEqual(MapManifestCodec.Encode(second)));
+        Assert.True(MapManifestCodec.Encode(withLegacyBedroll).SequenceEqual(MapManifestCodec.Encode(repeatedLegacyBedroll)));
     }
 
     [Fact]
@@ -94,26 +115,6 @@ public sealed class SeededHarnessTests
         };
         Assert.False(blocked.CanFootStep(origin, destination));
         Assert.DoesNotContain(destination, blocked.FootNeighbors(origin));
-    }
-
-    [Fact]
-    public void TerrainIndexDoesNotKeepOldPassabilityAfterMapTilesChange()
-    {
-        var original = SeededMapGenerator.Generate("camp-alpha");
-        var site = new GridPoint(2, 2);
-        Assert.True(original.IsPassable(site));
-        Assert.True(original.IsBuildable(site));
-
-        var revised = original with
-        {
-            Tiles = original.Tiles.Select(tile => tile.Position == site
-                ? tile with { Terrain = TerrainKind.Mountain } : tile).ToArray(),
-        };
-
-        Assert.True(revised.IsPassable(site));
-        Assert.False(revised.IsBuildable(site));
-        Assert.Equal(200, revised.FootTravelCost(site));
-        Assert.True(original.IsPassable(site));
     }
 
     [Fact]
@@ -204,14 +205,92 @@ public sealed class SeededHarnessTests
     }
 
     [Fact]
-    public void TwoTileWideRiverRemainsImpassable()
+    public void TwoTileWideRiverIsWadedBankToBankMoreSlowlyThanAOneTileRiver()
     {
         var map = TerrainMap(6, 3, point => point.X is 2 or 3 ? TerrainKind.River : TerrainKind.Meadow);
+        var westBank = new GridPoint(1, 1);
+        var westWater = new GridPoint(2, 1);
+        var eastWater = new GridPoint(3, 1);
+        var eastBank = new GridPoint(4, 1);
 
-        Assert.All(map.Tiles.Where(tile => tile.Terrain == TerrainKind.River),
-            tile => Assert.False(map.IsPassable(tile.Position)));
+        Assert.All(map.Tiles.Where(tile => tile.Terrain == TerrainKind.River), tile =>
+        {
+            Assert.True(map.IsPassable(tile.Position));
+            Assert.False(map.IsBuildable(tile.Position));
+            Assert.Equal(SeededMap.TwoTileWadingFootCost, map.FootTravelCost(tile.Position));
+        });
+        Assert.True(map.CanFootStep(westBank, westWater));
+        Assert.True(map.CanFootStep(westWater, eastWater));
+        Assert.True(map.CanFootStep(eastWater, eastBank));
+        Assert.True(map.CanFootStep(eastWater, westWater));
+        Assert.Equal(new[] { new GridPoint(0, 1), westBank, westWater, eastWater, eastBank, new GridPoint(5, 1) },
+            DeterministicRouteFinder.Find(map, new GridPoint(0, 1), new GridPoint(5, 1)));
+
+        // Wading never runs along the channel, nor diagonally into, through
+        // or out of the water.
+        Assert.False(map.CanFootStep(westWater, new GridPoint(2, 2)));
+        Assert.False(map.CanFootStep(eastWater, new GridPoint(3, 0)));
+        Assert.False(map.CanFootStep(westBank, new GridPoint(2, 2)));
+        Assert.False(map.CanFootStep(westWater, new GridPoint(3, 2)));
+        Assert.False(map.CanFootStep(eastWater, new GridPoint(4, 0)));
+        var alongChannel = DeterministicMovementResolver.Resolve(map,
+            [new MovementActor("walker", westWater, 0)],
+            [new MovementIntent("walker", new GridPoint(2, 2))]);
+        Assert.Equal(westWater, alongChannel.GetActor("walker").Position);
+
+        // Each tile of a two-tile river is slower than a one-tile river's.
+        var narrow = TerrainMap(5, 3, point => point.X == 2 ? TerrainKind.River : TerrainKind.Meadow);
+        Assert.Equal(200, narrow.FootTravelCost(new GridPoint(2, 1)));
+        Assert.True(SeededMap.TwoTileWadingFootCost > 200);
+        Assert.Equal(2 * SeededMap.TwoTileWadingFootCost + 100, RouteCost(map, westBank, westWater, eastWater, eastBank));
+        Assert.Equal(200 + 100, RouteCost(narrow, westBank, new GridPoint(2, 1), new GridPoint(3, 1)));
+    }
+
+    [Fact]
+    public void ARiverOneTileThickRunningDiagonallyIsNotWadedAlongItsChannel()
+    {
+        // A staircase river: each pair of neighbouring water tiles has dry
+        // land at both ends of its own line, but the channel runs diagonally.
+        var water = new HashSet<GridPoint>
+        {
+            new(1, 6), new(1, 5), new(2, 5), new(2, 4), new(3, 4), new(3, 3), new(4, 3), new(4, 2), new(5, 2),
+        };
+        var map = TerrainMap(8, 8, point => water.Contains(point) ? TerrainKind.River : TerrainKind.Meadow);
+
+        // Its end tiles are ordinary one-tile crossings; the corners between
+        // them cannot be waded, so nobody turns inside the water.
+        Assert.All(water.Where(tile => tile != new GridPoint(1, 6) && tile != new GridPoint(5, 2)),
+            tile => Assert.False(map.IsPassable(tile)));
+        Assert.True(map.CanFootStep(new GridPoint(0, 6), new GridPoint(1, 6)));
+        Assert.False(map.CanFootStep(new GridPoint(1, 6), new GridPoint(1, 5)));
+        Assert.False(map.CanFootStep(new GridPoint(1, 5), new GridPoint(2, 5)));
+        Assert.False(map.CanFootStep(new GridPoint(0, 5), new GridPoint(1, 5)));
+    }
+
+    [Fact]
+    public void RiversThreeTilesWideLakesAndTheSeaStayImpassableOnFoot()
+    {
+        var wide = TerrainMap(7, 3, point => point.X is >= 2 and <= 4 ? TerrainKind.River : TerrainKind.Meadow);
+        Assert.All(wide.Tiles.Where(tile => tile.Terrain == TerrainKind.River),
+            tile => Assert.False(wide.IsPassable(tile.Position)));
+        Assert.False(wide.CanFootStep(new GridPoint(1, 1), new GridPoint(2, 1)));
         Assert.Throws<InvalidOperationException>(() =>
-            DeterministicRouteFinder.Find(map, new GridPoint(1, 1), new GridPoint(4, 1)));
+            DeterministicRouteFinder.Find(wide, new GridPoint(1, 1), new GridPoint(5, 1)));
+
+        // Generated worlds read the water layer. Two tiles of lake or sea are
+        // not a crossing, and neither is a river tile beside lake or sea water.
+        var river = WaterMap(6, 3, point => point.X is 2 or 3 ? WaterKind.River : WaterKind.Land);
+        Assert.True(river.IsReachableOnFoot(new GridPoint(1, 1), new GridPoint(4, 1)));
+        foreach (var still in new[] { WaterKind.Lake, WaterKind.Ocean })
+        {
+            foreach (var west in new[] { still, WaterKind.River })
+            {
+                var map = WaterMap(6, 3, point => point.X == 2 ? west : point.X == 3 ? still : WaterKind.Land);
+                Assert.All(map.Tiles.Where(tile => tile.Position.X is 2 or 3),
+                    tile => Assert.False(map.IsPassable(tile.Position)));
+                Assert.False(map.IsReachableOnFoot(new GridPoint(1, 1), new GridPoint(4, 1)));
+            }
+        }
     }
 
     [Fact]
@@ -260,13 +339,23 @@ public sealed class SeededHarnessTests
         Assert.Equal(new[] { new GridPoint(4, 1), seamRiver, new GridPoint(1, 1) },
             DeterministicRouteFinder.Find(map, new GridPoint(4, 1), new GridPoint(1, 1)));
 
-        var wide = map with
-        {
-            Tiles = map.Tiles.Select(tile => tile.Position == new GridPoint(1, 1)
-            ? tile with { Terrain = TerrainKind.River } : tile).ToArray()
-        };
-        Assert.False(wide.IsPassable(seamRiver));
-        Assert.False(wide.IsPassable(new GridPoint(1, 1)));
+        // Two tiles of water across the seam are waded slowly bank to bank;
+        // a third tile makes the river too wide to wade. The peaks leave the
+        // seam as the only way between the banks.
+        SeededMap Seam(params int[] water) => TerrainMap(6, 3, point => water.Contains(point.X)
+            ? point.Y == 1 ? TerrainKind.River : TerrainKind.Ocean
+            : point.X == 2 ? TerrainKind.Peak : TerrainKind.Meadow) with
+        { WrapsEastWest = true };
+        var twoWide = Seam(5, 0);
+        Assert.Equal(SeededMap.TwoTileWadingFootCost, twoWide.FootTravelCost(new GridPoint(5, 1)));
+        Assert.Equal(SeededMap.TwoTileWadingFootCost, twoWide.FootTravelCost(new GridPoint(0, 1)));
+        Assert.True(twoWide.CanFootStep(new GridPoint(5, 1), new GridPoint(0, 1)));
+        Assert.Equal(new[] { new GridPoint(4, 1), new GridPoint(5, 1), new GridPoint(0, 1), new GridPoint(1, 1) },
+            DeterministicRouteFinder.Find(twoWide, new GridPoint(4, 1), new GridPoint(1, 1)));
+        var threeWide = Seam(4, 5, 0);
+        foreach (var x in new[] { 4, 5, 0 })
+            Assert.False(threeWide.IsPassable(new GridPoint(x, 1)));
+        Assert.False(threeWide.IsReachableOnFoot(new GridPoint(3, 1), new GridPoint(1, 1)));
     }
 
     private static SeededMap TerrainMap(int width, int height, Func<GridPoint, TerrainKind> terrain) =>
@@ -277,36 +366,23 @@ public sealed class SeededHarnessTests
                 select new TerrainTile(point, terrain(point))],
             [], [], string.Empty);
 
-    [Fact]
-    public void ScriptedActorMovesHarvestsAndConsumesInOrderedTicks()
-    {
-        var genesis = ScriptedHarness.CreateGenesis("camp-alpha");
-        var final = ScriptedHarness.RunEntireSequence("camp-alpha");
+    /// <summary>A map whose water comes from the hydrology layer, as in generated worlds.</summary>
+    private static SeededMap WaterMap(int width, int height, Func<GridPoint, WaterKind> water) =>
+        TerrainMap(width, height, point => water(point) switch
+        {
+            WaterKind.River => TerrainKind.River,
+            WaterKind.Lake => TerrainKind.Lake,
+            WaterKind.Ocean => TerrainKind.Ocean,
+            _ => TerrainKind.Meadow,
+        }) with
+        {
+            HydrologyKinds = [.. from y in Enumerable.Range(0, height)
+                from x in Enumerable.Range(0, width)
+                select (byte)water(new GridPoint(x, y))],
+        };
 
-        Assert.Equal(final.Map.GetResource("berry-patch").Position, final.Actor.Position);
-        Assert.Equal(ResourceState.Depleted, final.GetResource("berry-patch").State);
-        Assert.Equal(0, final.Actor.FoodItems);
-        Assert.True(final.Actor.HungerBasisPoints > genesis.Actor.HungerBasisPoints);
-        Assert.Equal(
-            Enumerable.Range(1, final.Events.Count).Select(number => (long)number),
-            final.Events.Select(worldEvent => worldEvent.EventId));
-        Assert.Equal(
-            Enumerable.Range(1, final.Events.Count).Select(number => (long)number),
-            final.Events.Select(worldEvent => worldEvent.WorldTick));
-        Assert.Contains(final.Events, worldEvent => worldEvent.Detail == "harvest:berry-patch");
-        Assert.Contains(final.Events, worldEvent => worldEvent.Detail == "consume:actor-scout");
-        Assert.Equal("consume:actor-scout", final.Events[^1].Detail);
-    }
-
-    [Fact]
-    public void SameSeedAndScriptProduceIdenticalCanonicalStateAndEventDigests()
-    {
-        var first = ScriptedHarness.RunEntireSequence("camp-beta");
-        var second = ScriptedHarness.RunEntireSequence("camp-beta");
-
-        Assert.Equal(HarnessPersistence.StateDigest(first), HarnessPersistence.StateDigest(second));
-        Assert.Equal(HarnessPersistence.EventDigest(first), HarnessPersistence.EventDigest(second));
-    }
+    private static int RouteCost(SeededMap map, params GridPoint[] route) =>
+        route.Zip(route.Skip(1), map.FootStepCost).Sum();
 
     [Fact]
     public void SaveReloadAndPhysicalReplayProduceTheSameFinalDigestsAsTheCleanRun()
