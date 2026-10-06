@@ -2,7 +2,7 @@
 title: Playing the current game
 type: player-guide
 status: active
-updated: 2026-10-04
+updated: 2026-10-06
 ---
 
 # Playing the current game
@@ -143,6 +143,10 @@ Town land title, household land use and disputed land. Each one says what it
 draws, and all start off. Town borders show as a pale dashed line. While you
 place a founder or an added agent, the map shows all of them without turning
 Filters on.
+
+Hover or select an agent to show their given name below their figure. Names
+keep accented letters, flags and joined emoji together; longer given names
+use an initial.
 
 Click an agent to open a small card beside them: what they are doing and bars
 for fullness, warmth and illness. **Profile** opens everything else on the left
