@@ -5,6 +5,80 @@ namespace ClankerWorld.GodotClient;
 
 public partial class Main
 {
+    /// <summary>Refreshing the roster preserves browsing position; changing the selection still reveals its card.</summary>
+    private async Task VerifyRosterRefreshScrollAsync()
+    {
+        var original = renderedMapSnapshot ?? throw new InvalidOperationException("Roster checks need a rendered world.");
+        var originalSelection = selectedInhabitantId;
+        var wasVisible = rosterPanel.Visible;
+        var people = Enumerable.Range(0, 30).Select(index =>
+            PanelSmokeAgent($"roster-scroll-{index}", $"Agent {index:D2}", new OwnerWorldPosition(1, 1))).ToArray();
+        var snapshot = original with { Inhabitants = people };
+        async Task LayoutAsync()
+        {
+            for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        }
+        async Task RefreshWithoutMovingAsync(OwnerWorldSnapshot refresh, string reason)
+        {
+            RenderInhabitantList(refresh);
+            await LayoutAsync();
+            if (Math.Abs(rosterCards.ScrollVertical - 500) > 1)
+                throw new InvalidOperationException($"{reason} must preserve roster browsing position: expected 500, got {rosterCards.ScrollVertical}.");
+        }
+        try
+        {
+            rosterPanel.Show();
+            selectedInhabitantId = people[0].Id;
+            RenderInhabitantList(snapshot);
+            await LayoutAsync();
+            rosterCards.ScrollVertical = 500;
+            await LayoutAsync();
+            if (rosterCards.ScrollVertical != 500)
+                throw new InvalidOperationException("The roster scroll check needs enough visible cards to browse lower rows.");
+            await RefreshWithoutMovingAsync(snapshot, "An identical snapshot refresh");
+            await RefreshWithoutMovingAsync(snapshot, "A repeated snapshot refresh");
+
+            var newcomer = PanelSmokeAgent("roster-scroll-newcomer", "A new arrival", new OwnerWorldPosition(1, 1));
+            snapshot = snapshot with { Inhabitants = [newcomer, .. people] };
+            await RefreshWithoutMovingAsync(snapshot, "Adding an agent above the selection");
+            snapshot = snapshot with
+            {
+                Inhabitants = snapshot.Inhabitants.Select(person => person.Id == people[0].Id
+                    ? person with { DisplayName = "Zed" } : person).Reverse().ToArray(),
+            };
+            await RefreshWithoutMovingAsync(snapshot, "Sorting a renamed selected agent to the bottom");
+            if (rosterCardIds[rosterCards.GetSelectedItems().Single()] != people[0].Id)
+                throw new InvalidOperationException("Sorting must preserve the selected agent's identity.");
+            snapshot = snapshot with { Inhabitants = snapshot.Inhabitants.Where(person => person.Id != people[1].Id).ToArray() };
+            await RefreshWithoutMovingAsync(snapshot, "Removing another agent");
+            snapshot = snapshot with
+            {
+                Inhabitants = snapshot.Inhabitants.Select(person => person.Id == people[2].Id
+                    ? person with { IsDraft = true } : person).ToArray(),
+            };
+            await RefreshWithoutMovingAsync(snapshot, "Filtering out a draft agent");
+
+            selectedInhabitantId = people[3].Id;
+            RenderInhabitantList(snapshot);
+            await LayoutAsync();
+            if (rosterCards.ScrollVertical >= 500)
+                throw new InvalidOperationException("Selecting another agent above the viewport must reveal that card.");
+            rosterCards.ScrollVertical = 500;
+            await LayoutAsync();
+            snapshot = snapshot with { Inhabitants = snapshot.Inhabitants.Where(person => person.Id != people[3].Id).ToArray() };
+            await RefreshWithoutMovingAsync(snapshot, "Removing the selected agent");
+            if (selectedInhabitantId is not null || rosterCards.GetSelectedItems().Length != 0)
+                throw new InvalidOperationException("Removing the selected agent must clear the selection.");
+            await RefreshWithoutMovingAsync(snapshot, "Refreshing without a selection");
+        }
+        finally
+        {
+            selectedInhabitantId = originalSelection;
+            RenderInhabitantList(original);
+            rosterPanel.Visible = wasVisible;
+        }
+    }
+
     /// <summary>Every label on one Agents list card, joined, for checks.</summary>
     private string RosterCardText(int index)
     {
