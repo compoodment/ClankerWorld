@@ -25,6 +25,7 @@ public sealed partial class TownMembershipTests
         var buildings = state.WorldSimulation!.Buildings.ToArray();
         var stock = state.Society.Society.Inventory.Lots.ToArray();
         var rights = state.HouseholdLandUseRights;
+        var titles = state.TownLandTitles;
         using var world = Reopen(state, model);
         await AdvanceUntil(world, () => world.Towns.Single(town => town.Id == Second).ResidentIds.Contains(caregiver), 12);
 
@@ -40,6 +41,7 @@ public sealed partial class TownMembershipTests
         Assert.Equal(JsonSerializer.Serialize(original.Government!.Laws), JsonSerializer.Serialize(revived.Government!.Laws));
         Assert.Equal(JsonSerializer.Serialize(buildings), JsonSerializer.Serialize(world.WorldSimulation.Buildings));
         Assert.Equal(JsonSerializer.Serialize(rights), JsonSerializer.Serialize(world.ExportState().HouseholdLandUseRights));
+        Assert.Equal(JsonSerializer.Serialize(titles), JsonSerializer.Serialize(world.ExportState().TownLandTitles));
         Assert.Equal(stock.Select(lot => (lot.Id, lot.OwnerId, lot.Quantity, lot.StorageBuildingId)),
             world.Society.Inventory.Lots.Select(lot => (lot.Id, lot.OwnerId, lot.Quantity, lot.StorageBuildingId)));
         foreach (var child in children)
@@ -127,6 +129,16 @@ public sealed partial class TownMembershipTests
         Assert.Single(restored.ExportState().Events, item => item.Kind == "town_stock_salvaged");
         Assert.Equal(7, restored.Society.Inventory.Lots.Where(lot => lot.ItemKind == "wood" &&
             (lot.OwnerId == Second || lot.OwnerId == actor)).Sum(lot => lot.Quantity));
+        var settling = new ScriptedModel();
+        settling.Scripts[Founders[1]] = [Civic(Second, "resettle")];
+        settling.Scripts[Founders[2]] = ["town_salvage:"];
+        using var revived = Reopen(Calm(At(restored.ExportState(), ground, Founders[1], Founders[2])), settling);
+        await AdvanceUntil(revived, () => !revived.Towns.Single(town => town.Id == Second).IsAbandoned, 8);
+        Assert.Equal((actor, 3), (revived.Society.Inventory.GetLot(carried.Id).OwnerId, revived.Society.Inventory.GetLot(carried.Id).Quantity));
+        Assert.Equal((Second, 4), (revived.Society.Inventory.GetLot("abandoned-wood").OwnerId,
+            revived.Society.Inventory.GetLot("abandoned-wood").Quantity));
+        Assert.Single(revived.ExportState().Events, item => item.Kind == "town_stock_salvaged");
+        AssertRoundTrip(revived);
     }
 
     [Fact]
@@ -278,7 +290,11 @@ public sealed partial class TownMembershipTests
         var actor = Founders[0];
         var state = WithTowns(Generated("town-warehouse-salvage"), [], Founders);
         var warehouse = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == "first-town-warehouse");
-        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "warehouse-salvage", "cloth", First, 3,
+        var inventory = state.Society.Society.Inventory with
+        {
+            Lots = state.Society.Society.Inventory.Lots.Where(lot => lot.OwnerId != First).ToArray(),
+        };
+        inventory = InventoryFixture.AddLot(inventory, "warehouse-salvage", "cloth", First, 3,
             storageBuildingId: warehouse.InstanceId);
         inventory = InventoryFixture.AddLot(inventory, "private-stored-cloth", "cloth", Alpha, 2,
             storageBuildingId: "first-town-house-a");
@@ -342,9 +358,13 @@ public sealed partial class TownMembershipTests
         var actor = Founders[0];
         var state = WithAbandonedLaw(WithTowns(ShortDays(Generated("town-resettled-law"), 30), [actor], []));
         var model = new ScriptedModel();
-        model.Scripts[actor] = [Civic(Second, "resettle"), Civic(Second, "read"), Civic(Second, "repeal"), Civic(Second, "yes")];
+        model.Scripts[actor] = [Civic(Second, "resettle"), Civic(Second, "read"), Civic(Second, "yes"), Civic(Second, "repeal")];
         using var world = Reopen(Calm(At(state, Board(state, Second), actor)), model);
-        await AdvanceUntil(world, () => world.Towns.Single(town => town.Id == Second).Government!.Laws[0].Versions[^1].EndedTick is not null, 45);
+        await AdvanceUntil(world, () => world.Towns.Single(town => town.Id == Second).Governance!.Proposals.Any(proposal => proposal.AuthorId == actor), 8);
+        // A new owner suggestion opens another personal turn; proposing never casts an automatic vote.
+        world.SubmitInstruction(new("consider-repeal-vote", "owner:test", actor, OwnerInstructionKind.Suggestive,
+            "Consider your vote on the repeal you proposed."));
+        await AdvanceUntil(world, () => world.Towns.Single(town => town.Id == Second).Government!.Laws[0].Versions[^1].EndedTick is not null, 12);
         var town = world.Towns.Single(item => item.Id == Second);
         var law = Assert.Single(town.Government!.Laws);
         Assert.Equal("Grove", law.Versions[0].Subject);
@@ -354,6 +374,92 @@ public sealed partial class TownMembershipTests
         Assert.Equal([actor], repeal.Voters);
         Assert.Equal([actor], town.Governance.Members);
         Assert.Empty(town.Government.Offices);
+        AssertRoundTrip(world);
+    }
+
+    [Fact]
+    public async Task RepeatedResettlementRevivesTheSameTownRecordsAndRecordsEachRealRosterTransitionOnce()
+    {
+        var actor = Founders[0];
+        var state = WithTowns(Generated("town-repeated-revival"), [actor], []);
+        var original = state.Towns!.Select(town => (town.Id, town.Name, town.BorderTiles)).ToArray();
+        foreach (var destination in new[] { Second, First, Second })
+        {
+            var model = new ScriptedModel();
+            model.Scripts[actor] = [Civic(destination, "resettle")];
+            using var world = Reopen(Calm(At(state, Board(state, destination), actor)), model);
+            await AdvanceUntil(world, () => world.Towns.Single(town => town.Id == destination).ResidentIds.Contains(actor), 8);
+            Assert.Equal([actor], world.Towns.Single(town => town.Id == destination).Governance!.Members);
+            Assert.Empty(world.Towns.Single(town => town.Id != destination).ResidentIds);
+            AssertRoundTrip(world);
+            state = world.ExportState();
+        }
+        Assert.Equal(2, state.Towns!.Count);
+        foreach (var (id, name, border) in original)
+        {
+            Assert.Equal(name, Town(state, id).Name);
+            Assert.Equal(border, Town(state, id).BorderTiles);
+        }
+        foreach (var kind in new[] { "town_resettled", "town_revived", "town_abandoned" })
+            Assert.Equal(3, state.Events.Count(item => item.Kind == kind));
+    }
+
+    [Fact]
+    public async Task TwoAdultsChoosingTheFirstResidentExceptionProduceOnlyOneSettlerAndCouncil()
+    {
+        var state = WithTowns(Generated("town-delayed-salvage"), Founders, []);
+        var model = new ScriptedModel();
+        foreach (var actor in Founders[..2]) model.Scripts[actor] = [Civic(Second, "resettle")];
+        using var world = Reopen(Calm(At(state, Board(state, Second), Founders[..2])), model);
+        for (var tick = 0; tick < 4; tick++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        var town = world.Towns.Single(item => item.Id == Second);
+        var settler = Assert.Single(town.ResidentIds);
+        Assert.Contains(settler, Founders[..2]);
+        Assert.Equal([settler], town.Governance!.Members);
+        Assert.Contains(Founders.First(actor => actor != settler), world.Towns.Single(item => item.Id == First).ResidentIds);
+        Assert.Single(world.ExportState().Events, item => item.Kind == "town_resettled");
+        Assert.Single(world.ExportState().Events, item => item.Kind == "town_revived");
+        AssertRoundTrip(world);
+    }
+
+    [Fact]
+    public async Task AnInventedRemoteResettlementChoiceCannotCreateResidence()
+    {
+        var actor = Founders[0];
+        var state = WithTowns(Generated("town-remote-settler"), Founders, []);
+        var model = new ScriptedModel();
+        model.Scripts[actor] = ["!" + Civic(Second, "resettle") + "|"];
+        using var world = Reopen(Calm(At(state, Board(state, First), actor)), model);
+        for (var tick = 0; tick < 3; tick++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal(1, model.InventionsUsed(actor));
+        Assert.True(world.Towns.Single(town => town.Id == Second).IsAbandoned);
+        Assert.Contains(actor, world.Towns.Single(town => town.Id == First).ResidentIds);
+        Assert.DoesNotContain(model.ObservationsOf(actor), observation => observation.Candidates.Any(candidate =>
+            candidate.Id == Civic(Second, "resettle") + "|"));
+        Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "town_resettled");
+        AssertRoundTrip(world);
+    }
+
+    [Fact]
+    public async Task SalvagingAHandcartPreservesItsPhysicalLocationAndCargoUntilSomeonePullsIt()
+    {
+        var actor = Founders[0];
+        var state = WithTowns(Generated("town-cart-salvage"), Founders, []);
+        var position = Board(state, Second);
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "salvage-cart", "handcart", Second, 1,
+            groundPosition: new(position.X, position.Y));
+        inventory = InventoryFixture.AddLot(inventory, "cart-cargo", "wood", Second, 12, containerLotId: "salvage-cart");
+        inventory = InventoryFixture.AddLot(inventory, "full-carrier", "stone", actor, 8);
+        var model = new ScriptedModel();
+        model.Scripts[actor] = ["town_salvage:"];
+        using var world = Reopen(Calm(At(WithInventory(state, inventory), position, actor)), model);
+        await AdvanceUntil(world, () => world.ExportState().Events.Any(item => item.Kind == "town_stock_salvaged"), 8);
+        var cart = world.Society.Inventory.GetLot("salvage-cart");
+        Assert.Equal(actor, cart.OwnerId);
+        Assert.Equal(new InventoryGroundPosition(position.X, position.Y), cart.GroundPosition);
+        Assert.Null(cart.CarrierId);
+        Assert.Equal((actor, 12, cart.Id), (world.Society.Inventory.GetLot("cart-cargo").OwnerId,
+            world.Society.Inventory.GetLot("cart-cargo").Quantity, world.Society.Inventory.GetLot("cart-cargo").ContainerLotId));
         AssertRoundTrip(world);
     }
 

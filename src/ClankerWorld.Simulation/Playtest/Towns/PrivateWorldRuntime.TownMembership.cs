@@ -384,7 +384,7 @@ public static class TownMembershipText
             _ => "sit and vote on its council",
         };
         var text = home is null
-            ? adult ? "Town: none · no council vote; occupied Towns require admission; may explicitly resettle an abandoned Town or salvage its communal stock in person"
+            ? adult ? "Town: none · no council vote; seek admission or resettle an abandoned Town"
                 : "Town: none · follows their primary caregiver's Town"
             : !adult ? person.PrimaryCaregiverId is { } caregiver && home.ResidentIds.Contains(caregiver, StringComparer.Ordinal)
                 ? $"Town: resident of {home.Name} with their primary caregiver · council rights begin at adulthood"
