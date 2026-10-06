@@ -328,7 +328,8 @@ the remaining task. Urgent survival pauses unfinished production.
 
 To start household building work, use **Build a Clinic**, **Build a Silo** or
 another supported household building name: House, Farmhouse, Blacksmith,
-Tailor Shop or Store. Add **at (12, 4)** to require that site. Otherwise the
+Tailor Shop, Store or Restaurant. **Build a Restaurant** starts its 1×2 size
+and costs 8 wood and 2 stone. Add **at (12, 4)** to require that site. Otherwise the
 agent chooses a suitable site under the normal construction rules. The task
 keeps that choice through travel and work. It still needs real materials,
 household access, a legal site and any prerequisite building.
@@ -665,7 +666,9 @@ be cancelled and retried later; the provider may charge for both attempts.
 
 To remove one snapshot, choose it in **Load a save...** or Save World and choose
 **Delete**.
-The confirmation names the snapshot; deletion is permanent and leaves its world
+The confirmation also opens when you manage the current world's saves straight
+after starting the client. It names the snapshot; deletion is permanent and
+leaves its world
 and other saves alone. In Load World, **Delete World** removes that
 world and all its saves. Open or create another world first if the target is
 active. Canceling either confirmation changes nothing. These controls require
