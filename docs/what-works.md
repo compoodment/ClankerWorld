@@ -294,8 +294,8 @@ no renewed household membership or private-stock access.
 
 Food collection uses the same personal-goods rules: "collect food", "collect
 three berries", "collect cultivated greens from (12, 4)", or "keep collecting
-fruit". A named kind selects only berries, fruit, wild greens or cultivated
-greens; plain "food" accepts any ready-to-eat food. These tasks collect existing
+fruit". A named kind selects berries, fruit, wild greens, cultivated greens or
+one of the seven prepared foods; plain "food" accepts any ready-to-eat food. These tasks collect existing
 stored or dropped goods. They do not harvest a food source or eat the pickup.
 Raw grain and potatoes use the goods catalogue below. Quantities,
 source tiles, carrying limits, queues, interruptions and reload work as above.
@@ -383,8 +383,23 @@ to another building when access or materials disappear. Queueing, replacement,
 cancellation and save/reload retain the remaining count. Cancellation releases
 unused reserved ingredients; already finished goods remain. Urgent survival
 pauses the current production job and its remaining work before the order
-resumes. Named meals such as bread and porridge are not part of this order
-catalogue yet.
+resumes.
+
+Named cooking orders cover all shipped House and Restaurant recipes. Simple
+House meals specify potatoes, wild greens or cultivated greens. Other recipes
+name the work site: "cook house bread", "cook restaurant berry porridge" or
+"prepare restaurant meals". The larger Restaurant uses "restaurant 2x2" in
+the recipe name. Every batch makes two servings, so "cook four house bread"
+requires two paid batches; odd serving counts are not understood. Plain
+"cook porridge" is ambiguous and does not replace the current order.
+
+House and Restaurant ingredient supplies use their native demand, cooking
+reserves, carrying and whole-jug rules. Named prepared foods can be collected
+as personal property, returned when borrowed, delivered as spare carried food
+to the House, or stocked in a Store. These actions preserve the existing
+ownership and food reserves. The nonfood personal-storage action still excludes
+loose meals; named-food consumption and wild-food gathering keep their separate
+commands.
 
 Building orders cover one House, Farmhouse, Blacksmith, Tailor Shop, Silo,
 Clinic, Store or Restaurant at its starting size (including the 1×1 Store
@@ -496,7 +511,7 @@ cold still allows protective work. Queues, cancellation, travel and completion
 survive save/reload. Finished progress remains recorded after weather changes,
 fire expiry or removal of the building.
 
-Named meals and weapon repairs remain unfinished catalogue work.
+Weapon-repair orders remain outside the current catalogue.
 
 A recognized new order replaces the active and queued orders unless **Queue**
 is selected. **Cancel task** stops a waiting or active order. An instruction
@@ -804,6 +819,9 @@ not enough; a Council land claim can add title first.
 
 The implemented path lets adult residents who learned the proposal carry
 Town-owned materials from the Warehouse or recover released Town loads.
+Eligible Warehouse users can share its collection tile, and residents can share
+the work tile of their Town's active project. One resident standing there does
+not stop the others from collecting, returning, supplying, donating or building.
 Gathering more materials gives the gatherer personal goods; donating those
 requires a fresh, explicit choice by their personal model at the approved site.
 Built-in choices and owner orders cannot donate private goods, and household
@@ -815,7 +833,13 @@ where they are and retain Town ownership. A pending household land request on
 the site only pauses the project. A site that can no longer be used, for
 example because the request was granted or the site was taken while the vote
 was open, cancels the project instead of holding its land. Its leftover loads
-stay Town property where they are, and a later Town project can use them.
+stay Town property. Adult residents can collect released ground loads and return
+them to a reachable Town Warehouse with room, without waiting for another
+project. Recovery leaves carrying space for food and pauses for urgent food or
+warmth; an urgent carrier sets down released goods before meeting those needs.
+Temporarily blocked paths wait instead of repeatedly dropping and collecting a
+load. Other jobs' reservations and private goods are left alone; a later Town
+project can also use the released materials.
 A pending Hall proposal's site is not offered for another Hall proposal or as
 free land for a household request. The Towns page shows the plan,
 Council result, supplied materials, work and blocker, even after the vote leaves
@@ -967,8 +991,10 @@ An overcrowded House gives eligible adults one unpaused world day to move out.
 Volunteers go first, followed by the most recent arrivals outside its dominant
 family; without a family majority, no family gets priority. The agent's housing
 details show the reason, remaining time, requests to other households and
-expansion progress. Notices keep their deadline across save/load and changes
-of selected adult. Only a completed expansion adds places, and changed
+expansion progress. Save/load keeps the remaining time. A forced replacement
+inherits a deadline that is still in the future; when notified at or after it,
+the replacement gets one fresh world day. Volunteers keep the original deadline,
+and other residents’ notices do not restart. Only a completed expansion adds places, and changed
 residents, family or care arrangements cancel notices that are no longer needed.
 Children and their sole caregivers never receive forced notices. If nobody
 can safely be required to leave, the House stays visibly overcrowded while

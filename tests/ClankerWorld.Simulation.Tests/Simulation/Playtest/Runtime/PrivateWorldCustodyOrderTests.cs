@@ -164,20 +164,23 @@ public sealed class PrivateWorldCustodyOrderTests
         Assert.DoesNotContain(world.Society.Inventory.Lots, lot => (lot.Id is "vessel" or "vessel-contents") && lot.OwnerId == actor);
     }
 
-    [Fact]
-    public async Task ACountedBorrowedReturnSpansTwoLoansWithoutDonatingTheBorrowersOwnGoods()
+    [Theory]
+    [InlineData("cloth")]
+    [InlineData("bread")]
+    [InlineData("restaurant_meal")]
+    public async Task ACountedBorrowedReturnSpansTwoLoansWithoutDonatingTheBorrowersOwnGoods(string kind)
     {
         var state = Prepared(atOtherHouse: true);
         var actor = Actor(state);
-        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "loan-a", "cloth", OtherHousehold, 2,
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "loan-a", kind, OtherHousehold, 2,
             storageBuildingId: OtherHouse);
-        inventory = InventoryFixture.AddLot(inventory, "loan-b", "cloth", OtherHousehold, 2, storageBuildingId: OtherHouse);
+        inventory = InventoryFixture.AddLot(inventory, "loan-b", kind, OtherHousehold, 2, storageBuildingId: OtherHouse);
         inventory = InventoryFixture.Relocate(inventory, "borrow-cloth-a", "loan-a", OtherHousehold, 2, carrierId: actor);
         inventory = InventoryFixture.Relocate(inventory, "borrow-cloth-b", "loan-b", OtherHousehold, 2, carrierId: actor);
         inventory = InventoryFixture.Reserve(inventory, "loan-b-held", OtherHousehold, "loan-b", 1, "other_work", 1_000);
-        inventory = InventoryFixture.AddLot(inventory, "my-cloth", "cloth", actor, 2);
+        inventory = InventoryFixture.AddLot(inventory, "my-cloth", kind, actor, 2);
         using var world = Restore(WithInventory(state, inventory));
-        var receipt = Submit(world, actor, "partial-return", "return three borrowed cloth");
+        var receipt = Submit(world, actor, "partial-return", "return three borrowed " + kind.Replace('_', ' '));
         await Tick(world);
         Assert.Equal(("doing", 2), (Order(world, receipt).Status, Order(world, receipt).CompletedUnits));
         Assert.Equal(OtherHouse, world.Society.Inventory.GetLot("loan-a").StorageBuildingId);
@@ -203,7 +206,7 @@ public sealed class PrivateWorldCustodyOrderTests
         Assert.NotNull(Order(world, receipt).LastEffectId);
         Assert.NotEqual(firstReceipt, Order(world, receipt).LastEffectId);
         Assert.Equal(3, world.Society.Inventory.Lots.Where(lot => lot.OwnerId == OtherHousehold &&
-            lot.ItemKind == "cloth" && lot.StorageBuildingId == OtherHouse).Sum(lot => lot.Quantity));
+            lot.ItemKind == kind && lot.StorageBuildingId == OtherHouse).Sum(lot => lot.Quantity));
         Assert.Equal(2, world.ExportState().Events.Count(item => item.Kind == "borrowed_goods_returned"));
         await TickTogether(world, replay);
     }
