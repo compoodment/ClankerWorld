@@ -387,7 +387,8 @@ resumes. Named meals such as bread and porridge are not part of this order
 catalogue yet.
 
 Building orders cover one House, Farmhouse, Blacksmith, Tailor Shop, Silo,
-Clinic or Store at its starting size (including the 1×1 Store) through the
+Clinic, Store or Restaurant at its starting size (including the 1×1 Store
+and 1×2 Restaurant) through the
 ordinary household construction path. "Build a
 Clinic at (12, 4)" requires that exact site; without coordinates the agent
 chooses a legal site and keeps it. Normal one-per-kind limits, Silo
