@@ -209,6 +209,7 @@ public static class WorldEventText
                 "Its materials stay Town property where they are; see the Towns page for the reason.",
             "town_project_donated" => $"{LeadingName(snapshot, worldEvent.Detail)} donated personal materials to {townProjectName}.",
             "town_project_material_picked_up" => $"{LeadingName(snapshot, worldEvent.Detail)} picked up Town materials for {townProjectName}; the load is still being carried.",
+            "town_project_material_recovered" => $"{LeadingName(snapshot, worldEvent.Detail)} picked up unused materials from {townProjectName} to return to the Town Warehouse.",
             "town_project_material_delivered" => $"{LeadingName(snapshot, worldEvent.Detail)} delivered materials to the approved site for {townProjectName}.",
             "town_project_material_returned" => worldEvent.Detail.EndsWith(":ground", StringComparison.Ordinal)
                 ? $"{LeadingName(snapshot, worldEvent.Detail)} set down unused Town materials from {townProjectName}."

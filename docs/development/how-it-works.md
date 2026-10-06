@@ -1827,6 +1827,14 @@ Meals remain tracked in #564 and its domain
 issues; currency remains later work. The Clinic sells actual medicine
 and bandages through the same inventory and physical business authority.
 
+Released Town construction loads retain their Town owner and exact material
+history. Resident recovery moves only available ground quantities to a reachable
+Town Warehouse with actual room, leaving one carrying space for food. A split
+load gets a released custody record in the original project's delivery ledger;
+this does not revive its construction commitment or reservations. Urgent food or
+warmth permits immediate set-down of released carried goods. A temporary path
+obstruction while returning waits rather than dropping and recollecting cargo.
+
 **Markets** use the same inventory authority with separate saved paid-building
 and occupancy records. The Council-approved starter project pays for the 2×2
 hall and only two 1×1 stalls on the fixed 7×4 plaza, in slots 0 and 4. When
