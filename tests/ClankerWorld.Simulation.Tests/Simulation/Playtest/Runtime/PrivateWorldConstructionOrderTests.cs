@@ -232,12 +232,14 @@ public sealed partial class PrivateWorldConstructionOrderTests
         Assert.Null(ordinary.OrderInstructionId);
         var receipt = Submit(world, setup.Actor, "separate-clinic", BuildClinic(setup.Site));
         await Tick(world);
-        Assert.Equal(("blocked", 0), (Order(world, receipt).Status, Order(world, receipt).CompletedUnits));
-        Assert.Null(Order(world, receipt).ConstructionInstanceId);
+        Assert.Equal(("doing", 0), (Order(world, receipt).Status, Order(world, receipt).CompletedUnits));
+        Assert.NotNull(Order(world, receipt).ConstructionInstanceId);
+        Assert.Null(Order(world, receipt).LastEffectId);
         var remaining = Person(world, setup.Actor).Project!;
-        Assert.Equal((ordinary.CandidateId, ordinary.StartedTick, ordinary.WorkDone),
-            (remaining.CandidateId, remaining.StartedTick, remaining.WorkDone));
-        Assert.Null(remaining.OrderInstructionId);
+        Assert.Equal(ordinary.CandidateId, remaining.CandidateId);
+        Assert.True(remaining.StartedTick > ordinary.StartedTick);
+        Assert.Equal(0, remaining.WorkDone);
+        Assert.Equal(receipt.InstructionId, remaining.OrderInstructionId);
         Assert.NotEqual("cancelled", remaining.Stage);
         AssertInputs(world, 10, 4);
         using var replay = Reload(world);

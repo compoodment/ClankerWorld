@@ -232,18 +232,21 @@ public sealed partial class PrivateWorldDeliveryOrderTests
         Assert.Empty(world.WorldSimulation.ProductionJobs);
     }
 
-    [Fact]
-    public async Task DeliveringPersonalFoodLeavesOneMealAndDoesNotTakeAnotherOwnersFood()
+    [Theory]
+    [InlineData("berries")]
+    [InlineData("bread")]
+    [InlineData("restaurant_meal")]
+    public async Task DeliveringPersonalFoodLeavesOneMealAndDoesNotTakeAnotherOwnersFood(string kind)
     {
         var state = Prepared();
         var actor = Actor(state);
-        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "spare-berries", "berries", actor, 3);
-        inventory = InventoryFixture.AddLot(inventory, "foreign-berries", "berries", Beta, 5, groundPosition: new(Home(state, House).Position.X, Home(state, House).Position.Y));
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "spare-berries", kind, actor, 3);
+        inventory = InventoryFixture.AddLot(inventory, "foreign-berries", kind, Beta, 5, groundPosition: new(Home(state, House).Position.X, Home(state, House).Position.Y));
         using var world = Restore(WithInventory(state, inventory));
-        var receipt = Submit(world, actor, "food-delivery", "deliver three berries to my House");
+        var receipt = Submit(world, actor, "food-delivery", "deliver three " + kind.Replace('_', ' ') + " to my House");
         await Tick(world);
         Assert.Equal(2, Order(world, receipt).CompletedUnits);
-        Assert.Equal(2, Stored(world, House, "berries"));
+        Assert.Equal(2, Stored(world, House, kind));
         Assert.Equal((actor, 1), (world.Society.Inventory.GetLot("spare-berries").OwnerId, world.Society.Inventory.GetLot("spare-berries").Quantity));
         await Tick(world);
         Assert.Equal(("blocked", 2), (Order(world, receipt).Status, Order(world, receipt).CompletedUnits));

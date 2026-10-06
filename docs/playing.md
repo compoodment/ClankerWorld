@@ -261,6 +261,8 @@ They keep ownership and use normal carrying space. A plain request collects
 one load; a quantity stops exactly at that number. Full hands or unavailable
 goods leave the task waiting. Add **from (12, 4)** to require that source tile.
 You can also collect personal food or equipment without eating or equipping it.
+Named meals include **Collect two bread**, **Collect berry porridge** and
+**Collect restaurant meals**. These collect only the agent's own goods.
 
 Collection and storage also recognize rope, cloth, refined iron and gold,
 workshop tools, grain, flour, potatoes, named planting seeds, medicinal herbs,
@@ -272,8 +274,9 @@ A pot or jug moves with its contents and counts as one item, while all of its
 contents use carrying and storage space. These tasks cannot take household
 production stock as personal property.
 
-To return borrowed stock, use **Return two borrowed cloth** or **Return one
-borrowed water jug**. The agent carries the goods back to their owning
+To return borrowed stock, use **Return two borrowed cloth**, **Return two
+borrowed bread** or **Return one borrowed water jug**. The agent carries the
+goods back to their owning
 household's House. Its owner stays the same, and only goods actually put away
 count. The task keeps its chosen House; missing space, reserved goods or a
 blocked route leaves it waiting. **Queue**, **Cancel task** and save/reload
@@ -328,9 +331,26 @@ the normal recipe ownership and storage; ordering them does not make them
 the agent's personal property. Queue, cancellation and save/reload preserve
 the remaining task. Urgent survival pauses unfinished production.
 
+Cooking orders name the recipe: **Cook potato meals**, **Cook wild green meals**
+or **Cook cultivated green meals** makes simple meals at the House. Use
+**Cook house porridge**, **Cook house berry porridge**, **Cook house fruit porridge**,
+**Cook house bread** or **Cook house vegetable stew** for its other recipes.
+Replace **house** with **restaurant** to use a 1×2 Restaurant, or **restaurant 2x2**
+for its larger size. **Prepare restaurant meals** turns bread and greens into
+Restaurant meals. Every cooking batch makes two servings: **Cook two house bread**
+makes one batch, while **Cook two batches of house bread** makes four servings.
+Odd serving counts and ambiguous commands such as **Cook porridge** are not understood.
+**Supply two grain to my House** and **Supply two flour to my Restaurant** bring
+ingredients under the normal demand and source-reserve rules. Fresh water travels
+in a whole jug. **Deliver two bread to my House** shares spare carried bread while
+keeping one serving; **Stock restaurant meals in my Store** uses the normal shop
+limits. Loose personal meals are collected or shared, rather than put away with
+the nonfood **Store** command.
+
 To start household building work, use **Build a Clinic**, **Build a Silo** or
 another supported household building name: House, Farmhouse, Blacksmith,
-Tailor Shop or Store. Add **at (12, 4)** to require that site. Otherwise the
+Tailor Shop, Store or Restaurant. **Build a Restaurant** starts its 1×2 size
+and costs 8 wood and 2 stone. Add **at (12, 4)** to require that site. Otherwise the
 agent chooses a suitable site under the normal construction rules. The task
 keeps that choice through travel and work. It still needs real materials,
 household access, a legal site and any prerequisite building.
@@ -667,7 +687,9 @@ be cancelled and retried later; the provider may charge for both attempts.
 
 To remove one snapshot, choose it in **Load a save...** or Save World and choose
 **Delete**.
-The confirmation names the snapshot; deletion is permanent and leaves its world
+The confirmation also opens when you manage the current world's saves straight
+after starting the client. It names the snapshot; deletion is permanent and
+leaves its world
 and other saves alone. In Load World, **Delete World** removes that
 world and all its saves. Open or create another world first if the target is
 active. Canceling either confirmation changes nothing. These controls require

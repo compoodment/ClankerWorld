@@ -3806,6 +3806,7 @@ public partial class Main
                 throw new InvalidOperationException("Household membership must not create a family link.");
             familyTreePanel.Hide();
             await VerifyAgentPanelsAsync();
+            await VerifyRosterRefreshScrollAsync();
             await VerifyOrderListAsync();
             eventsPanel.Show();
             _UnhandledKeyInput(new InputEventKey { Keycode = Key.Escape, Pressed = true });

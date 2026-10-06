@@ -504,8 +504,16 @@ public partial class Main
         }
         manualSaveLoadButton.Disabled = !manualSaveLoadMode || !valid;
         manualSaveOverwriteButton.Disabled = manualSaveLoadMode || !valid || listedManualSaves[selected[0]].IsAutosave;
-        manualSaveDeleteButton.Disabled = !valid;
+        manualSaveDeleteButton.Disabled = !valid || listedSaveWorldId is null;
         manualSaveCreateButton.Disabled = isOwnerAction || manualSaveLoadMode || observationSession.AwaitingFreshBaseline;
+    }
+
+    private string? CurrentManualSaveWorldId()
+    {
+        if (observationSession.Current is { } current) return current.Baseline.Snapshot.WorldId;
+        var catalog = worldListRequest.Catalog;
+        if (catalog is null) return null;
+        return catalog.Worlds.FirstOrDefault(world => world.Id == catalog.ActiveId)?.WorldId;
     }
 
     /// <summary>
@@ -525,7 +533,7 @@ public partial class Main
         CancelManualSaveListRead();
         using var read = new CancellationTokenSource();
         manualSaveListCancellation = read;
-        var readWorldId = observationSession.Current?.Baseline.Snapshot.WorldId;
+        var readWorldId = CurrentManualSaveWorldId();
         var readRegistration = registration;
         var readGeneration = observationSession.RequestGeneration;
         pendingDeletion = null;
@@ -534,7 +542,7 @@ public partial class Main
         bool IsCurrentRead() => ReferenceEquals(manualSaveListCancellation, read) &&
             IsCurrentWorldRequest(readGeneration) &&
             manualSaveOverlay.Visible && ReferenceEquals(registration, readRegistration) &&
-            readWorldId == observationSession.Current?.Baseline.Snapshot.WorldId;
+            readWorldId == CurrentManualSaveWorldId();
         fetchPosition ??= fetch is not null ? _ => Task.FromResult<SaveTimelinePosition?>(null)
             : async token => await ownerApi.GetSaveTimelinePositionAsync(ResolveWorldUri(), authority, deviceId, signer, token);
         var position = ReadTimelinePositionAsync(fetchPosition, read.Token);

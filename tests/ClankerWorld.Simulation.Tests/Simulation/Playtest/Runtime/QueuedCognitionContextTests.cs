@@ -346,13 +346,22 @@ public sealed class QueuedCognitionContextTests
 
     private static async Task AdvanceUntil(PrivateWorldRuntime world, Func<bool> done)
     {
-        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         for (var tick = 0; tick < 40 && !done(); tick++)
         {
-            Assert.True((await world.AdvanceOneTickNonBlockingAsync(cancellationToken: deadline.Token)).Advanced);
-            if (!done()) await Task.Delay(5, deadline.Token);
+            // Bound a stuck tick, not the combined cost of valid ticks and
+            // scheduling delays. The forty-tick behavior bound stays separate.
+            using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            try
+            {
+                Assert.True((await world.AdvanceOneTickNonBlockingAsync(cancellationToken: deadline.Token)).Advanced);
+            }
+            catch (OperationCanceledException) when (deadline.IsCancellationRequested)
+            {
+                Assert.Fail($"World tick {world.WorldTick} stalled during poll {tick + 1} of 40.");
+            }
+            if (!done()) await Task.Delay(5);
         }
-        Assert.True(done(), "The queued decision was not admitted within the bounded wait.");
+        Assert.True(done(), "The queued decision was not admitted within forty ticks.");
     }
 
     private sealed class HeldIdleProvider(bool holdSecond = false, bool ignoreCancellation = false, string? replyText = null,

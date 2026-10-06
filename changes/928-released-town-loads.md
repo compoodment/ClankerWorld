@@ -1,0 +1,1 @@
+- Town residents return unused construction materials to a Warehouse when it has room, while leaving carrying space for food.
