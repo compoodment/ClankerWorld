@@ -11,10 +11,11 @@ public sealed partial class PrivateWorldRuntime
     private sealed record StoreStockLoad(PlacedBuilding Store, InventoryLot Goods, int Quantity);
 
     private StoreStockLoad? NextStoreLoad(string actor, string? itemKind = null, string? buildingId = null,
-        string? sourceLotId = null)
+        string? sourceLotId = null, bool allowOrdinaryProject = false)
     {
         if (!AdultResident(actor) || CarriedHouseDelivery(actor) is not null ||
-            inhabitants[actor].Project is { Stage: not ("completed" or "cancelled") } ||
+            inhabitants[actor].Project is { Stage: not ("completed" or "cancelled") } project &&
+                (!allowOrdinaryProject || !OrdinaryProjectCanYieldToOrder(project)) ||
             society.Checkpoint.GetInhabitant(actor).HouseholdId is not { } householdId ||
             HouseholdBuildingWithTag(householdId, "store") is not { } store ||
             buildingId is not null && store.InstanceId != buildingId)
@@ -96,7 +97,8 @@ public sealed partial class PrivateWorldRuntime
     private DeliveryOrderPlan? GetStoreOrderPlan(string actor, PlaytestInhabitantState person,
         OwnerInstructionOrder order, int maximumQuantity)
     {
-        if (NextStoreLoad(actor, order.TargetItemKind, order.TargetStorageBuildingId, order.DeliveryLotId) is not { } load ||
+        if (NextStoreLoad(actor, order.TargetItemKind, order.TargetStorageBuildingId, order.DeliveryLotId,
+                allowOrdinaryProject: true) is not { } load ||
             !DeliveryDestinationMatches(order, load.Store)) return null;
         var quantity = Math.Min(maximumQuantity, load.Quantity);
         return quantity <= 0 ? null : new DeliveryOrderPlan("store_stock", load.Store, load.Store.HouseholdId!,
