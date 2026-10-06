@@ -2,7 +2,7 @@
 title: Playing the current game
 type: player-guide
 status: active
-updated: 2026-10-04
+updated: 2026-10-06
 ---
 
 # Playing the current game
@@ -183,8 +183,9 @@ arrival waits one world day before returning to a usable departure Port.
 
 When agents talk, a chat bubble appears above each participant and nearby
 listeners. Click a bubble to see who spoke and whether the conversation is
-finished or interrupted. **Show history** opens the bounded public history
-that this agent could hear. Reading it does not pause the world, and private
+finished or interrupted. Previews end between whole characters, including
+accented letters and joined emoji. **Show history** opens the bounded public
+history that this agent could hear. Reading it does not pause the world, and private
 thoughts never appear in the conversation. An interrupted conversation stays
 stopped until both participants choose to resume; loading a save never starts
 provider calls for it on its own.
