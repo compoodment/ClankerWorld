@@ -1,6 +1,11 @@
+using ClankerWorld.Simulation.Harness;
+
 namespace ClankerWorld.Simulation.Playtest;
 
 public sealed record MedicalConsentState(IReadOnlyList<string> CaregiverIds);
+
+/// <summary>A locally observed patient and the place to return after physically fetching a dose.</summary>
+public sealed record MedicalSupplyTrip(string PatientId, GridPoint LastSeenPosition, long StartedTick);
 
 /// <summary>A consumed physical dose and its remaining gradual effect, rather than a second supply store.</summary>
 public sealed record MedicalTreatmentState(string CaregiverId, string SupplyLotId, string SupplyOwnerId,

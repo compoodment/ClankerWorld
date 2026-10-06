@@ -685,7 +685,9 @@ be cancelled and retried later; the provider may charge for both attempts.
 
 To remove one snapshot, choose it in **Load a save...** or Save World and choose
 **Delete**.
-The confirmation names the snapshot; deletion is permanent and leaves its world
+The confirmation also opens when you manage the current world's saves straight
+after starting the client. It names the snapshot; deletion is permanent and
+leaves its world
 and other saves alone. In Load World, **Delete World** removes that
 world and all its saves. Open or create another world first if the target is
 active. Canceling either confirmation changes nothing. These controls require
