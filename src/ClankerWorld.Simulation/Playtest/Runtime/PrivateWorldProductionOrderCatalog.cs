@@ -35,6 +35,7 @@ internal static class PrivateWorldProductionOrderCatalog
         [
             StarterContent.Create(), SettlementContent.Create(), HouseContent.Create(), HouseCookingContent.Create(), FarmContent.Create(),
             BlacksmithContent.Create(), TailorContent.Create(), PotteryContent.Create(), OrnamentContent.Create(), CareContent.Create(),
+            RestaurantContent.Create(), RestaurantVariantContent.Create(),
         ];
         var result = new Dictionary<string, Entry>(StringComparer.Ordinal);
         foreach (var package in packages)
@@ -50,6 +51,36 @@ internal static class PrivateWorldProductionOrderCatalog
 
     private static (string[] Subjects, string[] Verbs)? NamesFor(string package, string recipe)
     {
+        if (package is HouseCookingContent.PackageId or RestaurantContent.PackageId or RestaurantVariantContent.PackageId)
+        {
+            var largerRestaurant = package == RestaurantVariantContent.PackageId;
+            if (largerRestaurant) recipe = recipe["restaurant-2x2-".Length..];
+            string[]? meals = recipe switch
+            {
+                "house-meal" => ["potato meal", "potato meals"],
+                "wild-green-meal" => ["wild green meal", "wild green meals"],
+                "cultivated-green-meal" => ["cultivated green meal", "cultivated green meals"],
+                "porridge" => ["porridge"],
+                "berry-porridge" => ["berry porridge"],
+                "fruit-porridge" => ["fruit porridge"],
+                "bread" => ["bread"],
+                "vegetable-stew" => ["stew", "vegetable stew"],
+                "restaurant-meal" => ["restaurant meal", "restaurant meals"],
+                _ => null,
+            };
+            if (meals is null) return null;
+            var building = package == HouseCookingContent.PackageId ? "house" :
+                largerRestaurant ? "restaurant 2x2" : "restaurant";
+            var qualified = meals.Select(meal => building + " " + meal).ToArray();
+            // Shared meal names must choose a recipe, not whichever workstation is visited first.
+            string[] subjects;
+            if (recipe is "house-meal" or "wild-green-meal" or "cultivated-green-meal")
+                subjects = meals.Concat(qualified).ToArray();
+            else if (recipe == "restaurant-meal")
+                subjects = largerRestaurant ? ["restaurant 2x2 meal", "restaurant 2x2 meals"] : meals;
+            else subjects = qualified;
+            return (subjects, ["make", "cook", "prepare"]);
+        }
         if (package == BlacksmithContent.PackageId)
         {
             if (recipe == "refine-iron") return (["iron", "refined iron"], ["make", "refine"]);

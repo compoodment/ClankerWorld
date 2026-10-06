@@ -12,6 +12,39 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class WarehouseContentTests
 {
     [Fact]
+    public async Task OrdinaryDonationsRetainOnePersonalReserveAcrossSplitLotsAndReload()
+    {
+        var state = ShelterOrderTestFixture.WithClearWeather(ShelterOrderTestFixture.Prepared());
+        var actor = ShelterOrderTestFixture.Actor(state);
+        var warehouse = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == "first-town-warehouse");
+        state = ShelterOrderTestFixture.At(state, actor, warehouse.Position);
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "donation-a", "wood", actor, 4);
+        inventory = InventoryFixture.AddLot(inventory, "donation-b", "wood", actor, 4);
+        state = ShelterOrderTestFixture.WithInventory(state, inventory);
+        IDecisionProvider Provider(string id) => new CandidateProvider(id == actor ? "store_town_resources" : "safe_idle");
+        using var world = PrivateWorldRuntime.Restore(state, Provider);
+        for (var tick = 0; tick < 10 && !world.ExportState().Events.Any(item => item.Kind == "town_resources_stored"); tick++)
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.Single(world.ExportState().Events, item => item.Kind == "town_resources_stored");
+        var saved = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var replay = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), Provider);
+        Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
+        for (var tick = 0; tick < 3; tick++)
+        {
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+            Assert.True((await replay.AdvanceOneTickAsync()).Advanced);
+            Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
+        }
+        Assert.Equal(4, world.Society.Inventory.Lots.Where(lot => lot.ItemKind == "wood" && lot.OwnerId == actor &&
+            PersonalEquipmentRules.IsCarried(lot, actor)).Sum(lot => lot.Quantity));
+        Assert.Equal(4, world.Society.Inventory.Lots.Where(lot => lot.ItemKind == "wood" && lot.OwnerId == warehouse.TownId &&
+            lot.StorageBuildingId == warehouse.InstanceId).Sum(lot => lot.Quantity));
+        Assert.Equal(8, world.Society.Inventory.Lots.Where(lot => lot.ItemKind == "wood").Sum(lot => lot.Quantity));
+        Assert.Single(world.ExportState().Events, item => item.Kind == "town_resources_stored");
+        world.Validate();
+    }
+
+    [Fact]
     public async Task ResidentsStoreAndCollectNonFoodAtTheWarehouseAcrossReload()
     {
         using var seed = new PrivateWorldRuntime("warehouse-stock", _ => new CandidateProvider("safe_idle"),

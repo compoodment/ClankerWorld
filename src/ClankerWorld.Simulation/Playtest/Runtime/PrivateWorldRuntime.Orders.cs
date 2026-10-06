@@ -11,6 +11,15 @@ public sealed partial class PrivateWorldRuntime
 {
     private sealed record FoodHarvestEffect(string LotId, string ItemKind, int Quantity, string ResourceId);
 
+    // Unpaid ordinary work may yield. Keep bound work and live paid jobs intact;
+    // completed/cancelled jobs already retain their own payment and output history.
+    private bool OrdinaryProjectCanYieldToOrder(SettlementProject project)
+    {
+        if (project.OrderInstructionId is not null || project.ToolMakingRequestId is not null) return false;
+        return project.JobId is null || worldSimulation.ProductionJobs.Concat(worldSimulation.CropBuilds ?? [])
+            .FirstOrDefault(job => job.JobId == project.JobId) is not { State: WorldProductionJobState.Running or WorldProductionJobState.Paused };
+    }
+
     private CognitionCandidate? OrderCandidateFor(OwnerQueuedInstruction instruction, PlaytestInhabitantState person)
     {
         var order = instruction.Order;
