@@ -17,6 +17,7 @@ public static class PlayerDecisionProviders
     public const string Inherit = "inherit";
     public const string Deterministic = "deterministic";
     public const string Jev = "jev";
+    public const string Decisions = "decisions";
     public const string OpenAi = "openai";
     public const string OllamaCloud = "ollama-cloud";
 
@@ -32,10 +33,11 @@ public static class PlayerDecisionProviders
     {
         Deterministic => Deterministic,
         Jev => Jev,
+        Decisions => Decisions,
         OpenAi or "openai-compatible" => OpenAi,
         "ollama" or OllamaCloud => OllamaCloud,
         _ => throw new ArgumentException(
-            "Provider must be deterministic, jev, openai, or ollama-cloud.",
+            "Provider must be deterministic, jev, decisions, openai, or ollama-cloud.",
             nameof(provider)),
     };
 
@@ -43,6 +45,7 @@ public static class PlayerDecisionProviders
     {
         Deterministic => string.Empty,
         Jev => DefaultJevModel,
+        Decisions => DefaultOpenAiModel,
         OpenAi => DefaultOpenAiModel,
         OllamaCloud => DefaultOllamaCloudModel,
         _ => throw new InvalidOperationException("Unsupported decision provider."),
@@ -300,7 +303,7 @@ public sealed class ProviderConfigurationStore
         var provider = PlayerDecisionProviders.Normalize(selection.Provider);
         var credential = provider switch
         {
-            PlayerDecisionProviders.OpenAi => configuration.OpenAi,
+            PlayerDecisionProviders.OpenAi or PlayerDecisionProviders.Decisions => configuration.OpenAi,
             PlayerDecisionProviders.OllamaCloud => configuration.OllamaCloud,
             _ => throw new InvalidOperationException("A child model provider is unsupported."),
         };
@@ -500,8 +503,8 @@ public sealed class ProviderConfigurationStore
         else
         {
             var provider = PlayerDecisionProviders.Normalize(action.Provider);
-            if (provider == PlayerDecisionProviders.Jev)
-                throw new ArgumentException("Jev is world-level assistance, not an individual agent's model.", nameof(action));
+            if (provider is PlayerDecisionProviders.Jev or PlayerDecisionProviders.Decisions)
+                throw new ArgumentException("Choose a personal model for this agent; routine helpers belong to the world.", nameof(action));
             PlayerDecisionProviders.ValidateRoleProvider(
                 role == PlayerDecisionProviders.PersonalRole ? PlayerDecisionProviders.PlanningRole : role, provider);
             string? slotId = null;
@@ -932,33 +935,33 @@ public sealed class ProviderConfigurationStore
 public sealed class WorldJevPolicy
 {
     private readonly object gate = new();
-    private bool enabled = true;
+    private RoutineHelperSettings helper = RoutineHelperSettings.Jev;
     private long revision;
 
-    public (bool Enabled, long Revision) Capture()
+    public (bool Enabled, long Revision, RoutineHelperSettings Helper) Capture()
     {
-        lock (gate) return (enabled, revision);
+        lock (gate) return (helper.Provider != "off", revision, helper);
     }
 
-    // Called once when the saved world is loaded, before the host starts ticking.
-    public void Initialize(bool savedEnabled, long savedRevision)
+    public void Initialize(bool savedEnabled, long savedRevision, RoutineHelperSettings? savedHelper = null)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(savedRevision);
-        lock (gate)
-        {
-            enabled = savedEnabled;
-            revision = savedRevision;
-        }
+        var next = savedHelper ?? (savedEnabled ? RoutineHelperSettings.Jev : RoutineHelperSettings.Off);
+        next.Validate();
+        if (savedEnabled != (next.Provider != "off")) throw new ArgumentException("Inconsistent helper availability.");
+        lock (gate) { helper = next; revision = savedRevision; }
     }
 
-    public void Set(bool nextEnabled, long nextRevision)
+    public void Set(bool nextEnabled, long nextRevision, RoutineHelperSettings? nextHelper = null)
     {
+        var next = nextHelper ?? (nextEnabled ? RoutineHelperSettings.Jev : RoutineHelperSettings.Off);
+        next.Validate();
         lock (gate)
         {
-            if (nextRevision < revision || nextRevision > revision + 1 ||
-                (enabled == nextEnabled) != (nextRevision == revision))
-                throw new InvalidOperationException("The Jev routing revision is inconsistent with the saved world.");
-            enabled = nextEnabled;
+            if (nextEnabled != (next.Provider != "off") || nextRevision < revision || nextRevision > revision + 1 ||
+                (helper == next) != (nextRevision == revision))
+                throw new InvalidOperationException("The helper routing revision is inconsistent with the saved world.");
+            helper = next;
             revision = nextRevision;
         }
     }
@@ -997,8 +1000,11 @@ public sealed partial class ConfigurableDecisionProvider(
             var primary = selected.PlanningProvider != PlayerDecisionProviders.Deterministic
                 ? selected.PlanningProvider
                 : selected.RoutineProvider;
-            if (primary == PlayerDecisionProviders.Jev && !jevPolicy.Capture().Enabled)
-                primary = PlayerDecisionProviders.Deterministic;
+            if (primary == PlayerDecisionProviders.Jev)
+            {
+                var helper = jevPolicy.Capture().Helper;
+                primary = helper.Provider == "off" ? PlayerDecisionProviders.Deterministic : helper.Provider;
+            }
             return MapKind(primary);
         }
     }
@@ -1323,7 +1329,7 @@ public sealed partial class ConfigurableDecisionProvider(
     {
         ArgumentNullException.ThrowIfNull(observation);
         var selected = configuration.CaptureRuntimeConfiguration();
-        return MapKind(ProviderFor(selected, observation, jevPolicy.Capture().Enabled).Provider);
+        return MapKind(ProviderFor(selected, observation, jevPolicy.Capture()).Provider);
     }
 
     public async ValueTask<CognitionDecisionResponse> DecideAsync(
@@ -1341,9 +1347,17 @@ public sealed partial class ConfigurableDecisionProvider(
 
         var isRoutine = IsRoutine(request.Observation);
         var role = isRoutine ? PlayerDecisionProviders.RoutineRole : PlayerDecisionProviders.PlanningRole;
-        var routing = ProviderFor(selected, request.Observation, worldJev.Enabled);
+        var routing = ProviderFor(selected, request.Observation, worldJev);
         var providerId = routing.Provider;
         var credential = CredentialFor(selected, providerId);
+        if (providerId is PlayerDecisionProviders.Jev or PlayerDecisionProviders.Decisions)
+            credential = credential with { Model = worldJev.Helper.Model };
+        if (providerId == PlayerDecisionProviders.Decisions && worldJev.Helper.CredentialSlotId is { } helperSlotId)
+        {
+            var helperSlot = selected.CredentialSlots?.FirstOrDefault(item => item.Id == helperSlotId && item.Provider == PlayerDecisionProviders.OpenAi);
+            if (helperSlot is null) throw new CognitionProviderUnavailableException("missing_key", "Choose a saved OpenAI key for this world's helper.");
+            credential = credential with { ApiKey = helperSlot.ApiKey };
+        }
         if (routing.Assignment?.CredentialSlotId is { } slotId)
         {
             var slot = selected.CredentialSlots?.FirstOrDefault(item => item.Id == slotId && item.Provider == providerId)
@@ -1365,6 +1379,9 @@ public sealed partial class ConfigurableDecisionProvider(
                 PlayerDecisionProviders.JevEndpoint,
                 credential.Model,
                 providerEpoch: providerEpoch),
+            PlayerDecisionProviders.Decisions => new OpenAiDecisionsProvider(
+                httpClientFactory.CreateClient("model"), () => credential.ApiKey,
+                model: credential.Model, providerEpoch: providerEpoch),
             PlayerDecisionProviders.OpenAi => new OpenAiCompatibleDecisionProvider(
                 httpClientFactory.CreateClient("model"),
                 () => credential.ApiKey,
@@ -1457,8 +1474,9 @@ public sealed partial class ConfigurableDecisionProvider(
     private static (string Provider, InhabitantProviderAssignment? Assignment) ProviderFor(
         RuntimeProviderConfiguration configuration,
         InhabitantObservation observation,
-        bool jevEnabled)
+        (bool Enabled, long Revision, RoutineHelperSettings Helper) policy)
     {
+        var helper = policy.Helper;
         var routine = IsRoutine(observation);
         var role = routine ? PlayerDecisionProviders.RoutineRole : PlayerDecisionProviders.PlanningRole;
         var assigned = AssignmentFor(configuration, observation.InhabitantId, role);
@@ -1476,10 +1494,17 @@ public sealed partial class ConfigurableDecisionProvider(
         if (observation.RequiresPersonalProvider && assigned?.SelectionReason is not null &&
             !HasUsableCredential(configuration, assigned))
             return (PlayerDecisionProviders.Deterministic, null);
+        // An explicit world helper handles eligible adult routine choices while
+        // personal assignments remain available for planning, guidance and identity.
+        // The initial policy retains the installation's existing Jev routing.
+        if (routine && !observation.RequiresPersonalProvider && helper.Provider != "off" &&
+            (helper.Provider == "decisions" || policy.Revision > 0)) return (helper.Provider, null);
         var provider = assigned?.Provider ?? (routine ? configuration.RoutineProvider : configuration.PlanningProvider);
         if (observation.RequiresPersonalProvider && provider == PlayerDecisionProviders.Jev)
             return (PlayerDecisionProviders.Deterministic, null);
-        if (routine && provider == PlayerDecisionProviders.Jev && !jevEnabled)
+        if (routine && provider == PlayerDecisionProviders.Jev && helper.Provider != "off")
+            return (helper.Provider, null);
+        if (routine && provider == PlayerDecisionProviders.Jev && helper.Provider == "off")
         {
             // Jev is a world-level helper, never a requirement for an agent to
             // continue. Prefer this agent's personal planner, then the world
@@ -1515,7 +1540,7 @@ public sealed partial class ConfigurableDecisionProvider(
         string provider) => provider switch
         {
             PlayerDecisionProviders.Jev => configuration.Jev,
-            PlayerDecisionProviders.OpenAi => configuration.OpenAi,
+            PlayerDecisionProviders.OpenAi or PlayerDecisionProviders.Decisions => configuration.OpenAi,
             PlayerDecisionProviders.OllamaCloud => configuration.OllamaCloud,
             PlayerDecisionProviders.Deterministic => new StoredProviderCredential(string.Empty, null),
             _ => throw new InvalidOperationException("Unsupported cognition provider configuration."),
@@ -1525,6 +1550,7 @@ public sealed partial class ConfigurableDecisionProvider(
     {
         PlayerDecisionProviders.Deterministic => DecisionProviderKind.Deterministic,
         PlayerDecisionProviders.Jev => DecisionProviderKind.Jev,
+        PlayerDecisionProviders.Decisions => DecisionProviderKind.OpenAiDecisions,
         PlayerDecisionProviders.OpenAi or PlayerDecisionProviders.OllamaCloud => DecisionProviderKind.LargeLanguageModel,
         _ => throw new InvalidOperationException("Unsupported cognition provider configuration."),
     };

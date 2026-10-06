@@ -684,6 +684,16 @@ establish that the checkpoint can load.
 
 ## Current formats and older worlds
 
+Private-world schema 94 adds a required routine-helper choice, model name and
+optional OpenAI credential-slot ID. API-key bytes remain installation-owned.
+Loading rejects invalid helper/model/slot formats or inconsistent availability;
+missing installation keys cannot be invented from a save. The existing helper
+routing revision invalidates earlier requests, and switches preserve memory
+sources and scores. Current-format roundtrips and resumed replay retain the
+helper and typed model. Earlier alpha schemas are refused and preserved without
+migration.
+
+
 Generated geography now saves a hydrology revision for new worlds. A missing
 or zero revision keeps the previous lake/river algorithm, including historical
 resource placement and map identity. Revision 1 is selected by both normal
@@ -787,7 +797,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 93. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 94. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 a bounded model-attempt status and exact last accepted model choice per agent, plus

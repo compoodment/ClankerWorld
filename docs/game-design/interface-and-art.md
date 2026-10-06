@@ -466,11 +466,11 @@ within Pause Menu Settings keeps the world paused. World generation choices
 such as size, climate and wrapping are chosen before creation and should be
 inspectable afterward, not silently mutable settings. Jev's on/off switch for
 an existing world is accepted; the exact settings categories and transition
-behavior for an in-flight Jev task remain open. World Settings must be absent
+behavior for other in-flight tasks remain open. World Settings must be absent
 from Main Menu Settings while no world is loaded; opening Main Menu settings
 must never enter a world.
-Once OpenAI Decisions is public, that switch is agreed to become a routine
-helper choice of Off, Jev or OpenAI Decisions, each with its own model list
+The routine helper choice is Off, Jev or OpenAI Decisions, each with its own
+model list; the owner approved Decisions details on October 6
 (see [Thinking, memories and social life](agents-and-families.md#thinking-memories-and-social-life)).
 
 

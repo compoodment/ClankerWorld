@@ -385,6 +385,42 @@ public sealed class PrivateWorldDeferredCognitionTests
     }
 
     [Fact]
+    public async Task HelperSwitchPreservesMemoriesDiscardsLateRepliesAndReplaysItsSavedChoice()
+    {
+        var hosted = new HeldHostedProvider(ignoreCancellation: true, kind: DecisionProviderKind.OpenAiDecisions);
+        using var world = new PrivateWorldRuntime("helper-switch", id => id == "founder-scout" ? hosted : new QuietDecisionProvider());
+        Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+        await hosted.Started.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        world.Pause();
+        var memories = world.Society.Memories;
+        Assert.True(world.SetRoutineHelper(new("decisions", "gpt-6-luna")));
+        Assert.True(world.SetRoutineHelper(new("jev", "typed-jev-model")));
+        Assert.True(world.SetRoutineHelper(RoutineHelperSettings.Off));
+        var saved = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        hosted.Release.TrySetResult(true);
+        await hosted.Returned.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.False((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+        Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+        Assert.Equal(memories, world.Society.Memories);
+        using var first = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), _ => new QuietDecisionProvider());
+        using var second = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), _ => new QuietDecisionProvider());
+        first.Resume();
+        second.Resume();
+        for (var tick = 0; tick < 3; tick++)
+        {
+            Assert.True((await first.AdvanceOneTickAsync()).Advanced);
+            Assert.True((await second.AdvanceOneTickAsync()).Advanced);
+            Assert.Equal(PrivateWorldRuntimeCodec.Encode(first.ExportState()), PrivateWorldRuntimeCodec.Encode(second.ExportState()));
+        }
+        Assert.Equal(RoutineHelperSettings.Off, first.RoutineHelper);
+        Assert.Equal(3, first.JevPolicyRevision);
+        first.Pause();
+        Assert.True(first.SetRoutineHelper(new("decisions", "future-model")));
+        using var modelRestored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(first.ExportState())));
+        Assert.Equal(new RoutineHelperSettings("decisions", "future-model"), modelRestored.RoutineHelper);
+    }
+
+    [Fact]
     public async Task SlowHostedFounderDoesNotHoldWorldOrOtherFounders()
     {
         var hosted = new HeldHostedProvider();

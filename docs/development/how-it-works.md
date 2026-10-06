@@ -552,6 +552,33 @@ including designs not in the game yet and the street lanterns of
 
 ## Model inputs, usage and memories
 
+The per-world routine helper is Off, Jev or OpenAI Decisions. Decisions uses
+`POST https://api.openai.com/v1/decisions`, sharing Jev's bounded actor context
+and existing owner-private memory scoring. Its `input` is serialized context;
+`questions` and `answers` are arrays keyed by unique names. Action choices are
+fixed candidate IDs. Memory score questions identify `source_index`, and scores
+on three ordered levels map to the same 0–10,000 importance scale as Jev.
+Unknown/duplicate answer names, unusable choice types and malformed scores are
+refused. The runtime still admits only legal actions and requested owner sources;
+a refusal or invalid action falls back to `safe_idle`. No confidence veto is added.
+
+Decisions uses the installation's default OpenAI key or an explicitly selected
+OpenAI credential slot. The world saves only the slot ID, helper and model;
+missing/deleted credentials produce the existing safe provider failure. A call
+reserves one installation usage attempt before HTTP, including action and memory
+questions together. Reply bodies are bounded; timeout, cancellation and sanitized
+call telemetry use the existing provider boundary. Changing the helper or model
+while paused advances its routing revision and cancels pending work. Late replies
+cannot alter actions or memory scores. An explicitly selected helper handles
+eligible adult routine choices; personal assignments stay available for planning,
+guidance and identity. Children still require their own explicit personal model.
+
+The Decisions picker starts with `gpt-6-luna` and permits typed model names.
+Its non-billable availability check uses OpenAI's model list with the selected
+key; that list confirms model visibility, not access to the Decisions endpoint.
+Jev offers `jev-1.13.0` without an availability probe.
+
+
 A personal-model request selects one legal candidate, not a free-form dialogue
 turn. It now includes bounded actor-owned self context: name, life stage,
 personality, aspiration, household, available warmth/illness and the latest

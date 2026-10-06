@@ -404,24 +404,19 @@ another sprite family at first.
   or off in an existing world**; the choice is not locked at world creation.
   Disabling it must not erase existing agent memories or make the world depend
   on Jev to continue functioning.
-- **Agreed on September 30 (waiting for OpenAI to release it):** the world's
-  Jev switch becomes a choice of **routine helper**: **Off**, **Jev** or
-  **OpenAI Decisions**. OpenAI announced Decisions on September 29, 2026. It
-  does the same kind of job as Jev: given the situation and a fixed list of
-  allowed actions, it picks one and says how confident it is. It can
-  therefore fill the same routine role, under the same confidence rule and
-  safe fallback. Each helper offers its own models in the same picker used
-  for agents' models: the game's short list, newest first, plus
-  **Type a model name…**. The helper stays optional and set per world.
-  Switching helpers or turning the helper off must not erase memories or
-  leave the world depending on one helper. Work starts once Decisions is
-  public and OpenAI has published its request and reply format; it is in
-  limited preview.
-- **Still to decide:** whether Decisions also takes on Jev's memory scoring
-  and social-moment work or only routine choices; whether it uses the saved
-  OpenAI key or a key of its own; which Decisions models the list offers;
-  and what happens to a helper request already under way when the owner
-  switches helpers.
+- **Agreed on September 30; details approved October 6:** the world's Jev
+  switch becomes a **routine helper** choice: **Off**, **Jev** or **OpenAI
+  Decisions**. Decisions handles the same routine action choices and memory
+  scoring as Jev, under the existing validation and safe fallback rules. It
+  uses a saved OpenAI key, including a named key the owner chooses, rather than
+  a separate credential. Each helper offers its own short model list and
+  **Type a model name…**. Decisions starts with **gpt-6-luna**, the only model
+  supported by its public beta endpoint at launch; Jev starts with
+  **jev-1.13.0**. The helper and model are set per world while paused. Switching
+  helpers or models cancels pending work and discards late replies, preserving
+  memories and their existing scores. Personal-model and child eligibility
+  rules still apply. OpenAI published the request and reply format on October 6
+  in its [Decisions guide](https://developers.openai.com/api/docs/guides/decisions).
 - Each agent remembers what they experienced or were told, not everything the
   player can see. Minor details may fade or be misremembered; major life
   events, relationships, learned skills, and unresolved commitments should

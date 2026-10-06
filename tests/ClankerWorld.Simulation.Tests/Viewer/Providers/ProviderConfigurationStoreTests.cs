@@ -330,6 +330,56 @@ public sealed class ProviderConfigurationStoreTests
         finally { directory.Delete(recursive: true); }
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DecisionsReusesTheOpenAiKeyAndSharesItsMemoryCallAndLimitWithoutChangingPersonalRouting(bool namedKey)
+    {
+        var directory = Directory.CreateTempSubdirectory("clankerworld-decisions-routing-");
+        try
+        {
+            var configuration = new ProviderConfigurationStore(Path.Combine(directory.FullName, "providers.json"), EmptySeed());
+            _ = configuration.Configure(new("planning", "openai", "personal-model", "openai-test-key", false));
+            _ = configuration.Configure(new("personal", "openai", "own-model", null, false, "inhabitant-test"));
+            var helperSlot = namedKey ? Guid.NewGuid().ToString("N") : null;
+            if (helperSlot is not null) _ = configuration.CreateCredentialSlot(new(helperSlot, "openai", "Helper key", "named-openai-key"));
+            var before = File.ReadAllBytes(configuration.Path);
+            var usage = new ProviderUsageStore(Path.Combine(directory.FullName, "usage.json"));
+            _ = usage.Configure(new ProviderUsageLimitAction(1));
+            var policy = new WorldJevPolicy();
+            var handler = new ProviderResponseHandler();
+            var router = new ConfigurableDecisionProvider(configuration, new FixedHttpClientFactory(handler), jevPolicy: policy, usageStore: usage);
+            var obsolete = Request(router.ProviderEpoch);
+            policy.Set(true, 1, new("decisions", "gpt-6-luna", helperSlot));
+            await Assert.ThrowsAsync<InvalidOperationException>(async () => await router.DecideAsync(obsolete));
+            var original = Request(router.ProviderEpoch);
+            var request = original with
+            {
+                Observation = original.Observation with
+                {
+                    MemoryCompactionCandidates = [new("source", "inhabitant-test", "experience", "friend", "Private remembered event.", 1)],
+                }
+            };
+            var response = await router.DecideAsync(request);
+            Assert.Equal(DecisionProviderKind.OpenAiDecisions, response.Provider);
+            Assert.Single(response.MemoryCompactionScores!);
+            Assert.Equal("https://api.openai.com/v1/decisions", handler.LastUri!.AbsoluteUri);
+            Assert.Equal(namedKey ? "Bearer named-openai-key" : "Bearer openai-test-key", handler.LastAuthorization);
+            Assert.Equal("gpt-6-luna", handler.LastModel);
+            Assert.Equal("decisions", response.Usage!.ProviderId);
+            Assert.Equal(1, usage.Capture().Attempts);
+            Assert.Equal(1, handler.RequestCount);
+            await Assert.ThrowsAsync<ProviderUsageLimitReachedException>(async () => await router.DecideAsync(request));
+            Assert.Equal(1, handler.RequestCount);
+            Assert.Equal(DecisionProviderKind.LargeLanguageModel, router.KindFor(Request(router.ProviderEpoch, strategic: true).Observation));
+            Assert.Equal(DecisionProviderKind.LargeLanguageModel, router.KindFor(request.Observation with { RequiresPersonalProvider = true }));
+            Assert.Equal(DecisionProviderKind.Deterministic, router.KindFor(request.Observation with { InhabitantId = "unassigned-child", RequiresPersonalProvider = true }));
+            Assert.Equal(before, File.ReadAllBytes(configuration.Path));
+            Assert.DoesNotContain("openai-test-key", File.ReadAllText(Path.Combine(directory.FullName, "usage.json")));
+        }
+        finally { directory.Delete(recursive: true); }
+    }
+
     [Fact]
     public async Task JevMemoryScoringSharesItsRoutineAttemptAndConsumesOnlyOnePaidCall()
     {
@@ -957,7 +1007,11 @@ public sealed class ProviderConfigurationStoreTests
             using var payload = System.Text.Json.JsonDocument.Parse(LastBody!);
             LastModel = payload.RootElement.TryGetProperty("model", out var model) ? model.GetString() : null;
             var isJev = string.Equals(request.RequestUri?.Host, "api.typesafe.ai", StringComparison.Ordinal);
-            var body = isJev
+            var body = request.RequestUri?.AbsolutePath == "/v1/decisions"
+                ? """
+                  {"model":"gpt-6-luna","answers":[{"name":"selected_candidate","type":"choice","choice":"safe_idle","confidence":1.0,"probabilities":[{"value":"safe_idle","probability":1.0}]},{"name":"memory_salience_00","type":"score","score":1.8,"confidence":0.75}]}
+                  """
+                : isJev
                 ? """
                   {"model":"jev-test","answers":{"selected_candidate":{"type":"choice","choice":"safe_idle","probabilities":{"safe_idle":1.0},"confidence":1.0},"memory_salience_00":{"type":"score","score":1.8,"confidence":0.75}}}
                   """

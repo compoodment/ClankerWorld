@@ -242,7 +242,7 @@ internal static partial class OwnerEndpoints
                         stateFile.Save(runtime);
                         providers.RestoreWorldAssignments(assignments);
                         if (autosaveSettings is not null) autosave.RestoreFromCheckpoint(autosaveSettings);
-                        jevPolicy.Initialize(runtime.JevEnabled, runtime.JevPolicyRevision);
+                        jevPolicy.Initialize(runtime.JevEnabled, runtime.JevPolicyRevision, runtime.RoutineHelper);
                         saves.RecordLoadedState(runtime);
                     }
                     catch
@@ -252,7 +252,7 @@ internal static partial class OwnerEndpoints
                         providers.RestoreWorldAssignments(saves.ReadAssignments(backup.Id));
                         if (saves.ReadAutosaveSettings(backup.Id) is { } previousAutosave)
                             autosave.RestoreFromCheckpoint(previousAutosave);
-                        jevPolicy.Initialize(runtime.JevEnabled, runtime.JevPolicyRevision);
+                        jevPolicy.Initialize(runtime.JevEnabled, runtime.JevPolicyRevision, runtime.RoutineHelper);
                         saves.RestoreTimeline(timelineRestore);
                         throw;
                     }
