@@ -20,6 +20,9 @@ public sealed partial class PrivateWorldRuntime
     private const string RepairCartPrefix = "repair_handcart:";
     private const string TransferCartPrefix = "give_handcart:";
     private const string PullCartPrefix = "pull_handcart:";
+    // Generic cart controls have no delivery intention. Keep them selectable by models without
+    // letting the built-in chooser shuffle goods or pull between arbitrary buildings ahead of safe idle.
+    private const int UnassignedCartPriority = 110;
 
     private static bool IsHandcartRecipe(RecipeDefinition recipe) => recipe.Outputs.Any(output => output.ResourceId == InventoryContainerRules.Handcart);
 
@@ -172,12 +175,12 @@ public sealed partial class PrivateWorldRuntime
                 var position = new GridPoint(cart.GroundPosition!.Value.X, cart.GroundPosition.Value.Y);
                 if (position == person.Position || FindUnoccupiedRoute(actor, person.Position, position, 0).Count > 0)
                     candidates.Add(new(AttachCartPrefix + cart.Id,
-                        "Reach and attach your parked handcart to carry a larger load.", 22));
+                        "Reach and attach your parked handcart to carry a larger load.", UnassignedCartPriority));
             }
         }
         else
         {
-            candidates.Add(new("park_handcart", "Park the handcart here with its cargo kept inside.", 28));
+            candidates.Add(new("park_handcart", "Park the handcart here with its cargo kept inside.", UnassignedCartPriority));
             foreach (var building in worldSimulation.Buildings.OrderBy(item => item.InstanceId, StringComparer.Ordinal))
             {
                 if (building.Position == person.Position) continue;
@@ -185,7 +188,7 @@ public sealed partial class PrivateWorldRuntime
                 candidates.Add(new(PullCartPrefix + building.InstanceId,
                     reachable ? "Pull the handcart and its cargo to this building along a legal route." :
                         "The cart's route to this building is blocked. Wait for a route or park the cart here.",
-                    reachable ? 26 : 85, building.InstanceId));
+                    UnassignedCartPriority, building.InstanceId));
             }
         }
         var worn = inventory.Lots.Where(lot => lot.ItemKind == InventoryContainerRules.Handcart &&
@@ -212,20 +215,20 @@ public sealed partial class PrivateWorldRuntime
         if (room > 0 && CanPullHandcart(nearby))
             foreach (var lot in inventory.Lots.Where(lot => CanLoadCartLot(actor, person, lot)).OrderBy(lot => lot.Id, StringComparer.Ordinal))
                 candidates.Add(new(LoadCartPrefix + lot.Id,
-                    $"Load up to {Math.Min(room, AvailableLotQuantity(lot))} nearby {lot.ItemKind.Replace('_', ' ')} into your handcart.", 20));
+                    $"Load up to {Math.Min(room, AvailableLotQuantity(lot))} nearby {lot.ItemKind.Replace('_', ' ')} into your handcart.", UnassignedCartPriority));
         foreach (var lot in cargo)
         {
             if (FreeCarryCapacity(actor) > 0 && !HasActiveContainerReservation(inventory, nearby.Id))
-                candidates.Add(new(UnloadCartPrefix + lot.Id, "Unload cart goods into your carried load, within your carrying limit.", 22));
+                candidates.Add(new(UnloadCartPrefix + lot.Id, "Unload cart goods into your carried load, within your carrying limit.", UnassignedCartPriority));
             if (!HasActiveContainerReservation(inventory, nearby.Id))
-                candidates.Add(new(UnloadCartGroundPrefix + lot.Id, "Unload cart goods onto the ground here, keeping your ownership.", 26));
+                candidates.Add(new(UnloadCartGroundPrefix + lot.Id, "Unload cart goods onto the ground here, keeping your ownership.", UnassignedCartPriority));
         }
         if (AttachedHandcart(actor) is null && !HasActiveContainerReservation(inventory, nearby.Id))
             foreach (var recipient in inhabitants.Values.Where(item => item.InhabitantId != actor &&
                          AdultResident(item.InhabitantId) && IsWithinInteractionRange(person.Position, item.Position, 1))
                          .OrderBy(item => item.InhabitantId, StringComparer.Ordinal))
                 candidates.Add(new(TransferCartPrefix + recipient.InhabitantId,
-                    $"Give your parked handcart and its cargo to {society.Checkpoint.GetInhabitant(recipient.InhabitantId).Name} here.", 36));
+                    $"Give your parked handcart and its cargo to {society.Checkpoint.GetInhabitant(recipient.InhabitantId).Name} here.", UnassignedCartPriority));
     }
 
     private bool ApplyHandcartCandidate(string actor, PlaytestInhabitantState person, string candidateId)

@@ -317,7 +317,7 @@ internal static class PrivateWorldInstructionOrderParser
             if (explicitQuantity && quantity != 1 || action == "expand_building" && !ReadWord("my")) return null;
             string? kind;
             if (ReadWord("town")) kind = ReadWord("warehouse") ? "warehouse" : null;
-            else if (TryReadAnyWord("house", "farmhouse", "blacksmith", "tailor", "silo", "clinic", "store"))
+            else if (TryReadAnyWord("house", "farmhouse", "blacksmith", "tailor", "silo", "clinic", "store", "restaurant"))
                 kind = tokens[position - 1].Value;
             else kind = null;
             if (kind == "tailor") _ = ReadWord("shop");
