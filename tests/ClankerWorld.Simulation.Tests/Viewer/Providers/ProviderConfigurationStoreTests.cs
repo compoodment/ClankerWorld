@@ -8,6 +8,60 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class ProviderConfigurationStoreTests
 {
     [Fact]
+    public async Task UntouchedWorldUsesTheConfiguredJevModel()
+    {
+        var directory = Directory.CreateTempSubdirectory("clankerworld-initial-jev-model-");
+        try
+        {
+            var store = new ProviderConfigurationStore(Path.Combine(directory.FullName, "providers.json"), EmptySeed());
+            _ = store.Configure(new("routine", "jev", "configured-jev-model", "jev-test-key", false));
+            var handler = new ProviderResponseHandler();
+            var router = new ConfigurableDecisionProvider(store, new FixedHttpClientFactory(handler));
+            _ = await router.DecideAsync(Request(router.ProviderEpoch));
+            Assert.Equal("api.typesafe.ai", handler.LastUri!.Host);
+            Assert.Equal("configured-jev-model", handler.LastModel);
+        }
+        finally { directory.Delete(recursive: true); }
+    }
+
+    [Fact]
+    public async Task ApplyingDefaultJevActivatesAdultHelperButPreservesPersonalAndChildRouting()
+    {
+        var directory = Directory.CreateTempSubdirectory("clankerworld-explicit-default-jev-");
+        try
+        {
+            var store = new ProviderConfigurationStore(Path.Combine(directory.FullName, "providers.json"), EmptySeed());
+            _ = store.Configure(new("routine", "jev", "configured-jev-model", "jev-test-key", false));
+            _ = store.Configure(new("personal", "openai", "own-model", "personal-test-key", false, "inhabitant-test"));
+            var policy = new WorldJevPolicy();
+            var handler = new ProviderResponseHandler();
+            var router = new ConfigurableDecisionProvider(store, new FixedHttpClientFactory(handler), jevPolicy: policy);
+            using var world = new PrivateWorldRuntime("explicit-default-jev", _ => new DeterministicDecisionProvider());
+            world.Pause();
+            var oldRequest = Request(router.ProviderEpoch);
+            _ = await router.DecideAsync(oldRequest);
+            Assert.Equal("api.openai.com", handler.LastUri!.Host);
+
+            Assert.True(world.SetRoutineHelper(RoutineHelperSettings.Jev));
+            policy.Set(world.JevEnabled, world.JevPolicyRevision, world.RoutineHelper);
+            await Assert.ThrowsAsync<InvalidOperationException>(async () => await router.DecideAsync(oldRequest));
+            _ = await router.DecideAsync(Request(router.ProviderEpoch));
+            Assert.Equal("api.typesafe.ai", handler.LastUri!.Host);
+            Assert.Equal(RoutineHelperSettings.Jev.Model, handler.LastModel);
+            _ = await router.DecideAsync(Request(router.ProviderEpoch, strategic: true));
+            Assert.Equal("api.openai.com", handler.LastUri!.Host);
+            Assert.Equal("own-model", handler.LastModel);
+            Assert.Equal(DecisionProviderKind.LargeLanguageModel,
+                router.KindFor(oldRequest.Observation with { RequiresPersonalProvider = true }));
+            Assert.Equal(DecisionProviderKind.Deterministic,
+                router.KindFor(oldRequest.Observation with { InhabitantId = "unassigned-child", RequiresPersonalProvider = true }));
+            Assert.False(world.SetRoutineHelper(RoutineHelperSettings.Jev));
+            Assert.Equal(1, world.JevPolicyRevision);
+        }
+        finally { directory.Delete(recursive: true); }
+    }
+
+    [Fact]
     public async Task FirstIdentityChoiceUsesPersonalPlannerEvenWithOnlyRoutineCandidates()
     {
         var directory = Directory.CreateTempSubdirectory("clankerworld-identity-provider-");

@@ -959,7 +959,8 @@ public sealed class WorldJevPolicy
         lock (gate)
         {
             if (nextEnabled != (next.Provider != "off") || nextRevision < revision || nextRevision > revision + 1 ||
-                (helper == next) != (nextRevision == revision))
+                (helper != next && nextRevision == revision) ||
+                (helper == next && nextRevision != revision && (revision != 0 || nextRevision != 1)))
                 throw new InvalidOperationException("The helper routing revision is inconsistent with the saved world.");
             helper = next;
             revision = nextRevision;
@@ -1350,7 +1351,8 @@ public sealed partial class ConfigurableDecisionProvider(
         var routing = ProviderFor(selected, request.Observation, worldJev);
         var providerId = routing.Provider;
         var credential = CredentialFor(selected, providerId);
-        if (providerId is PlayerDecisionProviders.Jev or PlayerDecisionProviders.Decisions)
+        if (providerId == PlayerDecisionProviders.Decisions ||
+            providerId == PlayerDecisionProviders.Jev && worldJev.Revision > 0)
             credential = credential with { Model = worldJev.Helper.Model };
         if (providerId == PlayerDecisionProviders.Decisions && worldJev.Helper.CredentialSlotId is { } helperSlotId)
         {

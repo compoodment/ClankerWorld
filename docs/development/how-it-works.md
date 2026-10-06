@@ -574,6 +574,9 @@ while paused advances its routing revision and cancels pending work. Late replie
 cannot alter actions or memory scores. An explicitly selected helper handles
 eligible adult routine choices; personal assignments stay available for planning,
 guidance and identity. Children still require their own explicit personal model.
+Before the first explicit helper selection, existing installation routing and
+its configured Jev model remain effective. Applying the displayed default Jev
+choice also activates explicit helper routing; repeating it afterward is a no-op.
 
 The Decisions picker starts with `gpt-6-luna` and permits typed model names.
 Its non-billable availability check uses OpenAI's model list with the selected

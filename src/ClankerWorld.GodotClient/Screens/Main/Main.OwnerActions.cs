@@ -441,9 +441,7 @@ public partial class Main
         var helper = SelectedRoutineHelper();
         var helperModel = helper == "off" ? string.Empty : routineHelperModelPicker.Model;
         applyRoutineHelperButton.Disabled = routineHelperChoice.Disabled ||
-            helper != "off" && (helperModel.Length is < 1 or > 128 || helperModel.Any(char.IsControl)) ||
-            helper == snapshot?.RoutineHelperProvider && helperModel == snapshot.RoutineHelperModel &&
-            (helper != "decisions" || SelectedRoutineHelperKey() == snapshot.RoutineHelperCredentialSlotId);
+            helper != "off" && (helperModel.Length is < 1 or > 128 || helperModel.Any(char.IsControl));
         routineHelperKeyChoice.Disabled = routineHelperChoice.Disabled;
         applyLifePaceButton.Disabled = actionDisabled || !paused || !supportsLifePace;
         lifePaceChoice.Disabled = actionDisabled || !paused || !supportsLifePace;

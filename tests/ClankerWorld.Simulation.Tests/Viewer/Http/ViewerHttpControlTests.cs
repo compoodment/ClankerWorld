@@ -49,6 +49,13 @@ public sealed partial class ViewerHttpTests
                 var staleWorld = action with { WorldId = "other-world" };
                 using var wrongWorld = await SendSignedAsync(host, client, key, deviceId, path, staleWorld, OwnerHttpBinding.RoutineHelperPayload(staleWorld));
                 Assert.Equal(HttpStatusCode.Conflict, wrongWorld.StatusCode);
+                var defaultJev = action with { Provider = "jev", Model = RoutineHelperSettings.Jev.Model };
+                Assert.Equal(0, runtime.JevPolicyRevision);
+                using var activated = await SendSignedAsync(host, client, key, deviceId, path, defaultJev, OwnerHttpBinding.RoutineHelperPayload(defaultJev));
+                Assert.Equal(HttpStatusCode.OK, activated.StatusCode);
+                Assert.True((await activated.Content.ReadFromJsonAsync<OwnerControlReceipt>())!.Changed);
+                Assert.Equal(1, runtime.JevPolicyRevision);
+                Assert.Equal(1, host.Services.GetRequiredService<WorldJevPolicy>().Capture().Revision);
                 credentials = File.ReadAllBytes(host.Services.GetRequiredService<ProviderConfigurationStore>().Path);
                 using var configured = await SendSignedAsync(host, client, key, deviceId, path, action, OwnerHttpBinding.RoutineHelperPayload(action));
                 Assert.Equal(HttpStatusCode.OK, configured.StatusCode);
