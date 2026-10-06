@@ -9,6 +9,11 @@ public sealed record SettlementParenthood(string PartnerId, string Stage, long R
     long LastTransitionTick, string? ChildId = null, string? PrimaryCaregiverId = null,
     string? IntendedHouseholdId = null, string? BirthHouseholdId = null);
 
+public sealed record SettlementParenthoodFood(int AvailablePortions, int RequiredPortions)
+{
+    public bool IsReady => AvailablePortions >= RequiredPortions;
+}
+
 public sealed partial class PrivateWorldRuntime
 {
     private const int IllnessCareCooldownTicks = 8;
@@ -48,17 +53,41 @@ public sealed partial class PrivateWorldRuntime
 
     private bool FamilyFoodReady(string actor) =>
         society.Checkpoint.GetInhabitant(actor).HouseholdId is not null &&
-        BirthFoodSources(actor)
-            .Sum(AvailableLotQuantity) >= society.Checkpoint.Inhabitants.Count(person => person.HouseholdId == HouseholdFor(actor) &&
-                person.Status == SocietyInhabitantStatus.Active) * 2 + 4 &&
+        ParenthoodFoodReadiness(society.Checkpoint, actor).IsReady &&
         BirthFood(actor) is not null;
+
+    /// <summary>Derives the birth food gate from one captured checkpoint, also used by owner and parent guidance.</summary>
+    public static SettlementParenthoodFood ParenthoodFoodReadiness(SocietyCheckpoint checkpoint, string caregiverId)
+    {
+        if (checkpoint.GetInhabitant(caregiverId).HouseholdId is not { } householdId) return new(0, 4);
+        var required = checkpoint.Inhabitants.Count(person => person.HouseholdId == householdId &&
+            person.Status == SocietyInhabitantStatus.Active) * 2 + 4;
+        return new(BirthFoodSources(checkpoint, caregiverId).Sum(lot => AvailableLotQuantity(checkpoint.Inventory, lot)), required);
+    }
+
+    public static string ParenthoodFoodNote(SocietyCheckpoint checkpoint, string caregiverId, bool showAmounts = true)
+    {
+        var food = ParenthoodFoodReadiness(checkpoint, caregiverId);
+        if (!showAmounts)
+            return food.IsReady ? "The caregiver's household has enough ready-to-eat food."
+                : "The caregiver's household needs more ready-to-eat food; grain and flour need cooking.";
+        var amount = FormattableString.Invariant($"Household food: {food.AvailablePortions}/{food.RequiredPortions} ready-to-eat portions");
+        return food.IsReady ? amount + "."
+            : amount + FormattableString.Invariant($"; need {food.RequiredPortions - food.AvailablePortions} more. Grain and flour need cooking.");
+    }
 
     // Birth reserves and consumes its food in place, which the inventory
     // allows for food in a usable storage pot as well as loose food.
-    private IEnumerable<InventoryLot> BirthFoodSources(string actor) => society.Checkpoint.Inventory.Lots.Where(lot =>
-        lot.OwnerId == HouseholdFor(actor) && (lot.CarrierId is null || lot.CarrierId == actor) &&
-        InUsableVesselOrLoose(lot) &&
-        IsEdibleFood(lot.ItemKind) && AvailableLotQuantity(lot) > 0).OrderBy(lot => lot.Id, StringComparer.Ordinal);
+    private IEnumerable<InventoryLot> BirthFoodSources(string actor) => BirthFoodSources(society.Checkpoint, actor);
+
+    private static IEnumerable<InventoryLot> BirthFoodSources(SocietyCheckpoint checkpoint, string actor)
+    {
+        var household = checkpoint.GetInhabitant(actor).HouseholdId ?? actor;
+        return checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == household &&
+            (lot.CarrierId is null || lot.CarrierId == actor) && InUsableVesselOrLoose(checkpoint.Inventory, lot) &&
+            IsEdibleFood(lot.ItemKind) && AvailableLotQuantity(checkpoint.Inventory, lot) > 0)
+            .OrderBy(lot => lot.Id, StringComparer.Ordinal);
+    }
 
     private List<SocietyBirthFoodContribution>? BirthFood(string actor)
     {
@@ -74,8 +103,10 @@ public sealed partial class PrivateWorldRuntime
         return null;
     }
 
-    private bool InUsableVesselOrLoose(InventoryLot lot) => lot.ContainerLotId is not { } containerId ||
-        society.Checkpoint.Inventory.GetLot(containerId).ConditionBasisPoints > 0;
+    private bool InUsableVesselOrLoose(InventoryLot lot) => InUsableVesselOrLoose(society.Checkpoint.Inventory, lot);
+
+    private static bool InUsableVesselOrLoose(InventoryCheckpoint inventory, InventoryLot lot) =>
+        lot.ContainerLotId is not { } containerId || inventory.GetLot(containerId).ConditionBasisPoints > 0;
 
     private bool CanReachDependent(string actor, PlaytestInhabitantState parent, PlaytestInhabitantState child) =>
         IsWithinInteractionRange(parent.Position, child.Position, ResourceInteractionRange) ||
