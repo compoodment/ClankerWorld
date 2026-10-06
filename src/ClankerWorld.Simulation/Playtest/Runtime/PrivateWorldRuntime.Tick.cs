@@ -459,7 +459,6 @@ public sealed partial class PrivateWorldRuntime
             StagePotteryContent();
             StageSiloContent();
             StageTailorContent();
-            StageAnimalContent();
             StageCareContent();
             StageBuiltInContent(TownHallContent.PackageId, HouseContent.PackageId, TownHallContent.Create, "town_hall_content_staged");
             StageBuiltInContent(KnowledgeContent.PackageId, HouseContent.PackageId, KnowledgeContent.Create, "knowledge_content_staged");
@@ -468,6 +467,7 @@ public sealed partial class PrivateWorldRuntime
             StageBuiltInContent(StreetLanternContent.PackageId, HouseContent.PackageId, StreetLanternContent.Create, "street_lantern_content_staged");
             StageBuiltInContent(BusinessContent.PackageId, HouseContent.PackageId, BusinessContent.Create, "business_content_staged");
             StageBuildingVariantContent();
+            StageAnimalContent();
             var readyPackages = contentRegistry.GetActivationCandidates(targetTick);
             var reservationPreview = WorldAssetReservationLedger.Restore(
                 assetReservations.ExportState(),
@@ -671,6 +671,7 @@ public sealed partial class PrivateWorldRuntime
             RefreshTownLandHearings();
             MaintainKnowledgeWriting();
             ProcessBoatQueue();
+            ReconcileAnimalCustody();
 
             AppendEvent("tick_advanced", targetTick.ToString(System.Globalization.CultureInfo.InvariantCulture));
             var newEvents = events.Skip(startingEvent).ToArray();

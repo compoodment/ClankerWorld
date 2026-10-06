@@ -34,7 +34,7 @@ internal static class PrivateWorldProductionOrderCatalog
         ContentPackageManifest[] packages =
         [
             StarterContent.Create(), SettlementContent.Create(), HouseContent.Create(), HouseCookingContent.Create(), FarmContent.Create(),
-            BlacksmithContent.Create(), TailorContent.Create(), PotteryContent.Create(), OrnamentContent.Create(), CareContent.Create(),
+            AnimalContent.Create(), BlacksmithContent.Create(), TailorContent.Create(), PotteryContent.Create(), OrnamentContent.Create(), CareContent.Create(),
         ];
         var result = new Dictionary<string, Entry>(StringComparer.Ordinal);
         foreach (var package in packages)
@@ -50,6 +50,19 @@ internal static class PrivateWorldProductionOrderCatalog
 
     private static (string[] Subjects, string[] Verbs)? NamesFor(string package, string recipe)
     {
+        if (package == AnimalContent.PackageId)
+        {
+            var prefix = recipe.StartsWith("restaurant-2x2-", StringComparison.Ordinal) ? "large restaurant " :
+                recipe.StartsWith("tailor-shop-2x2-", StringComparison.Ordinal) ? "large tailor " :
+                recipe.StartsWith("restaurant-", StringComparison.Ordinal) || recipe == "rich-restaurant-meal" ? "restaurant " : "";
+            if (recipe.Contains("cook-eggs", StringComparison.Ordinal)) return ([prefix + "cooked eggs"], ["make", "cook"]);
+            if (recipe.Contains("milk-porridge", StringComparison.Ordinal)) return ([prefix + "milk porridge"], ["make", "cook"]);
+            if (recipe.Contains("rich-restaurant-meal", StringComparison.Ordinal)) return ([prefix + "rich meal", prefix + "rich meals"], ["make", "cook"]);
+            if (recipe.Contains("wool-padded-coat", StringComparison.Ordinal)) return ([prefix + "wool padded coat", prefix + "wool padded coats"], ["make", "sew"]);
+            if (recipe.Contains("process-leather", StringComparison.Ordinal)) return ([prefix + "leather"], ["make", "process"]);
+            if (recipe.EndsWith("leather-sack", StringComparison.Ordinal)) return ([prefix + "leather sack", prefix + "leather sacks"], ["make", "sew"]);
+            if (recipe.EndsWith("saddle", StringComparison.Ordinal)) return ([prefix + "saddle", prefix + "saddles"], ["make", "craft"]);
+        }
         if (package == BlacksmithContent.PackageId)
         {
             if (recipe == "refine-iron") return (["iron", "refined iron"], ["make", "refine"]);

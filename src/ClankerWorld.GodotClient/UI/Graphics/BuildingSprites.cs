@@ -25,6 +25,7 @@ public enum BuildingKind : byte
     Market,
     MarketStall,
     Port,
+    AnimalYard,
 }
 
 /// <summary>The edge of a building's footprint that its door is on.</summary>
@@ -79,6 +80,7 @@ public static partial class BuildingSprites
     {
         var set = tags ?? [];
         bool Has(string tag) => set.Contains(tag, StringComparer.Ordinal);
+        if (Has("animal-yard")) return BuildingKind.AnimalYard;
         if (Has("house")) return BuildingKind.House;
         if (Has("warehouse")) return BuildingKind.Warehouse;
         if (Has("farmhouse")) return BuildingKind.Farmhouse;
@@ -166,6 +168,29 @@ public static partial class BuildingSprites
     {
         switch (kind)
         {
+            case BuildingKind.AnimalYard:
+                var fence = new Color("84633E");
+                var rail = new Color("B59360");
+                canvas.Rect(3, 3, width - 6, height - 6, new Color("797D4F"));
+                canvas.Rect(2, 3, width - 4, 2, rail);
+                canvas.Rect(2, height - 5, width - 4, 2, fence);
+                canvas.Rect(2, 3, 2, height - 6, fence);
+                canvas.Rect(width - 4, 3, 2, height - 6, rail);
+                for (var x = 2; x < width - 2; x += 12)
+                {
+                    canvas.Rect(x, 1, 3, 6, fence);
+                    canvas.Rect(x, height - 7, 3, 6, fence);
+                }
+                for (var y = 3; y < height - 5; y += 12)
+                {
+                    canvas.Rect(1, y, 4, 4, fence);
+                    canvas.Rect(width - 5, y, 4, 4, fence);
+                }
+                canvas.Rect(8, 9, 12, 5, new Color("4C382B"));
+                canvas.Rect(9, 10, 10, 2, new Color("718B8A"));
+                canvas.Rect(9, height - 18, 10, 5, new Color("BAA36B"));
+                DoorBand(canvas, new Rect2(3, 3, width - 6, height - 6), door, 10, 0, new Color("797D4F"));
+                return;
             case BuildingKind.Hearth:
                 PaintHearth(canvas, width, height);
                 return;

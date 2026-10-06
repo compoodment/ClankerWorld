@@ -1374,6 +1374,7 @@ public sealed partial class PrivateWorldRuntime
     {
         if (id is null) return null;
         return society.Checkpoint.Households.SingleOrDefault(item => item.Id == id)?.Name ??
+            Animal(id)?.Name ??
             towns.SingleOrDefault(item => item.Id == id)?.Name ??
             society.Checkpoint.Inhabitants.SingleOrDefault(item => item.Id == id)?.Name ??
             map.Resources.SingleOrDefault(item => item.Id == id)?.Kind.Replace('_', ' ');

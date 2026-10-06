@@ -27,6 +27,7 @@ public sealed partial class PrivateWorldRuntime
             return null;
         if (order.TargetPosition is { } requestedPosition && !map.Contains(requestedPosition))
             return null;
+        if (IsAnimalOrder(order.Action)) return AnimalOrderCandidate(instruction);
 
         if (IsShelterOrder(order.Action))
             return ShelterOrderCandidateFor(instruction, person);
@@ -217,6 +218,11 @@ public sealed partial class PrivateWorldRuntime
             ExecuteGuardianOrder(instruction, candidate);
             return;
         }
+        if (IsAnimalOrder(order.Action))
+        {
+            ExecuteAnimalOrder(instruction);
+            return;
+        }
         switch (candidate.Id)
         {
             case "seek_shelter":
@@ -404,6 +410,8 @@ public sealed partial class PrivateWorldRuntime
 
     private string OrderBlockedReason(OwnerQueuedInstruction instruction, PlaytestInhabitantState person)
     {
+        if (instruction.Order is { } animalOrder && IsAnimalOrder(animalOrder.Action))
+            return "Waiting for the named animal, permission, a legal route, carry space and physical feed or jug water.";
         if (instruction.Order is { } protective && IsShelterOrder(protective.Action))
             return ShelterOrderBlockedReason(instruction, person);
         if (instruction.Order?.Action == "construct_building")

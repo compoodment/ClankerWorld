@@ -34,6 +34,11 @@ public sealed record OwnerWorldHandcart(string Id, string OwnerId, string OwnerN
     int Capacity, int ConditionPercent, string? PullerId, string? PullerName,
     IReadOnlyList<OwnerWorldInventoryEntry> Cargo);
 
+public sealed record OwnerWorldAnimal(string Id, string Name, string Species, string Sex, int AgeDays, string LifeStage,
+    OwnerWorldPosition Position, string? HouseholdId, string? HouseholdName, string CareStatus, string? ProductKind,
+    int ProductQuantity, double? BirthDaysRemaining, string? RiderId, string? RiderName, string? LeaderId,
+    bool Saddled, IReadOnlyList<string> CarePermissions, IReadOnlyList<string> RidingPermissions);
+
 public sealed record OwnerWorldBoat(string Id, string TownId, string TownName, OwnerWorldPosition Position,
     string? DockedPortId, string? PassengerId, string? PassengerName, string? DestinationPortId,
     string Status, OwnerWorldPosition? ReservedDock, IReadOnlyList<OwnerWorldInventoryEntry> Cargo);
@@ -410,7 +415,8 @@ public sealed record OwnerWorldInstructionOrder(
     string? TargetCropKind = null,
     string? TargetOutputKind = null,
     string? TargetItemKind = null,
-    string? TargetBuildingKind = null);
+    string? TargetBuildingKind = null,
+    string? TargetAnimalId = null);
 
 public sealed record OwnerWorldCognitionEvent(long EventId, long WorldTick, string Kind, string Detail);
 
@@ -584,6 +590,7 @@ public sealed record OwnerWorldSnapshot(
     public IReadOnlyList<OwnerWorldFarmField> Fields { get; init; } = [];
     public IReadOnlyList<OwnerWorldGroundStock> GroundStocks { get; init; } = [];
     public IReadOnlyList<OwnerWorldHandcart> Handcarts { get; init; } = [];
+    public IReadOnlyList<OwnerWorldAnimal> Animals { get; init; } = [];
     public IReadOnlyList<OwnerWorldBoat> Boats { get; init; } = [];
     public IReadOnlyList<OwnerWorldBoatTripRequest> BoatRequests { get; init; } = [];
     public IReadOnlyList<OwnerWorldStockpile> Stockpiles { get; init; } = [];

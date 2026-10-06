@@ -23,6 +23,7 @@ public sealed partial class PrivateWorldRuntime
             saddle.Id, saddle.OwnerId, 1, groundPosition: new(animal.Position.X, animal.Position.Y)), reservationId,
             saddle.OwnerId, unitId, 1, "animal-saddle:" + animal.Id, long.MaxValue));
         SetAnimal(animal with { SaddleLotId = unitId, SaddleReservationId = reservationId });
+        FinishAnimalSupplyTrip(actor);
         AppendEvent("animal_saddled", actor + ":" + animal.Id, animal.Position);
     }
 

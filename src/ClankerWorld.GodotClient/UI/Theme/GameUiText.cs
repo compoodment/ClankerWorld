@@ -45,6 +45,15 @@ public static class GameUiText
         return quantity.Length == 0 ? title : title + " " + quantity;
     }
 
+    public static string AnimalDescription(OwnerWorldAnimal animal) =>
+        $"{animal.Name}: {animal.Sex} {animal.Species}, {animal.LifeStage}, {animal.AgeDays} days old. " +
+        (animal.HouseholdName is null ? "Untamed. " : $"{animal.HouseholdName}. ") + animal.CareStatus + ". " +
+        (animal.ProductQuantity == 0 ? "" : $"Ready: {animal.ProductQuantity} {ItemName(animal.ProductKind!)}. ") +
+        (animal.BirthDaysRemaining is null ? "" : $"Birth in {animal.BirthDaysRemaining:0.#} cared-for days; one yard place reserved. ") +
+        (animal.RiderName is null ? "" : $"Ridden by {animal.RiderName}. ") + (animal.Saddled ? "Saddled. " : "") +
+        $"Care permission: {(animal.CarePermissions.Count == 0 ? "household adults" : string.Join(", ", animal.CarePermissions))}. " +
+        (animal.Species != "horse" ? "" : $"Riding permission: {(animal.RidingPermissions.Count == 0 ? "household adults" : string.Join(", ", animal.RidingPermissions))}.");
+
     public static string HandcartDescription(OwnerWorldHandcart cart)
     {
         var cargo = cart.Cargo.Count == 0 ? "Empty" : string.Join(", ",
@@ -418,6 +427,16 @@ public static class GameUiText
         if (!string.IsNullOrWhiteSpace(summary) && !summary.Contains(':', StringComparison.Ordinal))
             return summary.Trim();
         if (candidateId == "produce_item") return "making goods";
+        if (candidateId == "animal_order") return "following an animal care or travel order";
+        if (candidateId == "drink_milk") return "drinking milk";
+        if (candidateId?.StartsWith("animal:", StringComparison.Ordinal) == true)
+            return candidateId.Split(':')[1] switch
+            {
+                "care" => "caring for an animal", "collect" => "collecting animal products",
+                "tame" => "taming an animal", "lead_home" => "leading an animal home",
+                "saddle" => "fitting a horse's saddle", "mount" => "mounting a horse", "dismount" => "dismounting a horse",
+                "agreement" => "discussing animal permissions or a transfer", _ => "carrying animal supplies",
+            };
         return string.IsNullOrWhiteSpace(candidateId) ? "taking in the surroundings" : HumanizeIdentifier(candidateId);
     }
 

@@ -44,7 +44,7 @@ public sealed partial class PrivateWorldRuntime
                 animal.Species != "horse" && (animal.RidingPermissions.Count != 0 || animal.RiderId is not null || animal.SaddleLotId is not null))
                 throw new InvalidDataException("Animal permissions must name known people and only horses may be ridden.");
             if ((animal.HouseholdId is null) != (animal.YardId is null) || animal.HouseholdId is { } home &&
-                (!society.Households.Any(household => household.Id == home) || !state.WorldSimulation!.Buildings.Any(building =>
+                (!society.Households.Any(household => household.Id == home) || animal.DiedTick is null && !state.WorldSimulation!.Buildings.Any(building =>
                     building.InstanceId == animal.YardId && building.HouseholdId == home && state.WorldContent!.Buildings.Any(buildingDefinition =>
                         buildingDefinition.CanonicalId == building.DefinitionId && buildingDefinition.Tags.Contains(AnimalContent.YardTag)))) ||
                 animal.HouseholdId is null && (animal.SaddleLotId is not null || animal.ReadyProductLotId is not null ||
@@ -114,13 +114,17 @@ public sealed partial class PrivateWorldRuntime
         foreach (var trip in world.SupplyTrips)
             if (!state.Inhabitants.Any(person => person.InhabitantId == trip.ActorId) ||
                 !inventory.Lots.Any(lot => lot.Id == trip.LotId && PersonalEquipmentRules.IsCarried(lot, trip.ActorId)) ||
-                !state.WorldSimulation!.Buildings.Any(yard => yard.InstanceId == trip.YardId && yard.HouseholdId ==
-                    society.Inhabitants.Single(person => person.Id == trip.ActorId).HouseholdId) ||
+                !state.WorldSimulation!.Buildings.Any(yard => yard.InstanceId == trip.YardId && (yard.HouseholdId ==
+                    society.Inhabitants.Single(person => person.Id == trip.ActorId).HouseholdId || world.Animals.Any(animal =>
+                        animal.YardId == yard.InstanceId && animal.CarePermissions.Contains(trip.ActorId)))) ||
                 (trip.AnimalId is null) != (trip.Action is null) || trip.AnimalId is not null &&
                 (!world.Animals.Any(animal => animal.Id == trip.AnimalId) || trip.Action is not ("care" or "collect" or "saddle")))
                 throw new InvalidDataException("An animal supply trip needs its real carried goods and household yard.");
         if (inventory.Lots.Any(lot => lot.ItemKind == "milk" && lot.ContainerLotId is null &&
                 !world.Animals.Any(animal => animal.ReadyProductLotId == lot.Id)))
             throw new InvalidDataException("Collected milk must be inside a water jug.");
+        if ((state.Instructions ?? []).Any(instruction => instruction.Order?.TargetAnimalId is { } id &&
+                !world.Animals.Any(animal => animal.Id == id)))
+            throw new InvalidDataException("An animal order must retain its exact known animal identity.");
     }
 }

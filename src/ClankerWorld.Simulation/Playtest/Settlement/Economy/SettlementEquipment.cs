@@ -43,7 +43,7 @@ public sealed partial class PrivateWorldRuntime
         // The new unit fills the slot; a displaced unit stays real cargo.
         var after = before + (previous is null ? 0 : 1) -
             (PersonalEquipmentRules.IsCarried(item, actor) ? 1 : 0);
-        var capacity = carryAid ? item.ItemKind == "sack" ? PersonalEquipmentRules.SackCapacity
+        var capacity = carryAid ? item.ItemKind == "leather_sack" ? 32 : item.ItemKind == "sack" ? PersonalEquipmentRules.SackCapacity
             : PersonalEquipmentRules.BasketCapacity : PersonalEquipmentRules.Capacity(inventory, actor, equipment);
         return after <= before && capacity >= PersonalEquipmentRules.Capacity(inventory, actor, equipment) ||
             after + ReservedBusinessCarrySpace(actor) <= capacity;
@@ -78,8 +78,8 @@ public sealed partial class PrivateWorldRuntime
         var capacity = PersonalEquipmentRules.Capacity(society.Checkpoint.Inventory, actor, inhabitants[actor].Equipment);
         return PrivateEquipmentSources(actor).Where(lot => PersonalEquipmentRules.IsCarryAid(lot.ItemKind) &&
                 CanEquipPrivateItem(actor, lot, true) &&
-                (lot.ItemKind == "sack" ? PersonalEquipmentRules.SackCapacity : PersonalEquipmentRules.BasketCapacity) > capacity)
-            .OrderByDescending(lot => lot.ItemKind == "sack")
+                (lot.ItemKind == "leather_sack" ? 32 : lot.ItemKind == "sack" ? PersonalEquipmentRules.SackCapacity : PersonalEquipmentRules.BasketCapacity) > capacity)
+            .OrderByDescending(lot => lot.ItemKind == "leather_sack" ? 2 : lot.ItemKind == "sack" ? 1 : 0)
             .ThenBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
     }
 

@@ -132,7 +132,7 @@ public static class InventoryContainerRules
     public static bool Allows(string containerKind, string contentKind) => containerKind switch
     {
         Handcart => !IsContainer(contentKind) && contentKind is not (FreshWater or "milk"),
-        StoragePot => FoodKinds.Contains(contentKind),
+        StoragePot => contentKind != "milk" && FoodKinds.Contains(contentKind),
         WaterJug => contentKind is FreshWater or "milk",
         _ => false,
     };

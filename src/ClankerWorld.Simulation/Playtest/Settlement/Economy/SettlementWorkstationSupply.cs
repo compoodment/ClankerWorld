@@ -121,7 +121,7 @@ public sealed partial class PrivateWorldRuntime
                 var deliveryRoom = WorkstationDeliveryRoom(inventory, building.InstanceId);
                 var carried = inventory.Lots
                     // Water travels inside a carried jug, so look through the vessel to its contents.
-                    .Where(lot => lot.OwnerId == actor && PersonalEquipmentRules.IsPhysicallyCarried(inventory, lot, actor) &&
+                    .Where(lot => (lot.OwnerId == actor || lot.OwnerId == householdId) && PersonalEquipmentRules.IsPhysicallyCarried(inventory, lot, actor) &&
                         lot.ItemKind == input.Key && AvailableLotQuantity(lot) > 0)
                     .Select(lot => lot.ContainerLotId is { } containerId
                         ? inventory.GetLot(containerId) : lot)
@@ -194,7 +194,7 @@ public sealed partial class PrivateWorldRuntime
                 (lot.StorageBuildingId is null || worldSimulation.Buildings.Any(building =>
                     building.InstanceId == lot.StorageBuildingId && worldContent.Buildings.Any(definition =>
                         definition.CanonicalId == building.DefinitionId &&
-                        definition.Tags.Any(tag => tag is "house" or "silo" or "farmhouse" or "restaurant")))))
+                        definition.Tags.Any(tag => tag is "house" or "silo" or "farmhouse" or "restaurant" or "animal-yard")))))
             .Where(lot => WorkstationPickupQuantity(actor, inventory, lot, destination.InstanceId,
                 int.MaxValue) > 0)
             .Where(lot => IsWithinInteractionRange(inhabitants[actor].Position, HouseholdStockPosition(lot),
@@ -234,9 +234,10 @@ public sealed partial class PrivateWorldRuntime
                 ? ContainerFamilyQuantity(currentInventory, carried.Id) <= room ? 1 : 0
                 : Math.Min(room, Math.Min(need.Missing, SpareCarriedQuantity(actor, carried)));
             if (quantity <= 0) return;
-            ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
-                $"workstation-supply:{WorldTick}:{actor}", actor, householdId, carried.Id, quantity,
-                "workstation_supplied", building.InstanceId));
+            ApplyInventoryTransition(inventory => carried.OwnerId == householdId ? InventoryFixture.Relocate(inventory,
+                $"workstation-supply:{WorldTick}:{actor}", carried.Id, householdId, quantity, storageBuildingId: building.InstanceId) :
+                InventoryFixture.Transfer(inventory, $"workstation-supply:{WorldTick}:{actor}", actor, householdId, carried.Id, quantity,
+                    "workstation_supplied", building.InstanceId));
             AppendEvent("workstation_supplied", $"{actor}:{carried.Id}:{quantity}:{building.InstanceId}");
             return;
         }

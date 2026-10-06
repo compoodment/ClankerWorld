@@ -18,7 +18,7 @@ public static class AnimalContent
     public static ContentPackageManifest Create()
     {
         var basis = new DeclarativeWorldContentState([], []);
-        foreach (var manifest in new[] { HouseContent.Create(), TailorContent.Create(), RestaurantContent.Create() })
+        foreach (var manifest in new[] { HouseContent.Create(), TailorContent.Create(), RestaurantContent.Create(), CareContent.Create(), TailorVariantContent.Create(), RestaurantVariantContent.Create() })
             basis = ContentDefinitionPayloadCodec.ApplyPackage(basis, manifest);
         var recipes = new List<RecipeDefinition>();
         void Add(string id, string name, string station, ContentQuantity[] inputs, ContentQuantity[] outputs, int ticks, string tag) =>
@@ -37,8 +37,16 @@ public static class AnimalContent
         Add("process-leather", "Process leather", tailor, [new("hide", 1), new("fresh_water", 1), new("wood", 1)], [new("leather", 2)], 16, "care");
         Add("leather-sack", "Sew a leather sack", tailor, [new("leather", 2), new("rope", 1)], [new("leather_sack", 1)], 24, "carry-aid");
         Add("saddle", "Make a saddle", tailor, [new("leather", 2), new("cloth", 2), new("rope", 1)], [new("saddle", 1)], 24, "animal-care");
+        var originalRecipes = recipes.ToArray();
+        foreach (var variant in basis.Buildings.Where(building => building.LocalId is "tailor-shop-2x2" or "restaurant-2x2"))
+        {
+            var original = variant.Tags.Contains("tailor") ? tailor : RestaurantContent.Restaurant1x2().CanonicalId;
+            foreach (var recipe in originalRecipes.Where(recipe => recipe.WorkstationBuildingId == original))
+                Add(variant.LocalId + "-" + recipe.LocalId, recipe.DisplayName, variant.CanonicalId, recipe.Inputs.ToArray(),
+                    recipe.Outputs.ToArray(), recipe.DurationTicks, recipe.Tags.Single(tag => tag != "animal-product"));
+        }
         return StarterContent.BuildManifest(PackageId, Version, Digest, [Yard()], recipes,
-            new[] { HouseContent.PackageId, TailorContent.PackageId, RestaurantContent.PackageId }.Select(id =>
+            new[] { HouseContent.PackageId, TailorContent.PackageId, RestaurantContent.PackageId, TailorVariantContent.PackageId, RestaurantVariantContent.PackageId }.Select(id =>
                 new ContentDependency(id, new ContentVersionRange(Version, ContentVersion.Parse("2.0.0")))).ToArray(), basis);
     }
 }

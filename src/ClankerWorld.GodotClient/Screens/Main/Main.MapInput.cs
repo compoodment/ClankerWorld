@@ -297,6 +297,8 @@ public partial class Main
         }
         foreach (var cart in snapshot.Handcarts.Where(cart => cart.Position.X == tile.X && cart.Position.Y == tile.Y))
             lines.Add(GameUiText.HandcartDescription(cart));
+        foreach (var animal in snapshot.Animals.Where(animal => animal.Position.X == tile.X && animal.Position.Y == tile.Y))
+            lines.Add(GameUiText.AnimalDescription(animal));
         foreach (var stock in snapshot.GroundStocks.Where(stock => stock.Position.X == tile.X && stock.Position.Y == tile.Y))
             lines.Add($"On the ground: {stock.Quantity} {GameUiText.ItemName(stock.Kind)} · {snapshot.Stockpiles.FirstOrDefault(owner => owner.OwnerId == stock.OwnerId)?.Name ?? stock.OwnerId}");
         if (hydrology is not null and not "Land") lines.Add($"Water: {hydrology}");

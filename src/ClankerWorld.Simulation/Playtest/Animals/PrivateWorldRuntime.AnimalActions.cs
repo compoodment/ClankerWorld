@@ -19,15 +19,15 @@ public sealed partial class PrivateWorldRuntime
         {
             if (animal.LeaderId == actor) yield return new("lead_home", animal.Id);
             if (animal.RiderId == actor) { yield return new("dismount", animal.Id); continue; }
-            if (map.FootDistance(person.Position, animal.Position) > 4) continue;
-            if (animal.HouseholdId is null && HouseholdFor(actor) is { } household && AnimalYard(household) is { } yard &&
-                HasAnimalSpace(household, yard) && animal.LeaderId is null &&
+            if (animal.HouseholdId is null && map.FootDistance(person.Position, animal.Position) <= 4 &&
+                HouseholdFor(actor) is { } household && AnimalYard(household) is { } yard &&
+                HasAnimalTransferSpace(household, yard, animal) && animal.LeaderId is null &&
                 (animal.TamingWork is null || animal.TamingWork.ActorId == actor))
                 yield return new("tame", animal.Id);
             if (MayCareForAnimal(actor, animal) && animal.CareUntilTick <= WorldTick) yield return new("care", animal.Id);
             if (MayCareForAnimal(actor, animal) && animal.ReadyProductLotId is not null) yield return new("collect", animal.Id);
             if (AnimalHouseholdMember(actor, animal) && animal.LeaderId is null && animal.RiderId is null &&
-                AnimalYard(animal.HouseholdId) is { } home && !YardTiles(home).Contains(animal.Position))
+                AssignedAnimalYard(animal) is { } home && !YardTiles(home).Contains(animal.Position))
                 yield return new("lead_home", animal.Id);
             if (animal.Species == "horse" && animal.SaddleLotId is null && AnimalHouseholdMember(actor, animal))
                 yield return new("saddle", animal.Id);
@@ -79,8 +79,23 @@ public sealed partial class PrivateWorldRuntime
         if (choice is null) return true;
         var animal = Animal(choice.AnimalId)!;
         var person = inhabitants[actor];
-        if (choice.Action == "care" && AnimalCareInputs(actor, animal, AnimalRules.Definition(animal.Species).DailyFeed,
-                AnimalRules.Definition(animal.Species).DailyWater) is null) return true;
+        if (choice.Action is "care" or "collect" or "saddle")
+        {
+            var needsSupply = choice.Action switch
+            {
+                "care" => AnimalCareInputs(actor, animal, AnimalRules.Definition(animal.Species).DailyFeed,
+                    AnimalRules.Definition(animal.Species).DailyWater) is null,
+                "collect" => animal.Species == "cow" && !society.Checkpoint.Inventory.Lots.Any(lot =>
+                    lot.ItemKind == InventoryContainerRules.WaterJug && lot.OwnerId == animal.HouseholdId &&
+                    PersonalEquipmentRules.IsCarried(lot, actor) && !HasActiveContainerReservation(society.Checkpoint.Inventory, lot.Id) &&
+                    society.Checkpoint.Inventory.Lots.Where(content => content.ContainerLotId == lot.Id).All(content => content.ItemKind == "milk") &&
+                    ContainerContentsQuantity(society.Checkpoint.Inventory, lot.Id) <= InventoryContainerRules.WaterJugCapacity - 2),
+                _ => !AnimalSuppliesAtHand(actor, animal).Any(lot => lot.ItemKind == "saddle" && lot.OwnerId == animal.HouseholdId),
+            };
+            if (needsSupply && AnimalSupplyChoices(actor).FirstOrDefault(supply => supply.AnimalId == animal.Id && supply.Action == choice.Action) is { } supply)
+            { _ = ApplyAnimalSupplyCandidate(actor, supply.Id); return true; }
+            if (choice.Action == "care" && needsSupply) return true;
+        }
         if (choice.Action == "dismount") { EndAnimalRide(animal, "dismounted"); return true; }
         if (person.Position != animal.Position && animal.LeaderId != actor)
         {
@@ -90,13 +105,13 @@ public sealed partial class PrivateWorldRuntime
         switch (choice.Action)
         {
             case "tame":
-                if (HouseholdFor(actor) is not { } household || AnimalYard(household) is not { } yard || !HasAnimalSpace(household, yard)) break;
+                if (HouseholdFor(actor) is not { } household || AnimalYard(household) is not { } yard || !HasAnimalTransferSpace(household, yard, animal)) break;
                 if (AnimalCareInputs(actor, animal, 2, 1) is not { } tamingInputs) break;
                 var work = animal.TamingWork?.ActorId == actor ? animal.TamingWork.WorkTicks + 1 : 1;
                 if (work < AnimalRules.TamingWorkTicks) { SetAnimal(animal with { TamingWork = new(actor, work) }); break; }
                 ConsumeAnimalInputs(actor, "tame:" + animal.Id, tamingInputs);
                 SetAnimal(animal with { HouseholdId = household, YardId = yard.InstanceId, HerdId = "household:" + household,
-                    CareUntilTick = 0, Pregnancy = null, TamingWork = null, LeaderId = actor, LeadDestination = yard.Position,
+                    CareUntilTick = 0, TamingWork = null, LeaderId = actor, LeadDestination = yard.Position,
                     WildFedUntilTick = 0, WildWaterUntilTick = 0 });
                 AppendEvent("animal_tamed", actor + ":" + animal.Id, animal.Position);
                 break;
@@ -148,22 +163,23 @@ public sealed partial class PrivateWorldRuntime
         return Take(lot => AnimalRules.IsFeed(lot.ItemKind) && lot.ContainerLotId is null, feed) &&
             Take(lot => lot.ItemKind == InventoryContainerRules.FreshWater && lot.ContainerLotId is { } container &&
                 society.Checkpoint.Inventory.GetLot(container).ConditionBasisPoints > 0, water) &&
-            AnimalFoodReserveRemaining(actor, result.Where(input => IsEdibleFood(input.Item1.ItemKind)).Sum(input => input.Item2)) ? result : null;
+            AnimalFoodReserveRemaining(actor, result.Where(input => IsEdibleFood(input.Item1.ItemKind)).Sum(input => input.Item2), animal.HouseholdId) ? result : null;
     }
     private bool AnimalFeedMayBeSpent(string actor, AnimalState animal, InventoryLot lot, int quantity)
     {
         if (lot.StorageBuildingId is not null && !CanRemoveWorkstationStock(society.Checkpoint.Inventory, lot, quantity)) return false;
         if (!IsEdibleFood(lot.ItemKind) || HouseholdFor(actor) is not { } household) return true;
-        return AnimalFoodReserveRemaining(actor, quantity);
+        return AnimalFoodReserveRemaining(actor, quantity, lot.OwnerId == animal.HouseholdId ? animal.HouseholdId : null);
     }
-    private bool AnimalFoodReserveRemaining(string actor, int quantity)
+    private bool AnimalFoodReserveRemaining(string actor, int quantity, string? stockHousehold = null)
     {
-        if (HouseholdFor(actor) is not { } household) return true;
+        var household = stockHousehold ?? HouseholdFor(actor);
+        if (quantity == 0 || household is null) return true;
         var people = society.Checkpoint.Inhabitants.Where(person => person.Status == SocietyInhabitantStatus.Active && person.HouseholdId == household)
             .Select(person => person.Id).ToHashSet(StringComparer.Ordinal);
         var ready = society.Checkpoint.Inventory.Lots.Where(item => IsEdibleFood(item.ItemKind) &&
             (item.OwnerId == household || people.Contains(item.OwnerId))).Sum(AvailableLotQuantity);
-        return ready - quantity >= people.Count * 2;
+        return ready - quantity >= people.Count * 2 + (inhabitants.Values.Any(person => people.Contains(person.InhabitantId) && ActiveParenthood(person.Parenthood)) ? 4 : 0);
     }
     private void ConsumeAnimalInputs(string actor, string purpose, List<(InventoryLot Lot, int Quantity)> inputs)
     {
@@ -226,7 +242,7 @@ public sealed partial class PrivateWorldRuntime
     }
     private void LeadAnimalHome(string actor, AnimalState animal)
     {
-        if (!AnimalHouseholdMember(actor, animal) || AnimalYard(animal.HouseholdId) is not { } yard ||
+        if (!AnimalHouseholdMember(actor, animal) || AssignedAnimalYard(animal) is not { } yard ||
             animal.RiderId is not null || animal.LeaderId is not (null) && animal.LeaderId != actor) return;
         if (YardTiles(yard).Contains(animal.Position))
         {

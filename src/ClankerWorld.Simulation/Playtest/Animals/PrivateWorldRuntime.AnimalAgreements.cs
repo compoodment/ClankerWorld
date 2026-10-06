@@ -9,7 +9,7 @@ public sealed partial class PrivateWorldRuntime
 {
     private sealed record AnimalAgreement(string Action, string AnimalId, string OtherId, string? LotId = null)
     {
-        public string Id => "animal:agreement:" + AnimalKey(Action + ":" + AnimalId + ":" + OtherId + ":" + LotId);
+        public string Id => "animal:agreement:" + AnimalKey(System.Text.Json.JsonSerializer.Serialize(new[] { Action, AnimalId, OtherId, LotId }));
     }
 
     private IEnumerable<AnimalAgreement> AnimalAgreements(string actor)
@@ -143,7 +143,7 @@ public sealed partial class PrivateWorldRuntime
                     HerdId = "household:" + offer.ReceivingHouseholdId, CarePermissions = [], RidingPermissions = [],
                     SaddleLotId = null, SaddleReservationId = null, TamingWork = null,
                     LeaderId = inhabitants[actor].Position == animal.Position ? actor : null,
-                    LeadDestination = inhabitants[actor].Position == animal.Position ? AnimalYard(offer.ReceivingHouseholdId)!.Position : null });
+                    LeadDestination = inhabitants[actor].Position == animal.Position ? worldSimulation.Buildings.Single(yard => yard.InstanceId == offer.ReceivingYardId).Position : null });
                 AppendEvent("animal_transferred", offer.Id + ":" + animal.Id + ":" + offer.ReceivingHouseholdId, animal.Position);
             }
             animalWorld = animalWorld with { Offers = animalWorld.Offers.Where(item => item.Id != offer.Id).ToArray() };

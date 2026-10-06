@@ -15,21 +15,32 @@ public sealed partial class PrivateWorldRuntime
 
     private IEnumerable<AnimalSupplyChoice> AnimalSupplyChoices(string actor)
     {
-        if (!AdultResident(actor) || HouseholdFor(actor) is not { } household || AnimalYard(household) is not { } yard ||
-            animalWorld.SupplyTrips.Any(trip => trip.ActorId == actor)) yield break;
+        if (!AdultResident(actor) || animalWorld.SupplyTrips.Any(trip => trip.ActorId == actor)) yield break;
+        var yards = worldSimulation.Buildings.Where(yard => yard.HouseholdId is not null && worldContent.Buildings.Any(definition =>
+            definition.CanonicalId == yard.DefinitionId && definition.Tags.Contains(AnimalContent.YardTag)) && MaySupplyAnimalYard(actor, yard));
+        foreach (var yard in yards.OrderBy(yard => yard.InstanceId, StringComparer.Ordinal))
+            foreach (var choice in AnimalSupplyChoicesAtYard(actor, yard.HouseholdId!, yard)) yield return choice;
+    }
+
+    private bool MaySupplyAnimalYard(string actor, PlacedBuilding yard) => AdultResident(actor) &&
+        (yard.HouseholdId == HouseholdFor(actor) || animalWorld.Animals.Any(animal => animal.YardId == yard.InstanceId && MayCareForAnimal(actor, animal)));
+
+    private IEnumerable<AnimalSupplyChoice> AnimalSupplyChoicesAtYard(string actor, string household, PlacedBuilding yard)
+    {
         var inventory = society.Checkpoint.Inventory;
-        var animals = animalWorld.Animals.Where(animal => animal.DiedTick is null && animal.HouseholdId == household).ToArray();
+        var animals = animalWorld.Animals.Where(animal => animal.DiedTick is null && animal.YardId == yard.InstanceId && MayCareForAnimal(actor, animal)).ToArray();
         var sources = inventory.Lots.Where(lot => lot.ContainerLotId is null && lot.DeliveryBuildingId is null &&
             lot.ConditionBasisPoints > 0 && lot.FreshnessBasisPoints > 0 && AvailableLotQuantity(lot) > 0 &&
             (lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) || lot.OwnerId == household &&
-                (lot.CarrierId is null || PersonalEquipmentRules.IsCarried(lot, actor))) &&
+                (lot.CarrierId is null || PersonalEquipmentRules.IsCarried(lot, actor)) && (HouseholdFor(actor) == household ||
+                    lot.StorageBuildingId == yard.InstanceId || PersonalEquipmentRules.IsCarried(lot, actor))) &&
             !HasActiveContainerReservation(inventory, lot.Id) && (lot.StorageBuildingId is null || CanRemoveWorkstationStock(inventory, lot, 1)))
             .OrderBy(lot => lot.Id, StringComparer.Ordinal).ToArray();
         foreach (var animal in animals.OrderBy(animal => animal.Id, StringComparer.Ordinal))
         {
             var definition = AnimalRules.Definition(animal.Species);
             var action = animal.ReadyProductLotId is not null && animal.Species == "cow" ? "collect" :
-                animal.Species == "horse" && animal.SaddleLotId is null ? "saddle" : "care";
+                animal.Species == "horse" && animal.SaddleLotId is null && AnimalHouseholdMember(actor, animal) ? "saddle" : "care";
             if (action == "care" && AnimalRules.HasCare(animal, WorldTick)) continue;
             foreach (var root in sources.Where(lot => !PersonalEquipmentRules.IsCarried(lot, actor)))
             {
@@ -94,12 +105,12 @@ public sealed partial class PrivateWorldRuntime
             if (animalWorld.SupplyTrips.FirstOrDefault(trip => trip.ActorId == actor) is not { } trip) return true;
             var inventory = society.Checkpoint.Inventory;
             var lot = inventory.Lots.FirstOrDefault(lot => lot.Id == trip.LotId && PersonalEquipmentRules.IsCarried(lot, actor));
-            var yard = worldSimulation.Buildings.FirstOrDefault(building => building.InstanceId == trip.YardId && building.HouseholdId == HouseholdFor(actor));
+            var yard = worldSimulation.Buildings.FirstOrDefault(building => building.InstanceId == trip.YardId && MaySupplyAnimalYard(actor, building));
             if (lot is null || yard is null || !AdultResident(actor)) { FinishAnimalSupplyTrip(actor); return true; }
             if (trip.AnimalId is { } animalId)
             {
                 var animal = Animal(animalId);
-                if (animal is null || !AnimalHouseholdMember(actor, animal)) { FinishAnimalSupplyTrip(actor); return true; }
+                if (animal is null || !MayCareForAnimal(actor, animal)) { FinishAnimalSupplyTrip(actor); return true; }
                 _ = ApplyAnimalCandidate(actor, new AnimalChoice(trip.Action!, animal.Id).Id);
                 if (trip.Action == "care" && AnimalRules.HasCare(Animal(animal.Id)!, WorldTick) ||
                     trip.Action == "collect" && Animal(animal.Id)!.ReadyProductLotId is null ||

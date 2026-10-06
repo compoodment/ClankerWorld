@@ -11,8 +11,13 @@ namespace ClankerWorld.Simulation.Playtest;
 public sealed partial class PrivateWorldRuntime
 {
     private int AnimalDayTicks => worldSystems.Config.TicksPerDay;
-    private void StageAnimalContent() => StageBuiltInContent(AnimalContent.PackageId, RestaurantContent.PackageId,
-        AnimalContent.Create, "animal_content_staged");
+    private void StageAnimalContent()
+    {
+        var packages = contentRegistry.ExportState().Packages;
+        if (new[] { TailorVariantContent.PackageId, RestaurantVariantContent.PackageId }.Any(id =>
+                !packages.Any(package => package.Manifest.PackageId == id && package.Lifecycle == ContentPackageLifecycle.Active))) return;
+        StageBuiltInContent(AnimalContent.PackageId, RestaurantContent.PackageId, AnimalContent.Create, "animal_content_staged");
+    }
     private static string AnimalKey(string value) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(value)))[..24];
     private AnimalState? Animal(string id) => animalWorld.Animals.FirstOrDefault(item => item.Id == id);
     private void SetAnimal(AnimalState animal) => animalWorld = animalWorld with
@@ -21,6 +26,8 @@ public sealed partial class PrivateWorldRuntime
             .OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(),
     };
     private PlacedBuilding? AnimalYard(string? household) => household is null ? null : HouseholdBuildingWithTag(household, AnimalContent.YardTag);
+    private PlacedBuilding? AssignedAnimalYard(AnimalState animal) => worldSimulation.Buildings.FirstOrDefault(yard =>
+        yard.InstanceId == animal.YardId && yard.HouseholdId == animal.HouseholdId);
     private int AnimalYardCapacity(PlacedBuilding yard)
     {
         var definition = worldContent.Buildings.Single(item => item.CanonicalId == yard.DefinitionId);
@@ -43,8 +50,8 @@ public sealed partial class PrivateWorldRuntime
         (AnimalHouseholdMember(actor, animal) || animal.RidingPermissions.Contains(actor, StringComparer.Ordinal));
     private GridPoint[] YardTiles(PlacedBuilding yard) => WorldContentSimulationRules.Footprint(
         worldContent.Buildings.Single(item => item.CanonicalId == yard.DefinitionId), yard).ToArray();
-    private GridPoint? FreeAnimalYardTile(PlacedBuilding yard, string? animalId = null) => YardTiles(yard)
-        .Where(tile => map.IsPassable(tile) && !animalWorld.Animals.Any(item => item.Id != animalId &&
+    private GridPoint? FreeAnimalYardTile(PlacedBuilding yard, string? animalId = null, GridPoint? near = null) => YardTiles(yard)
+        .Where(tile => map.IsPassable(tile) && (near is null || map.FootDistance(tile, near.Value) <= 1) && !animalWorld.Animals.Any(item => item.Id != animalId &&
             item.DiedTick is null && item.Position == tile) && !inhabitants.Values.Any(person => person.Position == tile))
         .OrderBy(tile => tile.Y).ThenBy(tile => tile.X).Cast<GridPoint?>().FirstOrDefault();
 
@@ -58,11 +65,13 @@ public sealed partial class PrivateWorldRuntime
             .OrderBy(item => AnimalKey(worldSeed + ":animal-herd:" + item.Id), StringComparer.Ordinal).ToArray();
         var shores = FreshWaterShorePositions();
         var result = new List<AnimalState>();
+        var usedForage = new HashSet<string>(StringComparer.Ordinal);
         foreach (var species in AnimalRules.Species)
         {
-            var source = greens.FirstOrDefault(item => shores.Any(shore => map.FootDistance(item.Position, shore) <= 6) &&
-                map.FootNeighbors(item.Position).Any(tile => !blocked.Contains(tile) && !result.Any(animal => animal.Position == tile)));
+            var source = greens.FirstOrDefault(item => !usedForage.Contains(item.Id) && shores.Any(shore => map.FootDistance(item.Position, shore) <= 6) &&
+                map.FootNeighbors(item.Position).Count(tile => map.IsBuildable(tile) && !blocked.Contains(tile) && !result.Any(animal => animal.Position == tile)) >= 2);
             if (source is null) continue;
+            usedForage.Add(source.Id);
             var sites = map.FootNeighbors(source.Position).Where(tile => map.IsBuildable(tile) && !blocked.Contains(tile) &&
                     !result.Any(item => item.Position == tile)).OrderBy(tile => tile.Y).ThenBy(tile => tile.X).Take(2).ToArray();
             for (var index = 0; index < sites.Length; index++)
@@ -142,7 +151,7 @@ public sealed partial class PrivateWorldRuntime
                     var yard = animal.YardId is null ? null : worldSimulation.Buildings.FirstOrDefault(item => item.InstanceId == animal.YardId);
                     var position = yard is null ? map.FootNeighbors(animal.Position).Where(tile => map.IsBuildable(tile) &&
                         !animalWorld.Animals.Any(item => item.DiedTick is null && item.Position == tile)).Cast<GridPoint?>().FirstOrDefault()
-                        : FreeAnimalYardTile(yard);
+                        : FreeAnimalYardTile(yard, near: animal.Position);
                     if (position is null) continue;
                     var childId = "animal-born-" + AnimalKey(animal.Id + ":" + pregnancy.StartedTick);
                     SetAnimal(new(childId, definition.Id + " " + childId[^4..], definition.Id,
@@ -155,7 +164,7 @@ public sealed partial class PrivateWorldRuntime
                 SetAnimal(animal);
             }
             else if (animal.Sex == "female" && AnimalRules.IsAdult(animal, tick, AnimalDayTicks) && tick >= animal.BreedingReadyTick &&
-                     CanStartAnimalPregnancy(animal, tick))
+                     !animalWorld.Offers.Any(offer => offer.AnimalId == animal.Id) && CanStartAnimalPregnancy(animal, tick))
             {
                 var male = animalWorld.Animals.FirstOrDefault(item => item.Species == animal.Species && item.Sex == "male" &&
                     item.DiedTick is null && item.HouseholdId == animal.HouseholdId && item.YardId == animal.YardId &&
@@ -168,9 +177,23 @@ public sealed partial class PrivateWorldRuntime
             }
             WanderAnimal(animal, tick);
         }
+        ReconcileAnimalCustody();
+    }
+
+    private void ReconcileAnimalCustody()
+    {
+        foreach (var animal in animalWorld.Animals.ToArray())
+        {
+            if (animal.RiderId is { } rider && (!MayRideAnimal(rider, animal) || !AnimalRules.HasCare(animal, WorldTick) ||
+                    !inhabitants.TryGetValue(rider, out var person) || person.Position != animal.Position))
+                EndAnimalRide(animal, "care_or_permission_lost");
+            if (animal.LeaderId is { } leader && (!AnimalHouseholdMember(leader, animal) ||
+                    inhabitants[leader].Position != animal.Position))
+                SetAnimal(Animal(animal.Id)! with { LeaderId = null, LeadDestination = null });
+        }
         animalWorld = animalWorld with { Offers = animalWorld.Offers.Where(ValidAnimalOffer).ToArray(),
             SupplyTrips = animalWorld.SupplyTrips.Where(trip => AdultResident(trip.ActorId) &&
-                worldSimulation.Buildings.Any(yard => yard.InstanceId == trip.YardId && yard.HouseholdId == HouseholdFor(trip.ActorId)) &&
+                worldSimulation.Buildings.Any(yard => yard.InstanceId == trip.YardId && MaySupplyAnimalYard(trip.ActorId, yard)) &&
                 society.Checkpoint.Inventory.Lots.Any(lot => lot.Id == trip.LotId && PersonalEquipmentRules.IsCarried(lot, trip.ActorId))).ToArray() };
     }
 
@@ -179,7 +202,7 @@ public sealed partial class PrivateWorldRuntime
         if (animal.HouseholdId is null)
             return animalWorld.Animals.Where(item => item.DiedTick is null && item.HouseholdId is null && item.HerdId == animal.HerdId)
                 .Sum(item => 1 + (item.Pregnancy is null ? 0 : 1)) < AnimalRules.PopulationCap;
-        var yard = AnimalYard(animal.HouseholdId);
+        var yard = AssignedAnimalYard(animal);
         if (yard is null || !HasAnimalSpace(animal.HouseholdId, yard)) return false;
         var need = animalWorld.Animals.Where(item => item.HouseholdId == animal.HouseholdId && item.DiedTick is null)
             .Sum(item => AnimalRules.Definition(item.Species).DailyFeed * ((AnimalRules.HasCare(item, tick) ? 0 : 1) + (item.Pregnancy is null ? 0 : 1))) +
@@ -205,7 +228,7 @@ public sealed partial class PrivateWorldRuntime
     private void WanderAnimal(AnimalState animal, long tick)
     {
         if (animal.HouseholdId is null || animal.RiderId is not null || animal.LeaderId is not null || animal.ReadyProductLotId is not null ||
-            tick % 12 != 0 || AnimalYard(animal.HouseholdId) is not { } yard || !YardTiles(yard).Contains(animal.Position)) return;
+            tick % 12 != 0 || AssignedAnimalYard(animal) is not { } yard || !YardTiles(yard).Contains(animal.Position)) return;
         var tiles = YardTiles(yard).ToHashSet();
         var next = map.FootNeighbors(animal.Position).Where(tile => tiles.Contains(tile) && map.CanFootStep(animal.Position, tile) &&
             !inhabitants.Values.Any(person => person.Position == tile) && !animalWorld.Animals.Any(item => item.DiedTick is null && item.Id != animal.Id && item.Position == tile))

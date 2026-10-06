@@ -28,7 +28,9 @@ public sealed partial class PrivateWorldRuntime
         }
         if (animal.WildWaterUntilTick <= tick)
         {
-            var shore = FreshWaterShorePositions().Where(point => map.FootDistance(animal.Position, point) <= 12 &&
+            var shore = FreshWaterShorePositions().Where(point => !animalWorld.Animals.Any(other => other.Id != animal.Id &&
+                    other.DiedTick is null && other.Position == point) && !inhabitants.Values.Any(person => person.Position == point) &&
+                    map.FootDistance(animal.Position, point) <= 12 &&
                     map.IsReachableOnFoot(animal.Position, point)).OrderBy(point => map.FootDistance(animal.Position, point))
                 .ThenBy(point => point.Y).ThenBy(point => point.X).Cast<GridPoint?>().FirstOrDefault();
             if (shore is null) return animal;

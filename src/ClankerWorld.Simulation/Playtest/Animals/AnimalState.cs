@@ -8,17 +8,17 @@ public sealed record AnimalTamingWork(string ActorId, int WorkTicks);
 public sealed record AnimalPregnancy(string FatherId, int ProgressTicks, long StartedTick);
 
 /// <summary>One physical animal. Ownership, care, offspring places and permissions survive checkpoints.</summary>
-public sealed record AnimalState(string Id, string Name, string Species, string Sex, long BornTick,
-    GridPoint Position, string HerdId, string? HouseholdId = null, string? YardId = null,
-    long CareUntilTick = 0, int ProductProgressTicks = 0, string? ReadyProductLotId = null, string? ReadyProductReservationId = null,
-    AnimalPregnancy? Pregnancy = null, long BreedingReadyTick = 0, long? DiedTick = null,
-    string? RiderId = null, string? LeaderId = null, string? SaddleLotId = null,
-    GridPoint? LeadDestination = null, AnimalTamingWork? TamingWork = null,
-    long WildFedUntilTick = 0, long WildWaterUntilTick = 0)
+public sealed record AnimalState([property: JsonRequired] string Id, [property: JsonRequired] string Name, [property: JsonRequired] string Species, [property: JsonRequired] string Sex, [property: JsonRequired] long BornTick,
+    [property: JsonRequired] GridPoint Position, [property: JsonRequired] string HerdId, [property: JsonRequired] string? HouseholdId = null, [property: JsonRequired] string? YardId = null,
+    [property: JsonRequired] long CareUntilTick = 0, [property: JsonRequired] int ProductProgressTicks = 0, [property: JsonRequired] string? ReadyProductLotId = null, [property: JsonRequired] string? ReadyProductReservationId = null,
+    [property: JsonRequired] AnimalPregnancy? Pregnancy = null, [property: JsonRequired] long BreedingReadyTick = 0, [property: JsonRequired] long? DiedTick = null,
+    [property: JsonRequired] string? RiderId = null, [property: JsonRequired] string? LeaderId = null, [property: JsonRequired] string? SaddleLotId = null,
+    [property: JsonRequired] GridPoint? LeadDestination = null, [property: JsonRequired] AnimalTamingWork? TamingWork = null,
+    [property: JsonRequired] long WildFedUntilTick = 0, [property: JsonRequired] long WildWaterUntilTick = 0)
 {
-    public IReadOnlyList<string> CarePermissions { get; init; } = [];
-    public IReadOnlyList<string> RidingPermissions { get; init; } = [];
-    public string? SaddleReservationId { get; init; }
+    [JsonRequired] public IReadOnlyList<string> CarePermissions { get; init; } = [];
+    [JsonRequired] public IReadOnlyList<string> RidingPermissions { get; init; } = [];
+    [JsonRequired] public string? SaddleReservationId { get; init; }
 }
 
 public sealed record AnimalTradeOffer(string Id, string AnimalId, string SellerId, string BuyerId,
