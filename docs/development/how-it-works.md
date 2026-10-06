@@ -112,6 +112,12 @@ do not create map knowledge. Optional observer replies are tied to the exact
 message ID and stored separately from private thoughts and conversation
 speech. Local deterministic decisions do not mark messages as heard.
 
+Food-source orders can use food directly observed within normal gathering
+range even when the agent's map memory is full. Food kinds and exact resource
+or coordinate targets still apply; distant sites require that agent's own
+knowledge. Observation does not bypass availability, reachability or the
+whole-load carrying checks.
+
 Material orders save the requested kind separately from food targets. They use
 known resource facts or observation within normal interaction range; a named
 unobserved site first requires physical travel. Untargeted orders may use normal
