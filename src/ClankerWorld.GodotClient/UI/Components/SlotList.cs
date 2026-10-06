@@ -143,11 +143,12 @@ public partial class SlotList : ScrollContainer
     }
 
     /// <summary>Chooses a card without reporting it, like <see cref="ItemList.Select"/>.</summary>
-    public void Select(int index)
+    /// <param name="scrollIntoView">False when restoring the same selection during a list refresh.</param>
+    public void Select(int index, bool scrollIntoView = true)
     {
         selected = index >= 0 && index < items.Count ? index : -1;
         Restyle();
-        if (selected < 0) return;
+        if (selected < 0 || !scrollIntoView) return;
         // Scroll once the card is laid out; the list may have been refilled by then.
         var card = items[selected];
         Callable.From(() =>
