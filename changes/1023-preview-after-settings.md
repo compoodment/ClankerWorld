@@ -1,0 +1,1 @@
+- Opening New World while a Settings action is still finishing now generates the map preview automatically once that action completes.

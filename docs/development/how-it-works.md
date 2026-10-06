@@ -2663,6 +2663,11 @@ targets and signed creation remain the only way through that screen. The
 redirect neither replaces the checkpoint nor removes its catalog entry, and
 founders or authored progress prevent it.
 
+New World preview refreshes wait for both an existing preview and a pending
+owner action to finish. Menu visibility, observation generation and preview
+revision still fence the waiting work, so only the current options are
+requested and closing or switching screens discards the old refresh.
+
 The manual Save World and Load Save dialog owns one list read per opening.
 Closing it, creating, overwriting or deleting a save, or starting another opening
 cancels the previous read. Late success and failure replies cannot replace current rows,

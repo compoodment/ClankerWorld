@@ -174,6 +174,7 @@ public partial class Main
         public List<OwnerAutosaveConfigurationAction> AutosaveConfigurations { get; } = [];
         /// <summary>The next signed refresh's world, or none to refuse refreshes.</summary>
         public OwnerWorldReconnect? Reconnect { get; set; }
+        public Func<OwnerUsageLimitAction, Task<OwnerUsageStatus>>? UsageLimitHandler { get; set; }
         public IReadOnlyList<string>? SupportedActionPayloads { get; set; }
         public OwnerWorldPreview? Preview { get; set; }
         public CatalogWorld? SelectedWorld { get; set; }
@@ -312,6 +313,9 @@ public partial class Main
                     break;
                 case OwnerPairingEndpoints.OwnerReconnect when Reconnect is not null:
                     response = Reconnect;
+                    break;
+                case OwnerPairingEndpoints.OwnerUsageLimit when UsageLimitHandler is not null:
+                    response = await UsageLimitHandler(envelope.GetProperty("action").Deserialize<OwnerUsageLimitAction>(JsonOptions)!).ConfigureAwait(false);
                     break;
                 case OwnerPairingEndpoints.OwnerAgentRename:
                     var rename = envelope.GetProperty("action").Deserialize<OwnerAgentRenameAction>(JsonOptions)!;

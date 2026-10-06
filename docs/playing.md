@@ -714,6 +714,8 @@ or latitude cooling. **Reset these options** restores the preset and Small size
 without changing the name or seed. The preview updates after
 changes; Create World waits for a matching preview. Small and Medium are
 available; larger worlds remain unavailable pending their support checks.
+If a Settings action is still finishing when you open New World, its preview
+starts automatically after that action completes.
 **Reroll** chooses another seed and clears the old map while its replacement
 loads. You can reroll during generation; the preview will follow your latest
 seed. If the world name is missing, enter it and choose **Preview again**.
