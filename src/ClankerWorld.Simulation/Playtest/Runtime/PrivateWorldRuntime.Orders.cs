@@ -192,11 +192,12 @@ public sealed partial class PrivateWorldRuntime
 
     private static bool IsFoodSurvivalCandidate(string candidateId) => candidateId is
         "consume_food" or "collect_shared_food" or "take_food_from_pot" or "make_room_for_food" or
-        "harvest_food" or "seek_food";
+        "harvest_food" or "seek_food" || candidateId.StartsWith(TownProjectReturnPrefix, StringComparison.Ordinal);
 
     private static bool IsSurvivalCandidate(string candidateId) => candidateId is
         "consume_food" or "collect_shared_food" or "take_food_from_pot" or "make_room_for_food" or "recover_household_delivery" or
-        "harvest_food" or "seek_food" or "wear_clothing" or "tend_fire" or "seek_warmth";
+        "harvest_food" or "seek_food" or "wear_clothing" or "tend_fire" or "seek_warmth" ||
+        candidateId.StartsWith(TownProjectReturnPrefix, StringComparison.Ordinal);
 
     private void ExecuteOrderStep(
         OwnerQueuedInstruction instruction,

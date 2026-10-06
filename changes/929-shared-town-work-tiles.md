@@ -1,0 +1,1 @@
+- Residents can collect and return Town Warehouse stock and supply, donate or build at an approved Town project while another resident stands on its work tile.

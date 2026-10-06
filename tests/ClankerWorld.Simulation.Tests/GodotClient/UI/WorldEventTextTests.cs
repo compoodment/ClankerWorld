@@ -89,6 +89,15 @@ public sealed class WorldEventTextTests
     }
 
     [Fact]
+    public void RecoveringUnusedTownMaterialsNamesTheCarrierAndWarehouseDestination()
+    {
+        var worldEvent = new OwnerWorldEvent(1, 1, "town_project_material_recovered", ChildId + ":unknown-project:unused-load:2:wood");
+        Assert.True(GameUiText.IsPlayerFacingEvent(worldEvent.Kind));
+        Assert.Equal("Aster picked up unused materials from a Town project to return to the Town Warehouse.",
+            WorldEventText.Describe(worldEvent, Snapshot(Person(ChildId, "Aster"))));
+    }
+
+    [Fact]
     public void FieldEventsUseCompleteWorkerNamesAndReadHarvestConditionsFromTheEnd()
     {
         var snapshot = Snapshot(Person(ChildId, "Aster"));

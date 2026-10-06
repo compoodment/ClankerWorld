@@ -127,7 +127,12 @@ so the journey cannot fill the agent's bounded ledger before arrival.
 `move_to` order with a saved `TargetPosition` and one arrival. The common
 unoccupied-route finder and `MoveToward` enforce walking rules, occupancy,
 travel cooldowns and illness delays. House destinations check current household
-membership or a saved guest invitation. An unavailable destination stays blocked;
+membership or a saved guest invitation. An eligible Warehouse user can share its
+exact tile with other occupants, using recorded Town access including abandoned-Town
+salvage. Residents can also share their Town's supplying or working project site.
+These destination exceptions keep stock ownership, reservations and action
+permissions intact; other occupied exact destinations stay blocked.
+An unavailable destination stays blocked;
 it is never substituted. The order completes only when the actor occupies the
 exact target tile. Repetition, quantities and extra task words are rejected.
 Arrival records one firsthand fact, for the destination tile. Submission,
@@ -309,6 +314,22 @@ remaining definitions before changing the registry. A package removal that
 would invalidate an active or historical order is refused without changing
 the checkpoint; unrelated package removal remains available.
 
+The production catalogue includes every shipped named-meal recipe, including
+the 2×2 Restaurant's exact variant definitions. House and Restaurant prefixes
+disambiguate shared output names; the larger Restaurant uses `restaurant 2x2`.
+The three simple-meal recipes name their ingredient rather than treating
+different inputs as interchangeable. Existing whole-batch validation and
+order-bound production jobs account for their two-serving yields.
+
+Named-meal inputs extend the existing House/Restaurant `workstation_input`
+routes. Supply still checks current recipe demand, source cooking reserves,
+whole vessels, access and room. Prepared-food nouns extend `collect_food`,
+borrowed returns, spare House-food delivery and Store stocking. Personal
+storage continues to exclude loose edible goods. Loading allows prepared
+food targets only on eating or food-collection orders, retaining the separate
+item targets on returns/deliveries and rejecting raw-crop food targets and
+mixed fields. No order fields, receipts or checkpoint layout change.
+
 Building orders use separate construction and expansion adapters. A
 `construct_building` order selects one active household building definition,
 then binds its household, exact site, project start and unique instance
@@ -395,8 +416,8 @@ the bound job before it can finish and resumes its remaining duration after
 the actor returns. Recipe, project, job and order references are validated
 together on restore. Content removal checks retained production orders,
 including cancelled history, against the remaining definitions before changing
-the registry. Retired generic cooking recipes are excluded; named-meal orders
-remain separate catalogue work.
+the registry. Retired generic cooking recipes are excluded; the catalogue uses
+the exact active named-meal recipes described above.
 
 A MustDo with no recognized action is closed when it is submitted: it is added
 to the completed instructions with an `instruction_not_understood` event
@@ -1645,9 +1666,10 @@ skipped. Selection stops when the remaining residents fit.
 
 `Housing.Relocation` stores the household, original notice tick, fixed deadline
 and selection reason. The initial period is one world day. Pausing and loading
-do not consume or restart it; a volunteer or other replacement adult inherits
-the existing notice period. Births, age changes and unfinished expansion do not
-restart a notice. Reconciliation cancels obsolete notices after changes in
+do not consume or restart it. A forced replacement inherits a still-future
+deadline; when notified at or after it, they receive one fresh world day from
+the current world tick. Volunteers keep their original deadline. Other residents’
+notices, births, age changes and unfinished expansion do not restart a notice. Reconciliation cancels obsolete notices after changes in
 residents, family, care or completed capacity. Admission and departure actions
 recheck that eligibility before acting on a saved or delayed choice.
 
@@ -1806,6 +1828,14 @@ Meals remain tracked in #564 and its domain
 issues; currency remains later work. The Clinic sells actual medicine
 and bandages through the same inventory and physical business authority.
 
+Released Town construction loads retain their Town owner and exact material
+history. Resident recovery moves only available ground quantities to a reachable
+Town Warehouse with actual room, leaving one carrying space for food. A split
+load gets a released custody record in the original project's delivery ledger;
+this does not revive its construction commitment or reservations. Urgent food or
+warmth permits immediate set-down of released carried goods. A temporary path
+obstruction while returning waits rather than dropping and recollecting cargo.
+
 **Markets** use the same inventory authority with separate saved paid-building
 and occupancy records. The Council-approved starter project pays for the 2×2
 hall and only two 1×1 stalls on the fixed 7×4 plaza, in slots 0 and 4. When
@@ -1820,6 +1850,14 @@ Physical stock receipts retain the personal or household owner. One named
 active adult borrows a stall while they remain inside the hall-and-plaza area;
 leaving, household change, death or removal ends borrowing and releases
 unfinished offer claims without transferring leftovers.
+
+Market live records retain recent outcomes and the exact borrowing, deposit,
+open-offer and payment bindings still needed by actual stock. Receipt sequences
+survive retirement; an explicit boundary allows closed source history to leave
+without granting selling authority. Closed inventory offers and claims retire
+with their Market records, while paid construction/removal and physical property
+remain intact. The [Market save rules](saves-and-replay.md#paid-markets-and-stall-trade)
+explain live bindings and archive/recovery behavior.
 
 Loads, borrowing, deposits, collection and barter mutations need a fresh
 accepted, non-fallback personal LLM choice; their candidates rank above
