@@ -1,0 +1,48 @@
+name: Trace Windows checkpoints
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Unchanged checkpoint target or full Release suite
+        type: choice
+        options: [target, full-suite]
+        default: target
+      iterations:
+        description: Target runs (1–20); full-suite requires 1
+        type: number
+        default: 1
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    runs-on: windows-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+      - name: Capture unchanged checkpoint tests and calibrate native tracing
+        shell: pwsh
+        env:
+          TRACE_MODE: ${{ inputs.mode }}
+          TRACE_ITERATIONS: ${{ inputs.iterations }}
+        run: ./scripts/trace-windows-checkpoints.ps1 -Mode $env:TRACE_MODE -Iterations ([int]$env:TRACE_ITERATIONS) -OutputDirectory "$env:RUNNER_TEMP/checkpoint-trace"
+      - name: Upload only synthetic checkpoint evidence
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-checkpoint-trace
+          path: |
+            ${{ runner.temp }}/checkpoint-trace/*-checkpoint-events.jsonl
+            ${{ runner.temp }}/checkpoint-trace/*.json
+            ${{ runner.temp }}/checkpoint-trace/*.log
+            ${{ runner.temp }}/checkpoint-trace/*-trace-summary.txt
+            ${{ runner.temp }}/checkpoint-trace/results
+            ${{ runner.temp }}/checkpoint-trace/checkpoint-evidence
+          include-hidden-files: true
+          retention-days: 14
+          if-no-files-found: error
