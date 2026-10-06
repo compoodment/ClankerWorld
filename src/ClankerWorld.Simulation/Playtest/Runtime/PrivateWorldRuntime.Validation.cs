@@ -636,8 +636,7 @@ public sealed partial class PrivateWorldRuntime
             order.Action is not ("seek_shelter" or "tend_fire") && (order.ShelterBinding is not null || order.ShelterCompletion is not null) ||
             !IsValidCustodyBindingShape(order) ||
             order.TargetFoodKind is not (null or "berries" or "fruit" or "wild_greens") &&
-                (order.Action != "consume_food" || !IsEdibleFood(order.TargetFoodKind)) &&
-                !(order.Action == "collect_food" && order.TargetFoodKind == "cultivated_greens") ||
+                (order.Action is not ("consume_food" or "collect_food") || !IsEdibleFood(order.TargetFoodKind)) ||
             !IsFieldOrder(order.Action) && order.TargetCropKind is not null ||
             order.Action is not ("repair_equipment" or "repair_tool" or "collect_equipment" or "store_equipment") && order.TargetEquipmentKind is not null ||
             order.Action is not ("gather_material" or "store_material" or "collect_material") && order.TargetMaterialKind is not null ||
