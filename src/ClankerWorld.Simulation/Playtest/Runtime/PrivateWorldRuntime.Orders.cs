@@ -11,6 +11,15 @@ public sealed partial class PrivateWorldRuntime
 {
     private sealed record FoodHarvestEffect(string LotId, string ItemKind, int Quantity, string ResourceId);
 
+    // Unpaid ordinary work may yield. Keep bound work and live paid jobs intact;
+    // completed/cancelled jobs already retain their own payment and output history.
+    private bool OrdinaryProjectCanYieldToOrder(SettlementProject project)
+    {
+        if (project.OrderInstructionId is not null || project.ToolMakingRequestId is not null) return false;
+        return project.JobId is null || worldSimulation.ProductionJobs.Concat(worldSimulation.CropBuilds ?? [])
+            .FirstOrDefault(job => job.JobId == project.JobId) is not { State: WorldProductionJobState.Running or WorldProductionJobState.Paused };
+    }
+
     private CognitionCandidate? OrderCandidateFor(OwnerQueuedInstruction instruction, PlaytestInhabitantState person)
     {
         var order = instruction.Order;
@@ -184,11 +193,12 @@ public sealed partial class PrivateWorldRuntime
 
     private static bool IsFoodSurvivalCandidate(string candidateId) => candidateId is
         "consume_food" or "collect_shared_food" or "take_food_from_pot" or "make_room_for_food" or
-        "harvest_food" or "seek_food";
+        "harvest_food" or "seek_food" || candidateId.StartsWith(TownProjectReturnPrefix, StringComparison.Ordinal);
 
     private static bool IsSurvivalCandidate(string candidateId) => candidateId is
         "consume_food" or "collect_shared_food" or "take_food_from_pot" or "make_room_for_food" or "recover_household_delivery" or
-        "harvest_food" or "seek_food" or "wear_clothing" or "tend_fire" or "seek_warmth";
+        "harvest_food" or "seek_food" or "wear_clothing" or "tend_fire" or "seek_warmth" ||
+        candidateId.StartsWith(TownProjectReturnPrefix, StringComparison.Ordinal);
 
     private void ExecuteOrderStep(
         OwnerQueuedInstruction instruction,

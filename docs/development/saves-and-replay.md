@@ -265,7 +265,9 @@ Older alpha saves are refused and preserved unchanged without migration.
 
 Private-world schema 80 adds `collect_food` orders using the existing
 `TargetFoodKind` and optional `TargetPosition` fields. Food targets are generic
-or one of berries, fruit, wild greens and cultivated greens. They use
+or one of berries, fruit, wild greens, cultivated greens and the seven named
+prepared foods. The named-food catalogue extends the same fields and receipts;
+raw grain and potatoes remain invalid food targets. They use
 `food_items` for exact quantities or `collection_loads` for default pickups,
 with the same bounded `collect:personal:` receipts as material collection.
 Validation refuses mixed material, equipment, crop or resource targets, wrong
@@ -588,6 +590,17 @@ claims. Archived physical profiles retain permission history but cannot retain
 active treatment. No migration is provided; older alpha saves are refused and
 preserved.
 
+Private-world schema 93 adds a caregiver's optional `MedicalSupplyTrip`, naming
+an accepted patient, their last-seen map position and the start tick. It keeps
+an already started medicine fetch and return trip through reload without
+exposing the patient's current distant location or health. Validation requires
+a living adult caregiver, an accepted living patient, a map position and a
+non-future start time; deceased profiles cannot retain trips. Permission loss,
+death, successful treatment or finding the remembered place empty clears the
+trip. Supplies remain ordinary inventory, and treatment still consumes one
+actual usable dose beside the patient. Earlier alpha saves, including schema
+92, are refused and preserved without migration.
+
 Private-world schema 52 adds an optional exact ornament-lot selection to the
 existing personal equipment record, without introducing combat equipment or a
 second inventory. Current-format checks reject a foreign, reserved, stored or otherwise
@@ -753,8 +766,11 @@ stale notice as authority to move someone.
 
 Current-format roundtrips retain notice deadlines, volunteer replacements,
 housing requests and the ordinary departure's collection rights and once-only
-food allowance. Replacing the selected adult keeps the original notice period;
-pause/load, births and unfinished expansion do not restart it. Replay must
+food allowance. A forced replacement inherits a future deadline; one notified
+at or after it receives a fresh day from the current world tick. Its saved
+notice tick and deadline describe that new period. Volunteers retain the
+original deadline, and other residents’ notices do not restart. Pause/load,
+births and unfinished expansion do not restart the saved period. Replay must
 produce the same cancellation or departure without duplicating events or goods.
 Only completed footprints add resident places. Sole caregivers are protected
 from timed displacement even when their dependent lives in another household.
@@ -776,7 +792,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 92. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 94. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 a bounded model-attempt status and exact last accepted model choice per agent, plus
@@ -916,6 +932,7 @@ current alpha cutoff.
 | Schema 81 | A protected government change records the exact initial Council election it forced, including failed attempts. Current-format saves require the explicit nullable link and validate its Town, ownership and lifecycle. Ordinary elections remain independent; earlier alpha saves are refused and preserved without migration. |
 | Schema 84 | Required marriage consent receipts and dedicated surname conversations preserve the original surnames, admitted turns and seeded result, including across history compaction. Later player surname changes update both spouses together without rewriting the original decision. |
 | Schema 91 | Non-land mandate consent, conduct-time law context, public hearings and voluntary remedy agreements retain their sources and real physical completion receipts. Earlier alpha saves are refused and preserved without migration. |
+| Schema 94 | Market receipts use required stable sequences and an explicit retirement boundary. Open trades retain their exact deposit proof; bounded closed outcomes may refer below the retired boundary. Live borrowing, current stock, exact payments and accepted offers remain authoritative; closed offers and claims retire together. Earlier alpha saves are refused and preserved without migration. |
 
 ### Tool-making requests
 
@@ -1067,8 +1084,35 @@ household owner recorded at deposit, physical lot, quantity and occupancy
 identity; live inventory remains authoritative after inheritance or collection.
 Another borrower gains no right to sell those goods. Barter records bind the
 exact inventory offer, named seller and buyer, lots, reservations and outcome.
-Completed or cancelled trades retain their history without requiring spent
-goods to remain live. Loading checks owners, locations and the actual physical
+Completed or cancelled trades retain a recent history without requiring spent
+goods to remain live. Schema 94 adds `NextStockReceiptSequence`, receipt
+`Sequence`, trade `StockReceiptSequence` and `RetiredStockReceiptThrough`.
+Sequences do not change when another record retires; required markers and strict
+bounds reject missing, duplicate, reordered or unaccounted receipts. The live
+receipt suffix above the retirement boundary must be complete. An open offer
+always retains its exact source receipt. A closed outcome may refer below the
+explicit retired boundary; that historical reference grants no new selling right.
+
+Each Market keeps the most recent 32 receipts, 32 closed trades and 32 ended
+borrowing records, plus exact live dependencies. Current borrowers keep the
+latest matching deposit for each actual on-site lot and historical owner; repeated
+collection and deposit cannot retain every obsolete receipt for the same goods.
+Open trades retain their original deposit proof. Retained payment receipts keep
+their settled offer and trade, and retained settlements keep their actual payment
+receipt and both acceptances. These bindings do not recursively retain an
+unlimited chain of earlier closed deposit proofs. Live claims block retirement;
+other closed offers and their two claims retire together. Paid projects, buildings,
+removal records and actual inventory owners, quantities and locations stay intact.
+
+World and inventory events remain in the existing durable archive chain.
+Retirement requires no archive lookup to establish live trading authority.
+Checkpoint compaction archives event prefixes before installing the new history
+head; missing or corrupt referenced archives still fail closed. Restoring an
+older checkpoint retains that checkpoint's own bindings and continuing native
+retirement decisions. Prepared-tick rejection and pause discard retirement with
+the other world changes.
+
+Loading checks owners, locations and the actual physical
 occupancy instead of reconstructing authority from a stall's current borrower;
 retained active claims of an open offer must bind its exact parties, lots, quantities,
 purpose, expiry and exclusive reservation state. Missing or released claims remain
@@ -1079,8 +1123,9 @@ keeps a standing plaza clear of unrelated buildings, fields, claims, expansions,
 resources, camp objects and bridge ends; only its paid stalls and aisle Roads fit.
 
 Leaving, household change, death or removal ends borrowing and cancels open
-offers. Removed Market buildings keep their paid history and stock receipts,
-so recorded owners can still collect physical leftovers. Current-format
+offers. Removed Market buildings keep their paid history. Actual owners can still collect
+physical leftovers after obsolete selling receipts retire; another borrower needs
+their own fresh deposit authority. Current-format
 restore must preserve intermediate construction, borrowing, stock and open
 trades without duplicating goods or approval. `MarketConstructionRuntimeTests`
 covers a generated paid Market and additional stall, personal and household
