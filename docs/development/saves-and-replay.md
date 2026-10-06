@@ -787,7 +787,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 93. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 94. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 a bounded model-attempt status and exact last accepted model choice per agent, plus
@@ -927,8 +927,7 @@ current alpha cutoff.
 | Schema 81 | A protected government change records the exact initial Council election it forced, including failed attempts. Current-format saves require the explicit nullable link and validate its Town, ownership and lifecycle. Ordinary elections remain independent; earlier alpha saves are refused and preserved without migration. |
 | Schema 84 | Required marriage consent receipts and dedicated surname conversations preserve the original surnames, admitted turns and seeded result, including across history compaction. Later player surname changes update both spouses together without rewriting the original decision. |
 | Schema 91 | Non-land mandate consent, conduct-time law context, public hearings and voluntary remedy agreements retain their sources and real physical completion receipts. Earlier alpha saves are refused and preserved without migration. |
-
-| Schema 93 | Market receipts use required stable sequences and an explicit retirement boundary. Open trades retain their exact deposit proof; bounded closed outcomes may refer below the retired boundary. Live borrowing, current stock, exact payments and accepted offers remain authoritative; closed offers and claims retire together. Earlier alpha saves are refused and preserved without migration. |
+| Schema 94 | Market receipts use required stable sequences and an explicit retirement boundary. Open trades retain their exact deposit proof; bounded closed outcomes may refer below the retired boundary. Live borrowing, current stock, exact payments and accepted offers remain authoritative; closed offers and claims retire together. Earlier alpha saves are refused and preserved without migration. |
 
 ### Tool-making requests
 
@@ -1081,7 +1080,7 @@ identity; live inventory remains authoritative after inheritance or collection.
 Another borrower gains no right to sell those goods. Barter records bind the
 exact inventory offer, named seller and buyer, lots, reservations and outcome.
 Completed or cancelled trades retain a recent history without requiring spent
-goods to remain live. Schema 93 adds `NextStockReceiptSequence`, receipt
+goods to remain live. Schema 94 adds `NextStockReceiptSequence`, receipt
 `Sequence`, trade `StockReceiptSequence` and `RetiredStockReceiptThrough`.
 Sequences do not change when another record retires; required markers and strict
 bounds reject missing, duplicate, reordered or unaccounted receipts. The live
