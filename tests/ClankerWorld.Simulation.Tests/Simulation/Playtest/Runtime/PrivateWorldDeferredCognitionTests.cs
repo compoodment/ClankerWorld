@@ -396,7 +396,12 @@ public sealed class PrivateWorldDeferredCognitionTests
         Assert.True(world.SetRoutineHelper(new("decisions", "gpt-6-luna")));
         Assert.True(world.SetRoutineHelper(new("jev", "typed-jev-model")));
         Assert.True(world.SetRoutineHelper(RoutineHelperSettings.Off));
-        var saved = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        var checkpoint = world.ExportState();
+        Assert.Equal(PrivateWorldRuntime.StateSchemaVersion, checkpoint.SchemaVersion);
+        var older = checkpoint with { SchemaVersion = checkpoint.SchemaVersion - 1 };
+        var refused = Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(older));
+        Assert.Contains("older than the minimum supported schema", refused.Message, StringComparison.Ordinal);
+        var saved = PrivateWorldRuntimeCodec.Encode(checkpoint);
         hosted.Release.TrySetResult(true);
         await hosted.Returned.Task.WaitAsync(TimeSpan.FromSeconds(3));
         Assert.False((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
