@@ -19,14 +19,16 @@ public sealed partial class PrivateWorldRuntime
         {
             if (animal.LeaderId == actor) yield return new("lead_home", animal.Id);
             if (animal.RiderId == actor) { yield return new("dismount", animal.Id); continue; }
-            if (animal.HouseholdId is null && map.FootDistance(person.Position, animal.Position) <= 4 &&
+            if (animal.HouseholdId is null && MayLeadAnimal(actor, animal) &&
+                (map.FootDistance(person.Position, animal.Position) <= 4 ||
+                 PendingInstructionFor(actor)?.Order is { Action: "animal_tame" } order && order.TargetAnimalId == animal.Id) &&
                 HouseholdFor(actor) is { } household && AnimalYard(household) is { } yard &&
                 HasAnimalTransferSpace(household, yard, animal) && animal.LeaderId is null &&
                 (animal.TamingWork is null || animal.TamingWork.ActorId == actor))
                 yield return new("tame", animal.Id);
             if (MayCareForAnimal(actor, animal) && animal.CareUntilTick <= WorldTick) yield return new("care", animal.Id);
             if (MayCareForAnimal(actor, animal) && animal.ReadyProductLotId is not null) yield return new("collect", animal.Id);
-            if (AnimalHouseholdMember(actor, animal) && animal.LeaderId is null && animal.RiderId is null &&
+            if (AnimalHouseholdMember(actor, animal) && MayLeadAnimal(actor, animal) && animal.LeaderId is null && animal.RiderId is null &&
                 AssignedAnimalYard(animal) is { } home && !YardTiles(home).Contains(animal.Position))
                 yield return new("lead_home", animal.Id);
             if (animal.Species == "horse" && animal.SaddleLotId is null && AnimalHouseholdMember(actor, animal))
@@ -37,11 +39,18 @@ public sealed partial class PrivateWorldRuntime
                 yield return new("mount", animal.Id);
         }
     }
+    private bool MayLeadAnimal(string actor, AnimalState animal) => AttachedHandcart(actor) is null && PassengerBoat(actor) is null &&
+        !animalWorld.Animals.Any(other => other.RiderId == actor || other.Id != animal.Id && other.LeaderId == actor);
     private void AddAnimalCandidates(List<CognitionCandidate> candidates, string actor)
     {
         foreach (var choice in AnimalChoices(actor))
         {
             var animal = Animal(choice.AnimalId)!;
+            if (choice.Action == "care" && AnimalCareInputs(actor, animal, AnimalRules.Definition(animal.Species).DailyFeed,
+                    AnimalRules.Definition(animal.Species).DailyWater) is null &&
+                !AnimalSupplyChoices(actor).Any(supply => supply.AnimalId == animal.Id && supply.Action == "care")) continue;
+            if (choice.Action == "collect" && (animal.ReadyProductLotId is not { } product ||
+                    FreeCarryCapacity(actor) < society.Checkpoint.Inventory.GetLot(product).Quantity)) continue;
             var description = choice.Action switch
             {
                 "tame" => $"Approach and tame {animal.Name} for your household with two feed and one jug water; lead it to the animal yard.",
@@ -52,23 +61,28 @@ public sealed partial class PrivateWorldRuntime
                 "mount" => $"Mount {animal.Name} with permission for faster travel and eight additional cargo units.",
                 _ => $"Dismount {animal.Name}, leaving the horse and extra cargo at their actual position.",
             };
-            candidates.Add(new(choice.Id, description, choice.Action is "care" or "lead_home" ? 15 :
+            candidates.Add(new(choice.Id, description, choice.Action == "lead_home" ? 13 : choice.Action == "care" ? 15 :
                 choice.Action == "collect" ? 16 : 110, animal.Id));
         }
         AddAnimalSupplyCandidates(candidates, actor);
         AddAnimalPermissionAndTradeCandidates(candidates, actor);
+        AddMilkCandidates(candidates, actor);
         if (CarriedMilk(actor) is not null && inhabitants[actor].HungerBasisPoints < ComfortableFullness)
             candidates.Add(new("drink_milk", "Drink one portion of carried jug milk, leaving the reusable jug intact.", 0));
     }
     private bool ApplyAnimalCandidate(string actor, string candidateId)
     {
+        if (ApplyMilkStockChoice(actor, candidateId) || ApplySpoiledMilkChoice(actor, candidateId)) return true;
         if (candidateId == "drink_milk")
         {
             if (CarriedMilk(actor) is { } milk)
             {
                 ConsumeAnimalInputs(actor, "drink_milk", [(milk, 1)]);
-                inhabitants[actor] = inhabitants[actor] with { HungerBasisPoints = Math.Min(10_000,
-                    inhabitants[actor].HungerBasisPoints + 3_000) };
+                inhabitants[actor] = inhabitants[actor] with
+                {
+                    HungerBasisPoints = Math.Min(10_000,
+                    inhabitants[actor].HungerBasisPoints + 3_000)
+                };
                 AppendEvent("milk_drunk", actor);
             }
             return true;
@@ -110,9 +124,18 @@ public sealed partial class PrivateWorldRuntime
                 var work = animal.TamingWork?.ActorId == actor ? animal.TamingWork.WorkTicks + 1 : 1;
                 if (work < AnimalRules.TamingWorkTicks) { SetAnimal(animal with { TamingWork = new(actor, work) }); break; }
                 ConsumeAnimalInputs(actor, "tame:" + animal.Id, tamingInputs);
-                SetAnimal(animal with { HouseholdId = household, YardId = yard.InstanceId, HerdId = "household:" + household,
-                    CareUntilTick = 0, TamingWork = null, LeaderId = actor, LeadDestination = yard.Position,
-                    WildFedUntilTick = 0, WildWaterUntilTick = 0 });
+                SetAnimal(animal with
+                {
+                    HouseholdId = household,
+                    YardId = yard.InstanceId,
+                    HerdId = "household:" + household,
+                    CareUntilTick = 0,
+                    TamingWork = null,
+                    LeaderId = actor,
+                    LeadDestination = yard.Position,
+                    WildFedUntilTick = 0,
+                    WildWaterUntilTick = 0
+                });
                 AppendEvent("animal_tamed", actor + ":" + animal.Id, animal.Position);
                 break;
             case "care":

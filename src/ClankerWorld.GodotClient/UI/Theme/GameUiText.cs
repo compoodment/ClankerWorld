@@ -432,10 +432,15 @@ public static class GameUiText
         if (candidateId?.StartsWith("animal:", StringComparison.Ordinal) == true)
             return candidateId.Split(':')[1] switch
             {
-                "care" => "caring for an animal", "collect" => "collecting animal products",
-                "tame" => "taming an animal", "lead_home" => "leading an animal home",
-                "saddle" => "fitting a horse's saddle", "mount" => "mounting a horse", "dismount" => "dismounting a horse",
-                "agreement" => "discussing animal permissions or a transfer", _ => "carrying animal supplies",
+                "care" => "caring for an animal",
+                "collect" => "collecting animal products",
+                "tame" => "taming an animal",
+                "lead_home" => "leading an animal home",
+                "saddle" => "fitting a horse's saddle",
+                "mount" => "mounting a horse",
+                "dismount" => "dismounting a horse",
+                "agreement" => "discussing animal permissions or a transfer",
+                _ => "carrying animal supplies",
             };
         return string.IsNullOrWhiteSpace(candidateId) ? "taking in the surroundings" : HumanizeIdentifier(candidateId);
     }

@@ -3,9 +3,10 @@ using System.Text.Json.Serialization;
 
 namespace ClankerWorld.Simulation.Playtest;
 
-public sealed record AnimalTamingWork(string ActorId, int WorkTicks);
+public sealed record AnimalTamingWork([property: JsonRequired] string ActorId, [property: JsonRequired] int WorkTicks);
 
-public sealed record AnimalPregnancy(string FatherId, int ProgressTicks, long StartedTick);
+public sealed record AnimalPregnancy([property: JsonRequired] string FatherId, [property: JsonRequired] int ProgressTicks,
+    [property: JsonRequired] long StartedTick);
 
 /// <summary>One physical animal. Ownership, care, offspring places and permissions survive checkpoints.</summary>
 public sealed record AnimalState([property: JsonRequired] string Id, [property: JsonRequired] string Name, [property: JsonRequired] string Species, [property: JsonRequired] string Sex, [property: JsonRequired] long BornTick,
@@ -21,21 +22,29 @@ public sealed record AnimalState([property: JsonRequired] string Id, [property: 
     [JsonRequired] public string? SaddleReservationId { get; init; }
 }
 
-public sealed record AnimalTradeOffer(string Id, string AnimalId, string SellerId, string BuyerId,
-    string ReceivingHouseholdId, string ReceivingYardId, string? PaymentKind, int PaymentQuantity,
-    long OfferedTick)
+public sealed record AnimalTradeOffer([property: JsonRequired] string Id, [property: JsonRequired] string AnimalId,
+    [property: JsonRequired] string SellerId, [property: JsonRequired] string BuyerId,
+    [property: JsonRequired] string ReceivingHouseholdId, [property: JsonRequired] string ReceivingYardId,
+    [property: JsonRequired] string? PaymentKind, [property: JsonRequired] int PaymentQuantity, [property: JsonRequired] long OfferedTick)
 {
-    public string? PaymentLotId { get; init; }
+    [JsonRequired] public string? PaymentLotId { get; init; }
 }
 
-public sealed record AnimalWorldState(bool Seeded, IReadOnlyList<AnimalState> Animals,
-    IReadOnlyList<AnimalTradeOffer> Offers)
+public sealed record AnimalWorldState([property: JsonRequired] bool Seeded, [property: JsonRequired] IReadOnlyList<AnimalState> Animals,
+    [property: JsonRequired] IReadOnlyList<AnimalTradeOffer> Offers)
 {
     public static AnimalWorldState Empty { get; } = new(false, [], []);
     [JsonRequired] public IReadOnlyList<AnimalSupplyTrip> SupplyTrips { get; init; } = [];
+    [JsonRequired] public IReadOnlyList<MilkSaleOffer> MilkOffers { get; init; } = [];
 }
 
-public sealed record AnimalSupplyTrip(string ActorId, string LotId, string YardId, string? AnimalId = null, string? Action = null);
+public sealed record MilkSaleOffer([property: JsonRequired] string Id, [property: JsonRequired] string SellerId,
+    [property: JsonRequired] string BuyerId, [property: JsonRequired] string MilkLotId,
+    [property: JsonRequired] string ReceivingJugId, [property: JsonRequired] string PaymentLotId,
+    [property: JsonRequired] string BuildingId, [property: JsonRequired] GridPoint Position, [property: JsonRequired] long OfferedTick);
+
+public sealed record AnimalSupplyTrip([property: JsonRequired] string ActorId, [property: JsonRequired] string LotId,
+    [property: JsonRequired] string YardId, [property: JsonRequired] string? AnimalId = null, [property: JsonRequired] string? Action = null);
 
 public sealed record AnimalSpecies(string Id, int DailyFeed, int DailyWater, int GestationDays,
     int AdultDays, int LifespanDays, string? Product, int ProductQuantity, int ProductDays);

@@ -46,7 +46,7 @@ public sealed partial class PrivateWorldRuntime
         var capacity = carryAid ? item.ItemKind == "leather_sack" ? 32 : item.ItemKind == "sack" ? PersonalEquipmentRules.SackCapacity
             : PersonalEquipmentRules.BasketCapacity : PersonalEquipmentRules.Capacity(inventory, actor, equipment);
         return after <= before && capacity >= PersonalEquipmentRules.Capacity(inventory, actor, equipment) ||
-            after + ReservedBusinessCarrySpace(actor) <= capacity;
+            after + ReservedBusinessCarrySpace(actor) <= capacity + HorseCargoCapacity(actor);
     }
 
     private int MissingRepairInputUnits(string actor, InventoryLot item) =>

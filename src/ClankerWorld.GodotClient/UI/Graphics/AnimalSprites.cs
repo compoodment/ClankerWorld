@@ -20,7 +20,7 @@ public static class AnimalSprites
     {
         var image = Image.CreateEmpty(32, 32, false, Image.Format.Rgba8);
         image.Fill(Colors.Transparent);
-        var scale = young ? .65f : species == "chicken" ? .65f : 1f;
+        var scale = species == "chicken" ? young ? .45f : .65f : young ? .65f : 1f;
         var angle = (facing % 8) * MathF.PI / 4;
         var forward = new Vector2(-MathF.Sin(angle), MathF.Cos(angle));
         var right = new Vector2(forward.Y, -forward.X);

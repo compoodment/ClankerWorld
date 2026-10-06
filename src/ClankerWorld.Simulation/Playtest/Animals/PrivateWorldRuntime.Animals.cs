@@ -102,8 +102,20 @@ public sealed partial class PrivateWorldRuntime
                     ApplyInventoryTransition(inventory => InventoryFixture.AddLot(inventory,
                         "animal-hide-" + AnimalKey(animal.Id), "hide", owner, 1, tick,
                         groundPosition: new(animal.Position.X, animal.Position.Y)));
-                SetAnimal(animal with { DiedTick = tick, Pregnancy = null, RiderId = null, LeaderId = null, SaddleLotId = null, SaddleReservationId = null, TamingWork = null,
-                    LeadDestination = null, ReadyProductLotId = null, ReadyProductReservationId = null, ProductProgressTicks = 0 });
+                SetAnimal(animal with
+                {
+                    DiedTick = tick,
+                    Pregnancy = null,
+                    RiderId = null,
+                    LeaderId = null,
+                    SaddleLotId = null,
+                    SaddleReservationId = null,
+                    TamingWork = null,
+                    LeadDestination = null,
+                    ReadyProductLotId = null,
+                    ReadyProductReservationId = null,
+                    ProductProgressTicks = 0
+                });
                 AppendEvent("animal_died", animal.Id + ":old_age", animal.Position);
                 continue;
             }
@@ -124,7 +136,7 @@ public sealed partial class PrivateWorldRuntime
                 ClearAnimalProduct(animal, discard: true);
                 SetAnimal(animal = animal with { ReadyProductLotId = null, ReadyProductReservationId = null });
             }
-            if (!AnimalRules.HasCare(animal, tick - 1)) continue;
+            if (!AnimalRules.HasCare(animal, tick - 1)) { WanderAnimal(animal, tick); continue; }
             if (animal.HouseholdId is not null && AnimalRules.IsAdult(animal, tick, AnimalDayTicks) &&
                 AnimalRules.HasProduct(animal) && animal.ReadyProductLotId is null)
             {
@@ -150,6 +162,7 @@ public sealed partial class PrivateWorldRuntime
                 {
                     var yard = animal.YardId is null ? null : worldSimulation.Buildings.FirstOrDefault(item => item.InstanceId == animal.YardId);
                     var position = yard is null ? map.FootNeighbors(animal.Position).Where(tile => map.IsBuildable(tile) &&
+                        !inhabitants.Values.Any(person => person.Position == tile) &&
                         !animalWorld.Animals.Any(item => item.DiedTick is null && item.Position == tile)).Cast<GridPoint?>().FirstOrDefault()
                         : FreeAnimalYardTile(yard, near: animal.Position);
                     if (position is null) continue;
@@ -168,7 +181,10 @@ public sealed partial class PrivateWorldRuntime
             {
                 var male = animalWorld.Animals.FirstOrDefault(item => item.Species == animal.Species && item.Sex == "male" &&
                     item.DiedTick is null && item.HouseholdId == animal.HouseholdId && item.YardId == animal.YardId &&
-                    item.HerdId == animal.HerdId && AnimalRules.IsAdult(item, tick, AnimalDayTicks) && AnimalRules.HasCare(item, tick));
+                    item.HerdId == animal.HerdId && item.RiderId is null && item.LeaderId is null &&
+                    (animal.HouseholdId is null ? map.FootDistance(animal.Position, item.Position) <= 1 :
+                        AssignedAnimalYard(animal) is { } sharedYard && YardTiles(sharedYard).Contains(item.Position)) &&
+                    AnimalRules.IsAdult(item, tick, AnimalDayTicks) && AnimalRules.HasCare(item, tick));
                 if (male is not null)
                 {
                     SetAnimal(animal = animal with { Pregnancy = new(male.Id, 0, tick) });
@@ -182,6 +198,7 @@ public sealed partial class PrivateWorldRuntime
 
     private void ReconcileAnimalCustody()
     {
+        ReconcileMilkOffers();
         foreach (var animal in animalWorld.Animals.ToArray())
         {
             if (animal.RiderId is { } rider && (!MayRideAnimal(rider, animal) || !AnimalRules.HasCare(animal, WorldTick) ||
@@ -191,19 +208,23 @@ public sealed partial class PrivateWorldRuntime
                     inhabitants[leader].Position != animal.Position))
                 SetAnimal(Animal(animal.Id)! with { LeaderId = null, LeadDestination = null });
         }
-        animalWorld = animalWorld with { Offers = animalWorld.Offers.Where(ValidAnimalOffer).ToArray(),
+        animalWorld = animalWorld with
+        {
+            Offers = animalWorld.Offers.Where(ValidAnimalOffer).ToArray(),
             SupplyTrips = animalWorld.SupplyTrips.Where(trip => AdultResident(trip.ActorId) &&
                 worldSimulation.Buildings.Any(yard => yard.InstanceId == trip.YardId && MaySupplyAnimalYard(trip.ActorId, yard)) &&
-                society.Checkpoint.Inventory.Lots.Any(lot => lot.Id == trip.LotId && PersonalEquipmentRules.IsCarried(lot, trip.ActorId))).ToArray() };
+                society.Checkpoint.Inventory.Lots.Any(lot => lot.Id == trip.LotId && PersonalEquipmentRules.IsCarried(lot, trip.ActorId))).ToArray()
+        };
     }
 
     private bool CanStartAnimalPregnancy(AnimalState animal, long tick)
     {
+        if (animal.RiderId is not null || animal.LeaderId is not null) return false;
         if (animal.HouseholdId is null)
             return animalWorld.Animals.Where(item => item.DiedTick is null && item.HouseholdId is null && item.HerdId == animal.HerdId)
                 .Sum(item => 1 + (item.Pregnancy is null ? 0 : 1)) < AnimalRules.PopulationCap;
         var yard = AssignedAnimalYard(animal);
-        if (yard is null || !HasAnimalSpace(animal.HouseholdId, yard)) return false;
+        if (yard is null || !YardTiles(yard).Contains(animal.Position) || !HasAnimalSpace(animal.HouseholdId, yard)) return false;
         var need = animalWorld.Animals.Where(item => item.HouseholdId == animal.HouseholdId && item.DiedTick is null)
             .Sum(item => AnimalRules.Definition(item.Species).DailyFeed * ((AnimalRules.HasCare(item, tick) ? 0 : 1) + (item.Pregnancy is null ? 0 : 1))) +
             AnimalRules.Definition(animal.Species).DailyFeed;

@@ -39,9 +39,11 @@ public sealed partial class PrivateWorldRuntime
         foreach (var animal in animals.OrderBy(animal => animal.Id, StringComparer.Ordinal))
         {
             var definition = AnimalRules.Definition(animal.Species);
-            var action = animal.ReadyProductLotId is not null && animal.Species == "cow" ? "collect" :
-                animal.Species == "horse" && animal.SaddleLotId is null && AnimalHouseholdMember(actor, animal) ? "saddle" : "care";
-            if (action == "care" && AnimalRules.HasCare(animal, WorldTick)) continue;
+            var actions = new List<string>();
+            if (!AnimalRules.HasCare(animal, WorldTick)) actions.Add("care");
+            if (animal.ReadyProductLotId is not null && animal.Species == "cow") actions.Add("collect");
+            if (animal.Species == "horse" && animal.SaddleLotId is null && AnimalHouseholdMember(actor, animal)) actions.Add("saddle");
+            foreach (var action in actions)
             foreach (var root in sources.Where(lot => !PersonalEquipmentRules.IsCarried(lot, actor)))
             {
                 var wanted = action switch
@@ -146,8 +148,11 @@ public sealed partial class PrivateWorldRuntime
                 choice.Quantity, carrierId: actor));
             if (choice.Quantity < source.Quantity) source = society.Checkpoint.Inventory.GetLot(source.Id + "#move:" + operation);
         }
-        animalWorld = animalWorld with { SupplyTrips = animalWorld.SupplyTrips.Append(new(actor, source.Id,
-            choice.Yard.InstanceId, choice.AnimalId, choice.Action)).OrderBy(trip => trip.ActorId, StringComparer.Ordinal).ToArray() };
+        animalWorld = animalWorld with
+        {
+            SupplyTrips = animalWorld.SupplyTrips.Append(new(actor, source.Id,
+            choice.Yard.InstanceId, choice.AnimalId, choice.Action)).OrderBy(trip => trip.ActorId, StringComparer.Ordinal).ToArray()
+        };
         return true;
     }
 

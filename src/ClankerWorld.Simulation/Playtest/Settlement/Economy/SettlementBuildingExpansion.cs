@@ -246,8 +246,7 @@ public sealed partial class PrivateWorldRuntime
         }
         else if (definition.Tags.Contains(AnimalContent.YardTag, StringComparer.Ordinal))
         {
-            if (building.HouseholdId != HouseholdFor(actor) || AnimalYardCapacity(building) >= AnimalRules.PopulationCap ||
-                AnimalPlacesUsed(building.HouseholdId!, building.InstanceId) < AnimalYardCapacity(building)) return false;
+            if (building.HouseholdId != HouseholdFor(actor) || AnimalYardCapacity(building) >= AnimalRules.PopulationCap) return false;
         }
         else return false;
         if ((worldSimulation.BuildingExpansions ?? []).Any(job => job.BuildingInstanceId == building.InstanceId &&

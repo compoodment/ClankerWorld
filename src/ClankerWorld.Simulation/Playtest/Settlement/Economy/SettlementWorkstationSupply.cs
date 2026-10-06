@@ -106,7 +106,7 @@ public sealed partial class PrivateWorldRuntime
                     NeedsRecipeOutput(recipe, householdId) &&
                     (!HasDedicatedSupply(definition) || HouseToolsContent.IsCrudeToolRecipe(recipe) ||
                      recipe.Tags.Any(tag => tag is "pottery" or "care" or "named-meal" or "knowledge")))
-                .OrderBy(recipe => HouseToolsContent.IsCrudeToolRecipe(recipe) ? 0 : 1)
+                .OrderBy(recipe => HouseToolsContent.IsCrudeToolRecipe(recipe) ? 0 : recipe.Tags.Contains("pottery") ? 1 : 2)
                 .ThenBy(recipe => recipe.CanonicalId, StringComparer.Ordinal).ToArray();
             foreach (var input in recipes.SelectMany(recipe => recipe.Inputs).GroupBy(input => input.ResourceId))
             {

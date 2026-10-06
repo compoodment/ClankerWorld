@@ -2,7 +2,7 @@
 title: Saves and replay
 type: persistence-reference
 status: active
-updated: 2026-10-05
+updated: 2026-10-06
 ---
 
 # Saves and replay
@@ -787,7 +787,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 93. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 94. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 a bounded model-attempt status and exact last accepted model choice per agent, plus
@@ -1366,3 +1366,21 @@ replacement before accepting it in memory. A failed write preserves the live
 state and the prior save, and the original command can be retried. Tests cover
 this rollback, stale/wrong-world refusals, field binding in signed requests,
 and the generated-world path for every supported edit category.
+
+## Animal checkpoints
+
+Private-world schema 94 requires the complete animal-world record. It stores
+exact animal identities, species, sex, birth/death ticks, physical positions,
+household and yard, paid care deadlines, unfinished products and pregnancies,
+reserved births, named permissions, taming work, supply trips, riders and
+leaders. Products and fitted saddles reference real inventory lots and exclusive
+reservations. Trade offers retain the exact animal, adults, receiving yard and
+payment lot; native animal orders retain the exact bound animal ID.
+
+Current-format replay and rollback cover arrival, paid care, collection, birth,
+production jobs and attachments. Reload validates required animal fields,
+physical saddle/product custody, household/herd limits and vessel contents.
+Water and milk cannot share a jug, and collected milk cannot become a loose lot.
+An interrupted tick or refused durable developer edit restores both animal and
+inventory state. Older alpha checkpoints are refused and preserved; no animal
+inference or migration runs.

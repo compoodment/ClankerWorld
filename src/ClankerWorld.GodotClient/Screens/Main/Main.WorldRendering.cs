@@ -69,7 +69,7 @@ public partial class Main
         mapObjectVisuals.Clear();
         mapObjectCanonicalXs.Clear();
         handcartFacings.Clear();
-            animalFacings.Clear();
+        animalFacings.Clear();
         boatFacings.Clear();
     }
 
@@ -282,8 +282,12 @@ public partial class Main
             var sprite = marker.GetNodeOrNull<TextureRect>("AnimalSprite");
             if (sprite is null)
             {
-                sprite = new TextureRect { Name = "AnimalSprite", MouseFilter = Control.MouseFilterEnum.Ignore,
-                    TextureFilter = CanvasItem.TextureFilterEnum.Nearest };
+                sprite = new TextureRect
+                {
+                    Name = "AnimalSprite",
+                    MouseFilter = Control.MouseFilterEnum.Ignore,
+                    TextureFilter = CanvasItem.TextureFilterEnum.Nearest
+                };
                 marker.AddChild(sprite);
             }
             var facing = AgentSprites.South;
@@ -414,6 +418,7 @@ public partial class Main
                 }
                 actorMarker.Caption = GameUiText.ActorMapLabel(inhabitant.DisplayName);
                 actorMarker.Variant = AgentSprites.VariantFor(inhabitant.Id);
+                actorMarker.Visible = !snapshot.Animals.Any(animal => animal.RiderId == inhabitant.Id);
                 actorMarker.Stage = AgentSprites.StageIndex(
                     inhabitant.DecisionFactors.FirstOrDefault(factor => factor.Key == "age-band")?.Detail);
                 // Facing and frame only present what the observation says:

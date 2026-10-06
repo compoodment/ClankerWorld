@@ -7,6 +7,9 @@ public partial class Main
 {
     private void VerifyAnimalPresentation()
     {
+        using var sheet = Image.CreateEmpty(256, 288, false, Image.Format.Rgba8);
+        sheet.Fill(new Color("66765A"));
+        var row = 0;
         foreach (var species in new[] { "chicken", "sheep", "cow", "horse" })
         {
             var headings = new HashSet<string>(StringComparer.Ordinal);
@@ -14,12 +17,23 @@ public partial class Main
             {
                 using var adult = AnimalSprites.Sprite(species, facing, false, false);
                 using var young = AnimalSprites.Sprite(species, facing, true, false);
+                sheet.BlitRect(adult, new Rect2I(0, 0, 32, 32), new Vector2I(facing * 32, row * 64));
+                sheet.BlitRect(young, new Rect2I(0, 0, 32, 32), new Vector2I(facing * 32, row * 64 + 32));
                 headings.Add(HandcartPixelDigest(adult));
                 if (HandcartPixelDigest(adult) == HandcartPixelDigest(young) || adult.GetWidth() != 32)
                     throw new InvalidOperationException("Animals must distinguish their young and adult silhouettes.");
             }
             if (headings.Count != 8) throw new InvalidOperationException("Animals must have all eight visible headings.");
+            row++;
         }
+        for (var facing = 0; facing < 8; facing++)
+        {
+            using var rider = AnimalSprites.Sprite("horse", facing, false, true);
+            sheet.BlitRect(rider, new Rect2I(0, 0, 32, 32), new Vector2I(facing * 32, 256));
+        }
+        var evidence = OS.GetEnvironment("CLANKERWORLD_ANIMAL_ART_EVIDENCE");
+        if (evidence.Length > 0 && sheet.SavePng(evidence) != Error.Ok)
+            throw new InvalidOperationException("Animal art evidence could not be saved.");
         foreach (var kind in new[] { "eggs", "milk", "wool", "hide", "leather", "cooked_eggs", "milk_porridge", "rich_meal", "leather_sack", "saddle" })
             if (!ItemIcons.Has(kind)) throw new InvalidOperationException("Animal goods need visible inventory icons: " + kind);
         if (BuildingSprites.KindFor(["animal-yard", "animal-care"]) != BuildingKind.AnimalYard)

@@ -59,7 +59,7 @@ public sealed partial class PrivateWorldRuntime
         if (!map.CanFootStep(animal.Position, next)) throw new InvalidOperationException("Animals use legal foot steps.");
         if (animal.SaddleLotId is { } saddle && animal.SaddleReservationId is { } held)
             ApplyInventoryTransition(inventory => InventoryFixture.MoveAnimalSaddle(inventory, saddle, held, animal.Id,
-                new(animal.Position.X, animal.Position.Y), new(next.X, next.Y)));
+                new(animal.Position.X, animal.Position.Y), new(next.X, next.Y), map.WrapsEastWest ? map.Width : 0));
         SetAnimal(animal with { Position = next });
     }
 

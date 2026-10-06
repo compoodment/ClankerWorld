@@ -177,6 +177,8 @@ public sealed partial class PrivateWorldRuntime
     private string? BuildingMutationBlocker(PlacedBuilding building)
     {
         var id = building.InstanceId;
+        if (animalWorld.MilkOffers.Any(offer => offer.BuildingId == id))
+            return "Finish or decline the held milk exchange before changing this building.";
         if (animalWorld.Animals.Any(animal => animal.DiedTick is null && animal.YardId == id) ||
             animalWorld.Offers.Any(offer => offer.ReceivingYardId == id) || animalWorld.SupplyTrips.Any(trip => trip.YardId == id))
             return "Move or transfer the animals and finish their supply trips before removing or reassigning this yard.";

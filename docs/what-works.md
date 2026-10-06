@@ -2,7 +2,7 @@
 title: What works today
 type: product-status
 status: active
-updated: 2026-10-05
+updated: 2026-10-06
 ---
 
 # What works today
@@ -539,6 +539,37 @@ show the spouse and shared surname, and later player surname changes update
 both spouses together while keeping the original conversation unchanged. A
 taken first name leaves both names unchanged. Divorce, remarriage and widowhood
 rules are not implemented here.
+
+## Animals
+
+**Basic version, connected to normal play; Windows playtesting is pending.**
+New generated worlds contain small untamed groups of chickens, sheep, cows and
+horses in suitable habitat. Households receive no free animals. Adults with a
+House can build a 2×2 animal yard for eight wood and two rope, then expand it
+for the same materials. Four/eight places and the household limit of eight
+include young animals and reserved births. Yards hold sixteen supply units.
+
+Taming uses two feed and one jug water. Daily care uses one feed/water for a
+chicken and two each for sheep, cows and horses. Feed is grain or greens. Adults
+fetch and carry real supplies, preserving food, planting and production
+reserves. Cared adult hens supply eggs daily, cows two milk daily, and sheep two
+wool every three days. One batch waits for local collection. Milk needs a
+household jug that contains milk or is empty; water and milk never mix.
+
+Egg and milk meals use House/Restaurant recipes. Tailors turn wool into padded
+coats, hides into leather, and leather into sacks or saddles. A leather sack
+provides 32 carried cargo units. Cared adult pairs breed automatically with
+space and delivered supplies; missed care pauses work and riding. Old age is
+the only animal death rule, leaving one owned hide from sheep, cows or horses.
+
+A saddled, cared adult horse carries one adult at twice walking speed with eight
+extra cargo units. Named outsider riding and care permissions are separate.
+Gifts and sales need both adults' fresh personal choices, exact payment and
+receiving space. Animals keep their owners after household abandonment.
+Map inspection shows species, age, care, products, household and permissions.
+See [animal controls](playing.md#animals) and the [approved decision](https://github.com/compoodment/ClankerWorld/pull/1027).
+All balance values are provisional. Hunting, slaughter, meat, predators,
+neglect deaths, horse-drawn carts and animal boat transport remain excluded.
 
 ## Life, work and society
 

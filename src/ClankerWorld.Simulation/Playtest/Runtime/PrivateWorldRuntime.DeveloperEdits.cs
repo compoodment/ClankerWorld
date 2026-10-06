@@ -77,6 +77,7 @@ public sealed partial class PrivateWorldRuntime
                     throw new ArgumentException("Choose a chicken, sheep, cow or horse and female or male.");
                 if (!HasAnimalSpace(animalHousehold, animalYard) || FreeAnimalYardTile(animalYard) is not { } animalPosition)
                     throw new InvalidOperationException("The animal yard and household need one free animal place.");
+                SeedWildAnimals();
                 SetAnimal(new("animal-" + id, animalParts[0] + " " + (animalWorld.Animals.Count + 1), animalParts[0], animalParts[1],
                     WorldTick - (long)AnimalRules.Definition(animalParts[0]).AdultDays * AnimalDayTicks, animalPosition,
                     "household:" + animalHousehold, animalHousehold, animalYard.InstanceId));

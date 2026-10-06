@@ -100,6 +100,7 @@ public sealed partial class PrivateWorldRuntime
 
     private bool ApplyAnimalConsentDecision(SocietyCognitionDispatchResult decision)
     {
+        if (ApplyMilkSaleDecision(decision)) return true;
         var selected = decision.Admission.Intention;
         if (selected is null || !selected.CandidateId.StartsWith("animal:agreement:", StringComparison.Ordinal)) return false;
         if (!decision.Admission.Accepted || decision.Admission.FellBack || selected.Provider != DecisionProviderKind.LargeLanguageModel ||
@@ -139,11 +140,20 @@ public sealed partial class PrivateWorldRuntime
                         destinationGroundPosition: new(animal.Position.X, animal.Position.Y)));
                 if (animal.SaddleReservationId is { } saddleHeld)
                     ApplyInventoryTransition(inventory => InventoryFixture.ReleaseReservation(inventory, saddleHeld, "animal_transferred"));
-                SetAnimal(animal with { HouseholdId = offer.ReceivingHouseholdId, YardId = offer.ReceivingYardId,
-                    HerdId = "household:" + offer.ReceivingHouseholdId, CarePermissions = [], RidingPermissions = [],
-                    SaddleLotId = null, SaddleReservationId = null, TamingWork = null,
-                    LeaderId = inhabitants[actor].Position == animal.Position ? actor : null,
-                    LeadDestination = inhabitants[actor].Position == animal.Position ? worldSimulation.Buildings.Single(yard => yard.InstanceId == offer.ReceivingYardId).Position : null });
+                SetAnimal(animal with
+                {
+                    HouseholdId = offer.ReceivingHouseholdId,
+                    YardId = offer.ReceivingYardId,
+                    HerdId = "household:" + offer.ReceivingHouseholdId,
+                    CarePermissions = [],
+                    RidingPermissions = [],
+                    SaddleLotId = null,
+                    SaddleReservationId = null,
+                    TamingWork = null,
+                    LeaderId = inhabitants[actor].Position == animal.Position && MayLeadAnimal(actor, animal) ? actor : null,
+                    LeadDestination = inhabitants[actor].Position == animal.Position && MayLeadAnimal(actor, animal) ?
+                        worldSimulation.Buildings.Single(yard => yard.InstanceId == offer.ReceivingYardId).Position : null
+                });
                 AppendEvent("animal_transferred", offer.Id + ":" + animal.Id + ":" + offer.ReceivingHouseholdId, animal.Position);
             }
             animalWorld = animalWorld with { Offers = animalWorld.Offers.Where(item => item.Id != offer.Id).ToArray() };

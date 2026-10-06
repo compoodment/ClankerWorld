@@ -2,7 +2,7 @@
 title: Playing the current game
 type: player-guide
 status: active
-updated: 2026-10-04
+updated: 2026-10-06
 ---
 
 # Playing the current game
@@ -696,3 +696,44 @@ available; larger worlds remain unavailable pending their support checks.
 **Reroll** chooses another seed and clears the old map while its replacement
 loads. You can reroll during generation; the preview will follow your latest
 seed. If the world name is missing, enter it and choose **Preview again**.
+
+## Animals
+
+Adults with a House can **Build an animal yard** and **Expand my animal yard**
+using eight wood and two rope for each stage. The fenced yard has four places,
+or eight when expanded; young animals and expected births use places.
+Households receive no starting animals. Look for wild chickens, sheep, cows or
+horses near wild greens and fresh water.
+
+Click an animal's tile for its name, age, household, care, ready product and
+permissions. Use its exact unique name or ID in a Must do order, for example
+**Tame Moss**, **Lead home Moss**, **Care for Moss**, or **Collect from Moss**.
+**Repeat care for Moss** and **Repeat collect from Moss** keep the task active
+until cancelled. The adult walks and brings actual available supplies; an
+order waits when permission, supplies, product, space or a route is missing.
+Taming needs two grain/greens and one jug water. Chickens need one feed and one
+water daily; sheep, cows and horses need two each. Jugs remain reusable.
+
+Products belong to the animal's household. Eggs and milk spoil; collect them
+promptly. Milk needs an empty household jug or one already holding milk, with
+room for two portions. **Return borrowed water jug** carries a collected jug
+back to its owning household's House. Adults can haul the products into their
+workstations through ordinary supply choices and orders. House/Restaurant
+recipes cook eggs or milk porridge; Restaurants prepare rich meals. Tailors
+make wool padded coats, process hides into leather, and make leather sacks or
+saddles. A leather sack carries 32 units.
+
+For a cared adult horse, use **Saddle Moss**, **Mount Moss** and **Dismount Moss**.
+A mount needs a real household saddle and gives twice walking speed plus eight
+cargo units. Dismounting puts excess unreserved cargo at the rider's actual
+position. Horses cannot accompany a boat or pull a handcart in this version.
+Household adults can care and ride; outsiders need separate named permissions
+agreed by an adult. Personal models may offer or accept a specific animal gift
+or sale when both adults meet and the receiving yard has space.
+
+Cared adult pairs breed automatically with space and delivered supplies. Missed
+care pauses products and pregnancy progress and ends riding. Neglect does not
+kill animals. Only old age does; sheep, cows and horses leave one owned hide.
+For a quick trial, pause and open **Developer tools (F12)**, choose an adult
+with yard space, and use **Add household animal**. The Event Log records it.
+The [animal playtest list](../playtest/433-animals.md) remains untried on Windows.

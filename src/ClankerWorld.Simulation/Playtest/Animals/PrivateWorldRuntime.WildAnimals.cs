@@ -21,8 +21,11 @@ public sealed partial class PrivateWorldRuntime
                 return MoveWildAnimalToward(animal, forage.Position, tick, 1);
             var harvested = EcologyRules.Harvest(worldSystems.Ecology.GetResource(forage.Id), definition.DailyFeed);
             if (!harvested.IsValid || harvested.Resource is not { } remaining) return animal;
-            worldSystems = worldSystems with { Ecology = worldSystems.Ecology with
-            { Resources = worldSystems.Ecology.Resources.Select(resource => resource.Id == forage.Id ? remaining : resource).ToArray() } };
+            worldSystems = worldSystems with
+            {
+                Ecology = worldSystems.Ecology with
+                { Resources = worldSystems.Ecology.Resources.Select(resource => resource.Id == forage.Id ? remaining : resource).ToArray() }
+            };
             SyncEcologyResourceStates();
             SetAnimal(animal = animal with { WildFedUntilTick = tick + AnimalDayTicks });
         }

@@ -79,7 +79,8 @@ public sealed partial class PrivateWorldRuntime
 
     private int MarketStockQuantity(TownMarketState market, MarketStallState stall, InventoryCheckpoint? inventory = null) =>
         MarketTradeRules.StockAt(market, stall.BuildingId, MarketContent.StallSite(market.Site, stall.SlotIndex),
-            inventory ?? society.Checkpoint.Inventory).Sum(lot => lot.Quantity);
+            inventory ?? society.Checkpoint.Inventory).Sum(lot => lot.Quantity +
+                (inventory ?? society.Checkpoint.Inventory).Lots.Where(content => content.ContainerLotId == lot.Id).Sum(content => content.Quantity));
 
     private int MarketIncomingPayment(TownMarketState market, MarketStallState stall,
         InventoryCheckpoint? inventory = null) => market.Trades
@@ -158,7 +159,7 @@ public sealed partial class PrivateWorldRuntime
                          .OrderBy(lot => lot.Id, StringComparer.Ordinal))
                 // Trial exact barter gives and receives one physical unit, so neither receiving load grows.
                 if (PersonalEquipmentRules.CarriedQuantity(inventory, buyer, inhabitants[buyer].Equipment) +
-                    ReservedBusinessCarrySpace(buyer) <= PersonalEquipmentRules.Capacity(inventory, buyer, inhabitants[buyer].Equipment))
+                    ReservedBusinessCarrySpace(buyer) <= PersonalEquipmentRules.Capacity(inventory, buyer, inhabitants[buyer].Equipment) + HorseCargoCapacity(buyer))
                     return (goods, payment);
         }
         return null;
@@ -178,7 +179,8 @@ public sealed partial class PrivateWorldRuntime
                     var occupancy = MarketOccupant(market, stall);
                     // Owners retain physical collection even after the building or borrowing ends.
                     foreach (var lot in MarketTradeRules.StockAt(market, stall.BuildingId, position, inventory)
-                                 .Where(lot => MarketTradeRules.IsLoose(lot) && OwnMarketGoods(actor, lot) &&
+                                 .Where(lot => (MarketTradeRules.IsLoose(lot) || lot.ItemKind == InventoryContainerRules.WaterJug &&
+                                         VesselFits(lot, FreeCarryCapacity(actor)) && !HasActiveContainerReservation(inventory, lot.Id)) && OwnMarketGoods(actor, lot) &&
                                      AvailableLotQuantity(lot) > 0 && CanCarryMarketGoods(actor, lot)))
                     {
                         var quantity = Math.Min(MarketTradeRules.LoadQuantity, Math.Min(AvailableLotQuantity(lot), FreeCarryCapacity(actor)));
@@ -416,7 +418,7 @@ public sealed partial class PrivateWorldRuntime
             return "The exact reserved goods are no longer usable at their agreed location.";
         if (MarketStockQuantity(market, stall) + MarketIncomingPayment(market, stall) > MarketTradeRules.StallCapacity ||
             PersonalEquipmentRules.CarriedQuantity(inventory, trade.BuyerId, inhabitants[trade.BuyerId].Equipment) +
-            ReservedBusinessCarrySpace(trade.BuyerId) > PersonalEquipmentRules.Capacity(inventory, trade.BuyerId, inhabitants[trade.BuyerId].Equipment))
+            ReservedBusinessCarrySpace(trade.BuyerId) > PersonalEquipmentRules.Capacity(inventory, trade.BuyerId, inhabitants[trade.BuyerId].Equipment) + HorseCargoCapacity(trade.BuyerId))
             return "There is no longer enough physical receiving space.";
         if (!IsWithinInteractionRange(inhabitants[trade.BuyerId].Position, trade.Position, ResourceInteractionRange) &&
             FindUnoccupiedRoute(trade.BuyerId, inhabitants[trade.BuyerId].Position, trade.Position, ResourceInteractionRange).Count == 0)
