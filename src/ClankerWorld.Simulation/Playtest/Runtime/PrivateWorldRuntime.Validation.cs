@@ -33,6 +33,7 @@ public sealed partial class PrivateWorldRuntime
         WorldContentSimulationRules.Validate(worldSimulation, worldContent, map, WorldTick);
         ValidateBuildingExpansionState(worldSimulation, worldContent, society.Checkpoint, map, checkpointSchemaVersion);
         ValidateBoatTransport(CaptureState());
+        ValidateAnimalState(CaptureState());
         ValidateHandcarts(handcartHitches, society.Checkpoint.Inventory, inhabitants.Values.ToArray(), map);
         ValidatePhysicalInventoryLocations(society.Checkpoint.Inventory, worldSimulation, worldContent,
             society.Checkpoint.Inhabitants, map, society.Checkpoint.Estates);
@@ -371,6 +372,7 @@ public sealed partial class PrivateWorldRuntime
         if (state.Content is null || state.WorldSystems is null || state.WorldContent is null ||
             state.WorldSimulation is null || state.AssetReservations is null)
             throw new InvalidDataException("The current private-world checkpoint is missing required content or world-system state.");
+        ValidateAnimalState(state);
         if (state.SchemaVersion < ToolProgressionSchemaVersion && HasSavedToolUseState(state))
             throw new InvalidDataException($"Saved tool use links require private-world schema {ToolProgressionSchemaVersion}.");
         if (state.SchemaVersion >= ConversationSchemaVersion && (state.Conversations is null || state.ConversationBudgets is null))

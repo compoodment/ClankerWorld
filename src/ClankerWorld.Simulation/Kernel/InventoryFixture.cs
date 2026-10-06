@@ -116,6 +116,7 @@ public static class InventoryContainerRules
         "food", "berries", "wild_greens", "fruit", "grain", "flour", "potato", "potatoes",
         "greens", "cultivated_greens", "bread", "porridge", "stew",
         "simple_meal", "berry_porridge", "fruit_porridge", "restaurant_meal",
+        "eggs", "milk", "cooked_eggs", "milk_porridge", "rich_meal",
     };
 
     public static bool IsContainer(string itemKind) => itemKind is StoragePot or WaterJug or Handcart;
@@ -130,9 +131,9 @@ public static class InventoryContainerRules
 
     public static bool Allows(string containerKind, string contentKind) => containerKind switch
     {
-        Handcart => !IsContainer(contentKind) && contentKind != FreshWater,
+        Handcart => !IsContainer(contentKind) && contentKind is not (FreshWater or "milk"),
         StoragePot => FoodKinds.Contains(contentKind),
-        WaterJug => contentKind == FreshWater,
+        WaterJug => contentKind is FreshWater or "milk",
         _ => false,
     };
 
@@ -1087,6 +1088,9 @@ public static partial class InventoryFixture
 
         foreach (var container in lots.Where(lot => InventoryContainerRules.IsContainer(lot.ItemKind)))
         {
+            if (container.ItemKind == InventoryContainerRules.WaterJug && lots.Where(lot => lot.ContainerLotId == container.Id)
+                    .Select(lot => lot.ItemKind).Distinct(StringComparer.Ordinal).Count() > 1)
+                throw new InvalidDataException("A jug holds water or milk, without mixing them.");
             var containedQuantity = lots.Where(lot => lot.ContainerLotId == container.Id).Sum(lot => lot.Quantity);
             if (containedQuantity > InventoryContainerRules.Capacity(container.ItemKind))
                 throw new InvalidDataException($"Container lot '{container.Id}' exceeds its capacity.");

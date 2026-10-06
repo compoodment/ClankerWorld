@@ -319,6 +319,7 @@ public sealed partial class PrivateWorldRuntime
         fields = proposed.fields;
         handcartHitches = proposed.handcartHitches;
         boatTransport = proposed.boatTransport;
+        animalWorld = proposed.animalWorld;
         geographyOptions = proposed.geographyOptions;
         contentRegistry = proposed.contentRegistry;
         worldSystems = proposed.worldSystems;
@@ -458,6 +459,7 @@ public sealed partial class PrivateWorldRuntime
             StagePotteryContent();
             StageSiloContent();
             StageTailorContent();
+            StageAnimalContent();
             StageCareContent();
             StageBuiltInContent(TownHallContent.PackageId, HouseContent.PackageId, TownHallContent.Create, "town_hall_content_staged");
             StageBuiltInContent(KnowledgeContent.PackageId, HouseContent.PackageId, KnowledgeContent.Create, "knowledge_content_staged");
@@ -555,6 +557,7 @@ public sealed partial class PrivateWorldRuntime
             ReconcileMedicalSupplyTrips();
             ProcessBoatTransport(targetTick);
             ReconcileHandcartHitches();
+            AdvanceAnimals(targetTick);
             CancelFieldWorkForUnavailableWorkers();
             AdvanceSettlementCouncil();
             AdvanceTownGovernance();

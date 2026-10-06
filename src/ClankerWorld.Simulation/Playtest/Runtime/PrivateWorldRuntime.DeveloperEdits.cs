@@ -11,6 +11,7 @@ public sealed partial class PrivateWorldRuntime
         "berries", "fruit", "wild_greens", "cultivated_greens", "grain", "flour", "wood", "stone",
         "fiber", "rope", "cloth", "clothing", "padded_coat", "rain_cloak", "basket", "sack",
         "wooden_axe", "wooden_pickaxe", "iron_ore", "iron", "storage_pot", "water_jug", "medicine", "tree_seed",
+        "eggs", "wool", "hide", "leather", "leather_sack", "saddle", "cooked_eggs", "milk_porridge", "rich_meal",
     });
 
     public PrivateWorldDeveloperEditResult ApplyDeveloperEdit(PrivateWorldDeveloperEdit edit,
@@ -67,6 +68,20 @@ public sealed partial class PrivateWorldRuntime
         var id = $"developer-edit-{edit.ExpectedEventId + 1}";
         switch (edit.Operation)
         {
+            case "add_animal":
+                if (!AdultResident(actor) || HouseholdFor(actor) is not { } animalHousehold || AnimalYard(animalHousehold) is not { } animalYard)
+                    throw new InvalidOperationException("Select an adult whose household has a completed animal yard.");
+                var animalParts = edit.Value.Split(':');
+                if (animalParts.Length != 2 || !AnimalRules.Species.Any(species => species.Id == animalParts[0]) ||
+                    animalParts[1] is not ("female" or "male") || edit.Amount != 0 || edit.OtherAgentId is not null)
+                    throw new ArgumentException("Choose a chicken, sheep, cow or horse and female or male.");
+                if (!HasAnimalSpace(animalHousehold, animalYard) || FreeAnimalYardTile(animalYard) is not { } animalPosition)
+                    throw new InvalidOperationException("The animal yard and household need one free animal place.");
+                SetAnimal(new("animal-" + id, animalParts[0] + " " + (animalWorld.Animals.Count + 1), animalParts[0], animalParts[1],
+                    WorldTick - (long)AnimalRules.Definition(animalParts[0]).AdultDays * AnimalDayTicks, animalPosition,
+                    "household:" + animalHousehold, animalHousehold, animalYard.InstanceId));
+                AppendEvent("animal_added", actor + ":animal-" + id, animalPosition);
+                break;
             case "set_need":
                 if (edit.Amount is < 0 or > 100)
                     throw new ArgumentOutOfRangeException(nameof(edit), "Needs must be between 0 and 100 percent.");

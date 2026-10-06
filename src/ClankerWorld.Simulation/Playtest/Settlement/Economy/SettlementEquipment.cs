@@ -8,8 +8,9 @@ namespace ClankerWorld.Simulation.Playtest;
 
 public sealed partial class PrivateWorldRuntime
 {
-    private int FreeCarryCapacity(string actor) => Math.Max(0, PersonalEquipmentRules.FreeCapacity(
-        society.Checkpoint.Inventory, actor, inhabitants[actor].Equipment) - ReservedBusinessCarrySpace(actor));
+    private int FreeCarryCapacity(string actor) => Math.Max(0, PersonalEquipmentRules.Capacity(
+        society.Checkpoint.Inventory, actor, inhabitants[actor].Equipment) + HorseCargoCapacity(actor) -
+        PersonalEquipmentRules.CarriedQuantity(society.Checkpoint.Inventory, actor, inhabitants[actor].Equipment) - ReservedBusinessCarrySpace(actor));
 
     private string EquipmentNote(string actor)
     {
@@ -19,7 +20,7 @@ public sealed partial class PrivateWorldRuntime
         var aid = PersonalEquipmentRules.EquippedUnit(inventory, actor, equipment?.CarryAidLotId);
         var ornament = PersonalEquipmentRules.EquippedUnit(inventory, actor, equipment?.OrnamentLotId);
         return $"Carrying {PersonalEquipmentRules.CarriedQuantity(inventory, actor, equipment)} of " +
-            $"{PersonalEquipmentRules.Capacity(inventory, actor, equipment)} units. Wearing " +
+            $"{PersonalEquipmentRules.Capacity(inventory, actor, equipment) + HorseCargoCapacity(actor)} units. Wearing " +
             $"{clothing?.ItemKind.Replace('_', ' ') ?? "no garment"}. Carry aid: {aid?.ItemKind ?? "none"}." +
             (ornament is null ? string.Empty : $" Ornament: {ornament.ItemKind.Replace('_', ' ')}.");
     }
