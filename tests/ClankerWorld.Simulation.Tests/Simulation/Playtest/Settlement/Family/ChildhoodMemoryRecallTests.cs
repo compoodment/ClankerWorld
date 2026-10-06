@@ -55,6 +55,7 @@ public sealed class ChildhoodMemoryRecallTests
         state = state with
         {
             JevEnabled = false,
+            RoutineHelper = RoutineHelperSettings.Off,
             Society = state.Society with { Society = checkpoint },
             Inhabitants = state.Inhabitants.Append(new(child, position, 10_000, 0, "curious", "grow with the household")).ToArray(),
             Towns = state.Towns!.Select(town => town.ResidentIds.Contains(parent)
@@ -114,6 +115,7 @@ public sealed class ChildhoodMemoryRecallTests
         state = state with
         {
             JevEnabled = false,
+            RoutineHelper = RoutineHelperSettings.Off,
             Society = state.Society with
             {
                 Society = state.Society.Society with { Memories = memories.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray() },

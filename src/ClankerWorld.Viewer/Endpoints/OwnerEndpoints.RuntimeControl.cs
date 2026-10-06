@@ -67,10 +67,45 @@ internal static partial class OwnerEndpoints
             {
                 return Results.Conflict(new { error = "Pause the world before changing Jev assistance." });
             }
-            jevPolicy.Set(runtime.JevEnabled, runtime.JevPolicyRevision);
+            jevPolicy.Set(runtime.JevEnabled, runtime.JevPolicyRevision, runtime.RoutineHelper);
             services.GetRequiredService<PrivateWorldStateFile>().Save(runtime);
             if (changed) OwnerJevAssistanceTelemetry.Changed(logger, runtime.WorldTick, runtime.JevEnabled);
             return Results.Ok(OwnerControlReceipt.From("jev_assistance", changed, observations.GetSnapshot()));
+        });
+
+        app.MapPost("/api/v1/owner/control/routine-helper", (
+            OwnerSignedHttpRequest<OwnerRoutineHelperAction> request,
+            OwnerRequestAuthorizer authorizer, IServiceProvider services,
+            OwnerWorldObservationStore observations, WorldJevPolicy jevPolicy, ILogger<PrivateWorldRuntimeService> logger) =>
+        {
+            if (request?.Action is not { } action || string.IsNullOrWhiteSpace(action.WorldId) ||
+                action.WorldId.Length > 128 || action.WorldId.Any(char.IsControl))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["action"] = ["A world and routine helper are required."] });
+            var settings = new RoutineHelperSettings(action.Provider, action.Model, action.CredentialSlotId);
+            try { settings.Validate(); }
+            catch (ArgumentException exception)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["action"] = [exception.Message] });
+            }
+            var authorization = authorizer.Authorize(request, "POST", "/api/v1/owner/control/routine-helper",
+                OwnerHttpBinding.RoutineHelperPayload(action));
+            if (!authorization.IsSuccess) return OwnerFailures.ToHttpResult(authorization.Failure);
+            if (!isPrivateWorld) return Results.Conflict(new { error = "Routine helpers require a private world." });
+            lock (services.GetRequiredService<ProviderConfigurationStore>().WorldMutationGate)
+            {
+                var runtime = services.GetRequiredService<PrivateWorldRuntime>();
+                if (settings.CredentialSlotId is { } slotId && services.GetRequiredService<ProviderConfigurationStore>()
+                    .CaptureRuntimeConfiguration().CredentialSlots?.Any(slot => slot.Id == slotId && slot.Provider == PlayerDecisionProviders.OpenAi) != true)
+                    return Results.Conflict(new { error = "Choose an available saved OpenAI key." });
+                bool changed;
+                try { changed = runtime.SetRoutineHelper(settings, action.WorldId); }
+                catch (InvalidOperationException exception) { return Results.Conflict(new { error = exception.Message }); }
+                jevPolicy.Set(runtime.JevEnabled, runtime.JevPolicyRevision, runtime.RoutineHelper);
+                // A no-op retry still persists an earlier change whose save failed.
+                services.GetRequiredService<PrivateWorldStateFile>().Save(runtime);
+                if (changed) OwnerJevAssistanceTelemetry.HelperChanged(logger, runtime.WorldTick, settings.Provider, settings.Model);
+                return Results.Ok(OwnerControlReceipt.From("routine_helper", changed, observations.GetSnapshot()));
+            }
         });
 
         app.MapPost("/api/v1/owner/control/pause", (
