@@ -75,7 +75,9 @@ name. A child's chosen surname must come from a biological parent. Temporary
 names do not reserve first names, and renaming leaves past conversations as
 spoken. Changing a married agent's surname updates both spouses together,
 keeping the other spouse's first and middle names. A taken first name leaves
-both names unchanged.
+both names unchanged. An unfinished rename stays in the open editor through
+world refreshes, even when the name field loses focus. Closing the editor or
+choosing another agent or world discards it.
 
 ## Create your first Town
 

@@ -681,10 +681,11 @@ checks the first names of all other inhabitants with `HasChosenName`, living
 or deceased, under the same world gate that commits the rename. Keeping one's
 own first name is allowed. A taken first name returns `name_taken` from
 the signed owner endpoint; the client translates only that refusal into a
-name-specific explanation. The Profile's open name field then keeps the
-refused text through ordinary refreshes (`RefusedAgentRename`) until the
-player edits or closes it, renames successfully, or another agent or world is
-shown; its name labels always follow the host's snapshot. An unchanged chosen
+name-specific explanation. The Profile's open name field keeps unsubmitted
+edits through ordinary refreshes, regardless of keyboard focus. Submitted and
+refused attempts also stay in the field (`RefusedAgentRename`). Closing the
+editor, renaming successfully, or showing another agent or world drops the
+attempt; its name labels always follow the host's snapshot. An unchanged chosen
 name is a no-op; deliberately choosing the exact displayed placeholder makes
 it a chosen name and reserves its first token. No name check rewrites saved
 dialogue or identity references, and player choices still supersede late model
