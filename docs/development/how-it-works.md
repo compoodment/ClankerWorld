@@ -1948,6 +1948,11 @@ and 32 terminal records. Placing, accepting, refusing or withdrawing one require
 a fresh accepted personal-model choice. Jev, fallback, repeating intentions and
 owner orders cannot make those commitments. Routine supply and already accepted
 production continue through the existing household project machinery.
+The four personal commitment choices rank below safe idle for the built-in
+chooser, so it does not repeatedly select an action that cannot execute.
+Walking to a known Blacksmith, continuing accepted work and opening a quote
+for a completed tool retain their routine priorities. Opening the quote does
+not accept payment or transfer goods; the existing barter consent checks apply.
 
 The accepted worker produces with actual household-owned inputs at the named
 Blacksmith and its normal output-space reservations. The finished tool remains
