@@ -1,0 +1,2 @@
+- [ ] After repeatedly borrowing stalls, stocking goods and accepting or cancelling exchanges, save and reload. Check actual goods, owners, current sellers and open terms; a new borrower must not sell earlier stock. Refs #936.
+- [ ] Remove a Market or let a seller depart, then collect the owners’ leftovers and reload. Check paid removal history and physical goods. Automated retirement/replay evidence does not replace this Windows playtest. Refs #936.
