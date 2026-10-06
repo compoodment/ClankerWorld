@@ -411,10 +411,7 @@ public partial class Main
 
         BuildAutosaveSettings();
 
-        jevAssistanceToggle.Text = "Let Jev help in this world";
-        jevAssistanceToggle.TooltipText = "Jev is an optional helper for small everyday choices, so your agents' own models are called less. Turn it off and nothing is lost. Memories and keys stay.";
-        jevAssistanceToggle.Toggled += enabled => _ = SaveJevAssistanceAsync(enabled);
-        worldSettingsContent.AddChild(SettingsBox("Jev", jevAssistanceToggle));
+        BuildRoutineHelperSettings();
 
         BuildCognitionSettingsPanel();
         worldSettingsContent.AddChild(cognitionSettingsPanel);

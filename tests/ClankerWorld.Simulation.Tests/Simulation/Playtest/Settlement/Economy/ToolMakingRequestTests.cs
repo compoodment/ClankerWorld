@@ -15,6 +15,65 @@ public sealed class ToolMakingRequestTests
     private static readonly JsonSerializerOptions PayloadOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
     [Fact]
+    public async Task BuiltInChoicesDoNotLoopOnPersonalToolRequestsAcrossReload()
+    {
+        using var setup = NormalPathWorld.CreateGenerated("probe-a", _ => new RequestChoices());
+        Assert.True((await setup.AdvanceOneTickAsync()).Advanced);
+        var state = setup.ExportState();
+        var buyer = state.Society.Society.Inhabitants.First(person => person.HouseholdId == "household:camp-alpha").Id;
+        var inventory = state.Society.Society.Inventory with { Lots = [] };
+        inventory = InventoryFixture.AddLot(inventory, "full-personal-load", "iron", buyer, 8);
+        state = state with
+        {
+            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
+            Inhabitants = state.Inhabitants.Select(person => person with
+            {
+                Position = person.InhabitantId == buyer ? new GridPoint(124, 44) : person.Position,
+                HungerBasisPoints = 9_500,
+                LastDecisionContext = null,
+                Project = null,
+            }).ToArray(),
+        };
+        var chooser = new RecordingBuiltInChoices();
+        using var world = PrivateWorldRuntime.Restore(state, actor => actor == buyer ? chooser : new RequestChoices());
+        var farmhouse = world.WorldSimulation.Buildings.Single(building => building.HouseholdId == "household:camp-alpha" &&
+            world.WorldContent.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId).Tags.Contains("farmhouse"));
+        Assert.True(world.ReassignBuilding(farmhouse.InstanceId, farmhouse.TownId, farmhouse.HouseholdId,
+            targetTownId: null, targetHouseholdId: "household:camp-beta").Applied);
+        for (var tick = 0; tick < 40; tick++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        using var reloaded = PrivateWorldRuntime.Restore(Roundtrip(world), actor => actor == buyer ? chooser : new RequestChoices());
+        for (var tick = 0; tick < 40; tick++) Assert.True((await reloaded.AdvanceOneTickAsync()).Advanced);
+        Assert.Contains(chooser.Offered, candidate => candidate.Id.StartsWith("tool_request_place:", StringComparison.Ordinal));
+        Assert.Contains(chooser.Selected, candidate => candidate.StartsWith("explore", StringComparison.Ordinal));
+        Assert.DoesNotContain(chooser.Selected, candidate => candidate.StartsWith("tool_request_place:", StringComparison.Ordinal));
+        Assert.Empty(reloaded.ToolMakingRequests);
+        _ = Roundtrip(reloaded);
+    }
+
+    [Fact]
+    public async Task BuiltInChoicesLeaveRequestedToolConsentToPersonalModels()
+    {
+        var (state, buyer, seller, _) = Prepared();
+        using var placing = Restore(state, buyer, seller, new RequestChoices("tool_request_place:"), new RequestChoices());
+        await Until(placing, world => world.ToolMakingRequests.Count == 1, 96);
+        var buyerChoices = new RecordingBuiltInChoices();
+        var sellerChoices = new RecordingBuiltInChoices();
+        using var world = PrivateWorldRuntime.Restore(Roundtrip(placing), actor => actor == buyer ? buyerChoices :
+            actor == seller ? sellerChoices : new RequestChoices());
+        for (var tick = 0; tick < 40; tick++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.Contains(buyerChoices.Offered, candidate => candidate.Id.StartsWith("tool_request_withdraw:", StringComparison.Ordinal));
+        Assert.Contains(sellerChoices.Offered, candidate => candidate.Id.StartsWith("tool_request_accept:", StringComparison.Ordinal));
+        Assert.Contains(sellerChoices.Offered, candidate => candidate.Id.StartsWith("tool_request_refuse:", StringComparison.Ordinal));
+        Assert.DoesNotContain(buyerChoices.Selected.Concat(sellerChoices.Selected), candidate =>
+            candidate.StartsWith("tool_request_withdraw:", StringComparison.Ordinal) ||
+            candidate.StartsWith("tool_request_accept:", StringComparison.Ordinal) ||
+            candidate.StartsWith("tool_request_refuse:", StringComparison.Ordinal));
+        Assert.Equal(ToolMakingRequestStatus.Requested, Assert.Single(world.ToolMakingRequests).Status);
+        Assert.Equal(3, world.Society.Inventory.GetLot("smith-input").Quantity);
+        _ = Roundtrip(world);
+    }
+
+    [Fact]
     public async Task RequestedToolUsesSmithInputsAndTheActualFinishedOutputIsBoughtAcrossReplay()
     {
         var (state, buyer, seller, shop) = Prepared();
@@ -597,6 +656,22 @@ public sealed class ToolMakingRequestTests
     private static PrivateWorldRuntime Restore(PrivateWorldRuntimeState state, string buyer, string seller,
         RequestChoices buyerChoices, RequestChoices sellerChoices) => PrivateWorldRuntime.Restore(state,
         actor => actor == buyer ? buyerChoices : actor == seller ? sellerChoices : new RequestChoices());
+
+    private sealed class RecordingBuiltInChoices : IDecisionProvider
+    {
+        private readonly DeterministicDecisionProvider provider = new();
+        public DecisionProviderKind Kind => provider.Kind;
+        public long ProviderEpoch => provider.ProviderEpoch;
+        public List<CognitionCandidate> Offered { get; } = [];
+        public List<string> Selected { get; } = [];
+        public async ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
+        {
+            Offered.AddRange(request.Observation.Candidates);
+            var response = await provider.DecideAsync(request, cancellationToken);
+            Selected.Add(response.SelectedCandidateId);
+            return response;
+        }
+    }
 
     private sealed class RequestChoices : IDecisionProvider
     {

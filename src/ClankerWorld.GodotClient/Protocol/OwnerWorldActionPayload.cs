@@ -90,6 +90,13 @@ public static class OwnerWorldActionPayload
     public static string LifePace(OwnerLifePaceAction action) =>
         "clankerworld.owner-life-pace.v1\nrate=" + action.Rate.ToString(CultureInfo.InvariantCulture);
 
+    public static string RoutineHelper(OwnerRoutineHelperAction action) => string.Join(
+        '\n', "clankerworld.owner-routine-helper.v1",
+        $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}",
+        $"provider={EncodeRequired(action.Provider, nameof(action.Provider))}",
+        $"model={EncodeOptional(action.Model)}",
+        $"credential-slot-id={EncodeOptional(action.CredentialSlotId)}");
+
     public static string JevAssistance(OwnerJevAssistanceAction action) =>
         "clankerworld.owner-jev-assistance.v1\nenabled=" + action.Enabled.ToString().ToLowerInvariant();
 

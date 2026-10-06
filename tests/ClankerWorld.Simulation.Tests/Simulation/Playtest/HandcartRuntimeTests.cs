@@ -12,6 +12,61 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed class HandcartRuntimeTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task BuiltInChoicesLeaveUnassignedCartTransfersAloneAcrossSaveReload(bool loadedAndAttached)
+    {
+        using var setup = NormalPathWorld.CreateGenerated("handcart-loop-audit", _ => new ActionCoverageRecorder(chooseIdle: true));
+        Assert.True((await setup.AdvanceOneTickAsync()).Advanced);
+        var state = setup.ExportState();
+        var actor = state.Inhabitants[0].InhabitantId;
+        var position = state.Inhabitants[0].Position;
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "audit-cart", "handcart", actor, 1,
+            groundPosition: new(position.X, position.Y));
+        inventory = InventoryFixture.AddLot(inventory, "audit-wood", "wood", actor, 4,
+            containerLotId: loadedAndAttached ? "audit-cart" : null);
+        state = state with
+        {
+            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
+            Inhabitants = state.Inhabitants.Select(person => person with
+            {
+                HungerBasisPoints = 9_500,
+                LastDecisionContext = null,
+                Project = null,
+            }).ToArray(),
+            HandcartHitches = loadedAndAttached ? [new("audit-cart", actor)] : [],
+        };
+        var chooser = new ActionCoverageRecorder();
+        IDecisionProvider Provider(string id) => id == actor ? chooser : new ActionCoverageRecorder(chooseIdle: true);
+        using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)), Provider);
+        for (var tick = 0; tick < 40; tick++)
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        var saved = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), Provider);
+        Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+        var decisionsBeforeReload = chooser.Chosen.Values.Sum();
+        // Ordinary work can span the reload without asking for another choice immediately.
+        for (var tick = 0; tick < 80 && (tick < 20 || chooser.Chosen.Values.Sum() == decisionsBeforeReload); tick++)
+            Assert.True((await restored.AdvanceOneTickAsync()).Advanced);
+
+        Assert.True(decisionsBeforeReload >= 5);
+        Assert.True(chooser.Chosen.Values.Sum() > decisionsBeforeReload);
+        var offered = chooser.OfferedByAgent[actor];
+        Assert.Contains(loadedAndAttached ? "unload_handcart:audit-wood" : "load_handcart:audit-wood", offered.Keys);
+        Assert.DoesNotContain(chooser.Chosen.Keys, id => id.StartsWith("attach_handcart:", StringComparison.Ordinal) ||
+            id.StartsWith("load_handcart:", StringComparison.Ordinal) || id.StartsWith("unload_handcart", StringComparison.Ordinal) ||
+            id.StartsWith("pull_handcart:", StringComparison.Ordinal) || id is "park_handcart" ||
+            id.StartsWith("give_handcart:", StringComparison.Ordinal));
+        Assert.DoesNotContain(restored.ExportState().Events, item => item.Kind is "handcart_loaded" or "handcart_unloaded" or "handcart_transferred");
+        if (loadedAndAttached)
+        {
+            var cargo = restored.Society.Inventory.GetLot("audit-wood");
+            Assert.Equal((actor, "audit-cart", 4), (cargo.OwnerId, cargo.ContainerLotId, cargo.Quantity));
+        }
+        restored.Validate();
+    }
+
     [Fact]
     public async Task NormalCraftLoadPullSaveParkAndUnloadConservePhysicalMaterials()
     {

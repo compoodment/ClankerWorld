@@ -59,7 +59,7 @@ public sealed partial class PrivateWorldRuntime
         if (order.ConstructionOwnerId is { } owner && owner != household) return false;
         failure = "Another project is already in progress; finish or stop it before starting this construction.";
         if (person.Project is { Stage: not ("completed" or "cancelled") } project &&
-            !IsConstructionOrderProject(instruction, project)) return false;
+            !IsConstructionOrderProject(instruction, project) && !OrdinaryProjectCanYieldToOrder(project)) return false;
         var kind = HouseholdBuildingKind(definition);
         failure = "This household already holds the requested building.";
         if (HouseholdBuildingWithTag(household, kind!) is not null) return false;
