@@ -58,7 +58,9 @@ has notice to move out, why, how much time remains and whether expansion is
 under way. Eligible adults get one world day; pausing stops the countdown,
 and saving and loading keep the remaining time. Volunteers go first, then
 the newest eligible arrivals outside the main family. With no family majority,
-the same order applies without favoring a family.
+the same order applies without favoring a family. A forced replacement keeps a
+still-future deadline, but gets a fresh world day when the old deadline is
+already due. Volunteers keep the original deadline.
 
 An adult with notice may ask another household with room while still living
 in the old House. Every adult in the new household must agree. If no home is

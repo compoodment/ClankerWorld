@@ -1666,9 +1666,10 @@ skipped. Selection stops when the remaining residents fit.
 
 `Housing.Relocation` stores the household, original notice tick, fixed deadline
 and selection reason. The initial period is one world day. Pausing and loading
-do not consume or restart it; a volunteer or other replacement adult inherits
-the existing notice period. Births, age changes and unfinished expansion do not
-restart a notice. Reconciliation cancels obsolete notices after changes in
+do not consume or restart it. A forced replacement inherits a still-future
+deadline; when notified at or after it, they receive one fresh world day from
+the current world tick. Volunteers keep their original deadline. Other residents’
+notices, births, age changes and unfinished expansion do not restart a notice. Reconciliation cancels obsolete notices after changes in
 residents, family, care or completed capacity. Admission and departure actions
 recheck that eligibility before acting on a saved or delayed choice.
 
@@ -1827,6 +1828,14 @@ Meals remain tracked in #564 and its domain
 issues; currency remains later work. The Clinic sells actual medicine
 and bandages through the same inventory and physical business authority.
 
+Released Town construction loads retain their Town owner and exact material
+history. Resident recovery moves only available ground quantities to a reachable
+Town Warehouse with actual room, leaving one carrying space for food. A split
+load gets a released custody record in the original project's delivery ledger;
+this does not revive its construction commitment or reservations. Urgent food or
+warmth permits immediate set-down of released carried goods. A temporary path
+obstruction while returning waits rather than dropping and recollecting cargo.
+
 **Markets** use the same inventory authority with separate saved paid-building
 and occupancy records. The Council-approved starter project pays for the 2×2
 hall and only two 1×1 stalls on the fixed 7×4 plaza, in slots 0 and 4. When
@@ -1841,6 +1850,14 @@ Physical stock receipts retain the personal or household owner. One named
 active adult borrows a stall while they remain inside the hall-and-plaza area;
 leaving, household change, death or removal ends borrowing and releases
 unfinished offer claims without transferring leftovers.
+
+Market live records retain recent outcomes and the exact borrowing, deposit,
+open-offer and payment bindings still needed by actual stock. Receipt sequences
+survive retirement; an explicit boundary allows closed source history to leave
+without granting selling authority. Closed inventory offers and claims retire
+with their Market records, while paid construction/removal and physical property
+remain intact. The [Market save rules](saves-and-replay.md#paid-markets-and-stall-trade)
+explain live bindings and archive/recovery behavior.
 
 Loads, borrowing, deposits, collection and barter mutations need a fresh
 accepted, non-fallback personal LLM choice; their candidates rank above

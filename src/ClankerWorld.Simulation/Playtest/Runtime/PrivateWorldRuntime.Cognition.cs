@@ -550,7 +550,7 @@ public sealed partial class PrivateWorldRuntime
             if (!NeedsUrgentFood(state) && !NeedsUrgentWarmth(state))
                 continue;
             var candidate = CreateCandidates(id, state, restrictForOrder: false)
-                .Where(item => safe.Contains(item.Id))
+                .Where(item => safe.Contains(item.Id) || item.Id.StartsWith(TownProjectReturnPrefix, StringComparison.Ordinal))
                 .OrderBy(item => item.DeterministicPriority)
                 .ThenBy(item => item.Id, StringComparer.Ordinal)
                 .FirstOrDefault();
@@ -1280,7 +1280,6 @@ public sealed partial class PrivateWorldRuntime
             AddTradeCandidates(candidates, inhabitantId);
             AddCouncilCandidates(candidates, inhabitantId);
             AddTownCivicCandidates(candidates, inhabitantId);
-            AddTownProjectCandidates(candidates, inhabitantId);
             AddTownProjectDonationCandidates(candidates, inhabitantId);
             AddMarketCandidates(candidates, inhabitantId);
             AddBoatCandidates(candidates, inhabitantId);
@@ -1288,6 +1287,8 @@ public sealed partial class PrivateWorldRuntime
             AddExplorationCandidate(candidates, inhabitantId, state);
         }
 
+        // Released Town cargo can be set down even while urgent needs hide construction work.
+        AddTownProjectCandidates(candidates, inhabitantId);
         if (currentConversation is null)
             candidates.AddRange(ConversationCandidates(inhabitantId));
         candidates.Add(new CognitionCandidate("safe_idle", "Continue safely without starting a new task.", 100));

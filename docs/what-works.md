@@ -867,7 +867,13 @@ where they are and retain Town ownership. A pending household land request on
 the site only pauses the project. A site that can no longer be used, for
 example because the request was granted or the site was taken while the vote
 was open, cancels the project instead of holding its land. Its leftover loads
-stay Town property where they are, and a later Town project can use them.
+stay Town property. Adult residents can collect released ground loads and return
+them to a reachable Town Warehouse with room, without waiting for another
+project. Recovery leaves carrying space for food and pauses for urgent food or
+warmth; an urgent carrier sets down released goods before meeting those needs.
+Temporarily blocked paths wait instead of repeatedly dropping and collecting a
+load. Other jobs' reservations and private goods are left alone; a later Town
+project can also use the released materials.
 A pending Hall proposal's site is not offered for another Hall proposal or as
 free land for a household request. The Towns page shows the plan,
 Council result, supplied materials, work and blocker, even after the vote leaves
@@ -1019,8 +1025,10 @@ An overcrowded House gives eligible adults one unpaused world day to move out.
 Volunteers go first, followed by the most recent arrivals outside its dominant
 family; without a family majority, no family gets priority. The agent's housing
 details show the reason, remaining time, requests to other households and
-expansion progress. Notices keep their deadline across save/load and changes
-of selected adult. Only a completed expansion adds places, and changed
+expansion progress. Save/load keeps the remaining time. A forced replacement
+inherits a deadline that is still in the future; when notified at or after it,
+the replacement gets one fresh world day. Volunteers keep the original deadline,
+and other residents’ notices do not restart. Only a completed expansion adds places, and changed
 residents, family or care arrangements cancel notices that are no longer needed.
 Children and their sole caregivers never receive forced notices. If nobody
 can safely be required to leave, the House stays visibly overcrowded while
