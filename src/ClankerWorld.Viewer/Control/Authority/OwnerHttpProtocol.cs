@@ -53,8 +53,8 @@ public sealed record OwnerAutosaveConfigurationAction(bool Enabled, int Interval
 public sealed record OwnerDeveloperEditAction(string WorldId, long ExpectedEventId, string AgentId,
     string Operation, string Value, int Amount = 0, string? OtherAgentId = null);
 
-public sealed record OwnerLifePaceAction(int Rate);
-public sealed record OwnerJevAssistanceAction(bool Enabled);
+public sealed record OwnerLifePaceAction(int Rate, string WorldId);
+public sealed record OwnerJevAssistanceAction(bool Enabled, string WorldId);
 
 public sealed record OwnerPairingApprovalAction(string PairingId, string PairingCode);
 
@@ -303,11 +303,18 @@ public static class OwnerHttpBinding
         $"amount={action.Amount.ToString(CultureInfo.InvariantCulture)}",
         $"other-agent-id={EncodeOptional(action.OtherAgentId)}");
 
-    public static string LifePacePayload(OwnerLifePaceAction action) =>
-        "clankerworld.owner-life-pace.v1\nrate=" + action.Rate.ToString(CultureInfo.InvariantCulture);
+    public const string LifePacePayloadDomain = "clankerworld.owner-life-pace.v2";
+    public const string JevAssistancePayloadDomain = "clankerworld.owner-jev-assistance.v2";
 
-    public static string JevAssistancePayload(OwnerJevAssistanceAction action) =>
-        "clankerworld.owner-jev-assistance.v1\nenabled=" + action.Enabled.ToString().ToLowerInvariant();
+    public static string LifePacePayload(OwnerLifePaceAction action) => string.Join('\n',
+        LifePacePayloadDomain,
+        $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}",
+        $"rate={action.Rate.ToString(CultureInfo.InvariantCulture)}");
+
+    public static string JevAssistancePayload(OwnerJevAssistanceAction action) => string.Join('\n',
+        JevAssistancePayloadDomain,
+        $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}",
+        $"enabled={action.Enabled.ToString().ToLowerInvariant()}");
 
     public static string PairingApprovalPayload(OwnerPairingApprovalAction action) => string.Join(
         '\n',

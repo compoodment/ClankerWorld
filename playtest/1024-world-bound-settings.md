@@ -1,0 +1,2 @@
+- On paired disposable test worlds A and B, use two devices and a delayed connection: apply a life-pace change from A while the other device opens B. Confirm the change either reaches A before the switch or is refused, and never changes B. Reload both worlds to check their saved settings. [#1024](https://github.com/compoodment/ClankerWorld/issues/1024)
+- Repeat with Jev assistance. After a refused request, reopen B's World Settings and apply a fresh change; confirm it works for B and A keeps its own setting. [#1024](https://github.com/compoodment/ClankerWorld/issues/1024)

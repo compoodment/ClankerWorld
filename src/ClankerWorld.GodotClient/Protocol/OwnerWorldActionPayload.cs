@@ -87,11 +87,18 @@ public static class OwnerWorldActionPayload
         $"amount={action.Amount.ToString(CultureInfo.InvariantCulture)}",
         $"other-agent-id={EncodeOptional(action.OtherAgentId)}");
 
-    public static string LifePace(OwnerLifePaceAction action) =>
-        "clankerworld.owner-life-pace.v1\nrate=" + action.Rate.ToString(CultureInfo.InvariantCulture);
+    public const string LifePacePayloadDomain = "clankerworld.owner-life-pace.v2";
+    public const string JevAssistancePayloadDomain = "clankerworld.owner-jev-assistance.v2";
 
-    public static string JevAssistance(OwnerJevAssistanceAction action) =>
-        "clankerworld.owner-jev-assistance.v1\nenabled=" + action.Enabled.ToString().ToLowerInvariant();
+    public static string LifePace(OwnerLifePaceAction action) => string.Join('\n',
+        LifePacePayloadDomain,
+        $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}",
+        $"rate={action.Rate.ToString(CultureInfo.InvariantCulture)}");
+
+    public static string JevAssistance(OwnerJevAssistanceAction action) => string.Join('\n',
+        JevAssistancePayloadDomain,
+        $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}",
+        $"enabled={action.Enabled.ToString().ToLowerInvariant()}");
 
     public static string PairingApproval(OwnerPairingApprovalAction action) => string.Join(
         '\n',

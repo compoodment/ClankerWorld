@@ -267,21 +267,23 @@ public partial class Main
 
     private async Task SaveLifePaceAsync()
     {
-        if (!TryGetOwner(out var authority, out var deviceId, out var signer)) return;
+        if (!TryGetOwner(out var authority, out var deviceId, out var signer) ||
+            observationSession.Current?.Baseline.Snapshot.WorldId is not { } worldId) return;
         var rate = lifePaceChoice.GetSelectedId();
         await RunOwnerActionAsync(async () =>
         {
-            _ = await AwaitCurrentWorldResultAsync(ownerApi.SetLifePaceAsync(ResolveWorldUri(), authority, deviceId, rate, signer, CancellationToken.None));
+            _ = await AwaitCurrentWorldResultAsync(ownerApi.SetLifePaceAsync(ResolveWorldUri(), authority, deviceId, rate, worldId, signer, CancellationToken.None));
             return "life pace saved; current ages preserved, future aging changed";
         });
     }
 
     private async Task SaveJevAssistanceAsync(bool enabled)
     {
-        if (!TryGetOwner(out var authority, out var deviceId, out var signer)) return;
+        if (!TryGetOwner(out var authority, out var deviceId, out var signer) ||
+            observationSession.Current?.Baseline.Snapshot.WorldId is not { } worldId) return;
         await RunOwnerActionAsync(async () =>
         {
-            _ = await AwaitCurrentWorldResultAsync(ownerApi.SetJevAssistanceAsync(ResolveWorldUri(), authority, deviceId, enabled, signer, CancellationToken.None));
+            _ = await AwaitCurrentWorldResultAsync(ownerApi.SetJevAssistanceAsync(ResolveWorldUri(), authority, deviceId, enabled, worldId, signer, CancellationToken.None));
             return enabled ? "Jev assistance enabled for this world" : "Jev assistance disabled for this world";
         });
     }
@@ -425,7 +427,7 @@ public partial class Main
         autosaveApplyButton.Disabled = actionDisabled || !paused || !autosaveSettingsLoaded;
         var supportsLifePace = snapshot?.LifePaceRate is not null;
         var supportsJevAssistance = snapshot?.JevEnabled is not null &&
-            observationSession.Current?.Handshake.ServerCapabilities.Contains("owner-jev-assistance.v1", StringComparer.Ordinal) == true;
+            observationSession.Current?.Handshake.ServerCapabilities.Contains("owner-jev-assistance.v2", StringComparer.Ordinal) == true;
         jevAssistanceToggle.Disabled = actionDisabled || !paused || !supportsJevAssistance;
         applyLifePaceButton.Disabled = actionDisabled || !paused || !supportsLifePace;
         lifePaceChoice.Disabled = actionDisabled || !paused || !supportsLifePace;

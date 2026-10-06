@@ -610,6 +610,11 @@ Menus, panels and text grow with your screen in whole steps, so pixel letters
 stay crisp: 100% on small screens, 200% at 1080p and 1440p and 300% at 4K.
 There is no setting for this. World Settings contains that world's autosaves,
 Jev and agent model settings. Main Menu Settings exposes Game Settings only.
+
+Life pace and Jev changes apply to the world shown when you submit them.
+If another device opens a different world before your request arrives, the
+host refuses the change. Reopen World Settings before trying again. These
+controls need matching client and host updates.
 Autosave Apply stays unavailable until the current world's settings have loaded.
 If the world changes before Apply reaches the host, its settings stay unchanged.
 Reopen World Settings before trying again.
