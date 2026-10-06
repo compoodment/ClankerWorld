@@ -176,6 +176,9 @@ file-object, file-key and IRP identities to synthetic checkpoint paths. The
 runner retires file identities on close/delete and IRPs at operation completion
 to limit reuse of old associations. Resolved paths are inferred correlations;
 always inspect the original fields before attributing an operation.
+Filtered paths can also refer to the observer's retained synthetic copies and
+polling activity. Check the full path and process before treating event counts
+as writes to an original checkpoint.
 In a passing full-suite run, earlier checkpoint activity may have fallen out
 of the circular window; zero selected events then means no retained checkpoint
 activity, not proof that the original failure is fixed. The
