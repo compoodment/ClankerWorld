@@ -342,6 +342,7 @@ public sealed partial class PrivateWorldRuntime
         historyArchiveHead = proposed.historyArchiveHead;
         checkpointSchemaVersion = proposed.checkpointSchemaVersion;
         jevEnabled = proposed.jevEnabled;
+        routineHelper = proposed.routineHelper;
         jevPolicyRevision = proposed.jevPolicyRevision;
         founderSetup = proposed.founderSetup;
         towns = proposed.towns;
@@ -552,6 +553,7 @@ public sealed partial class PrivateWorldRuntime
             DrainNeeds();
             AdvanceMedicalTreatments();
             RemoveDeadPhysicalState();
+            ReconcileMedicalSupplyTrips();
             ProcessBoatTransport(targetTick);
             ReconcileHandcartHitches();
             CancelFieldWorkForUnavailableWorkers();
@@ -653,6 +655,7 @@ public sealed partial class PrivateWorldRuntime
             var orderActorsHandledThisTick = ApplyContinuingIntentions(
                 decisions.Select(item => item.InhabitantId), waiting);
             AdvanceMedicalTreatments();
+            ReconcileMedicalSupplyTrips();
             // An agent whose reply was accepted this tick already acted, even if newer work stays queued.
             if (deferHosted) ApplySafeRoutinesWhileWaiting(waiting.Except(decisions.Select(item => item.InhabitantId), StringComparer.Ordinal), orderActorsHandledThisTick);
             ReconcileGuardianPlacements();

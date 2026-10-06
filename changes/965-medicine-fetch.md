@@ -1,0 +1,1 @@
+- Healthy caregivers can fetch medicine and return to a consenting patient after saving and reopening the world.

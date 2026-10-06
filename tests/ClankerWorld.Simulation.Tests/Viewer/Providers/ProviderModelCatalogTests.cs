@@ -27,6 +27,26 @@ public sealed class ProviderModelCatalogTests
         ]}
         """;
 
+    [Fact]
+    public async Task HelperCatalogOffersOnlyLaunchModelsAndChecksDecisionsWithTheSelectedOpenAiKey()
+    {
+        using var directory = new TemporaryDirectory();
+        var store = directory.Store();
+        var slotId = Guid.NewGuid().ToString("N");
+        _ = store.CreateCredentialSlot(new(slotId, "openai", "Saved OpenAI", "named-openai-test-key"));
+        var handler = new ListHandler(_ => (HttpStatusCode.OK, OpenAiList));
+        var catalog = new ProviderModelCatalog(store, new ClientFactory(handler));
+        var decisions = await catalog.ListAsync(new("decisions", slotId), CancellationToken.None);
+        Assert.Equal([new OwnerProviderModelChoice("gpt-6-luna", true)], decisions.Models);
+        Assert.Equal("gpt-6-luna", decisions.DefaultModel);
+        Assert.Equal(ProviderModelCatalog.OpenAiModels, Assert.Single(handler.Requests).Uri);
+        Assert.Equal("Bearer named-openai-test-key", handler.Requests[0].Authorization);
+        var jev = await catalog.ListAsync(new("jev"), CancellationToken.None);
+        Assert.Equal([new OwnerProviderModelChoice("jev-1.13.0", true)], jev.Models);
+        Assert.Single(handler.Requests);
+        Assert.DoesNotContain("named-openai-test-key", System.Text.Json.JsonSerializer.Serialize(decisions));
+    }
+
     [Theory]
     [InlineData("gpt-oss:120b-cloud", "gpt-oss:120b")]
     [InlineData("Gemma4:latest", "gemma4")]

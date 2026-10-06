@@ -1508,12 +1508,20 @@ public partial class Main
             VerifyChildModelStatus();
             VerifyModelSetupCheckControls();
             VerifyModelSettingsLayout();
-            Render(sample with { JevEnabled = true }, []);
-            if (!jevAssistanceToggle.ButtonPressed)
-                throw new InvalidOperationException("World Settings must reflect this world's saved Jev assistance choice.");
-            Render(sample with { JevEnabled = false }, []);
-            if (jevAssistanceToggle.ButtonPressed)
-                throw new InvalidOperationException("World Settings must show when Jev assistance is off.");
+            Render(sample with { JevEnabled = true, RoutineHelperProvider = "jev", RoutineHelperModel = "jev-1.13.0" }, []);
+            if (SelectedRoutineHelper() != "jev" || routineHelperModelPicker.Model != "jev-1.13.0")
+                throw new InvalidOperationException("World Settings must reflect the saved helper and model.");
+            Render(sample with { JevEnabled = false, RoutineHelperProvider = "off", RoutineHelperModel = "" }, []);
+            if (SelectedRoutineHelper() != "off" || routineHelperModelPicker.Visible)
+                throw new InvalidOperationException("Off must hide the helper model picker.");
+            var decisionsSample = sample with { JevEnabled = true, RoutineHelperProvider = "decisions", RoutineHelperModel = "gpt-6-luna" };
+            Render(decisionsSample, []);
+            if (SelectedRoutineHelper() != "decisions" || routineHelperModelPicker.Model != "gpt-6-luna")
+                throw new InvalidOperationException("World Settings must show OpenAI Decisions and its saved model.");
+            routineHelperModelPicker.SetModel("future-decisions-model");
+            Render(decisionsSample, []);
+            if (routineHelperModelPicker.Model != "future-decisions-model")
+                throw new InvalidOperationException("Refreshing the world must preserve an unapplied helper model.");
             usageStatus = new OwnerUsageStatus(2, 1, 0, 1, 10, 3, 2, true,
                 [new OwnerUsageRow("openai", "test-model", "planning", 2, 1, 0, 1, 10, 3)]);
             RenderUsageStatus();
@@ -3830,6 +3838,7 @@ public partial class Main
                 throw new InvalidOperationException("Household membership must not create a family link.");
             familyTreePanel.Hide();
             await VerifyAgentPanelsAsync();
+            await VerifyRosterRefreshScrollAsync();
             await VerifyOrderListAsync();
             eventsPanel.Show();
             _UnhandledKeyInput(new InputEventKey { Keycode = Key.Escape, Pressed = true });

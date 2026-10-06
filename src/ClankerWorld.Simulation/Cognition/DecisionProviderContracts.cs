@@ -19,6 +19,7 @@ public enum DecisionProviderKind
     Deterministic,
     Jev,
     LargeLanguageModel,
+    OpenAiDecisions,
 }
 
 /// <summary>
@@ -62,7 +63,7 @@ public sealed record CognitionMemoryExcerpt(
     int ImportanceConfidenceBasisPoints = 0);
 
 /// <summary>
-/// A source record Jev may rate while it is already choosing a routine action.
+/// A source record a routine helper may rate while it is already choosing a routine action.
 /// IDs stay local to the host; the provider sees only a per-request index.
 /// </summary>
 public sealed record CognitionMemoryCompactionCandidate(
@@ -834,48 +835,7 @@ public sealed class JevDecisionProvider : IDecisionProvider
                 MemoryImportanceCriteria);
         }
 
-        var payload = new JevRequest(
-            new
-            {
-                agent_id = request.Observation.InhabitantId,
-                hunger_basis_points = request.Observation.HungerBasisPoints,
-                warmth_basis_points = request.Observation.Self?.WarmthBasisPoints,
-                illness_basis_points = request.Observation.Self?.IllnessBasisPoints,
-                household = request.Observation.Self?.HouseholdName,
-                town = request.Observation.Self?.TownName,
-                town_membership = request.Observation.Self?.TownMembershipNote,
-                housing = request.Observation.Self?.HousingNote,
-                continuity = request.Observation.Self?.ContinuityNote,
-                departure = request.Observation.Self?.DepartureNote,
-                medical_care = request.Observation.Self?.MedicalCareNote,
-                tool_making_request = request.Observation.Self?.ToolMakingRequestNote,
-                marriage = request.Observation.Self?.MarriageNote,
-                candidates = request.Observation.Candidates.Select(candidate => new
-                {
-                    id = candidate.Id,
-                    description = candidate.Description,
-                    destination = candidate.DestinationName,
-                }).ToArray(),
-                memory_compaction_candidates = (request.Observation.MemoryCompactionCandidates ?? [])
-                    .Select((candidate, index) => new
-                    {
-                        source_index = index,
-                        kind = candidate.Kind,
-                        subject_id = candidate.SubjectId,
-                        summary = candidate.Summary,
-                        source_tick = candidate.SourceTick,
-                        visibility = candidate.Visibility,
-                        provenance = candidate.Provenance,
-                        confidence_basis_points = candidate.ConfidenceBasisPoints,
-                        source_agent_id = candidate.SourceAgentId,
-                        source_event_id = candidate.SourceEventId,
-                        is_corrected = candidate.IsCorrected,
-                    }).ToArray(),
-            },
-            model,
-            questions);
-        if (needFormat == ModelNeedFormat.Words)
-            payload = payload with { State = DescribeNeedsInWords(payload.State, request.Observation) };
+        var payload = new JevRequest(BuildState(request.Observation, needFormat), model, questions);
 
         var json = JsonSerializer.Serialize(payload, JsonOptions);
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -992,6 +952,48 @@ public sealed class JevDecisionProvider : IDecisionProvider
     }
 
     private static string MemoryQuestionId(int index) => $"memory_salience_{index:D2}";
+
+    internal static object BuildState(InhabitantObservation observation, ModelNeedFormat needFormat)
+    {
+        var state = new
+        {
+            agent_id = observation.InhabitantId,
+            hunger_basis_points = observation.HungerBasisPoints,
+            warmth_basis_points = observation.Self?.WarmthBasisPoints,
+            illness_basis_points = observation.Self?.IllnessBasisPoints,
+            household = observation.Self?.HouseholdName,
+            town = observation.Self?.TownName,
+            town_membership = observation.Self?.TownMembershipNote,
+            housing = observation.Self?.HousingNote,
+            continuity = observation.Self?.ContinuityNote,
+            departure = observation.Self?.DepartureNote,
+            medical_care = observation.Self?.MedicalCareNote,
+            tool_making_request = observation.Self?.ToolMakingRequestNote,
+            marriage = observation.Self?.MarriageNote,
+            candidates = observation.Candidates.Select(candidate => new
+            {
+                id = candidate.Id,
+                description = candidate.Description,
+                destination = candidate.DestinationName,
+            }).ToArray(),
+            memory_compaction_candidates = (observation.MemoryCompactionCandidates ?? [])
+                    .Select((candidate, index) => new
+                    {
+                        source_index = index,
+                        kind = candidate.Kind,
+                        subject_id = candidate.SubjectId,
+                        summary = candidate.Summary,
+                        source_tick = candidate.SourceTick,
+                        visibility = candidate.Visibility,
+                        provenance = candidate.Provenance,
+                        confidence_basis_points = candidate.ConfidenceBasisPoints,
+                        source_agent_id = candidate.SourceAgentId,
+                        source_event_id = candidate.SourceEventId,
+                        is_corrected = candidate.IsCorrected,
+                    }).ToArray(),
+        };
+        return needFormat == ModelNeedFormat.Words ? DescribeNeedsInWords(state, observation) : state;
+    }
 
     private static JsonObject DescribeNeedsInWords(object state, InhabitantObservation observation)
     {

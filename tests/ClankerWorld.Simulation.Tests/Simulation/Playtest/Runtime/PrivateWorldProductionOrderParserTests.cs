@@ -6,14 +6,14 @@ using ClankerWorld.Simulation.Playtest;
 
 namespace ClankerWorld.Simulation.Tests;
 
-public sealed class PrivateWorldProductionOrderParserTests
+public sealed partial class PrivateWorldProductionOrderParserTests
 {
     private const string Actor = "founder-ilya";
     private static readonly ContentPackageManifest[] ShippedPackages =
     [
         StarterContent.Create(), SettlementContent.Create(), HouseContent.Create(), FarmContent.Create(),
         BlacksmithContent.Create(), TailorContent.Create(), HouseCookingContent.Create(),
-        OrnamentContent.Create(), CareContent.Create(),
+        OrnamentContent.Create(), CareContent.Create(), RestaurantContent.Create(), RestaurantVariantContent.Create(),
     ];
 
     [Theory]
@@ -154,7 +154,7 @@ public sealed class PrivateWorldProductionOrderParserTests
     [InlineData("cook bread")]
     [InlineData("cook porridge")]
     [InlineData("cook vegetable stew")]
-    [InlineData("cook restaurant meals")]
+    [InlineData("cook simple meals")]
     public void UnsupportedOrPartialProductionTextDoesNotReplaceTheCurrentOrder(string text)
     {
         using var world = CreateWorld();
@@ -167,12 +167,15 @@ public sealed class PrivateWorldProductionOrderParserTests
         Assert.Single(world.ExportState().Events, item => item.Kind == "instruction_not_understood");
     }
 
-    [Fact]
-    public void ItemCountsThatCannotBeMadeInWholeBatchesAreRejected()
+    [Theory]
+    [InlineData("make three house bandages")]
+    [InlineData("cook one house bread")]
+    [InlineData("cook three restaurant meals")]
+    public void ItemCountsThatCannotBeMadeInWholeBatchesAreRejected(string text)
     {
         using var world = CreateWorld();
         var current = Submit(world, "current", "eat berries");
-        var rejected = Submit(world, "partial-batch", "make three house bandages");
+        var rejected = Submit(world, "partial-batch", text);
         Assert.Equal("not_understood", rejected.Status);
         Assert.Equal(current, world.ExportState().Instructions!.Single(item => item.IdempotencyKey == "current").Order);
     }

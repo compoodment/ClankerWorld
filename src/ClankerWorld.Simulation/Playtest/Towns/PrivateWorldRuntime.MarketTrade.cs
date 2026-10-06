@@ -354,7 +354,7 @@ public sealed partial class PrivateWorldRuntime
     {
         var lot = choice.Lot!;
         var receiptId = MarketTradeRules.ReceiptId(choice.Occupancy!.Id, lot.Id, lot.OwnerId, choice.Quantity,
-            WorldTick, choice.Market.StockReceipts.Count);
+            WorldTick, choice.Market.NextStockReceiptSequence);
         var operation = receiptId + ":deposit";
         var movedId = lot.Quantity == choice.Quantity ? lot.Id : lot.Id + "#move:" + operation;
         long eventId = 0;
@@ -366,8 +366,15 @@ public sealed partial class PrivateWorldRuntime
             return next;
         });
         var receipt = new MarketStockReceipt(receiptId, choice.Occupancy.Id, actor, lot.OwnerId,
-            lot.Id, movedId, lot.ItemKind, choice.Quantity, WorldTick, eventId);
-        SetMarket(choice.Town.Id, choice.Market with { StockReceipts = choice.Market.StockReceipts.Append(receipt).ToArray() });
+            lot.Id, movedId, lot.ItemKind, choice.Quantity, WorldTick, eventId)
+        {
+            Sequence = choice.Market.NextStockReceiptSequence,
+        };
+        SetMarket(choice.Town.Id, choice.Market with
+        {
+            StockReceipts = choice.Market.StockReceipts.Append(receipt).ToArray(),
+            NextStockReceiptSequence = checked(choice.Market.NextStockReceiptSequence + 1),
+        });
         AppendEvent("market_stock_delivered", $"{choice.Town.Id}|{choice.Market.Id}|{choice.Stall.BuildingId}|{actor}|{receipt.Id}", position);
     }
 
@@ -384,7 +391,12 @@ public sealed partial class PrivateWorldRuntime
                 choice.Lot.Id, 1, choice.Payment.Id, 1, WorldTick + MarketTradeRules.OfferLifetimeTicks)),
             id, 1, buyer));
         var trade = new MarketTradeState(id, occupancy.Id, choice.Stall.BuildingId, seller,
-            choice.Lot.OwnerId, owner, buyer, position, WorldTick, choice.Lot.ItemKind, choice.Payment.ItemKind);
+            choice.Lot.OwnerId, owner, buyer, position, WorldTick, choice.Lot.ItemKind, choice.Payment.ItemKind)
+        {
+            StockReceiptSequence = choice.Market.StockReceipts.Last(receipt => receipt.OccupancyId == occupancy.Id &&
+                receipt.OwnerId == choice.Lot.OwnerId && receipt.ItemKind == choice.Lot.ItemKind &&
+                MarketTradeRules.IsReceiptLot(receipt, choice.Lot)).Sequence,
+        };
         SetMarket(choice.Town.Id, choice.Market with { Trades = choice.Market.Trades.Append(trade).ToArray() });
         AppendEvent("market_trade_offered", $"{choice.Town.Id}|{choice.Market.Id}|{choice.Stall.BuildingId}|{seller}|{buyer}|{id}", position);
     }
@@ -447,7 +459,7 @@ public sealed partial class PrivateWorldRuntime
         var goodsId = goods.Quantity == offer.FirstQuantity ? goods.Id : goods.Id + "#barter:" + offer.Id;
         var paymentId = payment.Quantity == offer.SecondQuantity ? payment.Id : payment.Id + "#barter:" + offer.Id;
         var receiptId = MarketTradeRules.ReceiptId(trade.OccupancyId, paymentId, trade.PaymentOwnerId,
-            offer.SecondQuantity, WorldTick, choice.Market.StockReceipts.Count, offer.Id);
+            offer.SecondQuantity, WorldTick, choice.Market.NextStockReceiptSequence, offer.Id);
         long eventId = 0;
         ApplyInventoryTransition(inventory =>
         {
@@ -463,11 +475,15 @@ public sealed partial class PrivateWorldRuntime
             return settled;
         });
         var receipt = new MarketStockReceipt(receiptId, trade.OccupancyId, actor, trade.PaymentOwnerId,
-            paymentId, paymentId, trade.PaymentKind, offer.SecondQuantity, WorldTick, eventId, offer.Id);
+            paymentId, paymentId, trade.PaymentKind, offer.SecondQuantity, WorldTick, eventId, offer.Id)
+        {
+            Sequence = choice.Market.NextStockReceiptSequence,
+        };
         SetMarket(choice.Town.Id, choice.Market with
         {
             Trades = choice.Market.Trades.Select(item => item.OfferId == trade.OfferId ? trade with { SettledTick = WorldTick } : item).ToArray(),
             StockReceipts = choice.Market.StockReceipts.Append(receipt).ToArray(),
+            NextStockReceiptSequence = checked(choice.Market.NextStockReceiptSequence + 1),
         });
         AppendEvent("market_trade_completed", $"{choice.Town.Id}|{choice.Market.Id}|{choice.Stall.BuildingId}|{actor}|{trade.BuyerId}|{trade.OfferId}", trade.Position);
     }
@@ -546,5 +562,6 @@ public sealed partial class PrivateWorldRuntime
                         ? stall : stall with { RemovedTick = stall.RemovedTick ?? WorldTick }).ToArray(),
                 });
             }
+        RetireMarketHistory();
     }
 }
