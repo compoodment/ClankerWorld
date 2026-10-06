@@ -75,25 +75,6 @@ public sealed partial class PrivateWorldRuntimeTests
             new CountingSelectingProvider(DecisionProviderKind.Deterministic, chooseIdle: true));
         var initialState = setup.ExportState();
         setup.Dispose();
-        if (text.StartsWith("eat ", StringComparison.OrdinalIgnoreCase) ||
-            text.StartsWith("do not eat ", StringComparison.OrdinalIgnoreCase) ||
-            text.StartsWith("don’t eat ", StringComparison.OrdinalIgnoreCase) ||
-            text.StartsWith("don't eat ", StringComparison.OrdinalIgnoreCase))
-        {
-            initialState = initialState with
-            {
-                Inhabitants = initialState.Inhabitants.Select(person => person.InhabitantId == HarvestInstructionActor
-                    ? person with { HungerBasisPoints = 9_000 } : person).ToArray(),
-                Society = initialState.Society with
-                {
-                    Society = initialState.Society.Society with
-                    {
-                        Inventory = InventoryFixture.AddLot(initialState.Society.Society.Inventory,
-                            "unsupported-order-bait-berries", "berries", HarvestInstructionActor, 1),
-                    },
-                },
-            };
-        }
         using var world = PrivateWorldRuntime.Restore(initialState, _ =>
             new CountingSelectingProvider(DecisionProviderKind.Deterministic, chooseIdle: true));
         var before = world.ExportState();
