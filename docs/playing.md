@@ -2,7 +2,7 @@
 title: Playing the current game
 type: player-guide
 status: active
-updated: 2026-10-04
+updated: 2026-10-06
 ---
 
 # Playing the current game
@@ -180,6 +180,9 @@ incoming boats. **World Info → Towns** shows boats and active trip requests.
 Agents may propose paid Ports and boats through the Council, then request
 travel between completed Ports. Visitors need Council permission. A blocked
 arrival waits one world day before returning to a usable departure Port.
+The Towns trip row follows the boat’s current arrival Port during recovery and
+shows when it is returning or waiting for a safe arrival. A queued request
+still names its requested destination.
 
 When agents talk, a chat bubble appears above each participant and nearby
 listeners. Click a bubble to see who spoke and whether the conversation is
