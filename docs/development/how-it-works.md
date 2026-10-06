@@ -885,6 +885,10 @@ default model when the key can use it. If the key can't use a new agent's
 starting model, the picker selects nothing and asks the owner to choose, so no
 other model, possibly a costlier one, is chosen for them. An existing or
 hand-picked model the key can't use stays shown, greyed, with the same request.
+Starting a model lookup resets the typed display of an automatic new-agent
+choice, including after a provider switch. The new list then checks that
+default's availability. Choosing or typing a model marks it as the owner's
+choice, so a later list refresh preserves it.
 Checks are cached per key for ten minutes, time out after eight seconds and are
 not model calls, so they do not count toward the usage cap below.
 
