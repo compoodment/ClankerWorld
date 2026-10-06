@@ -342,7 +342,7 @@ public sealed class WorldSelectionCoordinator(
             stateFile.Save(runtime);
             providers.RestoreWorldAssignments(entry.Assignments);
             autosave.SelectWorld(entry.WorldId, entry.AutosaveSettings);
-            jevPolicy.Initialize(runtime.JevEnabled, runtime.JevPolicyRevision);
+            jevPolicy.Initialize(runtime.JevEnabled, runtime.JevPolicyRevision, runtime.RoutineHelper);
             catalog.Select(entry.Id);
         }
         catch
@@ -352,7 +352,7 @@ public sealed class WorldSelectionCoordinator(
             stateFile.Save(runtime);
             providers.RestoreWorldAssignments(oldAssignments);
             autosave.SelectWorld(oldEntry.WorldId, oldAutosave);
-            jevPolicy.Initialize(runtime.JevEnabled, runtime.JevPolicyRevision);
+            jevPolicy.Initialize(runtime.JevEnabled, runtime.JevPolicyRevision, runtime.RoutineHelper);
             catalog.Select(oldEntry.Id);
             throw;
         }

@@ -167,7 +167,7 @@ public sealed partial class PrivateWorldRuntime
                 try
                 {
                     var provider = providerFactory(inhabitant.Id);
-                    if (provider.KindFor(observation) == DecisionProviderKind.Jev)
+                    if (provider.KindFor(observation) is DecisionProviderKind.Jev or DecisionProviderKind.OpenAiDecisions)
                     {
                         var memoryCandidates = PrivateWorldMemoryRetrieval.Unassessed(
                             checkpoint.Memories,
@@ -561,7 +561,7 @@ public sealed partial class PrivateWorldRuntime
     private void ApplyDecision(SocietyCognitionDispatchResult decision)
     {
         if (decision.Admission.Accepted && !decision.Admission.FellBack &&
-            decision.Admission.Intention?.Provider == DecisionProviderKind.Jev &&
+            decision.Admission.Intention?.Provider is DecisionProviderKind.Jev or DecisionProviderKind.OpenAiDecisions &&
             decision.Admission.MemoryCompactionScores is { Count: > 0 } memoryScores)
         {
             ApplyMemoryCompaction(decision.InhabitantId, memoryScores);

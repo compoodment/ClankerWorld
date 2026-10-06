@@ -68,7 +68,11 @@ which signs the world whose settings the player opened. The client checks each
 fresh challenge before signing or posting these actions.
 An absent or different format produces an update message while keeping the
 existing pairing. Older hosts without this advertisement need an update too.
-Other signed actions, including reconnect, keep their existing contracts.
+Routine helper changes require `clankerworld.owner-routine-helper.v1`, signing
+the observed world ID, helper, model and optional saved OpenAI key-slot ID. The
+host holds the world-selection gate through validation and persistence, and
+refuses a changed world or an unpaused world. Other signed actions, including
+reconnect, keep their existing contracts.
 
 The advertisement is compatibility information, not permission to weaken a
 proof. The host still reconstructs the exact action payload and verifies its

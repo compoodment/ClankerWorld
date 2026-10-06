@@ -100,6 +100,13 @@ public static class OwnerWorldActionPayload
         $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}",
         $"enabled={action.Enabled.ToString().ToLowerInvariant()}");
 
+    public static string RoutineHelper(OwnerRoutineHelperAction action) => string.Join(
+        '\n', "clankerworld.owner-routine-helper.v1",
+        $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}",
+        $"provider={EncodeRequired(action.Provider, nameof(action.Provider))}",
+        $"model={EncodeOptional(action.Model)}",
+        $"credential-slot-id={EncodeOptional(action.CredentialSlotId)}");
+
     public static string PairingApproval(OwnerPairingApprovalAction action) => string.Join(
         '\n',
         "clankerworld.owner-pairing-approval.v1",

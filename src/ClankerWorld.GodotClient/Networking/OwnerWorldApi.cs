@@ -291,6 +291,13 @@ public sealed class OwnerWorldApi
             action, deviceKey, cancellationToken, requiredPayloadDomain: OwnerWorldActionPayload.LifePacePayloadDomain);
     }
 
+    public Task<OwnerControlReceipt> SetRoutineHelperAsync(Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
+        OwnerRoutineHelperAction action, IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken) =>
+        pairing.SendSignedActionAsync<OwnerRoutineHelperAction, OwnerControlReceipt>(serverUri, authority, deviceId,
+            OwnerPairingEndpoints.OwnerRoutineHelper, OwnerPairingProtocol.CreateRequestId(),
+            OwnerWorldActionPayload.RoutineHelper(action), action, deviceKey, cancellationToken,
+            requiredPayloadDomain: "clankerworld.owner-routine-helper.v1");
+
     public Task<OwnerControlReceipt> SetJevAssistanceAsync(Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
         bool enabled, string worldId, IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken)
     {

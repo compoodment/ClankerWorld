@@ -55,6 +55,7 @@ public sealed record OwnerDeveloperEditAction(string WorldId, long ExpectedEvent
 
 public sealed record OwnerLifePaceAction(int Rate, string WorldId);
 public sealed record OwnerJevAssistanceAction(bool Enabled, string WorldId);
+public sealed record OwnerRoutineHelperAction(string WorldId, string Provider, string Model, string? CredentialSlotId = null);
 
 public sealed record OwnerPairingApprovalAction(string PairingId, string PairingCode);
 
@@ -315,6 +316,13 @@ public static class OwnerHttpBinding
         JevAssistancePayloadDomain,
         $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}",
         $"enabled={action.Enabled.ToString().ToLowerInvariant()}");
+
+    public static string RoutineHelperPayload(OwnerRoutineHelperAction action) => string.Join(
+        '\n', "clankerworld.owner-routine-helper.v1",
+        $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}",
+        $"provider={EncodeRequired(action.Provider, nameof(action.Provider))}",
+        $"model={EncodeOptional(action.Model)}",
+        $"credential-slot-id={EncodeOptional(action.CredentialSlotId)}");
 
     public static string PairingApprovalPayload(OwnerPairingApprovalAction action) => string.Join(
         '\n',
