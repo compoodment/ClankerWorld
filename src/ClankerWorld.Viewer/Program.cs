@@ -123,7 +123,7 @@ builder.Services.AddSingleton(services => new ManualWorldSaveStore(privateRuntim
 builder.Services.AddSingleton<PrivateWorldRuntime>(services =>
 {
     var runtime = services.GetRequiredService<PrivateWorldStateFile>().LoadOrCreate(runtimeSeed);
-    services.GetRequiredService<WorldJevPolicy>().Initialize(runtime.JevEnabled, runtime.JevPolicyRevision);
+    services.GetRequiredService<WorldJevPolicy>().Initialize(runtime.JevEnabled, runtime.JevPolicyRevision, runtime.RoutineHelper);
     return runtime;
 });
 builder.Services.AddSingleton<WorldAutosaveStore>(services => new WorldAutosaveStore(

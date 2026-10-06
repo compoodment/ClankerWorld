@@ -46,6 +46,8 @@ public partial class Main
         placingAddedAgent = false;
         founderSetupPanel.Hide();
         providerConfiguration = null;
+        observedRoutineHelperContext = null;
+        _ = routineHelperModelPicker.BeginLoading(string.Empty);
         cognitionModelContext = null;
         cognitionModelLookup = null;
         founderKeyEdits++;
@@ -82,7 +84,7 @@ public partial class Main
         var checkUsagePause = isPaused && !wasObservedPaused;
         wasObservedPaused = isPaused;
         observedCalendarPace = snapshot.CalendarPace;
-        jevAssistanceToggle.SetPressedNoSignal(snapshot.JevEnabled == true);
+        RenderRoutineHelperSettings(snapshot);
         if (cameraWorldId is not null && cameraWorldId != snapshot.WorldId)
         {
             knownEvents.Clear();

@@ -25,6 +25,8 @@ public partial class Main
         {
             providerConfiguration = await AwaitCurrentWorldResultAsync(ownerApi.GetProviderStatusAsync(
                 ResolveWorldUri(), authority, deviceId, signer, CancellationToken.None));
+            RefreshRoutineHelperKeys(SelectedRoutineHelperKey());
+            if (worldSettingsContent.Visible) RequestRoutineHelperModels();
             PopulateCognitionTargets();
             PopulateProviderChoices(ActiveProviderForSelectedRole());
             PopulateCredentialChoices();
@@ -519,6 +521,7 @@ public partial class Main
     private static string ProviderDisplayName(string provider) => provider switch
     {
         "jev" => "Jev",
+        "decisions" or "openaidecisions" => "OpenAI Decisions",
         "openai" => "OpenAI",
         "ollama-cloud" => "Ollama Cloud",
         "inherit" => "World default",
@@ -528,7 +531,7 @@ public partial class Main
     private static string DefaultProviderModel(string provider) => provider switch
     {
         "jev" => "jev-1.13.0",
-        "openai" => "gpt-6-luna",
+        "openai" or "decisions" => "gpt-6-luna",
         "ollama-cloud" => "glm-5.3-flash:cloud",
         _ => string.Empty,
     };
