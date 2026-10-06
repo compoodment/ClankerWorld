@@ -127,6 +127,8 @@ public sealed partial class PrivateWorldRuntime
             MedicalTreatment = new(caregiver, supply.Id, supply.OwnerId, id, kind, WorldTick, WorldTick,
                 MedicalCareRules.TreatmentTicks),
         };
+        if (inhabitants[caregiver].MedicalSupplyTrip?.PatientId == patient)
+            inhabitants[caregiver] = inhabitants[caregiver] with { MedicalSupplyTrip = null };
         checkpointSchemaVersion = StateSchemaVersion;
         AppendEvent("medical_treatment_started", $"{patient}:medicine:{caregiver}:{supply.Id}");
         return new(true);
@@ -190,8 +192,27 @@ public sealed partial class PrivateWorldRuntime
         .OrderBy(person => person.InhabitantId == caregiver ? 0 : 1)
         .ThenBy(person => person.InhabitantId, StringComparer.Ordinal).Select(person => person.InhabitantId);
 
+    private MedicalSupplyTrip? AuthorizedMedicalSupplyTrip(string caregiver) =>
+        inhabitants[caregiver].MedicalSupplyTrip is { } trip && LivingMedicalAdult(caregiver) &&
+        inhabitants.ContainsKey(trip.PatientId) && HasMedicalPermission(caregiver, trip.PatientId) ? trip : null;
+
+    private void ReconcileMedicalSupplyTrips()
+    {
+        foreach (var person in inhabitants.Values.ToArray())
+        {
+            if (person.MedicalSupplyTrip is not { } trip) continue;
+            var observed = CanObserveMedicalPatient(person.InhabitantId, trip.PatientId);
+            if (AuthorizedMedicalSupplyTrip(person.InhabitantId) is null ||
+                observed && !ObservableMedicalNeeds(person.InhabitantId).Contains(trip.PatientId, StringComparer.Ordinal) ||
+                !observed && HasCarriedOwnItem(person.InhabitantId, "medicine") &&
+                IsWithinInteractionRange(person.Position, trip.LastSeenPosition, ResourceInteractionRange))
+                inhabitants[person.InhabitantId] = person with { MedicalSupplyTrip = null };
+        }
+    }
+
     private bool MedicalSupplyWanted(string actor, string kind) => kind == "medicine" && LivingMedicalAdult(actor) &&
-        ObservableMedicalNeeds(actor).Any() && MedicalSupplyAtHand(actor) is null && SharedItem(kind, actor) is null;
+        (ObservableMedicalNeeds(actor).Any() || AuthorizedMedicalSupplyTrip(actor) is not null) &&
+        MedicalSupplyAtHand(actor) is null && SharedItem(kind, actor) is null;
 
     private void AddMedicalCareCandidates(List<CognitionCandidate> candidates, string actor)
     {
@@ -207,7 +228,11 @@ public sealed partial class PrivateWorldRuntime
                     "Apply one dose of medicine to support gradual illness recovery.", 7, patient,
                     society.Checkpoint.GetInhabitant(patient).Name));
         }
-        if (supply is null && ObservableMedicalNeeds(actor).Any() && FreeCarryCapacity(actor) > 0 &&
+        var trip = AuthorizedMedicalSupplyTrip(actor);
+        if (trip is not null && HasCarriedOwnItem(actor, "medicine") && !CanObserveMedicalPatient(actor, trip.PatientId))
+            candidates.Add(new(MedicalCollectPrefix + "medicine",
+                "Return with the medicine to where you last saw the consenting patient.", 8, trip.PatientId));
+        else if (!HasCarriedOwnItem(actor, "medicine") && (ObservableMedicalNeeds(actor).Any() || trip is not null) && FreeCarryCapacity(actor) > 0 &&
             SharedItem("medicine", actor) is { } shared)
             candidates.Add(new(MedicalCollectPrefix + "medicine", "Visit accessible care stock and collect one real dose of medicine.",
                 8, shared.StorageBuildingId));
@@ -227,7 +252,20 @@ public sealed partial class PrivateWorldRuntime
         if (!LivingMedicalAdult(actor)) return;
         if (candidate == MedicalCollectPrefix + "medicine")
         {
-            if (ObservableMedicalNeeds(actor).Any()) CollectEquipment(actor, person, "medicine");
+            var trip = AuthorizedMedicalSupplyTrip(actor);
+            if (trip is null)
+            {
+                var patient = ObservableMedicalNeeds(actor).FirstOrDefault();
+                if (patient is null) return;
+                trip = new(patient, inhabitants[patient].Position, WorldTick);
+                inhabitants[actor] = person with { MedicalSupplyTrip = trip };
+            }
+            if (HasCarriedOwnItem(actor, "medicine"))
+            {
+                MoveToward(actor, inhabitants[actor], trip.LastSeenPosition, "medical_patient", ResourceInteractionRange);
+                return;
+            }
+            CollectEquipment(actor, inhabitants[actor], "medicine");
             return;
         }
         if (!candidate.StartsWith(MedicalTreatPrefix, StringComparison.Ordinal)) return;
@@ -250,10 +288,10 @@ public sealed partial class PrivateWorldRuntime
     }
 
     private static void ValidateMedicalCare(PrivateWorldRuntimeState state) =>
-        ValidateMedicalCare(state.Inhabitants, state.DeceasedInhabitants ?? [], state.Society.Society);
+        ValidateMedicalCare(state.Inhabitants, state.DeceasedInhabitants ?? [], state.Society.Society, state.Map);
 
     private static void ValidateMedicalCare(IEnumerable<PlaytestInhabitantState> living,
-        IEnumerable<PlaytestDeceasedInhabitantState> deceased, SocietyCheckpoint checkpoint)
+        IEnumerable<PlaytestDeceasedInhabitantState> deceased, SocietyCheckpoint checkpoint, SeededMap map)
     {
         var people = checkpoint.Inhabitants.ToDictionary(person => person.Id, StringComparer.Ordinal);
         var active = living.ToDictionary(person => person.InhabitantId, StringComparer.Ordinal);
@@ -261,6 +299,14 @@ public sealed partial class PrivateWorldRuntime
         foreach (var person in active.Values)
         {
             ValidateMedicalConsent(person, people);
+            if (person.MedicalSupplyTrip is { } trip &&
+                (!people.TryGetValue(person.InhabitantId, out var caregiver) ||
+                 caregiver.Status != SocietyInhabitantStatus.Active ||
+                 caregiver.AgeBand is not (SocietyAgeBand.Adult or SocietyAgeBand.Elder) ||
+                 !active.TryGetValue(trip.PatientId, out var patient) ||
+                 !MedicalPermission(checkpoint, patient, person.InhabitantId) ||
+                 trip.StartedTick < 0 || trip.StartedTick > checkpoint.WorldTick || !map.Contains(trip.LastSeenPosition)))
+                throw new InvalidDataException("A medicine supply trip must name an accepted patient and a valid last-seen location and time.");
             if (person.MedicalTreatment is not { } treatment) continue;
             if (treatment.Kind != "medicine" || !active.ContainsKey(treatment.CaregiverId) ||
                 !people.TryGetValue(treatment.CaregiverId, out var provider) || provider.Status != SocietyInhabitantStatus.Active ||
@@ -285,8 +331,8 @@ public sealed partial class PrivateWorldRuntime
             if (historical.LastPhysical is null)
                 throw new InvalidDataException("A deceased person must retain a final physical record.");
             ValidateMedicalConsent(historical.LastPhysical, people);
-            if (historical.LastPhysical.MedicalTreatment is not null)
-                throw new InvalidDataException("A deceased person cannot retain an active medicine treatment.");
+            if (historical.LastPhysical.MedicalTreatment is not null || historical.LastPhysical.MedicalSupplyTrip is not null)
+                throw new InvalidDataException("A deceased person cannot retain an active medicine treatment or supply trip.");
         }
     }
 

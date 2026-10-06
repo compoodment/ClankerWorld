@@ -77,6 +77,7 @@ public partial class Main
             if (!IsCurrentWorldRequest(generation) || read != apiKeysRead ||
                 !ReferenceEquals(owner, registration) || !apiKeysPanel.IsVisibleInTree()) return;
             providerConfiguration = status;
+            RefreshRoutineHelperKeys(SelectedRoutineHelperKey());
             RenderSavedApiKeys();
             apiKeysStatus.Text = "Keys stay private on the host.";
         }
@@ -117,9 +118,10 @@ public partial class Main
             providerConfiguration = await AwaitCurrentWorldResultAsync(ownerApi.CreateCredentialSlotAsync(
                 ResolveWorldUri(), authority, deviceId, action, signer, CancellationToken.None));
             saved = true;
+            RefreshRoutineHelperKeys(SelectedRoutineHelperKey());
             RenderSavedApiKeys();
             apiKeyLabelInput.Text = string.Empty;
-            apiKeysStatus.Text = $"Saved {label}. Choose it when adding an agent.";
+            apiKeysStatus.Text = $"Saved {label}. Choose it when adding an agent or setting the Decisions helper.";
             PopulateFounderCredentials();
             PopulateCredentialChoices();
             return "API key saved on the host";
