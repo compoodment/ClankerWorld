@@ -204,6 +204,7 @@ public partial class Main
         }
         else if (@event is InputEventMouseMotion hoverMotion)
         {
+            if ((hoverMotion.ButtonMask & MouseButtonMask.Middle) == 0) draggingMap = false;
             if (draggingMap)
             {
                 PanCamera(-hoverMotion.Relative / (currentTileSize + TileGap));
