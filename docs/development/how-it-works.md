@@ -769,6 +769,13 @@ previously unassessed records; only linked salience/confidence values are saved.
 It adds no separate paid request or generated prose. Local retrieval works with
 Jev off. Automatic experience capture and narrative summarization are unfinished.
 
+Childhood talk, play and learning record owner-private experiences whose keys
+fit the same 128-character memory boundary used by recall and Jev scoring.
+When the complete actor/target/time key is longer, a SHA-256 key retains the
+action prefix used by the social cooldown. The saved owner and subject keep
+their actual identities. Short keys and existing saved records stay unchanged;
+records with oversized or malformed keys remain excluded from recall.
+
 Exploration records personal knowledge; it does not create free inventory.
 Households make paper at an authorized House from physically delivered fiber
 and fresh water in a reusable jug. The provisional batch uses two fiber and
