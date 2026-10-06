@@ -127,7 +127,12 @@ so the journey cannot fill the agent's bounded ledger before arrival.
 `move_to` order with a saved `TargetPosition` and one arrival. The common
 unoccupied-route finder and `MoveToward` enforce walking rules, occupancy,
 travel cooldowns and illness delays. House destinations check current household
-membership or a saved guest invitation. An unavailable destination stays blocked;
+membership or a saved guest invitation. An eligible Warehouse user can share its
+exact tile with other occupants, using recorded Town access including abandoned-Town
+salvage. Residents can also share their Town's supplying or working project site.
+These destination exceptions keep stock ownership, reservations and action
+permissions intact; other occupied exact destinations stay blocked.
+An unavailable destination stays blocked;
 it is never substituted. The order completes only when the actor occupies the
 exact target tile. Repetition, quantities and extra task words are rejected.
 Arrival records one firsthand fact, for the destination tile. Submission,

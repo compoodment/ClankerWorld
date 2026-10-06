@@ -291,6 +291,10 @@ public sealed class MarketRulesTests
         if (situation != "no-standing-stall") state = PaidMarketWorld.Borrowing(state, Founder3, 0);
         if (situation is "both-borrowed" or "stall-project-approved") state = PaidMarketWorld.Borrowing(state, Founder4, 4);
         if (situation == "stall-project-approved") state = PaidMarketWorld.WithApprovedStallProject(state, 1, out _);
+        // This rule checks whether another stall is needed. Put the proposer at
+        // the known vacant slot so real construction's final walking positions
+        // do not turn this into a separate route-availability test.
+        state = PaidMarketWorld.At(state, Founder1, slot1);
         var policy = new MarketRulesPolicy();
         using var world = PrivateWorldRuntime.Restore(state, policy.CreateProvider);
         if (situation == "no-standing-stall")
