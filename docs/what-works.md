@@ -349,8 +349,9 @@ Farm hauling retains its existing stock-source and storage rules, with the
 requested Farmhouse or Silo taking precedence over the ordinary preference.
 House food delivery shares only spare carried food. Town donations accept the
 normal wood, stone, fiber and tree-seed surplus while keeping the agent's
-reserve. Store stocking keeps its shelf target, food reserves and protected
-tools. Missing demand or surplus leaves a visible blocker even if the order
+reserve of four usable units of each kind across their carried lots. Storing
+and collecting goods does not create extra reserves. Store stocking keeps its
+shelf target, food reserves and protected tools. Missing demand or surplus leaves a visible blocker even if the order
 asks for more.
 
 A Store-stocking order can pause an ordinary unfinished project, deliver its

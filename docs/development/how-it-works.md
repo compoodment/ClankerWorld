@@ -275,6 +275,12 @@ Their plans preserve the ordinary source, demand, reserve, capacity, access
 and route checks. A requested farm-storage destination filters legal choices
 before applying the default Farmhouse/Silo preference.
 
+Town Warehouse donations retain four usable personally carried units of each
+resource kind across all eligible lots. Storage and collection splits do not
+multiply that reserve. Reserved, borrowed and promised delivery stock cannot
+satisfy it. Each transfer still uses one exact source lot, its unreserved
+quantity and the destination's available room.
+
 The order binds a native route, building identity, owner and listed position,
 then the exact carried lot and requested-kind quantity. Household pickup uses
 the existing ownership transfer and `DeliveryBuildingId` promise; a Town
