@@ -588,6 +588,17 @@ claims. Archived physical profiles retain permission history but cannot retain
 active treatment. No migration is provided; older alpha saves are refused and
 preserved.
 
+Private-world schema 93 adds a caregiver's optional `MedicalSupplyTrip`, naming
+an accepted patient, their last-seen map position and the start tick. It keeps
+an already started medicine fetch and return trip through reload without
+exposing the patient's current distant location or health. Validation requires
+a living adult caregiver, an accepted living patient, a map position and a
+non-future start time; deceased profiles cannot retain trips. Permission loss,
+death, successful treatment or finding the remembered place empty clears the
+trip. Supplies remain ordinary inventory, and treatment still consumes one
+actual usable dose beside the patient. Earlier alpha saves, including schema
+92, are refused and preserved without migration.
+
 Private-world schema 52 adds an optional exact ornament-lot selection to the
 existing personal equipment record, without introducing combat equipment or a
 second inventory. Current-format checks reject a foreign, reserved, stored or otherwise
@@ -776,7 +787,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 92. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 93. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 a bounded model-attempt status and exact last accepted model choice per agent, plus
