@@ -174,6 +174,9 @@ public partial class Main
         public List<OwnerAutosaveConfigurationAction> AutosaveConfigurations { get; } = [];
         /// <summary>The next signed refresh's world, or none to refuse refreshes.</summary>
         public OwnerWorldReconnect? Reconnect { get; set; }
+        public Func<Task<OwnerUsageStatus?>>? UsageHandler { get; set; }
+        public OwnerUsageStatus? Usage { get; set; }
+        public System.Collections.Concurrent.ConcurrentQueue<OwnerUsageLimitAction> UsageLimits { get; } = new();
         public IReadOnlyList<string>? SupportedActionPayloads { get; set; }
         public OwnerWorldPreview? Preview { get; set; }
         public CatalogWorld? SelectedWorld { get; set; }
@@ -312,6 +315,25 @@ public partial class Main
                     break;
                 case OwnerPairingEndpoints.OwnerReconnect when Reconnect is not null:
                     response = Reconnect;
+                    break;
+                case OwnerPairingEndpoints.OwnerUsageStatus when UsageHandler is not null:
+                    if (await UsageHandler().ConfigureAwait(false) is { } usage)
+                        response = usage;
+                    else
+                    {
+                        context.Response.StatusCode = (int)HttpStatusCode.ServiceUnavailable;
+                        response = new { error = "Controlled usage read failure." };
+                    }
+                    break;
+                case OwnerPairingEndpoints.OwnerUsageLimit when Usage is not null:
+                    var limit = envelope.GetProperty("action").Deserialize<OwnerUsageLimitAction>(JsonOptions)!;
+                    UsageLimits.Enqueue(limit);
+                    Usage = Usage with
+                    {
+                        AttemptLimit = limit.AdditionalCalls > 0 ? Usage.Attempts + limit.AdditionalCalls : limit.AttemptLimit,
+                        LimitReached = limit.AttemptLimit is { } cap && cap <= Usage.Attempts && limit.AdditionalCalls == 0,
+                    };
+                    response = Usage;
                     break;
                 case OwnerPairingEndpoints.OwnerAgentRename:
                     var rename = envelope.GetProperty("action").Deserialize<OwnerAgentRenameAction>(JsonOptions)!;
