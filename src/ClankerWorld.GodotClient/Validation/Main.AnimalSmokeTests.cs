@@ -40,7 +40,7 @@ public partial class Main
             throw new InvalidOperationException("An animal yard must use its fenced yard drawing.");
         var animal = new OwnerWorldAnimal("smoke-horse", "Moss", "horse", "female", 9, "adult", new(120, 60),
             "home", "Cedar household", "cared", null, 0, null, "rider", "Rowan", null, true, ["Linden"], ["Rowan"]);
-        var map = new OwnerWorldSnapshot("animal-smoke", 1, "animal-map", [], [], [], null, 0) { Animals = [animal] };
+        var map = new OwnerWorldSnapshot("animal-smoke", 1, "animal-map", [], [], [], null, 0) { Animals = [animal], PackedTerrain = new(256, 128, "terrain-kind-v1", Convert.ToBase64String(new byte[256 * 128])) };
         cameraZoom = 3;
         cameraCenterTiles = new(120, 60);
         RenderMap(map);

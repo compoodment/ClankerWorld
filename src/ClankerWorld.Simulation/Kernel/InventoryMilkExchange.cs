@@ -41,9 +41,18 @@ public static partial class InventoryFixture
         var next = ReleaseReservation(checkpoint, held.Id, "milk_sale_completed");
         next = Transfer(next, operationId + "-payment", buyerId, milk.OwnerId, payment.Id, 1, "milk_sale_payment",
             destinationGroundPosition: position);
-        var moved = milk with { Id = milk.Id + "#milk:" + operationId, Quantity = 1, OwnerId = jug.OwnerId,
-            ContainerLotId = jug.Id, StorageBuildingId = null, DeliveryBuildingId = null, GroundPosition = null,
-            CarrierId = jug.CarrierId, ProvenanceLotId = milk.Id };
+        var moved = milk with
+        {
+            Id = milk.Id + "#milk:" + operationId,
+            Quantity = 1,
+            OwnerId = jug.OwnerId,
+            ContainerLotId = jug.Id,
+            StorageBuildingId = null,
+            DeliveryBuildingId = null,
+            GroundPosition = null,
+            CarrierId = jug.CarrierId,
+            ProvenanceLotId = milk.Id
+        };
         if (next.Lots.Any(lot => lot.Id == moved.Id)) throw new InvalidOperationException("Duplicate milk exchange identity.");
         var lots = next.Lots.Where(lot => lot.Id != milk.Id).Concat(milk.Quantity > 1 ? [milk with { Quantity = milk.Quantity - 1 }] : [])
             .Append(moved).OrderBy(lot => lot.Id, StringComparer.Ordinal).ToArray();

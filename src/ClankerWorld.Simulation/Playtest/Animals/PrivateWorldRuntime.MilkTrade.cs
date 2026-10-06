@@ -97,8 +97,11 @@ public sealed partial class PrivateWorldRuntime
             var receipt = new MarketStockReceipt(receiptId!,
                 choice.Occupancy!.Id, actor, jug.OwnerId, jug.Id, jug.Id, jug.ItemKind, 1, WorldTick,
                 society.Checkpoint.Inventory.Events[^1].EventId);
-            SetTown(choice.Town! with { Markets = choice.Town.Markets.Select(item => item.Id == market.Id ?
-                market with { StockReceipts = market.StockReceipts.Append(receipt).ToArray() } : item).ToArray() });
+            SetTown(choice.Town! with
+            {
+                Markets = choice.Town.Markets.Select(item => item.Id == market.Id ?
+                market with { StockReceipts = market.StockReceipts.Append(receipt).ToArray() } : item).ToArray()
+            });
         }
         AppendEvent("milk_stock_delivered", actor + ":" + choice.BuildingId);
         return true;
@@ -215,12 +218,34 @@ public sealed partial class PrivateWorldRuntime
         {
             if (selected.CandidateId.StartsWith("animal:milk_accept:", StringComparison.Ordinal))
             {
+                var payment = society.Checkpoint.Inventory.GetLot(offer.PaymentLotId);
+                var paymentId = payment.Quantity == 1 ? payment.Id : payment.Id + "#transfer:" + offer.Id + "-payment";
                 ApplyInventoryTransition(inventory => InventoryFixture.ExchangeMilk(inventory, offer.Id,
                     offer.Id + "-milk", offer.ReceivingJugId, actor, offer.PaymentLotId, new(offer.Position.X, offer.Position.Y)));
+                RecordMilkMarketPayment(offer, paymentId);
                 CloseMilkOffer(offer, "completed");
             }
             else CloseMilkOffer(offer, "declined");
         }
         return true;
+    }
+
+    private void RecordMilkMarketPayment(MilkSaleOffer offer, string paymentId)
+    {
+        foreach (var town in towns)
+            foreach (var market in town.Markets)
+            {
+                var occupancy = market.Occupancies.FirstOrDefault(item => item.EndedTick is null &&
+                    item.SellerAgentId == offer.SellerId && item.StallBuildingId == offer.BuildingId);
+                if (occupancy is null) continue;
+                var payment = society.Checkpoint.Inventory.GetLot(paymentId);
+                var receiptId = MarketTradeRules.ReceiptId(occupancy.Id, payment.Id, payment.OwnerId, 1, WorldTick, market.StockReceipts.Count);
+                ApplyInventoryTransition(inventory => InventoryFixture.Relocate(inventory, receiptId + ":deposit", payment.Id,
+                    payment.OwnerId, 1, groundPosition: new(offer.Position.X, offer.Position.Y)));
+                var receipt = new MarketStockReceipt(receiptId, occupancy.Id, offer.SellerId, payment.OwnerId, payment.Id,
+                    payment.Id, payment.ItemKind, 1, WorldTick, society.Checkpoint.Inventory.Events[^1].EventId);
+                SetMarket(town.Id, market with { StockReceipts = market.StockReceipts.Append(receipt).ToArray() });
+                return;
+            }
     }
 }

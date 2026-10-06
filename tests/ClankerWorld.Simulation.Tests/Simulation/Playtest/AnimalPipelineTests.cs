@@ -193,9 +193,18 @@ public sealed class AnimalPipelineTests
         var (state, actor, home, yard) = CreateYard("animal-old-age");
         state = state with
         {
-            Society = state.Society with { Society = state.Society.Society with { Config = state.Society.Society.Config with { TicksPerWorldDay = 2 },
-                Inhabitants = state.Society.Society.Inhabitants.Select(person => person with { BirthTick = person.BirthTick / 180,
-                    BirthLifeTick = person.BirthLifeTick / 180 }).ToArray() } },
+            Society = state.Society with
+            {
+                Society = state.Society.Society with
+                {
+                    Config = state.Society.Society.Config with { TicksPerWorldDay = 2 },
+                    Inhabitants = state.Society.Society.Inhabitants.Select(person => person with
+                    {
+                        BirthTick = person.BirthTick / 180,
+                        BirthLifeTick = person.BirthLifeTick / 180
+                    }).ToArray()
+                }
+            },
             WorldSystems = WorldSystemsRules.CreateGenesis(state.WorldSeed,
             state.WorldSystems!.Config with { TicksPerDay = 2, CalendarOffsetTicks = 0 }, state.WorldSystems.Ecology.Resources,
             state.WorldSystems.Factions, state.WorldSystems.Currency, state.WorldSystems.Culture, state.WorldSystems.Chunks)
@@ -221,7 +230,7 @@ public sealed class AnimalPipelineTests
         var horse = new AnimalState("horse", "Moss", "horse", "female", -7L * day, yard.Position,
             "household:" + home, home, yard.InstanceId, CareUntilTick: day);
         var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "saddle", "saddle", home, 1);
-        inventory = InventoryFixture.Relocate(inventory, "carry-saddle", "saddle", home, 1, carrierId: actor);
+        inventory = InventoryFixture.Relocate(inventory, "carry-saddle", "saddle", home, 1);
         var chooser = new AnimalChooser("animal_order");
         using var world = PrivateWorldRuntime.Restore(At(state, actor, yard.Position, inventory, [horse]),
             id => id == actor ? chooser : new AnimalChooser());
@@ -454,8 +463,11 @@ public sealed class AnimalPipelineTests
             person.AgeBand == SocietyAgeBand.Adult && person.HouseholdId != home).Id;
         inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "buyer-jug", "water_jug", buyer, 1);
         inventory = InventoryFixture.AddLot(inventory, "milk-payment", "wood", buyer, 1);
-        state = At(state, seller, store.Position, inventory, []) with { Inhabitants = At(state, seller, store.Position, inventory, []).Inhabitants
-            .Select(person => person.InhabitantId == buyer ? person with { Position = new(store.Position.X + 1, store.Position.Y) } : person).ToArray() };
+        state = At(state, seller, store.Position, inventory, []) with
+        {
+            Inhabitants = At(state, seller, store.Position, inventory, []).Inhabitants
+            .Select(person => person.InhabitantId == buyer ? person with { Position = new(store.Position.X + 1, store.Position.Y) } : person).ToArray()
+        };
         var chooser = new AnimalChooser("animal:milk_offer:", DecisionProviderKind.LargeLanguageModel);
         using var offering = PrivateWorldRuntime.Restore(state, id => id == seller ? chooser : new AnimalChooser());
         await Until(offering, () => offering.ExportState().AnimalWorld.MilkOffers.Count == 1);
@@ -488,14 +500,35 @@ public sealed class AnimalPipelineTests
         var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "native-yard-wood", "wood", home, 16,
             groundPosition: new(position.X, position.Y));
         inventory = InventoryFixture.AddLot(inventory, "native-yard-rope", "rope", home, 4, groundPosition: new(position.X, position.Y));
-        var chooser = new AnimalChooser("construct_building");
-        using var world = PrivateWorldRuntime.Restore(At(state, actor, position, inventory, []), id => id == actor ? chooser : new AnimalChooser());
-        var yardDefinition = world.WorldContent.Buildings.Single(definition => definition.Tags.Contains("animal-yard"));
+        var chooser = new AnimalChooser();
+        var yardDefinition = AnimalContent.Yard();
         var expandedDefinition = BuildingStorageRules.WithSize(yardDefinition, 2, 4);
-        var site = state.Map.Tiles.OrderBy(tile => state.Map.FootDistance(position, tile.Position)).First(tile =>
-            WorldContentSimulationRules.Fits(state.Map, world.WorldSimulation.Buildings.Select(building =>
-                (building, world.WorldContent.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId))), expandedDefinition, tile.Position) &&
-            state.Map.IsReachableOnFoot(position, tile.Position)).Position;
+        var town = state.Towns!.Single(town => town.ResidentIds.Contains(actor));
+        var occupied = state.RoadTiles!.Concat(state.Fields!.Select(field => field.Position))
+            .Concat(state.Inhabitants.Where(person => person.InhabitantId != actor).Select(person => person.Position))
+            .Concat(state.HouseholdLandUseRights!.Where(right => right.HouseholdId != home).SelectMany(right => right.Tiles))
+            .Concat(state.HouseholdLandUseRequests!.Where(request => request.HouseholdId != home && request.Status == "pending")
+                .SelectMany(TownLandRightsRules.UnresolvedRequestTiles))
+            .Concat(state.TownLandTitles!.Where(title => title.TownId != town.Id).SelectMany(title => title.Tiles))
+            .Concat(state.Towns!.SelectMany(item => item.Projects).Where(project => project.Stage is not ("completed" or "cancelled"))
+                .SelectMany(project => TownProjectRules.Footprint(project.Plan).Append(project.Plan.Entrance)))
+            .ToHashSet();
+        // Reserve an expandable legal plot before asking the ordinary order to build.
+        var site = Enumerable.Range(0, state.Map.Height).SelectMany(y => Enumerable.Range(0, state.Map.Width).Select(x => new GridPoint(x, y)))
+            .OrderBy(point => Math.Abs(point.X - position.X) + Math.Abs(point.Y - position.Y)).First(point =>
+                TownBorderRules.IsWithinOrAdjacent(town, point, 2, 4) &&
+                WorldContentSimulationRules.Fits(state.Map, state.WorldSimulation!.Buildings.Select(building =>
+                    (building, state.WorldContent!.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId))), expandedDefinition, point) &&
+                WorldContentSimulationRules.Footprint(expandedDefinition, point).All(tile => !occupied.Contains(tile)));
+        state = ExpansionLandFixture.WithRights(state, new("future-yard", yardDefinition.CanonicalId, site, 0, town.Id, home),
+            WorldContentSimulationRules.Footprint(expandedDefinition, site));
+        inventory = inventory with
+        {
+            Lots = inventory.Lots.Select(lot => lot.Id is "native-yard-wood" or "native-yard-rope" ?
+            lot with { GroundPosition = new(site.X, site.Y) } : lot).ToArray()
+        };
+        chooser.Prefix = "construct_building";
+        using var world = PrivateWorldRuntime.Restore(At(state, actor, site, inventory, []), id => id == actor ? chooser : new AnimalChooser());
         world.SubmitInstruction(new("build-yard", "owner", actor, OwnerInstructionKind.MustDo,
             System.FormattableString.Invariant($"build an animal yard at ({site.X}, {site.Y})")));
         await Until(world, () => world.WorldSimulation.Buildings.Any(building => world.WorldContent.Buildings.Any(definition =>
@@ -512,6 +545,28 @@ public sealed class AnimalPipelineTests
         Assert.Equal(8, definition.Width * definition.Height);
         Assert.Equal(16, BuildingStorageRules.Capacity(definition, expanded));
         world.Validate();
+    }
+
+    [Fact]
+    public async Task SpoiledMilkIsEmptiedLocallyWithoutLosingTheJugOrFreshMilkAcrossRollbackAndReload()
+    {
+        var (state, actor, home, yard) = CreateYard("animal-spoiled-milk");
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "reuse-jug", "water_jug", home, 1);
+        inventory = InventoryFixture.AddLot(inventory, "spoiled-milk", "milk", home, 2, containerLotId: "reuse-jug");
+        inventory = InventoryFixture.AddLot(inventory, "fresh-milk", "milk", home, 1, containerLotId: "reuse-jug");
+        inventory = InventoryFixture.Relocate(inventory, "spoil-fixture-carry", "reuse-jug", home, 1, carrierId: actor);
+        inventory = inventory with { Lots = inventory.Lots.Select(lot => lot.Id == "spoiled-milk" ? lot with { FreshnessBasisPoints = 0 } : lot).ToArray() };
+        using var world = PrivateWorldRuntime.Restore(At(state, actor, yard.Position, inventory, []), id => id == actor ?
+            new AnimalChooser("animal:empty_milk:") : new AnimalChooser());
+        var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        Assert.False((await world.AdvanceOneTickAsync(() => false)).Advanced);
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+        using var replay = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes), id => id == actor ?
+            new AnimalChooser("animal:empty_milk:") : new AnimalChooser());
+        await Until(replay, () => !replay.Society.Inventory.Lots.Any(lot => lot.Id == "spoiled-milk"));
+        Assert.Equal((home, 1, actor), (replay.Society.Inventory.GetLot("reuse-jug").OwnerId,
+            replay.Society.Inventory.GetLot("fresh-milk").Quantity, replay.Society.Inventory.GetLot("fresh-milk").CarrierId));
+        replay.Validate();
     }
 
     private static (PrivateWorldRuntimeState State, string Actor, string Home, PlacedBuilding Yard) CreateYard(string seed)

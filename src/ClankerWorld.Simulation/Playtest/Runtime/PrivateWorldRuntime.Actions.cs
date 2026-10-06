@@ -94,6 +94,9 @@ public sealed partial class PrivateWorldRuntime
             .ToHashSet();
         occupied.UnionWith(animalWorld.Animals.Where(animal => animal.DiedTick is null && animal.RiderId != inhabitantId &&
             animal.LeaderId != inhabitantId && animal.Position != destination).Select(animal => animal.Position));
+        if (interactionRange == 0 && animalWorld.Animals.Any(animal => (animal.RiderId == inhabitantId || animal.LeaderId == inhabitantId)) &&
+            animalWorld.Animals.Any(animal => animal.DiedTick is null && animal.RiderId != inhabitantId && animal.LeaderId != inhabitantId && animal.Position == destination))
+            return [];
         if (interactionRange == 0 && worldSimulation.Buildings.Any(building =>
                 building.Position == destination &&
                 building.HouseholdId is not null &&

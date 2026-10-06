@@ -291,12 +291,12 @@ public partial class Main
                 marker.AddChild(sprite);
             }
             var facing = AgentSprites.South;
-            if (animalFacings.TryGetValue(animal.Id, out var previous))
+            if (animalFacings.TryGetValue(animal.Id, out var previousAnimal))
             {
-                facing = previous.Facing;
-                var dx = animal.Position.X - previous.Position.X;
+                facing = previousAnimal.Facing;
+                var dx = animal.Position.X - previousAnimal.Position.X;
                 if (snapshot.WrapsEastWest && mapWidth > 0) dx -= (int)Math.Round(dx / (double)mapWidth) * mapWidth;
-                var dy = animal.Position.Y - previous.Position.Y;
+                var dy = animal.Position.Y - previousAnimal.Position.Y;
                 if (dx != 0 || dy != 0) facing = AgentSprites.FacingToward(dx, dy);
             }
             animalFacings[animal.Id] = (animal.Position, facing);

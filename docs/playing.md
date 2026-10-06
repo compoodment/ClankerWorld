@@ -719,7 +719,8 @@ seed. If the world name is missing, enter it and choose **Preview again**.
 ## Animals
 
 Adults with a House can **Build an animal yard** and **Expand my animal yard**
-using eight wood and two rope for each stage. The fenced yard has four places,
+using eight wood and two rope for each stage. The larger footprint needs clear
+land and the household's required use permission. The fenced yard has four places,
 or eight when expanded; young animals and expected births use places.
 Households receive no starting animals. Look for wild chickens, sheep, cows or
 horses near wild greens and fresh water.
@@ -740,7 +741,10 @@ back to its owning household's House. Adults can haul the products into their
 workstations through ordinary supply choices and orders. House/Restaurant
 recipes cook eggs or milk porridge; Restaurants prepare rich meals. Tailors
 make wool padded coats, process hides into leather, and make leather sacks or
-saddles. A leather sack carries 32 units.
+saddles. A leather sack carries 32 units. Adults can haul household milk jugs
+to their Store or borrowed Market stall. A seller offers one portion for an
+exact personal payment; the buyer accepts with a carried empty or milk jug.
+Both vessels keep their owners. Pouring away spoiled milk frees its jug for reuse.
 
 For a cared adult horse, use **Saddle Moss**, **Mount Moss** and **Dismount Moss**.
 A mount needs a real household saddle and gives twice walking speed plus eight
