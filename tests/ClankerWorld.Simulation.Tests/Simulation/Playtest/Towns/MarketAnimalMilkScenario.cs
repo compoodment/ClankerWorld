@@ -11,6 +11,10 @@ internal static class MarketAnimalMilkScenario
     {
         var town = boundary.Towns![0];
         var market = town.Markets.Single();
+        Assert.Empty(market.StockReceipts);
+        Assert.Empty(market.Trades);
+        // A valid restored retirement boundary makes the next sequence differ from the retained row count.
+        market = market with { NextStockReceiptSequence = 40, RetiredStockReceiptThrough = 39 };
         var stall = market.Stalls[0];
         var site = MarketContent.StallSite(market.Site, stall.SlotIndex);
         var seller = town.ResidentIds.First(id => boundary.Society.Society.GetInhabitant(id).AgeBand == SocietyAgeBand.Adult);
@@ -24,6 +28,7 @@ internal static class MarketAnimalMilkScenario
         inventory = InventoryFixture.AddLot(inventory, "market-milk-payment", "stone", buyer, 2);
         var state = boundary with
         {
+            Towns = boundary.Towns!.Select(item => item.Id == town.Id ? item with { Markets = [market] } : item).ToArray(),
             Society = boundary.Society with { Society = boundary.Society.Society with { Inventory = inventory } },
             Inhabitants = boundary.Inhabitants.Select(person => person with
             {
@@ -47,6 +52,8 @@ internal static class MarketAnimalMilkScenario
         var payment = Assert.Single(world.Society.Inventory.Lots, lot => lot.ProvenanceLotId == "market-milk-payment");
         Assert.Equal(home, payment.OwnerId);
         Assert.Contains(world.Towns[0].Markets[0].StockReceipts, receipt => receipt.LotId == payment.Id);
+        Assert.Equal(new long[] { 40, 41 }, world.Towns[0].Markets[0].StockReceipts.Select(receipt => receipt.Sequence));
+        Assert.Equal(42, world.Towns[0].Markets[0].NextStockReceiptSequence);
         var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
         using var reload = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes), _ => choices);
         Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(reload.ExportState()));

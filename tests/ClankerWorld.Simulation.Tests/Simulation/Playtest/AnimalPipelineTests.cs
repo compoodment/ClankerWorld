@@ -240,17 +240,18 @@ public sealed class AnimalPipelineTests
         Assert.Equal(0, PersonalEquipmentRules.AvailableQuantity(world.Society.Inventory, world.Society.Inventory.GetLot("saddle")));
         world.SubmitInstruction(new("mount", "owner", actor, OwnerInstructionKind.MustDo, "mount Moss"));
         await Until(world, () => world.Animals.Single().RiderId == actor);
-        var destination = new[] { new GridPoint(yard.Position.X + 3, yard.Position.Y), new(yard.Position.X - 3, yard.Position.Y),
-            new(yard.Position.X, yard.Position.Y + 3), new(yard.Position.X, yard.Position.Y - 3) }.First(point =>
+        var rideOrigin = world.Animals.Single().Position;
+        var destination = new[] { new GridPoint(rideOrigin.X + 3, rideOrigin.Y), new(rideOrigin.X - 3, rideOrigin.Y),
+            new(rideOrigin.X, rideOrigin.Y + 3), new(rideOrigin.X, rideOrigin.Y - 3) }.First(point =>
                 Enumerable.Range(1, 3).All(step =>
                 {
-                    var previous = new GridPoint(yard.Position.X + (point.X - yard.Position.X) / 3 * (step - 1), yard.Position.Y + (point.Y - yard.Position.Y) / 3 * (step - 1));
-                    var next = new GridPoint(yard.Position.X + (point.X - yard.Position.X) / 3 * step, yard.Position.Y + (point.Y - yard.Position.Y) / 3 * step);
+                    var previous = new GridPoint(rideOrigin.X + (point.X - rideOrigin.X) / 3 * (step - 1), rideOrigin.Y + (point.Y - rideOrigin.Y) / 3 * (step - 1));
+                    var next = new GridPoint(rideOrigin.X + (point.X - rideOrigin.X) / 3 * step, rideOrigin.Y + (point.Y - rideOrigin.Y) / 3 * step);
                     return state.Map.CanFootStep(previous, next) && !state.Inhabitants.Any(person => person.InhabitantId != actor && person.Position == next);
                 }));
         chooser.Prefix = "move_to";
         world.SubmitInstruction(new("ride", "owner", actor, OwnerInstructionKind.MustDo, $"move to {destination.X},{destination.Y}"));
-        await Until(world, () => world.Animals.Single().Position != yard.Position);
+        await Until(world, () => world.Animals.Single().Position != rideOrigin);
         Assert.Equal(2, world.ExportState().Events.Count(item => item.WorldTick == world.WorldTick && item.Kind == "inhabitant_moved" && item.Detail.StartsWith(actor, StringComparison.Ordinal)));
         Assert.Equal(new InventoryGroundPosition(world.Animals.Single().Position.X, world.Animals.Single().Position.Y), world.Society.Inventory.GetLot("saddle").GroundPosition);
         world.Pause();
