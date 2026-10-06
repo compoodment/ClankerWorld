@@ -292,6 +292,7 @@ public sealed record OwnerWorldTownProject(string Id, string ProposalId, string 
 {
     public IReadOnlyList<string> Tags { get; init; } = [];
     public string? CompletedBoatId { get; init; }
+    public long? RemovedTick { get; init; }
 }
 public sealed record OwnerCivicCandidate(string Id, string Name, int Votes);
 public sealed record OwnerTownElection(string Id, string Kind, string Stage, int Seats, long DeadlineTick,

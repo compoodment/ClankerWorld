@@ -343,12 +343,23 @@ public static class WorldEventText
         // Town, agent and proposal IDs contain colons; match their complete known identities.
         var town = snapshot.Towns.OrderByDescending(item => item.Id.Length)
             .FirstOrDefault(item => IsLeadingId(detail, item.Id));
-        if (town is not null)
-            return town.Projects.FirstOrDefault(project => IsLeadingId(detail, town.Id + ":" + project.Id));
+        if (town?.Projects.FirstOrDefault(project => IsLeadingId(detail, town.Id + ":" + project.Id)) is { } townProject)
+            return townProject;
         var person = snapshot.Inhabitants.OrderByDescending(item => item.Id.Length)
             .FirstOrDefault(item => IsLeadingId(detail, item.Id));
-        return person is null ? null : snapshot.Towns.SelectMany(item => item.Projects)
-            .FirstOrDefault(project => IsLeadingId(detail, person.Id + ":" + project.Id));
+        var projects = snapshot.Towns.SelectMany(item => item.Projects).ToArray();
+        if (person is not null && projects.FirstOrDefault(project => IsLeadingId(detail, person.Id + ":" + project.Id)) is { } personProject)
+            return personProject;
+        // The actor may no longer appear in the observation. Match the retained
+        // project's full ID at a field boundary, before any later payload IDs.
+        for (var boundary = detail.IndexOf(':'); boundary >= 0; boundary = detail.IndexOf(':', boundary + 1))
+        {
+            var remaining = detail[(boundary + 1)..];
+            var project = projects.Where(item => IsLeadingId(remaining, item.Id))
+                .OrderByDescending(item => item.Id.Length).ThenBy(item => item.Id, StringComparer.Ordinal).FirstOrDefault();
+            if (project is not null) return project;
+        }
+        return null;
     }
 
     private static string DescribeHouseholdDeparture(OwnerWorldSnapshot? snapshot, string detail)
