@@ -1,0 +1,1 @@
+- Built-in agents leave handcart transfers alone when they have no delivery task, instead of repeatedly loading and unloading the same goods. Personal models can still use the cart controls.

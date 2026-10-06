@@ -39,7 +39,8 @@ public sealed record PlaytestInhabitantState(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementGuardianSearch? GuardianSearch = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] MedicalConsentState? MedicalConsent = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] MedicalTreatmentState? MedicalTreatment = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementGuardianPlacement? GuardianPlacement = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementGuardianPlacement? GuardianPlacement = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] MedicalSupplyTrip? MedicalSupplyTrip = null);
 
 /// <summary>A saved, ordered request for an adult to accept primary care of a dependent.</summary>
 public sealed record SettlementGuardianSearch(

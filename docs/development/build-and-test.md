@@ -2,7 +2,7 @@
 title: Build and test
 type: development-reference
 status: active
-updated: 2026-10-05
+updated: 2026-10-06
 ---
 
 # Build and test
@@ -140,6 +140,57 @@ running `FullyQualifiedName~PrivateWorldStateFileTests`. On I/O failure, the
 tests copy evidence from their uniquely named temporary worlds there. A
 passing rerun does not explain an earlier intermittent access refusal; retain
 the failed report and its diagnostics when investigating one.
+
+### Trace unexpected Windows checkpoint failures
+
+For the unexplained overwrite investigation in [#778](https://github.com/compoodment/ClankerWorld/issues/778),
+[Trace Windows checkpoints](../../.github/workflows/windows-checkpoint-trace.yml)
+is a manual Windows job. Choose `target` for the unchanged 2,500-save test,
+with one to twenty runs, or `full-suite` for one unfiltered Release run with
+SingleHit coverage, matching the original failure's instrumentation. It first
+runs the existing three intentional overwrite-refusal controls to check the
+native trace, including an access-denied operation completion for each
+synthetic fixture in the test process. It builds once, uses four test processors
+and records all six
+Simulation/Viewer/test DLL and PDB hashes before and after the unchanged tests.
+
+On an administrator Windows machine with PowerShell 7 and the pinned .NET SDK:
+
+```powershell
+./scripts/trace-windows-checkpoints.ps1 -OutputDirectory C:/temp/checkpoint-trace-new
+./scripts/trace-windows-checkpoints.ps1 -Mode full-suite -OutputDirectory C:/temp/checkpoint-trace-full-new
+```
+
+Use a new empty output directory each time. Windows' built-in `logman` records
+kernel file activity; `tracerpt` decodes it. The trace is circular and limited
+to 128 MB. If an unexpected escaping checkpoint exception appears in the
+existing observer's evidence, the runner freezes the trace while the unchanged
+tests finish. A failed run stops the iteration loop and keeps its failure
+status; it does not replace that result with a successful rerun.
+
+The workflow uploads only synthetic checkpoint events, test reports, binary
+hashes and existing exception evidence as `windows-checkpoint-trace`. Raw ETL
+and decoded whole-machine XML stay in the local `raw` directory, outside the
+upload paths. The filtered event file keeps original native XML and resolves
+file-object, file-key and IRP identities to synthetic checkpoint paths. The
+runner retires file identities on close/delete and IRPs at operation completion
+to limit reuse of old associations. Resolved paths are inferred correlations;
+always inspect the original fields before attributing an operation.
+Filtered paths can also refer to the observer's retained synthetic copies and
+polling activity. Check the full path and process before treating event counts
+as writes to an original checkpoint.
+In a passing full-suite run, earlier checkpoint activity may have fallen out
+of the circular window; zero selected events then means no retained checkpoint
+activity, not proof that the original failure is fixed. The
+trace summary records its capture statistics; check it for lost events or a
+truncated window before treating missing activity as evidence.
+
+Compare the unexpected exception's exact path, process, time and operation
+with the matching native events. Keep intentional controls separate using
+`ExpectedFailureControl`. A matching path or passing target alone does not
+identify the cause, and tracing can change I/O timing. Keep the original failed
+capture even when a separate control passes. The script changes no persistence
+code, durability checks or test assertions.
 
 Hands-on checks above describe useful verification, not a blanket pre-merge
 playtest gate. Routine owner playtesting may follow merge under

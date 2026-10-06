@@ -13,8 +13,8 @@ internal static class PrivateWorldDeliveryOrderCatalog
         PrivateWorldProductionOrderCatalog.Available(content)
             .Select(item => (item.Recipe, BuildingKind: HouseholdBuildingKinds.KindOf(content.Buildings.Single(building =>
                 building.CanonicalId == item.Recipe.WorkstationBuildingId))))
-            .Where(item => item.BuildingKind is "blacksmith" or "tailor" or "clinic" ||
-                item.BuildingKind == "house" && item.Recipe.Tags.Any(tag => tag is "pottery" or "care"))
+            .Where(item => item.BuildingKind is "blacksmith" or "tailor" or "clinic" or "restaurant" ||
+                item.BuildingKind == "house" && item.Recipe.Tags.Any(tag => tag is "pottery" or "care" or "named-meal"))
             .SelectMany(item => item.Recipe.Inputs.Select(input => new DeliveryOrderInput(input.ResourceId, item.BuildingKind!)))
             .Distinct().ToArray();
 
@@ -27,7 +27,8 @@ internal static class PrivateWorldDeliveryOrderCatalog
             "household_stock" => buildingKind == "house" && itemKind != "fresh_water" ||
                 buildingKind is "farmhouse" or "silo" && FarmFieldRules.IsFarmStock(itemKind),
             "workstation_input" => inputs.Any(input => input.ItemKind == itemKind && input.BuildingKind == buildingKind),
-            "household_food" => buildingKind == "house" && itemKind is "food" or "berries" or "fruit" or "wild_greens" or "cultivated_greens",
+            "household_food" => buildingKind == "house" && (itemKind is "food" or "berries" or "fruit" or "wild_greens" or "cultivated_greens" ||
+                PrivateWorldCustodyOrderCatalog.PreparedFoods.Any(food => food.ItemKind == itemKind)),
             "town_surplus" => buildingKind == "warehouse" && itemKind is "wood" or "stone" or "fiber" or "tree_seed",
             "store_stock" => buildingKind == "store" && BusinessRules.MaySell("store", itemKind),
             _ => false,
@@ -41,7 +42,7 @@ internal static class PrivateWorldDeliveryOrderCatalog
             ("household_stock", "farm_stock", "farmhouse" or "silo") => true,
             ("household_stock", "farm_flour", "house") => itemKind == "flour",
             ("workstation_input", "blacksmith_input", "blacksmith") => true,
-            ("workstation_input", "workstation_input", "house" or "blacksmith" or "tailor" or "clinic") => true,
+            ("workstation_input", "workstation_input", "house" or "blacksmith" or "tailor" or "clinic" or "restaurant") => true,
             ("household_food", "household_food", "house") => true,
             ("town_surplus", "town_surplus", "warehouse") => true,
             ("store_stock", "store_stock", "store") => true,
@@ -63,7 +64,7 @@ internal static class PrivateWorldDeliveryOrderCatalog
             new("fruit", ["fruit"]), new("wild_greens", ["wild greens"]),
             new("cultivated_greens", ["cultivated greens"]), new("fresh_water", ["fresh water"]),
         ];
-        return PrivateWorldCustodyOrderCatalog.All.Concat(additional).Concat(ToolProgressionRules.All.Select(tool =>
+        return PrivateWorldCustodyOrderCatalog.All.Concat(PrivateWorldCustodyOrderCatalog.PreparedFoods).Concat(additional).Concat(ToolProgressionRules.All.Select(tool =>
         {
             var name = tool.ItemKind.Replace('_', ' ');
             var plural = name.EndsWith("knife", StringComparison.Ordinal) ? name[..^5] + "knives" : name + "s";

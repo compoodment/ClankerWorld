@@ -265,7 +265,9 @@ Older alpha saves are refused and preserved unchanged without migration.
 
 Private-world schema 80 adds `collect_food` orders using the existing
 `TargetFoodKind` and optional `TargetPosition` fields. Food targets are generic
-or one of berries, fruit, wild greens and cultivated greens. They use
+or one of berries, fruit, wild greens, cultivated greens and the seven named
+prepared foods. The named-food catalogue extends the same fields and receipts;
+raw grain and potatoes remain invalid food targets. They use
 `food_items` for exact quantities or `collection_loads` for default pickups,
 with the same bounded `collect:personal:` receipts as material collection.
 Validation refuses mixed material, equipment, crop or resource targets, wrong
@@ -588,6 +590,17 @@ claims. Archived physical profiles retain permission history but cannot retain
 active treatment. No migration is provided; older alpha saves are refused and
 preserved.
 
+Private-world schema 93 adds a caregiver's optional `MedicalSupplyTrip`, naming
+an accepted patient, their last-seen map position and the start tick. It keeps
+an already started medicine fetch and return trip through reload without
+exposing the patient's current distant location or health. Validation requires
+a living adult caregiver, an accepted living patient, a map position and a
+non-future start time; deceased profiles cannot retain trips. Permission loss,
+death, successful treatment or finding the remembered place empty clears the
+trip. Supplies remain ordinary inventory, and treatment still consumes one
+actual usable dose beside the patient. Earlier alpha saves, including schema
+92, are refused and preserved without migration.
+
 Private-world schema 52 adds an optional exact ornament-lot selection to the
 existing personal equipment record, without introducing combat equipment or a
 second inventory. Current-format checks reject a foreign, reserved, stored or otherwise
@@ -753,8 +766,11 @@ stale notice as authority to move someone.
 
 Current-format roundtrips retain notice deadlines, volunteer replacements,
 housing requests and the ordinary departure's collection rights and once-only
-food allowance. Replacing the selected adult keeps the original notice period;
-pause/load, births and unfinished expansion do not restart it. Replay must
+food allowance. A forced replacement inherits a future deadline; one notified
+at or after it receives a fresh day from the current world tick. Its saved
+notice tick and deadline describe that new period. Volunteers retain the
+original deadline, and other residents’ notices do not restart. Pause/load,
+births and unfinished expansion do not restart the saved period. Replay must
 produce the same cancellation or departure without duplicating events or goods.
 Only completed footprints add resident places. Sole caregivers are protected
 from timed displacement even when their dependent lives in another household.
@@ -776,7 +792,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 92. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 93. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 a bounded model-attempt status and exact last accepted model choice per agent, plus

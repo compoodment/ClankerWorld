@@ -38,6 +38,7 @@ public sealed class SettlementChildhoodActionsTests
             Assert.Equal(original.Personality, world.Inhabitants.Single(person => person.InhabitantId == Child).Personality);
             var memory = Assert.Single(world.Society.Memories, item =>
                 item.OwnerId == Child && item.Id.StartsWith("child-social:" + kind + ":", StringComparison.Ordinal));
+            Assert.Equal($"child-social:{kind}:{Child}:{memory.SubjectId}:{memory.SourceTick}", memory.Id);
             Assert.True(world.Inhabitants.Single(item => item.InhabitantId == Child).SocialStanding?.Any() == true);
             var saved = PrivateWorldRuntimeCodec.Encode(world.ExportState());
             using var reloaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), _ => new SelectProvider("safe_idle"));

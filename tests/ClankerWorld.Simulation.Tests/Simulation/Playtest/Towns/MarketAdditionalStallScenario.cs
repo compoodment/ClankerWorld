@@ -285,7 +285,7 @@ internal static class MarketAdditionalStallScenario
 
         internal string Phase { get; set; } = "one";
         internal string? ProjectId { get; set; }
-        internal int Slot { get; } = 1;
+        internal int Slot { get; private set; } = 1;
         internal GridPoint StallSite => MarketContent.StallSite(market.Site, Slot);
         internal string ProposalPrefix => $"civic|{townId}|project|market-stall-1x1|";
         internal string ProposalId => ProposalPrefix + $"{StallSite.X},{StallSite.Y}";
@@ -310,7 +310,17 @@ internal static class MarketAdditionalStallScenario
                     selected = candidates.FirstOrDefault(item => item.DestinationId == target && item.Id.StartsWith("market_borrow:", StringComparison.Ordinal));
                 }
                 if (selected is null && policy.Phase == "proposal" && actor == Proposer)
-                    selected = candidates.FirstOrDefault(item => item.Id == policy.ProposalId);
+                {
+                    // Real borrowing can leave a seller on an unused slot. Propose
+                    // the reachable slot actually offered by the Town's site checks.
+                    selected = candidates.FirstOrDefault(item => item.Id.StartsWith(policy.ProposalPrefix, StringComparison.Ordinal));
+                    if (selected is not null)
+                        policy.Slot = Enumerable.Range(0, MarketContent.MaximumStalls).Single(slot =>
+                        {
+                            var site = MarketContent.StallSite(policy.market.Site, slot);
+                            return selected.Id == policy.ProposalPrefix + $"{site.X},{site.Y}";
+                        });
+                }
                 if (selected is null && (policy.Phase is "approve" or "supply" or "work"))
                     selected = candidates.FirstOrDefault(item => item.Id.Contains("|yes|", StringComparison.Ordinal)) ??
                         candidates.FirstOrDefault(item => item.Id.Contains("|read|", StringComparison.Ordinal));
