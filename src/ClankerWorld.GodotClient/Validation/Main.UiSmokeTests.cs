@@ -319,25 +319,25 @@ public partial class Main
 
             var unicodeFailures = new List<string>();
             foreach (var limit in new[] { 150, 80 })
-            foreach (var (character, units) in new[] { ("e\u0301", 1), ("🇳🇿", 2), ("👨‍👩", 2), ("🌱", 1) })
-            {
-                var prefix = new string('W', limit - units);
-                var text = prefix + character + " public words";
-                var unicodeConversation = conversations[0] with
+                foreach (var (character, units) in new[] { ("e\u0301", 1), ("🇳🇿", 2), ("👨‍👩", 2), ("🌱", 1) })
                 {
-                    Turns = conversations[0].Turns.Select((turn, index) => index == 6 ? turn with { Text = text } : turn).ToArray(),
-                };
-                var unicodeMap = conversationMap with { Conversations = [unicodeConversation] };
-                RenderMap(unicodeMap);
-                OpenConversationReader(unicodeMap, firstAgentId, unicodeConversation.Id);
-                var preview = limit == 150 ? conversationReaderSummary.Text : inhabitantVisuals[firstAgentId].TooltipText;
-                if (!preview.Contains(prefix + "...", StringComparison.Ordinal))
-                    unicodeFailures.Add($"{limit}-unit preview split {character}");
-                conversationHistoryExpanded = true;
-                RenderConversationReader(unicodeMap, unicodeConversation, firstAgentId, 0);
-                if (!conversationHistoryText.Text.Contains(text, StringComparison.Ordinal))
-                    throw new InvalidOperationException("Shortening a preview must keep the complete heard public turn in expanded history.");
-            }
+                    var prefix = new string('W', limit - units);
+                    var text = prefix + character + " public words";
+                    var unicodeConversation = conversations[0] with
+                    {
+                        Turns = conversations[0].Turns.Select((turn, index) => index == 6 ? turn with { Text = text } : turn).ToArray(),
+                    };
+                    var unicodeMap = conversationMap with { Conversations = [unicodeConversation] };
+                    RenderMap(unicodeMap);
+                    OpenConversationReader(unicodeMap, firstAgentId, unicodeConversation.Id);
+                    var preview = limit == 150 ? conversationReaderSummary.Text : inhabitantVisuals[firstAgentId].TooltipText;
+                    if (!preview.Contains(prefix + "...", StringComparison.Ordinal))
+                        unicodeFailures.Add($"{limit}-unit preview split {character}");
+                    conversationHistoryExpanded = true;
+                    RenderConversationReader(unicodeMap, unicodeConversation, firstAgentId, 0);
+                    if (!conversationHistoryText.Text.Contains(text, StringComparison.Ordinal))
+                        throw new InvalidOperationException("Shortening a preview must keep the complete heard public turn in expanded history.");
+                }
             var shortSpeech = "Good 🌱";
             var shortConversation = conversations[0] with
             {
