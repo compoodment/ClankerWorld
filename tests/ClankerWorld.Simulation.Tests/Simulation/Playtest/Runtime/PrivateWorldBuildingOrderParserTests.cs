@@ -13,7 +13,7 @@ public sealed class PrivateWorldBuildingOrderParserTests
     [
         StarterContent.Create(), SettlementContent.Create(), HouseContent.Create(), FarmContent.Create(),
         BlacksmithContent.Create(), TailorContent.Create(), SiloContent.Create(), CareContent.Create(),
-        BusinessContent.Create(), WarehouseContent.Create(),
+        BusinessContent.Create(), RestaurantContent.Create(), WarehouseContent.Create(),
     ];
 
     [Theory]
@@ -25,6 +25,8 @@ public sealed class PrivateWorldBuildingOrderParserTests
     [InlineData("build Silo", "silo", "silo-1x1", false)]
     [InlineData("build Clinic", "clinic", "clinic-1x2", false)]
     [InlineData("build Store", "store", "store-1x1", false)]
+    [InlineData("build Restaurant", "restaurant", "restaurant-1x2", false)]
+    [InlineData("build a Restaurant", "restaurant", "restaurant-1x2", true)]
     public void BuildingNamesBindTheActiveStartingFootprintAndReplaceTheCurrentTask(
         string text, string kind, string definitionLocalId, bool explicitQuantity)
     {
@@ -77,7 +79,8 @@ public sealed class PrivateWorldBuildingOrderParserTests
     [Theory]
     [InlineData("build Warehouse")]
     [InlineData("build a Town Warehouse")]
-    [InlineData("build Restaurant")]
+    [InlineData("build Restaurant 2x2")]
+    [InlineData("expand my Restaurant")]
     [InlineData("build Castle")]
     [InlineData("build Store 1x2")]
     [InlineData("build 2 House")]
@@ -108,6 +111,7 @@ public sealed class PrivateWorldBuildingOrderParserTests
 
     [Theory]
     [InlineData(BusinessContent.PackageId, "build Store")]
+    [InlineData(RestaurantContent.PackageId, "build Restaurant")]
     [InlineData(WarehouseContent.PackageId, "expand my Town Warehouse")]
     public void StagedBuildingPackagesCannotBeRequestedBeforeActivation(string packageId, string text)
     {
@@ -127,6 +131,7 @@ public sealed class PrivateWorldBuildingOrderParserTests
 
     [Theory]
     [InlineData("please build one House at (2, 1) now.", "construct_building", "buildings")]
+    [InlineData("build one Restaurant at (2, 1)", "construct_building", "buildings")]
     [InlineData("expand my Town Warehouse at (2, 1)", "expand_building", "expansions")]
     public void ExactLocationsRoundTripWithoutPersistingUnresolvedWorkBindings(string text, string action, string progress)
     {
