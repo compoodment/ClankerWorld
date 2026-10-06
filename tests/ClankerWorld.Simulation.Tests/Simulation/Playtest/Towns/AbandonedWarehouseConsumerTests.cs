@@ -191,12 +191,22 @@ public sealed class AbandonedWarehouseConsumerTests
         }
         else if (change == "occupied")
         {
-            var blocker = state.Inhabitants.First(item => item.InhabitantId != actor);
+            // A Warehouse destination can be shared. Block every ordinary exit
+            // from a narrow part of the real map to retain the no-route refusal.
+            var blockers = state.Inhabitants.Where(item => item.InhabitantId != actor).ToArray();
+            var origin = state.Map.Tiles.Select(tile => tile.Position).First(point =>
+            {
+                var exits = state.Map.FootNeighbors(point).ToArray();
+                return state.Map.IsPassable(point) && exits.Length > 0 && exits.Length <= blockers.Length &&
+                    !exits.Contains(warehouse.Position);
+            });
+            var positions = state.Map.FootNeighbors(origin).Select((point, index) =>
+                (blockers[index].InhabitantId, point)).ToDictionary(item => item.InhabitantId, item => item.point, StringComparer.Ordinal);
             state = state with
             {
                 Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
-                    ? person with { Position = blocker.Position }
-                    : person.InhabitantId == blocker.InhabitantId ? person with { Position = warehouse.Position } : person).ToArray(),
+                    ? person with { Position = origin }
+                    : positions.TryGetValue(person.InhabitantId, out var blockedExit) ? person with { Position = blockedExit } : person).ToArray(),
             };
         }
         else

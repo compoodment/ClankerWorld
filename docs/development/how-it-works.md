@@ -127,7 +127,12 @@ so the journey cannot fill the agent's bounded ledger before arrival.
 `move_to` order with a saved `TargetPosition` and one arrival. The common
 unoccupied-route finder and `MoveToward` enforce walking rules, occupancy,
 travel cooldowns and illness delays. House destinations check current household
-membership or a saved guest invitation. An unavailable destination stays blocked;
+membership or a saved guest invitation. An eligible Warehouse user can share its
+exact tile with other occupants, using recorded Town access including abandoned-Town
+salvage. Residents can also share their Town's supplying or working project site.
+These destination exceptions keep stock ownership, reservations and action
+permissions intact; other occupied exact destinations stay blocked.
+An unavailable destination stays blocked;
 it is never substituted. The order completes only when the actor occupies the
 exact target tile. Repetition, quantities and extra task words are rejected.
 Arrival records one firsthand fact, for the destination tile. Submission,
@@ -309,6 +314,22 @@ remaining definitions before changing the registry. A package removal that
 would invalidate an active or historical order is refused without changing
 the checkpoint; unrelated package removal remains available.
 
+The production catalogue includes every shipped named-meal recipe, including
+the 2×2 Restaurant's exact variant definitions. House and Restaurant prefixes
+disambiguate shared output names; the larger Restaurant uses `restaurant 2x2`.
+The three simple-meal recipes name their ingredient rather than treating
+different inputs as interchangeable. Existing whole-batch validation and
+order-bound production jobs account for their two-serving yields.
+
+Named-meal inputs extend the existing House/Restaurant `workstation_input`
+routes. Supply still checks current recipe demand, source cooking reserves,
+whole vessels, access and room. Prepared-food nouns extend `collect_food`,
+borrowed returns, spare House-food delivery and Store stocking. Personal
+storage continues to exclude loose edible goods. Loading allows prepared
+food targets only on eating or food-collection orders, retaining the separate
+item targets on returns/deliveries and rejecting raw-crop food targets and
+mixed fields. No order fields, receipts or checkpoint layout change.
+
 Building orders use separate construction and expansion adapters. A
 `construct_building` order selects one active household building definition,
 then binds its household, exact site, project start and unique instance
@@ -395,8 +416,8 @@ the bound job before it can finish and resumes its remaining duration after
 the actor returns. Recipe, project, job and order references are validated
 together on restore. Content removal checks retained production orders,
 including cancelled history, against the remaining definitions before changing
-the registry. Retired generic cooking recipes are excluded; named-meal orders
-remain separate catalogue work.
+the registry. Retired generic cooking recipes are excluded; the catalogue uses
+the exact active named-meal recipes described above.
 
 A MustDo with no recognized action is closed when it is submitted: it is added
 to the completed instructions with an `instruction_not_understood` event

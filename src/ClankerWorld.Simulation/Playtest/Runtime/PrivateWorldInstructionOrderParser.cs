@@ -370,7 +370,7 @@ internal static class PrivateWorldInstructionOrderParser
             string? building;
             if (purpose == "town_surplus")
                 building = ReadWord("town") && ReadWord("warehouse") ? "warehouse" : null;
-            else if (TryReadAnyWord("house", "farmhouse", "silo", "blacksmith", "tailor", "clinic", "store"))
+            else if (TryReadAnyWord("house", "farmhouse", "silo", "blacksmith", "tailor", "clinic", "store", "restaurant"))
                 building = tokens[position - 1].Value;
             else building = null;
             if (building == "tailor") _ = ReadWord("shop");
@@ -440,7 +440,7 @@ internal static class PrivateWorldInstructionOrderParser
         private string? TryReadReturnSubject()
         {
             var start = position;
-            var selected = TryReadCustodySubject();
+            var selected = TryReadGoodsSubject(PrivateWorldCustodyOrderCatalog.All.Concat(PrivateWorldCustodyOrderCatalog.PreparedFoods));
             var end = position;
             position = start;
             var material = TryReadMaterialSubject();
@@ -454,12 +454,14 @@ internal static class PrivateWorldInstructionOrderParser
             return selected;
         }
 
-        private string? TryReadCustodySubject()
+        private string? TryReadCustodySubject() => TryReadGoodsSubject(PrivateWorldCustodyOrderCatalog.All);
+
+        private string? TryReadGoodsSubject(IEnumerable<PrivateWorldCustodyOrderCatalog.Goods> goods)
         {
             var start = position;
             if (!ReadWord("the")) _ = ReadWord("some");
-            var match = PrivateWorldCustodyOrderCatalog.All.SelectMany(goods => goods.Names
-                    .Select(name => (goods.ItemKind, Tokens: name.Split(' '))))
+            var match = goods.SelectMany(item => item.Names
+                    .Select(name => (item.ItemKind, Tokens: name.Split(' '))))
                 .Where(item => item.Tokens.Select((word, index) => IsWord(position + index, word)).All(value => value))
                 .OrderByDescending(item => item.Tokens.Length).FirstOrDefault();
             if (match.ItemKind is null) { position = start; return null; }
@@ -780,6 +782,8 @@ internal static class PrivateWorldInstructionOrderParser
         {
             var start = position;
             _ = TryReadAnyWord("the", "a", "some");
+            var meal = TryReadGoodsSubject(PrivateWorldCustodyOrderCatalog.PreparedFoods);
+            if (meal is not null) return new FoodSubject(true, meal, null, position - start);
             string? kind;
             if (TryReadAnyWord("berry", "berries")) kind = "berries";
             else if (ReadWord("fruit")) kind = "fruit";
