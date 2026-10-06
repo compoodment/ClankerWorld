@@ -2,7 +2,7 @@
 title: Playing the current game
 type: player-guide
 status: active
-updated: 2026-10-04
+updated: 2026-10-06
 ---
 
 # Playing the current game
@@ -634,7 +634,9 @@ the world's date, so **Save** works straight away; type another name first if
 you like. The card under the timeline says whether the new save continues a
 branch or starts a new one. To overwrite a save, choose it, then **Overwrite**,
 and confirm; typing the same name does not overwrite it. Autosaves can't be
-overwritten. World Settings offers rotating
+overwritten. Long names shorten between whole characters, including emoji,
+on the cards and timeline. An overwrite's recovery copy does the same when its
+name reaches the save-name limit. World Settings offers rotating
 autosaves as well as automatic recovery. **Load World** shows each world as a
 card with a small map of it, when it was last saved and its seed, and marks the
 current world and any it cannot open. Double-click a card, or choose it and

@@ -27,12 +27,36 @@ public partial class Main
         if (FittedLabel.Shorten("A world with quite a long name", 60, text => text.Length * 6) != "A world..." ||
             FittedLabel.Shorten("Willowmere", 60, text => text.Length * 6) != "Willowmere")
             throw new InvalidOperationException("Names must be shortened to what fits, followed by three full stops.");
+        foreach (var (name, width, expected) in new[]
+        {
+            ("🌱 morning", 24f, "..."),
+            ("e\u0301vening", 24f, "..."),
+            ("🇳🇿 camp", 30f, "..."),
+            ("👨‍👩 camp", 42f, "..."),
+            ("🌱", 12f, "🌱"),
+        })
+            if (FittedLabel.Shorten(name, width, text => text.Length * 6) != expected)
+                throw new InvalidOperationException("Card names must shorten between whole visible Unicode characters.");
         var fitted = new FittedLabel { ThemeTypeVariation = "DimLabel" };
         AddChild(fitted);
         fitted.Size = new Vector2(120, 20);
         fitted.FullText = "A save with a name much too long for its card";
         var fittedWidth = fitted.GetThemeFont("font").GetStringSize(fitted.Text, HorizontalAlignment.Left, -1, fitted.GetThemeFontSize("font_size")).X;
         var fittedText = fitted.Text;
+        fitted.Size = new Vector2(170, 20);
+        foreach (var character in new[] { "🌱", "e\u0301", "🇳🇿", "👨‍👩" })
+        {
+            var name = new string('W', 7) + character + new string('W', 35);
+            fitted.FullText = name;
+            var text = fitted.Text;
+            var prefix = text.EndsWith("...", StringComparison.Ordinal) ? text[..^3] : text;
+            if (!name.StartsWith(prefix, StringComparison.Ordinal) ||
+                !System.Globalization.StringInfo.ParseCombiningCharacters(name).Contains(prefix.Length) ||
+                fitted.FullText != name ||
+                fitted.GetThemeFont("font").GetStringSize(text, HorizontalAlignment.Left, -1, fitted.GetThemeFontSize("font_size")).X > 170)
+                throw new InvalidOperationException("Native card labels must fit while retaining whole Unicode characters and the full original name.");
+        }
+
         RemoveChild(fitted);
         fitted.QueueFree();
         if (!fittedText.EndsWith("...", StringComparison.Ordinal) || fittedText.Length < 8 || fittedWidth > 120)

@@ -1,3 +1,4 @@
+using System.Globalization;
 using Godot;
 
 namespace ClankerWorld.GodotClient.UI;
@@ -48,14 +49,18 @@ public partial class FittedLabel : Label
     /// <summary>The longest start of <paramref name="text"/> that fits with "..." after it, or the whole text if it fits.</summary>
     public static string Shorten(string text, float width, Func<string, float> measure)
     {
+        ArgumentNullException.ThrowIfNull(text);
+        ArgumentNullException.ThrowIfNull(measure);
         if (measure(text) <= width) return text;
-        int low = 0, high = text.Length;
+        var characters = StringInfo.ParseCombiningCharacters(text);
+        int End(int count) => count == characters.Length ? text.Length : characters[count];
+        int low = 0, high = characters.Length;
         while (low < high)
         {
             var middle = (low + high + 1) / 2;
-            if (measure(text[..middle].TrimEnd() + "...") <= width) low = middle;
+            if (measure(text[..End(middle)].TrimEnd() + "...") <= width) low = middle;
             else high = middle - 1;
         }
-        return text[..low].TrimEnd() + "...";
+        return text[..End(low)].TrimEnd() + "...";
     }
 }

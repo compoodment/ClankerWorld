@@ -68,6 +68,17 @@ public partial class Main
             SaveTimelineLayout.Shorten("Winter", 60, text => text.Length * 6) != "Winter")
             throw new InvalidOperationException("Long save names must be shortened with three full stops.");
 
+        var nameFont = manualSaveHeading.GetThemeFont("font", "Label");
+        var nameSize = manualSaveHeading.GetThemeFontSize("font_size", "Label");
+        var unicodeName = new string('W', 7) + "🌱" + new string('W', 35);
+        var shortened = SaveTimelineLayout.Shorten(unicodeName, 170,
+            text => nameFont.GetStringSize(text, HorizontalAlignment.Left, -1, nameSize).X);
+        var shortenedPrefix = shortened[..^3];
+        if (!unicodeName.StartsWith(shortenedPrefix, StringComparison.Ordinal) ||
+            !System.Globalization.StringInfo.ParseCombiningCharacters(unicodeName).Contains(shortenedPrefix.Length) ||
+            nameFont.GetStringSize(shortened, HorizontalAlignment.Left, -1, nameSize).X > 170)
+            throw new InvalidOperationException("Native timeline names must fit without splitting a Unicode character.");
+
         var previousRegistration = registration;
         var previousKey = deviceKey;
         var previousUrl = worldUrlInput.Text;

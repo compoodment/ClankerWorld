@@ -1,0 +1,1 @@
+- Long world and save names keep whole characters, including emoji, when shortened on cards and the timeline. Overwriting a save also keeps whole characters in the recovery copy's name.
