@@ -294,8 +294,8 @@ no renewed household membership or private-stock access.
 
 Food collection uses the same personal-goods rules: "collect food", "collect
 three berries", "collect cultivated greens from (12, 4)", or "keep collecting
-fruit". A named kind selects only berries, fruit, wild greens or cultivated
-greens; plain "food" accepts any ready-to-eat food. These tasks collect existing
+fruit". A named kind selects berries, fruit, wild greens, cultivated greens or
+one of the seven prepared foods; plain "food" accepts any ready-to-eat food. These tasks collect existing
 stored or dropped goods. They do not harvest a food source or eat the pickup.
 Raw grain and potatoes use the goods catalogue below. Quantities,
 source tiles, carrying limits, queues, interruptions and reload work as above.
@@ -383,8 +383,23 @@ to another building when access or materials disappear. Queueing, replacement,
 cancellation and save/reload retain the remaining count. Cancellation releases
 unused reserved ingredients; already finished goods remain. Urgent survival
 pauses the current production job and its remaining work before the order
-resumes. Named meals such as bread and porridge are not part of this order
-catalogue yet.
+resumes.
+
+Named cooking orders cover all shipped House and Restaurant recipes. Simple
+House meals specify potatoes, wild greens or cultivated greens. Other recipes
+name the work site: "cook house bread", "cook restaurant berry porridge" or
+"prepare restaurant meals". The larger Restaurant uses "restaurant 2x2" in
+the recipe name. Every batch makes two servings, so "cook four house bread"
+requires two paid batches; odd serving counts are not understood. Plain
+"cook porridge" is ambiguous and does not replace the current order.
+
+House and Restaurant ingredient supplies use their native demand, cooking
+reserves, carrying and whole-jug rules. Named prepared foods can be collected
+as personal property, returned when borrowed, delivered as spare carried food
+to the House, or stocked in a Store. These actions preserve the existing
+ownership and food reserves. The nonfood personal-storage action still excludes
+loose meals; named-food consumption and wild-food gathering keep their separate
+commands.
 
 Building orders cover one House, Farmhouse, Blacksmith, Tailor Shop, Silo,
 Clinic, Store or Restaurant at its starting size (including the 1×1 Store
@@ -496,7 +511,7 @@ cold still allows protective work. Queues, cancellation, travel and completion
 survive save/reload. Finished progress remains recorded after weather changes,
 fire expiry or removal of the building.
 
-Named meals and weapon repairs remain unfinished catalogue work.
+Weapon-repair orders remain outside the current catalogue.
 
 A recognized new order replaces the active and queued orders unless **Queue**
 is selected. **Cancel task** stops a waiting or active order. An instruction
