@@ -353,6 +353,11 @@ reserve. Store stocking keeps its shelf target, food reserves and protected
 tools. Missing demand or surplus leaves a visible blocker even if the order
 asks for more.
 
+A Store-stocking order can pause an ordinary unfinished project, deliver its
+goods, then let that project continue with its previous work. A production job
+already holding reserved inputs finishes before the agent leaves to stock the
+Store. Its goods and payment history remain separate from the delivery count.
+
 Vessels and their contents keep their physical identity and ownership rules.
 For a water supply, the count measures water in the delivered jug, not the jug
 as an extra item. The whole family must fit and stay unreserved; water cannot
@@ -388,6 +393,13 @@ chooses a legal site and keeps it. Normal one-per-kind limits, Silo
 prerequisites, material ownership, carrying, travel and construction work
 still apply. An existing building or somebody else's project never counts as
 the ordered completion.
+
+A construction order can replace the agent's unpaid ordinary building or
+crafting plan. It starts fresh construction work and pays the normal costs;
+the earlier plan's work does not count toward the order. A production job
+already holding reserved inputs finishes first. Other agents' projects and
+work bound to another order or an accepted tool-making request keep their
+existing checks.
 
 "Expand my House" and "expand my Town Warehouse" request one next supported
 size under the normal access, need, space and cost checks. The task pins the
