@@ -2454,6 +2454,12 @@ A death, break or ownership change removes the attachment without dropping or
 teleporting the goods. Owner observation derives cart inspection from those
 same saved inventory lots, rather than maintaining a second cargo ledger.
 
+Generic attach, load, pull, park, unload and give controls remain available to
+models, but rank below safe idle for the built-in chooser. They do not yet bind
+an autonomous delivery task, so selecting them eagerly would repeatedly undo
+transfers or pull between arbitrary buildings. Crafting and repair keep their
+ordinary priorities; an already attached cart still follows ordinary movement.
+
 ## Trees and planting
 
 Each tree is one map resource with one saved growth record
