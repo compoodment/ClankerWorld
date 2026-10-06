@@ -843,6 +843,11 @@ public sealed partial class PrivateWorldRuntime
             StoreTownResources(inhabitantId, state);
             return;
         }
+        if (candidateId.StartsWith(TownSalvagePrefix, StringComparison.Ordinal))
+        {
+            SalvageTownStock(inhabitantId, candidateId);
+            return;
+        }
         if (candidateId == "haul_farm_grain")
         {
             HaulFarmGrain(inhabitantId, state);
@@ -1237,6 +1242,7 @@ public sealed partial class PrivateWorldRuntime
 
         if (AdultResident(inhabitantId)) AddHandcartCandidates(candidates, inhabitantId, state);
         AddSurvivalCandidates(candidates, inhabitantId, state);
+        AddTownSalvageCandidates(candidates, inhabitantId);
         AddDependentCareCandidates(candidates, inhabitantId);
         if (GuardianPlacementCandidate(inhabitantId) is { } placementCandidate) candidates.Add(placementCandidate);
         AddMedicalCareCandidates(candidates, inhabitantId);

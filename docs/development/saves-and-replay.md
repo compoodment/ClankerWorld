@@ -2,7 +2,7 @@
 title: Saves and replay
 type: persistence-reference
 status: active
-updated: 2026-10-05
+updated: 2026-10-06
 ---
 
 # Saves and replay
@@ -1018,6 +1018,35 @@ generated-world gathering and donation, genuine Warehouse loads, intermediate
 restore/replay, discarded prepared ticks, stale votes, retained removal and
 coherently altered receipt/source references. Earlier
 alpha schemas, including 53, are refused visibly and preserved without migration.
+
+## Abandoned Towns and physical salvage
+
+Abandonment is derived from a founded Town's empty recorded living-resident
+roster; it adds no saved flag or schema field. Children, travelers and residents
+without a home still count. A last departure or death records `town_abandoned`;
+the first new resident records `town_revived`. The Town record, laws, civic
+history, buildings, land title, household use rights and infrastructure stay
+intact.
+
+The personal `resettle` choice requires a living adult physically inside the
+abandoned Town. It moves that adult's Town care group under the one-Town rule,
+without moving bodies or changing household membership, care or property.
+Governance refreshes from the new living adult roster; prior offices are not
+restored. `town_resettled` records the deliberate change. Later arrivals use
+ordinary admission.
+
+Public salvage operates on exact communal lots on the ground or in the
+recorded Town's Warehouse. Pickup rechecks current abandonment, physical
+distance, reservations and carrying room. Container families move together;
+salvaged handcarts keep their ground location until pulled. Transfers retain
+condition, provenance and stock history and record `town_stock_salvaged`.
+Revival neither confiscates prior pickups nor permits a stale public choice
+to collect more stock.
+
+`TownAbandonmentTests` exercises strict current-format roundtrips, identical
+live/restored continuations before and after membership or stock transfer,
+discarded prepared ticks, competing pickups and a delayed hosted reply after
+revival. No migration or inferred historical abandonment is added.
 
 ## Ports and communal boats
 

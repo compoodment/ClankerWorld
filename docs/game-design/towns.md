@@ -2,7 +2,7 @@
 title: Towns, buildings and government
 type: game-design
 status: active
-updated: 2026-10-04
+updated: 2026-10-06
 ---
 
 # Towns, buildings and government
@@ -495,10 +495,11 @@ abandoned Town without joining it. An adult later chooses to settle there;
 the remaining logs become resident-only communal stock again, the same Town
 revives, and its protected-grove law still exists until validly repealed.
 Private coats, Houses and household equipment retain their recorded owners.
-Abandonment/revival and salvage implementation remains recorded in
-[#410](https://github.com/compoodment/ClankerWorld/issues/410), which the owner
-previously parked until play reaches this stage; these design answers do not
-claim that it is implemented or change that timing.
+The owner resumed implementation of these rules in chat on October 6, choosing
+abandoned Towns, physical salvage and resettlement as the next gameplay work
+in [#410](https://github.com/compoodment/ClankerWorld/issues/410). This replaces
+the earlier decision to park that work. See [what works today](../what-works.md)
+for the connected game path and its pending hands-on checks.
 
 ### Agreed content and building sizes
 

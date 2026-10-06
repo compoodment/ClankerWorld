@@ -321,6 +321,7 @@ public static class GameUiText
             "market_stock_loaded" or "market_stock_delivered" or "market_stock_collected" or
             "market_trade_offered" or "market_trade_completed" or "market_trade_cancelled" or
             "town_resident_joined" or "town_resident_left" or "town_membership_evaluated" or
+            "town_abandoned" or "town_revived" or "town_resettled" or "town_stock_salvaged" or
             "town_admission_accepted" or "town_admission_approved" or "town_admission_lapsed" or
             "land_use_requested" or "land_use_granted" or "town_building_assigned" or "town_border_expanded" or "town_land_claimed" or "town_founded" or "bridge_built" or
             "town_civic_nonviolent_hearing" or "town_civic_law_case" or "town_civic_remedy" or "law_case_opened" or "law_case_evidence" or

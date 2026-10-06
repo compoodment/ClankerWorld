@@ -131,7 +131,7 @@ public sealed partial class TownMembershipTests
         Assert.Contains(world.ExportState().Events, item => item.Kind == "household_joined" && item.Detail == $"{applicant}:{Alpha}");
         Assert.Contains(model.ObservationsOf(applicant), observation => observation.Self?.TownMembershipNote?.Contains(
             "admission to First Town pending until world day", StringComparison.Ordinal) == true);
-        Assert.StartsWith("Town: none · no council vote or Warehouse access", OwnerView(world, applicant), StringComparison.Ordinal);
+        Assert.StartsWith("Town: none · no council vote; occupied Towns require admission", OwnerView(world, applicant), StringComparison.Ordinal);
 
         foreach (var founder in Founders) model.Scripts[founder] = [Civic(First, "read"), Civic(First, "yes")];
         using var voting = Reopen(Paused(world), model);
@@ -694,7 +694,7 @@ public sealed partial class TownMembershipTests
             Func<TownRuntimeState, string, string, bool>? knows = null) =>
             TownMembershipText.Describe([first, secondTown ?? second], society, id, day,
                 warehouses ?? new HashSet<string>([First], StringComparer.Ordinal), knows);
-        const string none = "Town: none · no council vote or Warehouse access; a Town council must approve admission at its notice place";
+        const string none = "Town: none · no council vote; occupied Towns require admission; may explicitly resettle an abandoned Town or salvage its communal stock in person";
 
         Assert.Equal(none, Describe(outsider));
         Assert.Equal("Town: resident of First Town · may sit and vote on its council and collect its Warehouse stock in person, housed or not",
