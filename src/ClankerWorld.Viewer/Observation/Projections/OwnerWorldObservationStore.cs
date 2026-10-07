@@ -270,7 +270,7 @@ public sealed partial class OwnerWorldObservationStore
 
     public ViewerHandshake GetOwnerHandshake() => new(
         new ProtocolVersion(Major: 1, Minor: 1),
-        privateRuntime is null ? OwnerServerCapabilities.ToArray() : [.. OwnerServerCapabilities, "owner-life-pace.v1", "owner-jev-assistance.v1", "owner-building-design.v1", "owner-terrain-delta.v1", "owner-observation-timeline.v1"],
+        privateRuntime is null ? OwnerServerCapabilities.ToArray() : [.. OwnerServerCapabilities, "owner-life-pace.v1", "owner-jev-assistance.v1", "owner-routine-helper.v1", "owner-building-design.v1", "owner-terrain-delta.v1", "owner-observation-timeline.v1"],
         OwnerClientCapabilities.ToArray());
 
     public ViewerWorldSnapshot GetSnapshot()
@@ -673,6 +673,9 @@ public sealed partial class OwnerWorldObservationStore
                 council.Ballot?.Rejections.Count ?? 0, council.Ballot?.Electorate.Count ?? 0) : null,
             LifePaceRate = state.Society.Society.LifeClock?.Rate ?? 1,
             JevEnabled = state.JevEnabled ?? true,
+            RoutineHelperProvider = state.RoutineHelper.Provider,
+            RoutineHelperModel = state.RoutineHelper.Model,
+            RoutineHelperCredentialSlotId = state.RoutineHelper.CredentialSlotId,
             FounderSetup = state.FounderSetup is { } setup
                 ? new ViewerFounderSetup(PrivateWorldRuntime.RequiredFounders, setup.FounderIds.Count, setup.Started)
                 {

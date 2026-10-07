@@ -506,6 +506,26 @@ public partial class Main
             fresh.Free();
             if (freshModel.Length > 0 || freshProblem != cantUseLuna)
                 throw new InvalidOperationException("A new agent must not start on another model when the key can't use the default.");
+            picker.SetModel("gpt-6-luna", isNewAgent: true);
+            picker.BeginLoading("gpt-6-luna");
+            picker.ShowList(listed, "gpt-6-luna");
+            const string cloudDefault = "glm-5.3-flash:cloud";
+            picker.SetModel(cloudDefault, isNewAgent: true);
+            picker.BeginLoading(cloudDefault);
+            OwnerProviderModelChoice[] cloudModels = [new(cloudDefault, false), new("glm-5.3:cloud", true)];
+            picker.ShowList(cloudModels, cloudDefault);
+            if (picker.Model.Length > 0 || picker.IsTyping || picker.Problem != $"This key can't use {cloudDefault}. Choose a model it can use." ||
+                picker.Choice.GetItemText(picker.Choice.Selected) != ModelPicker.ChooseText)
+                throw new InvalidOperationException($"Switching providers must not treat an unavailable automatic default as a typed model: model={picker.Model}, typing={picker.IsTyping}, problem={picker.Problem}.");
+            picker.SetModel("gpt-6-luna", isNewAgent: true);
+            picker.BeginLoading("gpt-6-luna");
+            picker.ShowList(listed, "gpt-6-luna");
+            picker.SetModel(cloudDefault, isNewAgent: true);
+            picker.BeginLoading(cloudDefault);
+            picker.ShowList([new(cloudDefault, true)], cloudDefault);
+            if (picker.Model != cloudDefault || picker.IsTyping || picker.Problem.Length > 0)
+                throw new InvalidOperationException("An available default after switching providers must remain a listed choice.");
+            picker.ShowList(listed, "gpt-6-luna");
             picker.SetModel("my-fine-tune");
             if (!picker.TypedInput.Visible || picker.TypedInput.Text != "my-fine-tune" || picker.Model != "my-fine-tune" ||
                 picker.Choice.GetItemText(picker.Choice.Selected) != ModelPicker.TypeOwnText)
@@ -520,6 +540,10 @@ public partial class Main
             picker.ShowList(listed, "gpt-6-luna");
             if (picker.Model != "my-other-model" || !picker.TypedInput.Visible)
                 throw new InvalidOperationException("A new list must not replace a typed model name.");
+            picker.BeginLoading(cloudDefault);
+            picker.ShowList(cloudModels, cloudDefault);
+            if (picker.Model != "my-other-model" || !picker.IsTyping)
+                throw new InvalidOperationException("Refreshing the model list must preserve an intentionally typed name.");
             picker.SetModel("gpt-6-luna");
             picker.ShowList(listed, "gpt-6-luna", "OpenAI refused this key.");
             if (picker.Problem != "OpenAI refused this key." || !picker.CanRetry || picker.Model != "gpt-6-luna" ||
@@ -1144,6 +1168,7 @@ public partial class Main
                 await VerifyFirstWorldListAsync();
                 await VerifyWorldActionSelectionAsync();
                 await VerifyFreshHostEntryAsync();
+                await VerifyContinueSettingsNavigationAsync();
                 await VerifyNewWorldCompatibilityMessageAsync();
                 await VerifyWorldPreviewRerollAsync();
                 await VerifyAutosaveSettingsOwnershipAsync();
@@ -1422,6 +1447,26 @@ public partial class Main
                 if (!TownListText().Contains(phrase, StringComparison.Ordinal))
                     throw new InvalidOperationException("The Town page must show actual law scope, government handovers and separate office authority: " + phrase);
             await RunNonviolentTownUiChecks(sample, governmentTown);
+            var abandonedTown = governmentTown with
+            {
+                ResidentIds = [],
+                Governance = new OwnerTownGovernance("all_adult", "none", [], null, 0, [], [], null),
+                Government = governmentTown.Government! with { Offices = [], Changes = [], Election = null },
+            };
+            Render(sample with { Towns = [abandonedTown] }, []);
+            foreach (var phrase in new[] { "Abandoned", "no living residents", "No active council", "resettle", "salvaged in person", "Private property", "Law: Grove" })
+                if (!TownListText().Contains(phrase, StringComparison.Ordinal))
+                    throw new InvalidOperationException("An abandoned Town must retain its laws and explain physical salvage and explicit resettlement: " + phrase);
+            var resettledTown = abandonedTown with
+            {
+                ResidentIds = civicTown.ResidentIds,
+                Governance = abandonedTown.Governance! with { MemberNames = ["Mira Vale"] },
+            };
+            Render(sample with { Towns = [resettledTown] }, []);
+            if (TownListText().Contains("Abandoned", StringComparison.Ordinal) ||
+                !TownListText().Contains("Council: all adult residents", StringComparison.Ordinal) ||
+                !TownListText().Contains("Law: Grove", StringComparison.Ordinal))
+                throw new InvalidOperationException("A revived Town must refresh its status and council while keeping its laws.");
             var revisedCivicTown = civicTown with
             {
                 Governance = civicTown.Governance! with
@@ -1541,12 +1586,20 @@ public partial class Main
             VerifyChildModelStatus();
             VerifyModelSetupCheckControls();
             VerifyModelSettingsLayout();
-            Render(sample with { JevEnabled = true }, []);
-            if (!jevAssistanceToggle.ButtonPressed)
-                throw new InvalidOperationException("World Settings must reflect this world's saved Jev assistance choice.");
-            Render(sample with { JevEnabled = false }, []);
-            if (jevAssistanceToggle.ButtonPressed)
-                throw new InvalidOperationException("World Settings must show when Jev assistance is off.");
+            Render(sample with { JevEnabled = true, RoutineHelperProvider = "jev", RoutineHelperModel = "jev-1.13.0" }, []);
+            if (SelectedRoutineHelper() != "jev" || routineHelperModelPicker.Model != "jev-1.13.0")
+                throw new InvalidOperationException("World Settings must reflect the saved helper and model.");
+            Render(sample with { JevEnabled = false, RoutineHelperProvider = "off", RoutineHelperModel = "" }, []);
+            if (SelectedRoutineHelper() != "off" || routineHelperModelPicker.Visible)
+                throw new InvalidOperationException("Off must hide the helper model picker.");
+            var decisionsSample = sample with { JevEnabled = true, RoutineHelperProvider = "decisions", RoutineHelperModel = "gpt-6-luna" };
+            Render(decisionsSample, []);
+            if (SelectedRoutineHelper() != "decisions" || routineHelperModelPicker.Model != "gpt-6-luna")
+                throw new InvalidOperationException("World Settings must show OpenAI Decisions and its saved model.");
+            routineHelperModelPicker.SetModel("future-decisions-model");
+            Render(decisionsSample, []);
+            if (routineHelperModelPicker.Model != "future-decisions-model")
+                throw new InvalidOperationException("Refreshing the world must preserve an unapplied helper model.");
             usageStatus = new OwnerUsageStatus(2, 1, 0, 1, 10, 3, 2, true,
                 [new OwnerUsageRow("openai", "test-model", "planning", 2, 1, 0, 1, 10, 3)]);
             RenderUsageStatus();
@@ -3916,6 +3969,7 @@ public partial class Main
             if (controlsPanel.Visible)
                 throw new InvalidOperationException("Escape must close the controls list.");
             await VerifyDeveloperToolsAsync(occupied, founder);
+            await VerifyAuthoringCoordinatesAsync(occupied);
             _UnhandledKeyInput(new InputEventKey { Keycode = Key.Minus, Pressed = true });
             var zoomedOutTile = currentTileSize;
             _UnhandledKeyInput(new InputEventKey { Keycode = Key.Equal, Pressed = true });

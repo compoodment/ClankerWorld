@@ -342,6 +342,7 @@ public sealed partial class PrivateWorldRuntime
         historyArchiveHead = proposed.historyArchiveHead;
         checkpointSchemaVersion = proposed.checkpointSchemaVersion;
         jevEnabled = proposed.jevEnabled;
+        routineHelper = proposed.routineHelper;
         jevPolicyRevision = proposed.jevPolicyRevision;
         founderSetup = proposed.founderSetup;
         towns = proposed.towns;

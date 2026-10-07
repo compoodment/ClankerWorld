@@ -327,7 +327,8 @@ public sealed partial class PrivateWorldRuntime
             Enumerable.Range(0, job.TargetFootprint.Width).Select(dx =>
                 new GridPoint(job.TargetPosition.X + dx, job.TargetPosition.Y + dy)));
 
-    private void AddBuildingExpansionCandidates(List<CognitionCandidate> candidates, string actor)
+    private void AddBuildingExpansionCandidates(List<CognitionCandidate> candidates, string actor,
+        Dictionary<(ToolFamily Family, int Tier), ToolDefinition?> reachableToolCache)
     {
         foreach (var building in worldSimulation.Buildings)
         {
@@ -336,7 +337,7 @@ public sealed partial class PrivateWorldRuntime
             var definition = worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
             var shape = ExpansionShapes(building).First();
             var costs = BuildingStorageRules.ExpansionCosts(definition, building, shape.Footprint);
-            if (!CanAcquireProjectInputs(costs, HouseholdFor(actor), actor) ||
+            if (!CanAcquireProjectInputs(costs, HouseholdFor(actor), actor, reachableToolCache) ||
                 !CanAcquireExpansionMaterials(actor, building, costs)) continue;
             var reason = definition.Tags.Contains("house", StringComparer.Ordinal) &&
                 building.HouseholdId is { } householdId &&
