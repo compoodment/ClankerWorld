@@ -14,6 +14,7 @@ public sealed class MarketSpoiledStockCollectionTests(ITestOutputHelper output)
     [InlineData(true, "partial", 2)]
     [InlineData(true, "reserved", 0)]
     [InlineData(true, "full", 0)]
+    [InlineData(true, "room", 2)]
     [InlineData(true, "stranger", 0)]
     [InlineData(true, "urgent", 0)]
     public async Task PhysicalCollectionRespectsStockAndReceivingAuthority(bool spoil, string boundary, int expectedCollected)
@@ -73,14 +74,15 @@ public sealed class MarketSpoiledStockCollectionTests(ITestOutputHelper output)
             collector = state.Inhabitants.First(person => person.InhabitantId != owner).InhabitantId;
             state = PaidMarketWorld.At(state, collector, state.Inhabitants.Single(person => person.InhabitantId == owner).Position);
         }
-        if (boundary == "full")
+        if (boundary is "full" or "room")
         {
             inventory = state.Society.Society.Inventory;
             var equipment = state.Inhabitants.Single(person => person.InhabitantId == owner).Equipment;
             var room = PersonalEquipmentRules.Capacity(inventory, owner, equipment) -
                 PersonalEquipmentRules.CarriedQuantity(inventory, owner, equipment);
             Assert.True(room > 0);
-            state = PaidMarketWorld.WithInventory(state, InventoryFixture.AddLot(inventory, "collection-capacity-wood", "wood", owner, room));
+            state = PaidMarketWorld.WithInventory(state, InventoryFixture.AddLot(inventory, "collection-capacity-wood", "wood", owner,
+                room - (boundary == "room" ? 2 : 0)));
         }
         state = state with
         {
