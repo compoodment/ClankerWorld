@@ -1,0 +1,1 @@
+- Delayed life-pace and Jev settings now apply only to their intended world; the host refuses them if another world has been selected. These controls require matching client and host updates.

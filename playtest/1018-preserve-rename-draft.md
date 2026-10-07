@@ -1,0 +1,1 @@
+- On Windows, open an agent's Profile rename editor, type an unused name, move focus away with Tab and wait for a refresh. The edit must remain until submitted, cancelled or another agent/world is selected; refreshing alone must not rename the agent. ([#1018](https://github.com/compoodment/ClankerWorld/issues/1018))

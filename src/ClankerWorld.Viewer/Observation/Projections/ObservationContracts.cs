@@ -29,6 +29,11 @@ public sealed record ViewerHandcart(string Id, string OwnerId, string OwnerName,
     int Capacity, int ConditionPercent, string? PullerId, string? PullerName,
     IReadOnlyList<ViewerInventoryEntry> Cargo);
 
+public sealed record ViewerAnimal(string Id, string Name, string Species, string Sex, int AgeDays, string LifeStage,
+    ViewerPosition Position, string? HouseholdId, string? HouseholdName, string CareStatus, string? ProductKind,
+    int ProductQuantity, double? BirthDaysRemaining, string? RiderId, string? RiderName, string? LeaderId,
+    bool Saddled, IReadOnlyList<string> CarePermissions, IReadOnlyList<string> RidingPermissions);
+
 public sealed record ViewerBoat(string Id, string TownId, string TownName, ViewerPosition Position,
     string? DockedPortId, string? PassengerId, string? PassengerName, string? DestinationPortId,
     string Status, ViewerPosition? ReservedDock, IReadOnlyList<ViewerInventoryEntry> Cargo);
@@ -259,7 +264,8 @@ public sealed record ViewerInstructionOrder(
     string? TargetCropKind = null,
     string? TargetOutputKind = null,
     string? TargetItemKind = null,
-    string? TargetBuildingKind = null);
+    string? TargetBuildingKind = null,
+    string? TargetAnimalId = null);
 
 public sealed record ViewerCognitionEvent(long EventId, long WorldTick, string Kind, string Detail);
 
@@ -342,6 +348,7 @@ public sealed record ViewerPlacedBuilding(
     public IReadOnlyList<ViewerBusinessTrade> Trades { get; init; } = [];
     public IReadOnlyList<ViewerToolMakingRequest> ToolMakingRequests { get; init; } = [];
     public bool AllowsHouseholdOwner { get; init; }
+    public IReadOnlyList<ViewerProductionRecipe>? AvailableRecipes { get; init; }
 }
 
 public sealed record ViewerToolMakingRequest(string Id, string RequesterName, string RecipeId,
@@ -357,7 +364,16 @@ public sealed record ViewerProductionJob(
     string WorkerId,
     long StartedTick,
     long CompletionTick,
-    string State);
+    string State)
+{
+    public ViewerProductionRecipe? Recipe { get; init; }
+    public IReadOnlyList<ViewerMaterialQuantity>? HeldInputs { get; init; }
+}
+
+public sealed record ViewerMaterialQuantity(string Kind, int Quantity);
+
+public sealed record ViewerProductionRecipe(string Id, string Name,
+    IReadOnlyList<ViewerMaterialQuantity> Inputs, IReadOnlyList<ViewerMaterialQuantity> Outputs);
 
 public sealed record ViewerAuthoringState(
     bool IsPaused,
@@ -390,6 +406,8 @@ public sealed record ViewerTown(
     IReadOnlyList<string> AssignedBuildingIds,
     IReadOnlyList<ViewerPosition> BorderTiles)
 {
+    public bool IsAbandoned => FoundingState == "founded" && ResidentIds.Count == 0;
+
     public ViewerTownGovernance? Governance { get; init; }
     public IReadOnlyList<ViewerTownProject> Projects { get; init; } = [];
     public ViewerTownGovernment? Government { get; init; }
@@ -607,6 +625,7 @@ public sealed record ViewerWorldSnapshot(
     public IReadOnlyList<ViewerFarmField> Fields { get; init; } = [];
     public IReadOnlyList<ViewerGroundStock> GroundStocks { get; init; } = [];
     public IReadOnlyList<ViewerHandcart> Handcarts { get; init; } = [];
+    public IReadOnlyList<ViewerAnimal> Animals { get; init; } = [];
     public IReadOnlyList<ViewerBoat> Boats { get; init; } = [];
     public IReadOnlyList<ViewerBoatTripRequest> BoatRequests { get; init; } = [];
     public IReadOnlyList<ViewerStockpile> Stockpiles { get; init; } = [];

@@ -524,7 +524,10 @@ public sealed partial class PrivateWorldRuntime
                     ContinueOrnamentWalk(inhabitant.Id, intention.CandidateId);
                 continue;
             }
-            if (!CreateCandidates(inhabitant.Id, state).Any(candidate => candidate.Id == intention.CandidateId)) continue;
+            // Safe idle is always offered outside the conversation/order branches
+            // above. EnqueueDueCognition still rebuilds choices to reconsider work.
+            if (intention.CandidateId != "safe_idle" &&
+                !CreateCandidates(inhabitant.Id, state).Any(candidate => candidate.Id == intention.CandidateId)) continue;
             ApplyCandidate(inhabitant.Id, state, intention.CandidateId, reportIdle: false);
         }
 
@@ -575,7 +578,7 @@ public sealed partial class PrivateWorldRuntime
         }
 
         _ = ApplyObserverGuidanceResult(decision.InhabitantId, decision.Admission);
-        if (ApplyMedicalConsentDecision(decision) || ApplyOrnamentDecision(decision))
+        if (ApplyMedicalConsentDecision(decision) || ApplyOrnamentDecision(decision) || ApplyAnimalConsentDecision(decision))
             return;
         var pendingInstruction = PendingInstructionFor(decision.InhabitantId);
         var candidateId = decision.Admission.Intention.CandidateId;
@@ -843,6 +846,11 @@ public sealed partial class PrivateWorldRuntime
             StoreTownResources(inhabitantId, state);
             return;
         }
+        if (candidateId.StartsWith(TownSalvagePrefix, StringComparison.Ordinal))
+        {
+            SalvageTownStock(inhabitantId, candidateId);
+            return;
+        }
         if (candidateId == "haul_farm_grain")
         {
             HaulFarmGrain(inhabitantId, state);
@@ -889,6 +897,7 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
         if (ApplyBoatCandidate(inhabitantId, candidateId)) return;
+        if (ApplyAnimalCandidate(inhabitantId, candidateId)) return;
         if (ApplyHandcartCandidate(inhabitantId, state, candidateId)) return;
         if (candidateId.StartsWith(RepairToolPrefix, StringComparison.Ordinal))
         {
@@ -1236,7 +1245,9 @@ public sealed partial class PrivateWorldRuntime
         }
 
         if (AdultResident(inhabitantId)) AddHandcartCandidates(candidates, inhabitantId, state);
+        if (AdultResident(inhabitantId)) AddAnimalCandidates(candidates, inhabitantId);
         AddSurvivalCandidates(candidates, inhabitantId, state);
+        AddTownSalvageCandidates(candidates, inhabitantId);
         AddDependentCareCandidates(candidates, inhabitantId);
         if (GuardianPlacementCandidate(inhabitantId) is { } placementCandidate) candidates.Add(placementCandidate);
         AddMedicalCareCandidates(candidates, inhabitantId);
@@ -1259,8 +1270,9 @@ public sealed partial class PrivateWorldRuntime
         if (!NeedsUrgentFood(state) && AdultResident(inhabitantId))
         {
             var inhabitant = society.Checkpoint.GetInhabitant(inhabitantId);
-            AddBuildCandidates(candidates, inhabitant, state);
-            AddBuildingExpansionCandidates(candidates, inhabitantId);
+            var reachableToolCache = new Dictionary<(ToolFamily Family, int Tier), ToolDefinition?>();
+            AddBuildCandidates(candidates, inhabitant, state, reachableToolCache);
+            AddBuildingExpansionCandidates(candidates, inhabitantId, reachableToolCache);
             AddHouseGuestCandidates(candidates, inhabitantId);
             AddHouseHaulCandidate(candidates, inhabitantId, state);
             AddWarehouseStockCandidate(candidates, inhabitantId, state);
@@ -1326,7 +1338,8 @@ public sealed partial class PrivateWorldRuntime
     private void AddBuildCandidates(
         List<CognitionCandidate> candidates,
         SocietyInhabitant inhabitant,
-        PlaytestInhabitantState state)
+        PlaytestInhabitantState state,
+        Dictionary<(ToolFamily Family, int Tier), ToolDefinition?> reachableToolCache)
     {
         if (inhabitant.HouseholdId is { } planningHousehold)
             AddHouseholdBuildingPlans(candidates, inhabitant, state, planningHousehold);
@@ -1351,7 +1364,7 @@ public sealed partial class PrivateWorldRuntime
                 society.Checkpoint.Inventory.Lots.Any(lot => lot.ItemKind == InventoryContainerRules.Handcart && lot.OwnerId == inhabitant.Id)))
                 continue;
             if (!NeedsRecipeOutput(recipe, recipeOwner, inhabitant.Id) || AnotherAgentWaitsForWorkSite(inhabitant.Id, recipe) ||
-                !CanAcquireProjectInputs(recipe.Inputs, recipeOwner, inhabitant.Id) ||
+                !CanAcquireProjectInputs(recipe.Inputs, recipeOwner, inhabitant.Id, reachableToolCache) ||
                 !TryFindRecipeSite(recipe, out var siteId, out var position, inhabitant.Id) ||
                 householdWorkstation && !personalCart &&
                 (recipeOwner is null || !HasIngredientsAtBuilding(recipe.Inputs, recipeOwner, siteId)))
@@ -1373,6 +1386,7 @@ public sealed partial class PrivateWorldRuntime
     {
         if (id is null) return null;
         return society.Checkpoint.Households.SingleOrDefault(item => item.Id == id)?.Name ??
+            Animal(id)?.Name ??
             towns.SingleOrDefault(item => item.Id == id)?.Name ??
             society.Checkpoint.Inhabitants.SingleOrDefault(item => item.Id == id)?.Name ??
             map.Resources.SingleOrDefault(item => item.Id == id)?.Kind.Replace('_', ' ');

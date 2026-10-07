@@ -239,7 +239,8 @@ public sealed partial class ViewerHttpTests
                 Assert.True(runtime.Society.IsPaused);
                 Assert.Empty(runtime.Inhabitants);
                 Assert.Equal(0, runtime.WorldTick);
-                Assert.Equal(25, runtime.Content.Packages.Count);
+                Assert.Equal(26, runtime.Content.Packages.Count);
+                Assert.Contains(runtime.Content.Packages, package => package.Manifest.PackageId == AnimalContent.PackageId);
                 AssertBuildingVariantPackagesActive(runtime);
                 Assert.Contains(runtime.Content.Packages, package => package.Manifest.PackageId == PotteryContent.PackageId);
                 Assert.Contains(runtime.Content.Packages, package => package.Manifest.PackageId == RestaurantContent.PackageId);
@@ -431,7 +432,8 @@ public sealed partial class ViewerHttpTests
             Assert.Contains(restoredCatalog.Worlds, world => world.Id == generatedId);
             var restoredRuntime = restarted.Services.GetRequiredService<PrivateWorldRuntime>();
             Assert.Equal(WorldSizePreset.Small, restoredRuntime.ExportState().Geography?.Size);
-            Assert.Equal(25, restoredRuntime.Content.Packages.Count);
+            Assert.Equal(26, restoredRuntime.Content.Packages.Count);
+            Assert.Contains(restoredRuntime.Content.Packages, package => package.Manifest.PackageId == AnimalContent.PackageId);
             Assert.Contains(restoredRuntime.Content.Packages, package => package.Manifest.PackageId == TownHallContent.PackageId);
             Assert.Contains(restoredRuntime.Content.Packages, package => package.Manifest.PackageId == PortContent.PackageId);
             Assert.Contains(restoredRuntime.Content.Packages, package => package.Manifest.PackageId == StreetLanternContent.PackageId);
@@ -517,7 +519,7 @@ public sealed partial class ViewerHttpTests
                 Assert.DoesNotContain("test-world-key", File.ReadAllText(Path.Combine(
                     host.Services.GetRequiredService<PrivateWorldStateFile>().Path + ".manual", saveId + ".save")));
 
-                var change = new OwnerJevAssistanceAction(false);
+                var change = new OwnerJevAssistanceAction(false, runtime.Society.WorldId);
                 using var changed = await SendSignedAsync(host, client, key, device.DeviceId,
                     "/api/v1/owner/control/jev-assistance", change,
                     OwnerHttpBinding.JevAssistancePayload(change));
@@ -655,7 +657,7 @@ public sealed partial class ViewerHttpTests
             var second = (await secondResponse.Content.ReadFromJsonAsync<ManualWorldSave>())!;
             Assert.NotEqual(first.Id, second.Id);
 
-            var change = new OwnerJevAssistanceAction(false);
+            var change = new OwnerJevAssistanceAction(false, runtime.Society.WorldId);
             using var changed = await SendSignedAsync(host, client, key, device.DeviceId,
                 "/api/v1/owner/control/jev-assistance", change,
                 OwnerHttpBinding.JevAssistancePayload(change));
