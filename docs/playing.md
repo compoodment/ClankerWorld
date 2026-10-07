@@ -23,6 +23,10 @@ the device on the server, then complete pairing. Do not post the code, keys or
 private world data in an issue. Once paired, reconnecting uses the saved
 registration; normal play does not need approval every time.
 
+After pairing, choose **Continue** from the Main Menu to enter your world.
+If the activation reply was lost, the next pairing check can recover the
+registration and return you to the same menu.
+
 For an already paired device, **Connect** checks the saved server connection
 and shows the result below the address. It does not start a new pairing.
 

@@ -1168,6 +1168,7 @@ public partial class Main
                 await VerifyFirstWorldListAsync();
                 await VerifyWorldActionSelectionAsync();
                 await VerifyUsageSettingsRepliesAsync();
+                await VerifyPairingRecoveryMenuAsync();
                 await VerifyFreshHostEntryAsync();
                 await VerifyContinueSettingsNavigationAsync();
                 await VerifyNewWorldCompatibilityMessageAsync();
