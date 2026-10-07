@@ -1632,6 +1632,12 @@ care and ongoing work keep their earlier continuation guards, and the ordinary
 idle action still runs its cleanup.
 See [construction query measurements](construction-query-measurements.md) for
 matched native timings, candidate/state equivalence and remaining limits.
+Town proposal site checks also share physical placement obstacles only within
+their synchronous query. Market slots stay separate from other occupied
+objects, and actual placement gathers current facts again. Layout searches
+rent tentative tile costs while preserving their settled tiles, costs and
+stopping rules. See [placement query measurements](placement-query-measurements.md)
+for the follow-up comparison.
 Building plans follow what a household needs, not a role. An adult whose
 household lacks a House, Farmhouse, Blacksmith, Silo, Tailor Shop, Clinic or Restaurant is offered ranked sites
 for it once the household has the build costs in hand: stock the household
@@ -1653,7 +1659,11 @@ pickup and delivery both check remaining space. Source selection checks the
 adult's route to each pile or vessel and the route from there to farm storage;
 an earlier blocked source does not hide later reachable stock. The same checks
 run again when the hauling action executes. Grain prefers the Farmhouse,
-while other farm stock prefers the Silo. Ready-to-eat greens and fruit go to
+while other farm stock prefers the Silo. Selection tries the next permitted
+store if the preferred one cannot accept the actual load or its route is blocked.
+A filled vessel must fit with its contents; only grain and flour retain their
+approved partial withdrawals. An explicit destination prevents fallback to
+another store. Ready-to-eat greens and fruit go to
 the household's House. Neither stock nor ownership moves
 remotely.
 
@@ -2249,6 +2259,12 @@ or yield. Harvesting creates grain, potatoes or cultivated greens on the
 field, and grain and greens also yield two replacement seeds. One usable
 planting item is reserved before surplus can be traded. Picking it up for
 the next planting releases the reserve and physically carries that item.
+Player planting orders choose carried stock first, then the field's replanting
+reserve, then other eligible lots in ID order. Shared stock must have an
+unoccupied pickup route within its interaction range, checked during both
+order selection and execution. An occupied earlier lot cannot hide another
+usable seed. Autonomous crop claims keep their terrain eligibility while
+temporary occupants pass and the existing physical route retries.
 
 Planning compares population and available ready-to-eat food with a trial reserve of two
 days at two meals per resident per day, then estimates fields from expected
@@ -2546,6 +2562,10 @@ Wear, removal and gift candidates require a fresh accepted non-fallback
 LargeLanguageModel response whose exact offered target is still valid at
 admission. Jev, continuing intentions and MustDo cannot select them. Gift
 recipients come from locally observable people rather than a remote world scan.
+Living adults in interaction range with free carrying space are filtered before
+the eight-recipient limit, in stable agent-ID order. Full-handed neighbors cannot
+hide another eligible adult. Gift options remain capped at sixteen across
+carried ornament lots, and admission rechecks the eligible recipient and load.
 
 `HouseToolsContent` adds two recipes at the existing House without changing
 its building identity. Each crude wooden axe or pickaxe uses three wood held
