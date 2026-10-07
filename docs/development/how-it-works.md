@@ -1914,6 +1914,13 @@ checks age before reserving either party's stock. Household and organization
 parties keep their existing inventory rules. Previously saved offers retain
 their normal withdrawal and expiry behavior; loading does not rewrite them.
 
+Personal barter keeps one usable carried unit of each ordinary item kind in
+reserve across the owner's eligible lots, rather than requiring two units in
+the chosen lot. Reserved, worn, contained, delivered, stored or uncarried
+units cannot supply that reserve. Artifacts and unworn ornaments retain their
+single-unit exception. Each offer still reserves one actual unit from each
+named lot, and settlement requires both parties' independent acceptance.
+
 **Household shops** bind an inventory barter offer to its actual business and
 holding household in `BusinessTradeState`. Offers use unreserved goods in that
 building and payment already carried by the adult customer. The inventory
@@ -2656,6 +2663,12 @@ position and household authorization, and moves the cart with each admitted
 legal cardinal step. Ground cart contents never become carried recipe inputs,
 fuel, planting seeds or equipped gear. Loading a partial quantity preserves
 the untouched remainder's original location and reservations.
+Shared edible food follows the Council's existing collection policy at both
+choice generation and execution. Under hungry-members-first access, a healthy
+loader can take only the shared surplus above the protected serving reserve.
+The same allowance determines ordinary collection permission and caps a bulk
+cart load. Hungry adults retain their existing access; personal food and
+non-food cargo keep their ordinary loading rules.
 
 Crafting uses the Blacksmith's handcart recipe with the adult worker's carried
 wood, fittings and rope. An adult collects them from household or Town
