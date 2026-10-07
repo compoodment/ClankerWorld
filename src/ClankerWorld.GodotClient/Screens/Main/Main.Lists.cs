@@ -38,6 +38,9 @@ public partial class Main
 
     private void RenderRosterCards(OwnerWorldInhabitant[] inhabitants)
     {
+        var previousSelection = rosterCards.GetSelectedItems();
+        var restoringSelection = previousSelection.Length > 0 && previousSelection[0] < rosterCardIds.Count &&
+            rosterCardIds[previousSelection[0]] == selectedInhabitantId;
         rosterCards.Clear();
         rosterCardIds.Clear();
         foreach (var person in inhabitants)
@@ -60,7 +63,7 @@ public partial class Main
             }
             rosterCards.AddItem(person.DisplayName, detail, AgentPortrait(person, living), tags, muted: !living);
             rosterCardIds.Add(person.Id);
-            if (person.Id == selectedInhabitantId) rosterCards.Select(rosterCardIds.Count - 1);
+            if (person.Id == selectedInhabitantId) rosterCards.Select(rosterCardIds.Count - 1, scrollIntoView: !restoringSelection);
         }
         rosterCards.Visible = inhabitants.Length > 0;
         var rows = Math.Max(1, inhabitants.Length);

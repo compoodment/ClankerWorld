@@ -7,7 +7,7 @@ using ClankerWorld.Viewer.Observation;
 
 namespace ClankerWorld.Simulation.Tests;
 
-public sealed class BusinessTradeTests
+public sealed partial class BusinessTradeTests
 {
     [Fact]
     public async Task OlderOpenExchangeRemainsVisibleWhenRecentCancelledOffersFillHistory()

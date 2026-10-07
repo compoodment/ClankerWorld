@@ -20,7 +20,7 @@ public sealed partial class PrivateWorldRuntime
         society.Validate();
         ValidateBusinessTrades(BusinessTrades, society.Checkpoint, map, WorldTick);
         ValidateToolMakingRequests(ToolMakingRequests, worldSimulation, worldContent, society.Checkpoint, inhabitants.Values, BusinessTrades, WorldTick);
-        ValidateMedicalCare(inhabitants.Values, deceasedInhabitants.Values, society.Checkpoint);
+        ValidateMedicalCare(inhabitants.Values, deceasedInhabitants.Values, society.Checkpoint, map);
         contentRegistry.Validate();
         worldContent.Validate();
         var expectedWorldContent = RebuildWorldContent(contentRegistry.ExportState());
@@ -347,6 +347,10 @@ public sealed partial class PrivateWorldRuntime
         if (state.SchemaVersion < ConversationSchemaVersion &&
             (state.Conversations is { Count: > 0 } || state.ConversationBudgets is { Count: > 0 }))
             throw new InvalidDataException($"Conversation history and daily budgets require private-world schema {ConversationSchemaVersion}.");
+        try { (state.RoutineHelper ?? throw new ArgumentException("Missing routine helper.")).Validate(); }
+        catch (ArgumentException exception) { throw new InvalidDataException("The saved routine helper is invalid.", exception); }
+        if ((state.RoutineHelper.Provider != "off") != (state.JevEnabled ?? true))
+            throw new InvalidDataException("The saved helper availability is inconsistent.");
         if (state.JevPolicyRevision < 0 || state.JevEnabled is null && state.JevPolicyRevision != 0)
             throw new InvalidDataException("The saved Jev routing policy is invalid.");
         if (state.Geography is not null &&
@@ -632,8 +636,7 @@ public sealed partial class PrivateWorldRuntime
             order.Action is not ("seek_shelter" or "tend_fire") && (order.ShelterBinding is not null || order.ShelterCompletion is not null) ||
             !IsValidCustodyBindingShape(order) ||
             order.TargetFoodKind is not (null or "berries" or "fruit" or "wild_greens") &&
-                (order.Action != "consume_food" || !IsEdibleFood(order.TargetFoodKind)) &&
-                !(order.Action == "collect_food" && order.TargetFoodKind == "cultivated_greens") ||
+                (order.Action is not ("consume_food" or "collect_food") || !IsEdibleFood(order.TargetFoodKind)) ||
             !IsFieldOrder(order.Action) && order.TargetCropKind is not null ||
             order.Action is not ("repair_equipment" or "repair_tool" or "collect_equipment" or "store_equipment") && order.TargetEquipmentKind is not null ||
             order.Action is not ("gather_material" or "store_material" or "collect_material") && order.TargetMaterialKind is not null ||

@@ -12,6 +12,8 @@ namespace ClankerWorld.Simulation.Playtest;
 public sealed partial class PrivateWorldRuntime
 {
     private const string ToolRequestPrefix = "tool_request_";
+    // Routine choices cannot commit these verbs; keep safe idle ahead of them.
+    private const int PersonalToolRequestPriority = 200;
     private List<ToolMakingRequestState> toolMakingRequests = [];
 
     public IReadOnlyList<ToolMakingRequestState> ToolMakingRequests => toolMakingRequests
@@ -87,7 +89,7 @@ public sealed partial class PrivateWorldRuntime
             if (request.RequesterId == actor)
             {
                 candidates.Add(new(ToolRequestChoice("withdraw", request.Id),
-                    "Withdraw your tool request. Household materials and work remain household property.", 65, request.BuildingInstanceId));
+                    "Withdraw your tool request. Household materials and work remain household property.", PersonalToolRequestPriority, request.BuildingInstanceId));
                 if (request.Status == ToolMakingRequestStatus.Ready && IdleForToolRequest(actor) && ToolRequestShop(request) is { } shop)
                 {
                     if (!IsWithinInteractionRange(inhabitants[actor].Position, shop.Position, ResourceInteractionRange))
@@ -102,8 +104,8 @@ public sealed partial class PrivateWorldRuntime
             {
                 var name = society.Checkpoint.GetInhabitant(request.RequesterId).Name;
                 if (IdleForToolRequest(actor)) candidates.Add(new(ToolRequestChoice("accept", request.Id),
-                    $"Accept {name}'s {request.ItemKind.Replace('_', ' ')} request using household materials; payment is discussed after it is made.", 50, request.BuildingInstanceId));
-                candidates.Add(new(ToolRequestChoice("refuse", request.Id), $"Refuse {name}'s tool request without taking anything.", 65, request.BuildingInstanceId));
+                    $"Accept {name}'s {request.ItemKind.Replace('_', ' ')} request using household materials; payment is discussed after it is made.", PersonalToolRequestPriority, request.BuildingInstanceId));
+                candidates.Add(new(ToolRequestChoice("refuse", request.Id), $"Refuse {name}'s tool request without taking anything.", PersonalToolRequestPriority, request.BuildingInstanceId));
             }
             else if (request.Status == ToolMakingRequestStatus.Accepted && request.WorkerId == actor &&
                      inhabitants[actor].Project is { ToolMakingRequestId: { } id } project && id == request.Id &&
@@ -119,7 +121,7 @@ public sealed partial class PrivateWorldRuntime
             var local = IsWithinInteractionRange(inhabitants[actor].Position, building.Position, ResourceInteractionRange);
             candidates.Add(new(ToolRequestChoice(local ? "place" : "visit", building.InstanceId, recipe.CanonicalId), local
                 ? $"Ask this Blacksmith household to make a {recipe.Outputs[0].ResourceId.Replace('_', ' ')}. No payment or material changes hands now."
-                : $"Visit the known Blacksmith to ask about making a {recipe.Outputs[0].ResourceId.Replace('_', ' ')}.", 33, building.InstanceId));
+                : $"Visit the known Blacksmith to ask about making a {recipe.Outputs[0].ResourceId.Replace('_', ' ')}.", local ? PersonalToolRequestPriority : 33, building.InstanceId));
         }
     }
 

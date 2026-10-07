@@ -1,0 +1,1 @@
+- Paused world editing accepts coordinates across the whole map and updates their bounds when you change worlds.

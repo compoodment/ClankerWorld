@@ -356,7 +356,7 @@ public partial class Main
         agentProfilePanel.Hide();
     }
 
-    /// <summary>Whether a decision came from an agent's own model rather than Jev or the built-in rules.</summary>
+    /// <summary>Whether a decision came from an agent's own model rather than a routine helper or the built-in rules.</summary>
     private static bool IsModelProvider(string provider) => provider is "openai" or "ollama-cloud";
 
     /// <summary>A flat, short tab-style button that sits beside a section heading.</summary>
