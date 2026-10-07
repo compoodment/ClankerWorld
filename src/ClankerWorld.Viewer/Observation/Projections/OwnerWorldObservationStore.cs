@@ -1758,18 +1758,16 @@ public sealed partial class OwnerWorldObservationStore
 
     /// <summary>
     /// Whether an abandoned Town has stood empty for a full season (a quarter
-    /// of the world's year) since its latest abandonment. A Town whose
-    /// abandonment has dropped out of the kept event history has been empty
-    /// longer than that.
+    /// of the world's year) since its latest abandonment. The saved transition
+    /// tick survives event compaction; unknown age never implies a full season.
     /// </summary>
     internal static bool AbandonedForASeason(PrivateWorldRuntimeState state, string townId)
     {
         var config = state.WorldSystems?.Config ?? WorldSystemsConfig.Default;
         var season = (long)config.DaysPerYear * config.TicksPerDay / 4;
-        for (var index = state.Events.Count - 1; index >= 0; index--)
-            if (state.Events[index] is { Kind: "town_abandoned" } abandoned && abandoned.Detail == townId)
-                return state.Society.Society.WorldTick - abandoned.WorldTick >= season;
-        return true;
+        var town = state.Towns?.FirstOrDefault(item => item.Id == townId);
+        return town is { IsAbandoned: true, AbandonedSinceTick: { } abandoned } &&
+            state.Society.Society.WorldTick - abandoned >= season;
     }
 
     private static ViewerAnimal[] ProjectAnimals(PrivateWorldRuntimeState state)

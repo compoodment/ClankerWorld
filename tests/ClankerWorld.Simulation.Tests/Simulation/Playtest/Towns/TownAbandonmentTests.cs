@@ -112,11 +112,51 @@ public sealed partial class TownMembershipTests
         };
         Assert.False(OwnerWorldObservationStore.AbandonedForASeason(abandoned with { Society = Later(season - 1) }, First));
         Assert.True(OwnerWorldObservationStore.AbandonedForASeason(abandoned with { Society = Later(season) }, First));
-        // An abandonment that has dropped out of the kept event history happened longer ago than that.
-        Assert.True(OwnerWorldObservationStore.AbandonedForASeason(abandoned with
+        // Losing the event does not age the durable abandonment transition.
+        Assert.False(OwnerWorldObservationStore.AbandonedForASeason(abandoned with
         {
             Events = abandoned.Events.Where(item => item.Kind != "town_abandoned").ToArray()
         }, First));
+    }
+
+    [Fact]
+    public async Task RecentAbandonmentKeepsItsAgeAcrossCheckpointCompactionAndReload()
+    {
+        var actor = Founders[0];
+        var state = Calm(AtNaturalLifeBoundary(WithTowns(Generated("town-weathering-compaction"), [actor], []), actor));
+        using var world = Reopen(state, new ScriptedModel());
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        var abandoned = world.ExportState();
+        var tick = abandoned.Society.Society.WorldTick;
+        var next = abandoned.Events[^1].EventId + 1;
+        // Many events can be recorded without a season passing. Exercise the real
+        // checkpoint compactor, which bounds event counts rather than elapsed time.
+        var crowded = abandoned with
+        {
+            Events = abandoned.Events.Concat(Enumerable.Range(0, PrivateWorldHistory.CompactionThreshold + 1)
+                .Select(index => new PlaytestWorldEvent(next + index, tick, "owner_note", "paused"))).ToArray()
+        };
+        var directory = Directory.CreateTempSubdirectory("town-weathering-");
+        try
+        {
+            using var saved = Reopen(crowded, new ScriptedModel());
+            var file = new PrivateWorldStateFile(Path.Combine(directory.FullName, "world.json"));
+            Assert.True(file.Save(saved));
+            var compacted = saved.ExportState();
+            Assert.DoesNotContain(compacted.Events, item => item.Kind == "town_abandoned" && item.Detail == First);
+            Assert.False(new OwnerWorldObservationStore(saved).GetSnapshot().Towns.Single(town => town.Id == First).FallingApart);
+            using var restored = file.LoadOrCreate(crowded.WorldSeed);
+            Assert.False(new OwnerWorldObservationStore(restored).GetSnapshot().Towns.Single(town => town.Id == First).FallingApart);
+            var config = compacted.WorldSystems!.Config;
+            var season = (long)config.DaysPerYear * config.TicksPerDay / 4;
+            PrivateWorldRuntimeState Later(long elapsed) => compacted with
+            {
+                Society = compacted.Society with { Society = compacted.Society.Society with { WorldTick = tick + elapsed } }
+            };
+            Assert.False(OwnerWorldObservationStore.AbandonedForASeason(Later(season - 1), First));
+            Assert.True(OwnerWorldObservationStore.AbandonedForASeason(Later(season), First));
+        }
+        finally { directory.Delete(recursive: true); }
     }
 
     [Fact]
@@ -419,6 +459,9 @@ public sealed partial class TownMembershipTests
             await AdvanceUntil(world, () => world.Towns.Single(town => town.Id == destination).ResidentIds.Contains(actor), 8);
             Assert.Equal([actor], world.Towns.Single(town => town.Id == destination).Governance!.Members);
             Assert.Empty(world.Towns.Single(town => town.Id != destination).ResidentIds);
+            Assert.Null(world.Towns.Single(town => town.Id == destination).AbandonedSinceTick);
+            var transition = world.ExportState().Events.Last(item => item.Kind == "town_abandoned");
+            Assert.Equal(transition.WorldTick, world.Towns.Single(town => town.Id == transition.Detail).AbandonedSinceTick);
             AssertRoundTrip(world);
             state = world.ExportState();
         }
