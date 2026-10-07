@@ -114,6 +114,9 @@ public partial class ModelPicker : VBoxContainer
     public int BeginLoading(string fallbackModel)
     {
         defaultModel = fallbackModel;
+        // The previous provider's list can show an automatic default as typed.
+        // Only an owner choice makes that mode intentional for a new agent.
+        if (newAgent) typing = false;
         loading = true;
         listed = false;
         mustChoose = false;

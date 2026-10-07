@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Reflection;
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Playtest;
 
@@ -23,6 +24,13 @@ public sealed class RetainedCognitionCostTests
         await provider.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
         for (var tick = 0; tick < heldTicks; tick++)
             Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+        var original = provider.Requests.First().Observation.Candidates.Select(candidate => candidate.Id).ToHashSet(StringComparer.Ordinal);
+        var current = (List<CognitionCandidate>)typeof(PrivateWorldRuntime)
+            .GetMethod("CreateCandidates", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(world, [TargetId, world.Inhabitants.Single(person => person.InhabitantId == TargetId), true])!;
+        Assert.Contains(current, candidate => candidate.Id == "explore");
+        Assert.True(original.Except(current.Select(candidate => candidate.Id)).Any(),
+            "The held observation must actually lose an offered choice.");
         provider.Release.TrySetResult();
         await provider.Returned.Task.WaitAsync(TimeSpan.FromSeconds(5));
         var admitted = false;
@@ -69,7 +77,10 @@ public sealed class RetainedCognitionCostTests
                 Returned.TrySetResult();
             }
             var observation = request.Observation;
-            var selected = observation.Candidates.OrderBy(c => c.DeterministicPriority).ThenBy(c => c.Id, StringComparer.Ordinal)
+            // The selected action must survive the shrinking choice set. A peer
+            // taking the selected communal tool legitimately needs another call.
+            var selected = call == 1 ? observation.Candidates.Single(c => c.Id == "explore").Id :
+                observation.Candidates.OrderBy(c => c.DeterministicPriority).ThenBy(c => c.Id, StringComparer.Ordinal)
                 .First(c => c.Id != "safe_idle" && !c.Id.StartsWith("conversation", StringComparison.Ordinal)).Id;
             return new(request.RequestId, observation.InhabitantId, Kind, ProviderEpoch,
                 observation.RunEpoch, observation.DecisionGeneration, observation.ObservationDigest, selected, 1,

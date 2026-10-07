@@ -1,0 +1,1 @@
+- Children with generated identities can recall newly recorded talk, play and learning experiences after saving and reloading.

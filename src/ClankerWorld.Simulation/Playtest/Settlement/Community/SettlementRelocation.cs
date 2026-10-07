@@ -6,7 +6,8 @@ namespace ClankerWorld.Simulation.Playtest;
 
 /// <summary>
 /// A move-out notice for an adult of an overcrowded House. The deadline is a
-/// fixed world tick, so pausing stops it and nothing later restarts it; a
+/// fixed world tick, so pausing stops it. A late forced replacement gets a
+/// fresh day; a
 /// volunteer who takes another adult's place keeps that adult's deadline.
 /// </summary>
 public sealed record SettlementRelocation(string HouseholdId, long NoticeTick, long DeadlineTick, string Reason);
@@ -123,7 +124,8 @@ public sealed partial class PrivateWorldRuntime
         var selection = RelocationSelection(householdId);
         var chosen = (selection?.Chosen ?? []).ToDictionary(item => item.Id, item => item.Reason, StringComparer.Ordinal);
         // A changed care/family situation replaces a selected adult, not the
-        // overcrowding case. Keep each replaced notice's original deadline.
+        // overcrowding case. Inherit a future deadline; a late forced replacement
+        // receives a fresh day without restarting the other residents' notices.
         var replaced = new Queue<SettlementRelocation>(RelocationNotices(householdId)
             .Where(item => !chosen.ContainsKey(item.Id)).Select(item => item.Notice));
         foreach (var (id, notice) in RelocationNotices(householdId).ToArray())
@@ -143,6 +145,8 @@ public sealed partial class PrivateWorldRuntime
         {
             if (inhabitants[item.Id].Housing?.Relocation is not null) continue;
             var deadline = replaced.TryDequeue(out var prior) ? prior.DeadlineTick : checked(WorldTick + RelocationNoticeTicks);
+            if (item.Reason != HouseRelocationRules.Volunteer && deadline <= WorldTick)
+                deadline = checked(WorldTick + RelocationNoticeTicks);
             var noticeTick = deadline - RelocationNoticeTicks;
             SetRelocation(item.Id, new(householdId, noticeTick, deadline, item.Reason));
             AppendEvent("relocation_notice", $"{item.Id}|{householdId}|{item.Reason}|" +
