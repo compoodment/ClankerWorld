@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Text.Json.Nodes;
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Kernel;
@@ -722,6 +723,29 @@ public sealed class HouseholdDepartureTests
             Assert.DoesNotContain(collectionState.Inhabitants, person => person.InhabitantId == caregiver);
             var archived = Assert.Single(collectionState.DeceasedInhabitants!, person => person.InhabitantId == caregiver);
             Assert.Contains(archived.LastPhysical.Departures!, departure => departure.HouseholdId == Alpha && departure.CareGroup.Contains(child));
+            var departure = Assert.Single(archived.LastPhysical.Departures!);
+            foreach (var invalid in new[]
+                     {
+                         departure with { CareGroup = [child] },
+                         departure with { CareGroup = [caregiver, child, "unknown-child"] },
+                         departure with { CareGroup = [caregiver, child, child] },
+                         departure with { HouseholdId = "unknown-household" },
+                         departure with { Tick = archived.DeathTick + 1 },
+                     })
+            {
+                var corrupted = collectionState with
+                {
+                    DeceasedInhabitants = collectionState.DeceasedInhabitants!.Select(person => person.InhabitantId == caregiver
+                        ? person with { LastPhysical = person.LastPhysical with { Departures = [invalid] } } : person).ToArray(),
+                };
+                Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(corrupted));
+            }
+            var document = JsonNode.Parse(PrivateWorldRuntimeCodec.Encode(collectionState))!;
+            var savedCaregiver = document["state"]!["deceasedInhabitants"]!.AsArray()
+                .Single(person => person!["inhabitantId"]!.GetValue<string>() == caregiver)!;
+            savedCaregiver["lastPhysical"]!["departures"]![0]!["careGroup"] = new JsonArray(child);
+            Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Decode(
+                System.Text.Encoding.UTF8.GetBytes(document.ToJsonString())));
         }
         var collectionInventory = collectionState.Society.Society.Inventory;
         if (boundary == "reserved")

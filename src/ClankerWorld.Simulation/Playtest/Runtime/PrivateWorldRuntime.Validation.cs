@@ -1029,6 +1029,9 @@ public sealed partial class PrivateWorldRuntime
                 person.LastPhysical.GuardianPlacement is not null ||
                 person.TownId is { } townId && !townIds.Contains(townId))
                 throw new InvalidDataException("The deceased inhabitant archive contains an invalid final state.");
+            // Archived care-group departures now authorize personal collection.
+            // Validate them at death, before they can become a permission source.
+            ValidateDepartures([person.LastPhysical], society with { WorldTick = person.DeathTick }, schemaVersion);
             ValidatePrivateThoughts(person.LastPhysical.RecentThoughts, person.DeathTick);
             AgentIdentityMoment.Validate(person.LastPhysical.IdentityMoments, person.DeathTick, schemaVersion);
             ValidateSavedChildModelSelection(person.LastPhysical, society, schemaVersion);
