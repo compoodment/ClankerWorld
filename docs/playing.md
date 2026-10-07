@@ -694,6 +694,7 @@ by itself, and loading an older save does not lower it. It is not a currency
 budget or provider invoice. When the count reaches 80% of the limit, the Event
 Log warns you once. Reaching the limit pauses time: raise or remove the limit,
 or choose **Allow 100 more calls**, then resume separately.
+After you allow more calls and resume, time keeps running under your new limit.
 
 Type a limit and choose **Set limit** to apply it; leave the field blank to
 remove the limit. Refreshing the count preserves an unfinished edit even

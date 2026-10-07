@@ -202,7 +202,8 @@ It belongs to the world active when the host records it; switching worlds while
 it waits can change which world receives it. A changed limit sets a new 80%
 mark that only later calls can cross. Reaching the limit pauses
 the world until the limit is raised or more calls are allowed and the world is
-resumed. Per-world limits and cost estimates are not offered. The Windows
+resumed. After that, time keeps running under the new allowance, even if an
+earlier limit notice was delayed. Per-world limits and cost estimates are not offered. The Windows
 check is in [the playtest list](../playtest/670-model-call-limit-game-settings.md).
 
 The agent card's **Speak to them** box sends a message as a **Suggest** or an
