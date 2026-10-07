@@ -72,6 +72,7 @@ public static class GameUiText
             "working" => "Being built",
             "blocked" => "Work stopped",
             "paused" => "Work paused",
+            "travelling" => "Builder on the way",
             _ => "Waiting for materials",
         };
         var done = site.WorkRequired <= 0 ? 0 : Math.Clamp(site.WorkDone * 100 / site.WorkRequired, 0, 100);

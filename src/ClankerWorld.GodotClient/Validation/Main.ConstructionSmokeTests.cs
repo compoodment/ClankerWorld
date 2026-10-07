@@ -56,10 +56,14 @@ public partial class Main
         var hole = new StreetLanternSite(lantern, 1).Cells();
         var stub = new StreetLanternSite(lantern, 2).Cells();
         var whole = new StreetLanternSite(lantern, 3).Cells();
-        if (hole.Count == 0 || stub.Count == 0 || stub.Count >= whole.Count || !whole.SequenceEqual(fitting) ||
+        static float Area(IEnumerable<LightCell> cells) => cells.Sum(cell => cell.Area.Size.X * cell.Area.Size.Y);
+        if (hole.Count == 0 || stub.Count == 0 || !whole.SequenceEqual(fitting) || Area(stub) >= Area(whole) ||
             new[] { hole, stub, whole }.Any(cells => cells.Any(cell => cell.Kind != LightCellKind.Paint)) ||
-            stub.Any(cell => cell.Area.GetCenter().DistanceTo(lantern.Post) > 4.5f))
-            throw new InvalidOperationException("A lantern must go up as a hole, then its post, then its whole fitting, unlit until it is finished.");
+            stub.Any(piece => !fitting.Any(cell => cell.Area.Encloses(piece.Area) && cell.Color == piece.Color)))
+            throw new InvalidOperationException("A lantern must go up as a hole, then part of its fitting, then the whole fitting, unlit until it is finished.");
+        var stone = lantern with { Style = LanternStyle.Stone };
+        if (Area(new StreetLanternSite(stone, 2).Cells()) >= Area(new StreetLanternSite(stone, 3).Cells()))
+            throw new InvalidOperationException("A stone lamp's stub must be less than the finished pillar.");
         if (BuildingSprites.LanternSiteTexture(32, 1) is null || BuildingSprites.LanternSiteTexture(16, 2) is not { } logs ||
             logs.GetWidth() != 16 || BuildingSprites.LanternSiteTexture(32, 3) is not null)
             throw new InvalidOperationException("A lantern's materials must lie on its tile until the fitting stands.");

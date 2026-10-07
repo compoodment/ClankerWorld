@@ -87,10 +87,13 @@ public readonly record struct StreetLanternLight(Vector2I RoadTile, DoorSide Edg
 }
 
 /// <summary>
-/// A street lantern going up (October 7 art review): a dug hole at its post
-/// until a third of the work is done, then the post or pillar stub, then the
-/// whole fitting, unlit until the lamp is finished. Its materials lie on the
-/// lantern's own tile (<see cref="BuildingSprites.LanternSiteTexture"/>).
+/// A street lantern going up (October 7 art review): a dug hole at the foot
+/// of its fitting until a third of the work is done, then the post or pillar
+/// stub, then the whole fitting, unlit until the lamp is finished. As in the
+/// approved stages, the foot is three pixels above the bottom of the fitting
+/// and the stub is what lies within four and a half pixels of it. Its
+/// materials lie on the lantern's own tile
+/// (<see cref="BuildingSprites.LanternSiteTexture"/>).
 /// </summary>
 public readonly record struct StreetLanternSite(StreetLanternLight Lantern, int Stage)
 {
@@ -100,22 +103,30 @@ public readonly record struct StreetLanternSite(StreetLanternLight Lantern, int 
     /// <summary>The fitting's pixels shown at this stage, in 32 px units of its Road tile.</summary>
     public List<LightCell> Cells(int snap = 1)
     {
-        var post = Lantern.Post;
+        var fitting = NightLightShapes.StreetLantern(Lantern.Style, Lantern.Post, Lantern.Inward, 0, 0, 0, snap)
+            .Where(cell => cell.Kind == LightCellKind.Paint).ToList();
+        if (Stage >= 3 || fitting.Count == 0) return fitting;
+        var bounds = fitting.Skip(1).Aggregate(fitting[0].Area, (all, cell) => all.Merge(cell.Area));
+        var foot = new Vector2(bounds.Position.X + bounds.Size.X / 2f, bounds.End.Y - 3);
+        var cells = new List<LightCell>();
         if (Stage <= 1)
         {
-            var cells = new List<LightCell>();
             for (var y = -3; y <= 3; y++)
                 for (var x = -3; x <= 3; x++)
                     if (x * x + y * y <= 9)
-                        cells.Add(new(new Rect2(MathF.Floor(post.X) + x, MathF.Floor(post.Y) + y, 1, 1),
+                        cells.Add(new(new Rect2(MathF.Floor(foot.X) + x, MathF.Floor(foot.Y) + y, 1, 1),
                             x * x + y * y <= 4 ? Hole : DugEarth, 1, LightCellKind.Paint));
             return cells;
         }
-        var fitting = NightLightShapes.StreetLantern(Lantern.Style, post, Lantern.Inward, 0, 0, 0, snap)
-            .Where(cell => cell.Kind == LightCellKind.Paint);
-        return Stage == 2
-            ? fitting.Where(cell => cell.Area.GetCenter().DistanceTo(post) <= 4.5f).ToList()
-            : fitting.ToList();
+        // Each pixel (a snap-sized block at mid zoom) of the fitting near its foot.
+        foreach (var cell in fitting)
+            for (var y = cell.Area.Position.Y; y < cell.Area.End.Y - 0.001f; y += snap)
+                for (var x = cell.Area.Position.X; x < cell.Area.End.X - 0.001f; x += snap)
+                {
+                    var piece = new Rect2(x, y, Math.Min(snap, cell.Area.End.X - x), Math.Min(snap, cell.Area.End.Y - y));
+                    if (piece.GetCenter().DistanceTo(foot) <= 4.5f) cells.Add(cell with { Area = piece });
+                }
+        return cells;
     }
 }
 

@@ -75,6 +75,8 @@ public sealed class ConstructionSiteProjectionTests
     [InlineData("working", 7, "Being built · 70% done")]
     [InlineData("blocked", 3, "Work stopped · 30% done")]
     [InlineData("paused", 5, "Work paused · 50% done")]
+    [InlineData("travelling", 0, "Builder on the way · 0% done")]
+    [InlineData("gathering", 0, "Waiting for materials · 0% done")]
     public void SiteDescriptionSaysWhatTheWorkIsWaitingOnAndHowFarItHasGot(string stage, int done, string expected)
     {
         var site = new OwnerWorldConstructionSite("town:project", "house", "House", ["house"], new(0, 0), 1, 1, null,
