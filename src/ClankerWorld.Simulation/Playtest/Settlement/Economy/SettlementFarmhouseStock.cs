@@ -68,7 +68,7 @@ public sealed partial class PrivateWorldRuntime
             if (choice is not null)
                 return choice;
         }
-        return SiloGrainForFarmhouse(householdId, actor);
+        return SiloGrainForFarmhouse(householdId, actor, itemKind, destinationId);
 
         bool CanHaulToFarmStorage(FarmStockChoice choice)
         {
@@ -84,9 +84,11 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
-    private FarmStockChoice? SiloGrainForFarmhouse(string householdId, string actor)
+    private FarmStockChoice? SiloGrainForFarmhouse(string householdId, string actor, string? itemKind, string? destinationId)
     {
-        if (FarmhouseForHousehold(householdId) is not { } farmhouse ||
+        if (itemKind is not null && itemKind != FarmFieldRules.Grain ||
+            FarmhouseForHousehold(householdId) is not { } farmhouse ||
+            destinationId is not null && destinationId != farmhouse.InstanceId ||
             !inhabitants.TryGetValue(actor, out var person))
             return null;
         var inputTarget = worldContent.Recipes.Where(recipe =>
@@ -103,7 +105,7 @@ public sealed partial class PrivateWorldRuntime
         var missing = inputTarget - supplied - incoming;
         if (missing <= 0 || RemainingDeliveryRoom(inventory, farmhouse.InstanceId) <= 0)
             return null;
-        var silos = worldSimulation.Buildings.Where(building => building.HouseholdId == householdId &&
+        var silos = worldSimulation.Buildings.Where(building => building.HouseholdId == householdId && building.InstanceId != farmhouse.InstanceId &&
                 worldContent.Buildings.Any(definition => definition.CanonicalId == building.DefinitionId &&
                     definition.Tags.Contains("silo")))
             .Select(building => building.InstanceId).ToHashSet(StringComparer.Ordinal);

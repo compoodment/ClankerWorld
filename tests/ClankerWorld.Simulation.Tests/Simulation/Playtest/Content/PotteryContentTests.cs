@@ -638,10 +638,19 @@ public sealed class PotteryContentTests
             foreach (var input in setup.WorldContent.Recipes.Where(recipe => recipe.WorkstationBuildingId == definition.CanonicalId &&
                           !recipe.Tags.Contains("knowledge", StringComparer.Ordinal))
                           .SelectMany(recipe => recipe.Inputs).Where(item => item.ResourceId != InventoryContainerRules.FreshWater).GroupBy(item => item.ResourceId))
+            {
+                string? container = null;
+                if (input.Key == "milk")
+                {
+                    container = "supply-fixture-milk-jug:" + building.InstanceId;
+                    inventory = InventoryFixture.AddLot(inventory, container, InventoryContainerRules.WaterJug, householdId, 1,
+                        storageBuildingId: building.InstanceId);
+                }
                 inventory = InventoryFixture.AddLot(inventory,
                     $"supply-fixture-buffer:{building.InstanceId}:{input.Key}", input.Key, householdId,
                     input.Max(item => item.Amount) * 2, state.Society.Society.WorldTick,
-                    storageBuildingId: building.InstanceId);
+                    storageBuildingId: building.InstanceId, containerLotId: container);
+            }
         }
         inventory = InventoryFixture.AddLot(inventory, waterId, InventoryContainerRules.FreshWater,
             householdId, waterQuantity, state.Society.Society.WorldTick, containerLotId: jugId,

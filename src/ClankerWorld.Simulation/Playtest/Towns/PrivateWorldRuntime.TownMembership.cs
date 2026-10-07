@@ -40,7 +40,7 @@ public sealed partial class PrivateWorldRuntime
 
     /// <summary>One open request of one's own at a time, in any Town; a resident of another Town may ask to move.</summary>
     private bool MayRequestOwnAdmission(string actor, TownRuntimeState town) =>
-        AdultResident(actor) && TownForResident(actor) != town.Id && !HasPendingAdmission(actor) &&
+        !town.IsAbandoned && AdultResident(actor) && TownForResident(actor) != town.Id && !HasPendingAdmission(actor) &&
         ApprovedAdmission(town, actor) is null && !AdmissionRetryWaits(town, actor);
 
     /// <summary>A resident may ask the council to admit an unaffiliated adult; the adult must still accept.</summary>
@@ -384,7 +384,7 @@ public static class TownMembershipText
             _ => "sit and vote on its council",
         };
         var text = home is null
-            ? adult ? "Town: none · no council vote or Warehouse access; a Town council must approve admission at its notice place"
+            ? adult ? "Town: none · no council vote; seek admission or resettle an abandoned Town"
                 : "Town: none · follows their primary caregiver's Town"
             : !adult ? person.PrimaryCaregiverId is { } caregiver && home.ResidentIds.Contains(caregiver, StringComparer.Ordinal)
                 ? $"Town: resident of {home.Name} with their primary caregiver · council rights begin at adulthood"

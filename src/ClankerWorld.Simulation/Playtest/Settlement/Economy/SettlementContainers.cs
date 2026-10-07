@@ -61,6 +61,7 @@ public sealed partial class PrivateWorldRuntime
             var contents = ContainerContentsQuantity(inventory, carriedJug.Id);
             var shore = carriedJug.ConditionBasisPoints > 0 &&
                 contents < InventoryContainerRules.WaterJugCapacity &&
+                !inventory.Lots.Any(lot => lot.ContainerLotId == carriedJug.Id && lot.ItemKind != InventoryContainerRules.FreshWater) &&
                 FreeCarryCapacity(actor) > 0 &&
                 !HasActiveContainerReservation(inventory, carriedJug.Id)
                     ? FindFreshWaterShore(actor, person.Position)
@@ -217,6 +218,7 @@ public sealed partial class PrivateWorldRuntime
                 lot.ItemKind == InventoryContainerRules.WaterJug && lot.ContainerLotId is null &&
                 lot.ConditionBasisPoints > 0 &&
                 ContainerContentsQuantity(inventory, lot.Id) < InventoryContainerRules.WaterJugCapacity &&
+                !inventory.Lots.Any(content => content.ContainerLotId == lot.Id && content.ItemKind != InventoryContainerRules.FreshWater) &&
                 // Keep one place for the water fetched after this real pickup.
                 ContainerFamilyQuantity(inventory, lot.Id) < FreeCarryCapacity(actor) &&
                 !HasActiveContainerReservation(inventory, lot.Id) &&
@@ -267,7 +269,8 @@ public sealed partial class PrivateWorldRuntime
         var remaining = Math.Min(
             InventoryContainerRules.WaterJugCapacity - ContainerContentsQuantity(inventory, jug.Id),
             FreeCarryCapacity(actor));
-        if (remaining <= 0 || HasActiveContainerReservation(inventory, jug.Id))
+        if (remaining <= 0 || HasActiveContainerReservation(inventory, jug.Id) ||
+            inventory.Lots.Any(lot => lot.ContainerLotId == jug.Id && lot.ItemKind != InventoryContainerRules.FreshWater))
             return;
         ApplyInventoryTransition(current => InventoryFixture.AddLot(current,
             $"{jug.Id}#water:{WorldTick.ToString(CultureInfo.InvariantCulture)}",

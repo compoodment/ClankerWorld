@@ -2,7 +2,7 @@
 title: How the game works
 type: architecture
 status: active
-updated: 2026-10-05
+updated: 2026-10-07
 ---
 
 # How the game works
@@ -285,6 +285,10 @@ workstation inputs, spare House food, Town Warehouse surplus and Store stock.
 Their plans preserve the ordinary source, demand, reserve, capacity, access
 and route checks. A requested farm-storage destination filters legal choices
 before applying the default Farmhouse/Silo preference.
+The Silo replenishment fallback applies those same constraints: it supplies
+only grain to the household's Farmhouse, never a different requested item or
+stock already stored at the destination. An unavailable requested item leaves
+the order blocked without binding an unrelated shipment or earning progress.
 
 Town Warehouse donations retain four usable personally carried units of each
 resource kind across all eligible lots. Storage and collection splits do not
@@ -717,10 +721,11 @@ checks the first names of all other inhabitants with `HasChosenName`, living
 or deceased, under the same world gate that commits the rename. Keeping one's
 own first name is allowed. A taken first name returns `name_taken` from
 the signed owner endpoint; the client translates only that refusal into a
-name-specific explanation. The Profile's open name field then keeps the
-refused text through ordinary refreshes (`RefusedAgentRename`) until the
-player edits or closes it, renames successfully, or another agent or world is
-shown; its name labels always follow the host's snapshot. An unchanged chosen
+name-specific explanation. The Profile's open name field keeps unsubmitted
+edits through ordinary refreshes, regardless of keyboard focus. Submitted and
+refused attempts also stay in the field (`RefusedAgentRename`). Closing the
+editor, renaming successfully, or showing another agent or world drops the
+attempt; its name labels always follow the host's snapshot. An unchanged chosen
 name is a no-op; deliberately choosing the exact displayed placeholder makes
 it a chosen name and reserves its first token. No name check rewrites saved
 dialogue or identity references, and player choices still supersede late model
@@ -909,6 +914,13 @@ abandonment keep their spent allowance; only known token counts are added.
 Deterministic choices consume no attempt. Reaching the cap persists a pause;
 changing allowance and resuming are separate owner actions.
 
+The client keeps an edited limit separate from the displayed usage status
+until a limit action succeeds or the registration changes. Both Settings
+reads and automatic pause reads accept only the latest usage operation for
+the current registration. A successful limit action invalidates earlier
+reads; changing registration clears the old installation's usage status,
+accounting error and limit draft.
+
 The reservation that brings the total to 80% of the cap, rounded up
 (`ProviderUsageStore.WarningMark`), raises `WarningReached` once at that
 installation-wide crossing. No additional durable warning marker is saved:
@@ -1009,6 +1021,11 @@ row-major packed bytes, with separate layer digests. Signed cache claims omit
 unchanged map data only when world and digests match. Initial/changed maps and
 some control receipts still send the whole map. Viewport/chunk transfer remains
 unfinished.
+
+Main-map dragging requires a held middle mouse button. Opening the pause menu
+or losing application focus clears the drag. The client observes releases
+before GUI controls consume them and stops on motion without the middle-button
+mask, so a missed release cannot make ordinary hover pan the camera.
 
 The regional-weather prototype saves an episode for each 32×32 region. Ordinary
 episodes last one-quarter to one saved day; storms last at most three-quarters
@@ -1217,6 +1234,22 @@ grass, the darker patches with dots are groves, beige is sand, brown is dry
 scrub, grey is mountain and the warm band around it is hills. Dark dots are
 trees, red dots plants and grey dots stone. It is a generator-layer rendering, not a Godot
 screenshot or native playtest.
+
+## Building production inspection
+
+The owner snapshot derives `AvailableRecipes` from active content matched to
+its placed building's exact definition, including workstation-size variants.
+Crop recipes and the retired generic-food and bedding transformations are
+excluded from the workstation list. Each entry carries its registered name
+and input/output quantities, rather than a client-maintained recipe table.
+
+Production jobs project the same recipe facts and `HeldInputs` grouped from
+the job's own active inventory reservations. Completed or released
+reservations contribute nothing; building storage remains a separate view.
+Godot Details refreshes these facts even when work progress stays unchanged.
+Missing fields from an older host leave recipe facts unavailable rather than
+fabricating them. This projection changes neither world state nor agent
+knowledge and needs no save-schema change.
 
 ## Towns, building sites and death
 
@@ -1571,6 +1604,12 @@ fewer than three tiles past its nearest door carries on in its own direction
 where the land allows (`town_road_extended`). The border grows around all the
 new Road tiles.
 
+Street neighbours, headings, diagonal corners and clearance use the map's
+east-west wrap. A Road across the seam counts toward the distance to the last
+door, and a short dead end can carry on through that seam in its original
+direction. Rows do not wrap, building footprints still stay within map bounds,
+and bridge headings follow their saved axis and span.
+
 `TownLayoutService` captures one immutable layout context per decision and
 normally offers at most five legal sites with reasons for footprint, route,
 resources, purpose and compact growth. A model selects a site-specific candidate
@@ -1578,6 +1617,21 @@ or chooses another action; refusal starts no project. Accepted projects retain
 their tile. If it becomes illegal, the project blocks and retries after sixty
 ticks. An unchanged idle choice is reconsidered after 300 ticks, sooner if
 urgent needs or legal choices change. Weights and retry values are provisional.
+Material scoring searches at most five map tiles from a site, including the
+east-west seam; farther resources cannot change its rank. Recipe and expansion
+input checks share reachable-tool results only within one inhabitant's
+read-only candidate query. Later queries and actions check current stock and
+routes again; neither optimization adds saved state or a persistent cache.
+Purpose scoring filters related buildings once per context and keeps its
+distance, building-ID and tag tie rules. Border-growth scoring counts the same
+rounded footprint margin that actual placement adds, without sorting those
+tiles for every candidate.
+Continuing an idle intention skips a second full candidate query after the
+ordinary enqueue phase has reconsidered current choices. Orders, conversations,
+care and ongoing work keep their earlier continuation guards, and the ordinary
+idle action still runs its cleanup.
+See [construction query measurements](construction-query-measurements.md) for
+matched native timings, candidate/state equivalence and remaining limits.
 Building plans follow what a household needs, not a role. An adult whose
 household lacks a House, Farmhouse, Blacksmith, Silo, Tailor Shop, Clinic or Restaurant is offered ranked sites
 for it once the household has the build costs in hand: stock the household
@@ -1829,6 +1883,12 @@ Household workstation inputs must be present at the actual building; stock
 elsewhere in the household is not on-site stock. Missing inputs block the
 project under its existing retry rules, without granting another household's
 materials or implicitly transporting remote goods.
+
+Blacksmith input hauling checks the actor's current unoccupied pickup route
+and the source-to-shop route before selecting household or permitted Town
+Warehouse stock. An occupied earlier lot does not hide later reachable stock.
+The same selection is repeated when hauling or planning a supply order; exact
+lot/item targets, carrying limits and receiving-space checks still apply.
 
 If an unpaid household recipe remains blocked for 60 ticks and no household
 member has an actionable way to supply its missing ingredients, the runtime
@@ -2209,7 +2269,9 @@ Wild berries and greens replenish. Orchard fruit appears in autumn after a
 planted orchard matures. Harvesting fruit also produces a distinct orchard
 seed with a reserved planting unit. An adult carries that seed to legal free
 land and plants a sapling; tree growth, fruiting and the reserve survive reload.
-Ordinary wood-tree seeds remain distinct.
+The orchard planting choice requires carrying room to collect a shared seed.
+An already carried planting seed remains usable at full capacity. Ordinary
+wood-tree seeds remain distinct.
 
 Urgent food recovery first sets down ordinary spare cargo. If that cannot free
 enough carrying room, it may also select the actor's own orchard propagation
@@ -2708,6 +2770,17 @@ targets and signed creation remain the only way through that screen. The
 redirect neither replaces the checkpoint nor removes its catalog entry, and
 founders or authored progress prevent it.
 
+New World preview refreshes wait for both an existing preview and a pending
+owner action to finish. Menu visibility, observation generation and preview
+revision still fence the waiting work, so only the current options are
+requested and closing or switching screens discards the old refresh.
+
+Continue also belongs to the current Main Menu navigation. Opening Settings,
+New World or Load World, returning to Main Menu, or starting another Continue
+expires the earlier entry attempt. Its late refresh can update observations,
+but cannot enter play or resume time behind another menu. A fresh Continue
+after returning still enters normally.
+
 The manual Save World and Load Save dialog owns one list read per opening.
 Closing it, creating, overwriting or deleting a save, or starting another opening
 cancels the previous read. Late success and failure replies cannot replace current rows,
@@ -2741,3 +2814,49 @@ invalidates the read and disables Apply. Late replies and failures cannot
 replace a newer opening's controls. A reply must name the observed world
 before Apply becomes available, and Apply checks that context again before
 sending the displayed interval and rotation.
+
+## Animals and horse travel
+
+The built-in animal package adds a household animal yard and the egg, milk, wool,
+leather, leather-sack and saddle recipes to their actual House, Restaurant and
+Tailor stations, including larger Restaurant and Tailor variants. Generated
+worlds seed small wild groups near public forage and fresh water. Each animal
+has an authoritative identity and location; it never draws from private crops
+or household stock while wild.
+
+Adults tame, care, collect, supply, lead, saddle, mount and dismount through
+ordinary revalidated choices. Native orders bind an exact animal name or ID.
+Care spends actual unreserved grain/greens and jug water at the animal or yard;
+food, planting and workstation reserves stay protected. Physical supply trips
+retain the owning household. One held product batch waits for local collection;
+milk enters a reusable household jug. Products then use ordinary stock hauling,
+recipes and trade.
+
+Cared adult pairs breed automatically when their yard has a place and delivered
+supplies cover existing animals and the offspring. Pregnancy reserves one place;
+young animals and reservations count toward eight per household or wild herd.
+Missed care pauses progress. Only old age kills animals; an owned sheep, cow or
+horse leaves one household hide at its actual death position. Untamed animals
+leave one hide bound to their remains until a nearby adult collects it; this
+does not grant access to household-owned hides. Abandonment does
+not turn private animals into public salvage.
+
+Animal gifts, sales and named outsider permissions need fresh, admitted personal
+model choices. Built-in fallback and forced orders cannot give personal consent.
+Receiving space and the exact payment lot are checked again on acceptance;
+transfer clears old permissions and preserves position for physical leading.
+
+A cared adult horse has one real reserved saddle and one adult rider. Movement
+uses the normal legal route and occupancy rules, halves walking cost and admits
+at most two legal steps per tick. A mount adds eight cargo units. Care or
+permission loss ends riding; dismount puts unreserved excess cargo at the actual
+position without changing its owner. Cart attachments and boat travel exclude
+ridden or led animals. Godot projects and draws the authoritative animal state
+with young/adult headings, mounted horses, yard art, inspection and event text.
+
+Milk stock travels as an actual household jug to a held Store or borrowed Market
+stall, with a stock receipt at a stall. Fresh seller and buyer personal choices
+exchange one held portion into the buyer's real carried jug for the named
+personal payment. Both jug owners stay the same. Expiry, refusal and changed
+custody release held milk; spoiled milk can be emptied locally without removing
+the vessel or its fresh contents.

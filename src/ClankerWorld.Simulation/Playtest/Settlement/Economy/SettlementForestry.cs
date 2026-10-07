@@ -30,7 +30,8 @@ public sealed partial class PrivateWorldRuntime
         PlaytestInhabitantState state)
     {
         if ((CarriedPlantingSeed(actor, TreeGrowthRules.OrchardSeedItem) is not null ||
-             SharedItem(TreeGrowthRules.OrchardSeedItem, actor) is not null) && PlantingSite(actor, state.Position) is not null)
+             FreeCarryCapacity(actor) > 0 && SharedItem(TreeGrowthRules.OrchardSeedItem, actor) is not null) &&
+            PlantingSite(actor, state.Position) is not null)
             candidates.Add(new CognitionCandidate("plant_orchard", "Plant an orchard seed on open ground.", 31));
         if (!HasCarriedOwnItem(actor, TreeGrowthRules.TreeSeedItem) &&
             SharedItem(TreeGrowthRules.TreeSeedItem, actor) is null)

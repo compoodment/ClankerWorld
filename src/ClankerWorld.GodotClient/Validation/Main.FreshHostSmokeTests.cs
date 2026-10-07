@@ -7,6 +7,127 @@ namespace ClankerWorld.GodotClient;
 
 public partial class Main
 {
+    private async Task VerifyPairingRecoveryMenuAsync()
+    {
+        var previousRegistration = registration;
+        var previousKey = deviceKey;
+        var previousUrl = worldUrlInput.Text;
+        var previousObservation = observationSession.Current;
+        var previousPendingPairing = pendingPairing;
+        var previousPairingOrigin = pendingPairingOrigin;
+        var previousInWorld = isInWorld;
+        var previousResume = resumeWorldOnContinue;
+        var registrationPath = ProjectSettings.GlobalizePath("user://owner-device-registration.json");
+        var previousRegistrationFile = File.Exists(registrationPath) ? File.ReadAllBytes(registrationPath) : null;
+        var previousCi = System.Environment.GetEnvironmentVariable("CI");
+        System.Environment.SetEnvironmentVariable("CI", "true");
+        using var signer = OwnerDeviceKey.CreateEphemeralForContinuousIntegration();
+        using var host = new WorldActionSmokeHost(signer.PublicKeySpkiBase64);
+        var expiry = DateTimeOffset.UtcNow.AddMinutes(1);
+        host.PairingStart = new(host.Authority, "menu-pairing", "smoke-device", "fixture-code",
+            signer.PublicKeyFingerprint, expiry, OwnerPairingProtocol.CreatePairingActivationCanonicalProof(
+                host.Authority, "menu-pairing", "smoke-device", signer.PublicKeyFingerprint));
+        var approved = new OwnerPairingStatus(host.Authority, "menu-pairing", "smoke-device",
+            signer.PublicKeyFingerprint, OwnerPairingState.Approved, expiry);
+        host.Reconnect = new(new(new(1, 1),
+            ["owner-observation.read.v1", "inhabitant-inspection.read.v1", "spatial-knowledge.read.v1",
+             "owner-control.request.v1", "paused-authoring.request.v1"], []),
+            new(new("paired-world", 0, "paired-map", [new(0, 0, "meadow")], [], [], null, 0), new(0, 0, [])));
+        int Requests(string path) => host.Requests.Count(request => request == path);
+        void AssertMenu()
+        {
+            if (registrationStore.TryLoad(signer.PublicKeyFingerprint) != registration || registration is null ||
+                pendingPairing is not null || pendingPairingOrigin is not null || isInWorld ||
+                !mainMenuOverlay.Visible || !mainMenuCard.IsVisibleInTree() || !mainMenuLogo.IsVisibleInTree() ||
+                !mainMenuContinueButton.IsVisibleInTree() || mainMenuContinueButton.Disabled ||
+                !mainMenuSettingsButton.IsVisibleInTree() || !quitGameButton.IsVisibleInTree() ||
+                gameMenuPanel.Visible || pairingPanel.Visible)
+                throw new InvalidOperationException("Successful pairing recovery must save registration and restore the Main Menu card, logo and usable Continue, Settings and Quit controls.");
+        }
+        try
+        {
+            deviceKey = signer;
+            worldUrlInput.Text = host.Address;
+            resumeWorldOnContinue = false;
+            foreach (var loseReply in new[] { true, false })
+            {
+                registration = null;
+                pendingPairing = null;
+                registrationStore.Forget();
+                observationSession.ResetAfterLoad();
+                host.PairingStatus = approved;
+                host.LoseActivationReply = loseReply;
+                ShowMainMenu();
+                await OpenMainMenuConnectionAsync();
+                var reconnects = Requests(OwnerPairingEndpoints.OwnerReconnect);
+                await PollPairingAsync();
+                if (loseReply)
+                {
+                    if (registration is not null || pendingPairing is null || !gameMenuPanel.Visible)
+                        throw new InvalidOperationException("A lost activation reply must leave the pairing available for recovery.");
+                    await PollPairingAsync();
+                }
+                AssertMenu();
+                if (Requests(OwnerPairingEndpoints.OwnerReconnect) != reconnects)
+                    throw new InvalidOperationException("Pairing must wait for Continue before requesting the world, including after recovery.");
+                mainMenuSettingsButton.EmitSignal(BaseButton.SignalName.Pressed);
+                menuCloseButton.EmitSignal(BaseButton.SignalName.Pressed);
+                AssertMenu();
+                // The same entry method used by Continue must perform a signed refresh and enter the world.
+                await EnterWorldAsync();
+                if (!isInWorld || mainMenuOverlay.Visible ||
+                    observationSession.Current?.Baseline.Snapshot.WorldId != "paired-world" ||
+                    Requests(OwnerPairingEndpoints.OwnerReconnect) != reconnects + 1)
+                    throw new InvalidOperationException("Continue after pairing must enter the recovered world through signed HTTP.");
+            }
+
+            foreach (var mismatched in new[]
+            {
+                approved with { Authority = new("different-host", host.Authority.WorldId), State = OwnerPairingState.Active },
+                approved with { DeviceId = "different-device", State = OwnerPairingState.Active },
+                approved with { PublicKeyFingerprint = "different-key", State = OwnerPairingState.Active },
+            })
+            {
+                registration = null;
+                registrationStore.Forget();
+                ShowMainMenu();
+                await OpenMainMenuConnectionAsync();
+                host.PairingStatus = mismatched;
+                var activations = Requests(OwnerPairingEndpoints.PairingActivation);
+                await PollPairingAsync();
+                if (registration is not null || registrationStore.TryLoad(signer.PublicKeyFingerprint) is not null ||
+                    pendingPairing is not null || !gameMenuPanel.Visible ||
+                    Requests(OwnerPairingEndpoints.PairingActivation) != activations)
+                    throw new InvalidOperationException("A mismatched active pairing must not save a registration or dismiss the connection screen.");
+            }
+            // Drain the normal two-frame pairing-panel reveal before restoring the surrounding fixture.
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        }
+        finally
+        {
+            pendingPairing = previousPendingPairing;
+            pendingPairingOrigin = previousPairingOrigin;
+            registration = previousRegistration;
+            if (previousRegistrationFile is null) registrationStore.Forget();
+            else File.WriteAllBytes(registrationPath, previousRegistrationFile);
+            deviceKey = previousKey;
+            worldUrlInput.Text = previousUrl;
+            observationSession.ResetAfterLoad();
+            if (previousObservation is not null)
+                observationSession.TryAccept(previousObservation, previousObservation.Baseline.Events.AfterEventId, out _);
+            pairingPanel.Hide();
+            settingsPanel.Hide();
+            CloseGameMenu();
+            ShowMainMenu();
+            isInWorld = previousInWorld;
+            resumeWorldOnContinue = previousResume;
+            System.Environment.SetEnvironmentVariable("CI", previousCi);
+            RefreshControlAvailability();
+            statusToast.Hide();
+        }
+    }
+
     /// <summary>Entering an untouched host starts the normal creation flow without exposing or resuming its old camp.</summary>
     private async Task VerifyFreshHostEntryAsync()
     {
@@ -151,6 +272,128 @@ public partial class Main
                 observationSession.TryAccept(previousObservation, previousObservation.Baseline.Events.AfterEventId, out _);
             isInWorld = previousInWorld;
             resumeWorldOnContinue = previousResume;
+            mainMenuOverlay.Visible = previousMenuVisible;
+            System.Environment.SetEnvironmentVariable("CI", previousCi);
+            RefreshControlAvailability();
+            RefreshMainMenuAvailability();
+            statusToast.Hide();
+        }
+    }
+
+    /// <summary>Late Continue replies cannot resume a world after menu navigation.</summary>
+    private async Task VerifyContinueSettingsNavigationAsync()
+    {
+        var previousRegistration = registration;
+        var previousKey = deviceKey;
+        var previousUrl = worldUrlInput.Text;
+        var previousObservation = observationSession.Current;
+        var previousInWorld = isInWorld;
+        var previousResume = resumeWorldOnContinue;
+        var previousMenuVisible = mainMenuOverlay.Visible;
+        var previousReturnToMainMenu = returnToMainMenu;
+        var previousCi = System.Environment.GetEnvironmentVariable("CI");
+        System.Environment.SetEnvironmentVariable("CI", "true");
+        using var signer = OwnerDeviceKey.CreateEphemeralForContinuousIntegration();
+        using var host = new WorldActionSmokeHost(signer.PublicKeySpkiBase64);
+        host.ReleasePause.TrySetResult();
+        var handshake = new OwnerWorldHandshake(new(1, 1),
+            ["owner-observation.read.v1", "inhabitant-inspection.read.v1", "spatial-knowledge.read.v1",
+             "owner-control.request.v1", "paused-authoring.request.v1"], []);
+        var snapshot = new OwnerWorldSnapshot("continue-probe", 0, "continue-map", [new(0, 0, "meadow")],
+            [], [], null, 0)
+        {
+            FounderSetup = new(4, 4, true),
+            Authoring = new(true, 0, 0, 0, "continue-map", "continue-map", "clear", "spring", []),
+        };
+        host.Reconnect = new(handshake, new(snapshot, new(0, snapshot.WorldTick, [])));
+        int Requests(string path) => host.Requests.Count(p => p == path);
+        void Log(string stage) => GD.Print($"Continue navigation smoke {stage}: title={mainMenuOverlay.Visible && mainMenuCard.Visible}; settings={gameMenuPanel.Visible}; inWorld={isInWorld}; returnToMainMenu={returnToMainMenu}; hostPaused={host.HostPaused}; pauses={host.PauseCount}; resumes={Requests(OwnerPairingEndpoints.OwnerResume)}");
+        try
+        {
+            registration = new(host.Authority, "smoke-device", signer.PublicKeyFingerprint, host.Address);
+            deviceKey = signer;
+            worldUrlInput.Text = host.Address;
+            observationSession.ResetAfterLoad();
+            ShowMainMenu();
+            worldMenuOverlay.Hide();
+            resumeWorldOnContinue = true;
+            await SetPausedAsync(paused: true);
+            mainMenuSettingsButton.EmitSignal(BaseButton.SignalName.Pressed);
+            menuCloseButton.EmitSignal(BaseButton.SignalName.Pressed);
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            Log("settings-only-control");
+            if (!mainMenuCard.Visible || isInWorld || !host.HostPaused)
+                throw new InvalidOperationException("Settings-only control failed.");
+
+            host.ReleaseReconnect = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            host.ReconnectReceived = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            var enter = EnterWorldAsync();
+            await host.ReconnectReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Log($"waiting ContinueDisabled={mainMenuContinueButton.Disabled} SettingsDisabled={mainMenuSettingsButton.Disabled}");
+            host.ReleaseReconnect.TrySetResult();
+            await enter;
+            Log("continue-only-control");
+            if (!isInWorld || host.HostPaused || mainMenuOverlay.Visible)
+                throw new InvalidOperationException("Ordinary Continue control failed.");
+
+            await SetPausedAsync(paused: true);
+            ShowMainMenu();
+            resumeWorldOnContinue = true;
+            host.ReleaseReconnect = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            host.ReconnectReceived = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            enter = EnterWorldAsync();
+            await host.ReconnectReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            mainMenuSettingsButton.EmitSignal(BaseButton.SignalName.Pressed);
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            Log("settings-during-continue");
+            host.ReleaseReconnect.TrySetResult();
+            await enter;
+            Log("late-continue");
+            if (isInWorld || !gameMenuPanel.Visible || !host.HostPaused ||
+                Requests(OwnerPairingEndpoints.OwnerResume) != 1)
+                throw new InvalidOperationException("A Continue completed behind Settings must retain the confirmed pause.");
+            var pausesBeforeBack = host.PauseCount;
+            menuCloseButton.EmitSignal(BaseButton.SignalName.Pressed);
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            Log($"settings-back additionalPauses={host.PauseCount - pausesBeforeBack}");
+            if (isInWorld || !mainMenuCard.Visible || !mainMenuOverlay.Visible || !host.HostPaused ||
+                mainMenuContinueButton.Disabled || Requests(OwnerPairingEndpoints.OwnerResume) != 1)
+                throw new InvalidOperationException("Settings Back must return to a usable paused Main Menu.");
+
+            // Leaving Settings before the reply arrives must expire the old Continue too.
+            host.ReleaseReconnect = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            host.ReconnectReceived = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            enter = EnterWorldAsync();
+            await host.ReconnectReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            mainMenuSettingsButton.EmitSignal(BaseButton.SignalName.Pressed);
+            menuCloseButton.EmitSignal(BaseButton.SignalName.Pressed);
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            host.ReleaseReconnect.TrySetResult();
+            await enter;
+            if (isInWorld || !mainMenuOverlay.Visible || !mainMenuCard.Visible || !host.HostPaused ||
+                Requests(OwnerPairingEndpoints.OwnerResume) != 1)
+                throw new InvalidOperationException("Settings Back cannot reactivate a Continue from before navigation.");
+
+            // A fresh Continue after Back still enters and resumes exactly once.
+            await EnterWorldAsync();
+            if (!isInWorld || mainMenuOverlay.Visible || host.HostPaused ||
+                Requests(OwnerPairingEndpoints.OwnerResume) != 2)
+                throw new InvalidOperationException("A fresh Continue after Settings Back must resume normally.");
+        }
+        finally
+        {
+            host.ReleaseReconnect?.TrySetResult();
+            CloseGameMenu();
+            registration = previousRegistration;
+            deviceKey = previousKey;
+            worldUrlInput.Text = previousUrl;
+            observationSession.ResetAfterLoad();
+            if (previousObservation is not null)
+                observationSession.TryAccept(previousObservation, previousObservation.Baseline.Events.AfterEventId, out _);
+            isInWorld = previousInWorld;
+            resumeWorldOnContinue = previousResume;
+            returnToMainMenu = previousReturnToMainMenu;
             mainMenuOverlay.Visible = previousMenuVisible;
             System.Environment.SetEnvironmentVariable("CI", previousCi);
             RefreshControlAvailability();
