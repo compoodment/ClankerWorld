@@ -1742,7 +1742,10 @@ public static partial class SocietyFixture
                 checked(current.Inventory.EventHistoryFloor + inventoryEvents.Count + 1L),
                 targetTick,
                 "estate_settled",
-                estate.Id));
+                estate.Id)
+            {
+                StorageChanges = InventoryStorageHistory.Changes(current.Inventory.Lots, nextLots),
+            });
             current = current with
             {
                 WorldTick = targetTick,

@@ -181,6 +181,8 @@ public sealed partial class PrivateWorldRuntime
                     foreach (var lot in MarketTradeRules.StockAt(market, stall.BuildingId, position, inventory)
                                  .Where(lot => (MarketTradeRules.IsLoose(lot) || lot.ItemKind == InventoryContainerRules.WaterJug &&
                                          VesselFits(lot, FreeCarryCapacity(actor)) && !HasActiveContainerReservation(inventory, lot.Id)) && OwnMarketGoods(actor, lot) &&
+                                     (lot.OwnerId == actor || occupancy is null || occupancy.SellerHouseholdId != lot.OwnerId ||
+                                         occupancy.SellerAgentId == actor) &&
                                      AvailableLotQuantity(lot) > 0 && CanCarryMarketGoods(actor, lot)))
                     {
                         var quantity = Math.Min(MarketTradeRules.LoadQuantity, Math.Min(AvailableLotQuantity(lot), FreeCarryCapacity(actor)));
@@ -253,8 +255,11 @@ public sealed partial class PrivateWorldRuntime
 
     private void AddMarketCandidates(List<CognitionCandidate> candidates, string actor)
     {
+        var urgentFood = NeedsUrgentFood(inhabitants[actor]);
         // Trade answers and leaving come first, so the limit never hides them behind stock choices.
-        foreach (var choice in MarketChoices(actor).OrderBy(item => item.Kind is "continue" or "cancel" or "leave" ? 0 : 1)
+        foreach (var choice in MarketChoices(actor)
+                     .Where(item => !urgentFood || item.Kind == "collect" && IsEdibleFood(item.Lot!.ItemKind))
+                     .OrderBy(item => item.Kind is "continue" or "cancel" or "leave" ? 0 : 1)
                      .Take(MarketCandidateLimit))
         {
             var offer = choice.Trade is { } trade ? society.Checkpoint.Inventory.GetOffer(trade.OfferId) : null;

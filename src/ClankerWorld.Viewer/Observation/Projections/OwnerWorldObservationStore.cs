@@ -442,6 +442,7 @@ public sealed partial class OwnerWorldObservationStore
         var fertility = new LandFertility(map, state.WorldSeed);
         var ecology = state.WorldSystems?.Ecology.Resources.ToDictionary(resource => resource.Id, StringComparer.Ordinal);
         var buildingDefinitions = state.WorldContent?.Buildings.ToDictionary(building => building.CanonicalId, StringComparer.Ordinal);
+        var storageChanges = RecentBuildingStorageChanges(state.Society.Society.Inventory);
         var productionRecipes = state.WorldContent?.Recipes.ToDictionary(recipe => recipe.CanonicalId,
             ProjectProductionRecipe, StringComparer.Ordinal);
         var recipesByBuilding = state.WorldContent?.Recipes
@@ -704,6 +705,7 @@ public sealed partial class OwnerWorldObservationStore
                     item.BorderTiles.OrderBy(point => point.Y).ThenBy(point => point.X)
                         .Select(ToPosition).ToArray())
                 {
+                    FallingApart = item.IsAbandoned && AbandonedForASeason(state, item.Id),
                     LandHearings = ProjectLandHearings(state, item),
                     LandHearingCount = item.LandHearings?.Cases.Count ?? 0,
                     NonviolentCases = ProjectNonviolentCases(state, item),
@@ -924,6 +926,7 @@ public sealed partial class OwnerWorldObservationStore
                         Trades = BusinessTradesAt(state, item.InstanceId),
                         ToolMakingRequests = ToolMakingRequestsAt(state, item.InstanceId),
                         AllowsHouseholdOwner = definition?.Tags.Any(HouseholdBuildingKinds.IsKindTag) == true,
+                        RecentStorageChanges = storageChanges.GetValueOrDefault(item.InstanceId) ?? [],
                         AvailableRecipes = recipesByBuilding?[item.DefinitionId]
                             .OrderBy(recipe => recipe.Name, StringComparer.Ordinal).ThenBy(recipe => recipe.Id, StringComparer.Ordinal).ToArray(),
                     };
@@ -1753,6 +1756,20 @@ public sealed partial class OwnerWorldObservationStore
             }).ToArray();
     }
 
+    /// <summary>
+    /// Whether an abandoned Town has stood empty for a full season (a quarter
+    /// of the world's year) since its latest abandonment. The saved transition
+    /// tick survives event compaction; unknown age never implies a full season.
+    /// </summary>
+    internal static bool AbandonedForASeason(PrivateWorldRuntimeState state, string townId)
+    {
+        var config = state.WorldSystems?.Config ?? WorldSystemsConfig.Default;
+        var season = (long)config.DaysPerYear * config.TicksPerDay / 4;
+        var town = state.Towns?.FirstOrDefault(item => item.Id == townId);
+        return town is { IsAbandoned: true, AbandonedSinceTick: { } abandoned } &&
+            state.Society.Society.WorldTick - abandoned >= season;
+    }
+
     private static ViewerAnimal[] ProjectAnimals(PrivateWorldRuntimeState state)
     {
         var tick = state.Society.Society.WorldTick;
@@ -1766,7 +1783,23 @@ public sealed partial class OwnerWorldObservationStore
             animal.ReadyProductLotId is null ? 0 : AnimalRules.Definition(animal.Species).ProductQuantity,
             animal.Pregnancy is null ? null : Math.Round(AnimalRules.Definition(animal.Species).GestationDays - animal.Pregnancy.ProgressTicks / (double)day, 1),
             animal.RiderId, animal.RiderId is null ? null : Name(animal.RiderId), animal.LeaderId, animal.SaddleLotId is not null,
-            animal.CarePermissions.Select(Name).ToArray(), animal.RidingPermissions.Select(Name).ToArray())).ToArray();
+            animal.CarePermissions.Select(Name).ToArray(), animal.RidingPermissions.Select(Name).ToArray(),
+            ProductProgressPercent(animal, tick, day))).ToArray();
+    }
+
+    /// <summary>
+    /// How far an owned, grown producer is through its current product cycle,
+    /// 100 while its product waits to be collected; null when it makes nothing
+    /// yet: a wild, young or dead animal, a male where only females produce,
+    /// or a horse.
+    /// </summary>
+    private static int? ProductProgressPercent(AnimalState animal, long tick, int day)
+    {
+        var definition = AnimalRules.Definition(animal.Species);
+        if (animal.DiedTick is not null || animal.HouseholdId is null || !AnimalRules.HasProduct(animal) ||
+            !AnimalRules.IsAdult(animal, tick, day) || definition.ProductDays <= 0) return null;
+        if (animal.ReadyProductLotId is not null) return 100;
+        return (int)Math.Min(99, animal.ProductProgressTicks * 100L / ((long)definition.ProductDays * day));
     }
 
     private static ViewerInventoryEntry[] InventoryFor(

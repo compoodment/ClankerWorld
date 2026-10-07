@@ -106,6 +106,8 @@ public sealed partial class SettlementParenthoodTests
                 Assert.True((await world.AdvanceOneTickAsync()).Advanced);
             var postponed = world.Inhabitants.Single(person => person.InhabitantId == initiator).Parenthood!;
             Assert.Equal("postponed", postponed.Stage);
+            Assert.Contains("Parenthood put off for now.", new OwnerWorldObservationStore(world).GetSnapshot().Inhabitants
+                .Single(person => person.Id == initiator).SocialNotes);
             Assert.Equal(acceptor, postponed.PrimaryCaregiverId);
             Assert.Equal(acceptorHome, postponed.IntendedHouseholdId);
             Assert.Contains(putOff.SeenCandidates, candidate => candidate.Id == "parent_postpone:" + initiator);
