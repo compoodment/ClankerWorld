@@ -183,9 +183,9 @@ public sealed partial class PrivateWorldRuntime
                                          VesselFits(lot, FreeCarryCapacity(actor)) && !HasActiveContainerReservation(inventory, lot.Id)) && OwnMarketGoods(actor, lot) &&
                                      (lot.OwnerId == actor || occupancy is null || occupancy.SellerHouseholdId != lot.OwnerId ||
                                          occupancy.SellerAgentId == actor) &&
-                                     AvailableLotQuantity(lot) > 0 && CanCarryMarketGoods(actor, lot)))
+                                     PhysicalUnreservedQuantity(lot) > 0 && CanCarryMarketGoods(actor, lot)))
                     {
-                        var quantity = Math.Min(MarketTradeRules.LoadQuantity, Math.Min(AvailableLotQuantity(lot), FreeCarryCapacity(actor)));
+                        var quantity = Math.Min(MarketTradeRules.LoadQuantity, Math.Min(PhysicalUnreservedQuantity(lot), FreeCarryCapacity(actor)));
                         if (quantity > 0 && CanReachMarketPoint(actor, position, ResourceInteractionRange))
                             yield return new(MarketChoiceId("collect", market.Id, stall.BuildingId, lot.Id,
                                 quantity.ToString(CultureInfo.InvariantCulture), MarketPlaceMode(actor, position, ResourceInteractionRange)),
@@ -258,7 +258,8 @@ public sealed partial class PrivateWorldRuntime
         var urgentFood = NeedsUrgentFood(inhabitants[actor]);
         // Trade answers and leaving come first, so the limit never hides them behind stock choices.
         foreach (var choice in MarketChoices(actor)
-                     .Where(item => !urgentFood || item.Kind == "collect" && IsEdibleFood(item.Lot!.ItemKind))
+                     .Where(item => !urgentFood || item.Kind == "collect" && IsEdibleFood(item.Lot!.ItemKind) &&
+                         AvailableLotQuantity(item.Lot) > 0)
                      .OrderBy(item => item.Kind is "continue" or "cancel" or "leave" ? 0 : 1)
                      .Take(MarketCandidateLimit))
         {

@@ -480,7 +480,8 @@ Adults and elders prepare real supplies, walk to their household's Blacksmith
 and repair their own carried tools. Only finished repairs count; pickup,
 gathering and travel earn no progress. Worn wooden, stone and iron axes and
 pickaxes, wooden and iron hoes and sickles, wooden and stone hammers, and iron
-knives are supported. Fully broken tools need replacement. Borrowed, reserved,
+knives are supported. Fully broken tools need replacement in both ordinary
+repair and owner orders. Borrowed, reserved,
 stored and promised tools are unavailable to these personal orders. The agent
 may put spare cargo in household storage to make room for supplies, preserving
 all matching worn personal tools and any tools needed to gather materials.
@@ -1004,7 +1005,8 @@ purchase; payment becomes the seller's household stock at the stall, including
 when the purchase was the seller's personal property. Buying gives no access
 to private stores or household membership. Leaving frees the stall and cancels
 unfinished exchanges. Its next borrower cannot sell the previous seller's
-leftovers; the recorded owner can return to collect them. An urgently hungry
+leftovers; the recorded owner can return to collect them, including spoiled
+stock that still takes up stall space. An urgently hungry
 adult can retrieve their personally owned food; unrelated Market work still
 waits. Household goods a
 member carries to or from the Market can be brought back into the household's
