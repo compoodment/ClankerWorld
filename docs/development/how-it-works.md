@@ -2002,7 +2002,12 @@ the household hauling, farm stock and planting routines skip stock on a stall
 while a member of that household borrows it. Usable loose surplus (the food
 reserve counts the owner's other usable stock of that kind), actual
 carrying and stall room, active claims, current household rights and protected
-equipment constrain the offered choices. The provisional one-for-one quote is
+equipment constrain the offered choices. During urgent hunger, Market candidates
+include only collection of edible food the adult may legally retrieve. This
+filter runs before the candidate limit; normal Market choices retain their
+existing order. Collection still needs a fresh personal LLM choice and the
+usual ownership, reservation, route and receiving-space checks.
+The provisional one-for-one quote is
 an actual `Inventory.Offers` exchange. Buyers may belong to any Town or have no
 Town membership; walking into the Market and completing a purchase change
 neither their household nor their Town. The named seller accepts only after
@@ -2815,6 +2820,11 @@ has no teacher; completing an accepted lesson records the teacher's agent ID.
 Lesson candidates use saved skills and the existing food/warmth readiness
 rules, independently of work roles. A mentor cannot be working on an active
 project, handling another social decision, or reserved for another lesson.
+Both participants must be able to reach the common lesson site when a request
+is offered or executed and when the teacher accepts. Mentor selection keeps
+its stable identity order but skips adults without a physical route, so an
+isolated teacher cannot hide another available teacher. Ordinary route checks
+include occupied tiles; they do not grant travel through disconnected land.
 Request, refusal, acceptance, cancellation and pause/reload retain their normal
 flow. A completed lesson changes neither the agent's role nor work proficiency.
 Stored skills currently affect only teaching availability, never ordinary
