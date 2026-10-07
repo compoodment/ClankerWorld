@@ -1,0 +1,1 @@
+- Two housemates offering milk from the same jug no longer halt the world; each milk lot can have one pending sale at a time.

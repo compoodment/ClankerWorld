@@ -463,9 +463,9 @@ public sealed class WorkstationSourceReserveTests
                 var amount = input.Key == missing ? site == house ? sourceQuantity : 1 : input.Max(item => item.Amount) * 2;
                 if (amount == 0) continue;
                 string? containerId = null;
-                if (input.Key == InventoryContainerRules.FreshWater)
+                if (input.Key is InventoryContainerRules.FreshWater or "milk")
                 {
-                    containerId = "fixture-jug:" + site.InstanceId;
+                    containerId = "fixture-jug:" + site.InstanceId + (input.Key == "milk" ? ":milk" : "");
                     inventory = InventoryFixture.AddLot(inventory, containerId, InventoryContainerRules.WaterJug,
                         household, 1, storageBuildingId: site.InstanceId);
                 }

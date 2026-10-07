@@ -13,6 +13,10 @@ internal enum TownTransitionKind
     BuildingAssigned,
     BuildingUnassigned,
     BorderExpanded,
+    Abandoned,
+    Revived,
+    Resettled,
+    StockSalvaged,
 }
 
 internal enum TownCivicTransitionKind

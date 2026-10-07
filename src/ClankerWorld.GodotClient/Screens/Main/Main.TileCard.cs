@@ -163,6 +163,18 @@ public partial class Main
         foreach (var boat in snapshot.Boats.Where(item => item.Position.X == tile.X && item.Position.Y == tile.Y))
             AddTileThing(BoatSprites.Texture(AgentSprites.South, boat.Status is "underway" or "returning"),
                 "Boat", GameUiText.BoatDescription(boat));
+        foreach (var animal in snapshot.Animals.Where(item => item.Position.X == tile.X && item.Position.Y == tile.Y))
+        {
+            AddTileThing(AnimalSprites.Texture(animal.Species, AgentSprites.South,
+                animal.LifeStage == "young", animal.RiderId is not null), animal.Name, string.Empty);
+            tileThings.AddChild(new Label
+            {
+                Text = GameUiText.AnimalDescription(animal),
+                AutowrapMode = TextServer.AutowrapMode.WordSmart,
+                CustomMinimumSize = new Vector2(240, 0),
+                SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
+            });
+        }
         foreach (var resource in snapshot.Resources.Where(item => item.Position.X == tile.X && item.Position.Y == tile.Y))
         {
             var name = resource.TreeKind is { } tree ? $"{Pretty(tree)} tree"
