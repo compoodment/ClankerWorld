@@ -911,7 +911,9 @@ actual recipient, retaining the original discoverer and the source artifact.
 Copying needs the source, learned facts and new writing materials; sharing
 does not create another physical copy. Barter transfers the existing lot and
 teaches its recipient, without granting access to unrelated knowledge or
-anyone else's private stock.
+anyone else's private stock. Two artifacts of the same kind can be exchanged
+when each records sites its recipient has not learned; the existing consent,
+ownership, reservation and delivery checks still apply.
 
 Outward scouting checks occupied destinations and both diagonal corner tiles
 before ranking neighboring exits. If no legal outward exit remains, the scout
