@@ -101,6 +101,7 @@ public partial class Main
                 "town_project_approved" or "town_project_resumed"
                 => PixelIcons.Texture(PixelGlyph.Flag, ink, green, 1),
             "town_resident_joined" or "town_resident_left" or "town_membership_evaluated" or "town_building_assigned" or
+                "town_abandoned" or "town_revived" or "town_resettled" or
                 "town_admission_accepted" or "town_admission_approved" or "town_admission_lapsed" or
                 "market_stall_borrowed" or "market_stall_left"
                 => PixelIcons.Texture(PixelGlyph.House, ink, wood, 1),
@@ -110,6 +111,7 @@ public partial class Main
             "settlement_trade_completed" or "town_project_donated" or "town_project_material_picked_up" or
                 "town_project_material_delivered" or "town_project_material_returned" or "market_stock_loaded" or "market_stock_delivered" or
                 "market_stock_collected" or "market_trade_offered" or "market_trade_completed" or "market_trade_cancelled"
+                or "town_stock_salvaged"
                 => PixelIcons.Texture(PixelGlyph.Box, ink, wood, 1),
             _ => PixelIcons.Texture(PixelGlyph.Globe, ink, green, 1),
         };

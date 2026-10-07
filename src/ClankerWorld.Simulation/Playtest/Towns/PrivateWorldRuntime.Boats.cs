@@ -18,6 +18,7 @@ public sealed partial class PrivateWorldRuntime
         request.PassengerId == actor && request.Status == "waiting");
 
     private bool ReadyToBoard(string actor) => AdultResident(actor) && PassengerBoat(actor) is null &&
+        !animalWorld.Animals.Any(animal => animal.RiderId == actor || animal.LeaderId == actor) &&
         ConversationFor(actor) is null && AttachedHandcart(actor) is null && !HasGuardianPlacementTask(actor) &&
         !inhabitants.Values.Any(person => person.GuardianPlacement?.CaregiverId == actor) && MovingCareGroup(actor).Count == 1 &&
         inhabitants[actor].Project is not { Stage: not ("completed" or "cancelled") } &&
