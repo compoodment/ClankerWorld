@@ -482,6 +482,8 @@ knives are supported. Fully broken tools need replacement. Borrowed, reserved,
 stored and promised tools are unavailable to these personal orders. The agent
 may put spare cargo in household storage to make room for supplies, preserving
 all matching worn personal tools and any tools needed to gather materials.
+Excess repair materials can also be stowed, while the amount needed for the
+repair stays carried. Reserved and promised cargo remain protected.
 Preparation waits for supplies or another gathering tool if gathering would
 break a requested tool. Cancellation
 keeps already collected goods and spent gathering wear. Quantities, queues,
@@ -597,8 +599,10 @@ fetch and carry real supplies, preserving food, planting and production
 reserves. Yard stock is picked up before approaching an animal on another
 tile; care at the stock tile can use it directly. Care uses grain before
 ready-to-eat greens when available, and may combine grain with spare greens
-across lots. An incomplete safe feed or water
-load spends nothing. Cared adult hens supply eggs daily, cows two milk daily,
+across lots. An incomplete safe feed or water load spends nothing. Care orders
+explain missing safe feed and jug water, while valid supply fetching stays
+active. They resume when physical supplies become available. Cared adult hens
+supply eggs daily, cows two milk daily,
 and sheep two wool every three days. One batch waits for local collection. Milk needs a
 household jug that contains milk or is empty; water and milk never mix.
 Adults haul milk jugs to their Store or borrowed Market stall. An agreed sale

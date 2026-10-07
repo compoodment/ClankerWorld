@@ -259,6 +259,9 @@ carrying and route checks; orders additionally require personal ownership and
 positive remaining condition. Ordinary repair retains its borrowed-household
 behavior. Order preparation protects every matching worn personal tool from
 spare-cargo storage and refuses gathering that would break a requested tool.
+Preparation retains the quantity needed for one repair across usable carried
+material lots. Excess units may be stowed to collect another ingredient; live
+reservations, promised cargo and protected tools remain unavailable for stowing.
 `RepairTool` performs physical pickup, gathering, spare-cargo storage
 and walking, returning a repaired lot only after the real inventory transition.
 That return alone earns one repair, with a bounded receipt derived from actor,
@@ -2924,6 +2927,12 @@ permitted local yard stock remains usable directly. Physical supply trips
 retain the owning household. One held product batch waits for local collection;
 milk enters a reusable household jug. Products then use ordinary stock hauling,
 recipes and trade.
+
+When care is due, its native order candidate requires complete safe inputs, a current care
+supply trip or an obtainable supply. Missing inputs use the existing blocked
+order status with a reason naming feed and jug water. Candidate and blocker queries
+change no state, and the existing order schedule resumes the task when its
+physical supply path becomes available.
 
 Cared adult pairs breed automatically when their yard has a place and delivered
 supplies cover existing animals and the offspring. Pregnancy reserves one place;

@@ -350,6 +350,8 @@ Only finished repairs count. Missing items, materials, carrying space or a work
 site leaves the task waiting. Queue, cancellation and save/reload also work for
 these orders. Tool orders also accept exact kinds, such as **Repair two iron
 knives**. Weapons and named work sites are not supported repair targets.
+When collecting a missing tool-repair ingredient, the agent can put excess
+materials in household storage while keeping what the repair needs.
 
 To make goods, try **Make two sacks**, **Make rope**, or **Mill flour**. Adults
 and elders use the usual work site, ingredients and tools. A plain request
@@ -806,7 +808,8 @@ until cancelled. When the animal is elsewhere in the yard, the adult picks up
 the feed and water jug before walking to it. Care beside the yard stock can
 use those supplies directly. The adult walks and brings actual available
 supplies; an order waits when permission, supplies, product, space or a route
-is missing.
+is missing. Care without safe feed or jug water shows a blocker and can resume
+when supplies become available.
 Taming needs two grain/greens and one jug water. Chickens need one feed and one
 water daily; sheep, cows and horses need two each. Jugs remain reusable.
 
