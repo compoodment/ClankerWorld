@@ -20,7 +20,7 @@ namespace ClankerWorld.Simulation.Playtest;
 /// </summary>
 public sealed partial class PrivateWorldRuntime : IDisposable
 {
-    public const int StateSchemaVersion = 93;
+    public const int StateSchemaVersion = 95;
     // Founded Towns save laws, protected government changes and the mayor's office from this schema.
     public const int TownGovernmentSchemaVersion = 55;
     public const int ObserverGuidanceSchemaVersion = 41;
@@ -83,6 +83,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     private string? historyArchiveHead;
     private int checkpointSchemaVersion = StateSchemaVersion;
     private bool jevEnabled = true;
+    private RoutineHelperSettings routineHelper = RoutineHelperSettings.Jev;
     private long jevPolicyRevision;
     private FounderSetupState? founderSetup;
     private List<TownRuntimeState> towns = [];
@@ -229,6 +230,8 @@ public sealed partial class PrivateWorldRuntime : IDisposable
 
     public bool JevEnabled => jevEnabled;
 
+    public RoutineHelperSettings RoutineHelper => routineHelper;
+
     public long JevPolicyRevision => jevPolicyRevision;
 
     public FounderSetupState? FounderSetup => founderSetup;
@@ -304,6 +307,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         runtime.historyArchiveHead = state.HistoryArchiveHead;
         runtime.checkpointSchemaVersion = StateSchemaVersion;
         runtime.jevEnabled = state.JevEnabled ?? true;
+        runtime.routineHelper = state.RoutineHelper;
         runtime.jevPolicyRevision = state.JevPolicyRevision;
         runtime.founderSetup = state.FounderSetup;
         runtime.society.Dispose();
@@ -496,6 +500,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     {
         Marriages = marriages.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(),
         BoatTransport = boatTransport,
+        RoutineHelper = routineHelper,
     };
 
     private void AppendEvent(string kind, string detail, GridPoint? eventPosition = null)

@@ -110,8 +110,12 @@ choices and rename the person. For OpenAI and Ollama Cloud, the model is picked
 from the game's own short list, newest at the top, or typed by name. The host checks
 the chosen key with the provider and greys out listed models it can't use. That
 check and the listed model names have been tested against recorded sample
-replies, not yet against live provider accounts. Jev can be switched on or off
-for a paused world.
+replies, not yet against live provider accounts. A paused world's routine
+helper can be Off, Jev or OpenAI Decisions, with its own model picker. Decisions
+uses a saved OpenAI key and handles the same routine choices and owner-private
+memory scoring as Jev. Switching cancels pending work and preserves memories.
+The Decisions integration is checked against the published API contract and
+sample replies; the live-account Windows check is still [pending](../playtest/magical-heisenberg-mwvofv-routine-helper.md).
 When a personal model names a new agent, it gets a stable first-letter hint to
 encourage varied names. Each chosen first name is unique across the world,
 including deceased agents. Different surnames, capitalization or spacing do
@@ -991,8 +995,10 @@ An overcrowded House gives eligible adults one unpaused world day to move out.
 Volunteers go first, followed by the most recent arrivals outside its dominant
 family; without a family majority, no family gets priority. The agent's housing
 details show the reason, remaining time, requests to other households and
-expansion progress. Notices keep their deadline across save/load and changes
-of selected adult. Only a completed expansion adds places, and changed
+expansion progress. Save/load keeps the remaining time. A forced replacement
+inherits a deadline that is still in the future; when notified at or after it,
+the replacement gets one fresh world day. Volunteers keep the original deadline,
+and other residents’ notices do not restart. Only a completed expansion adds places, and changed
 residents, family or care arrangements cancel notices that are no longer needed.
 Children and their sole caregivers never receive forced notices. If nobody
 can safely be required to leave, the House stays visibly overcrowded while

@@ -271,7 +271,7 @@ public sealed class CognitionRuntime
                 false,
                 "provider_decision",
                 intention,
-                response.Provider == DecisionProviderKind.Jev ? response.MemoryCompactionScores : null,
+                response.Provider is DecisionProviderKind.Jev or DecisionProviderKind.OpenAiDecisions ? response.MemoryCompactionScores : null,
                 response.CivicProposal, response.CivicBallot,
                 observedGuidance, response.CivicLandTiles, response.CivicLandHearing, response.CivicNonviolent);
         }
@@ -501,7 +501,7 @@ public sealed class CognitionRuntime
 
         if (response.MemoryCompactionScores is { Count: > 0 } memoryScores)
         {
-            if (response.Provider != DecisionProviderKind.Jev || request.Observation.MemoryCompactionCandidates is not { } memoryCandidates)
+            if (response.Provider is not (DecisionProviderKind.Jev or DecisionProviderKind.OpenAiDecisions) || request.Observation.MemoryCompactionCandidates is not { } memoryCandidates)
                 return "memory_compaction_not_requested";
             foreach (var score in memoryScores)
             {
