@@ -251,6 +251,12 @@ public sealed class ItemsRound4Proposal : IArtProposal
         }
     }
 
+    /// <summary>The kinds this round drew, for the client parity check.</summary>
+    public static IEnumerable<string> Kinds => Drawings.Select(drawing => drawing.Kind);
+
+    /// <summary>The approved outlined 16 × 16 icon for one of this round's kinds.</summary>
+    public static Image IconFor(string kind) => Icon(Drawings.Single(drawing => drawing.Kind == kind));
+
     private static Image Icon(Drawing drawing)
     {
         if (drawing.Rows.Length != Grid || drawing.Rows.Any(row => row.Length != Grid))

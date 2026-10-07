@@ -2370,11 +2370,14 @@ public partial class Main
             if (ItemIcons.Has("never-an-item") || Convert.ToBase64String(ItemIcons.Render("never-an-item", 32).GetData()) !=
                     Convert.ToBase64String(ItemIcons.Render("crate", 32).GetData()) || !ItemIcons.Has("wood"))
                 throw new InvalidOperationException("An item without its own icon must show the crate.");
-            foreach (var meal in new[] { "porridge", "berry_porridge", "fruit_porridge", "stew", "restaurant_meal" })
-                if (!ItemIcons.Has(meal) || !ItemIcons.FitsGrid(meal) || (!ItemIcons.Kinds.Contains(meal) &&
-                    Convert.ToBase64String(ItemIcons.Render(meal, 32).GetData()) !=
-                        Convert.ToBase64String(ItemIcons.Render("food", 32).GetData())))
-                    throw new InvalidOperationException("A concrete meal without distinct art must use the food icon.");
+            // Items drawn in the October 7 art review have their own icons; the crude wooden tools keep the wooden ones.
+            foreach (var kind in new[] { "porridge", "berry_porridge", "fruit_porridge", "milk_porridge", "stew", "restaurant_meal",
+                         "rich_meal", "cooked_eggs", "saddle", "leather_sack", "iron_fittings", "gold", "gold_ore", "gold_ornament" })
+                if (!ItemIcons.Kinds.Contains(kind) || !ItemIcons.FitsGrid(kind))
+                    throw new InvalidOperationException($"The {kind} item must have its own approved icon.");
+            foreach (var (crude, wooden) in new[] { ("crude_wooden_axe", "wooden_axe"), ("crude_wooden_pickaxe", "wooden_pickaxe") })
+                if (Convert.ToBase64String(ItemIcons.Render(crude, 32).GetData()) != Convert.ToBase64String(ItemIcons.Render(wooden, 32).GetData()))
+                    throw new InvalidOperationException($"The {crude} must keep the approved {wooden} icon.");
             if (GameUiText.ItemName("storage_pot") != "Storage pot" ||
                 GameUiText.ItemName("water_jug") != "Water jug" ||
                 GameUiText.ItemName("fresh_water") != "Fresh water")
