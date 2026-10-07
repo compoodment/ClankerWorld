@@ -91,9 +91,11 @@ public sealed partial class PrivateWorldRuntime
 
         var occupied = inhabitants.Values.Where(item => item.InhabitantId != actor)
             .Select(item => item.Position).ToHashSet();
+        var pullingCart = AttachedHandcart(actor) is not null;
         var next = map.FootNeighbors(person.Position)
             .Where(point => map.IsPassable(point) && !occupied.Contains(point) &&
                 !exploration.OutingPath.Contains(point))
+            .Where(point => !pullingCart || LegalHandcartStep(person.Position, point))
             // Match movement's corner occupancy rules before ranking exits.
             .Where(point => !map.IsDiagonalFootStep(person.Position, point) ||
                 !occupied.Contains(new GridPoint(point.X, person.Position.Y)) &&
