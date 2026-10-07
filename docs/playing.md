@@ -620,7 +620,10 @@ still needs a hands-on check.
 ## Pause, settings and controls
 
 The pause button pauses or resumes time. **Menu** opens the Pause Menu and keeps
-the world paused. Opening ordinary inspection panels leaves time running.
+the world paused. Closing it restores the world to running if it was running
+before the menu opened; a world you had already paused stays paused. This also
+applies when you reopen the menu while it is still resuming.
+Opening ordinary inspection panels leaves time running.
 Settings and the Mod Library open inside the Pause Menu window; its back arrow
 or **Escape** returns to the menu's buttons.
 
