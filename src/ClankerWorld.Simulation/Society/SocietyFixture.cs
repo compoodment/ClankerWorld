@@ -1367,7 +1367,8 @@ public static partial class SocietyFixture
         SocietyAgentBelief belief,
         bool allowSupersedes)
     {
-        if (!IsSafeBeliefId(belief.Id) || !IsCanonicalBoundedText(belief.OwnerId, 128) ||
+        if (!IsSafeBeliefId(belief.Id) || string.IsNullOrWhiteSpace(belief.OwnerId) ||
+            belief.OwnerId != belief.OwnerId.Trim() || belief.OwnerId.Any(char.IsControl) ||
             !IsCanonicalBoundedText(belief.Statement, 512) ||
             belief.Statement.Any(char.IsControl) || !Enum.IsDefined(belief.Provenance) ||
             belief.ConfidenceBasisPoints is < 0 or > 10_000 || belief.FormedTick < 0 ||

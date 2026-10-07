@@ -1,0 +1,1 @@
+- Nearby descendants with long generated identities can now hear ordinary conversations and keep the heard memory without causing the speakers' turn to be rejected.

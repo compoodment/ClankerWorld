@@ -802,7 +802,11 @@ one wrap-up. Responses must match the saved conversation revision, run epoch,
 request and speaker; stale or malformed replies are not admitted. Public turns
 carry a bounded list of agents who were actually close enough to hear. A
 separate memory extraction gives those listeners hearsay claims tied to the
-turn ID, with duplicate and owner checks. Private thoughts, provider payloads
+turn ID, with duplicate and owner checks. Listener and belief-owner references
+retain complete native inhabitant IDs, including longer identities created by
+birth; they do not share the length bounds for caller-provided belief IDs and
+prose. Canonical identity and known-owner checks still apply.
+Private thoughts, provider payloads
 and unaccepted replies never enter that history. Prose has no world effect; the
 only ordinary-dialogue effect is mutual trust, offered during wrap-up and
 applied only after both participants accept the same proposal.
