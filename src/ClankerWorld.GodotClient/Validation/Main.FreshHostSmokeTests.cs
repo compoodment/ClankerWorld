@@ -279,4 +279,126 @@ public partial class Main
             statusToast.Hide();
         }
     }
+
+    /// <summary>Late Continue replies cannot resume a world after menu navigation.</summary>
+    private async Task VerifyContinueSettingsNavigationAsync()
+    {
+        var previousRegistration = registration;
+        var previousKey = deviceKey;
+        var previousUrl = worldUrlInput.Text;
+        var previousObservation = observationSession.Current;
+        var previousInWorld = isInWorld;
+        var previousResume = resumeWorldOnContinue;
+        var previousMenuVisible = mainMenuOverlay.Visible;
+        var previousReturnToMainMenu = returnToMainMenu;
+        var previousCi = System.Environment.GetEnvironmentVariable("CI");
+        System.Environment.SetEnvironmentVariable("CI", "true");
+        using var signer = OwnerDeviceKey.CreateEphemeralForContinuousIntegration();
+        using var host = new WorldActionSmokeHost(signer.PublicKeySpkiBase64);
+        host.ReleasePause.TrySetResult();
+        var handshake = new OwnerWorldHandshake(new(1, 1),
+            ["owner-observation.read.v1", "inhabitant-inspection.read.v1", "spatial-knowledge.read.v1",
+             "owner-control.request.v1", "paused-authoring.request.v1"], []);
+        var snapshot = new OwnerWorldSnapshot("continue-probe", 0, "continue-map", [new(0, 0, "meadow")],
+            [], [], null, 0)
+        {
+            FounderSetup = new(4, 4, true),
+            Authoring = new(true, 0, 0, 0, "continue-map", "continue-map", "clear", "spring", []),
+        };
+        host.Reconnect = new(handshake, new(snapshot, new(0, snapshot.WorldTick, [])));
+        int Requests(string path) => host.Requests.Count(p => p == path);
+        void Log(string stage) => GD.Print($"Continue navigation smoke {stage}: title={mainMenuOverlay.Visible && mainMenuCard.Visible}; settings={gameMenuPanel.Visible}; inWorld={isInWorld}; returnToMainMenu={returnToMainMenu}; hostPaused={host.HostPaused}; pauses={host.PauseCount}; resumes={Requests(OwnerPairingEndpoints.OwnerResume)}");
+        try
+        {
+            registration = new(host.Authority, "smoke-device", signer.PublicKeyFingerprint, host.Address);
+            deviceKey = signer;
+            worldUrlInput.Text = host.Address;
+            observationSession.ResetAfterLoad();
+            ShowMainMenu();
+            worldMenuOverlay.Hide();
+            resumeWorldOnContinue = true;
+            await SetPausedAsync(paused: true);
+            mainMenuSettingsButton.EmitSignal(BaseButton.SignalName.Pressed);
+            menuCloseButton.EmitSignal(BaseButton.SignalName.Pressed);
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            Log("settings-only-control");
+            if (!mainMenuCard.Visible || isInWorld || !host.HostPaused)
+                throw new InvalidOperationException("Settings-only control failed.");
+
+            host.ReleaseReconnect = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            host.ReconnectReceived = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            var enter = EnterWorldAsync();
+            await host.ReconnectReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Log($"waiting ContinueDisabled={mainMenuContinueButton.Disabled} SettingsDisabled={mainMenuSettingsButton.Disabled}");
+            host.ReleaseReconnect.TrySetResult();
+            await enter;
+            Log("continue-only-control");
+            if (!isInWorld || host.HostPaused || mainMenuOverlay.Visible)
+                throw new InvalidOperationException("Ordinary Continue control failed.");
+
+            await SetPausedAsync(paused: true);
+            ShowMainMenu();
+            resumeWorldOnContinue = true;
+            host.ReleaseReconnect = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            host.ReconnectReceived = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            enter = EnterWorldAsync();
+            await host.ReconnectReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            mainMenuSettingsButton.EmitSignal(BaseButton.SignalName.Pressed);
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            Log("settings-during-continue");
+            host.ReleaseReconnect.TrySetResult();
+            await enter;
+            Log("late-continue");
+            if (isInWorld || !gameMenuPanel.Visible || !host.HostPaused ||
+                Requests(OwnerPairingEndpoints.OwnerResume) != 1)
+                throw new InvalidOperationException("A Continue completed behind Settings must retain the confirmed pause.");
+            var pausesBeforeBack = host.PauseCount;
+            menuCloseButton.EmitSignal(BaseButton.SignalName.Pressed);
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            Log($"settings-back additionalPauses={host.PauseCount - pausesBeforeBack}");
+            if (isInWorld || !mainMenuCard.Visible || !mainMenuOverlay.Visible || !host.HostPaused ||
+                mainMenuContinueButton.Disabled || Requests(OwnerPairingEndpoints.OwnerResume) != 1)
+                throw new InvalidOperationException("Settings Back must return to a usable paused Main Menu.");
+
+            // Leaving Settings before the reply arrives must expire the old Continue too.
+            host.ReleaseReconnect = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            host.ReconnectReceived = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            enter = EnterWorldAsync();
+            await host.ReconnectReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            mainMenuSettingsButton.EmitSignal(BaseButton.SignalName.Pressed);
+            menuCloseButton.EmitSignal(BaseButton.SignalName.Pressed);
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            host.ReleaseReconnect.TrySetResult();
+            await enter;
+            if (isInWorld || !mainMenuOverlay.Visible || !mainMenuCard.Visible || !host.HostPaused ||
+                Requests(OwnerPairingEndpoints.OwnerResume) != 1)
+                throw new InvalidOperationException("Settings Back cannot reactivate a Continue from before navigation.");
+
+            // A fresh Continue after Back still enters and resumes exactly once.
+            await EnterWorldAsync();
+            if (!isInWorld || mainMenuOverlay.Visible || host.HostPaused ||
+                Requests(OwnerPairingEndpoints.OwnerResume) != 2)
+                throw new InvalidOperationException("A fresh Continue after Settings Back must resume normally.");
+        }
+        finally
+        {
+            host.ReleaseReconnect?.TrySetResult();
+            CloseGameMenu();
+            registration = previousRegistration;
+            deviceKey = previousKey;
+            worldUrlInput.Text = previousUrl;
+            observationSession.ResetAfterLoad();
+            if (previousObservation is not null)
+                observationSession.TryAccept(previousObservation, previousObservation.Baseline.Events.AfterEventId, out _);
+            isInWorld = previousInWorld;
+            resumeWorldOnContinue = previousResume;
+            returnToMainMenu = previousReturnToMainMenu;
+            mainMenuOverlay.Visible = previousMenuVisible;
+            System.Environment.SetEnvironmentVariable("CI", previousCi);
+            RefreshControlAvailability();
+            RefreshMainMenuAvailability();
+            statusToast.Hide();
+        }
+    }
 }

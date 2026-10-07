@@ -1,0 +1,2 @@
+- [ ] On Windows, compare F12 tick times in the same grown private world across the Market/lantern builds and current main, recording the seed, game time, machine, Roads, residents and buildings. Compare medians and outliers over several intervals; record whether play visibly stutters. Headless probe timings do not replace this check. Refs #944.
+- [ ] Repeat on smaller and larger Towns, keeping model settings and sampling intervals alike. Report any repeatable growth cost separately from frame rendering or model response time. Refs #944.

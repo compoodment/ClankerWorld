@@ -54,10 +54,11 @@ public sealed class TownStreets
     public bool CanStep(GridPoint from, int direction, out GridPoint next)
     {
         var (dx, dy) = Directions[direction];
-        next = new GridPoint(from.X + dx, from.Y + dy);
-        if (!IsFree(next)) return false;
-        return dx == 0 || dy == 0 ||
-            IsClearCorner(new GridPoint(from.X + dx, from.Y)) && IsClearCorner(new GridPoint(from.X, from.Y + dy));
+        next = map.WrapColumn(new GridPoint(from.X + dx, from.Y + dy));
+        if (!IsFree(next) || !map.CanFootStep(from, next)) return false;
+        return !map.IsDiagonalFootStep(from, next) ||
+            IsClearCorner(map.WrapColumn(new GridPoint(from.X + dx, from.Y))) &&
+            IsClearCorner(map.WrapColumn(new GridPoint(from.X, from.Y + dy)));
     }
 
     private bool IsClearCorner(GridPoint tile) => map.IsBuildable(tile) && !blocked.Contains(tile);
@@ -149,10 +150,10 @@ public sealed class TownStreets
     {
         foreach (var (dx, dy) in Directions)
         {
-            var near = new GridPoint(next.X + dx, next.Y + dy);
+            var near = map.WrapColumn(new GridPoint(next.X + dx, next.Y + dy));
             if (!roads.Contains(near) || near == current) continue;
             if (path.Count >= 2 && (near == path[^1] || near == path[^2])) continue;
-            if (path.Count < 2 && Math.Max(Math.Abs(near.X - start.X), Math.Abs(near.Y - start.Y)) <= 1) continue;
+            if (path.Count < 2 && map.FootDistance(near, start) <= 1) continue;
             return true;
         }
         return false;
@@ -160,8 +161,13 @@ public sealed class TownStreets
 
     public static int Turn(int direction, int eighths) => ((direction + eighths) % 8 + 8) % 8;
 
-    public static int DirectionBetween(GridPoint from, GridPoint to) =>
-        Array.IndexOf(Directions, (Math.Sign(to.X - from.X), Math.Sign(to.Y - from.Y)));
+    public static int DirectionBetween(SeededMap map, GridPoint from, GridPoint to)
+    {
+        var dx = to.X - from.X;
+        if (map.WrapsEastWest && Math.Abs(dx) > map.Width / 2)
+            dx -= Math.Sign(dx) * map.Width;
+        return Array.IndexOf(Directions, (Math.Sign(dx), Math.Sign(to.Y - from.Y)));
+    }
 
     public static bool Chance(Pcg32XshRrV1 random, double probability) =>
         random.NextUInt() / (double)uint.MaxValue < probability;
@@ -174,15 +180,18 @@ public sealed class TownStreets
     /// neighbours where neither corner tile between them is Road (otherwise the
     /// two are already joined through that corner).
     /// </summary>
-    public static IEnumerable<GridPoint> Linked(IReadOnlySet<GridPoint> roads, GridPoint tile)
+    public static IEnumerable<GridPoint> Linked(SeededMap map, IReadOnlySet<GridPoint> roads, GridPoint tile)
     {
+        var seen = map.WrapsEastWest && map.Width < 3 ? new HashSet<GridPoint>() : null;
         foreach (var (dx, dy) in Directions)
         {
-            var next = new GridPoint(tile.X + dx, tile.Y + dy);
-            if (!roads.Contains(next)) continue;
-            if (dx != 0 && dy != 0 &&
-                (roads.Contains(new GridPoint(tile.X + dx, tile.Y)) || roads.Contains(new GridPoint(tile.X, tile.Y + dy))))
+            var next = map.WrapColumn(new GridPoint(tile.X + dx, tile.Y + dy));
+            if (!roads.Contains(next) || !map.CanFootStep(tile, next)) continue;
+            if (map.IsDiagonalFootStep(tile, next) &&
+                (roads.Contains(map.WrapColumn(new GridPoint(tile.X + dx, tile.Y))) ||
+                 roads.Contains(map.WrapColumn(new GridPoint(tile.X, tile.Y + dy)))))
                 continue;
+            if (seen is not null && !seen.Add(next)) continue;
             yield return next;
         }
     }
@@ -204,7 +213,7 @@ public sealed class TownStreets
     /// <see cref="RunOnTiles"/> tiles past the last door on it. A branch with
     /// no door on it at all is removed back to the street it leaves.
     /// </summary>
-    public static HashSet<GridPoint> TrimToDoors(IEnumerable<GridPoint> tiles, IReadOnlySet<GridPoint> entrances)
+    public static HashSet<GridPoint> TrimToDoors(SeededMap map, IEnumerable<GridPoint> tiles, IReadOnlySet<GridPoint> entrances)
     {
         var roads = tiles.ToHashSet();
         var changed = true;
@@ -213,14 +222,14 @@ public sealed class TownStreets
             changed = false;
             foreach (var end in roads.OrderBy(point => point.Y).ThenBy(point => point.X).ToArray())
             {
-                if (entrances.Contains(end) || Linked(roads, end).Count() != 1) continue;
+                if (entrances.Contains(end) || Linked(map, roads, end).Count() != 1) continue;
                 var chain = new List<GridPoint> { end };
                 GridPoint? previous = null;
                 var current = end;
                 var reachedDoor = false;
                 while (true)
                 {
-                    var onward = Linked(roads, current).Where(next => next != previous).ToArray();
+                    var onward = Linked(map, roads, current).Where(next => next != previous).ToArray();
                     if (onward.Length != 1) break;
                     previous = current;
                     current = onward[0];
@@ -229,7 +238,7 @@ public sealed class TownStreets
                         reachedDoor = true;
                         break;
                     }
-                    if (Linked(roads, current).Count() > 2) break;
+                    if (Linked(map, roads, current).Count() > 2) break;
                     chain.Add(current);
                 }
                 var keep = reachedDoor ? RunOnTiles : 0;

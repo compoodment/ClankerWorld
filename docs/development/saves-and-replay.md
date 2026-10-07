@@ -2,7 +2,7 @@
 title: Saves and replay
 type: persistence-reference
 status: active
-updated: 2026-10-05
+updated: 2026-10-06
 ---
 
 # Saves and replay
@@ -686,6 +686,16 @@ establish that the checkpoint can load.
 
 ## Current formats and older worlds
 
+Private-world schema 95 adds a required routine-helper choice, model name and
+optional OpenAI credential-slot ID. API-key bytes remain installation-owned.
+Loading rejects invalid helper/model/slot formats or inconsistent availability;
+missing installation keys cannot be invented from a save. The existing helper
+routing revision invalidates earlier requests, and switches preserve memory
+sources and scores. Current-format roundtrips and resumed replay retain the
+helper and typed model. Earlier alpha schemas are refused and preserved without
+migration.
+
+
 Generated geography now saves a hydrology revision for new worlds. A missing
 or zero revision keeps the previous lake/river algorithm, including historical
 resource placement and map identity. Revision 1 is selected by both normal
@@ -792,7 +802,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 94. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 95. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 a bounded model-attempt status and exact last accepted model choice per agent, plus
@@ -933,6 +943,7 @@ current alpha cutoff.
 | Schema 84 | Required marriage consent receipts and dedicated surname conversations preserve the original surnames, admitted turns and seeded result, including across history compaction. Later player surname changes update both spouses together without rewriting the original decision. |
 | Schema 91 | Non-land mandate consent, conduct-time law context, public hearings and voluntary remedy agreements retain their sources and real physical completion receipts. Earlier alpha saves are refused and preserved without migration. |
 | Schema 94 | Market receipts use required stable sequences and an explicit retirement boundary. Open trades retain their exact deposit proof; bounded closed outcomes may refer below the retired boundary. Live borrowing, current stock, exact payments and accepted offers remain authoritative; closed offers and claims retire together. Earlier alpha saves are refused and preserved without migration. |
+| Schema 95 | Required per-world routine-helper settings retain Off, Jev or OpenAI Decisions, its model and an optional installation-owned OpenAI key-slot ID. Switches retain memories and scores, invalidate pending replies and replay with the saved routing revision. Earlier alpha saves are refused and preserved without migration; key bytes remain outside world saves. |
 
 ### Tool-making requests
 
@@ -1035,6 +1046,35 @@ generated-world gathering and donation, genuine Warehouse loads, intermediate
 restore/replay, discarded prepared ticks, stale votes, retained removal and
 coherently altered receipt/source references. Earlier
 alpha schemas, including 53, are refused visibly and preserved without migration.
+
+## Abandoned Towns and physical salvage
+
+Abandonment is derived from a founded Town's empty recorded living-resident
+roster; it adds no saved flag or schema field. Children, travelers and residents
+without a home still count. A last departure or death records `town_abandoned`;
+the first new resident records `town_revived`. The Town record, laws, civic
+history, buildings, land title, household use rights and infrastructure stay
+intact.
+
+The personal `resettle` choice requires a living adult physically inside the
+abandoned Town. It moves that adult's Town care group under the one-Town rule,
+without moving bodies or changing household membership, care or property.
+Governance refreshes from the new living adult roster; prior offices are not
+restored. `town_resettled` records the deliberate change. Later arrivals use
+ordinary admission.
+
+Public salvage operates on exact communal lots on the ground or in the
+recorded Town's Warehouse. Pickup rechecks current abandonment, physical
+distance, reservations and carrying room. Container families move together;
+salvaged handcarts keep their ground location until pulled. Transfers retain
+condition, provenance and stock history and record `town_stock_salvaged`.
+Revival neither confiscates prior pickups nor permits a stale public choice
+to collect more stock.
+
+`TownAbandonmentTests` exercises strict current-format roundtrips, identical
+live/restored continuations before and after membership or stock transfer,
+discarded prepared ticks, competing pickups and a delayed hosted reply after
+revival. No migration or inferred historical abandonment is added.
 
 ## Ports and communal boats
 

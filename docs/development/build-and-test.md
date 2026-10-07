@@ -330,6 +330,9 @@ clone. Retention arguments must be positive whole numbers.
 
 ## Windows playtests
 
+For native Town performance comparisons, use [Measuring Town tick time](town-tick-measurements.md).
+Its headless readouts complement the Windows checks below.
+
 The [playtest list](../../playtest/README.md) holds the merged changes that
 still need trying by hand in the Windows game. Automated checks, including the
 Windows CI jobs and a passing export, do not count as a playtest.

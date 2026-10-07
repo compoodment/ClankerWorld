@@ -177,6 +177,9 @@ public partial class Main
         public OwnerPairingStart? PairingStart { get; set; }
         public OwnerPairingStatus? PairingStatus { get; set; }
         public bool LoseActivationReply { get; set; }
+        public TaskCompletionSource ReconnectReceived { get; set; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource? ReleaseReconnect { get; set; }
+        public bool HostPaused { get; private set; } = true;
         public IReadOnlyList<string>? SupportedActionPayloads { get; set; }
         public OwnerWorldPreview? Preview { get; set; }
         public CatalogWorld? SelectedWorld { get; set; }
@@ -319,6 +322,7 @@ public partial class Main
                         configuration.IntervalMinutes, configuration.RotationCount, DateTimeOffset.UnixEpoch, -1);
                     break;
                 case OwnerPairingEndpoints.OwnerPause:
+                    HostPaused = true;
                     Interlocked.Increment(ref pauseCount);
                     PauseReceived.TrySetResult();
                     await ReleasePause.Task.ConfigureAwait(false);
@@ -345,9 +349,12 @@ public partial class Main
                     response = CreatedWorld;
                     break;
                 case OwnerPairingEndpoints.OwnerResume:
+                    HostPaused = false;
                     response = new OwnerControlReceipt("resume", true, false, 0, 0, 0);
                     break;
                 case OwnerPairingEndpoints.OwnerReconnect when Reconnect is not null:
+                    ReconnectReceived.TrySetResult();
+                    if (ReleaseReconnect is { } releaseReconnect) await releaseReconnect.Task.ConfigureAwait(false);
                     response = Reconnect;
                     break;
                 case OwnerPairingEndpoints.OwnerAgentRename:

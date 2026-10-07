@@ -356,7 +356,7 @@ public partial class Main
         agentProfilePanel.Hide();
     }
 
-    /// <summary>Whether a decision came from an agent's own model rather than Jev or the built-in rules.</summary>
+    /// <summary>Whether a decision came from an agent's own model rather than a routine helper or the built-in rules.</summary>
     private static bool IsModelProvider(string provider) => provider is "openai" or "ollama-cloud";
 
     /// <summary>A flat, short tab-style button that sits beside a section heading.</summary>
@@ -621,11 +621,11 @@ public partial class Main
         // Name, age and one plain sentence for what they are doing, shared by both cards.
         quickCardNameLabel.Text = inhabitant.DisplayName;
         selectedActorNameLabel.Text = inhabitant.DisplayName;
-        // A refused name stays in the open field for the player to change,
+        // Draft and refused names stay in the open field for the player to change,
         // while the labels above keep showing the name the host holds.
         if (!renameRow.Visible || renamingAgentId != inhabitant.Id) refusedAgentRename.Forget();
         if (!refusedAgentRename.Keeps(snapshot.WorldId, inhabitant.Id, renameAgentInput.Text) &&
-            (renamingAgentId != inhabitant.Id || !renameAgentInput.HasFocus()))
+            (renamingAgentId != inhabitant.Id || !renameRow.Visible))
         {
             renameAgentInput.Text = inhabitant.DisplayName;
             renamingAgentId = inhabitant.Id;
