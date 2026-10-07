@@ -2,7 +2,7 @@
 title: How the game works
 type: architecture
 status: active
-updated: 2026-10-06
+updated: 2026-10-07
 ---
 
 # How the game works
@@ -1234,6 +1234,22 @@ grass, the darker patches with dots are groves, beige is sand, brown is dry
 scrub, grey is mountain and the warm band around it is hills. Dark dots are
 trees, red dots plants and grey dots stone. It is a generator-layer rendering, not a Godot
 screenshot or native playtest.
+
+## Building production inspection
+
+The owner snapshot derives `AvailableRecipes` from active content matched to
+its placed building's exact definition, including workstation-size variants.
+Crop recipes and the retired generic-food and bedding transformations are
+excluded from the workstation list. Each entry carries its registered name
+and input/output quantities, rather than a client-maintained recipe table.
+
+Production jobs project the same recipe facts and `HeldInputs` grouped from
+the job's own active inventory reservations. Completed or released
+reservations contribute nothing; building storage remains a separate view.
+Godot Details refreshes these facts even when work progress stays unchanged.
+Missing fields from an older host leave recipe facts unavailable rather than
+fabricating them. This projection changes neither world state nor agent
+knowledge and needs no save-schema change.
 
 ## Towns, building sites and death
 
@@ -2753,6 +2769,11 @@ resuming time. Preview selection, explicit acceptance of missed coverage
 targets and signed creation remain the only way through that screen. The
 redirect neither replaces the checkpoint nor removes its catalog entry, and
 founders or authored progress prevent it.
+
+New World preview refreshes wait for both an existing preview and a pending
+owner action to finish. Menu visibility, observation generation and preview
+revision still fence the waiting work, so only the current options are
+requested and closing or switching screens discards the old refresh.
 
 Continue also belongs to the current Main Menu navigation. Opening Settings,
 New World or Load World, returning to Main Menu, or starting another Continue
