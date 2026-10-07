@@ -392,7 +392,9 @@ requests one building or one expansion stage. Repeating requests and larger
 counts are not understood. Progress reaches one only when the building work
 actually finishes. Queue, cancellation and save/reload preserve the task;
 cancelling leaves collected goods in place and releases unused expansion
-materials. Urgent survival pauses the work before it resumes.
+materials. Expansion leaves borrowed goods with the person carrying them;
+returning them to their owning House makes them available again. Urgent
+survival pauses the work before it resumes.
 
 Use **Seek shelter**, **Take cover** or **Shelter in my House** to reach
 permitted cover. Add **at (12, 4)** to require that location. A storm guest
