@@ -88,7 +88,8 @@ public partial class Main
             }
 
         // The terrain layer: per-tile hills while chunks render off the main
-        // thread, then one texture per chunk with relief and no hill overlays.
+        // thread, then one texture per chunk with relief and no hill overlays,
+        // faded in, and the ring round a smaller view drawn ahead of time.
         var layer = new WorldTerrainLayer();
         AddChild(layer);
         try
@@ -105,9 +106,30 @@ public partial class Main
             await WaitForRelief(layer, () => layer.HillOverlayTileCount > 0, "draw the map");
             if (layer.PendingReliefChunkCount == 0 || layer.ReliefTextureCount == expected)
                 throw new InvalidOperationException("Relief must render off the main thread, with per-tile hills shown meanwhile.");
-            await WaitForRelief(layer, () => layer.PendingReliefChunkCount == 0 && layer.HillOverlayTileCount == 0, "finish rendering");
+            // A chunk that finishes while on screen fades in over the per-tile art instead of appearing at once.
+            var sawFade = false;
+            await WaitForRelief(layer, () =>
+            {
+                sawFade |= layer.FadingReliefChunkCount > 0;
+                return layer.PendingReliefChunkCount == 0 && layer.HillOverlayTileCount == 0 && layer.FadingReliefChunkCount == 0;
+            }, "finish rendering");
             if (expected == 0 || layer.ReliefTextureCount != expected)
                 throw new InvalidOperationException($"Each chunk near mountains needs one relief texture: {layer.ReliefTextureCount} of {expected}.");
+            if (!sawFade)
+                throw new InvalidOperationException("Relief that finishes while on screen must fade in over the per-tile art.");
+
+            // A small view also draws the ring of chunks just outside it, so panning finds them ready.
+            layer.SetWorld(world);
+            layer.SetCamera(new Rect2(0, 0, 12, 10), 32, 0, true);
+            int RingWithRelief(params (int Left, int Top)[] chunks) => chunks.Count(chunk => ReliefRenderer.HasReliefNear(world,
+                new Rect2I(chunk.Left, chunk.Top, Math.Min(WorldTerrainLayer.ReliefChunkTiles, world.Width - chunk.Left),
+                    Math.Min(WorldTerrainLayer.ReliefChunkTiles, world.Height - chunk.Top))));
+            var visible = RingWithRelief((0, 0));
+            var withRing = RingWithRelief((0, 0), (16, 0), (0, 16), (16, 16));
+            await WaitForRelief(layer, () => layer.PendingReliefChunkCount == 0 && layer.PrefetchedReliefChunkCount > 0, "draw ahead of the view");
+            if (withRing <= visible || layer.ReliefTextureCount != withRing || layer.PrefetchedReliefChunkCount != withRing - visible)
+                throw new InvalidOperationException($"The ring round a small view must be drawn ahead of time, and nothing farther: " +
+                    $"textures={layer.ReliefTextureCount}, expected={withRing}, prefetched={layer.PrefetchedReliefChunkCount}.");
 
             // The overview zoom keeps its one-pixel-per-tile colours.
             layer.SetWorld(world);
