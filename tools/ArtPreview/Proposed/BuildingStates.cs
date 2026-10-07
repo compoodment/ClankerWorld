@@ -736,6 +736,7 @@ internal static class States
     /// <summary>Weeds and long grass round the structure and over its doorstep, thicker on a ruin.</summary>
     private static void Weeds(Image image, Subject s, Rect2I b, bool ruin, int salt)
     {
+        var ground = s.Kind is Build.Pier or Build.Bridge ? s.Ground() : null;
         var w = image.GetWidth();
         var h = image.GetHeight();
         var odds = ruin ? 4u : 7u;
@@ -747,8 +748,12 @@ internal static class States
                 var near = Near(s.Mask, x, y, 4);
                 var onPath = s.Finished.GetPixel(x, y).A > 0.9f;
                 if (near > 4 && !onPath) continue;
-                // Over water nothing grows: a pier gets no weeds, a bridge only on its banks.
-                if (s.Kind == Build.Pier || s.Kind == Build.Bridge && x >= 32 && x < w - 32) continue;
+                // Preserve the approved land test on the ground under this overlay.
+                if (ground is not null)
+                {
+                    var color = ground.GetPixel(x, y).Blend(image.GetPixel(x, y));
+                    if (color.G <= color.B) continue;
+                }
                 if (Hash(x, y, salt + 21) % (onPath && near > 4 ? pathOdds : odds) != 0) continue;
                 var tall = Hash(y, x, salt) % 2 == 0;
                 Blend(image, x, y, Leaf.Base);

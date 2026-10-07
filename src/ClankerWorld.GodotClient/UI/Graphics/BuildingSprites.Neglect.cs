@@ -239,6 +239,10 @@ public static partial class BuildingSprites
         {
             var w = image.GetWidth();
             var h = image.GetHeight();
+            // Match the short-end fallback in ApprovedArt.PortLandSide.
+            var landSide = h >= w
+                ? s.Door == DoorSide.South ? DoorSide.South : DoorSide.North
+                : s.Door == DoorSide.West ? DoorSide.West : DoorSide.East;
             var odds = ruin ? 4u : 7u;
             var pathOdds = ruin ? 7u : 11u;
             for (var y = 1; y < h - 1; y++)
@@ -248,8 +252,14 @@ public static partial class BuildingSprites
                     var near = Near(s.Mask, x, y, 4);
                     var onPath = s.Finished.GetPixel(x, y).A > 0.9f;
                     if (near > 4 && !onPath) continue;
-                    // Nothing grows over a pier's water.
-                    if (s.Kind == Shape.Pier) continue;
+                    // The approved pier has weeds on its land row or column.
+                    if (s.Kind == Shape.Pier && !(landSide switch
+                    {
+                        DoorSide.North => y < 32,
+                        DoorSide.South => y >= h - 32,
+                        DoorSide.West => x < 32,
+                        _ => x >= w - 32,
+                    })) continue;
                     if (Hash(x, y, salt + 21) % (onPath && near > 4 ? pathOdds : odds) != 0) continue;
                     var tall = Hash(y, x, salt) % 2 == 0;
                     Blend(image, x, y, NeglectLeaf.Base);
