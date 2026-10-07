@@ -129,7 +129,7 @@ public sealed partial class PrivateWorldRuntime
         var best = ArrayPool<int>.Shared.Rent(tileCount);
         try
         {
-            Array.Fill(best, int.MaxValue, 0, tileCount);
+            Array.Fill(best, -1, 0, tileCount);
             best[origin.Y * map.Width + origin.X] = 0;
             open.Enqueue(origin, (0, origin.Y, origin.X, order++));
             while (open.TryDequeue(out var current, out var priority))
@@ -161,7 +161,7 @@ public sealed partial class PrivateWorldRuntime
 
                     var cost = checked(priority.Cost + RoadStepCost(current, next));
                     var index = next.Y * map.Width + next.X;
-                    if (best[index] <= cost)
+                    if (best[index] >= 0 && best[index] <= cost)
                         continue;
                     best[index] = cost;
                     open.Enqueue(next, (cost, next.Y, next.X, order++));
