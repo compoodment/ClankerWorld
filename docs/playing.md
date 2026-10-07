@@ -225,6 +225,9 @@ berries at (12, 4)". "Keep gathering food" continues until cancelled. Eating
 waits until the agent is hungry enough, and gathering needs enough carrying
 space. A recognized new order replaces the current one unless you turn on
 **Queue**. Use **Cancel task** to stop a waiting or active order.
+An agent can also eat from a usable storage pot they own and carry, leaving
+the pot and remaining food together. Eating a serving needs no extra carrying
+space; food reserved for other work or being delivered is unavailable.
 
 Material orders can gather wood, stone, plant fiber, clay, iron ore, gold ore
 or diamond. For example, use **Gather five wood**, **Keep gathering clay**, or
@@ -620,7 +623,10 @@ still needs a hands-on check.
 ## Pause, settings and controls
 
 The pause button pauses or resumes time. **Menu** opens the Pause Menu and keeps
-the world paused. Opening ordinary inspection panels leaves time running.
+the world paused. Closing it restores the world to running if it was running
+before the menu opened; a world you had already paused stays paused. This also
+applies when you reopen the menu while it is still resuming.
+Opening ordinary inspection panels leaves time running.
 Settings and the Mod Library open inside the Pause Menu window; its back arrow
 or **Escape** returns to the menu's buttons.
 
