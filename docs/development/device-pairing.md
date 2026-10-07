@@ -113,6 +113,10 @@ starts at cursor zero, so a younger world can be entered without restarting the
 client. Tick/event regression and terrain identity checks still apply within the
 new observation timeline.
 
+Successful activation and recovery of an already-active pairing both return
+to the Main Menu. Recovery saves the matching registration without opening
+the world; Continue performs the usual signed reconnect.
+
 ## Recovering after another device loads a world
 
 Private hosts advertise `owner-observation-timeline.v1`. Each reconnect

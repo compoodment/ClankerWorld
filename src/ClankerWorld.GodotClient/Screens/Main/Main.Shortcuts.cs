@@ -44,6 +44,9 @@ public partial class Main
     /// </summary>
     public override void _Input(InputEvent @event)
     {
+        // Observe releases before a menu or another GUI control consumes them.
+        if (@event is InputEventMouseButton { ButtonIndex: MouseButton.Middle, Pressed: false })
+            draggingMap = false;
         if (@event is not InputEventKey { Pressed: true, Echo: false } key ||
             key.ShiftPressed || key.CtrlPressed || key.AltPressed || key.MetaPressed)
             return;

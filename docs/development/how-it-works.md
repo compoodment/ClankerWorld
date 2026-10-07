@@ -2,7 +2,7 @@
 title: How the game works
 type: architecture
 status: active
-updated: 2026-10-05
+updated: 2026-10-06
 ---
 
 # How the game works
@@ -1014,6 +1014,11 @@ row-major packed bytes, with separate layer digests. Signed cache claims omit
 unchanged map data only when world and digests match. Initial/changed maps and
 some control receipts still send the whole map. Viewport/chunk transfer remains
 unfinished.
+
+Main-map dragging requires a held middle mouse button. Opening the pause menu
+or losing application focus clears the drag. The client observes releases
+before GUI controls consume them and stops on motion without the middle-button
+mask, so a missed release cannot make ordinary hover pan the camera.
 
 The regional-weather prototype saves an episode for each 32×32 region. Ordinary
 episodes last one-quarter to one saved day; storms last at most three-quarters
@@ -2781,3 +2786,49 @@ invalidates the read and disables Apply. Late replies and failures cannot
 replace a newer opening's controls. A reply must name the observed world
 before Apply becomes available, and Apply checks that context again before
 sending the displayed interval and rotation.
+
+## Animals and horse travel
+
+The built-in animal package adds a household animal yard and the egg, milk, wool,
+leather, leather-sack and saddle recipes to their actual House, Restaurant and
+Tailor stations, including larger Restaurant and Tailor variants. Generated
+worlds seed small wild groups near public forage and fresh water. Each animal
+has an authoritative identity and location; it never draws from private crops
+or household stock while wild.
+
+Adults tame, care, collect, supply, lead, saddle, mount and dismount through
+ordinary revalidated choices. Native orders bind an exact animal name or ID.
+Care spends actual unreserved grain/greens and jug water at the animal or yard;
+food, planting and workstation reserves stay protected. Physical supply trips
+retain the owning household. One held product batch waits for local collection;
+milk enters a reusable household jug. Products then use ordinary stock hauling,
+recipes and trade.
+
+Cared adult pairs breed automatically when their yard has a place and delivered
+supplies cover existing animals and the offspring. Pregnancy reserves one place;
+young animals and reservations count toward eight per household or wild herd.
+Missed care pauses progress. Only old age kills animals; an owned sheep, cow or
+horse leaves one household hide at its actual death position. Untamed animals
+leave one hide bound to their remains until a nearby adult collects it; this
+does not grant access to household-owned hides. Abandonment does
+not turn private animals into public salvage.
+
+Animal gifts, sales and named outsider permissions need fresh, admitted personal
+model choices. Built-in fallback and forced orders cannot give personal consent.
+Receiving space and the exact payment lot are checked again on acceptance;
+transfer clears old permissions and preserves position for physical leading.
+
+A cared adult horse has one real reserved saddle and one adult rider. Movement
+uses the normal legal route and occupancy rules, halves walking cost and admits
+at most two legal steps per tick. A mount adds eight cargo units. Care or
+permission loss ends riding; dismount puts unreserved excess cargo at the actual
+position without changing its owner. Cart attachments and boat travel exclude
+ridden or led animals. Godot projects and draws the authoritative animal state
+with young/adult headings, mounted horses, yard art, inspection and event text.
+
+Milk stock travels as an actual household jug to a held Store or borrowed Market
+stall, with a stock receipt at a stall. Fresh seller and buyer personal choices
+exchange one held portion into the buyer's real carried jug for the named
+personal payment. Both jug owners stay the same. Expiry, refusal and changed
+custody release held milk; spoiled milk can be emptied locally without removing
+the vessel or its fresh contents.

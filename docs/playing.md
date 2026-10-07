@@ -2,7 +2,7 @@
 title: Playing the current game
 type: player-guide
 status: active
-updated: 2026-10-05
+updated: 2026-10-06
 ---
 
 # Playing the current game
@@ -22,6 +22,10 @@ A new device needs approval. Compare the game's code with the person approving
 the device on the server, then complete pairing. Do not post the code, keys or
 private world data in an issue. Once paired, reconnecting uses the saved
 registration; normal play does not need approval every time.
+
+After pairing, choose **Continue** from the Main Menu to enter your world.
+If the activation reply was lost, the next pairing check can recover the
+registration and return you to the same menu.
 
 For an already paired device, **Connect** checks the saved server connection
 and shows the result below the address. It does not start a new pairing.
@@ -137,7 +141,9 @@ details.
 
 ## Look around
 
-Use the mouse wheel to zoom and movement keys to pan. **Map** opens the World
+Use the mouse wheel to zoom, hold the middle mouse button to drag the camera,
+or use movement keys to pan. Opening the pause menu or switching to another
+application ends a drag; press the middle button again to start another. **Map** opens the World
 Map, which marks each Town and agent; click it or drag its view rectangle to
 move the camera. The label in the corner names the ground under the pointer
 beside a small picture of it. Click a tile to open its card: the ground with a
@@ -725,3 +731,50 @@ available; larger worlds remain unavailable pending their support checks.
 **Reroll** chooses another seed and clears the old map while its replacement
 loads. You can reroll during generation; the preview will follow your latest
 seed. If the world name is missing, enter it and choose **Preview again**.
+
+## Animals
+
+Adults with a House can **Build an animal yard** and **Expand my animal yard**
+using eight wood and two rope for each stage. The larger footprint needs clear
+land and the household's required use permission. The fenced yard has four places,
+or eight when expanded; young animals and expected births use places.
+Households receive no starting animals. Look for wild chickens, sheep, cows or
+horses near wild greens and fresh water.
+
+Click an animal's tile for its name, age, household, care, ready product and
+permissions. Use its exact unique name or ID in a Must do order, for example
+**Tame Moss**, **Lead home Moss**, **Care for Moss**, or **Collect from Moss**.
+**Repeat care for Moss** and **Repeat collect from Moss** keep the task active
+until cancelled. The adult walks and brings actual available supplies; an
+order waits when permission, supplies, product, space or a route is missing.
+Taming needs two grain/greens and one jug water. Chickens need one feed and one
+water daily; sheep, cows and horses need two each. Jugs remain reusable.
+
+Products belong to the animal's household. Eggs and milk spoil; collect them
+promptly. Milk needs an empty household jug or one already holding milk, with
+room for two portions. **Return borrowed water jug** carries a collected jug
+back to its owning household's House. Adults can haul the products into their
+workstations through ordinary supply choices and orders. House/Restaurant
+recipes cook eggs or milk porridge; Restaurants prepare rich meals. Tailors
+make wool padded coats, process hides into leather, and make leather sacks or
+saddles. A leather sack carries 32 units. Adults can haul household milk jugs
+to their Store or borrowed Market stall. A seller offers one portion for an
+exact personal payment; the buyer accepts with a carried empty or milk jug.
+Both vessels keep their owners. Pouring away spoiled milk frees its jug for reuse.
+
+For a cared adult horse, use **Saddle Moss**, **Mount Moss** and **Dismount Moss**.
+A mount needs a real household saddle and gives twice walking speed plus eight
+cargo units. Dismounting puts excess unreserved cargo at the rider's actual
+position. Horses cannot accompany a boat or pull a handcart in this version.
+Household adults can care and ride; outsiders need separate named permissions
+agreed by an adult. Personal models may offer or accept a specific animal gift
+or sale when both adults meet and the receiving yard has space.
+
+Cared adult pairs breed automatically with space and delivered supplies. Missed
+care pauses products and pregnancy progress and ends riding. Neglect does not
+kill animals. Only old age does; sheep, cows and horses leave one hide.
+Household hides remain private; nearby adults may collect untamed animals'
+old-age hides from their actual death tile.
+For a quick trial, pause and open **Developer tools (F12)**, choose an adult
+with yard space, and use **Add household animal**. The Event Log records it.
+The [animal playtest list](../playtest/433-animals.md) remains untried on Windows.
