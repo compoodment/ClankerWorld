@@ -246,7 +246,9 @@ may collect an accessible shared tool before gathering.
 Use "gather clay", "gather five wood", "keep gathering stone", or an exact
 resource identifier after "from". "Gather iron ore at (12, 4)" checks that tile
 without choosing a substitute. Unspecified sites use the agent's known or
-nearby observed resources, with ordinary exploration when none is available.
+nearby observed resources, with ordinary exploration when none is reachable.
+A remembered source across disconnected land does not stop an untargeted order
+from exploring locally; the agent keeps that memory.
 Unknown explicit sites require travel and observation before gathering. Queue,
 cancellation, urgent survival interruptions and progress survive save/reload.
 

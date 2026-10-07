@@ -121,7 +121,10 @@ whole-load carrying checks.
 Material orders save the requested kind separately from food targets. They use
 known resource facts or observation within normal interaction range; a named
 unobserved site first requires physical travel. Untargeted orders may use normal
-exploration. Gathering uses the existing tool pickup, whole-load capacity,
+exploration when none of their known matching sources is reachable. Inaccessible
+facts stay in the knowledge ledger. A reachable source still requires the
+normal tools and carrying room; explicit resource or tile targets do not
+substitute another source. Gathering uses the existing tool pickup, whole-load capacity,
 inventory, tool-wear and ecology transitions. Only a returned physical harvest
 receipt advances progress. One load is the default; explicit quantities count
 actual output, including a final whole load that exceeds the requested amount.
