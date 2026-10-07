@@ -1277,6 +1277,9 @@ rotation off, and counts each branch's autosaves separately.
 The schedule persists a new interval anchor if the host clock moves backwards,
 so restart cannot restore the resulting delay. This changes only the adjacent
 schedule timestamp; it keeps the saved world tick and existing snapshot files.
+Rotation uses the saved branch position to keep that branch's newest copies,
+even when earlier copies have future UTC dates. Genuine pre-branch saves still
+rotate by UTC; saves with damaged branch fields remain preserved.
 The signed action names the world whose settings were opened. Its identity
 check, configuration write and rotation share the world-mutation gate with
 selection and loading. A request delayed across a world switch is refused

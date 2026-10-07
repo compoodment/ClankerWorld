@@ -1,1 +1,1 @@
-- Rotating autosaves resume within their configured interval after the host's clock moves backwards, even if the host restarts.
+- Rotating autosaves resume within their configured interval after the host's clock moves backwards, even if the host restarts, and keep the newest copies on each known branch despite earlier future dates.

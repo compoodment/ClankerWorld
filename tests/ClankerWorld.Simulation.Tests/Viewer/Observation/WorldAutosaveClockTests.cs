@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Viewer.Control;
 using ClankerWorld.Viewer.Observation;
@@ -63,6 +64,64 @@ public sealed class WorldAutosaveClockTests
         {
             directory.Delete(recursive: true);
         }
+    }
+
+    [Fact]
+    public async Task RecoveredAutosavesKeepTheLatestBranchCopiesWhenEarlierCopiesHaveFutureDates()
+    {
+        var directory = Directory.CreateTempSubdirectory("clanker-autosave-clock-rotation-");
+        try
+        {
+            using var runtime = new PrivateWorldRuntime("autosave-clock-rotation");
+            var path = Path.Combine(directory.FullName, "world.json");
+            var saves = new ManualWorldSaveStore(path);
+            var autosave = new WorldAutosaveStore(path, runtime.Society.WorldId);
+            var providers = new ProviderConfigurationStore(Path.Combine(directory.FullName, "providers.json"),
+                new ProviderConfigurationSeed("deterministic", null, null, null, null, null, null));
+            autosave.Configure(true, 1, 3);
+            runtime.Pause();
+            var manual = saves.Create("Keep this manual save", runtime, []);
+            runtime.Resume();
+            var fastTime = autosave.Capture().LastSavedUtc.AddHours(1);
+            var earlier = new List<ManualWorldSave>();
+            for (var i = 0; i < 3; i++)
+            {
+                Assert.True((await runtime.AdvanceOneTickAsync()).Advanced);
+                var saved = Assert.IsType<ManualWorldSave>(autosave.MaybeSave(
+                    fastTime.AddMinutes(i), runtime, providers, saves));
+                earlier.Add(saved);
+                // Model already-written timestamps from the fast host clock,
+                // without changing the machine's clock or checkpoint bytes.
+                var metadataPath = Path.Combine(path + ".manual", saved.Id + ".meta.json");
+                var metadata = JsonNode.Parse(File.ReadAllText(metadataPath))!;
+                metadata["Save"]!["CreatedUtc"] = fastTime.AddMinutes(i).ToString("O");
+                File.WriteAllText(metadataPath, metadata.ToJsonString());
+            }
+            Assert.Equal(3, saves.List().Count(save => save.IsAutosave));
+            var corrected = fastTime.AddMinutes(2).AddHours(-1);
+            Assert.True((await runtime.AdvanceOneTickAsync()).Advanced);
+            Assert.Null(autosave.MaybeSave(corrected, runtime, providers, saves));
+            autosave = new WorldAutosaveStore(path, runtime.Society.WorldId);
+            var recovered = new List<ManualWorldSave>();
+            for (var i = 1; i <= 3; i++)
+            {
+                Assert.True((await runtime.AdvanceOneTickAsync()).Advanced);
+                recovered.Add(Assert.IsType<ManualWorldSave>(autosave.MaybeSave(
+                    corrected.AddMinutes(i), runtime, providers, saves)));
+            }
+            Assert.Single(recovered.Select(save => save.Branch!.Id).Distinct());
+            Assert.Equal(earlier[0].Branch!.Id, recovered[0].Branch!.Id);
+            Assert.Equal(recovered.Select(save => save.Id).Order(),
+                saves.List().Where(save => save.IsAutosave).Select(save => save.Id).Order());
+            Assert.Contains(saves.List(), save => save.Id == manual.Id && !save.IsAutosave);
+            foreach (var saved in recovered)
+            {
+                using var restored = PrivateWorldRuntime.Restore(saves.Read(saved.Id));
+                restored.Validate();
+                Assert.Equal(saved.WorldTick, restored.WorldTick);
+            }
+        }
+        finally { directory.Delete(recursive: true); }
     }
 
     [Fact]
