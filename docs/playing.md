@@ -477,6 +477,8 @@ starts an independent household. If household owners or Town borders overlap,
 choose another tile. The preview does not reserve the land: the server checks
 the current ownership and borders again when you place the adult, and asks you
 to choose again if they changed. Walking later does not change membership.
+Once placement succeeds, Add Agent closes. If model settings cannot refresh,
+the message still confirms the placement; reopen Game Settings to refresh them.
 
 **World Info** has two pages. **Towns** lists each Town with its residents'
 portraits, its council, its current and latest settled election, eight recent
