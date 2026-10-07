@@ -586,6 +586,9 @@ House can build a 2×2 animal yard for eight wood and two rope, then expand it
 for the same materials. Four/eight places and the household limit of eight
 include young animals and reserved births. Yards hold sixteen supply units.
 
+Untamed animals feed from reachable wild greens. If people or other animals
+block a patch's approach, they can use another reachable patch nearby.
+
 Taming uses two feed and one jug water. Daily care uses one feed/water for a
 chicken and two each for sheep, cows and horses. Feed is grain or greens. Adults
 fetch and carry real supplies, preserving food, planting and production

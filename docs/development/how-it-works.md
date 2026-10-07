@@ -2859,7 +2859,10 @@ leather, leather-sack and saddle recipes to their actual House, Restaurant and
 Tailor stations, including larger Restaurant and Tailor variants. Generated
 worlds seed small wild groups near public forage and fresh water. Each animal
 has an authoritative identity and location; it never draws from private crops
-or household stock while wild.
+or household stock while wild. Wild forage selection checks an unoccupied route
+to the patch's interaction area, using the same live people and animal blockers
+as movement. A crowded nearer patch does not hide another reachable patch within
+the existing search radius.
 
 Adults tame, care, collect, supply, lead, saddle, mount and dismount through
 ordinary revalidated choices. Native orders bind an exact animal name or ID.
