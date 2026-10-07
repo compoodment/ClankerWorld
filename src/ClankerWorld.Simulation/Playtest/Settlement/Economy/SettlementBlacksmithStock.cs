@@ -170,9 +170,10 @@ public sealed partial class PrivateWorldRuntime
         AppendEvent("smith_ore_delivered", $"{actor}:{ore.Id}:{quantity}:{blacksmith.InstanceId}");
     }
 
-    private InventoryLot? BlacksmithInputForDelivery(string householdId, string blacksmithId, string actor,
+    private InventoryLot? BlacksmithInputForDelivery(string householdId, PlacedBuilding blacksmith, string actor,
         string? itemKind = null, string? sourceLotId = null)
     {
+        var blacksmithId = blacksmith.InstanceId;
         var inventory = society.Checkpoint.Inventory;
         foreach (var (kind, target) in BlacksmithInputTargets(blacksmithId))
         {
@@ -195,12 +196,23 @@ public sealed partial class PrivateWorldRuntime
                     (sourceLotId is null || lot.Id == sourceLotId) &&
                     lot.DeliveryBuildingId != blacksmithId && lot.ContainerLotId is null && lot.ItemKind == kind &&
                     AvailableLotQuantity(lot) > 0)
-                .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
+                .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault(CanHaulSharedInput);
             source ??= AvailableWarehouseStock(actor, kind)
-                .FirstOrDefault(lot => sourceLotId is null || lot.Id == sourceLotId);
+                .FirstOrDefault(lot => (sourceLotId is null || lot.Id == sourceLotId) && CanHaulSharedInput(lot));
             if (source is not null) return source;
         }
         return null;
+
+        // A blocked earlier lot must not hide stock the actor can actually deliver.
+        bool CanHaulSharedInput(InventoryLot lot)
+        {
+            var position = inhabitants[actor].Position;
+            var source = HouseholdStockPosition(lot);
+            var range = HouseholdStockInteractionRange(lot);
+            return (IsWithinInteractionRange(position, source, range) ||
+                    FindUnoccupiedRoute(actor, position, source, range).Count > 0) &&
+                FindUnoccupiedRoute(actor, source, blacksmith.Position, 0).Count > 0;
+        }
     }
 
     private (string ItemKind, MapResource Source)? BlacksmithInputToGather(string householdId, string blacksmithId,
@@ -296,7 +308,7 @@ public sealed partial class PrivateWorldRuntime
         }
         if (StorageRoomAfterInboundDeliveries(blacksmith.InstanceId) == 0)
             return;
-        var input = BlacksmithInputForDelivery(householdId, blacksmith.InstanceId, actor);
+        var input = BlacksmithInputForDelivery(householdId, blacksmith, actor);
         if (input is null)
         {
             if (BlacksmithInputToGather(householdId, blacksmith.InstanceId, actor) is { } missing)
@@ -312,17 +324,8 @@ public sealed partial class PrivateWorldRuntime
         if (input.OwnerId != actor && FreeCarryCapacity(actor) == 0)
             return;
 
-        var source = HouseholdStockPosition(input);
-        var range = HouseholdStockInteractionRange(input);
-        if (input.OwnerId == actor)
-        {
-            if (state.Position != blacksmith.Position &&
-                FindUnoccupiedRoute(actor, state.Position, blacksmith.Position, 0).Count == 0)
-                return;
-        }
-        else if ((!IsWithinInteractionRange(state.Position, source, range) &&
-             FindUnoccupiedRoute(actor, state.Position, source, range).Count == 0) ||
-            FindUnoccupiedRoute(actor, source, blacksmith.Position, 0).Count == 0)
+        if (input.OwnerId == actor && state.Position != blacksmith.Position &&
+            FindUnoccupiedRoute(actor, state.Position, blacksmith.Position, 0).Count == 0)
             return;
         candidates.Add(new CognitionCandidate("haul_smith_input",
             $"Carry {input.ItemKind.Replace('_', ' ')} into the household Blacksmith for on-site work.",
@@ -334,7 +337,7 @@ public sealed partial class PrivateWorldRuntime
         var householdId = society.Checkpoint.GetInhabitant(actor).HouseholdId;
         if (!AdultResident(actor) || householdId is null ||
             BlacksmithForHousehold(householdId) is not { } blacksmith ||
-            BlacksmithInputForDelivery(householdId, blacksmith.InstanceId, actor) is not { } input)
+            BlacksmithInputForDelivery(householdId, blacksmith, actor) is not { } input)
             return;
         var room = StorageRoomAfterInboundDeliveries(blacksmith.InstanceId);
         if (room == 0) return;
@@ -389,7 +392,7 @@ public sealed partial class PrivateWorldRuntime
         if (!AdultResident(actor) || HouseholdFor(actor) is not { } householdId ||
             BlacksmithForHousehold(householdId) is not { } blacksmith ||
             !DeliveryDestinationMatches(order, blacksmith) ||
-            BlacksmithInputForDelivery(householdId, blacksmith.InstanceId, actor,
+            BlacksmithInputForDelivery(householdId, blacksmith, actor,
                 order.TargetItemKind, order.DeliveryLotId) is not { } input)
             return null;
         var direct = input.OwnerId == actor;

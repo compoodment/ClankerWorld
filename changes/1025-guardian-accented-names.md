@@ -1,0 +1,1 @@
+- Guardian orders recognize equivalent accented spellings of a child's full name, including names typed or pasted with combining accents.

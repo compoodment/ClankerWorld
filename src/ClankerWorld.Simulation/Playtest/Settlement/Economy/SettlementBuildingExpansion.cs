@@ -39,6 +39,7 @@ public static class BuildingStorageRules
             width, height, definition.Capacity, definition.BuildCosts, definition.Tags);
 
     public static int? Capacity(BuildingDefinition definition, PlacedBuilding building) =>
+        definition.Tags.Contains(AnimalContent.YardTag, StringComparer.Ordinal) ? 16 :
         definition.Tags.Contains("farmhouse", StringComparer.Ordinal) ? FarmFieldRules.FarmStorageCapacity :
         definition.Tags.Any(tag => tag is "house" or "warehouse" or "blacksmith" or "tailor" or "store" or "restaurant" or "clinic")
             ? UnitsPerTile * (building.Footprint?.Width ?? definition.Width) *
@@ -49,6 +50,7 @@ public static class BuildingStorageRules
     {
         var current = EffectiveDefinition(definition, building);
         var extraTiles = target.Width * target.Height - current.Width * current.Height;
+        if (definition.Tags.Contains(AnimalContent.YardTag, StringComparer.Ordinal)) return [new("wood", 8), new("rope", 2)];
         return definition.Tags.Contains("warehouse", StringComparer.Ordinal)
             ? [new("wood", 4 * extraTiles), new("stone", 2 * extraTiles)] : [new("wood", 4 * extraTiles)];
     }
@@ -56,6 +58,8 @@ public static class BuildingStorageRules
     public static bool IsSupported(BuildingDefinition definition, BuildingFootprintRevision footprint) =>
         definition.Tags.Contains("house", StringComparer.Ordinal)
             ? (footprint.Width, footprint.Height, footprint.Revision) is (1, 2, 1) or (2, 1, 1) or (2, 2, 2)
+            : definition.Tags.Contains(AnimalContent.YardTag, StringComparer.Ordinal)
+                ? (footprint.Width, footprint.Height, footprint.Revision) is (2, 4, 1) or (4, 2, 1)
             : definition.Tags.Contains("warehouse", StringComparer.Ordinal) &&
                 (footprint.Width, footprint.Height, footprint.Revision) is (2, 3, 1) or (3, 2, 1);
 }
@@ -240,6 +244,10 @@ public sealed partial class PrivateWorldRuntime
                 return false;
             }
         }
+        else if (definition.Tags.Contains(AnimalContent.YardTag, StringComparer.Ordinal))
+        {
+            if (building.HouseholdId != HouseholdFor(actor) || AnimalYardCapacity(building) >= AnimalRules.PopulationCap) return false;
+        }
         else return false;
         if ((worldSimulation.BuildingExpansions ?? []).Any(job => job.BuildingInstanceId == building.InstanceId &&
                 (job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused)))
@@ -258,6 +266,8 @@ public sealed partial class PrivateWorldRuntime
         var revision = (building.Footprint?.Revision ?? 0) + 1;
         (int Width, int Height)[] sizes = definition.Tags.Contains("house", StringComparer.Ordinal)
             ? revision == 1 ? [(1, 2), (2, 1)] : revision == 2 ? [(2, 2)] : []
+            : definition.Tags.Contains(AnimalContent.YardTag, StringComparer.Ordinal)
+                ? revision == 1 ? [(2, 4), (4, 2)] : []
             : revision == 1 ? [(2, 3), (3, 2)] : [];
         foreach (var size in sizes)
         {
@@ -327,7 +337,8 @@ public sealed partial class PrivateWorldRuntime
             Enumerable.Range(0, job.TargetFootprint.Width).Select(dx =>
                 new GridPoint(job.TargetPosition.X + dx, job.TargetPosition.Y + dy)));
 
-    private void AddBuildingExpansionCandidates(List<CognitionCandidate> candidates, string actor)
+    private void AddBuildingExpansionCandidates(List<CognitionCandidate> candidates, string actor,
+        Dictionary<(ToolFamily Family, int Tier), ToolDefinition?> reachableToolCache)
     {
         foreach (var building in worldSimulation.Buildings)
         {
@@ -336,7 +347,7 @@ public sealed partial class PrivateWorldRuntime
             var definition = worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
             var shape = ExpansionShapes(building).First();
             var costs = BuildingStorageRules.ExpansionCosts(definition, building, shape.Footprint);
-            if (!CanAcquireProjectInputs(costs, HouseholdFor(actor), actor) ||
+            if (!CanAcquireProjectInputs(costs, HouseholdFor(actor), actor, reachableToolCache) ||
                 !CanAcquireExpansionMaterials(actor, building, costs)) continue;
             var reason = definition.Tags.Contains("house", StringComparer.Ordinal) &&
                 building.HouseholdId is { } householdId &&

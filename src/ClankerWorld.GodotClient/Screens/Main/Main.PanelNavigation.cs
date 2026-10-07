@@ -116,6 +116,7 @@ public partial class Main
             return;
         }
 
+        draggingMap = false;
         rosterPanel.Hide();
         eventsPanel.Hide();
         familyTreePanel.Hide();

@@ -175,6 +175,16 @@ public partial class Main
         public List<OwnerAutosaveConfigurationAction> AutosaveConfigurations { get; } = [];
         /// <summary>The next signed refresh's world, or none to refuse refreshes.</summary>
         public OwnerWorldReconnect? Reconnect { get; set; }
+        public Func<OwnerUsageLimitAction, Task<OwnerUsageStatus>>? UsageLimitHandler { get; set; }
+        public Func<Task<OwnerUsageStatus?>>? UsageHandler { get; set; }
+        public OwnerUsageStatus? Usage { get; set; }
+        public System.Collections.Concurrent.ConcurrentQueue<OwnerUsageLimitAction> UsageLimits { get; } = new();
+        public OwnerPairingStart? PairingStart { get; set; }
+        public OwnerPairingStatus? PairingStatus { get; set; }
+        public bool LoseActivationReply { get; set; }
+        public TaskCompletionSource ReconnectReceived { get; set; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource? ReleaseReconnect { get; set; }
+        public bool HostPaused { get; private set; } = true;
         public IReadOnlyList<string>? SupportedActionPayloads { get; set; }
         public OwnerWorldPreview? Preview { get; set; }
         public CatalogWorld? SelectedWorld { get; set; }
@@ -218,11 +228,45 @@ public partial class Main
 
         private async Task ReplyAsync(HttpListenerContext context)
         {
+            var path = context.Request.Url!.AbsolutePath;
+            if (PairingStatus is { } status && path == $"{OwnerPairingEndpoints.Pairings}/{status.PairingId}")
+            {
+                Requests.Enqueue(path);
+                await WriteResponseAsync(context, status).ConfigureAwait(false);
+                return;
+            }
             using var body = await JsonDocument.ParseAsync(context.Request.InputStream).ConfigureAwait(false);
             var envelope = body.RootElement;
+            if (PairingStart is { } start && path == OwnerPairingEndpoints.Pairings)
+            {
+                if (envelope.GetProperty("publicKeySpkiBase64").GetString() != publicKey)
+                    throw new InvalidOperationException("Pairing must use the fixture's actual public key.");
+                Requests.Enqueue(path);
+                await WriteResponseAsync(context, start).ConfigureAwait(false);
+                return;
+            }
             if (!OwnerPairingProtocol.VerifyP256Sha256P1363(publicKey,
                     envelope.GetProperty("canonicalProof").GetString()!, envelope.GetProperty("signatureBase64").GetString()!))
                 throw new InvalidOperationException("The smoke host must receive an actual signed owner request.");
+            if (PairingStart is { } activation && path == OwnerPairingEndpoints.PairingActivation)
+            {
+                if (envelope.GetProperty("canonicalProof").GetString() != activation.ActivationCanonicalProof)
+                    throw new InvalidOperationException("Activation must prove possession of the pending pairing key.");
+                Requests.Enqueue(path);
+                PairingStatus = new(activation.Authority, activation.PairingId, activation.DeviceId,
+                    activation.PublicKeyFingerprint, OwnerPairingState.Active, activation.ExpiresAtUtc);
+                if (LoseActivationReply)
+                {
+                    // The host committed activation, but the client cannot read its incomplete reply.
+                    context.Response.ContentType = "application/json";
+                    await context.Response.OutputStream.WriteAsync("{"u8.ToArray()).ConfigureAwait(false);
+                    context.Response.Close();
+                }
+                else
+                    await WriteResponseAsync(context, new OwnerDevice(activation.DeviceId, publicKey,
+                        activation.PublicKeyFingerprint, OwnerDeviceState.Active, DateTimeOffset.UnixEpoch, null)).ConfigureAwait(false);
+                return;
+            }
             object response;
             Requests.Enqueue(context.Request.Url!.AbsolutePath);
             switch (context.Request.Url!.AbsolutePath)
@@ -283,6 +327,7 @@ public partial class Main
                         configuration.IntervalMinutes, configuration.RotationCount, DateTimeOffset.UnixEpoch, -1);
                     break;
                 case OwnerPairingEndpoints.OwnerPause:
+                    HostPaused = true;
                     Interlocked.Increment(ref pauseCount);
                     PauseReceived.TrySetResult();
                     if (ControlHandler is { } pauseHandler)
@@ -314,12 +359,37 @@ public partial class Main
                     response = CreatedWorld;
                     break;
                 case OwnerPairingEndpoints.OwnerResume:
+                    HostPaused = false;
                     response = ControlHandler is { } resumeHandler
                         ? await resumeHandler(false).ConfigureAwait(false)
                         : new OwnerControlReceipt("resume", true, false, 0, 0, 0);
                     break;
                 case OwnerPairingEndpoints.OwnerReconnect when Reconnect is not null:
+                    ReconnectReceived.TrySetResult();
+                    if (ReleaseReconnect is { } releaseReconnect) await releaseReconnect.Task.ConfigureAwait(false);
                     response = Reconnect;
+                    break;
+                case OwnerPairingEndpoints.OwnerUsageLimit when UsageLimitHandler is not null:
+                    response = await UsageLimitHandler(envelope.GetProperty("action").Deserialize<OwnerUsageLimitAction>(JsonOptions)!).ConfigureAwait(false);
+                    break;
+                case OwnerPairingEndpoints.OwnerUsageStatus when UsageHandler is not null:
+                    if (await UsageHandler().ConfigureAwait(false) is { } usage)
+                        response = usage;
+                    else
+                    {
+                        context.Response.StatusCode = (int)HttpStatusCode.ServiceUnavailable;
+                        response = new { error = "Controlled usage read failure." };
+                    }
+                    break;
+                case OwnerPairingEndpoints.OwnerUsageLimit when Usage is not null:
+                    var limit = envelope.GetProperty("action").Deserialize<OwnerUsageLimitAction>(JsonOptions)!;
+                    UsageLimits.Enqueue(limit);
+                    Usage = Usage with
+                    {
+                        AttemptLimit = limit.AdditionalCalls > 0 ? Usage.Attempts + limit.AdditionalCalls : limit.AttemptLimit,
+                        LimitReached = limit.AttemptLimit is { } cap && cap <= Usage.Attempts && limit.AdditionalCalls == 0,
+                    };
+                    response = Usage;
                     break;
                 case OwnerPairingEndpoints.OwnerAgentRename:
                     var rename = envelope.GetProperty("action").Deserialize<OwnerAgentRenameAction>(JsonOptions)!;
@@ -346,6 +416,11 @@ public partial class Main
                     response = new { error = "No observation fixture." };
                     break;
             }
+            await WriteResponseAsync(context, response).ConfigureAwait(false);
+        }
+
+        private static async Task WriteResponseAsync(HttpListenerContext context, object response)
+        {
             context.Response.ContentType = "application/json";
             await JsonSerializer.SerializeAsync(context.Response.OutputStream, response,
                 response.GetType(), JsonOptions).ConfigureAwait(false);

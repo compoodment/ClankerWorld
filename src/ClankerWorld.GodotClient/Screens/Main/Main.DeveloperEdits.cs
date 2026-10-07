@@ -6,11 +6,12 @@ namespace ClankerWorld.GodotClient;
 public partial class Main
 {
     private static readonly string[] DeveloperEditOperations =
-        ["set_need", "give_goods", "remove_goods", "add_skill", "remove_skill", "start_partnership", "end_partnership"];
+        ["set_need", "give_goods", "remove_goods", "add_skill", "remove_skill", "start_partnership", "end_partnership", "add_animal"];
     private static readonly string[] DeveloperEditGoods =
         ["berries", "fruit", "wild_greens", "cultivated_greens", "grain", "flour", "wood", "stone",
          "fiber", "rope", "cloth", "clothing", "padded_coat", "rain_cloak", "basket", "sack",
-         "wooden_axe", "wooden_pickaxe", "iron_ore", "iron", "storage_pot", "water_jug", "medicine", "tree_seed"];
+         "wooden_axe", "wooden_pickaxe", "iron_ore", "iron", "storage_pot", "water_jug", "medicine", "tree_seed",
+         "eggs", "wool", "hide", "leather", "leather_sack", "saddle", "cooked_eggs", "milk_porridge", "rich_meal"];
     private readonly Label developerEditAgent = new();
     private readonly Label developerEditHint = new();
     private readonly OptionButton developerEditKind = new();
@@ -25,7 +26,7 @@ public partial class Main
         var body = new VBoxContainer();
         developerEditAgent.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         body.AddChild(developerEditAgent);
-        foreach (var label in new[] { "Set a need", "Give goods", "Remove goods", "Add a skill", "Remove a skill", "Start a partnership", "End a partnership" })
+        foreach (var label in new[] { "Set a need", "Give goods", "Remove goods", "Add a skill", "Remove a skill", "Start a partnership", "End a partnership", "Add a household animal" })
             developerEditKind.AddItem(label);
         developerEditKind.ItemSelected += _ => ConfigureDeveloperEdit();
         body.AddChild(developerEditKind);
@@ -56,6 +57,7 @@ public partial class Main
             "set_need" => new[] { "fullness", "warmth", "illness", "nutrition" },
             "give_goods" or "remove_goods" => DeveloperEditGoods,
             "add_skill" or "remove_skill" => new[] { "building", "farming", "crafting", "smithing" },
+            "add_animal" => new[] { "chicken:female", "chicken:male", "sheep:female", "sheep:male", "cow:female", "cow:male", "horse:female", "horse:male" },
             _ => new[] { "partnership" },
         };
         foreach (var value in values)

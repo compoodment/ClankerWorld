@@ -7,6 +7,7 @@ namespace ClankerWorld.GodotClient;
 
 public partial class Main
 {
+    private int mainMenuNavigationRevision;
     private readonly Control mainMenuOverlay = new();
     private readonly ColorRect mainMenuBackground = new();
     private readonly MenuBackdrop mainMenuBackdrop = new();
@@ -152,6 +153,7 @@ public partial class Main
 
     private void ShowMainMenu()
     {
+        mainMenuNavigationRevision++;
         isInWorld = false;
         if (developerPanel.Visible) CloseDeveloperTools();
         mainMenuOverlay.MouseFilter = MouseFilterEnum.Stop;
@@ -194,9 +196,11 @@ public partial class Main
     private async Task EnterWorldAsync()
     {
         if (registration is null || deviceKey is null || registeredEndpointInvalid) return;
+        var navigationRevision = ++mainMenuNavigationRevision;
         mainMenuContinueButton.Disabled = true;
         var previousRefreshCount = successfulRefreshCount;
         await RefreshAsync();
+        if (navigationRevision != mainMenuNavigationRevision) return;
         if (successfulRefreshCount == previousRefreshCount || observationSession.AwaitingFreshBaseline)
         {
             RefreshMainMenuAvailability();
@@ -227,6 +231,7 @@ public partial class Main
 
     private void OpenMainMenuSettings()
     {
+        mainMenuNavigationRevision++;
         returnToMainMenu = true;
         mainMenuOverlay.Show();
         mainMenuCard.Hide();
@@ -582,6 +587,7 @@ public partial class Main
     private void OpenWorldMenu(bool create)
     {
         if (registration is null || deviceKey is null || registeredEndpointInvalid) return;
+        mainMenuNavigationRevision++;
         worldListRequest.Cancel();
         worldMenuHeading.Text = create ? "New World" : "Load World";
         worldMenuStatus.Text = create
@@ -601,8 +607,8 @@ public partial class Main
         worldSelectButton.Disabled = true;
         worldNameInput.Text = "New World";
         worldSeedInput.Text = Guid.NewGuid().ToString("N")[..12];
-        InvalidateWorldPreview();
         worldMenuOverlay.Show();
+        InvalidateWorldPreview();
         if (create) _ = PreviewWorldAsync();
         else _ = RefreshWorldListAsync();
     }
@@ -808,7 +814,7 @@ public partial class Main
     {
         var generation = observationSession.RequestGeneration;
         await ToSignal(GetTree().CreateTimer(0.3), SceneTreeTimer.SignalName.Timeout);
-        while (worldMenuBusy && IsInsideTree() && worldMenuOverlay.Visible && revision == worldPreviewRevision)
+        while ((worldMenuBusy || isOwnerAction) && IsInsideTree() && worldMenuOverlay.Visible && revision == worldPreviewRevision)
             await ToSignal(GetTree().CreateTimer(0.1), SceneTreeTimer.SignalName.Timeout);
         if (!IsCurrentWorldRequest(generation) || !IsInsideTree() || !worldMenuOverlay.Visible ||
             !worldMenuColumns.Visible || revision != worldPreviewRevision ||

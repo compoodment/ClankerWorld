@@ -10,7 +10,7 @@ namespace ClankerWorld.Simulation.Playtest;
 internal static class PrivateWorldInstructionOrderParser
 {
     internal static bool IsEquipmentKind(string? kind) =>
-        kind is "clothing" or "padded_coat" or "rain_cloak" or "basket" or "sack";
+        kind is "clothing" or "padded_coat" or "rain_cloak" or "basket" or "sack" or "leather_sack";
 
     internal static bool IsToolKind(string? kind) => kind is not null && ToolProgressionRules.Find(kind) is not null;
 
@@ -317,6 +317,7 @@ internal static class PrivateWorldInstructionOrderParser
             if (explicitQuantity && quantity != 1 || action == "expand_building" && !ReadWord("my")) return null;
             string? kind;
             if (ReadWord("town")) kind = ReadWord("warehouse") ? "warehouse" : null;
+            else if (ReadWord("animal")) kind = ReadWord("yard") ? "animal-yard" : null;
             else if (TryReadAnyWord("house", "farmhouse", "blacksmith", "tailor", "silo", "clinic", "store", "restaurant"))
                 kind = tokens[position - 1].Value;
             else kind = null;
@@ -640,6 +641,7 @@ internal static class PrivateWorldInstructionOrderParser
                 return null;
             }
             if (TryReadAnyWord("basket", "baskets")) return "basket";
+            if (ReadWord("leather")) return TryReadAnyWord("sack", "sacks") ? "leather_sack" : null;
             if (TryReadAnyWord("sack", "sacks")) return "sack";
             if (ReadWord("padded"))
             {

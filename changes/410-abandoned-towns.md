@@ -1,0 +1,1 @@
+- Empty Towns now appear as abandoned while keeping their buildings, borders, property and laws. Agents can salvage real unreserved communal goods in person, and one adult can deliberately resettle the same Town with their dependent care group. Revival restores ordinary communal access and council admission for later newcomers.

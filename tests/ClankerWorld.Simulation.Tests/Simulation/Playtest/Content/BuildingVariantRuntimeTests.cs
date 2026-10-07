@@ -1,3 +1,5 @@
+using System.Text.Json;
+using ClankerWorld.Viewer.Observation;
 using ClankerWorld.Simulation.Content;
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
@@ -30,6 +32,23 @@ public sealed class BuildingVariantRuntimeTests
             (job.WorkerId, job.OwnerId, job.BuildingInstanceId, job.State));
         Assert.Contains("build:recipe:" + recipe.CanonicalId, provider.Offered);
         Assert.DoesNotContain(world.Society.Inventory.Lots, lot => lot.Id == job.JobId + ":output:00");
+        // The real host-to-game contract must show this exact variant's paid work,
+        // rather than the original size or the world's full recipe catalogue.
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        var displayed = JsonSerializer.Deserialize<ClankerWorld.GodotClient.UI.OwnerWorldSnapshot>(
+            JsonSerializer.Serialize(new OwnerWorldObservationStore(world).GetSnapshot(), options), options)!;
+        var displayedBuilding = displayed.PlacedBuildings.Single(item => item.InstanceId == building.InstanceId);
+        Assert.Contains(displayedBuilding.AvailableRecipes!, item => item.Id == recipe.CanonicalId);
+        Assert.All(displayedBuilding.AvailableRecipes!, item =>
+            Assert.DoesNotContain(item.Outputs, output => output.Kind is "bedding" or "food"));
+        Assert.All(displayedBuilding.AvailableRecipes!, item => Assert.Contains(fixture.State.WorldContent!.Recipes,
+            registered => registered.CanonicalId == item.Id && registered.WorkstationBuildingId == building.DefinitionId));
+        var displayedJob = displayed.ProductionJobs.Single(item => item.JobId == job.JobId);
+        Assert.Equal(recipe.DisplayName, displayedJob.Recipe!.Name);
+        var displayedOutput = Assert.Single(displayedJob.Recipe.Outputs);
+        Assert.Equal((outputKind, outputQuantity), (displayedOutput.Kind, displayedOutput.Quantity));
+        Assert.Equal(recipe.Inputs.Select(input => (input.ResourceId, input.Amount)).OrderBy(input => input.ResourceId),
+            displayedJob.HeldInputs!.Select(input => (input.Kind, input.Quantity)).OrderBy(input => input.Kind));
         foreach (var input in recipe.Inputs)
         {
             var reservation = Assert.Single(job.InputReservationIds.Select(world.Society.Inventory.GetReservation),
