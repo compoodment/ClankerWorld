@@ -68,7 +68,8 @@ public partial class Main
 
         if (terrainLayer.World is not { } world)
             throw new InvalidOperationException("Bridge wrapping checks need the native map.");
-        using (var wrapped = new WorldTerrainLayer())
+        var wrapped = new WorldTerrainLayer();
+        try
         {
             wrapped.SetWorld(WorldTerrainMap.FromTiles([], world.Width, world.Height, wrapsEastWest: true));
             wrapped.SetCamera(new Rect2(0, 0, world.Width, world.Height), 32, 0, true);
@@ -88,6 +89,10 @@ public partial class Main
                     wrapped.BridgeNeglectAt(new(0, 2)) != expected || wrapped.BridgeNeglectAt(new(1, 2)) != BuildingNeglect.None)
                     throw new InvalidOperationException("Both saved bridge decks must weather across the map seam and return to normal on resettlement.");
             }
+        }
+        finally
+        {
+            wrapped.Free();
         }
 
         if (renderedMapSnapshot is not { } map) return;
