@@ -1286,8 +1286,9 @@ working, talking or hurt poses chosen from what the game already knows about
 them. Mountain relief is drawn nearest the middle of the view first, and for
 the ring just outside it ahead of time, so panning rarely shows the earlier
 per-tile mountain art; where it does, as just after a world loads, the relief
-fades in over a fifth of a second. Picked, harvested and per-site depleted
-states are drawn but need the game to track them. The interface uses wooden
+fades in over a fifth of a second. Natural sites show their approved picked,
+harvested and depleted drawings from what the game already tracks about each
+site. The interface uses wooden
 frames and parchment panels, with pixel fonts:
 Fusion Pixel for body text and Timber capitals for headings. The Main Menu shows
 the ClankerWorld logo over an animated pixel-art valley with snowy mountains
