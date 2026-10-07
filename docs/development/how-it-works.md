@@ -2018,6 +2018,13 @@ include only collection of edible food the adult may legally retrieve. This
 filter runs before the candidate limit; normal Market choices retain their
 existing order. Collection still needs a fresh personal LLM choice and the
 usual ownership, reservation, route and receiving-space checks.
+The owner-order survival classifier revalidates an edible collection against
+the same Market choices, so urgent retrieval can interrupt an unrelated task.
+It grants no new stock access or trade consent; the original order and its
+progress remain available after the emergency. An interrupted order executes
+collection only for the actual fresh admitted personal LLM choice. A matching
+accepted intention can continue walking to the stall between decisions; it
+cannot collect through the automatic continuation path.
 The provisional one-for-one quote is
 an actual `Inventory.Offers` exchange. Buyers may belong to any Town or have no
 Town membership; walking into the Market and completing a purchase change

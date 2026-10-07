@@ -998,7 +998,8 @@ when the purchase was the seller's personal property. Buying gives no access
 to private stores or household membership. Leaving frees the stall and cancels
 unfinished exchanges. Its next borrower cannot sell the previous seller's
 leftovers; the recorded owner can return to collect them. An urgently hungry
-adult can retrieve their personally owned food; unrelated Market work still
+adult can retrieve their personally owned food during an unrelated active
+order, keeping the original task and its progress. Unrelated Market work still
 waits. Household goods a
 member carries to or from the Market can be brought back into the household's
 House. Housemates leave household stock on a stall while one of them borrows

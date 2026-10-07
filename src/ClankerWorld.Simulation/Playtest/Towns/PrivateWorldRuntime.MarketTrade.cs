@@ -251,6 +251,10 @@ public sealed partial class PrivateWorldRuntime
                 }
     }
 
+    private bool IsMarketFoodCandidate(string actor, string candidateId) =>
+        candidateId.StartsWith("market_collect:", StringComparison.Ordinal) && MarketChoices(actor).Any(choice =>
+            choice.Id == candidateId && choice.Kind == "collect" && choice.Lot is { } lot && IsEdibleFood(lot.ItemKind));
+
     private void AddMarketCandidates(List<CognitionCandidate> candidates, string actor)
     {
         var urgentFood = NeedsUrgentFood(inhabitants[actor]);
