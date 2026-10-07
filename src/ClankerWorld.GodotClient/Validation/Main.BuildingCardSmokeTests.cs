@@ -23,14 +23,28 @@ public partial class Main
         };
         var house = new OwnerWorldPlacedBuilding("test-house", "sha256:test/house", new(2, 2), 0, "House", ["house"], 2, 1,
             "town:first", "household:one", [new("wood", 4), new("bread", 2), new("never_an_item", 1)], new(2, 3),
-            ResidentLimit: 8, PermanentResidentCount: 2, HasDominantFamily: true, ExpansionState: "running");
+            ResidentLimit: 8, PermanentResidentCount: 2, HasDominantFamily: true, ExpansionState: "running",
+            StorageCapacity: 128, StoredQuantity: 64);
+        var axeRecipe = new OwnerWorldProductionRecipe("sha256:test/wooden-axe", "Wooden axe",
+            [new("wood", 3)], [new("wooden_axe", 1)]);
+        house = house with { AvailableRecipes = [axeRecipe] };
         var buildingMap = baseMap with
         {
             WorldTick = 30,
             Inhabitants = [smith],
             PlacedBuildings = [.. baseMap.PlacedBuildings.Where(item => item.InstanceId != house.InstanceId), house],
-            ProductionJobs = [new("job-ui-test", "sha256:test/wooden-axe", house.InstanceId, smith.Id, 10, 50, "running")],
+            ProductionJobs = [new("job-ui-test", "sha256:test/wooden-axe", house.InstanceId, smith.Id, 10, 50, "running")
+            {
+                Recipe = axeRecipe,
+                HeldInputs = [new("wood", 3)],
+            }],
         };
+        PixelMeter SpaceMeter(ItemStorage storage) => storage.FindChildren("StorageSpaceMeter", "", owned: false)
+            .OfType<PixelMeter>().Single();
+        string SpaceText(ItemStorage storage) => storage.FindChildren("StorageSpaceText", nameof(Label), owned: false)
+            .OfType<Label>().Single().Text;
+        bool HasSpace(ItemStorage storage) => storage.FindChildren("StorageSpace", nameof(HBoxContainer), owned: false)
+            .OfType<HBoxContainer>().Single().Visible;
         RenderMap(buildingMap);
         HandleMapInput(new InputEventMouseButton
         {
@@ -49,6 +63,8 @@ public partial class Main
             !quickText.Contains("50%", StringComparison.Ordinal) ||
             !quickText.Contains("Oren · ", StringComparison.Ordinal) ||
             buildingQuickStorage.SlotCount != 3 || buildingQuickStorage.Summary != "7 items" ||
+            !HasSpace(buildingQuickStorage) || SpaceMeter(buildingQuickStorage).Percent != 50 ||
+            SpaceText(buildingQuickStorage) != "64 / 128 used" ||
             !mapCanvas.GetGlobalRect().Grow(1).Encloses(buildingQuickCard.GetGlobalRect()))
             throw new InvalidOperationException($"Clicking a building must outline it and open its quick card with its owner, work and stored items: {quickText} / {buildingQuickHeader.OwnerLabel.Text} / {buildingQuickStorage.Summary}.");
 
@@ -71,6 +87,99 @@ public partial class Main
             buildingDetailsPanel.Position.X > 14.5f)
             throw new InvalidOperationException($"Details must dock on the left with the building's facts, work, storage and people: {facts} / {buildingPeopleText.Text} / {buildingDetailsPanel.GetGlobalRect()}.");
 
+        var storageViews = new[] { buildingQuickStorage, buildingDetailsStorage };
+        // Recorded occupancy can include other owners' goods absent from this household's item grid.
+        foreach (var storage in storageViews)
+            if (!HasSpace(storage) || SpaceMeter(storage).Percent != 50 || SpaceText(storage) != "64 / 128 used" ||
+                SpaceMeter(storage).TooltipText != "Storage used: 64 of 128 units.")
+                throw new InvalidOperationException("Building storage must use the host's occupied quantity and limit, rather than guessing from the visible household item grid.");
+        foreach (var (quantity, percent) in new[] { (0, 0), (1, 1), (128, 100), (129, 100) })
+        {
+            RenderBuildingCard(buildingMap with { PlacedBuildings = [house with { StoredQuantity = quantity }] });
+            foreach (var storage in storageViews)
+                if (!HasSpace(storage) || SpaceMeter(storage).Percent != percent || SpaceText(storage) != $"{quantity} / 128 used")
+                    throw new InvalidOperationException("Empty, lightly occupied, full and over-limit storage must retain exact recorded numbers while bounding the meter and keeping nonempty storage visible.");
+        }
+        RenderBuildingCard(buildingMap with
+        {
+            WorldId = "another-storage-world",
+            PlacedBuildings = [house with { StorageCapacity = 256, StoredQuantity = 128 }],
+        });
+        foreach (var storage in storageViews)
+            if (SpaceMeter(storage).Percent != 50 || SpaceText(storage) != "128 / 256 used")
+                throw new InvalidOperationException("Changing worlds and capacities must refresh exact storage counts even when the percentage is unchanged.");
+        foreach (int? limit in new int?[] { null, 0, -1 })
+        {
+            RenderBuildingCard(buildingMap with { PlacedBuildings = [house with { StorageCapacity = limit }] });
+            if (storageViews.Any(HasSpace))
+                throw new InvalidOperationException("Missing or unusable storage limits must hide the bar without inventing a capacity.");
+        }
+        RenderBuildingCard(buildingMap with { PlacedBuildings = [house with { StoredItems = null }] });
+        foreach (var storage in storageViews)
+            if (!storage.Visible || !HasSpace(storage) || SpaceText(storage) != "64 / 128 used" ||
+                storage.SlotCount != 0 || storage.Summary.Length != 0 ||
+                storage.FindChildren("*", nameof(Label), owned: false).OfType<Label>()
+                    .Any(label => label.Visible && label.Text == "Nothing stored here yet."))
+                throw new InvalidOperationException("Recorded occupancy must stay visible without inventing an empty inventory when the owner-specific item list is absent.");
+        var unstored = house with { InstanceId = "no-storage-ui-test", StoredItems = null, StorageCapacity = null };
+        selectedBuildingId = unstored.InstanceId;
+        RenderBuildingCard(buildingMap with { PlacedBuildings = [unstored] });
+        if (storageViews.Any(storage => storage.Visible || HasSpace(storage)))
+            throw new InvalidOperationException("Selecting a building without recorded storage must clear the previous building's storage view.");
+        selectedBuildingId = house.InstanceId;
+        RenderBuildingCard(buildingMap);
+
+        string Labels(Node node) => string.Join('\n', node.FindChildren("*", nameof(Label), owned: false)
+            .OfType<Label>().Select(label => label.Text));
+        if (!buildingRecipeSection.Visible || buildingRecipeRows.GetChildCount() != 1 ||
+            !Labels(buildingRecipeRows).Contains("Wooden axe\nUses: 3 Wood\nMakes: 1 Wooden axe", StringComparison.Ordinal) ||
+            !Labels(buildingWorkRows).Contains("Materials held for this work: 3 Wood", StringComparison.Ordinal))
+            throw new InvalidOperationException("Details must show the host's recipe quantities and the running job's actual held inputs.");
+        RenderBuildingCard(buildingMap with
+        {
+            ProductionJobs = [buildingMap.ProductionJobs[0] with { HeldInputs = [] }],
+        });
+        if (!Labels(buildingWorkRows).Contains("Materials held for this work: None", StringComparison.Ordinal))
+            throw new InvalidOperationException("Changed held materials must refresh even when work progress stays the same.");
+        var breadRecipe = new OwnerWorldProductionRecipe("recipe:bread", "Bake bread",
+            [new("flour", 2), new("fresh_water", 1), new("wood", 1)], [new("bread", 2)]);
+        RenderBuildingCard(buildingMap with
+        {
+            WorldId = "another-production-world",
+            PlacedBuildings = [house with { AvailableRecipes = [breadRecipe] }],
+            ProductionJobs = [],
+        });
+        if (!Labels(buildingRecipeRows).Contains("Bake bread", StringComparison.Ordinal) ||
+            !Labels(buildingRecipeRows).Contains("Makes: 2 Bread", StringComparison.Ordinal) ||
+            Labels(buildingRecipeRows).Contains("Wooden axe", StringComparison.Ordinal) || buildingWorkSection.Visible)
+            throw new InvalidOperationException("Changing worlds must replace recipe facts and clear prior work even for the same building ID.");
+        RenderBuildingCard(buildingMap with
+        {
+            PlacedBuildings = [house with { AvailableRecipes = null }],
+            ProductionJobs = [buildingMap.ProductionJobs[0] with { Recipe = null, HeldInputs = null }],
+        });
+        if (buildingRecipeSection.Visible ||
+            !Labels(buildingWorkRows).Contains("Recipe details unavailable", StringComparison.Ordinal))
+            throw new InvalidOperationException("An older host must keep the building card usable without inventing recipe facts.");
+
+        RenderBuildingCard(buildingMap with
+        {
+            PlacedBuildings = [house with
+            {
+                AvailableRecipes = Enumerable.Range(0, 24).Select(index => breadRecipe with
+                {
+                    Id = "recipe:scroll-" + index,
+                    Name = "Bake bread batch " + index,
+                }).ToArray(),
+            }],
+            ProductionJobs = [],
+        });
+        for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        if (buildingRecipeRows.GetChildCount() != 24 ||
+            !mapCanvas.GetGlobalRect().Grow(1).Encloses(buildingDetailsPanel.GetGlobalRect()) ||
+            buildingDetailsContent.Size.Y <= buildingDetailsScroll.Size.Y)
+            throw new InvalidOperationException("A long recipe catalogue must scroll within the docked Details panel.");
+
         // World updates refresh the open panel, which scrolls rather than running off the view.
         RenderBuildingCard(buildingMap with
         {
@@ -85,7 +194,8 @@ public partial class Main
             ProductionJobs = [],
         });
         if (buildingDetailsStorage.Summary != "4 kinds · 11 items" || buildingDetailsStorage.SlotCount != 4 ||
-            buildingWorkSection.Visible)
+            buildingWorkSection.Visible || SpaceMeter(buildingDetailsStorage).Percent != 4 ||
+            SpaceText(buildingDetailsStorage) != "11 / 256 used")
             throw new InvalidOperationException("Building Details must follow the building's latest storage and work.");
         facts = string.Join('\n', buildingFacts.GetChildren().OfType<Label>().Select(label => label.Text));
         if (!facts.Contains("Footprint\n2 × 2 tiles", StringComparison.Ordinal) ||
@@ -108,6 +218,7 @@ public partial class Main
             IsOvercrowded = false,
             ExpansionState = null,
             ExpansionFailure = null,
+            AvailableRecipes = [],
             Trades = [new("trade-ui-test", "Lina", "wooden_axe", 1, "wood", 3, "open", null)],
         };
         var storeMap = buildingMap with { PlacedBuildings = [store], ProductionJobs = [] };
@@ -115,7 +226,7 @@ public partial class Main
         facts = string.Join('\n', buildingFacts.GetChildren().OfType<Label>().Select(label => label.Text));
         quickText = string.Join('\n', buildingQuickStatus.FindChildren("*", "Label", owned: false)
             .OfType<Label>().Select(label => label.Text));
-        if (!facts.Contains("1 Wooden axe for 3 Wood", StringComparison.Ordinal) ||
+        if (buildingRecipeSection.Visible || !facts.Contains("1 Wooden axe for 3 Wood", StringComparison.Ordinal) ||
             !facts.Contains("waiting for both traders at the shop", StringComparison.Ordinal) ||
             !facts.Contains("household stock and other uses remain private", StringComparison.Ordinal) ||
             facts.Contains("Permanent residents", StringComparison.Ordinal) ||
@@ -181,6 +292,7 @@ public partial class Main
         fruitSlot.Free();
         VerifyBuildingManagementRefresh(baseMap);
         await VerifyMarketCardsAsync(baseMap);
+        await VerifyBuildingStorageHistoryAsync(baseMap);
     }
 
     private async Task VerifyMarketCardsAsync(OwnerWorldSnapshot baseMap)

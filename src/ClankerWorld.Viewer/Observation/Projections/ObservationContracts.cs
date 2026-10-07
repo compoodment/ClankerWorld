@@ -348,7 +348,11 @@ public sealed record ViewerPlacedBuilding(
     public IReadOnlyList<ViewerBusinessTrade> Trades { get; init; } = [];
     public IReadOnlyList<ViewerToolMakingRequest> ToolMakingRequests { get; init; } = [];
     public bool AllowsHouseholdOwner { get; init; }
+    public IReadOnlyList<ViewerBuildingStorageChange>? RecentStorageChanges { get; init; }
+    public IReadOnlyList<ViewerProductionRecipe>? AvailableRecipes { get; init; }
 }
+
+public sealed record ViewerBuildingStorageChange(long EventId, long WorldTick, string ItemKind, long QuantityChange);
 
 public sealed record ViewerToolMakingRequest(string Id, string RequesterName, string RecipeId,
     string RecipeName, string ItemKind, string Status, string? Blocker, string? OfferId = null);
@@ -363,7 +367,16 @@ public sealed record ViewerProductionJob(
     string WorkerId,
     long StartedTick,
     long CompletionTick,
-    string State);
+    string State)
+{
+    public ViewerProductionRecipe? Recipe { get; init; }
+    public IReadOnlyList<ViewerMaterialQuantity>? HeldInputs { get; init; }
+}
+
+public sealed record ViewerMaterialQuantity(string Kind, int Quantity);
+
+public sealed record ViewerProductionRecipe(string Id, string Name,
+    IReadOnlyList<ViewerMaterialQuantity> Inputs, IReadOnlyList<ViewerMaterialQuantity> Outputs);
 
 public sealed record ViewerAuthoringState(
     bool IsPaused,

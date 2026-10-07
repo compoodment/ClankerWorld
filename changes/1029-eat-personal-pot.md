@@ -1,0 +1,1 @@
+- Agents can eat available food inside a storage pot they own and carry, preserving the pot and remaining contents while protecting reserved food and deliveries.

@@ -2,7 +2,7 @@
 title: How the game works
 type: architecture
 status: active
-updated: 2026-10-06
+updated: 2026-10-07
 ---
 
 # How the game works
@@ -1235,6 +1235,22 @@ scrub, grey is mountain and the warm band around it is hills. Dark dots are
 trees, red dots plants and grey dots stone. It is a generator-layer rendering, not a Godot
 screenshot or native playtest.
 
+## Building production inspection
+
+The owner snapshot derives `AvailableRecipes` from active content matched to
+its placed building's exact definition, including workstation-size variants.
+Crop recipes and the retired generic-food and bedding transformations are
+excluded from the workstation list. Each entry carries its registered name
+and input/output quantities, rather than a client-maintained recipe table.
+
+Production jobs project the same recipe facts and `HeldInputs` grouped from
+the job's own active inventory reservations. Completed or released
+reservations contribute nothing; building storage remains a separate view.
+Godot Details refreshes these facts even when work progress stays unchanged.
+Missing fields from an older host leave recipe facts unavailable rather than
+fabricating them. This projection changes neither world state nor agent
+knowledge and needs no save-schema change.
+
 ## Towns, building sites and death
 
 Paused founder setup creates one First Town when the owner accepts its five-building
@@ -1616,6 +1632,12 @@ care and ongoing work keep their earlier continuation guards, and the ordinary
 idle action still runs its cleanup.
 See [construction query measurements](construction-query-measurements.md) for
 matched native timings, candidate/state equivalence and remaining limits.
+Town proposal site checks also share physical placement obstacles only within
+their synchronous query. Market slots stay separate from other occupied
+objects, and actual placement gathers current facts again. Layout searches
+rent tentative tile costs while preserving their settled tiles, costs and
+stopping rules. See [placement query measurements](placement-query-measurements.md)
+for the follow-up comparison.
 Building plans follow what a household needs, not a role. An adult whose
 household lacks a House, Farmhouse, Blacksmith, Silo, Tailor Shop, Clinic or Restaurant is offered ranked sites
 for it once the household has the build costs in hand: stock the household
@@ -1637,7 +1659,11 @@ pickup and delivery both check remaining space. Source selection checks the
 adult's route to each pile or vessel and the route from there to farm storage;
 an earlier blocked source does not hide later reachable stock. The same checks
 run again when the hauling action executes. Grain prefers the Farmhouse,
-while other farm stock prefers the Silo. Ready-to-eat greens and fruit go to
+while other farm stock prefers the Silo. Selection tries the next permitted
+store if the preferred one cannot accept the actual load or its route is blocked.
+A filled vessel must fit with its contents; only grain and flour retain their
+approved partial withdrawals. An explicit destination prevents fallback to
+another store. Ready-to-eat greens and fruit go to
 the household's House. Neither stock nor ownership moves
 remotely.
 
@@ -1667,7 +1693,7 @@ action or player discard control is added.
 
 **Household departure and personal custody** (`SettlementDeparture`). Ordinary decision candidates allow an adult to leave without a vote, store or collect their own goods, return borrowed household tools, explicitly accept replacement care, and found a solo household only when no suitable existing home can currently be asked. Membership exits and admissions include the complete primary-care group. The same completed House-capacity calculation checks all incoming residents; children never apply alone. Forced displacement refuses sole caregivers, including a guardian whose dependent lives in another household. Voluntary departures keep the existing care-group rules.
 
-`InventoryLot.OwnerId` records property; optional `CarrierId` records physical custody without donation. Personal goods may remain in House storage after departure. `InventoryFixture.Relocate` preserves ownership, condition, provenance and reservations while moving an unreserved quantity. A stored personal lot is collected physically at the House's entrance, with carrying limits, under current household membership, a recorded departure's limited collection right, or a settled will's bequest to the actor. The bequest must match the lot's ID or provenance, kind and frozen storage location. This lets an heir retrieve inherited goods from another household without granting membership, House entry or access to shared stock. Recovery from the ground or a former household remains a routine errand. Collecting a map or field record from the current home stays available as a deliberate choice, but ranks below idle for the built-in chooser so it does not immediately retrieve knowledge goods it has just stored. Other goods retain their normal collection priority, so the built-in chooser stores only maps and field records; storing other belongings is a deliberate choice, because routine collection would fetch them straight back. Borrowed tools retain the lender's owner ID while carried and are returned physically. Shared delivery loads retain their owning household on departure. Shared buildings, stock and job records are never reassigned to the new household. A departing worker's private production and expansion jobs pause with their existing owners and reservations, except work for the worker's own goods, such as building their handcart, which nobody else may finish: it is cancelled and its reserved materials are released and stay with the worker; their previous work plan is retained on the departure record instead of resuming under a new household. A remaining member can take over paused work at its physical site, using the same still-available committed inputs and remaining work time. Private materials held by the former worker are not reassigned; these keep the task blocked. Held reservations keep their exact owner and stock, receive a new deadline only on resumption, and are released if the materials become unusable; canceled job records retain the original property owner.
+`InventoryLot.OwnerId` records property; optional `CarrierId` records physical custody without donation. Personal goods may remain in House storage after departure. `InventoryFixture.Relocate` preserves ownership, condition, provenance and reservations while moving an unreserved quantity. A stored personal lot is collected physically at the House's entrance, with carrying limits, under current household membership, a recorded departure's limited collection right, or a settled will's bequest to the actor. A child who moved in a caregiver's care group uses that recorded departure too once old enough to collect, including after the caregiver dies. The lookup reads living and archived departure records; it creates no child departure or additional food allowance. The bequest must match the lot's ID or provenance, kind and frozen storage location. This lets an heir retrieve inherited goods from another household without granting membership, House entry or access to shared stock. Recovery from the ground or a former household remains a routine errand. Collecting a map or field record from the current home stays available as a deliberate choice, but ranks below idle for the built-in chooser so it does not immediately retrieve knowledge goods it has just stored. Other goods retain their normal collection priority, so the built-in chooser stores only maps and field records; storing other belongings is a deliberate choice, because routine collection would fetch them straight back. Borrowed tools retain the lender's owner ID while carried and are returned physically. Shared delivery loads retain their owning household on departure. Shared buildings, stock and job records are never reassigned to the new household. A departing worker's private production and expansion jobs pause with their existing owners and reservations, except work for the worker's own goods, such as building their handcart, which nobody else may finish: it is cancelled and its reserved materials are released and stay with the worker; their previous work plan is retained on the departure record instead of resuming under a new household. A remaining member can take over paused work at its physical site, using the same still-available committed inputs and remaining work time. Private materials held by the former worker are not reassigned; these keep the task blocked. Held reservations keep their exact owner and stock, receive a new deadline only on resumption, and are released if the materials become unusable; canceled job records retain the original property owner.
 
 Each departure allocates at most two unreserved ready-to-eat portions once. Ownership changes at allocation while the existing storage/ground location stays fixed. Saved departure records retain the allocation and collection right; retries with no current membership cannot allocate again. Caregiver IDs and ancestry stay unchanged. Dependents follow the caregiver in physical steps, and a traveling caregiver waits when a dependent falls behind. Housing, ownership, collection and care facts use normal personal-model observations and player inspection; no extra acknowledgement request is made.
 
@@ -1904,8 +1930,13 @@ the active equipment repair target are excluded from payment.
 Customers receive transaction access only. Store stocking first moves actual
 surplus into carried delivery lots, then uses ordinary household hauling to
 reach the Store. A remote House, field or Warehouse is never sale stock.
-Store stocking also keeps each adult's best usable work tool. Optional shelf
-restocking waits behind gathering materials needed by household work.
+Store stocking also keeps each adult's best usable work tool. Food stocking
+keeps two usable servings of each food kind for the adult, or two per
+living member when taking household stock. Each reserve is counted once across
+eligible lots with the same owner and food kind, including when an order is
+bound to one lot. Unreachable, reserved, spoiled, contained or other owners'
+stock cannot satisfy the reserve.
+Optional shelf restocking waits behind gathering materials needed by household work.
 Rates, the eight-unit shelf target and four-unit carried loads are provisional.
 Blacksmiths can sell real refined iron for another household's tool work.
 Meals remain tracked in #564 and its domain
@@ -2228,6 +2259,12 @@ or yield. Harvesting creates grain, potatoes or cultivated greens on the
 field, and grain and greens also yield two replacement seeds. One usable
 planting item is reserved before surplus can be traded. Picking it up for
 the next planting releases the reserve and physically carries that item.
+Player planting orders choose carried stock first, then the field's replanting
+reserve, then other eligible lots in ID order. Shared stock must have an
+unoccupied pickup route within its interaction range, checked during both
+order selection and execution. An occupied earlier lot cannot hide another
+usable seed. Autonomous crop claims keep their terrain eligibility while
+temporary occupants pass and the existing physical route retries.
 
 Planning compares population and available ready-to-eat food with a trial reserve of two
 days at two meals per resident per day, then estimates fields from expected
@@ -2394,6 +2431,18 @@ A missing catalog denies all references. Malformed, ambiguous or unknown-schema
 catalogs prevent startup. Device requests cannot edit it or upload asset bytes.
 This is a narrow reference rule, not the future complete art-generation pipeline.
 
+## Building storage history
+
+Building Details receives up to ten recent storage deltas from the existing
+retained inventory-event stream. Each committed physical change records its
+building, item kind and signed quantity on the existing event; event identity,
+time and trade receipts stay intact. The runtime includes direct location
+adjustments around kernel operations without recording an already captured
+change twice. Net-zero lot splits, ownership changes, reservations, wear and
+spoilage add no storage change. Projection scans the retained stream once and
+never reconstructs a historical location from a current lot. The records
+follow ordinary rollback and event compaction, not a second growing ledger.
+
 ## Runtime logging
 
 Changed gameplay loops, provider adapters, persistence boundaries and lifecycle
@@ -2525,6 +2574,10 @@ Wear, removal and gift candidates require a fresh accepted non-fallback
 LargeLanguageModel response whose exact offered target is still valid at
 admission. Jev, continuing intentions and MustDo cannot select them. Gift
 recipients come from locally observable people rather than a remote world scan.
+Living adults in interaction range with free carrying space are filtered before
+the eight-recipient limit, in stable agent-ID order. Full-handed neighbors cannot
+hide another eligible adult. Gift options remain capped at sixteen across
+carried ornament lots, and admission rechecks the eligible recipient and load.
 
 `HouseToolsContent` adds two recipes at the existing House without changing
 its building identity. Each crude wooden axe or pickaxe uses three wood held
@@ -2841,6 +2894,10 @@ with young/adult headings, mounted horses, yard art, inspection and event text.
 Milk stock travels as an actual household jug to a held Store or borrowed Market
 stall, with a stock receipt at a stall. Fresh seller and buyer personal choices
 exchange one held portion into the buyer's real carried jug for the named
-personal payment. Both jug owners stay the same. Expiry, refusal and changed
+personal payment. Each pending offer has a distinct milk source lot, even
+when the lot contains several available portions. Candidate generation and
+native admission both enforce this existing save invariant. Closing an offer
+releases its exact reservation and makes any remaining usable stock available
+for another sale. Both jug owners stay the same. Expiry, refusal and changed
 custody release held milk; spoiled milk can be emptied locally without removing
 the vessel or its fresh contents.

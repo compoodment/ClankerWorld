@@ -501,7 +501,11 @@ public sealed record OwnerWorldPlacedBuilding(
     public IReadOnlyList<OwnerWorldBusinessTrade> Trades { get; init; } = [];
     public IReadOnlyList<OwnerWorldToolMakingRequest> ToolMakingRequests { get; init; } = [];
     public bool AllowsHouseholdOwner { get; init; }
+    public IReadOnlyList<OwnerWorldBuildingStorageChange>? RecentStorageChanges { get; init; }
+    public IReadOnlyList<OwnerWorldProductionRecipe>? AvailableRecipes { get; init; }
 }
+
+public sealed record OwnerWorldBuildingStorageChange(long EventId, long WorldTick, string ItemKind, long QuantityChange);
 
 public sealed record OwnerWorldToolMakingRequest(string Id, string RequesterName, string RecipeId,
     string RecipeName, string ItemKind, string Status, string? Blocker, string? OfferId = null);
@@ -516,7 +520,16 @@ public sealed record OwnerWorldProductionJob(
     string WorkerId,
     long StartedTick,
     long CompletionTick,
-    string State);
+    string State)
+{
+    public OwnerWorldProductionRecipe? Recipe { get; init; }
+    public IReadOnlyList<OwnerWorldMaterialQuantity>? HeldInputs { get; init; }
+}
+
+public sealed record OwnerWorldMaterialQuantity(string Kind, int Quantity);
+
+public sealed record OwnerWorldProductionRecipe(string Id, string Name,
+    IReadOnlyList<OwnerWorldMaterialQuantity> Inputs, IReadOnlyList<OwnerWorldMaterialQuantity> Outputs);
 
 public sealed record OwnerWeatherRegion(int X, int Y, string Weather, int? SoilMoisture = null);
 

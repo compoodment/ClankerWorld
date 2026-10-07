@@ -442,6 +442,18 @@ public sealed partial class OwnerWorldObservationStore
         var fertility = new LandFertility(map, state.WorldSeed);
         var ecology = state.WorldSystems?.Ecology.Resources.ToDictionary(resource => resource.Id, StringComparer.Ordinal);
         var buildingDefinitions = state.WorldContent?.Buildings.ToDictionary(building => building.CanonicalId, StringComparer.Ordinal);
+        var storageChanges = RecentBuildingStorageChanges(state.Society.Society.Inventory);
+        var productionRecipes = state.WorldContent?.Recipes.ToDictionary(recipe => recipe.CanonicalId,
+            ProjectProductionRecipe, StringComparer.Ordinal);
+        var recipesByBuilding = state.WorldContent?.Recipes
+            // Match the retired/crop rejection gates in StartProductionCore.
+            .Where(recipe => !recipe.IsCrop && recipe.WorkstationBuildingId is not null &&
+                !recipe.Outputs.Any(output => output.ResourceId == "bedding") &&
+                !(recipe.Inputs.Any(input => input.ResourceId == "food") &&
+                    recipe.Outputs.Any(output => output.ResourceId == "food")))
+            .ToLookup(recipe => recipe.WorkstationBuildingId!, recipe => productionRecipes![recipe.CanonicalId], StringComparer.Ordinal);
+        var inventoryLots = state.Society.Society.Inventory.Lots.ToDictionary(lot => lot.Id, StringComparer.Ordinal);
+        var inventoryReservations = state.Society.Society.Inventory.Reservations.ToDictionary(reservation => reservation.Id, StringComparer.Ordinal);
         var activeInhabitants = state.Society.Society.Inhabitants
             .Where(item => item.Status == SocietyInhabitantStatus.Active)
             .OrderBy(item => item.Id, StringComparer.Ordinal)
@@ -913,6 +925,9 @@ public sealed partial class OwnerWorldObservationStore
                         Trades = BusinessTradesAt(state, item.InstanceId),
                         ToolMakingRequests = ToolMakingRequestsAt(state, item.InstanceId),
                         AllowsHouseholdOwner = definition?.Tags.Any(HouseholdBuildingKinds.IsKindTag) == true,
+                        RecentStorageChanges = storageChanges.GetValueOrDefault(item.InstanceId) ?? [],
+                        AvailableRecipes = recipesByBuilding?[item.DefinitionId]
+                            .OrderBy(recipe => recipe.Name, StringComparer.Ordinal).ThenBy(recipe => recipe.Id, StringComparer.Ordinal).ToArray(),
                     };
                 })
                 .ToArray() ?? [],
@@ -925,7 +940,18 @@ public sealed partial class OwnerWorldObservationStore
                     item.WorkerId,
                     item.StartedTick,
                     item.CompletionTick,
-                    item.State.ToString().ToLowerInvariant()))
+                    item.State.ToString().ToLowerInvariant())
+                {
+                    Recipe = productionRecipes?.GetValueOrDefault(item.RecipeId),
+                    HeldInputs = item.InputReservationIds.Select(id => inventoryReservations.GetValueOrDefault(id))
+                        .Where(reservation => reservation is { State: InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed })
+                        .Select(reservation => (Reservation: reservation!, Lot: inventoryLots.GetValueOrDefault(reservation!.LotId)))
+                        .Where(input => input.Lot is not null)
+                        .GroupBy(input => input.Lot!.ItemKind, StringComparer.Ordinal)
+                        .OrderBy(group => group.Key, StringComparer.Ordinal)
+                        .Select(group => new ViewerMaterialQuantity(group.Key, group.Sum(input => input.Reservation.Quantity)))
+                        .ToArray(),
+                })
                 .ToArray(),
         };
     }
