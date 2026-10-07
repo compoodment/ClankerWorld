@@ -24,12 +24,19 @@ public partial class Main
         var house = new OwnerWorldPlacedBuilding("test-house", "sha256:test/house", new(2, 2), 0, "House", ["house"], 2, 1,
             "town:first", "household:one", [new("wood", 4), new("bread", 2), new("never_an_item", 1)], new(2, 3),
             ResidentLimit: 8, PermanentResidentCount: 2, HasDominantFamily: true, ExpansionState: "running");
+        var axeRecipe = new OwnerWorldProductionRecipe("sha256:test/wooden-axe", "Wooden axe",
+            [new("wood", 3)], [new("wooden_axe", 1)]);
+        house = house with { AvailableRecipes = [axeRecipe] };
         var buildingMap = baseMap with
         {
             WorldTick = 30,
             Inhabitants = [smith],
             PlacedBuildings = [.. baseMap.PlacedBuildings.Where(item => item.InstanceId != house.InstanceId), house],
-            ProductionJobs = [new("job-ui-test", "sha256:test/wooden-axe", house.InstanceId, smith.Id, 10, 50, "running")],
+            ProductionJobs = [new("job-ui-test", "sha256:test/wooden-axe", house.InstanceId, smith.Id, 10, 50, "running")
+            {
+                Recipe = axeRecipe,
+                HeldInputs = [new("wood", 3)],
+            }],
         };
         RenderMap(buildingMap);
         HandleMapInput(new InputEventMouseButton
@@ -71,6 +78,57 @@ public partial class Main
             buildingDetailsPanel.Position.X > 14.5f)
             throw new InvalidOperationException($"Details must dock on the left with the building's facts, work, storage and people: {facts} / {buildingPeopleText.Text} / {buildingDetailsPanel.GetGlobalRect()}.");
 
+        string Labels(Node node) => string.Join('\n', node.FindChildren("*", nameof(Label), owned: false)
+            .OfType<Label>().Select(label => label.Text));
+        if (!buildingRecipeSection.Visible || buildingRecipeRows.GetChildCount() != 1 ||
+            !Labels(buildingRecipeRows).Contains("Wooden axe\nUses: 3 Wood\nMakes: 1 Wooden axe", StringComparison.Ordinal) ||
+            !Labels(buildingWorkRows).Contains("Materials held for this work: 3 Wood", StringComparison.Ordinal))
+            throw new InvalidOperationException("Details must show the host's recipe quantities and the running job's actual held inputs.");
+        RenderBuildingCard(buildingMap with
+        {
+            ProductionJobs = [buildingMap.ProductionJobs[0] with { HeldInputs = [] }],
+        });
+        if (!Labels(buildingWorkRows).Contains("Materials held for this work: None", StringComparison.Ordinal))
+            throw new InvalidOperationException("Changed held materials must refresh even when work progress stays the same.");
+        var breadRecipe = new OwnerWorldProductionRecipe("recipe:bread", "Bake bread",
+            [new("flour", 2), new("fresh_water", 1), new("wood", 1)], [new("bread", 2)]);
+        RenderBuildingCard(buildingMap with
+        {
+            WorldId = "another-production-world",
+            PlacedBuildings = [house with { AvailableRecipes = [breadRecipe] }],
+            ProductionJobs = [],
+        });
+        if (!Labels(buildingRecipeRows).Contains("Bake bread", StringComparison.Ordinal) ||
+            !Labels(buildingRecipeRows).Contains("Makes: 2 Bread", StringComparison.Ordinal) ||
+            Labels(buildingRecipeRows).Contains("Wooden axe", StringComparison.Ordinal) || buildingWorkSection.Visible)
+            throw new InvalidOperationException("Changing worlds must replace recipe facts and clear prior work even for the same building ID.");
+        RenderBuildingCard(buildingMap with
+        {
+            PlacedBuildings = [house with { AvailableRecipes = null }],
+            ProductionJobs = [buildingMap.ProductionJobs[0] with { Recipe = null, HeldInputs = null }],
+        });
+        if (buildingRecipeSection.Visible ||
+            !Labels(buildingWorkRows).Contains("Recipe details unavailable", StringComparison.Ordinal))
+            throw new InvalidOperationException("An older host must keep the building card usable without inventing recipe facts.");
+
+        RenderBuildingCard(buildingMap with
+        {
+            PlacedBuildings = [house with
+            {
+                AvailableRecipes = Enumerable.Range(0, 24).Select(index => breadRecipe with
+                {
+                    Id = "recipe:scroll-" + index,
+                    Name = "Bake bread batch " + index,
+                }).ToArray(),
+            }],
+            ProductionJobs = [],
+        });
+        for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        if (buildingRecipeRows.GetChildCount() != 24 ||
+            !mapCanvas.GetGlobalRect().Grow(1).Encloses(buildingDetailsPanel.GetGlobalRect()) ||
+            buildingDetailsContent.Size.Y <= buildingDetailsScroll.Size.Y)
+            throw new InvalidOperationException("A long recipe catalogue must scroll within the docked Details panel.");
+
         // World updates refresh the open panel, which scrolls rather than running off the view.
         RenderBuildingCard(buildingMap with
         {
@@ -108,6 +166,7 @@ public partial class Main
             IsOvercrowded = false,
             ExpansionState = null,
             ExpansionFailure = null,
+            AvailableRecipes = [],
             Trades = [new("trade-ui-test", "Lina", "wooden_axe", 1, "wood", 3, "open", null)],
         };
         var storeMap = buildingMap with { PlacedBuildings = [store], ProductionJobs = [] };
@@ -115,7 +174,7 @@ public partial class Main
         facts = string.Join('\n', buildingFacts.GetChildren().OfType<Label>().Select(label => label.Text));
         quickText = string.Join('\n', buildingQuickStatus.FindChildren("*", "Label", owned: false)
             .OfType<Label>().Select(label => label.Text));
-        if (!facts.Contains("1 Wooden axe for 3 Wood", StringComparison.Ordinal) ||
+        if (buildingRecipeSection.Visible || !facts.Contains("1 Wooden axe for 3 Wood", StringComparison.Ordinal) ||
             !facts.Contains("waiting for both traders at the shop", StringComparison.Ordinal) ||
             !facts.Contains("household stock and other uses remain private", StringComparison.Ordinal) ||
             facts.Contains("Permanent residents", StringComparison.Ordinal) ||

@@ -2,7 +2,7 @@
 title: Playing the current game
 type: player-guide
 status: active
-updated: 2026-10-06
+updated: 2026-10-07
 ---
 
 # Playing the current game
@@ -260,8 +260,9 @@ order the world keeps for them: the current one, the queue in the order it will
 be done, and their six latest closed orders. Each shows your words, and any
 reply from the agent is set apart from the game's status.
 
-When a child needs a guardian, an adult can follow **Become guardian for Lina**,
-using the child's full name. The adult still has to be eligible in the current
+When a child needs a guardian, an adult can follow **Become guardian for Élodie Vale**,
+using the child's full name. Names with accents work when typed or pasted,
+including accents entered separately from their letters. The adult still has to be eligible in the current
 guardian search. The order finishes when they accept primary care; moving the
 child into their House still requires room and a shared Town. This order can be
 queued or cancelled like a food task. It cannot replace an existing guardian.
@@ -404,7 +405,11 @@ what is being made there or who is inside, and what it stores, shown as item
 icons with the amount in the corner. **Details** opens the rest on the left:
 who may use it, when it was built, which side its door faces, the work in
 progress, a larger storage grid with each item's name, and who is inside or
-lives there. Back (or **Escape**) returns to the small card.
+lives there. Work lists what a batch uses and makes, separately from the
+materials currently held for that job. **Can make** lists the recipes registered
+for that exact building size and their quantities. Each still needs real
+materials and an adult allowed to work there. Reading the list teaches no
+agent and starts no work. Back (or **Escape**) returns to the small card.
 
 Every day has a night, with a short dusk and dawn. Nights are longest in winter
 and shortest in summer: from 19:12 to 04:48 on the clock in the top bar at the
@@ -739,6 +744,8 @@ or latitude cooling. **Reset these options** restores the preset and Small size
 without changing the name or seed. The preview updates after
 changes; Create World waits for a matching preview. Small and Medium are
 available; larger worlds remain unavailable pending their support checks.
+If a Settings action is still finishing when you open New World, its preview
+starts automatically after that action completes.
 **Reroll** chooses another seed and clears the old map while its replacement
 loads. You can reroll during generation; the preview will follow your latest
 seed. If the world name is missing, enter it and choose **Preview again**.
