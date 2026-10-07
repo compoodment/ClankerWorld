@@ -383,8 +383,13 @@ need, placement, cost and reservation rules remain authoritative. Only that
 job's successful completion earns progress; retained completed-job history
 keeps the proof if the building is removed later. Urgent survival pauses
 ordered work before completion, and cancellation releases only the order's
-own unfinished work and unused reservations. Neither adapter adopts an
-unrelated project or job.
+own unfinished work and unused reservations. Shared expansion pickup excludes
+carried household lots, just like ordinary shared-stock collection. Cancelling
+an expansion and leaving the household preserves a borrowed delivery in its
+former worker's custody; another worker cannot collect it until it is physically
+returned. The current worker's own delivery and available ground or stored
+materials retain their usual checks. Neither adapter adopts an unrelated
+project or job.
 
 The `ordered-building-` identity prefix belongs to the internal construction
 path. Saved building orders also reserve their bound instance identities,

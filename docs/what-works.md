@@ -457,8 +457,10 @@ count of one; larger counts and repetition remain unsupported.
 Only successful placement or a completed expansion advances progress.
 Completed work remains recorded even if the building is later removed.
 Cancellation releases unused expansion reservations and ends only the task's
-own unfinished work; collected goods stay where they are. Urgent survival
-pauses the work. Queues, cancellation, partial work and completion survive
+own unfinished work; collected goods stay where they are. Expansion cannot
+take borrowed material from another living agent's carried load, including
+after that agent leaves the household. Physically returned stock becomes
+available again. Urgent survival pauses the work. Queues, cancellation, partial work and completion survive
 save/reload without repeating a paid build or adopting an unrelated project.
 
 Repair orders cover personally owned, carried basic clothing, padded coats,
