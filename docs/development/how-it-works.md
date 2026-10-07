@@ -2890,7 +2890,12 @@ Adults tame, care, collect, supply, lead, saddle, mount and dismount through
 ordinary revalidated choices. Native orders bind an exact animal name or ID.
 Care spends actual unreserved grain/greens and jug water at the animal or yard;
 food, planting and workstation reserves stay protected. Physical supply trips
-retain the owning household. One held product batch waits for local collection;
+retain the owning household. Cancelling or replacing an animal order releases
+only a supply trip matching its actor, animal and action, without relocating,
+transferring or spending its cargo. Executing a new animal order also discards
+an unrelated retained trip, including one loaded from a previously cancelled
+task, before selecting supplies. A matching active trip keeps its normal checks.
+One held product batch waits for local collection;
 milk enters a reusable household jug. Products then use ordinary stock hauling,
 recipes and trade.
 
