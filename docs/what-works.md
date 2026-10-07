@@ -715,9 +715,9 @@ does not put goods into the heir's carried load: ground goods stay on their
 tile, stored goods retain their storage, and goods held by a living carrier
 stay with that carrier. Goods the deceased carried are dropped at their last
 tile. A pot, jug or handcart always goes to one heir together with what it
-holds. A Town keeps its share in its Warehouse while there is room. Food, a
-handcart, goods that do not fit, and shares for heirs who have died since
-follow the household path, as do
+holds. A Town keeps its share in its Warehouse while there is room. All food,
+including eggs, milk and their meals, follows the household path. So do
+handcarts, goods that do not fit, and shares for heirs who have died since, plus
 interrupted, unknown or invalid choices, so no goods are created or lost.
 
 The will may also leave short final words. When the estate is divided, each

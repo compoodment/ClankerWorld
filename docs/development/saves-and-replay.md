@@ -1243,6 +1243,10 @@ person's Town. Positive personal recipients alone receive its final words.
 Inheritance changes ownership while retaining ground, House storage or a living
 carrier's custody; goods carried by the deceased are dropped at their last tile.
 Town shares use the Town's current Warehouse while it can accept them.
+Warehouse validation and estate refusal share the inventory food classifier:
+eggs, milk and their meals follow the household default, with vessels and
+contents kept together. Current-format checkpoints that place food in a
+Town Warehouse are invalid; refusal preserves the saved file without migration.
 Debts and Town-law conflicts remain separate work. Inheritance does not decide guardianship.
 
 A quantity-one physical map, field record or book retains its lot ID when inherited.
