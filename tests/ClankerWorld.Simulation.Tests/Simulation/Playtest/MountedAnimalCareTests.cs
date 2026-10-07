@@ -8,9 +8,10 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed partial class AnimalPipelineTests
 {
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task ARiderCanPrepareAndCompleteCareForAnotherAnimal(bool dismountFirst)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task ARiderCanPrepareAndCompleteCareForAnotherAnimal(bool dismountFirst, bool fullMountedLoad)
     {
         var (state, actor, home, yard) = CreateYard("animal-horse-cargo");
         var tiles = WorldContentSimulationRules.Footprint(state.WorldContent!.Buildings.Single(definition =>
@@ -23,6 +24,12 @@ public sealed partial class AnimalPipelineTests
             cowPosition, "household:" + home, home, yard.InstanceId);
         var inventory = state.Society.Society.Inventory;
         inventory = inventory with { Lots = inventory.Lots.Where(lot => lot.OwnerId != actor).ToArray() };
+        if (fullMountedLoad)
+            inventory = inventory with
+            {
+                Lots = inventory.Lots.Where(lot => lot.OwnerId != home ||
+                !AnimalRules.IsFeed(lot.ItemKind) && lot.ItemKind != "fresh_water").ToArray()
+            };
         inventory = InventoryFixture.AddLot(inventory, "mounted-care-saddle", "saddle", home, 1, groundPosition: new(yard.Position.X, yard.Position.Y));
         inventory = InventoryFixture.AddLot(inventory, "mounted-care-feed", "grain", actor, 2);
         inventory = InventoryFixture.AddLot(inventory, "mounted-care-jug", "water_jug", actor, 1);
@@ -45,13 +52,25 @@ public sealed partial class AnimalPipelineTests
             await Until(preparing, () => preparing.Animals.Single(animal => animal.Id == horse.Id).RiderId is null);
         }
         var care = preparing.SubmitInstruction(new("mounted-care-cow", "owner", actor, OwnerInstructionKind.MustDo, "care for Fern"));
-        var bytes = PrivateWorldRuntimeCodec.Encode(preparing.ExportState());
+        var checkpoint = preparing.ExportState();
+        if (fullMountedLoad)
+            checkpoint = checkpoint with
+            {
+                Society = checkpoint.Society with
+                {
+                    Society = checkpoint.Society.Society with
+                    {
+                        Inventory = InventoryFixture.AddLot(checkpoint.Society.Society.Inventory, "mounted-care-stone", "stone", actor, 11)
+                    }
+                }
+            };
+        var bytes = PrivateWorldRuntimeCodec.Encode(checkpoint);
         using var world = RestoreMountedCare(PrivateWorldRuntimeCodec.Decode(bytes), actor);
         using var replay = RestoreMountedCare(PrivateWorldRuntimeCodec.Decode(bytes), actor);
         Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
         Assert.False((await world.AdvanceOneTickAsync(() => false)).Advanced);
         Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
-        for (var tick = 0; tick < 60 && world.ExportState().Instructions!.Single(item => item.InstructionId == care.InstructionId).Order!.Status != "finished"; tick++)
+        for (var tick = 0; tick < (fullMountedLoad ? 4 : 60) && world.ExportState().Instructions!.Single(item => item.InstructionId == care.InstructionId).Order!.Status != "finished"; tick++)
         {
             var wasRiding = world.Animals.Single(animal => animal.Id == horse.Id).RiderId == actor;
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
@@ -67,6 +86,25 @@ public sealed partial class AnimalPipelineTests
             }
         }
         var order = world.ExportState().Instructions!.Single(item => item.InstructionId == care.InstructionId).Order!;
+        if (fullMountedLoad)
+        {
+            Assert.NotEqual("finished", order.Status);
+            Assert.Equal(0, order.CompletedUnits);
+            Assert.Equal(0, world.Animals.Single(animal => animal.Id == cow.Id).CareUntilTick);
+            Assert.Null(world.Animals.Single(animal => animal.Id == horse.Id).RiderId);
+            var ground = new InventoryGroundPosition(horse.Position.X, horse.Position.Y);
+            Assert.Equal((actor, 2, ground), (world.Society.Inventory.GetLot("mounted-care-feed").OwnerId,
+                world.Society.Inventory.GetLot("mounted-care-feed").Quantity, world.Society.Inventory.GetLot("mounted-care-feed").GroundPosition));
+            Assert.Equal((actor, ground), (world.Society.Inventory.GetLot("mounted-care-jug").OwnerId,
+                world.Society.Inventory.GetLot("mounted-care-jug").GroundPosition));
+            Assert.Equal(2, world.Society.Inventory.GetLot("mounted-care-water").Quantity);
+            Assert.Equal(11, world.Society.Inventory.Lots.Where(lot => lot.ItemKind == "stone" && lot.OwnerId == actor).Sum(lot => lot.Quantity));
+            Assert.Equal(8, PersonalEquipmentRules.CarriedQuantity(world.Society.Inventory, actor, null));
+            using var loaded = RestoreMountedCare(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState())), actor);
+            loaded.Validate();
+            world.Validate();
+            return;
+        }
         Assert.Equal(("finished", 1), (order.Status, order.CompletedUnits));
         var cared = world.Animals.Single(animal => animal.Id == cow.Id);
         var parked = world.Animals.Single(animal => animal.Id == horse.Id);
