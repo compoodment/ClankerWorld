@@ -166,6 +166,7 @@ public partial class Main
         public OwnerControlReceipt? DeveloperEditReceipt { get; set; }
         public bool FailDeveloperEdit { get; set; }
         public Func<OwnerWorldCreationAction, Task<OwnerWorldPreview>>? PreviewHandler { get; set; }
+        public Func<bool, Task<OwnerControlReceipt>>? ControlHandler { get; set; }
         public int PauseCount => Volatile.Read(ref pauseCount);
         public int DeleteCount => Volatile.Read(ref deleteCount);
         public int SaveCreateCount => Volatile.Read(ref saveCreateCount);
@@ -174,6 +175,10 @@ public partial class Main
         public List<OwnerAutosaveConfigurationAction> AutosaveConfigurations { get; } = [];
         /// <summary>The next signed refresh's world, or none to refuse refreshes.</summary>
         public OwnerWorldReconnect? Reconnect { get; set; }
+        public Func<OwnerUsageLimitAction, Task<OwnerUsageStatus>>? UsageLimitHandler { get; set; }
+        public Func<Task<OwnerUsageStatus?>>? UsageHandler { get; set; }
+        public OwnerUsageStatus? Usage { get; set; }
+        public System.Collections.Concurrent.ConcurrentQueue<OwnerUsageLimitAction> UsageLimits { get; } = new();
         public OwnerPairingStart? PairingStart { get; set; }
         public OwnerPairingStatus? PairingStatus { get; set; }
         public bool LoseActivationReply { get; set; }
@@ -325,8 +330,13 @@ public partial class Main
                     HostPaused = true;
                     Interlocked.Increment(ref pauseCount);
                     PauseReceived.TrySetResult();
-                    await ReleasePause.Task.ConfigureAwait(false);
-                    response = new OwnerControlReceipt("pause", true, true, 0, 0, 0);
+                    if (ControlHandler is { } pauseHandler)
+                        response = await pauseHandler(true).ConfigureAwait(false);
+                    else
+                    {
+                        await ReleasePause.Task.ConfigureAwait(false);
+                        response = new OwnerControlReceipt("pause", true, true, 0, 0, 0);
+                    }
                     break;
                 case OwnerPairingEndpoints.OwnerWorldSelect:
                     SelectReceived.TrySetResult(envelope.GetProperty("action").GetProperty("value").GetString()!);
@@ -350,12 +360,36 @@ public partial class Main
                     break;
                 case OwnerPairingEndpoints.OwnerResume:
                     HostPaused = false;
-                    response = new OwnerControlReceipt("resume", true, false, 0, 0, 0);
+                    response = ControlHandler is { } resumeHandler
+                        ? await resumeHandler(false).ConfigureAwait(false)
+                        : new OwnerControlReceipt("resume", true, false, 0, 0, 0);
                     break;
                 case OwnerPairingEndpoints.OwnerReconnect when Reconnect is not null:
                     ReconnectReceived.TrySetResult();
                     if (ReleaseReconnect is { } releaseReconnect) await releaseReconnect.Task.ConfigureAwait(false);
                     response = Reconnect;
+                    break;
+                case OwnerPairingEndpoints.OwnerUsageLimit when UsageLimitHandler is not null:
+                    response = await UsageLimitHandler(envelope.GetProperty("action").Deserialize<OwnerUsageLimitAction>(JsonOptions)!).ConfigureAwait(false);
+                    break;
+                case OwnerPairingEndpoints.OwnerUsageStatus when UsageHandler is not null:
+                    if (await UsageHandler().ConfigureAwait(false) is { } usage)
+                        response = usage;
+                    else
+                    {
+                        context.Response.StatusCode = (int)HttpStatusCode.ServiceUnavailable;
+                        response = new { error = "Controlled usage read failure." };
+                    }
+                    break;
+                case OwnerPairingEndpoints.OwnerUsageLimit when Usage is not null:
+                    var limit = envelope.GetProperty("action").Deserialize<OwnerUsageLimitAction>(JsonOptions)!;
+                    UsageLimits.Enqueue(limit);
+                    Usage = Usage with
+                    {
+                        AttemptLimit = limit.AdditionalCalls > 0 ? Usage.Attempts + limit.AdditionalCalls : limit.AttemptLimit,
+                        LimitReached = limit.AttemptLimit is { } cap && cap <= Usage.Attempts && limit.AdditionalCalls == 0,
+                    };
+                    response = Usage;
                     break;
                 case OwnerPairingEndpoints.OwnerAgentRename:
                     var rename = envelope.GetProperty("action").Deserialize<OwnerAgentRenameAction>(JsonOptions)!;

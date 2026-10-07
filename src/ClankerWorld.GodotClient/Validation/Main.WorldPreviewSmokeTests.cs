@@ -8,6 +8,116 @@ namespace ClankerWorld.GodotClient;
 
 public partial class Main
 {
+    private async Task VerifyPreviewAfterPendingSettingsAsync()
+    {
+        var previousRegistration = registration;
+        var previousKey = deviceKey;
+        var previousUrl = worldUrlInput.Text;
+        var previousName = worldNameInput.Text;
+        var previousSeed = worldSeedInput.Text;
+        var previousUsage = usageStatus;
+        var previousCi = System.Environment.GetEnvironmentVariable("CI");
+        System.Environment.SetEnvironmentVariable("CI", "true");
+        using var signer = OwnerDeviceKey.CreateEphemeralForContinuousIntegration();
+        using var host = new WorldActionSmokeHost(signer.PublicKeySpkiBase64);
+        var previews = new ConcurrentQueue<OwnerWorldCreationAction>();
+        var settings = new OwnerUsageStatus(2, 2, 0, 0, 0, 0, 1000, false, []);
+        host.PreviewHandler = action =>
+        {
+            previews.Enqueue(action);
+            return Task.FromResult(WorldPreviewSmokeReply("after-settings", 1));
+        };
+        Task? pendingSettings = null;
+        TaskCompletionSource? release = null;
+        try
+        {
+            deviceKey = signer;
+            registration = new(host.Authority, "smoke-device", signer.PublicKeyFingerprint, host.Address);
+            worldUrlInput.Text = host.Address;
+            var reroll = worldSeedInput.GetParent().GetChildren().OfType<Button>().Single(button => button.Text == "Reroll");
+            for (var scenario = 0; scenario < 3; scenario++)
+            {
+                ShowMainMenu();
+                mainMenuSettingsButton.EmitSignal(BaseButton.SignalName.Pressed);
+                usageStatus = settings;
+                usageAttemptLimitInput.Text = "1000";
+                RefreshControlAvailability();
+                var received = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                var heldReply = release;
+                host.UsageLimitHandler = async action =>
+                {
+                    if (action.AttemptLimit != 1000)
+                        throw new InvalidOperationException("The pending Settings check must send the actual signed limit action.");
+                    received.TrySetResult();
+                    await heldReply.Task.ConfigureAwait(false);
+                    return settings;
+                };
+                pendingSettings = ConfigureUsageAsync(grant: false);
+                await received.Task.WaitAsync(TimeSpan.FromSeconds(5));
+                menuCloseButton.EmitSignal(BaseButton.SignalName.Pressed);
+                mainMenuNewButton.EmitSignal(BaseButton.SignalName.Pressed);
+                if (!isOwnerAction || !worldMenuOverlay.Visible || !worldMenuColumns.Visible)
+                    throw new InvalidOperationException("New World must open through the real controls while the Settings reply is held.");
+                var before = previews.Count;
+                // First prove opening alone schedules the initial preview. Then
+                // change the seed twice while blocked to check the latest options.
+                if (scenario != 0)
+                {
+                    reroll.EmitSignal(BaseButton.SignalName.Pressed);
+                    reroll.EmitSignal(BaseButton.SignalName.Pressed);
+                }
+                var expected = CurrentWorldOptions();
+                await ToSignal(GetTree().CreateTimer(0.5), SceneTreeTimer.SignalName.Timeout);
+                if (previews.Count != before || !worldCreateButton.Disabled)
+                    throw new InvalidOperationException("The preview must wait until the pending owner action releases its gate.");
+                if (scenario == 2)
+                {
+                    worldBackButton.EmitSignal(BaseButton.SignalName.Pressed);
+                    mainMenuLoadButton.EmitSignal(BaseButton.SignalName.Pressed);
+                }
+                release.TrySetResult();
+                await pendingSettings.WaitAsync(TimeSpan.FromSeconds(5));
+                if (scenario != 2)
+                {
+                    await WaitForWorldPreviewSmokeAsync(() => previewedWorldResult is not null && !worldMenuBusy,
+                        "the automatic preview after the Settings acknowledgement (#1023)");
+                    if (previews.Count != before + 1 || previews.Last().Seed != expected.Seed ||
+                        !worldPreview.Visible || worldCreateButton.Disabled)
+                        throw new InvalidOperationException("Finishing Settings must request exactly one preview for the latest seed and enable Create.");
+                }
+                else
+                {
+                    await ToSignal(GetTree().CreateTimer(0.5), SceneTreeTimer.SignalName.Timeout);
+                    if (previews.Count != before || worldMenuColumns.Visible || worldMenuHeading.Text != "Load World")
+                        throw new InvalidOperationException("Switching to Load World must discard the blocked New World preview.");
+                }
+                worldMenuOverlay.Hide();
+                InvalidateWorldPreview(refresh: false);
+            }
+        }
+        finally
+        {
+            worldMenuOverlay.Hide();
+            InvalidateWorldPreview(refresh: false);
+            release?.TrySetResult();
+            if (pendingSettings is not null) await pendingSettings.WaitAsync(TimeSpan.FromSeconds(5));
+            worldListRequest.Cancel();
+            registration = previousRegistration;
+            deviceKey = previousKey;
+            worldUrlInput.Text = previousUrl;
+            worldNameInput.Text = previousName;
+            worldSeedInput.Text = previousSeed;
+            usageStatus = previousUsage;
+            settingsPanel.Hide();
+            CloseGameMenu();
+            ShowMainMenu();
+            System.Environment.SetEnvironmentVariable("CI", previousCi);
+            RefreshControlAvailability();
+            statusToast.Hide();
+        }
+    }
+
     private async Task VerifyWorldPreviewRerollAsync()
     {
         var previousRegistration = registration;

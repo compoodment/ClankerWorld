@@ -113,6 +113,14 @@ starts at cursor zero, so a younger world can be entered without restarting the
 client. Tick/event regression and terrain identity checks still apply within the
 new observation timeline.
 
+Life-pace and Jev actions additionally bind the selected world ID into their
+version-2 signed payloads. The host advertises both formats on challenge
+issuance; the client refuses to submit them to a host without that support.
+Both endpoints check the target world under the same mutation gate used by
+world selection, before changing or saving settings. A stale target returns
+409 without changing the newly selected world, and a request without a target
+returns 400. The pairing authority and world-save schema are unchanged.
+
 Successful activation and recovery of an already-active pairing both return
 to the Main Menu. Recovery saves the matching registration without opening
 the world; Continue performs the usual signed reconnect.

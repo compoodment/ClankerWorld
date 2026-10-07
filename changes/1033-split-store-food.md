@@ -1,0 +1,1 @@
+- Store stocking keeps one food reserve across usable lots of the same owner and kind, so collecting four berries in two loads still lets an agent stock two surplus berries.
