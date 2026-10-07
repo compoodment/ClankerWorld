@@ -2857,6 +2857,10 @@ with young/adult headings, mounted horses, yard art, inspection and event text.
 Milk stock travels as an actual household jug to a held Store or borrowed Market
 stall, with a stock receipt at a stall. Fresh seller and buyer personal choices
 exchange one held portion into the buyer's real carried jug for the named
-personal payment. Both jug owners stay the same. Expiry, refusal and changed
+personal payment. Each pending offer has a distinct milk source lot, even
+when the lot contains several available portions. Candidate generation and
+native admission both enforce this existing save invariant. Closing an offer
+releases its exact reservation and makes any remaining usable stock available
+for another sale. Both jug owners stay the same. Expiry, refusal and changed
 custody release held milk; spoiled milk can be emptied locally without removing
 the vessel or its fresh contents.

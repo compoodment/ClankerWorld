@@ -287,6 +287,10 @@ A pot or jug moves with its contents and counts as one item, while all of its
 contents use carrying and storage space. These tasks cannot take household
 production stock as personal property.
 
+When carrying several water jugs, agents can refill one with room even if
+another is full. They still need a reachable riverbank or lakeshore and enough
+carrying space for the water.
+
 To return borrowed stock, use **Return two borrowed cloth**, **Return two
 borrowed bread** or **Return one borrowed water jug**. The agent carries the
 goods back to their owning
@@ -786,6 +790,8 @@ make wool padded coats, process hides into leather, and make leather sacks or
 saddles. A leather sack carries 32 units. Adults can haul household milk jugs
 to their Store or borrowed Market stall. A seller offers one portion for an
 exact personal payment; the buyer accepts with a carried empty or milk jug.
+Each milk lot can have only one pending offer. Remaining portions can be
+offered after that sale ends.
 Both vessels keep their owners. Pouring away spoiled milk frees its jug for reuse.
 
 For a cared adult horse, use **Saddle Moss**, **Mount Moss** and **Dismount Moss**.
