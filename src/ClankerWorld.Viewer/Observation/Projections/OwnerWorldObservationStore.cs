@@ -705,6 +705,7 @@ public sealed partial class OwnerWorldObservationStore
                     item.BorderTiles.OrderBy(point => point.Y).ThenBy(point => point.X)
                         .Select(ToPosition).ToArray())
                 {
+                    FallingApart = item.IsAbandoned && AbandonedForASeason(state, item.Id),
                     LandHearings = ProjectLandHearings(state, item),
                     LandHearingCount = item.LandHearings?.Cases.Count ?? 0,
                     NonviolentCases = ProjectNonviolentCases(state, item),
@@ -1753,6 +1754,20 @@ public sealed partial class OwnerWorldObservationStore
                         .OrderBy(group => group.Key, StringComparer.Ordinal)
                         .Select(group => new ViewerInventoryEntry(group.Key, group.Sum(lot => lot.Quantity))).ToArray());
             }).ToArray();
+    }
+
+    /// <summary>
+    /// Whether an abandoned Town has stood empty for a full season (a quarter
+    /// of the world's year) since its latest abandonment. The saved transition
+    /// tick survives event compaction; unknown age never implies a full season.
+    /// </summary>
+    internal static bool AbandonedForASeason(PrivateWorldRuntimeState state, string townId)
+    {
+        var config = state.WorldSystems?.Config ?? WorldSystemsConfig.Default;
+        var season = (long)config.DaysPerYear * config.TicksPerDay / 4;
+        var town = state.Towns?.FirstOrDefault(item => item.Id == townId);
+        return town is { IsAbandoned: true, AbandonedSinceTick: { } abandoned } &&
+            state.Society.Society.WorldTick - abandoned >= season;
     }
 
     private static ViewerAnimal[] ProjectAnimals(PrivateWorldRuntimeState state)

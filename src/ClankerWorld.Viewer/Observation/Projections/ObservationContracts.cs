@@ -412,6 +412,9 @@ public sealed record ViewerTown(
 {
     public bool IsAbandoned => FoundingState == "founded" && ResidentIds.Count == 0;
 
+    /// <summary>An abandoned Town that has stood empty for a full season; its buildings look falling apart.</summary>
+    public bool FallingApart { get; init; }
+
     public ViewerTownGovernance? Governance { get; init; }
     public IReadOnlyList<ViewerTownProject> Projects { get; init; } = [];
     public ViewerTownGovernment? Government { get; init; }

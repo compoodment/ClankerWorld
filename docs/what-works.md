@@ -747,6 +747,11 @@ Later visitors need that government's admission. Salvage alone grants no
 membership, and public pickup stops on revival while already collected goods
 stay with their carrier. The Towns panel, map labels and Event Log show the
 change; [its Windows playtest](../playtest/410-abandoned-towns.md) is pending.
+An abandoned Town's buildings look neglected on the map: faded and mossy,
+with weeds and boarded doors. Once it has stood empty for a full season they
+look falling apart, with holes in the roofs, fallen planks and saplings; a
+revived Town looks lived in again. Its street lanterns and bridges do not
+change yet.
 Founding another Town remains unfinished.
 
 Each founded Town has its own council. Its recorded living adult residents
