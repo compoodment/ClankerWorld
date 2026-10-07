@@ -16,9 +16,18 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class PotteryContentTests
 {
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task AnOwnerCanEatBerriesFromItsCollectedPersonalPot(bool contained)
+    [InlineData(false, "usable", true)]
+    [InlineData(true, "usable", true)]
+    [InlineData(true, "full-hands", true)]
+    [InlineData(true, "reserved", false)]
+    [InlineData(true, "broken", false)]
+    [InlineData(true, "other-owned", false)]
+    [InlineData(true, "other-carrier", false)]
+    [InlineData(true, "stored", false)]
+    [InlineData(true, "ground", false)]
+    [InlineData(true, "delivery", false)]
+    [InlineData(true, "spoiled", false)]
+    public async Task AnOwnerCanEatBerriesFromItsCollectedPersonalPot(bool contained, string boundary, bool edible)
     {
         using var setup = NormalPathWorld.CreateGenerated("empty-container-return", _ => new IdleProvider());
         var state = setup.ExportState();
@@ -49,21 +58,70 @@ public sealed class PotteryContentTests
             Assert.Equal("finished", world.ExportState().Instructions!.Single(item => item.InstructionId == collect.InstructionId).Order!.Status);
             Assert.True(PersonalEquipmentRules.IsCarried(world.Society.Inventory.GetLot(potId), actor));
         }
-        var eat = world.SubmitInstruction(new("personal-pot-eat", "owner:test", actor,
+        state = world.ExportState();
+        inventory = state.Society.Society.Inventory;
+        var other = state.Society.Society.Inhabitants.First(person => person.Id != actor &&
+            person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder).Id;
+        if (boundary == "reserved")
+            inventory = InventoryFixture.Reserve(inventory, "personal-pot-food-claim", actor, foodId, 2, "other_work",
+                state.Society.Society.WorldTick + 1_000);
+        if (boundary == "broken")
+            inventory = InventoryFixture.WearSingleUnit(inventory, potId, 10_000);
+        if (boundary is "other-owned" or "other-carrier" or "stored" or "ground" or "delivery" or "spoiled")
+            inventory = inventory with
+            {
+                Lots = inventory.Lots.Select(lot => lot.Id is potId or foodId ? lot with
+                {
+                    OwnerId = boundary == "other-owned" ? other : lot.OwnerId,
+                    CarrierId = boundary == "other-owned" ? null : boundary == "other-carrier" ? other :
+                        boundary is "stored" or "ground" ? null : boundary == "delivery" ? actor : lot.CarrierId,
+                    StorageBuildingId = boundary == "stored" ? house.InstanceId : lot.StorageBuildingId,
+                    GroundPosition = boundary == "ground" && lot.Id == potId ?
+                        new InventoryGroundPosition(house.Position.X, house.Position.Y) : lot.GroundPosition,
+                    DeliveryBuildingId = boundary == "delivery" ? house.InstanceId : lot.DeliveryBuildingId,
+                    FreshnessBasisPoints = boundary == "spoiled" && lot.Id == foodId ? 0 : lot.FreshnessBasisPoints,
+                } : lot).ToArray(),
+            };
+        if (boundary == "full-hands")
+        {
+            var equipment = state.Inhabitants.Single(person => person.InhabitantId == actor).Equipment;
+            inventory = InventoryFixture.AddLot(inventory, "personal-pot-ballast", "test_cargo", actor,
+                PersonalEquipmentRules.FreeCapacity(inventory, actor, equipment));
+            Assert.Equal(0, PersonalEquipmentRules.FreeCapacity(inventory, actor, equipment));
+        }
+        state = state with { Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } } };
+        using var eating = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)),
+            _ => new IdleProvider());
+        var eat = eating.SubmitInstruction(new("personal-pot-eat", "owner:test", actor,
             OwnerInstructionKind.MustDo, "eat berries"));
-        for (var tick = 0; tick < 5; tick++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-        var actual = world.ExportState().Instructions!.Single(item => item.InstructionId == eat.InstructionId).Order!;
-        Assert.Equal("finished", actual.Status);
-        Assert.Equal(1, actual.CompletedUnits);
-        var remaining = world.Society.Inventory.GetLot(foodId);
-        Assert.Equal(1, remaining.Quantity);
+        using var replay = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(eating.ExportState())),
+            _ => new IdleProvider());
+        for (var tick = 0; tick < 5; tick++)
+        {
+            Assert.True((await eating.AdvanceOneTickAsync()).Advanced);
+            Assert.True((await replay.AdvanceOneTickAsync()).Advanced);
+            Assert.Equal(PrivateWorldRuntimeCodec.Encode(eating.ExportState()), PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
+        }
+        var actual = eating.ExportState().Instructions!.Single(item => item.InstructionId == eat.InstructionId).Order!;
+        Assert.Equal(edible ? "finished" : "blocked", actual.Status);
+        Assert.Equal(edible ? 1 : 0, actual.CompletedUnits);
+        var remaining = eating.Society.Inventory.GetLot(foodId);
+        Assert.Equal(edible ? 1 : 2, remaining.Quantity);
         Assert.Equal(contained ? potId : null, remaining.ContainerLotId);
-        Assert.Equal(actor, remaining.OwnerId);
-        var pot = world.Society.Inventory.GetLot(potId);
-        Assert.Equal(actor, pot.OwnerId);
-        Assert.True(PersonalEquipmentRules.IsCarried(pot, actor));
-        Assert.Equal(1, pot.Quantity);
-        world.Validate();
+        var originalFood = inventory.GetLot(foodId);
+        Assert.InRange(remaining.FreshnessBasisPoints, boundary == "spoiled" ? 0 : 1, originalFood.FreshnessBasisPoints);
+        Assert.Equal(originalFood with
+        {
+            Quantity = remaining.Quantity,
+            FreshnessBasisPoints = remaining.FreshnessBasisPoints,
+            LastProcessedTick = remaining.LastProcessedTick,
+        }, remaining);
+        var pot = eating.Society.Inventory.GetLot(potId);
+        Assert.Equal(inventory.GetLot(potId) with { LastProcessedTick = pot.LastProcessedTick }, pot);
+        Assert.Equal(edible ? 1 : 0, eating.ExportState().Events.Count(item => item.Kind == "food_consumed" && item.Detail == actor));
+        if (boundary == "reserved")
+            Assert.Equal(InventoryReservationState.Reserved, eating.Society.Inventory.GetReservation("personal-pot-food-claim").State);
+        eating.Validate();
     }
 
     private static readonly JsonSerializerOptions PayloadOptions = new()
