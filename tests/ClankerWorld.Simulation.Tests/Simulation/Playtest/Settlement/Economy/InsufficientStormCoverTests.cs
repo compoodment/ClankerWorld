@@ -96,6 +96,101 @@ public sealed class InsufficientStormCoverTests
         Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AnInvitedLitHouseDoesNotHideUsableHeatOrDisplaceCurrentCover(bool ownHouseLit)
+    {
+        var policy = new MarketRulesPolicy
+        {
+            Choose = (_, candidates) => candidates.Single(candidate => candidate.Id == "safe_idle"),
+        };
+        using var generated = NormalPathWorld.CreateGenerated("storm-cover-warmth-audit", policy.CreateProvider);
+        await generated.AdvanceOneTickAsync();
+        var state = generated.ExportState();
+        var ownHouse = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == "first-town-house-a");
+        var guestHouse = state.WorldSimulation.Buildings.Single(building => building.InstanceId == "first-town-house-b");
+        var host = state.Society.Society.Inhabitants.First(person => person.HouseholdId == guestHouse.HouseholdId).Id;
+        var hostStart = state.Inhabitants.Single(person => person.InhabitantId == host).Position;
+        var heaters = ownHouseLit ? new[] { Actor, host } : [host];
+        var inventory = state.Society.Society.Inventory;
+        foreach (var heater in heaters)
+            inventory = InventoryFixture.AddLot(inventory, "guest-cover-fuel:" + heater, "wood", heater, 1);
+        state = SettlementWeatherTestFixture.WithWeather(PaidMarketWorld.WithInventory(state, inventory) with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person with
+            {
+                Position = person.InhabitantId == Actor ? ownHouse.Position :
+                    person.InhabitantId == host ? guestHouse.Position : person.Position,
+                HungerBasisPoints = 10_000,
+                Survival = new(heaters.Contains(person.InhabitantId) ? 3_400 : 10_000),
+                Equipment = null,
+                LastDecisionContext = null,
+            }).ToArray(),
+        }, WeatherKind.Snow);
+        policy.Choose = (actor, candidates) => candidates.FirstOrDefault(candidate =>
+            heaters.Contains(actor) && candidate.Id == "tend_fire") ??
+            candidates.Single(candidate => candidate.Id == "safe_idle");
+        using var lighting = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)), policy.CreateProvider);
+        for (var tick = 0; tick < 8 && lighting.ExportState().Survival!.Fires.Count < heaters.Length; tick++)
+            Assert.True((await lighting.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal(heaters.Length, lighting.ExportState().Survival!.Fires.Count);
+        foreach (var heater in heaters)
+            Assert.DoesNotContain(lighting.Society.Inventory.Lots, lot => lot.Id == "guest-cover-fuel:" + heater);
+        Assert.True(lighting.SetHouseGuestInvitation(host, guestHouse.InstanceId, Actor, true).Applied);
+        state = lighting.ExportState();
+        var cover = state.Map.Resources.Where(resource =>
+                resource.TreeKind is "broadleaf" or "conifer" or "orchard" &&
+                state.WorldSystems!.Ecology.GetResource(resource.Id).Quantity > 0 &&
+                state.Map.IsPassable(resource.Position) &&
+                state.Map.IsReachableOnFoot(resource.Position, ownHouse.Position) &&
+                state.Map.IsReachableOnFoot(resource.Position, guestHouse.Position) &&
+                !state.Inhabitants.Any(person => person.InhabitantId != Actor && person.Position == resource.Position) &&
+                state.Map.FootDistance(resource.Position, guestHouse.Position) < state.Map.FootDistance(resource.Position, ownHouse.Position) &&
+                state.Map.FootDistance(resource.Position, ownHouse.Position) <= 12)
+            .OrderBy(resource => state.Map.FootDistance(resource.Position, guestHouse.Position)).First().Position;
+        state = SettlementWeatherTestFixture.WithWeather(state with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == Actor ? person with
+            {
+                Position = cover,
+                Survival = new(3_400),
+                LastDecisionContext = null,
+                TravelCooldownTicks = 0,
+            } : person.InhabitantId == host ? person with { Position = hostStart } : person).ToArray(),
+            Society = state.Society with
+            {
+                Cognition = state.Society.Cognition with
+                {
+                    Runtimes = state.Society.Cognition.Runtimes.Select(runtime => runtime.InhabitantId == Actor
+                        ? runtime with { CurrentIntention = null } : runtime).ToArray(),
+                },
+            },
+        }, WeatherKind.Storm);
+        policy.Choose = (actor, candidates) => candidates.FirstOrDefault(candidate => actor == Actor && candidate.Id == "seek_warmth") ??
+            candidates.Single(candidate => candidate.Id == "safe_idle");
+        var initial = PrivateWorldRuntimeCodec.Encode(state);
+        using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(initial), policy.CreateProvider);
+        using var replay = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(initial), policy.CreateProvider);
+        for (var tick = 0; tick < 32; tick++)
+        {
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+            Assert.True((await replay.AdvanceOneTickAsync()).Advanced);
+            Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
+        }
+        Assert.Contains(policy.Chosen, choice => choice.Actor == Actor && choice.Id == "seek_warmth");
+        var person = world.Inhabitants.Single(person => person.InhabitantId == Actor);
+        Assert.True(person.Position == (ownHouseLit ? ownHouse.Position : cover),
+            $"Own={ownHouse.Position}, guest={guestHouse.Position}, cover={cover}, actual={person.Position}, ownLit={ownHouseLit}, warmth={person.Survival!.WarmthBasisPoints}");
+        if (ownHouseLit) Assert.True(person.Survival!.WarmthBasisPoints > 3_400);
+        else Assert.DoesNotContain(world.ExportState().Events.Skip(state.Events.Count), item =>
+            item.Kind == "inhabitant_moved" && item.Detail.StartsWith(Actor + ":", StringComparison.Ordinal));
+        Assert.Contains(world.ExportState().Survival!.Fires, fire => fire.BuildingId == guestHouse.InstanceId && fire.FuelUntilTick > world.WorldTick);
+        var saved = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved));
+        Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+    }
+
     private static async Task<byte[]> LightHouse()
     {
         var policy = new MarketRulesPolicy { Choose = (_, candidates) => candidates.Single(candidate => candidate.Id == "safe_idle") };

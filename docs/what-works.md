@@ -1112,6 +1112,8 @@ is used only after they arrive.
 Natural storm cover can reduce exposure without stopping cooling. An agent
 who is still cooling can walk to a reachable lit House; protection that
 already stops cooling lets them stay where they are.
+A guest's shelter-only invitation does not make another household's lit hearth
+a heating option.
 The Weaving frame and its woven clothing are gone. Each starting agent's
 garment waits in their household's House, and new clothing comes only from a
 household's Tailor Shop.
