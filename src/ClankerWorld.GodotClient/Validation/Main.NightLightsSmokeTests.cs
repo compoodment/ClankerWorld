@@ -256,15 +256,19 @@ public partial class Main
             Towns = [new OwnerWorldTown("night-hollow", "Hollow", "founded", 0, [], [], [])],
         };
         foreach (var fallingApart in new[] { false, true })
-            foreach (var zoom in new[] { maximumCameraZoom, minimumCameraZoom * 2, minimumCameraZoom })
+            foreach (var (zoom, atlas) in new[] { (maximumCameraZoom, 32), (minimumCameraZoom * 2, 16), (minimumCameraZoom, 0) })
             {
                 cameraZoom = zoom;
+                cameraCenterTiles = new Vector2(18, 8);
                 RenderMap(abandonedStreet with
                 {
                     Towns = [abandonedStreet.Towns[0] with { FallingApart = fallingApart }],
                 });
                 nightLayer.Settle();
                 for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                var actualAtlas = terrainLayer.TileSize < WorldTerrainLayer.SpriteTileMinimum ? 0 : BuildingSprites.AtlasTileSize(terrainLayer.TileSize);
+                if (actualAtlas != atlas)
+                    throw new InvalidOperationException($"The abandoned-lantern check must exercise atlas {atlas}, got {actualAtlas}.");
                 if (nightLightsLayer.Lanterns.Count != 4 || nightLightsLayer.Lanterns.Any(lantern => !lantern.Dark) ||
                     nightLightsLayer.DrawnCells.Count == 0 || nightLightsLayer.DrawnCells.Any(cell => cell.Kind != LightCellKind.Paint))
                     throw new InvalidOperationException($"Abandoned street fittings must stay dark at every zoom, including ruins: tileSize={terrainLayer.TileSize}, fallingApart={fallingApart}.");
@@ -279,12 +283,16 @@ public partial class Main
         {
             Towns = [abandonedStreet.Towns[0] with { ResidentIds = [ada.Id] }],
         };
-        foreach (var zoom in new[] { maximumCameraZoom, minimumCameraZoom * 2, minimumCameraZoom })
+        foreach (var (zoom, atlas) in new[] { (maximumCameraZoom, 32), (minimumCameraZoom * 2, 16), (minimumCameraZoom, 0) })
         {
             cameraZoom = zoom;
+            cameraCenterTiles = new Vector2(18, 8);
             RenderMap(resettledStreet);
             nightLayer.Settle();
             for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            var actualAtlas = terrainLayer.TileSize < WorldTerrainLayer.SpriteTileMinimum ? 0 : BuildingSprites.AtlasTileSize(terrainLayer.TileSize);
+            if (actualAtlas != atlas)
+                throw new InvalidOperationException($"The resettled-lantern check must exercise atlas {atlas}, got {actualAtlas}.");
             if (nightLightsLayer.Lanterns.Any(lantern => lantern.Dark) ||
                 !nightLightsLayer.DrawnCells.Any(cell => cell.Kind == LightCellKind.Light) ||
                 !nightLightsLayer.DrawnCells.Any(cell => cell.Kind == LightCellKind.Glow))
@@ -298,6 +306,7 @@ public partial class Main
             lanternStatus.Contains("Town is abandoned", StringComparison.Ordinal))
             throw new InvalidOperationException($"The same selected lantern card must update after resettlement: {lanternStatus}");
         cameraZoom = maximumCameraZoom;
+        cameraCenterTiles = new Vector2(18, 8);
         RenderMap(street with { DarknessBasisPoints = 0 });
         nightLayer.Settle();
         for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
