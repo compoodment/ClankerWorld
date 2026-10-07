@@ -280,9 +280,10 @@ everything that is available in the current build. See [what works today](../wha
   with what it uses; and who lives there or is inside. A list of recent
   storage changes is wanted later. Workstation recipes show their material
   quantities without granting agent knowledge or production access. A
-  storage-space bar waits until buildings record a storage limit. When the
-  owner is paired, Details also offers signed building removal and owner-change
-  actions. A confirmation explains that removal keeps the Town border and
+  storage-space bar shows recorded occupancy whenever a building records a
+  storage limit. When the owner is paired, Details also offers signed building
+  removal and owner-change actions. A confirmation explains that removal keeps
+  the Town border and
   Roads; the host refuses a change while stock, deliveries or active work
   remain. Moving a private building between households keeps its Town title and
   assignment; moving a Warehouse changes its recorded Town assignment but not
