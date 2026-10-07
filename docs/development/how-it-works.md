@@ -868,7 +868,9 @@ eligible targets. The 120-tick per-action cooldown and age restrictions apply
 both when offering and when executing an action.
 
 Exploration records personal knowledge; it does not create free inventory.
-An actual observation of a previously known tile refreshes that agent's terrain
+Each completed outward or return scouting step observes its actual arrival tile;
+blocked steps do not observe the requested destination. An actual observation
+of a previously known tile refreshes that agent's terrain
 and resource account when it changes. Planting also records the planter's own
 work. Unchanged observations do not add another fact or learned event, and
 changes do not teach distant agents. The current ledger keeps one fact per

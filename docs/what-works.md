@@ -1160,7 +1160,9 @@ carried. If urgent hunger leaves no other way to make enough room, an adult may
 set down some of their own reserved orchard seeds too. Only the seeds actually
 stored lose their planting reserve; the seeds remain household property for
 later planting. Exploring still teaches
-personal knowledge when there is no paper or room for a written copy.
+personal knowledge when there is no paper or room for a written copy. Scouts
+refresh changed terrain and resources when they reach a known tile, both on the
+outward trip and while returning. Existing written items keep their contents.
 Broken or spoiled spare cargo can also be set down without losing it.
 A filled jug moves home as one load when the adult has room for the jug and
 all its contents and the House has space. Loose household deliveries keep
