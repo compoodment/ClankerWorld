@@ -182,7 +182,7 @@ public sealed partial class HouseToolsBehaviorTests
                 inventory = cause == "foreign" ? InventoryFixture.Transfer(inventory, "foreign-" + seed.Id,
                     actor, other, seed.Id, seed.Quantity, "test_seed_owner") : InventoryFixture.ConsumeReservation(
                     InventoryFixture.Reserve(inventory, "missing-" + seed.Id, actor, seed.Id, seed.Quantity,
-                        "test_seed_absent", state.WorldTick), "missing-" + seed.Id);
+                        "test_seed_absent", state.Society.Society.WorldTick), "missing-" + seed.Id);
             state = WithInventory(state, inventory);
         }
         using var world = Restore(state);
