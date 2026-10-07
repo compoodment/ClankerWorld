@@ -1,1 +1,1 @@
-- Long agent names wrap within the Profile, keeping Rename and Back visible at smaller windows and larger interface scales.
+- Long agent names fit within two lines in the Profile, keeping Rename and Back visible. Hover over the name or open Rename to read the whole name.

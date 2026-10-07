@@ -47,7 +47,7 @@ public partial class Main
         {
             foreach (var control in controls)
                 if (!control.IsVisibleInTree() || !GetViewportRect().Grow(1).Encloses(control.GetGlobalRect()))
-                    throw new InvalidOperationException($"Profile actions must fit for a {name.Length}-character name at {window.Size}: control={control.GetType().Name}, rect={control.GetGlobalRect()}, profile={agentProfilePanel.GetGlobalRect()}.");
+                    throw new InvalidOperationException($"Profile actions must fit for a {name.Length}-character name at {window.Size}: control={control.GetType().Name}, rect={control.GetGlobalRect()}, profile={agentProfilePanel.GetGlobalRect()}, name={selectedActorNameLabel.GetRect()}, summary={selectedActorSummaryLabel.GetRect()}, scroll={agentOverviewScroll.GetRect()}, scrollMinimum={agentOverviewScroll.CustomMinimumSize}, overviewMinimum={selectedAgentOverview.GetCombinedMinimumSize()}, ui={UiSize}.");
         }
         try
         {

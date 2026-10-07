@@ -157,7 +157,8 @@ in their life and the Memories, Family and Model buttons. The Model line names
 the provider whose model made their latest choice, such as OpenAI; when Jev or
 the built-in rules made it, the Profile says so instead. Click their thought,
 or **Read all**, to read every recent thought in a larger panel beside the
-Profile. Long names wrap inside the Profile so its buttons stay in view.
+Profile. Long names use up to two lines so its buttons stay in view. Hover
+over the name or open Rename to read the whole name.
 The pencil beside their name renames them, and **Speak** goes straight
 to the message box, where you choose **Suggest** or **Order**. The crosshair
 centers the camera on them, and back (or **Escape**) returns from the Profile
