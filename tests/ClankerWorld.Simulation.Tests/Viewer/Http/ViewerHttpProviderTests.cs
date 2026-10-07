@@ -561,8 +561,26 @@ public sealed partial class ViewerHttpTests
             Assert.Equal(HttpStatusCode.Unauthorized, tamperedCheck.StatusCode);
 
             var jev = new OwnerProviderModelListAction("jev");
-            using var unsupported = await SendSignedAsync(host, client, key, device.DeviceId, endpoint, jev,
+            using var helper = await SendSignedAsync(host, client, key, device.DeviceId, endpoint, jev,
                 OwnerHttpBinding.ProviderModelListPayload(jev));
+            Assert.Equal(HttpStatusCode.OK, helper.StatusCode);
+            var helperList = await helper.Content.ReadFromJsonAsync<OwnerProviderModelList>();
+            Assert.Null(helperList!.Error);
+            Assert.Equal(PlayerDecisionProviders.DefaultJevModel, helperList.DefaultModel);
+            Assert.Equal([PlayerDecisionProviders.DefaultJevModel], helperList.Models.Select(item => item.Model));
+
+            var decisions = new OwnerProviderModelListAction("decisions");
+            using var decisionsResponse = await SendSignedAsync(host, client, key, device.DeviceId, endpoint, decisions,
+                OwnerHttpBinding.ProviderModelListPayload(decisions));
+            Assert.Equal(HttpStatusCode.OK, decisionsResponse.StatusCode);
+            var decisionsList = await decisionsResponse.Content.ReadFromJsonAsync<OwnerProviderModelList>();
+            Assert.Equal("Add an API key for OpenAI Decisions first.", decisionsList!.Error);
+            Assert.Equal("gpt-6-luna", decisionsList.DefaultModel);
+            Assert.Equal(["gpt-6-luna"], decisionsList.Models.Select(item => item.Model));
+
+            var local = new OwnerProviderModelListAction("deterministic");
+            using var unsupported = await SendSignedAsync(host, client, key, device.DeviceId, endpoint, local,
+                OwnerHttpBinding.ProviderModelListPayload(local));
             Assert.Equal(HttpStatusCode.BadRequest, unsupported.StatusCode);
         }
         finally

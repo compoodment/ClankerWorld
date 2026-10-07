@@ -14,7 +14,7 @@ public sealed partial class PrivateWorldRuntime
         if (lot is null) return null;
         var destination = HouseholdStockPosition(lot);
         var range = lot.GroundPosition is not null ? ResourceInteractionRange : 1;
-        // Former members collect at the entrance; this grants no other private access.
+        // Owners collect at the entrance, including former members and heirs; this grants no other private access.
         if (!IsWithinInteractionRange(inhabitants[actor].Position, destination, range))
         {
             MoveToward(actor, inhabitants[actor], destination, "personal_goods", range);

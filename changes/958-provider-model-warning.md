@@ -1,0 +1,1 @@
+- Switching an agent's provider during setup now asks you to choose a model when your key cannot use the new provider's default.
