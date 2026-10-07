@@ -36,8 +36,11 @@ public sealed class WorkstationDestinationReachabilityTests
         var inventory = state.Society.Society.Inventory;
         var removed = inventory.Lots.Where(lot => lot.OwnerId == actor || lot.CarrierId == actor)
             .Select(lot => lot.Id).ToHashSet(StringComparer.Ordinal);
-        inventory = inventory with { Lots = inventory.Lots.Where(lot => !removed.Contains(lot.Id) &&
-            (lot.ContainerLotId is null || !removed.Contains(lot.ContainerLotId))).ToArray() };
+        inventory = inventory with
+        {
+            Lots = inventory.Lots.Where(lot => !removed.Contains(lot.Id) &&
+            (lot.ContainerLotId is null || !removed.Contains(lot.ContainerLotId))).ToArray()
+        };
         inventory = InventoryFixture.AddLot(inventory, "destination-fiber", "fiber", actor, 3);
         inventory = InventoryFixture.AddLot(inventory, "destination-wood", "wood", actor, 3);
         inventory = InventoryFixture.AddLot(inventory, "destination-axe", "wooden_axe", actor, 1);
