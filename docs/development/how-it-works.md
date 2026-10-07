@@ -2056,6 +2056,9 @@ Automated checks cover the return path.
 Medical permission is admitted only from a fresh, accepted, non-fallback
 `LargeLanguageModel` choice by the adult patient. Jev, owner orders, failed
 replies and continuing intentions cannot grant or revoke that authority.
+The patient may permit at most 16 living named caregivers. While a permission
+slot remains, the candidate list offers up to 16 eligible nearby alternatives,
+independently of the remaining slot count. Granting still checks the current cap.
 Self-treatment is allowed, and a dependent's effective accepted `Caregiver`
 relationship supplies their existing authority. Treatment checks living adult
 caregivers, permission, local patient observation and actual usable medicine.
