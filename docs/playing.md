@@ -626,6 +626,12 @@ Menus, panels and text grow with your screen in whole steps, so pixel letters
 stay crisp: 100% on small screens, 200% at 1080p and 1440p and 300% at 4K.
 There is no setting for this. World Settings contains that world's autosaves,
 the routine helper and agent model settings. Main Menu Settings exposes Game Settings only.
+
+Life pace and routine helper changes apply to the world shown when you submit them.
+If another device opens a different world before your request arrives, the
+host refuses the change. Reopen World Settings before trying again. These
+controls need matching client and host updates.
+
 Autosave Apply stays unavailable until the current world's settings have loaded.
 If the world changes before Apply reaches the host, its settings stay unchanged.
 Reopen World Settings before trying again.
@@ -737,6 +743,8 @@ or latitude cooling. **Reset these options** restores the preset and Small size
 without changing the name or seed. The preview updates after
 changes; Create World waits for a matching preview. Small and Medium are
 available; larger worlds remain unavailable pending their support checks.
+If a Settings action is still finishing when you open New World, its preview
+starts automatically after that action completes.
 **Reroll** chooses another seed and clears the old map while its replacement
 loads. You can reroll during generation; the preview will follow your latest
 seed. If the world name is missing, enter it and choose **Preview again**.
