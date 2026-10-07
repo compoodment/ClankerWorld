@@ -150,17 +150,119 @@ everything that is available in the current build. See [what works today](../wha
 - **Livestock and mounts** belong in the finished game. Hostile predators do
   **not** belong in the current plan, though they may be revisited later.
   The accepted base roster is **chickens (eggs), sheep (wool), cows (milk), and
-  horses (mounts)**. Leather/wool and milk/egg products are late-development
-  items alongside animal husbandry. Animals belong to households: care uses
+  horses (mounts)**. Animals belong to households: care uses
   physically reachable feed and water, and collected products enter local
   stock rather than a global pool. Permission to ride a horse does not transfer
-  its ownership. If care is missed, production and riding stop first; whether
-  and when an animal could die from neglect is still to decide. Breeding is
+  its ownership. If care is missed, production and riding stop first. Breeding is
   autonomous but must have a population cap, not a player-triggered breeding
-  action. The cap, resource needs, product intervals, pregnancy duration and
-  mount speed need later design and playtesting. Animal husbandry remains a
-  **late-development phase**, not a current playable system. Slaughter,
-  hunting and a leather-production chain are not assumed.
+  action. The owner approved the complete [animal pipeline](#animal-pipeline)
+  on October 6, 2026, resuming its implementation. It remains intended behavior
+  until connected to normal play. Slaughter, hunting and predators are excluded.
+
+### Animal pipeline
+
+**Agreed by the owner in chat on October 6, 2026:** the complete proposal for
+arrival, yards, care, products, breeding, old age and horses below was approved
+with “i approve, go”. This extends [#166](https://github.com/compoodment/ClankerWorld/issues/166)
+and resumes [#433](https://github.com/compoodment/ClankerWorld/issues/433).
+All quantities, capacities, costs, times and lifespans below are provisional
+playtest balance. No starting livestock is supplied.
+
+#### Arrival, homes and ownership
+
+New maps have small seeded groups of untamed chickens, sheep, cows and horses
+on suitable land. An adult with a household and free animal space may approach
+and tame one specific animal with two feed portions, one fresh water and a
+short task. Taming assigns household ownership. An animal yard is a household
+outdoor area on land the household may use, planned through ordinary legal
+site selection. A House is required. Its 2×2 design holds four animals and
+may expand to 2×4 for eight. Each stage costs eight wood and two rope.
+Young animals occupy places; an expected birth reserves a place. The yard has
+sixteen cargo units of supply storage. Animals wander inside it and adults
+can lead them along legal routes when relocating them.
+
+Animal care, ownership and riding permissions are distinct. Any adult household
+member may care for its animals; a named outsider needs a separate permission.
+Nearby adults may explicitly agree to sell or give an exact animal, with exact
+payment and receiving-household space checked. The animal must be dismounted
+before transfer. Transfer ends old permissions and preserves physical position:
+the buyer leads the animal home. Household abandonment does not make private
+animals public salvage. Inheritance follows the ordinary property rules.
+Paused Developer Tools may add animals; each direct edit is recorded in the
+Event Log.
+
+#### Care and products
+
+One feed portion is one unit of grain, wild greens or cultivated greens.
+Adults bring feed and actual water-filled jugs to the yard. Care consumes
+carried supplies or physically delivered yard stock and protects existing food,
+planting and production reserves; it never consumes distant House stock.
+Jugs remain after their contents are used.
+
+| Animal | Feed per day | Water per day | Product with care |
+| --- | --- | --- | --- |
+| Chicken | 1 | 1 | An adult hen lays one egg per day. |
+| Sheep | 2 | 2 | An adult sheep supplies two wool every three days, collected by shearing. |
+| Cow | 2 | 2 | An adult cow supplies two milk per day; no separate lactation cycle. |
+| Horse | 2 | 2 | An adult is available for riding and carrying. |
+
+Missed care pauses production, breeding progress and riding. Restoring care
+resumes unfinished progress. Neglect does not kill animals in this version.
+Untamed animals forage from reachable wild greens and drink from reachable
+fresh water, never private crops or goods. Each untamed herd has an eight-animal
+cap. An animal retains at most one ready product batch before production pauses.
+Collection requires reaching it and having receiving space. Eggs and milk
+spoil; wool, hides and leather do not. Collected products belong to the
+household and move physically into House, Restaurant, Tailor Shop, Store or
+Market stock. A reusable jug may hold water or milk, without mixing them;
+drinking milk or using it in cooking leaves the jug intact.
+
+| Pipeline | Trial recipe and destination |
+| --- | --- |
+| Cooked eggs | House or Restaurant: two eggs + one wood → two cooked egg portions. |
+| Milk porridge | House or Restaurant: one grain + one milk + one wood → two milk-porridge portions. |
+| Rich Restaurant meal | Restaurant: one bread + one egg + one cultivated greens + one wood → two rich meals. |
+| Wool clothing | Tailor Shop: two wool + two cloth → one padded coat. |
+| Leather | Tailor Shop: one hide + one fresh water + one wood → two leather. |
+| Leather sack | Tailor Shop: two leather + one rope → one leather sack, carrying 32 units. |
+| Saddle | Tailor Shop: two leather + two cloth + one rope → one saddle. |
+
+#### Breeding and old age
+
+Animals have male/female sex. A compatible adult pair sharing a yard breeds
+autonomously when cared for and there is space. Each pregnancy or hatching
+cycle produces one offspring and reserves its place. A household holds at most
+eight animals, including young and reserved births. New breeding also needs
+enough delivered supplies for existing animals and the offspring. There is a
+two-day recovery period after birth. Care shortages pause breeding progress.
+
+| Species | Birth or hatching | Adulthood | Old-age lifespan |
+| --- | --- | --- | --- |
+| Chicken | 2 days | 3 days | 30 days |
+| Sheep | 4 days | 5 days | 45 days |
+| Cow | 6 days | 7 days | 60 days |
+| Horse | 6 days | 7 days | 60 days |
+
+Old age is the first animal mortality rule. Naturally deceased sheep, cows and
+horses leave one collectible hide; chickens leave none. Remains and hides keep
+their recorded owner. Hunting, slaughter and meat are excluded.
+
+#### Horse travel and inspection
+
+A cared-for adult horse with a saddle carries one adult rider at twice walking
+speed with eight additional cargo units. Legal terrain, blocked corners,
+occupancy and route rules still apply. Household adults may ride. A named
+outsider requires revocable riding permission, which grants neither ownership
+nor household-stock access. Dismounting leaves horse and cargo at their actual
+position; losing care or permission safely stops further riding. Horse-drawn
+carts and transporting horses by boat remain later work.
+
+Each animal has an inspectable name, species, age, household, location, care,
+ready product and permissions. Sprites show young/adult animals, movement and
+mounted horses with eight directions. Agents plan supply trips, care,
+collection, crafting and trading through ordinary decisions. Suggestions and
+orders use those same physical rules. The Event Log records taming, care,
+collection, births, transfers and deaths.
 
 ### Household membership
 
@@ -1625,9 +1727,10 @@ capacities, wear rates and repair effects remain provisional.
 Bandages are intended for the later injury stage; medicine supports gradual
 illness recovery. Neither is an instant full-health restoration. Medicinal
 herbs, paper, hides and ornaments are approved
-additions to the catalogue. Animals, mounts, combat and invention work retain
-their later staging; their detailed actions and balance are not settled by
-these item pipelines. See [combat](agents-and-families.md#combat) and
+additions to the catalogue. The [October 6 animal pipeline](#animal-pipeline) settles animal care, breeding,
+old age, products and mounts, with provisional balance. Combat and invention
+work retain their later staging; these item pipelines do not settle their
+detailed actions. See [combat](agents-and-families.md#combat) and
 [inventions](inventions-and-mods.md).
 
 #### Clinic supplies and illness care
