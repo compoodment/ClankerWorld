@@ -135,6 +135,8 @@ public sealed record PrivateWorldRuntimeState(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<HandcartHitch>? HandcartHitches = null)
 {
     [JsonRequired]
+    public AnimalWorldState AnimalWorld { get; init; } = AnimalWorldState.Empty;
+    [JsonRequired]
     public RoutineHelperSettings RoutineHelper { get; init; } = RoutineHelperSettings.Jev;
 
     [JsonRequired]

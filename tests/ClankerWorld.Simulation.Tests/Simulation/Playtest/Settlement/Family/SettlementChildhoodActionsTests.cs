@@ -11,6 +11,29 @@ public sealed class SettlementChildhoodActionsTests
     private const string Child = "founder-scout";
 
     [Fact]
+    public async Task ChildHouseholdHelpDoesNotTransferFoodOutOfACarriedPersonalPot()
+    {
+        var state = await ChildState(withCarriedFood: true);
+        var inventory = state.Society.Society.Inventory;
+        var food = Assert.Single(inventory.Lots, lot => lot.OwnerId == Child && lot.ItemKind == "food");
+        const string potId = "child-personal-pot";
+        inventory = InventoryFixture.AddLot(inventory, potId, InventoryContainerRules.StoragePot, Child, 1);
+        inventory = InventoryFixture.PutIntoContainer(inventory, "child-food-pot-setup", Child, potId, food.Id, 2);
+        state = state with { Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } } };
+        var choices = new SelectProvider("child_help_food");
+        using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)),
+            id => id == Child ? choices : new SelectProvider("safe_idle"));
+        for (var tick = 0; tick < 4; tick++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.True(choices.Calls > 0);
+        Assert.DoesNotContain("child_help_food", choices.SeenCandidates);
+        Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "child_helped_household" && item.Detail == Child);
+        var remaining = world.Society.Inventory.GetLot(food.Id);
+        Assert.Equal((Child, 2, potId), (remaining.OwnerId, remaining.Quantity, remaining.ContainerLotId));
+        Assert.Equal((Child, 1), (world.Society.Inventory.GetLot(potId).OwnerId, world.Society.Inventory.GetLot(potId).Quantity));
+        world.Validate();
+    }
+
+    [Fact]
     public async Task IllnessDoesNotSuppressOrdinaryChildConversationOrChangePersonality()
     {
         var state = await ChildState();

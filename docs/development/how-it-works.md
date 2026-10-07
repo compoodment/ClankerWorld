@@ -914,6 +914,13 @@ abandonment keep their spent allowance; only known token counts are added.
 Deterministic choices consume no attempt. Reaching the cap persists a pause;
 changing allowance and resuming are separate owner actions.
 
+The client keeps an edited limit separate from the displayed usage status
+until a limit action succeeds or the registration changes. Both Settings
+reads and automatic pause reads accept only the latest usage operation for
+the current registration. A successful limit action invalidates earlier
+reads; changing registration clears the old installation's usage status,
+accounting error and limit draft.
+
 The reservation that brings the total to 80% of the cap, rounded up
 (`ProviderUsageStore.WarningMark`), raises `WarningReached` once at that
 installation-wide crossing. No additional durable warning marker is saved:
@@ -1014,6 +1021,11 @@ row-major packed bytes, with separate layer digests. Signed cache claims omit
 unchanged map data only when world and digests match. Initial/changed maps and
 some control receipts still send the whole map. Viewport/chunk transfer remains
 unfinished.
+
+Main-map dragging requires a held middle mouse button. Opening the pause menu
+or losing application focus clears the drag. The client observes releases
+before GUI controls consume them and stops on motion without the middle-button
+mask, so a missed release cannot make ordinary hover pan the camera.
 
 The regional-weather prototype saves an episode for each 32×32 region. Ordinary
 episodes last one-quarter to one saved day; storms last at most three-quarters
@@ -1222,6 +1234,22 @@ grass, the darker patches with dots are groves, beige is sand, brown is dry
 scrub, grey is mountain and the warm band around it is hills. Dark dots are
 trees, red dots plants and grey dots stone. It is a generator-layer rendering, not a Godot
 screenshot or native playtest.
+
+## Building production inspection
+
+The owner snapshot derives `AvailableRecipes` from active content matched to
+its placed building's exact definition, including workstation-size variants.
+Crop recipes and the retired generic-food and bedding transformations are
+excluded from the workstation list. Each entry carries its registered name
+and input/output quantities, rather than a client-maintained recipe table.
+
+Production jobs project the same recipe facts and `HeldInputs` grouped from
+the job's own active inventory reservations. Completed or released
+reservations contribute nothing; building storage remains a separate view.
+Godot Details refreshes these facts even when work progress stays unchanged.
+Missing fields from an older host leave recipe facts unavailable rather than
+fabricating them. This projection changes neither world state nor agent
+knowledge and needs no save-schema change.
 
 ## Towns, building sites and death
 
@@ -1604,6 +1632,12 @@ care and ongoing work keep their earlier continuation guards, and the ordinary
 idle action still runs its cleanup.
 See [construction query measurements](construction-query-measurements.md) for
 matched native timings, candidate/state equivalence and remaining limits.
+Town proposal site checks also share physical placement obstacles only within
+their synchronous query. Market slots stay separate from other occupied
+objects, and actual placement gathers current facts again. Layout searches
+rent tentative tile costs while preserving their settled tiles, costs and
+stopping rules. See [placement query measurements](placement-query-measurements.md)
+for the follow-up comparison.
 Building plans follow what a household needs, not a role. An adult whose
 household lacks a House, Farmhouse, Blacksmith, Silo, Tailor Shop, Clinic or Restaurant is offered ranked sites
 for it once the household has the build costs in hand: stock the household
@@ -1896,8 +1930,13 @@ the active equipment repair target are excluded from payment.
 Customers receive transaction access only. Store stocking first moves actual
 surplus into carried delivery lots, then uses ordinary household hauling to
 reach the Store. A remote House, field or Warehouse is never sale stock.
-Store stocking also keeps each adult's best usable work tool. Optional shelf
-restocking waits behind gathering materials needed by household work.
+Store stocking also keeps each adult's best usable work tool. Food stocking
+keeps two usable servings of each food kind for the adult, or two per
+living member when taking household stock. Each reserve is counted once across
+eligible lots with the same owner and food kind, including when an order is
+bound to one lot. Unreachable, reserved, spoiled, contained or other owners'
+stock cannot satisfy the reserve.
+Optional shelf restocking waits behind gathering materials needed by household work.
 Rates, the eight-unit shelf target and four-unit carried loads are provisional.
 Blacksmiths can sell real refined iron for another household's tool work.
 Meals remain tracked in #564 and its domain
@@ -2746,6 +2785,11 @@ targets and signed creation remain the only way through that screen. The
 redirect neither replaces the checkpoint nor removes its catalog entry, and
 founders or authored progress prevent it.
 
+New World preview refreshes wait for both an existing preview and a pending
+owner action to finish. Menu visibility, observation generation and preview
+revision still fence the waiting work, so only the current options are
+requested and closing or switching screens discards the old refresh.
+
 Continue also belongs to the current Main Menu navigation. Opening Settings,
 New World or Load World, returning to Main Menu, or starting another Continue
 expires the earlier entry attempt. Its late refresh can update observations,
@@ -2785,3 +2829,53 @@ invalidates the read and disables Apply. Late replies and failures cannot
 replace a newer opening's controls. A reply must name the observed world
 before Apply becomes available, and Apply checks that context again before
 sending the displayed interval and rotation.
+
+## Animals and horse travel
+
+The built-in animal package adds a household animal yard and the egg, milk, wool,
+leather, leather-sack and saddle recipes to their actual House, Restaurant and
+Tailor stations, including larger Restaurant and Tailor variants. Generated
+worlds seed small wild groups near public forage and fresh water. Each animal
+has an authoritative identity and location; it never draws from private crops
+or household stock while wild.
+
+Adults tame, care, collect, supply, lead, saddle, mount and dismount through
+ordinary revalidated choices. Native orders bind an exact animal name or ID.
+Care spends actual unreserved grain/greens and jug water at the animal or yard;
+food, planting and workstation reserves stay protected. Physical supply trips
+retain the owning household. One held product batch waits for local collection;
+milk enters a reusable household jug. Products then use ordinary stock hauling,
+recipes and trade.
+
+Cared adult pairs breed automatically when their yard has a place and delivered
+supplies cover existing animals and the offspring. Pregnancy reserves one place;
+young animals and reservations count toward eight per household or wild herd.
+Missed care pauses progress. Only old age kills animals; an owned sheep, cow or
+horse leaves one household hide at its actual death position. Untamed animals
+leave one hide bound to their remains until a nearby adult collects it; this
+does not grant access to household-owned hides. Abandonment does
+not turn private animals into public salvage.
+
+Animal gifts, sales and named outsider permissions need fresh, admitted personal
+model choices. Built-in fallback and forced orders cannot give personal consent.
+Receiving space and the exact payment lot are checked again on acceptance;
+transfer clears old permissions and preserves position for physical leading.
+
+A cared adult horse has one real reserved saddle and one adult rider. Movement
+uses the normal legal route and occupancy rules, halves walking cost and admits
+at most two legal steps per tick. A mount adds eight cargo units. Care or
+permission loss ends riding; dismount puts unreserved excess cargo at the actual
+position without changing its owner. Cart attachments and boat travel exclude
+ridden or led animals. Godot projects and draws the authoritative animal state
+with young/adult headings, mounted horses, yard art, inspection and event text.
+
+Milk stock travels as an actual household jug to a held Store or borrowed Market
+stall, with a stock receipt at a stall. Fresh seller and buyer personal choices
+exchange one held portion into the buyer's real carried jug for the named
+personal payment. Each pending offer has a distinct milk source lot, even
+when the lot contains several available portions. Candidate generation and
+native admission both enforce this existing save invariant. Closing an offer
+releases its exact reservation and makes any remaining usable stock available
+for another sale. Both jug owners stay the same. Expiry, refusal and changed
+custody release held milk; spoiled milk can be emptied locally without removing
+the vessel or its fresh contents.

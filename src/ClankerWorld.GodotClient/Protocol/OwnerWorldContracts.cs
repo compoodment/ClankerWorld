@@ -34,6 +34,11 @@ public sealed record OwnerWorldHandcart(string Id, string OwnerId, string OwnerN
     int Capacity, int ConditionPercent, string? PullerId, string? PullerName,
     IReadOnlyList<OwnerWorldInventoryEntry> Cargo);
 
+public sealed record OwnerWorldAnimal(string Id, string Name, string Species, string Sex, int AgeDays, string LifeStage,
+    OwnerWorldPosition Position, string? HouseholdId, string? HouseholdName, string CareStatus, string? ProductKind,
+    int ProductQuantity, double? BirthDaysRemaining, string? RiderId, string? RiderName, string? LeaderId,
+    bool Saddled, IReadOnlyList<string> CarePermissions, IReadOnlyList<string> RidingPermissions);
+
 public sealed record OwnerWorldBoat(string Id, string TownId, string TownName, OwnerWorldPosition Position,
     string? DockedPortId, string? PassengerId, string? PassengerName, string? DestinationPortId,
     string Status, OwnerWorldPosition? ReservedDock, IReadOnlyList<OwnerWorldInventoryEntry> Cargo);
@@ -412,7 +417,8 @@ public sealed record OwnerWorldInstructionOrder(
     string? TargetCropKind = null,
     string? TargetOutputKind = null,
     string? TargetItemKind = null,
-    string? TargetBuildingKind = null);
+    string? TargetBuildingKind = null,
+    string? TargetAnimalId = null);
 
 public sealed record OwnerWorldCognitionEvent(long EventId, long WorldTick, string Kind, string Detail);
 
@@ -495,6 +501,7 @@ public sealed record OwnerWorldPlacedBuilding(
     public IReadOnlyList<OwnerWorldBusinessTrade> Trades { get; init; } = [];
     public IReadOnlyList<OwnerWorldToolMakingRequest> ToolMakingRequests { get; init; } = [];
     public bool AllowsHouseholdOwner { get; init; }
+    public IReadOnlyList<OwnerWorldProductionRecipe>? AvailableRecipes { get; init; }
 }
 
 public sealed record OwnerWorldToolMakingRequest(string Id, string RequesterName, string RecipeId,
@@ -510,7 +517,16 @@ public sealed record OwnerWorldProductionJob(
     string WorkerId,
     long StartedTick,
     long CompletionTick,
-    string State);
+    string State)
+{
+    public OwnerWorldProductionRecipe? Recipe { get; init; }
+    public IReadOnlyList<OwnerWorldMaterialQuantity>? HeldInputs { get; init; }
+}
+
+public sealed record OwnerWorldMaterialQuantity(string Kind, int Quantity);
+
+public sealed record OwnerWorldProductionRecipe(string Id, string Name,
+    IReadOnlyList<OwnerWorldMaterialQuantity> Inputs, IReadOnlyList<OwnerWorldMaterialQuantity> Outputs);
 
 public sealed record OwnerWeatherRegion(int X, int Y, string Weather, int? SoilMoisture = null);
 
@@ -586,6 +602,7 @@ public sealed record OwnerWorldSnapshot(
     public IReadOnlyList<OwnerWorldFarmField> Fields { get; init; } = [];
     public IReadOnlyList<OwnerWorldGroundStock> GroundStocks { get; init; } = [];
     public IReadOnlyList<OwnerWorldHandcart> Handcarts { get; init; } = [];
+    public IReadOnlyList<OwnerWorldAnimal> Animals { get; init; } = [];
     public IReadOnlyList<OwnerWorldBoat> Boats { get; init; } = [];
     public IReadOnlyList<OwnerWorldBoatTripRequest> BoatRequests { get; init; } = [];
     public IReadOnlyList<OwnerWorldStockpile> Stockpiles { get; init; } = [];
@@ -723,8 +740,8 @@ public sealed record WorldAutosaveSettings(string WorldId, bool Enabled, int Int
 public sealed record OwnerDeveloperEditAction(string WorldId, long ExpectedEventId, string AgentId,
     string Operation, string Value, int Amount = 0, string? OtherAgentId = null);
 
-public sealed record OwnerLifePaceAction(int Rate);
-public sealed record OwnerJevAssistanceAction(bool Enabled);
+public sealed record OwnerLifePaceAction(int Rate, string WorldId);
+public sealed record OwnerJevAssistanceAction(bool Enabled, string WorldId);
 public sealed record OwnerRoutineHelperAction(string WorldId, string Provider, string Model, string? CredentialSlotId = null);
 
 public sealed record OwnerPairingApprovalAction(string PairingId, string PairingCode);
