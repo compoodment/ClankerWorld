@@ -398,7 +398,7 @@ public sealed partial class PrivateWorldRuntime
                     ReservedBusinessCarrySpace(person.InhabitantId, checkpoint.Inventory);
                 var after = PersonalEquipmentRules.CarriedQuantity(updated, person.InhabitantId, person.Equipment) +
                     ReservedBusinessCarrySpace(person.InhabitantId, updated);
-                if (after > before && after > PersonalEquipmentRules.Capacity(updated, person.InhabitantId, person.Equipment))
+                if (after > before && after > PersonalEquipmentRules.Capacity(updated, person.InhabitantId, person.Equipment) + HorseCargoCapacity(person.InhabitantId))
                     throw new InvalidOperationException("The person is carrying as much as they can; store or set down a load first.");
             }
             return new SocietyOperationResult(checkpoint with { Inventory = updated }, null, []);

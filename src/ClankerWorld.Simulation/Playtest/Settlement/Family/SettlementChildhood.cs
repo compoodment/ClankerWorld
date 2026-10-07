@@ -32,6 +32,7 @@ public sealed partial class PrivateWorldRuntime
             candidate.StartsWith("child_learn:", StringComparison.Ordinal) ||
             candidate.StartsWith("talk:", StringComparison.Ordinal) ||
             candidate.StartsWith("conversation_", StringComparison.Ordinal) ||
+            candidate.StartsWith(TownSalvagePrefix, StringComparison.Ordinal) ||
             candidate == "child_help_food";
     }
 
@@ -65,7 +66,7 @@ public sealed partial class PrivateWorldRuntime
 
         var householdId = society.Checkpoint.GetInhabitant(actor).HouseholdId;
         var house = householdId is null ? null : HouseForHousehold(householdId);
-        if (state.HungerBasisPoints >= 6_000 && PreferredFood(actor, actor).Any(lot => AvailableLotQuantity(lot) > 1) &&
+        if (state.HungerBasisPoints >= 6_000 && PersonalSpareFood(actor) is not null &&
             (house is null || StorageRoomAfterInboundDeliveries(house.InstanceId) > 0) &&
             FindUnoccupiedRoute(actor, state.Position,
                 house?.Position ?? SettlementStoragePosition,
@@ -79,7 +80,7 @@ public sealed partial class PrivateWorldRuntime
         if (candidate == "child_help_food")
         {
             if (state.HungerBasisPoints < 6_000 ||
-                PreferredFood(actor, actor).FirstOrDefault(lot => AvailableLotQuantity(lot) > 1) is not { } lot)
+                PersonalSpareFood(actor) is not { } lot)
                 return;
             var householdId = society.Checkpoint.GetInhabitant(actor).HouseholdId;
             var house = householdId is null ? null : HouseForHousehold(householdId);

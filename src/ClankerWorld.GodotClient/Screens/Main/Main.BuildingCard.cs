@@ -29,6 +29,9 @@ public partial class Main
     private readonly VBoxContainer buildingDetailsContent = new();
     private readonly VBoxContainer buildingWorkSection = new();
     private readonly VBoxContainer buildingWorkRows = new();
+    private readonly VBoxContainer buildingRecipeSection = new();
+    private readonly VBoxContainer buildingRecipeRows = new();
+    private string? renderedBuildingRecipes;
     private readonly VBoxContainer buildingPeopleSection = new();
     private readonly Label buildingPeopleSummary = new() { ThemeTypeVariation = "DimLabel" };
     private readonly Label buildingPeopleText = new() { AutowrapMode = TextServer.AutowrapMode.WordSmart };
@@ -87,6 +90,17 @@ public partial class Main
         buildingWorkSection.AddChild(buildingWorkRows);
         buildingDetailsContent.AddChild(buildingWorkSection);
         buildingDetailsContent.AddChild(buildingDetailsStorage);
+        buildingRecipeSection.AddThemeConstantOverride("separation", 4);
+        buildingRecipeSection.AddChild(new Label { Text = "CAN MAKE", ThemeTypeVariation = "SectionLabel" });
+        buildingRecipeSection.AddChild(new Label
+        {
+            Text = "Each batch needs its materials and an adult allowed to work here.",
+            ThemeTypeVariation = "DimLabel",
+            AutowrapMode = TextServer.AutowrapMode.WordSmart,
+        });
+        buildingRecipeRows.AddThemeConstantOverride("separation", 8);
+        buildingRecipeSection.AddChild(buildingRecipeRows);
+        buildingDetailsContent.AddChild(buildingRecipeSection);
         buildingPeopleSection.AddThemeConstantOverride("separation", 4);
         buildingPeopleSection.AddChild(SectionRow("PEOPLE", buildingPeopleSummary));
         buildingPeopleSection.AddChild(buildingPeopleText);
@@ -272,12 +286,12 @@ public partial class Main
             if (lantern is { } fitting) header.SetLantern(fitting);
             else header.SetRoof(kind, footprint.Size, door);
         }
-        // A building that keeps no stores has no storage section, rather than an empty one.
+        // Occupancy may be recorded even when the building has no owner-specific item list.
         foreach (var storage in new[] { buildingQuickStorage, buildingDetailsStorage })
         {
-            storage.Visible = stored is not null;
-            if (stored is not null)
-                storage.SetItems(stored.Select(item => (item.Kind, item.Quantity, GameUiText.ItemName(item.Kind))).ToArray());
+            storage.Visible = stored is not null || building.StorageCapacity is > 0 && building.StoredQuantity >= 0;
+            storage.SetCapacity(building.StorageCapacity, building.StoredQuantity);
+            storage.SetItems(stored?.Select(item => (item.Kind, item.Quantity, GameUiText.ItemName(item.Kind))).ToArray());
         }
         RenderBuildingStatus(snapshot, building, jobs, inside);
         RenderBuildingDetails(snapshot, building, household, town, jobs, inside);
@@ -499,13 +513,15 @@ public partial class Main
         RenderBuildingFacts(facts);
 
         buildingWorkSection.Visible = jobs.Length > 0;
-        var work = string.Join('\n', jobs.Select(job => string.Join('|', JobSummary(snapshot, job))));
+        var work = string.Join('\n', jobs.Select(job => string.Join('|', JobSummary(snapshot, job)) + "|" + JobMaterialsText(job)));
         if (renderedBuildingWork != work)
         {
             renderedBuildingWork = work;
             ClearChildren(buildingWorkRows);
-            foreach (var job in jobs) buildingWorkRows.AddChild(JobRow(snapshot, job));
+            foreach (var job in jobs) buildingWorkRows.AddChild(JobRow(snapshot, job, includeMaterials: true));
         }
+
+        RenderBuildingRecipes(building);
 
         var residents = building.HouseholdId is { } householdId && building.Tags?.Contains("house") == true
             ? snapshot.Inhabitants
@@ -694,7 +710,7 @@ public partial class Main
     }
 
     /// <summary>One job: what is being made, how far along, who is working and how long is left.</summary>
-    private HBoxContainer JobRow(OwnerWorldSnapshot snapshot, OwnerWorldProductionJob job)
+    private HBoxContainer JobRow(OwnerWorldSnapshot snapshot, OwnerWorldProductionJob job, bool includeMaterials = false)
     {
         var (what, percent, detail) = JobSummary(snapshot, job);
         var row = new HBoxContainer();
@@ -714,8 +730,50 @@ public partial class Main
         progress.AddChild(new Label { Text = $"{percent}%", ThemeTypeVariation = "DimLabel" });
         lines.AddChild(progress);
         lines.AddChild(new Label { Text = detail, ThemeTypeVariation = "DimLabel", AutowrapMode = TextServer.AutowrapMode.WordSmart });
+        if (includeMaterials)
+            lines.AddChild(new Label
+            {
+                Text = JobMaterialsText(job),
+                ThemeTypeVariation = "DimLabel",
+                AutowrapMode = TextServer.AutowrapMode.WordSmart,
+            });
         row.AddChild(lines);
         return row;
+    }
+
+    private static string MaterialQuantities(IReadOnlyList<OwnerWorldMaterialQuantity> materials) =>
+        materials.Count == 0 ? "None" : string.Join(" · ", materials.Select(material =>
+            $"{material.Quantity} {GameUiText.ItemName(material.Kind)}"));
+
+    private static string RecipeMaterialsText(OwnerWorldProductionRecipe recipe) =>
+        $"Uses: {MaterialQuantities(recipe.Inputs)}\nMakes: {MaterialQuantities(recipe.Outputs)}";
+
+    private static string JobMaterialsText(OwnerWorldProductionJob job) =>
+        (job.Recipe is { } recipe ? RecipeMaterialsText(recipe) : "Recipe details unavailable") +
+        "\nMaterials held for this work: " + (job.HeldInputs is { } held ? MaterialQuantities(held) : "Not reported");
+
+    private void RenderBuildingRecipes(OwnerWorldPlacedBuilding building)
+    {
+        buildingRecipeSection.Visible = building.AvailableRecipes is { Count: > 0 };
+        var signature = building.AvailableRecipes is { } recipes
+            ? string.Join('\n', recipes.Select(recipe => recipe.Id + "|" + recipe.Name + "|" + RecipeMaterialsText(recipe)))
+            : null;
+        if (renderedBuildingRecipes == signature) return;
+        renderedBuildingRecipes = signature;
+        ClearChildren(buildingRecipeRows);
+        foreach (var recipe in building.AvailableRecipes ?? [])
+        {
+            var row = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+            row.AddThemeConstantOverride("separation", 2);
+            row.AddChild(new Label { Text = recipe.Name, AutowrapMode = TextServer.AutowrapMode.WordSmart });
+            row.AddChild(new Label
+            {
+                Text = RecipeMaterialsText(recipe),
+                ThemeTypeVariation = "DimLabel",
+                AutowrapMode = TextServer.AutowrapMode.WordSmart,
+            });
+            buildingRecipeRows.AddChild(row);
+        }
     }
 
     private (string What, int Percent, string Detail) JobSummary(OwnerWorldSnapshot snapshot, OwnerWorldProductionJob job)
@@ -723,7 +781,7 @@ public partial class Main
         var worker = snapshot.Inhabitants.FirstOrDefault(person => person.Id == job.WorkerId)?.DisplayName ?? "Someone";
         var length = Math.Max(1, job.CompletionTick - job.StartedTick);
         var percent = (int)Math.Clamp((snapshot.WorldTick - job.StartedTick) * 100 / length, 0, 100);
-        return (RecipeName(job.RecipeId), percent, $"{worker} · {TimeLeft(job.CompletionTick - snapshot.WorldTick)}");
+        return (job.Recipe?.Name ?? RecipeName(job.RecipeId), percent, $"{worker} · {TimeLeft(job.CompletionTick - snapshot.WorldTick)}");
     }
 
     /// <summary>A recipe's own words, such as "Mill grain" for <c>.../mill-grain</c>.</summary>

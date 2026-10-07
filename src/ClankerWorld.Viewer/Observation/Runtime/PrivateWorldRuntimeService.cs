@@ -660,6 +660,10 @@ public sealed partial class PrivateWorldRuntimeService(
         {
             "town_resident_joined" => TownTransitionKind.ResidentJoined,
             "town_resident_left" => TownTransitionKind.ResidentLeft,
+            "town_abandoned" => TownTransitionKind.Abandoned,
+            "town_revived" => TownTransitionKind.Revived,
+            "town_resettled" => TownTransitionKind.Resettled,
+            "town_stock_salvaged" => TownTransitionKind.StockSalvaged,
             "town_membership_evaluated" => TownTransitionKind.ResidentUnaffiliated,
             "town_founded" => TownTransitionKind.Founded,
             "town_building_assigned" => TownTransitionKind.BuildingAssigned,
@@ -670,7 +674,8 @@ public sealed partial class PrivateWorldRuntimeService(
         var townId = worldEvent.Kind == "town_membership_evaluated"
             ? "none"
             : runtime.Towns.OrderByDescending(item => item.Id.Length).FirstOrDefault(item =>
-                worldEvent.Detail == item.Id || worldEvent.Detail.StartsWith(item.Id + ":", StringComparison.Ordinal))?.Id;
+                worldEvent.Detail == item.Id || worldEvent.Detail.StartsWith(item.Id + ":", StringComparison.Ordinal) ||
+                worldEvent.Detail.StartsWith(item.Id + "|", StringComparison.Ordinal))?.Id;
         if (townId is null) return;
         var town = runtime.Towns.FirstOrDefault(item => item.Id == townId);
         TownTelemetry.Transition(logger, worldEvent.WorldTick, townId, kind.Value,

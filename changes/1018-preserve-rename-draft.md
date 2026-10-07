@@ -1,0 +1,1 @@
+- Unfinished agent renames now survive world refreshes when the name field loses focus. Closing the editor or choosing another agent or world still discards the edit.

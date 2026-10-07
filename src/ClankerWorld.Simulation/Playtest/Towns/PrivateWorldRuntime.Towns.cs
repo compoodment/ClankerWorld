@@ -373,8 +373,13 @@ public sealed partial class PrivateWorldRuntime
     {
         var index = towns.FindIndex(item => item.Id == updated.Id);
         if (index < 0) throw new InvalidOperationException("The Town identity does not exist.");
+        var previous = towns[index];
         towns[index] = updated;
         checkpointSchemaVersion = StateSchemaVersion;
+        if (!previous.IsAbandoned && updated.IsAbandoned)
+            AppendEvent("town_abandoned", updated.Id);
+        else if (previous.IsAbandoned && !updated.IsAbandoned)
+            AppendEvent("town_revived", updated.Id);
     }
 
 }

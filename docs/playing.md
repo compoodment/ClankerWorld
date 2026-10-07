@@ -2,7 +2,7 @@
 title: Playing the current game
 type: player-guide
 status: active
-updated: 2026-10-05
+updated: 2026-10-07
 ---
 
 # Playing the current game
@@ -22,6 +22,10 @@ A new device needs approval. Compare the game's code with the person approving
 the device on the server, then complete pairing. Do not post the code, keys or
 private world data in an issue. Once paired, reconnecting uses the saved
 registration; normal play does not need approval every time.
+
+After pairing, choose **Continue** from the Main Menu to enter your world.
+If the activation reply was lost, the next pairing check can recover the
+registration and return you to the same menu.
 
 For an already paired device, **Connect** checks the saved server connection
 and shows the result below the address. It does not start a new pairing.
@@ -77,7 +81,9 @@ name. A child's chosen surname must come from a biological parent. Temporary
 names do not reserve first names, and renaming leaves past conversations as
 spoken. Changing a married agent's surname updates both spouses together,
 keeping the other spouse's first and middle names. A taken first name leaves
-both names unchanged.
+both names unchanged. An unfinished rename stays in the open editor through
+world refreshes, even when the name field loses focus. Closing the editor or
+choosing another agent or world discards it.
 
 ## Create your first Town
 
@@ -135,7 +141,9 @@ details.
 
 ## Look around
 
-Use the mouse wheel to zoom and movement keys to pan. **Map** opens the World
+Use the mouse wheel to zoom, hold the middle mouse button to drag the camera,
+or use movement keys to pan. Opening the pause menu or switching to another
+application ends a drag; press the middle button again to start another. **Map** opens the World
 Map, which marks each Town and agent; click it or drag its view rectangle to
 move the camera. The label in the corner names the ground under the pointer
 beside a small picture of it. Click a tile to open its card: the ground with a
@@ -157,7 +165,9 @@ in their life and the Memories, Family and Model buttons. The Model line names
 the provider whose model made their latest choice, such as OpenAI; when Jev or
 the built-in rules made it, the Profile says so instead. Click their thought,
 or **Read all**, to read every recent thought in a larger panel beside the
-Profile. The pencil beside their name renames them, and **Speak** goes straight
+Profile. Long names use up to two lines so its buttons stay in view. Hover
+over the name or open Rename to read the whole name.
+The pencil beside their name renames them, and **Speak** goes straight
 to the message box, where you choose **Suggest** or **Order**. The crosshair
 centers the camera on them, and back (or **Escape**) returns from the Profile
 to the small card. Inspection does not pause time, and reading private thoughts
@@ -217,6 +227,9 @@ berries at (12, 4)". "Keep gathering food" continues until cancelled. Eating
 waits until the agent is hungry enough, and gathering needs enough carrying
 space. A recognized new order replaces the current one unless you turn on
 **Queue**. Use **Cancel task** to stop a waiting or active order.
+An agent can also eat from a usable storage pot they own and carry, leaving
+the pot and remaining food together. Eating a serving needs no extra carrying
+space; food reserved for other work or being delivered is unavailable.
 
 Material orders can gather wood, stone, plant fiber, clay, iron ore, gold ore
 or diamond. For example, use **Gather five wood**, **Keep gathering clay**, or
@@ -252,8 +265,9 @@ order the world keeps for them: the current one, the queue in the order it will
 be done, and their six latest closed orders. Each shows your words, and any
 reply from the agent is set apart from the game's status.
 
-When a child needs a guardian, an adult can follow **Become guardian for Lina**,
-using the child's full name. The adult still has to be eligible in the current
+When a child needs a guardian, an adult can follow **Become guardian for Élodie Vale**,
+using the child's full name. Names with accents work when typed or pasted,
+including accents entered separately from their letters. The adult still has to be eligible in the current
 guardian search. The order finishes when they accept primary care; moving the
 child into their House still requires room and a shared Town. This order can be
 queued or cancelled like a food task. It cannot replace an existing guardian.
@@ -277,6 +291,10 @@ orchard seeds; bare **seeds**, **tools** and **ornaments** are not understood.
 A pot or jug moves with its contents and counts as one item, while all of its
 contents use carrying and storage space. These tasks cannot take household
 production stock as personal property.
+
+When carrying several water jugs, agents can refill one with room even if
+another is full. They still need a reachable riverbank or lakeshore and enough
+carrying space for the water.
 
 To return borrowed stock, use **Return two borrowed cloth**, **Return two
 borrowed bread** or **Return one borrowed water jug**. The agent carries the
@@ -396,7 +414,16 @@ what is being made there or who is inside, and what it stores, shown as item
 icons with the amount in the corner. **Details** opens the rest on the left:
 who may use it, when it was built, which side its door faces, the work in
 progress, a larger storage grid with each item's name, and who is inside or
-lives there. Back (or **Escape**) returns to the small card.
+lives there. Work lists what a batch uses and makes, separately from the
+materials currently held for that job. **Can make** lists the recipes registered
+for that exact building size and their quantities. Each still needs real
+materials and an adult allowed to work there. Reading the list teaches no
+agent and starts no work. Back (or **Escape**) returns to the small card.
+
+A building's storage-space bar shows how much of its recorded limit is used,
+with exact used/limit numbers. It counts all stored goods, including materials
+held for work and goods belonging to someone else. It updates when goods move
+or an expansion increases the limit. Hover over the bar for the exact count.
 
 Every day has a night, with a short dusk and dawn. Nights are longest in winter
 and shortest in summer: from 19:12 to 04:48 on the clock in the top bar at the
@@ -598,7 +625,10 @@ still needs a hands-on check.
 ## Pause, settings and controls
 
 The pause button pauses or resumes time. **Menu** opens the Pause Menu and keeps
-the world paused. Opening ordinary inspection panels leaves time running.
+the world paused. Closing it restores the world to running if it was running
+before the menu opened; a world you had already paused stays paused. This also
+applies when you reopen the menu while it is still resuming.
+Opening ordinary inspection panels leaves time running.
 Settings and the Mod Library open inside the Pause Menu window; its back arrow
 or **Escape** returns to the menu's buttons.
 
@@ -614,6 +644,12 @@ Menus, panels and text grow with your screen in whole steps, so pixel letters
 stay crisp: 100% on small screens, 200% at 1080p and 1440p and 300% at 4K.
 There is no setting for this. World Settings contains that world's autosaves,
 the routine helper and agent model settings. Main Menu Settings exposes Game Settings only.
+
+Life pace and routine helper changes apply to the world shown when you submit them.
+If another device opens a different world before your request arrives, the
+host refuses the change. Reopen World Settings before trying again. These
+controls need matching client and host updates.
+
 Autosave Apply stays unavailable until the current world's settings have loaded.
 If the world changes before Apply reaches the host, its settings stay unchanged.
 Reopen World Settings before trying again.
@@ -654,6 +690,11 @@ by itself, and loading an older save does not lower it. It is not a currency
 budget or provider invoice. When the count reaches 80% of the limit, the Event
 Log warns you once. Reaching the limit pauses time: raise or remove the limit,
 or choose **Allow 100 more calls**, then resume separately.
+
+Type a limit and choose **Set limit** to apply it; leave the field blank to
+remove the limit. Refreshing the count preserves an unfinished edit even
+after you leave the field. Changing to another server clears the previous
+server's displayed information and unfinished edit.
 
 ## Save and return
 
@@ -720,6 +761,57 @@ or latitude cooling. **Reset these options** restores the preset and Small size
 without changing the name or seed. The preview updates after
 changes; Create World waits for a matching preview. Small and Medium are
 available; larger worlds remain unavailable pending their support checks.
+If a Settings action is still finishing when you open New World, its preview
+starts automatically after that action completes.
 **Reroll** chooses another seed and clears the old map while its replacement
 loads. You can reroll during generation; the preview will follow your latest
 seed. If the world name is missing, enter it and choose **Preview again**.
+
+## Animals
+
+Adults with a House can **Build an animal yard** and **Expand my animal yard**
+using eight wood and two rope for each stage. The larger footprint needs clear
+land and the household's required use permission. The fenced yard has four places,
+or eight when expanded; young animals and expected births use places.
+Households receive no starting animals. Look for wild chickens, sheep, cows or
+horses near wild greens and fresh water.
+
+Click an animal's tile for its name, age, household, care, ready product and
+permissions. Use its exact unique name or ID in a Must do order, for example
+**Tame Moss**, **Lead home Moss**, **Care for Moss**, or **Collect from Moss**.
+**Repeat care for Moss** and **Repeat collect from Moss** keep the task active
+until cancelled. The adult walks and brings actual available supplies; an
+order waits when permission, supplies, product, space or a route is missing.
+Taming needs two grain/greens and one jug water. Chickens need one feed and one
+water daily; sheep, cows and horses need two each. Jugs remain reusable.
+
+Products belong to the animal's household. Eggs and milk spoil; collect them
+promptly. Milk needs an empty household jug or one already holding milk, with
+room for two portions. **Return borrowed water jug** carries a collected jug
+back to its owning household's House. Adults can haul the products into their
+workstations through ordinary supply choices and orders. House/Restaurant
+recipes cook eggs or milk porridge; Restaurants prepare rich meals. Tailors
+make wool padded coats, process hides into leather, and make leather sacks or
+saddles. A leather sack carries 32 units. Adults can haul household milk jugs
+to their Store or borrowed Market stall. A seller offers one portion for an
+exact personal payment; the buyer accepts with a carried empty or milk jug.
+Each milk lot can have only one pending offer. Remaining portions can be
+offered after that sale ends.
+Both vessels keep their owners. Pouring away spoiled milk frees its jug for reuse.
+
+For a cared adult horse, use **Saddle Moss**, **Mount Moss** and **Dismount Moss**.
+A mount needs a real household saddle and gives twice walking speed plus eight
+cargo units. Dismounting puts excess unreserved cargo at the rider's actual
+position. Horses cannot accompany a boat or pull a handcart in this version.
+Household adults can care and ride; outsiders need separate named permissions
+agreed by an adult. Personal models may offer or accept a specific animal gift
+or sale when both adults meet and the receiving yard has space.
+
+Cared adult pairs breed automatically with space and delivered supplies. Missed
+care pauses products and pregnancy progress and ends riding. Neglect does not
+kill animals. Only old age does; sheep, cows and horses leave one hide.
+Household hides remain private; nearby adults may collect untamed animals'
+old-age hides from their actual death tile.
+For a quick trial, pause and open **Developer tools (F12)**, choose an adult
+with yard space, and use **Add household animal**. The Event Log records it.
+The [animal playtest list](../playtest/433-animals.md) remains untried on Windows.

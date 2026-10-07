@@ -8,6 +8,63 @@ namespace ClankerWorld.GodotClient;
 
 public partial class Main
 {
+    private async Task VerifyInterruptedMapDragAsync()
+    {
+        var originalCenter = cameraCenterTiles;
+        var pointer = mapCanvas.GetGlobalRect().GetCenter();
+        void Send(InputEventMouse input)
+        {
+            input.Position = pointer;
+            input.GlobalPosition = pointer;
+            GetViewport().PushInput(input, inLocalCoords: true);
+        }
+        try
+        {
+            Send(new InputEventMouseMotion());
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            Send(new InputEventMouseButton { ButtonIndex = MouseButton.Middle, Pressed = true, ButtonMask = MouseButtonMask.Middle });
+            if (!draggingMap) throw new InvalidOperationException("The interruption check must begin with a real middle-button map drag.");
+            await ToggleGameMenuAsync();
+            if (draggingMap) throw new InvalidOperationException("Opening the pause menu must end the current map drag.");
+            Send(new InputEventMouseButton { ButtonIndex = MouseButton.Middle, Pressed = false });
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            CloseGameMenu();
+            var beforeHover = cameraCenterTiles;
+            Send(new InputEventMouseMotion { Relative = new Vector2(30, 0) });
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (draggingMap || cameraCenterTiles != beforeHover)
+                throw new InvalidOperationException($"Releasing a map drag in the pause menu must leave ordinary hover still: {beforeHover} -> {cameraCenterTiles}.");
+
+            Send(new InputEventMouseButton { ButtonIndex = MouseButton.Middle, Pressed = true, ButtonMask = MouseButtonMask.Middle });
+            Notification((int)NotificationApplicationFocusOut);
+            Notification((int)NotificationApplicationFocusIn);
+            Send(new InputEventMouseMotion { Relative = new Vector2(30, 0), ButtonMask = MouseButtonMask.Middle });
+            if (draggingMap || cameraCenterTiles != beforeHover)
+                throw new InvalidOperationException("Losing application focus must end the drag until a fresh press, even when the button is still held on return.");
+            Send(new InputEventMouseButton { ButtonIndex = MouseButton.Middle, Pressed = false });
+
+            Send(new InputEventMouseButton { ButtonIndex = MouseButton.Middle, Pressed = true, ButtonMask = MouseButtonMask.Middle });
+            Send(new InputEventMouseMotion { Relative = new Vector2(30, 0) });
+            if (draggingMap || cameraCenterTiles != beforeHover)
+                throw new InvalidOperationException("A motion reporting no middle button must stop a drag even if its release event was missed.");
+            Send(new InputEventMouseButton { ButtonIndex = MouseButton.Middle, Pressed = false });
+
+            Send(new InputEventMouseButton { ButtonIndex = MouseButton.Middle, Pressed = true, ButtonMask = MouseButtonMask.Middle });
+            var beforeFreshDrag = cameraCenterTiles.X;
+            var stride = currentTileSize + TileGap;
+            Send(new InputEventMouseMotion { Relative = new Vector2(30, 0), ButtonMask = MouseButtonMask.Middle });
+            Send(new InputEventMouseButton { ButtonIndex = MouseButton.Middle, Pressed = false });
+            if (Math.Abs(PositiveMod(beforeFreshDrag - cameraCenterTiles.X, 256) - 30f / stride) > 0.01f || draggingMap)
+                throw new InvalidOperationException("A fresh middle-button drag must still pan across the wrapped seam and stop on release.");
+        }
+        finally
+        {
+            CloseGameMenu();
+            draggingMap = false;
+            CenterCameraAt(originalCenter);
+        }
+    }
+
     private static readonly System.Text.Json.JsonSerializerOptions CompatibilitySmokeJsonOptions = new(System.Text.Json.JsonSerializerDefaults.Web);
 
     private async Task VerifyNewWorldCompatibilityMessageAsync()
@@ -1110,10 +1167,14 @@ public partial class Main
             {
                 await VerifyFirstWorldListAsync();
                 await VerifyWorldActionSelectionAsync();
+                await VerifyUsageSettingsRepliesAsync();
+                await VerifyPairingRecoveryMenuAsync();
                 await VerifyFreshHostEntryAsync();
+                await VerifyPauseMenuResumeAsync();
                 await VerifyContinueSettingsNavigationAsync();
                 await VerifyNewWorldCompatibilityMessageAsync();
                 await VerifyWorldPreviewRerollAsync();
+                await VerifyPreviewAfterPendingSettingsAsync();
                 await VerifyAutosaveSettingsOwnershipAsync();
                 await VerifyUiScaleAt1440pAsync(displayWindow);
                 await VerifyManualSaveListOwnershipAsync();
@@ -1390,6 +1451,26 @@ public partial class Main
                 if (!TownListText().Contains(phrase, StringComparison.Ordinal))
                     throw new InvalidOperationException("The Town page must show actual law scope, government handovers and separate office authority: " + phrase);
             await RunNonviolentTownUiChecks(sample, governmentTown);
+            var abandonedTown = governmentTown with
+            {
+                ResidentIds = [],
+                Governance = new OwnerTownGovernance("all_adult", "none", [], null, 0, [], [], null),
+                Government = governmentTown.Government! with { Offices = [], Changes = [], Election = null },
+            };
+            Render(sample with { Towns = [abandonedTown] }, []);
+            foreach (var phrase in new[] { "Abandoned", "no living residents", "No active council", "resettle", "salvaged in person", "Private property", "Law: Grove" })
+                if (!TownListText().Contains(phrase, StringComparison.Ordinal))
+                    throw new InvalidOperationException("An abandoned Town must retain its laws and explain physical salvage and explicit resettlement: " + phrase);
+            var resettledTown = abandonedTown with
+            {
+                ResidentIds = civicTown.ResidentIds,
+                Governance = abandonedTown.Governance! with { MemberNames = ["Mira Vale"] },
+            };
+            Render(sample with { Towns = [resettledTown] }, []);
+            if (TownListText().Contains("Abandoned", StringComparison.Ordinal) ||
+                !TownListText().Contains("Council: all adult residents", StringComparison.Ordinal) ||
+                !TownListText().Contains("Law: Grove", StringComparison.Ordinal))
+                throw new InvalidOperationException("A revived Town must refresh its status and council while keeping its laws.");
             var revisedCivicTown = civicTown with
             {
                 Governance = civicTown.Governance! with
@@ -3016,7 +3097,7 @@ public partial class Main
                 throw new InvalidOperationException("Dragging the overview did not move the world camera.");
             var beforeMiddleDrag = mapStage.Position;
             HandleMapInput(new InputEventMouseButton { ButtonIndex = MouseButton.Middle, Pressed = true });
-            HandleMapInput(new InputEventMouseMotion { Relative = new Vector2(0, 60) });
+            HandleMapInput(new InputEventMouseMotion { Relative = new Vector2(0, 60), ButtonMask = MouseButtonMask.Middle });
             HandleMapInput(new InputEventMouseButton { ButtonIndex = MouseButton.Middle, Pressed = false });
             if (mapStage.Position.DistanceTo(beforeMiddleDrag) < 1)
                 throw new InvalidOperationException("Middle-drag did not pan the world camera.");
@@ -3331,6 +3412,7 @@ public partial class Main
             for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             if (!seamEntered)
                 throw new InvalidOperationException("A resource across the wrapped seam must remain hoverable.");
+            await VerifyInterruptedMapDragAsync();
             PanCamera(new Vector2(-5, 0));
             if (cameraCenterTiles.X < 250 || worldOverview.VisibleTiles.End.X <= 256 ||
                 !mapCanvas.GetGlobalRect().HasPoint(seamMarker.GetGlobalRect().GetCenter()))
@@ -3457,6 +3539,7 @@ public partial class Main
                 HandleMapInput(new InputEventMouseMotion
                 {
                     Relative = new Vector2(-dragStride * (256 + 37), 0),
+                    ButtonMask = MouseButtonMask.Middle,
                 });
                 if (Math.Abs(PositiveMod(cameraCenterTiles.X - beforeEastDrag, 256) - 37) > 0.01f)
                     throw new InvalidOperationException("Repeated eastward main-map drags must cross full wrapped laps.");
@@ -3467,6 +3550,7 @@ public partial class Main
                 HandleMapInput(new InputEventMouseMotion
                 {
                     Relative = new Vector2(dragStride * (256 + 37), 0),
+                    ButtonMask = MouseButtonMask.Middle,
                 });
                 if (Math.Abs(PositiveMod(beforeWestDrag - cameraCenterTiles.X, 256) - 37) > 0.01f)
                     throw new InvalidOperationException("Repeated westward main-map drags must cross full wrapped laps.");
@@ -3944,6 +4028,7 @@ public partial class Main
                 longDialog.X != DialogTextWidth + (int)dialogMargins.X || deletionConfirmation.GetLabel().GetLineCount() < 2 ||
                 longDialog.Y <= shortDialog.Y)
                 throw new InvalidOperationException($"Confirmations must fit their message: short {shortDialog}, long {longDialog}.");
+            await VerifyLongProfileNamesAsync();
             await VerifyRefusedAgentRenameAsync();
             VerifyAgentTextEllipses();
             VerifyPlainEllipses("after every panel has been shown");

@@ -18,7 +18,8 @@ public sealed partial class PrivateWorldRuntime
         PlaytestInhabitantState state,
         GridPoint destination,
         string reason,
-        int interactionRange = 0)
+        int interactionRange = 0,
+        int horseMovementBudget = 100)
     {
         guardianPlacementActions.Add(inhabitantId);
         if (IsWithinInteractionRange(state.Position, destination, interactionRange))
@@ -56,7 +57,14 @@ public sealed partial class PrivateWorldRuntime
 
         var next = route[1];
         var travelCost = TravelStepCost(inhabitantId, state.Position, next);
+        var mounted = RidingAnimal(inhabitantId) is not null;
+        if (mounted)
+        {
+            travelCost = (travelCost + 1) / 2;
+            if (horseMovementBudget < 100 && travelCost > horseMovementBudget) return;
+        }
         MoveAttachedHandcart(inhabitantId, state.Position, next);
+        MoveAttachedAnimal(inhabitantId, state.Position, next);
         inhabitants[inhabitantId] = state with
         {
             Position = next,
@@ -70,6 +78,8 @@ public sealed partial class PrivateWorldRuntime
         RecordNonviolentConduct(inhabitantId, "travel", next, null, null, 1,
             $"move:{WorldTick}:{inhabitantId}:{nextEventId}");
         AppendEvent("inhabitant_moved", $"{inhabitantId}:{state.Position.X},{state.Position.Y}->{next.X},{next.Y}:{reason}");
+        if (mounted && horseMovementBudget == 100 && travelCost <= 50 && inhabitants[inhabitantId].TravelCooldownTicks == 0)
+            MoveToward(inhabitantId, inhabitants[inhabitantId], destination, reason, interactionRange, 100 - travelCost);
     }
 
     private List<GridPoint> FindUnoccupiedRoute(
@@ -82,6 +92,11 @@ public sealed partial class PrivateWorldRuntime
             .Where(item => item.InhabitantId != inhabitantId)
             .Select(item => item.Position)
             .ToHashSet();
+        occupied.UnionWith(animalWorld.Animals.Where(animal => animal.DiedTick is null && animal.RiderId != inhabitantId &&
+            animal.LeaderId != inhabitantId && animal.Position != destination).Select(animal => animal.Position));
+        if (interactionRange == 0 && animalWorld.Animals.Any(animal => (animal.RiderId == inhabitantId || animal.LeaderId == inhabitantId)) &&
+            animalWorld.Animals.Any(animal => animal.DiedTick is null && animal.RiderId != inhabitantId && animal.LeaderId != inhabitantId && animal.Position == destination))
+            return [];
         if (interactionRange == 0 && worldSimulation.Buildings.Any(building =>
                 building.Position == destination &&
                 building.HouseholdId is not null &&
