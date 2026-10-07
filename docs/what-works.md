@@ -2,7 +2,7 @@
 title: What works today
 type: product-status
 status: active
-updated: 2026-10-06
+updated: 2026-10-07
 ---
 
 # What works today
@@ -599,7 +599,9 @@ gold or diamond outcrop. The goods remain in their carried stock. Trial mining
 pauses once the adult and household hold eight of that material. The Blacksmith
 refines carried gold ore and crafts gold ornaments, optionally set with a
 diamond. Agents may wear an ornament, remove it, give it to a named nearby
-adult or sell it through physical barter. Ornaments give no warmth, carrying
+adult who has carrying space or sell it through physical barter. Full-handed
+neighbors do not hide another nearby adult who can receive the gift. Ornaments
+give no warmth, carrying
 or combat bonus and add no art. These paths have automated checks;
 [the Windows playtest](../playtest/567-ornaments.md) remains pending.
 
