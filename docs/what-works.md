@@ -766,9 +766,10 @@ change; [its Windows playtest](../playtest/410-abandoned-towns.md) is pending.
 An abandoned Town's buildings look neglected on the map: faded and mossy,
 with weeds and boarded doors. Once it has stood empty for a full season they
 look falling apart, with holes in the roofs, fallen planks and saplings; a
-revived Town looks lived in again. Its street lanterns stay dark at night
-and fade, gathering moss and weeds, and its bridges fade and lose boards,
-then whole planks once the Town falls apart.
+revived Town looks lived in again. Its street lanterns and its Port's pier
+lantern stay dark at night; the street lanterns also fade, gathering moss and
+weeds, and its bridges fade and lose boards, then whole planks once the Town
+falls apart.
 Founding another Town remains unfinished.
 
 Each founded Town has its own council. Its recorded living adult residents

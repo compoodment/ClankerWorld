@@ -426,7 +426,9 @@ public partial class Main
         {
             facts.Add(("Docking spaces", PortUsageText(snapshot, building)));
             facts.Add(("Travel", "One passenger with carried goods · boats remain Town property"));
-            facts.Add(("Night lantern", "Lights automatically at dusk · no fuel"));
+            facts.Add(("Night lantern", building.TownId is { } portTown && snapshot.Towns.Any(item => item.Id == portTown && item.IsAbandoned)
+                ? "Dark · its Town is abandoned · lights again when someone resettles it"
+                : "Lights automatically at dusk · no fuel"));
         }
         if (building.StorageCapacity is { } capacity)
             facts.Add(("Storage", $"{building.StoredQuantity} / {capacity} items"));
