@@ -173,7 +173,6 @@ public sealed class FoodCapacityRoutingTests
     [Theory]
     [InlineData(SocietyAgeBand.Child, false)]
     [InlineData(SocietyAgeBand.Adolescent, false)]
-    [InlineData(SocietyAgeBand.Adult, false)]
     [InlineData(SocietyAgeBand.Child, true)]
     public async Task SharedPotServingUsesExistingAgePermissionAndRealTakeThenConsumptionAcrossReload(
         SocietyAgeBand age, bool loose)

@@ -44,8 +44,12 @@ public sealed partial class PrivateWorldRuntime
         !ballot.Approvals.Contains(actor, StringComparer.Ordinal) && !ballot.Rejections.Contains(actor, StringComparer.Ordinal) ||
         ProposedFoodPolicy(actor) is not null);
 
-    private bool MayCollectSharedFood(string actor) => council?.FoodPolicy != "essential_first" ||
-        inhabitants[actor].HungerBasisPoints < 4_500 || SharedFoodQuantity() > inhabitants.Count;
+    private int SharedFoodCollectionAllowance(string actor) => council?.FoodPolicy != "essential_first" ||
+        inhabitants[actor].HungerBasisPoints < 4_500
+            ? int.MaxValue
+            : Math.Max(0, SharedFoodQuantity() - inhabitants.Count);
+
+    private bool MayCollectSharedFood(string actor) => SharedFoodCollectionAllowance(actor) > 0;
 
     private void AdvanceSettlementCouncil()
     {

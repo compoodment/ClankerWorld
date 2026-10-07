@@ -1,0 +1,1 @@
+- Urgently hungry adults can pause an order to buy and eat available shop food, including Restaurant meals, while keeping the order pending. Ordinary equipment purchases and ingredient shopping remain subject to the order.

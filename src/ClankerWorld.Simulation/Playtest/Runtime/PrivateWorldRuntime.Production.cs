@@ -380,7 +380,7 @@ public sealed partial class PrivateWorldRuntime
         {
             var equipmentBefore = inhabitants.Values.ToDictionary(person => person.InhabitantId,
                 person => person.Equipment, StringComparer.Ordinal);
-            var updated = transition(checkpoint.Inventory);
+            var updated = InventoryStorageHistory.RecordTransition(checkpoint.Inventory, transition(checkpoint.Inventory));
             foreach (var building in worldSimulation.Buildings)
             {
                 var definition = worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
