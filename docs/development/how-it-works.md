@@ -1669,9 +1669,12 @@ ticks. An unchanged idle choice is reconsidered after 300 ticks, sooner if
 urgent needs or legal choices change. Weights and retry values are provisional.
 Material scoring searches at most five map tiles from a site, including the
 east-west seam; farther resources cannot change its rank. Recipe and expansion
-input checks share reachable-tool results only within one inhabitant's
-read-only candidate query. Later queries and actions check current stock and
-routes again; neither optimization adds saved state or a persistent cache.
+input checks share reachable-tool results and a lazily collected accessible
+Warehouse list only within one inhabitant's read-only candidate query. Stock
+quantities and reservations are still read for each input. Warehouse discovery
+matches a set of current definition IDs instead of scanning definitions for
+every building. Later queries and actions check current stock, membership and
+routes again; these optimizations add no saved state or persistent cache.
 Purpose scoring filters related buildings once per context and keeps its
 distance, building-ID and tag tie rules. Border-growth scoring counts the same
 rounded footprint margin that actual placement adds, without sorting those
@@ -1688,6 +1691,8 @@ objects, and actual placement gathers current facts again. Layout searches
 rent tentative tile costs while preserving their settled tiles, costs and
 stopping rules. See [placement query measurements](placement-query-measurements.md)
 for the follow-up comparison.
+The [Warehouse query measurements](warehouse-query-measurements.md) record a
+later bounded repair, exact native equivalence and its mixed small-case timings.
 Building plans follow what a household needs, not a role. An adult whose
 household lacks a House, Farmhouse, Blacksmith, Silo, Tailor Shop, Clinic or Restaurant is offered ranked sites
 for it once the household has the build costs in hand: stock the household
