@@ -1271,8 +1271,10 @@ public sealed partial class PrivateWorldRuntime
         {
             var inhabitant = society.Checkpoint.GetInhabitant(inhabitantId);
             var reachableToolCache = new Dictionary<(ToolFamily Family, int Tier), ToolDefinition?>();
-            AddBuildCandidates(candidates, inhabitant, state, reachableToolCache);
-            AddBuildingExpansionCandidates(candidates, inhabitantId, reachableToolCache);
+            var accessibleWarehouses = new Lazy<PlacedBuilding[]>(() => WarehousesAccessibleTo(inhabitantId).ToArray(),
+                LazyThreadSafetyMode.None);
+            AddBuildCandidates(candidates, inhabitant, state, reachableToolCache, accessibleWarehouses);
+            AddBuildingExpansionCandidates(candidates, inhabitantId, reachableToolCache, accessibleWarehouses);
             AddHouseGuestCandidates(candidates, inhabitantId);
             AddHouseHaulCandidate(candidates, inhabitantId, state);
             AddWarehouseStockCandidate(candidates, inhabitantId, state);
@@ -1296,6 +1298,10 @@ public sealed partial class PrivateWorldRuntime
             AddLearningCandidates(candidates, inhabitantId);
             AddExplorationCandidate(candidates, inhabitantId, state);
         }
+
+        // Urgent owners can retrieve their food without starting unrelated Market work.
+        if (NeedsUrgentFood(state) && AdultResident(inhabitantId))
+            AddMarketCandidates(candidates, inhabitantId);
 
         // Released Town cargo can be set down even while urgent needs hide construction work.
         AddTownProjectCandidates(candidates, inhabitantId);
@@ -1322,12 +1328,12 @@ public sealed partial class PrivateWorldRuntime
             taskCandidate = null;
         if (taskCandidate is null)
         {
-            return candidates.Where(item => item.Id == "safe_idle" || urgent && IsSurvivalCandidate(item.Id))
+            return candidates.Where(item => item.Id == "safe_idle" || urgent && IsSurvivalCandidate(state.InhabitantId, item.Id))
                 .ToList();
         }
 
         var selected = candidates.Where(item => item.Id == taskCandidate.Id ||
-            urgent && IsSurvivalCandidate(item.Id)).ToList();
+            urgent && IsSurvivalCandidate(state.InhabitantId, item.Id)).ToList();
         if (IsShelterOrder(order.Order!.Action))
             selected.RemoveAll(item => item.Id == taskCandidate.Id);
         if (selected.All(item => item.Id != taskCandidate.Id)) selected.Add(taskCandidate);
@@ -1339,7 +1345,8 @@ public sealed partial class PrivateWorldRuntime
         List<CognitionCandidate> candidates,
         SocietyInhabitant inhabitant,
         PlaytestInhabitantState state,
-        Dictionary<(ToolFamily Family, int Tier), ToolDefinition?> reachableToolCache)
+        Dictionary<(ToolFamily Family, int Tier), ToolDefinition?> reachableToolCache,
+        Lazy<PlacedBuilding[]> accessibleWarehouses)
     {
         if (inhabitant.HouseholdId is { } planningHousehold)
             AddHouseholdBuildingPlans(candidates, inhabitant, state, planningHousehold);
@@ -1364,7 +1371,7 @@ public sealed partial class PrivateWorldRuntime
                 society.Checkpoint.Inventory.Lots.Any(lot => lot.ItemKind == InventoryContainerRules.Handcart && lot.OwnerId == inhabitant.Id)))
                 continue;
             if (!NeedsRecipeOutput(recipe, recipeOwner, inhabitant.Id) || AnotherAgentWaitsForWorkSite(inhabitant.Id, recipe) ||
-                !CanAcquireProjectInputs(recipe.Inputs, recipeOwner, inhabitant.Id, reachableToolCache) ||
+                !CanAcquireProjectInputs(recipe.Inputs, recipeOwner, inhabitant.Id, reachableToolCache, accessibleWarehouses) ||
                 !TryFindRecipeSite(recipe, out var siteId, out var position, inhabitant.Id) ||
                 householdWorkstation && !personalCart &&
                 (recipeOwner is null || !HasIngredientsAtBuilding(recipe.Inputs, recipeOwner, siteId)))
