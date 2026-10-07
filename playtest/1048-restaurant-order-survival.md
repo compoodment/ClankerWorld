@@ -1,0 +1,1 @@
+- On the paired world: beside a stocked Restaurant, give a hungry adult from another household **Keep gathering wood**, with personally owned wood to pay and room to carry the meal. With no accessible household or wild food, the adult can buy and eat the meal and still has the gathering order afterward. ([#1048](https://github.com/compoodment/ClankerWorld/issues/1048))
