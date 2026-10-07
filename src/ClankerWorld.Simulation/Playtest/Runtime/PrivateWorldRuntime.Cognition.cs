@@ -1322,12 +1322,12 @@ public sealed partial class PrivateWorldRuntime
             taskCandidate = null;
         if (taskCandidate is null)
         {
-            return candidates.Where(item => item.Id == "safe_idle" || urgent && IsSurvivalCandidate(item.Id))
+            return candidates.Where(item => item.Id == "safe_idle" || urgent && IsSurvivalCandidate(state.InhabitantId, item.Id))
                 .ToList();
         }
 
         var selected = candidates.Where(item => item.Id == taskCandidate.Id ||
-            urgent && IsSurvivalCandidate(item.Id)).ToList();
+            urgent && IsSurvivalCandidate(state.InhabitantId, item.Id)).ToList();
         if (IsShelterOrder(order.Order!.Action))
             selected.RemoveAll(item => item.Id == taskCandidate.Id);
         if (selected.All(item => item.Id != taskCandidate.Id)) selected.Add(taskCandidate);
