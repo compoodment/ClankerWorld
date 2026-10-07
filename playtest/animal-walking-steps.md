@@ -1,0 +1,2 @@
+- At close zoom, watch a horse, a cow, a sheep and a hen walk a few tiles. Each step should show hooves, or the hen's feet, stepping out from under it, alternating sides, with the tail swinging, and the animal should face the way it moves. When it stops, it should stand in its normal drawing within a couple of seconds. ([#1191](https://github.com/compoodment/ClankerWorld/pull/1191))
+- Zoom out to mid zoom and watch a young animal follow its mother. The smaller 16 px steps should still show, without flicker. ([#1191](https://github.com/compoodment/ClankerWorld/pull/1191))
