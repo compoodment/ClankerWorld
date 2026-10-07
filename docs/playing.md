@@ -404,7 +404,11 @@ what is being made there or who is inside, and what it stores, shown as item
 icons with the amount in the corner. **Details** opens the rest on the left:
 who may use it, when it was built, which side its door faces, the work in
 progress, a larger storage grid with each item's name, and who is inside or
-lives there. Back (or **Escape**) returns to the small card.
+lives there. Work lists what a batch uses and makes, separately from the
+materials currently held for that job. **Can make** lists the recipes registered
+for that exact building size and their quantities. Each still needs real
+materials and an adult allowed to work there. Reading the list teaches no
+agent and starts no work. Back (or **Escape**) returns to the small card.
 
 A building's storage-space bar shows how much of its recorded limit is used,
 with exact used/limit numbers. It counts all stored goods, including materials
