@@ -214,7 +214,7 @@ public partial class Main
         terrainLayer.SetFields(snapshot.Fields);
         worldOverview.SetFields(snapshot.Fields);
         terrainLayer.SetMarkets(snapshot.Towns);
-        terrainLayer.SetBuildings(snapshot.PlacedBuildings, snapshot.Objects);
+        terrainLayer.SetBuildings(snapshot.PlacedBuildings, snapshot.Objects, snapshot.Towns);
         nightLightsLayer.SetBuildings(BuildingLights(snapshot));
         nightLightsLayer.SetLanterns(StreetLanterns(snapshot), snapshot.WrapsEastWest);
         worldOverview.SetRoads([.. snapshot.RoadTiles, .. snapshot.Bridges.SelectMany(bridge => bridge.Span)]);

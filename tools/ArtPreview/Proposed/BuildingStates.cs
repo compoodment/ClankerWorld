@@ -244,7 +244,7 @@ internal static class States
     private static void Blend(Image image, int x, int y, Color color)
     {
         if (x < 0 || y < 0 || x >= image.GetWidth() || y >= image.GetHeight()) return;
-        image.SetPixel(x, y, color.A >= 0.999f ? color : image.GetPixel(x, y).Blend(color));
+        image.SetPixel(x, y, color.A >= 0.999f ? color : PixelArt.Snap(image.GetPixel(x, y).Blend(color)));
     }
 
     private static void Rect(Image image, int x, int y, int w, int h, Color color)
@@ -589,9 +589,22 @@ internal static class States
 
     // ------------------------------------------------------------------ abandoned
 
+    /// <summary>The abandoned look over its ground.</summary>
     public static Image Abandoned(Subject s, bool ruin)
     {
         var image = s.Ground();
+        Sheet.Blend(image, AbandonedArt(s, ruin), 0, 0);
+        return image;
+    }
+
+    /// <summary>
+    /// The abandoned look on its own, transparent outside the structure and
+    /// its weeds, as the game draws it over the map: blended colours are
+    /// snapped to the 8-bit steps Godot stores, so the client matches it
+    /// pixel for pixel.
+    /// </summary>
+    public static Image AbandonedArt(Subject s, bool ruin)
+    {
         var mask = s.Mask;
         var b = Bounds(mask);
         var w = s.TilesWide * 32;
@@ -608,7 +621,7 @@ internal static class States
                 if (c.A <= 0) continue;
                 var amount = mask[x, y] ? (ruin ? 0.42f : 0.26f) : 0.16f;
                 var grey = new Color(c.Luminance, c.Luminance, c.Luminance, c.A);
-                art.SetPixel(x, y, c.Lerp(grey, amount).Darkened(mask[x, y] ? (ruin ? 0.14f : 0.08f) : 0.05f) with { A = c.A });
+                art.SetPixel(x, y, PixelArt.Snap(c.Lerp(grey, amount).Darkened(mask[x, y] ? (ruin ? 0.14f : 0.08f) : 0.05f) with { A = c.A }));
             }
 
         // Moss in clumps on the structure, more on the shaded south-east half.
@@ -623,7 +636,7 @@ internal static class States
                 {
                     if (!In(mask, cx + dx, cy + dy) || Hash(cx + dx, cy + dy, salt) % 3 == 0) continue;
                     var c = art.GetPixel(cx + dx, cy + dy);
-                    art.SetPixel(cx + dx, cy + dy, c.Lerp((dx + dy) < 0 ? Leaf.Base : Leaf.Shade, 0.75f) with { A = c.A });
+                    art.SetPixel(cx + dx, cy + dy, PixelArt.Snap(c.Lerp((dx + dy) < 0 ? Leaf.Base : Leaf.Shade, 0.75f) with { A = c.A }));
                 }
         }
 
@@ -645,12 +658,11 @@ internal static class States
             else Breaks(art, s, b, salt);
         }
 
-        Sheet.Blend(image, art, 0, 0);
-        if (ruin && roofed) FallenPlanks(image, s, b, salt);
-        Weeds(image, s, b, ruin, salt);
-        if (s.Doorway && roofed) BoardedDoor(image, s, b);
-        if (ruin && s.Kind is Build.Building or Build.Fence) Sapling(image, s, b, salt);
-        return image;
+        if (ruin && roofed) FallenPlanks(art, s, b, salt);
+        Weeds(art, s, b, ruin, salt);
+        if (s.Doorway && roofed) BoardedDoor(art, s, b);
+        if (ruin && s.Kind is Build.Building or Build.Fence) Sapling(art, s, b, salt);
+        return art;
     }
 
     /// <summary>B: a ragged hole in the front half of the roof, broken rafters over the dark inside.</summary>
@@ -724,6 +736,7 @@ internal static class States
     /// <summary>Weeds and long grass round the structure and over its doorstep, thicker on a ruin.</summary>
     private static void Weeds(Image image, Subject s, Rect2I b, bool ruin, int salt)
     {
+        var ground = s.Kind is Build.Pier or Build.Bridge ? s.Ground() : null;
         var w = image.GetWidth();
         var h = image.GetHeight();
         var odds = ruin ? 4u : 7u;
@@ -735,7 +748,12 @@ internal static class States
                 var near = Near(s.Mask, x, y, 4);
                 var onPath = s.Finished.GetPixel(x, y).A > 0.9f;
                 if (near > 4 && !onPath) continue;
-                if (s.Kind is Build.Pier or Build.Bridge && !IsLand(image, x, y)) continue;
+                // Preserve the approved land test on the ground under this overlay.
+                if (ground is not null)
+                {
+                    var color = ground.GetPixel(x, y).Blend(image.GetPixel(x, y));
+                    if (color.G <= color.B) continue;
+                }
                 if (Hash(x, y, salt + 21) % (onPath && near > 4 ? pathOdds : odds) != 0) continue;
                 var tall = Hash(y, x, salt) % 2 == 0;
                 Blend(image, x, y, Leaf.Base);
