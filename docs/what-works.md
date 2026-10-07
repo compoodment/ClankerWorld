@@ -1281,6 +1281,11 @@ Windows host protects stored keys for the current Windows user; Unix hosts use
 private file permissions. Damaged or wrong-user key data is preserved. Moving
 installations may require re-entry.
 
+The rotating autosave schedule recovers within its configured interval after
+the host's clock moves backwards, including across a restart.
+Rotation keeps the newest copies on each known branch despite earlier future
+dates, while named manual saves remain separate.
+
 If a world tick fails, the server holds the world paused. A failed active
 checkpoint write can retry while paused, but other faults require operator
 inspection. The detailed recovery screen is unfinished; preserve unsaved
