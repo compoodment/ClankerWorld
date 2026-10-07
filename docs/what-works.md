@@ -431,8 +431,9 @@ Clinic, Store or Restaurant at its starting size (including the 1×1 Store
 and 1×2 Restaurant) through the
 ordinary household construction path. "Build a
 Clinic at (12, 4)" requires that exact site; without coordinates the agent
-chooses a legal site and keeps it. Normal one-per-kind limits, Silo
-prerequisites, material ownership, carrying, travel and construction work
+chooses a legal site and keeps it. An animal yard requires a completed House;
+its order waits without spending materials until that House exists.
+Normal one-per-kind limits, Silo prerequisites, material ownership, carrying, travel and construction work
 still apply. An existing building or somebody else's project never counts as
 the ordered completion.
 
