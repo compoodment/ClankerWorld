@@ -2916,7 +2916,11 @@ or household stock while wild.
 Adults tame, care, collect, supply, lead, saddle, mount and dismount through
 ordinary revalidated choices. Native orders bind an exact animal name or ID.
 Care spends actual unreserved grain/greens and jug water at the animal or yard;
-food, planting and workstation reserves stay protected. Physical supply trips
+food, planting and workstation reserves stay protected. For care away from the
+actor's tile, input selection accepts only physically carried supplies. This
+keeps the existing supply path collecting both feed and a water jug before
+approaching the animal, including after a partial pickup. At the animal's tile,
+permitted local yard stock remains usable directly. Physical supply trips
 retain the owning household. One held product batch waits for local collection;
 milk enters a reusable household jug. Products then use ordinary stock hauling,
 recipes and trade.
