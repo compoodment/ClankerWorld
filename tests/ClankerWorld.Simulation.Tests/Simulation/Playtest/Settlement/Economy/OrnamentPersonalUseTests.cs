@@ -195,6 +195,128 @@ public sealed class OrnamentPersonalUseTests
     }
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FullNeighborsCannotHideTheOnlyEligibleOrnamentRecipient(bool moveOneFullNeighborAway)
+    {
+        var (state, actor, recipient) = await CrowdedOrnamentState(moveOneFullNeighborAway, fullNeighbors: true);
+        var bytes = PrivateWorldRuntimeCodec.Encode(state);
+        var provider = new OrnamentChoices("gift_ornament:", DecisionProviderKind.LargeLanguageModel, destination: recipient);
+        using var world = Restore(PrivateWorldRuntimeCodec.Decode(bytes), actor, provider);
+        using var replay = Restore(PrivateWorldRuntimeCodec.Decode(bytes), actor,
+            new OrnamentChoices("gift_ornament:", DecisionProviderKind.LargeLanguageModel, destination: recipient));
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+        await TickPair();
+        var gift = Assert.Single(provider.Offered, candidate => candidate.Id.StartsWith("gift_ornament:", StringComparison.Ordinal));
+        Assert.Equal(recipient, gift.DestinationId);
+        Assert.Equal(ChoiceId("gift_ornament:", Ornament, recipient), gift.Id);
+        Assert.Equal((recipient, 1, 10_000), (world.Society.Inventory.GetLot(Ornament).OwnerId,
+            world.Society.Inventory.GetLot(Ornament).Quantity, world.Society.Inventory.GetLot(Ornament).ConditionBasisPoints));
+        Assert.Equal(7, PersonalEquipmentRules.FreeCapacity(world.Society.Inventory, recipient, null));
+        using var native = Restore(PrivateWorldRuntimeCodec.Decode(bytes));
+        Assert.True(native.GiveOrnament(actor, recipient, Ornament).Applied);
+        for (var tick = 0; tick < 3; tick++) await TickPair();
+        Assert.Single(world.ExportState().Events, item => item.Kind == "ornament_given");
+        world.Validate();
+        var finalBytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var reloaded = Restore(PrivateWorldRuntimeCodec.Decode(finalBytes));
+        Assert.Equal(finalBytes, PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
+
+        async Task TickPair()
+        {
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+            Assert.True((await replay.AdvanceOneTickAsync()).Advanced);
+            Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
+        }
+    }
+
+    [Theory]
+    [InlineData(1, 8)]
+    [InlineData(3, 16)]
+    public async Task CrowdedGiftChoicesKeepRecipientAndTotalBoundsWithoutTransferringUnchosenGoods(int ornaments, int expectedChoices)
+    {
+        var (state, actor, ninthRecipient) = await CrowdedOrnamentState(moveOneFullNeighborAway: false, fullNeighbors: false);
+        var inventory = state.Society.Society.Inventory;
+        for (var index = 2; index <= ornaments; index++)
+            inventory = InventoryFixture.AddLot(inventory, $"bounded-gift:{index}", "gold_ornament", actor, 1);
+        state = WithInventory(state, inventory);
+        var provider = new OrnamentChoices("safe_idle", DecisionProviderKind.LargeLanguageModel);
+        using var world = Restore(state, actor, provider);
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        var choices = provider.Offered.Where(candidate => candidate.Id.StartsWith("gift_ornament:", StringComparison.Ordinal)).ToArray();
+        Assert.Equal(expectedChoices, choices.Length);
+        Assert.Equal(8, choices.Select(candidate => candidate.DestinationId).Distinct().Count());
+        Assert.DoesNotContain(choices, candidate => candidate.DestinationId == ninthRecipient);
+        Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "ornament_given");
+        Assert.All(world.Society.Inventory.Lots.Where(lot => lot.Id == Ornament || lot.Id.StartsWith("bounded-gift:", StringComparison.Ordinal)),
+            lot => Assert.Equal((actor, 1), (lot.OwnerId, lot.Quantity)));
+        var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var replay = Restore(PrivateWorldRuntimeCodec.Decode(bytes));
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
+    }
+
+    private static async Task<(PrivateWorldRuntimeState State, string Actor, string Recipient)> CrowdedOrnamentState(
+        bool moveOneFullNeighborAway, bool fullNeighbors)
+    {
+        using var adding = Restore(PrivateWorldRuntimeCodec.Decode(Generated.Value));
+        for (var index = 1; index <= 6; index++)
+        {
+            var source = adding.ExportState();
+            var site = source.Map.Tiles.First(tile => source.Map.IsBuildable(tile.Position) &&
+                source.Inhabitants.All(person => person.Position != tile.Position) &&
+                source.Map.Resources.All(resource => resource.Position != tile.Position) &&
+                source.Map.CampObjects.All(item => item.Position != tile.Position) &&
+                source.WorldSimulation!.Buildings.All(building => source.Map.FootDistance(building.Position, tile.Position) > 20)).Position;
+            _ = adding.AddAgent($"agent:{index:x32}", site);
+        }
+        Assert.True((await adding.AdvanceOneTickAsync()).Advanced);
+        var state = adding.ExportState();
+        var actor = Actor(state);
+        var neighbors = state.Inhabitants.Where(person => person.InhabitantId != actor)
+            .OrderBy(person => person.InhabitantId, StringComparer.Ordinal).ToArray();
+        Assert.Equal(9, neighbors.Length);
+        var recipient = neighbors[^1].InhabitantId;
+        var house = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == House);
+        var sharedResident = state.Society.Society.Inhabitants.Single(person => person.HouseholdId == Alpha && person.Id != actor).Id;
+        var points = state.Map.FootNeighbors(house.Position).Where(state.Map.IsPassable).ToArray();
+        Assert.Equal(8, points.Length);
+        var positions = neighbors.Where(person => person.InhabitantId != sharedResident)
+            .Select((person, index) => (person.InhabitantId, Position: points[index]))
+            .ToDictionary(item => item.InhabitantId, item => item.Position, StringComparer.Ordinal);
+        positions[sharedResident] = house.Position;
+        positions[actor] = house.Position;
+        if (moveOneFullNeighborAway) positions[neighbors[0].InhabitantId] = neighbors[0].Position;
+        state = state with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person with
+            {
+                Position = positions[person.InhabitantId],
+                HungerBasisPoints = 10_000,
+                Equipment = null,
+                Project = null,
+                LastDecisionContext = null,
+            }).ToArray(),
+        };
+        var inventory = state.Society.Society.Inventory;
+        // Keep the intended recipient empty; the full-neighbor cases fill the earlier adults.
+        inventory = inventory with
+        {
+            Lots = inventory.Lots.Where(lot => lot.OwnerId != recipient &&
+            (fullNeighbors || neighbors.All(person => person.InhabitantId != lot.OwnerId))).ToArray()
+        };
+        foreach (var neighbor in neighbors.Where(person => fullNeighbors && person.InhabitantId != recipient))
+        {
+            var room = PersonalEquipmentRules.FreeCapacity(inventory, neighbor.InhabitantId, null);
+            if (room > 0) inventory = InventoryFixture.AddLot(inventory, "crowded-load:" + neighbor.InhabitantId,
+                "stone", neighbor.InhabitantId, room);
+        }
+        inventory = InventoryFixture.AddLot(inventory, Ornament, "gold_ornament", actor, 1);
+        Assert.Equal(8, PersonalEquipmentRules.FreeCapacity(inventory, recipient, null));
+        state = WithInventory(state, inventory);
+        return (state, actor, recipient);
+    }
+
+    [Theory]
     [InlineData("foreign")]
     [InlineData("ground")]
     [InlineData("stored")]

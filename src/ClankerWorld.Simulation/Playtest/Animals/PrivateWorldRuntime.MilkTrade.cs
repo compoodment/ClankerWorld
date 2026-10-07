@@ -134,7 +134,8 @@ public sealed partial class PrivateWorldRuntime
     {
         if (!AdultResident(seller) || animalWorld.MilkOffers.Any(offer => offer.SellerId == seller)) yield break;
         var inventory = society.Checkpoint.Inventory;
-        foreach (var milk in inventory.Lots.Where(lot => lot.ItemKind == "milk" && AvailableLotQuantity(lot) > 0)
+        foreach (var milk in inventory.Lots.Where(lot => lot.ItemKind == "milk" && AvailableLotQuantity(lot) > 0 &&
+                     !animalWorld.MilkOffers.Any(offer => offer.MilkLotId == lot.Id))
                      .OrderBy(lot => lot.Id, StringComparer.Ordinal))
         {
             if (!MilkSaleSite(seller, milk, out var building, out var position) ||
