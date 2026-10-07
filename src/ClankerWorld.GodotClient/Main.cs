@@ -223,6 +223,8 @@ public partial class Main : Control
     private bool registeredEndpointInvalid;
     private bool menuPausedWorld;
     private bool menuPauseConfirmed;
+    private int pendingMenuResumes;
+    private long pendingMenuResumeGeneration;
     private OwnerWorldSnapshot? renderedMapSnapshot;
     private int currentTileSize = DefaultTileSize;
     private float cameraZoom = 1;
