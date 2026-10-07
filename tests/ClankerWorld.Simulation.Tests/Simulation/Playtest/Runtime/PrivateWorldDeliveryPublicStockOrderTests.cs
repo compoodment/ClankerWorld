@@ -541,7 +541,7 @@ public sealed class PrivateWorldDeliveryPublicStockOrderTests
         if (boundary == "pot")
         {
             inventory = InventoryFixture.AddLot(inventory, "personal-pot", InventoryContainerRules.StoragePot, actor, 1);
-            inventory = InventoryFixture.PutIntoContainer(inventory, "protect-pot-food", actor, "z-unavailable-food", 2, "personal-pot");
+            inventory = InventoryFixture.PutIntoContainer(inventory, "protect-pot-food", actor, "personal-pot", "z-unavailable-food", 2);
         }
         using var world = Restore(WithInventory(state, inventory));
         var receipt = Submit(world, actor, "protect-food-reserve", "stock two berries in my Store");

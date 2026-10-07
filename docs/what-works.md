@@ -355,7 +355,9 @@ House food delivery shares only spare carried food. Town donations accept the
 normal wood, stone, fiber and tree-seed surplus while keeping the agent's
 reserve of four usable units of each kind across their carried lots. Storing
 and collecting goods does not create extra reserves. Store stocking keeps its
-shelf target, food reserves and protected tools. Missing demand or surplus leaves a visible blocker even if the order
+shelf target, food reserves and protected tools. Its food reserves apply across
+usable lots of the same owner and kind, so collecting food in smaller loads
+does not create extra reserves. Missing demand or surplus leaves a visible blocker even if the order
 asks for more.
 
 A Store-stocking order can pause an ordinary unfinished project, deliver its

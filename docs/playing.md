@@ -303,6 +303,10 @@ To move supplies for a household or Town, name both the goods and the destinatio
 - **Donate two wood to my Town Warehouse** gives spare carried materials to the Town.
 - **Stock three cloth in my Store** fills the household's shop under its normal stock limits.
 
+Stocking food keeps two servings of that kind with the agent, or two per
+household member when taking shared stock. Collecting the food in smaller
+loads does not increase that reserve.
+
 Add **at (12, 4)** to require the building's listed tile. The order keeps its
 chosen destination. A plain request delivers one load; a number counts the
 requested goods actually delivered. Pickup and travel earn no progress.
