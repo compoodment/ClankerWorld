@@ -596,7 +596,9 @@ include young animals and reserved births. Yards hold sixteen supply units.
 Taming uses two feed and one jug water. Daily care uses one feed/water for a
 chicken and two each for sheep, cows and horses. Feed is grain or greens. Adults
 fetch and carry real supplies, preserving food, planting and production
-reserves. Yard stock is picked up before approaching an animal on another
+reserves. Supplying a yard carries only the chosen feed load; any remaining
+grain keeps its owner and location. Water jugs travel with their contents.
+Yard stock is picked up before approaching an animal on another
 tile; care at the stock tile can use it directly. Care uses grain before
 ready-to-eat greens when available, and may combine grain with spare greens
 across lots. An incomplete safe feed or water load spends nothing. Care orders
