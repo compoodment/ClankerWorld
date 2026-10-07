@@ -696,7 +696,9 @@ you like. The card under the timeline says whether the new save continues a
 branch or starts a new one. To overwrite a save, choose it, then **Overwrite**,
 and confirm; typing the same name does not overwrite it. Autosaves can't be
 overwritten. World Settings offers rotating
-autosaves as well as automatic recovery. **Load World** shows each world as a
+autosaves as well as automatic recovery. If the host's clock moves backwards,
+the next rotating save waits one configured interval from the corrected time.
+**Load World** shows each world as a
 card with a small map of it, when it was last saved and its seed, and marks the
 current world and any it cannot open. Double-click a card, or choose it and
 **Open World**. Open

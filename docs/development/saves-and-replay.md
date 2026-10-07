@@ -1254,6 +1254,9 @@ these copies have no settled retention policy. Rotating autosaves are a separate
 mechanism and must not delete another world's checkpoints, or another branch's.
 Updating autosave configuration trims only that configured world, including
 rotation off, and counts each branch's autosaves separately.
+The schedule persists a new interval anchor if the host clock moves backwards,
+so restart cannot restore the resulting delay. This changes only the adjacent
+schedule timestamp; it keeps the saved world tick and existing snapshot files.
 The signed action names the world whose settings were opened. Its identity
 check, configuration write and rotation share the world-mutation gate with
 selection and loading. A request delayed across a world switch is refused

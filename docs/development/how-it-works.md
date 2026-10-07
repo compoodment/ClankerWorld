@@ -2815,6 +2815,12 @@ replace a newer opening's controls. A reply must name the observed world
 before Apply becomes available, and Apply checks that context again before
 sending the displayed interval and rotation.
 
+The host checks rotating autosaves after an advancing tick. A UTC sample older
+than the schedule's anchor resets and persists that anchor before checking the
+interval. It keeps the last saved world tick and creates no copy at the reset;
+the next due save still requires an advancing world. Disabled schedules return
+before any write, and a clock reset checks the world identity before persisting.
+
 ## Animals and horse travel
 
 The built-in animal package adds a household animal yard and the egg, milk, wool,
