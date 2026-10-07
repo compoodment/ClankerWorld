@@ -15,8 +15,18 @@ public enum BuildingNeglect : byte
 
 public static partial class BuildingSprites
 {
-    /// <summary>A fixed seed per kind and footprint, so a weathered building always looks the same.</summary>
-    public static int NeglectSalt(BuildingKind kind, int tilesWide, int tilesHigh) => (int)kind * 131 + tilesWide * 17 + tilesHigh * 7;
+    /// <summary>Keep the subject-name seed used by the approved abandoned proposal.</summary>
+    public static int NeglectSalt(BuildingKind kind, int tilesWide, int tilesHigh)
+    {
+        var name = kind switch
+        {
+            BuildingKind.TailorShop => "tailor",
+            BuildingKind.MarketStall => "stall",
+            BuildingKind.AnimalYard => "yard",
+            _ => kind.ToString().ToLowerInvariant(),
+        };
+        return $"{name}.{tilesWide}x{tilesHigh}".Length * 131;
+    }
 
     private static readonly Dictionary<(bool EastWest, int Deck, int Tile, bool Ruin), ImageTexture> NeglectedBridgeCache = [];
 
@@ -64,6 +74,24 @@ public static partial class BuildingSprites
     /// </summary>
     private static class Neglect
     {
+        // The approved preview samples top-left pixels; Godot's nearest resize
+        // samples their centres and changes the mid-zoom picture.
+        public static Image Resize(Image image, int width, int height)
+        {
+            var sourceWidth = image.GetWidth();
+            var sourceHeight = image.GetHeight();
+            var source = image.GetData();
+            var pixels = new byte[width * height * 4];
+            for (var y = 0; y < height; y++)
+                for (var x = 0; x < width; x++)
+                {
+                    var sourceX = Math.Min(sourceWidth - 1, x * sourceWidth / width);
+                    var sourceY = Math.Min(sourceHeight - 1, y * sourceHeight / height);
+                    Array.Copy(source, (sourceY * sourceWidth + sourceX) * 4, pixels, (y * width + x) * 4, 4);
+                }
+            return Image.CreateFromData(width, height, false, Image.Format.Rgba8, pixels);
+        }
+
         private readonly record struct NeglectRamp(Color Edge, Color Shade, Color Base, Color Light, Color Highlight);
 
         private static readonly NeglectRamp NeglectTimber = new(new("3F2A1A"), new("6E4E31"), new("8A6440"), new("A77C52"), new("D2AC77"));
@@ -306,6 +334,10 @@ public static partial class BuildingSprites
         {
             var w = image.GetWidth();
             var h = image.GetHeight();
+            // Match the short-end fallback in ApprovedArt.PortLandSide.
+            var landSide = h >= w
+                ? s.Door == DoorSide.South ? DoorSide.South : DoorSide.North
+                : s.Door == DoorSide.West ? DoorSide.West : DoorSide.East;
             var odds = ruin ? 4u : 7u;
             var pathOdds = ruin ? 7u : 11u;
             for (var y = 1; y < h - 1; y++)
@@ -315,8 +347,15 @@ public static partial class BuildingSprites
                     var near = Near(s.Mask, x, y, 4);
                     var onPath = s.Finished.GetPixel(x, y).A > 0.9f;
                     if (near > 4 && !onPath) continue;
-                    // Over water nothing grows: a pier gets no weeds, a bridge only on its bank tiles.
-                    if (s.Kind == Shape.Pier) continue;
+                    // The approved pier has weeds on its land row or column.
+                    if (s.Kind == Shape.Pier && !(landSide switch
+                    {
+                        DoorSide.North => y < 32,
+                        DoorSide.South => y >= h - 32,
+                        DoorSide.West => x < 32,
+                        _ => x >= w - 32,
+                    })) continue;
+                    // Bridge weeds remain on its bank tiles.
                     if (s.Kind == Shape.Bridge && (w > h ? x >= 32 && x < w - 32 : y >= 32 && y < h - 32)) continue;
                     if (Hash(x, y, salt + 21) % (onPath && near > 4 ? pathOdds : odds) != 0) continue;
                     var tall = Hash(y, x, salt) % 2 == 0;
