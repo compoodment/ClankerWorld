@@ -118,6 +118,12 @@ or coordinate targets still apply; distant sites require that agent's own
 knowledge. Observation does not bypass availability, reachability or the
 whole-load carrying checks.
 
+Urgent food interruptions also admit the buyer's legal ready-food shop quote,
+Restaurant meal visit and continuation of an open food purchase. The same
+check is used for selecting the interruption and filtering model choices.
+Raw ingredients, equipment and a seller's response cannot use this food
+exception; payment, carrying room, physical arrival and consent still apply.
+
 Material orders save the requested kind separately from food targets. They use
 known resource facts or observation within normal interaction range; a named
 unobserved site first requires physical travel. Untargeted orders may use normal
