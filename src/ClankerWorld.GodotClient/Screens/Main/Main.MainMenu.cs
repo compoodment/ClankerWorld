@@ -7,6 +7,7 @@ namespace ClankerWorld.GodotClient;
 
 public partial class Main
 {
+    private int mainMenuNavigationRevision;
     private readonly Control mainMenuOverlay = new();
     private readonly ColorRect mainMenuBackground = new();
     private readonly MenuBackdrop mainMenuBackdrop = new();
@@ -152,6 +153,7 @@ public partial class Main
 
     private void ShowMainMenu()
     {
+        mainMenuNavigationRevision++;
         isInWorld = false;
         if (developerPanel.Visible) CloseDeveloperTools();
         mainMenuOverlay.MouseFilter = MouseFilterEnum.Stop;
@@ -194,9 +196,11 @@ public partial class Main
     private async Task EnterWorldAsync()
     {
         if (registration is null || deviceKey is null || registeredEndpointInvalid) return;
+        var navigationRevision = ++mainMenuNavigationRevision;
         mainMenuContinueButton.Disabled = true;
         var previousRefreshCount = successfulRefreshCount;
         await RefreshAsync();
+        if (navigationRevision != mainMenuNavigationRevision) return;
         if (successfulRefreshCount == previousRefreshCount || observationSession.AwaitingFreshBaseline)
         {
             RefreshMainMenuAvailability();
@@ -227,6 +231,7 @@ public partial class Main
 
     private void OpenMainMenuSettings()
     {
+        mainMenuNavigationRevision++;
         returnToMainMenu = true;
         mainMenuOverlay.Show();
         mainMenuCard.Hide();
@@ -582,6 +587,7 @@ public partial class Main
     private void OpenWorldMenu(bool create)
     {
         if (registration is null || deviceKey is null || registeredEndpointInvalid) return;
+        mainMenuNavigationRevision++;
         worldListRequest.Cancel();
         worldMenuHeading.Text = create ? "New World" : "Load World";
         worldMenuStatus.Text = create
