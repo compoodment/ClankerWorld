@@ -8,6 +8,9 @@ public readonly record struct BuildingLight(Rect2I Footprint, LightPlan Plan, bo
     public BuildingKind? Kind { get; init; }
     public BuildingDoor Door { get; init; }
 
+    /// <summary>A Port in an abandoned Town keeps its pier lantern dark until the Town is resettled (computment, October 7).</summary>
+    public bool PierLanternDark { get; init; }
+
     /// <summary>Match the integer roof layout of the atlas actually drawn at this zoom.</summary>
     public BuildingLight AtAtlas(int tilePixels)
     {
@@ -20,7 +23,7 @@ public readonly record struct BuildingLight(Rect2I Footprint, LightPlan Plan, bo
     {
         LitDesign.Silo or LitDesign.MarketStall => false,
         LitDesign.House => Occupied,
-        LitDesign.Port => true,
+        LitDesign.Port => !PierLanternDark || Occupied || Working,
         _ => Occupied || Working,
     };
 }
@@ -267,8 +270,9 @@ public partial class NightLightsLayer : Control
             var origin = new Vector2(building.Footprint.Position.X, building.Footprint.Position.Y) * stride;
             roofs.Add(Scaled(origin, building.Plan.Roof, unit));
             if (building.Plan.Wing is { } wing) roofs.Add(Scaled(origin, wing, unit));
+            // Night only lights fittings; a Port's one fitting is its pier lantern.
             foreach (var cell in NightLightShapes.Building(building.Plan, building.Occupied, building.Working,
-                drawnDarkness > 0.05f, drawnTime, seed, snap))
+                drawnDarkness > 0.05f && !building.PierLanternDark, drawnTime, seed, snap))
                 placed.Add((origin, cell));
         }
         foreach (var lantern in lanterns)

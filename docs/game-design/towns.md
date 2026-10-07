@@ -744,7 +744,8 @@ lantern takes wood and a little refined iron. Where lanterns stand is the
 proposer's choice within the ordinary site rules; a suggestion is stone lamps
 at Road junctions and hanging lanterns every few tiles along a Road.
 **Agreed by the owner on October 7, 2026:** a lantern in an abandoned Town
-stays dark at night until someone resettles the Town.
+stays dark at night until someone resettles the Town, and so does the lantern
+on a Port's pier.
 
 The intended building roles now include House, Warehouse, Workshop,
 Farmhouse, farm fields, an adjacent private farm Silo, optional household-run

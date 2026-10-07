@@ -628,7 +628,8 @@ The recent history should persist with the world save but remain bounded.
     it works. A **Warehouse has no windows**: only a lantern by its loading
     doors, lit while someone fetches or stores goods. A Silo and Market
     stalls stay dark. A Port's lantern on the end of its pier burns every
-    night.
+    night, except in an abandoned Town, where it stays dark until the Town
+    is resettled (agreed October 7).
   - Light must **not look circular** and must plainly **come from
     something**: a window, a door, a fire or a lantern fitting that is drawn,
     never a bare bright dot. Each pool has a ragged edge that **moves

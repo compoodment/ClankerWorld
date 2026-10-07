@@ -268,6 +268,24 @@ public partial class Main
         ClearBuildingSelection();
         if (!lanternStatus.Contains("Dark · its Town is abandoned", StringComparison.Ordinal))
             throw new InvalidOperationException($"A dark lantern's card must say its Town is abandoned: {lanternStatus}");
+        // A Port's pier lantern burns every night, except in an abandoned Town.
+        foreach (var (residents, shines) in new[] { (new[] { "night-sailor" }, true), (Array.Empty<string>(), false) })
+        {
+            var harbour = street with
+            {
+                DarknessBasisPoints = 10_000,
+                PlacedBuildings = [Building("port", "port", 18, 10, 2, 4, new(18, 14)) with { TownId = "night-harbour" }],
+                Towns = [new OwnerWorldTown("night-harbour", "Harbour", "founded", 0, residents, [], [])],
+            };
+            RenderMap(harbour);
+            nightLayer.Settle();
+            for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            var port = BuildingLights(harbour).Single();
+            if (port.PierLanternDark == shines || port.Shines != shines ||
+                nightLightsLayer.DrawnCells.Any(cell => cell.Kind is LightCellKind.Light or LightCellKind.Glow) != shines)
+                throw new InvalidOperationException($"A Port's pier lantern must light at night only while its Town is lived in: lived in={shines}.");
+        }
+
         RenderMap(street with { DarknessBasisPoints = 0 });
         nightLayer.Settle();
         for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
