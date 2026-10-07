@@ -248,6 +248,30 @@ public partial class Main
                 throw new InvalidOperationException($"Completed street fittings must show by day, light at dusk without people or jobs, and go dark again at dawn without drawing roofs: darkness={darkness}, buildings={nightLightsLayer.Buildings.Count}, roofs={terrainLayer.BuildingSpriteCount}, cells={cells.Count}.");
         }
 
+        // In an abandoned Town the same fittings stay dark at night, showing only their weathered daytime look.
+        var abandonedStreet = street with
+        {
+            DarknessBasisPoints = 10_000,
+            PlacedBuildings = street.PlacedBuildings.Select(building => building with { TownId = "night-hollow" }).ToArray(),
+            Towns = [new OwnerWorldTown("night-hollow", "Hollow", "founded", 0, [], [], [])],
+        };
+        RenderMap(abandonedStreet);
+        nightLayer.Settle();
+        for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        if (nightLightsLayer.Lanterns.Count != 4 || nightLightsLayer.Lanterns.Any(lantern => !lantern.Dark) ||
+            nightLightsLayer.DrawnCells.Count == 0 || nightLightsLayer.DrawnCells.Any(cell => cell.Kind != LightCellKind.Paint))
+            throw new InvalidOperationException("Street fittings in an abandoned Town must stay dark at night and still show their fittings.");
+        SelectBuilding("night-stone-north");
+        RenderBuildingCard(abandonedStreet);
+        var lanternStatus = string.Join('\n', buildingQuickStatus.FindChildren("*", nameof(Label), owned: false)
+            .OfType<Label>().Select(label => label.Text));
+        ClearBuildingSelection();
+        if (!lanternStatus.Contains("Dark · its Town is abandoned", StringComparison.Ordinal))
+            throw new InvalidOperationException($"A dark lantern's card must say its Town is abandoned: {lanternStatus}");
+        RenderMap(street with { DarknessBasisPoints = 0 });
+        nightLayer.Settle();
+        for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+
         // At daylight, only camera/zoom changes can refresh this fitting-only layer.
         var fullSize = terrainLayer.TileSize;
         var fullCells = nightLightsLayer.DrawnCells.Select(cell => cell.Area).ToArray();

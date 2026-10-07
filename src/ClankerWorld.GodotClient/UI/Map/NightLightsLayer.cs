@@ -33,6 +33,23 @@ public readonly record struct StreetLanternLight(Vector2I RoadTile, DoorSide Edg
     /// <summary>How the fitting has weathered: lanterns in an abandoned Town look neglected, then falling apart.</summary>
     public BuildingNeglect Neglect { get; init; }
 
+    /// <summary>A lantern in an abandoned Town stays dark at night until the Town is resettled (computment, October 7).</summary>
+    public bool Dark => Neglect != BuildingNeglect.None;
+
+    /// <summary>
+    /// Everything drawn for this fitting at the given darkness, in 32 px units
+    /// of its Road tile: its light and flame or glass when lit, and its
+    /// fitting, weathered in an abandoned Town, where it never lights.
+    /// </summary>
+    public IEnumerable<LightCell> Cells(float darkness, float time, int seed, int snap = 1)
+    {
+        var weathered = Neglect != BuildingNeglect.None;
+        foreach (var cell in NightLightShapes.StreetLantern(Style, Post, Inward, Dark ? 0 : darkness, time, seed, snap))
+            if (!weathered || cell.Kind != LightCellKind.Paint) yield return cell;
+        if (weathered)
+            foreach (var cell in WeatheredCells(snap)) yield return cell;
+    }
+
     /// <summary>
     /// The weathered fitting's pixels by day, in 32 px units of its Road tile,
     /// from the approved abandoned look; a snap of 2 halves it as the 16 px
@@ -227,7 +244,7 @@ public partial class NightLightsLayer : Control
                     var fittingColor = NightLightShapes.StreetLantern(lantern.Style, lantern.Post, lantern.Inward, 0, 0, 0)[0].Color;
                     DrawRect(fitting, fittingColor.Lerp(NightLayer.Wash, NightLayer.FullNightAlpha * drawnDarkness) with { A = 1 });
                     overview.Add((fitting, LightCellKind.Paint));
-                    if (drawnDarkness <= 0.05f) continue;
+                    if (drawnDarkness <= 0.05f || lantern.Dark) continue;
                     var pool = new Rect2(point - Vector2.One * stride, Vector2.One * stride * 2);
                     var color = lantern.Style == LanternStyle.Stone ? NightLightShapes.Fire : NightLightShapes.Lamp;
                     DrawRect(pool, color with { A = 0.12f * drawnDarkness });
@@ -260,12 +277,8 @@ public partial class NightLightsLayer : Control
                 var tile = lantern.RoadTile + new Vector2I(shift, 0);
                 if (!visible.HasPoint(tile)) continue;
                 var origin = new Vector2(tile.X, tile.Y) * stride;
-                var weathered = lantern.Neglect != BuildingNeglect.None;
-                foreach (var cell in NightLightShapes.StreetLantern(lantern.Style, lantern.Post, lantern.Inward,
-                    drawnDarkness, drawnTime, Seed(lantern.RoadTile), snap))
-                    if (!weathered || cell.Kind != LightCellKind.Paint) placed.Add((origin, cell));
-                if (weathered)
-                    foreach (var cell in lantern.WeatheredCells(snap)) placed.Add((origin, cell));
+                foreach (var cell in lantern.Cells(drawnDarkness, drawnTime, Seed(lantern.RoadTile), snap))
+                    placed.Add((origin, cell));
             }
         // Weakest light first, so where pools overlap the stronger one shows; fittings go on top.
         var drawn = new List<(Rect2, LightCellKind)>();

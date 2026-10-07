@@ -721,8 +721,8 @@ change; [its Windows playtest](../playtest/410-abandoned-towns.md) is pending.
 An abandoned Town's buildings look neglected on the map: faded and mossy,
 with weeds and boarded doors. Once it has stood empty for a full season they
 look falling apart, with holes in the roofs, fallen planks and saplings; a
-revived Town looks lived in again. Its street lanterns fade and gather moss
-and weeds but still light at night, and its bridges fade and lose boards,
+revived Town looks lived in again. Its street lanterns stay dark at night
+and fade, gathering moss and weeds, and its bridges fade and lose boards,
 then whole planks once the Town falls apart.
 Founding another Town remains unfinished.
 
@@ -1000,7 +1000,8 @@ Both amounts and work are provisional. Completion consumes the delivered
 budget once and keeps the chosen edge; it does not lay or extend Roads.
 The Towns page and selected fitting show Council approval, materials and work.
 Daytime fittings use the approved art; at dusk they light automatically and
-go out at dawn, without fuel or visibility effects. The map never places
+go out at dawn, without fuel or visibility effects. In an abandoned Town they
+stay dark until it is resettled, and the selected fitting says why. The map never places
 them itself. [Windows checks](../playtest/892-street-lanterns.md) remain pending.
 
 Towns grow along their streets. Building sites that can face an existing Road

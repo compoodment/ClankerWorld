@@ -643,6 +643,8 @@ The recent history should persist with the world save but remain bounded.
   beside Roads; they need **no fuel** and light themselves at dusk. Two
   designs: **B, a round stone lamp with an open flame**, and **C, a lantern
   hung from an arm over the Road** ([Towns](towns.md#shared-town-projects)).
+  **Agreed on October 7:** in an abandoned Town they stay dark until the
+  Town is resettled.
 - **Agreed after the fourth round of the art review (October 7):**
   - **Animals.** computment approved:
     - a chick, lamb, calf and foal in all eight facings, with no adult gear
