@@ -259,6 +259,9 @@ carrying and route checks; orders additionally require personal ownership and
 positive remaining condition. Ordinary repair retains its borrowed-household
 behavior. Order preparation protects every matching worn personal tool from
 spare-cargo storage and refuses gathering that would break a requested tool.
+Preparation retains the quantity needed for one repair across usable carried
+material lots. Excess units may be stowed to collect another ingredient; live
+reservations, promised cargo and protected tools remain unavailable for stowing.
 `RepairTool` performs physical pickup, gathering, spare-cargo storage
 and walking, returning a repaired lot only after the real inventory transition.
 That return alone earns one repair, with a bounded receipt derived from actor,
@@ -562,6 +565,14 @@ shelter cancels the chill; with no protection an agent loses about a fifth of
 their warmth over a night. There are no night-only limits on choices, travel,
 work or conversation, and no sleep or energy. Longer winter nights mean more
 hours of chill. Night does not change weather or crops yet.
+
+The warmth action keeps an agent in place when their current protection stops
+cooling. Otherwise, a reachable lit hearth takes priority over nearby natural
+storm cover, so a tree along the route cannot pull the agent back from the
+hearth. Natural cover remains a fallback when no lit destination is reachable;
+existing access permissions, routes and fuel use still apply.
+The lit destination must be a heating building the agent can use; a
+storm-shelter guest invitation alone does not grant use of a household hearth.
 
 The owner snapshot carries `darknessBasisPoints`, decided by the host from the
 same rule. The Godot client's `NightLayer` draws a deep blue wash, at most 40%

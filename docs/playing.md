@@ -350,6 +350,8 @@ Only finished repairs count. Missing items, materials, carrying space or a work
 site leaves the task waiting. Queue, cancellation and save/reload also work for
 these orders. Tool orders also accept exact kinds, such as **Repair two iron
 knives**. Weapons and named work sites are not supported repair targets.
+When collecting a missing tool-repair ingredient, the agent can put excess
+materials in household storage while keeping what the repair needs.
 
 To make goods, try **Make two sacks**, **Make rope**, or **Mill flour**. Adults
 and elders use the usual work site, ingredients and tools. A plain request
