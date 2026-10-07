@@ -103,7 +103,7 @@ public readonly record struct StreetLanternSite(StreetLanternLight Lantern, int 
     /// <summary>The fitting's pixels shown at this stage, in 32 px units of its Road tile.</summary>
     public List<LightCell> Cells(int snap = 1)
     {
-        var fitting = NightLightShapes.StreetLantern(Lantern.Style, Lantern.Post, Lantern.Inward, 0, 0, 0, snap)
+        var fitting = NightLightShapes.StreetLantern(Lantern.Style, Lantern.Post, Lantern.Inward, 0, 0, 0, Stage <= 1 ? 1 : snap)
             .Where(cell => cell.Kind == LightCellKind.Paint).ToList();
         if (Stage >= 3 || fitting.Count == 0) return fitting;
         var bounds = fitting.Skip(1).Aggregate(fitting[0].Area, (all, cell) => all.Merge(cell.Area));
@@ -111,11 +111,15 @@ public readonly record struct StreetLanternSite(StreetLanternLight Lantern, int 
         var cells = new List<LightCell>();
         if (Stage <= 1)
         {
-            for (var y = -3; y <= 3; y++)
-                for (var x = -3; x <= 3; x++)
-                    if (x * x + y * y <= 9)
-                        cells.Add(new(new Rect2(MathF.Floor(foot.X) + x, MathF.Floor(foot.Y) + y, 1, 1),
-                            x * x + y * y <= 4 ? Hole : DugEarth, 1, LightCellKind.Paint));
+            var center = foot.Floor();
+            for (var y = MathF.Ceiling((center.Y - 3) / snap) * snap; y <= center.Y + 3; y += snap)
+                for (var x = MathF.Ceiling((center.X - 3) / snap) * snap; x <= center.X + 3; x += snap)
+                {
+                    var distance = (new Vector2(x, y) - center).LengthSquared();
+                    if (distance <= 9)
+                        cells.Add(new(new Rect2(x, y, snap, snap),
+                            distance <= 4 ? Hole : DugEarth, 1, LightCellKind.Paint));
+                }
             return cells;
         }
         // Each pixel (a snap-sized block at mid zoom) of the fitting near its foot.
@@ -249,7 +253,8 @@ public partial class NightLightsLayer : Control
             if (drawnDarkness > 0)
                 foreach (var (building, _) in VisibleBuildings(visible))
                     if (building.Shines) DrawSpeck(building, stride);
-            foreach (var lantern in lanterns)
+            foreach (var (lantern, completed) in lanterns.Select(lantern => (lantern, true))
+                         .Concat(lanternSites.Where(site => site.Stage >= 3).Select(site => (site.Lantern, false))))
                 foreach (var shift in wrapsEastWest ? new[] { -source.World.Width, 0, source.World.Width } : [0])
                 {
                     var tile = lantern.RoadTile + new Vector2I(shift, 0);
@@ -260,7 +265,7 @@ public partial class NightLightsLayer : Control
                     var fittingColor = NightLightShapes.StreetLantern(lantern.Style, lantern.Post, lantern.Inward, 0, 0, 0)[0].Color;
                     DrawRect(fitting, fittingColor.Lerp(NightLayer.Wash, NightLayer.FullNightAlpha * drawnDarkness) with { A = 1 });
                     overview.Add((fitting, LightCellKind.Paint));
-                    if (drawnDarkness <= 0.05f) continue;
+                    if (!completed || drawnDarkness <= 0.05f) continue;
                     var pool = new Rect2(point - Vector2.One * stride, Vector2.One * stride * 2);
                     var color = lantern.Style == LanternStyle.Stone ? NightLightShapes.Fire : NightLightShapes.Lamp;
                     DrawRect(pool, color with { A = 0.12f * drawnDarkness });

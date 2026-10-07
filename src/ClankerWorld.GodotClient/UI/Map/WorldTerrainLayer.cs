@@ -1164,11 +1164,15 @@ public partial class WorldTerrainLayer : Control
                 else
                     DrawTextureRect(BuildingSprites.ConstructionTexture(kind, footprint.Size.X, footprint.Size.Y, atlasSize, door, stage), rect, false);
             }
-        if (tileSize < SpriteTileMinimum) return;
         foreach (var (tile, stage) in lanternSites)
             foreach (var shift in shifts)
-                if (Placed(new Rect2I(tile, Vector2I.One), shift) is { } rect && BuildingSprites.LanternSiteTexture(atlasSize, stage) is { } materials)
-                    DrawTextureRect(materials, rect, false);
+                if (Placed(new Rect2I(tile, Vector2I.One), shift) is { } rect)
+                {
+                    if (tileSize < SpriteTileMinimum)
+                        DrawRect(rect, BuildingSprites.SiteColor(BuildingKind.House));
+                    else if (BuildingSprites.LanternSiteTexture(atlasSize, stage) is { } materials)
+                        DrawTextureRect(materials, rect, false);
+                }
     }
 
     /// <summary>

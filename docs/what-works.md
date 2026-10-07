@@ -1168,7 +1168,10 @@ half a floor, then the walls with the roof half on. A Port's piles go in first.
 A street lantern rises on its Road edge from a dug hole to its post and then
 its unlit fitting. Hovering or inspecting a site names the building, says
 whether it is waiting for materials or being built, and how much of the work is
-done. The [Windows checklist](../playtest/1090-construction-sites.md) is
+done. Port materials wait on the actual bank, ladders follow the doorway, and
+mid-zoom stages retain the approved pixels. Lantern sites remain visible when
+zoomed out; their fittings stay unlit until construction finishes.
+The [Windows checklist](../playtest/1090-construction-sites.md) is
 pending.
 
 ### Household building sizes

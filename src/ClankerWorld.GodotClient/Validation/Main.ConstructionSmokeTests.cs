@@ -12,8 +12,9 @@ public partial class Main
     /// while its materials lie on its own tile, and hovering a site says how
     /// far it has got.
     /// </summary>
-    private void VerifyConstructionSites()
+    private async Task VerifyConstructionSitesAsync()
     {
+        VerifyConstructionPixelContracts();
         OwnerWorldConstructionSite Site(string id, string name, IReadOnlyList<string> tags, int x, int done,
             OwnerWorldPosition? entrance = null) =>
             new(id, "test/" + id, name, tags, new(x, 2), 1, 1, entrance, done, 10, "working", "alder", null);
@@ -64,6 +65,19 @@ public partial class Main
         var stone = lantern with { Style = LanternStyle.Stone };
         if (Area(new StreetLanternSite(stone, 2).Cells()) >= Area(new StreetLanternSite(stone, 3).Cells()))
             throw new InvalidOperationException("A stone lamp's stub must be less than the finished pillar.");
+        foreach (var style in Enum.GetValues<LanternStyle>())
+            foreach (var edge in Enum.GetValues<DoorSide>())
+            {
+                var lamp = new StreetLanternLight(new(8, 3), edge, style);
+                var full = new StreetLanternSite(lamp, 1).Cells();
+                var half = new StreetLanternSite(lamp, 1).Cells(2);
+                if (half.Count == 0 || half.Any(cell => cell.Area.Size != new Vector2(2, 2) ||
+                        cell.Area.Position.X % 2 != 0 || cell.Area.Position.Y % 2 != 0) ||
+                    half.Any(cell => !full.Any(pixel => pixel.Area.HasPoint(cell.Area.Position + Vector2.One * 0.5f) && pixel.Color == cell.Color)) ||
+                    full.Where(pixel => pixel.Area.Position.X % 2 == 0 && pixel.Area.Position.Y % 2 == 0)
+                        .Any(pixel => !half.Any(cell => cell.Area.Position == pixel.Area.Position && cell.Color == pixel.Color)))
+                    throw new InvalidOperationException("Lantern holes must retain approved top-left pixels on the native 16 px grid on every Road edge.");
+            }
         if (BuildingSprites.LanternSiteTexture(32, 1) is null || BuildingSprites.LanternSiteTexture(16, 2) is not { } logs ||
             logs.GetWidth() != 16 || BuildingSprites.LanternSiteTexture(32, 3) is not null)
             throw new InvalidOperationException("A lantern's materials must lie on its tile until the fitting stands.");
@@ -78,5 +92,25 @@ public partial class Main
         }
         terrainLayer.SetConstructionSites([]);
         nightLightsLayer.SetLanternSites([]);
+        var beforeCamera = terrainLayer.VisibleTiles;
+        var beforeSize = terrainLayer.TileSize;
+        var beforeGap = terrainLayer.Stride - beforeSize;
+        var beforeWrap = terrainLayer.WrapsEastWest;
+        try
+        {
+            nightLightsLayer.SetBuildings([]);
+            nightLightsLayer.SetLanterns([], false);
+            nightLightsLayer.SetLanternSites([new StreetLanternSite(lantern, 3)]);
+            terrainLayer.SetCamera(new Rect2(0, 0, 16, 12), 4, 0, false);
+            for (var frame = 0; frame < 4; frame++)
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (nightLightsLayer.DrawnCells.Count == 0 || nightLightsLayer.DrawnCells.Any(cell => cell.Kind != LightCellKind.Paint))
+                throw new InvalidOperationException("A standing construction lantern must remain visible and unlit at overview zoom.");
+        }
+        finally
+        {
+            nightLightsLayer.SetLanternSites([]);
+            terrainLayer.SetCamera(beforeCamera, beforeSize, beforeGap, beforeWrap);
+        }
     }
 }

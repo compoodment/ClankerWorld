@@ -30,8 +30,7 @@ public static partial class BuildingSprites
         width = Math.Clamp(width, 1, 8);
         height = Math.Clamp(height, 1, 8);
         var site = Construction.Draw(kind, width, height, door, Math.Clamp(stage, 1, 3));
-        if (tilePixels != 32) site.Resize(width * tilePixels, height * tilePixels, Image.Interpolation.Nearest);
-        return site;
+        return tilePixels == 32 ? site : Neglect.Resize(site, width * tilePixels, height * tilePixels);
     }
 
     /// <summary>The flat colour of a construction site at overview zoom: cleared earth, or timber for a pier over water.</summary>
@@ -51,7 +50,7 @@ public static partial class BuildingSprites
         stage = Math.Max(1, stage);
         if (LanternSiteCache.TryGetValue((tilePixels, stage), out var cached)) return cached;
         var image = Construction.LanternMaterials(stage);
-        if (tilePixels != 32) image.Resize(tilePixels, tilePixels, Image.Interpolation.Nearest);
+        if (tilePixels != 32) image = Neglect.Resize(image, tilePixels, tilePixels);
         var texture = ImageTexture.CreateFromImage(image);
         LanternSiteCache[(tilePixels, stage)] = texture;
         return texture;
@@ -95,7 +94,12 @@ public static partial class BuildingSprites
                         ? Inside(plan.Roof, x, y) || plan.Wing is { } wing && Inside(wing, x, y)
                         : finished.GetPixel(x, y).A > 0.9f && (shape != Shape.Fence || x < 6 || y < 6 || x >= w - 6 || y >= h - 6);
             // Work starts at the back, so the open frame faces the Road; a pier is built out from the land.
-            var back = door.Side switch
+            var side = shape == Shape.Pier
+                ? tilesHigh >= tilesWide
+                    ? door.Side == DoorSide.South ? DoorSide.South : DoorSide.North
+                    : door.Side == DoorSide.West ? DoorSide.West : DoorSide.East
+                : door.Side;
+            var back = side switch
             {
                 DoorSide.North => new Vector2(0, 1),
                 DoorSide.East => new Vector2(-1, 0),
@@ -104,7 +108,7 @@ public static partial class BuildingSprites
             };
             if (shape == Shape.Pier) back = -back;
             var middle = kind == BuildingKind.Silo ? tilesWide * 16f : plan.DoorMiddle;
-            return Apply(new Look(finished, mask, w, h, door.Side, middle, back, shape, roofed || kind == BuildingKind.Silo), stage);
+            return Apply(new Look(finished, mask, w, h, side, middle, back, shape, roofed || kind == BuildingKind.Silo), stage);
         }
 
         private static bool Inside(Rect2 area, int x, int y) =>
@@ -301,8 +305,11 @@ public static partial class BuildingSprites
         /// <summary>A short ladder leaning on the front wall beside the door.</summary>
         private static void Ladder(Image image, Look s, Rect2I b)
         {
-            var x = (int)MathF.Round(s.Door is DoorSide.South or DoorSide.North ? Math.Clamp(s.DoorMiddle + 7, b.Position.X + 2, b.End.X - 6) : b.End.X - 6);
-            var y = s.Door == DoorSide.North ? b.Position.Y - 3 : b.End.Y - 6;
+            var horizontal = s.Door is DoorSide.South or DoorSide.North;
+            var x = (int)MathF.Round(horizontal ? Math.Clamp(s.DoorMiddle + 7, b.Position.X + 2, b.End.X - 6)
+                : s.Door == DoorSide.West ? b.Position.X - 3 : b.End.X - 6);
+            var y = horizontal ? s.Door == DoorSide.North ? b.Position.Y - 3 : b.End.Y - 6
+                : (int)MathF.Round(Math.Clamp(s.DoorMiddle + 7, b.Position.Y + 2, b.End.Y - 6));
             for (var k = 0; k < 8; k++)
             {
                 Blend(image, x, y + k, SiteTimber.Light);
@@ -340,7 +347,12 @@ public static partial class BuildingSprites
             if (s.Kind == Shape.Pier)
             {
                 // Over water the timber waits on the bank.
-                var (x, y) = (2, h - 12);
+                var (x, y) = s.Door switch
+                {
+                    DoorSide.North => (2, 20),
+                    DoorSide.East => (w - 30, h - 12),
+                    _ => (2, h - 12),
+                };
                 if (stage < 3) LogStack(image, x, y, stage == 1 ? 3 : 2);
                 if (stage == 1) StoneHeap(image, x + 18, y + 4);
                 return;
