@@ -1,0 +1,1 @@
+- Buildings now show on the map while they go up: cleared, staked-out ground first, then the frame, then the walls with the roof half on. Street lanterns rise from a dug hole to their finished fitting. Hover a site to see whether it is waiting for materials and how much of the work is done.
