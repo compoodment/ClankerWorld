@@ -2,7 +2,7 @@
 title: Playing the current game
 type: player-guide
 status: active
-updated: 2026-10-05
+updated: 2026-10-07
 ---
 
 # Playing the current game
@@ -405,6 +405,13 @@ icons with the amount in the corner. **Details** opens the rest on the left:
 who may use it, when it was built, which side its door faces, the work in
 progress, a larger storage grid with each item's name, and who is inside or
 lives there. Back (or **Escape**) returns to the small card.
+
+**Details** also lists recent recorded storage changes: positive quantities
+were added, negative quantities were removed or used, with the date and time
+of each change. The newest entries come first. The list refreshes while open
+and survives saving or reconnecting; it covers the recent records still kept
+by the server. Goods changing owners in the same building do not count as a
+physical addition or removal.
 
 Every day has a night, with a short dusk and dawn. Nights are longest in winter
 and shortest in summer: from 19:12 to 04:48 on the clock in the top bar at the

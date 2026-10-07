@@ -2,7 +2,7 @@
 title: How the game works
 type: architecture
 status: active
-updated: 2026-10-05
+updated: 2026-10-07
 ---
 
 # How the game works
@@ -2386,6 +2386,18 @@ Paused authoring can reference only an exact normalized `assetId` and lowercase
 A missing catalog denies all references. Malformed, ambiguous or unknown-schema
 catalogs prevent startup. Device requests cannot edit it or upload asset bytes.
 This is a narrow reference rule, not the future complete art-generation pipeline.
+
+## Building storage history
+
+Building Details receives up to ten recent storage deltas from the existing
+retained inventory-event stream. Each committed physical change records its
+building, item kind and signed quantity on the existing event; event identity,
+time and trade receipts stay intact. The runtime includes direct location
+adjustments around kernel operations without recording an already captured
+change twice. Net-zero lot splits, ownership changes, reservations, wear and
+spoilage add no storage change. Projection scans the retained stream once and
+never reconstructs a historical location from a current lot. The records
+follow ordinary rollback and event compaction, not a second growing ledger.
 
 ## Runtime logging
 

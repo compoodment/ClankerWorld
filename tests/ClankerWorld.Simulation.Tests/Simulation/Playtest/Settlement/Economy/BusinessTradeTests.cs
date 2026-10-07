@@ -131,6 +131,10 @@ public sealed partial class BusinessTradeTests
         Assert.Equal(paymentUnits, payment.Quantity);
         Assert.Equal(binding.SellerHouseholdId, payment.OwnerId);
         Assert.Equal(shopId, payment.StorageBuildingId);
+        var exchange = settling.Society.Inventory.Events.Last(item => item.Kind == "barter_settled");
+        Assert.Equal(2, exchange.StorageChanges!.Count);
+        Assert.Contains(new InventoryStorageChange(shopId, "wood", paymentUnits), exchange.StorageChanges);
+        Assert.Contains(new InventoryStorageChange(shopId, goodsKind, -1), exchange.StorageChanges);
         Assert.Null(payment.DeliveryBuildingId);
         Assert.Equal(6 - paymentUnits, settling.Society.Inventory.GetLot("buyer-payment").Quantity);
         Assert.Equal(woodBefore, TotalQuantity(settling.Society.Inventory, "wood"));

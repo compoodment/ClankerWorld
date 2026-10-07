@@ -87,6 +87,7 @@ public partial class Main
         buildingWorkSection.AddChild(buildingWorkRows);
         buildingDetailsContent.AddChild(buildingWorkSection);
         buildingDetailsContent.AddChild(buildingDetailsStorage);
+        BuildBuildingStorageHistory();
         buildingPeopleSection.AddThemeConstantOverride("separation", 4);
         buildingPeopleSection.AddChild(SectionRow("PEOPLE", buildingPeopleSummary));
         buildingPeopleSection.AddChild(buildingPeopleText);
@@ -281,6 +282,7 @@ public partial class Main
         }
         RenderBuildingStatus(snapshot, building, jobs, inside);
         RenderBuildingDetails(snapshot, building, household, town, jobs, inside);
+        RenderBuildingStorageHistory(snapshot, building);
 
         buildingDetailsPanel.Visible = buildingDetailsRequested;
         buildingQuickCard.Visible = !buildingDetailsRequested;
