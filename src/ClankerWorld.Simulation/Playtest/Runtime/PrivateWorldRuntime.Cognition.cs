@@ -582,7 +582,7 @@ public sealed partial class PrivateWorldRuntime
             return;
         var pendingInstruction = PendingInstructionFor(decision.InhabitantId);
         var candidateId = decision.Admission.Intention.CandidateId;
-        if (PassengerBoat(decision.InhabitantId) is not null && candidateId is not ("consume_food" or "safe_idle"))
+        if (PassengerBoat(decision.InhabitantId) is not null && candidateId is not ("consume_food" or "drink_milk" or "safe_idle"))
         {
             AppendEvent("boat_action_blocked", $"{decision.InhabitantId}:stay_aboard");
             return;
@@ -1164,6 +1164,8 @@ public sealed partial class PrivateWorldRuntime
             var aboard = new List<CognitionCandidate> { new("safe_idle", "Stay aboard while the boat travels or waits for a safe Port.", 100) };
             if (PreferredFood(inhabitantId, inhabitantId).Any() && state.HungerBasisPoints < ComfortableFullness)
                 aboard.Add(new("consume_food", "Eat one carried food item aboard the boat.", 0));
+            if (CarriedMilk(inhabitantId) is not null && state.HungerBasisPoints < ComfortableFullness)
+                aboard.Add(new("drink_milk", "Drink one portion of carried jug milk, leaving the reusable jug intact.", 0));
             return aboard;
         }
         var currentConversation = ConversationFor(inhabitantId);

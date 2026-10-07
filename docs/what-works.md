@@ -948,7 +948,8 @@ reserves the actual boat and one destination space; incoming boats count toward
 six spaces. Waiting travelers may cancel. A blocked arrival waits one unpaused
 world day before returning to a usable origin, keeping passenger and goods
 aboard. If neither landing is usable, it continues waiting. Ordinary survival
-still applies aboard; passengers may eat carried food.
+still applies aboard; passengers may eat carried food or drink fresh, available
+milk from a usable carried jug. Drinking spends one portion and keeps the jug.
 
 Boat positions, passengers, cargo and active requests appear on the map and
 Towns page. Port inspection shows moored boats and incoming reservations.

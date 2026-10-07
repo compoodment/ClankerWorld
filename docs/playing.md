@@ -196,6 +196,9 @@ incoming boats. **World Info → Towns** shows boats and active trip requests.
 Agents may propose paid Ports and boats through the Council, then request
 travel between completed Ports. Visitors need Council permission. A blocked
 arrival waits one world day before returning to a usable departure Port.
+Passengers can eat their carried food or drink fresh milk from a usable carried
+jug during travel and while waiting to land. Drinking uses one portion and
+leaves the jug intact.
 
 When agents talk, a chat bubble appears above each participant and nearby
 listeners. Click a bubble to see who spoke and whether the conversation is
