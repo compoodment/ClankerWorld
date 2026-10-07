@@ -41,6 +41,7 @@ public partial class Main
             VerifyBoatPresentation();
             VerifyAnimalPresentation();
             VerifyAbandonedBuildingLooks();
+            await VerifyConstructionSitesAsync();
         }
         finally
         {
