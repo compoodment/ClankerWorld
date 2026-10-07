@@ -4,8 +4,10 @@ using Godot;
 namespace ArtPreview.Proposed.Items;
 
 /// <summary>
-/// Round 4 (October 7): icons for the twelve items the game makes today that
-/// show a plain crate or borrow another item's picture. Each is a 16 × 16
+/// Round 4 (October 7): icons for items the game makes today that show a
+/// plain crate or borrow another item's picture. All ten here were approved;
+/// the crude wooden axe and pickaxe drawings were not, and keep the approved
+/// wooden axe and pickaxe icons ("keep the og's"). Each is a 16 × 16
 /// text bitmap in the same form as the game's <see cref="ItemIcons"/>, outlined
 /// the same way, lit from the top-left, in STYLE.md ramp colours. Each sits
 /// beside the icon it replaces or the family it joins on the review sheet.
@@ -17,11 +19,6 @@ public sealed class ItemsRound4Proposal : IArtProposal
     private const int Grid = 16;
     private static readonly Color Ink = new("2A1A10");
 
-    /// <summary>Raw split wood, paler than a carved head: the Dirt ramp's upper steps.</summary>
-    private const string RawWood = "hD9C08F lC9AC7C mB99A6B d977852";
-    /// <summary>A rough branch with its bark on, for a crude handle: the Timber ramp's dark steps.</summary>
-    private const string Branch = "B8A6440 b6E4E31 k3F2A1A";
-    private const string Cord = "cE6C77B CA98A45";
     private const string Steel = "wEEF2F4 lBFC8CF m939CA5 d6A727B k50575E";
     private const string GoldRamp = "hFFE28A lF2CC5E bD9AE3C mB8902E d8A6A1E wFFF5DF";
     /// <summary>The approved porridge bowl's palette, shared by every porridge so they read as one family.</summary>
@@ -31,48 +28,6 @@ public sealed class ItemsRound4Proposal : IArtProposal
 
     private static readonly Drawing[] Drawings =
     [
-        new("crude_wooden_axe", "wooden_axe",
-            "Crude wooden axe: a lump of raw split wood bound to a crooked branch with thick grass cord, one tier below the carved wooden axe.",
-            RawWood + " " + Branch + " " + Cord,
-            [
-                "................",
-                ".........Bb.....",
-                ".hhl.....Bbb....",
-                ".hllmm..cCcC....",
-                ".hlmmmdcCcCc....",
-                ".llmmdmcCcC.....",
-                "..lmdd..Bb......",
-                "...dd...Bb......",
-                "........bBk.....",
-                ".........Bb.....",
-                ".........Bb.....",
-                ".........bB.....",
-                "........Bbk.....",
-                "........Bb......",
-                "........kk......",
-                "................",
-            ]),
-        new("crude_wooden_pickaxe", "wooden_pickaxe",
-            "Crude wooden pickaxe: a sharpened stake lashed across a crooked branch, uneven at both ends.",
-            RawWood + " " + Branch + " " + Cord,
-            [
-                "................",
-                ".......Bb.......",
-                ".hhl..cCcC......",
-                ".lmmmmCcCcmmd...",
-                "..dd..cCcCddd...",
-                ".......bB....d..",
-                ".......Bb.......",
-                "........Bb......",
-                "........bBk.....",
-                "........Bb......",
-                ".......Bb.......",
-                ".......bB.......",
-                ".......Bbk......",
-                "........Bb......",
-                "........kk......",
-                "................",
-            ]),
         new("iron_fittings", "iron",
             "Iron fittings: a corner bracket with nail holes and two nails, in the iron bar's steel.",
             Steel,

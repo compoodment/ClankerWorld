@@ -643,6 +643,36 @@ The recent history should persist with the world save but remain bounded.
   beside Roads; they need **no fuel** and light themselves at dusk. Two
   designs: **B, a round stone lamp with an open flame**, and **C, a lantern
   hung from an arm over the Road** ([Towns](towns.md#shared-town-projects)).
+- **Agreed after the fourth round of the art review (October 7):**
+  - **Animals.** computment approved:
+    - a chick, lamb, calf and foal in all eight facings, with no adult gear
+      (the calf has no horns, the chick no comb, the foal no saddle);
+    - a horse with a bare back for wild and unsaddled horses. A ridden horse
+      always shows its saddle.
+    - A sheep in a household looks **shorn for the first half of each wool
+      cycle** and woolly after that; wild sheep stay woolly.
+  - **Animal yard.** Option A: a split-rail pen on trampled earth, with an
+    open gate on the door side, a water trough by the gate and hay in the far
+    corner.
+  - **Item icons.** Ten new icons: iron fittings, refined gold, a plain gold
+    ornament, saddle, cooked eggs, and milk, berry and fruit porridge, rich
+    meal and leather sack. The crude wooden axe and pickaxe keep the wooden
+    axe and pickaxe icons.
+  - **Construction sites.** A building under construction shows three
+    stages before its finished picture:
+    1. a cleared, staked-out site with materials piled beside it;
+    2. a footing, sill and posts with the floor half laid;
+    3. the walls up and the roof half on from the back, with a ladder.
+
+    Fences, piers, bridges and lanterns follow the same order with their own
+    parts.
+  - **Abandoned Towns.** Buildings in an abandoned Town look **neglected**:
+    faded, mossy, weedy, with the door boarded. Once the Town has stayed
+    abandoned for a **full season** they look **falling apart**, with a hole
+    in the roof, fallen planks and a sapling. Fences, piers and bridges lose
+    rails or planks instead. A revived Town looks lived in again.
+
+  The pictures and notes are in `tools/ArtPreview/Proposed/Round4.md`.
 - Art is drawn in code, not stored as image files. computment prefers this.
   Approved art for content that is not built yet waits in
   `tools/ArtPreview/Proposed/` until its feature lands.
