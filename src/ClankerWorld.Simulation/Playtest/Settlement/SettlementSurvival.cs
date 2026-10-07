@@ -369,6 +369,10 @@ public sealed partial class PrivateWorldRuntime
         if (WarmthChange(person) >= 0)
             return;
         var destination = ReachableWarmthDestinations(actor, person).FirstOrDefault();
+        // An unlit House offers no extra heat over current natural storm cover.
+        if (WeatherAt(person.Position) == WeatherKind.Storm && NaturalStormCover(person.Position) &&
+            (destination is null || !IsFireLit(destination)))
+            return;
         var cover = WeatherAt(person.Position) == WeatherKind.Storm && !NaturalStormCover(person.Position)
             ? NearbyNaturalStormCover(actor, person.Position) : null;
         if (cover is { } coverPoint &&
