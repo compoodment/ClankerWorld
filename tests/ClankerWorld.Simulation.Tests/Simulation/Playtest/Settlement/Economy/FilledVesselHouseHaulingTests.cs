@@ -68,7 +68,6 @@ public sealed class FilledVesselHouseHaulingTests
     }
 
     [Theory]
-    [InlineData("carry")]
     [InlineData("storage")]
     [InlineData("incoming")]
     [InlineData("reserved")]

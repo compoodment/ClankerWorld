@@ -241,7 +241,7 @@ public sealed partial class PrivateWorldRuntime
         if (remainingPermissions <= 0) return;
         foreach (var other in inhabitants.Keys.Order(StringComparer.Ordinal).Where(other => other != actor &&
             LivingMedicalAdult(other) && CanObserveMedicalPatient(actor, other) && !existing.Contains(other, StringComparer.Ordinal))
-            .Take(remainingPermissions))
+            .Take(MedicalCareRules.MaximumNamedCaregivers))
             candidates.Add(new(MedicalAllowPrefix + other,
                 $"Allow {society.Checkpoint.GetInhabitant(other).Name} to provide medical care to you. Your personal choice is required.",
                 110, other, society.Checkpoint.GetInhabitant(other).Name));

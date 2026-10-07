@@ -2,7 +2,7 @@
 title: Saves and replay
 type: persistence-reference
 status: active
-updated: 2026-10-06
+updated: 2026-10-07
 ---
 
 # Saves and replay
@@ -696,6 +696,14 @@ establish that the checkpoint can load.
 
 ## Current formats and older worlds
 
+Private-world schema 98 adds optional structured storage changes to committed
+inventory events: a building ID, item kind and nonzero signed quantity.
+Records have unique, ordered building/item pairs and retain their original
+event identity and time, including through archive compaction. Strict loading
+refuses malformed records. The observer projects only recent retained facts;
+reading Details changes no stock, permissions or agent knowledge. Earlier
+alpha schemas are refused and preserved without migration or history backfill.
+
 Private-world schema 95 adds a required routine-helper choice, model name and
 optional OpenAI credential-slot ID. API-key bytes remain installation-owned.
 Loading rejects invalid helper/model/slot formats or inconsistent availability;
@@ -812,7 +820,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 97. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 99. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 a bounded model-attempt status and exact last accepted model choice per agent, plus
@@ -956,6 +964,8 @@ current alpha cutoff.
 | Schema 95 | Required per-world routine-helper settings retain Off, Jev or OpenAI Decisions, its model and an optional installation-owned OpenAI key-slot ID. Switches retain memories and scores, invalidate pending replies and replay with the saved routing revision. Earlier alpha saves are refused and preserved without migration; key bytes remain outside world saves. |
 | Schema 96 | Animals, held products and saddles, care trips, pregnancies, named permissions and exact animal/milk offers retain their physical custody. Current saves require the complete animal record; earlier alpha saves are refused and preserved without migration. |
 | Schema 97 | Native public-service receipts retain the usable personal carried quantity before donation separately from the actual source lot. The four-unit reserve may span carried lots; saved validation preserves source quantity, reservations and exact physical transfer evidence. Earlier alpha saves are refused and preserved without migration. |
+| Schema 98 | Existing inventory events retain exact physical storage additions/removals by building and item kind, with signed quantities. Event identities, trade receipts, rollback and bounded archival remain intact. Malformed changes and earlier alpha schemas are refused; no migration or history reconstruction is added. |
+| Schema 99 | Towns retain the latest abandonment tick independently of bounded events. Revival clears it; missing markers, future or pre-founding ticks, and markers on lived-in Towns are refused. Earlier alpha saves are refused and preserved without migration. |
 
 ### Tool-making requests
 
@@ -1062,7 +1072,13 @@ alpha schemas, including 53, are refused visibly and preserved without migration
 ## Abandoned Towns and physical salvage
 
 Abandonment is derived from a founded Town's empty recorded living-resident
-roster; it adds no saved flag or schema field. Children, travelers and residents
+roster. Schema 99 requires a nullable `AbandonedSinceTick` on each Town: the
+latest empty-roster transition records its world tick, and revival clears it.
+It survives count-based event compaction, so building decay starts after a
+full season rather than when its event leaves hot history. An unknown age
+does not imply a full season. Loading refuses a future or pre-founding tick,
+or an abandonment tick on a lived-in Town; older alpha saves are refused and
+preserved without migration. Children, travelers and residents
 without a home still count. A last departure or death records `town_abandoned`;
 the first new resident records `town_revived`. The Town record, laws, civic
 history, buildings, land title, household use rights and infrastructure stay
@@ -1265,6 +1281,12 @@ these copies have no settled retention policy. Rotating autosaves are a separate
 mechanism and must not delete another world's checkpoints, or another branch's.
 Updating autosave configuration trims only that configured world, including
 rotation off, and counts each branch's autosaves separately.
+The schedule persists a new interval anchor if the host clock moves backwards,
+so restart cannot restore the resulting delay. This changes only the adjacent
+schedule timestamp; it keeps the saved world tick and existing snapshot files.
+Rotation uses the saved branch position to keep that branch's newest copies,
+even when earlier copies have future UTC dates. Genuine pre-branch saves still
+rotate by UTC; saves with damaged branch fields remain preserved.
 The signed action names the world whose settings were opened. Its identity
 check, configuration write and rotation share the world-mutation gate with
 selection and loading. A request delayed across a world switch is refused
