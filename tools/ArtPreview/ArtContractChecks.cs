@@ -14,6 +14,7 @@ internal static class ArtContractChecks
         CheckApprovedItems();
         CheckApprovedHandcarts();
         CheckApprovedBoatsAndPorts();
+        CheckApprovedSmallVehicles();
         foreach (var size in new[] { 16, 32 })
         {
             foreach (var (facing, frame) in new[] { (6, AgentFrame.Walk2), (4, AgentFrame.Carry), (2, AgentFrame.Talk) })
@@ -189,6 +190,21 @@ internal static class ArtContractChecks
             var reference = approved[$"Port.{w}x{h}.{letter}.sprite"];
             Equal(BuildingSprites.Render(BuildingKind.Port, w, h, 32, new(side, 1)), reference, "The playable Port must match the independent approved rotation.");
             Console.WriteLine($"Port reference {letter}: {Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(reference.GetData()))}");
+        }
+    }
+
+    /// <summary>The client's 16 px handcarts and boats are the approved #914 drawings, halved from the approved 32 px ones.</summary>
+    private static void CheckApprovedSmallVehicles()
+    {
+        for (var facing = 0; facing < 8; facing++)
+        {
+            foreach (var (loaded, pulled) in new[] { (false, false), (true, false), (true, true) })
+                Equal(HandcartSprites.Sprite(facing, loaded, pulled, 16),
+                    Proposed.SmallVehicles.SmallVehiclesProposal.Small(HandcartSprites.Sprite(facing, loaded, pulled)),
+                    $"The client's 16 px handcart facing {facing} must match the approved small drawing.");
+            foreach (var rowing in new[] { false, true })
+                Equal(BoatSprites.Sprite(facing, rowing, 16), Proposed.SmallVehicles.SmallVehiclesProposal.Small(BoatSprites.Sprite(facing, rowing)),
+                    $"The client's 16 px boat facing {facing} must match the approved small drawing.");
         }
     }
 

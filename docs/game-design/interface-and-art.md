@@ -666,6 +666,11 @@ The recent history should persist with the world save but remain bounded.
 
     Fences, piers, bridges and lanterns follow the same order with their own
     parts.
+  - **16 px vehicles and animals.** At mid zoom the handcart (empty,
+    loaded and pulled) and the rowing boat (rowing and at rest) use 16 px
+    versions halved from their approved drawings, approved in all eight
+    facings ([#914](https://github.com/compoodment/ClankerWorld/issues/914)).
+    Every animal's 16 px drawing, in all eight facings, is approved too.
   - **Abandoned Towns.** Buildings in an abandoned Town look **neglected**:
     faded, mossy, weedy, with the door boarded. Once the Town has stayed
     abandoned for a **full season** they look **falling apart**, with a hole

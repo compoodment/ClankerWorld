@@ -5,16 +5,14 @@ using Godot;
 namespace ArtPreview.Proposed.SmallVehicles;
 
 /// <summary>
-/// Issue #914 (October 7): 16 px handcarts and rowing boats for medium map
-/// zoom, where the map today shows the cart's item icon and shrinks the boat.
-/// Each is made from the approved 32 px drawing so it keeps the same shape,
-/// colours and north-west light: every 2 × 2 block of the approved picture
-/// becomes one pixel, taking the block's most common solid colour (the darker
-/// one on a tie, so rims and outlines survive), and a thin part such as a
-/// shaft or an oar keeps its pixel even when it fills only part of a block.
-/// The ground shadow stays soft. Every facing, empty and loaded, both pulled
-/// poses and the boat at rest and rowing are shown beside the approved 32 px
-/// picture.
+/// Issue #914 (October 7, approved by the owner the same day): 16 px
+/// handcarts and rowing boats for medium map zoom, which used to show the
+/// cart's item icon and shrink the boat. Each is made from the approved 32 px
+/// drawing so it keeps the same shape, colours and north-west light (see
+/// <see cref="Small"/>): every 2 × 2 block becomes one pixel, thin shafts and
+/// oars keep their pixels, the ground shadow stays soft and the outside keeps
+/// a dark rim. Every facing, empty and loaded, both pulled poses and the boat
+/// at rest and rowing are shown beside the approved 32 px picture.
 /// </summary>
 public sealed class SmallVehiclesProposal : IArtProposal
 {

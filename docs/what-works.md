@@ -927,9 +927,9 @@ still applies aboard; passengers may eat carried food.
 Boat positions, passengers, cargo and active requests appear on the map and
 Towns page. Port inspection shows moored boats and incoming reservations.
 The approved drawings cover four Port rotations and eight boat headings with
-rowing and shipped oars. The pier lantern lights at night. Medium zoom scales
-the approved drawing while [#914](https://github.com/compoodment/ClankerWorld/issues/914)
-tracks missing 16-pixel art. Automated checks cover paid construction, travel,
+rowing and shipped oars. The pier lantern lights at night. Medium zoom uses
+the approved 16-pixel boat ([#914](https://github.com/compoodment/ClankerWorld/issues/914)).
+Automated checks cover paid construction, travel,
 save/load, permissions, queues and recovery; the
 [Windows checklist](../playtest/411-ports-boats.md) awaits hands-on play.
 
@@ -1220,10 +1220,9 @@ and natural sites; barrel, saguaro and prickly-pear cacti on about one in five
 desert cactus-cover tiles; farm fields as tilled soil with each crop shown at
 its stage; every current building; item icons; and the interface icons.
 At close zoom, physical handcarts use the approved empty and loaded pictures
-in eight directions, including the two loaded pulled poses. Smaller zooms
-keep the existing cart icon while the
-[separate 16px artwork](https://github.com/compoodment/ClankerWorld/issues/914)
-is pending.
+in eight directions, including the two loaded pulled poses. Medium zoom uses
+their approved 16px versions
+([#914](https://github.com/compoodment/ClankerWorld/issues/914)).
 Agents face the way they last moved and show walking steps, and carrying,
 working, talking or hurt poses chosen from what the game already knows about
 them. A mountain range near the camera can show the earlier per-tile art for
