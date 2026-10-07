@@ -29,7 +29,7 @@ public sealed partial class PrivateWorldRuntime
             // personal ledger entry or inventing knowledge of an unknown site.
             var copied = source.Facts.Select(fact =>
             {
-                var known = recorded.FirstOrDefault(item => AgentKnowledgeRules.SameSiteKnowledge(item, fact));
+                var known = recorded.FirstOrDefault(item => item.Position == fact.Position);
                 return known is null ? null : fact with
                 {
                     Id = known.Id,

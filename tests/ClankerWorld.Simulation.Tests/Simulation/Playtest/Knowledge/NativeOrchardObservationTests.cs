@@ -187,9 +187,11 @@ public sealed class NativeOrchardObservationTests(ITestOutputHelper output)
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task CopySnapshotSurvivesReaderObservationAndReleasesHistoryOnCancellation(bool cancel)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task CopySnapshotSurvivesReaderObservationAndReleasesHistoryOnCancellation(bool cancel, bool observeBeforeCopy)
     {
         var (state, author, target, _) = await ObserveEmptyTile();
         var authorProvider = new WritingProvider(author, "knowledge_write:field_record");
@@ -222,16 +224,54 @@ public sealed class NativeOrchardObservationTests(ITestOutputHelper output)
         };
         provider.Prefix = "knowledge_copy:" + source.Id;
         using var copying = RestoreWriting(state, provider);
+        if (observeBeforeCopy)
+        {
+            Assert.True(copying.PlantTree(reader, TreeGrowthRules.Orchard, "orchard-observation-seed", target).Planted);
+            Assert.Empty(copying.ExportState().Knowledge!.EarlierFacts);
+        }
         RequestWriting(copying, reader, "copy-source");
         await Until(copying, () => copying.ExportState().Knowledge!.WritingProjects.Count == 1);
         var project = Assert.Single(copying.ExportState().Knowledge!.WritingProjects);
         Assert.True(project.StartedTick > learned.LearnedTick);
-        Assert.True(copying.PlantTree(reader, TreeGrowthRules.Orchard, "orchard-observation-seed", target).Planted);
+        if (!observeBeforeCopy)
+            Assert.True(copying.PlantTree(reader, TreeGrowthRules.Orchard, "orchard-observation-seed", target).Planted);
         state = copying.ExportState();
-        Assert.Equal(FactKey(learned), FactKey(Assert.Single(state.Knowledge!.EarlierFacts)));
+        if (observeBeforeCopy) Assert.Empty(state.Knowledge!.EarlierFacts);
+        else Assert.Equal(FactKey(learned), FactKey(Assert.Single(state.Knowledge!.EarlierFacts)));
+        Assert.Contains("fruit", Assert.Single(state.Knowledge.Facts,
+            fact => fact.OwnerId == reader && fact.Position == target).ResourceKinds);
+        Assert.Empty(Assert.Single(project.Facts).ResourceKinds);
         Assert.Empty(Assert.Single(state.Knowledge.Facts, fact => fact.OwnerId == author && fact.Position == target).ResourceKinds);
         Assert.Equal(project.Facts, Assert.Single(state.Knowledge.WritingProjects).Facts);
         AssertReload(state);
+        if (observeBeforeCopy)
+        {
+            // Controlled saved-history boundary after actual paid copying starts:
+            // a later observation alone cannot prove the site was known then.
+            var witness = Assert.Single(state.Knowledge.Facts,
+                fact => fact.OwnerId == reader && fact.Position == target);
+            Assert.True((await copying.AdvanceOneTickAsync()).Advanced);
+            state = copying.ExportState();
+            Assert.True(copying.WorldTick > project.StartedTick);
+            var later = witness with { LearnedTick = copying.WorldTick, ResourceKinds = ["wood"] };
+            var futureOnly = state with
+            {
+                Knowledge = state.Knowledge! with
+                {
+                    Facts = state.Knowledge.Facts.Select(fact => fact.Id == witness.Id && fact.OwnerId == reader
+                        ? later : fact).ToArray(),
+                },
+            };
+            Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(futureOnly));
+            var backed = futureOnly with
+            {
+                Knowledge = futureOnly.Knowledge! with { EarlierFacts = [witness] },
+            };
+            AssertReload(backed);
+            Assert.Empty(Assert.Single(backed.Knowledge.WritingProjects).Facts.Single().ResourceKinds);
+            Assert.Equal(["wood"], Assert.Single(backed.Knowledge.Facts,
+                fact => fact.OwnerId == reader && fact.Position == target).ResourceKinds);
+        }
         if (cancel)
         {
             state = FarmFieldTests.WithInventory(state, InventoryFixture.Transfer(state.Society.Society.Inventory,
@@ -250,7 +290,8 @@ public sealed class NativeOrchardObservationTests(ITestOutputHelper output)
             await Until(copying, () => copying.ExportState().Knowledge!.Artifacts.Count == 2);
             state = copying.ExportState();
             Assert.Equal(project.Facts, Assert.Single(state.Knowledge!.Artifacts, artifact => artifact.CreatorId == reader).Facts);
-            Assert.Equal(FactKey(learned), FactKey(Assert.Single(state.Knowledge.EarlierFacts)));
+            if (observeBeforeCopy) Assert.Empty(state.Knowledge.EarlierFacts);
+            else Assert.Equal(FactKey(learned), FactKey(Assert.Single(state.Knowledge.EarlierFacts)));
             Assert.DoesNotContain(state.Society.Society.Inventory.Lots, lot => lot.Id == "orchard-record-paper");
         }
         AssertReload(state);

@@ -171,7 +171,7 @@ internal static class AgentKnowledgeRules
                       fact.Acquisition == "read" && fact.SourceArtifactId == sourceArtifactId &&
                       fact.SourceAgentId == source.CreatorId &&
                       recordedFacts.Any(learned => learned.OwnerId == actor && learned.Id == fact.Id &&
-                          learned.LearnedTick <= fact.LearnedTick && SameSiteKnowledge(learned, fact))));
+                          learned.LearnedTick <= fact.LearnedTick && learned.Position == fact.Position)));
 
         bool ValidSource(string? source, string kind, IReadOnlyList<AgentKnowledgeFact> facts, long tick) => source is null ||
             artifacts.TryGetValue(source, out var original) && original.Kind == kind && original.CreatedTick <= tick &&
@@ -228,11 +228,11 @@ internal static class AgentKnowledgeRules
         new(fact.Id, fact.OwnerId, fact.DiscovererId, fact.Position, fact.Terrain, fact.LearnedTick, fact.Acquisition,
             fact.SourceAgentId, fact.SourceArtifactId, string.Join('\0', fact.ResourceKinds ?? []));
 
-    private static (string Id, string Owner, GridPoint Position, string Terrain, string Resources) CopySiteKey(AgentKnowledgeFact fact) =>
-        (fact.Id, fact.OwnerId, fact.Position, fact.Terrain, string.Join('\0', fact.ResourceKinds ?? []));
+    private static (string Id, string Owner, GridPoint Position) CopySiteKey(AgentKnowledgeFact fact) =>
+        (fact.Id, fact.OwnerId, fact.Position);
 
     private sealed record FactReferences(HashSet<FactVersion> Exact,
-        Dictionary<(string Id, string Owner, GridPoint Position, string Terrain, string Resources), long> Copies)
+        Dictionary<(string Id, string Owner, GridPoint Position), long> Copies)
     {
         public bool Contains(AgentKnowledgeFact fact) => Exact.Contains(FactVersionKey(fact)) ||
             Copies.TryGetValue(CopySiteKey(fact), out var copiedTick) && fact.LearnedTick <= copiedTick;
