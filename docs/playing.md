@@ -187,6 +187,8 @@ icon. Hover over one or inspect its tile to see its owner, parked or pulled
 state, condition and actual cargo.
 The owner's agent card also lists their carts. A broken cart keeps its goods;
 its owner can unload here or repair it with carried wood, iron fittings and rope.
+When several owned carts share a tile, each cart's cargo remains available for
+unloading, even if another cart is empty or broken.
 A cart holds loose goods separately from the agent's own carrying limit.
 
 Boats show their last heading and rowing or shipped oars. Hover over one or
