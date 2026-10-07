@@ -253,6 +253,9 @@ carrying and route checks; orders additionally require personal ownership and
 positive remaining condition. Ordinary repair retains its borrowed-household
 behavior. Order preparation protects every matching worn personal tool from
 spare-cargo storage and refuses gathering that would break a requested tool.
+Preparation retains the quantity needed for one repair across usable carried
+material lots. Excess units may be stowed to collect another ingredient; live
+reservations, promised cargo and protected tools remain unavailable for stowing.
 `RepairTool` performs physical pickup, gathering, spare-cargo storage
 and walking, returning a repaired lot only after the real inventory transition.
 That return alone earns one repair, with a bounded receipt derived from actor,
