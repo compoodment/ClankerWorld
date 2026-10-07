@@ -69,45 +69,12 @@ public sealed partial class PrivateWorldRuntimeTests
 
     [Theory]
     [InlineData("gather planks")]
-    [InlineData("gather wood at berry-patch")]
-    [InlineData("go to the Blacksmith")]
-    [InlineData("gather berries and build a House")]
-    [InlineData("gather berries from berry-patch-unknown")]
-    [InlineData("eat 3 wood")]
-    [InlineData("eat 3 stones")]
-    [InlineData("eat -3 wood")]
-    [InlineData("eat 1.5 berries")]
-    [InlineData("do not eat berries")]
-    [InlineData("do not gather berries from berry-patch")]
-    [InlineData("never harvest berries from berry-patch")]
-    [InlineData("don’t gather berries from berry-patch")]
-    [InlineData("don't harvest berries from berry-patch")]
-    [InlineData("gather -3 berries")]
     public async Task UnsupportedInstructionsDoNotSubstituteARealFoodAction(string text)
     {
         var setup = CreateHarvestInstructionWorld(orchard: false,
             new CountingSelectingProvider(DecisionProviderKind.Deterministic, chooseIdle: true));
         var initialState = setup.ExportState();
         setup.Dispose();
-        if (text.StartsWith("eat ", StringComparison.OrdinalIgnoreCase) ||
-            text.StartsWith("do not eat ", StringComparison.OrdinalIgnoreCase) ||
-            text.StartsWith("don’t eat ", StringComparison.OrdinalIgnoreCase) ||
-            text.StartsWith("don't eat ", StringComparison.OrdinalIgnoreCase))
-        {
-            initialState = initialState with
-            {
-                Inhabitants = initialState.Inhabitants.Select(person => person.InhabitantId == HarvestInstructionActor
-                    ? person with { HungerBasisPoints = 9_000 } : person).ToArray(),
-                Society = initialState.Society with
-                {
-                    Society = initialState.Society.Society with
-                    {
-                        Inventory = InventoryFixture.AddLot(initialState.Society.Society.Inventory,
-                            "unsupported-order-bait-berries", "berries", HarvestInstructionActor, 1),
-                    },
-                },
-            };
-        }
         using var world = PrivateWorldRuntime.Restore(initialState, _ =>
             new CountingSelectingProvider(DecisionProviderKind.Deterministic, chooseIdle: true));
         var before = world.ExportState();

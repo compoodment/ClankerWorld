@@ -210,13 +210,15 @@ public partial class Main
         terrainLayer.SetNaturalObjects(snapshot.Resources);
         terrainLayer.SetWeatherRegions(snapshot.WeatherRegionSize, snapshot.WeatherRegions);
         terrainLayer.SetRoads(snapshot.RoadTiles);
-        terrainLayer.SetBridges(snapshot.Bridges);
+        terrainLayer.SetBridges(snapshot.Bridges, snapshot.Towns);
         terrainLayer.SetFields(snapshot.Fields);
         worldOverview.SetFields(snapshot.Fields);
         terrainLayer.SetMarkets(snapshot.Towns);
-        terrainLayer.SetBuildings(snapshot.PlacedBuildings, snapshot.Objects);
+        terrainLayer.SetBuildings(snapshot.PlacedBuildings, snapshot.Objects, snapshot.Towns);
         nightLightsLayer.SetBuildings(BuildingLights(snapshot));
         nightLightsLayer.SetLanterns(StreetLanterns(snapshot), snapshot.WrapsEastWest);
+        terrainLayer.SetConstructionSites(snapshot.ConstructionSites);
+        nightLightsLayer.SetLanternSites(StreetLanternSites(snapshot));
         worldOverview.SetRoads([.. snapshot.RoadTiles, .. snapshot.Bridges.SelectMany(bridge => bridge.Span)]);
         ApplyMapFilters(snapshot);
         var mapWidth = terrainMap.Width;
@@ -305,8 +307,9 @@ public partial class Main
                 if (dx != 0 || dy != 0) facing = AgentSprites.FacingToward(dx, dy);
             }
             animalFacings[animal.Id] = (animal.Position, facing);
-            sprite.Texture = AnimalSprites.Texture(animal.Species, facing, animal.LifeStage == "young", animal.RiderId is not null);
             var size = currentTileSize >= 40 ? 32 : 16;
+            sprite.Texture = AnimalSprites.Texture(animal.Species, facing, animal.LifeStage == "young", animal.RiderId is not null,
+                animal.Saddled, animal.LooksShorn, size);
             sprite.Size = new(size, size);
             sprite.Position = new(0, Math.Max(0, marker.Size.Y - size));
             sprite.Modulate = animal.LifeStage == "deceased" ? new Color("A89279") : Colors.White;

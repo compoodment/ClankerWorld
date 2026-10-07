@@ -13,6 +13,80 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class HandcartRuntimeTests
 {
     [Theory]
+    [InlineData("essential_first", false, "berries", 1, 0, 6_000)]
+    [InlineData("open", false, "berries", 1, 1, 6_000)]
+    [InlineData("essential_first", true, "berries", 1, 1, 6_000)]
+    [InlineData("essential_first", false, "wood", 1, 1, 6_000)]
+    [InlineData("essential_first", false, "berries", 6, 2, 6_000)]
+    [InlineData("essential_first", false, "berries", 6, 6, 4_000)]
+    public async Task HandcartLoadingHonorsSharedFoodPolicyWithoutBlockingPersonalFoodOrOtherCargo(
+        string policy, bool personal, string kind, int quantity, int loadedQuantity, int fullness)
+    {
+        var allowed = loadedQuantity > 0;
+        using var setup = NormalPathWorld.CreateGenerated("handcart-loop-audit", _ => new CartChooser("safe_idle"));
+        Assert.True((await setup.AdvanceOneTickAsync()).Advanced);
+        var state = setup.ExportState();
+        var actor = state.Inhabitants[0].InhabitantId;
+        var household = state.Society.Society.GetInhabitant(actor).HouseholdId!;
+        var house = state.WorldSimulation!.Buildings.Single(building => building.HouseholdId == household &&
+            state.WorldContent!.Buildings.Any(definition => definition.CanonicalId == building.DefinitionId &&
+                HouseholdBuildingKinds.KindOf(definition) == "house"));
+        var inventory = state.Society.Society.Inventory with
+        {
+            Lots = state.Society.Society.Inventory.Lots.Where(lot => lot.ItemKind is not ("food" or "berries")).ToArray(),
+        };
+        inventory = InventoryFixture.AddLot(inventory, "policy-cart", "handcart", actor, 1,
+            groundPosition: new(house.Position.X, house.Position.Y));
+        inventory = InventoryFixture.AddLot(inventory, "policy-cargo", kind, personal ? actor : household, quantity,
+            groundPosition: new(house.Position.X, house.Position.Y));
+        state = AtPosition(state, actor, house.Position, inventory) with
+        {
+            Council = new(actor, policy, state.Society.Society.WorldTick),
+            JevEnabled = false,
+            RoutineHelper = RoutineHelperSettings.Off,
+            Inhabitants = state.Inhabitants.Select(person => person with
+            {
+                Position = person.InhabitantId == actor ? house.Position : person.Position,
+                HungerBasisPoints = person.InhabitantId == actor ? fullness : 6_000,
+                Survival = new(),
+                LastDecisionContext = null,
+                Project = null,
+            }).ToArray(),
+        };
+        state = SettlementWeatherTestFixture.WithWeather(state, WeatherKind.Clear);
+        var chooser = new CartChooser("load_handcart:policy-cargo");
+        IDecisionProvider Provider(string id) => id == actor ? chooser : new CartChooser("safe_idle");
+        var bytes = PrivateWorldRuntimeCodec.Encode(state);
+        using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes), Provider);
+        using var replay = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes),
+            id => new CartChooser(id == actor ? "load_handcart:policy-cargo" : "safe_idle"));
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+        for (var tick = 0; tick < 10; tick++)
+        {
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+            Assert.True((await replay.AdvanceOneTickAsync()).Advanced);
+            Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
+        }
+        if (policy == "essential_first" && !personal && kind == "berries" && quantity == 1)
+            Assert.DoesNotContain("collect_shared_food", chooser.Offered);
+        var family = world.Society.Inventory.Lots.Where(lot => lot.Id == "policy-cargo" ||
+            lot.ProvenanceLotId == "policy-cargo").ToArray();
+        var cargo = family.Where(lot => lot.ContainerLotId == "policy-cart").ToArray();
+        var stock = family.Where(lot => lot.ContainerLotId is null).ToArray();
+        Assert.Equal(loadedQuantity, cargo.Sum(lot => lot.Quantity));
+        Assert.All(cargo, lot => Assert.Equal(actor, lot.OwnerId));
+        Assert.Equal(quantity - loadedQuantity, stock.Sum(lot => lot.Quantity));
+        Assert.All(stock, lot => Assert.Equal(personal ? actor : household, lot.OwnerId));
+        Assert.Equal(quantity, family.Sum(lot => lot.Quantity));
+        Assert.Equal(allowed, chooser.Offered.Contains("load_handcart:policy-cargo"));
+        Assert.Equal(allowed ? 1 : 0, world.ExportState().Events.Count(item => item.Kind == "handcart_loaded"));
+        world.Validate();
+        var final = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var loaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(final), Provider);
+        Assert.Equal(final, PrivateWorldRuntimeCodec.Encode(loaded.ExportState()));
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task BuiltInChoicesLeaveUnassignedCartTransfersAloneAcrossSaveReload(bool loadedAndAttached)

@@ -151,6 +151,7 @@ public sealed partial class PrivateWorldRuntime
              lot.GroundPosition == new InventoryGroundPosition(person.Position.X, person.Position.Y)) ||
          // Household stock someone is borrowing stays the household's.
          lot.OwnerId == society.Checkpoint.GetInhabitant(actor).HouseholdId && lot.CarrierId is null &&
+             (!IsEdibleFood(lot.ItemKind) || MayCollectSharedFood(actor)) &&
              person.Position == HouseholdStockPosition(lot));
 
     private void AddHandcartCandidates(List<CognitionCandidate> candidates, string actor,
@@ -302,7 +303,10 @@ public sealed partial class PrivateWorldRuntime
             if (lot is null || !CanLoadCartLot(actor, person, lot) || !CanPullHandcart(cartHere)) return true;
             var room = InventoryContainerRules.HandcartCapacity - society.Checkpoint.Inventory.Lots
                 .Where(item => item.ContainerLotId == cartHere.Id).Sum(item => item.Quantity);
-            var quantity = Math.Min(room, AvailableLotQuantity(lot));
+            var available = AvailableLotQuantity(lot);
+            if (lot.OwnerId != actor && IsEdibleFood(lot.ItemKind))
+                available = Math.Min(available, SharedFoodCollectionAllowance(actor));
+            var quantity = Math.Min(room, available);
             if (quantity <= 0) return true;
             ApplyInventoryTransition(inventory =>
             {
