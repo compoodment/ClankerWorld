@@ -663,6 +663,11 @@ budget or provider invoice. When the count reaches 80% of the limit, the Event
 Log warns you once. Reaching the limit pauses time: raise or remove the limit,
 or choose **Allow 100 more calls**, then resume separately.
 
+Type a limit and choose **Set limit** to apply it; leave the field blank to
+remove the limit. Refreshing the count preserves an unfinished edit even
+after you leave the field. Changing to another server clears the previous
+server's displayed information and unfinished edit.
+
 ## Save and return
 
 **Save World** creates a named save for the current world. Its name starts as
