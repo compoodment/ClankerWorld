@@ -607,8 +607,8 @@ public partial class Main
         worldSelectButton.Disabled = true;
         worldNameInput.Text = "New World";
         worldSeedInput.Text = Guid.NewGuid().ToString("N")[..12];
-        InvalidateWorldPreview();
         worldMenuOverlay.Show();
+        InvalidateWorldPreview();
         if (create) _ = PreviewWorldAsync();
         else _ = RefreshWorldListAsync();
     }

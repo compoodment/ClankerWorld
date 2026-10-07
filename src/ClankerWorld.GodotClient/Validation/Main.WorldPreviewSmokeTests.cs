@@ -35,7 +35,7 @@ public partial class Main
             registration = new(host.Authority, "smoke-device", signer.PublicKeyFingerprint, host.Address);
             worldUrlInput.Text = host.Address;
             var reroll = worldSeedInput.GetParent().GetChildren().OfType<Button>().Single(button => button.Text == "Reroll");
-            for (var scenario = 0; scenario < 2; scenario++)
+            for (var scenario = 0; scenario < 3; scenario++)
             {
                 ShowMainMenu();
                 mainMenuSettingsButton.EmitSignal(BaseButton.SignalName.Pressed);
@@ -60,21 +60,25 @@ public partial class Main
                 if (!isOwnerAction || !worldMenuOverlay.Visible || !worldMenuColumns.Visible)
                     throw new InvalidOperationException("New World must open through the real controls while the Settings reply is held.");
                 var before = previews.Count;
-                // Change the seed twice while blocked. Only the final generation may be requested.
-                reroll.EmitSignal(BaseButton.SignalName.Pressed);
-                reroll.EmitSignal(BaseButton.SignalName.Pressed);
+                // First prove opening alone schedules the initial preview. Then
+                // change the seed twice while blocked to check the latest options.
+                if (scenario != 0)
+                {
+                    reroll.EmitSignal(BaseButton.SignalName.Pressed);
+                    reroll.EmitSignal(BaseButton.SignalName.Pressed);
+                }
                 var expected = CurrentWorldOptions();
                 await ToSignal(GetTree().CreateTimer(0.5), SceneTreeTimer.SignalName.Timeout);
                 if (previews.Count != before || !worldCreateButton.Disabled)
                     throw new InvalidOperationException("The preview must wait until the pending owner action releases its gate.");
-                if (scenario == 1)
+                if (scenario == 2)
                 {
                     worldBackButton.EmitSignal(BaseButton.SignalName.Pressed);
                     mainMenuLoadButton.EmitSignal(BaseButton.SignalName.Pressed);
                 }
                 release.TrySetResult();
                 await pendingSettings.WaitAsync(TimeSpan.FromSeconds(5));
-                if (scenario == 0)
+                if (scenario != 2)
                 {
                     await WaitForWorldPreviewSmokeAsync(() => previewedWorldResult is not null && !worldMenuBusy,
                         "the automatic preview after the Settings acknowledgement (#1023)");
