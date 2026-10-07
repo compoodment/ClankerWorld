@@ -53,9 +53,9 @@ public sealed partial class PrivateWorldRuntime
     private SettlementSurvivalState? survivalState;
     private static readonly HashSet<string> PerishableKinds = new(StringComparer.Ordinal)
         { "food", "fruit", "berries", "wild_greens", "cultivated_greens",
-            "simple_meal", "bread", "porridge", "berry_porridge", "fruit_porridge", "stew", "restaurant_meal" };
+            "simple_meal", "bread", "porridge", "berry_porridge", "fruit_porridge", "stew", "restaurant_meal", "eggs", "milk", "cooked_eggs", "milk_porridge", "rich_meal" };
     private static readonly IReadOnlyDictionary<string, int> FoodSpoilageRates =
-        new Dictionary<string, int>(StringComparer.Ordinal) { ["bread"] = 2 };
+        new Dictionary<string, int>(StringComparer.Ordinal) { ["bread"] = 2, ["milk"] = 28 };
     private const int IllnessRecoveryPerTick = 12;
     private const int ShelteredIllnessRecoveryBonusPerTick = 12;
     private const int IllnessCareReliefBasisPoints = 250;
@@ -482,7 +482,7 @@ public sealed partial class PrivateWorldRuntime
     }
 
     private static bool IsPreparedMeal(string kind) => kind is "simple_meal" or "porridge" or
-        "berry_porridge" or "fruit_porridge" or "bread" or "stew" or "restaurant_meal";
+        "berry_porridge" or "fruit_porridge" or "bread" or "stew" or "restaurant_meal" or "cooked_eggs" or "milk_porridge" or "rich_meal";
 
     private static bool IsEdibleFood(string kind) => IsPreparedMeal(kind) ||
         kind is "food" or "fruit" or "berries" or "wild_greens" or "cultivated_greens";
@@ -490,6 +490,9 @@ public sealed partial class PrivateWorldRuntime
     private static int FoodNourishment(string kind) => kind switch
     {
         "restaurant_meal" => 6_000,
+        "rich_meal" => 7_000,
+        "cooked_eggs" => 4_000,
+        "milk_porridge" => 5_000,
         "berry_porridge" or "fruit_porridge" or "stew" => 5_000,
         "simple_meal" or "porridge" or "bread" => 4_000,
         "berries" => 2_000,

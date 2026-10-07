@@ -1,0 +1,1 @@
+- Recovering a pairing after a lost activation reply now restores the Main Menu, with Continue available to enter the world.

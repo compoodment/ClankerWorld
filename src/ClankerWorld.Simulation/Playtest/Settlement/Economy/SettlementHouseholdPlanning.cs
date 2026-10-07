@@ -57,6 +57,7 @@ public sealed partial class PrivateWorldRuntime
     private bool HouseholdMayPlan(string householdId, string kind, string actor) =>
         HouseholdBuildingWithTag(householdId, kind) is null &&
         (kind != "silo" || FarmhouseForHousehold(householdId) is not null) &&
+        (kind != AnimalContent.YardTag || HouseForHousehold(householdId) is not null) &&
         !HouseholdBuildingProjectInProgress(householdId, kind, actor);
 
     /// <summary>Whether a member already has a live plan for this kind, so the household plans at most one.</summary>

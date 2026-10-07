@@ -319,6 +319,7 @@ public sealed partial class PrivateWorldRuntime
         fields = proposed.fields;
         handcartHitches = proposed.handcartHitches;
         boatTransport = proposed.boatTransport;
+        animalWorld = proposed.animalWorld;
         geographyOptions = proposed.geographyOptions;
         contentRegistry = proposed.contentRegistry;
         worldSystems = proposed.worldSystems;
@@ -467,6 +468,7 @@ public sealed partial class PrivateWorldRuntime
             StageBuiltInContent(StreetLanternContent.PackageId, HouseContent.PackageId, StreetLanternContent.Create, "street_lantern_content_staged");
             StageBuiltInContent(BusinessContent.PackageId, HouseContent.PackageId, BusinessContent.Create, "business_content_staged");
             StageBuildingVariantContent();
+            StageAnimalContent();
             var readyPackages = contentRegistry.GetActivationCandidates(targetTick);
             var reservationPreview = WorldAssetReservationLedger.Restore(
                 assetReservations.ExportState(),
@@ -556,6 +558,7 @@ public sealed partial class PrivateWorldRuntime
             ReconcileMedicalSupplyTrips();
             ProcessBoatTransport(targetTick);
             ReconcileHandcartHitches();
+            AdvanceAnimals(targetTick);
             CancelFieldWorkForUnavailableWorkers();
             AdvanceSettlementCouncil();
             AdvanceTownGovernance();
@@ -669,6 +672,7 @@ public sealed partial class PrivateWorldRuntime
             RefreshTownLandHearings();
             MaintainKnowledgeWriting();
             ProcessBoatQueue();
+            ReconcileAnimalCustody();
 
             AppendEvent("tick_advanced", targetTick.ToString(System.Globalization.CultureInfo.InvariantCulture));
             var newEvents = events.Skip(startingEvent).ToArray();

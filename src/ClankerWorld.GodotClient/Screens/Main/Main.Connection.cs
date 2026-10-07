@@ -170,8 +170,8 @@ public partial class Main
                         pairingPanel.Hide();
                         settingsPanel.Hide();
                         CloseGameMenu();
-                        SetStatus("recovered the active device registration · requesting signed owner observation", good: true);
-                        await RefreshAsync();
+                        ShowMainMenu();
+                        SetStatus("Device paired. Choose Continue to enter your world.", good: true);
                     }
                     else
                     {
