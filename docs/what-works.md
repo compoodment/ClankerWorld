@@ -482,6 +482,8 @@ knives are supported. Fully broken tools need replacement. Borrowed, reserved,
 stored and promised tools are unavailable to these personal orders. The agent
 may put spare cargo in household storage to make room for supplies, preserving
 all matching worn personal tools and any tools needed to gather materials.
+Excess repair materials can also be stowed, while the amount needed for the
+repair stays carried. Reserved and promised cargo remain protected.
 Preparation waits for supplies or another gathering tool if gathering would
 break a requested tool. Cancellation
 keeps already collected goods and spent gathering wear. Quantities, queues,
