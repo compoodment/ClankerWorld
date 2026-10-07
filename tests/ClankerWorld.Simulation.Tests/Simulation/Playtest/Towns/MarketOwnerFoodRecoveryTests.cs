@@ -93,8 +93,18 @@ public sealed class MarketOwnerFoodRecoveryTests
                 : person).ToArray(),
         };
         if (choiceMode == "walking")
-            ready = PaidMarketWorld.At(ready, seller, MarketContent.StallEntrance(market.Site,
-                market.Stalls.Max(stall => stall.SlotIndex)));
+        {
+            var occupied = ready.WorldSimulation!.Buildings.SelectMany(building => WorldContentSimulationRules.Footprint(
+                    ready.WorldContent!.Buildings.Single(item => item.CanonicalId == building.DefinitionId), building))
+                .Concat(ready.Inhabitants.Where(person => person.InhabitantId != seller).Select(person => person.Position))
+                .ToHashSet();
+            var stallSite = MarketContent.StallSite(market.Site, 0);
+            var start = MarketContent.PlazaTiles(market.Site)
+                .Where(point => ready.Map.IsPassable(point) && !occupied.Contains(point))
+                .OrderByDescending(point => ready.Map.FootDistance(point, stallSite)).First();
+            Assert.True(ready.Map.FootDistance(start, stallSite) > 2);
+            ready = PaidMarketWorld.At(ready, seller, start);
+        }
         var mayRetrieve = choiceMode is "personal" or "walking";
         var choices = RecoveryChoices(seller, choiceMode);
         using var world = PrivateWorldRuntime.Restore(ready, choices.CreateProvider);
