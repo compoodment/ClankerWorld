@@ -8,6 +8,9 @@ public readonly record struct BuildingLight(Rect2I Footprint, LightPlan Plan, bo
     public BuildingKind? Kind { get; init; }
     public BuildingDoor Door { get; init; }
 
+    /// <summary>A Port in an abandoned Town keeps its pier lantern dark until the Town is resettled (computment, October 7).</summary>
+    public bool PierLanternDark { get; init; }
+
     /// <summary>Match the integer roof layout of the atlas actually drawn at this zoom.</summary>
     public BuildingLight AtAtlas(int tilePixels)
     {
@@ -20,7 +23,7 @@ public readonly record struct BuildingLight(Rect2I Footprint, LightPlan Plan, bo
     {
         LitDesign.Silo or LitDesign.MarketStall => false,
         LitDesign.House => Occupied,
-        LitDesign.Port => true,
+        LitDesign.Port => !PierLanternDark || Occupied || Working,
         _ => Occupied || Working,
     };
 }
@@ -32,6 +35,23 @@ public readonly record struct StreetLanternLight(Vector2I RoadTile, DoorSide Edg
 
     /// <summary>How the fitting has weathered: lanterns in an abandoned Town look neglected, then falling apart.</summary>
     public BuildingNeglect Neglect { get; init; }
+
+    /// <summary>A lantern in an abandoned Town stays dark at night until the Town is resettled (computment, October 7).</summary>
+    public bool Dark => Neglect != BuildingNeglect.None;
+
+    /// <summary>
+    /// Everything drawn for this fitting at the given darkness, in 32 px units
+    /// of its Road tile: its light and flame or glass when lit, and its
+    /// fitting, weathered in an abandoned Town, where it never lights.
+    /// </summary>
+    public IEnumerable<LightCell> Cells(float darkness, float time, int seed, int snap = 1)
+    {
+        var weathered = Neglect != BuildingNeglect.None;
+        foreach (var cell in NightLightShapes.StreetLantern(Style, Post, Inward, Dark ? 0 : darkness, time, seed, snap))
+            if (!weathered || cell.Kind != LightCellKind.Paint) yield return cell;
+        if (weathered)
+            foreach (var cell in WeatheredCells(snap)) yield return cell;
+    }
 
     /// <summary>
     /// The weathered fitting's pixels by day, in 32 px units of its Road tile,
@@ -294,7 +314,7 @@ public partial class NightLightsLayer : Control
                     var fittingColor = NightLightShapes.StreetLantern(lantern.Style, lantern.Post, lantern.Inward, 0, 0, 0)[0].Color;
                     DrawRect(fitting, fittingColor.Lerp(NightLayer.Wash, NightLayer.FullNightAlpha * drawnDarkness) with { A = 1 });
                     overview.Add((fitting, LightCellKind.Paint));
-                    if (!completed || drawnDarkness <= 0.05f) continue;
+                    if (!completed || drawnDarkness <= 0.05f || lantern.Dark) continue;
                     var pool = new Rect2(point - Vector2.One * stride, Vector2.One * stride * 2);
                     var color = lantern.Style == LanternStyle.Stone ? NightLightShapes.Fire : NightLightShapes.Lamp;
                     DrawRect(pool, color with { A = 0.12f * drawnDarkness });
@@ -317,8 +337,9 @@ public partial class NightLightsLayer : Control
             var origin = new Vector2(building.Footprint.Position.X, building.Footprint.Position.Y) * stride;
             roofs.Add(Scaled(origin, building.Plan.Roof, unit));
             if (building.Plan.Wing is { } wing) roofs.Add(Scaled(origin, wing, unit));
+            // Night only lights fittings; a Port's one fitting is its pier lantern.
             foreach (var cell in NightLightShapes.Building(building.Plan, building.Occupied, building.Working,
-                drawnDarkness > 0.05f, drawnTime, seed, snap))
+                drawnDarkness > 0.05f && !building.PierLanternDark, drawnTime, seed, snap))
                 placed.Add((origin, cell));
         }
         foreach (var lantern in lanterns)
@@ -327,12 +348,8 @@ public partial class NightLightsLayer : Control
                 var tile = lantern.RoadTile + new Vector2I(shift, 0);
                 if (!visible.HasPoint(tile)) continue;
                 var origin = new Vector2(tile.X, tile.Y) * stride;
-                var weathered = lantern.Neglect != BuildingNeglect.None;
-                foreach (var cell in NightLightShapes.StreetLantern(lantern.Style, lantern.Post, lantern.Inward,
-                    drawnDarkness, drawnTime, Seed(lantern.RoadTile), snap))
-                    if (!weathered || cell.Kind != LightCellKind.Paint) placed.Add((origin, cell));
-                if (weathered)
-                    foreach (var cell in lantern.WeatheredCells(snap)) placed.Add((origin, cell));
+                foreach (var cell in lantern.Cells(drawnDarkness, drawnTime, Seed(lantern.RoadTile), snap))
+                    placed.Add((origin, cell));
             }
         foreach (var site in lanternSites)
             foreach (var shift in wrapsEastWest ? new[] { -source.World.Width, 0, source.World.Width } : [0])

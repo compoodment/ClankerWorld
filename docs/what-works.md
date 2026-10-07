@@ -375,7 +375,8 @@ House food delivery shares only spare carried food. Town donations accept the
 normal wood, stone, fiber and tree-seed surplus while keeping the agent's
 reserve of four usable units of each kind across their carried lots. Storing
 and collecting goods does not create extra reserves. Store stocking keeps its
-usable shelf target, food reserves and protected tools. Spoiled or broken goods
+usable shelf target and food reserves. It keeps one best usable tool in each family;
+extra units in the same carried lot can be stocked. Spoiled or broken goods
 still take physical storage space but do not satisfy the restocking target.
 Its food reserves apply across usable lots of the same owner and kind, so
 collecting food in smaller loads does not create extra reserves. Missing demand
@@ -765,9 +766,10 @@ change; [its Windows playtest](../playtest/410-abandoned-towns.md) is pending.
 An abandoned Town's buildings look neglected on the map: faded and mossy,
 with weeds and boarded doors. Once it has stood empty for a full season they
 look falling apart, with holes in the roofs, fallen planks and saplings; a
-revived Town looks lived in again. Its street lanterns fade and gather moss
-and weeds but still light at night, and its bridges fade and lose boards,
-then whole planks once the Town falls apart.
+revived Town looks lived in again. Its street lanterns and its Port's pier
+lantern stay dark at night; the street lanterns also fade, gathering moss and
+weeds, and its bridges fade and lose boards, then whole planks once the Town
+falls apart.
 Founding another Town remains unfinished.
 
 Each founded Town has its own council. Its recorded living adult residents
@@ -1051,7 +1053,8 @@ Both amounts and work are provisional. Completion consumes the delivered
 budget once and keeps the chosen edge; it does not lay or extend Roads.
 The Towns page and selected fitting show Council approval, materials and work.
 Daytime fittings use the approved art; at dusk they light automatically and
-go out at dawn, without fuel or visibility effects. The map never places
+go out at dawn, without fuel or visibility effects. In an abandoned Town they
+stay dark until it is resettled, and the selected fitting says why. The map never places
 them itself. [Windows checks](../playtest/892-street-lanterns.md) remain pending.
 
 Towns grow along their streets. Building sites that can face an existing Road
