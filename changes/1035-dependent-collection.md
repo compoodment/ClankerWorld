@@ -1,0 +1,1 @@
+- Children who leave with their caregiver can collect their own belongings from the former House once grown, including after the caregiver dies.
