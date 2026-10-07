@@ -229,13 +229,18 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
-    private bool TradeQuantityAvailable(InventoryLot lot) =>
+    private bool TradeQuantityAvailable(InventoryLot lot) => UsablePersonalTradeLot(lot) &&
+        (AvailableLotQuantity(lot) >= 2 || AgentKnowledgeRules.IsArtifactKind(lot.ItemKind) ||
+         OrnamentContent.IsOrnament(lot.ItemKind) || society.Checkpoint.Inventory.Lots.Any(other =>
+             other.Id != lot.Id && other.OwnerId == lot.OwnerId && other.ItemKind == lot.ItemKind &&
+             UsablePersonalTradeLot(other)));
+
+    private bool UsablePersonalTradeLot(InventoryLot lot) =>
         PersonalEquipmentRules.IsCarried(lot, lot.OwnerId) && lot.ContainerLotId is null &&
         !InventoryContainerRules.IsContainer(lot.ItemKind) && lot.DeliveryBuildingId is null &&
         (!inhabitants.TryGetValue(lot.OwnerId, out var carrier) ||
          !PersonalEquipmentRules.IsSelected(carrier.Equipment, lot.Id)) &&
-        AvailableLotQuantity(lot) >= (AgentKnowledgeRules.IsArtifactKind(lot.ItemKind) ||
-            OrnamentContent.IsOrnament(lot.ItemKind) ? 1 : 2);
+        AvailableLotQuantity(lot) > 0;
 
     private void MaintainSettlementTrades()
     {

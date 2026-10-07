@@ -1170,6 +1170,7 @@ public partial class Main
                 await VerifyUsageSettingsRepliesAsync();
                 await VerifyPairingRecoveryMenuAsync();
                 await VerifyFreshHostEntryAsync();
+                await VerifyPauseMenuResumeAsync();
                 await VerifyContinueSettingsNavigationAsync();
                 await VerifyNewWorldCompatibilityMessageAsync();
                 await VerifyWorldPreviewRerollAsync();
@@ -4030,6 +4031,7 @@ public partial class Main
                 longDialog.X != DialogTextWidth + (int)dialogMargins.X || deletionConfirmation.GetLabel().GetLineCount() < 2 ||
                 longDialog.Y <= shortDialog.Y)
                 throw new InvalidOperationException($"Confirmations must fit their message: short {shortDialog}, long {longDialog}.");
+            await VerifyLongProfileNamesAsync();
             await VerifyRefusedAgentRenameAsync();
             VerifyAgentTextEllipses();
             VerifyPlainEllipses("after every panel has been shown");
