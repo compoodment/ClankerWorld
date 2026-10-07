@@ -42,6 +42,8 @@ public partial class Main
                 }, new(0, 0, [])));
                 var resumeReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
                 var releaseResume = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                var secondResumeReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                var releaseSecondResume = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
                 var resumes = 0;
                 var pausedAtHost = initiallyPaused;
                 var nextResumes = 0;
@@ -60,10 +62,16 @@ public partial class Main
                 host.Reconnect = Reply(initiallyPaused);
                 host.ControlHandler = async paused =>
                 {
-                    if (!paused && Interlocked.Increment(ref resumes) == 1 && delayResume)
+                    var resumeNumber = paused ? 0 : Interlocked.Increment(ref resumes);
+                    if (resumeNumber == 1 && delayResume)
                     {
                         resumeReceived.TrySetResult();
                         await releaseResume.Task.ConfigureAwait(false);
+                    }
+                    if (resumeNumber == 2 && reopenAgain)
+                    {
+                        secondResumeReceived.TrySetResult();
+                        await releaseSecondResume.Task.ConfigureAwait(false);
                     }
                     pausedAtHost = paused;
                     host.Reconnect = Reply(paused);
@@ -107,12 +115,17 @@ public partial class Main
                         if (reopenAgain)
                         {
                             secondClosing = CloseGameMenuAsync();
-                            thirdOpening = ToggleGameMenuAsync();
-                            if (!gameMenuPanel.Visible || host.PauseCount != 1)
-                                throw new InvalidOperationException("A third menu must also wait behind the held Resume.");
                         }
                         releaseResume.TrySetResult();
                         await Task.WhenAll(firstClosing, secondOpening).WaitAsync(TimeSpan.FromSeconds(5));
+                        if (reopenAgain)
+                        {
+                            await secondResumeReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
+                            thirdOpening = ToggleGameMenuAsync();
+                            if (!gameMenuPanel.Visible || host.PauseCount != 2)
+                                throw new InvalidOperationException("A third menu must wait behind the second Resume after the first one has completed.");
+                            releaseSecondResume.TrySetResult();
+                        }
                         if (secondClosing is not null && thirdOpening is not null)
                             await Task.WhenAll(secondClosing, thirdOpening).WaitAsync(TimeSpan.FromSeconds(5));
                     }
@@ -135,11 +148,12 @@ public partial class Main
                     if (gameMenuPanel.Visible || pausedAtHost != initiallyPaused || host.PauseCount != menuCount ||
                         resumes != (initiallyPaused ? 0 : menuCount) ||
                         observationSession.Current?.Baseline.Snapshot.Authoring?.IsPaused != initiallyPaused)
-                        throw new InvalidOperationException($"Closing both menus must restore the initial pause state: delayed={delayResume}, initiallyPaused={initiallyPaused}, finalPaused={pausedAtHost}, pauses={host.PauseCount}, resumes={resumes}.");
+                        throw new InvalidOperationException($"Closing all menus must restore the initial pause state: delayed={delayResume}, initiallyPaused={initiallyPaused}, finalPaused={pausedAtHost}, pauses={host.PauseCount}, resumes={resumes}.");
                 }
                 finally
                 {
                     releaseResume.TrySetResult();
+                    releaseSecondResume.TrySetResult();
                     if (firstClosing is not null) await firstClosing.WaitAsync(TimeSpan.FromSeconds(5));
                     if (secondOpening is not null) await secondOpening.WaitAsync(TimeSpan.FromSeconds(5));
                     if (secondClosing is not null) await secondClosing.WaitAsync(TimeSpan.FromSeconds(5));
