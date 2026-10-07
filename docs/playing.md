@@ -433,6 +433,13 @@ with exact used/limit numbers. It counts all stored goods, including materials
 held for work and goods belonging to someone else. It updates when goods move
 or an expansion increases the limit. Hover over the bar for the exact count.
 
+**Details** also lists recent recorded storage changes: positive quantities
+were added, negative quantities were removed or used, with the date and time
+of each change. The newest entries come first. The list refreshes while open
+and survives saving or reconnecting; it covers the recent records still kept
+by the server. Goods changing owners in the same building do not count as a
+physical addition or removal.
+
 Every day has a night, with a short dusk and dawn. Nights are longest in winter
 and shortest in summer: from 19:12 to 04:48 on the clock in the top bar at the
 start of spring and autumn, about 2 min 24 s of a six-minute day; from 20:24
