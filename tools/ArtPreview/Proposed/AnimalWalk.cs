@@ -4,7 +4,7 @@ using Godot;
 
 namespace ArtPreview.Proposed.Animals;
 
-/// <summary>How a walking animal shows its steps (October 7 proposal, waiting for the owner's choice).</summary>
+/// <summary>How a walking animal shows its steps. computment chose <see cref="Legs"/> on October 7; the game draws it.</summary>
 public enum WalkStyle
 {
     /// <summary>A: no legs, as in the approved drawings; the head nods, the body sways and the tail swings.</summary>
@@ -110,9 +110,9 @@ public sealed partial class AnimalsProposal
 /// Owner request (October 7): animals step while they move, as agents do.
 /// Two choices, each shown in all eight facings for every adult and young
 /// animal: A keeps the approved legless drawings and gives a head nod, a
-/// slight sway and a tail swing; B shows leg tips stepping out from under the
-/// body. Each strip's top row is the approved standing drawing, then the two
-/// walking frames.
+/// slight sway and a tail swing; B, which computment chose, shows leg tips
+/// stepping out from under the body. Each strip's top row is the approved
+/// standing drawing, then the two walking frames. See <c>AnimalWalk.md</c>.
 /// </summary>
 public sealed class AnimalWalkProposal : IArtProposal
 {

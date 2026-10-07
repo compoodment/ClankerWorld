@@ -284,18 +284,14 @@ public partial class Main
             var id = "animal:" + animal.Id;
             AddMapObjectVisual(id, animal.Position, string.Empty, string.Empty, GameUiText.AnimalDescription(animal));
             var marker = mapObjectVisuals[id];
-            var sprite = marker.GetNodeOrNull<TextureRect>("AnimalSprite");
+            var sprite = marker.GetNodeOrNull<AnimalMapSprite>("AnimalSprite");
             if (sprite is null)
             {
-                sprite = new TextureRect
-                {
-                    Name = "AnimalSprite",
-                    MouseFilter = Control.MouseFilterEnum.Ignore,
-                    TextureFilter = CanvasItem.TextureFilterEnum.Nearest
-                };
+                sprite = new AnimalMapSprite { Name = "AnimalSprite" };
                 marker.AddChild(sprite);
             }
             var facing = AgentSprites.South;
+            var stepped = false;
             if (animalFacings.TryGetValue(animal.Id, out var previousAnimal))
             {
                 facing = previousAnimal.Facing;
@@ -303,11 +299,14 @@ public partial class Main
                 if (snapshot.WrapsEastWest && mapWidth > 0) dx -= (int)Math.Round(dx / (double)mapWidth) * mapWidth;
                 var dy = animal.Position.Y - previousAnimal.Position.Y;
                 if (dx != 0 || dy != 0) facing = AgentSprites.FacingToward(dx, dy);
+                // A short move is a step; a longer jump, such as a reload, is not.
+                stepped = (dx != 0 || dy != 0) && Math.Max(Math.Abs(dx), Math.Abs(dy)) <= AgentMarker.MaxStepTiles &&
+                    animal.LifeStage != "deceased";
             }
             animalFacings[animal.Id] = (animal.Position, facing);
             var size = currentTileSize >= 40 ? 32 : 16;
-            sprite.Texture = AnimalSprites.Texture(animal.Species, facing, animal.LifeStage == "young", animal.RiderId is not null,
-                animal.Saddled, animal.LooksShorn, size);
+            sprite.Show(animal.Species, facing, animal.LifeStage == "young", animal.RiderId is not null,
+                animal.Saddled, animal.LooksShorn, size, stepped);
             sprite.Size = new(size, size);
             sprite.Position = new(0, Math.Max(0, marker.Size.Y - size));
             sprite.Modulate = animal.LifeStage == "deceased" ? new Color("A89279") : Colors.White;

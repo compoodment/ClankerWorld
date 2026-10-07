@@ -15,6 +15,7 @@ internal static class ArtContractChecks
         CheckApprovedHandcarts();
         CheckApprovedBoatsAndPorts();
         CheckApprovedAnimals();
+        CheckApprovedAnimalWalk();
         CheckApprovedYard();
         CheckApprovedNeglect();
         CheckApprovedNeglectedLanternsAndBridges();
@@ -209,6 +210,27 @@ internal static class ArtContractChecks
     }
 
     /// <summary>Every animal, young animal, horse state and facing in the client matches the approved drawing at 32 and 16 px.</summary>
+    /// <summary>The client's walking steps match the approved option B frames pixel for pixel, for every animal, facing, step and size.</summary>
+    private static void CheckApprovedAnimalWalk()
+    {
+        var animals = new (string Id, string Species, bool Young, bool Mounted, bool Saddled, bool Shorn)[]
+        {
+            ("horse", "horse", false, false, true, false), ("horse.bare", "horse", false, false, false, false),
+            ("horse.ridden", "horse", false, true, true, false), ("cow", "cow", false, false, false, false),
+            ("sheep", "sheep", false, false, false, false), ("sheep.shorn", "sheep", false, false, false, true),
+            ("chicken", "chicken", false, false, false, false), ("foal", "horse", true, false, false, false),
+            ("calf", "cow", true, false, false, false), ("lamb", "sheep", true, false, false, false),
+            ("chick", "chicken", true, false, false, false),
+        };
+        foreach (var size in new[] { 16, 32 })
+            foreach (var (id, species, young, mounted, saddled, shorn) in animals)
+                for (var facing = 0; facing < 8; facing++)
+                    foreach (var step in new[] { 1, 2 })
+                        Equal(AnimalSprites.Sprite(species, facing, young, mounted, saddled, shorn, size, step),
+                            Proposed.Animals.AnimalWalkProposal.Frame(id, facing, step, Proposed.Animals.WalkStyle.Legs, size),
+                            $"The client's {id} walking step {step} facing {facing} at {size} px must match the approved walking steps.");
+    }
+
     private static void CheckApprovedAnimals()
     {
         foreach (var size in new[] { 16, 32 })
