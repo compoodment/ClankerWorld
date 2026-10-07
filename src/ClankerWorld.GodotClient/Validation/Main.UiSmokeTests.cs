@@ -1173,6 +1173,7 @@ public partial class Main
                 await VerifyContinueSettingsNavigationAsync();
                 await VerifyNewWorldCompatibilityMessageAsync();
                 await VerifyWorldPreviewRerollAsync();
+                await VerifyPreviewAfterPendingSettingsAsync();
                 await VerifyAutosaveSettingsOwnershipAsync();
                 await VerifyUiScaleAt1440pAsync(displayWindow);
                 await VerifyManualSaveListOwnershipAsync();
