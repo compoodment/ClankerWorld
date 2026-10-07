@@ -492,6 +492,31 @@ public sealed class PrivateWorldDeliveryPublicStockOrderTests
     }
 
     [Fact]
+    public async Task AWalkingStoreOrderCountsOtherLotsWhileKeepingItsBoundFoodSourceAcrossReplay()
+    {
+        var state = Prepared(Store, adjacent: true);
+        var actor = Actor(state);
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "a-bound-berries", "berries", actor, 2);
+        inventory = InventoryFixture.AddLot(inventory, "b-kept-berries", "berries", actor, 2);
+        using var world = Restore(WithInventory(state, inventory));
+        var receipt = Submit(world, actor, "walk-split-food", "stock two berries in my Store");
+        await Tick(world);
+        Assert.Equal(("a-bound-berries", 2, 0), (Order(world, receipt).DeliveryLotId,
+            Order(world, receipt).DeliveryQuantity, Order(world, receipt).CompletedUnits));
+        AssertPinned(Order(world, receipt), Building(state, Store), Household);
+        Assert.Equal(0, Stored(world, Store, "berries"));
+        using var replay = Reload(world);
+        for (var step = 0; step < 12 && Order(world, receipt).Status != "finished"; step++) await TickTogether(world, replay);
+        Assert.Equal(("finished", 2), (Order(world, receipt).Status, Order(world, receipt).CompletedUnits));
+        Assert.Equal(2, Stored(world, Store, "berries"));
+        Assert.Equal((actor, 2, (string?)null), (world.Society.Inventory.GetLot("b-kept-berries").OwnerId,
+            world.Society.Inventory.GetLot("b-kept-berries").Quantity, world.Society.Inventory.GetLot("b-kept-berries").StorageBuildingId));
+        Assert.Equal((Household, 2, Store), (world.Society.Inventory.GetLot("a-bound-berries").OwnerId,
+            world.Society.Inventory.GetLot("a-bound-berries").Quantity, world.Society.Inventory.GetLot("a-bound-berries").StorageBuildingId));
+        world.Validate();
+    }
+
+    [Fact]
     public async Task SplitHouseholdFoodStocksOnlyTheSurplusAcrossReplay()
     {
         var state = Prepared(House);
