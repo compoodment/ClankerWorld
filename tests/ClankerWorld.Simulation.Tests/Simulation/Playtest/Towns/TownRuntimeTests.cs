@@ -391,7 +391,7 @@ public sealed class TownRuntimeTests
         var bridgeEnds = world.Bridges.Where(bridge => bridge.Entrances.All(network.Contains))
             .SelectMany(bridge => new[] { (bridge.Entrances[0], bridge.Entrances[1]), (bridge.Entrances[1], bridge.Entrances[0]) })
             .ToLookup(pair => pair.Item1, pair => pair.Item2);
-        IEnumerable<GridPoint> Linked(GridPoint tile) => TownStreets.Linked(network, tile).Concat(bridgeEnds[tile]);
+        IEnumerable<GridPoint> Linked(GridPoint tile) => TownStreets.Linked(map, network, tile).Concat(bridgeEnds[tile]);
         var reachable = new HashSet<GridPoint> { world.RoadTiles[0] };
         var pending = new Queue<GridPoint>(reachable);
         while (pending.TryDequeue(out var current))

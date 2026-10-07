@@ -403,7 +403,7 @@ public partial class Main
     private static void ConfigureCoordinate(SpinBox box, string placeholder)
     {
         box.MinValue = 0;
-        box.MaxValue = 99;
+        box.MaxValue = 0;
         box.Step = 1;
         box.CustomMinimumSize = new Vector2(72, 0);
         box.TooltipText = placeholder;

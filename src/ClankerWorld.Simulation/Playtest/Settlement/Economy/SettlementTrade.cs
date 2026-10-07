@@ -27,7 +27,7 @@ public sealed partial class PrivateWorldRuntime
             inhabitants.TryGetValue(party.Actor, out var person) &&
             (long)PersonalEquipmentRules.CarriedQuantity(inventory, party.Actor, person.Equipment) - party.Give +
                 party.Take + ReservedBusinessCarrySpace(party.Actor) <=
-                PersonalEquipmentRules.Capacity(inventory, party.Actor, person.Equipment));
+                PersonalEquipmentRules.Capacity(inventory, party.Actor, person.Equipment) + HorseCargoCapacity(party.Actor));
     }
 
     private bool WantsTradeItem(string actor, InventoryLot item)

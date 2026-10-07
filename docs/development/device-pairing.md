@@ -121,6 +121,10 @@ world selection, before changing or saving settings. A stale target returns
 409 without changing the newly selected world, and a request without a target
 returns 400. The pairing authority and world-save schema are unchanged.
 
+Successful activation and recovery of an already-active pairing both return
+to the Main Menu. Recovery saves the matching registration without opening
+the world; Continue performs the usual signed reconnect.
+
 ## Recovering after another device loads a world
 
 Private hosts advertise `owner-observation-timeline.v1`. Each reconnect

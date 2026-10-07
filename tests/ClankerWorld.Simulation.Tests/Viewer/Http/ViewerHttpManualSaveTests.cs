@@ -239,7 +239,8 @@ public sealed partial class ViewerHttpTests
                 Assert.True(runtime.Society.IsPaused);
                 Assert.Empty(runtime.Inhabitants);
                 Assert.Equal(0, runtime.WorldTick);
-                Assert.Equal(25, runtime.Content.Packages.Count);
+                Assert.Equal(26, runtime.Content.Packages.Count);
+                Assert.Contains(runtime.Content.Packages, package => package.Manifest.PackageId == AnimalContent.PackageId);
                 AssertBuildingVariantPackagesActive(runtime);
                 Assert.Contains(runtime.Content.Packages, package => package.Manifest.PackageId == PotteryContent.PackageId);
                 Assert.Contains(runtime.Content.Packages, package => package.Manifest.PackageId == RestaurantContent.PackageId);
@@ -431,7 +432,8 @@ public sealed partial class ViewerHttpTests
             Assert.Contains(restoredCatalog.Worlds, world => world.Id == generatedId);
             var restoredRuntime = restarted.Services.GetRequiredService<PrivateWorldRuntime>();
             Assert.Equal(WorldSizePreset.Small, restoredRuntime.ExportState().Geography?.Size);
-            Assert.Equal(25, restoredRuntime.Content.Packages.Count);
+            Assert.Equal(26, restoredRuntime.Content.Packages.Count);
+            Assert.Contains(restoredRuntime.Content.Packages, package => package.Manifest.PackageId == AnimalContent.PackageId);
             Assert.Contains(restoredRuntime.Content.Packages, package => package.Manifest.PackageId == TownHallContent.PackageId);
             Assert.Contains(restoredRuntime.Content.Packages, package => package.Manifest.PackageId == PortContent.PackageId);
             Assert.Contains(restoredRuntime.Content.Packages, package => package.Manifest.PackageId == StreetLanternContent.PackageId);

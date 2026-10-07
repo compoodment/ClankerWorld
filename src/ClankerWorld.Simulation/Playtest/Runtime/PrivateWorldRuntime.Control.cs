@@ -389,6 +389,13 @@ public sealed partial class PrivateWorldRuntime
 
     private static string? UnderstoodTaskFor(string? candidate) => candidate switch
     {
+        "animal_care" => "care for the named animal with real feed and jug water",
+        "animal_collect" => "collect the named animal's ready products locally",
+        "animal_tame" => "tame the named wild animal for your household",
+        "animal_lead_home" => "lead the named animal to its household yard",
+        "animal_saddle" => "fit a real household saddle on the named horse",
+        "animal_mount" => "mount the named cared-for horse with permission",
+        "animal_dismount" => "dismount the named horse and leave excess cargo here",
         "seek_shelter" => "reach the requested permitted shelter",
         "tend_fire" => "light one permitted hearth using your own wood",
         "consume_food" => "eat one carried food item",
@@ -420,7 +427,7 @@ public sealed partial class PrivateWorldRuntime
 
     private OwnerInstructionOrder? ParseInstructionOrder(string text, string actor)
     {
-        return ParseGuardianOrder(text, actor) ?? PrivateWorldInstructionOrderParser.Parse(text, map.Resources, FoodKnowledgeKind,
+        return ParseAnimalOrder(text, actor) ?? ParseGuardianOrder(text, actor) ?? PrivateWorldInstructionOrderParser.Parse(text, map.Resources, FoodKnowledgeKind,
             PrivateWorldProductionOrderCatalog.Available(worldContent), PrivateWorldDeliveryOrderCatalog.AvailableInputs(worldContent),
             PrivateWorldBuildingOrderCatalog.Available(worldContent));
     }
