@@ -75,7 +75,7 @@ public sealed partial class PrivateWorldRuntime
             var eligible = inhabitants.TryGetValue(runtime.InhabitantId, out var claimant) &&
                 AdultResident(runtime.InhabitantId) && HouseholdFor(runtime.InhabitantId) == field.HouseholdId &&
                 !NeedsUrgentFood(claimant) && !NeedsUrgentWarmth(claimant) &&
-                HasCarriedItem(runtime.InhabitantId, FarmFieldRules.Hoe) &&
+                ToolProgressionRules.PlanWork(society.Checkpoint.Inventory, runtime.InhabitantId, ToolFamily.Hoe) is not null &&
                 (claimant.Project is not { Stage: not ("completed" or "cancelled") } project || project.RequiresFreshChoice) &&
                 FarmNeedsFood(field.HouseholdId);
             var stock = eligible ? PlantingStock(runtime.InhabitantId, field, crop) : null;

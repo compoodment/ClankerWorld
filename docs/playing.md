@@ -220,6 +220,9 @@ it a task. A new suggestion or recognized order asks for one fresh planning
 decision; any short reply comes in that same response. Following an order does
 not add a model request for every step or tick.
 
+Urgent hunger can pause an order to buy and eat food at a shop or Restaurant,
+using the adult's own payment and carrying space. The order remains pending.
+
 Food orders can eat carried food, collect accessible household food to eat,
 travel to a food source, or gather berries, fruit or wild greens. Use simple
 phrases such as "eat 3 berries", "gather berries from berry-patch" or "go to
@@ -347,6 +350,8 @@ Only finished repairs count. Missing items, materials, carrying space or a work
 site leaves the task waiting. Queue, cancellation and save/reload also work for
 these orders. Tool orders also accept exact kinds, such as **Repair two iron
 knives**. Weapons and named work sites are not supported repair targets.
+When collecting a missing tool-repair ingredient, the agent can put excess
+materials in household storage while keeping what the repair needs.
 
 To make goods, try **Make two sacks**, **Make rope**, or **Mill flour**. Adults
 and elders use the usual work site, ingredients and tools. A plain request
@@ -619,9 +624,13 @@ carry surplus there and borrow a free stall. Buyers, including visitors who
 belong to no Town, bring personal payment, and the named seller chooses whether
 to accept when both have reached the stall. The buyer carries the purchase;
 payment becomes the seller's household stock there. Leaving frees the stall;
-leftover goods still belong to their
-recorded owner. Suggestions can guide these choices, but an Order cannot force
-a sale or give away goods. The
+leftover goods still belong to their recorded owner, who can carry them away
+even if they spoil. Other housemates can collect household stock once borrowing
+ends; the borrower may collect it while holding the stall.
+Suggestions can guide these choices, but an Order cannot force
+a sale or give away goods. An urgently hungry owner can still retrieve their
+available food from a stall and eat it. Other Market work waits until urgent
+hunger passes. The
 [Market hands-on checklist](../playtest/564-market-stalls.md) remains pending.
 
 Residents can also propose a **stone street lamp** or **hanging street lantern**
@@ -705,6 +714,7 @@ by itself, and loading an older save does not lower it. It is not a currency
 budget or provider invoice. When the count reaches 80% of the limit, the Event
 Log warns you once. Reaching the limit pauses time: raise or remove the limit,
 or choose **Allow 100 more calls**, then resume separately.
+After you allow more calls and resume, time keeps running under your new limit.
 
 Type a limit and choose **Set limit** to apply it; leave the field blank to
 remove the limit. Refreshing the count preserves an unfinished edit even
@@ -719,7 +729,9 @@ you like. The card under the timeline says whether the new save continues a
 branch or starts a new one. To overwrite a save, choose it, then **Overwrite**,
 and confirm; typing the same name does not overwrite it. Autosaves can't be
 overwritten. World Settings offers rotating
-autosaves as well as automatic recovery. **Load World** shows each world as a
+autosaves as well as automatic recovery. If the host's clock moves backwards,
+the next rotating save waits one configured interval from the corrected time.
+**Load World** shows each world as a
 card with a small map of it, when it was last saved and its seed, and marks the
 current world and any it cannot open. Double-click a card, or choose it and
 **Open World**. Open
@@ -795,8 +807,12 @@ Click an animal's tile for its name, age, household, care, ready product and
 permissions. Use its exact unique name or ID in a Must do order, for example
 **Tame Moss**, **Lead home Moss**, **Care for Moss**, or **Collect from Moss**.
 **Repeat care for Moss** and **Repeat collect from Moss** keep the task active
-until cancelled. The adult walks and brings actual available supplies; an
-order waits when permission, supplies, product, space or a route is missing.
+until cancelled. When the animal is elsewhere in the yard, the adult picks up
+the feed and water jug before walking to it. Care beside the yard stock can
+use those supplies directly. The adult walks and brings actual available
+supplies; an order waits when permission, supplies, product, space or a route
+is missing. Care without safe feed or jug water shows a blocker and can resume
+when supplies become available.
 Taming needs two grain/greens and one jug water. Chickens need one feed and one
 water daily; sheep, cows and horses need two each. Jugs remain reusable.
 
@@ -818,6 +834,9 @@ For a cared adult horse, use **Saddle Moss**, **Mount Moss** and **Dismount Moss
 A mount needs a real household saddle and gives twice walking speed plus eight
 cargo units. Dismounting puts excess unreserved cargo at the rider's actual
 position. Horses cannot accompany a boat or pull a handcart in this version.
+Collecting another animal's ready product first dismounts the rider, then
+requires room to carry the product on foot.
+Saddling another horse also dismounts the rider before approaching it.
 Household adults can care and ride; outsiders need separate named permissions
 agreed by an adult. Personal models may offer or accept a specific animal gift
 or sale when both adults meet and the receiving yard has space.
