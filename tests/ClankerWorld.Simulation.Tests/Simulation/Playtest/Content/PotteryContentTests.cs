@@ -51,8 +51,12 @@ public sealed class PotteryContentTests
         inventory = InventoryFixture.AddLot(inventory, "full-house-stock", "test_storage", house.HouseholdId!, room,
             storageBuildingId: house.InstanceId);
         if (boundary == "reserved")
-            inventory = InventoryFixture.Reserve(inventory, "protected-empty-jug", actor, empty, 1, "other_work",
+        {
+            inventory = InventoryFixture.AddLot(inventory, "protected-jug-water", InventoryContainerRules.FreshWater,
+                actor, 1, containerLotId: empty);
+            inventory = InventoryFixture.Reserve(inventory, "protected-jug-water-claim", actor, "protected-jug-water", 1, "other_work",
                 state.Society.Society.WorldTick + 1_000);
+        }
         if (boundary == "broken")
             inventory = InventoryFixture.WearSingleUnit(inventory, empty, 10_000);
         if (boundary == "full-hands")
@@ -62,7 +66,8 @@ public sealed class PotteryContentTests
             Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
         }, actor, 10_000, origin);
         var person = state.Inhabitants.Single(item => item.InhabitantId == actor);
-        Assert.Equal(boundary == "full-hands" ? 0 : 2, PersonalEquipmentRules.FreeCapacity(inventory, actor, person.Equipment));
+        Assert.Equal(boundary == "full-hands" ? 0 : boundary == "reserved" ? 1 : 2,
+            PersonalEquipmentRules.FreeCapacity(inventory, actor, person.Equipment));
         var provider = new PrefixCandidateProvider("fill_water_jug:");
         using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)),
             id => id == actor ? provider : new IdleProvider());
@@ -72,12 +77,13 @@ public sealed class PotteryContentTests
         {
             Assert.NotEmpty(provider.OfferedCandidates);
             Assert.DoesNotContain(provider.OfferedCandidates, id => id.StartsWith("fill_water_jug:", StringComparison.Ordinal));
-            Assert.DoesNotContain(world.Society.Inventory.Lots, lot => lot.ContainerLotId == empty);
+            Assert.Equal(boundary == "reserved" ? 1 : 0,
+                world.Society.Inventory.Lots.Where(lot => lot.ContainerLotId == empty).Sum(lot => lot.Quantity));
             Assert.Equal(4, world.Society.Inventory.Lots.Where(lot => lot.ContainerLotId == full).Sum(lot => lot.Quantity));
             var actual = world.Society.Inventory.GetLot(empty);
             Assert.Equal(inventory.GetLot(empty) with { LastProcessedTick = actual.LastProcessedTick }, actual);
             if (boundary == "reserved")
-                Assert.Equal(InventoryReservationState.Reserved, world.Society.Inventory.GetReservation("protected-empty-jug").State);
+                Assert.Equal(InventoryReservationState.Reserved, world.Society.Inventory.GetReservation("protected-jug-water-claim").State);
             world.Validate();
             return;
         }
