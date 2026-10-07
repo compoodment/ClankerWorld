@@ -15,6 +15,29 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed class PotteryContentTests
 {
+    private static readonly JsonSerializerOptions PayloadOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+    };
+
+    [Fact]
+    public void PotteryManifestDefinesHouseMadeStoragePotAndWaterJug()
+    {
+        var preview = PrivateWorldRuntime.PreviewWorldContent(
+            [StarterContent.Create(), SettlementContent.Create(), HouseContent.Create(), PotteryContent.Create()],
+            [PotteryContent.PackageId]);
+
+        Assert.True(preview.IsValid, preview.Diagnostic);
+        var pot = Assert.Single(preview.WorldContent.Recipes, recipe => recipe.LocalId == "storage-pot");
+        var jug = Assert.Single(preview.WorldContent.Recipes, recipe => recipe.LocalId == "water-jug");
+        Assert.Equal(HouseContent.House1x1().CanonicalId, pot.WorkstationBuildingId);
+        Assert.Equal(HouseContent.House1x1().CanonicalId, jug.WorkstationBuildingId);
+        Assert.Equal([new ContentQuantity("clay", 2), new ContentQuantity("wood", 1)], pot.Inputs);
+        Assert.Equal([new ContentQuantity("clay", 2), new ContentQuantity("wood", 1)], jug.Inputs);
+        Assert.Equal([new ContentQuantity(InventoryContainerRules.StoragePot, 1)], pot.Outputs);
+        Assert.Equal([new ContentQuantity(InventoryContainerRules.WaterJug, 1)], jug.Outputs);
+    }
+
     [Theory]
     [InlineData(false, "usable", true)]
     [InlineData(true, "usable", true)]
@@ -122,29 +145,6 @@ public sealed class PotteryContentTests
         if (boundary == "reserved")
             Assert.Equal(InventoryReservationState.Reserved, eating.Society.Inventory.GetReservation("personal-pot-food-claim").State);
         eating.Validate();
-    }
-
-    private static readonly JsonSerializerOptions PayloadOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-    };
-
-    [Fact]
-    public void PotteryManifestDefinesHouseMadeStoragePotAndWaterJug()
-    {
-        var preview = PrivateWorldRuntime.PreviewWorldContent(
-            [StarterContent.Create(), SettlementContent.Create(), HouseContent.Create(), PotteryContent.Create()],
-            [PotteryContent.PackageId]);
-
-        Assert.True(preview.IsValid, preview.Diagnostic);
-        var pot = Assert.Single(preview.WorldContent.Recipes, recipe => recipe.LocalId == "storage-pot");
-        var jug = Assert.Single(preview.WorldContent.Recipes, recipe => recipe.LocalId == "water-jug");
-        Assert.Equal(HouseContent.House1x1().CanonicalId, pot.WorkstationBuildingId);
-        Assert.Equal(HouseContent.House1x1().CanonicalId, jug.WorkstationBuildingId);
-        Assert.Equal([new ContentQuantity("clay", 2), new ContentQuantity("wood", 1)], pot.Inputs);
-        Assert.Equal([new ContentQuantity("clay", 2), new ContentQuantity("wood", 1)], jug.Inputs);
-        Assert.Equal([new ContentQuantity(InventoryContainerRules.StoragePot, 1)], pot.Outputs);
-        Assert.Equal([new ContentQuantity(InventoryContainerRules.WaterJug, 1)], jug.Outputs);
     }
 
     [Fact]
