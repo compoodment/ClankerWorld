@@ -1,4 +1,5 @@
 using ClankerWorld.Simulation.Cognition;
+using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.Society;
 
@@ -79,6 +80,8 @@ public sealed class DescendantConversationListenerTests
         Assert.Equal(initial, PrivateWorldRuntimeCodec.Encode(left.ExportState()));
         for (var tick = 0; tick < 20 && !left.Conversations.Any(item => item.Turns.Count > 0); tick++)
         {
+            await AwaitNativeProviderWorkAsync(left);
+            await AwaitNativeProviderWorkAsync(right);
             Assert.True((await left.AdvanceOneTickAsync()).Advanced);
             Assert.True((await right.AdvanceOneTickAsync()).Advanced);
             Assert.Equal(PrivateWorldRuntimeCodec.Encode(left.ExportState()), PrivateWorldRuntimeCodec.Encode(right.ExportState()));
@@ -96,14 +99,15 @@ public sealed class DescendantConversationListenerTests
             Assert.Equal(turn.SpeakerId, belief.SourceAgentId);
             Assert.Equal(turn.Text, belief.Statement);
             Assert.Equal(SocietyBeliefProvenance.Hearsay, belief.Provenance);
-            Assert.Throws<InvalidDataException>(() => SocietyFixture.RecordAgentBelief(left.Society,
+            Assert.Throws<InvalidOperationException>(() => SocietyFixture.RecordAgentBelief(left.Society,
                 belief with { Id = "belief:unknown-native-owner", OwnerId = "missing-listener" }));
         }
         else Assert.DoesNotContain(beliefs, item => item.OwnerId == child && item.SourceTurnId == turn.Id);
         left.Validate();
         var saved = PrivateWorldRuntimeCodec.Encode(left.ExportState());
         Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(PrivateWorldRuntimeCodec.Decode(saved)));
-        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved));
+        var reloadedProvider = new ListenerProvider();
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), _ => reloadedProvider);
         restored.Validate();
         var restoredTurn = Assert.Single(Assert.Single(restored.Conversations).Turns);
         Assert.Equal(turn.Id, restoredTurn.Id);
@@ -112,10 +116,67 @@ public sealed class DescendantConversationListenerTests
         Assert.Equal(turn.ListenerIds, restoredTurn.ListenerIds);
         Assert.Equal(beliefs, restored.ExportState().Society.Society.Beliefs);
         Assert.Contains(restored.Society.Inhabitants, item => item.Id == child);
+        using var pairedReload = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), _ => new ListenerProvider());
+        restored.Resume();
+        pairedReload.Resume();
+        if (nearby)
+        {
+            // A normal owner suggestion prompts the idle listener's next decision
+            // without waiting for the idle plan's separate 300-tick interval.
+            var recall = new OwnerInstructionRequest("recall-heard-turn", "owner:test", child,
+                OwnerInstructionKind.Suggestive, "Consider what you heard in the nearby conversation.");
+            Assert.Equal(restored.SubmitInstruction(recall), pairedReload.SubmitInstruction(recall));
+        }
+        for (var tick = 0; tick < 40; tick++)
+        {
+            await AwaitNativeProviderWorkAsync(restored);
+            await AwaitNativeProviderWorkAsync(pairedReload);
+            Assert.True((await restored.AdvanceOneTickAsync()).Advanced);
+            Assert.True((await pairedReload.AdvanceOneTickAsync()).Advanced);
+            Assert.Equal(PrivateWorldRuntimeCodec.Encode(restored.ExportState()), PrivateWorldRuntimeCodec.Encode(pairedReload.ExportState()));
+            if (tick >= 3 && (!nearby || reloadedProvider.Observations.Any(item => item.InhabitantId == child &&
+                (item.RetrievedMemories ?? []).Any(memory => memory.Kind == "belief" && memory.Summary == turn.Text))))
+                break;
+        }
+        Assert.Equal(beliefs, restored.Society.Beliefs);
+        restored.Validate();
+        if (nearby)
+        {
+            var recalled = reloadedProvider.Observations.Where(item => item.InhabitantId == child)
+                .SelectMany(item => item.RetrievedMemories ?? []).Where(item => item.Kind == "belief" && item.Summary == turn.Text).ToArray();
+            Assert.NotEmpty(recalled);
+            Assert.All(recalled, memory =>
+            {
+                Assert.Equal(child, memory.OwnerId);
+                Assert.Equal(turn.SpeakerId, memory.SourceAgentId);
+                Assert.InRange(memory.SubjectId.Length, 1, 128);
+                Assert.StartsWith("agent-sha256:", memory.SubjectId, StringComparison.Ordinal);
+            });
+            Assert.Single(recalled.Select(memory => memory.SubjectId).Distinct(StringComparer.Ordinal));
+        }
+    }
+
+    private static async Task AwaitNativeProviderWorkAsync(PrivateWorldRuntime world)
+    {
+        // Native birth also starts parenthood identity work. As in the existing
+        // conversation fixture, finish pending local tasks before advancing ticks
+        // so scheduler timing cannot move the paired world's admission boundary.
+        var tasks = new List<Task>();
+        foreach (var fieldName in new[] { "pendingHosted", "pendingConversationTurns", "pendingIdentityMoments" })
+        {
+            var field = typeof(PrivateWorldRuntime).GetField(fieldName,
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            Assert.NotNull(field);
+            var pending = Assert.IsAssignableFrom<System.Collections.IDictionary>(field.GetValue(world));
+            tasks.AddRange(pending.Values.Cast<object>().Select(item =>
+                Assert.IsAssignableFrom<Task>(item.GetType().GetProperty("Task")!.GetValue(item))));
+        }
+        await Task.WhenAll(tasks).WaitAsync(TimeSpan.FromSeconds(10));
     }
 
     private sealed class ListenerProvider : IDecisionProvider, IAgentConversationProvider
     {
+        public System.Collections.Concurrent.ConcurrentQueue<InhabitantObservation> Observations { get; } = new();
         public DecisionProviderKind Kind => DecisionProviderKind.LargeLanguageModel;
         public long ProviderEpoch => 1;
         public bool CanSpeakAs(string agentId) => agentId is Speaker or Partner;
@@ -126,6 +187,7 @@ public sealed class DescendantConversationListenerTests
             request.Validate();
             cancellationToken.ThrowIfCancellationRequested();
             var observation = request.Observation;
+            Observations.Enqueue(observation);
             var selected = observation.Candidates.FirstOrDefault(candidate =>
                 observation.InhabitantId == Speaker && candidate.Id == $"talk:{Partner}") ??
                 observation.Candidates.FirstOrDefault(candidate => observation.InhabitantId == Partner &&

@@ -1,1 +1,1 @@
-- Nearby descendants with long generated identities can now hear ordinary conversations and keep the heard memory without causing the speakers' turn to be rejected.
+- Nearby descendants with long generated identities can now hear ordinary conversations, keep the heard memory and recall it during later decisions without rejecting the speakers' turn or stopping normal ticks.
