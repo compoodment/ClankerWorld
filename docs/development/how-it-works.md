@@ -2927,6 +2927,11 @@ position without changing its owner. Cart attachments and boat travel exclude
 ridden or led animals. Godot projects and draws the authoritative animal state
 with young/adult headings, mounted horses, yard art, inspection and event text.
 
+Building Details lists animals whose current observed positions lie within
+the building footprint, using the same `GameUiText.AnimalDescription` as tile
+inspection and hover help. It refreshes with the snapshot and grants no animal
+ownership or care permission.
+
 Milk stock travels as an actual household jug to a held Store or borrowed Market
 stall, with a stock receipt at a stall. Fresh seller and buyer personal choices
 exchange one held portion into the buyer's real carried jug for the named

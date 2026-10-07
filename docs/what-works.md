@@ -596,7 +596,9 @@ chicken and two each for sheep, cows and horses. Feed is grain or greens. Adults
 fetch and carry real supplies, preserving food, planting and production
 reserves. Care uses grain before ready-to-eat greens when available, and may
 combine grain with spare greens across lots. An incomplete safe feed or water
-load spends nothing. Cared adult hens supply eggs daily, cows two milk daily,
+load spends nothing. Building Details lists animals standing within its footprint,
+with their names, care, ready products and permissions; animals on open ground
+remain available in tile inspection. Cared adult hens supply eggs daily, cows two milk daily,
 and sheep two wool every three days. One batch waits for local collection. Milk needs a
 household jug that contains milk or is empty; water and milk never mix.
 Adults haul milk jugs to their Store or borrowed Market stall. An agreed sale
