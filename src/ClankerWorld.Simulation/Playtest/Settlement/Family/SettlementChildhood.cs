@@ -45,7 +45,7 @@ public sealed partial class PrivateWorldRuntime
 
     private void AddChildCandidates(List<CognitionCandidate> candidates, string actor, PlaytestInhabitantState state)
     {
-        var reachable = 0;
+        var availableTargets = 0;
         foreach (var target in inhabitants.Keys.Where(id => id != actor &&
                      society.Checkpoint.GetInhabitant(id).AgeBand != SocietyAgeBand.Infant)
                  .OrderBy(id => map.FootDistance(state.Position, inhabitants[id].Position))
@@ -55,18 +55,19 @@ public sealed partial class PrivateWorldRuntime
                 continue;
             if (FindUnoccupiedRoute(actor, state.Position, inhabitants[target].Position, ResourceInteractionRange).Count == 0)
                 continue;
+            var candidateCount = candidates.Count;
             if (ChildSocialAvailable(actor, target, "converse"))
                 candidates.Add(new($"child_converse:{target}", "Talk with a nearby person and remember the encounter.", 38, target));
             if (ChildSocialAvailable(actor, target, "play"))
                 candidates.Add(new($"child_play:{target}", "Play together and build a friendship.", 34, target));
             if (AdultResident(target) && ChildSocialAvailable(actor, target, "learn"))
                 candidates.Add(new($"child_learn:{target}", "Learn a simple observation from an adult without taking an adult work role.", 42, target));
-            if (++reachable == 3) break;
+            if (candidates.Count > candidateCount && ++availableTargets == 3) break;
         }
 
         var householdId = society.Checkpoint.GetInhabitant(actor).HouseholdId;
         var house = householdId is null ? null : HouseForHousehold(householdId);
-        if (state.HungerBasisPoints >= 6_000 && PreferredFood(actor, actor).Any(lot => AvailableLotQuantity(lot) > 1) &&
+        if (state.HungerBasisPoints >= 6_000 && PersonalSpareFood(actor) is not null &&
             (house is null || StorageRoomAfterInboundDeliveries(house.InstanceId) > 0) &&
             FindUnoccupiedRoute(actor, state.Position,
                 house?.Position ?? SettlementStoragePosition,
@@ -80,7 +81,7 @@ public sealed partial class PrivateWorldRuntime
         if (candidate == "child_help_food")
         {
             if (state.HungerBasisPoints < 6_000 ||
-                PreferredFood(actor, actor).FirstOrDefault(lot => AvailableLotQuantity(lot) > 1) is not { } lot)
+                PersonalSpareFood(actor) is not { } lot)
                 return;
             var householdId = society.Checkpoint.GetInhabitant(actor).HouseholdId;
             var house = householdId is null ? null : HouseForHousehold(householdId);

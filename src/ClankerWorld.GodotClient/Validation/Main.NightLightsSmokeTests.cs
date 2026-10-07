@@ -255,19 +255,49 @@ public partial class Main
             PlacedBuildings = street.PlacedBuildings.Select(building => building with { TownId = "night-hollow" }).ToArray(),
             Towns = [new OwnerWorldTown("night-hollow", "Hollow", "founded", 0, [], [], [])],
         };
-        RenderMap(abandonedStreet);
-        nightLayer.Settle();
-        for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-        if (nightLightsLayer.Lanterns.Count != 4 || nightLightsLayer.Lanterns.Any(lantern => !lantern.Dark) ||
-            nightLightsLayer.DrawnCells.Count == 0 || nightLightsLayer.DrawnCells.Any(cell => cell.Kind != LightCellKind.Paint))
-            throw new InvalidOperationException("Street fittings in an abandoned Town must stay dark at night and still show their fittings.");
+        foreach (var fallingApart in new[] { false, true })
+            foreach (var zoom in new[] { maximumCameraZoom, minimumCameraZoom * 2, minimumCameraZoom })
+            {
+                cameraZoom = zoom;
+                RenderMap(abandonedStreet with
+                {
+                    Towns = [abandonedStreet.Towns[0] with { FallingApart = fallingApart }],
+                });
+                nightLayer.Settle();
+                for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                if (nightLightsLayer.Lanterns.Count != 4 || nightLightsLayer.Lanterns.Any(lantern => !lantern.Dark) ||
+                    nightLightsLayer.DrawnCells.Count == 0 || nightLightsLayer.DrawnCells.Any(cell => cell.Kind != LightCellKind.Paint))
+                    throw new InvalidOperationException($"Abandoned street fittings must stay dark at every zoom, including ruins: tileSize={terrainLayer.TileSize}, fallingApart={fallingApart}.");
+            }
         SelectBuilding("night-stone-north");
         RenderBuildingCard(abandonedStreet);
         var lanternStatus = string.Join('\n', buildingQuickStatus.FindChildren("*", nameof(Label), owned: false)
             .OfType<Label>().Select(label => label.Text));
-        ClearBuildingSelection();
         if (!lanternStatus.Contains("Dark · its Town is abandoned", StringComparison.Ordinal))
             throw new InvalidOperationException($"A dark lantern's card must say its Town is abandoned: {lanternStatus}");
+        var resettledStreet = abandonedStreet with
+        {
+            Towns = [abandonedStreet.Towns[0] with { ResidentIds = [ada.Id] }],
+        };
+        foreach (var zoom in new[] { maximumCameraZoom, minimumCameraZoom * 2, minimumCameraZoom })
+        {
+            cameraZoom = zoom;
+            RenderMap(resettledStreet);
+            nightLayer.Settle();
+            for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (nightLightsLayer.Lanterns.Any(lantern => lantern.Dark) ||
+                !nightLightsLayer.DrawnCells.Any(cell => cell.Kind == LightCellKind.Light) ||
+                !nightLightsLayer.DrawnCells.Any(cell => cell.Kind == LightCellKind.Glow))
+                throw new InvalidOperationException("Resettled street fittings must light again at every zoom.");
+        }
+        RenderBuildingCard(resettledStreet);
+        lanternStatus = string.Join('\n', buildingQuickStatus.FindChildren("*", nameof(Label), owned: false)
+            .OfType<Label>().Select(label => label.Text));
+        ClearBuildingSelection();
+        if (!lanternStatus.Contains("Lit · lights automatically at dusk", StringComparison.Ordinal) ||
+            lanternStatus.Contains("Town is abandoned", StringComparison.Ordinal))
+            throw new InvalidOperationException($"The same selected lantern card must update after resettlement: {lanternStatus}");
+        cameraZoom = maximumCameraZoom;
         RenderMap(street with { DarknessBasisPoints = 0 });
         nightLayer.Settle();
         for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
