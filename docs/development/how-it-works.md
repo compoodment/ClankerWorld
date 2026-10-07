@@ -118,10 +118,19 @@ or coordinate targets still apply; distant sites require that agent's own
 knowledge. Observation does not bypass availability, reachability or the
 whole-load carrying checks.
 
+Urgent food interruptions also admit the buyer's legal ready-food shop quote,
+Restaurant meal visit and continuation of an open food purchase. The same
+check is used for selecting the interruption and filtering model choices.
+Raw ingredients, equipment and a seller's response cannot use this food
+exception; payment, carrying room, physical arrival and consent still apply.
+
 Material orders save the requested kind separately from food targets. They use
 known resource facts or observation within normal interaction range; a named
 unobserved site first requires physical travel. Untargeted orders may use normal
-exploration. Gathering uses the existing tool pickup, whole-load capacity,
+exploration when none of their known matching sources is reachable. Inaccessible
+facts stay in the knowledge ledger. A reachable source still requires the
+normal tools and carrying room; explicit resource or tile targets do not
+substitute another source. Gathering uses the existing tool pickup, whole-load capacity,
 inventory, tool-wear and ecology transitions. Only a returned physical harvest
 receipt advances progress. One load is the default; explicit quantities count
 actual output, including a final whole load that exceeds the requested amount.
@@ -249,10 +258,14 @@ Save/reload retains a running repair's work counter and exact reservations.
 Tool repair orders use `repair_tool` and the same `TargetEquipmentKind` field,
 restricted to the 13 supported tool kinds. The parser requires the material and
 tool name. `RepairableTools` shares ordinary private Blacksmith, material,
-carrying and route checks; orders additionally require personal ownership and
-positive remaining condition. Ordinary repair retains its borrowed-household
-behavior. Order preparation protects every matching worn personal tool from
+carrying and route checks. Both ordinary repair choices and execution require
+positive remaining condition; fully broken tools need replacement. Orders
+additionally require personal ownership. Ordinary repair retains its
+borrowed-household behavior. Order preparation protects every matching worn personal tool from
 spare-cargo storage and refuses gathering that would break a requested tool.
+Preparation retains the quantity needed for one repair across usable carried
+material lots. Excess units may be stowed to collect another ingredient; live
+reservations, promised cargo and protected tools remain unavailable for stowing.
 `RepairTool` performs physical pickup, gathering, spare-cargo storage
 and walking, returning a repaired lot only after the real inventory transition.
 That return alone earns one repair, with a bounded receipt derived from actor,
@@ -557,6 +570,14 @@ their warmth over a night. There are no night-only limits on choices, travel,
 work or conversation, and no sleep or energy. Longer winter nights mean more
 hours of chill. Night does not change weather or crops yet.
 
+The warmth action keeps an agent in place when their current protection stops
+cooling. Otherwise, a reachable lit hearth takes priority over nearby natural
+storm cover, so a tree along the route cannot pull the agent back from the
+hearth. Natural cover remains a fallback when no lit destination is reachable;
+existing access permissions, routes and fuel use still apply.
+The lit destination must be a heating building the agent can use; a
+storm-shelter guest invitation alone does not grant use of a household hearth.
+
 The owner snapshot carries `darknessBasisPoints`, decided by the host from the
 same rule. The Godot client's `NightLayer` draws a deep blue wash, at most 40%
 opaque, over the visible map just above the ground, roads, buildings and trees,
@@ -840,7 +861,31 @@ action prefix used by the social cooldown. The saved owner and subject keep
 their actual identities. Short keys and existing saved records stay unchanged;
 records with oversized or malformed keys remain excluded from recall.
 
+The three-person candidate limit counts reachable people who contribute an
+available talk, play or learning action. A person whose applicable actions are
+all on cooldown consumes no slot; distance and stable identity still order the
+eligible targets. The 120-tick per-action cooldown and age restrictions apply
+both when offering and when executing an action.
+
 Exploration records personal knowledge; it does not create free inventory.
+Each completed outward or return scouting step observes its actual arrival tile;
+blocked steps do not observe the requested destination. An actual observation
+of a previously known tile refreshes that agent's terrain
+and resource account when it changes. Planting also records the planter's own
+work. Unchanged observations do not add another fact or learned event, and
+changes do not teach distant agents. The current ledger keeps one fact per
+agent and tile, within its existing 128-site limit.
+
+Written artifacts and unfinished writing keep the exact facts captured when
+writing started. Earlier observations are retained only while those snapshots
+need them, bounded to 81 versions per agent (eight nine-site artifacts and one
+nine-site writing project). Copies preserve the held source's account even if
+the reader observes a change before or during copying. The reader must already
+know every source site; copying does not replace their current observations.
+Cancelled writing prunes versions with no
+remaining snapshot. Earlier versions validate provenance but are not offered
+as the agent's current map knowledge.
+
 Households make paper at an authorized House from physically delivered fiber
 and fresh water in a reusable jug. The provisional batch uses two fiber and
 one water to make two paper in sixteen work ticks, leaving the jug intact.
@@ -1693,7 +1738,7 @@ action or player discard control is added.
 
 **Household departure and personal custody** (`SettlementDeparture`). Ordinary decision candidates allow an adult to leave without a vote, store or collect their own goods, return borrowed household tools, explicitly accept replacement care, and found a solo household only when no suitable existing home can currently be asked. Membership exits and admissions include the complete primary-care group. The same completed House-capacity calculation checks all incoming residents; children never apply alone. Forced displacement refuses sole caregivers, including a guardian whose dependent lives in another household. Voluntary departures keep the existing care-group rules.
 
-`InventoryLot.OwnerId` records property; optional `CarrierId` records physical custody without donation. Personal goods may remain in House storage after departure. `InventoryFixture.Relocate` preserves ownership, condition, provenance and reservations while moving an unreserved quantity. A stored personal lot is collected physically at the House's entrance, with carrying limits, under current household membership, a recorded departure's limited collection right, or a settled will's bequest to the actor. The bequest must match the lot's ID or provenance, kind and frozen storage location. This lets an heir retrieve inherited goods from another household without granting membership, House entry or access to shared stock. Recovery from the ground or a former household remains a routine errand. Collecting a map or field record from the current home stays available as a deliberate choice, but ranks below idle for the built-in chooser so it does not immediately retrieve knowledge goods it has just stored. Other goods retain their normal collection priority, so the built-in chooser stores only maps and field records; storing other belongings is a deliberate choice, because routine collection would fetch them straight back. Borrowed tools retain the lender's owner ID while carried and are returned physically. Shared delivery loads retain their owning household on departure. Shared buildings, stock and job records are never reassigned to the new household. A departing worker's private production and expansion jobs pause with their existing owners and reservations, except work for the worker's own goods, such as building their handcart, which nobody else may finish: it is cancelled and its reserved materials are released and stay with the worker; their previous work plan is retained on the departure record instead of resuming under a new household. A remaining member can take over paused work at its physical site, using the same still-available committed inputs and remaining work time. Private materials held by the former worker are not reassigned; these keep the task blocked. Held reservations keep their exact owner and stock, receive a new deadline only on resumption, and are released if the materials become unusable; canceled job records retain the original property owner.
+`InventoryLot.OwnerId` records property; optional `CarrierId` records physical custody without donation. Personal goods may remain in House storage after departure. `InventoryFixture.Relocate` preserves ownership, condition, provenance and reservations while moving an unreserved quantity. A stored personal lot is collected physically at the House's entrance, with carrying limits, under current household membership, a recorded departure's limited collection right, or a settled will's bequest to the actor. A child who moved in a caregiver's care group uses that recorded departure too once old enough to collect, including after the caregiver dies. The lookup reads living and archived departure records; it creates no child departure or additional food allowance. The bequest must match the lot's ID or provenance, kind and frozen storage location. This lets an heir retrieve inherited goods from another household without granting membership, House entry or access to shared stock. Recovery from the ground or a former household remains a routine errand. Collecting a map or field record from the current home stays available as a deliberate choice, but ranks below idle for the built-in chooser so it does not immediately retrieve knowledge goods it has just stored. Other goods retain their normal collection priority, so the built-in chooser stores only maps and field records; storing other belongings is a deliberate choice, because routine collection would fetch them straight back. Borrowed tools retain the lender's owner ID while carried and are returned physically. Shared delivery loads retain their owning household on departure. Shared buildings, stock and job records are never reassigned to the new household. A departing worker's private production and expansion jobs pause with their existing owners and reservations, except work for the worker's own goods, such as building their handcart, which nobody else may finish: it is cancelled and its reserved materials are released and stay with the worker; their previous work plan is retained on the departure record instead of resuming under a new household. A remaining member can take over paused work at its physical site, using the same still-available committed inputs and remaining work time. Private materials held by the former worker are not reassigned; these keep the task blocked. Held reservations keep their exact owner and stock, receive a new deadline only on resumption, and are released if the materials become unusable; canceled job records retain the original property owner.
 
 Each departure allocates at most two unreserved ready-to-eat portions once. Ownership changes at allocation while the existing storage/ground location stays fixed. Saved departure records retain the allocation and collection right; retries with no current membership cannot allocate again. Caregiver IDs and ancestry stay unchanged. Dependents follow the caregiver in physical steps, and a traveling caregiver waits when a dependent falls behind. Housing, ownership, collection and care facts use normal personal-model observations and player inspection; no extra acknowledgement request is made.
 
@@ -1914,6 +1959,13 @@ checks age before reserving either party's stock. Household and organization
 parties keep their existing inventory rules. Previously saved offers retain
 their normal withdrawal and expiry behavior; loading does not rewrite them.
 
+Personal barter keeps one usable carried unit of each ordinary item kind in
+reserve across the owner's eligible lots, rather than requiring two units in
+the chosen lot. Reserved, worn, contained, delivered, stored or uncarried
+units cannot supply that reserve. Artifacts and unworn ornaments retain their
+single-unit exception. Each offer still reserves one actual unit from each
+named lot, and settlement requires both parties' independent acceptance.
+
 **Household shops** bind an inventory barter offer to its actual business and
 holding household in `BusinessTradeState`. Offers use unreserved goods in that
 building and payment already carried by the adult customer. The inventory
@@ -1980,10 +2032,25 @@ accepted, non-fallback personal LLM choice; their candidates rank above
 owner orders do not authorize these mutations. A member carrying their own
 household's goods may return them to its House through `household_return`, and
 the household hauling, farm stock and planting routines skip stock on a stall
-while a member of that household borrows it. Usable loose surplus (the food
+while a member of that household borrows it. Explicit `market_collect` also
+protects household stock from other housemates while borrowing is active;
+the borrower may collect it, and personal owners may retrieve their own goods.
+The same choices are checked again before applying a mutation or continuing
+travel, using current borrowing.
+Usable loose surplus (the food
 reserve counts the owner's other usable stock of that kind), actual
 carrying and stall room, active claims, current household rights and protected
-equipment constrain the offered choices. The provisional one-for-one quote is
+equipment constrain the offered choices. During urgent hunger, Market candidates
+include only collection of edible food the adult may legally retrieve. This
+filter runs before the candidate limit; normal Market choices retain their
+existing order. Collection still needs a fresh personal LLM choice and the
+usual ownership, reservation, route and receiving-space checks.
+Ordinary collection uses physical unreserved quantities, so spoiled stock can
+be reclaimed from a current or former stall without deleting or refreshing it.
+Urgent food collection additionally requires usable food; spoilage never
+turns property recovery into a survival action. Execution resolves the current
+choice again before moving its authorized quantity.
+The provisional one-for-one quote is
 an actual `Inventory.Offers` exchange. Buyers may belong to any Town or have no
 Town membership; walking into the Market and completing a purchase change
 neither their household nor their Town. The named seller accepts only after
@@ -2071,6 +2138,9 @@ Automated checks cover the return path.
 Medical permission is admitted only from a fresh, accepted, non-fallback
 `LargeLanguageModel` choice by the adult patient. Jev, owner orders, failed
 replies and continuing intentions cannot grant or revoke that authority.
+The patient may permit at most 16 living named caregivers. While a permission
+slot remains, the candidate list offers up to 16 eligible nearby alternatives,
+independently of the remaining slot count. Granting still checks the current cap.
 Self-treatment is allowed, and a dependent's effective accepted `Caregiver`
 relationship supplies their existing authority. Treatment checks living adult
 caregivers, permission, local patient observation and actual usable medicine.
@@ -2435,6 +2505,18 @@ A missing catalog denies all references. Malformed, ambiguous or unknown-schema
 catalogs prevent startup. Device requests cannot edit it or upload asset bytes.
 This is a narrow reference rule, not the future complete art-generation pipeline.
 
+## Building storage history
+
+Building Details receives up to ten recent storage deltas from the existing
+retained inventory-event stream. Each committed physical change records its
+building, item kind and signed quantity on the existing event; event identity,
+time and trade receipts stay intact. The runtime includes direct location
+adjustments around kernel operations without recording an already captured
+change twice. Net-zero lot splits, ownership changes, reservations, wear and
+spoilage add no storage change. Projection scans the retained stream once and
+never reconstructs a historical location from a current lot. The records
+follow ordinary rollback and event compaction, not a second growing ledger.
+
 ## Runtime logging
 
 Changed gameplay loops, provider adapters, persistence boundaries and lifecycle
@@ -2648,6 +2730,12 @@ position and household authorization, and moves the cart with each admitted
 legal cardinal step. Ground cart contents never become carried recipe inputs,
 fuel, planting seeds or equipped gear. Loading a partial quantity preserves
 the untouched remainder's original location and reservations.
+Shared edible food follows the Council's existing collection policy at both
+choice generation and execution. Under hungry-members-first access, a healthy
+loader can take only the shared surplus above the protected serving reserve.
+The same allowance determines ordinary collection permission and caps a bulk
+cart load. Hungry adults retain their existing access; personal food and
+non-food cargo keep their ordinary loading rules.
 
 Crafting uses the Blacksmith's handcart recipe with the adult worker's carried
 wood, fittings and rope. An adult collects them from household or Town
@@ -2779,6 +2867,11 @@ has no teacher; completing an accepted lesson records the teacher's agent ID.
 Lesson candidates use saved skills and the existing food/warmth readiness
 rules, independently of work roles. A mentor cannot be working on an active
 project, handling another social decision, or reserved for another lesson.
+Both participants must be able to reach the common lesson site when a request
+is offered or executed and when the teacher accepts. Mentor selection keeps
+its stable identity order but skips adults without a physical route, so an
+isolated teacher cannot hide another available teacher. Ordinary route checks
+include occupied tiles; they do not grant travel through disconnected land.
 Request, refusal, acceptance, cancellation and pause/reload retain their normal
 flow. A completed lesson changes neither the agent's role nor work proficiency.
 Stored skills currently affect only teaching availability, never ordinary
@@ -2844,6 +2937,12 @@ replace a newer opening's controls. A reply must name the observed world
 before Apply becomes available, and Apply checks that context again before
 sending the displayed interval and rotation.
 
+The host checks rotating autosaves after an advancing tick. A UTC sample older
+than the schedule's anchor resets and persists that anchor before checking the
+interval. It keeps the last saved world tick and creates no copy at the reset;
+the next due save still requires an advancing world. Disabled schedules return
+before any write, and a clock reset checks the world identity before persisting.
+
 ## Animals and horse travel
 
 The built-in animal package adds a household animal yard and the egg, milk, wool,
@@ -2856,10 +2955,23 @@ or household stock while wild.
 Adults tame, care, collect, supply, lead, saddle, mount and dismount through
 ordinary revalidated choices. Native orders bind an exact animal name or ID.
 Care spends actual unreserved grain/greens and jug water at the animal or yard;
-food, planting and workstation reserves stay protected. Physical supply trips
-retain the owning household. One held product batch waits for local collection;
+food, planting and workstation reserves stay protected. For care away from the
+actor's tile, input selection accepts only physically carried supplies. This
+keeps the existing supply path collecting both feed and a water jug before
+approaching the animal, including after a partial pickup. At the animal's tile,
+permitted local yard stock remains usable directly. Physical supply trips
+retain the owning household. A trip isolates its selected feed quantity from
+the source, including an already carried stack, so delivery cannot donate the
+unselected remainder. Reusable jugs travel whole with their contents. One held
+product batch waits for local collection;
 milk enters a reusable household jug. Products then use ordinary stock hauling,
 recipes and trade.
+
+When care is due, its native order candidate requires complete safe inputs, a current care
+supply trip or an obtainable supply. Missing inputs use the existing blocked
+order status with a reason naming feed and jug water. Candidate and blocker queries
+change no state, and the existing order schedule resumes the task when its
+physical supply path becomes available.
 
 Cared adult pairs breed automatically when their yard has a place and delivered
 supplies cover existing animals and the offspring. Pregnancy reserves one place;
@@ -2882,6 +2994,12 @@ permission loss ends riding; dismount puts unreserved excess cargo at the actual
 position without changing its owner. Cart attachments and boat travel exclude
 ridden or led animals. Godot projects and draws the authoritative animal state
 with young/adult headings, mounted horses, yard art, inspection and event text.
+
+Collection from another animal and saddling another horse prepare with
+`EndAnimalRide` on their own tick, without product transfer, saddle fitting or
+order credit. The following native action rechecks permissions and foot
+capacity; existing product and fitted-saddle reservations remain held during
+preparation, and existing dismount rules preserve excess cargo.
 
 Milk stock travels as an actual household jug to a held Store or borrowed Market
 stall, with a stock receipt at a stall. Fresh seller and buyer personal choices

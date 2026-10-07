@@ -55,7 +55,8 @@ public sealed partial class PrivateWorldRuntime
                 surplus = Math.Min(surplus, foodSurplus);
             }
             var shelf = inventory.Lots.Where(stock => stock.StorageBuildingId == store.InstanceId &&
-                stock.ItemKind == lot.ItemKind).Sum(stock => stock.Quantity);
+                stock.ItemKind == lot.ItemKind && stock.FreshnessBasisPoints > 0 &&
+                stock.ConditionBasisPoints > 0).Sum(stock => stock.Quantity);
             var quantity = Math.Min(Math.Min(surplus, StoreShelfTarget - shelf), Math.Min(HouseHaulLoadQuantity, room));
             if (lot.OwnerId != actor) quantity = Math.Min(quantity, FreeCarryCapacity(actor));
             if (quantity <= 0) continue;

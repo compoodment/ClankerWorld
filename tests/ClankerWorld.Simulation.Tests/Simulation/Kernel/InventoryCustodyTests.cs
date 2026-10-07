@@ -5,6 +5,24 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class InventoryCustodyTests
 {
     [Fact]
+    public void SplittingOrChangingTheOwnerOfStockInPlaceCreatesNoPhysicalStorageChange()
+    {
+        var inventory = InventoryFixture.AddLot(InventoryFixture.CreateGenesis([]), "wood", "wood", "first", 4,
+            storageBuildingId: "house");
+        Assert.Equal(new InventoryStorageChange("house", "wood", 4), Assert.Single(inventory.Events[^1].StorageChanges!));
+        var split = InventoryFixture.SplitLot(inventory, "wood", 1, "split-wood");
+        Assert.Null(split.Events[^1].StorageChanges);
+        var transferred = InventoryFixture.Transfer(split, "gift", "first", "second", "split-wood", 1,
+            "gift", destinationStorageBuildingId: "house");
+        Assert.Null(transferred.Events[^1].StorageChanges);
+        Assert.Equal(4, transferred.Lots.Sum(lot => lot.Quantity));
+        Assert.Equal("second", transferred.GetLot("split-wood").OwnerId);
+        Assert.Equal("house", transferred.GetLot("split-wood").StorageBuildingId);
+        Assert.Equal(InventoryDigest.Events(transferred.Events), InventoryDigest.Events(
+            InventoryCheckpointCodec.Decode(InventoryCheckpointCodec.Encode(transferred)).Events));
+    }
+
+    [Fact]
     public void ABorrowedBrokenAxeCanBeReturnedWithoutBecomingPersonalProperty()
     {
         var inventory = InventoryFixture.CreateGenesis(
@@ -25,6 +43,7 @@ public sealed class InventoryCustodyTests
         var inventory = InventoryFixture.CreateGenesis(
             [new("food", "food", "household", 6, 10_000, 7_000, 0, StorageBuildingId: "house")]);
         inventory = InventoryFixture.Reserve(inventory, "care", "household", "food", 2, "child_food", 20);
+        Assert.Null(inventory.Events[^1].StorageChanges);
         var before = InventoryCheckpointCodec.Encode(inventory);
         Assert.Throws<InvalidOperationException>(() => InventoryFixture.Relocate(inventory, "too-much", "food",
             "household", 5, carrierId: "adult"));
@@ -32,6 +51,10 @@ public sealed class InventoryCustodyTests
         var moved = InventoryFixture.Relocate(inventory, "pickup", "food", "household", 4, carrierId: "adult");
         var remaining = moved.GetLot("food");
         var carried = Assert.Single(moved.Lots, lot => lot.CarrierId == "adult");
+        var pickup = moved.Events[^1];
+        Assert.Equal(inventory.EventHistoryFloor + inventory.Events.Count + 1, pickup.EventId);
+        Assert.Equal("inventory_relocated", pickup.Kind);
+        Assert.Equal(new InventoryStorageChange("house", "food", -4), Assert.Single(pickup.StorageChanges!));
         Assert.Equal((2, "house", "household"), (remaining.Quantity, remaining.StorageBuildingId, remaining.OwnerId));
         Assert.Equal((4, "household", "food", 7_000),
             (carried.Quantity, carried.OwnerId, carried.ProvenanceLotId, carried.FreshnessBasisPoints));
@@ -40,6 +63,8 @@ public sealed class InventoryCustodyTests
         Assert.Equal(InventoryReservationState.Reserved, moved.GetReservation("care").State);
         var restored = InventoryCheckpointCodec.Decode(InventoryCheckpointCodec.Encode(moved));
         var fed = InventoryFixture.ConsumeReservation(restored, "care");
+        Assert.Equal(pickup.StorageChanges, restored.Events[^1].StorageChanges);
+        Assert.Equal(new InventoryStorageChange("house", "food", -2), Assert.Single(fed.Events[^1].StorageChanges!));
         Assert.Equal(4, fed.Lots.Sum(lot => lot.Quantity));
         Assert.Equal(carried, fed.GetLot(carried.Id));
     }

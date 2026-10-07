@@ -15,17 +15,19 @@ public sealed partial class PrivateWorldRuntime
         if (FreeCarryCapacity(actor) == 0) return null;
         var known = KnownMaterialOrderSources(instruction, person).ToArray();
         var toolCache = new Dictionary<(ToolFamily Family, int Tier), ToolDefinition?>();
+        var hasReachableSource = false;
         foreach (var source in known)
         {
+            if (!MaterialOrderRouteIsOpen(actor, person.Position, source.Position)) continue;
+            hasReachableSource = true;
             if (!CanGatherFromSource(actor, order.TargetMaterialKind!, source, toolCache) ||
                 ProjectMaterialHarvest(actor, order.TargetMaterialKind!, source) is { } plan &&
-                FreeCarryCapacity(actor) < plan.Quantity + plan.TreeSeedQuantity ||
-                !MaterialOrderRouteIsOpen(actor, person.Position, source.Position))
+                FreeCarryCapacity(actor) < plan.Quantity + plan.TreeSeedQuantity)
                 continue;
             return new CognitionCandidate("gather_material", "Gather the requested material using normal tools and carrying space.", 0, source.Id);
         }
 
-        if (known.Length > 0 || !CanExploreForOrder(person))
+        if (hasReachableSource || !CanExploreForOrder(person))
             return null;
         if (MaterialOrderTarget(instruction) is { } target)
         {
