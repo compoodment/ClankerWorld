@@ -1930,7 +1930,10 @@ the active equipment repair target are excluded from payment.
 Customers receive transaction access only. Store stocking first moves actual
 surplus into carried delivery lots, then uses ordinary household hauling to
 reach the Store. A remote House, field or Warehouse is never sale stock.
-Store stocking also keeps each adult's best usable work tool. Food stocking
+Store stocking keeps one available unit of each adult's best usable work tool
+per family. Extra units in that same carried lot can be stocked, just as
+separate spare lots can. Equipped garments and carrying aids stay protected.
+Food stocking
 keeps two usable servings of each food kind for the adult, or two per
 living member when taking household stock. Each reserve is counted once across
 eligible lots with the same owner and food kind, including when an order is

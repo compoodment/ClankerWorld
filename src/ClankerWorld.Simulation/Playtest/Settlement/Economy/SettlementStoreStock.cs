@@ -32,7 +32,6 @@ public sealed partial class PrivateWorldRuntime
                       lot.OwnerId == householdId && lot.CarrierId is null &&
                          (lot.StorageBuildingId is null || worldSimulation.Buildings.Any(building =>
                              building.InstanceId == lot.StorageBuildingId && building.HouseholdId == householdId))) &&
-                     !protectedToolIds.Contains(lot.Id) &&
                      !PersonalEquipmentRules.IsSelected(inhabitants[actor].Equipment, lot.Id))
                      .OrderBy(lot => lot.OwnerId == actor ? 0 : 1).ThenBy(lot => lot.Id, StringComparer.Ordinal).ToArray();
         var foodSurpluses = new Dictionary<(string OwnerId, string ItemKind), int>();
@@ -64,7 +63,11 @@ public sealed partial class PrivateWorldRuntime
         }
         return null;
 
-        int StockQuantity(InventoryLot lot) => lot.OwnerId == actor ? SpareCarriedQuantity(actor, lot) : AvailableLotQuantity(lot);
+        // Keep one best usable tool in each family, even when counted collection
+        // leaves several identical tools in the selected lot.
+        int StockQuantity(InventoryLot lot) => Math.Max(0,
+            (lot.OwnerId == actor ? SpareCarriedQuantity(actor, lot) : AvailableLotQuantity(lot)) -
+            (protectedToolIds.Contains(lot.Id) ? 1 : 0));
         bool CanStockFrom(InventoryLot lot)
         {
             var source = lot.OwnerId == actor ? inhabitants[actor].Position : HouseholdStockPosition(lot);
