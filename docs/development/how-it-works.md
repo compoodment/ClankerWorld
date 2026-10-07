@@ -2010,7 +2010,12 @@ the household hauling, farm stock and planting routines skip stock on a stall
 while a member of that household borrows it. Usable loose surplus (the food
 reserve counts the owner's other usable stock of that kind), actual
 carrying and stall room, active claims, current household rights and protected
-equipment constrain the offered choices. The provisional one-for-one quote is
+equipment constrain the offered choices. During urgent hunger, Market candidates
+include only collection of edible food the adult may legally retrieve. This
+filter runs before the candidate limit; normal Market choices retain their
+existing order. Collection still needs a fresh personal LLM choice and the
+usual ownership, reservation, route and receiving-space checks.
+The provisional one-for-one quote is
 an actual `Inventory.Offers` exchange. Buyers may belong to any Town or have no
 Town membership; walking into the Market and completing a purchase change
 neither their household nor their Town. The named seller accepts only after
@@ -2098,6 +2103,9 @@ Automated checks cover the return path.
 Medical permission is admitted only from a fresh, accepted, non-fallback
 `LargeLanguageModel` choice by the adult patient. Jev, owner orders, failed
 replies and continuing intentions cannot grant or revoke that authority.
+The patient may permit at most 16 living named caregivers. While a permission
+slot remains, the candidate list offers up to 16 eligible nearby alternatives,
+independently of the remaining slot count. Granting still checks the current cap.
 Self-treatment is allowed, and a dependent's effective accepted `Caregiver`
 relationship supplies their existing authority. Treatment checks living adult
 caregivers, permission, local patient observation and actual usable medicine.
