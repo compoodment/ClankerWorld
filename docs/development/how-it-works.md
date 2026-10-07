@@ -1452,6 +1452,10 @@ paths supply receipts only after their actual changes commit. One receipt can
 credit only one term, and the saved effect cannot exceed that term's remaining
 quantity. Declined, unanswered, pending, overdue and completed states remain
 distinct. Findings and overdue work never create physical punishment powers.
+Goods-return source selection checks each carried lot against the remaining
+agreed quantity before ordering eligible lots by identity. The actual transfer
+uses that same remaining quantity; a pinned source, reservations, personal
+ownership and beneficiary capacity remain binding.
 
 Formal civic acts require an admitted personal-model choice. Built-in decisions,
 failed replies and continued intentions supply no votes or candidate agreement.

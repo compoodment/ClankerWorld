@@ -853,8 +853,10 @@ applicable law version and actual evidence sources. Response windows,
 independent judges and reasoned findings lead to explanations, warnings or
 censure, with voluntary offers for named goods, repair or public service.
 Every contributor gives their own informed acceptance; physical completion
-receipts distinguish accepted work from completed work. Visitors retain local
-response rights and children receive caregiver support. Public-service goods
+receipts distinguish accepted work from completed work.
+Goods returns can use a later carried lot with enough goods when an earlier
+one is too small; a named source lot and reservations still limit the payment.
+Visitors retain local response rights and children receive caregiver support. Public-service goods
 keep four usable personal units across carried lots, including stock split by
 storage and collection. No fine, seizure, expulsion or forced work is available.
 Windows civic pacing and
