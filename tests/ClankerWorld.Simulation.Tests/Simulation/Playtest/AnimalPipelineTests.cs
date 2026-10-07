@@ -223,10 +223,17 @@ public sealed partial class AnimalPipelineTests
         Assert.Single(world.ExportState().Events, item => item.Kind == "animal_died");
         Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "animal_cared");
         world.Validate();
-        var stateAfterDeath = world.ExportState();
-        using var collection = PrivateWorldRuntime.Restore(At(stateAfterDeath, actor, dead.Position,
-            world.Society.Inventory, world.Animals.ToArray()), id => id == actor ?
+        // Collection uses a valid prepared death boundary: the accelerated lifetime
+        // above also ages the human population, which need not survive the cow.
+        var collectionInventory = InventoryFixture.AddLot(state.Society.Society.Inventory, hide.Id,
+            hide.ItemKind, hide.OwnerId, hide.Quantity, groundPosition: hide.GroundPosition);
+        using var collection = PrivateWorldRuntime.Restore(At(state, actor, dead.Position,
+            collectionInventory, [dead with { DiedTick = 0, WildFedUntilTick = 0, WildWaterUntilTick = 0 }]), id => id == actor ?
             new AnimalChooser("animal:collect_hide:") : new AnimalChooser());
+        Assert.Contains(collection.Inhabitants, person => person.InhabitantId == actor);
+        var beforeCollection = PrivateWorldRuntimeCodec.Encode(collection.ExportState());
+        Assert.False((await collection.AdvanceOneTickAsync(() => false)).Advanced);
+        Assert.Equal(beforeCollection, PrivateWorldRuntimeCodec.Encode(collection.ExportState()));
         if (owned)
         {
             Assert.True((await collection.AdvanceOneTickAsync()).Advanced);
@@ -236,7 +243,8 @@ public sealed partial class AnimalPipelineTests
         {
             await Until(collection, () => collection.Society.Inventory.Lots.Any(lot => lot.ItemKind == "hide" && lot.OwnerId == actor));
             var collected = Assert.Single(collection.Society.Inventory.Lots, lot => lot.ItemKind == "hide");
-            Assert.Equal((actor, 1), (collected.CarrierId, collected.Quantity));
+            Assert.Equal((actor, 1), (collected.OwnerId, collected.Quantity));
+            Assert.True(PersonalEquipmentRules.IsPhysicallyCarried(collection.Society.Inventory, collected, actor));
             var bytes = PrivateWorldRuntimeCodec.Encode(collection.ExportState());
             using var reload = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes));
             Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(reload.ExportState()));
