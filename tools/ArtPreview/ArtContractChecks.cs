@@ -18,6 +18,7 @@ internal static class ArtContractChecks
         CheckApprovedYard();
         CheckApprovedNeglect();
         CheckApprovedConstruction();
+        CheckApprovedNeglectedLanternsAndBridges();
         foreach (var size in new[] { 16, 32 })
         {
             foreach (var (facing, frame) in new[] { (6, AgentFrame.Walk2), (4, AgentFrame.Carry), (2, AgentFrame.Talk) })
@@ -296,6 +297,27 @@ internal static class ArtContractChecks
             ("stall.1x1", BuildingKind.MarketStall, 1, 1, south), ("port.2x4", BuildingKind.Port, 2, 4, new BuildingDoor(DoorSide.South, 1)),
             ("yard.2x2", BuildingKind.AnimalYard, 2, 2, south),
         ];
+    }
+
+    /// <summary>The client's weathered street lanterns and bridges match the approved abandoned looks pixel for pixel.</summary>
+    private static void CheckApprovedNeglectedLanternsAndBridges()
+    {
+        var subjects = Proposed.BuildingStates.States.Subjects().ToDictionary(subject => subject.Id);
+        var east = new Vector2(1, 0);
+        foreach (var ruin in new[] { false, true })
+        {
+            var neglect = ruin ? BuildingNeglect.FallingApart : BuildingNeglect.Neglected;
+            foreach (var (id, style) in new[] { ("lantern.stone", LanternStyle.Stone), ("lantern.hanging", LanternStyle.Hanging) })
+                Equal(BuildingSprites.NeglectedLantern(style, east, neglect), Proposed.BuildingStates.States.AbandonedArt(subjects[id], ruin),
+                    $"The client's {neglect} {id} must match the approved abandoned look.");
+            var bridge = Proposed.BuildingStates.States.AbandonedArt(subjects["bridge.3"], ruin);
+            Equal(BuildingSprites.RenderNeglectedBridge(true, 3, 32, neglect), bridge,
+                $"The client's {neglect} three-span bridge must match the approved abandoned look.");
+            bridge.Resize(5 * 16, 16, Image.Interpolation.Nearest);
+            Equal(BuildingSprites.RenderNeglectedBridge(true, 3, 16, neglect), bridge,
+                $"The client's 16 px {neglect} bridge must be the approved look halved.");
+        }
+
     }
 
     private static void Equal(Image actual, Image expected, string message)

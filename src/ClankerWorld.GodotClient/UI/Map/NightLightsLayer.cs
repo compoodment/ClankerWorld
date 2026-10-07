@@ -28,6 +28,35 @@ public readonly record struct BuildingLight(Rect2I Footprint, LightPlan Plan, bo
 /// <summary>A completed street fitting on the saved edge of its adjoining Road tile.</summary>
 public readonly record struct StreetLanternLight(Vector2I RoadTile, DoorSide Edge, LanternStyle Style)
 {
+    private static readonly Dictionary<(LanternStyle Style, DoorSide Edge, BuildingNeglect Neglect, int Snap), List<LightCell>> WeatheredCache = [];
+
+    /// <summary>How the fitting has weathered: lanterns in an abandoned Town look neglected, then falling apart.</summary>
+    public BuildingNeglect Neglect { get; init; }
+
+    /// <summary>
+    /// The weathered fitting's pixels by day, in 32 px units of its Road tile,
+    /// from the approved abandoned look; a snap of 2 halves it as the 16 px
+    /// buildings are. Its weeds may reach into the tile beside the Road.
+    /// </summary>
+    public IReadOnlyList<LightCell> WeatheredCells(int snap = 1)
+    {
+        var key = (Style, Edge, Neglect, snap);
+        if (WeatheredCache.TryGetValue(key, out var cached)) return cached;
+        using var image = BuildingSprites.NeglectedLantern(Style, Inward, Neglect, 32 / snap);
+        var offset = Post - BuildingSprites.NeglectedLanternPost(Style, Inward);
+        var cells = new List<LightCell>();
+        for (var y = 0; y < image.GetHeight(); y++)
+            for (var x = 0; x < image.GetWidth(); x++)
+            {
+                // The fitting and its weeds are solid pixels; nothing else is drawn.
+                var color = image.GetPixel(x, y);
+                if (color.A < 0.5f) continue;
+                cells.Add(new(new Rect2(offset + new Vector2(x, y) * snap, Vector2.One * snap), color, 1, LightCellKind.Paint));
+            }
+        WeatheredCache[key] = cells;
+        return cells;
+    }
+
     public Vector2 Post => Edge switch
     {
         DoorSide.North => new(16, 4),
@@ -298,9 +327,12 @@ public partial class NightLightsLayer : Control
                 var tile = lantern.RoadTile + new Vector2I(shift, 0);
                 if (!visible.HasPoint(tile)) continue;
                 var origin = new Vector2(tile.X, tile.Y) * stride;
+                var weathered = lantern.Neglect != BuildingNeglect.None;
                 foreach (var cell in NightLightShapes.StreetLantern(lantern.Style, lantern.Post, lantern.Inward,
                     drawnDarkness, drawnTime, Seed(lantern.RoadTile), snap))
-                    placed.Add((origin, cell));
+                    if (!weathered || cell.Kind != LightCellKind.Paint) placed.Add((origin, cell));
+                if (weathered)
+                    foreach (var cell in lantern.WeatheredCells(snap)) placed.Add((origin, cell));
             }
         foreach (var site in lanternSites)
             foreach (var shift in wrapsEastWest ? new[] { -source.World.Width, 0, source.World.Width } : [0])

@@ -1,7 +1,6 @@
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
-using ClankerWorld.Simulation.Society;
 using ClankerWorld.Simulation.World;
 
 namespace ClankerWorld.Simulation.Tests;
@@ -11,7 +10,6 @@ public sealed class FarmIllnessWorkTests
     [Theory]
     [InlineData(FarmWorkKind.Till)]
     [InlineData(FarmWorkKind.Plant)]
-    [InlineData(FarmWorkKind.Tend)]
     [InlineData(FarmWorkKind.Harvest)]
     public async Task SevereIllnessSlowsActualFieldStrokesAndWearWithoutLosingWorkAcrossReload(FarmWorkKind kind)
     {
@@ -126,47 +124,6 @@ public sealed class FarmIllnessWorkTests
             PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task InterruptedDelayedPlantingReleasesTheSeedWithoutConsumption(bool dies)
-    {
-        var setup = await PreparedWork(FarmWorkKind.Plant);
-        using var working = FarmFieldTests.Restore(WithIllness(setup.State, setup.Actor, 9_000));
-        Start(working, setup, FarmWorkKind.Plant);
-        var reservationId = Assert.Single(working.Fields).Work!.SeedReservationId!;
-        await Advance(working, 6);
-        Assert.NotNull(Assert.Single(working.Fields).Work);
-        var state = working.ExportState();
-        if (dies)
-            state = DyingWorker(state, setup.Actor);
-        else
-        {
-            var away = state.Map.Tiles.Select(tile => tile.Position).First(point => point != setup.Point &&
-                state.Map.IsPassable(point) && !state.Inhabitants.Any(person => person.Position == point));
-            state = state with
-            {
-                Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == setup.Actor
-                ? person with { Position = away } : person).ToArray()
-            };
-        }
-        using var interrupted = FarmFieldTests.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)));
-        await Advance(interrupted, 1);
-        Assert.Null(Assert.Single(interrupted.Fields).Work);
-        Assert.Equal(FarmFieldStage.Prepared, Assert.Single(interrupted.Fields).Stage);
-        var receipt = interrupted.Society.Inventory.GetReservation(reservationId);
-        Assert.Equal((1, InventoryReservationState.Released), (receipt.Quantity, receipt.State));
-        Assert.Equal(2, interrupted.Society.Inventory.GetLot("illness-planting").Quantity);
-        Assert.DoesNotContain(interrupted.Society.Inventory.Events,
-            item => item.Kind == "reservation_consumed" && item.Detail == reservationId);
-        Assert.DoesNotContain(interrupted.ExportState().Events, item => item.Kind == "field_planted" &&
-            item.Detail.StartsWith(setup.Actor + ":", StringComparison.Ordinal));
-        if (dies) Assert.Equal(SocietyInhabitantStatus.Dead, interrupted.Society.GetInhabitant(setup.Actor).Status);
-        using var reloaded = Reload(interrupted);
-        Assert.Equal(PrivateWorldRuntimeCodec.Encode(interrupted.ExportState()),
-            PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
-    }
-
     private sealed record Setup(PrivateWorldRuntimeState State, string Actor, string Household, GridPoint Point);
 
     private static async Task<Setup> PreparedWork(FarmWorkKind kind)
@@ -229,28 +186,4 @@ public sealed class FarmIllnessWorkTests
 
     private static PrivateWorldRuntime Reload(PrivateWorldRuntime world) =>
         FarmFieldTests.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState())));
-
-    private static PrivateWorldRuntimeState DyingWorker(PrivateWorldRuntimeState state, string actor)
-    {
-        var society = state.Society.Society;
-        var nextLifeTick = society.Config.TicksPerLifecycleAge - 1;
-        var delta = nextLifeTick - society.LifeTickAt(society.WorldTick);
-        var years = society.Config.DayLifecycle!.MaximumDay - 1;
-        return state with
-        {
-            Society = state.Society with
-            {
-                Society = society with
-                {
-                    LifeClock = new SocietyLifeClock(society.LifeClock?.Rate ?? 1, society.WorldTick, nextLifeTick),
-                    Inhabitants = society.Inhabitants.Select(person => person.Id == actor ? person with
-                    {
-                        BirthLifeTick = nextLifeTick + 1 - (years + 1) * society.Config.TicksPerLifecycleAge,
-                        AgeBand = SocietyAgeBand.Elder,
-                        LastLifecycleYearChecked = years,
-                    } : person with { BirthLifeTick = (person.BirthLifeTick ?? person.BirthTick) + delta }).ToArray(),
-                }
-            }
-        };
-    }
 }

@@ -350,6 +350,8 @@ Only finished repairs count. Missing items, materials, carrying space or a work
 site leaves the task waiting. Queue, cancellation and save/reload also work for
 these orders. Tool orders also accept exact kinds, such as **Repair two iron
 knives**. Weapons and named work sites are not supported repair targets.
+When collecting a missing tool-repair ingredient, the agent can put excess
+materials in household storage while keeping what the repair needs.
 
 To make goods, try **Make two sacks**, **Make rope**, or **Mill flour**. Adults
 and elders use the usual work site, ingredients and tools. A plain request
@@ -622,8 +624,10 @@ carry surplus there and borrow a free stall. Buyers, including visitors who
 belong to no Town, bring personal payment, and the named seller chooses whether
 to accept when both have reached the stall. The buyer carries the purchase;
 payment becomes the seller's household stock there. Leaving frees the stall;
-leftover goods still belong to their
-recorded owner. Suggestions can guide these choices, but an Order cannot force
+leftover goods still belong to their recorded owner, who can carry them away
+even if they spoil. Other housemates can collect household stock once borrowing
+ends; the borrower may collect it while holding the stall.
+Suggestions can guide these choices, but an Order cannot force
 a sale or give away goods. An urgently hungry owner can still retrieve their
 available food from a stall and eat it. Other Market work waits until urgent
 hunger passes. The
@@ -802,8 +806,12 @@ Click an animal's tile for its name, age, household, care, ready product and
 permissions. Use its exact unique name or ID in a Must do order, for example
 **Tame Moss**, **Lead home Moss**, **Care for Moss**, or **Collect from Moss**.
 **Repeat care for Moss** and **Repeat collect from Moss** keep the task active
-until cancelled. The adult walks and brings actual available supplies; an
-order waits when permission, supplies, product, space or a route is missing.
+until cancelled. When the animal is elsewhere in the yard, the adult picks up
+the feed and water jug before walking to it. Care beside the yard stock can
+use those supplies directly. The adult walks and brings actual available
+supplies; an order waits when permission, supplies, product, space or a route
+is missing. Care without safe feed or jug water shows a blocker and can resume
+when supplies become available.
 Taming needs two grain/greens and one jug water. Chickens need one feed and one
 water daily; sheep, cows and horses need two each. Jugs remain reusable.
 
