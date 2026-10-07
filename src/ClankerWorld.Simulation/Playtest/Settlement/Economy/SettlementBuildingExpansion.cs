@@ -139,7 +139,7 @@ public sealed partial class PrivateWorldRuntime
             ? AvailableWarehouseStock(actor, itemKind) : Enumerable.Empty<InventoryLot>();
         return society.Checkpoint.Inventory.Lots
             .Where(lot => lot.OwnerId == owner && lot.ItemKind == itemKind &&
-                lot.StorageBuildingId != building.InstanceId && lot.DeliveryBuildingId is null &&
+                lot.StorageBuildingId != building.InstanceId && lot.DeliveryBuildingId is null && lot.CarrierId is null &&
                 lot.GroundPosition != site && lot.ContainerLotId is null && AvailableLotQuantity(lot) > 0)
             .OrderBy(lot => lot.Id, StringComparer.Ordinal)
             .Where(lot => CanReachSharedItem(actor, lot))
