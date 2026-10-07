@@ -983,8 +983,12 @@ not reissue past crossings. The count and cap stay in the usage file, and no
 checkpoint schema changed. Telemetry logs `provider_usage_warning` with its
 outcome.
 
-`ProviderUsageWorldEffects` applies both the cap's pause and the warning, each
-under the world mutation gate and followed by a save. Starting a conversation
+`ProviderUsageWorldEffects` applies both the cap's pause and the warning under
+the world mutation gate. A pause also rechecks the installation's current
+allowance after acquiring the runtime gate. If more calls are allowed or the
+limit was removed while it waited, it completes without pausing or saving and
+logs `superseded`; otherwise it pauses and saves. Warnings still append and
+save their crossed mark. Starting a conversation
 call reserves before the provider's first await; canceling a provider call can
 also invoke accounting callbacks synchronously. Both can happen on the thread
 holding the runtime gate. That gate is not reentrant, so the runtime marks
@@ -992,7 +996,8 @@ provider startup and cancellation under it
 (`IsInvokingProviderUnderGateOnThisThread`). On that thread the pause or warning
 moves to another task that waits for the world. Outside the runtime gate it
 runs at once, so a hosted decision's late reply cannot be admitted before the
-pause. `provider_usage_limit_reached` logs `paused`, `paused_unsaved` or `failed`.
+pause. `provider_usage_limit_reached` logs `paused`, `paused_unsaved`,
+`superseded` or `failed`.
 
 Unreadable or inconsistent accounting leaves the host reachable with paid work
 blocked. Preserve the damaged file; changing the cap cannot bypass it. Writes
