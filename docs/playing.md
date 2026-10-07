@@ -260,8 +260,9 @@ order the world keeps for them: the current one, the queue in the order it will
 be done, and their six latest closed orders. Each shows your words, and any
 reply from the agent is set apart from the game's status.
 
-When a child needs a guardian, an adult can follow **Become guardian for Lina**,
-using the child's full name. The adult still has to be eligible in the current
+When a child needs a guardian, an adult can follow **Become guardian for Élodie Vale**,
+using the child's full name. Names with accents work when typed or pasted,
+including accents entered separately from their letters. The adult still has to be eligible in the current
 guardian search. The order finishes when they accept primary care; moving the
 child into their House still requires room and a shared Town. This order can be
 queued or cancelled like a food task. It cannot replace an existing guardian.
