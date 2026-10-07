@@ -365,14 +365,15 @@ public sealed partial class PrivateWorldRuntime
 
     private void SeekWarmth(string actor, PlaytestInhabitantState person)
     {
-        // Do not abandon useful cover merely because its original travel target disappeared.
-        if (WarmthChange(person) >= 0 || WeatherAt(person.Position) == WeatherKind.Storm && NaturalStormCover(person.Position))
+        // Keep protection that already stops cooling, even if the original travel target disappeared.
+        if (WarmthChange(person) >= 0)
             return;
         var destination = ReachableWarmthDestinations(actor, person).FirstOrDefault();
         var cover = WeatherAt(person.Position) == WeatherKind.Storm && !NaturalStormCover(person.Position)
             ? NearbyNaturalStormCover(actor, person.Position) : null;
         if (cover is { } coverPoint &&
-            (destination is null || map.FootDistance(person.Position, coverPoint) <
+            // A nearby tree must not pull a cooling agent back while walking to a lit hearth.
+            (destination is null || !IsFireLit(destination) && map.FootDistance(person.Position, coverPoint) <
                 map.FootDistance(person.Position, destination.Position)))
         {
             if (person.Position != coverPoint)

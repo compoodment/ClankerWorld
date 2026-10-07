@@ -1,0 +1,1 @@
+- Cold agents can leave natural storm cover that is not keeping them warm and reach a lit House without being drawn back to a nearby tree. They can stay where their current protection stops cooling.
