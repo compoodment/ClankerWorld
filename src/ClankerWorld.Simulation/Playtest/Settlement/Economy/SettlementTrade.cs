@@ -106,7 +106,10 @@ public sealed partial class PrivateWorldRuntime
                      !WantsTradeItem(actor, lot) && WantsTradeItem(other, lot) &&
                      (!IsEdibleFood(lot.ItemKind) || inhabitants[actor].HungerBasisPoints >= 6_500)))
         {
-            var take = lots.FirstOrDefault(lot => lot.OwnerId == other && lot.ItemKind != give.ItemKind &&
+            // Records of the same kind can contain different discoveries. The
+            // reciprocal demand checks still require contents each recipient lacks.
+            var take = lots.FirstOrDefault(lot => lot.OwnerId == other &&
+                (lot.ItemKind != give.ItemKind || AgentKnowledgeRules.IsArtifactKind(lot.ItemKind)) &&
                 TradeQuantityAvailable(lot) && !WantsTradeItem(other, lot) && WantsTradeItem(actor, lot) &&
                 (!IsEdibleFood(lot.ItemKind) || inhabitants[other].HungerBasisPoints >= 6_500));
             if (take is not null)
