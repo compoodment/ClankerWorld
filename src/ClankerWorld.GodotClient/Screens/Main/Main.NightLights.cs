@@ -44,14 +44,23 @@ public partial class Main
         return lights;
     }
 
-    /// <summary>Completed lamps use their saved Road neighbour, without depending on occupants or jobs.</summary>
+    /// <summary>
+    /// Completed lamps use their saved Road neighbour, without depending on
+    /// occupants or jobs. In an abandoned Town they look neglected, then
+    /// falling apart after a full season, but still light at night.
+    /// </summary>
     private static List<StreetLanternLight> StreetLanterns(OwnerWorldSnapshot snapshot)
     {
         var (width, _) = MapDimensions(snapshot);
+        var neglectByTown = snapshot.Towns.Where(town => town.IsAbandoned).ToDictionary(town => town.Id,
+            town => town.FallingApart ? BuildingNeglect.FallingApart : BuildingNeglect.Neglected, StringComparer.Ordinal);
         var lanterns = new List<StreetLanternLight>();
         foreach (var building in snapshot.PlacedBuildings.OrderBy(building => building.InstanceId, StringComparer.Ordinal))
             if (StreetLanternLight.FromBuilding(building, width, snapshot.WrapsEastWest) is { } lantern)
-                lanterns.Add(lantern);
+                lanterns.Add(lantern with
+                {
+                    Neglect = building.TownId is { } town ? neglectByTown.GetValueOrDefault(town) : BuildingNeglect.None,
+                });
         return lanterns;
     }
 

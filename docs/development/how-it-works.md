@@ -2026,7 +2026,12 @@ accepted, non-fallback personal LLM choice; their candidates rank above
 owner orders do not authorize these mutations. A member carrying their own
 household's goods may return them to its House through `household_return`, and
 the household hauling, farm stock and planting routines skip stock on a stall
-while a member of that household borrows it. Usable loose surplus (the food
+while a member of that household borrows it. Explicit `market_collect` also
+protects household stock from other housemates while borrowing is active;
+the borrower may collect it, and personal owners may retrieve their own goods.
+The same choices are checked again before applying a mutation or continuing
+travel, using current borrowing.
+Usable loose surplus (the food
 reserve counts the owner's other usable stock of that kind), actual
 carrying and stall room, active claims, current household rights and protected
 equipment constrain the offered choices. During urgent hunger, Market candidates
@@ -2935,7 +2940,11 @@ or household stock while wild.
 Adults tame, care, collect, supply, lead, saddle, mount and dismount through
 ordinary revalidated choices. Native orders bind an exact animal name or ID.
 Care spends actual unreserved grain/greens and jug water at the animal or yard;
-food, planting and workstation reserves stay protected. Physical supply trips
+food, planting and workstation reserves stay protected. For care away from the
+actor's tile, input selection accepts only physically carried supplies. This
+keeps the existing supply path collecting both feed and a water jug before
+approaching the animal, including after a partial pickup. At the animal's tile,
+permitted local yard stock remains usable directly. Physical supply trips
 retain the owning household. One held product batch waits for local collection;
 milk enters a reusable household jug. Products then use ordinary stock hauling,
 recipes and trade.

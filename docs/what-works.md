@@ -596,11 +596,13 @@ include young animals and reserved births. Yards hold sixteen supply units.
 Taming uses two feed and one jug water. Daily care uses one feed/water for a
 chicken and two each for sheep, cows and horses. Feed is grain or greens. Adults
 fetch and carry real supplies, preserving food, planting and production
-reserves. Care uses grain before ready-to-eat greens when available, and may
-combine grain with spare greens across lots. An incomplete safe feed or water
-load spends nothing. Care orders explain missing safe feed and jug water,
-while valid supply fetching stays active. They resume when physical supplies
-become available. Cared adult hens supply eggs daily, cows two milk daily,
+reserves. Yard stock is picked up before approaching an animal on another
+tile; care at the stock tile can use it directly. Care uses grain before
+ready-to-eat greens when available, and may combine grain with spare greens
+across lots. An incomplete safe feed or water load spends nothing. Care orders
+explain missing safe feed and jug water, while valid supply fetching stays
+active. They resume when physical supplies become available. Cared adult hens
+supply eggs daily, cows two milk daily,
 and sheep two wool every three days. One batch waits for local collection. Milk needs a
 household jug that contains milk or is empty; water and milk never mix.
 Adults haul milk jugs to their Store or borrowed Market stall. An agreed sale
@@ -754,8 +756,9 @@ change; [its Windows playtest](../playtest/410-abandoned-towns.md) is pending.
 An abandoned Town's buildings look neglected on the map: faded and mossy,
 with weeds and boarded doors. Once it has stood empty for a full season they
 look falling apart, with holes in the roofs, fallen planks and saplings; a
-revived Town looks lived in again. Its street lanterns and bridges do not
-change yet.
+revived Town looks lived in again. Its street lanterns fade and gather moss
+and weeds but still light at night, and its bridges fade and lose boards,
+then whole planks once the Town falls apart.
 Founding another Town remains unfinished.
 
 Each founded Town has its own council. Its recorded living adult residents
@@ -1004,7 +1007,9 @@ adult can retrieve their personally owned food; unrelated Market work still
 waits. Household goods a
 member carries to or from the Market can be brought back into the household's
 House. Housemates leave household stock on a stall while one of them borrows
-it, and haul it home once the borrowing ends. An Order or built-in choice
+it, and haul it home once the borrowing ends. Explicit Market collection follows
+the same boundary. The borrower may collect household stock, and adults may
+retrieve their own personal goods. An Order or built-in choice
 cannot give away stock or consent to a Market exchange; built-in rules prefer
 ordinary work over any Market choice.
 
