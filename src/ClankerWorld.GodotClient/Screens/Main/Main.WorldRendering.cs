@@ -75,6 +75,9 @@ public partial class Main
 
     private void Render(OwnerWorldSnapshot snapshot, IReadOnlyList<OwnerWorldEvent> appendedEvents)
     {
+        var (mapWidth, mapHeight) = MapDimensions(snapshot);
+        authoringX.MaxValue = Math.Max(0, mapWidth - 1);
+        authoringY.MaxValue = Math.Max(0, mapHeight - 1);
         if (usagePauseWorldId != snapshot.WorldId)
         {
             usagePauseWorldId = snapshot.WorldId;
