@@ -102,7 +102,7 @@ public partial class Main
         if (snapshot.RoadTiles.Any(point => point.X == tile.X && point.Y == tile.Y)) parts.Add("Road");
         if (BridgeAt(snapshot, tile) is not null) parts.Add("Bridge");
         if (snapshot.Towns.FirstOrDefault(town => town.BorderTiles.Any(point => point.X == tile.X && point.Y == tile.Y)) is { } owner)
-            parts.Add(owner.Name);
+            parts.Add(owner.IsAbandoned ? owner.Name + " (abandoned)" : owner.Name);
         var summary = string.Join(" · ", parts);
         return siteAdvice is { } advice
             ? $"{summary}\nTown-site advice: {TownSiteFactorSummary(advice)}"

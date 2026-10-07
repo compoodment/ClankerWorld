@@ -28,7 +28,7 @@ public sealed partial class PrivateWorldRuntime
     {
         if (!inhabitants.ContainsKey(actor)) yield break;
         var residentTownId = TownForResident(actor);
-        foreach (var town in towns.Where(item => item.Id == residentTownId || item.ResidentIds.Count == 0)
+        foreach (var town in towns.Where(item => item.Id == residentTownId || item.IsAbandoned)
                      .OrderBy(item => item.Id == residentTownId ? 0 : 1)
                      .ThenBy(item => item.Id, StringComparer.Ordinal))
             foreach (var warehouse in WarehousesForTown(town.Id))
@@ -44,7 +44,7 @@ public sealed partial class PrivateWorldRuntime
     private bool MayCollectWarehouseStock(string actor, PlacedBuilding warehouse) =>
         inhabitants.ContainsKey(actor) && warehouse.TownId is { } townId &&
         towns.SingleOrDefault(item => item.Id == townId) is { } town &&
-        (TownForResident(actor) == townId || town.ResidentIds.Count == 0) &&
+        (TownForResident(actor) == townId || town.IsAbandoned) &&
         WarehousesForTown(townId).Any(item => item.InstanceId == warehouse.InstanceId);
 
     private IEnumerable<InventoryLot> AvailableWarehouseStock(string actor, string? itemKind = null) =>

@@ -160,7 +160,11 @@ public partial class Main : Control
     private readonly OptionButton clockFormatChoice = new();
     private readonly OptionButton dateFormatChoice = new();
     private readonly OptionButton lifePaceChoice = new();
-    private readonly CheckBox jevAssistanceToggle = new();
+    private readonly OptionButton routineHelperChoice = new();
+    private readonly ModelPicker routineHelperModelPicker = new();
+    private readonly OptionButton routineHelperKeyChoice = new();
+    private readonly Button applyRoutineHelperButton = new();
+    private string? observedRoutineHelperContext;
     private readonly Button applyLifePaceButton = new();
     private int? lastObservedLifePace;
     private string? lastLifePaceWorldId;
