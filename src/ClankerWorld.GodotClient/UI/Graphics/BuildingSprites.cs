@@ -168,29 +168,6 @@ public static partial class BuildingSprites
     {
         switch (kind)
         {
-            case BuildingKind.AnimalYard:
-                var fence = new Color("84633E");
-                var rail = new Color("B59360");
-                canvas.Rect(3, 3, width - 6, height - 6, new Color("797D4F"));
-                canvas.Rect(2, 3, width - 4, 2, rail);
-                canvas.Rect(2, height - 5, width - 4, 2, fence);
-                canvas.Rect(2, 3, 2, height - 6, fence);
-                canvas.Rect(width - 4, 3, 2, height - 6, rail);
-                for (var x = 2; x < width - 2; x += 12)
-                {
-                    canvas.Rect(x, 1, 3, 6, fence);
-                    canvas.Rect(x, height - 7, 3, 6, fence);
-                }
-                for (var y = 3; y < height - 5; y += 12)
-                {
-                    canvas.Rect(1, y, 4, 4, fence);
-                    canvas.Rect(width - 5, y, 4, 4, fence);
-                }
-                canvas.Rect(8, 9, 12, 5, new Color("4C382B"));
-                canvas.Rect(9, 10, 10, 2, new Color("718B8A"));
-                canvas.Rect(9, height - 18, 10, 5, new Color("BAA36B"));
-                DoorBand(canvas, new Rect2(3, 3, width - 6, height - 6), door, 10, 0, new Color("797D4F"));
-                return;
             case BuildingKind.Hearth:
                 PaintHearth(canvas, width, height);
                 return;
@@ -448,7 +425,8 @@ public static partial class BuildingSprites
         };
 
         /// <summary>Whether this kind uses the approved drawing.</summary>
-        public static bool Draws(BuildingKind kind) => kind is BuildingKind.Silo or BuildingKind.MarketStall or BuildingKind.Port || RecipeFor(kind) is not null;
+        public static bool Draws(BuildingKind kind) => kind is BuildingKind.Silo or BuildingKind.MarketStall or BuildingKind.Port or BuildingKind.AnimalYard ||
+            RecipeFor(kind) is not null;
 
         /// <summary>Where a roofed kind's roof, yard and door are, in 32-unit tile space; null for the others.</summary>
         public static (Rect2 Roof, Rect2? Yard, float DoorMiddle, Rect2? Wing)? PlanFor(BuildingKind kind, int tilesWide, int tilesHigh, BuildingDoor door, int tilePixels)
@@ -494,6 +472,7 @@ public static partial class BuildingSprites
             BuildingKind.Silo => SiloWood.Base,
             BuildingKind.Port => Timber.Base,
             BuildingKind.MarketStall => Berry.Base,
+            BuildingKind.AnimalYard => YardDirt.Base,
             _ => RecipeFor(kind)?.Roof.Base,
         };
 
@@ -502,6 +481,7 @@ public static partial class BuildingSprites
         {
             tilesWide = Math.Clamp(tilesWide, 1, 8);
             tilesHigh = Math.Clamp(tilesHigh, 1, 8);
+            if (kind == BuildingKind.AnimalYard) return Yard(tilesWide, tilesHigh, tilePixels, door);
             if (kind == BuildingKind.Port && tilePixels != 32)
             {
                 var approved = Draw(kind, tilesWide, tilesHigh, 32, door);
