@@ -37,7 +37,7 @@ If New World asks for matching updates, update the game and have the server
 updated too. Keep your current device pairing; pairing again does not repair
 that version mismatch. You can still reconnect to the existing world.
 
-Adults may leave a household without its permission. Their own goods remain theirs even in the old House; collecting them and returning borrowed tools require travel and carrying space. A primary caregiver keeps dependent children with them unless another adult explicitly takes over care. An adult seeks an accepting existing home with room for the whole group first, then may start a household alone and build a House through the usual materials and site rules. Inspect the agent to see membership, goods awaiting collection, borrowed goods, care responsibility and the housing blocker.
+Adults may leave a household without its permission. Their own goods remain theirs even in the old House; collecting them and returning borrowed tools require travel and carrying space. A primary caregiver keeps dependent children with them unless another adult explicitly takes over care. Once grown, those children can collect their own belongings left in the former House, even if the caregiver has died. An adult seeks an accepting existing home with room for the whole group first, then may start a household alone and build a House through the usual materials and site rules. Inspect the agent to see membership, goods awaiting collection, borrowed goods, care responsibility and the housing blocker.
 
 When a child loses their last caregiver, relatives are asked first, then adults
 in the child's household and Town. Until someone accepts, the child shows
@@ -432,6 +432,13 @@ A building's storage-space bar shows how much of its recorded limit is used,
 with exact used/limit numbers. It counts all stored goods, including materials
 held for work and goods belonging to someone else. It updates when goods move
 or an expansion increases the limit. Hover over the bar for the exact count.
+
+**Details** also lists recent recorded storage changes: positive quantities
+were added, negative quantities were removed or used, with the date and time
+of each change. The newest entries come first. The list refreshes while open
+and survives saving or reconnecting; it covers the recent records still kept
+by the server. Goods changing owners in the same building do not count as a
+physical addition or removal.
 
 Every day has a night, with a short dusk and dawn. Nights are longest in winter
 and shortest in summer: from 19:12 to 04:48 on the clock in the top bar at the
