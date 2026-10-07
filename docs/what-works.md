@@ -1044,7 +1044,9 @@ at the old House. Collection and returning borrowed work tools require travel
 and carrying space. A departure allocates up to two available, unreserved
 ready-to-eat portions once; collection and reload do not repeat that allowance.
 Dependent children keep their primary caregiver and move as a care group unless
-another adult explicitly accepts primary care. Existing homes must accept the
+another adult explicitly accepts primary care. After growing up, they can collect
+their own goods left at the former House, even if the caregiver has died; they
+need not rejoin the household. Existing homes must accept the
 whole group and have enough completed places. If no suitable home accepts them,
 one adult can start a household and pursue a House through the usual materials,
 legal-site and work rules. No House or materials are supplied for free. Leaving
