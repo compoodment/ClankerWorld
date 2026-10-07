@@ -117,8 +117,8 @@ public sealed partial class PrivateWorldRuntime
 
     /// <summary>
     /// Loose household stock to carry to the House. With an actor and House,
-    /// only stock that actor can pick up now is returned, so a vessel load too
-    /// large to haul does not hide the stock behind it.
+    /// only stock that actor can pick up and deliver now is returned, so an
+    /// unreachable pile or oversized vessel does not hide usable stock.
     /// </summary>
     private InventoryLot? UnlocatedHouseholdStock(string householdId, string? actor = null,
         string? houseId = null, string? itemKind = null, int maximumQuantity = int.MaxValue) =>
@@ -135,7 +135,20 @@ public sealed partial class PrivateWorldRuntime
             .OrderBy(lot => lot.ItemKind == "food" ? 0 : 1)
             .ThenBy(lot => lot.Id, StringComparer.Ordinal)
             .FirstOrDefault(lot => actor is null || houseId is null ||
-                HouseHaulPickupQuantity(actor, lot, houseId) > 0);
+                HouseHaulPickupQuantity(actor, lot, houseId) > 0 &&
+                CanReachHouseHaulStock(actor, lot, houseId));
+
+    private bool CanReachHouseHaulStock(string actor, InventoryLot stock, string houseId)
+    {
+        if (worldSimulation.Buildings.FirstOrDefault(building => building.InstanceId == houseId) is not { } house)
+            return false;
+        var source = HouseholdStockPosition(stock);
+        var range = HouseholdStockInteractionRange(stock);
+        var position = inhabitants[actor].Position;
+        return (IsWithinInteractionRange(position, source, range) ||
+                FindUnoccupiedRoute(actor, position, source, range).Count > 0) &&
+            FindUnoccupiedRoute(actor, source, house.Position, 0).Count > 0;
+    }
 
     private void AddHouseHaulCandidate(List<CognitionCandidate> candidates,
         string actor, PlaytestInhabitantState state)
