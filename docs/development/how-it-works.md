@@ -846,6 +846,12 @@ action prefix used by the social cooldown. The saved owner and subject keep
 their actual identities. Short keys and existing saved records stay unchanged;
 records with oversized or malformed keys remain excluded from recall.
 
+The three-person candidate limit counts reachable people who contribute an
+available talk, play or learning action. A person whose applicable actions are
+all on cooldown consumes no slot; distance and stable identity still order the
+eligible targets. The 120-tick per-action cooldown and age restrictions apply
+both when offering and when executing an action.
+
 Exploration records personal knowledge; it does not create free inventory.
 Households make paper at an authorized House from physically delivered fiber
 and fresh water in a reusable jug. The provisional batch uses two fiber and
