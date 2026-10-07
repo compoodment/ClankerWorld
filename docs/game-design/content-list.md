@@ -2,7 +2,7 @@
 title: Planned game content
 type: game-design-content
 status: active
-updated: 2026-10-04
+updated: 2026-10-06
 ---
 
 # Planned game content
@@ -100,7 +100,7 @@ are provisional. Farm planning responds to population, yield and stored reserves
 | 3.6 | Agreed | Seeds | Distinct wood-tree, orchard, universal-grain and cultivated-green seeds; potatoes are their own planting stock. Harvest replacement seeds and reserve enough to replant before selling surplus. |
 | 3.7 | Agreed | Rope | House-crafted from fiber; baskets, sacks, carts, boats and later construction. Trial recipe in the [approved pipelines](towns.md#item-and-resource-pipelines). |
 | 3.8 | Agreed | Clay / pottery | Clay bank → House-made reusable storage pot or water jug, with distinct item icons. Pots slow food spoilage within limited capacity; jugs hold fresh water. |
-| 3.9 | Agreed | Hide / leather / wool | **Late-development** animal products: naturally deceased livestock provide hides, Tailor Shop processes leather; sheep are sheared for wool. No starting livestock is implied. |
+| 3.9 | Agreed | Hide / leather / wool | Naturally deceased livestock provide hides; the Tailor Shop processes leather and sheep are sheared for wool under the [approved animal pipeline](towns.md#animal-pipeline). No starting livestock is supplied. |
 | 3.10 | Agreed | Fresh water | Collect from rivers/lakes into a reusable jug, carry to cooking, medicine-making or animal care. No remote water supply. |
 | 3.11 | Agreed | Paper | Fiber and water → paper for physical maps, records and books containing actually learned knowledge. |
 
@@ -133,6 +133,10 @@ last axe is lost. Without a Blacksmith, a household can make
 [crude wooden tools](towns.md#tools-clothing-and-transport) at its House. The
 Workshop is not required at start.
 
+Leather sacks (32 carried cargo units) and horse saddles are also agreed by the
+[October 6 animal pipeline](towns.md#animal-pipeline); their recipes and animal
+permissions are recorded there.
+
 ## 5. Food, cooking, and care
 
 | # | Status | Carryable item / visual | Source and role |
@@ -143,7 +147,7 @@ Workshop is not required at start.
 | 5.4 | Agreed | Simple cooked meal | House-cooked potatoes, wild greens or cultivated greens with wood fuel; one specific meal item with a generic icon. |
 | 5.5 | Agreed | Porridge; bread; vegetable stew | Grain/water/fuel porridge; flour/water/fuel bread; potato/cultivated-greens/water/fuel stew. House or Restaurant; quantities and nutrition are provisional in the [approved pipelines](towns.md#item-and-resource-pipelines). |
 | 5.6 | Agreed | Restaurant meal | Bread, cultivated greens and wood fuel at the Restaurant give better nourishment and variety; sold from actual on-site stock. |
-| 5.7 | Agreed | Milk; eggs | Products of accepted cows/chickens, **late-development** with livestock. No meat or hunting loop is assumed. |
+| 5.7 | Agreed | Milk; eggs | Physical cow/chicken products under the [approved animal pipeline](towns.md#animal-pipeline): milk in reusable jugs, cooked egg portions, milk porridge and rich Restaurant meals. No meat or hunting. |
 | 5.8 | Agreed | Bandage; medicine | Cut cloth into bandages at a House/Tailor Shop; Clinic turns medicinal herbs, water and fuel into medicine. **October 2 staging:** make, store and trade bandages now; injury causes and bandage treatment wait for the injury stage. Medicine supports gradual illness recovery with physically present supplies, without instant full-health restoration. |
 | 5.9 | Agreed | Medicinal herbs | Gather from a wild herb patch, carry to a Clinic and make medicine. |
 
@@ -176,6 +180,7 @@ and an inspection-panel identity/icon. There are **no room-interior assets**.
 | 6.14 | Agreed | Clinic / healer's shop: 1×1 or 1×2 | Household-held care stock; the first Clinic is 1×2. Patients buy supplies or accepted caregivers deliver them; medicine consumes a real dose and supports gradual illness recovery. Bandage treatment is deferred. Quantities and recovery rates are provisional; see [Clinic supplies and illness care](towns.md#clinic-supplies-and-illness-care) and [current availability](../what-works.md#life-work-and-society). |
 | 6.15 | Agreed | Road | **One** road type; straight, corner, junction, end, diagonal and connection pieces as needed for readable automatic routes. Packed dirt with worn, feathered edges and pebbles; rounded bends; a doorstep path to each building's entrance, which may face any side ([road review](towns.md#how-roads-and-bridges-appear)). Roads remain after their building or Town disappears. Roads cost no materials. |
 | 6.16 | Agreed | Bridge | Narrow river crossing sprite(s) for a river up to **two tiles wide**; wider water is not bridged. Generated from traffic **or immediately as part of a generated Road** crossing a bridgeable river, never hand-painted by player. Costs no materials. Whether a bridge is redundant compares the actual connected banks, with no fixed radius; separate nearby streams may each need a bridge. |
+| 6.18 | Agreed | Animal yard: 2×2, 2×4 | Household outdoor yard for four/eight animals; sixteen cargo units of delivered supplies. Ordinary permitted land and physical care; [October 6 animal decision](towns.md#animal-pipeline). |
 | 6.17 | Agreed | Street lantern | Built by agents beside Roads; **no fuel**, lit from dusk to dawn. Two designs: a round stone lamp with an open flame and a hanging lantern on a roadside post with an arm over the Road. Built as a Council-approved shared Town project; trial costs stone for the lamp, wood and a little refined iron for the hanging lantern ([Towns](towns.md#shared-town-projects)). |
 
 Port footprint interpretation, shown in one of its four orientations (`P` is
@@ -205,8 +210,8 @@ alternatives are not fixed by this roster.
 | 7.1 | Agreed | Agent sprites | **Straight top-down**, showing the tops of heads/bodies/objects; infant, child, adult and elder silhouettes and a few appearance variants per stage without genders. Directional walking, working, carrying, talking, eating/cooking and hurt states as needed. Worn clothing does not alter the sprite; worn-armor display is open. No sleep cycle. Exact frames open. |
 | 7.2 | Agreed | Social indicators | Chat bubble, selected/hover state, household/Town affiliation and conversation popup. Family lines, partnerships and deceased profiles belong in the family-tree UI, not automatically on the ground sprite. |
 | 7.3 | Agreed | Boat | Wood, rope and iron fittings, crafted at a Port; one agent and their carried cargo. Communal Town property; journeys need two completed Ports and follow the [agreed queue, reservation and blocked-destination recovery rules](world.md#first-boat-and-port-travel). Visitors may use a boat when the Town Council votes to allow it or a standing Town law grants it. Quantities and speed are provisional. |
-| 7.4 | Agreed | Livestock | **Chicken (eggs), sheep (wool), cow (milk)**; husbandry art/mechanics are **late-development**. No hostile predators. Animals face eight directions like agents. |
-| 7.5 | Agreed | Mount | **Horse** with rider/cargo states; riding and care mechanics are **late-development**. Horses face eight directions like agents. |
+| 7.4 | Agreed | Livestock | **Chicken (eggs), sheep (wool), cow (milk)**; husbandry follows the [October 6 approved pipeline](towns.md#animal-pipeline); implementation resumed. No hostile predators. Animals face eight directions like agents. |
+| 7.5 | Agreed | Mount | **Horse** with rider/cargo states; a cared-for saddled adult horse carries one adult rider at twice walking speed and eight extra cargo units under the [approved pipeline](towns.md#animal-pipeline). Horses face eight directions like agents. |
 | 7.6 | Agreed | Weapon | Axe also works as a tool; wood-and-iron **spear and simple sword** are Blacksmith-made equipment with wear, repair and replacement. Detailed combat and lethality remain open. |
 | 7.7 | Agreed | Protection | **Shield and basic armor**, made at the Blacksmith from wood, cloth and iron, equip for protection and need repair/replacement. Item art and effects are accepted; worn-map appearance and later armor-art generation remain open. |
 | 7.8 | Agreed | Injury and recovery | Hurt/treated indicators; cloth bandages and herb/water/fuel medicine. **October 2 staging:** injury causes and bandage treatment are deferred; medicine supports existing illness. No hostile predators. Recovery rates remain to be tuned. |
@@ -278,7 +283,7 @@ are also agreed additions.
 
 Still open: Market plot reservation
 and how the plaza grows; currency and
-governance rules; detailed animal breeding/mortality, injury and combat rules;
+governance rules; injury and combat rules;
 and late-development invention/mod art generation and fallback. Recipe
 quantities, yields, work times, storage capacities, spoilage, wear and recovery
 effects are provisional playtest balance.

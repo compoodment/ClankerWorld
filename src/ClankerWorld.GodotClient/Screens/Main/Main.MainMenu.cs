@@ -607,8 +607,8 @@ public partial class Main
         worldSelectButton.Disabled = true;
         worldNameInput.Text = "New World";
         worldSeedInput.Text = Guid.NewGuid().ToString("N")[..12];
-        InvalidateWorldPreview();
         worldMenuOverlay.Show();
+        InvalidateWorldPreview();
         if (create) _ = PreviewWorldAsync();
         else _ = RefreshWorldListAsync();
     }
@@ -814,7 +814,7 @@ public partial class Main
     {
         var generation = observationSession.RequestGeneration;
         await ToSignal(GetTree().CreateTimer(0.3), SceneTreeTimer.SignalName.Timeout);
-        while (worldMenuBusy && IsInsideTree() && worldMenuOverlay.Visible && revision == worldPreviewRevision)
+        while ((worldMenuBusy || isOwnerAction) && IsInsideTree() && worldMenuOverlay.Visible && revision == worldPreviewRevision)
             await ToSignal(GetTree().CreateTimer(0.1), SceneTreeTimer.SignalName.Timeout);
         if (!IsCurrentWorldRequest(generation) || !IsInsideTree() || !worldMenuOverlay.Visible ||
             !worldMenuColumns.Visible || revision != worldPreviewRevision ||

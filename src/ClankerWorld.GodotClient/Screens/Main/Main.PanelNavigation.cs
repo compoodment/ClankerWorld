@@ -116,6 +116,7 @@ public partial class Main
             return;
         }
 
+        draggingMap = false;
         rosterPanel.Hide();
         eventsPanel.Hide();
         familyTreePanel.Hide();
@@ -138,7 +139,10 @@ public partial class Main
         ApplyResponsiveLayout();
 
         var paused = observationSession.Current?.Baseline.Snapshot.Authoring?.IsPaused == true;
-        menuPausedWorld = observationSession.Current is not null && !paused;
+        // A queued automatic Resume still represents a running world, even
+        // while the last displayed observation shows the menu's earlier Pause.
+        menuPausedWorld = observationSession.Current is not null && (!paused ||
+            pendingMenuResumes > 0 && pendingMenuResumeGeneration == observationSession.RequestGeneration);
         // A paused observation may follow a failed checkpoint write. Only a
         // successful pause receipt proves the menu's durable exit boundary.
         menuPauseConfirmed = false;
@@ -191,7 +195,21 @@ public partial class Main
         CloseGameMenu();
         if (resumeWorld)
         {
-            await SetPausedAsync(paused: false);
+            var generation = observationSession.RequestGeneration;
+            if (pendingMenuResumeGeneration != generation)
+            {
+                pendingMenuResumeGeneration = generation;
+                pendingMenuResumes = 0;
+            }
+            pendingMenuResumes++;
+            try
+            {
+                await SetPausedAsync(paused: false);
+            }
+            finally
+            {
+                if (pendingMenuResumeGeneration == generation) pendingMenuResumes--;
+            }
         }
     }
 

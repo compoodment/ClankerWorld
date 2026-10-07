@@ -134,7 +134,7 @@ public sealed partial class PrivateWorldRuntime
         }
         if (PersonalEquipmentRules.IsCarryAid(lot.ItemKind))
             return PersonalEquipmentRules.Capacity(society.Checkpoint.Inventory, actor, inhabitants[actor].Equipment) <
-                (lot.ItemKind == "sack" ? PersonalEquipmentRules.SackCapacity : PersonalEquipmentRules.BasketCapacity);
+                (lot.ItemKind == "leather_sack" ? 32 : lot.ItemKind == "sack" ? PersonalEquipmentRules.SackCapacity : PersonalEquipmentRules.BasketCapacity);
         return false;
     }
 
@@ -172,7 +172,7 @@ public sealed partial class PrivateWorldRuntime
         var capacity = IsFarmStorage(building) ? FarmFieldRules.FarmStorageCapacity :
             BuildingStorageRules.Capacity(definition, building) ?? int.MaxValue;
         return PersonalEquipmentRules.CarriedQuantity(inventory, buyer, equipment) - payment + goods +
-                ReservedBusinessCarrySpace(buyer) <= PersonalEquipmentRules.Capacity(inventory, buyer, equipment) &&
+                ReservedBusinessCarrySpace(buyer) <= PersonalEquipmentRules.Capacity(inventory, buyer, equipment) + HorseCargoCapacity(buyer) &&
             (long)StoredQuantity(building.InstanceId) - goods + payment + ReservedStorageGrowth(building.InstanceId) +
                 ReservedBusinessStorageSpace(building.InstanceId) + InboundDeliveryQuantity(inventory, building.InstanceId) <= capacity;
     }
@@ -419,7 +419,7 @@ public sealed partial class PrivateWorldRuntime
         var afterStorage = (long)StoredQuantity(trade.BuildingInstanceId) - offer.FirstQuantity +
             offer.SecondQuantity + ReservedStorageGrowth(trade.BuildingInstanceId) + otherStorageReservations +
             InboundDeliveryQuantity(inventory, trade.BuildingInstanceId);
-        if (afterCarry > PersonalEquipmentRules.Capacity(inventory, trade.BuyerId, equipment) || afterStorage > capacity)
+        if (afterCarry > PersonalEquipmentRules.Capacity(inventory, trade.BuyerId, equipment) + HorseCargoCapacity(trade.BuyerId) || afterStorage > capacity)
             return "There is no longer enough receiving space.";
         if (!IsWithinInteractionRange(buyerState.Position, trade.Position, ResourceInteractionRange) &&
             FindUnoccupiedRoute(trade.BuyerId, buyerState.Position, trade.Position, ResourceInteractionRange).Count == 0)

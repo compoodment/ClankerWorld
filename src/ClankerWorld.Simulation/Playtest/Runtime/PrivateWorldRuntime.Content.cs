@@ -103,7 +103,7 @@ public sealed partial class PrivateWorldRuntime
                 RestaurantContent.Create(), BusinessContent.Create(), CareContent.Create(), OrnamentContent.Create(), TownHallContent.Create(),
                 KnowledgeContent.Create(), MarketContent.Create(), StreetLanternContent.Create(), PortContent.Create(),
                 FarmhouseVariantContent.Create(), BlacksmithVariantContent.Create(), TailorVariantContent.Create(),
-                ClinicVariantContent.Create(), RestaurantVariantContent.Create(),
+                ClinicVariantContent.Create(), RestaurantVariantContent.Create(), AnimalContent.Create(),
             ];
             foreach (var manifest in manifests)
             {
