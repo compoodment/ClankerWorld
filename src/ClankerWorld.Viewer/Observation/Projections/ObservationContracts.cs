@@ -32,7 +32,8 @@ public sealed record ViewerHandcart(string Id, string OwnerId, string OwnerName,
 public sealed record ViewerAnimal(string Id, string Name, string Species, string Sex, int AgeDays, string LifeStage,
     ViewerPosition Position, string? HouseholdId, string? HouseholdName, string CareStatus, string? ProductKind,
     int ProductQuantity, double? BirthDaysRemaining, string? RiderId, string? RiderName, string? LeaderId,
-    bool Saddled, IReadOnlyList<string> CarePermissions, IReadOnlyList<string> RidingPermissions);
+    bool Saddled, IReadOnlyList<string> CarePermissions, IReadOnlyList<string> RidingPermissions,
+    int? ProductProgressPercent = null);
 
 public sealed record ViewerBoat(string Id, string TownId, string TownName, ViewerPosition Position,
     string? DockedPortId, string? PassengerId, string? PassengerName, string? DestinationPortId,

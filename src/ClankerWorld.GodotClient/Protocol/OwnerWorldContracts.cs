@@ -37,7 +37,12 @@ public sealed record OwnerWorldHandcart(string Id, string OwnerId, string OwnerN
 public sealed record OwnerWorldAnimal(string Id, string Name, string Species, string Sex, int AgeDays, string LifeStage,
     OwnerWorldPosition Position, string? HouseholdId, string? HouseholdName, string CareStatus, string? ProductKind,
     int ProductQuantity, double? BirthDaysRemaining, string? RiderId, string? RiderName, string? LeaderId,
-    bool Saddled, IReadOnlyList<string> CarePermissions, IReadOnlyList<string> RidingPermissions);
+    bool Saddled, IReadOnlyList<string> CarePermissions, IReadOnlyList<string> RidingPermissions,
+    int? ProductProgressPercent = null)
+{
+    /// <summary>A sheep in a household looks shorn for the first half of each wool cycle; a wild sheep stays woolly.</summary>
+    public bool LooksShorn => Species == "sheep" && LifeStage == "adult" && ProductProgressPercent is < 50;
+}
 
 public sealed record OwnerWorldBoat(string Id, string TownId, string TownName, OwnerWorldPosition Position,
     string? DockedPortId, string? PassengerId, string? PassengerName, string? DestinationPortId,

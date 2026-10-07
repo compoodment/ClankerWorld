@@ -1766,7 +1766,23 @@ public sealed partial class OwnerWorldObservationStore
             animal.ReadyProductLotId is null ? 0 : AnimalRules.Definition(animal.Species).ProductQuantity,
             animal.Pregnancy is null ? null : Math.Round(AnimalRules.Definition(animal.Species).GestationDays - animal.Pregnancy.ProgressTicks / (double)day, 1),
             animal.RiderId, animal.RiderId is null ? null : Name(animal.RiderId), animal.LeaderId, animal.SaddleLotId is not null,
-            animal.CarePermissions.Select(Name).ToArray(), animal.RidingPermissions.Select(Name).ToArray())).ToArray();
+            animal.CarePermissions.Select(Name).ToArray(), animal.RidingPermissions.Select(Name).ToArray(),
+            ProductProgressPercent(animal, tick, day))).ToArray();
+    }
+
+    /// <summary>
+    /// How far an owned, grown producer is through its current product cycle,
+    /// 100 while its product waits to be collected; null when it makes nothing
+    /// yet: a wild, young or dead animal, a male where only females produce,
+    /// or a horse.
+    /// </summary>
+    private static int? ProductProgressPercent(AnimalState animal, long tick, int day)
+    {
+        var definition = AnimalRules.Definition(animal.Species);
+        if (animal.DiedTick is not null || animal.HouseholdId is null || !AnimalRules.HasProduct(animal) ||
+            !AnimalRules.IsAdult(animal, tick, day) || definition.ProductDays <= 0) return null;
+        if (animal.ReadyProductLotId is not null) return 100;
+        return (int)Math.Min(99, animal.ProductProgressTicks * 100L / ((long)definition.ProductDays * day));
     }
 
     private static ViewerInventoryEntry[] InventoryFor(
