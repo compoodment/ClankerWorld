@@ -1,0 +1,1 @@
+- Open the Agents list in a world with enough agents to scroll. Select someone near the top, reopen the list and scroll down. The list stays where you are browsing through repeated information refreshes. Choosing another agent still brings that agent into view. Check again after an agent arrives, is renamed or dies. ([#966](https://github.com/compoodment/ClankerWorld/issues/966))

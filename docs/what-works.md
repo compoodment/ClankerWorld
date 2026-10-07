@@ -39,7 +39,7 @@ test alone does not make it available in the game.
 | Choose the first Town and place four founders before starting | Available in the game | On-map, guidance-only hints for nearby food, fertile ground, wood, stone and open space for Roads; exact factor tuning remains provisional. Player-chosen supplies are unfinished. |
 | Move around and inspect the map | Available in the game | Zoom, overview, wrapped east/west movement, tile facts, building cards with stored items as icons, and separate filters for Town title, household use, disputes, building property and Town borders. The disputes filter stays empty in normal play, because land requests cannot be filed yet. A building card does not yet list recent storage changes or what a workstation can make, and work in progress does not show its materials. |
 | Approved art for playable content | Available in the game | Clinics and Restaurants have their approved exteriors. Medicinal herb patches and picked or depleted natural sites use their matching drawings on the map and tile cards. Potatoes, cultivated green seeds, medicinal herbs, diamond ornaments and simple meals use their approved item icons. Distinct refined-gold, plain-ring, berry-porridge and fruit-porridge drawings remain pending. [Windows visual checks](../playtest/792-approved-playable-art.md) are still wanted. |
-| Pause, inspect agents, view family trees and read events | Available in the game | Deceased profiles retain recorded thoughts and memories, and show any final will and final words; old deaths without an archive cannot be reconstructed. |
+| Pause, inspect agents, view family trees and read events | Available in the game | The Agents list keeps its browsing position through information refreshes; selecting another agent still brings that card into view. Deceased profiles retain recorded thoughts and memories, and show any final will and final words; old deaths without an archive cannot be reconstructed. |
 | Developer tools | Available in the game | **F12** opens them in a world without pausing it: the tile's coordinates and facts, frame time, how long the server takes per step of world time, the agent count, jumping to an agent and drawing their planned path, plus the aging override, lost-reply recovery, paused world editing and paired-device management. While paused, **Edit selected agent** sets fullness, warmth, illness or nutrition, gives/removes carried goods, adds/removes skills, and starts/ends partnerships; each accepted change is saved and marked **Developer edit** in the Event Log. There are no time tools such as stepping one tick. The Windows playtest is pending. |
 | Display and interface settings | Available in the game | Themes, window size, weather switches, a 24-hour or 12-hour clock, and dates by season (the default, such as Autumn 2, Year 1) or as DD-MM-YYYY, MM-DD-YYYY or YYYY-MM-DD. A server too old to report season lengths shows numeric dates. The interface grows with the screen in whole steps (100%, 200% at 1080p and 1440p, 300% at 4K) with no setting, and the game always draws at the screen's own resolution. Windows visual and keyboard acceptance is still being checked. |
 
@@ -110,8 +110,12 @@ choices and rename the person. For OpenAI and Ollama Cloud, the model is picked
 from the game's own short list, newest at the top, or typed by name. The host checks
 the chosen key with the provider and greys out listed models it can't use. That
 check and the listed model names have been tested against recorded sample
-replies, not yet against live provider accounts. Jev can be switched on or off
-for a paused world.
+replies, not yet against live provider accounts. A paused world's routine
+helper can be Off, Jev or OpenAI Decisions, with its own model picker. Decisions
+uses a saved OpenAI key and handles the same routine choices and owner-private
+memory scoring as Jev. Switching cancels pending work and preserves memories.
+The Decisions integration is checked against the published API contract and
+sample replies; the live-account Windows check is still [pending](../playtest/magical-heisenberg-mwvofv-routine-helper.md).
 When a personal model names a new agent, it gets a stable first-letter hint to
 encourage varied names. Each chosen first name is unique across the world,
 including deceased agents. Different surnames, capitalization or spacing do
@@ -294,8 +298,8 @@ no renewed household membership or private-stock access.
 
 Food collection uses the same personal-goods rules: "collect food", "collect
 three berries", "collect cultivated greens from (12, 4)", or "keep collecting
-fruit". A named kind selects only berries, fruit, wild greens or cultivated
-greens; plain "food" accepts any ready-to-eat food. These tasks collect existing
+fruit". A named kind selects berries, fruit, wild greens, cultivated greens or
+one of the seven prepared foods; plain "food" accepts any ready-to-eat food. These tasks collect existing
 stored or dropped goods. They do not harvest a food source or eat the pickup.
 Raw grain and potatoes use the goods catalogue below. Quantities,
 source tiles, carrying limits, queues, interruptions and reload work as above.
@@ -383,11 +387,27 @@ to another building when access or materials disappear. Queueing, replacement,
 cancellation and save/reload retain the remaining count. Cancellation releases
 unused reserved ingredients; already finished goods remain. Urgent survival
 pauses the current production job and its remaining work before the order
-resumes. Named meals such as bread and porridge are not part of this order
-catalogue yet.
+resumes.
+
+Named cooking orders cover all shipped House and Restaurant recipes. Simple
+House meals specify potatoes, wild greens or cultivated greens. Other recipes
+name the work site: "cook house bread", "cook restaurant berry porridge" or
+"prepare restaurant meals". The larger Restaurant uses "restaurant 2x2" in
+the recipe name. Every batch makes two servings, so "cook four house bread"
+requires two paid batches; odd serving counts are not understood. Plain
+"cook porridge" is ambiguous and does not replace the current order.
+
+House and Restaurant ingredient supplies use their native demand, cooking
+reserves, carrying and whole-jug rules. Named prepared foods can be collected
+as personal property, returned when borrowed, delivered as spare carried food
+to the House, or stocked in a Store. These actions preserve the existing
+ownership and food reserves. The nonfood personal-storage action still excludes
+loose meals; named-food consumption and wild-food gathering keep their separate
+commands.
 
 Building orders cover one House, Farmhouse, Blacksmith, Tailor Shop, Silo,
-Clinic or Store at its starting size (including the 1×1 Store) through the
+Clinic, Store or Restaurant at its starting size (including the 1×1 Store
+and 1×2 Restaurant) through the
 ordinary household construction path. "Build a
 Clinic at (12, 4)" requires that exact site; without coordinates the agent
 chooses a legal site and keeps it. Normal one-per-kind limits, Silo
@@ -495,7 +515,7 @@ cold still allows protective work. Queues, cancellation, travel and completion
 survive save/reload. Finished progress remains recorded after weather changes,
 fire expiry or removal of the building.
 
-Named meals and weapon repairs remain unfinished catalogue work.
+Weapon-repair orders remain outside the current catalogue.
 
 A recognized new order replaces the active and queued orders unless **Queue**
 is selected. **Cancel task** stops a waiting or active order. An instruction
@@ -554,7 +574,7 @@ rules are not implemented here.
 | Trade, relationships, conversations and teaching | Basic version | One-for-one barter, where both people must meet and have room for what they receive, positive trust, accepted/refused partnerships, and bounded public conversations with mutual consent for a structured trust effect. Close biological relatives cannot become partners or plan a child together: parents and children, grandparents and grandchildren, full or half siblings, and aunts or uncles with their nieces or nephews. First cousins can; shared households and caregiving do not count as kinship. Each agent has at most two conversation starts or acceptances per world day; this and the six-turn limit are provisional. Adults can ask a free, healthy agent with a saved skill for a practical lesson; the learner keeps the skill, teacher and time, and the agent card shows them. Skills currently change no access or work speed. Pricing, currency, conflict and broader group dialogue remain unfinished. |
 | Household shops | Basic version | Adults can offer exact goods for goods kept at a nearby Farmhouse, Blacksmith, Tailor Shop, Clinic, Restaurant or Store. Both traders meet there before anything changes hands. The buyer carries the purchase; payment goes into household stock at that shop. Buyers can seek better tool tiers, clothing that protects them better in the current weather or medicine for an observed illness. Store goods must be carried in first. The building card shows the terms and progress; cancelled offers release both lots. Buying grants no access to private stock, cooking, treatment or household membership. A customer may ask a Blacksmith household for a tool before it is stocked. The household may accept or refuse; accepted work uses its own real materials, and a finished tool is purchased through the usual physical barter. No payment, price promise or future ownership is created by the request. Request status and any missing-input or storage blocker appear on the Blacksmith and relevant agent cards; [its Windows checklist](../playtest/564-tool-making.md) is pending. Market stall trading is described below. Restaurant adults buy missing ingredients and customers buy meals after walking to a shop in their own Town. Its [Windows checklist](../playtest/561-concrete-meals.md) is pending. Barter rates and shelf sizes are provisional. |
 | Clinic supplies and illness care | Basic version | Reachable renewable herb patches supply a household-held 1×1 or 1×2 Clinic. It makes medicine from herbs, wood and water in a reusable jug; a House or Tailor Shop cuts cloth into bandages. One real medicine dose reduces illness gradually. Adults choose named caregivers through a fresh accepted personal-model decision and may revoke permission; self-care and a dependent's accepted caregiver use their existing authority. Jev, failed replies, repeated intentions and owner orders cannot grant adult permission. Interrupted treatment stops without refunding the spent dose. A caregiver who starts fetching medicine remembers the patient and where they last saw them, brings back one dose and treats only a consenting patient they can find nearby. Saving during either leg keeps the trip; withdrawal of permission stops it. Saving keeps permission and progress; pausing stops recovery time. Injury causes and bandage treatment remain deferred. Automated checks cover this path; [the Windows playtest](../playtest/565-clinic-care.md) remains pending. |
-| Parenthood, guardians, life stages and death | Basic version | Ordinary consent/preparation binds an explicit primary caregiver and intended home; the accepting parent chooses a named caregiver-and-home option. Birth joins the caregiver's current household even if it has changed, is full, or has lost its House; a missing home is recorded as a housing need, and the other parent stays put. If the current primary caregiver dies or ends care, living relatives, household adults and then Town residents are asked in order, and each wider group keeps the earlier ones. A willing adult must accept; until then the child's card and Event Log say “Needs a guardian,” nearby adults may still feed them, and the player can suggest an adult who is being asked in a message. An adult can also be ordered to accept a named child through the same active search; Queue, Cancel task and normal eligibility checks still apply. A completed House with room in the same known Town permits household placement at acceptance. Otherwise care stays accepted while a pending move waits for a suitable home: the guardian collects the child and accompanies them to their House, including in another Town. Household and Town membership change together on arrival, after care authority and room are checked again; birth records stay unchanged. The agent card shows waiting, travel and blockers, and pending moves survive save/load. Infant care, child talk/play/help and age restrictions are enforced. Only adults can have children; elders cannot, and a plan ends if either partner becomes an elder before the birth. While fewer than eight non-elders live, the continuity rule lets a partnered couple with no infant put off a child for up to two days but not refuse. Parents' selected child model is recorded at birth; children without an explicit model use safe local choices. The owner can later choose another model or leave the child unconfigured; world defaults are not inherited. |
+| Parenthood, guardians, life stages and death | Basic version | Ordinary consent/preparation binds an explicit primary caregiver and intended home; the accepting parent chooses a named caregiver-and-home option. Birth joins the caregiver's current household even if it has changed, is full, or has lost its House; a missing home is recorded as a housing need, and the other parent stays put. If the current primary caregiver dies or ends care, living relatives, household adults and then Town residents are asked in order, and each wider group keeps the earlier ones. A willing adult must accept; until then the child's card and Event Log say “Needs a guardian,” nearby adults may still feed them, and the player can suggest an adult who is being asked in a message. An adult can also be ordered to accept a named child through the same active search; Queue, Cancel task and normal eligibility checks still apply. A completed House with room in the same known Town permits household placement at acceptance. Otherwise care stays accepted while a pending move waits for a suitable home: the guardian collects the child and accompanies them to their House, including in another Town. Household and Town membership change together on arrival, after care authority and room are checked again; birth records stay unchanged. The agent card shows waiting, travel and blockers, and pending moves survive save/load. Infant care, child talk/play/help and age restrictions are enforced. Children can recall newly recorded talk, play and learning experiences after save/load, including those with generated identities. Only adults can have children; elders cannot, and a plan ends if either partner becomes an elder before the birth. While fewer than eight non-elders live, the continuity rule lets a partnered couple with no infant put off a child for up to two days but not refuse. Parents' selected child model is recorded at birth; children without an explicit model use safe local choices. The owner can later choose another model or leave the child unconfigured; world defaults are not inherited. |
 | Towns and household property | Basic version | First-Town membership/borders, building ownership, household stores, household food steward, and an adult with no household asking to join a household that holds a House, with every adult member's agreement. The accepted first-Town layout records Town title over its connected land and starter household use rights on owned building footprints; later border growth alone does not add title. Councils can approve explicit claims to adjoining unclaimed land. Add Agent uses recorded rights; one pending request does not assign a household, and conflicting claims make placement ambiguous. Owners can reassign or remove buildings when stored goods, deliveries and active work allow; Town borders and title stay unchanged, while a household building takes its existing footprint use right to the new household. Any agent can physically recover unreserved communal stock from an empty Town's Warehouse. Adults may leave without a vote, retrieve their personal goods and form a household alone after seeking an accepting existing home. An adult with no Town can join one through its council (below). Recorded multiple Towns can be saved and validated. Existing use permissions can transfer with every current adult's acceptance in all giving and receiving households; public land hearings decide disputes and expiry with sourced rulings and grounded rehearings. Non-land hearings record sourced civil findings and voluntary remedies; founding another Town and currencies remain unfinished. Nonconflicting household land grants require Council approval and every current adult household member's explicit acceptance. House expansion needs recorded use rights on its extra tiles. |
 
 Restaurant trading uses the normal private-world path; its
@@ -803,6 +823,9 @@ not enough; a Council land claim can add title first.
 
 The implemented path lets adult residents who learned the proposal carry
 Town-owned materials from the Warehouse or recover released Town loads.
+Eligible Warehouse users can share its collection tile, and residents can share
+the work tile of their Town's active project. One resident standing there does
+not stop the others from collecting, returning, supplying, donating or building.
 Gathering more materials gives the gatherer personal goods; donating those
 requires a fresh, explicit choice by their personal model at the approved site.
 Built-in choices and owner orders cannot donate private goods, and household
@@ -814,7 +837,13 @@ where they are and retain Town ownership. A pending household land request on
 the site only pauses the project. A site that can no longer be used, for
 example because the request was granted or the site was taken while the vote
 was open, cancels the project instead of holding its land. Its leftover loads
-stay Town property where they are, and a later Town project can use them.
+stay Town property. Adult residents can collect released ground loads and return
+them to a reachable Town Warehouse with room, without waiting for another
+project. Recovery leaves carrying space for food and pauses for urgent food or
+warmth; an urgent carrier sets down released goods before meeting those needs.
+Temporarily blocked paths wait instead of repeatedly dropping and collecting a
+load. Other jobs' reservations and private goods are left alone; a later Town
+project can also use the released materials.
 A pending Hall proposal's site is not offered for another Hall proposal or as
 free land for a household request. The Towns page shows the plan,
 Council result, supplied materials, work and blocker, even after the vote leaves
@@ -966,8 +995,10 @@ An overcrowded House gives eligible adults one unpaused world day to move out.
 Volunteers go first, followed by the most recent arrivals outside its dominant
 family; without a family majority, no family gets priority. The agent's housing
 details show the reason, remaining time, requests to other households and
-expansion progress. Notices keep their deadline across save/load and changes
-of selected adult. Only a completed expansion adds places, and changed
+expansion progress. Save/load keeps the remaining time. A forced replacement
+inherits a deadline that is still in the future; when notified at or after it,
+the replacement gets one fresh world day. Volunteers keep the original deadline,
+and other residents’ notices do not restart. Only a completed expansion adds places, and changed
 residents, family or care arrangements cancel notices that are no longer needed.
 Children and their sole caregivers never receive forced notices. If nobody
 can safely be required to leave, the House stays visibly overcrowded while
@@ -1212,7 +1243,8 @@ Windows interaction and real preview latency still need playtesting.
 
 ## Permanent deletion
 
-The save list offers confirmed deletion of one snapshot; Load World offers
+The save list offers confirmed deletion of one snapshot, including from the
+title screen before entering the current world. Load World offers
 separate deletion of an inactive world and all its saves. Other worlds, provider
 credentials and pairing remain unchanged. Interrupted deletion stays hidden
 from loading and is retried on host startup. Native Windows interaction still
