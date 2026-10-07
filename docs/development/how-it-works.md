@@ -873,7 +873,7 @@ agent and tile, within its existing 128-site limit.
 Written artifacts and unfinished writing keep the exact facts captured when
 writing started. Earlier observations are retained only while those snapshots
 need them, bounded to 81 versions per agent (eight nine-site artifacts and one
-nine-site writing project). Copies preserve their source account even if the
+nine-site writing project). Unfinished copies preserve their source account even if the
 reader later observes a change; cancelled writing prunes versions with no
 remaining snapshot. Earlier versions validate provenance but are not offered
 as the agent's current map knowledge.

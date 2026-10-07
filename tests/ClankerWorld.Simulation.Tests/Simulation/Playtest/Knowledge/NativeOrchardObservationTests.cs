@@ -26,7 +26,8 @@ public sealed class NativeOrchardObservationTests(ITestOutputHelper output)
             {
                 Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == planter ? person with
                 {
-                    Position = state.Map.FootNeighbors(target).First(), TravelCooldownTicks = 0,
+                    Position = state.Map.FootNeighbors(target).First(),
+                    TravelCooldownTicks = 0,
                 } : person).ToArray(),
             };
         }
