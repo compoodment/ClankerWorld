@@ -285,6 +285,10 @@ workstation inputs, spare House food, Town Warehouse surplus and Store stock.
 Their plans preserve the ordinary source, demand, reserve, capacity, access
 and route checks. A requested farm-storage destination filters legal choices
 before applying the default Farmhouse/Silo preference.
+The Silo replenishment fallback applies those same constraints: it supplies
+only grain to the household's Farmhouse, never a different requested item or
+stock already stored at the destination. An unavailable requested item leaves
+the order blocked without binding an unrelated shipment or earning progress.
 
 Town Warehouse donations retain four usable personally carried units of each
 resource kind across all eligible lots. Storage and collection splits do not
@@ -885,6 +889,10 @@ default model when the key can use it. If the key can't use a new agent's
 starting model, the picker selects nothing and asks the owner to choose, so no
 other model, possibly a costlier one, is chosen for them. An existing or
 hand-picked model the key can't use stays shown, greyed, with the same request.
+Starting a model lookup resets the typed display of an automatic new-agent
+choice, including after a provider switch. The new list then checks that
+default's availability. Choosing or typing a model marks it as the owner's
+choice, so a later list refresh preserves it.
 Checks are cached per key for ten minutes, time out after eight seconds and are
 not model calls, so they do not count toward the usage cap below.
 
