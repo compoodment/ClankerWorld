@@ -2,7 +2,7 @@
 title: How the game works
 type: architecture
 status: active
-updated: 2026-10-06
+updated: 2026-10-07
 ---
 
 # How the game works
@@ -1235,6 +1235,22 @@ scrub, grey is mountain and the warm band around it is hills. Dark dots are
 trees, red dots plants and grey dots stone. It is a generator-layer rendering, not a Godot
 screenshot or native playtest.
 
+## Building production inspection
+
+The owner snapshot derives `AvailableRecipes` from active content matched to
+its placed building's exact definition, including workstation-size variants.
+Crop recipes and the retired generic-food and bedding transformations are
+excluded from the workstation list. Each entry carries its registered name
+and input/output quantities, rather than a client-maintained recipe table.
+
+Production jobs project the same recipe facts and `HeldInputs` grouped from
+the job's own active inventory reservations. Completed or released
+reservations contribute nothing; building storage remains a separate view.
+Godot Details refreshes these facts even when work progress stays unchanged.
+Missing fields from an older host leave recipe facts unavailable rather than
+fabricating them. This projection changes neither world state nor agent
+knowledge and needs no save-schema change.
+
 ## Towns, building sites and death
 
 Paused founder setup creates one First Town when the owner accepts its five-building
@@ -1616,6 +1632,12 @@ care and ongoing work keep their earlier continuation guards, and the ordinary
 idle action still runs its cleanup.
 See [construction query measurements](construction-query-measurements.md) for
 matched native timings, candidate/state equivalence and remaining limits.
+Town proposal site checks also share physical placement obstacles only within
+their synchronous query. Market slots stay separate from other occupied
+objects, and actual placement gathers current facts again. Layout searches
+rent tentative tile costs while preserving their settled tiles, costs and
+stopping rules. See [placement query measurements](placement-query-measurements.md)
+for the follow-up comparison.
 Building plans follow what a household needs, not a role. An adult whose
 household lacks a House, Farmhouse, Blacksmith, Silo, Tailor Shop, Clinic or Restaurant is offered ranked sites
 for it once the household has the build costs in hand: stock the household
@@ -1637,7 +1659,11 @@ pickup and delivery both check remaining space. Source selection checks the
 adult's route to each pile or vessel and the route from there to farm storage;
 an earlier blocked source does not hide later reachable stock. The same checks
 run again when the hauling action executes. Grain prefers the Farmhouse,
-while other farm stock prefers the Silo. Ready-to-eat greens and fruit go to
+while other farm stock prefers the Silo. Selection tries the next permitted
+store if the preferred one cannot accept the actual load or its route is blocked.
+A filled vessel must fit with its contents; only grain and flour retain their
+approved partial withdrawals. An explicit destination prevents fallback to
+another store. Ready-to-eat greens and fruit go to
 the household's House. Neither stock nor ownership moves
 remotely.
 
@@ -1904,8 +1930,13 @@ the active equipment repair target are excluded from payment.
 Customers receive transaction access only. Store stocking first moves actual
 surplus into carried delivery lots, then uses ordinary household hauling to
 reach the Store. A remote House, field or Warehouse is never sale stock.
-Store stocking also keeps each adult's best usable work tool. Optional shelf
-restocking waits behind gathering materials needed by household work.
+Store stocking also keeps each adult's best usable work tool. Food stocking
+keeps two usable servings of each food kind for the adult, or two per
+living member when taking household stock. Each reserve is counted once across
+eligible lots with the same owner and food kind, including when an order is
+bound to one lot. Unreachable, reserved, spoiled, contained or other owners'
+stock cannot satisfy the reserve.
+Optional shelf restocking waits behind gathering materials needed by household work.
 Rates, the eight-unit shelf target and four-unit carried loads are provisional.
 Blacksmiths can sell real refined iron for another household's tool work.
 Meals remain tracked in #564 and its domain
@@ -2228,6 +2259,12 @@ or yield. Harvesting creates grain, potatoes or cultivated greens on the
 field, and grain and greens also yield two replacement seeds. One usable
 planting item is reserved before surplus can be traded. Picking it up for
 the next planting releases the reserve and physically carries that item.
+Player planting orders choose carried stock first, then the field's replanting
+reserve, then other eligible lots in ID order. Shared stock must have an
+unoccupied pickup route within its interaction range, checked during both
+order selection and execution. An occupied earlier lot cannot hide another
+usable seed. Autonomous crop claims keep their terrain eligibility while
+temporary occupants pass and the existing physical route retries.
 
 Planning compares population and available ready-to-eat food with a trial reserve of two
 days at two meals per resident per day, then estimates fields from expected
@@ -2525,6 +2562,10 @@ Wear, removal and gift candidates require a fresh accepted non-fallback
 LargeLanguageModel response whose exact offered target is still valid at
 admission. Jev, continuing intentions and MustDo cannot select them. Gift
 recipients come from locally observable people rather than a remote world scan.
+Living adults in interaction range with free carrying space are filtered before
+the eight-recipient limit, in stable agent-ID order. Full-handed neighbors cannot
+hide another eligible adult. Gift options remain capped at sixteen across
+carried ornament lots, and admission rechecks the eligible recipient and load.
 
 `HouseToolsContent` adds two recipes at the existing House without changing
 its building identity. Each crude wooden axe or pickaxe uses three wood held
@@ -2754,6 +2795,11 @@ targets and signed creation remain the only way through that screen. The
 redirect neither replaces the checkpoint nor removes its catalog entry, and
 founders or authored progress prevent it.
 
+New World preview refreshes wait for both an existing preview and a pending
+owner action to finish. Menu visibility, observation generation and preview
+revision still fence the waiting work, so only the current options are
+requested and closing or switching screens discards the old refresh.
+
 Continue also belongs to the current Main Menu navigation. Opening Settings,
 New World or Load World, returning to Main Menu, or starting another Continue
 expires the earlier entry attempt. Its late refresh can update observations,
@@ -2836,6 +2882,10 @@ with young/adult headings, mounted horses, yard art, inspection and event text.
 Milk stock travels as an actual household jug to a held Store or borrowed Market
 stall, with a stock receipt at a stall. Fresh seller and buyer personal choices
 exchange one held portion into the buyer's real carried jug for the named
-personal payment. Both jug owners stay the same. Expiry, refusal and changed
+personal payment. Each pending offer has a distinct milk source lot, even
+when the lot contains several available portions. Candidate generation and
+native admission both enforce this existing save invariant. Closing an offer
+releases its exact reservation and makes any remaining usable stock available
+for another sale. Both jug owners stay the same. Expiry, refusal and changed
 custody release held milk; spoiled milk can be emptied locally without removing
 the vessel or its fresh contents.

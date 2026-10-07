@@ -363,6 +363,16 @@ rollback includes these ledgers alongside the actual goods or work. Earlier
 alpha checkpoints are refused and preserved; no inferred case history or
 migration is added.
 
+Schema 97 adds `CarriedAvailableQuantityBefore` to native public-service
+receipts. It snapshots the usable personal stock of the donated kind before
+transfer, across eligible carried lots and excluding reservations. Source-lot
+quantity and availability remain separate evidence of the actual transfer.
+Loading requires the recorded carried total to cover that source's available
+quantity and leave the four-unit reserve after donation; other receipt kinds
+cannot carry this field. The total participates in the receipt digest and
+retained completion effect. No historical stock is inferred or backfilled.
+Earlier alpha checkpoints are refused and preserved without migration.
+
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
 Matching parent assignments are disclosed as agreement; when they differ, the
@@ -802,7 +812,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 96. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 97. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 a bounded model-attempt status and exact last accepted model choice per agent, plus
@@ -945,6 +955,7 @@ current alpha cutoff.
 | Schema 94 | Market receipts use required stable sequences and an explicit retirement boundary. Open trades retain their exact deposit proof; bounded closed outcomes may refer below the retired boundary. Live borrowing, current stock, exact payments and accepted offers remain authoritative; closed offers and claims retire together. Earlier alpha saves are refused and preserved without migration. |
 | Schema 95 | Required per-world routine-helper settings retain Off, Jev or OpenAI Decisions, its model and an optional installation-owned OpenAI key-slot ID. Switches retain memories and scores, invalidate pending replies and replay with the saved routing revision. Earlier alpha saves are refused and preserved without migration; key bytes remain outside world saves. |
 | Schema 96 | Animals, held products and saddles, care trips, pregnancies, named permissions and exact animal/milk offers retain their physical custody. Current saves require the complete animal record; earlier alpha saves are refused and preserved without migration. |
+| Schema 97 | Native public-service receipts retain the usable personal carried quantity before donation separately from the actual source lot. The four-unit reserve may span carried lots; saved validation preserves source quantity, reservations and exact physical transfer evidence. Earlier alpha saves are refused and preserved without migration. |
 
 ### Tool-making requests
 
