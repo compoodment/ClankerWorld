@@ -35,7 +35,7 @@ public sealed partial class PrivateWorldRuntime
         var actor = instruction.TargetInhabitantId;
         var animal = Animal(instruction.Order!.TargetAnimalId!);
         if (!AdultResident(actor) || animal is not { DiedTick: null } ||
-            instruction.Order.Action == "animal_care" && !HasAnimalCareOrderSupplies(actor, animal)) return null;
+            instruction.Order.Action == "animal_care" && animal.CareUntilTick <= WorldTick && !HasAnimalCareOrderSupplies(actor, animal)) return null;
         return new("animal_order", "Follow the order for " + animal.Name + ", using its actual location, permissions and physical supplies.", 0, animal.Id);
     }
 
@@ -47,7 +47,8 @@ public sealed partial class PrivateWorldRuntime
 
     private string AnimalOrderBlockedReason(OwnerQueuedInstruction instruction) =>
         instruction.Order is { Action: "animal_care", TargetAnimalId: { } id } && Animal(id) is { DiedTick: null } animal &&
-        MayCareForAnimal(instruction.TargetInhabitantId, animal) && !HasAnimalCareOrderSupplies(instruction.TargetInhabitantId, animal)
+        animal.CareUntilTick <= WorldTick && MayCareForAnimal(instruction.TargetInhabitantId, animal) &&
+        !HasAnimalCareOrderSupplies(instruction.TargetInhabitantId, animal)
             ? "Waiting for safe feed and jug water to care for " + animal.Name + "."
             : "Waiting for the named animal, permission, a legal route, carry space and physical feed or jug water.";
 

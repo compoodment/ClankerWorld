@@ -2913,7 +2913,7 @@ retain the owning household. One held product batch waits for local collection;
 milk enters a reusable household jug. Products then use ordinary stock hauling,
 recipes and trade.
 
-Care's native order candidate requires complete safe inputs, a current care
+When care is due, its native order candidate requires complete safe inputs, a current care
 supply trip or an obtainable supply. Missing inputs use the existing blocked
 order status with a reason naming feed and jug water. Candidate and blocker queries
 change no state, and the existing order schedule resumes the task when its

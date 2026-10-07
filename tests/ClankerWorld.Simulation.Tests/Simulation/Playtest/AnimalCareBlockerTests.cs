@@ -8,14 +8,16 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed partial class AnimalPipelineTests
 {
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task CareWithoutPhysicalSuppliesReportsABlocker(bool withSupplies)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task CareWithoutPhysicalSuppliesReportsABlocker(bool withSupplies, bool alreadyCared)
     {
         var (state, actor, home, yard) = CreateYard("animal-horse-cargo");
         var day = state.WorldSystems!.Config.TicksPerDay;
         var cow = new AnimalState("care-blocker-cow", "Fern", "cow", "female", -(long)AnimalRules.Definition("cow").AdultDays * day,
-            yard.Position, "household:" + home, home, yard.InstanceId);
+            yard.Position, "household:" + home, home, yard.InstanceId,
+            CareUntilTick: alreadyCared ? state.Society.Society.WorldTick + day : 0);
         var inventory = state.Society.Society.Inventory;
         inventory = inventory with
         {
@@ -53,6 +55,13 @@ public sealed partial class AnimalPipelineTests
             Assert.True(world.Animals.Single().CareUntilTick > world.WorldTick);
             Assert.DoesNotContain(world.Society.Inventory.Lots, lot => lot.Id is "care-blocker-feed" or "care-blocker-water");
         }
+        else if (alreadyCared)
+        {
+            Assert.Equal(cow.CareUntilTick, world.Animals.Single().CareUntilTick);
+            Assert.False(string.IsNullOrWhiteSpace(order.BlockedReason));
+            Assert.NotEqual("Waiting for safe feed and jug water to care for Fern.", order.BlockedReason);
+            Assert.Empty(world.ExportState().AnimalWorld.SupplyTrips);
+        }
         else
         {
             Assert.Equal(0, world.Animals.Single().CareUntilTick);
@@ -63,7 +72,7 @@ public sealed partial class AnimalPipelineTests
         using var loaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState())), Provider);
         loaded.Validate();
         world.Validate();
-        if (withSupplies) return;
+        if (withSupplies || alreadyCared) return;
 
         var blocked = loaded.ExportState();
         Assert.Equal("blocked", blocked.Instructions!.Single(item => item.InstructionId == instruction.InstructionId).Order!.Status);
