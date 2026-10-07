@@ -383,8 +383,13 @@ need, placement, cost and reservation rules remain authoritative. Only that
 job's successful completion earns progress; retained completed-job history
 keeps the proof if the building is removed later. Urgent survival pauses
 ordered work before completion, and cancellation releases only the order's
-own unfinished work and unused reservations. Neither adapter adopts an
-unrelated project or job.
+own unfinished work and unused reservations. Shared expansion pickup excludes
+carried household lots, just like ordinary shared-stock collection. Cancelling
+an expansion and leaving the household preserves a borrowed delivery in its
+former worker's custody; another worker cannot collect it until it is physically
+returned. The current worker's own delivery and available ground or stored
+materials retain their usual checks. Neither adapter adopts an unrelated
+project or job.
 
 The `ordered-building-` identity prefix belongs to the internal construction
 path. Saved building orders also reserve their bound instance identities,
@@ -906,7 +911,9 @@ actual recipient, retaining the original discoverer and the source artifact.
 Copying needs the source, learned facts and new writing materials; sharing
 does not create another physical copy. Barter transfers the existing lot and
 teaches its recipient, without granting access to unrelated knowledge or
-anyone else's private stock.
+anyone else's private stock. Two artifacts of the same kind can be exchanged
+when each records sites its recipient has not learned; the existing consent,
+ownership, reservation and delivery checks still apply.
 
 Outward scouting checks occupied destinations and both diagonal corner tiles
 before ranking neighboring exits. If no legal outward exit remains, the scout
