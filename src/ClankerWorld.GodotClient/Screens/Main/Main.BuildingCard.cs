@@ -90,6 +90,7 @@ public partial class Main
         buildingWorkSection.AddChild(buildingWorkRows);
         buildingDetailsContent.AddChild(buildingWorkSection);
         buildingDetailsContent.AddChild(buildingDetailsStorage);
+        BuildBuildingStorageHistory();
         buildingRecipeSection.AddThemeConstantOverride("separation", 4);
         buildingRecipeSection.AddChild(new Label { Text = "CAN MAKE", ThemeTypeVariation = "SectionLabel" });
         buildingRecipeSection.AddChild(new Label
@@ -286,15 +287,16 @@ public partial class Main
             if (lantern is { } fitting) header.SetLantern(fitting);
             else header.SetRoof(kind, footprint.Size, door);
         }
-        // A building that keeps no stores has no storage section, rather than an empty one.
+        // Occupancy may be recorded even when the building has no owner-specific item list.
         foreach (var storage in new[] { buildingQuickStorage, buildingDetailsStorage })
         {
-            storage.Visible = stored is not null;
-            if (stored is not null)
-                storage.SetItems(stored.Select(item => (item.Kind, item.Quantity, GameUiText.ItemName(item.Kind))).ToArray());
+            storage.Visible = stored is not null || building.StorageCapacity is > 0 && building.StoredQuantity >= 0;
+            storage.SetCapacity(building.StorageCapacity, building.StoredQuantity);
+            storage.SetItems(stored?.Select(item => (item.Kind, item.Quantity, GameUiText.ItemName(item.Kind))).ToArray());
         }
         RenderBuildingStatus(snapshot, building, jobs, inside);
         RenderBuildingDetails(snapshot, building, household, town, jobs, inside);
+        RenderBuildingStorageHistory(snapshot, building);
 
         buildingDetailsPanel.Visible = buildingDetailsRequested;
         buildingQuickCard.Visible = !buildingDetailsRequested;

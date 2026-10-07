@@ -231,12 +231,15 @@ public sealed partial class PrivateWorldRuntime
     /// Pauses like <see cref="Pause"/>, but returns false without pausing if
     /// the runtime stays busy for <paramref name="wait"/> or this thread is
     /// invoking a provider or its cancellation callbacks under the runtime gate.
+    /// An optional condition is checked after acquiring the runtime gate. A
+    /// condition that no longer applies completes successfully without pausing.
     /// </summary>
-    public bool TryPause(TimeSpan wait)
+    public bool TryPause(TimeSpan wait, Func<bool>? shouldPause = null)
     {
         if (IsInvokingProviderUnderGateOnThisThread || !gate.Wait(wait)) return false;
         try
         {
+            if (shouldPause is not null && !shouldPause()) return true;
             PauseCore();
             return true;
         }

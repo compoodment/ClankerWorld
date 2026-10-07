@@ -246,9 +246,7 @@ public sealed partial class PrivateWorldRuntime
             return term.BeneficiaryId == town.Id && warehouse is not null && warehouse.TownId == town.Id &&
                 (term.TargetId is null || term.TargetId == warehouse.InstanceId) && WarehouseResourceKinds.Contains(term.ItemKind ?? "") &&
                 StorageRoom(warehouse.InstanceId) >= term.Quantity &&
-                society.Checkpoint.Inventory.Lots.Any(lot => lot.OwnerId == actor &&
-                    ToolProgressionRules.IsTopLevelCarriedLot(lot, actor) && lot.ItemKind == term.ItemKind &&
-                    lot.DeliveryBuildingId is null && AvailableLotQuantity(lot) - WarehouseLoadQuantity >= term.Quantity) &&
+                PersonalWarehouseAvailableQuantity(actor, term.ItemKind!) - WarehouseLoadQuantity >= term.Quantity &&
                 (person.Position == warehouse.Position || FindUnoccupiedRoute(actor, person.Position, warehouse.Position, 0).Count > 0);
         }
         if (term.Kind != "repair_equipment" || term.Quantity != 1 || term.TargetId is null) return false;
@@ -466,17 +464,16 @@ public sealed partial class PrivateWorldRuntime
             MoveToward(actor, inhabitants[actor], warehouse.Position, "voluntary_town_service", 0);
             return;
         }
-        var lot = society.Checkpoint.Inventory.Lots.Where(item => item.OwnerId == actor && item.ItemKind == term.ItemKind &&
-                ToolProgressionRules.IsTopLevelCarriedLot(item, actor) && item.DeliveryBuildingId is null &&
-                AvailableLotQuantity(item) > WarehouseLoadQuantity)
-            .OrderBy(item => item.Id, StringComparer.Ordinal).First();
+        if (PersonalWarehouseSurplus(actor, term.ItemKind) is not { } surplus) return;
+        var lot = surplus.Lot;
         var quantity = Math.Min(remaining, Math.Min(WarehouseLoadQuantity,
-            Math.Min(StorageRoom(warehouse.InstanceId), AvailableLotQuantity(lot) - WarehouseLoadQuantity)));
+            Math.Min(StorageRoom(warehouse.InstanceId), surplus.Quantity)));
         if (quantity <= 0) return;
+        var availableBefore = PersonalWarehouseAvailableQuantity(actor, lot.ItemKind);
         var operation = $"warehouse-stock:{WorldTick}:{actor}";
         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory, operation, actor, warehouse.TownId!,
             lot.Id, quantity, "town_resources_stored", warehouse.InstanceId));
-        RecordNonviolentGoodsCompletion(actor, lot, warehouse.TownId!, quantity, warehouse.InstanceId, operation, "public_service_goods");
+        RecordNonviolentGoodsCompletion(actor, lot, warehouse.TownId!, quantity, warehouse.InstanceId, operation, "public_service_goods", availableBefore);
         AppendEvent("town_resources_stored", $"{actor}:{lot.Id}:{quantity}:{warehouse.InstanceId}");
     }
 
@@ -496,7 +493,7 @@ public sealed partial class PrivateWorldRuntime
     }
 
     private void RecordNonviolentGoodsCompletion(string actor, InventoryLot sourceLot, string recipientId,
-        int quantity, string? storageBuildingId, string nativeReceiptId, string kind)
+        int quantity, string? storageBuildingId, string nativeReceiptId, string kind, long? carriedAvailableBefore = null)
     {
         var resultId = quantity == sourceLot.Quantity ? sourceLot.Id : sourceLot.Id + "#transfer:" + nativeReceiptId;
         var result = society.Checkpoint.Inventory.GetLot(resultId);
@@ -504,7 +501,7 @@ public sealed partial class PrivateWorldRuntime
             sourceLot.ItemKind, quantity, storageBuildingId ?? sourceLot.Id, sourceLot.Id, resultId,
             sourceLot.OwnerId, result.OwnerId, inhabitants[actor].Position,
             sourceLot.ConditionBasisPoints, result.ConditionBasisPoints, "", HouseholdFor(actor), TownForResident(actor),
-            sourceLot.Quantity, AvailableLotQuantity(sourceLot), []);
+            sourceLot.Quantity, AvailableLotQuantity(sourceLot), [], carriedAvailableBefore);
         RecordNonviolentNativeReceipt(receipt);
         RecordNonviolentConduct(actor, kind, receipt.Position, receipt.TargetId, receipt.ItemKind, quantity, nativeReceiptId);
     }

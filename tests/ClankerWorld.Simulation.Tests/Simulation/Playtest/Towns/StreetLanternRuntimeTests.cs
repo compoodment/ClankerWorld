@@ -46,6 +46,7 @@ public sealed class StreetLanternRuntimeTests
         Assert.Empty(project.Deliveries);
         Assert.Equal(0, project.WorkDone);
         Assert.DoesNotContain(scenario.World.WorldSimulation.Buildings, building => building.DefinitionId == definition.CanonicalId);
+        AssertConstructionSite(scenario.World, project, definition);
         Assert.Contains(scenario.Decisions, decision => decision.InhabitantId == TownProjectScenario.Author &&
             decision.Admission is { Accepted: true, FellBack: false } &&
             decision.Admission.Intention is { Provider: DecisionProviderKind.LargeLanguageModel } intention &&
@@ -137,11 +138,31 @@ public sealed class StreetLanternRuntimeTests
             { lot.Id, lot.OwnerId, lot.ItemKind, lot.Quantity, lot.StorageBuildingId, lot.CarrierId, lot.GroundPosition }),
     });
 
+    /// <summary>An approved lantern waiting for its materials reaches the client as a site on its planned Road edge.</summary>
+    private static void AssertConstructionSite(PrivateWorldRuntime world, TownConstructionProject project, BuildingDefinition definition)
+    {
+        var snapshot = new OwnerWorldObservationStore(world).GetSnapshot();
+        var client = JsonSerializer.Deserialize<GodotSnapshot>(JsonSerializer.Serialize(snapshot, TownProjectScenario.JsonOptions), TownProjectScenario.JsonOptions)!;
+        var site = Assert.Single(snapshot.ConstructionSites);
+        Assert.Equal(("town:" + project.Id, definition.CanonicalId, TownBorderRules.FirstTownId, (string?)null, 0, TownProjectRules.RequiredWork(project.Plan), project.Stage),
+            (site.Id, site.DefinitionId, site.TownId, site.HouseholdId, site.WorkDone, site.WorkRequired, site.Stage));
+        Assert.Equal((project.Plan.Site.X, project.Plan.Site.Y, 1, 1, project.Plan.Entrance.X, project.Plan.Entrance.Y),
+            (site.Site.X, site.Site.Y, site.Width, site.Height, site.Entrance!.X, site.Entrance.Y));
+        Assert.Equal(definition.Tags, site.Tags);
+        var received = Assert.Single(client.ConstructionSites);
+        Assert.Equal((site.Id, site.Site.X, site.Site.Y, site.Entrance.X, site.Entrance.Y, 1),
+            (received.Id, received.Site.X, received.Site.Y, received.Entrance!.X, received.Entrance.Y, received.DrawnStage));
+        Assert.Equal(site.Tags, received.Tags);
+    }
+
     private static void AssertProjection(PrivateWorldRuntime world, TownConstructionProject project, BuildingDefinition definition, string style)
     {
         var before = PrivateWorldRuntimeCodec.Encode(world.ExportState());
         var snapshot = new OwnerWorldObservationStore(world).GetSnapshot();
         var client = JsonSerializer.Deserialize<GodotSnapshot>(JsonSerializer.Serialize(snapshot, TownProjectScenario.JsonOptions), TownProjectScenario.JsonOptions)!;
+        // Once the lamp stands it is a building, no longer a construction site.
+        Assert.Empty(snapshot.ConstructionSites);
+        Assert.Empty(client.ConstructionSites);
         var visible = Assert.Single(snapshot.PlacedBuildings, building => building.InstanceId == project.CompletedBuildingId);
         var received = Assert.Single(client.PlacedBuildings, building => building.InstanceId == project.CompletedBuildingId);
         Assert.Equal((definition.CanonicalId, definition.DisplayName, TownBorderRules.FirstTownId, (string?)null, 1, 1),

@@ -1276,7 +1276,7 @@ public sealed partial class PrivateWorldRuntime
             AddHouseGuestCandidates(candidates, inhabitantId);
             AddHouseHaulCandidate(candidates, inhabitantId, state);
             AddWarehouseStockCandidate(candidates, inhabitantId, state);
-            AddFarmGrainCandidate(candidates, inhabitantId, state);
+            AddFarmGrainCandidate(candidates, inhabitantId);
             AddFarmFlourCandidate(candidates, inhabitantId, state);
             AddFieldCandidates(candidates, inhabitantId, state);
             AddBlacksmithStockCandidate(candidates, inhabitantId, state);
@@ -1296,6 +1296,10 @@ public sealed partial class PrivateWorldRuntime
             AddLearningCandidates(candidates, inhabitantId);
             AddExplorationCandidate(candidates, inhabitantId, state);
         }
+
+        // Urgent owners can retrieve their food without starting unrelated Market work.
+        if (NeedsUrgentFood(state) && AdultResident(inhabitantId))
+            AddMarketCandidates(candidates, inhabitantId);
 
         // Released Town cargo can be set down even while urgent needs hide construction work.
         AddTownProjectCandidates(candidates, inhabitantId);
@@ -1322,12 +1326,12 @@ public sealed partial class PrivateWorldRuntime
             taskCandidate = null;
         if (taskCandidate is null)
         {
-            return candidates.Where(item => item.Id == "safe_idle" || urgent && IsSurvivalCandidate(item.Id))
+            return candidates.Where(item => item.Id == "safe_idle" || urgent && IsSurvivalCandidate(state.InhabitantId, item.Id))
                 .ToList();
         }
 
         var selected = candidates.Where(item => item.Id == taskCandidate.Id ||
-            urgent && IsSurvivalCandidate(item.Id)).ToList();
+            urgent && IsSurvivalCandidate(state.InhabitantId, item.Id)).ToList();
         if (IsShelterOrder(order.Order!.Action))
             selected.RemoveAll(item => item.Id == taskCandidate.Id);
         if (selected.All(item => item.Id != taskCandidate.Id)) selected.Add(taskCandidate);
