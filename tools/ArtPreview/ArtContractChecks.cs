@@ -14,6 +14,8 @@ internal static class ArtContractChecks
         CheckApprovedItems();
         CheckApprovedHandcarts();
         CheckApprovedBoatsAndPorts();
+        CheckApprovedAnimals();
+        CheckApprovedYard();
         foreach (var size in new[] { 16, 32 })
         {
             foreach (var (facing, frame) in new[] { (6, AgentFrame.Walk2), (4, AgentFrame.Carry), (2, AgentFrame.Talk) })
@@ -190,6 +192,45 @@ internal static class ArtContractChecks
             Equal(BuildingSprites.Render(BuildingKind.Port, w, h, 32, new(side, 1)), reference, "The playable Port must match the independent approved rotation.");
             Console.WriteLine($"Port reference {letter}: {Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(reference.GetData()))}");
         }
+    }
+
+    /// <summary>Every animal, young animal, horse state and facing in the client matches the approved drawing at 32 and 16 px.</summary>
+    private static void CheckApprovedAnimals()
+    {
+        foreach (var size in new[] { 16, 32 })
+            for (var facing = 0; facing < 8; facing++)
+            {
+                void Same(Image client, Image approved, string what) =>
+                    Equal(client, approved, $"The client's {what} facing {facing} at {size} px must match the approved animal art.");
+                Same(AnimalSprites.Sprite("chicken", facing, false, false, size: size), Proposed.Animals.AnimalsProposal.Chicken(facing, size), "hen");
+                Same(AnimalSprites.Sprite("chicken", facing, true, false, size: size), Proposed.Animals.AnimalsProposal.Chick(facing, size), "chick");
+                Same(AnimalSprites.Sprite("sheep", facing, false, false, size: size), Proposed.Animals.AnimalsProposal.Sheep(facing, false, size), "sheep");
+                Same(AnimalSprites.Sprite("sheep", facing, false, false, shorn: true, size: size), Proposed.Animals.AnimalsProposal.Sheep(facing, true, size), "shorn sheep");
+                Same(AnimalSprites.Sprite("sheep", facing, true, false, shorn: true, size: size), Proposed.Animals.AnimalsProposal.Lamb(facing, size), "lamb");
+                Same(AnimalSprites.Sprite("cow", facing, false, false, size: size), Proposed.Animals.AnimalsProposal.Cow(facing, size), "cow");
+                Same(AnimalSprites.Sprite("cow", facing, true, false, size: size), Proposed.Animals.AnimalsProposal.Calf(facing, size), "calf");
+                Same(AnimalSprites.Sprite("horse", facing, false, false, size: size), Proposed.Animals.AnimalsProposal.Horse(facing, false, size, saddled: false), "bare horse");
+                Same(AnimalSprites.Sprite("horse", facing, false, false, saddled: true, size: size), Proposed.Animals.AnimalsProposal.Horse(facing, false, size), "saddled horse");
+                Same(AnimalSprites.Sprite("horse", facing, false, true, size: size), Proposed.Animals.AnimalsProposal.Horse(facing, true, size), "ridden horse");
+                Same(AnimalSprites.Sprite("horse", facing, true, true, saddled: true, size: size), Proposed.Animals.AnimalsProposal.Foal(facing, size), "foal");
+            }
+    }
+
+    /// <summary>The client's animal yard is the approved option A at every footprint and door side, halved at 16 px.</summary>
+    private static void CheckApprovedYard()
+    {
+        foreach (var (width, height) in new[] { (2, 2), (2, 4), (4, 2), (4, 4) })
+            foreach (var side in new[] { DoorSide.South, DoorSide.North, DoorSide.East, DoorSide.West })
+                foreach (var tile in new int?[] { null, 0, 1 })
+                {
+                    var door = new BuildingDoor(side, tile);
+                    var approved = Proposed.Yards.YardsProposal.Draw(Proposed.Yards.YardsProposal.Option.A, width, height, door);
+                    Equal(BuildingSprites.Render(BuildingKind.AnimalYard, width, height, 32, door), approved,
+                        $"The client's {width}×{height} animal yard with a {side} gate must match approved option A.");
+                    approved.Resize(width * 16, height * 16, Image.Interpolation.Nearest);
+                    Equal(BuildingSprites.Render(BuildingKind.AnimalYard, width, height, 16, door), approved,
+                        $"The client's 16 px {width}×{height} animal yard must be the approved yard halved.");
+                }
     }
 
     private static void Equal(Image actual, Image expected, string message)
