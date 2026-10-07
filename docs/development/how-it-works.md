@@ -2,7 +2,7 @@
 title: How the game works
 type: architecture
 status: active
-updated: 2026-10-05
+updated: 2026-10-07
 ---
 
 # How the game works
@@ -1625,7 +1625,11 @@ pickup and delivery both check remaining space. Source selection checks the
 adult's route to each pile or vessel and the route from there to farm storage;
 an earlier blocked source does not hide later reachable stock. The same checks
 run again when the hauling action executes. Grain prefers the Farmhouse,
-while other farm stock prefers the Silo. Ready-to-eat greens and fruit go to
+while other farm stock prefers the Silo. Selection tries the next permitted
+store if the preferred one cannot accept the actual load or its route is blocked.
+A filled vessel must fit with its contents; only grain and flour retain their
+approved partial withdrawals. An explicit destination prevents fallback to
+another store. Ready-to-eat greens and fruit go to
 the household's House. Neither stock nor ownership moves
 remotely.
 

@@ -1274,7 +1274,7 @@ public sealed partial class PrivateWorldRuntime
             AddHouseGuestCandidates(candidates, inhabitantId);
             AddHouseHaulCandidate(candidates, inhabitantId, state);
             AddWarehouseStockCandidate(candidates, inhabitantId, state);
-            AddFarmGrainCandidate(candidates, inhabitantId, state);
+            AddFarmGrainCandidate(candidates, inhabitantId);
             AddFarmFlourCandidate(candidates, inhabitantId, state);
             AddFieldCandidates(candidates, inhabitantId, state);
             AddBlacksmithStockCandidate(candidates, inhabitantId, state);
