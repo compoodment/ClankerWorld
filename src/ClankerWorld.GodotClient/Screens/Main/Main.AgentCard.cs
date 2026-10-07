@@ -627,7 +627,6 @@ public partial class Main
         // Name, age and one plain sentence for what they are doing, shared by both cards.
         quickCardNameLabel.Text = inhabitant.DisplayName;
         selectedActorNameLabel.Text = inhabitant.DisplayName;
-        selectedActorNameLabel.TooltipText = inhabitant.DisplayName;
         // A refused name stays in the open field for the player to change,
         // while the labels above keep showing the name the host holds.
         if (!renameRow.Visible || renamingAgentId != inhabitant.Id) refusedAgentRename.Forget();
@@ -639,6 +638,7 @@ public partial class Main
         }
         agentPortraitTexture.Atlas = AgentSprites.Atlas(32);
         agentPortraitTexture.Region = AgentSprites.Region(AgentSprites.VariantFor(inhabitant.Id), AgentSprites.StageIndex(ageBand), 32);
+        selectedActorNameLabel.TooltipText = inhabitant.DisplayName;
         selectedActorSummaryLabel.Text = string.Join(" · ", new[]
         {
             isDeceased ? "Dead" : null,
