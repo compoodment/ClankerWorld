@@ -578,7 +578,7 @@ public sealed partial class PrivateWorldRuntime
         }
 
         _ = ApplyObserverGuidanceResult(decision.InhabitantId, decision.Admission);
-        if (ApplyMedicalConsentDecision(decision) || ApplyOrnamentDecision(decision))
+        if (ApplyMedicalConsentDecision(decision) || ApplyOrnamentDecision(decision) || ApplyAnimalConsentDecision(decision))
             return;
         var pendingInstruction = PendingInstructionFor(decision.InhabitantId);
         var candidateId = decision.Admission.Intention.CandidateId;
@@ -897,6 +897,7 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
         if (ApplyBoatCandidate(inhabitantId, candidateId)) return;
+        if (ApplyAnimalCandidate(inhabitantId, candidateId)) return;
         if (ApplyHandcartCandidate(inhabitantId, state, candidateId)) return;
         if (candidateId.StartsWith(RepairToolPrefix, StringComparison.Ordinal))
         {
@@ -1244,6 +1245,7 @@ public sealed partial class PrivateWorldRuntime
         }
 
         if (AdultResident(inhabitantId)) AddHandcartCandidates(candidates, inhabitantId, state);
+        if (AdultResident(inhabitantId)) AddAnimalCandidates(candidates, inhabitantId);
         AddSurvivalCandidates(candidates, inhabitantId, state);
         AddTownSalvageCandidates(candidates, inhabitantId);
         AddDependentCareCandidates(candidates, inhabitantId);
@@ -1274,7 +1276,7 @@ public sealed partial class PrivateWorldRuntime
             AddHouseGuestCandidates(candidates, inhabitantId);
             AddHouseHaulCandidate(candidates, inhabitantId, state);
             AddWarehouseStockCandidate(candidates, inhabitantId, state);
-            AddFarmGrainCandidate(candidates, inhabitantId, state);
+            AddFarmGrainCandidate(candidates, inhabitantId);
             AddFarmFlourCandidate(candidates, inhabitantId, state);
             AddFieldCandidates(candidates, inhabitantId, state);
             AddBlacksmithStockCandidate(candidates, inhabitantId, state);
@@ -1384,6 +1386,7 @@ public sealed partial class PrivateWorldRuntime
     {
         if (id is null) return null;
         return society.Checkpoint.Households.SingleOrDefault(item => item.Id == id)?.Name ??
+            Animal(id)?.Name ??
             towns.SingleOrDefault(item => item.Id == id)?.Name ??
             society.Checkpoint.Inhabitants.SingleOrDefault(item => item.Id == id)?.Name ??
             map.Resources.SingleOrDefault(item => item.Id == id)?.Kind.Replace('_', ' ');

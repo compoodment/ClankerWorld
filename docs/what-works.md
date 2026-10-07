@@ -37,11 +37,17 @@ test alone does not make it available in the game.
 | Create, select, save and load worlds | Available in the game | Small/Medium maps; larger playable worlds and a local Windows host are unfinished. Default Balanced Small/Medium previews try up to three candidates for the Normal forest and mountain targets. |
 | Wooded forests, patchy beaches and reduced wet weather | Available in newly created worlds | Forest grass has many trees, forest-floor tiles always have trees, and cacti stay on desert sand. Default rain, storm and snow weights are one quarter lower across climates. Density and Windows performance still need owner playtesting. |
 | Choose the first Town and place four founders before starting | Available in the game | On-map, guidance-only hints for nearby food, fertile ground, wood, stone and open space for Roads; exact factor tuning remains provisional. Player-chosen supplies are unfinished. |
-| Move around and inspect the map | Available in the game | Zoom, overview, wrapped east/west movement, tile facts, building cards with stored items as icons, and separate filters for Town title, household use, disputes, building property and Town borders. The disputes filter stays empty in normal play, because land requests cannot be filed yet. A building card does not yet list recent storage changes or what a workstation can make, and work in progress does not show its materials. |
+| Move around and inspect the map | Available in the game | Zoom, overview, wrapped east/west movement, tile facts, building cards with stored items as icons, and separate filters for Town title, household use, disputes, building property and Town borders. The disputes filter stays empty in normal play, because land requests cannot be filed yet. Building Details lists the workstation’s registered recipes with input/output quantities, and running work shows its recipe and the materials held for it. Recent storage changes remain unfinished. |
 | Approved art for playable content | Available in the game | Clinics and Restaurants have their approved exteriors. Medicinal herb patches and picked or depleted natural sites use their matching drawings on the map and tile cards. Potatoes, cultivated green seeds, medicinal herbs, diamond ornaments and simple meals use their approved item icons. Distinct refined-gold, plain-ring, berry-porridge and fruit-porridge drawings remain pending. [Windows visual checks](../playtest/792-approved-playable-art.md) are still wanted. |
 | Pause, inspect agents, view family trees and read events | Available in the game | The Agents list keeps its browsing position through information refreshes; selecting another agent still brings that card into view. Deceased profiles retain recorded thoughts and memories, and show any final will and final words; old deaths without an archive cannot be reconstructed. |
 | Developer tools | Available in the game | **F12** opens them in a world without pausing it: the tile's coordinates and facts, frame time, how long the server takes per step of world time, the agent count, jumping to an agent and drawing their planned path, plus the aging override, lost-reply recovery, paused world editing and paired-device management. While paused, **Edit selected agent** sets fullness, warmth, illness or nutrition, gives/removes carried goods, adds/removes skills, and starts/ends partnerships; each accepted change is saved and marked **Developer edit** in the Event Log. There are no time tools such as stepping one tick. The Windows playtest is pending. |
 | Display and interface settings | Available in the game | Themes, window size, weather switches, a 24-hour or 12-hour clock, and dates by season (the default, such as Autumn 2, Year 1) or as DD-MM-YYYY, MM-DD-YYYY or YYYY-MM-DD. A server too old to report season lengths shows numeric dates. The interface grows with the screen in whole steps (100%, 200% at 1080p and 1440p, 300% at 4K) with no setting, and the game always draws at the screen's own resolution. Windows visual and keyboard acceptance is still being checked. |
+
+Building quick cards and Details show a storage-space bar and exact occupied
+space against the building's recorded limit. The count includes all physically
+stored goods, including other owners' goods and materials held for work; the
+household's item grid is a separate view. An older host without a recorded
+limit keeps its item grid and has no guessed capacity bar.
 
 On a fresh server, Continue opens New World instead of entering the retired
 test camp. The normal map preview and acceptance steps still apply, and saved
@@ -355,7 +361,9 @@ House food delivery shares only spare carried food. Town donations accept the
 normal wood, stone, fiber and tree-seed surplus while keeping the agent's
 reserve of four usable units of each kind across their carried lots. Storing
 and collecting goods does not create extra reserves. Store stocking keeps its
-shelf target, food reserves and protected tools. Missing demand or surplus leaves a visible blocker even if the order
+shelf target, food reserves and protected tools. Its food reserves apply across
+usable lots of the same owner and kind, so collecting food in smaller loads
+does not create extra reserves. Missing demand or surplus leaves a visible blocker even if the order
 asks for more.
 
 A Store-stocking order can pause an ordinary unfinished project, deliver its
@@ -559,15 +567,51 @@ both spouses together while keeping the original conversation unchanged. A
 taken first name leaves both names unchanged. Divorce, remarriage and widowhood
 rules are not implemented here.
 
+## Animals
+
+**Basic version, connected to normal play; Windows playtesting is pending.**
+New generated worlds contain small untamed groups of chickens, sheep, cows and
+horses in suitable habitat. Households receive no free animals. Adults with a
+House can build a 2×2 animal yard for eight wood and two rope, then expand it
+for the same materials. Four/eight places and the household limit of eight
+include young animals and reserved births. Yards hold sixteen supply units.
+
+Taming uses two feed and one jug water. Daily care uses one feed/water for a
+chicken and two each for sheep, cows and horses. Feed is grain or greens. Adults
+fetch and carry real supplies, preserving food, planting and production
+reserves. Cared adult hens supply eggs daily, cows two milk daily, and sheep two
+wool every three days. One batch waits for local collection. Milk needs a
+household jug that contains milk or is empty; water and milk never mix.
+Adults haul milk jugs to their Store or borrowed Market stall. An agreed sale
+pours one portion into the buyer's jug and takes the named personal payment;
+both vessels retain their owners. Only one pending sale may use each milk lot;
+closing the offer frees any remaining usable milk for another sale. Spoiled
+milk can be poured away for jug reuse.
+
+Egg and milk meals use House/Restaurant recipes. Tailors turn wool into padded
+coats, hides into leather, and leather into sacks or saddles. A leather sack
+provides 32 carried cargo units. Cared adult pairs breed automatically with
+space and delivered supplies; missed care pauses work and riding. Old age is
+the only animal death rule, leaving one owned hide from sheep, cows or horses.
+
+A saddled, cared adult horse carries one adult at twice walking speed with eight
+extra cargo units. Named outsider riding and care permissions are separate.
+Gifts and sales need both adults' fresh personal choices, exact payment and
+receiving space. Animals keep their owners after household abandonment.
+Map inspection shows species, age, care, products, household and permissions.
+See [animal controls](playing.md#animals) and the [approved decision](https://github.com/compoodment/ClankerWorld/pull/1027).
+All balance values are provisional. Hunting, slaughter, meat, predators,
+neglect deaths, horse-drawn carts and animal boat transport remain excluded.
+
 ## Life, work and society
 
 | Feature | Status | Current limits |
 | --- | --- | --- |
 | Food, warmth, illness, clothing and shelter | Available in the game | Basic diet/recovery. Agents treat 40% fullness and 60% warmth as comfortable, and survival becomes urgent below 20% fullness, or below 35% warmth while exposure continues. These are provisional values ([#140](https://github.com/compoodment/ClankerWorld/issues/140)). Nights are colder outdoors by a provisional amount; clothing, shelter and a lit fire help at night as they do by day ([#673](https://github.com/compoodment/ClankerWorld/issues/673)). No energy meter or sleep. Medicine supports gradual illness recovery, described below. |
-| Gathering and carrying | Basic version | Agents gather named berries, wild greens and orchard fruit, keep a hearth burning, and collect shared tools. Field harvests remain on their tiles until carried. Agents carry raw crops and seeds to private Farmhouse/Silo storage, ready-to-eat greens and fruit to the House, flour back to the House, and wood and iron ore into the Blacksmith. An adult with a building or crafting project completes a valid household delivery before gathering more project materials. If the destination has no room for the load, the project shows the storage blocker and keeps its cargo and plan; it can resume when room is available. A well-fed child can help by giving one spare serving to the household store when the House has room. Space promised to other deliveries also counts; if the House fills before arrival, the child keeps the serving. |
+| Gathering and carrying | Basic version | Agents gather named berries, wild greens and orchard fruit, keep a hearth burning, and collect shared tools. Field harvests remain on their tiles until carried. Agents carry raw crops and seeds to private Farmhouse/Silo storage, trying another permitted farm store when the preferred one cannot fit the load or be reached. Filled pots and their contents stay together unless the existing grain or flour withdrawal rules allow a partial load. They carry ready-to-eat greens and fruit to the House, flour back to the House, and wood and iron ore into the Blacksmith. An adult with a building or crafting project completes a valid household delivery before gathering more project materials. If the destination has no room for the load, the project shows the storage blocker and keeps its cargo and plan; it can resume when room is available. A well-fed child can help by giving one spare serving to the household store when the House has room. Space promised to other deliveries also counts; if the House fills before arrival, the child keeps the serving. |
 | Farming and crafting | Basic version | Adults from a household holding a Farmhouse use wooden or iron hoes to prepare fertile land, carry grain seed, potatoes or cultivated-green seed, tend the crop and harvest it. Illness slows field work and tool wear. Planting supplies stay held until the work finishes or is interrupted. Wooden and iron sickles make harvesting faster. Fields show each stage on the map and overview; inspection names the soil's fertility and the household. Harvests stay on the field, with planting stock reserved for another crop, until physically carried into finite private farm storage. Orchard seeds grow saplings that mature and fruit in autumn. A household makes crude wooden axes and pickaxes at its own House from on-site wood, including fallen wood gathered by hand. They unlock tree felling and stone without a Town or Blacksmith, gather less and wear out sooner than smith-made wooden tools, and keep distinct inventory and Event Log names with a generic item icon. The household holding a Blacksmith makes and repairs better tools from real materials: axes fell trees, pickaxes unlock finite stone, iron and rare deposits, and hammers speed building work. Iron knives speed food preparation and suitable crafting. Tools wear during successful work; loose fallen wood can be gathered by hand if an axe breaks. Adults carry needed grain back from their Silo to the Farmhouse, where it mills into flour. Houses cook potatoes or greens into simple meals, grain into porridge, flour into bread, and potatoes with cultivated greens into stew. Porridge, bread and stew need carried fresh water and wood. Berries or fruit improve porridge; Restaurants also turn bread and greens into better meals. Cooking uses private on-site ingredients and stores its output in that House or Restaurant. A Tailor Shop makes cloth and clothing. If a household workshop recipe cannot get its ingredients, it pauses so an adult can choose another task; its saved plan can resume when supplies return to the building. Rates remain provisional. |
 | Handcarts | Basic version | Adults in the Blacksmith household can craft a personal cart from carried wood, iron fittings and rope. The visible cart carries up to 32 loose goods separately from the agent's load. Its owner reaches and attaches it, loads physically nearby authorized goods, pulls legal cardinal routes, parks, unloads, repairs or gives the cart and its cargo to a nearby adult. These cart controls are available to personal models; built-in choices leave them alone without a delivery task. An attached cart follows ordinary movement. Roads reduce movement waits and wear; broken carts keep their cargo. Map, tile and agent inspection show ownership, position, load and condition. |
-| Clay, pottery and water | Basic version | A household can dig finite clay and make storage pots and water jugs at its House. A pot holds up to 8 food and slows spoilage; hungry household children, adolescents and adults, and caregivers feeding an infant, take ready-to-eat servings from it. A jug holds up to 4 fresh water, which an adult can collect from a reachable riverbank or lakeshore and return to the House. Collecting a jug requires carrying room for the jug, its contents and some water. The Clinic uses delivered fresh water to make medicine, leaving the jug reusable. The related [empty-vessel return fix](https://github.com/compoodment/ClankerWorld/issues/749) carries empty household pots and jugs from workstations back to the House; automated checks cover its return and reuse. Porridge, bread and stew also consume fresh water while leaving the jug reusable. Empty jugs at Houses or Restaurants can be collected and refilled. Animal care remains unfinished. |
+| Clay, pottery and water | Basic version | A household can dig finite clay and make storage pots and water jugs at its House. A pot holds up to 8 food and slows spoilage; hungry household children, adolescents and adults, and caregivers feeding an infant, take ready-to-eat servings from it. A jug holds up to 4 fresh water, which an adult can collect from a reachable riverbank or lakeshore and return to the House. Collecting a jug requires carrying room for the jug, its contents and some water. The Clinic uses delivered fresh water to make medicine, leaving the jug reusable. The related [empty-vessel return fix](https://github.com/compoodment/ClankerWorld/issues/749) carries empty household pots and jugs from workstations back to the House; automated checks cover its return and reuse. Porridge, bread and stew also consume fresh water while leaving the jug reusable. Empty jugs at Houses or Restaurants can be collected and refilled. Animal care also spends actual feed and jug water; see [Animals](#animals). |
 | Building new buildings | Basic version | A household plans a House, Farmhouse, Blacksmith, Silo, Tailor Shop, Clinic, Restaurant or optional Store it does not hold yet, one of each, once it has the materials in hand. It gathers missing materials first. Only a household holding a Farmhouse builds a Silo, within two tiles of it; farm stock reaches either building in carried loads. Adult residents can supply and build a Town Hall, Market, street lantern, Port or communal boat after the Council approves its exact site and budget, as described below. |
 | House resident places, expansion and guests | Basic version | A House gives three resident places per tile, or four when one recorded domestic family unit is at least two people and a strict majority. Travelers and infants count; dead people and invited storm guests do not. A full House can be expanded for more places when the work completes. Add Agent and unanimous household admission check the House's room before adding someone to a household that holds one. Birth still completes into the primary caregiver's current household and can make it overcrowded; the building card and agent context show the count and limit. Existing overcrowding gives eligible adults one unpaused world day to move, with volunteers first and sole caregivers protected; notices, requests and expansion progress appear in agent inspection. Adult household members may also expand a nearly full House for storage; adult Town residents may expand a nearly full Warehouse from 2×2 to 2×3. Expansion keeps identity, stock and cooking jobs, reserves materials and cancels safely if space or permission changes. Any adult household member may invite or revoke a named storm guest. Guests cannot use House stock or cooking. Storage limits, costs and work time are trial values. |
 | Local exploration and physical knowledge goods | Basic version | Short outings record personal knowledge. A House makes paper from real fiber and jug-carried water; adults use paper to write field records and maps, or paper and cloth to bind books. Reading, sharing and trading teach only their actual contents to the recipient. Copies cost fresh materials. Purposeful distant exploration is unfinished. |
@@ -798,8 +842,10 @@ independent judges and reasoned findings lead to explanations, warnings or
 censure, with voluntary offers for named goods, repair or public service.
 Every contributor gives their own informed acceptance; physical completion
 receipts distinguish accepted work from completed work. Visitors retain local
-response rights and children receive caregiver support. No fine, seizure,
-expulsion or forced work is available. Windows civic pacing and
+response rights and children receive caregiver support. Public-service goods
+keep four usable personal units across carried lots, including stock split by
+storage and collection. No fine, seizure, expulsion or forced work is available.
+Windows civic pacing and
 visual checks remain pending; see the unchecked
 [#633 playtest](../playtest/633-land-hearings.md) and
 [#635 playtest](../playtest/635-nonviolent-town-hearings.md).

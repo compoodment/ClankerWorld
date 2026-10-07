@@ -20,7 +20,7 @@ namespace ClankerWorld.Simulation.Playtest;
 /// </summary>
 public sealed partial class PrivateWorldRuntime : IDisposable
 {
-    public const int StateSchemaVersion = 95;
+    public const int StateSchemaVersion = 97;
     // Founded Towns save laws, protected government changes and the mayor's office from this schema.
     public const int TownGovernmentSchemaVersion = 55;
     public const int ObserverGuidanceSchemaVersion = 41;
@@ -91,6 +91,8 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     private List<HouseholdLandUseRight> householdLandUseRights = [];
     private List<HouseholdLandUseRequest> householdLandUseRequests = [];
     private HashSet<GridPoint> roadTiles = [];
+    private AnimalWorldState animalWorld = AnimalWorldState.Empty;
+    public IReadOnlyList<AnimalState> Animals => animalWorld.Animals;
     private List<HandcartHitch> handcartHitches = [];
     private List<AgentConversation> conversations = [];
     private List<AgentMarriage> marriages = [];
@@ -320,6 +322,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         runtime.fertility = new LandFertility(runtime.map, state.WorldSeed);
         runtime.handcartHitches = state.HandcartHitches!.ToList();
         runtime.boatTransport = state.BoatTransport;
+        runtime.animalWorld = state.AnimalWorld;
         runtime.fields = state.Fields!.OrderBy(field => field.Position.Y)
             .ThenBy(field => field.Position.X).ToList();
         runtime.towns = state.Towns!.OrderBy(item => item.Id, StringComparer.Ordinal).ToList();
@@ -500,6 +503,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     {
         Marriages = marriages.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(),
         BoatTransport = boatTransport,
+        AnimalWorld = animalWorld,
         RoutineHelper = routineHelper,
     };
 

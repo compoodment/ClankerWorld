@@ -162,8 +162,8 @@ public partial class Main
             if (!developerEditApply.Disabled)
                 throw new InvalidOperationException("Direct edits must be unavailable in a running world.");
             RenderDeveloperEdits(paused, actionDisabled: false);
-            if (developerEditApply.Disabled || developerEditAgent.Text != "Selected: Mira" || developerEditKind.ItemCount != 7)
-                throw new InvalidOperationException("Paused Developer tools must offer all seven edits for the selected agent.");
+            if (developerEditApply.Disabled || developerEditAgent.Text != "Selected: Mira" || developerEditKind.ItemCount != 8)
+                throw new InvalidOperationException("Paused Developer tools must offer all eight edits for the selected agent.");
             developerEditKind.Select(5);
             ConfigureDeveloperEdit();
             RenderDeveloperEdits(paused, actionDisabled: false);
@@ -174,6 +174,11 @@ public partial class Main
             ConfigureDeveloperEdit();
             if (developerEditValue.ItemCount != 4 || developerEditOther.Visible || developerEditAmount.Visible)
                 throw new InvalidOperationException("Skill edits must offer the four supported skills without quantity or partner fields.");
+            developerEditKind.Select(7);
+            ConfigureDeveloperEdit();
+            if (developerEditValue.ItemCount != 8 || !developerEditValue.Visible || developerEditOther.Visible || developerEditAmount.Visible ||
+                !Enumerable.Range(0, 8).Select(index => developerEditValue.GetItemMetadata(index).AsString()).Contains("horse:male"))
+                throw new InvalidOperationException("Animal placement must offer the species and sex without quantity or partner fields.");
             developerEditKind.Select(0);
             ConfigureDeveloperEdit();
             RenderDeveloperEdits(paused with { Inhabitants = [other with { Lifecycle = "dead" }] }, actionDisabled: false);

@@ -29,13 +29,21 @@ public sealed partial class SettlementParenthoodTests
     private static OwnerInstructionRequest GuardianRequest(string key, string adult, string child, bool queue = false) =>
         new(key, "owner:test", adult, OwnerInstructionKind.MustDo, $"Become guardian for {child}", queue);
 
-    [Fact]
-    public async Task GuardianOrderKeepsTheNamedChildAcrossRenameSaveAndReplayAndCompletesOnce()
+    [Theory]
+    [InlineData("Élodie", "Élodie", false)]
+    [InlineData("Élodie", "E\u0301lodie", false)]
+    [InlineData("E\u0301lodie", "Élodie", false)]
+    [InlineData("Élodie", "éLODIE", false)]
+    [InlineData("Élodie", "Élodie", true)]
+    public async Task GuardianOrderKeepsTheNamedChildAcrossRenameSaveAndReplayAndCompletesOnce(string storedFirstName, string firstName, bool useId)
     {
         var initial = await GuardianOrderState();
         var (child, adult) = GuardianOrderPeople(initial);
-        using var setup = PrivateWorldRuntime.Restore(initial, _ => new ParentProvider("safe_idle"));
-        var request = GuardianRequest("guardian-order", adult, setup.Society.GetInhabitant(child).Name);
+        using var named = SocietyWorldRuntime.Restore(initial.Society);
+        var surname = InhabitantNameRules.SurnameKey(named.Checkpoint.GetInhabitant(child).Name);
+        named.Apply(checkpoint => SocietyFixture.RenameInhabitant(checkpoint, child, storedFirstName + " " + surname));
+        using var setup = PrivateWorldRuntime.Restore(initial with { Society = named.ExportState() }, _ => new ParentProvider("safe_idle"));
+        var request = GuardianRequest("guardian-order", adult, useId ? child : firstName + " " + surname);
         var receipt = setup.SubmitInstruction(request);
         Assert.Equal(receipt, setup.SubmitInstruction(request));
         var saved = setup.ExportState();
@@ -136,14 +144,21 @@ public sealed partial class SettlementParenthoodTests
     [InlineData("Become guardian for {child} until cancelled")]
     [InlineData("Do not become guardian for {child}")]
     [InlineData("Become guardian for {adult}")]
+    [InlineData("Become guardian for {name} and gather food")]
+    [InlineData("Become guardian for {name} until cancelled")]
+    [InlineData("Become guardian for {firstName}")]
     public async Task UnsupportedGuardianOrdersPreserveTheCurrentTask(string text)
     {
         var initial = await GuardianOrderState();
         var (child, adult) = GuardianOrderPeople(initial);
-        using var world = PrivateWorldRuntime.Restore(initial, _ => new ParentProvider("safe_idle"));
+        using var named = SocietyWorldRuntime.Restore(initial.Society);
+        var childName = "Élodie " + InhabitantNameRules.SurnameKey(named.Checkpoint.GetInhabitant(child).Name);
+        named.Apply(checkpoint => SocietyFixture.RenameInhabitant(checkpoint, child, childName));
+        using var world = PrivateWorldRuntime.Restore(initial with { Society = named.ExportState() }, _ => new ParentProvider("safe_idle"));
         var current = world.SubmitInstruction(new("existing", "owner:test", adult, OwnerInstructionKind.MustDo, "gather berries"));
         var rejected = world.SubmitInstruction(new("rejected", "owner:test", adult, OwnerInstructionKind.MustDo,
-            text.Replace("{child}", child, StringComparison.Ordinal).Replace("{adult}", adult, StringComparison.Ordinal)));
+            text.Replace("{child}", child, StringComparison.Ordinal).Replace("{adult}", adult, StringComparison.Ordinal)
+                .Replace("{name}", childName, StringComparison.Ordinal).Replace("{firstName}", "E\u0301lodie", StringComparison.Ordinal)));
         var state = world.ExportState();
         Assert.Equal("waiting", state.Instructions!.Single(item => item.InstructionId == current.InstructionId).Order!.Status);
         Assert.Equal("not_understood", state.Instructions!.Single(item => item.InstructionId == rejected.InstructionId).Order!.Status);
