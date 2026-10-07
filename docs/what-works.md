@@ -361,7 +361,9 @@ House food delivery shares only spare carried food. Town donations accept the
 normal wood, stone, fiber and tree-seed surplus while keeping the agent's
 reserve of four usable units of each kind across their carried lots. Storing
 and collecting goods does not create extra reserves. Store stocking keeps its
-shelf target, food reserves and protected tools. Missing demand or surplus leaves a visible blocker even if the order
+shelf target, food reserves and protected tools. Its food reserves apply across
+usable lots of the same owner and kind, so collecting food in smaller loads
+does not create extra reserves. Missing demand or surplus leaves a visible blocker even if the order
 asks for more.
 
 A Store-stocking order can pause an ordinary unfinished project, deliver its
@@ -838,8 +840,10 @@ independent judges and reasoned findings lead to explanations, warnings or
 censure, with voluntary offers for named goods, repair or public service.
 Every contributor gives their own informed acceptance; physical completion
 receipts distinguish accepted work from completed work. Visitors retain local
-response rights and children receive caregiver support. No fine, seizure,
-expulsion or forced work is available. Windows civic pacing and
+response rights and children receive caregiver support. Public-service goods
+keep four usable personal units across carried lots, including stock split by
+storage and collection. No fine, seizure, expulsion or forced work is available.
+Windows civic pacing and
 visual checks remain pending; see the unchecked
 [#633 playtest](../playtest/633-land-hearings.md) and
 [#635 playtest](../playtest/635-nonviolent-town-hearings.md).
