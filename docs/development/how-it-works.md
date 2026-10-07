@@ -1588,6 +1588,21 @@ or chooses another action; refusal starts no project. Accepted projects retain
 their tile. If it becomes illegal, the project blocks and retries after sixty
 ticks. An unchanged idle choice is reconsidered after 300 ticks, sooner if
 urgent needs or legal choices change. Weights and retry values are provisional.
+Material scoring searches at most five map tiles from a site, including the
+east-west seam; farther resources cannot change its rank. Recipe and expansion
+input checks share reachable-tool results only within one inhabitant's
+read-only candidate query. Later queries and actions check current stock and
+routes again; neither optimization adds saved state or a persistent cache.
+Purpose scoring filters related buildings once per context and keeps its
+distance, building-ID and tag tie rules. Border-growth scoring counts the same
+rounded footprint margin that actual placement adds, without sorting those
+tiles for every candidate.
+Continuing an idle intention skips a second full candidate query after the
+ordinary enqueue phase has reconsidered current choices. Orders, conversations,
+care and ongoing work keep their earlier continuation guards, and the ordinary
+idle action still runs its cleanup.
+See [construction query measurements](construction-query-measurements.md) for
+matched native timings, candidate/state equivalence and remaining limits.
 Building plans follow what a household needs, not a role. An adult whose
 household lacks a House, Farmhouse, Blacksmith, Silo, Tailor Shop, Clinic or Restaurant is offered ranked sites
 for it once the household has the build costs in hand: stock the household
@@ -1839,6 +1854,12 @@ Household workstation inputs must be present at the actual building; stock
 elsewhere in the household is not on-site stock. Missing inputs block the
 project under its existing retry rules, without granting another household's
 materials or implicitly transporting remote goods.
+
+Blacksmith input hauling checks the actor's current unoccupied pickup route
+and the source-to-shop route before selecting household or permitted Town
+Warehouse stock. An occupied earlier lot does not hide later reachable stock.
+The same selection is repeated when hauling or planning a supply order; exact
+lot/item targets, carrying limits and receiving-space checks still apply.
 
 If an unpaid household recipe remains blocked for 60 ticks and no household
 member has an actionable way to supply its missing ingredients, the runtime
@@ -2719,6 +2740,12 @@ resuming time. Preview selection, explicit acceptance of missed coverage
 targets and signed creation remain the only way through that screen. The
 redirect neither replaces the checkpoint nor removes its catalog entry, and
 founders or authored progress prevent it.
+
+Continue also belongs to the current Main Menu navigation. Opening Settings,
+New World or Load World, returning to Main Menu, or starting another Continue
+expires the earlier entry attempt. Its late refresh can update observations,
+but cannot enter play or resume time behind another menu. A fresh Continue
+after returning still enters normally.
 
 The manual Save World and Load Save dialog owns one list read per opening.
 Closing it, creating, overwriting or deleting a save, or starting another opening
