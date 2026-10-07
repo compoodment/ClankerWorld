@@ -27,7 +27,8 @@ public sealed record TownNativeRemedyReceipt(string Id, string Kind, string Acto
     string ResultLotId, string PreviousOwnerId, string ResultOwnerId, GridPoint Position,
     int BeforeCondition, int AfterCondition, string Version,
     [property: JsonRequired] string? ActorHouseholdId, [property: JsonRequired] string? ActorTownId,
-    int SourceQuantityBefore, int AvailableQuantityBefore, IReadOnlyList<TownNativeRepairInput> RepairInputs);
+    int SourceQuantityBefore, int AvailableQuantityBefore, IReadOnlyList<TownNativeRepairInput> RepairInputs,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] long? CarriedAvailableQuantityBefore = null);
 
 public sealed record TownNativeRepairInput(string ItemKind, InventoryReservation Reservation);
 
