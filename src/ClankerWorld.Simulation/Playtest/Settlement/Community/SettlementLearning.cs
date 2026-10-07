@@ -15,6 +15,10 @@ public sealed partial class PrivateWorldRuntime
     private bool ReadyForLesson(string actor) => inhabitants.TryGetValue(actor, out var person) &&
         !NeedsUrgentFood(person) && !NeedsUrgentWarmth(person);
 
+    private bool CanReachLessonSite(string actor) =>
+        IsWithinInteractionRange(inhabitants[actor].Position, SettlementStoragePosition, ResourceInteractionRange) ||
+        FindUnoccupiedRoute(actor, inhabitants[actor].Position, SettlementStoragePosition, ResourceInteractionRange).Count > 0;
+
     private bool CanMentor(string teacher, SettlementSkillKind skill) =>
         AdultResident(teacher) && !ActiveLesson(inhabitants[teacher].Lesson) && HasSkill(teacher, skill);
 
@@ -91,7 +95,8 @@ public sealed partial class PrivateWorldRuntime
         {
             foreach (var request in inhabitants.Values.Where(item => item.Lesson is { Stage: "requested" } lesson && lesson.TeacherId == actor))
             {
-                if (CanMentor(actor, request.Lesson!.Skill) && FreeToMentor(actor, request.InhabitantId))
+                if (CanMentor(actor, request.Lesson!.Skill) && FreeToMentor(actor, request.InhabitantId) &&
+                    CanReachLessonSite(actor) && CanReachLessonSite(request.InhabitantId))
                     candidates.Add(new("lesson_accept:" + request.InhabitantId,
                         $"Teach {society.Checkpoint.GetInhabitant(request.InhabitantId).Name} the requested {request.Lesson.Skill.ToString().ToLowerInvariant()} skill.", 17));
                 candidates.Add(new("lesson_decline:" + request.InhabitantId, "Decline this teaching request.", 70));
@@ -102,7 +107,8 @@ public sealed partial class PrivateWorldRuntime
                 foreach (var skill in Enum.GetValues<SettlementSkillKind>().Where(skill => !HasSkill(actor, skill)))
                 {
                     var mentor = inhabitants.Keys.Order(StringComparer.Ordinal).FirstOrDefault(id => id != actor &&
-                        CanMentor(id, skill) && FreeToMentor(id));
+                        CanMentor(id, skill) && FreeToMentor(id) &&
+                        CanReachLessonSite(actor) && CanReachLessonSite(id));
                     if (mentor is not null)
                     {
                         candidates.Add(new($"learn:{skill.ToString().ToLowerInvariant()}:{mentor}",
@@ -122,7 +128,8 @@ public sealed partial class PrivateWorldRuntime
             var parts = candidate.Split(':', 3);
             if (parts.Length != 3 || !Enum.TryParse<SettlementSkillKind>(parts[1], true, out var skill) ||
                 !Enum.IsDefined(skill) || parts[2] == actor || HasSkill(actor, skill) || !ReadyForLesson(actor) ||
-                ActiveLesson(person.Lesson) || !CanMentor(parts[2], skill) || !FreeToMentor(parts[2]))
+                ActiveLesson(person.Lesson) || !CanMentor(parts[2], skill) || !FreeToMentor(parts[2]) ||
+                !CanReachLessonSite(actor) || !CanReachLessonSite(parts[2]))
             {
                 return;
             }
@@ -154,7 +161,8 @@ public sealed partial class PrivateWorldRuntime
             SetLesson(studentId, lesson with { Stage = "declined" });
         }
         else if (lesson.Stage == "requested" && ReadyForLesson(studentId) &&
-            CanMentor(actor, lesson.Skill) && FreeToMentor(actor, studentId))
+            CanMentor(actor, lesson.Skill) && FreeToMentor(actor, studentId) &&
+            CanReachLessonSite(actor) && CanReachLessonSite(studentId))
         {
             SetLesson(studentId, lesson with { Stage = "accepted" });
             foreach (var participant in new[] { actor, studentId })
