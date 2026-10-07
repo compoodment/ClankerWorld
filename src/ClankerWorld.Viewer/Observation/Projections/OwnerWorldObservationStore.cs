@@ -608,6 +608,7 @@ public sealed partial class OwnerWorldObservationStore
                 field.Stage.ToString().ToLowerInvariant(), field.Crop, fertility.At(field.Position),
                 field.Work?.WorkerId, field.Work?.RemainingTicks)).ToArray(),
             Handcarts = ProjectHandcarts(state),
+            Animals = ProjectAnimals(state),
             Boats = ProjectBoats(state),
             BoatRequests = ProjectBoatRequests(state),
             GroundStocks = state.Society.Society.Inventory.Lots.Where(lot => lot.GroundPosition is not null && lot.Quantity > 0 &&
@@ -805,7 +806,7 @@ public sealed partial class OwnerWorldObservationStore
                         order.ProgressUnit, order.RepeatUntilCancelled, order.TargetFoodKind,
                         order.TargetResourceId, order.TargetPosition?.X, order.TargetPosition?.Y,
                         order.BlockedReason, order.TargetAgentId, order.TargetMaterialKind, order.TargetEquipmentKind, order.TargetCropKind,
-                        order.TargetOutputKind, order.TargetItemKind, order.TargetBuildingKind) : null))
+                        order.TargetOutputKind, order.TargetItemKind, order.TargetBuildingKind, order.TargetAnimalId) : null))
                 .ToArray(),
             Cognition = ToCognition(state),
             ContentPackages = state.Content?.Packages
@@ -1677,7 +1678,8 @@ public sealed partial class OwnerWorldObservationStore
         var ornament = PersonalEquipmentRules.EquippedUnit(inventory, person.InhabitantId, person.Equipment?.OrnamentLotId);
         var repair = person.Equipment?.Repair;
         return new(PersonalEquipmentRules.CarriedQuantity(inventory, person.InhabitantId, person.Equipment),
-            PersonalEquipmentRules.Capacity(inventory, person.InhabitantId, person.Equipment),
+            PersonalEquipmentRules.Capacity(inventory, person.InhabitantId, person.Equipment) +
+                (state.AnimalWorld.Animals.Any(animal => animal.RiderId == person.InhabitantId && AnimalRules.HasCare(animal, state.Society.Society.WorldTick)) ? AnimalRules.RidingCargo : 0),
             garment?.ItemKind, garment?.ConditionBasisPoints / 100, aid?.ItemKind, aid?.ConditionBasisPoints / 100,
             inventory.Lots.FirstOrDefault(lot => lot.Id == repair?.LotId)?.ItemKind,
             repair?.WorkDone ?? 0, PersonalEquipmentRules.RepairWorkTicks, ornament?.ItemKind);
@@ -1727,6 +1729,22 @@ public sealed partial class OwnerWorldObservationStore
                         .OrderBy(group => group.Key, StringComparer.Ordinal)
                         .Select(group => new ViewerInventoryEntry(group.Key, group.Sum(lot => lot.Quantity))).ToArray());
             }).ToArray();
+    }
+
+    private static ViewerAnimal[] ProjectAnimals(PrivateWorldRuntimeState state)
+    {
+        var tick = state.Society.Society.WorldTick;
+        var day = state.WorldSystems!.Config.TicksPerDay;
+        string Name(string id) => state.Society.Society.Inhabitants.FirstOrDefault(person => person.Id == id)?.Name ?? id;
+        return state.AnimalWorld.Animals.Select(animal => new ViewerAnimal(animal.Id, animal.Name, animal.Species, animal.Sex,
+            (int)((tick - animal.BornTick) / day), animal.DiedTick is not null ? "deceased" : AnimalRules.IsAdult(animal, tick, day) ? "adult" : "young",
+            ToPosition(animal.Position), animal.HouseholdId, state.Society.Society.Households.FirstOrDefault(home => home.Id == animal.HouseholdId)?.Name,
+            animal.DiedTick is not null ? "deceased" : AnimalRules.HasCare(animal, tick) ? "cared for" : "needs care",
+            animal.ReadyProductLotId is null ? null : AnimalRules.Definition(animal.Species).Product,
+            animal.ReadyProductLotId is null ? 0 : AnimalRules.Definition(animal.Species).ProductQuantity,
+            animal.Pregnancy is null ? null : Math.Round(AnimalRules.Definition(animal.Species).GestationDays - animal.Pregnancy.ProgressTicks / (double)day, 1),
+            animal.RiderId, animal.RiderId is null ? null : Name(animal.RiderId), animal.LeaderId, animal.SaddleLotId is not null,
+            animal.CarePermissions.Select(Name).ToArray(), animal.RidingPermissions.Select(Name).ToArray())).ToArray();
     }
 
     private static ViewerInventoryEntry[] InventoryFor(

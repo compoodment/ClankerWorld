@@ -10,6 +10,7 @@ public partial class Main
 {
     // Facing is presentation inferred from accepted positions, never saved world state.
     private readonly Dictionary<string, (OwnerWorldPosition Position, int Facing)> handcartFacings = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, (OwnerWorldPosition Position, int Facing)> animalFacings = new(StringComparer.Ordinal);
     private readonly Dictionary<string, (OwnerWorldPosition Position, int Facing)> boatFacings = new(StringComparer.Ordinal);
 
     private void ResetDisplayedWorldContext()
@@ -70,6 +71,7 @@ public partial class Main
         mapObjectVisuals.Clear();
         mapObjectCanonicalXs.Clear();
         handcartFacings.Clear();
+        animalFacings.Clear();
         boatFacings.Clear();
     }
 
@@ -151,6 +153,7 @@ public partial class Main
             previous.WrapsEastWest != snapshot.WrapsEastWest || MapDimensions(previous) != MapDimensions(snapshot))
         {
             handcartFacings.Clear();
+            animalFacings.Clear();
             boatFacings.Clear();
         }
         renderedMapSnapshot = snapshot;
@@ -159,6 +162,7 @@ public partial class Main
             .Concat(snapshot.Objects.Select(item => "object:" + item.Id))
             .Concat(snapshot.Handcarts.Select(item => "handcart:" + item.Id))
             .Concat(snapshot.Boats.Select(item => "boat:" + item.Id))
+            .Concat(snapshot.Animals.Select(item => "animal:" + item.Id))
             .Concat(snapshot.PlacedBuildings.Select(item => "building:" + item.InstanceId)).ToHashSet(StringComparer.Ordinal);
         foreach (var id in mapObjectVisuals.Keys.Where(id => !objectIds.Contains(id)).ToArray())
         {
@@ -168,12 +172,15 @@ public partial class Main
         }
         foreach (var id in handcartFacings.Keys.Where(id => !objectIds.Contains("handcart:" + id)).ToArray())
             handcartFacings.Remove(id);
+        foreach (var id in animalFacings.Keys.Where(id => !objectIds.Contains("animal:" + id)).ToArray())
+            animalFacings.Remove(id);
         foreach (var id in boatFacings.Keys.Where(id => !objectIds.Contains("boat:" + id)).ToArray())
             boatFacings.Remove(id);
 
         if (!HasMap(snapshot))
         {
             handcartFacings.Clear();
+            animalFacings.Clear();
             boatFacings.Clear();
             foreach (var visual in inhabitantVisuals.Values) visual.QueueFree();
             inhabitantVisuals.Clear();
@@ -270,6 +277,39 @@ public partial class Main
             sprite.Size = new(size, size);
             sprite.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
             sprite.Position = new(0, Math.Max(0, marker.Size.Y - size));
+        }
+
+        foreach (var animal in snapshot.Animals)
+        {
+            var id = "animal:" + animal.Id;
+            AddMapObjectVisual(id, animal.Position, string.Empty, string.Empty, GameUiText.AnimalDescription(animal));
+            var marker = mapObjectVisuals[id];
+            var sprite = marker.GetNodeOrNull<TextureRect>("AnimalSprite");
+            if (sprite is null)
+            {
+                sprite = new TextureRect
+                {
+                    Name = "AnimalSprite",
+                    MouseFilter = Control.MouseFilterEnum.Ignore,
+                    TextureFilter = CanvasItem.TextureFilterEnum.Nearest
+                };
+                marker.AddChild(sprite);
+            }
+            var facing = AgentSprites.South;
+            if (animalFacings.TryGetValue(animal.Id, out var previousAnimal))
+            {
+                facing = previousAnimal.Facing;
+                var dx = animal.Position.X - previousAnimal.Position.X;
+                if (snapshot.WrapsEastWest && mapWidth > 0) dx -= (int)Math.Round(dx / (double)mapWidth) * mapWidth;
+                var dy = animal.Position.Y - previousAnimal.Position.Y;
+                if (dx != 0 || dy != 0) facing = AgentSprites.FacingToward(dx, dy);
+            }
+            animalFacings[animal.Id] = (animal.Position, facing);
+            sprite.Texture = AnimalSprites.Texture(animal.Species, facing, animal.LifeStage == "young", animal.RiderId is not null);
+            var size = currentTileSize >= 40 ? 32 : 16;
+            sprite.Size = new(size, size);
+            sprite.Position = new(0, Math.Max(0, marker.Size.Y - size));
+            sprite.Modulate = animal.LifeStage == "deceased" ? new Color("A89279") : Colors.White;
         }
 
         foreach (var cart in snapshot.Handcarts)
@@ -383,6 +423,7 @@ public partial class Main
                 }
                 actorMarker.Caption = GameUiText.ActorMapLabel(inhabitant.DisplayName);
                 actorMarker.Variant = AgentSprites.VariantFor(inhabitant.Id);
+                actorMarker.Visible = !snapshot.Animals.Any(animal => animal.RiderId == inhabitant.Id);
                 actorMarker.Stage = AgentSprites.StageIndex(
                     inhabitant.DecisionFactors.FirstOrDefault(factor => factor.Key == "age-band")?.Detail);
                 // Facing and frame only present what the observation says:
