@@ -2,7 +2,7 @@
 title: What works today
 type: product-status
 status: active
-updated: 2026-10-06
+updated: 2026-10-07
 ---
 
 # What works today
@@ -355,7 +355,9 @@ House food delivery shares only spare carried food. Town donations accept the
 normal wood, stone, fiber and tree-seed surplus while keeping the agent's
 reserve of four usable units of each kind across their carried lots. Storing
 and collecting goods does not create extra reserves. Store stocking keeps its
-shelf target, food reserves and protected tools. Missing demand or surplus leaves a visible blocker even if the order
+usable shelf target, food reserves and protected tools. Spoiled or broken goods
+still take physical storage space but do not satisfy the restocking target.
+Missing demand or surplus leaves a visible blocker even if the order
 asks for more.
 
 A Store-stocking order can pause an ordinary unfinished project, deliver its
