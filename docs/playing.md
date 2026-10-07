@@ -225,6 +225,9 @@ berries at (12, 4)". "Keep gathering food" continues until cancelled. Eating
 waits until the agent is hungry enough, and gathering needs enough carrying
 space. A recognized new order replaces the current one unless you turn on
 **Queue**. Use **Cancel task** to stop a waiting or active order.
+An agent can also eat from a usable storage pot they own and carry, leaving
+the pot and remaining food together. Eating a serving needs no extra carrying
+space; food reserved for other work or being delivered is unavailable.
 
 Material orders can gather wood, stone, plant fiber, clay, iron ore, gold ore
 or diamond. For example, use **Gather five wood**, **Keep gathering clay**, or
@@ -286,6 +289,10 @@ orchard seeds; bare **seeds**, **tools** and **ornaments** are not understood.
 A pot or jug moves with its contents and counts as one item, while all of its
 contents use carrying and storage space. These tasks cannot take household
 production stock as personal property.
+
+When carrying several water jugs, agents can refill one with room even if
+another is full. They still need a reachable riverbank or lakeshore and enough
+carrying space for the water.
 
 To return borrowed stock, use **Return two borrowed cloth**, **Return two
 borrowed bread** or **Return one borrowed water jug**. The agent carries the
@@ -616,7 +623,10 @@ still needs a hands-on check.
 ## Pause, settings and controls
 
 The pause button pauses or resumes time. **Menu** opens the Pause Menu and keeps
-the world paused. Opening ordinary inspection panels leaves time running.
+the world paused. Closing it restores the world to running if it was running
+before the menu opened; a world you had already paused stays paused. This also
+applies when you reopen the menu while it is still resuming.
+Opening ordinary inspection panels leaves time running.
 Settings and the Mod Library open inside the Pause Menu window; its back arrow
 or **Escape** returns to the menu's buttons.
 
@@ -783,6 +793,8 @@ make wool padded coats, process hides into leather, and make leather sacks or
 saddles. A leather sack carries 32 units. Adults can haul household milk jugs
 to their Store or borrowed Market stall. A seller offers one portion for an
 exact personal payment; the buyer accepts with a carried empty or milk jug.
+Each milk lot can have only one pending offer. Remaining portions can be
+offered after that sale ends.
 Both vessels keep their owners. Pouring away spoiled milk frees its jug for reuse.
 
 For a cared adult horse, use **Saddle Moss**, **Mount Moss** and **Dismount Moss**.

@@ -582,7 +582,9 @@ wool every three days. One batch waits for local collection. Milk needs a
 household jug that contains milk or is empty; water and milk never mix.
 Adults haul milk jugs to their Store or borrowed Market stall. An agreed sale
 pours one portion into the buyer's jug and takes the named personal payment;
-both vessels retain their owners. Spoiled milk can be poured away for jug reuse.
+both vessels retain their owners. Only one pending sale may use each milk lot;
+closing the offer frees any remaining usable milk for another sale. Spoiled
+milk can be poured away for jug reuse.
 
 Egg and milk meals use House/Restaurant recipes. Tailors turn wool into padded
 coats, hides into leather, and leather into sacks or saddles. A leather sack
