@@ -1,0 +1,1 @@
+- Children can play or learn with another reachable person when nearer contacts are on cooldown for every child-social action. The three-person choice limit still applies, and recent encounters keep their cooldowns.

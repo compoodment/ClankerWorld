@@ -105,7 +105,18 @@ public sealed class WorldAutosaveStore
         ArgumentNullException.ThrowIfNull(saves);
         lock (gate)
         {
-            if (!state.Enabled || now - state.LastSavedUtc < TimeSpan.FromMinutes(state.IntervalMinutes) ||
+            if (!state.Enabled) return null;
+            if (now < state.LastSavedUtc)
+            {
+                if (runtime.Society.WorldId != state.WorldId)
+                    throw new InvalidDataException("Autosave settings belong to another world.");
+                // Treat a backwards correction as a new interval anchor, keeping
+                // the saved tick so an unchanged world still gets no new copy.
+                var rebased = state with { LastSavedUtc = now };
+                Save(rebased);
+                state = rebased;
+            }
+            if (now - state.LastSavedUtc < TimeSpan.FromMinutes(state.IntervalMinutes) ||
                 runtime.WorldTick == state.LastWorldTick)
                 return null;
             if (runtime.Society.WorldId != state.WorldId)

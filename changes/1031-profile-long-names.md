@@ -1,0 +1,1 @@
+- Long agent names fit within two lines in the Profile, keeping Rename and Back visible. Hover over the name or open Rename to read the whole name.
