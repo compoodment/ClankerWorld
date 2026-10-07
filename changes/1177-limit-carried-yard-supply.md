@@ -1,0 +1,1 @@
+- Supplying an animal yard now delivers only the chosen feed load, preserving the rest of an already carried stack and its owner. Water jugs still travel whole with their contents.

@@ -177,6 +177,7 @@ public sealed partial class PrivateWorldRuntime
         };
         SyncEcologyResourceStates();
         checkpointSchemaVersion = StateSchemaVersion;
+        RecordKnowledgeFact(planterId, destination);
         AppendEvent("tree_planted", $"{planterId}:{tree.Id}:{species}");
         return TreePlantingResult.Success(tree.Id, species);
     }
