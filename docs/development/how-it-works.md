@@ -2010,7 +2010,12 @@ accepted, non-fallback personal LLM choice; their candidates rank above
 owner orders do not authorize these mutations. A member carrying their own
 household's goods may return them to its House through `household_return`, and
 the household hauling, farm stock and planting routines skip stock on a stall
-while a member of that household borrows it. Usable loose surplus (the food
+while a member of that household borrows it. Explicit `market_collect` also
+protects household stock from other housemates while borrowing is active;
+the borrower may collect it, and personal owners may retrieve their own goods.
+The same choices are checked again before applying a mutation or continuing
+travel, using current borrowing.
+Usable loose surplus (the food
 reserve counts the owner's other usable stock of that kind), actual
 carrying and stall room, active claims, current household rights and protected
 equipment constrain the offered choices. During urgent hunger, Market candidates
