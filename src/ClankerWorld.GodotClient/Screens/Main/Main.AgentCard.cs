@@ -173,6 +173,8 @@ public partial class Main
         profileCloseButton.Pressed += AgentProfileBack;
         tools.AddChild(profileCloseButton);
         header.AddChild(tools);
+        // A wrapped name changes the header height after its width is laid out.
+        header.MinimumSizeChanged += QueueAgentProfileFit;
         body.AddChild(header);
         // Full width under the portrait, so what they are doing rarely wraps.
         profileActivityLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
