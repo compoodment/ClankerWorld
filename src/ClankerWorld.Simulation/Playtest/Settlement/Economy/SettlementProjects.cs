@@ -983,11 +983,13 @@ public sealed partial class PrivateWorldRuntime
     }
 
     private bool CanAcquireProjectInputs(IReadOnlyList<ContentQuantity> inputs, string? ownerId = null,
-        string? residentId = null)
+        string? residentId = null,
+        Dictionary<(ToolFamily Family, int Tier), ToolDefinition?>? reachableToolCache = null)
     {
         // Candidate evaluation is a read-only snapshot. Reuse a shared tool's route
-        // result only within this one input check; actions revalidate before gathering.
-        var reachableToolCache = new Dictionary<(ToolFamily Family, int Tier), ToolDefinition?>();
+        // result within one inhabitant's candidate query. Other callers start
+        // fresh, and actions revalidate before gathering.
+        reachableToolCache ??= new Dictionary<(ToolFamily Family, int Tier), ToolDefinition?>();
         return inputs.All(input =>
         {
             var stored = society.Checkpoint.Inventory.Lots.Where(lot => lot.ItemKind == input.ResourceId &&
