@@ -1297,6 +1297,10 @@ public sealed partial class PrivateWorldRuntime
             AddExplorationCandidate(candidates, inhabitantId, state);
         }
 
+        // Urgent owners can retrieve their food without starting unrelated Market work.
+        if (NeedsUrgentFood(state) && AdultResident(inhabitantId))
+            AddMarketCandidates(candidates, inhabitantId);
+
         // Released Town cargo can be set down even while urgent needs hide construction work.
         AddTownProjectCandidates(candidates, inhabitantId);
         if (currentConversation is null)

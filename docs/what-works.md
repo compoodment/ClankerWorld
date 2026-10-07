@@ -962,7 +962,9 @@ purchase; payment becomes the seller's household stock at the stall, including
 when the purchase was the seller's personal property. Buying gives no access
 to private stores or household membership. Leaving frees the stall and cancels
 unfinished exchanges. Its next borrower cannot sell the previous seller's
-leftovers; the recorded owner can return to collect them. Household goods a
+leftovers; the recorded owner can return to collect them. An urgently hungry
+adult can retrieve their personally owned food; unrelated Market work still
+waits. Household goods a
 member carries to or from the Market can be brought back into the household's
 House. Housemates leave household stock on a stall while one of them borrows
 it, and haul it home once the borrowing ends. An Order or built-in choice

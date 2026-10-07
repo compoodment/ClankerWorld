@@ -1968,7 +1968,12 @@ the household hauling, farm stock and planting routines skip stock on a stall
 while a member of that household borrows it. Usable loose surplus (the food
 reserve counts the owner's other usable stock of that kind), actual
 carrying and stall room, active claims, current household rights and protected
-equipment constrain the offered choices. The provisional one-for-one quote is
+equipment constrain the offered choices. During urgent hunger, Market candidates
+include only collection of edible food the adult may legally retrieve. This
+filter runs before the candidate limit; normal Market choices retain their
+existing order. Collection still needs a fresh personal LLM choice and the
+usual ownership, reservation, route and receiving-space checks.
+The provisional one-for-one quote is
 an actual `Inventory.Offers` exchange. Buyers may belong to any Town or have no
 Town membership; walking into the Market and completing a purchase change
 neither their household nor their Town. The named seller accepts only after

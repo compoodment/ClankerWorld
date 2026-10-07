@@ -601,7 +601,9 @@ to accept when both have reached the stall. The buyer carries the purchase;
 payment becomes the seller's household stock there. Leaving frees the stall;
 leftover goods still belong to their
 recorded owner. Suggestions can guide these choices, but an Order cannot force
-a sale or give away goods. The
+a sale or give away goods. An urgently hungry owner can still retrieve their
+available food from a stall and eat it. Other Market work waits until urgent
+hunger passes. The
 [Market hands-on checklist](../playtest/564-market-stalls.md) remains pending.
 
 Residents can also propose a **stone street lamp** or **hanging street lantern**
