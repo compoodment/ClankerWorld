@@ -55,7 +55,7 @@ public partial class Main
                 throw new InvalidOperationException("Moving the pointer must not dismiss animal inspection.");
             if (inside)
             {
-                RenderMap(map with { Animals = [] });
+                Render(map with { WorldTick = map.WorldTick + 1, Animals = [] }, []);
                 text = string.Join('\n', buildingDetailsContent.FindChildren("*", nameof(Label), owned: false)
                     .OfType<Label>().Select(label => label.Text));
                 if (text.Contains("Moss", StringComparison.Ordinal))
