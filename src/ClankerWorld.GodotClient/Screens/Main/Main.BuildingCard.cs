@@ -90,6 +90,7 @@ public partial class Main
         buildingWorkSection.AddChild(buildingWorkRows);
         buildingDetailsContent.AddChild(buildingWorkSection);
         buildingDetailsContent.AddChild(buildingDetailsStorage);
+        BuildBuildingStorageHistory();
         buildingRecipeSection.AddThemeConstantOverride("separation", 4);
         buildingRecipeSection.AddChild(new Label { Text = "CAN MAKE", ThemeTypeVariation = "SectionLabel" });
         buildingRecipeSection.AddChild(new Label
@@ -295,6 +296,7 @@ public partial class Main
         }
         RenderBuildingStatus(snapshot, building, jobs, inside);
         RenderBuildingDetails(snapshot, building, household, town, jobs, inside);
+        RenderBuildingStorageHistory(snapshot, building);
 
         buildingDetailsPanel.Visible = buildingDetailsRequested;
         buildingQuickCard.Visible = !buildingDetailsRequested;
