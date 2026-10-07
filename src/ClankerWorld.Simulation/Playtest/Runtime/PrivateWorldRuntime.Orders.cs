@@ -28,6 +28,7 @@ public sealed partial class PrivateWorldRuntime
         if (order.TargetPosition is { } requestedPosition && !map.Contains(requestedPosition))
             return null;
         if (IsAnimalOrder(order.Action)) return AnimalOrderCandidate(instruction);
+        if (IsTreePlantingOrder(order.Action)) return TreePlantingOrderCandidate(instruction, person);
 
         if (IsShelterOrder(order.Action))
             return ShelterOrderCandidateFor(instruction, person);
@@ -225,6 +226,11 @@ public sealed partial class PrivateWorldRuntime
             ExecuteAnimalOrder(instruction);
             return;
         }
+        if (IsTreePlantingOrder(order.Action))
+        {
+            ExecuteTreePlantingOrder(instruction, person);
+            return;
+        }
         switch (candidate.Id)
         {
             case "seek_shelter":
@@ -412,6 +418,8 @@ public sealed partial class PrivateWorldRuntime
 
     private string OrderBlockedReason(OwnerQueuedInstruction instruction, PlaytestInhabitantState person)
     {
+        if (instruction.Order is { } treeOrder && IsTreePlantingOrder(treeOrder.Action))
+            return TreePlantingOrderBlockedReason(instruction, person);
         if (instruction.Order is { } animalOrder && IsAnimalOrder(animalOrder.Action))
             return "Waiting for the named animal, permission, a legal route, carry space and physical feed or jug water.";
         if (instruction.Order is { } protective && IsShelterOrder(protective.Action))

@@ -405,6 +405,7 @@ public sealed partial class PrivateWorldRuntime
         "gather_material" => "gather the requested material from a natural source",
         "till_field" => "till a field for your household",
         "plant_field" => "plant the requested crop in your household field",
+        "plant_tree" or "plant_broadleaf" or "plant_conifer" or "plant_orchard" => "plant the requested tree using a real seed outside Town borders",
         "tend_field" => "tend your household crop",
         "harvest_field" => "harvest your household crop",
         "repair_tool" => "repair your own worn tool",
