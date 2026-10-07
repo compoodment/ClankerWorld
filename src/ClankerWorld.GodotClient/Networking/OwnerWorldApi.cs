@@ -283,12 +283,12 @@ public sealed class OwnerWorldApi
             action, signer, cancellationToken);
 
     public Task<OwnerControlReceipt> SetLifePaceAsync(Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
-        int rate, IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken)
+        int rate, string worldId, IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken)
     {
-        var action = new OwnerLifePaceAction(rate);
+        var action = new OwnerLifePaceAction(rate, worldId);
         return pairing.SendSignedActionAsync<OwnerLifePaceAction, OwnerControlReceipt>(serverUri, authority, deviceId,
             OwnerPairingEndpoints.OwnerLifePace, OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.LifePace(action),
-            action, deviceKey, cancellationToken);
+            action, deviceKey, cancellationToken, requiredPayloadDomain: OwnerWorldActionPayload.LifePacePayloadDomain);
     }
 
     public Task<OwnerControlReceipt> SetRoutineHelperAsync(Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
@@ -299,12 +299,13 @@ public sealed class OwnerWorldApi
             requiredPayloadDomain: "clankerworld.owner-routine-helper.v1");
 
     public Task<OwnerControlReceipt> SetJevAssistanceAsync(Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
-        bool enabled, IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken)
+        bool enabled, string worldId, IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken)
     {
-        var action = new OwnerJevAssistanceAction(enabled);
+        var action = new OwnerJevAssistanceAction(enabled, worldId);
         return pairing.SendSignedActionAsync<OwnerJevAssistanceAction, OwnerControlReceipt>(serverUri, authority, deviceId,
             OwnerPairingEndpoints.OwnerJevAssistance, OwnerPairingProtocol.CreateRequestId(),
-            OwnerWorldActionPayload.JevAssistance(action), action, deviceKey, cancellationToken);
+            OwnerWorldActionPayload.JevAssistance(action), action, deviceKey, cancellationToken,
+            requiredPayloadDomain: OwnerWorldActionPayload.JevAssistancePayloadDomain);
     }
 
     public Task<OwnerInstructionReceipt> SubmitInstructionAsync(

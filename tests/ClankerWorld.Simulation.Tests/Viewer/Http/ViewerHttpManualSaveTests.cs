@@ -519,7 +519,7 @@ public sealed partial class ViewerHttpTests
                 Assert.DoesNotContain("test-world-key", File.ReadAllText(Path.Combine(
                     host.Services.GetRequiredService<PrivateWorldStateFile>().Path + ".manual", saveId + ".save")));
 
-                var change = new OwnerJevAssistanceAction(false);
+                var change = new OwnerJevAssistanceAction(false, runtime.Society.WorldId);
                 using var changed = await SendSignedAsync(host, client, key, device.DeviceId,
                     "/api/v1/owner/control/jev-assistance", change,
                     OwnerHttpBinding.JevAssistancePayload(change));
@@ -657,7 +657,7 @@ public sealed partial class ViewerHttpTests
             var second = (await secondResponse.Content.ReadFromJsonAsync<ManualWorldSave>())!;
             Assert.NotEqual(first.Id, second.Id);
 
-            var change = new OwnerJevAssistanceAction(false);
+            var change = new OwnerJevAssistanceAction(false, runtime.Society.WorldId);
             using var changed = await SendSignedAsync(host, client, key, device.DeviceId,
                 "/api/v1/owner/control/jev-assistance", change,
                 OwnerHttpBinding.JevAssistancePayload(change));
