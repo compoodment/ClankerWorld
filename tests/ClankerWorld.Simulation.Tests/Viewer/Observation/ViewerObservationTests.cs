@@ -1,3 +1,4 @@
+using System.Text.Json;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
@@ -110,7 +111,30 @@ public sealed class ViewerObservationTests
         Assert.True(runtime.StartProduction(mill.CanonicalId, farmhouse.InstanceId, miller).Applied);
         Assert.True(runtime.StartFieldWork(farmer, point, FarmWorkKind.Till).Accepted);
         for (var tick = 0; tick < 3; tick++) Assert.True((await runtime.AdvanceOneTickAsync()).Advanced);
+        var beforeInspection = PrivateWorldRuntimeCodec.Encode(runtime.ExportState());
         var snapshot = new OwnerWorldObservationStore(runtime).GetSnapshot();
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        var client = JsonSerializer.Deserialize<ClankerWorld.GodotClient.UI.OwnerWorldSnapshot>(
+            JsonSerializer.Serialize(snapshot, options), options)!;
+        var displayedJob = Assert.Single(client.ProductionJobs);
+        Assert.Equal("Mill grain into flour", displayedJob.Recipe!.Name);
+        Assert.Equal(mill.CanonicalId, displayedJob.Recipe.Id);
+        Assert.Equal(("grain", 1), (Assert.Single(displayedJob.Recipe.Inputs).Kind, Assert.Single(displayedJob.Recipe.Inputs).Quantity));
+        Assert.Equal(("flour", 1), (Assert.Single(displayedJob.Recipe.Outputs).Kind, Assert.Single(displayedJob.Recipe.Outputs).Quantity));
+        Assert.Equal(("grain", 1), (Assert.Single(displayedJob.HeldInputs!).Kind, Assert.Single(displayedJob.HeldInputs!).Quantity));
+        var available = client.PlacedBuildings.Single(building => building.InstanceId == farmhouse.InstanceId).AvailableRecipes!;
+        Assert.Equal(mill.CanonicalId, Assert.Single(available).Id);
+        Assert.Empty(client.PlacedBuildings.Single(building => building.Tags!.Contains("warehouse")).AvailableRecipes!);
+        var house = client.PlacedBuildings.First(building => building.Tags!.Contains("house"));
+        var bread = Assert.Single(house.AvailableRecipes!, recipe => recipe.Name == "Bake bread");
+        Assert.Equal(3, bread.Inputs.Count);
+        Assert.Contains(bread.Inputs, input => input.Kind == "flour" && input.Quantity == 2);
+        Assert.Contains(bread.Inputs, input => input.Kind == "fresh_water" && input.Quantity == 1);
+        Assert.Contains(bread.Inputs, input => input.Kind == "wood" && input.Quantity == 1);
+        Assert.Equal(("bread", 2), (Assert.Single(bread.Outputs).Kind, Assert.Single(bread.Outputs).Quantity));
+        Assert.All(client.PlacedBuildings.SelectMany(building => building.AvailableRecipes ?? []),
+            recipe => Assert.DoesNotContain(recipe.Outputs, output => output.Kind is "bedding" or "food"));
+        Assert.Equal(beforeInspection, PrivateWorldRuntimeCodec.Encode(runtime.ExportState()));
         var field = Assert.Single(snapshot.Fields!);
         Assert.Equal(new ViewerPosition(point.X, point.Y), field.Position);
         Assert.Equal(household, field.HouseholdId);
@@ -123,7 +147,8 @@ public sealed class ViewerObservationTests
         using var restored = FarmFieldTests.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(runtime.ExportState())));
         var reconnect = new OwnerWorldObservationStore(restored).GetReconnectBaseline(0).Snapshot;
         Assert.Equal(snapshot.Fields, reconnect.Fields);
-        Assert.Equal(snapshot.ProductionJobs, reconnect.ProductionJobs);
+        Assert.Equal(JsonSerializer.Serialize(snapshot.ProductionJobs, options),
+            JsonSerializer.Serialize(reconnect.ProductionJobs, options));
     }
 
     [Fact]

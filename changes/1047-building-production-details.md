@@ -1,0 +1,1 @@
+- Building Details now lists what each workstation can make, with the materials and output quantities for each batch. Running work also shows the materials currently held for it.

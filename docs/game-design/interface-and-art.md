@@ -2,7 +2,7 @@
 title: The interface, art and audio
 type: game-design
 status: active
-updated: 2026-10-02
+updated: 2026-10-07
 ---
 
 # The interface, art and audio
@@ -278,7 +278,8 @@ everything that is available in the current build. See [what works today](../wha
   Profile: owner, who may use it, when it was built and which side its door
   faces; storage as a larger icon grid with each item's name; work in progress
   with what it uses; and who lives there or is inside. A list of recent
-  storage changes and what a workstation can make are wanted later. A
+  storage changes is wanted later. Workstation recipes show their material
+  quantities without granting agent knowledge or production access. A
   storage-space bar waits until buildings record a storage limit. When the
   owner is paired, Details also offers signed building removal and owner-change
   actions. A confirmation explains that removal keeps the Town border and
