@@ -18,6 +18,45 @@ public static partial class BuildingSprites
     /// <summary>A fixed seed per kind and footprint, so a weathered building always looks the same.</summary>
     public static int NeglectSalt(BuildingKind kind, int tilesWide, int tilesHigh) => (int)kind * 131 + tilesWide * 17 + tilesHigh * 7;
 
+    private static readonly Dictionary<(bool EastWest, int Deck, int Tile, bool Ruin), ImageTexture> NeglectedBridgeCache = [];
+
+    /// <summary>
+    /// A whole bridge in an abandoned Town, from the bank tile before its deck
+    /// to the bank tile after it, weathered as the approved abandoned looks:
+    /// faded, mossy and missing a few boards, and losing whole planks once
+    /// the Town has stood empty for a full season.
+    /// </summary>
+    public static ImageTexture NeglectedBridgeTexture(bool eastWest, int deckTiles, int tilePixels, BuildingNeglect neglect)
+    {
+        deckTiles = Math.Clamp(deckTiles, 1, 32);
+        var ruin = neglect == BuildingNeglect.FallingApart;
+        var key = (eastWest, deckTiles, tilePixels, ruin);
+        if (NeglectedBridgeCache.TryGetValue(key, out var cached)) return cached;
+        var texture = ImageTexture.CreateFromImage(RenderNeglectedBridge(eastWest, deckTiles, tilePixels, neglect));
+        NeglectedBridgeCache[key] = texture;
+        return texture;
+    }
+
+    public static Image RenderNeglectedBridge(bool eastWest, int deckTiles, int tilePixels, BuildingNeglect neglect)
+    {
+        deckTiles = Math.Clamp(deckTiles, 1, 32);
+        var image = Neglect.Bridge(eastWest, deckTiles, neglect == BuildingNeglect.FallingApart);
+        if (tilePixels != 32)
+            image.Resize(image.GetWidth() / 32 * tilePixels, image.GetHeight() / 32 * tilePixels, Image.Interpolation.Nearest);
+        return image;
+    }
+
+    /// <summary>
+    /// A street lantern's fitting in an abandoned Town, faded and mossy with
+    /// weeds round its foot, in a 32 px frame whose post is at
+    /// <see cref="NeglectedLanternPost"/>.
+    /// </summary>
+    public static Image NeglectedLantern(LanternStyle style, Vector2 inward, BuildingNeglect neglect) =>
+        Neglect.Lantern(style, inward, neglect == BuildingNeglect.FallingApart);
+
+    /// <summary>Where the post stands in <see cref="NeglectedLantern"/>'s frame.</summary>
+    public static Vector2 NeglectedLanternPost(LanternStyle style, Vector2 inward) => Neglect.LanternFramePost(style, inward);
+
     /// <summary>
     /// The abandoned looks approved in the October 7 art review, copied from
     /// <c>tools/ArtPreview/Proposed/BuildingStates.cs</c>. They are drawn
@@ -34,7 +73,7 @@ public static partial class BuildingSprites
         private static readonly Color NeglectShadow = new(0.05f, 0.08f, 0.05f, 0.28f);
 
         /// <summary>What part of a building weathers and how it breaks.</summary>
-        private enum Shape { Building, Fence, Pier }
+        private enum Shape { Building, Fence, Pier, Bridge, Lantern }
 
         /// <summary>One building's picture and the structure inside it that weathers.</summary>
         private sealed record Look(Image Finished, bool[,] Mask, int Width, int Height, DoorSide Door, float DoorMiddle, Shape Kind, bool Doorway, int Salt);
@@ -67,6 +106,61 @@ public static partial class BuildingSprites
             var doorway = roofed || kind == BuildingKind.Silo;
             return Apply(new Look(finished, mask, w, h, door.Side, plan.DoorMiddle, shape, doorway, NeglectSalt(kind, tilesWide, tilesHigh)), ruin);
         }
+
+        /// <summary>
+        /// A bridge of <paramref name="deckTiles"/> plank tiles with a bank tile
+        /// at each end, where its weeds grow, weathered as one picture.
+        /// </summary>
+        public static Image Bridge(bool eastWest, int deckTiles, bool ruin)
+        {
+            var length = deckTiles + 2;
+            var (w, h) = eastWest ? (length * 32, 32) : (32, length * 32);
+            var finished = Image.CreateEmpty(w, h, false, Image.Format.Rgba8);
+            finished.Fill(Colors.Transparent);
+            var deck = RoadSprites.BridgeDeck(eastWest, 32);
+            for (var tile = 1; tile <= deckTiles; tile++)
+                finished.BlitRect(deck, new Rect2I(0, 0, 32, 32), eastWest ? new Vector2I(tile * 32, 0) : new Vector2I(0, tile * 32));
+            var mask = new bool[w, h];
+            for (var y = 0; y < h; y++)
+                for (var x = 0; x < w; x++)
+                    mask[x, y] = finished.GetPixel(x, y).A > 0.9f;
+            return Apply(new Look(finished, mask, w, h, eastWest ? DoorSide.West : DoorSide.North, 16, Shape.Bridge, false, 0), ruin);
+        }
+
+        /// <summary>
+        /// A street lantern's daytime fitting weathered, in a 32 px frame with
+        /// its post at <see cref="LanternFramePost"/>, as the lanterns were
+        /// drawn for the approved abandoned looks.
+        /// </summary>
+        public static Image Lantern(LanternStyle style, Vector2 inward, bool ruin)
+        {
+            var finished = Image.CreateEmpty(32, 32, false, Image.Format.Rgba8);
+            finished.Fill(Colors.Transparent);
+            foreach (var cell in NightLightShapes.StreetLantern(style, LanternFramePost(style, inward), inward, 0f, 0f, 0))
+            {
+                if (cell.Kind != LightCellKind.Paint) continue;
+                for (var y = (int)MathF.Floor(cell.Area.Position.Y); y < (int)MathF.Ceiling(cell.Area.End.Y); y++)
+                    for (var x = (int)MathF.Floor(cell.Area.Position.X); x < (int)MathF.Ceiling(cell.Area.End.X); x++)
+                        Blend(finished, x, y, cell.Color);
+            }
+            var mask = new bool[32, 32];
+            for (var y = 0; y < 32; y++)
+                for (var x = 0; x < 32; x++)
+                    mask[x, y] = finished.GetPixel(x, y).A > 0.9f;
+            return Apply(new Look(finished, mask, 32, 32, DoorSide.South, 16, Shape.Lantern, false, 0), ruin);
+        }
+
+        /// <summary>
+        /// Where the post stands in a lantern's 32 px frame: a stone lamp in
+        /// the middle, a hanging lantern's post on the side away from its arm
+        /// so the lantern hangs near the middle.
+        /// </summary>
+        public static Vector2 LanternFramePost(LanternStyle style, Vector2 inward) =>
+            style == LanternStyle.Stone ? new(16, 17)
+            : inward.X > 0 ? new(9, 18)
+            : inward.X < 0 ? new(23, 18)
+            : inward.Y > 0 ? new(16, 9)
+            : new(16, 25);
 
         private static bool Inside(Rect2 area, int x, int y) =>
             x >= (int)MathF.Round(area.Position.X) && x < (int)MathF.Round(area.End.X) &&
@@ -121,7 +215,7 @@ public static partial class BuildingSprites
                 var gx = b.Position.X + 3 + (int)(Hash(k, 5, salt) % (uint)Math.Max(1, b.Size.X - 6));
                 var gy = b.Position.Y + 3 + (int)(Hash(k, 6, salt) % (uint)Math.Max(1, b.Size.Y - 6));
                 if (!In(mask, gx, gy) || !In(mask, gx + 1, gy)) continue;
-                var color = s.Kind == Shape.Pier ? Colors.Transparent : NeglectSoot;
+                var color = s.Kind is Shape.Pier or Shape.Bridge ? Colors.Transparent : NeglectSoot;
                 art.SetPixel(gx, gy, color);
                 if (Hash(k, 7, salt) % 2 == 0) art.SetPixel(gx + 1, gy, color);
             }
@@ -179,7 +273,8 @@ public static partial class BuildingSprites
                         var x = lengthwise ? b.Position.X + c : b.Position.X + a;
                         var y = lengthwise ? b.Position.Y + a : b.Position.Y + c;
                         if (!In(s.Mask, x, y)) continue;
-                        // Fences lose rail between posts; decks lose whole planks.
+                        // Fences lose rail between posts; decks lose whole planks; a lantern only weathers.
+                        if (s.Kind == Shape.Lantern) continue;
                         if (s.Kind == Shape.Fence && Hash(x, y, salt) % 3 == 0) continue;
                         if (s.Kind is Shape.Pier && c > (lengthwise ? b.Size.X : b.Size.Y) * 0.7f) continue;
                         art.SetPixel(x, y, Colors.Transparent);
@@ -220,8 +315,9 @@ public static partial class BuildingSprites
                     var near = Near(s.Mask, x, y, 4);
                     var onPath = s.Finished.GetPixel(x, y).A > 0.9f;
                     if (near > 4 && !onPath) continue;
-                    // Nothing grows over a pier's water.
+                    // Over water nothing grows: a pier gets no weeds, a bridge only on its bank tiles.
                     if (s.Kind == Shape.Pier) continue;
+                    if (s.Kind == Shape.Bridge && (w > h ? x >= 32 && x < w - 32 : y >= 32 && y < h - 32)) continue;
                     if (Hash(x, y, salt + 21) % (onPath && near > 4 ? pathOdds : odds) != 0) continue;
                     var tall = Hash(y, x, salt) % 2 == 0;
                     Blend(image, x, y, NeglectLeaf.Base);
