@@ -57,7 +57,7 @@ public sealed class BridgeStreetHeadingTests
 
         // Both banks are too close for street clearance on these tiny maps;
         // check the directed crossing independently of that separate limit.
-        var actual = Heading(from, to, pending ? [] : [bridge], pending ? [bridge] : []);
+        var actual = Heading(map, from, to, pending ? [] : [bridge], pending ? [bridge] : []);
 
         Assert.Equal(reverse ? 4 : 0, actual);
     }
@@ -71,10 +71,10 @@ public sealed class BridgeStreetHeadingTests
     [InlineData(-1, -1)]
     public void OrdinaryGroundLinkKeepsItsHeadingWhenABridgeSharesOnlyOneEndpoint(int dx, int dy)
     {
-        var (_, bridge) = Crossing(false, false, 1);
+        var (map, bridge) = Crossing(false, false, 1);
         var from = bridge.EntranceA;
         var end = new GridPoint(from.X + dx, from.Y + dy);
-        Assert.Equal(TownStreets.DirectionBetween(from, end), Heading(from, end, [bridge], []));
+        Assert.Equal(TownStreets.DirectionBetween(map, from, end), Heading(map, from, end, [bridge], []));
         // Exercise the ordinary link through the same street-extension entry point.
         var ground = RiverBridgeTests.Map(Enumerable.Repeat(new string('.', 15), 15).ToArray());
         var expected = Enumerable.Range(1, TownStreets.RunOnTiles)
@@ -138,7 +138,7 @@ public sealed class BridgeStreetHeadingTests
     public void GroundAndBridgeLinksToTheSameNeighborDoNotBecomeADeadEnd(int width, int spanLength)
     {
         var (map, bridge) = Crossing(true, false, spanLength, width);
-        Assert.Contains(bridge.EntranceB, TownStreets.Linked(bridge.Entrances.ToHashSet(), bridge.EntranceA));
+        Assert.Contains(bridge.EntranceB, TownStreets.Linked(map, bridge.Entrances.ToHashSet(), bridge.EntranceA));
 
         var result = Extend(map, bridge.Entrances, [bridge], bridge.EntranceB,
             map.Tiles.Where(tile => map.IsBuildable(tile.Position)).Select(tile => tile.Position));
@@ -237,10 +237,10 @@ public sealed class BridgeStreetHeadingTests
         return (map, Assert.IsType<RiverCrossing>(crossing));
     }
 
-    private static int Heading(GridPoint from, GridPoint to,
+    private static int Heading(SeededMap map, GridPoint from, GridPoint to,
         IReadOnlyList<RiverCrossing> existing, IReadOnlyList<RiverCrossing> pending) =>
         (int)typeof(PrivateWorldRuntime).GetMethod("RoadHeading", BindingFlags.Static | BindingFlags.NonPublic)!
-            .Invoke(null, [from, to, existing, pending])!;
+            .Invoke(null, [map, from, to, existing, pending])!;
 
     private static (List<GridPoint> Tiles, List<RiverCrossing> Crossings) Extend(
         SeededMap map, IEnumerable<GridPoint> roads, IReadOnlyList<RiverCrossing> bridges,

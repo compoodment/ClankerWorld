@@ -1,0 +1,1 @@
+- Adults can follow named House and Restaurant cooking orders, with real ingredients and two servings per batch. Orders can supply cooking ingredients, collect personal prepared food, return borrowed meals, share spare meals with the House and stock them in a Store, using the usual ownership, reserves, carrying and save/reload rules.

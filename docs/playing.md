@@ -2,7 +2,7 @@
 title: Playing the current game
 type: player-guide
 status: active
-updated: 2026-10-04
+updated: 2026-10-05
 ---
 
 # Playing the current game
@@ -58,7 +58,9 @@ has notice to move out, why, how much time remains and whether expansion is
 under way. Eligible adults get one world day; pausing stops the countdown,
 and saving and loading keep the remaining time. Volunteers go first, then
 the newest eligible arrivals outside the main family. With no family majority,
-the same order applies without favoring a family.
+the same order applies without favoring a family. A forced replacement keeps a
+still-future deadline, but gets a fresh world day when the old deadline is
+already due. Volunteers keep the original deadline.
 
 An adult with notice may ask another household with room while still living
 in the old House. Every adult in the new household must agree. If no home is
@@ -109,8 +111,12 @@ still open normally.
    undone; incomplete setup can be saved and resumed later.
 
 Keys stay on the server installation, separately from world saves. Cloud
-providers charge you for usage. Jev is an optional helper for the world; change
-its on/off setting while the world is paused.
+providers charge you for usage. While paused, open **Settings → World → Routine
+helper** to choose **Off**, **Jev** or **OpenAI Decisions**, pick its model and
+press **Apply helper**. Decisions uses your default OpenAI key or a named saved
+OpenAI key you choose; Jev uses the saved TypeSafe key. Switching helpers keeps
+memories and their scores. Decisions currently offers `gpt-6-luna`; **Type a
+model name...** also remains available.
 
 To save keys before placing any agents, open **Settings → Game → API keys**.
 Choose OpenAI or Ollama Cloud, name the key, paste it and press **Save API key**.
@@ -259,6 +265,8 @@ They keep ownership and use normal carrying space. A plain request collects
 one load; a quantity stops exactly at that number. Full hands or unavailable
 goods leave the task waiting. Add **from (12, 4)** to require that source tile.
 You can also collect personal food or equipment without eating or equipping it.
+Named meals include **Collect two bread**, **Collect berry porridge** and
+**Collect restaurant meals**. These collect only the agent's own goods.
 
 Collection and storage also recognize rope, cloth, refined iron and gold,
 workshop tools, grain, flour, potatoes, named planting seeds, medicinal herbs,
@@ -270,8 +278,9 @@ A pot or jug moves with its contents and counts as one item, while all of its
 contents use carrying and storage space. These tasks cannot take household
 production stock as personal property.
 
-To return borrowed stock, use **Return two borrowed cloth** or **Return one
-borrowed water jug**. The agent carries the goods back to their owning
+To return borrowed stock, use **Return two borrowed cloth**, **Return two
+borrowed bread** or **Return one borrowed water jug**. The agent carries the
+goods back to their owning
 household's House. Its owner stays the same, and only goods actually put away
 count. The task keeps its chosen House; missing space, reserved goods or a
 blocked route leaves it waiting. **Queue**, **Cancel task** and save/reload
@@ -326,9 +335,26 @@ the normal recipe ownership and storage; ordering them does not make them
 the agent's personal property. Queue, cancellation and save/reload preserve
 the remaining task. Urgent survival pauses unfinished production.
 
+Cooking orders name the recipe: **Cook potato meals**, **Cook wild green meals**
+or **Cook cultivated green meals** makes simple meals at the House. Use
+**Cook house porridge**, **Cook house berry porridge**, **Cook house fruit porridge**,
+**Cook house bread** or **Cook house vegetable stew** for its other recipes.
+Replace **house** with **restaurant** to use a 1×2 Restaurant, or **restaurant 2x2**
+for its larger size. **Prepare restaurant meals** turns bread and greens into
+Restaurant meals. Every cooking batch makes two servings: **Cook two house bread**
+makes one batch, while **Cook two batches of house bread** makes four servings.
+Odd serving counts and ambiguous commands such as **Cook porridge** are not understood.
+**Supply two grain to my House** and **Supply two flour to my Restaurant** bring
+ingredients under the normal demand and source-reserve rules. Fresh water travels
+in a whole jug. **Deliver two bread to my House** shares spare carried bread while
+keeping one serving; **Stock restaurant meals in my Store** uses the normal shop
+limits. Loose personal meals are collected or shared, rather than put away with
+the nonfood **Store** command.
+
 To start household building work, use **Build a Clinic**, **Build a Silo** or
 another supported household building name: House, Farmhouse, Blacksmith,
-Tailor Shop or Store. Add **at (12, 4)** to require that site. Otherwise the
+Tailor Shop, Store or Restaurant. **Build a Restaurant** starts its 1×2 size
+and costs 8 wood and 2 stone. Add **at (12, 4)** to require that site. Otherwise the
 agent chooses a suitable site under the normal construction rules. The task
 keeps that choice through travel and work. It still needs real materials,
 household access, a legal site and any prerequisite building.
@@ -587,7 +613,7 @@ YYYY-MM-DD), and the top bar then names the season beside the weather.
 Menus, panels and text grow with your screen in whole steps, so pixel letters
 stay crisp: 100% on small screens, 200% at 1080p and 1440p and 300% at 4K.
 There is no setting for this. World Settings contains that world's autosaves,
-Jev and agent model settings. Main Menu Settings exposes Game Settings only.
+the routine helper and agent model settings. Main Menu Settings exposes Game Settings only.
 Autosave Apply stays unavailable until the current world's settings have loaded.
 If the world changes before Apply reaches the host, its settings stay unchanged.
 Reopen World Settings before trying again.
@@ -608,6 +634,8 @@ turn on **Show planned path** to draw the route they are walking, as the server
 planned it. The panel also holds the aging override, recovery for a request
 whose reply was lost, paused world editing and paired-device management. The
 aging override and world editing need the world paused first.
+World-edit coordinates cover the whole current map, from zero to its last
+tile on each axis. Their bounds update when you change worlds.
 
 To set up a test, pause and use **Edit selected agent**. Choose a need and its
 percentage, goods and a quantity, a skill, or another agent for a partnership,
@@ -665,7 +693,9 @@ be cancelled and retried later; the provider may charge for both attempts.
 
 To remove one snapshot, choose it in **Load a save...** or Save World and choose
 **Delete**.
-The confirmation names the snapshot; deletion is permanent and leaves its world
+The confirmation also opens when you manage the current world's saves straight
+after starting the client. It names the snapshot; deletion is permanent and
+leaves its world
 and other saves alone. In Load World, **Delete World** removes that
 world and all its saves. Open or create another world first if the target is
 active. Canceling either confirmation changes nothing. These controls require

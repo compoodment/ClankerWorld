@@ -16,6 +16,7 @@ public sealed class PrivateWorldMemoryRetrievalTests
         state = state with
         {
             JevEnabled = false,
+            RoutineHelper = RoutineHelperSettings.Off,
             Inhabitants = state.Inhabitants.Select(person => person with
             {
                 RecentThoughts = [new PlaytestPrivateThought(0, person.InhabitantId + " private thought")],
@@ -149,8 +150,10 @@ public sealed class PrivateWorldMemoryRetrievalTests
         Assert.Equal(indexed, world.Society.MemoryCompactions!.Single().Sources);
     }
 
-    [Fact]
-    public async Task JevCompactsOnlyOwnerSourcesAndTheNextPersonalDecisionKeepsBeliefEvidence()
+    [Theory]
+    [InlineData(DecisionProviderKind.Jev)]
+    [InlineData(DecisionProviderKind.OpenAiDecisions)]
+    public async Task HelperCompactsOnlyOwnerSourcesAndTheNextPersonalDecisionKeepsBeliefEvidence(DecisionProviderKind helperKind)
     {
         using var seed = new PrivateWorldRuntime("memory-compaction");
         var state = seed.ExportState();
@@ -180,7 +183,7 @@ public sealed class PrivateWorldMemoryRetrievalTests
             },
         };
 
-        var provider = new JevThenPersonalProvider();
+        var provider = new JevThenPersonalProvider(helperKind);
         using var world = PrivateWorldRuntime.Restore(state, id => id == "founder-scout"
             ? provider
             : new DeterministicDecisionProvider());
@@ -380,13 +383,13 @@ public sealed class PrivateWorldMemoryRetrievalTests
         }
     }
 
-    private sealed class JevThenPersonalProvider : IDecisionProvider
+    private sealed class JevThenPersonalProvider(DecisionProviderKind helperKind) : IDecisionProvider
     {
         public bool UseJev { get; set; } = true;
         public InhabitantObservation? PersonalObservation { get; private set; }
         public int JevDecisionCount { get; private set; }
         public int PersonalDecisionCount { get; private set; }
-        public DecisionProviderKind Kind => UseJev ? DecisionProviderKind.Jev : DecisionProviderKind.LargeLanguageModel;
+        public DecisionProviderKind Kind => UseJev ? helperKind : DecisionProviderKind.LargeLanguageModel;
         public long ProviderEpoch => 1;
 
         public ValueTask<CognitionDecisionResponse> DecideAsync(
@@ -406,7 +409,7 @@ public sealed class PrivateWorldMemoryRetrievalTests
                         item.Id == "experience-major" ? 10_000 : item.Kind == "belief" ? 9_000 : 0,
                         item.Id == "experience-major" ? 8_800 : item.Kind == "belief" ? 9_000 : 6_000)).ToArray();
                 return ValueTask.FromResult(new CognitionDecisionResponse(
-                    request.RequestId, request.Observation.InhabitantId, DecisionProviderKind.Jev, ProviderEpoch,
+                    request.RequestId, request.Observation.InhabitantId, helperKind, ProviderEpoch,
                     request.Observation.RunEpoch, request.Observation.DecisionGeneration,
                     request.Observation.ObservationDigest, selected, 1, probabilities,
                     MemoryCompactionScores: scores));

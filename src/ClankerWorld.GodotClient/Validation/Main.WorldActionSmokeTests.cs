@@ -169,10 +169,14 @@ public partial class Main
         public int PauseCount => Volatile.Read(ref pauseCount);
         public int DeleteCount => Volatile.Read(ref deleteCount);
         public int SaveCreateCount => Volatile.Read(ref saveCreateCount);
+        public ManualWorldSave[]? ManualSaves { get; set; }
         public string AutosaveWorldId { get; set; } = "autosave-world-B";
         public List<OwnerAutosaveConfigurationAction> AutosaveConfigurations { get; } = [];
         /// <summary>The next signed refresh's world, or none to refuse refreshes.</summary>
         public OwnerWorldReconnect? Reconnect { get; set; }
+        public TaskCompletionSource ReconnectReceived { get; set; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource? ReleaseReconnect { get; set; }
+        public bool HostPaused { get; private set; } = true;
         public IReadOnlyList<string>? SupportedActionPayloads { get; set; }
         public OwnerWorldPreview? Preview { get; set; }
         public CatalogWorld? SelectedWorld { get; set; }
@@ -236,6 +240,12 @@ public partial class Main
                 case OwnerPairingEndpoints.OwnerWorldList:
                     response = Catalog;
                     break;
+                case OwnerPairingEndpoints.OwnerSaveList when ManualSaves is { } saves:
+                    response = saves;
+                    break;
+                case OwnerPairingEndpoints.OwnerSaveTimeline when ManualSaves is not null:
+                    response = new SaveTimelinePosition(null, null, false);
+                    break;
                 case OwnerPairingEndpoints.OwnerSaveCreate:
                     Interlocked.Increment(ref saveCreateCount);
                     response = new ManualWorldSave("new-save", envelope.GetProperty("action").GetProperty("value").GetString()!,
@@ -275,6 +285,7 @@ public partial class Main
                         configuration.IntervalMinutes, configuration.RotationCount, DateTimeOffset.UnixEpoch, -1);
                     break;
                 case OwnerPairingEndpoints.OwnerPause:
+                    HostPaused = true;
                     Interlocked.Increment(ref pauseCount);
                     PauseReceived.TrySetResult();
                     await ReleasePause.Task.ConfigureAwait(false);
@@ -301,9 +312,12 @@ public partial class Main
                     response = CreatedWorld;
                     break;
                 case OwnerPairingEndpoints.OwnerResume:
+                    HostPaused = false;
                     response = new OwnerControlReceipt("resume", true, false, 0, 0, 0);
                     break;
                 case OwnerPairingEndpoints.OwnerReconnect when Reconnect is not null:
+                    ReconnectReceived.TrySetResult();
+                    if (ReleaseReconnect is { } releaseReconnect) await releaseReconnect.Task.ConfigureAwait(false);
                     response = Reconnect;
                     break;
                 case OwnerPairingEndpoints.OwnerAgentRename:
