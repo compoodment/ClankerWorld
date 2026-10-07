@@ -2932,10 +2932,11 @@ position without changing its owner. Cart attachments and boat travel exclude
 ridden or led animals. Godot projects and draws the authoritative animal state
 with young/adult headings, mounted horses, yard art, inspection and event text.
 
-Collection from another animal prepares with `EndAnimalRide` on its own tick,
-without product transfer or order credit. The following native collection
-rechecks permissions and foot capacity; product and saddle reservations remain
-held during preparation, and existing dismount rules preserve excess cargo.
+Collection from another animal and saddling another horse prepare with
+`EndAnimalRide` on their own tick, without product transfer, saddle fitting or
+order credit. The following native action rechecks permissions and foot
+capacity; existing product and fitted-saddle reservations remain held during
+preparation, and existing dismount rules preserve excess cargo.
 
 Milk stock travels as an actual household jug to a held Store or borrowed Market
 stall, with a stock receipt at a stall. Fresh seller and buyer personal choices

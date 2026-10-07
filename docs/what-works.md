@@ -613,7 +613,8 @@ the only animal death rule, leaving one owned hide from sheep, cows or horses.
 
 A saddled, cared adult horse carries one adult at twice walking speed with eight
 extra cargo units. Named outsider riding and care permissions are separate.
-Riders dismount before collecting another animal's product; receiving space
+Riders dismount before collecting another animal's product or saddling another
+horse; receiving space
 is checked again on foot, and excess cargo stays at the dismount position.
 Gifts and sales need both adults' fresh personal choices, exact payment and
 receiving space. Animals keep their owners after household abandonment.

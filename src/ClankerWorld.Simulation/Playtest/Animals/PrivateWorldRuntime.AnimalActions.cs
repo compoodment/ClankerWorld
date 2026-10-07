@@ -116,10 +116,10 @@ public sealed partial class PrivateWorldRuntime
             if (choice.Action == "care" && needsSupply) return true;
         }
         if (choice.Action == "dismount") { EndAnimalRide(animal, "dismounted"); return true; }
-        if (choice.Action == "collect" && animalWorld.Animals.FirstOrDefault(other =>
-                other.RiderId == actor && other.Id != animal.Id) is { } riddenForCollection)
+        if (choice.Action is "collect" or "saddle" && animalWorld.Animals.FirstOrDefault(other =>
+                other.RiderId == actor && other.Id != animal.Id) is { } riddenForWork)
         {
-            EndAnimalRide(riddenForCollection, "dismounted");
+            EndAnimalRide(riddenForWork, "dismounted");
             return true;
         }
         if (person.Position != animal.Position && animal.LeaderId != actor)
