@@ -258,9 +258,10 @@ Save/reload retains a running repair's work counter and exact reservations.
 Tool repair orders use `repair_tool` and the same `TargetEquipmentKind` field,
 restricted to the 13 supported tool kinds. The parser requires the material and
 tool name. `RepairableTools` shares ordinary private Blacksmith, material,
-carrying and route checks; orders additionally require personal ownership and
-positive remaining condition. Ordinary repair retains its borrowed-household
-behavior. Order preparation protects every matching worn personal tool from
+carrying and route checks. Both ordinary repair choices and execution require
+positive remaining condition; fully broken tools need replacement. Orders
+additionally require personal ownership. Ordinary repair retains its
+borrowed-household behavior. Order preparation protects every matching worn personal tool from
 spare-cargo storage and refuses gathering that would break a requested tool.
 Preparation retains the quantity needed for one repair across usable carried
 material lots. Excess units may be stowed to collect another ingredient; live
