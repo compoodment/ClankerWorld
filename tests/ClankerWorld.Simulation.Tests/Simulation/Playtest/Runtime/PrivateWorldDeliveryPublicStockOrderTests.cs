@@ -446,6 +446,51 @@ public sealed class PrivateWorldDeliveryPublicStockOrderTests
         await TickTogether(world, replay);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ActualCollectionsShareOnePersonalStoreFoodReserveAcrossReplay(bool split)
+    {
+        var state = Prepared(split ? House : Store);
+        var actor = Actor(state);
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "collected-berries", "berries", actor, 4,
+            storageBuildingId: split ? House : null);
+        IDecisionProvider Provider(string id) => id == actor ? new DeterministicDecisionProvider() : new ActionCoverageRecorder(chooseIdle: true);
+        using var world = PrivateWorldRuntime.Restore(WithInventory(state, inventory), Provider);
+        if (split)
+        {
+            await Complete(Submit(world, actor, "collect-first", "collect two berries"));
+            await Complete(Submit(world, actor, "collect-second", "collect two berries"));
+            Assert.Equal(2, CarriedLots().Length);
+            Assert.All(CarriedLots(), lot => Assert.Equal(2, lot.Quantity));
+            var store = Building(state, Store);
+            await Complete(Submit(world, actor, "walk-to-store", string.Create(CultureInfo.InvariantCulture,
+                $"go to ({store.Position.X},{store.Position.Y})")));
+        }
+        var receipt = Submit(world, actor, "stock-collected-food", "stock two berries in my Store");
+        var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var replay = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes), Provider);
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
+        for (var tick = 0; tick < 12 && Order(world, receipt).Status != "finished"; tick++)
+            await TickTogether(world, replay);
+        Assert.Equal(("finished", 2), (Order(world, receipt).Status, Order(world, receipt).CompletedUnits));
+        Assert.Equal(2, Stored(world, Store, "berries"));
+        Assert.Equal(2, CarriedLots().Sum(lot => lot.Quantity));
+        Assert.Equal(4, world.Society.Inventory.Lots.Where(lot => lot.ItemKind == "berries").Sum(lot => lot.Quantity));
+        Assert.All(world.Society.Inventory.Lots.Where(lot => lot.StorageBuildingId == Store), lot => Assert.Equal(Household, lot.OwnerId));
+        await TickTogether(world, replay);
+        Assert.Equal(2, Stored(world, Store, "berries"));
+        world.Validate();
+
+        InventoryLot[] CarriedLots() => world.Society.Inventory.Lots.Where(lot => lot.OwnerId == actor &&
+            lot.ItemKind == "berries" && PersonalEquipmentRules.IsCarried(lot, actor)).ToArray();
+        async Task Complete(OwnerInstructionReceipt instruction)
+        {
+            for (var tick = 0; tick < 20 && Order(world, instruction).Status != "finished"; tick++) await Tick(world);
+            Assert.Equal("finished", Order(world, instruction).Status);
+        }
+    }
+
     private static byte[] CreateBaseline()
     {
         using var generated = NormalPathWorld.CreateGenerated("probe-a", _ => new PublicStockChoices());
