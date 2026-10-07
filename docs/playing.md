@@ -137,7 +137,9 @@ details.
 
 ## Look around
 
-Use the mouse wheel to zoom and movement keys to pan. **Map** opens the World
+Use the mouse wheel to zoom, hold the middle mouse button to drag the camera,
+or use movement keys to pan. Opening the pause menu or switching to another
+application ends a drag; press the middle button again to start another. **Map** opens the World
 Map, which marks each Town and agent; click it or drag its view rectangle to
 move the camera. The label in the corner names the ground under the pointer
 beside a small picture of it. Click a tile to open its card: the ground with a

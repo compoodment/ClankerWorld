@@ -396,6 +396,8 @@ public sealed record ViewerTown(
     IReadOnlyList<string> AssignedBuildingIds,
     IReadOnlyList<ViewerPosition> BorderTiles)
 {
+    public bool IsAbandoned => FoundingState == "founded" && ResidentIds.Count == 0;
+
     public ViewerTownGovernance? Governance { get; init; }
     public IReadOnlyList<ViewerTownProject> Projects { get; init; } = [];
     public ViewerTownGovernment? Government { get; init; }

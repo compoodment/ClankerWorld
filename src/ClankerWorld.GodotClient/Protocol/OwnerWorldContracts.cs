@@ -164,6 +164,8 @@ public sealed record OwnerWorldTown(
     IReadOnlyList<string> AssignedBuildingIds,
     IReadOnlyList<OwnerWorldPosition> BorderTiles)
 {
+    public bool IsAbandoned => FoundingState == "founded" && ResidentIds.Count == 0;
+
     public OwnerTownGovernance? Governance { get; init; }
     public IReadOnlyList<OwnerWorldTownProject> Projects { get; init; } = [];
     public OwnerTownGovernment? Government { get; init; }
