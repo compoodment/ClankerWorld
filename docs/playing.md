@@ -414,6 +414,11 @@ for that exact building size and their quantities. Each still needs real
 materials and an adult allowed to work there. Reading the list teaches no
 agent and starts no work. Back (or **Escape**) returns to the small card.
 
+A building's storage-space bar shows how much of its recorded limit is used,
+with exact used/limit numbers. It counts all stored goods, including materials
+held for work and goods belonging to someone else. It updates when goods move
+or an expansion increases the limit. Hover over the bar for the exact count.
+
 Every day has a night, with a short dusk and dawn. Nights are longest in winter
 and shortest in summer: from 19:12 to 04:48 on the clock in the top bar at the
 start of spring and autumn, about 2 min 24 s of a six-minute day; from 20:24
