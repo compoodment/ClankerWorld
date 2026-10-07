@@ -2556,6 +2556,10 @@ Wear, removal and gift candidates require a fresh accepted non-fallback
 LargeLanguageModel response whose exact offered target is still valid at
 admission. Jev, continuing intentions and MustDo cannot select them. Gift
 recipients come from locally observable people rather than a remote world scan.
+Living adults in interaction range with free carrying space are filtered before
+the eight-recipient limit, in stable agent-ID order. Full-handed neighbors cannot
+hide another eligible adult. Gift options remain capped at sixteen across
+carried ornament lots, and admission rechecks the eligible recipient and load.
 
 `HouseToolsContent` adds two recipes at the existing House without changing
 its building identity. Each crude wooden axe or pickaxe uses three wood held

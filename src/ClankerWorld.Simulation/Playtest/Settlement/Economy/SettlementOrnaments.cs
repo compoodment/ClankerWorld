@@ -53,7 +53,8 @@ public sealed partial class PrivateWorldRuntime
 
     private IEnumerable<PlaytestInhabitantState> LocalOrnamentRecipients(string actor) => inhabitants.Values
         .Where(person => person.InhabitantId != actor && LivingOrnamentAdult(person.InhabitantId) &&
-            IsWithinInteractionRange(inhabitants[actor].Position, person.Position, ResourceInteractionRange))
+            IsWithinInteractionRange(inhabitants[actor].Position, person.Position, ResourceInteractionRange) &&
+            FreeCarryCapacity(person.InhabitantId) > 0)
         .OrderBy(person => person.InhabitantId, StringComparer.Ordinal).Take(8);
 
     private void AddOrnamentCandidates(List<CognitionCandidate> candidates, string actor)
@@ -68,7 +69,7 @@ public sealed partial class PrivateWorldRuntime
         var gifts = 0;
         foreach (var lot in society.Checkpoint.Inventory.Lots.Where(lot => IsPersonallyCarriedOrnament(lot, actor))
                      .OrderBy(lot => lot.Id, StringComparer.Ordinal).Take(4))
-            foreach (var recipient in LocalOrnamentRecipients(actor).Where(person => FreeCarryCapacity(person.InhabitantId) > 0))
+            foreach (var recipient in LocalOrnamentRecipients(actor))
             {
                 if (gifts++ >= 16) return;
                 var name = society.Checkpoint.GetInhabitant(recipient.InhabitantId).Name;
@@ -209,7 +210,7 @@ public sealed partial class PrivateWorldRuntime
     private OrnamentChangeResult GiveOrnamentCore(string actor, string recipientId, string lotId)
     {
         if (!LivingOrnamentAdult(actor) || !LocalOrnamentRecipients(actor).Any(person => person.InhabitantId == recipientId))
-            return new(false, Failure: "Choose a nearby living adult to receive the gift.");
+            return new(false, Failure: "Choose a nearby living adult with room to carry the gift.");
         var lot = society.Checkpoint.Inventory.Lots.FirstOrDefault(item => item.Id == lotId && IsPersonallyCarriedOrnament(item, actor));
         if (lot is null) return new(false, Failure: "The giver must personally carry one usable, unreserved ornament.");
         if (FreeCarryCapacity(recipientId) < 1) return new(false, Failure: "The recipient has no room to carry the gift.");
