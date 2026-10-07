@@ -72,7 +72,7 @@ public readonly record struct BuildingDoor(DoorSide Side, int? Tile = null)
 /// </summary>
 public static partial class BuildingSprites
 {
-    private static readonly Dictionary<(BuildingKind Kind, int Width, int Height, int Tile, BuildingDoor Door), ImageTexture> Cache = [];
+    private static readonly Dictionary<(BuildingKind Kind, int Width, int Height, int Tile, BuildingDoor Door, BuildingNeglect Neglect), ImageTexture> Cache = [];
     private static readonly Color Shadow = new(0.04f, 0.06f, 0.05f, 0.30f);
 
     /// <summary>Chooses a family from building tags, most specific first.</summary>
@@ -133,15 +133,30 @@ public static partial class BuildingSprites
         return (roof, null, door.Tile is { } tile ? tile * 32 + 16 : from + length / 2, null);
     }
 
-    public static ImageTexture Texture(BuildingKind kind, int width, int height, int tilePixels, BuildingDoor door = default)
+    public static ImageTexture Texture(BuildingKind kind, int width, int height, int tilePixels, BuildingDoor door = default,
+        BuildingNeglect neglect = BuildingNeglect.None)
     {
         width = Math.Clamp(width, 1, 8);
         height = Math.Clamp(height, 1, 8);
-        var key = (kind, width, height, tilePixels, door);
+        var key = (kind, width, height, tilePixels, door, neglect);
         if (Cache.TryGetValue(key, out var cached)) return cached;
-        var texture = ImageTexture.CreateFromImage(Render(kind, width, height, tilePixels, door));
+        var texture = ImageTexture.CreateFromImage(Render(kind, width, height, tilePixels, door, neglect));
         Cache[key] = texture;
         return texture;
+    }
+
+    /// <summary>
+    /// A building's picture. In an abandoned Town it weathers: the approved
+    /// look is drawn at 32 px and halved for 16 px tiles, as the Port is.
+    /// </summary>
+    public static Image Render(BuildingKind kind, int width, int height, int tilePixels, BuildingDoor door, BuildingNeglect neglect)
+    {
+        if (neglect == BuildingNeglect.None) return Render(kind, width, height, tilePixels, door);
+        width = Math.Clamp(width, 1, 8);
+        height = Math.Clamp(height, 1, 8);
+        var weathered = Neglect.Draw(kind, width, height, door, neglect == BuildingNeglect.FallingApart);
+        if (tilePixels != 32) weathered.Resize(width * tilePixels, height * tilePixels, Image.Interpolation.Nearest);
+        return weathered;
     }
 
     public static Image Render(BuildingKind kind, int width, int height, int tilePixels, BuildingDoor door = default)

@@ -92,6 +92,34 @@ public sealed partial class TownMembershipTests
     }
 
     [Fact]
+    public async Task AbandonedTownLooksNeglectedThenFallingApartAfterAFullSeason()
+    {
+        var actor = Founders[0];
+        var state = Calm(AtNaturalLifeBoundary(WithTowns(Generated("town-abandon-weathering"), [actor], []), actor));
+        using var world = Reopen(state, new ScriptedModel());
+        Assert.False(new OwnerWorldObservationStore(world).GetSnapshot().Towns.Single(town => town.Id == First).FallingApart);
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        var abandoned = world.ExportState();
+        var town = new OwnerWorldObservationStore(world).GetSnapshot().Towns.Single(item => item.Id == First);
+        Assert.True(town.IsAbandoned);
+        Assert.False(town.FallingApart);
+
+        var config = abandoned.WorldSystems!.Config;
+        var season = (long)config.DaysPerYear * config.TicksPerDay / 4;
+        SocietyWorldRuntimeState Later(long ticks) => abandoned.Society with
+        {
+            Society = abandoned.Society.Society with { WorldTick = abandoned.Society.Society.WorldTick + ticks }
+        };
+        Assert.False(OwnerWorldObservationStore.AbandonedForASeason(abandoned with { Society = Later(season - 1) }, First));
+        Assert.True(OwnerWorldObservationStore.AbandonedForASeason(abandoned with { Society = Later(season) }, First));
+        // An abandonment that has dropped out of the kept event history happened longer ago than that.
+        Assert.True(OwnerWorldObservationStore.AbandonedForASeason(abandoned with
+        {
+            Events = abandoned.Events.Where(item => item.Kind != "town_abandoned").ToArray()
+        }, First));
+    }
+
+    [Fact]
     public async Task SalvageCollectsOnlyPhysicalUnreservedTownStockWithinCarryingSpaceWithoutJoining()
     {
         var actor = Founders[0];

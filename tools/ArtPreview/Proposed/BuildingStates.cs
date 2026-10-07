@@ -67,7 +67,7 @@ public sealed class AbandonedProposal : IArtProposal
 internal enum Build { Building, Fence, Pier, Bridge, Lantern }
 
 internal sealed record Subject(string Id, int TilesWide, int TilesHigh, Image Finished, bool[,] Mask, DoorSide Door,
-    float DoorMiddle, Func<Image> Ground, Vector2 Back, Build Kind, bool Doorway);
+    float DoorMiddle, Func<Image> Ground, Vector2 Back, Build Kind, bool Doorway, int Salt = 0);
 
 internal static class States
 {
@@ -97,13 +97,16 @@ internal static class States
         yield return Roofed("workshop.1x1", BuildingKind.Workshop, 1, 1);
         yield return Roofed("clinic.1x2", BuildingKind.Clinic, 1, 2);
         yield return Roofed("restaurant.2x2", BuildingKind.Restaurant, 2, 2);
-        yield return Opaque("silo.1x1", BuildingSprites.Render(BuildingKind.Silo, 1, 1, 32), 1, 1, DoorSide.South, 16, () => Grass(1, 1), new(0, -1), Build.Building, doorway: true);
+        yield return Opaque("silo.1x1", BuildingSprites.Render(BuildingKind.Silo, 1, 1, 32), 1, 1, DoorSide.South, 16, () => Grass(1, 1), new(0, -1), Build.Building, doorway: true)
+            with { Salt = BuildingSprites.NeglectSalt(BuildingKind.Silo, 1, 1) };
         yield return Roofed("townhall.3x4", BuildingKind.TownHall, 3, 4);
         yield return Roofed("market.2x2", BuildingKind.Market, 2, 2);
-        yield return Opaque("stall.1x1", BuildingSprites.Render(BuildingKind.MarketStall, 1, 1, 32), 1, 1, DoorSide.South, 16, () => Grass(1, 1), new(0, -1), Build.Building, doorway: false);
+        yield return Opaque("stall.1x1", BuildingSprites.Render(BuildingKind.MarketStall, 1, 1, 32), 1, 1, DoorSide.South, 16, () => Grass(1, 1), new(0, -1), Build.Building, doorway: false)
+            with { Salt = BuildingSprites.NeglectSalt(BuildingKind.MarketStall, 1, 1) };
         var portDoor = new BuildingDoor(DoorSide.South, 1);
         yield return Opaque("port.2x4", BuildingSprites.Render(BuildingKind.Port, 2, 4, 32, portDoor), 2, 4, DoorSide.South, 48,
-            () => BuildingsProposal.HarbourGround(2, 4, DoorSide.South, TerrainStyle.Lake), new(0, 1), Build.Pier, doorway: false);
+            () => BuildingsProposal.HarbourGround(2, 4, DoorSide.South, TerrainStyle.Lake), new(0, 1), Build.Pier, doorway: false)
+            with { Salt = BuildingSprites.NeglectSalt(BuildingKind.Port, 2, 4) };
         yield return Fence("yard.2x2", YardsProposal.Draw(YardsProposal.Option.A, 2, 2, new BuildingDoor(DoorSide.South)), 2, 2);
         yield return Opaque("lantern.stone", Lantern(LanternStyle.Stone), 1, 1, DoorSide.South, 16, () => Grass(1, 1), new(0, 1), Build.Lantern, doorway: false);
         yield return Opaque("lantern.hanging", Lantern(LanternStyle.Hanging), 1, 1, DoorSide.South, 16, () => Grass(1, 1), new(0, 1), Build.Lantern, doorway: false);
@@ -117,7 +120,8 @@ internal static class States
         var mask = new bool[w * 32, h * 32];
         FillMask(mask, plan.Roof);
         if (plan.Wing is { } wing) FillMask(mask, wing);
-        return new(id, w, h, BuildingSprites.Render(kind, w, h, 32, door), mask, side, plan.DoorMiddle, () => Grass(w, h), BackOf(side), Build.Building, true);
+        return new(id, w, h, BuildingSprites.Render(kind, w, h, 32, door), mask, side, plan.DoorMiddle, () => Grass(w, h), BackOf(side), Build.Building, true,
+            BuildingSprites.NeglectSalt(kind, w, h));
     }
 
     private static Subject Opaque(string id, Image finished, int w, int h, DoorSide side, float doorMiddle, Func<Image> ground, Vector2 back, Build kind, bool doorway)
@@ -136,7 +140,8 @@ internal static class States
         for (var y = 0; y < h * 32; y++)
             for (var x = 0; x < w * 32; x++)
                 mask[x, y] = (x < 6 || y < 6 || x >= w * 32 - 6 || y >= h * 32 - 6) && finished.GetPixel(x, y).A > 0.9f;
-        return new(id, w, h, finished, mask, DoorSide.South, w * 16, () => Grass(w, h), new(0, -1), Build.Fence, false);
+        return new(id, w, h, finished, mask, DoorSide.South, w * 16, () => Grass(w, h), new(0, -1), Build.Fence, false,
+            BuildingSprites.NeglectSalt(BuildingKind.AnimalYard, w, h));
     }
 
     private static Vector2 BackOf(DoorSide door) => door switch
@@ -244,7 +249,7 @@ internal static class States
     private static void Blend(Image image, int x, int y, Color color)
     {
         if (x < 0 || y < 0 || x >= image.GetWidth() || y >= image.GetHeight()) return;
-        image.SetPixel(x, y, color.A >= 0.999f ? color : image.GetPixel(x, y).Blend(color));
+        image.SetPixel(x, y, color.A >= 0.999f ? color : PixelArt.Snap(image.GetPixel(x, y).Blend(color)));
     }
 
     private static void Rect(Image image, int x, int y, int w, int h, Color color)
@@ -589,15 +594,28 @@ internal static class States
 
     // ------------------------------------------------------------------ abandoned
 
+    /// <summary>The abandoned look over its ground.</summary>
     public static Image Abandoned(Subject s, bool ruin)
     {
         var image = s.Ground();
+        Sheet.Blend(image, AbandonedArt(s, ruin), 0, 0);
+        return image;
+    }
+
+    /// <summary>
+    /// The abandoned look on its own, transparent outside the structure and
+    /// its weeds, as the game draws it over the map: blended colours are
+    /// snapped to the 8-bit steps Godot stores, so the client matches it
+    /// pixel for pixel.
+    /// </summary>
+    public static Image AbandonedArt(Subject s, bool ruin)
+    {
         var mask = s.Mask;
         var b = Bounds(mask);
         var w = s.TilesWide * 32;
         var h = s.TilesHigh * 32;
         var art = s.Finished.Duplicate();
-        var salt = s.Id.Length * 131 + (ruin ? 7 : 0);
+        var salt = s.Salt + (ruin ? 7 : 0);
         var roofed = s.Kind == Build.Building;
 
         // Faded, greyer and a little darker; the structure more than its yard and doorstep.
@@ -608,7 +626,7 @@ internal static class States
                 if (c.A <= 0) continue;
                 var amount = mask[x, y] ? (ruin ? 0.42f : 0.26f) : 0.16f;
                 var grey = new Color(c.Luminance, c.Luminance, c.Luminance, c.A);
-                art.SetPixel(x, y, c.Lerp(grey, amount).Darkened(mask[x, y] ? (ruin ? 0.14f : 0.08f) : 0.05f) with { A = c.A });
+                art.SetPixel(x, y, PixelArt.Snap(c.Lerp(grey, amount).Darkened(mask[x, y] ? (ruin ? 0.14f : 0.08f) : 0.05f) with { A = c.A }));
             }
 
         // Moss in clumps on the structure, more on the shaded south-east half.
@@ -623,7 +641,7 @@ internal static class States
                 {
                     if (!In(mask, cx + dx, cy + dy) || Hash(cx + dx, cy + dy, salt) % 3 == 0) continue;
                     var c = art.GetPixel(cx + dx, cy + dy);
-                    art.SetPixel(cx + dx, cy + dy, c.Lerp((dx + dy) < 0 ? Leaf.Base : Leaf.Shade, 0.75f) with { A = c.A });
+                    art.SetPixel(cx + dx, cy + dy, PixelArt.Snap(c.Lerp((dx + dy) < 0 ? Leaf.Base : Leaf.Shade, 0.75f) with { A = c.A }));
                 }
         }
 
@@ -645,12 +663,11 @@ internal static class States
             else Breaks(art, s, b, salt);
         }
 
-        Sheet.Blend(image, art, 0, 0);
-        if (ruin && roofed) FallenPlanks(image, s, b, salt);
-        Weeds(image, s, b, ruin, salt);
-        if (s.Doorway && roofed) BoardedDoor(image, s, b);
-        if (ruin && s.Kind is Build.Building or Build.Fence) Sapling(image, s, b, salt);
-        return image;
+        if (ruin && roofed) FallenPlanks(art, s, b, salt);
+        Weeds(art, s, b, ruin, salt);
+        if (s.Doorway && roofed) BoardedDoor(art, s, b);
+        if (ruin && s.Kind is Build.Building or Build.Fence) Sapling(art, s, b, salt);
+        return art;
     }
 
     /// <summary>B: a ragged hole in the front half of the roof, broken rafters over the dark inside.</summary>
@@ -735,7 +752,8 @@ internal static class States
                 var near = Near(s.Mask, x, y, 4);
                 var onPath = s.Finished.GetPixel(x, y).A > 0.9f;
                 if (near > 4 && !onPath) continue;
-                if (s.Kind is Build.Pier or Build.Bridge && !IsLand(image, x, y)) continue;
+                // Over water nothing grows: a pier gets no weeds, a bridge only on its banks.
+                if (s.Kind == Build.Pier || s.Kind == Build.Bridge && x >= 32 && x < w - 32) continue;
                 if (Hash(x, y, salt + 21) % (onPath && near > 4 ? pathOdds : odds) != 0) continue;
                 var tall = Hash(y, x, salt) % 2 == 0;
                 Blend(image, x, y, Leaf.Base);

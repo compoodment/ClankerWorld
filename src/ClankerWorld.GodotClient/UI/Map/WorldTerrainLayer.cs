@@ -41,7 +41,7 @@ public partial class WorldTerrainLayer : Control
     private readonly Dictionary<Vector2I, string[]> householdLandUseTiles = [];
     private readonly HashSet<Vector2I> pendingLandUseTiles = [];
     private readonly HashSet<Vector2I> disputedLandTiles = [];
-    private readonly List<(Rect2I Footprint, BuildingKind Kind, BuildingDoor Door)> buildings = [];
+    private readonly List<(Rect2I Footprint, BuildingKind Kind, BuildingDoor Door, BuildingNeglect Neglect)> buildings = [];
     private readonly HashSet<Vector2I> buildingTiles = [];
     // Road tiles in front of a door, and the side of the tile the door is on.
     private readonly Dictionary<Vector2I, RoadLinks> doorsteps = [];
@@ -360,11 +360,18 @@ public partial class WorldTerrainLayer : Control
         QueueRedraw();
     }
 
-    /// <summary>Placed buildings and legacy camp objects that have a building look.</summary>
-    public void SetBuildings(IReadOnlyList<OwnerWorldPlacedBuilding> placed, IReadOnlyList<OwnerWorldObject> objects)
+    /// <summary>
+    /// Placed buildings and legacy camp objects that have a building look.
+    /// Buildings in an abandoned Town look neglected, and falling apart once
+    /// it has stood empty for a full season.
+    /// </summary>
+    public void SetBuildings(IReadOnlyList<OwnerWorldPlacedBuilding> placed, IReadOnlyList<OwnerWorldObject> objects,
+        IReadOnlyList<OwnerWorldTown>? towns = null)
     {
         ArgumentNullException.ThrowIfNull(placed);
         ArgumentNullException.ThrowIfNull(objects);
+        var neglectByTown = (towns ?? []).Where(town => town.IsAbandoned).ToDictionary(town => town.Id,
+            town => town.FallingApart ? BuildingNeglect.FallingApart : BuildingNeglect.Neglected, StringComparer.Ordinal);
         var next = placed.Where(building => !StreetLanternLight.IsLantern(building.Tags)).Select(building =>
             {
                 var footprint = new Rect2I(building.Position.X, building.Position.Y,
@@ -377,22 +384,23 @@ public partial class WorldTerrainLayer : Control
                 if (kind == BuildingKind.MarketStall && footprint.Size == Vector2I.One &&
                     marketStallBuildingIds.Contains(building.InstanceId) && marketPlazaTiles.Contains(footprint.Position))
                     door = door with { Tile = null };
-                return (footprint, kind, door);
+                var neglect = building.TownId is { } town ? neglectByTown.GetValueOrDefault(town) : BuildingNeglect.None;
+                return (footprint, kind, door, neglect);
             })
             .Concat(objects.Where(item => BuildingSprites.KindForObject(item.Kind) is not null)
                 .Select(item => (new Rect2I(item.Position.X, item.Position.Y, 1, 1), BuildingSprites.KindForObject(item.Kind)!.Value,
-                    BuildingDoor.Default)))
+                    BuildingDoor.Default, BuildingNeglect.None)))
             .ToList();
         if (next.SequenceEqual(buildings)) return;
         buildings.Clear();
         buildings.AddRange(next);
         buildingTiles.Clear();
-        foreach (var (footprint, _, _) in buildings)
+        foreach (var (footprint, _, _, _) in buildings)
             for (var y = footprint.Position.Y; y < footprint.End.Y; y++)
                 for (var x = footprint.Position.X; x < footprint.End.X; x++)
                     buildingTiles.Add(new Vector2I(wrapsEastWest && world is not null ? Mod(x, world.Width) : x, y));
         doorsteps.Clear();
-        foreach (var (footprint, _, door) in buildings)
+        foreach (var (footprint, _, door, _) in buildings)
         {
             if (door.Tile is not { } along) continue;
             var (tile, toward) = door.Side switch
@@ -409,6 +417,10 @@ public partial class WorldTerrainLayer : Control
     }
 
     public int BuildingSpriteCount => buildings.Count;
+
+    /// <summary>How the building on a tile has weathered, or <see cref="BuildingNeglect.None"/> when nothing stands there.</summary>
+    public BuildingNeglect NeglectAt(Vector2I tile) =>
+        buildings.FirstOrDefault(building => building.Footprint.HasPoint(tile)).Neglect;
 
     public string WeatherAt(int x, int y)
     {
@@ -1088,7 +1100,7 @@ public partial class WorldTerrainLayer : Control
         if (world is null || buildings.Count == 0 || tileSize <= 0) return;
         var visible = new Rect2I(bounds.Left, bounds.Top, bounds.Width, bounds.Height);
         var atlasSize = BuildingSprites.AtlasTileSize(tileSize);
-        foreach (var (footprint, kind, door) in buildings)
+        foreach (var (footprint, kind, door, neglect) in buildings)
         {
             foreach (var shift in wrapsEastWest ? new[] { -world.Width, 0, world.Width } : [0])
             {
@@ -1099,7 +1111,7 @@ public partial class WorldTerrainLayer : Control
                 if (tileSize < SpriteTileMinimum)
                     DrawRect(rect, BuildingSprites.RoofColor(kind));
                 else
-                    DrawTextureRect(BuildingSprites.Texture(kind, footprint.Size.X, footprint.Size.Y, atlasSize, door), rect, false);
+                    DrawTextureRect(BuildingSprites.Texture(kind, footprint.Size.X, footprint.Size.Y, atlasSize, door, neglect), rect, false);
             }
         }
     }

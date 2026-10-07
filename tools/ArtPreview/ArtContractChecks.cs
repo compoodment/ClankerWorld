@@ -16,6 +16,7 @@ internal static class ArtContractChecks
         CheckApprovedBoatsAndPorts();
         CheckApprovedAnimals();
         CheckApprovedYard();
+        CheckApprovedNeglect();
         foreach (var size in new[] { 16, 32 })
         {
             foreach (var (facing, frame) in new[] { (6, AgentFrame.Walk2), (4, AgentFrame.Carry), (2, AgentFrame.Talk) })
@@ -231,6 +232,36 @@ internal static class ArtContractChecks
                     Equal(BuildingSprites.Render(BuildingKind.AnimalYard, width, height, 16, door), approved,
                         $"The client's 16 px {width}×{height} animal yard must be the approved yard halved.");
                 }
+    }
+
+    /// <summary>The client's neglected and falling-apart buildings match the approved abandoned looks pixel for pixel.</summary>
+    private static void CheckApprovedNeglect()
+    {
+        var south = new BuildingDoor(DoorSide.South);
+        var cases = new (string Id, BuildingKind Kind, int Width, int Height, BuildingDoor Door)[]
+        {
+            ("house.1x1", BuildingKind.House, 1, 1, south), ("house.2x2", BuildingKind.House, 2, 2, south),
+            ("farmhouse.1x1", BuildingKind.Farmhouse, 1, 1, south), ("farmhouse.2x2", BuildingKind.Farmhouse, 2, 2, south),
+            ("warehouse.2x2", BuildingKind.Warehouse, 2, 2, south), ("blacksmith.1x2", BuildingKind.Blacksmith, 1, 2, south),
+            ("tailor.1x1", BuildingKind.TailorShop, 1, 1, south), ("store.1x2", BuildingKind.Store, 1, 2, south),
+            ("workshop.1x1", BuildingKind.Workshop, 1, 1, south), ("clinic.1x2", BuildingKind.Clinic, 1, 2, south),
+            ("restaurant.2x2", BuildingKind.Restaurant, 2, 2, south), ("silo.1x1", BuildingKind.Silo, 1, 1, south),
+            ("townhall.3x4", BuildingKind.TownHall, 3, 4, south), ("market.2x2", BuildingKind.Market, 2, 2, south),
+            ("stall.1x1", BuildingKind.MarketStall, 1, 1, south), ("port.2x4", BuildingKind.Port, 2, 4, new BuildingDoor(DoorSide.South, 1)),
+            ("yard.2x2", BuildingKind.AnimalYard, 2, 2, south),
+        };
+        var subjects = Proposed.BuildingStates.States.Subjects().ToDictionary(subject => subject.Id);
+        foreach (var (id, kind, width, height, door) in cases)
+            foreach (var ruin in new[] { false, true })
+            {
+                var neglect = ruin ? BuildingNeglect.FallingApart : BuildingNeglect.Neglected;
+                var approved = Proposed.BuildingStates.States.AbandonedArt(subjects[id], ruin);
+                Equal(BuildingSprites.Render(kind, width, height, 32, door, neglect), approved,
+                    $"The client's {neglect} {id} must match the approved abandoned look.");
+                approved.Resize(width * 16, height * 16, Image.Interpolation.Nearest);
+                Equal(BuildingSprites.Render(kind, width, height, 16, door, neglect), approved,
+                    $"The client's 16 px {neglect} {id} must be the approved look halved.");
+            }
     }
 
     private static void Equal(Image actual, Image expected, string message)

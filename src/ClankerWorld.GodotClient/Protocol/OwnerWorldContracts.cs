@@ -171,6 +171,9 @@ public sealed record OwnerWorldTown(
 {
     public bool IsAbandoned => FoundingState == "founded" && ResidentIds.Count == 0;
 
+    /// <summary>An abandoned Town that has stood empty for a full season; its buildings look falling apart.</summary>
+    public bool FallingApart { get; init; }
+
     public OwnerTownGovernance? Governance { get; init; }
     public IReadOnlyList<OwnerWorldTownProject> Projects { get; init; } = [];
     public OwnerTownGovernment? Government { get; init; }
