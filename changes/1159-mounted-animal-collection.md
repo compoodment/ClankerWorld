@@ -1,0 +1,1 @@
+- Riders can collect another animal's wool or milk by dismounting first; extra cargo stays where they dismount, and collection needs room on foot.

@@ -825,6 +825,8 @@ For a cared adult horse, use **Saddle Moss**, **Mount Moss** and **Dismount Moss
 A mount needs a real household saddle and gives twice walking speed plus eight
 cargo units. Dismounting puts excess unreserved cargo at the rider's actual
 position. Horses cannot accompany a boat or pull a handcart in this version.
+Collecting another animal's ready product first dismounts the rider, then
+requires room to carry the product on foot.
 Household adults can care and ride; outsiders need separate named permissions
 agreed by an adult. Personal models may offer or accept a specific animal gift
 or sale when both adults meet and the receiving yard has space.
