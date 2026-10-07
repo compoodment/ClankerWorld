@@ -1,0 +1,3 @@
+- Let a Town's last resident die or leave so the Town becomes abandoned. Its buildings should turn faded and mossy, with weeds round the walls and the doors boarded up, at both close and mid zoom. ([#1091](https://github.com/compoodment/ClankerWorld/issues/1091))
+- Keep that Town abandoned for a full season (ten days at the normal playtest pace). Its buildings should start falling apart, with holes in the roofs, fallen planks and saplings; its Port should lose planks and its animal yard bits of fence. ([#1091](https://github.com/compoodment/ClankerWorld/issues/1091))
+- Have an adult resettle the abandoned Town. Its buildings should look lived in again straight away. ([#1091](https://github.com/compoodment/ClankerWorld/issues/1091))
