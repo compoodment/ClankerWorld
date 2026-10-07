@@ -37,7 +37,12 @@ public sealed record OwnerWorldHandcart(string Id, string OwnerId, string OwnerN
 public sealed record OwnerWorldAnimal(string Id, string Name, string Species, string Sex, int AgeDays, string LifeStage,
     OwnerWorldPosition Position, string? HouseholdId, string? HouseholdName, string CareStatus, string? ProductKind,
     int ProductQuantity, double? BirthDaysRemaining, string? RiderId, string? RiderName, string? LeaderId,
-    bool Saddled, IReadOnlyList<string> CarePermissions, IReadOnlyList<string> RidingPermissions);
+    bool Saddled, IReadOnlyList<string> CarePermissions, IReadOnlyList<string> RidingPermissions,
+    int? ProductProgressPercent = null)
+{
+    /// <summary>A sheep in a household looks shorn for the first half of each wool cycle; a wild sheep stays woolly.</summary>
+    public bool LooksShorn => Species == "sheep" && LifeStage == "adult" && ProductProgressPercent is < 50;
+}
 
 public sealed record OwnerWorldBoat(string Id, string TownId, string TownName, OwnerWorldPosition Position,
     string? DockedPortId, string? PassengerId, string? PassengerName, string? DestinationPortId,
@@ -165,6 +170,9 @@ public sealed record OwnerWorldTown(
     IReadOnlyList<OwnerWorldPosition> BorderTiles)
 {
     public bool IsAbandoned => FoundingState == "founded" && ResidentIds.Count == 0;
+
+    /// <summary>An abandoned Town that has stood empty for a full season; its buildings look falling apart.</summary>
+    public bool FallingApart { get; init; }
 
     public OwnerTownGovernance? Governance { get; init; }
     public IReadOnlyList<OwnerWorldTownProject> Projects { get; init; } = [];
@@ -501,8 +509,11 @@ public sealed record OwnerWorldPlacedBuilding(
     public IReadOnlyList<OwnerWorldBusinessTrade> Trades { get; init; } = [];
     public IReadOnlyList<OwnerWorldToolMakingRequest> ToolMakingRequests { get; init; } = [];
     public bool AllowsHouseholdOwner { get; init; }
+    public IReadOnlyList<OwnerWorldBuildingStorageChange>? RecentStorageChanges { get; init; }
     public IReadOnlyList<OwnerWorldProductionRecipe>? AvailableRecipes { get; init; }
 }
+
+public sealed record OwnerWorldBuildingStorageChange(long EventId, long WorldTick, string ItemKind, long QuantityChange);
 
 public sealed record OwnerWorldToolMakingRequest(string Id, string RequesterName, string RecipeId,
     string RecipeName, string ItemKind, string Status, string? Blocker, string? OfferId = null);

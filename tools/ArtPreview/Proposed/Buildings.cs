@@ -3325,7 +3325,7 @@ public sealed class BuildingsProposal : IArtProposal, IArtSetProvider
     }
 
     /// <summary>Grass on the land row or column and the given water everywhere else, for a harbour picture.</summary>
-    private static Image HarbourGround(int tilesWide, int tilesHigh, DoorSide land, TerrainStyle water)
+    public static Image HarbourGround(int tilesWide, int tilesHigh, DoorSide land, TerrainStyle water)
     {
         var ground = Grass(tilesWide, tilesHigh, 32);
         var atlas = WaterTextures.Atlas(32).GetImage();
