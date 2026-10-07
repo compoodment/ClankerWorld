@@ -2,7 +2,7 @@
 title: Playing the current game
 type: player-guide
 status: active
-updated: 2026-10-06
+updated: 2026-10-07
 ---
 
 # Playing the current game
@@ -299,8 +299,9 @@ To work on household fields, try **Till two fields**, **Plant grain**,
 harvesting fields of grain**. Adults need a household with a Farmhouse and
 suitable fields, stock and tools. Counts mean completed fields, so include
 **fields** when giving a number; **Harvest five potatoes** is not understood.
-A named crop is never replaced with another. Harvests remain on the field
-until carried. Cancel or replace the order to stop the current work and release
+A named crop is never replaced with another. Planting orders can use another
+usable seed when someone blocks the pickup route to an earlier seed lot.
+Harvests remain on the field until carried. Cancel or replace the order to stop the current work and release
 unused planting stock. Add **at (12, 4)** to keep the task on that field tile.
 
 To move supplies for a household or Town, name both the goods and the destination:
