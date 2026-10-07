@@ -42,9 +42,8 @@ public readonly record struct StreetLanternLight(Vector2I RoadTile, DoorSide Edg
     {
         var key = (Style, Edge, Neglect, snap);
         if (WeatheredCache.TryGetValue(key, out var cached)) return cached;
-        using var image = BuildingSprites.NeglectedLantern(Style, Inward, Neglect);
+        using var image = BuildingSprites.NeglectedLantern(Style, Inward, Neglect, 32 / snap);
         var offset = Post - BuildingSprites.NeglectedLanternPost(Style, Inward);
-        if (snap > 1) image.Resize(32 / snap, 32 / snap, Image.Interpolation.Nearest);
         var cells = new List<LightCell>();
         for (var y = 0; y < image.GetHeight(); y++)
             for (var x = 0; x < image.GetWidth(); x++)

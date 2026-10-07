@@ -51,9 +51,7 @@ public static partial class BuildingSprites
     {
         deckTiles = Math.Clamp(deckTiles, 1, 32);
         var image = Neglect.Bridge(eastWest, deckTiles, neglect == BuildingNeglect.FallingApart);
-        if (tilePixels != 32)
-            image.Resize(image.GetWidth() / 32 * tilePixels, image.GetHeight() / 32 * tilePixels, Image.Interpolation.Nearest);
-        return image;
+        return tilePixels == 32 ? image : Neglect.Resize(image, image.GetWidth() / 32 * tilePixels, image.GetHeight() / 32 * tilePixels);
     }
 
     /// <summary>
@@ -61,8 +59,11 @@ public static partial class BuildingSprites
     /// weeds round its foot, in a 32 px frame whose post is at
     /// <see cref="NeglectedLanternPost"/>.
     /// </summary>
-    public static Image NeglectedLantern(LanternStyle style, Vector2 inward, BuildingNeglect neglect) =>
-        Neglect.Lantern(style, inward, neglect == BuildingNeglect.FallingApart);
+    public static Image NeglectedLantern(LanternStyle style, Vector2 inward, BuildingNeglect neglect, int tilePixels = 32)
+    {
+        var image = Neglect.Lantern(style, inward, neglect == BuildingNeglect.FallingApart);
+        return tilePixels == 32 ? image : Neglect.Resize(image, tilePixels, tilePixels);
+    }
 
     /// <summary>Where the post stands in <see cref="NeglectedLantern"/>'s frame.</summary>
     public static Vector2 NeglectedLanternPost(LanternStyle style, Vector2 inward) => Neglect.LanternFramePost(style, inward);
@@ -152,7 +153,7 @@ public static partial class BuildingSprites
             for (var y = 0; y < h; y++)
                 for (var x = 0; x < w; x++)
                     mask[x, y] = finished.GetPixel(x, y).A > 0.9f;
-            return Apply(new Look(finished, mask, w, h, eastWest ? DoorSide.West : DoorSide.North, 16, Shape.Bridge, false, 0), ruin);
+            return Apply(new Look(finished, mask, w, h, eastWest ? DoorSide.West : DoorSide.North, 16, Shape.Bridge, false, $"bridge.{deckTiles}".Length * 131), ruin);
         }
 
         /// <summary>
@@ -175,7 +176,8 @@ public static partial class BuildingSprites
             for (var y = 0; y < 32; y++)
                 for (var x = 0; x < 32; x++)
                     mask[x, y] = finished.GetPixel(x, y).A > 0.9f;
-            return Apply(new Look(finished, mask, 32, 32, DoorSide.South, 16, Shape.Lantern, false, 0), ruin);
+            var salt = (style == LanternStyle.Stone ? "lantern.stone" : "lantern.hanging").Length * 131;
+            return Apply(new Look(finished, mask, 32, 32, DoorSide.South, 16, Shape.Lantern, false, salt), ruin);
         }
 
         /// <summary>

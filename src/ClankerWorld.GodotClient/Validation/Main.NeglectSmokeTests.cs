@@ -33,6 +33,7 @@ public partial class Main
         }
         terrainLayer.SetBuildings([], []);
         VerifyAbandonedLanternsAndBridges();
+        VerifyAbandonedArtSampling();
     }
 
     /// <summary>
@@ -87,5 +88,44 @@ public partial class Main
             neglectedCells.Select(cell => cell.Color).ToHashSet().SetEquals(plain.Select(cell => cell.Color)) ||
             halved.Count == 0 || halved.Any(cell => cell.Area.Size != new Vector2(2, 2)))
             throw new InvalidOperationException("A weathered lantern must show its own faded fitting, halved at mid zoom.");
+    }
+
+    // The approved mid-zoom art samples the top-left pixel of each 2x2 block.
+    // Check the native engine as the portable art renderer uses a different Resize.
+    private static void VerifyAbandonedArtSampling()
+    {
+        var bridgeMismatches = 0;
+        var lanternMismatches = 0;
+        foreach (var neglect in new[] { BuildingNeglect.Neglected, BuildingNeglect.FallingApart })
+        {
+            foreach (var eastWest in new[] { false, true })
+                foreach (var length in new[] { 1, 3 })
+                {
+                    using var full = BuildingSprites.RenderNeglectedBridge(eastWest, length, 32, neglect);
+                    using var half = BuildingSprites.RenderNeglectedBridge(eastWest, length, 16, neglect);
+                    for (var y = 0; y < half.GetHeight(); y++)
+                        for (var x = 0; x < half.GetWidth(); x++)
+                            if (half.GetPixel(x, y) != full.GetPixel(x * 2, y * 2)) bridgeMismatches++;
+                }
+            foreach (var style in new[] { LanternStyle.Stone, LanternStyle.Hanging })
+                foreach (var edge in new[] { DoorSide.North, DoorSide.East, DoorSide.South, DoorSide.West })
+                {
+                    var lantern = new StreetLanternLight(new(0, 0), edge, style) { Neglect = neglect };
+                    using var full = BuildingSprites.NeglectedLantern(style, lantern.Inward, neglect);
+                    var offset = lantern.Post - BuildingSprites.NeglectedLanternPost(style, lantern.Inward);
+                    var expected = new Dictionary<Vector2, Color>();
+                    for (var y = 0; y < 32; y += 2)
+                        for (var x = 0; x < 32; x += 2)
+                        {
+                            var color = full.GetPixel(x, y);
+                            if (color.A >= 0.5f) expected.Add(offset + new Vector2(x, y), color);
+                        }
+                    var actual = lantern.WeatheredCells(2).ToDictionary(cell => cell.Area.Position, cell => cell.Color);
+                    lanternMismatches += expected.Count(entry => !actual.TryGetValue(entry.Key, out var color) || color != entry.Value);
+                    lanternMismatches += actual.Keys.Count(point => !expected.ContainsKey(point));
+                }
+        }
+        if (bridgeMismatches != 0 || lanternMismatches != 0)
+            throw new InvalidOperationException($"Approved 16 px sampling differs: {bridgeMismatches} bridge pixels and {lanternMismatches} lantern cells.");
     }
 }
