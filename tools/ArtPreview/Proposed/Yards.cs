@@ -363,8 +363,8 @@ public sealed class YardsProposal : IArtProposal
         }
         for (var y = top + SpacingFor(bottom - top, postGap); y < bottom - 1; y += SpacingFor(bottom - top, postGap))
         {
-            Post(left, y);
-            Post(right, y);
+            if (!InGate(DoorSide.West, y + 1.5f) || MathF.Abs(y + 1.5f - gate) >= gateHalf - 1) Post(left, y);
+            if (!InGate(DoorSide.East, y + 1.5f) || MathF.Abs(y + 1.5f - gate) >= gateHalf - 1) Post(right, y);
         }
         GatePosts(c, door, gate, gateHalf, left, top, right, bottom, wood, Post);
     }
@@ -385,19 +385,23 @@ public sealed class YardsProposal : IArtProposal
             DoorSide.West => left,
             DoorSide.East => right,
             _ => bottom,
-        }, wood);
+        }, wood, door.Side switch
+        {
+            DoorSide.East => right + 4,
+            DoorSide.South => bottom + 4,
+            _ => 0,
+        });
 
     /// <summary>An open gate at <paramref name="line"/>, the fence's position across its side; used by every option.</summary>
-    private static void OpenGate(PixelCanvas c, BuildingDoor door, float gate, float half, float line, Ramp wood)
+    private static void OpenGate(PixelCanvas c, BuildingDoor door, float gate, float half, float line, Ramp wood, float edge)
     {
         var horizontal = door.Side is DoorSide.South or DoorSide.North;
         var inward = door.Side is DoorSide.South or DoorSide.East ? -1f : 1f;
         // Along the side (a) and across it (b) to a screen point.
         Vector2 P(float a, float b) => horizontal ? new Vector2(a, b) : new Vector2(b, a);
         // Trampled ground through the opening, from inside the fence to the footprint's edge.
-        var edge = door.Side is DoorSide.South or DoorSide.East ? line + 4 : 0f;
-        var from = MathF.Min(edge, line - inward * 4);
-        var to = MathF.Max(edge, line - inward * 4) + (door.Side is DoorSide.South or DoorSide.East ? 0 : 4);
+        var from = MathF.Min(edge, line + inward * 4);
+        var to = MathF.Max(edge, line + inward * 4);
         for (var a = gate - half + 1; a < gate + half - 1; a++)
             for (var b = from; b < to; b++)
             {
@@ -478,7 +482,12 @@ public sealed class YardsProposal : IArtProposal
             DoorSide.West => 2,
             DoorSide.East => w - 5,
             _ => h - 5,
-        }, Timber);
+        }, Timber, door.Side switch
+        {
+            DoorSide.East => w,
+            DoorSide.South => h,
+            _ => 0,
+        });
     }
 
     /// <summary>Option B: a thatched lean-to along the back, sloping down toward the yard, with its eave shadow.</summary>

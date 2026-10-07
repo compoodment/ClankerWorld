@@ -133,6 +133,8 @@ internal static class ArtContractChecks
         {
             ("potatoes", "potato"), ("cultivated_green_seed", "green_seed"),
             ("medicinal_herbs", "herbs"), ("diamond_ornament", "ornament"), ("simple_meal", "meal"),
+            // The approved raw nuggets now show gold ore; the crude wooden tools keep the wooden tool icons (October 7).
+            ("gold_ore", "gold"), ("crude_wooden_axe", "wooden_axe"), ("crude_wooden_pickaxe", "wooden_pickaxe"),
         };
         foreach (var (item, drawing) in aliases)
         {
@@ -147,6 +149,16 @@ internal static class ArtContractChecks
             }
         }
         Console.WriteLine($"Approved item aliases: {aliases.Length * 3} exact RGBA comparisons.");
+        var drawn = 0;
+        foreach (var kind in Proposed.Items.ItemsRound4Proposal.Kinds)
+            foreach (var size in new[] { 16, 32, 48 })
+            {
+                var expected = Proposed.Items.ItemsRound4Proposal.IconFor(kind).Duplicate();
+                expected.Resize(size, size, Image.Interpolation.Nearest);
+                Equal(ItemIcons.Render(kind, size), expected, $"The item {kind} must use its approved round-four icon at {size} px.");
+                drawn++;
+            }
+        Console.WriteLine($"Approved round-four item icons: {drawn} exact RGBA comparisons.");
     }
 
     private static void CheckApprovedHandcarts()

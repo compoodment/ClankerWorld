@@ -37,7 +37,7 @@ If New World asks for matching updates, update the game and have the server
 updated too. Keep your current device pairing; pairing again does not repair
 that version mismatch. You can still reconnect to the existing world.
 
-Adults may leave a household without its permission. Their own goods remain theirs even in the old House; collecting them and returning borrowed tools require travel and carrying space. A primary caregiver keeps dependent children with them unless another adult explicitly takes over care. An adult seeks an accepting existing home with room for the whole group first, then may start a household alone and build a House through the usual materials and site rules. Inspect the agent to see membership, goods awaiting collection, borrowed goods, care responsibility and the housing blocker.
+Adults may leave a household without its permission. Their own goods remain theirs even in the old House; collecting them and returning borrowed tools require travel and carrying space. A primary caregiver keeps dependent children with them unless another adult explicitly takes over care. Once grown, those children can collect their own belongings left in the former House, even if the caregiver has died. An adult seeks an accepting existing home with room for the whole group first, then may start a household alone and build a House through the usual materials and site rules. Inspect the agent to see membership, goods awaiting collection, borrowed goods, care responsibility and the housing blocker.
 
 When a child loses their last caregiver, relatives are asked first, then adults
 in the child's household and Town. Until someone accepts, the child shows
@@ -165,7 +165,9 @@ in their life and the Memories, Family and Model buttons. The Model line names
 the provider whose model made their latest choice, such as OpenAI; when Jev or
 the built-in rules made it, the Profile says so instead. Click their thought,
 or **Read all**, to read every recent thought in a larger panel beside the
-Profile. The pencil beside their name renames them, and **Speak** goes straight
+Profile. Long names use up to two lines so its buttons stay in view. Hover
+over the name or open Rename to read the whole name.
+The pencil beside their name renames them, and **Speak** goes straight
 to the message box, where you choose **Suggest** or **Order**. The crosshair
 centers the camera on them, and back (or **Escape**) returns from the Profile
 to the small card. Inspection does not pause time, and reading private thoughts
@@ -218,6 +220,9 @@ it a task. A new suggestion or recognized order asks for one fresh planning
 decision; any short reply comes in that same response. Following an order does
 not add a model request for every step or tick.
 
+Urgent hunger can pause an order to buy and eat food at a shop or Restaurant,
+using the adult's own payment and carrying space. The order remains pending.
+
 Food orders can eat carried food, collect accessible household food to eat,
 travel to a food source, or gather berries, fruit or wild greens. Use simple
 phrases such as "eat 3 berries", "gather berries from berry-patch" or "go to
@@ -225,6 +230,9 @@ berries at (12, 4)". "Keep gathering food" continues until cancelled. Eating
 waits until the agent is hungry enough, and gathering needs enough carrying
 space. A recognized new order replaces the current one unless you turn on
 **Queue**. Use **Cancel task** to stop a waiting or active order.
+An agent can also eat from a usable storage pot they own and carry, leaving
+the pot and remaining food together. Eating a serving needs no extra carrying
+space; food reserved for other work or being delivered is unavailable.
 
 Material orders can gather wood, stone, plant fiber, clay, iron ore, gold ore
 or diamond. For example, use **Gather five wood**, **Keep gathering clay**, or
@@ -287,6 +295,10 @@ A pot or jug moves with its contents and counts as one item, while all of its
 contents use carrying and storage space. These tasks cannot take household
 production stock as personal property.
 
+When carrying several water jugs, agents can refill one with room even if
+another is full. They still need a reachable riverbank or lakeshore and enough
+carrying space for the water.
+
 To return borrowed stock, use **Return two borrowed cloth**, **Return two
 borrowed bread** or **Return one borrowed water jug**. The agent carries the
 goods back to their owning
@@ -300,9 +312,13 @@ To work on household fields, try **Till two fields**, **Plant grain**,
 harvesting fields of grain**. Adults need a household with a Farmhouse and
 suitable fields, stock and tools. Counts mean completed fields, so include
 **fields** when giving a number; **Harvest five potatoes** is not understood.
-A named crop is never replaced with another. Harvests remain on the field
-until carried. Cancel or replace the order to stop the current work and release
+A named crop is never replaced with another. Planting orders can use another
+usable seed when someone blocks the pickup route to an earlier seed lot.
+Harvests remain on the field until carried. Cancel or replace the order to stop the current work and release
 unused planting stock. Add **at (12, 4)** to keep the task on that field tile.
+Ordinary crop and seed hauling tries another permitted farm store when the
+preferred one cannot fit the load. For example, a filled pot goes to the
+Farmhouse if the Silo has too little room for the pot and its contents.
 
 To move supplies for a household or Town, name both the goods and the destination:
 
@@ -311,6 +327,10 @@ To move supplies for a household or Town, name both the goods and the destinatio
 - **Deliver two berries to my House** shares spare food the agent already carries.
 - **Donate two wood to my Town Warehouse** gives spare carried materials to the Town.
 - **Stock three cloth in my Store** fills the household's shop under its normal stock limits.
+
+Stocking food keeps two servings of that kind with the agent, or two per
+household member when taking shared stock. Collecting the food in smaller
+loads does not increase that reserve.
 
 Add **at (12, 4)** to require the building's listed tile. The order keeps its
 chosen destination. A plain request delivers one load; a number counts the
@@ -410,6 +430,18 @@ materials currently held for that job. **Can make** lists the recipes registered
 for that exact building size and their quantities. Each still needs real
 materials and an adult allowed to work there. Reading the list teaches no
 agent and starts no work. Back (or **Escape**) returns to the small card.
+
+A building's storage-space bar shows how much of its recorded limit is used,
+with exact used/limit numbers. It counts all stored goods, including materials
+held for work and goods belonging to someone else. It updates when goods move
+or an expansion increases the limit. Hover over the bar for the exact count.
+
+**Details** also lists recent recorded storage changes: positive quantities
+were added, negative quantities were removed or used, with the date and time
+of each change. The newest entries come first. The list refreshes while open
+and survives saving or reconnecting; it covers the recent records still kept
+by the server. Goods changing owners in the same building do not count as a
+physical addition or removal.
 
 Every day has a night, with a short dusk and dawn. Nights are longest in winter
 and shortest in summer: from 19:12 to 04:48 on the clock in the top bar at the
@@ -611,7 +643,10 @@ still needs a hands-on check.
 ## Pause, settings and controls
 
 The pause button pauses or resumes time. **Menu** opens the Pause Menu and keeps
-the world paused. Opening ordinary inspection panels leaves time running.
+the world paused. Closing it restores the world to running if it was running
+before the menu opened; a world you had already paused stays paused. This also
+applies when you reopen the menu while it is still resuming.
+Opening ordinary inspection panels leaves time running.
 Settings and the Mod Library open inside the Pause Menu window; its back arrow
 or **Escape** returns to the menu's buttons.
 
@@ -687,7 +722,9 @@ you like. The card under the timeline says whether the new save continues a
 branch or starts a new one. To overwrite a save, choose it, then **Overwrite**,
 and confirm; typing the same name does not overwrite it. Autosaves can't be
 overwritten. World Settings offers rotating
-autosaves as well as automatic recovery. **Load World** shows each world as a
+autosaves as well as automatic recovery. If the host's clock moves backwards,
+the next rotating save waits one configured interval from the corrected time.
+**Load World** shows each world as a
 card with a small map of it, when it was last saved and its seed, and marks the
 current world and any it cannot open. Double-click a card, or choose it and
 **Open World**. Open
@@ -778,6 +815,8 @@ make wool padded coats, process hides into leather, and make leather sacks or
 saddles. A leather sack carries 32 units. Adults can haul household milk jugs
 to their Store or borrowed Market stall. A seller offers one portion for an
 exact personal payment; the buyer accepts with a carried empty or milk jug.
+Each milk lot can have only one pending offer. Remaining portions can be
+offered after that sale ends.
 Both vessels keep their owners. Pouring away spoiled milk frees its jug for reuse.
 
 For a cared adult horse, use **Saddle Moss**, **Mount Moss** and **Dismount Moss**.

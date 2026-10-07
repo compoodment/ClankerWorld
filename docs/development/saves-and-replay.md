@@ -2,7 +2,7 @@
 title: Saves and replay
 type: persistence-reference
 status: active
-updated: 2026-10-06
+updated: 2026-10-07
 ---
 
 # Saves and replay
@@ -363,6 +363,16 @@ rollback includes these ledgers alongside the actual goods or work. Earlier
 alpha checkpoints are refused and preserved; no inferred case history or
 migration is added.
 
+Schema 97 adds `CarriedAvailableQuantityBefore` to native public-service
+receipts. It snapshots the usable personal stock of the donated kind before
+transfer, across eligible carried lots and excluding reservations. Source-lot
+quantity and availability remain separate evidence of the actual transfer.
+Loading requires the recorded carried total to cover that source's available
+quantity and leave the four-unit reserve after donation; other receipt kinds
+cannot carry this field. The total participates in the receipt digest and
+retained completion effect. No historical stock is inferred or backfilled.
+Earlier alpha checkpoints are refused and preserved without migration.
+
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
 Matching parent assignments are disclosed as agreement; when they differ, the
@@ -686,6 +696,14 @@ establish that the checkpoint can load.
 
 ## Current formats and older worlds
 
+Private-world schema 98 adds optional structured storage changes to committed
+inventory events: a building ID, item kind and nonzero signed quantity.
+Records have unique, ordered building/item pairs and retain their original
+event identity and time, including through archive compaction. Strict loading
+refuses malformed records. The observer projects only recent retained facts;
+reading Details changes no stock, permissions or agent knowledge. Earlier
+alpha schemas are refused and preserved without migration or history backfill.
+
 Private-world schema 95 adds a required routine-helper choice, model name and
 optional OpenAI credential-slot ID. API-key bytes remain installation-owned.
 Loading rejects invalid helper/model/slot formats or inconsistent availability;
@@ -802,7 +820,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 96. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 98. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 a bounded model-attempt status and exact last accepted model choice per agent, plus
@@ -945,6 +963,8 @@ current alpha cutoff.
 | Schema 94 | Market receipts use required stable sequences and an explicit retirement boundary. Open trades retain their exact deposit proof; bounded closed outcomes may refer below the retired boundary. Live borrowing, current stock, exact payments and accepted offers remain authoritative; closed offers and claims retire together. Earlier alpha saves are refused and preserved without migration. |
 | Schema 95 | Required per-world routine-helper settings retain Off, Jev or OpenAI Decisions, its model and an optional installation-owned OpenAI key-slot ID. Switches retain memories and scores, invalidate pending replies and replay with the saved routing revision. Earlier alpha saves are refused and preserved without migration; key bytes remain outside world saves. |
 | Schema 96 | Animals, held products and saddles, care trips, pregnancies, named permissions and exact animal/milk offers retain their physical custody. Current saves require the complete animal record; earlier alpha saves are refused and preserved without migration. |
+| Schema 97 | Native public-service receipts retain the usable personal carried quantity before donation separately from the actual source lot. The four-unit reserve may span carried lots; saved validation preserves source quantity, reservations and exact physical transfer evidence. Earlier alpha saves are refused and preserved without migration. |
+| Schema 98 | Existing inventory events retain exact physical storage additions/removals by building and item kind, with signed quantities. Event identities, trade receipts, rollback and bounded archival remain intact. Malformed changes and earlier alpha schemas are refused; no migration or history reconstruction is added. |
 
 ### Tool-making requests
 
@@ -1254,6 +1274,12 @@ these copies have no settled retention policy. Rotating autosaves are a separate
 mechanism and must not delete another world's checkpoints, or another branch's.
 Updating autosave configuration trims only that configured world, including
 rotation off, and counts each branch's autosaves separately.
+The schedule persists a new interval anchor if the host clock moves backwards,
+so restart cannot restore the resulting delay. This changes only the adjacent
+schedule timestamp; it keeps the saved world tick and existing snapshot files.
+Rotation uses the saved branch position to keep that branch's newest copies,
+even when earlier copies have future UTC dates. Genuine pre-branch saves still
+rotate by UTC; saves with damaged branch fields remain preserved.
 The signed action names the world whose settings were opened. Its identity
 check, configuration write and rotation share the world-mutation gate with
 selection and loading. A request delayed across a world switch is refused
