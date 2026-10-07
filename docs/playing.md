@@ -223,6 +223,15 @@ not add a model request for every step or tick.
 Urgent hunger can pause an order to buy and eat food at a shop or Restaurant,
 using the adult's own payment and carrying space. The order remains pending.
 
+Adults can follow **Write a field record**, **Draw a map**, or **Bind a book**.
+They use sites they have personally learned and collect permitted paper and,
+for a book, cloth. The order counts a written item only when the real work
+finishes. **Write two maps** requests two items; **Keep drawing maps** continues
+until cancelled. Once the current account has been written, further writing
+waits for newly learned information. Missing supplies or carrying space also
+leave the order waiting with a reason. **Cancel task** releases that order's
+unused reserved supplies.
+
 Food orders can eat carried food, collect accessible household food to eat,
 travel to a food source, or gather berries, fruit or wild greens. Use simple
 phrases such as "eat 3 berries", "gather berries from berry-patch" or "go to

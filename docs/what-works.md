@@ -232,6 +232,12 @@ closed orders, which closed suggestions no longer push out. The game draws
 both from the host's snapshot and keeps no order list of its own, so after a
 reconnect or reload they show what the host holds.
 
+Adults can be ordered to write field records, draw maps or bind books, with a
+count or until cancelled. They use their own learned sites and real paper or
+paper and cloth. Finished items count toward the order; identical accounts
+are not written again. More writing waits for new learning, supplies and room
+to carry them. Cancelled or replaced orders release their unused reservations.
+
 Urgently hungry adults may pause an order to buy ready food at a shop or
 Restaurant, including continuing an open food purchase. They need their own
 payment and enough carrying room, and keep the outstanding order. Equipment

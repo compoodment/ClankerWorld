@@ -511,7 +511,8 @@ internal static class PrivateWorldInstructionOrderParser
             }
             if (!ReadWord("now")) _ = ReadWord("please");
             return position == end ? new OwnerInstructionOrder("write_knowledge", "queued", quantity, 0,
-                "artifacts", repeat, explicitQuantity) { TargetKnowledgeKind = kind } : null;
+                "artifacts", repeat, explicitQuantity)
+            { TargetKnowledgeKind = kind } : null;
         }
 
         private OwnerInstructionOrder? TryReadProductionOrder(int end, bool repeat, bool keep)
