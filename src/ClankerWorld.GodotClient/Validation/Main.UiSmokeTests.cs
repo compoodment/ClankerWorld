@@ -3888,6 +3888,7 @@ public partial class Main
             if (controlsPanel.Visible)
                 throw new InvalidOperationException("Escape must close the controls list.");
             await VerifyDeveloperToolsAsync(occupied, founder);
+            await VerifyAuthoringCoordinatesAsync(occupied);
             _UnhandledKeyInput(new InputEventKey { Keycode = Key.Minus, Pressed = true });
             var zoomedOutTile = currentTileSize;
             _UnhandledKeyInput(new InputEventKey { Keycode = Key.Equal, Pressed = true });
