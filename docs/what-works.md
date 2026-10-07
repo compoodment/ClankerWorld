@@ -486,7 +486,9 @@ An unavailable or unsuitable tile leaves the order waiting, even if another
 field could take the work. Quantities and repetition keep the exact location
 when there is no further matching work to do there.
 
-Agents use real walking routes and planting stock. Tilling and tending require
+Agents use real walking routes and planting stock. Planting orders skip a seed
+lot with an occupied pickup route when another usable seed is accessible.
+Tilling and tending require
 a usable carried hoe; a carried sickle speeds harvesting under the ordinary
 rules. Orders can request work even when the household already has enough food.
 Only completed field work counts, with normal tool wear and seed consumption.
