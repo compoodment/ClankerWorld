@@ -624,8 +624,8 @@ carry surplus there and borrow a free stall. Buyers, including visitors who
 belong to no Town, bring personal payment, and the named seller chooses whether
 to accept when both have reached the stall. The buyer carries the purchase;
 payment becomes the seller's household stock there. Leaving frees the stall;
-leftover goods still belong to their
-recorded owner. Suggestions can guide these choices, but an Order cannot force
+leftover goods still belong to their recorded owner, who can carry them away
+even if they spoil. Suggestions can guide these choices, but an Order cannot force
 a sale or give away goods. An urgently hungry owner can still retrieve their
 available food from a stall and eat it. Other Market work waits until urgent
 hunger passes. The
