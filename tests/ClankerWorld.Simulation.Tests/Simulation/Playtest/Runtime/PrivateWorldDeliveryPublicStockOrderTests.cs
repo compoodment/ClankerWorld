@@ -491,6 +491,75 @@ public sealed class PrivateWorldDeliveryPublicStockOrderTests
         }
     }
 
+    [Fact]
+    public async Task SplitHouseholdFoodStocksOnlyTheSurplusAcrossReplay()
+    {
+        var state = Prepared(House);
+        var actor = Actor(state);
+        var reserve = 2 * state.Society.Society.GetHousehold(Household).MemberIds
+            .Count(id => state.Inhabitants.Any(person => person.InhabitantId == id));
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "household-food-a", "berries", Household,
+            reserve / 2 + 1, storageBuildingId: House);
+        inventory = InventoryFixture.AddLot(inventory, "household-food-b", "berries", Household,
+            reserve / 2 + 1, storageBuildingId: House);
+        using var world = Restore(WithInventory(state, inventory));
+        var receipt = Submit(world, actor, "stock-split-household-food", "stock two berries in my Store");
+        using var replay = Reload(world);
+        for (var step = 0; step < 24 && Order(world, receipt).Status != "finished"; step++) await TickTogether(world, replay);
+        Assert.Equal(("finished", 2), (Order(world, receipt).Status, Order(world, receipt).CompletedUnits));
+        Assert.Equal(2, Stored(world, Store, "berries"));
+        Assert.Equal(reserve, Stored(world, House, "berries"));
+        Assert.Equal(reserve + 2, world.Society.Inventory.Lots.Where(lot => lot.ItemKind == "berries").Sum(lot => lot.Quantity));
+        Assert.All(world.Society.Inventory.Lots.Where(lot => lot.ItemKind == "berries"), lot => Assert.Equal(Household, lot.OwnerId));
+        Assert.DoesNotContain(world.Society.Inventory.Lots, lot => lot.DeliveryBuildingId is not null);
+        world.Validate();
+    }
+
+    [Theory]
+    [InlineData("other-owner")]
+    [InlineData("other-kind")]
+    [InlineData("reserved")]
+    [InlineData("stored")]
+    [InlineData("other-carrier")]
+    [InlineData("spoiled")]
+    [InlineData("pot")]
+    public async Task UnavailableOrDifferentStockCannotReplaceThePersonalStoreFoodReserve(string boundary)
+    {
+        var state = Prepared(Store);
+        var actor = Actor(state);
+        var owner = boundary == "other-owner" ? Household : actor;
+        var kind = boundary == "other-kind" ? "fruit" : "berries";
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "a-personal-reserve", "berries", actor, 2);
+        inventory = InventoryFixture.AddLot(inventory, "z-unavailable-food", kind, owner, 2,
+            storageBuildingId: boundary == "stored" ? House : null,
+            freshnessBasisPoints: boundary == "spoiled" ? 0 : 10_000);
+        if (boundary == "reserved")
+            inventory = InventoryFixture.Reserve(inventory, "protected-food", actor, "z-unavailable-food", 2, "other_work", 1_000);
+        if (boundary == "other-carrier")
+            inventory = InventoryFixture.Relocate(inventory, "lend-food", "z-unavailable-food", actor, 2,
+                carrierId: state.Inhabitants.First(person => person.InhabitantId != actor).InhabitantId);
+        if (boundary == "pot")
+        {
+            inventory = InventoryFixture.AddLot(inventory, "personal-pot", InventoryContainerRules.StoragePot, actor, 1);
+            inventory = InventoryFixture.PutIntoContainer(inventory, "protect-pot-food", actor, "z-unavailable-food", 2, "personal-pot");
+        }
+        using var world = Restore(WithInventory(state, inventory));
+        var receipt = Submit(world, actor, "protect-food-reserve", "stock two berries in my Store");
+        using var replay = Reload(world);
+        await TickTogether(world, replay);
+        await TickTogether(world, replay);
+        Assert.Equal(("blocked", 0), (Order(world, receipt).Status, Order(world, receipt).CompletedUnits));
+        Assert.Equal(0, Stored(world, Store, "berries"));
+        Assert.Equal((actor, 2), (world.Society.Inventory.GetLot("a-personal-reserve").OwnerId,
+            world.Society.Inventory.GetLot("a-personal-reserve").Quantity));
+        Assert.Equal((owner, kind, 2), (world.Society.Inventory.GetLot("z-unavailable-food").OwnerId,
+            world.Society.Inventory.GetLot("z-unavailable-food").ItemKind, world.Society.Inventory.GetLot("z-unavailable-food").Quantity));
+        Assert.DoesNotContain(world.ExportState().Events, item => item.Kind is "owner_stock_picked_up" or "owner_stock_delivered");
+        if (boundary == "reserved")
+            Assert.Equal(InventoryReservationState.Reserved, world.Society.Inventory.GetReservation("protected-food").State);
+        world.Validate();
+    }
+
     private static byte[] CreateBaseline()
     {
         using var generated = NormalPathWorld.CreateGenerated("probe-a", _ => new PublicStockChoices());
