@@ -2,7 +2,7 @@
 title: Playing the current game
 type: player-guide
 status: active
-updated: 2026-10-06
+updated: 2026-10-07
 ---
 
 # Playing the current game
@@ -771,6 +771,8 @@ make wool padded coats, process hides into leather, and make leather sacks or
 saddles. A leather sack carries 32 units. Adults can haul household milk jugs
 to their Store or borrowed Market stall. A seller offers one portion for an
 exact personal payment; the buyer accepts with a carried empty or milk jug.
+Each milk lot can have only one pending offer. Remaining portions can be
+offered after that sale ends.
 Both vessels keep their owners. Pouring away spoiled milk frees its jug for reuse.
 
 For a cared adult horse, use **Saddle Moss**, **Mount Moss** and **Dismount Moss**.
