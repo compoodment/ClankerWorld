@@ -616,6 +616,11 @@ extra cargo units. Named outsider riding and care permissions are separate.
 Gifts and sales need both adults' fresh personal choices, exact payment and
 receiving space. Animals keep their owners after household abandonment.
 Map inspection shows species, age, care, products, household and permissions.
+Animals use the approved art in all eight directions at both close and mid
+zoom: chicks, lambs, calves and foals have their own drawings, a horse shows
+its saddle or a bare back, and a household sheep looks shorn for the first half
+of each wool cycle. The animal yard is a split-rail pen on trampled earth with
+an open gate, a water trough and hay.
 See [animal controls](playing.md#animals) and the [approved decision](https://github.com/compoodment/ClankerWorld/pull/1027).
 All balance values are provisional. Hunting, slaughter, meat, predators,
 neglect deaths, horse-drawn carts and animal boat transport remain excluded.
@@ -1275,6 +1280,11 @@ pairing and the model-call count and limit belong to the installation. The
 Windows host protects stored keys for the current Windows user; Unix hosts use
 private file permissions. Damaged or wrong-user key data is preserved. Moving
 installations may require re-entry.
+
+The rotating autosave schedule recovers within its configured interval after
+the host's clock moves backwards, including across a restart.
+Rotation keeps the newest copies on each known branch despite earlier future
+dates, while named manual saves remain separate.
 
 If a world tick fails, the server holds the world paused. A failed active
 checkpoint write can retry while paused, but other faults require operator

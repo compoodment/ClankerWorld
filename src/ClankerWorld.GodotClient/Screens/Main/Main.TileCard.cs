@@ -166,7 +166,7 @@ public partial class Main
         foreach (var animal in snapshot.Animals.Where(item => item.Position.X == tile.X && item.Position.Y == tile.Y))
         {
             AddTileThing(AnimalSprites.Texture(animal.Species, AgentSprites.South,
-                animal.LifeStage == "young", animal.RiderId is not null), animal.Name, string.Empty);
+                animal.LifeStage == "young", animal.RiderId is not null, animal.Saddled, animal.LooksShorn), animal.Name, string.Empty);
             tileThings.AddChild(new Label
             {
                 Text = GameUiText.AnimalDescription(animal),
