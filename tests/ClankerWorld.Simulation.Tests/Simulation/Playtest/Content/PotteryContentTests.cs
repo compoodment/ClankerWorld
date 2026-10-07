@@ -15,6 +15,57 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed class PotteryContentTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AnOwnerCanEatBerriesFromItsCollectedPersonalPot(bool contained)
+    {
+        using var setup = NormalPathWorld.CreateGenerated("empty-container-return", _ => new IdleProvider());
+        var state = setup.ExportState();
+        var house = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == "first-town-house-a");
+        var actor = state.Society.Society.Inhabitants.First(person => person.HouseholdId == house.HouseholdId &&
+            person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder).Id;
+        const string potId = "personal-food-pot";
+        const string foodId = "personal-pot-berries";
+        var inventory = state.Society.Society.Inventory with
+        {
+            Lots = state.Society.Society.Inventory.Lots.Where(lot => lot.ItemKind != "berries").ToArray(),
+        };
+        inventory = InventoryFixture.AddLot(inventory, potId, InventoryContainerRules.StoragePot, actor, 1,
+            storageBuildingId: contained ? house.InstanceId : null);
+        inventory = InventoryFixture.AddLot(inventory, foodId, "berries", actor, 2,
+            storageBuildingId: contained ? house.InstanceId : null, containerLotId: contained ? potId : null);
+        state = SetActorCondition(state with
+        {
+            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
+        }, actor, 3_000, house.Position);
+        using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)),
+            _ => new IdleProvider());
+        if (contained)
+        {
+            var collect = world.SubmitInstruction(new("personal-pot-collect", "owner:test", actor,
+                OwnerInstructionKind.MustDo, "collect storage pots"));
+            for (var tick = 0; tick < 5; tick++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+            Assert.Equal("finished", world.ExportState().Instructions!.Single(item => item.InstructionId == collect.InstructionId).Order!.Status);
+            Assert.True(PersonalEquipmentRules.IsCarried(world.Society.Inventory.GetLot(potId), actor));
+        }
+        var eat = world.SubmitInstruction(new("personal-pot-eat", "owner:test", actor,
+            OwnerInstructionKind.MustDo, "eat berries"));
+        for (var tick = 0; tick < 5; tick++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        var actual = world.ExportState().Instructions!.Single(item => item.InstructionId == eat.InstructionId).Order!;
+        Assert.Equal("finished", actual.Status);
+        Assert.Equal(1, actual.CompletedUnits);
+        var remaining = world.Society.Inventory.GetLot(foodId);
+        Assert.Equal(1, remaining.Quantity);
+        Assert.Equal(contained ? potId : null, remaining.ContainerLotId);
+        Assert.Equal(actor, remaining.OwnerId);
+        var pot = world.Society.Inventory.GetLot(potId);
+        Assert.Equal(actor, pot.OwnerId);
+        Assert.True(PersonalEquipmentRules.IsCarried(pot, actor));
+        Assert.Equal(1, pot.Quantity);
+        world.Validate();
+    }
+
     private static readonly JsonSerializerOptions PayloadOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
