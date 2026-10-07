@@ -1,0 +1,1 @@
+- Stores can replenish usable goods after shelf stock spoils, while keeping spoiled property and respecting physical storage and personal food reserves.
