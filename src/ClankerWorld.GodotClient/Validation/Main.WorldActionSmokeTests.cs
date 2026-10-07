@@ -166,6 +166,7 @@ public partial class Main
         public OwnerControlReceipt? DeveloperEditReceipt { get; set; }
         public bool FailDeveloperEdit { get; set; }
         public Func<OwnerWorldCreationAction, Task<OwnerWorldPreview>>? PreviewHandler { get; set; }
+        public Func<bool, Task<OwnerControlReceipt>>? ControlHandler { get; set; }
         public int PauseCount => Volatile.Read(ref pauseCount);
         public int DeleteCount => Volatile.Read(ref deleteCount);
         public int SaveCreateCount => Volatile.Read(ref saveCreateCount);
@@ -284,8 +285,13 @@ public partial class Main
                 case OwnerPairingEndpoints.OwnerPause:
                     Interlocked.Increment(ref pauseCount);
                     PauseReceived.TrySetResult();
-                    await ReleasePause.Task.ConfigureAwait(false);
-                    response = new OwnerControlReceipt("pause", true, true, 0, 0, 0);
+                    if (ControlHandler is { } pauseHandler)
+                        response = await pauseHandler(true).ConfigureAwait(false);
+                    else
+                    {
+                        await ReleasePause.Task.ConfigureAwait(false);
+                        response = new OwnerControlReceipt("pause", true, true, 0, 0, 0);
+                    }
                     break;
                 case OwnerPairingEndpoints.OwnerWorldSelect:
                     SelectReceived.TrySetResult(envelope.GetProperty("action").GetProperty("value").GetString()!);
@@ -308,7 +314,9 @@ public partial class Main
                     response = CreatedWorld;
                     break;
                 case OwnerPairingEndpoints.OwnerResume:
-                    response = new OwnerControlReceipt("resume", true, false, 0, 0, 0);
+                    response = ControlHandler is { } resumeHandler
+                        ? await resumeHandler(false).ConfigureAwait(false)
+                        : new OwnerControlReceipt("resume", true, false, 0, 0, 0);
                     break;
                 case OwnerPairingEndpoints.OwnerReconnect when Reconnect is not null:
                     response = Reconnect;
