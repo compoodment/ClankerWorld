@@ -127,7 +127,10 @@ exception; payment, carrying room, physical arrival and consent still apply.
 Material orders save the requested kind separately from food targets. They use
 known resource facts or observation within normal interaction range; a named
 unobserved site first requires physical travel. Untargeted orders may use normal
-exploration. Gathering uses the existing tool pickup, whole-load capacity,
+exploration when none of their known matching sources is reachable. Inaccessible
+facts stay in the knowledge ledger. A reachable source still requires the
+normal tools and carrying room; explicit resource or tile targets do not
+substitute another source. Gathering uses the existing tool pickup, whole-load capacity,
 inventory, tool-wear and ecology transitions. Only a returned physical harvest
 receipt advances progress. One load is the default; explicit quantities count
 actual output, including a final whole load that exceeds the requested amount.
@@ -255,9 +258,10 @@ Save/reload retains a running repair's work counter and exact reservations.
 Tool repair orders use `repair_tool` and the same `TargetEquipmentKind` field,
 restricted to the 13 supported tool kinds. The parser requires the material and
 tool name. `RepairableTools` shares ordinary private Blacksmith, material,
-carrying and route checks; orders additionally require personal ownership and
-positive remaining condition. Ordinary repair retains its borrowed-household
-behavior. Order preparation protects every matching worn personal tool from
+carrying and route checks. Both ordinary repair choices and execution require
+positive remaining condition; fully broken tools need replacement. Orders
+additionally require personal ownership. Ordinary repair retains its
+borrowed-household behavior. Order preparation protects every matching worn personal tool from
 spare-cargo storage and refuses gathering that would break a requested tool.
 Preparation retains the quantity needed for one repair across usable carried
 material lots. Excess units may be stowed to collect another ingredient; live
@@ -864,6 +868,24 @@ eligible targets. The 120-tick per-action cooldown and age restrictions apply
 both when offering and when executing an action.
 
 Exploration records personal knowledge; it does not create free inventory.
+Each completed outward or return scouting step observes its actual arrival tile;
+blocked steps do not observe the requested destination. An actual observation
+of a previously known tile refreshes that agent's terrain
+and resource account when it changes. Planting also records the planter's own
+work. Unchanged observations do not add another fact or learned event, and
+changes do not teach distant agents. The current ledger keeps one fact per
+agent and tile, within its existing 128-site limit.
+
+Written artifacts and unfinished writing keep the exact facts captured when
+writing started. Earlier observations are retained only while those snapshots
+need them, bounded to 81 versions per agent (eight nine-site artifacts and one
+nine-site writing project). Copies preserve the held source's account even if
+the reader observes a change before or during copying. The reader must already
+know every source site; copying does not replace their current observations.
+Cancelled writing prunes versions with no
+remaining snapshot. Earlier versions validate provenance but are not offered
+as the agent's current map knowledge.
+
 Households make paper at an authorized House from physically delivered fiber
 and fresh water in a reusable jug. The provisional batch uses two fiber and
 one water to make two paper in sixteen work ticks, leaving the jug intact.
@@ -2010,7 +2032,12 @@ accepted, non-fallback personal LLM choice; their candidates rank above
 owner orders do not authorize these mutations. A member carrying their own
 household's goods may return them to its House through `household_return`, and
 the household hauling, farm stock and planting routines skip stock on a stall
-while a member of that household borrows it. Usable loose surplus (the food
+while a member of that household borrows it. Explicit `market_collect` also
+protects household stock from other housemates while borrowing is active;
+the borrower may collect it, and personal owners may retrieve their own goods.
+The same choices are checked again before applying a mutation or continuing
+travel, using current borrowing.
+Usable loose surplus (the food
 reserve counts the owner's other usable stock of that kind), actual
 carrying and stall room, active claims, current household rights and protected
 equipment constrain the offered choices. During urgent hunger, Market candidates
@@ -2018,6 +2045,11 @@ include only collection of edible food the adult may legally retrieve. This
 filter runs before the candidate limit; normal Market choices retain their
 existing order. Collection still needs a fresh personal LLM choice and the
 usual ownership, reservation, route and receiving-space checks.
+Ordinary collection uses physical unreserved quantities, so spoiled stock can
+be reclaimed from a current or former stall without deleting or refreshing it.
+Urgent food collection additionally requires usable food; spoilage never
+turns property recovery into a survival action. Execution resolves the current
+choice again before moving its authorized quantity.
 The provisional one-for-one quote is
 an actual `Inventory.Offers` exchange. Buyers may belong to any Town or have no
 Town membership; walking into the Market and completing a purchase change
@@ -2924,7 +2956,10 @@ actor's tile, input selection accepts only physically carried supplies. This
 keeps the existing supply path collecting both feed and a water jug before
 approaching the animal, including after a partial pickup. At the animal's tile,
 permitted local yard stock remains usable directly. Physical supply trips
-retain the owning household. One held product batch waits for local collection;
+retain the owning household. A trip isolates its selected feed quantity from
+the source, including an already carried stack, so delivery cannot donate the
+unselected remainder. Reusable jugs travel whole with their contents. One held
+product batch waits for local collection;
 milk enters a reusable household jug. Products then use ordinary stock hauling,
 recipes and trade.
 
@@ -2955,6 +2990,12 @@ permission loss ends riding; dismount puts unreserved excess cargo at the actual
 position without changing its owner. Cart attachments and boat travel exclude
 ridden or led animals. Godot projects and draws the authoritative animal state
 with young/adult headings, mounted horses, yard art, inspection and event text.
+
+Collection from another animal and saddling another horse prepare with
+`EndAnimalRide` on their own tick, without product transfer, saddle fitting or
+order credit. The following native action rechecks permissions and foot
+capacity; existing product and fitted-saddle reservations remain held during
+preparation, and existing dismount rules preserve excess cargo.
 
 Milk stock travels as an actual household jug to a held Store or borrowed Market
 stall, with a stock receipt at a stall. Fresh seller and buyer personal choices

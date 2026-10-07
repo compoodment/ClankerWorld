@@ -624,8 +624,10 @@ carry surplus there and borrow a free stall. Buyers, including visitors who
 belong to no Town, bring personal payment, and the named seller chooses whether
 to accept when both have reached the stall. The buyer carries the purchase;
 payment becomes the seller's household stock there. Leaving frees the stall;
-leftover goods still belong to their
-recorded owner. Suggestions can guide these choices, but an Order cannot force
+leftover goods still belong to their recorded owner, who can carry them away
+even if they spoil. Other housemates can collect household stock once borrowing
+ends; the borrower may collect it while holding the stall.
+Suggestions can guide these choices, but an Order cannot force
 a sale or give away goods. An urgently hungry owner can still retrieve their
 available food from a stall and eat it. Other Market work waits until urgent
 hunger passes. The
@@ -831,6 +833,9 @@ For a cared adult horse, use **Saddle Moss**, **Mount Moss** and **Dismount Moss
 A mount needs a real household saddle and gives twice walking speed plus eight
 cargo units. Dismounting puts excess unreserved cargo at the rider's actual
 position. Horses cannot accompany a boat or pull a handcart in this version.
+Collecting another animal's ready product first dismounts the rider, then
+requires room to carry the product on foot.
+Saddling another horse also dismounts the rider before approaching it.
 Household adults can care and ride; outsiders need separate named permissions
 agreed by an adult. Personal models may offer or accept a specific animal gift
 or sale when both adults meet and the receiving yard has space.
