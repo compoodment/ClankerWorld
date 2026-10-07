@@ -854,7 +854,10 @@ independent judges and reasoned findings lead to explanations, warnings or
 censure, with voluntary offers for named goods, repair or public service.
 Every contributor gives their own informed acceptance; physical completion
 receipts distinguish accepted work from completed work. Visitors retain local
-response rights and children receive caregiver support. Public-service goods
+response rights and children receive caregiver support. Counteroffers during
+renegotiation still replace the original unfinished agreement once everyone
+accepts; only the newly agreed remaining contributions can then be performed.
+Public-service goods
 keep four usable personal units across carried lots, including stock split by
 storage and collection. No fine, seizure, expulsion or forced work is available.
 Windows civic pacing and

@@ -1453,6 +1453,13 @@ credit only one term, and the saved effect cannot exceed that term's remaining
 quantity. Declined, unanswered, pending, overdue and completed states remain
 distinct. Findings and overdue work never create physical punishment powers.
 
+Counteroffers during renegotiation follow the exact prior-offer chain back to
+the nearest agreement. After every contributor accepts, the replacement names
+that agreement and supersedes its original offer; intermediate countered offers
+remain recorded. Only the new remaining commitments are actionable. Earlier
+physical receipts stay with the original agreement and cannot earn credit again.
+Strict saved-state validation checks the same predecessor chain.
+
 Formal civic acts require an admitted personal-model choice. Built-in decisions,
 failed replies and continued intentions supply no votes or candidate agreement.
 An explicitly chosen visit can continue moving locally; ballots may be revised
