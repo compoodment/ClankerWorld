@@ -127,7 +127,10 @@ exception; payment, carrying room, physical arrival and consent still apply.
 Material orders save the requested kind separately from food targets. They use
 known resource facts or observation within normal interaction range; a named
 unobserved site first requires physical travel. Untargeted orders may use normal
-exploration. Gathering uses the existing tool pickup, whole-load capacity,
+exploration when none of their known matching sources is reachable. Inaccessible
+facts stay in the knowledge ledger. A reachable source still requires the
+normal tools and carrying room; explicit resource or tile targets do not
+substitute another source. Gathering uses the existing tool pickup, whole-load capacity,
 inventory, tool-wear and ecology transitions. Only a returned physical harvest
 receipt advances progress. One load is the default; explicit quantities count
 actual output, including a final whole load that exceeds the requested amount.
@@ -864,6 +867,22 @@ eligible targets. The 120-tick per-action cooldown and age restrictions apply
 both when offering and when executing an action.
 
 Exploration records personal knowledge; it does not create free inventory.
+An actual observation of a previously known tile refreshes that agent's terrain
+and resource account when it changes. Planting also records the planter's own
+work. Unchanged observations do not add another fact or learned event, and
+changes do not teach distant agents. The current ledger keeps one fact per
+agent and tile, within its existing 128-site limit.
+
+Written artifacts and unfinished writing keep the exact facts captured when
+writing started. Earlier observations are retained only while those snapshots
+need them, bounded to 81 versions per agent (eight nine-site artifacts and one
+nine-site writing project). Copies preserve the held source's account even if
+the reader observes a change before or during copying. The reader must already
+know every source site; copying does not replace their current observations.
+Cancelled writing prunes versions with no
+remaining snapshot. Earlier versions validate provenance but are not offered
+as the agent's current map knowledge.
+
 Households make paper at an authorized House from physically delivered fiber
 and fresh water in a reusable jug. The provisional batch uses two fiber and
 one water to make two paper in sixteen work ticks, leaving the jug intact.
@@ -2023,6 +2042,11 @@ include only collection of edible food the adult may legally retrieve. This
 filter runs before the candidate limit; normal Market choices retain their
 existing order. Collection still needs a fresh personal LLM choice and the
 usual ownership, reservation, route and receiving-space checks.
+Ordinary collection uses physical unreserved quantities, so spoiled stock can
+be reclaimed from a current or former stall without deleting or refreshing it.
+Urgent food collection additionally requires usable food; spoilage never
+turns property recovery into a survival action. Execution resolves the current
+choice again before moving its authorized quantity.
 The provisional one-for-one quote is
 an actual `Inventory.Offers` exchange. Buyers may belong to any Town or have no
 Town membership; walking into the Market and completing a purchase change
