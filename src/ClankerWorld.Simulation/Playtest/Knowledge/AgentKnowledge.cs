@@ -56,6 +56,7 @@ public sealed record PrivateWorldKnowledgeState(
     IReadOnlyList<AgentKnowledgeArtifact> Artifacts)
 {
     [JsonRequired] public IReadOnlyList<AgentKnowledgeWritingProject> WritingProjects { get; init; } = [];
+    [JsonRequired] public IReadOnlyList<AgentKnowledgeFact> EarlierFacts { get; init; } = [];
     public static PrivateWorldKnowledgeState Empty { get; } = new([], []);
 }
 
@@ -66,6 +67,7 @@ internal static class AgentKnowledgeRules
     public const int MaximumArtifactsInWorld = 512;
     public const int MaximumFactsPerArtifact = 9;
     public const int MaximumResourceKindsPerFact = 4;
+    public const int MaximumEarlierFactsPerAgent = MaximumFactsPerArtifact * (MaximumArtifactsPerCreator + 1);
 
     public static bool IsArtifactKind(string kind) => kind is "field_record" or "field_map" or "book";
     public static int WritingWork(string kind) => kind switch { "field_record" => 4, "field_map" => 6, "book" => 12, _ => 0 };
@@ -76,8 +78,9 @@ internal static class AgentKnowledgeRules
     public static void Validate(PrivateWorldKnowledgeState knowledge, SeededMap map,
         SocietyCheckpoint society, long worldTick)
     {
-        if (knowledge.Facts is null || knowledge.Artifacts is null || knowledge.WritingProjects is null ||
+        if (knowledge.Facts is null || knowledge.Artifacts is null || knowledge.WritingProjects is null || knowledge.EarlierFacts is null ||
             knowledge.Facts.Any(item => item is null) || knowledge.Artifacts.Any(item => item is null) ||
+            knowledge.EarlierFacts.Any(item => item is null) ||
             knowledge.WritingProjects.Any(item => item is null) ||
             knowledge.Artifacts.Any(item => !ValidText(item.Id, 128) || item.Facts is null || item.Facts.Any(fact => fact is null)))
             throw new InvalidDataException("The agent knowledge collections are missing or contain null records.");
@@ -97,6 +100,22 @@ internal static class AgentKnowledgeRules
         foreach (var fact in knowledge.Facts)
             if (!ValidFact(fact, worldTick))
                 throw new InvalidDataException("The agent map-knowledge ledger contains an invalid fact or provenance.");
+        if (knowledge.EarlierFacts.Count > 0)
+        {
+            var earlierKeys = knowledge.EarlierFacts.Select(FactVersionKey).ToHashSet();
+            var liveKeys = knowledge.Facts.Select(FactVersionKey).ToHashSet();
+            var references = FactReferencesFor(knowledge);
+            var currentSites = knowledge.Facts.ToDictionary(fact => (fact.OwnerId, fact.Position));
+            if (knowledge.EarlierFacts.Count > checked(agents.Count * MaximumEarlierFactsPerAgent) ||
+                knowledge.EarlierFacts.GroupBy(fact => fact.OwnerId).Any(group => group.Count() > MaximumEarlierFactsPerAgent) ||
+                earlierKeys.Count != knowledge.EarlierFacts.Count || knowledge.EarlierFacts.Any(fact =>
+                    !ValidFact(fact, worldTick) || !currentSites.TryGetValue((fact.OwnerId, fact.Position), out var current) ||
+                    current.Id != fact.Id || current.LearnedTick < fact.LearnedTick ||
+                    liveKeys.Contains(FactVersionKey(fact)) || !references.Contains(fact)))
+                throw new InvalidDataException("Earlier knowledge must be bounded, distinct and retained only for an existing written snapshot.");
+        }
+        var recordedFacts = knowledge.EarlierFacts.Count == 0 ? knowledge.Facts
+            : knowledge.Facts.Concat(knowledge.EarlierFacts).ToArray();
         var usedReservations = new HashSet<string>(StringComparer.Ordinal);
         var usedProjects = new HashSet<string>(StringComparer.Ordinal);
         foreach (var artifact in knowledge.Artifacts)
@@ -147,11 +166,11 @@ internal static class AgentKnowledgeRules
             facts.Select(item => item?.Position).Distinct().Count() == facts.Count &&
             facts.All(fact => fact is not null && fact.OwnerId == actor && ValidFact(fact, tick) &&
                 (sourceArtifactId is null
-                    ? knowledge.Facts.Any(learned => SameLearnedFact(learned, fact))
+                    ? recordedFacts.Any(learned => SameLearnedFact(learned, fact))
                     : artifacts.TryGetValue(sourceArtifactId, out var source) &&
                       fact.Acquisition == "read" && fact.SourceArtifactId == sourceArtifactId &&
                       fact.SourceAgentId == source.CreatorId &&
-                      knowledge.Facts.Any(learned => learned.OwnerId == actor && learned.Id == fact.Id &&
+                      recordedFacts.Any(learned => learned.OwnerId == actor && learned.Id == fact.Id &&
                           learned.LearnedTick <= fact.LearnedTick && SameSiteKnowledge(learned, fact))));
 
         bool ValidSource(string? source, string kind, IReadOnlyList<AgentKnowledgeFact> facts, long tick) => source is null ||
@@ -190,6 +209,53 @@ internal static class AgentKnowledgeRules
                 CheckAncestry(artifacts[source!], path);
             path.Remove(artifact.Id);
             validatedAncestry.Add(artifact.Id);
+        }
+    }
+
+    internal static bool ReferencesFact(PrivateWorldKnowledgeState knowledge, AgentKnowledgeFact fact) =>
+        FactReferencesFor(knowledge).Contains(fact);
+
+    internal static PrivateWorldKnowledgeState PruneEarlierFacts(PrivateWorldKnowledgeState knowledge)
+    {
+        var references = FactReferencesFor(knowledge);
+        return knowledge with { EarlierFacts = knowledge.EarlierFacts.Where(references.Contains).ToArray() };
+    }
+
+    private sealed record FactVersion(string Id, string Owner, string Discoverer, GridPoint Position, string Terrain,
+        long Learned, string Acquisition, string? Agent, string? Artifact, string Resources);
+
+    private static FactVersion FactVersionKey(AgentKnowledgeFact fact) =>
+        new(fact.Id, fact.OwnerId, fact.DiscovererId, fact.Position, fact.Terrain, fact.LearnedTick, fact.Acquisition,
+            fact.SourceAgentId, fact.SourceArtifactId, string.Join('\0', fact.ResourceKinds ?? []));
+
+    private static (string Id, string Owner, GridPoint Position, string Terrain, string Resources) CopySiteKey(AgentKnowledgeFact fact) =>
+        (fact.Id, fact.OwnerId, fact.Position, fact.Terrain, string.Join('\0', fact.ResourceKinds ?? []));
+
+    private sealed record FactReferences(HashSet<FactVersion> Exact,
+        Dictionary<(string Id, string Owner, GridPoint Position, string Terrain, string Resources), long> Copies)
+    {
+        public bool Contains(AgentKnowledgeFact fact) => Exact.Contains(FactVersionKey(fact)) ||
+            Copies.TryGetValue(CopySiteKey(fact), out var copiedTick) && fact.LearnedTick <= copiedTick;
+    }
+
+    private static FactReferences FactReferencesFor(PrivateWorldKnowledgeState knowledge)
+    {
+        var references = new FactReferences([], []);
+        foreach (var artifact in knowledge.Artifacts) Add(artifact.Facts ?? [], artifact.SourceArtifactId);
+        foreach (var project in knowledge.WritingProjects) Add(project.Facts ?? [], project.SourceArtifactId);
+        return references;
+
+        void Add(IReadOnlyList<AgentKnowledgeFact> facts, string? source)
+        {
+            foreach (var fact in facts.Where(fact => fact is not null))
+            {
+                if (source is null) references.Exact.Add(FactVersionKey(fact));
+                else
+                {
+                    var key = CopySiteKey(fact);
+                    references.Copies[key] = Math.Max(references.Copies.GetValueOrDefault(key), fact.LearnedTick);
+                }
+            }
         }
     }
 

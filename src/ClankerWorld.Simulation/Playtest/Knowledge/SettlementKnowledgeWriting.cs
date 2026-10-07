@@ -23,12 +23,13 @@ public sealed partial class PrivateWorldRuntime
             .OrderByDescending(fact => fact.LearnedTick).ThenBy(fact => fact.Id, StringComparer.Ordinal).ToArray();
         if (source is not null)
         {
+            var recorded = learned.Concat(knowledge.EarlierFacts.Where(fact => fact.OwnerId == actor)).ToArray();
             // A reader may already know a site firsthand or through another
             // discoverer. Copy the held source's account without replacing that
             // personal ledger entry or inventing knowledge of an unknown site.
             var copied = source.Facts.Select(fact =>
             {
-                var known = learned.FirstOrDefault(item => AgentKnowledgeRules.SameSiteKnowledge(item, fact));
+                var known = recorded.FirstOrDefault(item => AgentKnowledgeRules.SameSiteKnowledge(item, fact));
                 return known is null ? null : fact with
                 {
                     Id = known.Id,
@@ -243,6 +244,7 @@ public sealed partial class PrivateWorldRuntime
             (current, input) => current.Reservations.Any(item => item.Id == input.ReservationId)
                 ? InventoryFixture.ReleaseReservation(current, input.ReservationId, "knowledge_writing_cancelled") : current));
         knowledge = knowledge with { WritingProjects = knowledge.WritingProjects.Where(item => item.Id != project.Id).ToArray() };
+        knowledge = AgentKnowledgeRules.PruneEarlierFacts(knowledge);
         checkpointSchemaVersion = StateSchemaVersion;
         AppendEvent("agent_knowledge_writing_cancelled", $"{project.ActorId}|{project.Kind}|{reason}");
     }

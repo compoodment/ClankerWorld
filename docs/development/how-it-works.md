@@ -864,6 +864,20 @@ eligible targets. The 120-tick per-action cooldown and age restrictions apply
 both when offering and when executing an action.
 
 Exploration records personal knowledge; it does not create free inventory.
+An actual observation of a previously known tile refreshes that agent's terrain
+and resource account when it changes. Planting also records the planter's own
+work. Unchanged observations do not add another fact or learned event, and
+changes do not teach distant agents. The current ledger keeps one fact per
+agent and tile, within its existing 128-site limit.
+
+Written artifacts and unfinished writing keep the exact facts captured when
+writing started. Earlier observations are retained only while those snapshots
+need them, bounded to 81 versions per agent (eight nine-site artifacts and one
+nine-site writing project). Copies preserve their source account even if the
+reader later observes a change; cancelled writing prunes versions with no
+remaining snapshot. Earlier versions validate provenance but are not offered
+as the agent's current map knowledge.
+
 Households make paper at an authorized House from physically delivered fiber
 and fresh water in a reusable jug. The provisional batch uses two fiber and
 one water to make two paper in sixteen work ticks, leaving the jug intact.
