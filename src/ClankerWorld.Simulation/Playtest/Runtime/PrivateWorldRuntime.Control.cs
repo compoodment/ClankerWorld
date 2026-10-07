@@ -161,26 +161,32 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
-    public bool SetJevEnabled(bool enabled)
+    public bool SetJevEnabled(bool enabled) => SetRoutineHelper(enabled ? RoutineHelperSettings.Jev : RoutineHelperSettings.Off);
+
+    public bool SetRoutineHelper(RoutineHelperSettings settings, string? expectedWorldId = null)
     {
+        ArgumentNullException.ThrowIfNull(settings);
+        settings.Validate();
         gate.Wait();
         try
         {
+            if (expectedWorldId is not null && expectedWorldId != society.Checkpoint.WorldId)
+                throw new InvalidOperationException("The active world changed. Open World Settings again.");
             if (!society.Checkpoint.IsPaused)
-                throw new InvalidOperationException("Pause the world before changing Jev assistance.");
-            if (jevEnabled == enabled) return false;
+                throw new InvalidOperationException("Pause the world before changing the routine helper.");
+            // The first explicit selection activates helper routing even when
+            // its values match the untouched installation-compatible defaults.
+            if (routineHelper == settings && jevPolicyRevision > 0) return false;
             foreach (var id in pendingHosted.Keys.ToArray()) CancelPendingHosted(id);
             foreach (var id in pendingWills.Keys.ToArray()) CancelPendingWill(id);
-            jevEnabled = enabled;
+            routineHelper = settings;
+            jevEnabled = settings.Provider != "off";
             jevPolicyRevision = checked(jevPolicyRevision + 1);
             checkpointSchemaVersion = StateSchemaVersion;
-            AppendEvent("jev_assistance_changed", enabled ? "enabled" : "disabled");
+            AppendEvent("routine_helper_changed", $"{settings.Provider}:{settings.Model}");
             return true;
         }
-        finally
-        {
-            gate.Release();
-        }
+        finally { gate.Release(); }
     }
 
     // Provider startup and synchronous cancellation completions can reserve or

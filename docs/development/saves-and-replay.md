@@ -686,6 +686,16 @@ establish that the checkpoint can load.
 
 ## Current formats and older worlds
 
+Private-world schema 95 adds a required routine-helper choice, model name and
+optional OpenAI credential-slot ID. API-key bytes remain installation-owned.
+Loading rejects invalid helper/model/slot formats or inconsistent availability;
+missing installation keys cannot be invented from a save. The existing helper
+routing revision invalidates earlier requests, and switches preserve memory
+sources and scores. Current-format roundtrips and resumed replay retain the
+helper and typed model. Earlier alpha schemas are refused and preserved without
+migration.
+
+
 Generated geography now saves a hydrology revision for new worlds. A missing
 or zero revision keeps the previous lake/river algorithm, including historical
 resource placement and map identity. Revision 1 is selected by both normal
@@ -792,7 +802,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 95. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 96. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 a bounded model-attempt status and exact last accepted model choice per agent, plus
@@ -933,7 +943,8 @@ current alpha cutoff.
 | Schema 84 | Required marriage consent receipts and dedicated surname conversations preserve the original surnames, admitted turns and seeded result, including across history compaction. Later player surname changes update both spouses together without rewriting the original decision. |
 | Schema 91 | Non-land mandate consent, conduct-time law context, public hearings and voluntary remedy agreements retain their sources and real physical completion receipts. Earlier alpha saves are refused and preserved without migration. |
 | Schema 94 | Market receipts use required stable sequences and an explicit retirement boundary. Open trades retain their exact deposit proof; bounded closed outcomes may refer below the retired boundary. Live borrowing, current stock, exact payments and accepted offers remain authoritative; closed offers and claims retire together. Earlier alpha saves are refused and preserved without migration. |
-| Schema 95 | Animals, held products and saddles, care trips, pregnancies, named permissions and exact animal/milk offers retain their physical custody. Current saves require the complete animal record; earlier alpha saves are refused and preserved without migration. |
+| Schema 95 | Required per-world routine-helper settings retain Off, Jev or OpenAI Decisions, its model and an optional installation-owned OpenAI key-slot ID. Switches retain memories and scores, invalidate pending replies and replay with the saved routing revision. Earlier alpha saves are refused and preserved without migration; key bytes remain outside world saves. |
+| Schema 96 | Animals, held products and saddles, care trips, pregnancies, named permissions and exact animal/milk offers retain their physical custody. Current saves require the complete animal record; earlier alpha saves are refused and preserved without migration. |
 
 ### Tool-making requests
 
@@ -1404,7 +1415,7 @@ and the generated-world path for every supported edit category.
 
 ## Animal checkpoints
 
-Private-world schema 95 requires the complete animal-world record. It stores
+Private-world schema 96 requires the complete animal-world record. It stores
 exact animal identities, species, sex, birth/death ticks, physical positions,
 household and yard, paid care deadlines, unfinished products and pregnancies,
 reserved births, named permissions, taming work, supply trips, riders and

@@ -167,7 +167,7 @@ public sealed partial class PrivateWorldRuntime
                 try
                 {
                     var provider = providerFactory(inhabitant.Id);
-                    if (provider.KindFor(observation) == DecisionProviderKind.Jev)
+                    if (provider.KindFor(observation) is DecisionProviderKind.Jev or DecisionProviderKind.OpenAiDecisions)
                     {
                         var memoryCandidates = PrivateWorldMemoryRetrieval.Unassessed(
                             checkpoint.Memories,
@@ -524,7 +524,10 @@ public sealed partial class PrivateWorldRuntime
                     ContinueOrnamentWalk(inhabitant.Id, intention.CandidateId);
                 continue;
             }
-            if (!CreateCandidates(inhabitant.Id, state).Any(candidate => candidate.Id == intention.CandidateId)) continue;
+            // Safe idle is always offered outside the conversation/order branches
+            // above. EnqueueDueCognition still rebuilds choices to reconsider work.
+            if (intention.CandidateId != "safe_idle" &&
+                !CreateCandidates(inhabitant.Id, state).Any(candidate => candidate.Id == intention.CandidateId)) continue;
             ApplyCandidate(inhabitant.Id, state, intention.CandidateId, reportIdle: false);
         }
 
@@ -561,7 +564,7 @@ public sealed partial class PrivateWorldRuntime
     private void ApplyDecision(SocietyCognitionDispatchResult decision)
     {
         if (decision.Admission.Accepted && !decision.Admission.FellBack &&
-            decision.Admission.Intention?.Provider == DecisionProviderKind.Jev &&
+            decision.Admission.Intention?.Provider is DecisionProviderKind.Jev or DecisionProviderKind.OpenAiDecisions &&
             decision.Admission.MemoryCompactionScores is { Count: > 0 } memoryScores)
         {
             ApplyMemoryCompaction(decision.InhabitantId, memoryScores);
@@ -1261,8 +1264,9 @@ public sealed partial class PrivateWorldRuntime
         if (!NeedsUrgentFood(state) && AdultResident(inhabitantId))
         {
             var inhabitant = society.Checkpoint.GetInhabitant(inhabitantId);
-            AddBuildCandidates(candidates, inhabitant, state);
-            AddBuildingExpansionCandidates(candidates, inhabitantId);
+            var reachableToolCache = new Dictionary<(ToolFamily Family, int Tier), ToolDefinition?>();
+            AddBuildCandidates(candidates, inhabitant, state, reachableToolCache);
+            AddBuildingExpansionCandidates(candidates, inhabitantId, reachableToolCache);
             AddHouseGuestCandidates(candidates, inhabitantId);
             AddHouseHaulCandidate(candidates, inhabitantId, state);
             AddWarehouseStockCandidate(candidates, inhabitantId, state);
@@ -1328,7 +1332,8 @@ public sealed partial class PrivateWorldRuntime
     private void AddBuildCandidates(
         List<CognitionCandidate> candidates,
         SocietyInhabitant inhabitant,
-        PlaytestInhabitantState state)
+        PlaytestInhabitantState state,
+        Dictionary<(ToolFamily Family, int Tier), ToolDefinition?> reachableToolCache)
     {
         if (inhabitant.HouseholdId is { } planningHousehold)
             AddHouseholdBuildingPlans(candidates, inhabitant, state, planningHousehold);
@@ -1353,7 +1358,7 @@ public sealed partial class PrivateWorldRuntime
                 society.Checkpoint.Inventory.Lots.Any(lot => lot.ItemKind == InventoryContainerRules.Handcart && lot.OwnerId == inhabitant.Id)))
                 continue;
             if (!NeedsRecipeOutput(recipe, recipeOwner, inhabitant.Id) || AnotherAgentWaitsForWorkSite(inhabitant.Id, recipe) ||
-                !CanAcquireProjectInputs(recipe.Inputs, recipeOwner, inhabitant.Id) ||
+                !CanAcquireProjectInputs(recipe.Inputs, recipeOwner, inhabitant.Id, reachableToolCache) ||
                 !TryFindRecipeSite(recipe, out var siteId, out var position, inhabitant.Id) ||
                 householdWorkstation && !personalCart &&
                 (recipeOwner is null || !HasIngredientsAtBuilding(recipe.Inputs, recipeOwner, siteId)))

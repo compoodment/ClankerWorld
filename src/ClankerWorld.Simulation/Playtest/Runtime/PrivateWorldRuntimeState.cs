@@ -136,6 +136,8 @@ public sealed record PrivateWorldRuntimeState(
 {
     [JsonRequired]
     public AnimalWorldState AnimalWorld { get; init; } = AnimalWorldState.Empty;
+    [JsonRequired]
+    public RoutineHelperSettings RoutineHelper { get; init; } = RoutineHelperSettings.Jev;
 
     [JsonRequired]
     public BoatTransportState BoatTransport { get; init; } = BoatTransportState.Empty();

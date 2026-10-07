@@ -627,6 +627,9 @@ public sealed record ViewerWorldSnapshot(
     /// </summary>
     public int? DarknessBasisPoints { get; init; }
     public bool? JevEnabled { get; init; }
+    public string? RoutineHelperProvider { get; init; }
+    public string? RoutineHelperModel { get; init; }
+    public string? RoutineHelperCredentialSlotId { get; init; }
     /// <summary>The current saved rule state, independent of retained event history.</summary>
     public bool? ContinuityRuleActive { get; init; }
     public ViewerFounderSetup? FounderSetup { get; init; }

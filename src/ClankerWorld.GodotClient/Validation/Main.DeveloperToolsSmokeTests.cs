@@ -5,6 +5,53 @@ namespace ClankerWorld.GodotClient;
 
 public partial class Main
 {
+    private async Task VerifyAuthoringCoordinatesAsync(OwnerWorldSnapshot source)
+    {
+        var large = source with
+        {
+            WorldId = "authoring-coordinate-large",
+            PackedTerrain = new(256, 128, "terrain-kind-v1", Convert.ToBase64String(new byte[256 * 128])),
+            PackedMapLayers = null,
+            Tiles = [],
+        };
+        try
+        {
+            Render(large, []);
+            authoringX.Value = 125;
+            authoringY.Value = 65;
+            if (authoringX.Value != 125 || authoringY.Value != 65)
+                throw new InvalidOperationException($"Paused authoring must accept valid coordinates above 99: ({authoringX.Value}, {authoringY.Value}).");
+            var input = authoringX.GetLineEdit();
+            input.Text = "255";
+            input.EmitSignal(LineEdit.SignalName.TextSubmitted, input.Text);
+            // SpinBox handles text submission through a deferred native callback.
+            for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            authoringY.Value = 127;
+            if (authoringX.Value != 255 || authoringY.Value != 127 || authoringX.MaxValue != 255 || authoringY.MaxValue != 127)
+                throw new InvalidOperationException("Typed authoring coordinates must reach the actual map's last tile on each axis.");
+            authoringX.Value = 256;
+            authoringY.Value = 128;
+            if (authoringX.Value != 255 || authoringY.Value != 127)
+                throw new InvalidOperationException("Authoring coordinates must clamp at the map's actual edges.");
+            Render(source, []);
+            var (width, height) = MapDimensions(source);
+            if (authoringX.MaxValue != width - 1 || authoringY.MaxValue != height - 1 ||
+                authoringX.Value != width - 1 || authoringY.Value != height - 1)
+                throw new InvalidOperationException("Switching to a smaller world must refresh authoring bounds and clamp old coordinates.");
+            Render(large, []);
+            if (authoringX.MaxValue != 255 || authoringY.MaxValue != 127)
+                throw new InvalidOperationException("Returning to a larger world must restore its authoring bounds.");
+            authoringX.Value = -1;
+            authoringY.Value = -1;
+            if (authoringX.Value != 0 || authoringY.Value != 0)
+                throw new InvalidOperationException("Authoring coordinates must stay nonnegative.");
+            Render(source with { PackedTerrain = null, PackedMapLayers = null, Tiles = [] }, []);
+            if (authoringX.MaxValue != 0 || authoringY.MaxValue != 0)
+                throw new InvalidOperationException("Without a map, authoring coordinates must not retain the previous world's bounds.");
+        }
+        finally { Render(source, []); }
+    }
+
     /// <summary>
     /// F12 opens and closes Developer tools over a running world without the
     /// Pause Menu. The panel holds every older tool, fits the screen at 100%

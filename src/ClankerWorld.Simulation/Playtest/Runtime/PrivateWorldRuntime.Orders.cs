@@ -121,10 +121,11 @@ public sealed partial class PrivateWorldRuntime
                 !(order.RepeatUntilCancelled && order.Action == "seek_food" &&
                     order.LastEffectId?.StartsWith($"arrival:{resource.Id}:", StringComparison.Ordinal) == true) &&
                 (order.TargetFoodKind is null || FoodKnowledgeKind(resource) == order.TargetFoodKind) &&
-                knowledge.Facts.Any(fact => fact.OwnerId == instruction.TargetInhabitantId &&
+                (order.TargetPosition is null || resource.Position == order.TargetPosition.Value) &&
+                (IsWithinInteractionRange(person.Position, resource.Position, ResourceInteractionRange) ||
+                 knowledge.Facts.Any(fact => fact.OwnerId == instruction.TargetInhabitantId &&
                     fact.Position == resource.Position &&
-                    fact.ResourceKinds.Contains(FoodKnowledgeKind(resource), StringComparer.Ordinal) &&
-                    (order.TargetPosition is null || fact.Position == order.TargetPosition.Value)) &&
+                    fact.ResourceKinds.Contains(FoodKnowledgeKind(resource), StringComparer.Ordinal))) &&
                 map.IsReachableOnFoot(person.Position, resource.Position))
             .OrderBy(resource => map.FootDistance(person.Position, resource.Position))
             .ThenBy(resource => resource.Id, StringComparer.Ordinal)

@@ -1,0 +1,1 @@
+- Grown Towns spend less time checking nearby construction materials and looking up shared gathering tools when choosing work.
