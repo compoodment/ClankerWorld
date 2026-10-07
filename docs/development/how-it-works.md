@@ -914,6 +914,13 @@ abandonment keep their spent allowance; only known token counts are added.
 Deterministic choices consume no attempt. Reaching the cap persists a pause;
 changing allowance and resuming are separate owner actions.
 
+The client keeps an edited limit separate from the displayed usage status
+until a limit action succeeds or the registration changes. Both Settings
+reads and automatic pause reads accept only the latest usage operation for
+the current registration. A successful limit action invalidates earlier
+reads; changing registration clears the old installation's usage status,
+accounting error and limit draft.
+
 The reservation that brings the total to 80% of the cap, rounded up
 (`ProviderUsageStore.WarningMark`), raises `WarningReached` once at that
 installation-wide crossing. No additional durable warning marker is saved:
