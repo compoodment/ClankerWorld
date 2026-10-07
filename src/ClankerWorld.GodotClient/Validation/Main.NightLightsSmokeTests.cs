@@ -286,6 +286,25 @@ public partial class Main
                 throw new InvalidOperationException($"A Port's pier lantern must light at night only while its Town is lived in: lived in={shines}.");
         }
 
+        // A weathered building's lantern fittings fade with it: here a Warehouse's door lantern and a Port's pier lantern by day.
+        foreach (var (tag, width, height, entrance) in new[] { ("warehouse", 2, 2, new OwnerWorldPosition(21, 11)), ("port", 2, 4, new OwnerWorldPosition(20, 13)) })
+            foreach (var fallingApart in new[] { false, true })
+            {
+                var weathered = street with
+                {
+                    PlacedBuildings = [Building(tag, tag, 20, 9, width, height, entrance) with { TownId = "night-ruin" }],
+                    Towns = [new OwnerWorldTown("night-ruin", "Ruin", "founded", 0, [], [], []) { FallingApart = fallingApart }],
+                };
+                var light = BuildingLights(weathered).Single();
+                var neglect = fallingApart ? BuildingNeglect.FallingApart : BuildingNeglect.Neglected;
+                var plain = NightLightShapes.Building(light.Plan, false, false, false, 0, 1).Where(cell => cell.Kind == LightCellKind.Paint).ToList();
+                var faded = light.Cells(false, 0, 1).Where(cell => cell.Kind == LightCellKind.Paint).ToList();
+                if (light.Neglect != neglect || plain.Count == 0 || faded.Count != plain.Count ||
+                    faded.Zip(plain).Any(pair => pair.First.Area != pair.Second.Area || pair.First.Color != BuildingSprites.Weathered(pair.Second.Color, neglect)) ||
+                    faded.Zip(plain).All(pair => pair.First.Color == pair.Second.Color))
+                    throw new InvalidOperationException($"A {tag}'s lantern fitting must fade with its weathered building: {neglect}.");
+            }
+
         RenderMap(street with { DarknessBasisPoints = 0 });
         nightLayer.Settle();
         for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);

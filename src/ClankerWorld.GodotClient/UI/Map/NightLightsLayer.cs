@@ -8,8 +8,24 @@ public readonly record struct BuildingLight(Rect2I Footprint, LightPlan Plan, bo
     public BuildingKind? Kind { get; init; }
     public BuildingDoor Door { get; init; }
 
+    /// <summary>How the building has weathered in an abandoned Town; its lantern fittings fade with it.</summary>
+    public BuildingNeglect Neglect { get; init; }
+
     /// <summary>A Port in an abandoned Town keeps its pier lantern dark until the Town is resettled (computment, October 7).</summary>
-    public bool PierLanternDark { get; init; }
+    public bool PierLanternDark => Plan.Design == LitDesign.Port && Neglect != BuildingNeglect.None;
+
+    /// <summary>
+    /// What this building shows tonight, in 32 px units of its footprint:
+    /// its lights, and its lantern fittings, faded on a weathered building.
+    /// Night only lights fittings, and a Port's one fitting is its pier lantern.
+    /// </summary>
+    public IEnumerable<LightCell> Cells(bool night, float time, int seed, int snap = 1)
+    {
+        foreach (var cell in NightLightShapes.Building(Plan, Occupied, Working, night && !PierLanternDark, time, seed, snap))
+            yield return cell.Kind == LightCellKind.Paint && Neglect != BuildingNeglect.None
+                ? cell with { Color = BuildingSprites.Weathered(cell.Color, Neglect) }
+                : cell;
+    }
 
     /// <summary>Match the integer roof layout of the atlas actually drawn at this zoom.</summary>
     public BuildingLight AtAtlas(int tilePixels)
@@ -270,9 +286,7 @@ public partial class NightLightsLayer : Control
             var origin = new Vector2(building.Footprint.Position.X, building.Footprint.Position.Y) * stride;
             roofs.Add(Scaled(origin, building.Plan.Roof, unit));
             if (building.Plan.Wing is { } wing) roofs.Add(Scaled(origin, wing, unit));
-            // Night only lights fittings; a Port's one fitting is its pier lantern.
-            foreach (var cell in NightLightShapes.Building(building.Plan, building.Occupied, building.Working,
-                drawnDarkness > 0.05f && !building.PierLanternDark, drawnTime, seed, snap))
+            foreach (var cell in building.Cells(drawnDarkness > 0.05f, drawnTime, seed, snap))
                 placed.Add((origin, cell));
         }
         foreach (var lantern in lanterns)

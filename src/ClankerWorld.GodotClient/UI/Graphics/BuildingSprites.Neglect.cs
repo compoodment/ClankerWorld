@@ -15,6 +15,21 @@ public enum BuildingNeglect : byte
 
 public static partial class BuildingSprites
 {
+    /// <summary>
+    /// One pixel of a building in an abandoned Town, faded greyer and a little
+    /// darker as in the approved abandoned looks: the structure itself more
+    /// than its yard and doorstep, and more once it is falling apart. Lantern
+    /// fittings on a weathered building fade the same way.
+    /// </summary>
+    public static Color Weathered(Color color, BuildingNeglect neglect, bool structure = true)
+    {
+        if (neglect == BuildingNeglect.None) return color;
+        var ruin = neglect == BuildingNeglect.FallingApart;
+        var amount = structure ? (ruin ? 0.42f : 0.26f) : 0.16f;
+        var grey = new Color(color.Luminance, color.Luminance, color.Luminance, color.A);
+        return PixelArt.Snap(color.Lerp(grey, amount).Darkened(structure ? (ruin ? 0.14f : 0.08f) : 0.05f) with { A = color.A });
+    }
+
     /// <summary>A fixed seed per kind and footprint, so a weathered building always looks the same.</summary>
     public static int NeglectSalt(BuildingKind kind, int tilesWide, int tilesHigh) => (int)kind * 131 + tilesWide * 17 + tilesHigh * 7;
 
@@ -187,9 +202,7 @@ public static partial class BuildingSprites
                 {
                     var c = art.GetPixel(x, y);
                     if (c.A <= 0) continue;
-                    var amount = mask[x, y] ? (ruin ? 0.42f : 0.26f) : 0.16f;
-                    var grey = new Color(c.Luminance, c.Luminance, c.Luminance, c.A);
-                    art.SetPixel(x, y, PixelArt.Snap(c.Lerp(grey, amount).Darkened(mask[x, y] ? (ruin ? 0.14f : 0.08f) : 0.05f) with { A = c.A }));
+                    art.SetPixel(x, y, Weathered(c, ruin ? BuildingNeglect.FallingApart : BuildingNeglect.Neglected, mask[x, y]));
                 }
 
             // Moss in clumps on the structure, more on the shaded south-east half.
