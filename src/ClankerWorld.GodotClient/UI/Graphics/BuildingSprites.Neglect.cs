@@ -336,6 +336,7 @@ public static partial class BuildingSprites
         {
             var w = image.GetWidth();
             var h = image.GetHeight();
+            using var bridgeGround = s.Kind == Shape.Bridge ? BridgeGround(w, h) : null;
             // Match the short-end fallback in ApprovedArt.PortLandSide.
             var landSide = h >= w
                 ? s.Door == DoorSide.South ? DoorSide.South : DoorSide.North
@@ -357,8 +358,12 @@ public static partial class BuildingSprites
                         DoorSide.West => x < 32,
                         _ => x >= w - 32,
                     })) continue;
-                    // Bridge weeds remain on its bank tiles.
-                    if (s.Kind == Shape.Bridge && (w > h ? x >= 32 && x < w - 32 : y >= 32 && y < h - 32)) continue;
+                    // Match the approved bridge's ground and current overlay test.
+                    if (bridgeGround is not null)
+                    {
+                        var color = bridgeGround.GetPixel(x, y).Blend(image.GetPixel(x, y));
+                        if (color.G <= color.B) continue;
+                    }
                     if (Hash(x, y, salt + 21) % (onPath && near > 4 ? pathOdds : odds) != 0) continue;
                     var tall = Hash(y, x, salt) % 2 == 0;
                     Blend(image, x, y, NeglectLeaf.Base);
@@ -366,6 +371,23 @@ public static partial class BuildingSprites
                     Blend(image, x, y - 1, NeglectLeaf.Light);
                     if (tall) Blend(image, x, y - 2, ruin && Hash(x, y, 4) % 9 == 0 ? NeglectFlower : NeglectLeaf.Highlight);
                 }
+        }
+
+        private static Image BridgeGround(int width, int height)
+        {
+            var ground = Image.CreateEmpty(width, height, false, Image.Format.Rgba8);
+            using var water = WaterTextures.Atlas(32).GetImage();
+            for (var y = 0; y < height / 32; y++)
+                for (var x = 0; x < width / 32; x++)
+                {
+                    var bank = width > height ? x == 0 || x == width / 32 - 1 : y == 0 || y == height / 32 - 1;
+                    if (bank)
+                        ground.BlitRect(TerrainTextures.Tile(TerrainStyle.Grass, TerrainTextures.VariantAt(x + 3, y + 1), 32),
+                            new Rect2I(0, 0, 32, 32), new Vector2I(x * 32, y * 32));
+                    else
+                        ground.BlitRect(water, (Rect2I)WaterTextures.Region(TerrainStyle.River, x, y, 32), new Vector2I(x * 32, y * 32));
+                }
+            return ground;
         }
 
         /// <summary>Two crossed planks nailed over the door, at its place on the front wall.</summary>

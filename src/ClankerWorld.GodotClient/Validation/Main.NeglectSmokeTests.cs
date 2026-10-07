@@ -66,6 +66,30 @@ public partial class Main
         }
         terrainLayer.SetBridges([]);
 
+        if (terrainLayer.World is not { } world)
+            throw new InvalidOperationException("Bridge wrapping checks need the native map.");
+        using (var wrapped = new WorldTerrainLayer())
+        {
+            wrapped.SetWorld(WorldTerrainMap.FromTiles([], world.Width, world.Height, wrapsEastWest: true));
+            wrapped.SetCamera(new Rect2(0, 0, world.Width, world.Height), 32, 0, true);
+            var seam = new OwnerWorldBridge("seam", "plank", "test", "east_west",
+                [new(world.Width - 2, 2), new(1, 2)], [new(world.Width - 1, 2), new(0, 2)], 0);
+            foreach (var (residents, fallingApart, expected) in new[]
+            {
+                (Array.Empty<string>(), false, BuildingNeglect.Neglected),
+                (Array.Empty<string>(), true, BuildingNeglect.FallingApart),
+                (new[] { "rowan" }, false, BuildingNeglect.None),
+            })
+            {
+                var town = new OwnerWorldTown("seam-town", "seam-town", "founded", 0, residents, [], seam.Entrances)
+                { FallingApart = fallingApart };
+                wrapped.SetBridges([seam], [town]);
+                if (wrapped.BridgeNeglectAt(new(world.Width - 1, 2)) != expected ||
+                    wrapped.BridgeNeglectAt(new(0, 2)) != expected || wrapped.BridgeNeglectAt(new(1, 2)) != BuildingNeglect.None)
+                    throw new InvalidOperationException("Both saved bridge decks must weather across the map seam and return to normal on resettlement.");
+            }
+        }
+
         if (renderedMapSnapshot is not { } map) return;
         OwnerWorldPlacedBuilding Lantern(string id, string town, int x) =>
             new(id, "test/stone-lantern", new(x, 8), 0, "Stone street lamp", ["street_lantern", "stone_lantern"], 1, 1, town,
