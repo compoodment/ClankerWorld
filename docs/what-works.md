@@ -43,6 +43,12 @@ test alone does not make it available in the game.
 | Developer tools | Available in the game | **F12** opens them in a world without pausing it: the tile's coordinates and facts, frame time, how long the server takes per step of world time, the agent count, jumping to an agent and drawing their planned path, plus the aging override, lost-reply recovery, paused world editing and paired-device management. While paused, **Edit selected agent** sets fullness, warmth, illness or nutrition, gives/removes carried goods, adds/removes skills, and starts/ends partnerships; each accepted change is saved and marked **Developer edit** in the Event Log. There are no time tools such as stepping one tick. The Windows playtest is pending. |
 | Display and interface settings | Available in the game | Themes, window size, weather switches, a 24-hour or 12-hour clock, and dates by season (the default, such as Autumn 2, Year 1) or as DD-MM-YYYY, MM-DD-YYYY or YYYY-MM-DD. A server too old to report season lengths shows numeric dates. The interface grows with the screen in whole steps (100%, 200% at 1080p and 1440p, 300% at 4K) with no setting, and the game always draws at the screen's own resolution. Windows visual and keyboard acceptance is still being checked. |
 
+Building quick cards and Details show a storage-space bar and exact occupied
+space against the building's recorded limit. The count includes all physically
+stored goods, including other owners' goods and materials held for work; the
+household's item grid is a separate view. An older host without a recorded
+limit keeps its item grid and has no guessed capacity bar.
+
 On a fresh server, Continue opens New World instead of entering the retired
 test camp. The normal map preview and acceptance steps still apply, and saved
 worlds with founders or other progress keep opening normally.
@@ -576,7 +582,9 @@ wool every three days. One batch waits for local collection. Milk needs a
 household jug that contains milk or is empty; water and milk never mix.
 Adults haul milk jugs to their Store or borrowed Market stall. An agreed sale
 pours one portion into the buyer's jug and takes the named personal payment;
-both vessels retain their owners. Spoiled milk can be poured away for jug reuse.
+both vessels retain their owners. Only one pending sale may use each milk lot;
+closing the offer frees any remaining usable milk for another sale. Spoiled
+milk can be poured away for jug reuse.
 
 Egg and milk meals use House/Restaurant recipes. Tailors turn wool into padded
 coats, hides into leather, and leather into sacks or saddles. A leather sack

@@ -411,6 +411,11 @@ for that exact building size and their quantities. Each still needs real
 materials and an adult allowed to work there. Reading the list teaches no
 agent and starts no work. Back (or **Escape**) returns to the small card.
 
+A building's storage-space bar shows how much of its recorded limit is used,
+with exact used/limit numbers. It counts all stored goods, including materials
+held for work and goods belonging to someone else. It updates when goods move
+or an expansion increases the limit. Hover over the bar for the exact count.
+
 Every day has a night, with a short dusk and dawn. Nights are longest in winter
 and shortest in summer: from 19:12 to 04:48 on the clock in the top bar at the
 start of spring and autumn, about 2 min 24 s of a six-minute day; from 20:24
@@ -778,6 +783,8 @@ make wool padded coats, process hides into leather, and make leather sacks or
 saddles. A leather sack carries 32 units. Adults can haul household milk jugs
 to their Store or borrowed Market stall. A seller offers one portion for an
 exact personal payment; the buyer accepts with a carried empty or milk jug.
+Each milk lot can have only one pending offer. Remaining portions can be
+offered after that sale ends.
 Both vessels keep their owners. Pouring away spoiled milk frees its jug for reuse.
 
 For a cared adult horse, use **Saddle Moss**, **Mount Moss** and **Dismount Moss**.
