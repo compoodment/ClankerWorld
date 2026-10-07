@@ -74,7 +74,13 @@ public sealed record DirectBarterOffer(
     DirectBarterState State,
     IReadOnlyList<string> AcceptedBy);
 
-public sealed record InventoryEvent(long EventId, long WorldTick, string Kind, string Detail);
+public sealed record InventoryStorageChange(string BuildingId, string ItemKind, long QuantityChange);
+
+public sealed record InventoryEvent(long EventId, long WorldTick, string Kind, string Detail)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<InventoryStorageChange>? StorageChanges { get; init; }
+}
 
 public sealed record InventoryCheckpoint(
     long WorldTick,
@@ -1006,7 +1012,7 @@ public static partial class InventoryFixture
             offers ?? checkpoint.Offers,
             events, checkpoint.EventHistoryFloor);
         ValidateCheckpoint(next);
-        return next;
+        return InventoryStorageHistory.RecordTransition(checkpoint, next);
     }
 
     private static void ValidateCheckpoint(InventoryCheckpoint checkpoint)
@@ -1039,7 +1045,11 @@ public static partial class InventoryFixture
         }
     }
 
-    internal static void ValidateCheckpointForCodec(InventoryCheckpoint checkpoint) => ValidateCheckpoint(checkpoint);
+    internal static void ValidateCheckpointForCodec(InventoryCheckpoint checkpoint)
+    {
+        ValidateCheckpoint(checkpoint);
+        InventoryStorageHistory.Validate(checkpoint.Events);
+    }
 
     private static bool IsContainerRelated(InventoryLot lot) =>
         lot.ContainerLotId is not null || InventoryContainerRules.IsContainer(lot.ItemKind);
@@ -1237,6 +1247,7 @@ public static class InventoryCheckpointCodec
                 })
                 .ToArray(),
             document.Events.OrderBy(item => item.EventId).ToArray(), document.EventHistoryFloor);
+        InventoryFixture.ValidateCheckpointForCodec(checkpoint);
         _ = InventoryDigest.State(checkpoint);
         return checkpoint;
     }
@@ -1300,7 +1311,9 @@ public static class InventoryDigest
         return Digest(canonical);
     }
 
-    public static string Events(IEnumerable<InventoryEvent> events) => Digest(string.Join('\n', events.OrderBy(item => item.EventId).Select(item => $"{item.EventId}|{item.WorldTick}|{item.Kind}|{item.Detail}")));
+    public static string Events(IEnumerable<InventoryEvent> events) => Digest(string.Join('\n', events.OrderBy(item => item.EventId)
+        .Select(item => $"{item.EventId}|{item.WorldTick}|{item.Kind}|{item.Detail}" +
+            (item.StorageChanges is { } changes ? "|" + JsonSerializer.Serialize(changes) : string.Empty))));
 
     private static string Digest(string canonical) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(canonical)));
 }

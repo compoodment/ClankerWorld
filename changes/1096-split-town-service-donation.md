@@ -1,0 +1,1 @@
+- Agreed Town service can use spare personal materials split across carried lots, keeping the four-unit reserve and a valid saved receipt. Ordinary donations that fulfill the agreement no longer halt the world. This alpha save format changes; earlier saves are refused and preserved.
