@@ -1,0 +1,1 @@
+- Loading a handcart now respects the hungry-members-first food reserve, including the amount a healthy adult may take from a larger shared lot.

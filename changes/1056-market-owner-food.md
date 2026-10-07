@@ -1,0 +1,1 @@
+- Urgently hungry adults can retrieve their available food from Market stalls and eat it.
