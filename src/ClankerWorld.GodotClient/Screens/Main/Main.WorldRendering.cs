@@ -210,7 +210,7 @@ public partial class Main
         terrainLayer.SetNaturalObjects(snapshot.Resources);
         terrainLayer.SetWeatherRegions(snapshot.WeatherRegionSize, snapshot.WeatherRegions);
         terrainLayer.SetRoads(snapshot.RoadTiles);
-        terrainLayer.SetBridges(snapshot.Bridges);
+        terrainLayer.SetBridges(snapshot.Bridges, snapshot.Towns);
         terrainLayer.SetFields(snapshot.Fields);
         worldOverview.SetFields(snapshot.Fields);
         terrainLayer.SetMarkets(snapshot.Towns);
