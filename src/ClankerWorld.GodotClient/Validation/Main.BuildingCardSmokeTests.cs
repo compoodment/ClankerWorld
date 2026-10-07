@@ -292,6 +292,7 @@ public partial class Main
         fruitSlot.Free();
         VerifyBuildingManagementRefresh(baseMap);
         await VerifyMarketCardsAsync(baseMap);
+        await VerifyBuildingStorageHistoryAsync(baseMap);
     }
 
     private async Task VerifyMarketCardsAsync(OwnerWorldSnapshot baseMap)
