@@ -28,7 +28,7 @@ public sealed partial class PrivateWorldRuntime
         if (order.TargetPosition is { } requestedPosition && !map.Contains(requestedPosition))
             return null;
         if (IsAnimalOrder(order.Action)) return AnimalOrderCandidate(instruction);
-        if (order.Action == "write_knowledge") return KnowledgeOrderCandidateFor(instruction);
+        if (IsKnowledgeOrder(order.Action)) return KnowledgeOrderCandidateFor(instruction);
 
         if (IsShelterOrder(order.Action))
             return ShelterOrderCandidateFor(instruction, person);
@@ -229,6 +229,7 @@ public sealed partial class PrivateWorldRuntime
         switch (candidate.Id)
         {
             case "write_knowledge":
+            case "copy_knowledge":
                 ExecuteKnowledgeOrderStep(instruction, person);
                 return;
             case "seek_shelter":
@@ -416,7 +417,7 @@ public sealed partial class PrivateWorldRuntime
 
     private string OrderBlockedReason(OwnerQueuedInstruction instruction, PlaytestInhabitantState person)
     {
-        if (instruction.Order?.Action == "write_knowledge") return KnowledgeOrderBlockedReason(instruction);
+        if (instruction.Order is { } knowledgeOrder && IsKnowledgeOrder(knowledgeOrder.Action)) return KnowledgeOrderBlockedReason(instruction);
         if (instruction.Order is { } animalOrder && IsAnimalOrder(animalOrder.Action))
             return AnimalOrderBlockedReason(instruction);
         if (instruction.Order is { } protective && IsShelterOrder(protective.Action))

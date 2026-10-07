@@ -627,7 +627,8 @@ public sealed partial class PrivateWorldRuntime
         var terminal = order.Status is "finished" or "cancelled" or "not_understood";
         var isCompleted = completedInstructionIds.Contains(instruction.InstructionId, StringComparer.Ordinal);
         if ((order.TargetAnimalId is not null) != IsAnimalOrder(order.Action)) return false;
-        if (order.Action != "write_knowledge" && (order.TargetKnowledgeKind is not null || order.KnowledgeWritingProjectId is not null))
+        if (!IsKnowledgeOrder(order.Action) && (order.TargetKnowledgeKind is not null || order.KnowledgeWritingProjectId is not null) ||
+            order.Action != "copy_knowledge" && order.KnowledgeCopySourceArtifactId is not null)
             return false;
         if (!knownStatus || (order.Status == "queued" && !instruction.Queue) ||
             order.BlockedReason is { Length: > 256 } || order.BlockedReason?.Any(char.IsControl) == true ||
@@ -656,11 +657,13 @@ public sealed partial class PrivateWorldRuntime
             terminal != isCompleted)
             return false;
 
-        if (order.Action == "write_knowledge")
+        if (IsKnowledgeOrder(order.Action))
             return order.TargetKnowledgeKind is { } kind && AgentKnowledgeRules.IsArtifactKind(kind) &&
                 order.TargetAgentId is null && order.TargetFoodKind is null && order.TargetResourceId is null && order.TargetPosition is null &&
                 order.RequestedUnits is >= 1 and <= 1000 && order.CompletedUnits is >= 0 and <= 1_000_000 &&
-                (order.QuantityIsExplicit || order.RequestedUnits == 1) && order.ProgressUnit == "artifacts" &&
+                (order.QuantityIsExplicit || order.RequestedUnits == 1) && order.ProgressUnit == (order.Action == "copy_knowledge" ? "copies" : "artifacts") &&
+                (order.KnowledgeCopySourceArtifactId is null || order.KnowledgeCopySourceArtifactId.Length <= 128 &&
+                    IsValidProductionBindingId(order.KnowledgeCopySourceArtifactId)) &&
                 (order.RepeatUntilCancelled || order.CompletedUnits <= order.RequestedUnits) &&
                 order.Status != "not_understood" &&
                 (order.Status == "finished") == (!order.RepeatUntilCancelled && order.CompletedUnits >= order.RequestedUnits) &&

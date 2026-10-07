@@ -90,6 +90,7 @@ public sealed record OwnerInstructionOrder(
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? TargetAnimalId { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? TargetKnowledgeKind { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? KnowledgeWritingProjectId { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? KnowledgeCopySourceArtifactId { get; init; }
 }
 
 public sealed record OwnerShelterBinding(

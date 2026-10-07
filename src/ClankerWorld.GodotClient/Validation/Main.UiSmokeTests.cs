@@ -2729,6 +2729,8 @@ public partial class Main
             {
                 (new("write_knowledge", "doing", 3, 1, "artifacts", false, TargetKnowledgeKind: "field_map"),
                     "Doing · Writing field map · 1/3 items written"),
+                (new("copy_knowledge", "doing", 3, 1, "copies", false, TargetKnowledgeKind: "book"),
+                    "Doing · Copying book · 1/3 copies made"),
                 (new("produce_item", "doing", 4, 2, "output_items", false, TargetOutputKind: "cloth"),
                     "Doing · Making cloth · 2/4 items made"),
                 (new("produce_item", "doing", 2, 1, "production_batches", false, TargetOutputKind: "gold"),
