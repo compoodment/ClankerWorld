@@ -1390,6 +1390,26 @@ public partial class Main
                 if (!TownListText().Contains(phrase, StringComparison.Ordinal))
                     throw new InvalidOperationException("The Town page must show actual law scope, government handovers and separate office authority: " + phrase);
             await RunNonviolentTownUiChecks(sample, governmentTown);
+            var abandonedTown = governmentTown with
+            {
+                ResidentIds = [],
+                Governance = new OwnerTownGovernance("all_adult", "none", [], null, 0, [], [], null),
+                Government = governmentTown.Government! with { Offices = [], Changes = [], Election = null },
+            };
+            Render(sample with { Towns = [abandonedTown] }, []);
+            foreach (var phrase in new[] { "Abandoned", "no living residents", "No active council", "resettle", "salvaged in person", "Private property", "Law: Grove" })
+                if (!TownListText().Contains(phrase, StringComparison.Ordinal))
+                    throw new InvalidOperationException("An abandoned Town must retain its laws and explain physical salvage and explicit resettlement: " + phrase);
+            var resettledTown = abandonedTown with
+            {
+                ResidentIds = civicTown.ResidentIds,
+                Governance = abandonedTown.Governance! with { MemberNames = ["Mira Vale"] },
+            };
+            Render(sample with { Towns = [resettledTown] }, []);
+            if (TownListText().Contains("Abandoned", StringComparison.Ordinal) ||
+                !TownListText().Contains("Council: all adult residents", StringComparison.Ordinal) ||
+                !TownListText().Contains("Law: Grove", StringComparison.Ordinal))
+                throw new InvalidOperationException("A revived Town must refresh its status and council while keeping its laws.");
             var revisedCivicTown = civicTown with
             {
                 Governance = civicTown.Governance! with

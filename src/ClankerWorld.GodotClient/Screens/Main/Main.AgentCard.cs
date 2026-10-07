@@ -621,11 +621,11 @@ public partial class Main
         // Name, age and one plain sentence for what they are doing, shared by both cards.
         quickCardNameLabel.Text = inhabitant.DisplayName;
         selectedActorNameLabel.Text = inhabitant.DisplayName;
-        // A refused name stays in the open field for the player to change,
+        // Draft and refused names stay in the open field for the player to change,
         // while the labels above keep showing the name the host holds.
         if (!renameRow.Visible || renamingAgentId != inhabitant.Id) refusedAgentRename.Forget();
         if (!refusedAgentRename.Keeps(snapshot.WorldId, inhabitant.Id, renameAgentInput.Text) &&
-            (renamingAgentId != inhabitant.Id || !renameAgentInput.HasFocus()))
+            (renamingAgentId != inhabitant.Id || !renameRow.Visible))
         {
             renameAgentInput.Text = inhabitant.DisplayName;
             renamingAgentId = inhabitant.Id;
