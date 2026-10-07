@@ -167,7 +167,16 @@ public sealed partial class PrivateWorldRuntime
             worldSimulation.Buildings.Any(building => building.InstanceId == storageId && building.HouseholdId is { } home &&
                 (society.Checkpoint.GetInhabitant(actor).HouseholdId == home ||
                  inhabitants[actor].Departures?.Any(departure => departure.HouseholdId == home) == true ||
+                 HasCareGroupDepartureFrom(actor, home) ||
                  IsStoredSettledBequest(actor, lot, storageId)))));
+
+    // Children leave in the caregiver's recorded care group. That saved move
+    // still authorizes their own belongings after adulthood or the caregiver's
+    // death; the surrounding collection checks grant no access to shared goods.
+    private bool HasCareGroupDepartureFrom(string actor, string householdId) => inhabitants.Values
+        .Concat(deceasedInhabitants.Values.Select(person => person.LastPhysical))
+        .Any(person => person.Departures?.Any(departure => departure.HouseholdId == householdId &&
+            departure.CareGroup.Contains(actor, StringComparer.Ordinal)) == true);
 
     private bool IsStoredSettledBequest(string actor, InventoryLot lot, string storageId) => society.Checkpoint.Estates.Any(estate =>
         estate.Settled && (estate.WillBequests ?? []).Any(bequest => bequest.HeirId == actor &&

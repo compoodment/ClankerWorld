@@ -1,8 +1,10 @@
 using System.Collections.Concurrent;
 using ClankerWorld.Simulation.Cognition;
+using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.Society;
+using ClankerWorld.Simulation.World;
 using ClankerWorld.Viewer.Observation;
 
 namespace ClankerWorld.Simulation.Tests;
@@ -555,6 +557,211 @@ public sealed class HouseholdDepartureTests
             Assert.DoesNotContain(logger.Messages, message => message.Contains("follow_caregiver", StringComparison.Ordinal));
         }
         finally { directory.Delete(recursive: true); }
+    }
+
+    [Theory]
+    [InlineData(false, "available")]
+    [InlineData(true, "available")]
+    [InlineData(true, "caregiver-death")]
+    [InlineData(true, "reserved")]
+    [InlineData(true, "full-hands")]
+    public async Task DependentKeepsDefaultInheritanceCollectionAfterMovingAndGrowingUp(bool moved, string boundary)
+    {
+        var provider = new Choices();
+        using var generated = NormalPathWorld.CreateGenerated("dependent-inherited-collection", _ => provider);
+        var state = generated.ExportState();
+        var society = state.Society.Society;
+        var parents = society.GetHousehold(Alpha).MemberIds.Order(StringComparer.Ordinal).ToArray();
+        var caregiver = parents[0];
+        var deceased = parents[1];
+        var house = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == "first-town-house-a");
+        society = ChosenBirthNameTestFixture.NameParent(society, caregiver);
+        society = SocietyFixture.ProposeRelationship(society, new("dependent-parents", 1,
+            SocietyRelationshipType.Partnership, caregiver, deceased, society.WorldTick)).Checkpoint;
+        society = SocietyFixture.AcceptRelationship(society, "dependent-parents", 1, deceased).Checkpoint;
+        var inventory = InventoryFixture.AddLot(society.Inventory, "dependent-birth-food", "food", Alpha, 4,
+            storageBuildingId: house.InstanceId);
+        inventory = InventoryFixture.AddLot(inventory, "dependent-inherited-axe", "wooden_axe", deceased, 2,
+            storageBuildingId: house.InstanceId);
+        society = society with { Inventory = inventory };
+        var birth = SocietyFixture.CommitBirth(society, new SocietyBirthRequest("dependent-birth", 1, caregiver, deceased,
+            Alpha, parents, parents, "dependent-birth-food", 4, society.WorldTick,
+            ChildName: ChosenBirthNameTestFixture.ChildName(society, caregiver, "Pip"), PrimaryCaregiverId: caregiver));
+        society = birth.Checkpoint;
+        var child = Assert.IsType<string>(birth.CreatedId);
+        var rate = society.LifeClock?.Rate ?? 1;
+        var adultAge = society.Config.FounderStartingAge;
+        var childBirth = society.GetInhabitant(child).BirthLifeTick ?? society.GetInhabitant(child).BirthTick;
+        var beforeAdult = childBirth + adultAge * society.Config.TicksPerLifecycleAge - 16L * rate;
+        // Skip only idle age waiting; death, default settlement, departure and maturation still run normally.
+        if (society.LifeClock is not null)
+            society = society with { LifeClock = new(rate, society.WorldTick, beforeAdult) };
+        else
+        {
+            society = SocietyFixture.AdvanceTo(society, beforeAdult).Checkpoint;
+            var systems = state.WorldSystems!;
+            state = state with
+            {
+                WorldSystems = systems with
+                {
+                    WorldTick = beforeAdult,
+                    RegionalWeather = RegionalWeatherRules.Advance(systems, beforeAdult),
+                    Climate = WeatherRules.Advance(systems.Climate, beforeAdult, state.WorldSeed, systems.Config),
+                }
+            };
+        }
+        var lastDay = society.Config.DayLifecycle!.MaximumDay;
+        society = society with
+        {
+            Inhabitants = society.Inhabitants.Select(person => person.Id == deceased ? person with
+            {
+                BirthTick = society.LifeClock is null
+                    ? society.LifeTickAt(society.WorldTick + 1) - lastDay * society.Config.TicksPerLifecycleAge : person.BirthTick,
+                BirthLifeTick = society.LifeClock is null ? null
+                    : society.LifeTickAt(society.WorldTick + 1) - lastDay * society.Config.TicksPerLifecycleAge,
+                AgeBand = SocietyAgeBand.Elder,
+                LastLifecycleYearChecked = lastDay - 1,
+            } : person.Id == child ? person with
+            {
+                AgeBand = society.Config.AgeBandAt(adultAge - 1),
+                LastLifecycleYearChecked = adultAge - 1,
+            } : person).ToArray(),
+        };
+        var occupied = state.Inhabitants.Where(person => person.InhabitantId != caregiver).Select(person => person.Position)
+            .Append(house.Position).ToHashSet();
+        var childPosition = state.Map.FootNeighbors(house.Position).First(point => state.Map.IsPassable(point) && !occupied.Contains(point));
+        state = state with
+        {
+            Society = state.Society with { Society = society },
+            Survival = new(society.WorldTick, []),
+            Inhabitants = state.Inhabitants.Select(person => person with
+            {
+                Position = person.InhabitantId == caregiver ? house.Position : person.Position,
+                HungerBasisPoints = 10_000,
+                Survival = new(10_000),
+                Equipment = null,
+                Project = null,
+                LastDecisionContext = null,
+            }).Append(new(child, childPosition, 10_000, 0, "curious", "grow with the household", Survival: new(10_000))).ToArray(),
+            Towns = state.Towns!.Select(town => town.ResidentIds.Contains(caregiver, StringComparer.Ordinal)
+                ? town with { ResidentIds = town.ResidentIds.Append(child).Order(StringComparer.Ordinal).ToArray() } : town).ToArray(),
+        };
+        using var dying = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)), _ => provider);
+        Assert.True((await dying.AdvanceOneTickAsync()).Advanced);
+        var estate = Assert.Single(dying.Society.Estates, item => item.DeceasedId == deceased);
+        var saved = dying.ExportState();
+        saved = saved with
+        {
+            Society = saved.Society with
+            {
+                Society = saved.Society.Society with
+                {
+                    Estates = saved.Society.Society.Estates.Select(item => item.Id == estate.Id
+                        ? item with { ExpiryTick = saved.Society.Society.WorldTick + 1 } : item).ToArray(),
+                }
+            },
+        };
+        using var moving = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(saved)), _ => provider);
+        Assert.True((await moving.AdvanceOneTickAsync()).Advanced);
+        Assert.True(moving.Society.GetEstate(estate.Id).Settled);
+        Assert.Empty(moving.Society.GetEstate(estate.Id).WillBequests ?? []);
+        var axe = Assert.Single(moving.Society.Inventory.Lots, lot => lot.OwnerId == child && lot.ProvenanceLotId == "dependent-inherited-axe");
+        Assert.Equal(("wooden_axe", 1, house.InstanceId), (axe.ItemKind, axe.Quantity, axe.StorageBuildingId));
+        var inheritedState = moving.ExportState();
+        if (moved)
+        {
+            provider.Wanted[caregiver] = "household_leave";
+            // Start the departure phase with a fresh ordinary choice rather
+            // than waiting out the earlier idle intention past adulthood.
+            inheritedState = inheritedState with
+            {
+                Inhabitants = inheritedState.Inhabitants.Select(person => person.InhabitantId == caregiver
+                    ? person with { LastDecisionContext = null } : person).ToArray(),
+            };
+        }
+        using var departed = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(inheritedState)), _ => provider);
+        if (moved)
+        {
+            await AdvanceUntil(departed, () => departed.Society.GetInhabitant(caregiver).HouseholdId is null, 12);
+            Assert.Null(departed.Society.GetInhabitant(child).HouseholdId);
+            Assert.NotEqual(SocietyAgeBand.Adult, departed.Society.GetInhabitant(child).AgeBand);
+            provider.Wanted[caregiver] = "safe_idle";
+        }
+        var bytes = PrivateWorldRuntimeCodec.Encode(departed.ExportState());
+        using var growing = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes), _ => provider);
+        using var growingReplay = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes), _ => provider);
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(growing.ExportState()));
+        for (var tick = 0; tick < 24 && growing.Society.GetInhabitant(child).AgeBand != SocietyAgeBand.Adult; tick++)
+            await AdvancePair(growing, growingReplay);
+        Assert.Equal(SocietyAgeBand.Adult, growing.Society.GetInhabitant(child).AgeBand);
+        var collectionState = growing.ExportState();
+        if (boundary == "caregiver-death")
+        {
+            var checkpoint = collectionState.Society.Society;
+            collectionState = collectionState with
+            {
+                Society = collectionState.Society with
+                {
+                    Society = checkpoint with
+                    {
+                        Inhabitants = checkpoint.Inhabitants.Select(person => person.Id == caregiver ? person with
+                        {
+                            BirthTick = checkpoint.LifeClock is null
+                                ? checkpoint.LifeTickAt(checkpoint.WorldTick + 1) - lastDay * checkpoint.Config.TicksPerLifecycleAge : person.BirthTick,
+                            BirthLifeTick = checkpoint.LifeClock is null ? null
+                                : checkpoint.LifeTickAt(checkpoint.WorldTick + 1) - lastDay * checkpoint.Config.TicksPerLifecycleAge,
+                            AgeBand = SocietyAgeBand.Elder,
+                            LastLifecycleYearChecked = lastDay - 1,
+                        } : person).ToArray(),
+                    }
+                },
+            };
+            using var orphaned = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(collectionState)), _ => provider);
+            Assert.True((await orphaned.AdvanceOneTickAsync()).Advanced);
+            collectionState = orphaned.ExportState();
+            Assert.DoesNotContain(collectionState.Inhabitants, person => person.InhabitantId == caregiver);
+            var archived = Assert.Single(collectionState.DeceasedInhabitants!, person => person.InhabitantId == caregiver);
+            Assert.Contains(archived.LastPhysical.Departures!, departure => departure.HouseholdId == Alpha && departure.CareGroup.Contains(child));
+        }
+        var collectionInventory = collectionState.Society.Society.Inventory;
+        if (boundary == "reserved")
+            collectionInventory = InventoryFixture.Reserve(collectionInventory, "dependent-collection-reserved", child,
+                axe.Id, 1, "work", long.MaxValue);
+        if (boundary == "full-hands")
+        {
+            var equipment = collectionState.Inhabitants.Single(person => person.InhabitantId == child).Equipment;
+            var room = PersonalEquipmentRules.FreeCapacity(collectionInventory, child, equipment);
+            collectionInventory = InventoryFixture.AddLot(collectionInventory, "dependent-full-hands", "wood", child, room);
+            Assert.Equal(0, PersonalEquipmentRules.FreeCapacity(collectionInventory, child, equipment));
+        }
+        collectionState = collectionState with
+        {
+            Society = collectionState.Society with { Society = collectionState.Society.Society with { Inventory = collectionInventory } },
+        };
+        bytes = PrivateWorldRuntimeCodec.Encode(collectionState);
+        using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes), _ => provider);
+        using var replay = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes), _ => provider);
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+        provider.Wanted[child] = "collect_equipment";
+        var instruction = new OwnerInstructionRequest("collect-inherited-axe", "owner:test", child, OwnerInstructionKind.MustDo, "collect one wooden axe");
+        var receipt = world.SubmitInstruction(instruction);
+        Assert.Equal(receipt, replay.SubmitInstruction(instruction));
+        for (var tick = 0; tick < 12 && Order().Status != "finished"; tick++) await AdvancePair(world, replay);
+        var available = boundary is "available" or "caregiver-death";
+        Assert.Equal(available ? ("finished", 1) : ("blocked", 0), (Order().Status, Order().CompletedUnits));
+        Assert.Equal(available, PersonalEquipmentRules.IsCarried(world.Society.Inventory.GetLot(axe.Id), child));
+        if (!available) Assert.Equal(house.InstanceId, world.Society.Inventory.GetLot(axe.Id).StorageBuildingId);
+        Assert.Equal(child, world.Society.Inventory.GetLot(axe.Id).OwnerId);
+        Assert.Equal(moved ? null : Alpha, world.Society.GetInhabitant(child).HouseholdId);
+        world.Validate();
+
+        OwnerInstructionOrder Order() => world.ExportState().Instructions!.Single(item => item.InstructionId == receipt.InstructionId).Order!;
+        static async Task AdvancePair(PrivateWorldRuntime first, PrivateWorldRuntime second)
+        {
+            Assert.True((await first.AdvanceOneTickAsync()).Advanced);
+            Assert.True((await second.AdvanceOneTickAsync()).Advanced);
+            Assert.Equal(PrivateWorldRuntimeCodec.Encode(first.ExportState()), PrivateWorldRuntimeCodec.Encode(second.ExportState()));
+        }
     }
 
     private static PrivateWorldRuntimeState WithDependent(PrivateWorldRuntimeState state, string adult, string child)
