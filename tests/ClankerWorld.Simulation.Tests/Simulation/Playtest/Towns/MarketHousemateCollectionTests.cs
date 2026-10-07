@@ -1,6 +1,7 @@
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
+using ClankerWorld.Simulation.Society;
 
 namespace ClankerWorld.Simulation.Tests;
 
@@ -11,11 +12,12 @@ public sealed class MarketHousemateCollectionTests
     private const string Stock = "housemate-market-wood";
 
     [Theory]
-    [InlineData(false, false, false)]
-    [InlineData(true, false, true)]
-    [InlineData(false, true, true)]
+    [InlineData(false, false, false, false)]
+    [InlineData(true, false, true, false)]
+    [InlineData(false, true, true, false)]
+    [InlineData(true, false, true, true)]
     public async Task HouseholdStockStaysWithItsBorrowerUntilTheyLeaveOrCollectItThemselves(
-        bool sellerLeaves, bool sellerCollects, bool expected)
+        bool sellerLeaves, bool sellerCollects, bool expected, bool otherHouseholdBorrows)
     {
         var state = await PaidMarketWorld.StateAsync();
         var household = PaidMarketWorld.HouseholdOf(state, Seller);
@@ -44,6 +46,27 @@ public sealed class MarketHousemateCollectionTests
             Assert.DoesNotContain(PaidMarketWorld.Market(departing).Occupancies, item => item.EndedTick is null);
             state = departing.ExportState();
         }
+        if (otherHouseholdBorrows)
+        {
+            var nextSeller = state.Society.Society.Inhabitants.First(person =>
+                person.HouseholdId is not null && person.HouseholdId != household &&
+                person.Status == SocietyInhabitantStatus.Active && person.AgeBand == SocietyAgeBand.Adult).Id;
+            inventory = InventoryFixture.AddLot(state.Society.Society.Inventory,
+                "next-household-market-load", "wood", nextSeller, 4);
+            inventory = InventoryFixture.Relocate(inventory, "prepare-next-market-load",
+                "next-household-market-load", nextSeller, 4, carrierId: nextSeller);
+            state = PaidMarketWorld.At(PaidMarketWorld.WithInventory(state, inventory), nextSeller,
+                MarketContent.StallEntrance(market.Site, 0));
+            var borrowing = Policy(nextSeller, "market_borrow:");
+            using var next = PrivateWorldRuntime.Restore(state, borrowing.CreateProvider);
+            for (var tick = 0; tick < 12 && !PaidMarketWorld.Market(next).Occupancies.Any(item => item.EndedTick is null); tick++)
+                Assert.True((await next.AdvanceOneTickAsync()).Advanced);
+            var active = Assert.Single(PaidMarketWorld.Market(next).Occupancies, item => item.EndedTick is null);
+            Assert.Equal(nextSeller, active.SellerAgentId);
+            Assert.NotEqual(household, active.SellerHouseholdId);
+            Assert.Equal(market.Stalls.Single(item => item.SlotIndex == 0).BuildingId, active.StallBuildingId);
+            state = next.ExportState();
+        }
         var collector = sellerCollects ? Seller : Housemate;
         var stall = PaidMarketWorld.StallTile(state, 0);
         state = PaidMarketWorld.At(state, collector, stall);
@@ -70,7 +93,8 @@ public sealed class MarketHousemateCollectionTests
             lot.ItemKind == "wood" && PersonalEquipmentRules.IsCarried(lot, collector)).Sum(lot => lot.Quantity));
         Assert.Equal(expected ? 0 : 4, world.Society.Inventory.Lots.Where(lot => lot.OwnerId == household &&
             lot.ItemKind == "wood" && lot.GroundPosition == new InventoryGroundPosition(stall.X, stall.Y)).Sum(lot => lot.Quantity));
-        Assert.Equal(sellerLeaves ? 0 : 1, PaidMarketWorld.Market(world).Occupancies.Count(item => item.EndedTick is null));
+        Assert.Equal(sellerLeaves && !otherHouseholdBorrows ? 0 : 1,
+            PaidMarketWorld.Market(world).Occupancies.Count(item => item.EndedTick is null));
         Assert.Equal(totalWood, world.Society.Inventory.Lots.Where(lot => lot.OwnerId == household && lot.ItemKind == "wood")
             .Sum(lot => lot.Quantity));
         world.Validate();
