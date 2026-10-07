@@ -530,6 +530,11 @@ public sealed class ManualWorldSaveStore
             var candidates = List(worldId).Where(item => item.IsAutosave && !ReadMetadata(item.Id).HasInvalidBranchMetadata)
                 .GroupBy(item => item.Branch?.Id ?? LegacyBranchKey, StringComparer.Ordinal)
                 .SelectMany(branch => branch.Where(item => item.Id != preserveId)
+                    // Branch positions keep creation order when the clock moves backwards.
+                    // Genuine pre-branch saves have position zero and keep their UTC ordering.
+                    .OrderByDescending(item => item.BranchPosition)
+                    .ThenByDescending(item => item.CreatedUtc)
+                    .ThenBy(item => item.Id, StringComparer.Ordinal)
                     .Skip(branch.Any(item => item.Id == preserveId) ? count - 1 : count))
                 .ToArray();
             foreach (var old in candidates)

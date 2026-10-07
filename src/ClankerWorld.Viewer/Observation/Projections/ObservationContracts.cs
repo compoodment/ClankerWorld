@@ -32,7 +32,8 @@ public sealed record ViewerHandcart(string Id, string OwnerId, string OwnerName,
 public sealed record ViewerAnimal(string Id, string Name, string Species, string Sex, int AgeDays, string LifeStage,
     ViewerPosition Position, string? HouseholdId, string? HouseholdName, string CareStatus, string? ProductKind,
     int ProductQuantity, double? BirthDaysRemaining, string? RiderId, string? RiderName, string? LeaderId,
-    bool Saddled, IReadOnlyList<string> CarePermissions, IReadOnlyList<string> RidingPermissions);
+    bool Saddled, IReadOnlyList<string> CarePermissions, IReadOnlyList<string> RidingPermissions,
+    int? ProductProgressPercent = null);
 
 public sealed record ViewerBoat(string Id, string TownId, string TownName, ViewerPosition Position,
     string? DockedPortId, string? PassengerId, string? PassengerName, string? DestinationPortId,
@@ -348,8 +349,11 @@ public sealed record ViewerPlacedBuilding(
     public IReadOnlyList<ViewerBusinessTrade> Trades { get; init; } = [];
     public IReadOnlyList<ViewerToolMakingRequest> ToolMakingRequests { get; init; } = [];
     public bool AllowsHouseholdOwner { get; init; }
+    public IReadOnlyList<ViewerBuildingStorageChange>? RecentStorageChanges { get; init; }
     public IReadOnlyList<ViewerProductionRecipe>? AvailableRecipes { get; init; }
 }
+
+public sealed record ViewerBuildingStorageChange(long EventId, long WorldTick, string ItemKind, long QuantityChange);
 
 public sealed record ViewerToolMakingRequest(string Id, string RequesterName, string RecipeId,
     string RecipeName, string ItemKind, string Status, string? Blocker, string? OfferId = null);
