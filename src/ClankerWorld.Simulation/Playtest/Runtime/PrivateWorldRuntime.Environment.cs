@@ -283,6 +283,7 @@ public sealed partial class PrivateWorldRuntime
                 inhabitants[id] with
                 {
                     MedicalTreatment = null,
+                    MedicalSupplyTrip = null,
                     GuardianPlacement = null,
                     Equipment = inhabitants[id].Equipment is { } equipment
                         ? equipment with { OrnamentLotId = null } : null,

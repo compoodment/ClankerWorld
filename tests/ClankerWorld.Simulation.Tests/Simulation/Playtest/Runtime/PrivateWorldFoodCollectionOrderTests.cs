@@ -17,6 +17,13 @@ public sealed partial class PrivateWorldCollectionOrderTests
     [InlineData("fruit", "fruit")]
     [InlineData("wild_greens", "wild_greens")]
     [InlineData("cultivated_greens", "cultivated_greens")]
+    [InlineData("simple_meal", "simple_meal")]
+    [InlineData("porridge", "porridge")]
+    [InlineData("berry_porridge", "berry_porridge")]
+    [InlineData("fruit_porridge", "fruit_porridge")]
+    [InlineData("bread", "bread")]
+    [InlineData("stew", "stew")]
+    [InlineData("restaurant_meal", "restaurant_meal")]
     public async Task FoodCollectionMovesPersonalFoodWithoutEatingOrHarvesting(string kind, string? targetKind)
     {
         var state = Prepared();
@@ -100,6 +107,8 @@ public sealed partial class PrivateWorldCollectionOrderTests
     [InlineData("berries", "fruit")]
     [InlineData("wild greens", "cultivated_greens")]
     [InlineData("cultivated greens", "wild_greens")]
+    [InlineData("bread", "porridge")]
+    [InlineData("berry porridge", "berries")]
     public async Task FoodCollectionDoesNotSubstituteAnotherKind(string subject, string availableKind)
     {
         var state = Prepared();
@@ -122,7 +131,7 @@ public sealed partial class PrivateWorldCollectionOrderTests
     [InlineData("collect wild cultivated greens")]
     [InlineData("collect greens")]
     [InlineData("collect fresh water")]
-    [InlineData("collect bread")]
+    [InlineData("collect soup")]
     [InlineData("collect berries and fruit")]
     [InlineData("collect food from the Warehouse")]
     [InlineData("collect 0 food")]

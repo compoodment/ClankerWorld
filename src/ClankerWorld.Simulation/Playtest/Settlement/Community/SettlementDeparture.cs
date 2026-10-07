@@ -166,7 +166,14 @@ public sealed partial class PrivateWorldRuntime
         (lot.GroundPosition is not null || lot.StorageBuildingId is { } storageId &&
             worldSimulation.Buildings.Any(building => building.InstanceId == storageId && building.HouseholdId is { } home &&
                 (society.Checkpoint.GetInhabitant(actor).HouseholdId == home ||
-                 inhabitants[actor].Departures?.Any(departure => departure.HouseholdId == home) == true))));
+                 inhabitants[actor].Departures?.Any(departure => departure.HouseholdId == home) == true ||
+                 IsStoredSettledBequest(actor, lot, storageId)))));
+
+    private bool IsStoredSettledBequest(string actor, InventoryLot lot, string storageId) => society.Checkpoint.Estates.Any(estate =>
+        estate.Settled && (estate.WillBequests ?? []).Any(bequest => bequest.HeirId == actor &&
+            (bequest.LotId == lot.Id || bequest.LotId == lot.ProvenanceLotId) &&
+            (estate.FrozenLots ?? []).Any(frozen => frozen.LotId == bequest.LotId && frozen.ItemKind == lot.ItemKind &&
+                frozen.StorageBuildingId == storageId)));
 
     /// <summary>A vessel moves with its contents, so it needs room for all of them and nothing reserved.</summary>
     private bool VesselFits(InventoryLot lot, int room) => !InventoryContainerRules.IsContainer(lot.ItemKind) ||

@@ -595,6 +595,9 @@ public sealed record OwnerWorldSnapshot(
     /// <summary>How dark the host says the world is: 0 in daylight, 10,000 at full night.</summary>
     public int? DarknessBasisPoints { get; init; }
     public bool? JevEnabled { get; init; }
+    public string? RoutineHelperProvider { get; init; }
+    public string? RoutineHelperModel { get; init; }
+    public string? RoutineHelperCredentialSlotId { get; init; }
     public bool? ContinuityRuleActive { get; init; }
     public OwnerFounderSetup? FounderSetup { get; init; }
     public IReadOnlyList<OwnerWorldTown> Towns { get; init; } = [];
@@ -722,6 +725,7 @@ public sealed record OwnerDeveloperEditAction(string WorldId, long ExpectedEvent
 
 public sealed record OwnerLifePaceAction(int Rate);
 public sealed record OwnerJevAssistanceAction(bool Enabled);
+public sealed record OwnerRoutineHelperAction(string WorldId, string Provider, string Model, string? CredentialSlotId = null);
 
 public sealed record OwnerPairingApprovalAction(string PairingId, string PairingCode);
 
