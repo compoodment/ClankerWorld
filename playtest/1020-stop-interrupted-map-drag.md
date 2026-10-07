@@ -1,0 +1,1 @@
+- On Windows, start a middle-button map drag, open the pause menu, release the button there and return to the world. Ordinary pointer movement must leave the camera still; a fresh drag must still pan across the east–west seam. Repeat after switching to another application during a drag. ([#1020](https://github.com/compoodment/ClankerWorld/issues/1020))

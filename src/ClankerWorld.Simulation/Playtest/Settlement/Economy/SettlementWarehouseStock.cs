@@ -28,7 +28,7 @@ public sealed partial class PrivateWorldRuntime
     {
         if (!inhabitants.ContainsKey(actor)) yield break;
         var residentTownId = TownForResident(actor);
-        foreach (var town in towns.Where(item => item.Id == residentTownId || item.ResidentIds.Count == 0)
+        foreach (var town in towns.Where(item => item.Id == residentTownId || item.IsAbandoned)
                      .OrderBy(item => item.Id == residentTownId ? 0 : 1)
                      .ThenBy(item => item.Id, StringComparer.Ordinal))
             foreach (var warehouse in WarehousesForTown(town.Id))
@@ -44,7 +44,7 @@ public sealed partial class PrivateWorldRuntime
     private bool MayCollectWarehouseStock(string actor, PlacedBuilding warehouse) =>
         inhabitants.ContainsKey(actor) && warehouse.TownId is { } townId &&
         towns.SingleOrDefault(item => item.Id == townId) is { } town &&
-        (TownForResident(actor) == townId || town.ResidentIds.Count == 0) &&
+        (TownForResident(actor) == townId || town.IsAbandoned) &&
         WarehousesForTown(townId).Any(item => item.InstanceId == warehouse.InstanceId);
 
     private IEnumerable<InventoryLot> AvailableWarehouseStock(string actor, string? itemKind = null) =>
@@ -59,23 +59,29 @@ public sealed partial class PrivateWorldRuntime
                 (itemKind is null || lot.ItemKind == itemKind) &&
                 AvailableLotQuantity(lot) > 0));
 
-    private (InventoryLot Lot, int Quantity)? PersonalWarehouseSurplus(string actor, string? itemKind = null,
-        string? sourceLotId = null)
-    {
-        var lots = society.Checkpoint.Inventory.Lots
+    private IEnumerable<InventoryLot> PersonalWarehouseLots(string actor, string? itemKind = null) =>
+        society.Checkpoint.Inventory.Lots
             .Where(lot => lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) &&
                 lot.DeliveryBuildingId is null && WarehouseResourceKinds.Contains(lot.ItemKind) &&
                 (itemKind is null || lot.ItemKind == itemKind) && AvailableLotQuantity(lot) > 0)
-            .OrderBy(lot => lot.Id, StringComparer.Ordinal).ToArray();
+            .OrderBy(lot => lot.Id, StringComparer.Ordinal);
+
+    private long PersonalWarehouseAvailableQuantity(string actor, string itemKind) =>
+        PersonalWarehouseLots(actor, itemKind).Sum(lot => (long)AvailableLotQuantity(lot));
+
+    private (InventoryLot Lot, int Quantity)? PersonalWarehouseSurplus(string actor, string? itemKind = null,
+        string? sourceLotId = null)
+    {
+        var lots = PersonalWarehouseLots(actor, itemKind).ToArray();
         // Keep four usable units of each kind, regardless of how storage or collection split them.
         // A bound source limits the transfer, not which carried lots can satisfy the personal reserve.
         var spareByKind = lots.GroupBy(lot => lot.ItemKind, StringComparer.Ordinal)
-            .ToDictionary(group => group.Key, group => Math.Max(0, group.Sum(AvailableLotQuantity) - WarehouseLoadQuantity),
+            .ToDictionary(group => group.Key, group => Math.Max(0L, group.Sum(lot => (long)AvailableLotQuantity(lot)) - WarehouseLoadQuantity),
                 StringComparer.Ordinal);
         foreach (var lot in lots)
         {
             if (sourceLotId is not null && lot.Id != sourceLotId) continue;
-            var quantity = Math.Min(AvailableLotQuantity(lot), spareByKind[lot.ItemKind]);
+            var quantity = (int)Math.Min(AvailableLotQuantity(lot), spareByKind[lot.ItemKind]);
             if (quantity > 0) return (lot, quantity);
         }
         return null;
@@ -105,11 +111,12 @@ public sealed partial class PrivateWorldRuntime
         }
         var quantity = Math.Min(StorageRoom(warehouse.InstanceId), Math.Min(WarehouseLoadQuantity, surplus.Quantity));
         if (quantity == 0) return;
+        var availableBefore = PersonalWarehouseAvailableQuantity(actor, surplus.Lot.ItemKind);
         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
             $"warehouse-stock:{WorldTick}:{actor}", actor, warehouse.TownId!, surplus.Lot.Id,
             quantity, "town_resources_stored", warehouse.InstanceId));
         RecordNonviolentGoodsCompletion(actor, surplus.Lot, warehouse.TownId!, quantity, warehouse.InstanceId,
-            $"warehouse-stock:{WorldTick}:{actor}", "public_service_goods");
+            $"warehouse-stock:{WorldTick}:{actor}", "public_service_goods", availableBefore);
         AppendEvent("town_resources_stored", $"{actor}:{surplus.Lot.Id}:{quantity}:{warehouse.InstanceId}");
     }
 

@@ -2,7 +2,7 @@
 title: Saves and replay
 type: persistence-reference
 status: active
-updated: 2026-10-05
+updated: 2026-10-06
 ---
 
 # Saves and replay
@@ -362,6 +362,16 @@ departure, death, consumption or removal of the physical target. Prepared-tick
 rollback includes these ledgers alongside the actual goods or work. Earlier
 alpha checkpoints are refused and preserved; no inferred case history or
 migration is added.
+
+Schema 97 adds `CarriedAvailableQuantityBefore` to native public-service
+receipts. It snapshots the usable personal stock of the donated kind before
+transfer, across eligible carried lots and excluding reservations. Source-lot
+quantity and availability remain separate evidence of the actual transfer.
+Loading requires the recorded carried total to cover that source's available
+quantity and leave the four-unit reserve after donation; other receipt kinds
+cannot carry this field. The total participates in the receipt digest and
+retained completion effect. No historical stock is inferred or backfilled.
+Earlier alpha checkpoints are refused and preserved without migration.
 
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
@@ -802,7 +812,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 95. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 97. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 a bounded model-attempt status and exact last accepted model choice per agent, plus
@@ -944,6 +954,8 @@ current alpha cutoff.
 | Schema 91 | Non-land mandate consent, conduct-time law context, public hearings and voluntary remedy agreements retain their sources and real physical completion receipts. Earlier alpha saves are refused and preserved without migration. |
 | Schema 94 | Market receipts use required stable sequences and an explicit retirement boundary. Open trades retain their exact deposit proof; bounded closed outcomes may refer below the retired boundary. Live borrowing, current stock, exact payments and accepted offers remain authoritative; closed offers and claims retire together. Earlier alpha saves are refused and preserved without migration. |
 | Schema 95 | Required per-world routine-helper settings retain Off, Jev or OpenAI Decisions, its model and an optional installation-owned OpenAI key-slot ID. Switches retain memories and scores, invalidate pending replies and replay with the saved routing revision. Earlier alpha saves are refused and preserved without migration; key bytes remain outside world saves. |
+| Schema 96 | Animals, held products and saddles, care trips, pregnancies, named permissions and exact animal/milk offers retain their physical custody. Current saves require the complete animal record; earlier alpha saves are refused and preserved without migration. |
+| Schema 97 | Native public-service receipts retain the usable personal carried quantity before donation separately from the actual source lot. The four-unit reserve may span carried lots; saved validation preserves source quantity, reservations and exact physical transfer evidence. Earlier alpha saves are refused and preserved without migration. |
 
 ### Tool-making requests
 
@@ -1046,6 +1058,35 @@ generated-world gathering and donation, genuine Warehouse loads, intermediate
 restore/replay, discarded prepared ticks, stale votes, retained removal and
 coherently altered receipt/source references. Earlier
 alpha schemas, including 53, are refused visibly and preserved without migration.
+
+## Abandoned Towns and physical salvage
+
+Abandonment is derived from a founded Town's empty recorded living-resident
+roster; it adds no saved flag or schema field. Children, travelers and residents
+without a home still count. A last departure or death records `town_abandoned`;
+the first new resident records `town_revived`. The Town record, laws, civic
+history, buildings, land title, household use rights and infrastructure stay
+intact.
+
+The personal `resettle` choice requires a living adult physically inside the
+abandoned Town. It moves that adult's Town care group under the one-Town rule,
+without moving bodies or changing household membership, care or property.
+Governance refreshes from the new living adult roster; prior offices are not
+restored. `town_resettled` records the deliberate change. Later arrivals use
+ordinary admission.
+
+Public salvage operates on exact communal lots on the ground or in the
+recorded Town's Warehouse. Pickup rechecks current abandonment, physical
+distance, reservations and carrying room. Container families move together;
+salvaged handcarts keep their ground location until pulled. Transfers retain
+condition, provenance and stock history and record `town_stock_salvaged`.
+Revival neither confiscates prior pickups nor permits a stale public choice
+to collect more stock.
+
+`TownAbandonmentTests` exercises strict current-format roundtrips, identical
+live/restored continuations before and after membership or stock transfer,
+discarded prepared ticks, competing pickups and a delayed hosted reply after
+revival. No migration or inferred historical abandonment is added.
 
 ## Ports and communal boats
 
@@ -1411,3 +1452,23 @@ replacement before accepting it in memory. A failed write preserves the live
 state and the prior save, and the original command can be retried. Tests cover
 this rollback, stale/wrong-world refusals, field binding in signed requests,
 and the generated-world path for every supported edit category.
+
+## Animal checkpoints
+
+Private-world schema 96 requires the complete animal-world record. It stores
+exact animal identities, species, sex, birth/death ticks, physical positions,
+household and yard, paid care deadlines, unfinished products and pregnancies,
+reserved births, named permissions, taming work, supply trips, riders and
+leaders. Products and fitted saddles reference real inventory lots and exclusive
+reservations. Trade offers retain the exact animal, adults, receiving yard and
+payment lot; native animal orders retain the exact bound animal ID. Milk-sale
+offers retain both parties, the held milk, receiving jug, payment and physical
+Store or Market stall. Whole-jug stock deliveries retain household ownership.
+
+Current-format replay and rollback cover arrival, paid care, collection, birth,
+production jobs and attachments. Reload validates required animal fields,
+physical saddle/product custody, household/herd limits and vessel contents.
+Water and milk cannot share a jug, and collected milk cannot become a loose lot.
+An interrupted tick or refused durable developer edit restores both animal and
+inventory state. Older alpha checkpoints are refused and preserved; no animal
+inference or migration runs.

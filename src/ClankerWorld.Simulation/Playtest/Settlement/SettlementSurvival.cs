@@ -53,9 +53,9 @@ public sealed partial class PrivateWorldRuntime
     private SettlementSurvivalState? survivalState;
     private static readonly HashSet<string> PerishableKinds = new(StringComparer.Ordinal)
         { "food", "fruit", "berries", "wild_greens", "cultivated_greens",
-            "simple_meal", "bread", "porridge", "berry_porridge", "fruit_porridge", "stew", "restaurant_meal" };
+            "simple_meal", "bread", "porridge", "berry_porridge", "fruit_porridge", "stew", "restaurant_meal", "eggs", "milk", "cooked_eggs", "milk_porridge", "rich_meal" };
     private static readonly IReadOnlyDictionary<string, int> FoodSpoilageRates =
-        new Dictionary<string, int>(StringComparer.Ordinal) { ["bread"] = 2 };
+        new Dictionary<string, int>(StringComparer.Ordinal) { ["bread"] = 2, ["milk"] = 28 };
     private const int IllnessRecoveryPerTick = 12;
     private const int ShelteredIllnessRecoveryBonusPerTick = 12;
     private const int IllnessCareReliefBasisPoints = 250;
@@ -482,7 +482,7 @@ public sealed partial class PrivateWorldRuntime
     }
 
     private static bool IsPreparedMeal(string kind) => kind is "simple_meal" or "porridge" or
-        "berry_porridge" or "fruit_porridge" or "bread" or "stew" or "restaurant_meal";
+        "berry_porridge" or "fruit_porridge" or "bread" or "stew" or "restaurant_meal" or "cooked_eggs" or "milk_porridge" or "rich_meal";
 
     private static bool IsEdibleFood(string kind) => IsPreparedMeal(kind) ||
         kind is "food" or "fruit" or "berries" or "wild_greens" or "cultivated_greens";
@@ -490,6 +490,9 @@ public sealed partial class PrivateWorldRuntime
     private static int FoodNourishment(string kind) => kind switch
     {
         "restaurant_meal" => 6_000,
+        "rich_meal" => 7_000,
+        "cooked_eggs" => 4_000,
+        "milk_porridge" => 5_000,
         "berry_porridge" or "fruit_porridge" or "stew" => 5_000,
         "simple_meal" or "porridge" or "bread" => 4_000,
         "berries" => 2_000,
@@ -501,13 +504,24 @@ public sealed partial class PrivateWorldRuntime
     private IEnumerable<InventoryLot> PreferredFood(string owner, string? actor = null)
     {
         var previous = actor is not null && inhabitants.TryGetValue(actor, out var person) ? person.Survival?.LastMealKind : null;
-        return society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == owner &&
-                lot.ContainerLotId is null && IsEdibleFood(lot.ItemKind) &&
-                (owner != actor ? lot.CarrierId is null :
-                    PersonalEquipmentRules.IsCarried(lot, actor!) && lot.DeliveryBuildingId is null) &&
+        var inventory = society.Checkpoint.Inventory;
+        return inventory.Lots.Where(lot => lot.OwnerId == owner && IsEdibleFood(lot.ItemKind) &&
+                (owner != actor ? lot.ContainerLotId is null && lot.CarrierId is null :
+                    UsablePersonalFood(inventory, lot, actor!)) &&
                 AvailableLotQuantity(lot) > 0)
             .OrderBy(lot => previous is not null && FoodSource(lot) == previous ? 1 : 0)
             .ThenByDescending(lot => lot.FreshnessBasisPoints).ThenBy(lot => lot.Id, StringComparer.Ordinal);
+    }
+
+    private static bool UsablePersonalFood(InventoryCheckpoint inventory, InventoryLot food, string actor)
+    {
+        if (food.DeliveryBuildingId is not null) return false;
+        if (food.ContainerLotId is not { } containerId)
+            return PersonalEquipmentRules.IsCarried(food, actor);
+        return inventory.Lots.Any(pot => pot.Id == containerId && pot.OwnerId == actor &&
+            pot.ItemKind == InventoryContainerRules.StoragePot && pot.ConditionBasisPoints > 0 &&
+            pot.DeliveryBuildingId is null && PersonalEquipmentRules.IsCarried(pot, actor) &&
+            !HasActiveContainerReservation(inventory, pot.Id));
     }
 
     private SurvivalCondition? AfterMeal(PlaytestInhabitantState person, InventoryLot food)

@@ -39,6 +39,7 @@ public partial class Main
                 throw new InvalidOperationException("Handcart zoom checks must run in a real 720p viewport.");
             VerifyHandcartMotionAndZoom();
             VerifyBoatPresentation();
+            VerifyAnimalPresentation();
         }
         finally
         {
