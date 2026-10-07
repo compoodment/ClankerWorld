@@ -478,7 +478,8 @@ Adults and elders prepare real supplies, walk to their household's Blacksmith
 and repair their own carried tools. Only finished repairs count; pickup,
 gathering and travel earn no progress. Worn wooden, stone and iron axes and
 pickaxes, wooden and iron hoes and sickles, wooden and stone hammers, and iron
-knives are supported. Fully broken tools need replacement. Borrowed, reserved,
+knives are supported. Fully broken tools need replacement in both ordinary
+repair and owner orders. Borrowed, reserved,
 stored and promised tools are unavailable to these personal orders. The agent
 may put spare cargo in household storage to make room for supplies, preserving
 all matching worn personal tools and any tools needed to gather materials.

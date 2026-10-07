@@ -192,7 +192,7 @@ public sealed partial class PrivateWorldRuntime
         var tools = inventory.Lots.Where(lot => ToolProgressionRules.IsTopLevelCarriedLot(lot, actor) &&
                 (lot.OwnerId == actor || lot.OwnerId == householdId) &&
                 ToolProgressionRules.Find(lot.ItemKind) is not null &&
-                lot.ConditionBasisPoints < 10_000 && UnreservedQuantity(inventory, lot) > 0)
+                lot.ConditionBasisPoints is > 0 and < 10_000 && UnreservedQuantity(inventory, lot) > 0)
             .OrderBy(lot => lot.Id, StringComparer.Ordinal)
             .Where(tool => ToolProgressionRules.RepairMaterials(tool.ItemKind) is { Count: > 0 } materials &&
                 CanPrepareRepairInputs(actor, tool.Id, materials, protectedToolIds)).ToArray();
@@ -292,7 +292,7 @@ public sealed partial class PrivateWorldRuntime
         var tool = inventory.Lots.FirstOrDefault(lot => lot.Id == lotId &&
             ToolProgressionRules.IsTopLevelCarriedLot(lot, actor) &&
             (lot.OwnerId == actor || lot.OwnerId == society.Checkpoint.GetInhabitant(actor).HouseholdId) &&
-            ToolProgressionRules.Find(lot.ItemKind) is not null && lot.ConditionBasisPoints < 10_000 &&
+            ToolProgressionRules.Find(lot.ItemKind) is not null && lot.ConditionBasisPoints is > 0 and < 10_000 &&
             UnreservedQuantity(inventory, lot) > 0);
         var householdId = society.Checkpoint.GetInhabitant(actor).HouseholdId;
         var blacksmith = householdId is null ? null : HouseholdBuildingWithTag(householdId, "blacksmith");
