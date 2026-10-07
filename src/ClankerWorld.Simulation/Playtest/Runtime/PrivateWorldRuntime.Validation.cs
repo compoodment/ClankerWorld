@@ -769,7 +769,8 @@ public sealed partial class PrivateWorldRuntime
                 (order.RepeatUntilCancelled || order.CompletedUnits <= order.RequestedUnits) &&
                 order.Status != "not_understood" &&
                 (order.Status == "finished") == (!order.RepeatUntilCancelled && order.CompletedUnits >= order.RequestedUnits) &&
-                (order.CompletedUnits == 0 ? order.LastEffectId is null : IsValidTreePlantingReceipt(order.LastEffectId));
+                (order.CompletedUnits == 0 ? order.LastEffectId is null :
+                    IsValidTreePlantingReceipt(order.LastEffectId, order.TargetPosition));
 
         if (IsFieldOrder(order.Action))
             return (order.Action == "till_field" ? order.TargetCropKind is null :
@@ -927,10 +928,12 @@ public sealed partial class PrivateWorldRuntime
                 order.TargetLotId == order.TargetLotId.Trim() && !order.TargetLotId.Any(char.IsControl));
     }
 
-    private static bool IsValidTreePlantingReceipt(string? receipt)
+    private static bool IsValidTreePlantingReceipt(string? receipt, GridPoint? target)
     {
         const string prefix = "tree:plant:" + TreeGrowthRules.PlantedTreeIdPrefix;
         if (receipt?.StartsWith(prefix, StringComparison.Ordinal) != true) return false;
+        if (target is { } position) return position.X >= 0 && position.Y >= 0 &&
+            receipt == "tree:plant:" + TreeGrowthRules.PlantedTreeId(position);
         var coordinates = receipt[prefix.Length..].Split('-');
         return coordinates.Length == 2 && int.TryParse(coordinates[0], out var x) && x >= 0 &&
             int.TryParse(coordinates[1], out var y) && y >= 0 &&

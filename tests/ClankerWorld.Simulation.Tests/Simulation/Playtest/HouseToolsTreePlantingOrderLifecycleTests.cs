@@ -27,8 +27,11 @@ public sealed partial class HouseToolsBehaviorTests
             {
                 Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor ? person with
                 {
-                    Position = FreeNeighbors(state, actor, source).First(), TravelCooldownTicks = 0,
-                    LastDecisionContext = null, Project = null, Exploration = null,
+                    Position = FreeNeighbors(state, actor, source).First(),
+                    TravelCooldownTicks = 0,
+                    LastDecisionContext = null,
+                    Project = null,
+                    Exploration = null,
                 } : person).ToArray(),
             };
             using var felling = Restore(state);
@@ -41,9 +44,9 @@ public sealed partial class HouseToolsBehaviorTests
         return PrivateWorldRuntimeCodec.Encode(state);
     }
 
-    private static (PrivateWorldRuntimeState State, string Actor, GridPoint Target) PreparedTreeOrder()
+    private static (PrivateWorldRuntimeState State, string Actor, GridPoint Target) PreparedTreeOrder(PrivateWorldRuntimeState? saved = null)
     {
-        var state = PrivateWorldRuntimeCodec.Decode(NativeTreeOrderSeeds.Value);
+        var state = saved ?? PrivateWorldRuntimeCodec.Decode(NativeTreeOrderSeeds.Value);
         var actor = state.Inhabitants[0].InhabitantId;
         var blocked = state.WorldSimulation!.Buildings.SelectMany(building => WorldContentSimulationRules.Footprint(
                 state.WorldContent!.Buildings.Single(item => item.CanonicalId == building.DefinitionId), building))
@@ -65,8 +68,12 @@ public sealed partial class HouseToolsBehaviorTests
         {
             Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor ? person with
             {
-                Position = stand, HungerBasisPoints = 9_000, TravelCooldownTicks = 0,
-                Project = null, LastDecisionContext = null, Exploration = null,
+                Position = stand,
+                HungerBasisPoints = 9_000,
+                TravelCooldownTicks = 0,
+                Project = null,
+                LastDecisionContext = null,
+                Exploration = null,
             } : person).ToArray(),
         }, actor, target);
     }
@@ -134,8 +141,11 @@ public sealed partial class HouseToolsBehaviorTests
             .Where(point => state.Map.IsPassable(point) && state.Map.FootDistance(point, target) is >= 4 and <= 6 &&
                 state.Map.IsReachableOnFoot(point, target) && !state.Inhabitants.Any(person => person.Position == point))
             .OrderBy(point => state.Map.FootDistance(point, target)).First();
-        state = state with { Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
-            ? person with { Position = start } : person).ToArray() };
+        state = state with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+            ? person with { Position = start } : person).ToArray()
+        };
         using var world = Restore(state);
         var receipt = world.SubmitInstruction(new("walk-tree", "owner:test", actor, OwnerInstructionKind.MustDo,
             $"plant a broadleaf tree at {target.X},{target.Y}"));
@@ -164,6 +174,7 @@ public sealed partial class HouseToolsBehaviorTests
     [InlineData("outside")]
     [InlineData("foreign")]
     [InlineData("missing")]
+    [InlineData("reserved")]
     public async Task RefusedTreeOrdersKeepSeedsAndExplainTheActualBlocker(string cause)
     {
         var (state, actor, target) = PreparedTreeOrder();
@@ -171,8 +182,18 @@ public sealed partial class HouseToolsBehaviorTests
         else if (cause == "ground") target = state.Map.Tiles.First(tile =>
             TreeGrowthRules.GroundRefusal(state.Map, tile.Position) is not null &&
             !state.Towns!.Any(town => town.BorderTiles.Contains(tile.Position))).Position;
-        else if (cause == "occupied") target = state.Map.Resources[0].Position;
+        else if (cause == "occupied") target = state.Map.Resources.First(resource =>
+            TreeGrowthRules.GroundRefusal(state.Map, resource.Position) is null &&
+            !state.Towns!.Any(town => town.BorderTiles.Contains(resource.Position))).Position;
         else if (cause == "outside") target = new(state.Map.Width, state.Map.Height);
+        if (cause == "reserved")
+        {
+            var inventory = state.Society.Society.Inventory;
+            foreach (var seed in inventory.Lots.Where(lot => lot.ItemKind == TreeGrowthRules.TreeSeedItem).ToArray())
+                inventory = InventoryFixture.Reserve(inventory, "held-" + seed.Id, actor, seed.Id, seed.Quantity,
+                    "other_committed_work", inventory.WorldTick + 1000);
+            state = WithInventory(state, inventory);
+        }
         if (cause is "foreign" or "missing")
         {
             var inventory = state.Society.Society.Inventory;
@@ -191,7 +212,13 @@ public sealed partial class HouseToolsBehaviorTests
             $"plant a conifer tree at {target.X},{target.Y}"));
         Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         Assert.Equal(("blocked", 0), (Order(world, receipt).Status, Order(world, receipt).CompletedUnits));
-        Assert.False(string.IsNullOrWhiteSpace(Order(world, receipt).BlockedReason));
+        Assert.Contains(cause switch
+        {
+            "town" => "Town borders",
+            "outside" => "outside this world",
+            "ground" or "occupied" => "empty grass",
+            _ => "tree seed",
+        }, Order(world, receipt).BlockedReason, StringComparison.Ordinal);
         Assert.Equal(seedCount, world.Society.Inventory.Lots.Where(lot => lot.ItemKind == TreeGrowthRules.TreeSeedItem).Sum(lot => lot.Quantity));
         Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "tree_planted");
         using var loaded = Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState())));
@@ -225,6 +252,8 @@ public sealed partial class HouseToolsBehaviorTests
             Order(world, second) with { CompletedUnits = 2 },
             Order(world, second) with { LastEffectId = null },
             Order(world, second) with { LastEffectId = "tree:plant:planted-tree-made-up" },
+            Order(world, second) with { LastEffectId = "tree:plant:planted-tree-+1-2" },
+            Order(world, second) with { TargetPosition = new(-1, -2), LastEffectId = "tree:plant:planted-tree--1--2" },
             Order(world, second) with { TargetCropKind = "grain" },
             Order(world, second) with { TargetAgentId = actor },
         })

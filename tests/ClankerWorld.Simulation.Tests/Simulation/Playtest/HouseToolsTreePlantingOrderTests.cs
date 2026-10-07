@@ -86,8 +86,12 @@ public sealed partial class HouseToolsBehaviorTests
         {
             Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor ? person with
             {
-                Position = stand, HungerBasisPoints = 9_000, TravelCooldownTicks = 0,
-                Project = null, LastDecisionContext = null, Exploration = null,
+                Position = stand,
+                HungerBasisPoints = 9_000,
+                TravelCooldownTicks = 0,
+                Project = null,
+                LastDecisionContext = null,
+                Exploration = null,
             } : person).ToArray(),
         };
         IDecisionProvider Provider(string id) => mode.StartsWith("autonomous", StringComparison.Ordinal) && id == actor
@@ -117,7 +121,20 @@ public sealed partial class HouseToolsBehaviorTests
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
             Assert.True((await replay.AdvanceOneTickAsync()).Advanced);
             Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
+            if (tick == 0 && mode == "owner_stored")
+            {
+                Assert.Equal(0, Order(world, receipt!).CompletedUnits);
+                using var duringCollection = Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState())));
+                Assert.True((await duringCollection.AdvanceOneTickAsync()).Advanced);
+                Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+                Assert.True((await replay.AdvanceOneTickAsync()).Advanced);
+                Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(duringCollection.ExportState()));
+                Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
+            }
         }
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.True((await replay.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
         var tree = Assert.Single(world.ExportState().Map.Resources,
             resource => resource.Id.StartsWith(TreeGrowthRules.PlantedTreeIdPrefix, StringComparison.Ordinal));
         Assert.Equal(0, PersonalQuantity(world, actor, TreeGrowthRules.TreeSeedItem));
