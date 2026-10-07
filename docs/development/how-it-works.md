@@ -2803,7 +2803,9 @@ Cared adult pairs breed automatically when their yard has a place and delivered
 supplies cover existing animals and the offspring. Pregnancy reserves one place;
 young animals and reservations count toward eight per household or wild herd.
 Missed care pauses progress. Only old age kills animals; an owned sheep, cow or
-horse leaves one household hide at its actual death position. Abandonment does
+horse leaves one household hide at its actual death position. Untamed animals
+leave one hide bound to their remains until a nearby adult collects it; this
+does not grant access to household-owned hides. Abandonment does
 not turn private animals into public salvage.
 
 Animal gifts, sales and named outsider permissions need fresh, admitted personal

@@ -72,6 +72,7 @@ public static class WorldEventText
             "animal_cared" => $"{animalName} received a day's physical feed and water.",
             "animal_product_ready" => $"{animalName}'s product is ready for local collection.",
             "animal_product_collected" => $"{animalName}'s product was collected for its household.",
+            "animal_hide_collected" => $"An adult collected {animalName}'s wild old-age hide.",
             "animal_breeding_started" => $"{animalName} is expecting one young animal; a place is reserved.",
             "animal_born" => $"{animalName} was born.",
             "animal_died" => $"{animalName} died of old age.",

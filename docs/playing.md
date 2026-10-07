@@ -766,7 +766,9 @@ or sale when both adults meet and the receiving yard has space.
 
 Cared adult pairs breed automatically with space and delivered supplies. Missed
 care pauses products and pregnancy progress and ends riding. Neglect does not
-kill animals. Only old age does; sheep, cows and horses leave one owned hide.
+kill animals. Only old age does; sheep, cows and horses leave one hide.
+Household hides remain private; nearby adults may collect untamed animals'
+old-age hides from their actual death tile.
 For a quick trial, pause and open **Developer tools (F12)**, choose an adult
 with yard space, and use **Add household animal**. The Event Log records it.
 The [animal playtest list](../playtest/433-animals.md) remains untried on Windows.

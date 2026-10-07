@@ -434,6 +434,7 @@ public static class GameUiText
             {
                 "care" => "caring for an animal",
                 "collect" => "collecting animal products",
+                "collect_hide" => "collecting a wild animal's old-age hide",
                 "tame" => "taming an animal",
                 "lead_home" => "leading an animal home",
                 "saddle" => "fitting a horse's saddle",

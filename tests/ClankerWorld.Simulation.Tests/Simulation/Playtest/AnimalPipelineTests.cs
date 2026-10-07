@@ -8,7 +8,7 @@ using ClankerWorld.Simulation.World;
 
 namespace ClankerWorld.Simulation.Tests;
 
-public sealed class AnimalPipelineTests
+public sealed partial class AnimalPipelineTests
 {
     [Fact]
     public async Task NormalWorldSeedsPhysicalWildHerdsWithoutGivingHouseholdsAnimalsAndReplaysTheTick()
@@ -187,8 +187,10 @@ public sealed class AnimalPipelineTests
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(full));
     }
 
-    [Fact]
-    public async Task OnlyOldAgeKillsAnimalsAndOwnedHideRemainsPrivateAtTheDeathPosition()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task OnlyOldAgeKillsAnimalsAndHideRemainsAtTheDeathPosition(bool owned)
     {
         var (state, actor, home, yard) = CreateYard("animal-old-age");
         state = state with
@@ -209,17 +211,36 @@ public sealed class AnimalPipelineTests
             state.WorldSystems!.Config with { TicksPerDay = 2, CalendarOffsetTicks = 0 }, state.WorldSystems.Ecology.Resources,
             state.WorldSystems.Factions, state.WorldSystems.Currency, state.WorldSystems.Culture, state.WorldSystems.Chunks)
         };
-        var animal = new AnimalState("cow", "Moss", "cow", "female", -14, yard.Position, "household:" + home, home, yard.InstanceId);
+        var animal = new AnimalState("cow", "Moss", "cow", "female", -14, yard.Position,
+            owned ? "household:" + home : "wild-herd", owned ? home : null, owned ? yard.InstanceId : null);
         using var world = PrivateWorldRuntime.Restore(At(state, actor, yard.Position, state.Society.Society.Inventory, [animal]), _ => new AnimalChooser());
         for (var tick = 0; tick < 106; tick++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         var dead = Assert.Single(world.Animals);
         Assert.Equal(106L, dead.DiedTick);
         var hide = Assert.Single(world.Society.Inventory.Lots, lot => lot.ItemKind == "hide");
-        Assert.Equal((home, 1, new InventoryGroundPosition(dead.Position.X, dead.Position.Y)),
+        Assert.Equal((owned ? home : animal.Id, 1, new InventoryGroundPosition(dead.Position.X, dead.Position.Y)),
             (hide.OwnerId, hide.Quantity, hide.GroundPosition));
         Assert.Single(world.ExportState().Events, item => item.Kind == "animal_died");
         Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "animal_cared");
         world.Validate();
+        var stateAfterDeath = world.ExportState();
+        using var collection = PrivateWorldRuntime.Restore(At(stateAfterDeath, actor, dead.Position,
+            world.Society.Inventory, world.Animals.ToArray()), id => id == actor ?
+            new AnimalChooser("animal:collect_hide:") : new AnimalChooser());
+        if (owned)
+        {
+            Assert.True((await collection.AdvanceOneTickAsync()).Advanced);
+            Assert.Equal(home, collection.Society.Inventory.GetLot(hide.Id).OwnerId);
+        }
+        else
+        {
+            await Until(collection, () => collection.Society.Inventory.Lots.Any(lot => lot.ItemKind == "hide" && lot.OwnerId == actor));
+            var collected = Assert.Single(collection.Society.Inventory.Lots, lot => lot.ItemKind == "hide");
+            Assert.Equal((actor, 1), (collected.CarrierId, collected.Quantity));
+            var bytes = PrivateWorldRuntimeCodec.Encode(collection.ExportState());
+            using var reload = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes));
+            Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(reload.ExportState()));
+        }
     }
 
     [Fact]
@@ -439,8 +460,10 @@ public sealed class AnimalPipelineTests
         world.Validate();
     }
 
-    [Fact]
-    public async Task MilkIsHauledAsAWholeHouseholdJugAndAnAgreedSalePoursOnlyOnePortionIntoTheBuyersJug()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task MilkIsHauledAsAWholeHouseholdJugAndAnAgreedSalePoursOnlyOnePortionIntoTheBuyersJug(bool brokenSource)
     {
         var (state, seller, home, yard) = CreateYard("animal-milk-sale");
         var definition = state.WorldContent!.Buildings.Single(definition => definition.LocalId == "store-1x1");
@@ -464,6 +487,8 @@ public sealed class AnimalPipelineTests
             person.AgeBand == SocietyAgeBand.Adult && person.HouseholdId != home).Id;
         inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "buyer-jug", "water_jug", buyer, 1);
         inventory = InventoryFixture.AddLot(inventory, "milk-payment", "wood", buyer, 1);
+        if (brokenSource) inventory = inventory with
+        { Lots = inventory.Lots.Select(lot => lot.Id == "seller-jug" ? lot with { ConditionBasisPoints = 0 } : lot).ToArray() };
         state = At(state, seller, store.Position, inventory, []) with
         {
             Inhabitants = At(state, seller, store.Position, inventory, []).Inhabitants
@@ -471,11 +496,39 @@ public sealed class AnimalPipelineTests
         };
         var chooser = new AnimalChooser("animal:milk_offer:", DecisionProviderKind.LargeLanguageModel);
         using var offering = PrivateWorldRuntime.Restore(state, id => id == seller ? chooser : new AnimalChooser());
+        if (brokenSource)
+        {
+            for (var tick = 0; tick < 4; tick++) Assert.True((await offering.AdvanceOneTickAsync()).Advanced);
+            Assert.Empty(offering.ExportState().AnimalWorld.MilkOffers);
+            Assert.Equal((2, 1), (offering.Society.Inventory.GetLot("sale-milk").Quantity,
+                offering.Society.Inventory.GetLot("milk-payment").Quantity));
+            offering.Validate();
+            return;
+        }
         await Until(offering, () => offering.ExportState().AnimalWorld.MilkOffers.Count == 1);
         Assert.Equal(1, offering.Society.Inventory.GetLot("milk-payment").Quantity);
         var bytes = PrivateWorldRuntimeCodec.Encode(offering.ExportState());
         Assert.False((await offering.AdvanceOneTickAsync(() => false)).Advanced);
         Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(offering.ExportState()));
+        var brokenOffer = offering.ExportState() with
+        {
+            Society = offering.ExportState().Society with
+            {
+                Society = offering.ExportState().Society.Society with
+                {
+                    Inventory = offering.Society.Inventory with
+                    {
+                        Lots = offering.Society.Inventory.Lots.Select(lot =>
+                    lot.Id == "seller-jug" ? lot with { ConditionBasisPoints = 0 } : lot).ToArray()
+                    }
+                }
+            }
+        };
+        using var invalidated = PrivateWorldRuntime.Restore(brokenOffer, _ => new AnimalChooser());
+        Assert.True((await invalidated.AdvanceOneTickAsync()).Advanced);
+        Assert.Empty(invalidated.ExportState().AnimalWorld.MilkOffers);
+        Assert.Equal((2, 1), (invalidated.Society.Inventory.GetLot("sale-milk").Quantity,
+            invalidated.Society.Inventory.GetLot("milk-payment").Quantity));
         using var accepting = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes), id => id == buyer ?
             new AnimalChooser("animal:milk_accept:", DecisionProviderKind.LargeLanguageModel) : new AnimalChooser());
         accepting.SubmitInstruction(new("notice-milk", "owner", buyer, OwnerInstructionKind.Suggestive, "Consider the offered milk."));

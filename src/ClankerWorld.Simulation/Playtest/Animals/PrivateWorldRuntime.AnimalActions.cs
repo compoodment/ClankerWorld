@@ -15,6 +15,10 @@ public sealed partial class PrivateWorldRuntime
     {
         if (!AdultResident(actor)) yield break;
         var person = inhabitants[actor];
+        foreach (var animal in animalWorld.Animals.Where(item => item.DiedTick is not null && item.HouseholdId is null))
+            if (map.FootDistance(person.Position, animal.Position) <= 4 && FreeCarryCapacity(actor) >= 1 &&
+                WildAnimalHide(animal) is not null)
+                yield return new("collect_hide", animal.Id);
         foreach (var animal in animalWorld.Animals.Where(item => item.DiedTick is null))
         {
             if (animal.LeaderId == actor) yield return new("lead_home", animal.Id);
@@ -56,13 +60,14 @@ public sealed partial class PrivateWorldRuntime
                 "tame" => $"Approach and tame {animal.Name} for your household with two feed and one jug water; lead it to the animal yard.",
                 "care" => $"Bring physical feed and jug water to care for {animal.Name} for one day.",
                 "collect" => $"Collect {AnimalRules.Definition(animal.Species).Product} from {animal.Name} into household goods; milk requires a household jug.",
+                "collect_hide" => $"Collect the unowned hide left by {animal.Name}'s natural death at its actual position.",
                 "lead_home" => $"Lead {animal.Name} along a legal route to the household's animal yard.",
                 "saddle" => $"Fit a real household saddle on {animal.Name}.",
                 "mount" => $"Mount {animal.Name} with permission for faster travel and eight additional cargo units.",
                 _ => $"Dismount {animal.Name}, leaving the horse and extra cargo at their actual position.",
             };
             candidates.Add(new(choice.Id, description, choice.Action == "lead_home" ? 13 : choice.Action == "care" ? 15 :
-                choice.Action == "collect" ? 16 : 110, animal.Id));
+                choice.Action is "collect" or "collect_hide" ? 16 : 110, animal.Id));
         }
         AddAnimalSupplyCandidates(candidates, actor);
         AddAnimalPermissionAndTradeCandidates(candidates, actor);
@@ -147,6 +152,14 @@ public sealed partial class PrivateWorldRuntime
                 AppendEvent("animal_cared", actor + ":" + animal.Id, animal.Position);
                 break;
             case "collect": CollectAnimalProduct(actor, animal); break;
+            case "collect_hide":
+                if (WildAnimalHide(animal) is not { } hide || FreeCarryCapacity(actor) < 1) break;
+                ApplyInventoryTransition(inventory => InventoryFixture.Relocate(InventoryFixture.Transfer(inventory,
+                    "collect-wild-hide-" + AnimalKey(actor + ":" + animal.Id + ":" + WorldTick), animal.Id, actor,
+                    hide.Id, 1, "wild-animal-hide", destinationGroundPosition: hide.GroundPosition),
+                    "carry-wild-hide-" + AnimalKey(actor + ":" + animal.Id + ":" + WorldTick), hide.Id, actor, 1, carrierId: actor));
+                AppendEvent("animal_hide_collected", actor + ":" + animal.Id, animal.Position);
+                break;
             case "lead_home": LeadAnimalHome(actor, animal); break;
             case "saddle": SaddleAnimal(actor, animal); break;
             case "mount": SetAnimal(animal with { RiderId = actor }); AppendEvent("horse_mounted", actor + ":" + animal.Id, animal.Position); break;
@@ -186,7 +199,9 @@ public sealed partial class PrivateWorldRuntime
         return Take(lot => AnimalRules.IsFeed(lot.ItemKind) && lot.ContainerLotId is null, feed) &&
             Take(lot => lot.ItemKind == InventoryContainerRules.FreshWater && lot.ContainerLotId is { } container &&
                 society.Checkpoint.Inventory.GetLot(container).ConditionBasisPoints > 0, water) &&
-            AnimalFoodReserveRemaining(actor, result.Where(input => IsEdibleFood(input.Item1.ItemKind)).Sum(input => input.Item2), animal.HouseholdId) ? result : null;
+            result.Where(input => IsEdibleFood(input.Item1.ItemKind))
+                .GroupBy(input => input.Item1.OwnerId == animal.HouseholdId ? animal.HouseholdId : HouseholdFor(actor))
+                .All(group => AnimalFoodReserveRemaining(actor, group.Sum(input => input.Item2), group.Key)) ? result : null;
     }
     private bool AnimalFeedMayBeSpent(string actor, AnimalState animal, InventoryLot lot, int quantity)
     {
@@ -220,9 +235,16 @@ public sealed partial class PrivateWorldRuntime
         });
     }
     private InventoryLot? CarriedMilk(string actor) => society.Checkpoint.Inventory.Lots.FirstOrDefault(lot =>
-        lot.ItemKind == "milk" && lot.ContainerLotId is not null && AvailableLotQuantity(lot) > 0 &&
+        lot.ItemKind == "milk" && lot.ContainerLotId is { } jug &&
+        society.Checkpoint.Inventory.GetLot(jug).ConditionBasisPoints > 0 && AvailableLotQuantity(lot) > 0 &&
         PersonalEquipmentRules.IsPhysicallyCarried(society.Checkpoint.Inventory, lot, actor) &&
         (lot.OwnerId == actor || lot.OwnerId == HouseholdFor(actor)));
+
+    private InventoryLot? WildAnimalHide(AnimalState animal) => animal.DiedTick is not null && animal.HouseholdId is null ?
+        society.Checkpoint.Inventory.Lots.FirstOrDefault(lot => lot.Id == "animal-hide-" + AnimalKey(animal.Id) &&
+            lot.ItemKind == "hide" && lot.OwnerId == animal.Id && lot.Quantity == 1 && AvailableLotQuantity(lot) == 1 &&
+            lot.GroundPosition == new InventoryGroundPosition(animal.Position.X, animal.Position.Y) &&
+            lot.ContainerLotId is null && lot.StorageBuildingId is null && lot.CarrierId is null) : null;
 
     private void CollectAnimalProduct(string actor, AnimalState animal)
     {

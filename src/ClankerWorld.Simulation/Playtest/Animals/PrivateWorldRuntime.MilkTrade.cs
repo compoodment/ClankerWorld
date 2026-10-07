@@ -114,7 +114,7 @@ public sealed partial class PrivateWorldRuntime
         buildingId = ""; position = default;
         if (milk.ContainerLotId is not { } rootId || !AdultResident(seller)) return false;
         var root = society.Checkpoint.Inventory.GetLot(rootId);
-        if (root.CarrierId is not null || !(root.OwnerId == seller || root.OwnerId == HouseholdFor(seller))) return false;
+        if (root.ConditionBasisPoints <= 0 || root.CarrierId is not null || !(root.OwnerId == seller || root.OwnerId == HouseholdFor(seller))) return false;
         if (root.StorageBuildingId is { } storeId && worldSimulation.Buildings.FirstOrDefault(building => building.InstanceId == storeId &&
                 building.HouseholdId == HouseholdFor(seller) && worldContent.Buildings.Any(definition => definition.CanonicalId == building.DefinitionId &&
                     definition.Tags.Contains("store"))) is { } store)

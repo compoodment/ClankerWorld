@@ -60,6 +60,9 @@ public sealed partial class PrivateWorldRuntime
         if (animal.SaddleLotId is { } saddle && animal.SaddleReservationId is { } held)
             ApplyInventoryTransition(inventory => InventoryFixture.MoveAnimalSaddle(inventory, saddle, held, animal.Id,
                 new(animal.Position.X, animal.Position.Y), new(next.X, next.Y), map.WrapsEastWest ? map.Width : 0));
+        if (animal.ReadyProductLotId is { } product && animal.ReadyProductReservationId is { } productHeld)
+            ApplyInventoryTransition(inventory => InventoryFixture.MoveAnimalProduct(inventory, product, productHeld, animal.Id,
+                new(animal.Position.X, animal.Position.Y), new(next.X, next.Y), map.WrapsEastWest ? map.Width : 0));
         SetAnimal(animal with { Position = next });
     }
 

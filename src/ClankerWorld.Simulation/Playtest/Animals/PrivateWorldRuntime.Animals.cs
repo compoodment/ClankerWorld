@@ -98,9 +98,9 @@ public sealed partial class PrivateWorldRuntime
                     ApplyInventoryTransition(inventory => InventoryFixture.ReleaseReservation(inventory, saddleHeld, "animal_died"));
                 animal = Animal(animal.Id)!;
                 ClearAnimalProduct(animal, discard: true);
-                if (animal.Species != "chicken" && animal.HouseholdId is { } owner)
+                if (animal.Species != "chicken")
                     ApplyInventoryTransition(inventory => InventoryFixture.AddLot(inventory,
-                        "animal-hide-" + AnimalKey(animal.Id), "hide", owner, 1, tick,
+                        "animal-hide-" + AnimalKey(animal.Id), "hide", animal.HouseholdId ?? animal.Id, 1, tick,
                         groundPosition: new(animal.Position.X, animal.Position.Y)));
                 SetAnimal(animal with
                 {
