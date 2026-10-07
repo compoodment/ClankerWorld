@@ -94,7 +94,7 @@ public partial class ItemStorage : VBoxContainer
         var limit = capacity.GetValueOrDefault();
         capacityRow.Visible = limit > 0 && storedQuantity >= 0;
         if (!capacityRow.Visible) return;
-        capacityMeter.Percent = (int)Math.Clamp((long)storedQuantity * 100 / limit, 0, 100);
+        capacityMeter.Percent = (int)Math.Clamp((long)storedQuantity * 100 / limit, storedQuantity > 0 ? 1 : 0, 100);
         capacityText.Text = $"{storedQuantity} / {limit} used";
         capacityMeter.TooltipText = $"Storage used: {storedQuantity} of {limit} units.";
     }

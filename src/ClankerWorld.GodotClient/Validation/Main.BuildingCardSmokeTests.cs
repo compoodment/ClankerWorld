@@ -86,12 +86,12 @@ public partial class Main
             if (!HasSpace(storage) || SpaceMeter(storage).Percent != 50 || SpaceText(storage) != "64 / 128 used" ||
                 SpaceMeter(storage).TooltipText != "Storage used: 64 of 128 units.")
                 throw new InvalidOperationException("Building storage must use the host's occupied quantity and limit, rather than guessing from the visible household item grid.");
-        foreach (var (quantity, percent) in new[] { (0, 0), (128, 100), (129, 100) })
+        foreach (var (quantity, percent) in new[] { (0, 0), (1, 1), (128, 100), (129, 100) })
         {
             RenderBuildingCard(buildingMap with { PlacedBuildings = [house with { StoredQuantity = quantity }] });
             foreach (var storage in storageViews)
                 if (!HasSpace(storage) || SpaceMeter(storage).Percent != percent || SpaceText(storage) != $"{quantity} / 128 used")
-                    throw new InvalidOperationException("Empty, full and over-limit storage must retain exact recorded numbers while bounding the meter.");
+                    throw new InvalidOperationException("Empty, lightly occupied, full and over-limit storage must retain exact recorded numbers while bounding the meter and keeping nonempty storage visible.");
         }
         RenderBuildingCard(buildingMap with
         {
