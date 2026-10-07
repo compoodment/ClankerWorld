@@ -609,7 +609,9 @@ belong to no Town, bring personal payment, and the named seller chooses whether
 to accept when both have reached the stall. The buyer carries the purchase;
 payment becomes the seller's household stock there. Leaving frees the stall;
 leftover goods still belong to their
-recorded owner. Suggestions can guide these choices, but an Order cannot force
+recorded owner. Other housemates can collect household stock once borrowing
+ends; the borrower may collect it while holding the stall.
+Suggestions can guide these choices, but an Order cannot force
 a sale or give away goods. The
 [Market hands-on checklist](../playtest/564-market-stalls.md) remains pending.
 

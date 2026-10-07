@@ -969,7 +969,9 @@ unfinished exchanges. Its next borrower cannot sell the previous seller's
 leftovers; the recorded owner can return to collect them. Household goods a
 member carries to or from the Market can be brought back into the household's
 House. Housemates leave household stock on a stall while one of them borrows
-it, and haul it home once the borrowing ends. An Order or built-in choice
+it, and haul it home once the borrowing ends. Explicit Market collection follows
+the same boundary. The borrower may collect household stock, and adults may
+retrieve their own personal goods. An Order or built-in choice
 cannot give away stock or consent to a Market exchange; built-in rules prefer
 ordinary work over any Market choice.
 

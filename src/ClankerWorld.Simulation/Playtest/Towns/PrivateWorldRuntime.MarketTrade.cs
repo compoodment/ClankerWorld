@@ -181,6 +181,7 @@ public sealed partial class PrivateWorldRuntime
                     foreach (var lot in MarketTradeRules.StockAt(market, stall.BuildingId, position, inventory)
                                  .Where(lot => (MarketTradeRules.IsLoose(lot) || lot.ItemKind == InventoryContainerRules.WaterJug &&
                                          VesselFits(lot, FreeCarryCapacity(actor)) && !HasActiveContainerReservation(inventory, lot.Id)) && OwnMarketGoods(actor, lot) &&
+                                     (lot.OwnerId == actor || occupancy is null || occupancy.SellerAgentId == actor) &&
                                      AvailableLotQuantity(lot) > 0 && CanCarryMarketGoods(actor, lot)))
                     {
                         var quantity = Math.Min(MarketTradeRules.LoadQuantity, Math.Min(AvailableLotQuantity(lot), FreeCarryCapacity(actor)));
