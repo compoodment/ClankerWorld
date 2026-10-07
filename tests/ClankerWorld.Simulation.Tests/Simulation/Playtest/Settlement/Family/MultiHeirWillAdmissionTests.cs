@@ -184,7 +184,7 @@ public sealed class MultiHeirWillAdmissionTests
             world = NewWorld(provider);
             var stateFile = new PrivateWorldStateFile(Path.Combine(directory.FullName, "world.json"));
             var logger = new RecordingLogger<MultiHeirWillAdmissionTests>();
-            var effects = new ProviderUsageWorldEffects(world, stateFile, configuration.WorldMutationGate, logger);
+            var effects = new ProviderUsageWorldEffects(world, stateFile, usage, configuration.WorldMutationGate, logger);
             usage.LimitReached += effects.PauseAtLimit;
             usage.WarningReached += effects.RecordWarning;
 

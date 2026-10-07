@@ -11,11 +11,13 @@ stay the same.
 The notes below preserve the October 1 approval history. Since that review,
 the simulation has separated raw `gold_ore`, refined `gold`, plain
 `gold_ornament` and diamond-set `diamond_ornament`. The raw nuggets still fit
-gold ore. Distinct refined-gold and plain-ring drawings wait on
-[#793](https://github.com/compoodment/ClankerWorld/issues/793); berry and fruit
-porridge drawings wait on
-[#794](https://github.com/compoodment/ClankerWorld/issues/794). The existing
-diamond-set ring and plain meal plate already have approved drawings.
+gold ore. The October 7 review approved distinct refined-gold and plain-ring
+drawings for [#793](https://github.com/compoodment/ClankerWorld/issues/793),
+and berry and fruit porridge for
+[#794](https://github.com/compoodment/ClankerWorld/issues/794). These now use
+their real item names in the client. The raw nuggets, diamond-set ring and
+plain meal plate keep their earlier approved drawings. The round-2 note below
+about there being no refined gold describes the content at that earlier review.
 
 ## Round 2
 
