@@ -36,12 +36,15 @@ public partial class WorldTerrainLayer : Control
     private readonly HashSet<string> marketStallBuildingIds = new(StringComparer.Ordinal);
     // Saved bridge decks, true when the deck runs east-west.
     private readonly Dictionary<Vector2I, bool> bridgeDecks = [];
+    // Bridges in abandoned Towns, each from the bank tile before its deck to the one after it.
+    private readonly List<(Rect2I Strip, bool EastWest, BuildingNeglect Neglect)> weatheredBridges = [];
+    private readonly Dictionary<Vector2I, BuildingNeglect> weatheredBridgeTiles = [];
     private readonly Dictionary<Vector2I, string> householdPropertyTiles = [];
     private readonly HashSet<Vector2I> townLandTitleTiles = [];
     private readonly Dictionary<Vector2I, string[]> householdLandUseTiles = [];
     private readonly HashSet<Vector2I> pendingLandUseTiles = [];
     private readonly HashSet<Vector2I> disputedLandTiles = [];
-    private readonly List<(Rect2I Footprint, BuildingKind Kind, BuildingDoor Door)> buildings = [];
+    private readonly List<(Rect2I Footprint, BuildingKind Kind, BuildingDoor Door, BuildingNeglect Neglect)> buildings = [];
     private readonly HashSet<Vector2I> buildingTiles = [];
     // Road tiles in front of a door, and the side of the tile the door is on.
     private readonly Dictionary<Vector2I, RoadLinks> doorsteps = [];
@@ -328,19 +331,65 @@ public partial class WorldTerrainLayer : Control
     }
 
     /// <summary>Draws the same saved bridge decks that movement uses; a deck is not drawn from terrain alone.</summary>
-    public void SetBridges(IReadOnlyList<OwnerWorldBridge> bridges)
+    /// <summary>
+    /// Saved bridge decks. A straight bridge in an abandoned Town (its deck or
+    /// either end inside the Town's land) is drawn weathered as one picture,
+    /// neglected and then falling apart after a full season.
+    /// </summary>
+    public void SetBridges(IReadOnlyList<OwnerWorldBridge> bridges, IReadOnlyList<OwnerWorldTown>? towns = null)
     {
         ArgumentNullException.ThrowIfNull(bridges);
         var next = new Dictionary<Vector2I, bool>();
         foreach (var bridge in bridges)
             foreach (var tile in bridge.Span)
                 next[new Vector2I(tile.X, tile.Y)] = bridge.Axis == "east_west";
+        var abandoned = (towns ?? []).Where(town => town.IsAbandoned)
+            .Select(town => (Land: town.BorderTiles.Select(tile => new Vector2I(tile.X, tile.Y)).ToHashSet(),
+                Neglect: town.FallingApart ? BuildingNeglect.FallingApart : BuildingNeglect.Neglected))
+            .ToList();
+        var weathered = new List<(Rect2I Strip, bool EastWest, BuildingNeglect Neglect)>();
+        foreach (var bridge in bridges)
+        {
+            var span = bridge.Span.Select(tile => new Vector2I(tile.X, tile.Y)).ToList();
+            if (span.Count == 0) continue;
+            var ends = bridge.Entrances.Select(tile => new Vector2I(tile.X, tile.Y));
+            var town = abandoned.FirstOrDefault(item => span.Concat(ends).Any(item.Land.Contains));
+            if (town.Land is null) continue;
+            var eastWest = bridge.Axis == "east_west";
+            if (eastWest && world is { WrapsEastWest: true })
+            {
+                var first = span[0].X;
+                span = span.Select(tile => new Vector2I(first + Mod(tile.X - first, world.Width), tile.Y)).ToList();
+            }
+            int left = span.Min(tile => tile.X), right = span.Max(tile => tile.X);
+            int top = span.Min(tile => tile.Y), bottom = span.Max(tile => tile.Y);
+            // Only a straight, unbroken run shares one weathered picture; any other keeps its plain deck.
+            if (eastWest ? top != bottom || right - left + 1 != span.Count : left != right || bottom - top + 1 != span.Count)
+                continue;
+            weathered.Add((eastWest ? new Rect2I(left - 1, top, span.Count + 2, 1) : new Rect2I(left, top - 1, 1, span.Count + 2),
+                eastWest, town.Neglect));
+        }
         if (next.Count == bridgeDecks.Count && next.All(entry =>
-                bridgeDecks.TryGetValue(entry.Key, out var eastWest) && eastWest == entry.Value)) return;
+                bridgeDecks.TryGetValue(entry.Key, out var eastWest) && eastWest == entry.Value) &&
+            weathered.SequenceEqual(weatheredBridges)) return;
         bridgeDecks.Clear();
         foreach (var entry in next) bridgeDecks.Add(entry.Key, entry.Value);
+        weatheredBridges.Clear();
+        weatheredBridges.AddRange(weathered);
+        weatheredBridgeTiles.Clear();
+        foreach (var (strip, eastWest, neglect) in weathered)
+            for (var k = 1; k < (eastWest ? strip.Size.X : strip.Size.Y) - 1; k++)
+            {
+                var tile = strip.Position + (eastWest ? new Vector2I(k, 0) : new Vector2I(0, k));
+                if (world is { WrapsEastWest: true }) tile.X = Mod(tile.X, world.Width);
+                weatheredBridgeTiles[tile] = neglect;
+            }
         QueueRedraw();
     }
+
+    /// <summary>How the bridge deck on a tile has weathered, or <see cref="BuildingNeglect.None"/>.</summary>
+    public BuildingNeglect BridgeNeglectAt(Vector2I tile) =>
+        weatheredBridgeTiles.GetValueOrDefault(tile, BuildingNeglect.None);
 
     public void SetHouseholdProperties(IReadOnlyList<OwnerWorldPlacedBuilding> buildings,
         IReadOnlyList<OwnerWorldFarmField>? fieldTiles = null)
@@ -360,11 +409,18 @@ public partial class WorldTerrainLayer : Control
         QueueRedraw();
     }
 
-    /// <summary>Placed buildings and legacy camp objects that have a building look.</summary>
-    public void SetBuildings(IReadOnlyList<OwnerWorldPlacedBuilding> placed, IReadOnlyList<OwnerWorldObject> objects)
+    /// <summary>
+    /// Placed buildings and legacy camp objects that have a building look.
+    /// Buildings in an abandoned Town look neglected, and falling apart once
+    /// it has stood empty for a full season.
+    /// </summary>
+    public void SetBuildings(IReadOnlyList<OwnerWorldPlacedBuilding> placed, IReadOnlyList<OwnerWorldObject> objects,
+        IReadOnlyList<OwnerWorldTown>? towns = null)
     {
         ArgumentNullException.ThrowIfNull(placed);
         ArgumentNullException.ThrowIfNull(objects);
+        var neglectByTown = (towns ?? []).Where(town => town.IsAbandoned).ToDictionary(town => town.Id,
+            town => town.FallingApart ? BuildingNeglect.FallingApart : BuildingNeglect.Neglected, StringComparer.Ordinal);
         var next = placed.Where(building => !StreetLanternLight.IsLantern(building.Tags)).Select(building =>
             {
                 var footprint = new Rect2I(building.Position.X, building.Position.Y,
@@ -377,22 +433,23 @@ public partial class WorldTerrainLayer : Control
                 if (kind == BuildingKind.MarketStall && footprint.Size == Vector2I.One &&
                     marketStallBuildingIds.Contains(building.InstanceId) && marketPlazaTiles.Contains(footprint.Position))
                     door = door with { Tile = null };
-                return (footprint, kind, door);
+                var neglect = building.TownId is { } town ? neglectByTown.GetValueOrDefault(town) : BuildingNeglect.None;
+                return (footprint, kind, door, neglect);
             })
             .Concat(objects.Where(item => BuildingSprites.KindForObject(item.Kind) is not null)
                 .Select(item => (new Rect2I(item.Position.X, item.Position.Y, 1, 1), BuildingSprites.KindForObject(item.Kind)!.Value,
-                    BuildingDoor.Default)))
+                    BuildingDoor.Default, BuildingNeglect.None)))
             .ToList();
         if (next.SequenceEqual(buildings)) return;
         buildings.Clear();
         buildings.AddRange(next);
         buildingTiles.Clear();
-        foreach (var (footprint, _, _) in buildings)
+        foreach (var (footprint, _, _, _) in buildings)
             for (var y = footprint.Position.Y; y < footprint.End.Y; y++)
                 for (var x = footprint.Position.X; x < footprint.End.X; x++)
                     buildingTiles.Add(new Vector2I(wrapsEastWest && world is not null ? Mod(x, world.Width) : x, y));
         doorsteps.Clear();
-        foreach (var (footprint, _, door) in buildings)
+        foreach (var (footprint, _, door, _) in buildings)
         {
             if (door.Tile is not { } along) continue;
             var (tile, toward) = door.Side switch
@@ -409,6 +466,10 @@ public partial class WorldTerrainLayer : Control
     }
 
     public int BuildingSpriteCount => buildings.Count;
+
+    /// <summary>How the building on a tile has weathered, or <see cref="BuildingNeglect.None"/> when nothing stands there.</summary>
+    public BuildingNeglect NeglectAt(Vector2I tile) =>
+        buildings.FirstOrDefault(building => building.Footprint.HasPoint(tile)).Neglect;
 
     public string WeatherAt(int x, int y)
     {
@@ -1088,7 +1149,7 @@ public partial class WorldTerrainLayer : Control
         if (world is null || buildings.Count == 0 || tileSize <= 0) return;
         var visible = new Rect2I(bounds.Left, bounds.Top, bounds.Width, bounds.Height);
         var atlasSize = BuildingSprites.AtlasTileSize(tileSize);
-        foreach (var (footprint, kind, door) in buildings)
+        foreach (var (footprint, kind, door, neglect) in buildings)
         {
             foreach (var shift in wrapsEastWest ? new[] { -world.Width, 0, world.Width } : [0])
             {
@@ -1099,7 +1160,7 @@ public partial class WorldTerrainLayer : Control
                 if (tileSize < SpriteTileMinimum)
                     DrawRect(rect, BuildingSprites.RoofColor(kind));
                 else
-                    DrawTextureRect(BuildingSprites.Texture(kind, footprint.Size.X, footprint.Size.Y, atlasSize, door), rect, false);
+                    DrawTextureRect(BuildingSprites.Texture(kind, footprint.Size.X, footprint.Size.Y, atlasSize, door, neglect), rect, false);
             }
         }
     }
@@ -1217,7 +1278,8 @@ public partial class WorldTerrainLayer : Control
                 var tile = new Rect2(x * stride, y * stride, tileSize, tileSize);
                 if (tileSize >= SpriteTileMinimum)
                 {
-                    DrawTextureRect(RoadSprites.BridgeTexture(eastWest, atlasSize), tile, false);
+                    if (!weatheredBridgeTiles.ContainsKey(new Vector2I(mapX, y)))
+                        DrawTextureRect(RoadSprites.BridgeTexture(eastWest, atlasSize), tile, false);
                     continue;
                 }
                 var center = tile.GetCenter();
@@ -1235,6 +1297,19 @@ public partial class WorldTerrainLayer : Control
                     DrawLine(rect.Position, rect.Position + new Vector2(0, rect.Size.Y), rail, railWidth);
                     DrawLine(rect.End - new Vector2(0, rect.Size.Y), rect.End, rail, railWidth);
                 }
+            }
+        if (tileSize < SpriteTileMinimum) return;
+        // A bridge in an abandoned Town, weathered as one picture from bank to bank.
+        var visible = new Rect2I(bounds.Left, bounds.Top, bounds.Width, bounds.Height);
+        foreach (var (strip, eastWest, neglect) in weatheredBridges)
+            foreach (var shift in wrapsEastWest ? new[] { -world.Width, 0, world.Width } : [0])
+            {
+                var placed = strip with { Position = strip.Position + new Vector2I(shift, 0) };
+                if (!placed.Intersects(visible)) continue;
+                var deckTiles = (eastWest ? strip.Size.X : strip.Size.Y) - 2;
+                DrawTextureRect(BuildingSprites.NeglectedBridgeTexture(eastWest, deckTiles, atlasSize, neglect),
+                    new Rect2(placed.Position.X * stride, placed.Position.Y * stride,
+                        placed.Size.X * stride - tileGap, placed.Size.Y * stride - tileGap), false);
             }
     }
 

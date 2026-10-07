@@ -68,6 +68,8 @@ public sealed class InventoryContainerTests
         Assert.Throws<InvalidOperationException>(() => InventoryFixture.Relocate(
             inventory, "peel", "berries", "household:a", 1, carrierId: "alpha"));
         var carried = InventoryFixture.Relocate(inventory, "borrow", "pot", "household:a", 1, carrierId: "alpha");
+        Assert.Equal(new[] { new InventoryStorageChange("house", "berries", -2),
+            new InventoryStorageChange("house", "storage_pot", -1) }, carried.Events[^1].StorageChanges);
 
         Assert.All(carried.Lots, lot =>
         {
@@ -94,6 +96,10 @@ public sealed class InventoryContainerTests
         });
 
         var returned = InventoryFixture.Relocate(carried, "return", "pot", "household:a", 1, storageBuildingId: "house");
+        Assert.Equal(new[] { new InventoryStorageChange("house", "berries", 2),
+            new InventoryStorageChange("house", "storage_pot", 1) }, returned.Events[^1].StorageChanges);
+        Assert.Equal(InventoryCheckpointCodec.Encode(returned),
+            InventoryCheckpointCodec.Encode(InventoryStorageHistory.RecordTransition(carried, returned)));
         Assert.All(returned.Lots, lot =>
         {
             Assert.Null(lot.CarrierId);
