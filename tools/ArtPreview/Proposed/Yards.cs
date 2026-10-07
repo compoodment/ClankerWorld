@@ -363,8 +363,8 @@ public sealed class YardsProposal : IArtProposal
         }
         for (var y = top + SpacingFor(bottom - top, postGap); y < bottom - 1; y += SpacingFor(bottom - top, postGap))
         {
-            Post(left, y);
-            Post(right, y);
+            if (!InGate(DoorSide.West, y + 1.5f) || MathF.Abs(y + 1.5f - gate) >= gateHalf - 1) Post(left, y);
+            if (!InGate(DoorSide.East, y + 1.5f) || MathF.Abs(y + 1.5f - gate) >= gateHalf - 1) Post(right, y);
         }
         GatePosts(c, door, gate, gateHalf, left, top, right, bottom, wood, Post);
     }
@@ -396,8 +396,8 @@ public sealed class YardsProposal : IArtProposal
         Vector2 P(float a, float b) => horizontal ? new Vector2(a, b) : new Vector2(b, a);
         // Trampled ground through the opening, from inside the fence to the footprint's edge.
         var edge = door.Side is DoorSide.South or DoorSide.East ? line + 4 : 0f;
-        var from = MathF.Min(edge, line - inward * 4);
-        var to = MathF.Max(edge, line - inward * 4) + (door.Side is DoorSide.South or DoorSide.East ? 0 : 4);
+        var from = MathF.Min(edge, line + inward * 4);
+        var to = MathF.Max(edge, line + inward * 4);
         for (var a = gate - half + 1; a < gate + half - 1; a++)
             for (var b = from; b < to; b++)
             {
