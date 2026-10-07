@@ -33,7 +33,7 @@ namespace ArtPreview.Proposed.Animals;
 /// Livestock have no predators and no legs show from above, like the horse.
 /// Everything is deterministic.
 /// </summary>
-public sealed class AnimalsProposal : IArtProposal, IArtSetProvider
+public sealed partial class AnimalsProposal : IArtProposal, IArtSetProvider
 {
     public string Family => "animals";
     public string Name => "animals";
@@ -272,7 +272,8 @@ public sealed class AnimalsProposal : IArtProposal, IArtSetProvider
     /// </summary>
     private readonly record struct BodyFrame(Vector2 Origin, Vector2 Forward, Vector2 Right, float Unit)
     {
-        public Vector2 At(float along, float across = 0) => Origin + Forward * (along * Unit) + Right * (across * Unit);
+        public Vector2 At(float along, float across = 0) =>
+            Origin + Forward * (Walking.Along(along) * Unit) + Right * (Walking.Across(along, across) * Unit);
 
         /// <summary>Whether a screen point lies inside an oval given in body units.</summary>
         public bool InPart(Vector2 point, float along, float across, float halfAlong, float halfAcross) =>
@@ -352,6 +353,7 @@ public sealed class AnimalsProposal : IArtProposal, IArtSetProvider
         }
 
         paint.Oval(f.At(1.0f) + new Vector2(1, 3) * f.Unit, f.Forward, 12.4f * f.Unit, 6.6f * f.Unit, Shadow);
+        Walking.Legs(paint, f.At, f.Forward, f.Unit);
 
         // Tail: a thin rope lying back from the rump with a dark tuft at the end.
         if (!small)
@@ -435,6 +437,7 @@ public sealed class AnimalsProposal : IArtProposal, IArtSetProvider
         bool Inside(Vector2 q) => InFleece(q) || InHead(q);
 
         paint.Oval(f.At(-0.6f) + new Vector2(1, 3) * f.Unit, f.Forward, 8.8f * f.Unit, (shorn ? 4.2f : 5.6f) * f.Unit, Shadow);
+        Walking.Legs(paint, f.At, f.Forward, f.Unit);
 
         var shadeRim = small ? 0.8f : 1.4f;
         var lightRim = small ? 0.7f : 1.2f;
@@ -508,6 +511,7 @@ public sealed class AnimalsProposal : IArtProposal, IArtSetProvider
             : HenTail;
 
         paint.Oval(f.At(-0.4f) + new Vector2(1, 3) * f.Unit, f.Forward, 6.0f * f.Unit, 4.2f * f.Unit, Shadow);
+        Walking.Legs(paint, f.At, f.Forward, f.Unit);
 
         // The beak pokes out of the outline ahead of the head, like an agent's nose.
         var beak = f.At(small ? 6.4f : 6.8f);
@@ -562,7 +566,7 @@ public sealed class AnimalsProposal : IArtProposal, IArtSetProvider
         var d = Direction(facing);
         var s = Side(d);
         var o = new Vector2(16, 16) * p - d * (0.6f * p);   // the withers, a little behind the cell centre
-        Vector2 At(float along, float across = 0) => o + d * (along * p) + s * (across * p);
+        Vector2 At(float along, float across = 0) => o + d * (Walking.Along(along) * p) + s * (Walking.Across(along, across) * p);
         var diagonal = IsDiagonal(facing);
         var forwardStep = PixelStep(d);
 
@@ -586,6 +590,7 @@ public sealed class AnimalsProposal : IArtProposal, IArtSetProvider
         }
 
         paint.Oval(o + new Vector2(1, 3) * p, d, 13.5f * p, 5.4f * p, Shadow);
+        Walking.Legs(paint, At, d, p);
 
         // Tail: a tuft swinging a little to one side, under the rump.
         var tailRoot = At(-10.0f);
@@ -686,6 +691,7 @@ public sealed class AnimalsProposal : IArtProposal, IArtSetProvider
         bool InWing(Vector2 q) => f.InPart(q, -0.7f, -2.0f, 1.3f, 0.8f) || f.InPart(q, -0.7f, 2.0f, 1.3f, 0.8f);
         bool Inside(Vector2 q) => InBody(q) || InHead(q) || (!small && InWing(q));
         paint.Oval(f.At(-0.2f) + new Vector2(1, 2) * f.Unit, f.Forward, 3.4f * f.Unit, 2.8f * f.Unit, Shadow);
+        Walking.Legs(paint, f.At, f.Forward, f.Unit);
         var beak = f.At(small ? 4.2f : 4.4f);
         paint.Disc(beak, small ? 0.5f : 0.8f, Outline);
         paint.Coat(Inside, Outline, q => !small && InWing(q) && !InHead(q) ? ChickWing : ChickDown,
@@ -730,6 +736,7 @@ public sealed class AnimalsProposal : IArtProposal, IArtSetProvider
             || f.InPart(q, 3.6f + headAt, 2.3f, 0.7f, 1.1f);
         bool Inside(Vector2 q) => InFleece(q) || InHead(q);
         paint.Oval(f.At(-0.4f) + new Vector2(1, 2) * f.Unit, f.Forward, 5.8f * f.Unit, 3.8f * f.Unit, Shadow);
+        Walking.Legs(paint, f.At, f.Forward, f.Unit);
         paint.Coat(Inside, Outline, q => InFleece(q) ? Wool : SheepFace, small ? 0.8f : 1.2f, small ? 0.7f : 1.0f);
         if (small) return image;
         bool Interior(Vector2 q) => InFleece(q - TowardLight * 1.4f) && InFleece(q + TowardLight * 1.2f) && !InHead(q);
@@ -785,6 +792,7 @@ public sealed class AnimalsProposal : IArtProposal, IArtSetProvider
             return false;
         }
         paint.Oval(f.At(0.6f) + new Vector2(1, 2) * f.Unit, f.Forward, 8.4f * f.Unit, 4.4f * f.Unit, Shadow);
+        Walking.Legs(paint, f.At, f.Forward, f.Unit);
         if (!small)
         {
             var tailRoot = f.At(-6.6f, 0.4f);
@@ -828,6 +836,7 @@ public sealed class AnimalsProposal : IArtProposal, IArtSetProvider
             return f.InPart(q, 6.0f, -1.9f, 1.0f, 0.7f) || f.InPart(q, 6.0f, 1.9f, 1.0f, 0.7f);
         }
         paint.Oval(f.At(0.6f) + new Vector2(1, 2) * f.Unit, f.Forward, 9.0f * f.Unit, 3.6f * f.Unit, Shadow);
+        Walking.Legs(paint, f.At, f.Forward, f.Unit);
         var tailRoot = f.At(-6.6f);
         var tailTip = f.At(-8.6f, -0.6f);
         var tailAxis = (tailTip - tailRoot).Normalized();
