@@ -15,10 +15,17 @@ public sealed partial class PrivateWorldRuntime
 
     private sealed record PotFoodChoice(InventoryLot Pot, InventoryLot Food);
 
-    private InventoryLot? CarriedContainer(string actor, string kind) => society.Checkpoint.Inventory.Lots
+    private IEnumerable<InventoryLot> CarriedContainers(string actor, string kind) => society.Checkpoint.Inventory.Lots
         .Where(lot => lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) && lot.ItemKind == kind &&
             lot.ContainerLotId is null && lot.DeliveryBuildingId is null)
-        .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
+        .OrderBy(lot => lot.Id, StringComparer.Ordinal);
+
+    private InventoryLot? CarriedContainer(string actor, string kind) => CarriedContainers(actor, kind).FirstOrDefault();
+
+    private InventoryLot? CarriedWaterJugForRefill(string actor) => CarriedContainers(actor, InventoryContainerRules.WaterJug)
+        .FirstOrDefault(lot => lot.ConditionBasisPoints > 0 &&
+            ContainerContentsQuantity(society.Checkpoint.Inventory, lot.Id) < InventoryContainerRules.WaterJugCapacity &&
+            !HasActiveContainerReservation(society.Checkpoint.Inventory, lot.Id));
 
     private static int ContainerContentsQuantity(InventoryCheckpoint inventory, string containerId) =>
         inventory.Lots.Where(lot => lot.ContainerLotId == containerId).Sum(lot => lot.Quantity);
@@ -48,7 +55,7 @@ public sealed partial class PrivateWorldRuntime
             return;
 
         var inventory = society.Checkpoint.Inventory;
-        var carriedJug = CarriedContainer(actor, InventoryContainerRules.WaterJug);
+        var carriedJug = CarriedWaterJugForRefill(actor) ?? CarriedContainer(actor, InventoryContainerRules.WaterJug);
         if (carriedJug is not null)
         {
             var contents = ContainerContentsQuantity(inventory, carriedJug.Id);
@@ -246,7 +253,7 @@ public sealed partial class PrivateWorldRuntime
     private void FillWaterJug(string actor, PlaytestInhabitantState person, string target)
     {
         if (!TryParsePoint(target, out var shore) || !FreshWaterShorePositions().Contains(shore) ||
-            CarriedContainer(actor, InventoryContainerRules.WaterJug) is not { ConditionBasisPoints: > 0 } jug)
+            CarriedWaterJugForRefill(actor) is not { } jug)
             return;
         var inventory = society.Checkpoint.Inventory;
         if (!map.IsReachableOnFoot(person.Position, shore) ||
