@@ -23,6 +23,8 @@ public sealed class PotteryContentTests
     [InlineData(true, false, "reserved")]
     [InlineData(true, false, "broken")]
     [InlineData(true, false, "full-hands")]
+    [InlineData(true, false, "milk")]
+    [InlineData(true, true, "milk")]
     public async Task FullCarriedJugDoesNotHideAnEmptyJugWhenTheHouseIsFull(bool fullFirst, bool walk, string boundary)
     {
         using var setup = NormalPathWorld.CreateGenerated("multiple-carried-jugs", _ => new IdleProvider());
@@ -43,7 +45,10 @@ public sealed class PotteryContentTests
         var empty = fullFirst ? "jug-b" : "jug-a";
         var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, full, InventoryContainerRules.WaterJug, actor, 1);
         inventory = InventoryFixture.AddLot(inventory, empty, InventoryContainerRules.WaterJug, actor, 1);
-        inventory = InventoryFixture.AddLot(inventory, "initial-carried-water", InventoryContainerRules.FreshWater, actor, 4, containerLotId: full);
+        var initialKind = boundary == "milk" ? "milk" : InventoryContainerRules.FreshWater;
+        var initialQuantity = boundary == "milk" ? 2 : 4;
+        var refillQuantity = boundary == "milk" ? 4 : 2;
+        inventory = InventoryFixture.AddLot(inventory, "initial-carried-water", initialKind, actor, initialQuantity, containerLotId: full);
         var definition = state.WorldContent!.Buildings.Single(item => item.CanonicalId == house.DefinitionId);
         var room = BuildingStorageRules.Capacity(definition, house)!.Value -
             inventory.Lots.Where(lot => lot.StorageBuildingId == house.InstanceId).Sum(lot => lot.Quantity);
@@ -66,14 +71,14 @@ public sealed class PotteryContentTests
             Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
         }, actor, 10_000, origin);
         var person = state.Inhabitants.Single(item => item.InhabitantId == actor);
-        Assert.Equal(boundary == "full-hands" ? 0 : boundary == "reserved" ? 1 : 2,
+        Assert.Equal(boundary == "full-hands" ? 0 : boundary == "reserved" ? 1 : boundary == "milk" ? 4 : 2,
             PersonalEquipmentRules.FreeCapacity(inventory, actor, person.Equipment));
         var provider = new PrefixCandidateProvider("fill_water_jug:");
         using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)),
             id => id == actor ? provider : new IdleProvider());
         for (var tick = 0; tick < 8 && provider.OfferedCandidates.IsEmpty; tick++)
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-        if (boundary != "usable")
+        if (boundary is not ("usable" or "milk"))
         {
             Assert.NotEmpty(provider.OfferedCandidates);
             Assert.DoesNotContain(provider.OfferedCandidates, id => id.StartsWith("fill_water_jug:", StringComparison.Ordinal));
@@ -101,10 +106,12 @@ public sealed class PotteryContentTests
                 Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
             }
         }
-        Assert.Equal(4, world.Society.Inventory.Lots.Where(lot => lot.ContainerLotId == full).Sum(lot => lot.Quantity));
-        Assert.Equal(2, world.Society.Inventory.Lots.Where(lot => lot.ContainerLotId == empty).Sum(lot => lot.Quantity));
+        Assert.Equal(initialQuantity, world.Society.Inventory.Lots.Where(lot => lot.ContainerLotId == full).Sum(lot => lot.Quantity));
+        Assert.All(world.Society.Inventory.Lots.Where(lot => lot.ContainerLotId == full), lot => Assert.Equal(initialKind, lot.ItemKind));
+        Assert.Equal(refillQuantity, world.Society.Inventory.Lots.Where(lot => lot.ContainerLotId == empty).Sum(lot => lot.Quantity));
+        Assert.All(world.Society.Inventory.Lots.Where(lot => lot.ContainerLotId == empty), lot => Assert.Equal(InventoryContainerRules.FreshWater, lot.ItemKind));
         Assert.Equal(0, PersonalEquipmentRules.FreeCapacity(world.Society.Inventory, actor, person.Equipment));
-        Assert.Equal(inventory.Lots.Sum(lot => lot.Quantity) + 2, world.Society.Inventory.Lots.Sum(lot => lot.Quantity));
+        Assert.Equal(inventory.Lots.Sum(lot => lot.Quantity) + refillQuantity, world.Society.Inventory.Lots.Sum(lot => lot.Quantity));
         world.Validate();
     }
 

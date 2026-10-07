@@ -25,6 +25,8 @@ public sealed partial class PrivateWorldRuntime
     private InventoryLot? CarriedWaterJugForRefill(string actor) => CarriedContainers(actor, InventoryContainerRules.WaterJug)
         .FirstOrDefault(lot => lot.ConditionBasisPoints > 0 &&
             ContainerContentsQuantity(society.Checkpoint.Inventory, lot.Id) < InventoryContainerRules.WaterJugCapacity &&
+            !society.Checkpoint.Inventory.Lots.Any(contents =>
+                contents.ContainerLotId == lot.Id && contents.ItemKind != InventoryContainerRules.FreshWater) &&
             !HasActiveContainerReservation(society.Checkpoint.Inventory, lot.Id));
 
     private static int ContainerContentsQuantity(InventoryCheckpoint inventory, string containerId) =>
