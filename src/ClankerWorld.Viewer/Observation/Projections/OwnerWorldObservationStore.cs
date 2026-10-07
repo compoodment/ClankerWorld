@@ -442,6 +442,7 @@ public sealed partial class OwnerWorldObservationStore
         var fertility = new LandFertility(map, state.WorldSeed);
         var ecology = state.WorldSystems?.Ecology.Resources.ToDictionary(resource => resource.Id, StringComparer.Ordinal);
         var buildingDefinitions = state.WorldContent?.Buildings.ToDictionary(building => building.CanonicalId, StringComparer.Ordinal);
+        var storageChanges = RecentBuildingStorageChanges(state.Society.Society.Inventory);
         var productionRecipes = state.WorldContent?.Recipes.ToDictionary(recipe => recipe.CanonicalId,
             ProjectProductionRecipe, StringComparer.Ordinal);
         var recipesByBuilding = state.WorldContent?.Recipes
@@ -924,6 +925,7 @@ public sealed partial class OwnerWorldObservationStore
                         Trades = BusinessTradesAt(state, item.InstanceId),
                         ToolMakingRequests = ToolMakingRequestsAt(state, item.InstanceId),
                         AllowsHouseholdOwner = definition?.Tags.Any(HouseholdBuildingKinds.IsKindTag) == true,
+                        RecentStorageChanges = storageChanges.GetValueOrDefault(item.InstanceId) ?? [],
                         AvailableRecipes = recipesByBuilding?[item.DefinitionId]
                             .OrderBy(recipe => recipe.Name, StringComparer.Ordinal).ThenBy(recipe => recipe.Id, StringComparer.Ordinal).ToArray(),
                     };

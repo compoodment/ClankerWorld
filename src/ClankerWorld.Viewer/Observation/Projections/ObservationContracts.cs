@@ -349,8 +349,11 @@ public sealed record ViewerPlacedBuilding(
     public IReadOnlyList<ViewerBusinessTrade> Trades { get; init; } = [];
     public IReadOnlyList<ViewerToolMakingRequest> ToolMakingRequests { get; init; } = [];
     public bool AllowsHouseholdOwner { get; init; }
+    public IReadOnlyList<ViewerBuildingStorageChange>? RecentStorageChanges { get; init; }
     public IReadOnlyList<ViewerProductionRecipe>? AvailableRecipes { get; init; }
 }
+
+public sealed record ViewerBuildingStorageChange(long EventId, long WorldTick, string ItemKind, long QuantityChange);
 
 public sealed record ViewerToolMakingRequest(string Id, string RequesterName, string RecipeId,
     string RecipeName, string ItemKind, string Status, string? Blocker, string? OfferId = null);

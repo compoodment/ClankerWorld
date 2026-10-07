@@ -8,7 +8,7 @@ using ClankerWorld.Simulation.Society;
 
 namespace ClankerWorld.Simulation.Tests;
 
-public sealed class RestaurantBusinessPipelineTests
+public sealed partial class RestaurantBusinessPipelineTests
 {
     private const string Alpha = "household:camp-alpha";
     private const string Beta = "household:camp-beta";

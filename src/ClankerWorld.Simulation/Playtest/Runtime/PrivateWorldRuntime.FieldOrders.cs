@@ -50,9 +50,7 @@ public sealed partial class PrivateWorldRuntime
             .ThenBy(field => field.Position.Y).ThenBy(field => field.Position.X)
             .Where(field => CanWalkToFieldOrderSite(actor, person.Position, field.Position) &&
                 (kind != FarmWorkKind.Plant || !HasOtherInhabitantClaimedPlanting(field, actor) &&
-                    PlantingStock(actor, field, order.TargetCropKind!) is { } stock &&
-                    (stock.OwnerId == actor || CanWalkToFieldOrderSite(actor, person.Position,
-                        HouseholdStockPosition(stock), HouseholdStockInteractionRange(stock)))))
+                    PlantingStock(actor, field, order.TargetCropKind!, requirePickupRoute: true) is not null))
             .Select(field => (GridPoint?)field.Position).FirstOrDefault();
     }
 
