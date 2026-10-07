@@ -1170,6 +1170,7 @@ public partial class Main
                 await VerifyUsageSettingsRepliesAsync();
                 await VerifyPairingRecoveryMenuAsync();
                 await VerifyFreshHostEntryAsync();
+                await VerifyPauseMenuResumeAsync();
                 await VerifyContinueSettingsNavigationAsync();
                 await VerifyNewWorldCompatibilityMessageAsync();
                 await VerifyWorldPreviewRerollAsync();
