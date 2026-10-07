@@ -23,7 +23,7 @@ public sealed partial class PrivateWorldRuntime
             order.TargetPosition is { } requested && requested != binding.ExpectedPosition ||
             PrivateWorldBuildingOrderCatalog.Find(worldContent, building.DefinitionId)?.BuildingKind != order.TargetBuildingKind)
             return null;
-        return order.TargetBuildingKind == "house"
+        return order.TargetBuildingKind is "house" or "animal-yard"
             ? HouseholdFor(instruction.TargetInhabitantId) == building.HouseholdId ? building : null
             : TownForResident(instruction.TargetInhabitantId) == building.TownId ? building : null;
     }
@@ -274,7 +274,7 @@ public sealed partial class PrivateWorldRuntime
                 var entry = PrivateWorldBuildingOrderCatalog.Find(content, binding.DefinitionId);
                 if (simulation is null || !ValidExpansionBindingId(binding.BuildingInstanceId) || !ValidExpansionBindingId(binding.OwnerId) ||
                     entry is null || entry.BuildingKind != order.TargetBuildingKind ||
-                    !(order.TargetBuildingKind == "house" ? society.Households.Any(home => home.Id == binding.OwnerId) :
+                    !(order.TargetBuildingKind is "house" or "animal-yard" ? society.Households.Any(home => home.Id == binding.OwnerId) :
                         savedTowns?.Any(town => town.Id == binding.OwnerId) == true) ||
                     !ValidExpansionBindingPosition(binding.ExpectedPosition) || !ValidExpansionBindingPosition(binding.TargetPosition) ||
                     order.TargetPosition is { } requested && requested != binding.ExpectedPosition ||
@@ -305,8 +305,9 @@ public sealed partial class PrivateWorldRuntime
     {
         var dx = binding.ExpectedPosition.X - binding.TargetPosition.X;
         var dy = binding.ExpectedPosition.Y - binding.TargetPosition.Y;
-        // Native next-stage footprints add at most one row or column around the original anchor.
-        return dx is 0 or 1 && dy is 0 or 1 && (dx == 0 || dy == 0) &&
+        // Yards add two rows or columns; House/Warehouse stages add one.
+        var shift = (binding.TargetFootprint.Width, binding.TargetFootprint.Height) is (2, 4) or (4, 2) ? 2 : 1;
+        return dx >= 0 && dy >= 0 && dx <= shift && dy <= shift && (dx == 0 || dy == 0) &&
             (binding.TargetFootprint.Width > 1 || dx == 0) && (binding.TargetFootprint.Height > 1 || dy == 0) &&
             (binding.TargetFootprint.Width != 2 || binding.TargetFootprint.Height != 3 || dx == 0) &&
             (binding.TargetFootprint.Width != 3 || binding.TargetFootprint.Height != 2 || dy == 0);

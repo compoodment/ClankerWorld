@@ -723,8 +723,8 @@ public sealed class RestaurantBusinessPipelineTests
     {
         foreach (var input in inputs)
         {
-            var water = input.ResourceId == InventoryContainerRules.FreshWater;
-            var jugId = prefix + "-jug";
+            var water = input.ResourceId is InventoryContainerRules.FreshWater or "milk";
+            var jugId = prefix + "-jug-" + input.ResourceId;
             if (water)
                 inventory = InventoryFixture.AddLot(inventory, jugId, InventoryContainerRules.WaterJug, site.HouseholdId!, 1,
                     storageBuildingId: site.InstanceId);

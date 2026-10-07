@@ -354,7 +354,14 @@ public sealed record InhabitantObservation(
                 message.RunEpoch < 0 || message.RunEpoch > RunEpoch || message.SubmissionSequence <= 0 ||
                 !instructionIds.Add(message.InstructionId) ||
                 message.Kind == "must_do" && message.UnderstoodTask is not
-                    ("eat one carried food item" or "travel within gathering range of an available food source" or
+                    ("care for the named animal with real feed and jug water" or
+                        "collect the named animal's ready products locally" or
+                        "tame the named wild animal for your household" or
+                        "lead the named animal to its household yard" or
+                        "fit a real household saddle on the named horse" or
+                        "mount the named cared-for horse with permission" or
+                        "dismount the named horse and leave excess cargo here" or
+                        "eat one carried food item" or "travel within gathering range of an available food source" or
                         "gather several food servings from a nearby food source" or
                         "gather the requested material from a natural source" or
                         "collect your own stored or dropped material" or

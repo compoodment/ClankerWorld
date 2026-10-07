@@ -202,6 +202,11 @@ public partial class Main : Control
             refreshCancellation?.Cancel();
             observationSession.ReplaceRegistration(value);
             knownEvents.Clear();
+            usageReads++;
+            usageStatus = null;
+            usageLimitEdited = false;
+            usageAttemptLimitInput.Text = string.Empty;
+            RenderUsageStatus();
         }
     }
     private OwnerPairingStart? pendingPairing;
