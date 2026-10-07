@@ -147,6 +147,8 @@ public partial class Main
         var nameRow = new HBoxContainer();
         nameRow.AddThemeConstantOverride("separation", 2);
         selectedActorNameLabel.ThemeTypeVariation = "HeadingLabel";
+        selectedActorNameLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        selectedActorNameLabel.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         nameRow.AddChild(selectedActorNameLabel);
         // A small pencil beside the name renames; it opens a field only when wanted.
         StyleIconButton(renameToggleButton, PixelGlyph.Pencil);

@@ -1,0 +1,1 @@
+- On the paired world: rename an adult to a 48-character name, including one using wide characters such as `界`, and open their Profile at 1280×720 and 1920×1080. The full name wraps, Rename and Back remain visible, and the pencil lets you submit a shorter name before Back returns to the small card. ([#1031](https://github.com/compoodment/ClankerWorld/issues/1031))

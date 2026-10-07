@@ -1,0 +1,1 @@
+- Long agent names wrap within the Profile, keeping Rename and Back visible at smaller windows and larger interface scales.
