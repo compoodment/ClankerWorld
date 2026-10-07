@@ -502,6 +502,7 @@ public sealed record OwnerWorldPlacedBuilding(
     public IReadOnlyList<OwnerWorldToolMakingRequest> ToolMakingRequests { get; init; } = [];
     public bool AllowsHouseholdOwner { get; init; }
     public IReadOnlyList<OwnerWorldBuildingStorageChange>? RecentStorageChanges { get; init; }
+    public IReadOnlyList<OwnerWorldProductionRecipe>? AvailableRecipes { get; init; }
 }
 
 public sealed record OwnerWorldBuildingStorageChange(long EventId, long WorldTick, string ItemKind, long QuantityChange);
@@ -519,7 +520,16 @@ public sealed record OwnerWorldProductionJob(
     string WorkerId,
     long StartedTick,
     long CompletionTick,
-    string State);
+    string State)
+{
+    public OwnerWorldProductionRecipe? Recipe { get; init; }
+    public IReadOnlyList<OwnerWorldMaterialQuantity>? HeldInputs { get; init; }
+}
+
+public sealed record OwnerWorldMaterialQuantity(string Kind, int Quantity);
+
+public sealed record OwnerWorldProductionRecipe(string Id, string Name,
+    IReadOnlyList<OwnerWorldMaterialQuantity> Inputs, IReadOnlyList<OwnerWorldMaterialQuantity> Outputs);
 
 public sealed record OwnerWeatherRegion(int X, int Y, string Weather, int? SoilMoisture = null);
 
@@ -733,8 +743,8 @@ public sealed record WorldAutosaveSettings(string WorldId, bool Enabled, int Int
 public sealed record OwnerDeveloperEditAction(string WorldId, long ExpectedEventId, string AgentId,
     string Operation, string Value, int Amount = 0, string? OtherAgentId = null);
 
-public sealed record OwnerLifePaceAction(int Rate);
-public sealed record OwnerJevAssistanceAction(bool Enabled);
+public sealed record OwnerLifePaceAction(int Rate, string WorldId);
+public sealed record OwnerJevAssistanceAction(bool Enabled, string WorldId);
 public sealed record OwnerRoutineHelperAction(string WorldId, string Provider, string Model, string? CredentialSlotId = null);
 
 public sealed record OwnerPairingApprovalAction(string PairingId, string PairingCode);

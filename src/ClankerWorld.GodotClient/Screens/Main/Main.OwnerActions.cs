@@ -267,11 +267,12 @@ public partial class Main
 
     private async Task SaveLifePaceAsync()
     {
-        if (!TryGetOwner(out var authority, out var deviceId, out var signer)) return;
+        if (!TryGetOwner(out var authority, out var deviceId, out var signer) ||
+            observationSession.Current?.Baseline.Snapshot.WorldId is not { } worldId) return;
         var rate = lifePaceChoice.GetSelectedId();
         await RunOwnerActionAsync(async () =>
         {
-            _ = await AwaitCurrentWorldResultAsync(ownerApi.SetLifePaceAsync(ResolveWorldUri(), authority, deviceId, rate, signer, CancellationToken.None));
+            _ = await AwaitCurrentWorldResultAsync(ownerApi.SetLifePaceAsync(ResolveWorldUri(), authority, deviceId, rate, worldId, signer, CancellationToken.None));
             return "life pace saved; current ages preserved, future aging changed";
         });
     }

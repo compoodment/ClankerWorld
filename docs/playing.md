@@ -165,7 +165,9 @@ in their life and the Memories, Family and Model buttons. The Model line names
 the provider whose model made their latest choice, such as OpenAI; when Jev or
 the built-in rules made it, the Profile says so instead. Click their thought,
 or **Read all**, to read every recent thought in a larger panel beside the
-Profile. The pencil beside their name renames them, and **Speak** goes straight
+Profile. Long names use up to two lines so its buttons stay in view. Hover
+over the name or open Rename to read the whole name.
+The pencil beside their name renames them, and **Speak** goes straight
 to the message box, where you choose **Suggest** or **Order**. The crosshair
 centers the camera on them, and back (or **Escape**) returns from the Profile
 to the small card. Inspection does not pause time, and reading private thoughts
@@ -225,6 +227,9 @@ berries at (12, 4)". "Keep gathering food" continues until cancelled. Eating
 waits until the agent is hungry enough, and gathering needs enough carrying
 space. A recognized new order replaces the current one unless you turn on
 **Queue**. Use **Cancel task** to stop a waiting or active order.
+An agent can also eat from a usable storage pot they own and carry, leaving
+the pot and remaining food together. Eating a serving needs no extra carrying
+space; food reserved for other work or being delivered is unavailable.
 
 Material orders can gather wood, stone, plant fiber, clay, iron ore, gold ore
 or diamond. For example, use **Gather five wood**, **Keep gathering clay**, or
@@ -260,8 +265,9 @@ order the world keeps for them: the current one, the queue in the order it will
 be done, and their six latest closed orders. Each shows your words, and any
 reply from the agent is set apart from the game's status.
 
-When a child needs a guardian, an adult can follow **Become guardian for Lina**,
-using the child's full name. The adult still has to be eligible in the current
+When a child needs a guardian, an adult can follow **Become guardian for Élodie Vale**,
+using the child's full name. Names with accents work when typed or pasted,
+including accents entered separately from their letters. The adult still has to be eligible in the current
 guardian search. The order finishes when they accept primary care; moving the
 child into their House still requires room and a shared Town. This order can be
 queued or cancelled like a food task. It cannot replace an existing guardian.
@@ -286,6 +292,10 @@ A pot or jug moves with its contents and counts as one item, while all of its
 contents use carrying and storage space. These tasks cannot take household
 production stock as personal property.
 
+When carrying several water jugs, agents can refill one with room even if
+another is full. They still need a reachable riverbank or lakeshore and enough
+carrying space for the water.
+
 To return borrowed stock, use **Return two borrowed cloth**, **Return two
 borrowed bread** or **Return one borrowed water jug**. The agent carries the
 goods back to their owning
@@ -302,6 +312,9 @@ suitable fields, stock and tools. Counts mean completed fields, so include
 A named crop is never replaced with another. Harvests remain on the field
 until carried. Cancel or replace the order to stop the current work and release
 unused planting stock. Add **at (12, 4)** to keep the task on that field tile.
+Ordinary crop and seed hauling tries another permitted farm store when the
+preferred one cannot fit the load. For example, a filled pot goes to the
+Farmhouse if the Silo has too little room for the pot and its contents.
 
 To move supplies for a household or Town, name both the goods and the destination:
 
@@ -310,6 +323,10 @@ To move supplies for a household or Town, name both the goods and the destinatio
 - **Deliver two berries to my House** shares spare food the agent already carries.
 - **Donate two wood to my Town Warehouse** gives spare carried materials to the Town.
 - **Stock three cloth in my Store** fills the household's shop under its normal stock limits.
+
+Stocking food keeps two servings of that kind with the agent, or two per
+household member when taking shared stock. Collecting the food in smaller
+loads does not increase that reserve.
 
 Add **at (12, 4)** to require the building's listed tile. The order keeps its
 chosen destination. A plain request delivers one load; a number counts the
@@ -404,7 +421,16 @@ what is being made there or who is inside, and what it stores, shown as item
 icons with the amount in the corner. **Details** opens the rest on the left:
 who may use it, when it was built, which side its door faces, the work in
 progress, a larger storage grid with each item's name, and who is inside or
-lives there. Back (or **Escape**) returns to the small card.
+lives there. Work lists what a batch uses and makes, separately from the
+materials currently held for that job. **Can make** lists the recipes registered
+for that exact building size and their quantities. Each still needs real
+materials and an adult allowed to work there. Reading the list teaches no
+agent and starts no work. Back (or **Escape**) returns to the small card.
+
+A building's storage-space bar shows how much of its recorded limit is used,
+with exact used/limit numbers. It counts all stored goods, including materials
+held for work and goods belonging to someone else. It updates when goods move
+or an expansion increases the limit. Hover over the bar for the exact count.
 
 **Details** also lists recent recorded storage changes: positive quantities
 were added, negative quantities were removed or used, with the date and time
@@ -613,7 +639,10 @@ still needs a hands-on check.
 ## Pause, settings and controls
 
 The pause button pauses or resumes time. **Menu** opens the Pause Menu and keeps
-the world paused. Opening ordinary inspection panels leaves time running.
+the world paused. Closing it restores the world to running if it was running
+before the menu opened; a world you had already paused stays paused. This also
+applies when you reopen the menu while it is still resuming.
+Opening ordinary inspection panels leaves time running.
 Settings and the Mod Library open inside the Pause Menu window; its back arrow
 or **Escape** returns to the menu's buttons.
 
@@ -629,6 +658,12 @@ Menus, panels and text grow with your screen in whole steps, so pixel letters
 stay crisp: 100% on small screens, 200% at 1080p and 1440p and 300% at 4K.
 There is no setting for this. World Settings contains that world's autosaves,
 the routine helper and agent model settings. Main Menu Settings exposes Game Settings only.
+
+Life pace and routine helper changes apply to the world shown when you submit them.
+If another device opens a different world before your request arrives, the
+host refuses the change. Reopen World Settings before trying again. These
+controls need matching client and host updates.
+
 Autosave Apply stays unavailable until the current world's settings have loaded.
 If the world changes before Apply reaches the host, its settings stay unchanged.
 Reopen World Settings before trying again.
@@ -740,6 +775,8 @@ or latitude cooling. **Reset these options** restores the preset and Small size
 without changing the name or seed. The preview updates after
 changes; Create World waits for a matching preview. Small and Medium are
 available; larger worlds remain unavailable pending their support checks.
+If a Settings action is still finishing when you open New World, its preview
+starts automatically after that action completes.
 **Reroll** chooses another seed and clears the old map while its replacement
 loads. You can reroll during generation; the preview will follow your latest
 seed. If the world name is missing, enter it and choose **Preview again**.
@@ -772,6 +809,8 @@ make wool padded coats, process hides into leather, and make leather sacks or
 saddles. A leather sack carries 32 units. Adults can haul household milk jugs
 to their Store or borrowed Market stall. A seller offers one portion for an
 exact personal payment; the buyer accepts with a carried empty or milk jug.
+Each milk lot can have only one pending offer. Remaining portions can be
+offered after that sale ends.
 Both vessels keep their owners. Pouring away spoiled milk frees its jug for reuse.
 
 For a cared adult horse, use **Saddle Moss**, **Mount Moss** and **Dismount Moss**.
