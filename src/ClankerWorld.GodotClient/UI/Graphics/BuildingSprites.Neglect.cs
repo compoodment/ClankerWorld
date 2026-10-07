@@ -83,7 +83,7 @@ public static partial class BuildingSprites
             var b = Bounds(mask);
             var w = s.Width;
             var h = s.Height;
-            var art = s.Finished.Duplicate();
+            var art = (Image)s.Finished.Duplicate();
             var salt = s.Salt + (ruin ? 7 : 0);
             var roofed = s.Kind == Shape.Building;
 
