@@ -1,0 +1,1 @@
+- Animal care uses available grain and reserve-safe greens even when feed is split across lots, while keeping the household's protected food and reusable water jug.
