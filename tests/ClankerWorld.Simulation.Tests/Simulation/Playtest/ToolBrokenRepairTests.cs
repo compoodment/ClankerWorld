@@ -75,9 +75,10 @@ public sealed class ToolBrokenRepairTests
         world.Validate();
         world.Resume();
         replay.Resume();
+        string? repairInstructionId = null;
         if (ownerOrder)
         {
-            world.SubmitInstruction(new("broken-owner-repair", "owner:test", actor, OwnerInstructionKind.MustDo, "repair crude wooden pickaxe"));
+            repairInstructionId = world.SubmitInstruction(new("broken-owner-repair", "owner:test", actor, OwnerInstructionKind.MustDo, "repair crude wooden pickaxe")).InstructionId;
             replay.SubmitInstruction(new("broken-owner-repair", "owner:test", actor, OwnerInstructionKind.MustDo, "repair crude wooden pickaxe"));
         }
         var before = PrivateWorldRuntimeCodec.Encode(world.ExportState());
@@ -98,7 +99,7 @@ public sealed class ToolBrokenRepairTests
         if (broken && !ownerOrder)
             Assert.DoesNotContain(choices.OfferedTo(actor), candidate => candidate.Id == "repair_tool:" + Tool);
         if (ownerOrder)
-            Assert.Equal("blocked", world.ExportState().Instructions!.Last().Order!.Status);
+            Assert.Equal("blocked", world.ExportState().Instructions!.Single(item => item.InstructionId == repairInstructionId).Order!.Status);
         bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
         using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes));
         restored.Validate();
