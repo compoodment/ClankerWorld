@@ -983,8 +983,12 @@ not reissue past crossings. The count and cap stay in the usage file, and no
 checkpoint schema changed. Telemetry logs `provider_usage_warning` with its
 outcome.
 
-`ProviderUsageWorldEffects` applies both the cap's pause and the warning, each
-under the world mutation gate and followed by a save. Starting a conversation
+`ProviderUsageWorldEffects` applies both the cap's pause and the warning under
+the world mutation gate. A pause also rechecks the installation's current
+allowance after acquiring the runtime gate. If more calls are allowed or the
+limit was removed while it waited, it completes without pausing or saving and
+logs `superseded`; otherwise it pauses and saves. Warnings still append and
+save their crossed mark. Starting a conversation
 call reserves before the provider's first await; canceling a provider call can
 also invoke accounting callbacks synchronously. Both can happen on the thread
 holding the runtime gate. That gate is not reentrant, so the runtime marks
@@ -992,7 +996,8 @@ provider startup and cancellation under it
 (`IsInvokingProviderUnderGateOnThisThread`). On that thread the pause or warning
 moves to another task that waits for the world. Outside the runtime gate it
 runs at once, so a hosted decision's late reply cannot be admitted before the
-pause. `provider_usage_limit_reached` logs `paused`, `paused_unsaved` or `failed`.
+pause. `provider_usage_limit_reached` logs `paused`, `paused_unsaved`,
+`superseded` or `failed`.
 
 Unreadable or inconsistent accounting leaves the host reachable with paid work
 blocked. Preserve the damaged file; changing the cap cannot bypass it. Writes
@@ -2348,8 +2353,12 @@ household that lacks one and has the materials. Raw grain and potatoes cannot
 satisfy this ready-food reserve directly; their prepared meals can, so raw
 stock does not stop farmers planting fresh greens. Grain is milled into flour
 at the Farmhouse, one grain to one flour.
-Field work records the selected carried hoe or sickle lot. Wooden and iron hoes
-reduce the work still needed to till and tend, while wooden and iron sickles
+Field work records the selected carried hoe or sickle lot. An eligible farmer
+with a wooden or iron hoe keeps the chosen crop claimed while another resident
+briefly occupies the field. Claim eligibility uses the same usable, unreserved,
+top-level carried Hoe-family check as field planning; losing a usable hoe
+releases the claim. Other household, food, warmth, project and seed checks still apply.
+Wooden and iron hoes reduce the work still needed to till and tend, while wooden and iron sickles
 reduce harvest work; an iron sickle is faster than a wooden one. Each committed
 work tick wears one unit of the selected tool. Interrupted or refused work does
 not wear it. A tool in storage, on the ground, in delivery or inside a pot is
