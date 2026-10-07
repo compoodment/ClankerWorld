@@ -155,6 +155,8 @@ public sealed partial class PrivateWorldRuntime
         if (NeedsUrgentWarmth(inhabitants[actor])) return;
         foreach (var town in towns.Where(t => t.Governance is not null))
         {
+            if (MayResettleTown(actor, town))
+                candidates.Add(new(CivicAction(town.Id, "resettle"), ResettlementText(actor, town), 170));
             var state = town.Governance!;
             var history = CivicHistory(town);
             var known = history.Known(actor);
@@ -277,6 +279,11 @@ public sealed partial class PrivateWorldRuntime
         if (ChildResident(actor)) AddChildNonviolentCandidates(current, actor);
         else AddTownCivicCandidates(current, actor);
         if (!current.Any(c => c.Id == selectedId)) return;
+        if (parts[2] == "resettle")
+        {
+            ResettleTown(actor, town);
+            return;
+        }
         if (parts[2] == "accept_admission")
         {
             AcceptTownAdmission(actor, town.Id, parts[3]);

@@ -189,6 +189,7 @@ public partial class Main
 
     public override void _Notification(int what)
     {
+        if (what == NotificationApplicationFocusOut) draggingMap = false;
         // Match system picks up a change made while the game was in the background.
         if (what == NotificationApplicationFocusIn && UiTheme.Parse(displayPreferences.Theme) == UiThemeChoice.System)
             UiTheme.Apply(GetTree().Root, UiTheme.Resolve(UiThemeChoice.System));

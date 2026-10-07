@@ -167,7 +167,7 @@ public sealed partial class PrivateWorldRuntime
                         $"Collect nearby {input.ResourceId.Replace('_', ' ')} and carry it to build a handcart at your household Blacksmith.", 25));
             }
         }
-        if (AttachedHandcart(actor) is null)
+        if (AttachedHandcart(actor) is null && !animalWorld.Animals.Any(animal => animal.RiderId == actor || animal.LeaderId == actor))
         {
             foreach (var cart in inventory.Lots.Where(lot => lot.ItemKind == InventoryContainerRules.Handcart &&
                          lot.OwnerId == actor && CanPullHandcart(lot)).OrderBy(lot => lot.Id, StringComparer.Ordinal))
@@ -178,7 +178,7 @@ public sealed partial class PrivateWorldRuntime
                         "Reach and attach your parked handcart to carry a larger load.", UnassignedCartPriority));
             }
         }
-        else
+        else if (AttachedHandcart(actor) is not null)
         {
             candidates.Add(new("park_handcart", "Park the handcart here with its cargo kept inside.", UnassignedCartPriority));
             foreach (var building in worldSimulation.Buildings.OrderBy(item => item.InstanceId, StringComparer.Ordinal))
@@ -262,7 +262,8 @@ public sealed partial class PrivateWorldRuntime
             var id = candidateId[AttachCartPrefix.Length..];
             var cart = society.Checkpoint.Inventory.Lots.FirstOrDefault(lot => lot.Id == id &&
                 lot.ItemKind == InventoryContainerRules.Handcart && lot.OwnerId == actor);
-            if (cart is null || AttachedHandcart(actor) is not null || !CanPullHandcart(cart)) return true;
+            if (cart is null || AttachedHandcart(actor) is not null || !CanPullHandcart(cart) ||
+                animalWorld.Animals.Any(animal => animal.RiderId == actor || animal.LeaderId == actor)) return true;
             var position = new GridPoint(cart.GroundPosition!.Value.X, cart.GroundPosition.Value.Y);
             if (person.Position != position) { MoveToward(actor, person, position, "attach_handcart"); return true; }
             if (handcartHitches.Any(hitch => hitch.CartLotId == id)) return true;

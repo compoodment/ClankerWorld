@@ -45,6 +45,15 @@ public static class GameUiText
         return quantity.Length == 0 ? title : title + " " + quantity;
     }
 
+    public static string AnimalDescription(OwnerWorldAnimal animal) =>
+        $"{animal.Name}: {animal.Sex} {animal.Species}, {animal.LifeStage}, {animal.AgeDays} days old. " +
+        (animal.HouseholdName is null ? "Untamed. " : $"{animal.HouseholdName}. ") + animal.CareStatus + ". " +
+        (animal.ProductQuantity == 0 ? "" : $"Ready: {animal.ProductQuantity} {ItemName(animal.ProductKind!)}. ") +
+        (animal.BirthDaysRemaining is null ? "" : $"Birth in {animal.BirthDaysRemaining:0.#} cared-for days; one yard place reserved. ") +
+        (animal.RiderName is null ? "" : $"Ridden by {animal.RiderName}. ") + (animal.Saddled ? "Saddled. " : "") +
+        $"Care permission: {(animal.CarePermissions.Count == 0 ? "household adults" : string.Join(", ", animal.CarePermissions))}. " +
+        (animal.Species != "horse" ? "" : $"Riding permission: {(animal.RidingPermissions.Count == 0 ? "household adults" : string.Join(", ", animal.RidingPermissions))}.");
+
     public static string HandcartDescription(OwnerWorldHandcart cart)
     {
         var cargo = cart.Cargo.Count == 0 ? "Empty" : string.Join(", ",
@@ -321,6 +330,7 @@ public static class GameUiText
             "market_stock_loaded" or "market_stock_delivered" or "market_stock_collected" or
             "market_trade_offered" or "market_trade_completed" or "market_trade_cancelled" or
             "town_resident_joined" or "town_resident_left" or "town_membership_evaluated" or
+            "town_abandoned" or "town_revived" or "town_resettled" or "town_stock_salvaged" or
             "town_admission_accepted" or "town_admission_approved" or "town_admission_lapsed" or
             "land_use_requested" or "land_use_granted" or "town_building_assigned" or "town_border_expanded" or "town_land_claimed" or "town_founded" or "bridge_built" or
             "town_civic_nonviolent_hearing" or "town_civic_law_case" or "town_civic_remedy" or "law_case_opened" or "law_case_evidence" or
@@ -418,6 +428,22 @@ public static class GameUiText
         if (!string.IsNullOrWhiteSpace(summary) && !summary.Contains(':', StringComparison.Ordinal))
             return summary.Trim();
         if (candidateId == "produce_item") return "making goods";
+        if (candidateId == "animal_order") return "following an animal care or travel order";
+        if (candidateId == "drink_milk") return "drinking milk";
+        if (candidateId?.StartsWith("animal:", StringComparison.Ordinal) == true)
+            return candidateId.Split(':')[1] switch
+            {
+                "care" => "caring for an animal",
+                "collect" => "collecting animal products",
+                "collect_hide" => "collecting a wild animal's old-age hide",
+                "tame" => "taming an animal",
+                "lead_home" => "leading an animal home",
+                "saddle" => "fitting a horse's saddle",
+                "mount" => "mounting a horse",
+                "dismount" => "dismounting a horse",
+                "agreement" => "discussing animal permissions or a transfer",
+                _ => "carrying animal supplies",
+            };
         return string.IsNullOrWhiteSpace(candidateId) ? "taking in the surroundings" : HumanizeIdentifier(candidateId);
     }
 

@@ -24,6 +24,7 @@ public static class WorldEventText
                 "remove_goods" => $"removed {edit.Amount} {value} from {name}",
                 "add_skill" => $"added {value} skill to {name}",
                 "remove_skill" => $"removed {value} skill from {name}",
+                "add_animal" => $"added a {value.Replace(':', ' ')} to {name}'s household animal yard",
                 "start_partnership" => $"started a partnership between {name} and {Name(snapshot, edit.OtherAgentId ?? "")}",
                 "end_partnership" => $"ended the partnership between {name} and {Name(snapshot, edit.OtherAgentId ?? "")}",
                 _ => "saved a change",
@@ -60,10 +61,35 @@ public static class WorldEventText
         var marketSeller = marketFields.Length > 3 ? Name(snapshot, marketFields[3]) : "Someone";
         var marketBuyer = marketFields.Length > 4 ? Name(snapshot, marketFields[4]) : "a customer";
         var marketBuyerSubject = marketFields.Length > 4 ? marketBuyer : "A customer";
+        var animalName = snapshot?.Animals.Where(animal => worldEvent.Detail.Split(':').Contains(animal.Id, StringComparer.Ordinal))
+            .OrderBy(animal => worldEvent.Detail.IndexOf(animal.Id, StringComparison.Ordinal)).FirstOrDefault()?.Name ?? "An animal";
 
         return worldEvent.Kind switch
         {
             "developer_edit" => DescribeDeveloperEdit(worldEvent.Detail, snapshot),
+            "animals_arrived" => "Small wild animal groups arrived in suitable habitat.",
+            "animal_tamed" => $"{animalName} joined a household and can be led home.",
+            "animal_cared" => $"{animalName} received a day's physical feed and water.",
+            "animal_product_ready" => $"{animalName}'s product is ready for local collection.",
+            "animal_product_collected" => $"{animalName}'s product was collected for its household.",
+            "animal_hide_collected" => $"An adult collected {animalName}'s wild old-age hide.",
+            "animal_breeding_started" => $"{animalName} is expecting one young animal; a place is reserved.",
+            "animal_born" => $"{animalName} was born.",
+            "animal_died" => $"{animalName} died of old age.",
+            "animal_saddled" => $"{animalName} has a household saddle fitted.",
+            "horse_mounted" => $"An adult mounted {animalName}.",
+            "horse_dismounted" => $"An adult dismounted {animalName}; spare cargo stays at the actual position.",
+            "animal_permission_changed" => $"{animalName}'s named care or riding permission changed.",
+            "animal_trade_offered" => $"A household offered {animalName}; the receiving adult must agree.",
+            "animal_transferred" => $"{animalName} joined its new household through an agreed transfer.",
+            "animal_yard_supplied" => "Feed or jug water reached an animal yard.",
+            "milk_drunk" => $"{Name(snapshot, worldEvent.Detail)} drank milk and kept the reusable jug.",
+            "spoiled_milk_emptied" => "An adult poured away spoiled milk and kept the reusable jug.",
+            "milk_stock_picked_up" => "An adult collected a household milk jug for sale stock.",
+            "milk_stock_delivered" => "A household milk jug reached the Store or borrowed Market stall.",
+            "milk_sale_offered" => "An adult offered one milk for the buyer's exact carried payment; the buyer must agree.",
+            "milk_sale_completed" => "Milk was poured into the buyer's jug and the agreed payment changed owners; both jugs stayed with their owners.",
+            "milk_sale_cancelled" or "milk_sale_declined" => "The milk exchange ended; held milk is available again and no payment was taken.",
             "world_created" => "A new world has begun.",
             "world_started" => "Time has started in this world.",
             "weather_changed" when parts.Length >= 2 => $"The weather changed to {ThingAt(1)}.",
@@ -221,6 +247,10 @@ public static class WorldEventText
             "town_resident_left" => $"{ResidentName(snapshot, worldEvent)} left {ResidentTownName(snapshot, worldEvent)}.",
             "town_membership_evaluated" => "The new adult is not part of a Town yet.",
             "town_admission_accepted" => DescribeAdmission(worldEvent.Detail, snapshot),
+            "town_abandoned" => $"{civicTownName} has no living residents and is abandoned. Its buildings, border and Roads remain.",
+            "town_revived" => $"{civicTownName} has residents again. Remaining communal stock is for its residents.",
+            "town_resettled" => $"{Name(snapshot, Field(worldEvent.Detail, 1))} chose to resettle {civicTownName}. Existing laws and private property remain.",
+            "town_stock_salvaged" => $"{Name(snapshot, Field(worldEvent.Detail, 1))} salvaged {Field(worldEvent.Detail, 3)} {GameUiText.ItemName(Field(worldEvent.Detail, 2)).ToLowerInvariant()} from abandoned {civicTownName}.",
             "town_admission_approved" => $"{civicTownName}'s council approved {Name(snapshot, Field(worldEvent.Detail, 1))}'s admission. They have one unpaused world day to accept.",
             "town_admission_lapsed" when Field(worldEvent.Detail, 3) == "acceptance_expired" => $"{Name(snapshot, Field(worldEvent.Detail, 1))} did not join {civicTownName}: the approval expired after one unpaused world day without acceptance. Someone may ask the council again.",
             "town_admission_lapsed" => $"{Name(snapshot, Field(worldEvent.Detail, 1))} did not join {civicTownName}: the approval no longer fits their circumstances.",
