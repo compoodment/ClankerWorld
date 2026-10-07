@@ -736,10 +736,20 @@ public static class AnimalSprites
         /// <summary>The same figure at <paramref name="k"/> of its size, with the head shrunk by <paramref name="headK"/>.</summary>
         public Build Scaled(float k, float headK) => this with
         {
-            HeadR = HeadR * headK, HeadBack = HeadBack * k, HeadLift = HeadLift * k,
-            ShoulderAcross = ShoulderAcross * k, ShoulderAlong = ShoulderAlong * k,
-            HandR = HandR * k, HandAt = HandAt * k, Reach = Reach * k, LeadReach = LeadReach * k,
-            FootAcross = FootAcross * k, FootAlong = FootAlong * k, FootAt = FootAt * k, FootAhead = FootAhead * k, FootDrop = FootDrop * k,
+            HeadR = HeadR * headK,
+            HeadBack = HeadBack * k,
+            HeadLift = HeadLift * k,
+            ShoulderAcross = ShoulderAcross * k,
+            ShoulderAlong = ShoulderAlong * k,
+            HandR = HandR * k,
+            HandAt = HandAt * k,
+            Reach = Reach * k,
+            LeadReach = LeadReach * k,
+            FootAcross = FootAcross * k,
+            FootAlong = FootAlong * k,
+            FootAt = FootAt * k,
+            FootAhead = FootAhead * k,
+            FootDrop = FootDrop * k,
             Unit = Unit * k,
         };
     }
