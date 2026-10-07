@@ -802,7 +802,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 95. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 96. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 a bounded model-attempt status and exact last accepted model choice per agent, plus
@@ -944,6 +944,7 @@ current alpha cutoff.
 | Schema 91 | Non-land mandate consent, conduct-time law context, public hearings and voluntary remedy agreements retain their sources and real physical completion receipts. Earlier alpha saves are refused and preserved without migration. |
 | Schema 94 | Market receipts use required stable sequences and an explicit retirement boundary. Open trades retain their exact deposit proof; bounded closed outcomes may refer below the retired boundary. Live borrowing, current stock, exact payments and accepted offers remain authoritative; closed offers and claims retire together. Earlier alpha saves are refused and preserved without migration. |
 | Schema 95 | Required per-world routine-helper settings retain Off, Jev or OpenAI Decisions, its model and an optional installation-owned OpenAI key-slot ID. Switches retain memories and scores, invalidate pending replies and replay with the saved routing revision. Earlier alpha saves are refused and preserved without migration; key bytes remain outside world saves. |
+| Schema 96 | Animals, held products and saddles, care trips, pregnancies, named permissions and exact animal/milk offers retain their physical custody. Current saves require the complete animal record; earlier alpha saves are refused and preserved without migration. |
 
 ### Tool-making requests
 
@@ -1440,3 +1441,23 @@ replacement before accepting it in memory. A failed write preserves the live
 state and the prior save, and the original command can be retried. Tests cover
 this rollback, stale/wrong-world refusals, field binding in signed requests,
 and the generated-world path for every supported edit category.
+
+## Animal checkpoints
+
+Private-world schema 96 requires the complete animal-world record. It stores
+exact animal identities, species, sex, birth/death ticks, physical positions,
+household and yard, paid care deadlines, unfinished products and pregnancies,
+reserved births, named permissions, taming work, supply trips, riders and
+leaders. Products and fitted saddles reference real inventory lots and exclusive
+reservations. Trade offers retain the exact animal, adults, receiving yard and
+payment lot; native animal orders retain the exact bound animal ID. Milk-sale
+offers retain both parties, the held milk, receiving jug, payment and physical
+Store or Market stall. Whole-jug stock deliveries retain household ownership.
+
+Current-format replay and rollback cover arrival, paid care, collection, birth,
+production jobs and attachments. Reload validates required animal fields,
+physical saddle/product custody, household/herd limits and vessel contents.
+Water and milk cannot share a jug, and collected milk cannot become a loose lot.
+An interrupted tick or refused durable developer edit restores both animal and
+inventory state. Older alpha checkpoints are refused and preserved; no animal
+inference or migration runs.
