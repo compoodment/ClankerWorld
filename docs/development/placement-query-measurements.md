@@ -22,12 +22,12 @@ native ticks from 256 to 320. Times are milliseconds.
 
 | Requested residents/Roads | Provider | Main median | Optimized median | Main p95 | Optimized p95 | Admissions |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| 4/96 | Built-in | 113.5 | 102.5 | 287.0 | 316.4 | 12 |
-| 4/96 | Personal fixture | 102.2 | 94.6 | 123.5 | 111.1 | 12 |
-| 16/96 | Built-in | 374.3 | 338.7 | 474.9 | 430.5 | 48 |
-| 16/96 | Personal fixture | 390.9 | 356.6 | 500.9 | 456.0 | 48 |
-| 16/384 | Built-in | 554.9 | 470.2 | 692.1 | 572.5 | 54 |
-| 16/384 | Personal fixture | 551.7 | 468.3 | 682.5 | 578.7 | 54 |
+| 4/96 | Built-in | 113.5 | 102.7 | 287.0 | 310.6 | 12 |
+| 4/96 | Personal fixture | 102.2 | 91.5 | 123.5 | 112.7 | 12 |
+| 16/96 | Built-in | 374.3 | 334.9 | 474.9 | 426.3 | 48 |
+| 16/96 | Personal fixture | 390.9 | 355.1 | 500.9 | 455.8 | 48 |
+| 16/384 | Built-in | 554.9 | 470.4 | 692.1 | 579.9 | 54 |
+| 16/384 | Personal fixture | 551.7 | 464.5 | 682.5 | 569.7 | 54 |
 
 The largest fixture's medians fall by about 15%. The small built-in fixture's
 p95 rises in this run; the median improvement does not mean every tick is
@@ -89,7 +89,7 @@ No timing threshold is added to unit tests.
 
 Baseline is main `ab35fdcfea799aa57e65280ee2eda2bd8fd84200`, including the
 earlier [construction query repair](construction-query-measurements.md).
-Optimized production is `2a5da3bea7adaf947168e68cb562ccb81b522722`.
+Optimized production is `03fdc8dbbb27506577e7f942319920fdb9f900d3`.
 [Raw samples and digests](placement-query-probe/samples.json) retain all 768
 ordinary samples, input and production hashes, exact equivalence results and
 state-change results. Full local captures are retained in
