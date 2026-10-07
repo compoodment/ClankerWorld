@@ -32,7 +32,16 @@ public sealed record ViewerHandcart(string Id, string OwnerId, string OwnerName,
 public sealed record ViewerAnimal(string Id, string Name, string Species, string Sex, int AgeDays, string LifeStage,
     ViewerPosition Position, string? HouseholdId, string? HouseholdName, string CareStatus, string? ProductKind,
     int ProductQuantity, double? BirthDaysRemaining, string? RiderId, string? RiderName, string? LeaderId,
-    bool Saddled, IReadOnlyList<string> CarePermissions, IReadOnlyList<string> RidingPermissions);
+    bool Saddled, IReadOnlyList<string> CarePermissions, IReadOnlyList<string> RidingPermissions,
+    int? ProductProgressPercent = null);
+
+/// <summary>
+/// A building under construction: a household's planned building or an
+/// approved Town project, where it will stand and how far the work has got.
+/// </summary>
+public sealed record ViewerConstructionSite(string Id, string DefinitionId, string DisplayName, IReadOnlyList<string> Tags,
+    ViewerPosition Site, int Width, int Height, ViewerPosition? Entrance, int WorkDone, int WorkRequired, string Stage,
+    string? TownId, string? HouseholdId);
 
 public sealed record ViewerBoat(string Id, string TownId, string TownName, ViewerPosition Position,
     string? DockedPortId, string? PassengerId, string? PassengerName, string? DestinationPortId,
@@ -348,8 +357,11 @@ public sealed record ViewerPlacedBuilding(
     public IReadOnlyList<ViewerBusinessTrade> Trades { get; init; } = [];
     public IReadOnlyList<ViewerToolMakingRequest> ToolMakingRequests { get; init; } = [];
     public bool AllowsHouseholdOwner { get; init; }
+    public IReadOnlyList<ViewerBuildingStorageChange>? RecentStorageChanges { get; init; }
     public IReadOnlyList<ViewerProductionRecipe>? AvailableRecipes { get; init; }
 }
+
+public sealed record ViewerBuildingStorageChange(long EventId, long WorldTick, string ItemKind, long QuantityChange);
 
 public sealed record ViewerToolMakingRequest(string Id, string RequesterName, string RecipeId,
     string RecipeName, string ItemKind, string Status, string? Blocker, string? OfferId = null);
@@ -407,6 +419,9 @@ public sealed record ViewerTown(
     IReadOnlyList<ViewerPosition> BorderTiles)
 {
     public bool IsAbandoned => FoundingState == "founded" && ResidentIds.Count == 0;
+
+    /// <summary>An abandoned Town that has stood empty for a full season; its buildings look falling apart.</summary>
+    public bool FallingApart { get; init; }
 
     public ViewerTownGovernance? Governance { get; init; }
     public IReadOnlyList<ViewerTownProject> Projects { get; init; } = [];
@@ -626,6 +641,7 @@ public sealed record ViewerWorldSnapshot(
     public IReadOnlyList<ViewerGroundStock> GroundStocks { get; init; } = [];
     public IReadOnlyList<ViewerHandcart> Handcarts { get; init; } = [];
     public IReadOnlyList<ViewerAnimal> Animals { get; init; } = [];
+    public IReadOnlyList<ViewerConstructionSite> ConstructionSites { get; init; } = [];
     public IReadOnlyList<ViewerBoat> Boats { get; init; } = [];
     public IReadOnlyList<ViewerBoatTripRequest> BoatRequests { get; init; } = [];
     public IReadOnlyList<ViewerStockpile> Stockpiles { get; init; } = [];

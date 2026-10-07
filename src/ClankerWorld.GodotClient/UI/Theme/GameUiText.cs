@@ -64,6 +64,21 @@ public static class GameUiText
             $"\nCondition: {cart.ConditionPercent}% · Cargo: {cart.Cargo.Sum(item => item.Quantity)}/{cart.Capacity} · {cargo}";
     }
 
+    /// <summary>How far a building under construction has got, such as "Being built · 40% done".</summary>
+    public static string ConstructionDescription(OwnerWorldConstructionSite site)
+    {
+        var state = site.Stage switch
+        {
+            "working" => "Being built",
+            "blocked" => "Work stopped",
+            "paused" => "Work paused",
+            "travelling" => "Builder on the way",
+            _ => "Waiting for materials",
+        };
+        var done = site.WorkRequired <= 0 ? 0 : Math.Clamp(site.WorkDone * 100 / site.WorkRequired, 0, 100);
+        return $"{state} · {done}% done";
+    }
+
     public static string BoatDescription(OwnerWorldBoat boat)
     {
         var cargo = boat.Cargo.Count == 0 ? "Empty" : string.Join(", ", boat.Cargo.Select(item => $"{ItemName(item.Kind)} {item.Quantity}"));

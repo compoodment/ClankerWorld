@@ -1,0 +1,6 @@
+- Zoom in on a wild herd of chickens, sheep, cows and horses and watch them wander. Each should keep its own look in every direction it walks, with no placeholder ovals, and wild horses should have no saddle. ([#1087](https://github.com/compoodment/ClankerWorld/issues/1087))
+- Zoom out to mid zoom. The animals should switch to their small drawings and still be easy to tell apart. ([#1087](https://github.com/compoodment/ClankerWorld/issues/1087))
+- Let a household's animals breed. The chicks, lambs, calves and foals should look like young versions of their parents. ([#1087](https://github.com/compoodment/ClankerWorld/issues/1087))
+- Have an agent collect wool from a household sheep. The sheep should look shorn, then woolly again about halfway to its next batch of wool. ([#1087](https://github.com/compoodment/ClankerWorld/issues/1087))
+- Fit a saddle to a tamed horse and ride it. The saddle should show while it stands saddled, the rider while it is ridden, and a bare back once the saddle comes off. ([#1087](https://github.com/compoodment/ClankerWorld/issues/1087))
+- Build an animal yard and expand it. It should look like a split-rail pen on trampled earth with an open gate facing its door, a water trough just inside the gate and hay in the far corner, at both zooms and every size. ([#1088](https://github.com/compoodment/ClankerWorld/issues/1088))
