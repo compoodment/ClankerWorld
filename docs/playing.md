@@ -2,7 +2,7 @@
 title: Playing the current game
 type: player-guide
 status: active
-updated: 2026-10-04
+updated: 2026-10-05
 ---
 
 # Playing the current game
@@ -22,6 +22,10 @@ A new device needs approval. Compare the game's code with the person approving
 the device on the server, then complete pairing. Do not post the code, keys or
 private world data in an issue. Once paired, reconnecting uses the saved
 registration; normal play does not need approval every time.
+
+After pairing, choose **Continue** from the Main Menu to enter your world.
+If the activation reply was lost, the next pairing check can recover the
+registration and return you to the same menu.
 
 For an already paired device, **Connect** checks the saved server connection
 and shows the result below the address. It does not start a new pairing.
@@ -77,7 +81,9 @@ name. A child's chosen surname must come from a biological parent. Temporary
 names do not reserve first names, and renaming leaves past conversations as
 spoken. Changing a married agent's surname updates both spouses together,
 keeping the other spouse's first and middle names. A taken first name leaves
-both names unchanged.
+both names unchanged. An unfinished rename stays in the open editor through
+world refreshes, even when the name field loses focus. Closing the editor or
+choosing another agent or world discards it.
 
 ## Create your first Town
 
@@ -111,8 +117,12 @@ still open normally.
    undone; incomplete setup can be saved and resumed later.
 
 Keys stay on the server installation, separately from world saves. Cloud
-providers charge you for usage. Jev is an optional helper for the world; change
-its on/off setting while the world is paused.
+providers charge you for usage. While paused, open **Settings → World → Routine
+helper** to choose **Off**, **Jev** or **OpenAI Decisions**, pick its model and
+press **Apply helper**. Decisions uses your default OpenAI key or a named saved
+OpenAI key you choose; Jev uses the saved TypeSafe key. Switching helpers keeps
+memories and their scores. Decisions currently offers `gpt-6-luna`; **Type a
+model name...** also remains available.
 
 To save keys before placing any agents, open **Settings → Game → API keys**.
 Choose OpenAI or Ollama Cloud, name the key, paste it and press **Save API key**.
@@ -131,7 +141,9 @@ details.
 
 ## Look around
 
-Use the mouse wheel to zoom and movement keys to pan. **Map** opens the World
+Use the mouse wheel to zoom, hold the middle mouse button to drag the camera,
+or use movement keys to pan. Opening the pause menu or switching to another
+application ends a drag; press the middle button again to start another. **Map** opens the World
 Map, which marks each Town and agent; click it or drag its view rectangle to
 move the camera. The label in the corner names the ground under the pointer
 beside a small picture of it. Click a tile to open its card: the ground with a
@@ -609,7 +621,7 @@ YYYY-MM-DD), and the top bar then names the season beside the weather.
 Menus, panels and text grow with your screen in whole steps, so pixel letters
 stay crisp: 100% on small screens, 200% at 1080p and 1440p and 300% at 4K.
 There is no setting for this. World Settings contains that world's autosaves,
-Jev and agent model settings. Main Menu Settings exposes Game Settings only.
+the routine helper and agent model settings. Main Menu Settings exposes Game Settings only.
 Autosave Apply stays unavailable until the current world's settings have loaded.
 If the world changes before Apply reaches the host, its settings stay unchanged.
 Reopen World Settings before trying again.
@@ -630,6 +642,8 @@ turn on **Show planned path** to draw the route they are walking, as the server
 planned it. The panel also holds the aging override, recovery for a request
 whose reply was lost, paused world editing and paired-device management. The
 aging override and world editing need the world paused first.
+World-edit coordinates cover the whole current map, from zero to its last
+tile on each axis. Their bounds update when you change worlds.
 
 To set up a test, pause and use **Edit selected agent**. Choose a need and its
 percentage, goods and a quantity, a skill, or another agent for a partnership,

@@ -347,6 +347,10 @@ public sealed partial class PrivateWorldRuntime
         if (state.SchemaVersion < ConversationSchemaVersion &&
             (state.Conversations is { Count: > 0 } || state.ConversationBudgets is { Count: > 0 }))
             throw new InvalidDataException($"Conversation history and daily budgets require private-world schema {ConversationSchemaVersion}.");
+        try { (state.RoutineHelper ?? throw new ArgumentException("Missing routine helper.")).Validate(); }
+        catch (ArgumentException exception) { throw new InvalidDataException("The saved routine helper is invalid.", exception); }
+        if ((state.RoutineHelper.Provider != "off") != (state.JevEnabled ?? true))
+            throw new InvalidDataException("The saved helper availability is inconsistent.");
         if (state.JevPolicyRevision < 0 || state.JevEnabled is null && state.JevPolicyRevision != 0)
             throw new InvalidDataException("The saved Jev routing policy is invalid.");
         if (state.Geography is not null &&

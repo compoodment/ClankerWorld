@@ -204,6 +204,7 @@ public partial class Main
         }
         else if (@event is InputEventMouseMotion hoverMotion)
         {
+            if ((hoverMotion.ButtonMask & MouseButtonMask.Middle) == 0) draggingMap = false;
             if (draggingMap)
             {
                 PanCamera(-hoverMotion.Relative / (currentTileSize + TileGap));
@@ -307,7 +308,7 @@ public partial class Main
         if (region?.SoilMoisture is { } moisture)
             lines.Add($"Soil moisture: {moisture}%");
         if (elevation is { } level) lines.Add($"Elevation: {level}/255");
-        if (town is not null) lines.Add($"Town: {town.Name}");
+        if (town is not null) lines.Add($"Town: {town.Name}" + (town.IsAbandoned ? " (abandoned)" : string.Empty));
         // Title, use rights, requests and disputes go on the card under shorter names.
         var landFacts = new List<(string Key, string Value)>();
         foreach (var title in titles)

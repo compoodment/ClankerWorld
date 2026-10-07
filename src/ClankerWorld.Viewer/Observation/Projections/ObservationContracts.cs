@@ -390,6 +390,8 @@ public sealed record ViewerTown(
     IReadOnlyList<string> AssignedBuildingIds,
     IReadOnlyList<ViewerPosition> BorderTiles)
 {
+    public bool IsAbandoned => FoundingState == "founded" && ResidentIds.Count == 0;
+
     public ViewerTownGovernance? Governance { get; init; }
     public IReadOnlyList<ViewerTownProject> Projects { get; init; } = [];
     public ViewerTownGovernment? Government { get; init; }
@@ -620,6 +622,9 @@ public sealed record ViewerWorldSnapshot(
     /// </summary>
     public int? DarknessBasisPoints { get; init; }
     public bool? JevEnabled { get; init; }
+    public string? RoutineHelperProvider { get; init; }
+    public string? RoutineHelperModel { get; init; }
+    public string? RoutineHelperCredentialSlotId { get; init; }
     /// <summary>The current saved rule state, independent of retained event history.</summary>
     public bool? ContinuityRuleActive { get; init; }
     public ViewerFounderSetup? FounderSetup { get; init; }

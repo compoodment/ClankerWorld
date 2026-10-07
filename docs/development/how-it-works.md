@@ -112,6 +112,12 @@ do not create map knowledge. Optional observer replies are tied to the exact
 message ID and stored separately from private thoughts and conversation
 speech. Local deterministic decisions do not mark messages as heard.
 
+Food-source orders can use food directly observed within normal gathering
+range even when the agent's map memory is full. Food kinds and exact resource
+or coordinate targets still apply; distant sites require that agent's own
+knowledge. Observation does not bypass availability, reachability or the
+whole-load carrying checks.
+
 Material orders save the requested kind separately from food targets. They use
 known resource facts or observation within normal interaction range; a named
 unobserved site first requires physical travel. Untargeted orders may use normal
@@ -279,6 +285,10 @@ workstation inputs, spare House food, Town Warehouse surplus and Store stock.
 Their plans preserve the ordinary source, demand, reserve, capacity, access
 and route checks. A requested farm-storage destination filters legal choices
 before applying the default Farmhouse/Silo preference.
+The Silo replenishment fallback applies those same constraints: it supplies
+only grain to the household's Farmhouse, never a different requested item or
+stock already stored at the destination. An unavailable requested item leaves
+the order blocked without binding an unrelated shipment or earning progress.
 
 Town Warehouse donations retain four usable personally carried units of each
 resource kind across all eligible lots. Storage and collection splits do not
@@ -575,6 +585,36 @@ including designs not in the game yet and the street lanterns of
 
 ## Model inputs, usage and memories
 
+The per-world routine helper is Off, Jev or OpenAI Decisions. Decisions uses
+`POST https://api.openai.com/v1/decisions`, sharing Jev's bounded actor context
+and existing owner-private memory scoring. Its `input` is serialized context;
+`questions` and `answers` are arrays keyed by unique names. Action choices are
+fixed candidate IDs. Memory score questions identify `source_index`, and scores
+on three ordered levels map to the same 0–10,000 importance scale as Jev.
+Unknown/duplicate answer names, unusable choice types and malformed scores are
+refused. The runtime still admits only legal actions and requested owner sources;
+a refusal or invalid action falls back to `safe_idle`. No confidence veto is added.
+
+Decisions uses the installation's default OpenAI key or an explicitly selected
+OpenAI credential slot. The world saves only the slot ID, helper and model;
+missing/deleted credentials produce the existing safe provider failure. A call
+reserves one installation usage attempt before HTTP, including action and memory
+questions together. Reply bodies are bounded; timeout, cancellation and sanitized
+call telemetry use the existing provider boundary. Changing the helper or model
+while paused advances its routing revision and cancels pending work. Late replies
+cannot alter actions or memory scores. An explicitly selected helper handles
+eligible adult routine choices; personal assignments stay available for planning,
+guidance and identity. Children still require their own explicit personal model.
+Before the first explicit helper selection, existing installation routing and
+its configured Jev model remain effective. Applying the displayed default Jev
+choice also activates explicit helper routing; repeating it afterward is a no-op.
+
+The Decisions picker starts with `gpt-6-luna` and permits typed model names.
+Its non-billable availability check uses OpenAI's model list with the selected
+key; that list confirms model visibility, not access to the Decisions endpoint.
+Jev offers `jev-1.13.0` without an availability probe.
+
+
 A personal-model request selects one legal candidate, not a free-form dialogue
 turn. It now includes bounded actor-owned self context: name, life stage,
 personality, aspiration, household, available warmth/illness and the latest
@@ -681,10 +721,11 @@ checks the first names of all other inhabitants with `HasChosenName`, living
 or deceased, under the same world gate that commits the rename. Keeping one's
 own first name is allowed. A taken first name returns `name_taken` from
 the signed owner endpoint; the client translates only that refusal into a
-name-specific explanation. The Profile's open name field then keeps the
-refused text through ordinary refreshes (`RefusedAgentRename`) until the
-player edits or closes it, renames successfully, or another agent or world is
-shown; its name labels always follow the host's snapshot. An unchanged chosen
+name-specific explanation. The Profile's open name field keeps unsubmitted
+edits through ordinary refreshes, regardless of keyboard focus. Submitted and
+refused attempts also stay in the field (`RefusedAgentRename`). Closing the
+editor, renaming successfully, or showing another agent or world drops the
+attempt; its name labels always follow the host's snapshot. An unchanged chosen
 name is a no-op; deliberately choosing the exact displayed placeholder makes
 it a chosen name and reserves its first token. No name check rewrites saved
 dialogue or identity references, and player choices still supersede late model
@@ -849,6 +890,10 @@ default model when the key can use it. If the key can't use a new agent's
 starting model, the picker selects nothing and asks the owner to choose, so no
 other model, possibly a costlier one, is chosen for them. An existing or
 hand-picked model the key can't use stays shown, greyed, with the same request.
+Starting a model lookup resets the typed display of an automatic new-agent
+choice, including after a provider switch. The new list then checks that
+default's availability. Choosing or typing a model marks it as the owner's
+choice, so a later list refresh preserves it.
 Checks are cached per key for ten minutes, time out after eight seconds and are
 not model calls, so they do not count toward the usage cap below.
 
@@ -969,6 +1014,11 @@ row-major packed bytes, with separate layer digests. Signed cache claims omit
 unchanged map data only when world and digests match. Initial/changed maps and
 some control receipts still send the whole map. Viewport/chunk transfer remains
 unfinished.
+
+Main-map dragging requires a held middle mouse button. Opening the pause menu
+or losing application focus clears the drag. The client observes releases
+before GUI controls consume them and stops on motion without the middle-button
+mask, so a missed release cannot make ordinary hover pan the camera.
 
 The regional-weather prototype saves an episode for each 32×32 region. Ordinary
 episodes last one-quarter to one saved day; storms last at most three-quarters
@@ -1531,6 +1581,12 @@ fewer than three tiles past its nearest door carries on in its own direction
 where the land allows (`town_road_extended`). The border grows around all the
 new Road tiles.
 
+Street neighbours, headings, diagonal corners and clearance use the map's
+east-west wrap. A Road across the seam counts toward the distance to the last
+door, and a short dead end can carry on through that seam in its original
+direction. Rows do not wrap, building footprints still stay within map bounds,
+and bridge headings follow their saved axis and span.
+
 `TownLayoutService` captures one immutable layout context per decision and
 normally offers at most five legal sites with reasons for footprint, route,
 resources, purpose and compact growth. A model selects a site-specific candidate
@@ -1538,6 +1594,21 @@ or chooses another action; refusal starts no project. Accepted projects retain
 their tile. If it becomes illegal, the project blocks and retries after sixty
 ticks. An unchanged idle choice is reconsidered after 300 ticks, sooner if
 urgent needs or legal choices change. Weights and retry values are provisional.
+Material scoring searches at most five map tiles from a site, including the
+east-west seam; farther resources cannot change its rank. Recipe and expansion
+input checks share reachable-tool results only within one inhabitant's
+read-only candidate query. Later queries and actions check current stock and
+routes again; neither optimization adds saved state or a persistent cache.
+Purpose scoring filters related buildings once per context and keeps its
+distance, building-ID and tag tie rules. Border-growth scoring counts the same
+rounded footprint margin that actual placement adds, without sorting those
+tiles for every candidate.
+Continuing an idle intention skips a second full candidate query after the
+ordinary enqueue phase has reconsidered current choices. Orders, conversations,
+care and ongoing work keep their earlier continuation guards, and the ordinary
+idle action still runs its cleanup.
+See [construction query measurements](construction-query-measurements.md) for
+matched native timings, candidate/state equivalence and remaining limits.
 Building plans follow what a household needs, not a role. An adult whose
 household lacks a House, Farmhouse, Blacksmith, Silo, Tailor Shop, Clinic or Restaurant is offered ranked sites
 for it once the household has the build costs in hand: stock the household
@@ -1790,6 +1861,12 @@ elsewhere in the household is not on-site stock. Missing inputs block the
 project under its existing retry rules, without granting another household's
 materials or implicitly transporting remote goods.
 
+Blacksmith input hauling checks the actor's current unoccupied pickup route
+and the source-to-shop route before selecting household or permitted Town
+Warehouse stock. An occupied earlier lot does not hide later reachable stock.
+The same selection is repeated when hauling or planning a supply order; exact
+lot/item targets, carrying limits and receiving-space checks still apply.
+
 If an unpaid household recipe remains blocked for 60 ticks and no household
 member has an actionable way to supply its missing ingredients, the runtime
 pauses its saved plan and stops trying to continue it automatically. The adult
@@ -1908,6 +1985,11 @@ and 32 terminal records. Placing, accepting, refusing or withdrawing one require
 a fresh accepted personal-model choice. Jev, fallback, repeating intentions and
 owner orders cannot make those commitments. Routine supply and already accepted
 production continue through the existing household project machinery.
+The four personal commitment choices rank below safe idle for the built-in
+chooser, so it does not repeatedly select an action that cannot execute.
+Walking to a known Blacksmith, continuing accepted work and opening a quote
+for a completed tool retain their routine priorities. Opening the quote does
+not accept payment or transfer goods; the existing barter consent checks apply.
 
 The accepted worker produces with actual household-owned inputs at the named
 Blacksmith and its normal output-space reservations. The finished tool remains
@@ -2164,7 +2246,9 @@ Wild berries and greens replenish. Orchard fruit appears in autumn after a
 planted orchard matures. Harvesting fruit also produces a distinct orchard
 seed with a reserved planting unit. An adult carries that seed to legal free
 land and plants a sapling; tree growth, fruiting and the reserve survive reload.
-Ordinary wood-tree seeds remain distinct.
+The orchard planting choice requires carrying room to collect a shared seed.
+An already carried planting seed remains usable at full capacity. Ordinary
+wood-tree seeds remain distinct.
 
 Urgent food recovery first sets down ordinary spare cargo. If that cannot free
 enough carrying room, it may also select the actor's own orchard propagation
@@ -2667,6 +2751,12 @@ New World preview refreshes wait for both an existing preview and a pending
 owner action to finish. Menu visibility, observation generation and preview
 revision still fence the waiting work, so only the current options are
 requested and closing or switching screens discards the old refresh.
+
+Continue also belongs to the current Main Menu navigation. Opening Settings,
+New World or Load World, returning to Main Menu, or starting another Continue
+expires the earlier entry attempt. Its late refresh can update observations,
+but cannot enter play or resume time behind another menu. A fresh Continue
+after returning still enters normally.
 
 The manual Save World and Load Save dialog owns one list read per opening.
 Closing it, creating, overwriting or deleting a save, or starting another opening

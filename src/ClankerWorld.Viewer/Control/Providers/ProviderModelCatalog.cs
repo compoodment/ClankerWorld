@@ -32,6 +32,8 @@ public sealed class ProviderModelCatalog(
     public static readonly IReadOnlyDictionary<string, IReadOnlyList<string>> Curated =
         new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal)
         {
+            [PlayerDecisionProviders.Jev] = [PlayerDecisionProviders.DefaultJevModel],
+            [PlayerDecisionProviders.Decisions] = [PlayerDecisionProviders.DefaultOpenAiModel],
             [PlayerDecisionProviders.OpenAi] = ["gpt-6.1-sol", "gpt-6-astra", "gpt-6-sol", "gpt-6-luna"],
             [PlayerDecisionProviders.OllamaCloud] =
             [
@@ -60,13 +62,13 @@ public sealed class ProviderModelCatalog(
         ArgumentNullException.ThrowIfNull(action);
         var provider = PlayerDecisionProviders.Normalize(action.Provider);
         if (!Curated.TryGetValue(provider, out var curated))
-            throw new ArgumentException("Only OpenAI and Ollama Cloud offer a model list.", nameof(action));
+            throw new ArgumentException("This provider has no model list.", nameof(action));
         var defaultModel = PlayerDecisionProviders.DefaultModel(provider);
         var name = DisplayName(provider);
         OwnerProviderModelList Unchecked(string? error) =>
             new(provider, [.. curated.Select(model => new OwnerProviderModelChoice(model, true))], defaultModel, error);
 
-        if (!action.CheckKey) return Unchecked(null);
+        if (!action.CheckKey || provider == PlayerDecisionProviders.Jev) return Unchecked(null);
         if (ResolveKey(provider, action) is not { } apiKey)
             return Unchecked($"Add an API key for {name} first.");
 
@@ -122,6 +124,7 @@ public sealed class ProviderModelCatalog(
     private string? ResolveKey(string provider, OwnerProviderModelListAction action)
     {
         if (!string.IsNullOrWhiteSpace(action.ApiKey)) return action.ApiKey.Trim();
+        if (provider == PlayerDecisionProviders.Decisions) provider = PlayerDecisionProviders.OpenAi;
         var runtime = configuration.CaptureRuntimeConfiguration();
         if (action.CredentialSlotId is { } slotId)
         {
@@ -135,7 +138,7 @@ public sealed class ProviderModelCatalog(
 
     private async Task<IReadOnlyList<string>> FetchAsync(string provider, string apiKey, CancellationToken cancellationToken)
     {
-        if (provider == PlayerDecisionProviders.OpenAi)
+        if (provider is PlayerDecisionProviders.OpenAi or PlayerDecisionProviders.Decisions)
             return await GetListAsync(OpenAiModels, apiKey, cancellationToken).ConfigureAwait(false) ??
                 throw new HttpRequestException("OpenAI has no model list endpoint.");
         // Ollama Cloud lists its models natively; the OpenAI-style route is the fallback.
@@ -217,7 +220,7 @@ public sealed class ProviderModelCatalog(
         return models;
     }
 
-    private static string DisplayName(string provider) => provider == PlayerDecisionProviders.OpenAi ? "OpenAI" : "Ollama Cloud";
+    private static string DisplayName(string provider) => provider switch { PlayerDecisionProviders.Jev => "Jev", PlayerDecisionProviders.Decisions => "OpenAI Decisions", PlayerDecisionProviders.OpenAi => "OpenAI", _ => "Ollama Cloud" };
 
     private sealed class ProviderRefusedKeyException : Exception;
 }
