@@ -220,6 +220,9 @@ it a task. A new suggestion or recognized order asks for one fresh planning
 decision; any short reply comes in that same response. Following an order does
 not add a model request for every step or tick.
 
+Urgent hunger can pause an order to buy and eat food at a shop or Restaurant,
+using the adult's own payment and carrying space. The order remains pending.
+
 Food orders can eat carried food, collect accessible household food to eat,
 travel to a food source, or gather berries, fruit or wild greens. Use simple
 phrases such as "eat 3 berries", "gather berries from berry-patch" or "go to

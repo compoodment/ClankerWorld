@@ -232,6 +232,11 @@ closed orders, which closed suggestions no longer push out. The game draws
 both from the host's snapshot and keeps no order list of its own, so after a
 reconnect or reload they show what the host holds.
 
+Urgently hungry adults may pause an order to buy ready food at a shop or
+Restaurant, including continuing an open food purchase. They need their own
+payment and enough carrying room, and keep the outstanding order. Equipment
+purchases, raw ingredient shopping and selling goods do not gain this exception.
+
 Orders currently cover eating carried food, collecting accessible household
 food to eat, going to a known food source or discovering one through ordinary
 exploration, and gathering berries, fruit or wild greens from a matching source.
