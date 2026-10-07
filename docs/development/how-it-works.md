@@ -2663,6 +2663,12 @@ position and household authorization, and moves the cart with each admitted
 legal cardinal step. Ground cart contents never become carried recipe inputs,
 fuel, planting seeds or equipped gear. Loading a partial quantity preserves
 the untouched remainder's original location and reservations.
+Shared edible food follows the Council's existing collection policy at both
+choice generation and execution. Under hungry-members-first access, a healthy
+loader can take only the shared surplus above the protected serving reserve.
+The same allowance determines ordinary collection permission and caps a bulk
+cart load. Hungry adults retain their existing access; personal food and
+non-food cargo keep their ordinary loading rules.
 
 Crafting uses the Blacksmith's handcart recipe with the adult worker's carried
 wood, fittings and rope. An adult collects them from household or Town
