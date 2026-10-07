@@ -486,7 +486,9 @@ An unavailable or unsuitable tile leaves the order waiting, even if another
 field could take the work. Quantities and repetition keep the exact location
 when there is no further matching work to do there.
 
-Agents use real walking routes and planting stock. Tilling and tending require
+Agents use real walking routes and planting stock. Planting orders skip a seed
+lot with an occupied pickup route when another usable seed is accessible.
+Tilling and tending require
 a usable carried hoe; a carried sickle speeds harvesting under the ordinary
 rules. Orders can request work even when the household already has enough food.
 Only completed field work counts, with normal tool wear and seed consumption.
@@ -643,7 +645,9 @@ gold or diamond outcrop. The goods remain in their carried stock. Trial mining
 pauses once the adult and household hold eight of that material. The Blacksmith
 refines carried gold ore and crafts gold ornaments, optionally set with a
 diamond. Agents may wear an ornament, remove it, give it to a named nearby
-adult or sell it through physical barter. Ornaments give no warmth, carrying
+adult who has carrying space or sell it through physical barter. Full-handed
+neighbors do not hide another nearby adult who can receive the gift. Ornaments
+give no warmth, carrying
 or combat bonus and add no art. These paths have automated checks;
 [the Windows playtest](../playtest/567-ornaments.md) remains pending.
 
@@ -1040,7 +1044,9 @@ at the old House. Collection and returning borrowed work tools require travel
 and carrying space. A departure allocates up to two available, unreserved
 ready-to-eat portions once; collection and reload do not repeat that allowance.
 Dependent children keep their primary caregiver and move as a care group unless
-another adult explicitly accepts primary care. Existing homes must accept the
+another adult explicitly accepts primary care. After growing up, they can collect
+their own goods left at the former House, even if the caregiver has died; they
+need not rejoin the household. Existing homes must accept the
 whole group and have enough completed places. If no suitable home accepts them,
 one adult can start a household and pursue a House through the usual materials,
 legal-site and work rules. No House or materials are supplied for free. Leaving
