@@ -1904,6 +1904,13 @@ checks age before reserving either party's stock. Household and organization
 parties keep their existing inventory rules. Previously saved offers retain
 their normal withdrawal and expiry behavior; loading does not rewrite them.
 
+Personal barter keeps one usable carried unit of each ordinary item kind in
+reserve across the owner's eligible lots, rather than requiring two units in
+the chosen lot. Reserved, worn, contained, delivered, stored or uncarried
+units cannot supply that reserve. Artifacts and unworn ornaments retain their
+single-unit exception. Each offer still reserves one actual unit from each
+named lot, and settlement requires both parties' independent acceptance.
+
 **Household shops** bind an inventory barter offer to its actual business and
 holding household in `BusinessTradeState`. Offers use unreserved goods in that
 building and payment already carried by the adult customer. The inventory
