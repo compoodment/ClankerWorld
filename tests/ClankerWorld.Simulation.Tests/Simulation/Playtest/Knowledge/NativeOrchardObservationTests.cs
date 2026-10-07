@@ -7,7 +7,7 @@ using Xunit.Abstractions;
 
 namespace ClankerWorld.Simulation.Tests;
 
-public sealed class NativeOrchardObservationTests(ITestOutputHelper output)
+public sealed partial class NativeOrchardObservationTests(ITestOutputHelper output)
 {
     [Theory]
     [InlineData(false, false)]
@@ -95,7 +95,8 @@ public sealed class NativeOrchardObservationTests(ITestOutputHelper output)
         Assert.Equal(4, world.Society.Inventory.Lots.Where(lot => lot.OwnerId == actor && lot.ItemKind == "fruit").Sum(lot => lot.Quantity));
     }
 
-    private static async Task<(PrivateWorldRuntimeState State, string Actor, GridPoint Target, HashSet<GridPoint> Blocked)> ObserveEmptyTile()
+    private static async Task<(PrivateWorldRuntimeState State, string Actor, GridPoint Target, HashSet<GridPoint> Blocked)> ObserveEmptyTile(
+        Func<PrivateWorldRuntimeState, GridPoint, bool>? chooseTarget = null)
     {
         var state = GeographyGeneratorTests.StartedGeneratedWorld(new GeographyOptions("orchard-knowledge-audit", WorldSizePreset.Small));
         var actor = state.Inhabitants[0].InhabitantId;
@@ -106,7 +107,7 @@ public sealed class NativeOrchardObservationTests(ITestOutputHelper output)
             .Concat(state.Map.CampObjects.Select(item => item.Position)).ToHashSet();
         var target = state.Map.Tiles.Select(tile => tile.Position).Where(point => !blocked.Contains(point) &&
                 TreeGrowthRules.GroundRefusal(state.Map, point) is null &&
-                state.Map.IsReachableOnFoot(state.Inhabitants[0].Position, point))
+                state.Map.IsReachableOnFoot(state.Inhabitants[0].Position, point) && (chooseTarget?.Invoke(state, point) ?? true))
             .OrderBy(point => state.Map.FootDistance(state.Inhabitants[0].Position, point)).First();
         var stand = state.Map.FootNeighbors(target).First(point =>
             !state.Inhabitants.Skip(1).Any(person => person.Position == point));
