@@ -1,0 +1,1 @@
+- Agents now remember changed resources on tiles they revisit, including orchards they plant, so known fruit sources can be used for harvesting orders. Existing maps, records, books and unfinished writing keep their original contents. Older alpha saves are preserved but cannot be loaded.

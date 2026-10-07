@@ -40,6 +40,8 @@ public partial class Main
             VerifyHandcartMotionAndZoom();
             VerifyBoatPresentation();
             VerifyAnimalPresentation();
+            VerifyAbandonedBuildingLooks();
+            await VerifyConstructionSitesAsync();
         }
         finally
         {

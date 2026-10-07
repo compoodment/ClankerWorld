@@ -16,11 +16,15 @@ public sealed partial class PrivateWorldRuntime
         return townId is null ? null : WarehousesForTown(townId).FirstOrDefault();
     }
 
-    private IEnumerable<PlacedBuilding> WarehousesForTown(string townId) => worldSimulation.Buildings
-        .Where(building => building.TownId == townId &&
-            worldContent.Buildings.Any(definition => definition.CanonicalId == building.DefinitionId &&
-                definition.Tags.Contains("warehouse", StringComparer.Ordinal)))
-        .OrderBy(building => building.InstanceId, StringComparer.Ordinal);
+    private IEnumerable<PlacedBuilding> WarehousesForTown(string townId)
+    {
+        var definitions = worldContent.Buildings.Where(definition =>
+                definition.Tags.Contains("warehouse", StringComparer.Ordinal))
+            .Select(definition => definition.CanonicalId).ToHashSet(StringComparer.Ordinal);
+        return worldSimulation.Buildings.Where(building => building.TownId == townId &&
+                definitions.Contains(building.DefinitionId))
+            .OrderBy(building => building.InstanceId, StringComparer.Ordinal);
+    }
 
     private IEnumerable<PlacedBuilding> WarehousesAccessibleTo(string actor)
     {

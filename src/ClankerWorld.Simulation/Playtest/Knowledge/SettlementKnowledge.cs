@@ -13,24 +13,25 @@ public sealed partial class PrivateWorldRuntime
 
     private bool RecordKnowledgeFact(string actor, GridPoint position)
     {
-        if (knowledge.Facts.Any(fact => fact.OwnerId == actor && fact.Position == position))
-            return false;
-
-        var ownedCount = knowledge.Facts.Count(fact => fact.OwnerId == actor);
-        if (ownedCount >= AgentKnowledgeRules.MaximumFactsPerAgent)
-            return false;
-
         if (!map.IsPassable(position) || map.TerrainKindAt(position) is not { } terrain)
             return false;
         var resourcesAtTile = map.Resources.Where(item => item.Position == position)
             .Select(FoodKnowledgeKind).Distinct(StringComparer.Ordinal)
             .Order(StringComparer.Ordinal).Take(AgentKnowledgeRules.MaximumResourceKindsPerFact).ToArray();
+        var previous = knowledge.Facts.FirstOrDefault(fact => fact.OwnerId == actor && fact.Position == position);
+        if (previous is not null && previous.Terrain == terrain.ToString() &&
+            previous.ResourceKinds.SequenceEqual(resourcesAtTile, StringComparer.Ordinal)) return false;
+        if (previous is null && knowledge.Facts.Count(fact => fact.OwnerId == actor) >= AgentKnowledgeRules.MaximumFactsPerAgent)
+            return false;
         var fact = new AgentKnowledgeFact(
-            KnowledgeFactId(actor, position), actor, actor, position,
+            previous?.Id ?? KnowledgeFactId(actor, position), actor, actor, position,
             terrain.ToString(), resourcesAtTile, WorldTick, "firsthand");
         knowledge = knowledge with
         {
-            Facts = knowledge.Facts.Append(fact).ToArray(),
+            Facts = previous is null ? knowledge.Facts.Append(fact).ToArray() :
+                knowledge.Facts.Select(item => item.Id == previous.Id ? fact : item).ToArray(),
+            EarlierFacts = previous is not null && AgentKnowledgeRules.ReferencesFact(knowledge, previous)
+                ? knowledge.EarlierFacts.Append(previous).ToArray() : knowledge.EarlierFacts,
         };
         checkpointSchemaVersion = StateSchemaVersion;
         AppendEvent("agent_knowledge_learned", $"{actor}|firsthand|1");
