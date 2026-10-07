@@ -312,6 +312,9 @@ suitable fields, stock and tools. Counts mean completed fields, so include
 A named crop is never replaced with another. Harvests remain on the field
 until carried. Cancel or replace the order to stop the current work and release
 unused planting stock. Add **at (12, 4)** to keep the task on that field tile.
+Ordinary crop and seed hauling tries another permitted farm store when the
+preferred one cannot fit the load. For example, a filled pot goes to the
+Farmhouse if the Silo has too little room for the pot and its contents.
 
 To move supplies for a household or Town, name both the goods and the destination:
 
