@@ -169,6 +169,7 @@ public partial class Main
         public int PauseCount => Volatile.Read(ref pauseCount);
         public int DeleteCount => Volatile.Read(ref deleteCount);
         public int SaveCreateCount => Volatile.Read(ref saveCreateCount);
+        public ManualWorldSave[]? ManualSaves { get; set; }
         public string AutosaveWorldId { get; set; } = "autosave-world-B";
         public List<OwnerAutosaveConfigurationAction> AutosaveConfigurations { get; } = [];
         /// <summary>The next signed refresh's world, or none to refuse refreshes.</summary>
@@ -238,6 +239,12 @@ public partial class Main
                     break;
                 case OwnerPairingEndpoints.OwnerWorldList:
                     response = Catalog;
+                    break;
+                case OwnerPairingEndpoints.OwnerSaveList when ManualSaves is { } saves:
+                    response = saves;
+                    break;
+                case OwnerPairingEndpoints.OwnerSaveTimeline when ManualSaves is not null:
+                    response = new SaveTimelinePosition(null, null, false);
                     break;
                 case OwnerPairingEndpoints.OwnerSaveCreate:
                     Interlocked.Increment(ref saveCreateCount);

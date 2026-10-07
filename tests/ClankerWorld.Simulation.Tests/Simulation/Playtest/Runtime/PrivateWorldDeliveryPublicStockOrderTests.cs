@@ -15,6 +15,92 @@ public sealed class PrivateWorldDeliveryPublicStockOrderTests
     private const string Store = "order-stock-store";
     private static readonly Lazy<byte[]> Baseline = new(CreateBaseline);
 
+    [Fact]
+    public async Task StoredAndCollectedWoodCanStillBeDonatedWithTheBuiltInChooser()
+    {
+        var state = ShelterOrderTestFixture.WithClearWeather(ShelterOrderTestFixture.Prepared());
+        var actor = Actor(state);
+        var house = ShelterOrderTestFixture.House(state);
+        state = ShelterOrderTestFixture.At(state, actor, house.Position);
+        state = WithInventory(state, InventoryFixture.AddLot(state.Society.Society.Inventory, "split-wood", "wood", actor, 8));
+        IDecisionProvider Provider(string id) => id == actor ? new DeterministicDecisionProvider() : new ActionCoverageRecorder(chooseIdle: true);
+        using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)), Provider);
+        var store = Submit(world, actor, "store-before-donation", "store four wood in my House");
+        await Complete(store);
+        var collect = Submit(world, actor, "collect-before-donation", "collect four wood");
+        await Complete(collect);
+        var carried = world.Society.Inventory.Lots.Where(lot => lot.OwnerId == actor && lot.ItemKind == "wood" &&
+            PersonalEquipmentRules.IsCarried(lot, actor)).ToArray();
+        Assert.Equal(2, carried.Length);
+        Assert.All(carried, lot => Assert.Equal(4, lot.Quantity));
+        var warehouse = Building(state, Warehouse);
+        var walk = Submit(world, actor, "walk-before-donation", string.Create(CultureInfo.InvariantCulture,
+            $"go to ({warehouse.Position.X},{warehouse.Position.Y})"));
+        await Complete(walk);
+        var donate = Submit(world, actor, "donate-after-collection", "donate four wood to my Town Warehouse");
+        var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var replay = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes), Provider);
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
+        for (var tick = 0; tick < 12 && Order(world, donate).Status != "finished"; tick++)
+            await TickTogether(world, replay);
+        Assert.Equal(("finished", 4), (Order(world, donate).Status, Order(world, donate).CompletedUnits));
+        Assert.Equal(4, Stored(world, Warehouse, "wood"));
+        Assert.Equal(4, world.Society.Inventory.Lots.Where(lot => lot.OwnerId == actor && lot.ItemKind == "wood" &&
+            PersonalEquipmentRules.IsCarried(lot, actor)).Sum(lot => lot.Quantity));
+        await TickTogether(world, replay);
+        Assert.Equal(4, Stored(world, Warehouse, "wood"));
+        world.Validate();
+
+        async Task Complete(OwnerInstructionReceipt receipt)
+        {
+            for (var tick = 0; tick < 20 && Order(world, receipt).Status != "finished"; tick++)
+                await Tick(world);
+            Assert.Equal("finished", Order(world, receipt).Status);
+        }
+    }
+
+    [Theory]
+    [InlineData(4, 4, 0, 4, 4)]
+    [InlineData(1, 7, 0, 4, 4)]
+    [InlineData(2, 6, 2, 4, 2)]
+    [InlineData(2, 2, 0, 4, 0)]
+    [InlineData(4, 4, 0, 1, 1)]
+    public async Task SplitDonationsShareOneUsableReservePerKindAndRespectReservationsAndRoomAcrossReplay(
+        int firstQuantity, int secondQuantity, int reserved, int room, int expectedDonation)
+    {
+        var state = Prepared(Warehouse);
+        var actor = Actor(state);
+        var warehouse = Building(state, Warehouse);
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "split-a", "wood", actor, firstQuantity);
+        inventory = InventoryFixture.AddLot(inventory, "split-b", "wood", actor, secondQuantity);
+        inventory = InventoryFixture.AddLot(inventory, "personal-stone", "stone", actor, 4);
+        if (reserved > 0)
+            inventory = InventoryFixture.Reserve(inventory, "protected-split", actor, "split-b", reserved, "other_work", 1_000);
+        var definition = state.WorldContent!.Buildings.Single(item => item.CanonicalId == warehouse.DefinitionId);
+        var capacity = BuildingStorageRules.Capacity(definition, warehouse)!.Value;
+        inventory = InventoryFixture.AddLot(inventory, "warehouse-stone", "stone", warehouse.TownId!, capacity - room,
+            storageBuildingId: Warehouse);
+        using var world = Restore(WithInventory(state, inventory));
+        var receipt = Submit(world, actor, "split-donation", "donate four wood to my Town Warehouse");
+        using var replay = Reload(world);
+        for (var tick = 0; tick < 12; tick++)
+            await TickTogether(world, replay);
+        Assert.Equal((expectedDonation == 4 ? "finished" : "blocked", expectedDonation),
+            (Order(world, receipt).Status, Order(world, receipt).CompletedUnits));
+        Assert.Equal(expectedDonation, Stored(world, Warehouse, "wood"));
+        Assert.Equal(firstQuantity + secondQuantity, world.Society.Inventory.Lots.Where(lot => lot.ItemKind == "wood").Sum(lot => lot.Quantity));
+        Assert.Equal(firstQuantity + secondQuantity - expectedDonation, world.Society.Inventory.Lots.Where(lot =>
+            lot.OwnerId == actor && lot.ItemKind == "wood" && PersonalEquipmentRules.IsCarried(lot, actor)).Sum(lot => lot.Quantity));
+        Assert.Equal((actor, 4, (string?)null), (world.Society.Inventory.GetLot("personal-stone").OwnerId,
+            world.Society.Inventory.GetLot("personal-stone").Quantity, world.Society.Inventory.GetLot("personal-stone").StorageBuildingId));
+        if (reserved > 0)
+        {
+            Assert.Equal(InventoryReservationState.Reserved, world.Society.Inventory.GetReservation("protected-split").State);
+            Assert.True(world.Society.Inventory.GetLot("split-b").Quantity >= reserved);
+        }
+        world.Validate();
+    }
+
     [Theory]
     [InlineData(3, 3, "finished")]
     [InlineData(8, 6, "blocked")]

@@ -1,0 +1,1 @@
+- Choose Off, Jev or OpenAI Decisions as each world's routine helper while paused, with a model picker and saved OpenAI key selection. Switching keeps memories and cancels pending work. The updated alpha save format refuses older saves and keeps their files.

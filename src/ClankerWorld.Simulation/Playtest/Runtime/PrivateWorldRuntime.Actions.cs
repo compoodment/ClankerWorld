@@ -89,8 +89,11 @@ public sealed partial class PrivateWorldRuntime
                  WeatherAt(building.Position) == WeatherKind.Storm && HasHouseGuestInvitation(inhabitantId, building.InstanceId) ||
                  CanEnterGuardianPlacementHouse(inhabitantId, building))))
             occupied.Remove(destination);
-        // An occupied exact destination cannot be reached. Keep the household
-        // sharing exception above, and avoid searching an entire map for it.
+        if (interactionRange == 0 && occupied.Contains(destination) &&
+            CanShareTownDestination(inhabitantId, destination))
+            occupied.Remove(destination);
+        // Other occupied exact destinations cannot be reached. Avoid searching
+        // an entire map when neither household nor public Town sharing applies.
         if (interactionRange == 0 && origin != destination && occupied.Contains(destination))
             return [];
         if (AttachedHandcart(inhabitantId) is null)
@@ -141,6 +144,12 @@ public sealed partial class PrivateWorldRuntime
 
         return [];
     }
+
+    private bool CanShareTownDestination(string actor, GridPoint destination) =>
+        WarehousesAccessibleTo(actor).Any(warehouse => warehouse.Position == destination) ||
+        TownForResident(actor) is { } townId && towns.Any(town => town.Id == townId &&
+            town.Projects.Any(project => project.Stage is "supplying" or "working" &&
+                TownProjectRules.WorkSite(project.Plan) == destination));
 
     private void RecordMovementBlocked(
         string inhabitantId,
