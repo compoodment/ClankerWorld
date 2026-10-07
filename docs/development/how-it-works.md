@@ -2219,7 +2219,9 @@ Wild berries and greens replenish. Orchard fruit appears in autumn after a
 planted orchard matures. Harvesting fruit also produces a distinct orchard
 seed with a reserved planting unit. An adult carries that seed to legal free
 land and plants a sapling; tree growth, fruiting and the reserve survive reload.
-Ordinary wood-tree seeds remain distinct.
+The orchard planting choice requires carrying room to collect a shared seed.
+An already carried planting seed remains usable at full capacity. Ordinary
+wood-tree seeds remain distinct.
 
 Urgent food recovery first sets down ordinary spare cargo. If that cannot free
 enough carrying room, it may also select the actor's own orchard propagation
