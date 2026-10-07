@@ -2956,7 +2956,10 @@ actor's tile, input selection accepts only physically carried supplies. This
 keeps the existing supply path collecting both feed and a water jug before
 approaching the animal, including after a partial pickup. At the animal's tile,
 permitted local yard stock remains usable directly. Physical supply trips
-retain the owning household. One held product batch waits for local collection;
+retain the owning household. A trip isolates its selected feed quantity from
+the source, including an already carried stack, so delivery cannot donate the
+unselected remainder. Reusable jugs travel whole with their contents. One held
+product batch waits for local collection;
 milk enters a reusable household jug. Products then use ordinary stock hauling,
 recipes and trade.
 
