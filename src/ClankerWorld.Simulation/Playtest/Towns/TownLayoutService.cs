@@ -88,17 +88,48 @@ public sealed class TownLayoutContext
     // Gathered once per layout rather than for every site a ranking scores.
     internal IReadOnlySet<GridPoint>? TownBorder { get; }
 
-    private readonly Dictionary<string, GridPoint[]> availableMaterialPositions = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, HashSet<GridPoint>> availableMaterialPositions = new(StringComparer.Ordinal);
+    private readonly Dictionary<BuildingDefinition, TownLayoutBuilding[]> relatedBuildings = new();
 
-    internal GridPoint[] AvailableMaterialPositions(string kind, Func<string, string, bool> matches)
+    internal IReadOnlyList<TownLayoutBuilding> RelatedBuildings(BuildingDefinition definition)
+    {
+        if (!relatedBuildings.TryGetValue(definition, out var related))
+        {
+            related = Buildings.Where(item => (Town is null || item.Building.TownId == Town.Id) &&
+                item.Definition.Tags.Intersect(definition.Tags, StringComparer.Ordinal).Any()).ToArray();
+            relatedBuildings[definition] = related;
+        }
+        return related;
+    }
+
+    internal int NearbyMaterialDistance(string kind, GridPoint position, Func<string, string, bool> matches)
     {
         if (!availableMaterialPositions.TryGetValue(kind, out var positions))
         {
             positions = Resources.Where(item => item.Available && matches(item.Resource.Kind, kind))
-                .Select(item => item.Resource.Position).ToArray();
+                .Select(item => item.Resource.Position).ToHashSet();
             availableMaterialPositions[kind] = positions;
         }
-        return positions;
+        // Sparse kinds are cheaper to scan. Dense kinds need only the radius
+        // that can affect a site's score, including east-west wrapping.
+        if (positions.Count <= 25)
+        {
+            var nearest = int.MaxValue;
+            foreach (var source in positions)
+                nearest = Math.Min(nearest, Map.FootDistance(position, source));
+            return nearest;
+        }
+        for (var distance = 0; distance <= 5; distance++)
+        {
+            for (var dy = -distance; dy <= distance; dy++)
+                for (var dx = -distance; dx <= distance; dx++)
+                {
+                    if (Math.Max(Math.Abs(dx), Math.Abs(dy)) != distance) continue;
+                    var source = Map.WrapColumn(new GridPoint(position.X + dx, position.Y + dy));
+                    if (Map.Contains(source) && positions.Contains(source)) return distance;
+                }
+        }
+        return int.MaxValue;
     }
 
     public SeededMap Map { get; }
@@ -310,10 +341,7 @@ public static class TownLayoutService
         foreach (var kind in definition.BuildCosts.Select(item => item.ResourceId).Distinct(StringComparer.Ordinal)
                      .Order(StringComparer.Ordinal))
         {
-            var nearest = context.AvailableMaterialPositions(kind, ResourceMatches)
-                .Select(source => context.Map.FootDistance(position, source))
-                .DefaultIfEmpty(int.MaxValue)
-                .Min();
+            var nearest = context.NearbyMaterialDistance(kind, position, ResourceMatches);
             if (nearest > 5)
                 continue;
 
@@ -333,20 +361,23 @@ public static class TownLayoutService
         if (definition.Tags.Count == 0)
             return;
 
-        var related = context.Buildings.Where(item =>
-                (context.Town is null || item.Building.TownId == context.Town.Id) &&
-                item.Definition.Tags.Intersect(definition.Tags, StringComparer.Ordinal).Any())
-            .Select(item => (Building: item, Distance: context.Map.FootDistance(position, item.Building.Position)))
-            .Where(item => item.Distance <= 5)
-            .OrderBy(item => item.Distance)
-            .ThenBy(item => item.Building.Building.InstanceId, StringComparer.Ordinal)
-            .FirstOrDefault();
-        if (related.Building is null)
+        TownLayoutBuilding? related = null;
+        var nearest = int.MaxValue;
+        foreach (var item in context.RelatedBuildings(definition))
+        {
+            var distance = context.Map.FootDistance(position, item.Building.Position);
+            if (distance > 5 || distance > nearest || distance == nearest && related is not null &&
+                StringComparer.Ordinal.Compare(item.Building.InstanceId, related.Building.InstanceId) >= 0)
+                continue;
+            related = item;
+            nearest = distance;
+        }
+        if (related is null)
             return;
 
-        var role = definition.Tags.Intersect(related.Building.Definition.Tags, StringComparer.Ordinal)
+        var role = definition.Tags.Intersect(related.Definition.Tags, StringComparer.Ordinal)
             .Order(StringComparer.Ordinal).First();
-        score += related.Distance <= 2 ? 10 : 5;
+        score += nearest <= 2 ? 10 : 5;
         var relationship = context.Town is null ? "existing" : "Town's existing";
         reasons.Add(new(TownConstructionSiteReasonCodes.PurposeCluster, $"Near {relationship} {role} building."));
     }
@@ -363,7 +394,21 @@ public static class TownLayoutService
         if (context.TownBorder is not { } border)
             return 0;
 
-        return TownBorderRules.Around(context.Map, Footprint(definition, position)).Count(point => !border.Contains(point));
+        // Count the union of the rectangular footprint's rounded margins
+        // directly, without collecting and sorting those tiles for each site.
+        var margin = TownBorderRules.SpareTileMargin;
+        var right = position.X + definition.Width - 1;
+        var bottom = position.Y + definition.Height - 1;
+        var count = 0;
+        for (var y = position.Y - margin; y <= bottom + margin; y++)
+            for (var x = position.X - margin; x <= right + margin; x++)
+            {
+                var dx = Math.Max(0, Math.Max(position.X - x, x - right));
+                var dy = Math.Max(0, Math.Max(position.Y - y, y - bottom));
+                var tile = new GridPoint(x, y);
+                if (dx + dy <= margin + 1 && context.Map.IsLand(tile) && !border.Contains(tile)) count++;
+            }
+        return count;
     }
 
     private static IEnumerable<GridPoint> Footprint(BuildingDefinition definition, GridPoint origin)
