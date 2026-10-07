@@ -46,8 +46,8 @@ public partial class Main
 
     /// <summary>
     /// Completed lamps use their saved Road neighbour, without depending on
-    /// occupants or jobs. In an abandoned Town they look neglected, then
-    /// falling apart after a full season, but still light at night.
+    /// occupants or jobs. In an abandoned Town they stay dark and look
+    /// neglected, then falling apart after a full season.
     /// </summary>
     private static List<StreetLanternLight> StreetLanterns(OwnerWorldSnapshot snapshot)
     {

@@ -1992,7 +1992,10 @@ the active equipment repair target are excluded from payment.
 Customers receive transaction access only. Store stocking first moves actual
 surplus into carried delivery lots, then uses ordinary household hauling to
 reach the Store. A remote House, field or Warehouse is never sale stock.
-Store stocking also keeps each adult's best usable work tool. Food stocking
+Store stocking keeps one available unit of each adult's best usable work tool
+per family. Extra units in that same carried lot can be stocked, just as
+separate spare lots can. Equipped garments and carrying aids stay protected.
+Food stocking
 keeps two usable servings of each food kind for the adult, or two per
 living member when taking household stock. Each reserve is counted once across
 eligible lots with the same owner and food kind, including when an order is
@@ -2355,8 +2358,12 @@ household that lacks one and has the materials. Raw grain and potatoes cannot
 satisfy this ready-food reserve directly; their prepared meals can, so raw
 stock does not stop farmers planting fresh greens. Grain is milled into flour
 at the Farmhouse, one grain to one flour.
-Field work records the selected carried hoe or sickle lot. Wooden and iron hoes
-reduce the work still needed to till and tend, while wooden and iron sickles
+Field work records the selected carried hoe or sickle lot. An eligible farmer
+with a wooden or iron hoe keeps the chosen crop claimed while another resident
+briefly occupies the field. Claim eligibility uses the same usable, unreserved,
+top-level carried Hoe-family check as field planning; losing a usable hoe
+releases the claim. Other household, food, warmth, project and seed checks still apply.
+Wooden and iron hoes reduce the work still needed to till and tend, while wooden and iron sickles
 reduce harvest work; an iron sickle is faster than a wooden one. Each committed
 work tick wears one unit of the selected tool. Interrupted or refused work does
 not wear it. A tool in storage, on the ground, in delivery or inside a pot is
