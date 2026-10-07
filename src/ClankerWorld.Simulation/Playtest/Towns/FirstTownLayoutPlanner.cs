@@ -71,7 +71,7 @@ public static class FirstTownLayoutPlanner
     {
         var streets = new TownStreets(map, blocked, [start]);
         var mainRoad = LayMainRoad(streets, start, random);
-        LaySideStreets(streets, mainRoad, random);
+        LaySideStreets(map, streets, mainRoad, random);
 
         var lots = new Dictionary<string, (GridPoint Anchor, GridPoint Entrance)>(StringComparer.Ordinal);
         var footprints = new HashSet<GridPoint>();
@@ -85,7 +85,7 @@ public static class FirstTownLayoutPlanner
         }
 
         var entrances = lots.Values.Select(lot => lot.Entrance).ToHashSet();
-        var roads = TownStreets.TrimToDoors(streets.Tiles, entrances);
+        var roads = TownStreets.TrimToDoors(map, streets.Tiles, entrances);
         return new FirstTownLayout(site,
             Starters.Select(item => new FirstTownLayoutBuilding(item.Role, item.Definition.CanonicalId,
                 lots[item.Role].Anchor, item.Definition.Width, item.Definition.Height, lots[item.Role].Entrance)).ToArray(),
@@ -112,12 +112,12 @@ public static class FirstTownLayoutPlanner
     /// Side streets leave the main road every three to five tiles, mostly at
     /// right angles and sometimes at 45°, usually alternating sides.
     /// </summary>
-    private static void LaySideStreets(TownStreets streets, List<GridPoint> mainRoad, Pcg32XshRrV1 random)
+    private static void LaySideStreets(SeededMap map, TownStreets streets, List<GridPoint> mainRoad, Pcg32XshRrV1 random)
     {
         var side = TownStreets.Chance(random, 0.5) ? 1 : -1;
         for (var index = TownStreets.Between(random, 2, 3); index < mainRoad.Count - 2; index += TownStreets.Between(random, 3, 5))
         {
-            var along = TownStreets.DirectionBetween(mainRoad[index], mainRoad[index + 1]);
+            var along = TownStreets.DirectionBetween(map, mainRoad[index], mainRoad[index + 1]);
             var angle = (random.NextUInt() % 5) switch { 3 => 1, 4 => 3, _ => 2 };
             streets.Wander(mainRoad[index], TownStreets.Turn(along, side * angle),
                 TownStreets.Between(random, 4, 8), 0.15, random, minimum: 3);
