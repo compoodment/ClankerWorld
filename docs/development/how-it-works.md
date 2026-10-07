@@ -1603,6 +1603,12 @@ care and ongoing work keep their earlier continuation guards, and the ordinary
 idle action still runs its cleanup.
 See [construction query measurements](construction-query-measurements.md) for
 matched native timings, candidate/state equivalence and remaining limits.
+Town proposal site checks also share physical placement obstacles only within
+their synchronous query. Market slots stay separate from other occupied
+objects, and actual placement gathers current facts again. Layout searches
+rent tentative tile costs while preserving their settled tiles, costs and
+stopping rules. See [placement query measurements](placement-query-measurements.md)
+for the follow-up comparison.
 Building plans follow what a household needs, not a role. An adult whose
 household lacks a House, Farmhouse, Blacksmith, Silo, Tailor Shop, Clinic or Restaurant is offered ranked sites
 for it once the household has the build costs in hand: stock the household
