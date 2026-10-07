@@ -367,9 +367,11 @@ House food delivery shares only spare carried food. Town donations accept the
 normal wood, stone, fiber and tree-seed surplus while keeping the agent's
 reserve of four usable units of each kind across their carried lots. Storing
 and collecting goods does not create extra reserves. Store stocking keeps its
-shelf target, food reserves and protected tools. Its food reserves apply across
-usable lots of the same owner and kind, so collecting food in smaller loads
-does not create extra reserves. Missing demand or surplus leaves a visible blocker even if the order
+usable shelf target, food reserves and protected tools. Spoiled or broken goods
+still take physical storage space but do not satisfy the restocking target.
+Its food reserves apply across usable lots of the same owner and kind, so
+collecting food in smaller loads does not create extra reserves. Missing demand
+or surplus leaves a visible blocker even if the order
 asks for more.
 
 A Store-stocking order can pause an ordinary unfinished project, deliver its
@@ -587,8 +589,10 @@ include young animals and reserved births. Yards hold sixteen supply units.
 Taming uses two feed and one jug water. Daily care uses one feed/water for a
 chicken and two each for sheep, cows and horses. Feed is grain or greens. Adults
 fetch and carry real supplies, preserving food, planting and production
-reserves. Cared adult hens supply eggs daily, cows two milk daily, and sheep two
-wool every three days. One batch waits for local collection. Milk needs a
+reserves. Care uses grain before ready-to-eat greens when available, and may
+combine grain with spare greens across lots. An incomplete safe feed or water
+load spends nothing. Cared adult hens supply eggs daily, cows two milk daily,
+and sheep two wool every three days. One batch waits for local collection. Milk needs a
 household jug that contains milk or is empty; water and milk never mix.
 Adults haul milk jugs to their Store or borrowed Market stall. An agreed sale
 pours one portion into the buyer's jug and takes the named personal payment;
