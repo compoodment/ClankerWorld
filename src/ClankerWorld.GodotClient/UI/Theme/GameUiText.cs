@@ -325,6 +325,7 @@ public static class GameUiText
             "continuity_rule_on" or "continuity_rule_off" or
             "medical_care_allowed" or "medical_care_revoked" or
             "medical_treatment_started" or "medical_treatment_completed" or "medical_treatment_interrupted" or
+            "child_collected_household" or "child_delivered_household" or
             "empty_vessel_picked_up" or
             "council_policy_adopted" or "settlement_trade_completed" or
             "business_trade_offered" or "business_trade_completed" or "business_trade_cancelled" or
@@ -608,6 +609,10 @@ public static class GameUiText
             if (localId == "house-paper") return "make paper";
             return $"build {HumanizeIdentifier(localId)}";
         }
+
+        if (normalized.StartsWith("child_gather:food:", StringComparison.Ordinal)) return "gather nearby food for the household";
+        if (normalized.StartsWith("child_gather:wood:", StringComparison.Ordinal)) return "pick up nearby fallen wood for the household";
+        if (normalized.StartsWith("child_carry:", StringComparison.Ordinal)) return "carry a small household load home";
 
         var known = normalized switch
         {
