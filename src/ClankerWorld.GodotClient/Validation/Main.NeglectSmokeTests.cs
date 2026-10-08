@@ -32,5 +32,129 @@ public partial class Main
                 throw new InvalidOperationException("The neglected and falling-apart looks must differ from a lived-in building at both tile sizes.");
         }
         terrainLayer.SetBuildings([], []);
+        VerifyAbandonedLanternsAndBridges();
+        VerifyAbandonedArtSampling();
+    }
+
+    /// <summary>
+    /// Street lanterns and bridges in an abandoned Town weather with its
+    /// buildings: neglected, then falling apart after a full season. A
+    /// lantern keeps its place on the Road edge.
+    /// </summary>
+    private void VerifyAbandonedLanternsAndBridges()
+    {
+        OwnerWorldBridge Bridge(string id, int y) => new(id, "plank", "test", "east_west",
+            [new(9, y), new(13, y)], [new(10, y), new(11, y), new(12, y)], 0);
+        OwnerWorldTown Town(string id, IReadOnlyList<string> residents, bool fallingApart, int y) =>
+            new(id, id, "founded", 0, residents, [], [new(9, y), new(13, y)]) { FallingApart = fallingApart };
+        terrainLayer.SetBridges([Bridge("lived", 4), Bridge("empty", 6), Bridge("ruin", 8)],
+            [Town("alder", ["rowan"], false, 4), Town("birch", [], false, 6), Town("cedar", [], true, 8)]);
+        if (terrainLayer.BridgeNeglectAt(new(11, 4)) != BuildingNeglect.None ||
+            terrainLayer.BridgeNeglectAt(new(10, 6)) != BuildingNeglect.Neglected ||
+            terrainLayer.BridgeNeglectAt(new(12, 8)) != BuildingNeglect.FallingApart ||
+            terrainLayer.BridgeNeglectAt(new(9, 8)) != BuildingNeglect.None)
+            throw new InvalidOperationException("A bridge's deck must weather with its abandoned Town and stay plain in a lived-in one.");
+        foreach (var size in new[] { 16, 32 })
+        {
+            using var neglected = BuildingSprites.RenderNeglectedBridge(true, 3, size, BuildingNeglect.Neglected);
+            using var ruin = BuildingSprites.RenderNeglectedBridge(true, 3, size, BuildingNeglect.FallingApart);
+            using var upright = BuildingSprites.RenderNeglectedBridge(false, 2, size, BuildingNeglect.FallingApart);
+            if (neglected.GetWidth() != 5 * size || neglected.GetHeight() != size ||
+                upright.GetWidth() != size || upright.GetHeight() != 4 * size ||
+                HandcartPixelDigest(neglected) == HandcartPixelDigest(ruin))
+                throw new InvalidOperationException("A weathered bridge must span bank to bank and lose planks once it falls apart.");
+        }
+        terrainLayer.SetBridges([]);
+
+        if (terrainLayer.World is not { } world)
+            throw new InvalidOperationException("Bridge wrapping checks need the native map.");
+        var wrapped = new WorldTerrainLayer();
+        try
+        {
+            wrapped.SetWorld(WorldTerrainMap.FromTiles([], world.Width, world.Height, wrapsEastWest: true));
+            wrapped.SetCamera(new Rect2(0, 0, world.Width, world.Height), 32, 0, true);
+            var seam = new OwnerWorldBridge("seam", "plank", "test", "east_west",
+                [new(world.Width - 2, 2), new(1, 2)], [new(world.Width - 1, 2), new(0, 2)], 0);
+            foreach (var (residents, fallingApart, expected) in new[]
+            {
+                (Array.Empty<string>(), false, BuildingNeglect.Neglected),
+                (Array.Empty<string>(), true, BuildingNeglect.FallingApart),
+                (new[] { "rowan" }, false, BuildingNeglect.None),
+            })
+            {
+                var town = new OwnerWorldTown("seam-town", "seam-town", "founded", 0, residents, [], seam.Entrances)
+                { FallingApart = fallingApart };
+                wrapped.SetBridges([seam], [town]);
+                if (wrapped.BridgeNeglectAt(new(world.Width - 1, 2)) != expected ||
+                    wrapped.BridgeNeglectAt(new(0, 2)) != expected || wrapped.BridgeNeglectAt(new(1, 2)) != BuildingNeglect.None)
+                    throw new InvalidOperationException("Both saved bridge decks must weather across the map seam and return to normal on resettlement.");
+            }
+        }
+        finally
+        {
+            wrapped.Free();
+        }
+
+        if (renderedMapSnapshot is not { } map) return;
+        OwnerWorldPlacedBuilding Lantern(string id, string town, int x) =>
+            new(id, "test/stone-lantern", new(x, 8), 0, "Stone street lamp", ["street_lantern", "stone_lantern"], 1, 1, town,
+                Entrance: new(x, 9));
+        var abandoned = map with
+        {
+            PlacedBuildings = [Lantern("lamp-lived", "alder", 2), Lantern("lamp-empty", "birch", 4), Lantern("lamp-ruin", "cedar", 6)],
+            Towns = [Town("alder", ["rowan"], false, 0), Town("birch", [], false, 0), Town("cedar", [], true, 0)],
+        };
+        var lanterns = StreetLanterns(abandoned);
+        BuildingNeglect At(int x) => lanterns.Single(lantern => lantern.RoadTile.X == x).Neglect;
+        if (lanterns.Count != 3 || At(2) != BuildingNeglect.None || At(4) != BuildingNeglect.Neglected ||
+            At(6) != BuildingNeglect.FallingApart || lanterns.Any(lantern => lantern.Edge != DoorSide.North))
+            throw new InvalidOperationException("Street lanterns must weather with their abandoned Town and keep their Road edge.");
+        var plain = NightLightShapes.StreetLantern(LanternStyle.Stone, lanterns[1].Post, lanterns[1].Inward, 0, 0, 0)
+            .Where(cell => cell.Kind == LightCellKind.Paint).ToList();
+        var neglectedCells = lanterns.Single(lantern => lantern.RoadTile.X == 4).WeatheredCells();
+        var halved = lanterns.Single(lantern => lantern.RoadTile.X == 6).WeatheredCells(2);
+        if (neglectedCells.Count == 0 || neglectedCells.Any(cell => cell.Kind != LightCellKind.Paint) ||
+            neglectedCells.Select(cell => cell.Color).ToHashSet().SetEquals(plain.Select(cell => cell.Color)) ||
+            halved.Count == 0 || halved.Any(cell => cell.Area.Size != new Vector2(2, 2)))
+            throw new InvalidOperationException("A weathered lantern must show its own faded fitting, halved at mid zoom.");
+    }
+
+    // The approved mid-zoom art samples the top-left pixel of each 2x2 block.
+    // Check the native engine as the portable art renderer uses a different Resize.
+    private static void VerifyAbandonedArtSampling()
+    {
+        var bridgeMismatches = 0;
+        var lanternMismatches = 0;
+        foreach (var neglect in new[] { BuildingNeglect.Neglected, BuildingNeglect.FallingApart })
+        {
+            foreach (var eastWest in new[] { false, true })
+                foreach (var length in new[] { 1, 3 })
+                {
+                    using var full = BuildingSprites.RenderNeglectedBridge(eastWest, length, 32, neglect);
+                    using var half = BuildingSprites.RenderNeglectedBridge(eastWest, length, 16, neglect);
+                    for (var y = 0; y < half.GetHeight(); y++)
+                        for (var x = 0; x < half.GetWidth(); x++)
+                            if (half.GetPixel(x, y) != full.GetPixel(x * 2, y * 2)) bridgeMismatches++;
+                }
+            foreach (var style in new[] { LanternStyle.Stone, LanternStyle.Hanging })
+                foreach (var edge in new[] { DoorSide.North, DoorSide.East, DoorSide.South, DoorSide.West })
+                {
+                    var lantern = new StreetLanternLight(new(0, 0), edge, style) { Neglect = neglect };
+                    using var full = BuildingSprites.NeglectedLantern(style, lantern.Inward, neglect);
+                    var offset = lantern.Post - BuildingSprites.NeglectedLanternPost(style, lantern.Inward);
+                    var expected = new Dictionary<Vector2, Color>();
+                    for (var y = 0; y < 32; y += 2)
+                        for (var x = 0; x < 32; x += 2)
+                        {
+                            var color = full.GetPixel(x, y);
+                            if (color.A >= 0.5f) expected.Add(offset + new Vector2(x, y), color);
+                        }
+                    var actual = lantern.WeatheredCells(2).ToDictionary(cell => cell.Area.Position, cell => cell.Color);
+                    lanternMismatches += expected.Count(entry => !actual.TryGetValue(entry.Key, out var color) || color != entry.Value);
+                    lanternMismatches += actual.Keys.Count(point => !expected.ContainsKey(point));
+                }
+        }
+        if (bridgeMismatches != 0 || lanternMismatches != 0)
+            throw new InvalidOperationException($"Approved 16 px sampling differs: {bridgeMismatches} bridge pixels and {lanternMismatches} lantern cells.");
     }
 }
