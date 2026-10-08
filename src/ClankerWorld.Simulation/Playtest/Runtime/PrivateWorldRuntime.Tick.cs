@@ -555,6 +555,7 @@ public sealed partial class PrivateWorldRuntime
             DrainNeeds();
             AdvanceMedicalTreatments();
             RemoveDeadPhysicalState();
+            MaintainMarriages();
             ReconcileMedicalSupplyTrips();
             ProcessBoatTransport(targetTick);
             ReconcileHandcartHitches();
