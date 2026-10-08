@@ -1255,7 +1255,8 @@ public partial class Main
                 cognitionSettingsPanel.GetIndex() != worldSettingsContent.GetChildCount() - 1)
                 throw new InvalidOperationException($"World Settings must open at the top, keep the Game page's width, end with Agent model and leave Model calls to Game Settings: {gameMenuPanel.Size.X} vs {gamePageWidth}.");
             // Values come from the observed world's saved choices, never the New World form.
-            var generationSample = sample with
+            var generationSample = new OwnerWorldSnapshot("generation-world", 0, "generation-map",
+                [new(0, 0, "meadow")], [], [], null, 0)
             {
                 Generation = new OwnerWorldGeneration("settings-seed", "Small", "Uniform", "Dry", false, true),
             };
@@ -1280,7 +1281,6 @@ public partial class Main
             if (generationSettingsRows.Visible || generationSeed.Text.Length != 0 ||
                 !generationSettingsHint.Text.Contains("not available", StringComparison.Ordinal))
                 throw new InvalidOperationException("A host without generation choices must clear the previous world's values and explain their absence.");
-            Render(sample, []);
             ShowPauseMenuButtons();
             menuQuitToMainButton.EmitSignal(BaseButton.SignalName.Pressed);
             if (!quitToMenuConfirmation.Visible)
