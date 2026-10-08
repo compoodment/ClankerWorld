@@ -11,11 +11,13 @@ public sealed partial class PrivateWorldRuntime
         var definition = AnimalRules.Definition(animal.Species);
         if (animal.WildFedUntilTick <= tick)
         {
+            var occupied = WildAnimalRouteOccupants(animal);
             var forage = map.Resources.Where(source => source.NaturalObjectKind == "wild_greens" &&
                     worldSystems.Ecology.Resources.Any(resource => resource.Id == source.Id && resource.Quantity >= definition.DailyFeed) &&
                     map.FootDistance(animal.Position, source.Position) <= 12)
                 .OrderBy(source => map.FootDistance(animal.Position, source.Position)).ThenBy(source => source.Id, StringComparer.Ordinal)
-                .FirstOrDefault(source => map.IsReachableOnFoot(animal.Position, source.Position));
+                .FirstOrDefault(source => map.IsReachableOnFoot(animal.Position, source.Position) &&
+                    SharedUnoccupiedRoute(animal.Position, occupied, source.Position, 1).Count > 0);
             if (forage is null) return animal;
             if (map.FootDistance(animal.Position, forage.Position) > 1)
                 return MoveWildAnimalToward(animal, forage.Position, tick, 1);
@@ -48,10 +50,12 @@ public sealed partial class PrivateWorldRuntime
     private AnimalState MoveWildAnimalToward(AnimalState animal, GridPoint destination, long tick, int range)
     {
         if (tick % 2 != 0 || animal.TamingWork is not null) return animal;
-        var occupied = inhabitants.Values.Select(person => person.Position).Concat(animalWorld.Animals
-            .Where(other => other.DiedTick is null && other.Id != animal.Id).Select(other => other.Position)).ToHashSet();
-        var route = SharedUnoccupiedRoute(animal.Position, occupied, destination, range);
+        var route = SharedUnoccupiedRoute(animal.Position, WildAnimalRouteOccupants(animal), destination, range);
         if (route.Count > 1) MoveAnimal(animal, route[1]);
         return Animal(animal.Id)!;
     }
+
+    private HashSet<GridPoint> WildAnimalRouteOccupants(AnimalState animal) =>
+        inhabitants.Values.Select(person => person.Position).Concat(animalWorld.Animals
+            .Where(other => other.DiedTick is null && other.Id != animal.Id).Select(other => other.Position)).ToHashSet();
 }

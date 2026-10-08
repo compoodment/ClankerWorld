@@ -1,0 +1,1 @@
+- House expansion leaves borrowed materials with the person carrying them until they return them.

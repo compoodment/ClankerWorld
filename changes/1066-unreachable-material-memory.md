@@ -1,0 +1,1 @@
+- Gathering orders without a named site can explore locally when their only remembered sources are unreachable, while keeping those memories. Orders naming a particular source or tile still wait for that destination.

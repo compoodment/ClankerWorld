@@ -316,8 +316,9 @@ public partial class Main
             string.Join('|', building.ToolMakingRequests.Select(request => request.Id + ":" + request.Status + ":" + request.Blocker));
         var townHall = building.Tags?.Contains("town_hall", StringComparer.Ordinal) == true;
         var lantern = StreetLanternLight.IsLantern(building.Tags);
-        var lit = snapshot.DarknessBasisPoints > 500;
-        signature += $"|{townHall}|{lantern}|{(lantern && lit)}";
+        var abandoned = building.TownId is { } townId && snapshot.Towns.Any(town => town.Id == townId && town.IsAbandoned);
+        var lit = snapshot.DarknessBasisPoints > 500 && !abandoned;
+        signature += $"|{townHall}|{lantern}|{(lantern && lit)}|{(lantern && abandoned)}";
         var market = MarketForBuilding(snapshot, building.InstanceId);
         signature += "|" + (market is null ? string.Empty : MarketBuildingText(market, building.InstanceId));
         var port = IsPortBuilding(building);
@@ -359,7 +360,8 @@ public partial class Main
         {
             buildingQuickStatus.AddChild(new Label
             {
-                Text = lit ? "Lit · lights automatically at dusk · no fuel" : "Unlit · lights automatically at dusk · no fuel",
+                Text = abandoned ? "Dark · its Town is abandoned · lights again when someone resettles it"
+                    : lit ? "Lit · lights automatically at dusk · no fuel" : "Unlit · lights automatically at dusk · no fuel",
                 AutowrapMode = TextServer.AutowrapMode.WordSmart,
             });
             return;
@@ -429,7 +431,9 @@ public partial class Main
         {
             facts.Add(("Docking spaces", PortUsageText(snapshot, building)));
             facts.Add(("Travel", "One passenger with carried goods · boats remain Town property"));
-            facts.Add(("Night lantern", "Lights automatically at dusk · no fuel"));
+            facts.Add(("Night lantern", building.TownId is { } portTown && snapshot.Towns.Any(item => item.Id == portTown && item.IsAbandoned)
+                ? "Dark · its Town is abandoned · lights again when someone resettles it"
+                : "Lights automatically at dusk · no fuel"));
         }
         if (building.StorageCapacity is { } capacity)
             facts.Add(("Storage", $"{building.StoredQuantity} / {capacity} items"));
