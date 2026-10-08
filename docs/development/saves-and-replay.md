@@ -379,8 +379,8 @@ The original agreement's own offer becomes superseded; intermediate countered
 offers keep their history. Strict loading rejects a missing or unrelated
 predecessor instead of reconstructing obligations or moving earlier physical
 receipts into the replacement. Previously written accepted renegotiations with
-a lost predecessor are refused and preserved. No saved fields or event shapes
-change, and current schema 100 is retained.
+a lost predecessor are refused and preserved. That repair changes no saved
+fields or event shapes.
 
 Schema 97 adds `CarriedAvailableQuantityBefore` to native public-service
 receipts. It snapshots the usable personal stock of the donated kind before
