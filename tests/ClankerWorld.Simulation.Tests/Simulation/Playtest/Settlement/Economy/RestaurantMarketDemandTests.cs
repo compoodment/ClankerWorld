@@ -52,7 +52,8 @@ public sealed class RestaurantMarketDemandTests
         inventory = InventoryFixture.Relocate(inventory, "restaurant-market-sale-load", SaleFlour, Beta, 4, carrierId: seller);
         var market = PaidMarketWorld.Market(state);
         state = PaidMarketWorld.At(PaidMarketWorld.WithInventory(state, inventory), seller,
-            MarketContent.StallEntrance(market.Site, 0)) with { JevEnabled = false, RoutineHelper = RoutineHelperSettings.Off };
+            MarketContent.StallEntrance(market.Site, 0)) with
+        { JevEnabled = false, RoutineHelper = RoutineHelperSettings.Off };
         var stocking = Policy(seller, "market_borrow:", "market_deposit:");
         using (var depositing = PrivateWorldRuntime.Restore(state, stocking.CreateProvider))
         {
