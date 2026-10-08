@@ -55,6 +55,12 @@ stored goods, including other owners' goods and materials held for work; the
 household's item grid is a separate view. An older host without a recorded
 limit keeps its item grid and has no guessed capacity bar.
 
+People inside a building, standing under its roof, are hidden from the map.
+At close and mid zoom the building shows a small badge in its top-right corner
+with how many people are inside; hovering it names them, and the building's
+card lists them. People in an open yard, on a pier or at a Market stall stay
+on the map.
+
 On a fresh server, Continue opens New World instead of entering the retired
 test camp. The normal map preview and acceptance steps still apply, and saved
 worlds with founders or other progress keep opening normally.
