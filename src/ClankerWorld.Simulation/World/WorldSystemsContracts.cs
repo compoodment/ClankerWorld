@@ -579,6 +579,12 @@ public static class EcologyRules
         config.Validate();
         resource.Validate();
 
+        return RegenerateValidated(resource, calendar);
+    }
+
+    private static EcologyResource RegenerateValidated(EcologyResource resource, WorldCalendar calendar)
+    {
+
         if (!resource.IsRenewable || resource.State == EcologyResourceState.Transformed)
         {
             return resource;
@@ -641,9 +647,11 @@ public static class EcologyRules
         ArgumentNullException.ThrowIfNull(config);
         Validate(state, config);
 
+        // Validate above checks the current config and every resource. Reuse
+        // that batch boundary without retaining trust across later calls.
         var resources = state.Resources
             .OrderBy(resource => resource.Id, StringComparer.Ordinal)
-            .Select(resource => Regenerate(resource, calendar, config))
+            .Select(resource => RegenerateValidated(resource, calendar))
             .ToArray();
         return state with { Resources = resources };
     }
