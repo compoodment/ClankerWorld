@@ -13,9 +13,9 @@ public sealed partial class PrivateWorldRuntime
         public string Id => "animal:supply:" + AnimalKey(Lot.Id + ":" + Yard.InstanceId + ":" + AnimalId + ":" + Action);
     }
 
-    private IEnumerable<AnimalSupplyChoice> AnimalSupplyChoices(string actor)
+    private IEnumerable<AnimalSupplyChoice> AnimalSupplyChoices(string actor, bool ignoreActiveTrip = false)
     {
-        if (!AdultResident(actor) || animalWorld.SupplyTrips.Any(trip => trip.ActorId == actor)) yield break;
+        if (!AdultResident(actor) || !ignoreActiveTrip && animalWorld.SupplyTrips.Any(trip => trip.ActorId == actor)) yield break;
         var yards = worldSimulation.Buildings.Where(yard => yard.HouseholdId is not null && worldContent.Buildings.Any(definition =>
             definition.CanonicalId == yard.DefinitionId && definition.Tags.Contains(AnimalContent.YardTag)) && MaySupplyAnimalYard(actor, yard));
         foreach (var yard in yards.OrderBy(yard => yard.InstanceId, StringComparer.Ordinal))
@@ -138,11 +138,16 @@ public sealed partial class PrivateWorldRuntime
         var choice = AnimalSupplyChoices(actor).FirstOrDefault(choice => choice.Id == id);
         if (choice is null) return true;
         var source = choice.Lot;
-        if (!PersonalEquipmentRules.IsCarried(source, actor))
+        var carried = PersonalEquipmentRules.IsCarried(source, actor);
+        if (!carried)
         {
             var position = HouseholdStockPosition(source);
             if (!IsWithinInteractionRange(inhabitants[actor].Position, position, HouseholdStockInteractionRange(source)))
             { MoveToward(actor, inhabitants[actor], position, "animal_supply_pickup", HouseholdStockInteractionRange(source)); return true; }
+        }
+        // The trip follows the chosen physical load, including when it was already carried.
+        if (!carried || choice.Quantity < source.Quantity)
+        {
             var operation = "animal-pickup-" + AnimalKey(actor + ":" + WorldTick + ":" + nextEventId);
             ApplyInventoryTransition(current => InventoryFixture.Relocate(current, operation, source.Id, source.OwnerId,
                 choice.Quantity, carrierId: actor));

@@ -118,6 +118,7 @@ public partial class WorldTerrainLayer
         reliefTextureBytes = 0;
         lastReliefKey = null;
         PrefetchedReliefChunkCount = 0;
+        FadingReliefChunkCount = 0;
     }
 
     /// <summary>
@@ -130,6 +131,7 @@ public partial class WorldTerrainLayer
         foreach (var texture in retiredRelief) texture.Dispose();
         retiredRelief.Clear();
         lastReliefKey = null;
+        FadingReliefChunkCount = 0;
     }
 
     /// <summary>
@@ -231,11 +233,22 @@ public partial class WorldTerrainLayer
     /// <summary>Starts waiting chunks on free workers, nearest the middle of the view first.</summary>
     private void StartNearest(IEnumerable<ReliefChunk> waiting, Vector2 middle)
     {
-        foreach (var chunk in waiting.OrderBy(chunk => ((Vector2)chunk.Tiles.GetCenter()).DistanceSquaredTo(middle)))
+        foreach (var chunk in waiting.OrderBy(chunk => ReliefDistanceSquared(chunk, middle)))
         {
             if (renderingRelief.Count >= ReliefWorkers) return;
             if (chunk.State == ReliefState.Waiting) StartRelief(chunk);
         }
+    }
+
+    private float ReliefDistanceSquared(ReliefChunk chunk, Vector2 middle)
+    {
+        var offset = (Vector2)chunk.Tiles.GetCenter() - middle;
+        if (wrapsEastWest)
+        {
+            var across = Math.Abs(offset.X) % world!.Width;
+            offset.X = Math.Min(across, world.Width - across);
+        }
+        return offset.LengthSquared();
     }
 
     /// <summary>Starts the chunks in a one-chunk ring round the view on any workers left free.</summary>
@@ -245,14 +258,22 @@ public partial class WorldTerrainLayer
         var ring = new List<ReliefChunk>();
         var top = Math.Max(0, (bounds.Top / ReliefChunkTiles - 1) * ReliefChunkTiles);
         var bottom = Math.Min(world!.Height, bounds.Top + bounds.Height + ReliefChunkTiles);
-        var first = (int)Math.Floor(bounds.Left / (double)ReliefChunkTiles) - 1;
-        var last = (int)Math.Floor((bounds.Left + bounds.Width - 1) / (double)ReliefChunkTiles) + 1;
+        var columnCount = (world.Width + ReliefChunkTiles - 1) / ReliefChunkTiles;
+        var columns = new HashSet<int>();
+        for (var x = bounds.Left; x < bounds.Left + bounds.Width;)
+        {
+            var mapX = wrapsEastWest ? Mod(x, world.Width) : x;
+            var column = mapX / ReliefChunkTiles;
+            for (var neighbor = column - 1; neighbor <= column + 1; neighbor++)
+                if (wrapsEastWest) columns.Add(Mod(neighbor, columnCount));
+                else if (neighbor >= 0 && neighbor < columnCount) columns.Add(neighbor);
+            var left = column * ReliefChunkTiles;
+            x += left + Math.Min(ReliefChunkTiles, world.Width - left) - mapX;
+        }
         for (var row = top; row < bottom; row += ReliefChunkTiles)
-            for (var column = first; column <= last; column++)
+            foreach (var column in columns)
             {
-                var x = column * ReliefChunkTiles;
-                if (!wrapsEastWest && (x < 0 || x >= world.Width)) continue;
-                var left = Mod(x, world.Width) / ReliefChunkTiles * ReliefChunkTiles;
+                var left = column * ReliefChunkTiles;
                 var chunk = ReliefChunkAt(new Rect2I(left, row, Math.Min(ReliefChunkTiles, world.Width - left),
                     Math.Min(ReliefChunkTiles, world.Height - row)), atlasSize);
                 if (chunk.State == ReliefState.Waiting && !ring.Contains(chunk)) ring.Add(chunk);

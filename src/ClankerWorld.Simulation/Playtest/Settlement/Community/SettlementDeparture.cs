@@ -189,9 +189,11 @@ public sealed partial class PrivateWorldRuntime
         !HasActiveContainerReservation(society.Checkpoint.Inventory, lot.Id) &&
         room >= ContainerFamilyQuantity(society.Checkpoint.Inventory, lot.Id);
 
-    private IEnumerable<InventoryLot> BorrowedGoods(string actor) => society.Checkpoint.Inventory.Lots.Where(lot =>
+    private IEnumerable<InventoryLot> CarriedBorrowedGoods(string actor) => society.Checkpoint.Inventory.Lots.Where(lot =>
         lot.OwnerId != actor && lot.CarrierId == actor && lot.ContainerLotId is null && lot.Quantity > 0 &&
-        !animalWorld.SupplyTrips.Any(trip => trip.ActorId == actor && trip.LotId == lot.Id) &&
+        !animalWorld.SupplyTrips.Any(trip => trip.ActorId == actor && trip.LotId == lot.Id));
+
+    private IEnumerable<InventoryLot> BorrowedGoods(string actor) => CarriedBorrowedGoods(actor).Where(lot =>
         !(lot.ItemKind == InventoryContainerRules.WaterJug && IsMilkJug(lot) && MilkStockChoices(actor).Any(choice => choice.Jug.Id == lot.Id)));
 
     private IEnumerable<(string Id, string BuildingId, string Worker, long Completion, long PausedAt, IReadOnlyList<string> Reservations)> PausedHouseholdWork(string actor)

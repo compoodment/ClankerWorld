@@ -1,0 +1,1 @@
+- Farmers keep their chosen crop while someone briefly occupies the field after an upgrade to an iron hoe. Losing a usable hoe still lets another eligible farmer plant. ([#1069](https://github.com/compoodment/ClankerWorld/issues/1069))

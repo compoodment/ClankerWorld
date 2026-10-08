@@ -510,8 +510,11 @@ public sealed class PhysicalKnowledgePipelineTests
         {
             Knowledge = pending.Knowledge with
             {
-                Facts = pending.Knowledge.Facts.Select(fact => fact.OwnerId == reader && fact.Position == overlap
-                    ? fact with { ResourceKinds = fact.ResourceKinds.Count == 0 ? ["fiber"] : [] } : fact).ToArray(),
+                WritingProjects = [project with
+                {
+                    Facts = project.Facts.Select(fact => fact.Position == overlap
+                        ? fact with { ResourceKinds = fact.ResourceKinds.Count == 0 ? ["fiber"] : [] } : fact).ToArray(),
+                }],
             },
         }));
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(pending with
