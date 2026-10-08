@@ -923,7 +923,7 @@ and the authorized Town representative. Death, household departure or loss of au
 cannot leave someone falsely displayed as a required current responder; rulings
 retain their actual parties at the time of decision.
 
-Rulings can confirm, renew, change or end use permissions while preserving Town
+Permission rulings can confirm, renew, change or end use permissions while preserving Town
 title, households, buildings, crops and goods. A permission past its agreed end
 must be renewed, changed or ended, and free Town land is given out only where a
 pending request for it was heard. Settled cases reopen only on
@@ -932,6 +932,18 @@ rulings and current rights until a correction. A ruling resolves only the
 covered part of a competing request; remaining tiles stay pending. Towns shows
 active cases, pending rehearing assessments and eight recent settled cases;
 plot and property details show matching cases. Complete history stays saved.
+
+Empty-household property cases name an existing building and its shared goods
+on the noticed plot. Council approval or a governing mayor opens the case;
+publication alone changes no ownership. After the usual response period, or
+actual early responses, an independent judge can pass the property to the
+Town only with every living former member's personal agreement. A refusal or
+response waiver cannot supply consent. The Town can grant a recovered House
+and its goods onward through another noticed case with the receiving adults'
+agreement. Towns lists the assets and personal choices. Personal goods retain
+their owners and entrance collection access; membership, Town title and crops
+stay unchanged. Changed assets or claimants require a fresh notice, and active
+work, deliveries and reservations block the physical transfer.
 Non-land cases have a separate protected mandate. Reports retain the conduct,
 applicable law version and actual evidence sources. Response windows,
 independent judges and reasoned findings lead to explanations, warnings or

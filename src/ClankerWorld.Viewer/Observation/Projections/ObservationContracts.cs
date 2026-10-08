@@ -494,6 +494,7 @@ public sealed record ViewerTownLandHearing(string Id, string Kind, string Status
     ViewerLandHearingElection? JudgeElection, ViewerLandHearingElection? LatestJudgeElection,
     IReadOnlyList<ViewerLandHearingReopenRequest> ReopenRequests)
 {
+    public IReadOnlyList<string> PropertyDetails { get; init; } = [];
     public IReadOnlyList<ViewerLandHearingRead> Reads { get; init; } = [];
     public IReadOnlyList<ViewerLandHearingParty> CurrentParties { get; init; } = [];
 }

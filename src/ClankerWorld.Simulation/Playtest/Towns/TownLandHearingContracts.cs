@@ -3,7 +3,7 @@ using ClankerWorld.Simulation.Harness;
 
 namespace ClankerWorld.Simulation.Playtest;
 
-/// <summary>A bounded permission decision; it never describes a physical or private-property action.</summary>
+/// <summary>A bounded permission decision, or the exact outcome of an explicitly noticed property case.</summary>
 public sealed record TownLandRequestedOutcome(string Kind, string? HouseholdId = null, long? AgreedEndTick = null);
 
 public sealed record TownLandFilingRequest(IReadOnlyList<GridPoint> Tiles,

@@ -71,6 +71,9 @@ public sealed partial class OwnerWorldObservationStore
             .Concat(state.Society.Society.Households.Select(household => (Id: household.Id, Name: household.Name)))
             .Concat((state.Towns ?? []).Select(other => (Id: other.Id, Name: other.Name)))
             .Concat((state.WorldContent?.Buildings ?? []).Select(building => (Id: building.CanonicalId, Name: building.DisplayName)))
+            .Concat((state.WorldSimulation?.Buildings ?? []).Select(building => (Id: building.InstanceId,
+                Name: (state.WorldContent?.Buildings.FirstOrDefault(definition => definition.CanonicalId == building.DefinitionId)?.DisplayName ?? "Building") +
+                    " at (" + building.Position.X + ", " + building.Position.Y + ")")))
             .OrderByDescending(item => item.Id.Length).ToArray();
         string Readable(string text)
         {
@@ -148,6 +151,18 @@ public sealed partial class OwnerWorldObservationStore
                         request.Status, request.AssessedBy is { } adjudicator ? Judge(adjudicator) : null,
                         request.AssessedTick, request.Assessment is { } assessment ? Readable(assessment) : null)).ToArray())
                 {
+                    PropertyDetails = item.Property is { } property ? new[]
+                    {
+                        "Property: " + Readable(property.Request.BuildingId) + ". Shared goods: " +
+                            (property.Snapshots[^1].SharedLots.Count == 0 ? "none" : string.Join(", ", property.Snapshots[^1].SharedLots
+                                .GroupBy(lot => lot.ItemKind).Select(group => group.Sum(lot => lot.Quantity) + " " + group.Key.Replace('_', ' ')))) + ".",
+                        "Property consent is separate from answering or waiving a response. Personal goods retain their owners."
+                    }.Concat(TownPropertyRules.RequiredConsent(property.Snapshots[^1]).Select(actor =>
+                        AgentName(actor) + ": " + (property.Consents.LastOrDefault(consent => consent.Revision == property.Snapshots[^1].Revision && consent.AgentId == actor) is { } consent
+                            ? consent.Agreed ? "personally agreed to this property transfer" : "refused this property transfer" : "has not agreed to this property transfer") + "."))
+                        .Concat(property.Transfer is { } transfer ? new[] { "At the ruling, this property passed to " +
+                            (property.Request.TargetHouseholdId is { } recipient ? HouseholdName(recipient) : town.Name) + "." } : [])
+                        .ToArray() : [],
                     CurrentParties = item.Status == "pending" ? TownLandCasePartyRules.CurrentParties(town, revision.Tiles,
                         state.HouseholdLandUseRights ?? [], state.HouseholdLandUseRequests ?? [], state.Society.Society.Inhabitants,
                         state.Society.Society.WorldTick, item).Select(party => Party(party, aware)).ToArray() : [],

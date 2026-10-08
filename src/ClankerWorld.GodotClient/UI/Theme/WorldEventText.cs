@@ -359,7 +359,7 @@ public static class WorldEventText
             }) + $" for {subject} only.",
             "land_case_judge_election" => $"{townName} recorded a case election update for {subject}. See Towns for its stage and result.",
             "land_case_judge_assigned" => $"{actor ?? "An eligible adjudicator"} was assigned to {subject} in {townName}.",
-            "land_case_ruling" => $"{townName} recorded a ruling in {subject}. See its exact permission change and reasons in Towns.",
+            "land_case_ruling" => $"{townName} recorded a ruling in {subject}. See the exact result and reasons in Towns.",
             "land_case_reopen_requested" => $"A rehearing was requested for {subject} in {townName}; current rights remain in effect.",
             "land_case_reopened" => $"{townName} reopened {subject}, preserving its earlier ruling and publishing a fresh notice.",
             "land_case_inspected" => $"{actor ?? "An authorized adult"} inspected the public case file for {subject} in {townName}.",

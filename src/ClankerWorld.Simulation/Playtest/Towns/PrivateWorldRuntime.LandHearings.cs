@@ -32,7 +32,8 @@ public sealed partial class PrivateWorldRuntime
             try
             {
                 if (refusal is null)
-                    (council, hearings) = OpenLandHearing(town, council, hearings, filing, request.Tiles, townRepresentative: proposal.AuthorId);
+                    (council, hearings) = OpenLandHearing(town, council, hearings, filing, request.Tiles, townRepresentative: proposal.AuthorId,
+                        propertyRequest: request.Property);
             }
             catch (InvalidOperationException exception) { refusal = exception.Message; }
             if (refusal is not null)
@@ -43,13 +44,30 @@ public sealed partial class PrivateWorldRuntime
         {
             var revision = TownLandHearingRules.CurrentRevision(item);
             var noticeId = "notice:" + (council.Notices.Count + 1);
+            TownPropertySnapshot? snapshot = null;
+            var partiesItem = item;
+            if (item.Property is { Transfer: null } property)
+            {
+                try
+                {
+                    snapshot = CaptureProperty(town, property.Request, revision.Number + 1);
+                    partiesItem = item with { Property = property with { Snapshots = property.Snapshots.Append(snapshot).ToArray() } };
+                }
+                catch (InvalidOperationException) { /* A stale asset can be rejected, never transferred. */ }
+            }
             var revised = TownLandHearingRules.Revise(hearings, item.Id, householdLandUseRights,
-                LandHearingParties(town with { Governance = council, Government = government }, revision.Tiles, item),
-                revision.Tiles, WorldTick, CivicDay, noticeId);
+                LandHearingParties(town with { Governance = council, Government = government }, revision.Tiles, partiesItem),
+                revision.Tiles, WorldTick, CivicDay, noticeId, assetsChanged: snapshot is not null &&
+                    TownPropertyRules.MaterialVersion(snapshot) != TownPropertyRules.MaterialVersion(item.Property!.Snapshots[^1]));
             if (TownLandHearingRules.CurrentRevision(revised.Cases.Single(c => c.Id == item.Id)).Number != revision.Number)
             {
                 hearings = revised;
                 var current = hearings.Cases.Single(c => c.Id == item.Id);
+                if (snapshot is not null)
+                {
+                    current = current with { Property = current.Property! with { Snapshots = current.Property.Snapshots.Append(snapshot).ToArray() } };
+                    hearings = TownPropertyRules.Replace(hearings, current);
+                }
                 council = PostLandHearingNotice(council, current);
                 LandHearingEvent("notice", town, current, null, "revised");
             }
@@ -59,15 +77,17 @@ public sealed partial class PrivateWorldRuntime
 
     private (TownGovernanceState Council, TownLandHearingState LandHearings) OpenLandHearing(TownRuntimeState town,
         TownGovernanceState council, TownLandHearingState hearings, TownLandCaseFiling filing, IReadOnlyList<GridPoint> tiles,
-        string? filingHousehold = null, string? townRepresentative = null)
+        string? filingHousehold = null, string? townRepresentative = null, TownPropertyRequest? propertyRequest = null)
     {
         if (!TownLandRightsRules.IsValidPlot(map, tiles, WorldTick, WorldTick) ||
             tiles.Any(tile => !TownLandRightsRules.IsCoveredByTownTitle(tile, town.Id, townLandTitles)))
             throw new InvalidOperationException("A land case needs one connected plot under this Town's existing title.");
         var before = hearings.Cases.Count;
+        var property = propertyRequest is null ? null : new TownPropertyCase(propertyRequest, [CaptureProperty(town, propertyRequest, 1)], []);
+        var parties = LandHearingParties(town, tiles, filingHousehold: filingHousehold, townRepresentative: townRepresentative);
+        if (property is not null) parties = TownPropertyRules.Parties(parties, property, town.Id, society.Checkpoint.Inhabitants);
         hearings = TownLandHearingRules.File(hearings, town.Id, filing, tiles, householdLandUseRights,
-            LandHearingParties(town, tiles, filingHousehold: filingHousehold, townRepresentative: townRepresentative),
-            WorldTick, CivicDay, "notice:" + (council.Notices.Count + 1));
+            parties, WorldTick, CivicDay, "notice:" + (council.Notices.Count + 1), property);
         var item = hearings.Cases.Single(item => item.Status == "pending" && item.Filings.Contains(filing) &&
             TownLandHearingRules.CurrentRevision(item).Tiles.SequenceEqual(tiles));
         if (hearings.Cases.Count > before)
@@ -83,7 +103,9 @@ public sealed partial class PrivateWorldRuntime
         var revision = TownLandHearingRules.CurrentRevision(item);
         return TownGovernanceRules.PostNotice(council, "land_hearing", TownLandHearingRules.RevisionToken(item),
             "Land hearing opened for " + TownLandClaimRules.DescribeTiles(revision.Tiles) +
-            ". Affected adults may answer or explicitly waive their own response. Existing permissions remain while the case is pending.", revision.PublishedTick);
+            (item.Property is { } property ? ". Property requested: " + property.Request.BuildingId +
+                " and its recorded shared goods. Living former members keep ownership unless each personally agrees. Waiving a response gives no property consent." : "") +
+            ". Affected adults may answer or explicitly waive their own response. Existing permissions and property remain while the case is pending.", revision.PublishedTick);
     }
 
     private void LandHearingEvent(string kind, TownRuntimeState town, TownLandCase item, string? actor, string status) =>

@@ -1524,12 +1524,31 @@ can no longer open when its vote passes keeps the vote and posts the reason.
 Bounded permission adjustments retain original grant receipts and replayable
 before/after rights. A ruling records the exact covered portions of pending
 requests, so resolved tiles stop contributing claims while remaining portions
-stay pending. Town title, membership, buildings, crops and inventory are not
-transferred by a hearing. Owner projection carries all active cases and pending
+stay pending. Permission hearings leave Town title, membership, buildings,
+crops and inventory unchanged. Owner projection carries all active cases and pending
 rehearing assessments plus eight recent settled cases; complete ledgers remain
 in the checkpoint. Town, plot and property views use public names, sources and
 world clocks. Lifecycle telemetry carries identifiers, status and counts, with
 no statements, model replies or private memories.
+
+An explicit `property` land case instead binds a whole existing building and
+its physically present shared lots to each notice. `TownPropertyRequest` is
+part of the Council's exact filing authorization; a governing mayor uses its
+recorded office. Empty membership supplies eligibility, never ownership.
+Membership relationship history and birth records identify living former
+members even after they join another household. `TownPropertyConsent` records
+each person's informed agreement or refusal separately from response waivers.
+New assets, quantities or claimants require a fresh notice and new consent.
+The independent judge cites the inspected snapshot before `reclaim` or `grant`.
+The ruling commits the bounded footprint adjustment, building owner and actual
+inventory transfers together, retaining full before/after transfer receipts.
+Containers move with their contents; condition, freshness and physical location
+are preserved. Personal and carried goods are excluded. Active work, deliveries
+and reservations block completion. A grant needs a prior Town recovery ruling,
+an eligible receiving household and every receiving adult's personal agreement.
+The owner projection shows readable asset and consent details in the existing
+Town, plot and property hearing views. Personal owners keep limited entrance
+collection access after recovery and onward granting.
 
 `TownRuntimeState.Nonviolent` records non-land allegations, notice revisions,
 sources, responses and civil findings separately from permission adjustments.

@@ -32,7 +32,8 @@ public static class TownLandCasePartyRules
                     office.HolderId is not null && office.TermEndTick > tick)?.HolderId;
             parties.Add(new("town:" + town.Id, "town", null, town.Id, [], representative));
         }
-        return parties.OrderBy(party => party.Id, StringComparer.Ordinal).ToArray();
+        return item?.Property is { } property ? TownPropertyRules.Parties(parties, property, town.Id, inhabitants) :
+            parties.OrderBy(party => party.Id, StringComparer.Ordinal).ToArray();
     }
 
     public static bool TownFilingAuthority(TownRuntimeState town, string actor, string? authorityId,
