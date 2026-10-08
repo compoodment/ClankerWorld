@@ -23,8 +23,18 @@ public static class TownPropertyRules
     {
         snapshot.Building,
         Lots = snapshot.SharedLots.Select(lot => new
-        { lot.Id, lot.ItemKind, lot.OwnerId, lot.Quantity, lot.ProvenanceLotId, lot.StorageBuildingId,
-            lot.DeliveryBuildingId, lot.ContainerLotId, lot.GroundPosition, lot.CarrierId }),
+        {
+            lot.Id,
+            lot.ItemKind,
+            lot.OwnerId,
+            lot.Quantity,
+            lot.ProvenanceLotId,
+            lot.StorageBuildingId,
+            lot.DeliveryBuildingId,
+            lot.ContainerLotId,
+            lot.GroundPosition,
+            lot.CarrierId
+        }),
         snapshot.LivingFormerMemberIds,
         snapshot.RecipientAdultIds
     });
