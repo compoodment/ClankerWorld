@@ -368,6 +368,10 @@ definition, owner, site and paid-material evidence after the project is
 replaced or the building is removed; an unrelated existing building is never
 completion proof.
 
+An animal-yard construction order checks for the household's completed House
+before choosing a site or starting a project. A missing House blocks the order
+without reserving or consuming yard materials, matching ordinary planning.
+
 The construction adapter can replace an unpaid ordinary project rather than
 waiting on the project the operative order itself paused. It creates a fresh
 order-bound project, with no inherited work or placement credit. A Store-stocking
@@ -1897,7 +1901,10 @@ guardian needs a recorded Town and a completed household House with room;
 acceptance creates neither a House nor a resident place.
 
 The guardian first reaches the child, then accompanies them to the selected
-House through ordinary movement. The guardian waits for a child who falls
+House through ordinary movement. Collections keep acceptance order among
+currently reachable children; an unreachable collection does not hold up another
+accepted child. An ongoing escort stays together, and blocked collections retry
+after the available journeys finish. The guardian waits for a child who falls
 behind. Urgent food and warmth needs may interrupt the journey without
 removing accepted care. Capacity, current care authority, Town membership and
 the House's identity are checked again before placement. Only arrival together
@@ -1991,6 +1998,13 @@ to each stocked permitted Warehouse, using movement's exact destination,
 diagonal, shared entrance and attached handcart rules. If none is reachable,
 preparation continues to its existing material-gathering fallback. Collection
 still rechecks authority, available stock and carrying room at the Warehouse.
+
+Ordinary workstation supply choices and execution check the adult's current
+native route to each destination before selecting its missing input. An
+occupied earlier workshop does not hide a reachable House or another workshop.
+The route is checked again as the actor moves; reaching a shared household
+building can make another delivery possible. Supply still uses actual carried
+or accessible stock, ownership, receiving space and carrying limits.
 
 Blacksmith input hauling checks the actor's current unoccupied pickup route
 and the source-to-shop route before selecting household or permitted Town
