@@ -96,6 +96,8 @@ still open normally.
    [More New World options](#more-new-world-options)).
 2. Wait for the preview. Changing an option updates it; **Create World** becomes
    available when the preview for the current choices succeeds.
+   Different map sizes or generation choices can reuse a seed and keep separate
+   worlds. Changing only the name does not create another copy of the same map.
 3. Create the world. It opens paused at 06:00 on Spring 1, Year 1, in daylight.
    Choose a rough site for its first Town;
    greener shading and the hovered tips show nearby food, fertile ground, wood,
