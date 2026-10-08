@@ -1409,6 +1409,13 @@ public partial class WorldTerrainLayer : Control
             NatureSprites.Region(sprite, size));
     }
 
+    /// <summary>
+    /// Whether the far-zoom shape for a tree code is the small young orchard:
+    /// every stage drawn with the growing orchard sprite, including a planted
+    /// sapling.
+    /// </summary>
+    internal static bool DrawsAsYoungOrchard(byte tree) => NatureSprites.ForTree(tree) == NatureSprite.OrchardGrowing;
+
     private void DrawTree(Vector2 position, byte tree)
     {
         if (tileSize >= SpriteTileMinimum && NatureSprites.ForTree(tree) is { } sprite)
@@ -1417,7 +1424,7 @@ public partial class WorldTerrainLayer : Control
             return;
         }
         var center = position + new Vector2(tileSize * 0.5f, tileSize * 0.5f);
-        if (tree == 9)
+        if (DrawsAsYoungOrchard(tree))
         {
             DrawCircle(center, Math.Max(2f, tileSize * 0.12f), new Color("795539"));
             DrawCircle(center - new Vector2(0, tileSize * 0.08f), Math.Max(2f, tileSize * 0.19f),

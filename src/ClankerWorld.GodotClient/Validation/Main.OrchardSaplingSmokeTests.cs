@@ -53,6 +53,9 @@ public partial class Main
                     !pixels.GetData().Where((_, index) => index % 4 == 3).Any(alpha => alpha != 0))
                     throw new InvalidOperationException("Orchard saplings must reuse the visible approved growing art at both atlas sizes while preserving their own stage.");
             }
+            if (!WorldTerrainLayer.DrawsAsYoungOrchard(sapling.Code) || !WorldTerrainLayer.DrawsAsYoungOrchard(growing.Code) ||
+                WorldTerrainLayer.DrawsAsYoungOrchard(TreeArtManifest.For("orchard", "fruiting")!.Code))
+                throw new InvalidOperationException("Below sprite zoom, an orchard sapling must draw the same small young-orchard shape as a growing orchard.");
             cameraCenterTiles = new Vector2(2, 2);
             cameraZoom = 1;
             UpdateMapGeometry(map);
