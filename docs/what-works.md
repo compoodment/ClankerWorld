@@ -2,7 +2,7 @@
 title: What works today
 type: product-status
 status: active
-updated: 2026-10-07
+updated: 2026-10-08
 ---
 
 # What works today
@@ -758,8 +758,9 @@ birth. Such a couple may also plan another child once their
 youngest has left infancy, without waiting for that child to grow up. Each
 partner's own model request explains the rule and how long is left. The rule
 never creates a partnership, and choosing a partner stays voluntary. The
-threshold and two days are provisional; a check based on the real risk of the
-world dying out comes later. This has automated checks but no Windows playtest
+threshold and two days are provisional; a check based on the number of eligible
+couples comes later, under the agreed
+[continuity rule](game-design/agents-and-families.md#starting-agents-families-and-life-stages). This has automated checks but no Windows playtest
 yet.
 
 Both parents' cards show a preparing plan's food shortage: the
@@ -1048,7 +1049,9 @@ built. Up to six more stalls can fill the plaza; each needs separate Council
 approval, 4 wood, 2 fiber and 3 work units. The same Town-title, real supply,
 voluntary donation and shared construction rules apply. The built hall and
 plaza stay clear of other buildings, fields, trees and household land requests.
-General plaza growth remains open.
+The agreed [Market limit](game-design/towns.md#agreed-content-and-building-sizes)
+keeps this plaza at eight stalls; a Town that needs more builds a second Market.
+Building a second Market is unfinished.
 
 An adult can borrow an empty stall while they stay at the Market and physically
 bring their own or their household's surplus there. Stock keeps its recorded
@@ -1410,8 +1413,9 @@ before the timeline can't say where the world continues, so the marker is left
 out. Neither has been checked by hand in the Windows game yet. Unusable list
 metadata is isolated so sound saves remain reachable. During the alpha, a save
 from an older build may stop loading after an update; the game refuses it with a
-reason and keeps the file. Mod compatibility and history retention remain design
-questions. Technical rules
+reason and keeps the file. The agreed [mod compatibility](game-design/inventions-and-mods.md#inventions-mods-and-technology)
+and [recovery-history cleanup](game-design/saves.md#explicit-deletion) rules
+await implementation; their copy counts and disk-space thresholds stay provisional. Technical rules
 are in [saves and replay](development/saves-and-replay.md).
 
 The Mod Library lists the current world's recorded packages read-only, one card each with
@@ -1421,8 +1425,9 @@ longer create the retired shelter, storehouse or hearth proposals, and they do
 not build approved designs, because households plan only their own buildings. General invention,
 player review controls, personal libraries and mod import/export are unfinished.
 Asset-validation and rights tools are built but not connected to a complete
-creator experience. Arbitrary generated scripts are disabled; no sandbox has
-been chosen. Multiplayer and public worlds are outside the current plan.
+creator experience. Arbitrary generated scripts are disabled. The agreed
+[invention sandbox](game-design/inventions-and-mods.md#inventions-mods-and-technology)
+is unfinished. Multiplayer and public worlds are outside the current plan.
 
 ## Work and testing still to do
 
