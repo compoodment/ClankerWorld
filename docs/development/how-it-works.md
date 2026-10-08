@@ -932,7 +932,9 @@ when each records sites its recipient has not learned; the existing consent,
 ownership, reservation and delivery checks still apply.
 
 Outward scouting checks occupied destinations and both diagonal corner tiles
-before ranking neighboring exits. If no legal outward exit remains, the scout
+before ranking neighboring exits. An attached cart also restricts exits to
+ordinary legal cart steps: cardinal movement without unroaded mountains.
+If no legal outward exit remains, the scout
 uses the existing return path instead of repeatedly targeting a blocked corner.
 Only completed movement adds a visited tile.
 
@@ -1769,7 +1771,12 @@ needing to be hungry themselves; current care authority, usable food,
 reservations, capacity and real travel are checked again at execution.
 
 House pickup counts the whole vessel family against carrying and destination
-space; loose deliveries keep their four-unit limit. An unusable carried
+space; loose deliveries keep their four-unit limit. Loose-stock selection
+also checks movement's current unoccupied pickup and source-to-House routes
+before choosing a pile. Candidates, ordinary pickup and House-stock delivery
+orders share that selection, so an occupied first pile does not hide later
+reachable goods. Ownership, reservations and whole-vessel checks still apply.
+An unusable carried
 delivery leaves ordinary hauling and can offer `recover_household_delivery`.
 Candidate and action both check the current household-owned destination,
 physical load, selected or repaired gear, active family reservations and a
@@ -3063,6 +3070,12 @@ Animal gifts, sales and named outsider permissions need fresh, admitted personal
 model choices. Built-in fallback and forced orders cannot give personal consent.
 Receiving space and the exact payment lot are checked again on acceptance;
 transfer clears old permissions and preserves position for physical leading.
+
+Care for a different animal first ends the actor's existing ride through the
+normal dismount operation, then approaches the care target on foot. That
+preparation earns no care-order progress and spends no feed or water. The
+horse and reserved saddle keep their position and ownership; excess cargo
+uses the existing dismount rules before care rechecks its actual inputs.
 
 A cared adult horse has one real reserved saddle and one adult rider. Movement
 uses the normal legal route and occupancy rules, halves walking cost and admits
