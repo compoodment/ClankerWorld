@@ -2848,6 +2848,14 @@ zoom, and shows travel and dock use in tile, Port and Town inspection. Port nigh
 lights use the approved T-head lantern. Smaller views scale the approved 32-pixel
 boat until #914 supplies approved 16-pixel art.
 
+Checkpoint compaction retains every active request and the existing 40 recent
+closed requests by sequence. It durably archives full older records before
+installing the smaller live queue; compact sequence ranges retain gaps around
+older active passengers. The `world_history_compacted` diagnostic includes live
+boat-request and retired-range counts. See
+[Saves and replay](saves-and-replay.md#ports-and-communal-boats) for the schema,
+archive-write ordering and recovery checks.
+
 ## Physical handcarts
 
 `InventoryContainerRules.Handcart` is a single ground-position inventory lot.

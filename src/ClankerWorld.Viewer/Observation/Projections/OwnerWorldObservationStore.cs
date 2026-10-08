@@ -1760,7 +1760,8 @@ public sealed partial class OwnerWorldObservationStore
 
     private static ViewerBoatTripRequest[] ProjectBoatRequests(PrivateWorldRuntimeState state) =>
         state.BoatTransport.Requests.Where(request => request.Status is "waiting" or "underway")
-            .Concat(state.BoatTransport.Requests.Where(request => request.Status is not ("waiting" or "underway")).TakeLast(40))
+            .Concat(state.BoatTransport.Requests.Where(request => request.Status is not ("waiting" or "underway"))
+                .TakeLast(PrivateWorldHistory.RecentBoatRequestLimit))
             .OrderBy(request => request.Sequence).Select(request => new ViewerBoatTripRequest(request.Id, request.Sequence,
             request.PassengerId, BoatPassengerName(state, request.PassengerId), request.BoatTownId,
             request.OriginPortId, request.DestinationPortId, request.Status, request.BoatId)).ToArray();
