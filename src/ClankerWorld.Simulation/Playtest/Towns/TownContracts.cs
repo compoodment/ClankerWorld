@@ -28,6 +28,10 @@ public sealed record TownRuntimeState(
     [JsonIgnore]
     public bool IsAbandoned => FoundingState == "founded" && ResidentIds.Count == 0;
 
+    /// <summary>Tick of the latest empty-roster transition, retained independently of bounded event history.</summary>
+    [JsonRequired]
+    public long? AbandonedSinceTick { get; init; }
+
     [JsonRequired]
     public TownLandHearingState LandHearings { get; init; } = TownLandHearingState.Create();
 

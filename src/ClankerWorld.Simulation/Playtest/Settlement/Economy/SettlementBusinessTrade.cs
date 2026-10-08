@@ -278,6 +278,21 @@ public sealed partial class PrivateWorldRuntime
         return null;
     }
 
+    private bool IsBusinessFoodCandidate(string actor, string candidateId)
+    {
+        // Only the buyer's ready food can interrupt an order. Raw ingredients,
+        // equipment and a seller's response still follow ordinary work rules.
+        if (candidateId.StartsWith("business_continue:", StringComparison.Ordinal))
+            return OpenBusinessTrades().Any(pair => pair.Trade.BuyerId == actor &&
+                candidateId == "business_continue:" + pair.Offer.Id && IsEdibleFood(pair.Trade.GoodsKind));
+        if (!candidateId.StartsWith("business_shop:", StringComparison.Ordinal)) return false;
+        var building = worldSimulation.Buildings.SingleOrDefault(item => item.InstanceId == candidateId[14..]);
+        if (building is null) return false;
+        if (BusinessOpportunity(actor, building) is { } quote)
+            return IsEdibleFood(quote.Goods.ItemKind) && WantsTradeFoodKind(actor, quote.Goods.ItemKind);
+        return RestaurantMealShopTrip(actor, building);
+    }
+
     private void AddBusinessCandidates(List<CognitionCandidate> candidates, string actor)
     {
         if (!AdultResident(actor) || NeedsUrgentWarmth(inhabitants[actor])) return;
