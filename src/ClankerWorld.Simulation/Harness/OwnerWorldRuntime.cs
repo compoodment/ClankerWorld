@@ -88,7 +88,10 @@ public sealed record OwnerInstructionOrder(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] OwnerShelterCompletion? ShelterCompletion = null)
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? TargetAnimalId { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public OwnerBoatTravelBinding? BoatTravel { get; init; }
 }
+
+public sealed record OwnerBoatTravelBinding(string DestinationPortId, string? RequestId = null);
 
 public sealed record OwnerShelterBinding(
     string Kind,

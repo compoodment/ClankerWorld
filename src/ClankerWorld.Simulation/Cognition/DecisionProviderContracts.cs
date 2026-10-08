@@ -385,6 +385,7 @@ public sealed record InhabitantObservation(
                         "tend your household crop" or
                         "harvest your household crop" or
                         "travel to the exact tile named in this order" or
+                        "travel by communal boat to the exact Port named in this order" or
                         "accept primary care of the named child through their guardian search") ||
                 message.Kind == "suggestive" && message.UnderstoodTask is not null)
                 throw new ArgumentException("Observer guidance must be bounded, target-owned and uniquely identified.", nameof(ObserverGuidance));

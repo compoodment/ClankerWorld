@@ -850,6 +850,7 @@ public partial class Main
                 ? GameUiText.ItemName(output).ToLowerInvariant() : "goods"),
             "seek_food" => "Going to a food site",
             "move_to" => "Going to a tile",
+            "travel_by_boat" => "Traveling to a Port by boat",
             "accept_guardianship" => "Becoming a guardian",
             "animal_care" => "Caring for an animal",
             "animal_collect" => "Collecting animal products",

@@ -28,6 +28,7 @@ public sealed partial class PrivateWorldRuntime
         if (order.TargetPosition is { } requestedPosition && !map.Contains(requestedPosition))
             return null;
         if (IsAnimalOrder(order.Action)) return AnimalOrderCandidate(instruction);
+        if (order.Action == "travel_by_boat") return BoatOrderCandidate(instruction);
 
         if (IsShelterOrder(order.Action))
             return ShelterOrderCandidateFor(instruction, person);
@@ -226,6 +227,11 @@ public sealed partial class PrivateWorldRuntime
             ExecuteAnimalOrder(instruction);
             return;
         }
+        if (order.Action == "travel_by_boat")
+        {
+            ExecuteBoatOrder(instruction);
+            return;
+        }
         switch (candidate.Id)
         {
             case "seek_shelter":
@@ -413,6 +419,7 @@ public sealed partial class PrivateWorldRuntime
 
     private string OrderBlockedReason(OwnerQueuedInstruction instruction, PlaytestInhabitantState person)
     {
+        if (instruction.Order?.Action == "travel_by_boat") return BoatOrderBlockedReason(instruction);
         if (instruction.Order is { } animalOrder && IsAnimalOrder(animalOrder.Action))
             return AnimalOrderBlockedReason(instruction);
         if (instruction.Order is { } protective && IsShelterOrder(protective.Action))

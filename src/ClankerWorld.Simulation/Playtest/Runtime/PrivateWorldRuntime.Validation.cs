@@ -625,6 +625,7 @@ public sealed partial class PrivateWorldRuntime
         var terminal = order.Status is "finished" or "cancelled" or "not_understood";
         var isCompleted = completedInstructionIds.Contains(instruction.InstructionId, StringComparer.Ordinal);
         if ((order.TargetAnimalId is not null) != IsAnimalOrder(order.Action)) return false;
+        if ((order.BoatTravel is not null) != (order.Action == "travel_by_boat")) return false;
         if (!knownStatus || (order.Status == "queued" && !instruction.Queue) ||
             order.BlockedReason is { Length: > 256 } || order.BlockedReason?.Any(char.IsControl) == true ||
             order.LastEffectId is { Length: > 512 } || order.LastEffectId?.Any(char.IsControl) == true ||
@@ -826,6 +827,8 @@ public sealed partial class PrivateWorldRuntime
                 (order.Status == "finished") == (!order.RepeatUntilCancelled && order.CompletedUnits >= order.RequestedUnits) &&
                 (order.QuantityIsExplicit ? order.ProgressUnit == "material_items" : order.ProgressUnit == "harvests" && order.RequestedUnits == 1) &&
                 (order.CompletedUnits == 0 ? order.LastEffectId is null : order.LastEffectId?.StartsWith("gather:material:", StringComparison.Ordinal) == true);
+
+        if (order.Action == "travel_by_boat") return IsValidBoatOrderShape(order);
 
         if (order.Action == "move_to")
             return order.TargetPosition is { } destination && order.TargetFoodKind is null && order.TargetResourceId is null &&

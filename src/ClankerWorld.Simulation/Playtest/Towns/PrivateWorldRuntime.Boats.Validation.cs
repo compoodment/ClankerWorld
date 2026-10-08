@@ -135,5 +135,6 @@ public sealed partial class PrivateWorldRuntime
         foreach (var person in state.DeceasedInhabitants ?? [])
             if (person.BoatIdAtDeath is { } id && !transport.Boats.Any(boat => boat.Id == id))
                 throw new InvalidDataException("A boat death must retain its actual communal asset.");
+        ValidateBoatOrderBindings(state);
     }
 }
