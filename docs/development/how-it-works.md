@@ -2,7 +2,7 @@
 title: How the game works
 type: architecture
 status: active
-updated: 2026-10-07
+updated: 2026-10-08
 ---
 
 # How the game works
@@ -2115,6 +2115,13 @@ include only collection of edible food the adult may legally retrieve. This
 filter runs before the candidate limit; normal Market choices retain their
 existing order. Collection still needs a fresh personal LLM choice and the
 usual ownership, reservation, route and receiving-space checks.
+The owner-order survival classifier revalidates an edible collection against
+the same Market choices, so urgent retrieval can interrupt an unrelated task.
+It grants no new stock access or trade consent; the original order and its
+progress remain available after the emergency. An interrupted order executes
+collection only for the actual fresh admitted personal LLM choice. A matching
+accepted intention can continue walking to the stall between decisions; it
+cannot collect through the automatic continuation path.
 Ordinary collection uses physical unreserved quantities, so spoiled stock can
 be reclaimed from a current or former stall without deleting or refreshing it.
 Urgent food collection additionally requires usable food; spoilage never
@@ -2261,6 +2268,14 @@ values. First-Town setup stores each starting agent's garment in their
 household's House. A package is staged for older worlds on the first tick, but
 the settlement package's digest changed when the Weaving frame was removed, so
 saves made before this change are refused.
+
+Garment and carrying-aid selection uses personally carried goods, actual
+household stock or permitted Town Warehouse stock. Having no household does
+not make a person's own ID a shared-stock owner. Their goods left in a House
+or on the ground remain physical collection choices until picked up, with
+the usual access, travel and carrying-space checks. Equipping shared goods
+still collects one unit at its location. Save validation requires every
+equipped unit to be personally owned, carried and unreserved.
 
 The five alternative household building sizes have separate shipped packages;
 their original definitions and first-Town defaults keep their identities.
@@ -3094,6 +3109,11 @@ permission loss ends riding; dismount puts unreserved excess cargo at the actual
 position without changing its owner. Cart attachments and boat travel exclude
 ridden or led animals. Godot projects and draws the authoritative animal state
 with young/adult headings, mounted horses, yard art, inspection and event text.
+
+Building Details lists animals whose current observed positions lie within
+the building footprint, using the same `GameUiText.AnimalDescription` as tile
+inspection and hover help. It refreshes with the snapshot and grants no animal
+ownership or care permission.
 
 Collection from another animal and saddling another horse prepare with
 `EndAnimalRide` on their own tick, without product transfer, saddle fitting or
