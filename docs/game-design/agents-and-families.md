@@ -32,8 +32,7 @@ everything that is available in the current build. See [what works today](../wha
   relationships and children. All four begin as residents of the first Town.
   The simulation cannot begin until this setup is complete. **Agreed on
   October 1 ([#653](https://github.com/compoodment/ClankerWorld/issues/653)):** the
-  player chooses the Town site first, then places the founders among its
-  buildings. The site can change only while no founder is placed; to move it
+  player chooses the Town site first, then places the founders. The site can change only while no founder is placed; to move it
   later, remove the founders first. Every founder needs a personal model and a
   working key before Start World
   ([#638](https://github.com/compoodment/ClankerWorld/issues/638)).
