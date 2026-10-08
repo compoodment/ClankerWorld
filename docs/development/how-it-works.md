@@ -2,7 +2,7 @@
 title: How the game works
 type: architecture
 status: active
-updated: 2026-10-07
+updated: 2026-10-08
 ---
 
 # How the game works
@@ -52,7 +52,121 @@ host's versioned HTTP contract. Legacy web assets are diagnostic tools.
   visibly without replacing valid state or inventing replacement credentials.
   [Saves and replay](saves-and-replay.md) owns formats, migration and backup rules.
 
+## Runtime systems
+
+The approved runtime refactor is tracked in
+[#1377](https://github.com/compoodment/ClankerWorld/issues/1377). The runtime
+currently coordinates the simulation through a partial class. Its areas will
+move into systems in separate reviewed steps; the first step adds guards and
+does not move runtime code.
+
+A system owns its saved state, its rules and a small `I…World` interface for
+the services it needs from other areas. Saved state is an immutable record
+replaced on writes; a hot mutable collection instead replaces a `Version`
+token on every write. Pending model calls and other live work stay outside
+saved state. The runtime keeps the existing tick phases and calls each system
+at the point where its code runs today. Moved private methods remain one-line
+forwarders while callers and reflection-based tests still need them. A tick
+commit eventually assigns each system rather than copying individual fields.
+
+Shared read services will provide the event log, resident queries, named
+ground-occupancy layers and the separately planned goods query. Snapshot-keyed
+derived values must be pure, unsaved and absent from digests. Immutable
+snapshots can pass through the trusted tick copy by reference; replacing a
+snapshot invalidates its derived values without letting a discarded tick
+change committed caches. Positions, reservations and occupancy remain live
+query overlays. Later cache work adds a check that recomputes cache hits.
+
+Every step preserves these contracts:
+
+1. Keep every seeded SHA-256 hash input byte-identical: tag, seed, IDs and tick.
+2. Keep tick phase order, repeated phases and ID-sorted decision and turn application.
+3. Keep candidate-list order and action-prefix routing; choices feed saved observation digests.
+4. Keep dictionary insertion order and collection types where a first match has meaning.
+5. Append events through the shared sink at the same point; call order determines IDs.
+6. Keep checkpoint bytes, sorting and null-versus-empty choices; do not change the schema.
+7. Separate saved state from pending calls and other live work across the tick swap.
+8. Keep request Guids live-only and introduce no random values into world state.
+
+The architecture tests classify every runtime instance field in
+[`runtime-fields.json`](../../tests/ClankerWorld.Simulation.Tests/Architecture/runtime-fields.json)
+as snapshot state transferred on commit, live work retained by the coordinator,
+or scratch/derived diagnostic state. The `saved` category also includes derived
+values transferred with that snapshot, such as fertility and Road bridge decks;
+restore rebuilds them from saved inputs. Event handlers are live work too. They check
+the complete transfer list, and invoke the native commit with a prepared
+runtime to compare its encoded checkpoint and transferred values.
+
+The C# source scan records writer files for every inhabitant component in
+[`inhabitant-writers.json`](../../tests/ClankerWorld.Simulation.Tests/Architecture/inhabitant-writers.json).
+Construction writes all components, including defaults; collection replacement,
+insertion and removal have their own entry. New writer files fail the test.
+Removing a writer also fails until the baseline is lowered. Review a baseline
+change with the code it permits. The scan uses the pinned SDK's C# parser and
+type binding; it rejects binding errors except declarations whose regex
+implementation the real build generates.
+
+Before moving an area, check current open PRs that edit its methods and the
+goods-query steps tracked in #1366. Add ready overlapping PRs as blockers and
+tell draft authors which branch will move their code. Move one area, retain
+forwarders, remove its dead `checkpointSchemaVersion = StateSchemaVersion`
+assignments, extend these guards and document its boundary here. Run the
+[tick equivalence comparison](build-and-test.md#compare-tick-equivalence)
+against the exact base and include the result in the PR. Later steps extend
+the writer ratchet to the state they move.
+
+## Finding goods
+
+`Kernel/InventoryIndex.cs` caches derived inventory facts by checkpoint identity
+in a `ConditionalWeakTable`. It records lots by owner, building, delivery
+destination and vessel, in stable ID order, plus active reserved quantities and
+reserved vessel families. Every inventory transition commits a new checkpoint,
+so its next query gets a new index; earlier checkpoints keep their own facts.
+These facts are never saved. Do not mutate a committed checkpoint's collections.
+The existing quantity helpers delegate to this index while keeping their
+original health checks and clamping behavior.
+
+`Kernel/InventoryRules.cs` owns the predicates used by inventory authority and
+goods selection: physical and usable quantities, usable parent vessels,
+reservation availability, free families and container ownership/location.
+Physical movement may preserve damaged or spoiled property. Consumption still
+requires usable inputs. `InventoryFixture` remains the authority for an actual
+reservation, transfer, container operation or consumption.
+
+`Playtest/Goods/` currently supplies two query uses. `Holdings` excludes unusable
+lots or parent vessels, reserved quantities, delivery promises and goods held
+for sale at a borrowed Market stall. `ConsumeAt` matches the inventory
+reservation boundary, including usable contained ingredients and partially
+unreserved quantities; reusable vessels themselves are not consumable inputs.
+Requests name exact owners and item kinds, and can restrict a building. The
+answer's `Total` and `First` read the same stable matches. It includes each lot's
+root vessel, physical place, available quantity and whole-vessel movement size.
+Travel, destination capacity and other uses belong to the later steps of
+[#1366](https://github.com/compoodment/ClankerWorld/issues/1366); unsupported
+travel/destination fields are refused rather than silently ignored.
+
+With `Explain`, exclusions retain their first failure in this fixed order:
+owner, kind, building, damage, spoilage, vessel, empty stock, reservation,
+delivery and Market sale promise. Diagnostics are derived, never saved or
+logged every tick. Normal queries use the owner/building index; explanations
+scan all lots so they can also explain an owner or place mismatch.
+
+To add a caller, choose the appropriate use and keep its request for both
+eligibility and execution. Add feature-specific filters when necessary; never
+remove the use's rules. Call `RecheckGoods` against the current checkpoint
+immediately before the authoritative action. Production's availability,
+missing-input explanation, consumption and reservation share these requests;
+its existing handcart, Market and carried-only restrictions remain additional
+filters. A broken first vessel cannot hide healthy ingredients later in ID order.
+Construction uses Holdings for both affordability and immediate payment, so it
+does not divert goods promised to another building or held for sale.
+
 ## Clock and asynchronous decisions
+
+Restoring an existing world, including an isolated proposed tick, starts with
+its saved world systems. It does not generate a disposable initial ecology,
+chunk set or weather state. New worlds still generate those systems normally;
+ordinary loads still validate saved data and check deterministic map identity.
 
 The current host aims for one tick per real second. New worlds save 360 ticks
 per day and a 40-day year with four ten-day seasons; lifecycle thresholds are
@@ -101,7 +215,8 @@ seeking a food source, harvesting food, gathering supported raw materials,
 storing personal raw materials or equipment, collecting personal raw materials,
 ready-to-eat food or equipment, repairing supported personal
 clothing, carrying aids and tools, household field work, and moving to an exact
-tile, supported non-food production recipes, and a named face-to-face talk attempt. Harvest and food-source travel orders must name a supported kind or resource; explicit resource names must match a complete
+tile, attaching/parking owned handcarts, supported non-food production recipes,
+and a named face-to-face talk attempt. Harvest and food-source travel orders must name a supported kind or resource; explicit resource names must match a complete
 identifier and the requested kind. Unsupported
 objects or operations, mixed tasks, unknown explicit targets, and invalid
 quantities or leftover words are rejected as not understood rather than mapped
@@ -935,6 +1050,26 @@ writer or copying source becomes unavailable, or the artifact limit is
 reached, the unfinished work releases its unused supplies. The agent's Profile
 shows the writing or copying progress.
 
+The bounded owner catalogue recognizes `write_knowledge` for records, maps
+and books, with an explicit count up to 1,000 or repeat-until-cancelled.
+Orders use the native fact selection, duplicate-account, access, carrying and
+paid-work rules above. A matching ordinary writing job can be adopted; another
+kind or a copy remains intact and blocks the order. Each owned live project
+binds the exact current instruction and the instruction binds that project.
+Only its completed physical artifact credits one unit. Cancellation and
+replacement release only the bound project's unspent inputs. Counted or
+repeating work waits for new learned facts after the current account has been
+written. Queuing and urgent interruptions use the existing order lifecycle.
+
+The catalogue also recognizes `copy_knowledge` with bounded counts and repetition,
+using the native held-artifact copying path. The adult must own and
+carry the exact source and know all of its sites; order handling does not read
+it or teach missing knowledge. The source stays pinned during supply collection
+and writing. Source loss releases unused native reservations and clears the
+project binding, while keeping the source pointer for a later retry. A completed
+paid copy carries the instruction ID, credits one unit and clears both live
+pointers. The native duplicate-account and artifact limits still apply.
+
 Reading or sharing a held artifact teaches only its recorded sites to the
 actual recipient, retaining the original discoverer and the source artifact.
 Copying needs the source, learned facts and new writing materials; sharing
@@ -944,12 +1079,26 @@ anyone else's private stock. Two artifacts of the same kind can be exchanged
 when each records sites its recipient has not learned; the existing consent,
 ownership, reservation and delivery checks still apply.
 
+Scouting has no fixed eight-step turn-back. `explore` continues an outward
+outing; the separate `explore_return` choice starts a return to its origin.
+These choices use the existing 30-tick reconsideration cadence and ordinary
+guidance-triggered requests, not a new request for each movement step. An
+ongoing return can also continue through `explore`, preserving its waypoints.
+The starting warmth estimate keeps its eight-step trial budget and grows with
+the recorded return distance. If that budget no longer permits more outward
+travel, only the return choice remains; existing urgent survival rules still
+interrupt either leg.
+
 Outward scouting checks occupied destinations and both diagonal corner tiles
 before ranking neighboring exits. An attached cart also restricts exits to
 ordinary legal cart steps: cardinal movement without unroaded mountains.
 If no legal outward exit remains, the scout
 uses the existing return path instead of repeatedly targeting a blocked corner.
 Only completed movement adds a visited tile.
+An outward path never repeats a tile and is bounded by the map's tile count.
+The recent visited/discovery lists keep at most 256 entries; the existing
+personal knowledge limits are unchanged. Validation rejects looping or
+oversized saved paths and retains historical bridge checks for actual steps.
 
 If intervening legal movement interrupts outward scouting, a new outward path
 starts at the actual position without inventing missing steps. On the return
@@ -1084,6 +1233,16 @@ dry-ground speed, end to end along the bridge only (see
 [Roads and bridges](#roads-and-bridges)). Mountains are slower to cross and
 cannot be built on; peaks are impassable.
 
+Checkpoint map acceptance keeps a weak, derived camp-reachability cache for
+each map's current starting point. Before reuse it compares actual terrain,
+water, elevation, surface, wrapping and bridge-axis data with an owned topology
+snapshot. A changed origin or borrowed collection invalidates that result; a
+fresh traversal uses owned data so an old terrain index cannot hide tile edits.
+Placement, layer and manifest checks still run on every acceptance. No route
+rules change. See [Saves and replay](saves-and-replay.md) for the load boundary
+and [Camp reachability measurements](camp-reachability-measurements.md) for native
+save, allocation and exact continuation evidence.
+
 Resources are placed in bounded 16×16 cells with climate and cover biases, then
 recorded in their actual 64×64 chunks. Sparse/Normal/Abundant provisionally
 attempt alternating cells, one site per cell or two sites per cell. Food choices
@@ -1109,6 +1268,12 @@ row-major packed bytes, with separate layer digests. Signed cache claims omit
 unchanged map data only when world and digests match. Initial/changed maps and
 some control receipts still send the whole map. Viewport/chunk transfer remains
 unfinished.
+
+Each private-world observation store retains one map-derived fertility index
+and layer digest. A replacement committed map or a different world seed replaces
+that entry. Resources, fields, events and other dynamic observations are still
+projected from the captured state on every refresh; the cache stores no viewer
+snapshot or saved authority.
 
 Main-map dragging requires a held middle mouse button. Opening the pause menu
 or losing application focus clears the drag. The client observes releases
@@ -1183,6 +1348,15 @@ free for sites the running world adds, such as the three settlement sites
 beside the first Town. Grove surfaces still use the 24-tile limit; the larger
 budget supplies the denser trees on forest grass.
 
+World-systems chunk manifests own immutable resource snapshots, including input
+supplied through record replacements. An unchanged manifest reuses successful
+structural and digest validation by object identity; new or loaded manifests
+are fully checked. Current-world bounds and duplicate chunk coordinates remain
+checked on every validation, alongside changing weather and ecology. The weak
+validation cache is process data only. See [Saves and replay](saves-and-replay.md)
+for the load boundary and [Chunk validation measurements](chunk-validation-measurements.md)
+for the bounded allocation and timing comparison.
+
 **Hills** are dry land below mountain height (215), at least 190 high and within
 the hill reach of a connected mountain region (counting diagonal steps as one).
 The reach widens with the region's size: one tile for every 7 in the square
@@ -1200,6 +1374,15 @@ relief layer from the saved elevation (`UI/Map/ReliefRenderer.cs`): it renders
 size, and shows the per-tile mountain and hill art for a chunk until its relief
 is ready. It also warms hills' overview color and shows "Landform: Hills" in
 tile inspection. Hill travel cost and passability are not decided.
+
+The client's `LandscapePalette` applies the approved seasonal colour rule to
+grass and canopy ramps from the observed world season. Summer retains the base
+art. World load prepares four overview textures and the shared 16 px and 32 px
+ground and tree atlases; a season change selects those resources without
+rebuilding the map or relief chunks. Transition rims, overview trees and tile
+inspection use the same treatment. Fruit, trunks, shadows, rock, water and
+permanent snow retain their original colours. Night and regional weather still
+draw above the landscape, and winter colour alone does not add snow.
 
 All of these numbers are **provisional**. They were chosen from fixed-seed
 measurements, not owner-reviewed maps, and live in `TerrainPlacementRules`.
@@ -1742,6 +1925,10 @@ stopping rules. See [placement query measurements](placement-query-measurements.
 for the follow-up comparison.
 The [Warehouse query measurements](warehouse-query-measurements.md) record a
 later bounded repair, exact native equivalence and its mixed small-case timings.
+Household planning computes each prospective building's identity once per design,
+before checking placed buildings for it. Each later query reads current reservations
+again. See [household plan query measurements](household-plan-query-measurements.md)
+for native candidate/state equivalence, repeated timings and allocation results.
 Building plans follow what a household needs, not a role. An adult whose
 household lacks a House, Farmhouse, Blacksmith, Silo, Tailor Shop, Clinic or Restaurant is offered ranked sites
 for it once the household has the build costs in hand: stock the household
@@ -1770,6 +1957,12 @@ approved partial withdrawals. An explicit destination prevents fallback to
 another store. Ready-to-eat greens and fruit go to
 the household's House. Neither stock nor ownership moves
 remotely.
+
+Flour hauling from the Farmhouse to the House checks each source with the
+actual haul planner before choosing it. A broken pot or another unusable
+source does not hide later usable flour. Pickup repeats this selection;
+reservations, carrying room, destination space, whole-vessel transfers and
+the existing partial flour withdrawals still apply.
 
 Ordinary milling can draw needed household grain from its Silo into its
 Farmhouse. Available and inbound Farmhouse grain reduce the pickup; recipe
@@ -2281,6 +2474,14 @@ values. First-Town setup stores each starting agent's garment in their
 household's House. A package is staged for older worlds on the first tick, but
 the settlement package's digest changed when the Weaving frame was removed, so
 saves made before this change are refused.
+
+Garment and carrying-aid selection uses personally carried goods, actual
+household stock or permitted Town Warehouse stock. Having no household does
+not make a person's own ID a shared-stock owner. Their goods left in a House
+or on the ground remain physical collection choices until picked up, with
+the usual access, travel and carrying-space checks. Equipping shared goods
+still collects one unit at its location. Save validation requires every
+equipped unit to be personally owned, carried and unreserved.
 
 The five alternative household building sizes have separate shipped packages;
 their original definitions and first-Town defaults keep their identities.
@@ -2823,7 +3024,34 @@ zoom, and shows travel and dock use in tile, Port and Town inspection. Port nigh
 lights use the approved T-head lantern. Smaller views scale the approved 32-pixel
 boat until #914 supplies approved 16-pixel art.
 
+Checkpoint compaction retains every active request and the existing 40 recent
+closed requests by sequence. It durably archives full older records before
+installing the smaller live queue; compact sequence ranges retain gaps around
+older active passengers. The `world_history_compacted` diagnostic includes live
+boat-request and retired-range counts. See
+[Saves and replay](saves-and-replay.md#ports-and-communal-boats) for the schema,
+archive-write ordering and recovery checks.
+
 ## Physical handcarts
+
+Orders accept `Attach/Pull [my] cart/handcart` and `Park/Unhitch [my]
+cart/handcart`, optionally prefixed with `Please`. A complete exact cart lot
+ID binds immediately. `at (x, y)` uses the existing strict coordinate parser
+and binds only one owned cart at that tile; ambiguous targets are not guessed.
+An unspecified attach task selects an accessible, usable owned cart when it
+starts; unspecified parking selects the actor's actual attached cart. The first
+executed step persists `TargetCartLotId`, so later ownership or route changes
+block that cart rather than redirecting the order.
+
+The common order lifecycle handles queue, replacement, cancellation and urgent
+survival interruptions. Cart steps call `ApplyHandcartCandidate` and earn one
+`cart_tasks` unit only when the selected native hitch changes as requested.
+A deterministic per-instruction receipt binds the actor, action and cart.
+Strict validation checks the target's identity and cart kind, task shape and
+receipt; owner and Godot projections retain the optional target. Neither a
+pre-existing attachment nor an unrelated parking effect completes an order.
+Loading, unloading and repair orders remain separate work.
+
 
 `InventoryContainerRules.Handcart` is a single ground-position inventory lot.
 Its condition, owner and child cargo lots are authoritative inventory facts;
@@ -2850,7 +3078,11 @@ completion. Running or paused jobs reserve only their net stored output growth,
 excluding ground handcart outputs. Ordinary stored outputs still reserve room
 after accounting for consumed inputs already in that building. Repair consumes
 three carried material reservations atomically. Unloading can retain
-damaged goods on the ground and works after the cart breaks. Property transfer
+damaged goods on the ground and works after the cart breaks. Unload choices
+cover cargo in every owned cart on the actor's current tile; execution resolves
+the selected cargo's actual cart and rechecks position, ownership, reservations
+and carrying space. An empty cart cannot hide another cart's cargo.
+Property transfer
 and inheritance keep the entire cart/cargo family at its existing position.
 A death, break or ownership change removes the attachment without dropping or
 teleporting the goods. Owner observation derives cart inspection from those
@@ -2874,9 +3106,9 @@ lives in `TreeGrowthRules` and is provisional ([#462](https://github.com/compood
   wood and one `tree_seed`; the stump regrows in spring. One tree-seed item
   serves broadleaf and conifer.
 - **Planting** is the typed `PlantTree` action. It checks, in order, the
-  species (broadleaf or conifer only; orchard propagation is still open), that
-  the planter is an adult, that the seed lot is a tree seed they own with one
-  free, the ground (grass, forest floor or fertile soil; never water, sand,
+  species (broadleaf, conifer or orchard), that
+  the planter is an adult, that the seed lot is the matching seed they own with one
+  available for planting, the ground (grass, forest floor or fertile soil; never water, sand,
   rock, snow or dry scrub), buildings, Roads and existing objects, that the
   planter stands on or next to the tile, and the chunk's resource budget. A
   refusal returns a `TreePlantingRefusal` and a one-line reason and changes
@@ -2888,10 +3120,22 @@ lives in `TreeGrowthRules` and is provisional ([#462](https://github.com/compood
   `replant_tree` also uses a tree seed.
   Replanting selects stumps reachable from the acting agent, including on
   disconnected islands, and skips stumps with no unoccupied route into reach.
-- **Orchard trees** are `growing`, `fruiting` or `picked`. Fruit is seasonal in
+- **Orchard trees** are `sapling` immediately after planting, then `growing`,
+  `fruiting` or `picked`. Fruit is seasonal in
   `EcologyRules`: it ripens only in the tree's recorded season (autumn for new
   worlds) and falls when that season ends. New worlds start in spring, so
   orchards start without fruit.
+- **Owner orders** accept bounded tree counts, repeat-until-cancelled work,
+  optional broadleaf/conifer/orchard species and an exact planting tile. The
+  parser, observer guidance and strict saved-order validation use the same
+  actions. Every step checks the live site, seed access and route. An adult
+  physically collects personal stored seeds or permitted shared stock before
+  planting through `PlantTreeCore`. Exact sites stay outside Town borders and
+  never fall back to a different tile. Only a successful sapling creation
+  credits the `tree:plant:planted-tree-{x}-{y}` receipt; pickup, movement and
+  refusal leave progress unchanged. Queues, cancellation, survival interrupts
+  and continuation use the existing owner-order lifecycle. No new checkpoint
+  field or growth rule is introduced.
 - **Saves.** Planted trees are part of the saved map. On load, the map must
   still match regeneration apart from the settlement's staged sites and valid
   planted trees; each planted tree must be a plantable species on legal ground,
@@ -2900,8 +3144,10 @@ lives in `TreeGrowthRules` and is provisional ([#462](https://github.com/compood
 - **Art.** `UI/Graphics/TreeArtManifest.cs` in the client is the one list of
   tree art: species, stage, asset ID, sprite, source, licence and review
   status. The map reads its sprites and stage names from it. Broadleaf and
-  conifer mature, sapling and stump sprites and the three orchard stages are
-  approved art from the October 1 review; the tree-seed item has no art yet. The
+  conifer mature, sapling and stump sprites and the three established orchard
+  sprites are approved art from the October 1 review. Orchard saplings reuse
+  the approved growing sprite with a separate terrain code, preserving the
+  host's saved stage; the tree-seed item has no art yet. The
   [pixel-art style guide](art-style.md) explains how art is reviewed.
 - **Logs.** The host logs `tree_planting` outcomes (planted, refused,
   replanted, seed collected) with the agent ID and a bounded detail.
@@ -2971,7 +3217,10 @@ has no teacher; completing an accepted lesson records the teacher's agent ID.
 
 Lesson candidates use saved skills and the existing food/warmth readiness
 rules, independently of work roles. A mentor cannot be working on an active
-project, handling another social decision, or reserved for another lesson.
+project, carrying out an operative Must Do order, handling another social
+decision, or reserved for another lesson. Cancelling or finishing the order
+allows lesson requests and replies again; a pending request keeps its normal
+consent and expiry rules. Suggestive guidance does not reserve the teacher.
 Both participants must be able to reach the common lesson site when a request
 is offered or executed and when the teacher accepts. Mentor selection keeps
 its stable identity order but skips adults without a physical route, so an
@@ -3060,13 +3309,21 @@ to the patch's interaction area, using the same live people and animal blockers
 as movement. A crowded nearer patch does not hide another reachable patch within
 the existing search radius.
 
+Forage checks that radius before looking up stock through the current ecology
+state's ID index. Feed consumption replaces the ecology state, so the next
+animal sees the remaining quantity. Distance and ordinal-ID ordering stay the
+same; missing source records remain unavailable.
+
 Adults tame, care, collect, supply, lead, saddle, mount and dismount through
 ordinary revalidated choices. Native orders bind an exact animal name or ID.
 Care spends actual unreserved grain/greens and jug water at the animal or yard;
 food, planting and workstation reserves stay protected. For care away from the
 actor's tile, input selection accepts only physically carried supplies. This
-keeps the existing supply path collecting both feed and a water jug before
-approaching the animal, including after a partial pickup. At the animal's tile,
+keeps the existing supply path collecting feed and enough usable jug water before
+approaching the animal, including after a partial pickup. Water may be split
+across jugs or content lots; fetching counts the usable water already carried
+and rechecks each whole jug against reservations and free carrying space.
+At the animal's tile,
 permitted local yard stock remains usable directly. Physical supply trips
 retain the owning household. Cancelling or replacing an animal order releases
 only a supply trip matching its actor, animal and action, without relocating,

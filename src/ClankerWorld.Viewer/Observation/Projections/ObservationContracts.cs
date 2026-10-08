@@ -275,6 +275,8 @@ public sealed record ViewerInstructionOrder(
     string? TargetItemKind = null,
     string? TargetBuildingKind = null,
     string? TargetAnimalId = null,
+    string? TargetKnowledgeKind = null,
+    string? TargetCartLotId = null,
     string? TalkConversationId = null,
     string? TalkStatus = null,
     string? TalkOutcome = null);

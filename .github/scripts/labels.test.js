@@ -72,9 +72,13 @@ test('pull request and stale-claim scripts use only active configured labels', (
 });
 
 test('documented GitHub searches use only active configured labels', () => {
-  for (const file of ['CONTRIBUTING.md', 'AGENTS.md']) {
+  // The searches live in AGENTS.md and the fix-issue and review-merge skills; the rest are checked too.
+  const skills = fs.readdirSync(path.join(Root, 'skills'), { withFileTypes: true })
+    .filter(entry => entry.isDirectory()).map(entry => `skills/${entry.name}/SKILL.md`);
+  const searched = ['AGENTS.md', 'skills/fix-issue/SKILL.md', 'skills/review-merge/SKILL.md'];
+  for (const file of ['CONTRIBUTING.md', 'AGENTS.md', ...skills]) {
     const names = searchLabels(fs.readFileSync(path.join(Root, file), 'utf8'));
-    assert.ok(names.length > 0, `${file} has no label searches`);
+    if (searched.includes(file)) assert.ok(names.length > 0, `${file} has no label searches`);
     checkLabels(names, file);
   }
 });

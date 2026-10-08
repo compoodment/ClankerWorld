@@ -1,0 +1,1 @@
+- On the paired world: start a generated world on Windows and watch untamed animals reach wild greens and fresh water; when people block the nearest patch, they can use another reachable nearby patch without eating household goods. ([#1197](https://github.com/compoodment/ClankerWorld/issues/1197))
