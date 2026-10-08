@@ -1,0 +1,1 @@
+- Agents carrying several water jugs now return one that is free to move and fits at home, leaving another jug's promised water intact instead of stopping the world or returning the wrong jug.

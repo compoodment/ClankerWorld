@@ -1,0 +1,2 @@
+- Load a world with mountains near the starting view at close zoom. The mountains may show their old tile-by-tile drawing for a moment, but should fade smoothly into the joined-up relief rather than switching in one frame. ([#1178](https://github.com/compoodment/ClankerWorld/pull/1178))
+- Pan slowly along a long mountain range at close and mid zoom. The relief should already be there as each new stretch comes into view, with the old tile-by-tile mountains showing rarely, if at all. ([#1178](https://github.com/compoodment/ClankerWorld/pull/1178))

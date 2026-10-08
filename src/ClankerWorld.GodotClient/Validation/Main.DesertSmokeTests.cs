@@ -61,6 +61,24 @@ public partial class Main
                 }
             if (withCactus.Count == 0 || withCactus.Count * 2 > cover)
                 throw new InvalidOperationException($"Cactus cover must hold a few cacti, not one on every tile: {withCactus.Count} of {cover}.");
+            var cactus = withCactus[0];
+            var footprint = new Rect2I(Math.Max(0, cactus.X - 1), Math.Max(0, cactus.Y - 1), 2, 2);
+            var site = new OwnerWorldConstructionSite("desert-site", "test/house", "House", ["house"],
+                new(footprint.Position.X, footprint.Position.Y), 2, 2, null, 1, 10, "working", "alder", null);
+            layer.SetConstructionSites([site]);
+            foreach (var tile in withCactus)
+                if ((layer.CactusAt(tile.X, tile.Y) is null) != footprint.HasPoint(tile))
+                    throw new InvalidOperationException("Only the construction footprint clears decorative cacti.");
+            layer.SetCamera(new Rect2(0, 0, w, h), 32, 0, false);
+            for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (layer.CactusSpriteCount != withCactus.Count(tile => !footprint.HasPoint(tile)))
+                throw new InvalidOperationException("Cacti must not draw over a construction footprint.");
+            layer.SetConstructionSites([site with { Tags = ["street_lantern"], Site = new(cactus.X, cactus.Y), Width = 1, Height = 1 }]);
+            if (layer.CactusAt(cactus.X, cactus.Y) is not null)
+                throw new InvalidOperationException("A lantern construction tile also clears its cactus.");
+            layer.SetConstructionSites([]);
+            if (withCactus.Any(tile => layer.CactusAt(tile.X, tile.Y) is null))
+                throw new InvalidOperationException("Removing construction restores the desert's decorative cacti.");
             layer.SetRoads([new OwnerWorldPosition(withCactus[0].X, withCactus[0].Y)]);
             if (layer.CactusAt(withCactus[0].X, withCactus[0].Y) is not null)
                 throw new InvalidOperationException("A Road clears the cactus from its tile.");
@@ -73,6 +91,20 @@ public partial class Main
             for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             if (layer.CactusSpriteCount != 0)
                 throw new InvalidOperationException("The overview zoom shows desert brush colour, not cactus sprites.");
+
+            layer.SetWorld(ReliefMap(w, h, elevation, new byte[w * h], surface, vegetation, wrap: true));
+            layer.SetCamera(new Rect2(0, 0, w, h), 32, 0, true);
+            var edgeY = Enumerable.Range(0, h).First(y => layer.CactusAt(0, y) is not null);
+            var wrappedSite = site with { Site = new(w - 1, edgeY), Width = 2, Height = 1 };
+            layer.SetConstructionSites([wrappedSite]);
+            if (layer.CactusAt(0, edgeY) is not null)
+                throw new InvalidOperationException("A construction footprint clears cactus across the wrapped seam.");
+            layer.SetConstructionSites([wrappedSite]);
+            if (layer.CactusAt(0, edgeY) is not null)
+                throw new InvalidOperationException("An unchanged construction update preserves cactus clearing.");
+            layer.SetConstructionSites([]);
+            if (layer.CactusAt(0, edgeY) is null)
+                throw new InvalidOperationException("Removing a wrapped site restores its cactus.");
         }
         finally
         {

@@ -100,13 +100,30 @@ public partial class Main
         RenderMap(map with { WorldTick = 3, Animals = [animal, ewe with { Position = new(123, 61) }, wild] });
         if (!Shows(walking, AgentSprites.South, 2))
             throw new InvalidOperationException("The next step must show the other walking frame, facing the new move.");
-        walking._Process(AgentMarker.StepSeconds + 0.1);
-        if (!Shows(walking, AgentSprites.South, 0))
-            throw new InvalidOperationException("An animal that stops must stand again.");
-        RenderMap(map with { WorldTick = 4, Animals = [animal, ewe with { Position = new(110, 61) }, wild] });
+        RenderMap(map with { WorldTick = 4, Animals = [animal, ewe with { Position = new(123, 61) }, wild] });
+        if (!Shows(walking, AgentSprites.South, 2))
+            throw new InvalidOperationException("An unchanged observation must retain the current walking frame until its timer ends.");
+        RenderMap(map with { WorldTick = 5, Animals = [animal, ewe with { Position = new(110, 61) }, wild] });
         if (walking.Step != 0)
-            throw new InvalidOperationException("A long jump must not show a walking step.");
-        RenderMap(map with { WorldTick = 5 });
+            throw new InvalidOperationException("A long jump must immediately clear an active walking step.");
+        RenderMap(map with { WorldTick = 6, Animals = [animal, ewe with { Position = new(111, 61) }, wild] });
+        if (!Shows(walking, AgentSprites.FacingToward(1, 0), 1))
+            throw new InvalidOperationException("A short move after relocation must start with the first walking step.");
+        RenderMap(map with { WorldTick = 7, Animals = [animal, ewe with { Position = new(111, 61), LifeStage = "deceased" }, wild] });
+        if (!Shows(walking, AgentSprites.FacingToward(1, 0), 0))
+            throw new InvalidOperationException("A dead animal must immediately stop stepping even at the same tile.");
+        RenderMap(map with { WorldTick = 8, Animals = [animal, ewe with { Position = new(112, 61) }, wild] });
+        if (!Shows(walking, AgentSprites.FacingToward(1, 0), 1))
+            throw new InvalidOperationException("A living animal that moves must step again.");
+        RenderMap(map with { WorldId = "animal-smoke-other-world", WorldTick = 9, Animals = [animal, ewe with { Position = new(112, 61) }, wild] });
+        if (!ReferenceEquals(walking, mapObjectVisuals["animal:" + ewe.Id].GetNode<AnimalMapSprite>("AnimalSprite")) ||
+            !Shows(walking, AgentSprites.South, 0))
+            throw new InvalidOperationException("A world switch must clear a reused animal sprite's walking state.");
+        RenderMap(map with { WorldId = "animal-smoke-other-world", WorldTick = 10, Animals = [animal, ewe with { Position = new(113, 61) }, wild] });
+        walking._Process(AgentMarker.StepSeconds + 0.1);
+        if (!Shows(walking, AgentSprites.FacingToward(1, 0), 0))
+            throw new InvalidOperationException("An animal that stops must stand again.");
+        RenderMap(map with { WorldTick = 11 });
         selectedTile = new(120, 60);
         RenderTileInspection(map);
         if (!TileCardText().Contains("Moss", StringComparison.Ordinal))
@@ -114,5 +131,6 @@ public partial class Main
         var description = WorldEventText.Describe(new(1, 1, "animal_cared", "rider:smoke-horse"), map);
         if (!description.Contains("Moss", StringComparison.Ordinal) || description.Contains("smoke-horse", StringComparison.Ordinal))
             throw new InvalidOperationException("Animal events must show the animal's name.");
+        VerifyYardAnimalInspection();
     }
 }

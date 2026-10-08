@@ -27,11 +27,18 @@ public partial class AnimalMapSprite : TextureRect
     /// <summary>
     /// Shows the animal as the latest observation describes it. <paramref name="stepped"/>
     /// is true when it has just moved one short step, which shows the next walking frame.
+    /// <paramref name="resetStep"/> clears motion after relocation, death or a new world observation.
     /// </summary>
-    public void Show(string species, int facing, bool young, bool mounted, bool saddled, bool shorn, int size, bool stepped)
+    public void Show(string species, int facing, bool young, bool mounted, bool saddled, bool shorn, int size, bool stepped, bool resetStep)
     {
         look = (species, facing, young, mounted, saddled, shorn, size);
-        if (stepped)
+        if (resetStep)
+        {
+            step = 0;
+            stepSecondsLeft = 0;
+            SetProcess(false);
+        }
+        else if (stepped)
         {
             step = step == 1 ? 2 : 1;
             stepSecondsLeft = AgentMarker.StepSeconds;

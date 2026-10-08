@@ -38,9 +38,11 @@ public partial class Main
             if (GetViewport().GetVisibleRect().Size != new Vector2(1280, 720))
                 throw new InvalidOperationException("Handcart zoom checks must run in a real 720p viewport.");
             VerifyHandcartMotionAndZoom();
+            VerifyPeopleInside();
             VerifyBoatPresentation();
             VerifyAnimalPresentation();
             VerifyAbandonedBuildingLooks();
+            await VerifyConstructionSitesAsync();
         }
         finally
         {

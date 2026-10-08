@@ -207,6 +207,16 @@ covers partial planting, queues, released seeds, real tool wear and household
 harvest ownership. This version follows the integrated guardian-placement schema 71. Older alpha saves
 are refused and preserved unchanged without migration.
 
+Tree-planting orders reuse the current order fields for a bounded count,
+optional exact tile and `plant_tree`, `plant_broadleaf`, `plant_conifer` or
+`plant_orchard` action. Only a newly created sapling earns one tree and its
+canonical `tree:plant:planted-tree-{x}-{y}` receipt. Seed collection and travel
+retain zero progress. Strict restoration rejects unsupported fields, invalid
+counts and malformed receipts. Native replay covers physically harvested
+seeds, personal storage and shared stock, planting travel, exact occupied
+tiles, completed quantities, queues and cancellation. No schema field or
+migration is added.
+
 Private-world schema 73 adds `repair_tool` orders using the existing
 `TargetEquipmentKind` field. Validation restricts the action to supported tool
 kinds and repair counts. Only a completed inventory repair earns a bounded
@@ -362,6 +372,15 @@ departure, death, consumption or removal of the physical target. Prepared-tick
 rollback includes these ledgers alongside the actual goods or work. Earlier
 alpha checkpoints are refused and preserved; no inferred case history or
 migration is added.
+
+Accepted remedies retain the nearest earlier agreement through their exact
+prior-offer chain, including successive counteroffers during renegotiation.
+The original agreement's own offer becomes superseded; intermediate countered
+offers keep their history. Strict loading rejects a missing or unrelated
+predecessor instead of reconstructing obligations or moving earlier physical
+receipts into the replacement. Previously written accepted renegotiations with
+a lost predecessor are refused and preserved. No saved fields or event shapes
+change, and current schema 100 is retained.
 
 Schema 97 adds `CarriedAvailableQuantityBefore` to native public-service
 receipts. It snapshots the usable personal stock of the donated kind before
@@ -1251,6 +1270,10 @@ person's Town. Positive personal recipients alone receive its final words.
 Inheritance changes ownership while retaining ground, House storage or a living
 carrier's custody; goods carried by the deceased are dropped at their last tile.
 Town shares use the Town's current Warehouse while it can accept them.
+Warehouse validation and estate refusal share the inventory food classifier:
+eggs, milk and their meals follow the household default, with vessels and
+contents kept together. Current-format checkpoints that place food in a
+Town Warehouse are invalid; refusal preserves the saved file without migration.
 Debts and Town-law conflicts remain separate work. Inheritance does not decide guardianship.
 
 A quantity-one physical map, field record or book retains its lot ID when inherited.

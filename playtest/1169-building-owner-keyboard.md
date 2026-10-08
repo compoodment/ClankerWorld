@@ -1,0 +1,2 @@
+- In a paired world, open a private building’s Details and Change owner, use Down to highlight another household, wait through several world updates, then press Enter. Confirm the intended household is selected and the menu closes. https://github.com/compoodment/ClankerWorld/issues/1169
+- With the owner menu open, switch buildings or worlds, or make the highlighted owner unavailable from another paired client. Confirm the old menu closes and the current building offers only its current owners. https://github.com/compoodment/ClankerWorld/issues/1169

@@ -69,6 +69,9 @@ public partial class Main
         inhabitantCanonicalXs.Clear();
         foreach (var visual in mapObjectVisuals.Values) visual.QueueFree();
         mapObjectVisuals.Clear();
+        foreach (var badge in occupancyBadges.Values) badge.QueueFree();
+        occupancyBadges.Clear();
+        occupancyCanonicalXs.Clear();
         mapObjectCanonicalXs.Clear();
         handcartFacings.Clear();
         animalFacings.Clear();
@@ -217,6 +220,8 @@ public partial class Main
         terrainLayer.SetBuildings(snapshot.PlacedBuildings, snapshot.Objects, snapshot.Towns);
         nightLightsLayer.SetBuildings(BuildingLights(snapshot));
         nightLightsLayer.SetLanterns(StreetLanterns(snapshot), snapshot.WrapsEastWest);
+        terrainLayer.SetConstructionSites(snapshot.ConstructionSites);
+        nightLightsLayer.SetLanternSites(StreetLanternSites(snapshot));
         worldOverview.SetRoads([.. snapshot.RoadTiles, .. snapshot.Bridges.SelectMany(bridge => bridge.Span)]);
         ApplyMapFilters(snapshot);
         var mapWidth = terrainMap.Width;
@@ -292,6 +297,7 @@ public partial class Main
             }
             var facing = AgentSprites.South;
             var stepped = false;
+            var resetStep = animal.LifeStage == "deceased";
             if (animalFacings.TryGetValue(animal.Id, out var previousAnimal))
             {
                 facing = previousAnimal.Facing;
@@ -300,13 +306,16 @@ public partial class Main
                 var dy = animal.Position.Y - previousAnimal.Position.Y;
                 if (dx != 0 || dy != 0) facing = AgentSprites.FacingToward(dx, dy);
                 // A short move is a step; a longer jump, such as a reload, is not.
-                stepped = (dx != 0 || dy != 0) && Math.Max(Math.Abs(dx), Math.Abs(dy)) <= AgentMarker.MaxStepTiles &&
-                    animal.LifeStage != "deceased";
+                var moved = dx != 0 || dy != 0;
+                var shortMove = Math.Max(Math.Abs(dx), Math.Abs(dy)) <= AgentMarker.MaxStepTiles;
+                resetStep |= moved && !shortMove;
+                stepped = moved && shortMove && !resetStep;
             }
+            else resetStep = true;
             animalFacings[animal.Id] = (animal.Position, facing);
             var size = currentTileSize >= 40 ? 32 : 16;
             sprite.Show(animal.Species, facing, animal.LifeStage == "young", animal.RiderId is not null,
-                animal.Saddled, animal.LooksShorn, size, stepped);
+                animal.Saddled, animal.LooksShorn, size, stepped, resetStep);
             sprite.Size = new(size, size);
             sprite.Position = new(0, Math.Max(0, marker.Size.Y - size));
             sprite.Modulate = animal.LifeStage == "deceased" ? new Color("A89279") : Colors.White;
@@ -378,6 +387,9 @@ public partial class Main
                 building.Width, building.Height);
         }
 
+        // People inside a building are hidden; the building shows how many instead.
+        var peopleInside = PeopleInside(snapshot);
+        var hiddenInside = peopleInside.Values.SelectMany(people => people).Select(person => person.Id).ToHashSet(StringComparer.Ordinal);
         foreach (var group in snapshot.Inhabitants
             .Where(inhabitant => !inhabitant.IsDraft && string.Equals(inhabitant.Lifecycle, "active", StringComparison.OrdinalIgnoreCase))
             .GroupBy(inhabitant => PositionKey(inhabitant.Position)))
@@ -423,7 +435,7 @@ public partial class Main
                 }
                 actorMarker.Caption = GameUiText.ActorMapLabel(inhabitant.DisplayName);
                 actorMarker.Variant = AgentSprites.VariantFor(inhabitant.Id);
-                actorMarker.Visible = !snapshot.Animals.Any(animal => animal.RiderId == inhabitant.Id);
+                actorMarker.Visible = !snapshot.Animals.Any(animal => animal.RiderId == inhabitant.Id) && !hiddenInside.Contains(inhabitant.Id);
                 actorMarker.Stage = AgentSprites.StageIndex(
                     inhabitant.DecisionFactors.FirstOrDefault(factor => factor.Key == "age-band")?.Detail);
                 // Facing and frame only present what the observation says:
@@ -461,6 +473,7 @@ public partial class Main
             inhabitantCanonicalXs.Remove(removedId);
         }
 
+        RenderOccupancyBadges(snapshot, peopleInside);
         RenderTileInspection(snapshot);
         RenderAgentConversationReader(snapshot);
         PositionSelectedInhabitantCard(snapshot);
