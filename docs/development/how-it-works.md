@@ -3018,7 +3018,13 @@ actor's tile, input selection accepts only physically carried supplies. This
 keeps the existing supply path collecting both feed and a water jug before
 approaching the animal, including after a partial pickup. At the animal's tile,
 permitted local yard stock remains usable directly. Physical supply trips
-retain the owning household. A trip isolates its selected feed quantity from
+retain the owning household. Cancelling or replacing an animal order releases
+only a supply trip matching its actor, animal and action, without relocating,
+transferring or spending its cargo. Executing a new animal order also discards
+an unrelated retained trip, including one loaded from a previously cancelled
+task, before selecting supplies. Care-order admission can inspect legal replacement
+supplies despite unrelated trip tracking. A matching active trip keeps its normal checks.
+A trip isolates its selected feed quantity from
 the source, including an already carried stack, so delivery cannot donate the
 unselected remainder. Reusable jugs travel whole with their contents. One held
 product batch waits for local collection;

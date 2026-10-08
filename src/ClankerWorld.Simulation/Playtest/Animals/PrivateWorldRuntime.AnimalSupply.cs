@@ -13,9 +13,9 @@ public sealed partial class PrivateWorldRuntime
         public string Id => "animal:supply:" + AnimalKey(Lot.Id + ":" + Yard.InstanceId + ":" + AnimalId + ":" + Action);
     }
 
-    private IEnumerable<AnimalSupplyChoice> AnimalSupplyChoices(string actor)
+    private IEnumerable<AnimalSupplyChoice> AnimalSupplyChoices(string actor, bool ignoreActiveTrip = false)
     {
-        if (!AdultResident(actor) || animalWorld.SupplyTrips.Any(trip => trip.ActorId == actor)) yield break;
+        if (!AdultResident(actor) || !ignoreActiveTrip && animalWorld.SupplyTrips.Any(trip => trip.ActorId == actor)) yield break;
         var yards = worldSimulation.Buildings.Where(yard => yard.HouseholdId is not null && worldContent.Buildings.Any(definition =>
             definition.CanonicalId == yard.DefinitionId && definition.Tags.Contains(AnimalContent.YardTag)) && MaySupplyAnimalYard(actor, yard));
         foreach (var yard in yards.OrderBy(yard => yard.InstanceId, StringComparer.Ordinal))

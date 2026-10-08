@@ -126,6 +126,7 @@ public sealed partial class PrivateWorldRuntime
                 CancelProductionForOrder(instruction);
                 CancelConstructionForOrder(instruction);
                 CancelExpansionForOrder(instruction);
+                CancelAnimalSupplyForOrder(instruction);
                 status = "cancelled";
                 AppendEvent("instruction_order_cancelled", $"{instruction.TargetInhabitantId}:{instruction.InstructionId}:owner");
             }
@@ -341,6 +342,7 @@ public sealed partial class PrivateWorldRuntime
             CancelProductionForOrder(instruction);
             CancelConstructionForOrder(instruction);
             CancelExpansionForOrder(instruction);
+            CancelAnimalSupplyForOrder(instruction);
             AppendEvent("instruction_order_cancelled", $"{inhabitantId}:{instruction.InstructionId}:replaced");
         }
         checkpointSchemaVersion = StateSchemaVersion;
