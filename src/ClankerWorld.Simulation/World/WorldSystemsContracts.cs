@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Runtime.CompilerServices;
@@ -1365,7 +1366,33 @@ public sealed record ChunkManifest(
     string GeneratorId,
     string GeneratorVersion,
     IReadOnlyList<ChunkResourceMetadata> Resources,
-    string ManifestDigest = "");
+    [property: JsonPropertyOrder(1)] string ManifestDigest = "")
+{
+    private readonly FrozenResources resources = Freeze(Resources);
+
+    // `with` replacements and read-only views of borrowed arrays need the
+    // same ownership boundary as constructor input. Scalar metadata is immutable.
+    public IReadOnlyList<ChunkResourceMetadata> Resources
+    {
+        get => resources;
+        init => resources = Freeze(value);
+    }
+
+    private static FrozenResources Freeze(IReadOnlyList<ChunkResourceMetadata> source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        return source is FrozenResources owned ? owned : new(source);
+    }
+
+    private sealed class FrozenResources(IReadOnlyList<ChunkResourceMetadata> source) : IReadOnlyList<ChunkResourceMetadata>
+    {
+        private readonly ChunkResourceMetadata[] items = source.ToArray();
+        public int Count => items.Length;
+        public ChunkResourceMetadata this[int index] => items[index];
+        public IEnumerator<ChunkResourceMetadata> GetEnumerator() => ((IEnumerable<ChunkResourceMetadata>)items).GetEnumerator();
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+    }
+}
 
 /// <summary>
 /// Chunk coordinates and manifests are intentionally metadata-only. The
@@ -1507,6 +1534,8 @@ public sealed record WorldSystemsState(
 public static class WorldSystemsRules
 {
     public const int SchemaVersion = 3;
+    private sealed class ValidatedChunk { }
+    private static readonly ConditionalWeakTable<ChunkManifest, ValidatedChunk> ValidatedChunks = new();
 
     public static WorldSystemsState CreateGenesis(
         string worldSeed,
@@ -1595,9 +1624,19 @@ public static class WorldSystemsRules
         var chunkKeys = new HashSet<ChunkCoordinate>();
         foreach (var chunk in state.Chunks)
         {
-            ChunkRules.Validate(chunk, state.Config.MaxResourcesPerChunk);
-            if (!chunkKeys.Add(chunk.Coordinate) ||
-                !string.Equals(chunk.ManifestDigest, ChunkManifestCodec.Digest(chunk), StringComparison.Ordinal))
+            ArgumentNullException.ThrowIfNull(chunk);
+            // Bounds belong to this world, not the cached manifest. The cache
+            // is safe only because each manifest owns its immutable resources.
+            if (chunk.Resources.Count > state.Config.MaxResourcesPerChunk)
+                throw new ArgumentOutOfRangeException(nameof(state));
+            _ = ValidatedChunks.GetValue(chunk, static candidate =>
+            {
+                // Digest performs the complete structural validation too.
+                if (!string.Equals(candidate.ManifestDigest, ChunkManifestCodec.Digest(candidate), StringComparison.Ordinal))
+                    throw new InvalidDataException("The saved chunk manifests are duplicated or have invalid digests.");
+                return new();
+            });
+            if (!chunkKeys.Add(chunk.Coordinate))
             {
                 throw new InvalidDataException("The saved chunk manifests are duplicated or have invalid digests.");
             }
