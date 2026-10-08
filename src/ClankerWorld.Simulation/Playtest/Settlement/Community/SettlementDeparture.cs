@@ -324,6 +324,7 @@ public sealed partial class PrivateWorldRuntime
         if (FreeCarryCapacity(actor) > 0)
         {
             foreach (var lot in PersonalGoodsAwaitingCollection(actor).Where(lot => VesselFits(lot, FreeCarryCapacity(actor)))
+                         .Where(lot => CanReachPersonalGoods(actor, lot))
                          .OrderBy(lot => lot.Id, StringComparer.Ordinal))
             {
                 var knowledgeAtHome = KeptAtHomeByRoutine(lot.ItemKind) &&
