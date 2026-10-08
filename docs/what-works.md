@@ -362,6 +362,10 @@ Town Warehouse", or "stock three cloth in my Store". Named destinations may
 include a listed tile with "at (12, 4)". The selected building and owner stay
 fixed through travel, partial progress and reload.
 
+House hauling skips loose supplies it cannot reach or bring home, then tries
+another permitted pile. A blocked first pile stays untouched while the agent
+collects reachable goods that fit in its load and the House.
+
 Pickup and walking earn no delivery progress. An explicit count measures the
 requested goods at the final deposit; a plain request completes one load.
 Household supplies retain their real carried delivery assignment between

@@ -1767,7 +1767,12 @@ needing to be hungry themselves; current care authority, usable food,
 reservations, capacity and real travel are checked again at execution.
 
 House pickup counts the whole vessel family against carrying and destination
-space; loose deliveries keep their four-unit limit. An unusable carried
+space; loose deliveries keep their four-unit limit. Loose-stock selection
+also checks movement's current unoccupied pickup and source-to-House routes
+before choosing a pile. Candidates, ordinary pickup and House-stock delivery
+orders share that selection, so an occupied first pile does not hide later
+reachable goods. Ownership, reservations and whole-vessel checks still apply.
+An unusable carried
 delivery leaves ordinary hauling and can offer `recover_household_delivery`.
 Candidate and action both check the current household-owned destination,
 physical load, selected or repaired gear, active family reservations and a
