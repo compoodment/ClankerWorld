@@ -1180,6 +1180,12 @@ unchanged map data only when world and digests match. Initial/changed maps and
 some control receipts still send the whole map. Viewport/chunk transfer remains
 unfinished.
 
+Each private-world observation store retains one map-derived fertility index
+and layer digest. A replacement committed map or a different world seed replaces
+that entry. Resources, fields, events and other dynamic observations are still
+projected from the captured state on every refresh; the cache stores no viewer
+snapshot or saved authority.
+
 Main-map dragging requires a held middle mouse button. Opening the pause menu
 or losing application focus clears the drag. The client observes releases
 before GUI controls consume them and stops on motion without the middle-button
@@ -2905,6 +2911,14 @@ zoom, and shows travel and dock use in tile, Port and Town inspection. Port nigh
 lights use the approved T-head lantern. Smaller views scale the approved 32-pixel
 boat until #914 supplies approved 16-pixel art.
 
+Checkpoint compaction retains every active request and the existing 40 recent
+closed requests by sequence. It durably archives full older records before
+installing the smaller live queue; compact sequence ranges retain gaps around
+older active passengers. The `world_history_compacted` diagnostic includes live
+boat-request and retired-range counts. See
+[Saves and replay](saves-and-replay.md#ports-and-communal-boats) for the schema,
+archive-write ordering and recovery checks.
+
 ## Physical handcarts
 
 `InventoryContainerRules.Handcart` is a single ground-position inventory lot.
@@ -3159,6 +3173,11 @@ or household stock while wild. Wild forage selection checks an unoccupied route
 to the patch's interaction area, using the same live people and animal blockers
 as movement. A crowded nearer patch does not hide another reachable patch within
 the existing search radius.
+
+Forage checks that radius before looking up stock through the current ecology
+state's ID index. Feed consumption replaces the ecology state, so the next
+animal sees the remaining quantity. Distance and ordinal-ID ordering stay the
+same; missing source records remain unavailable.
 
 Adults tame, care, collect, supply, lead, saddle, mount and dismount through
 ordinary revalidated choices. Native orders bind an exact animal name or ID.
