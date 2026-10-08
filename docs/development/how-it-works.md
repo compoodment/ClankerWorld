@@ -1999,6 +1999,13 @@ diagonal, shared entrance and attached handcart rules. If none is reachable,
 preparation continues to its existing material-gathering fallback. Collection
 still rechecks authority, available stock and carrying room at the Warehouse.
 
+Ordinary workstation supply choices and execution check the adult's current
+native route to each destination before selecting its missing input. An
+occupied earlier workshop does not hide a reachable House or another workshop.
+The route is checked again as the actor moves; reaching a shared household
+building can make another delivery possible. Supply still uses actual carried
+or accessible stock, ownership, receiving space and carrying limits.
+
 Blacksmith input hauling checks the actor's current unoccupied pickup route
 and the source-to-shop route before selecting household or permitted Town
 Warehouse stock. An occupied earlier lot does not hide later reachable stock.
