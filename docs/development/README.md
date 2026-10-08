@@ -17,15 +17,18 @@ For the game itself, start with [playing](../playing.md),
 | Restore dependencies, build and check a change | [Build and test](build-and-test.md) |
 | Compare construction query costs and native state equivalence | [Construction query measurements](construction-query-measurements.md) |
 | Measure wild-animal forage searches and allocation | [Wild forage measurements](wild-forage-measurements.md) |
+| Measure cached server observations and allocation | [Cached observation measurements](cached-observation-measurements.md) |
 | Draw, review or change game art | [Pixel-art style guide](art-style.md) |
 | Approve devices or understand request security | [Device pairing](device-pairing.md) |
 | Change saves, recovery or replay | [Saves and replay](saves-and-replay.md) |
 | Update a private server with backups and rollback | [Private-server deployment](private-server-deployment.md) |
 | Choose versions and publish a release | [Releasing](releasing.md) |
+| Change a label or a label workflow | [Labels](labels.md) |
 | See measurements from merged prototypes | [Survival priorities](survival-priority-prototype.md), [Weather episodes](weather-episode-prototype.md), [Need wording](need-wording-comparison.md) |
 
-[CONTRIBUTING.md](../../CONTRIBUTING.md) owns the contribution workflow and shared
-writing rules. [AGENTS.md](../../AGENTS.md) adds coding-agent instructions and
-links to those rules. Issues own work tracking; these pages describe the present
+[CONTRIBUTING.md](../../CONTRIBUTING.md) owns the rules every contributor
+shares, including writing; each job's own rules are in its
+[skill](../../skills/README.md). [AGENTS.md](../../AGENTS.md) adds coding-agent
+instructions and links to those rules. Issues own work tracking; these pages describe the present
 implementation. Check dated operational claims against the running installation
 before changing it.

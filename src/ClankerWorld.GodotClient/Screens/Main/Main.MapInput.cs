@@ -89,6 +89,9 @@ public partial class Main
         foreach (var (id, visual) in inhabitantVisuals)
             if (inhabitantCanonicalXs.TryGetValue(id, out var x))
                 visual.Position = new Vector2(WrappedMarkerX(x, mapWidth, stride, wrapsEastWest), visual.Position.Y);
+        foreach (var (id, badge) in occupancyBadges)
+            if (occupancyCanonicalXs.TryGetValue(id, out var x))
+                badge.Position = new Vector2(WrappedMarkerX(x, mapWidth, stride, wrapsEastWest), badge.Position.Y);
     }
 
     private void RefreshOverviewViewport(int mapWidth, int mapHeight, float stride, bool wrapsEastWest)

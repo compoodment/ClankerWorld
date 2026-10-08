@@ -1,0 +1,1 @@
+- Mountain relief finishes fading without leaving the temporary hill drawings underneath.
