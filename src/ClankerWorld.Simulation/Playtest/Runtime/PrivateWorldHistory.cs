@@ -66,7 +66,7 @@ public static class PrivateWorldHistory
         return new(compacted, new(state.HistoryArchiveHead, archived, retired.Length == 0 ? null : retired));
     }
 
-    private static IReadOnlyList<RetiredBoatRequestRange> MergeRetiredRanges(
+    private static List<RetiredBoatRequestRange> MergeRetiredRanges(
         IReadOnlyList<RetiredBoatRequestRange> previous, IReadOnlyList<BoatTripRequest> retired)
     {
         // A low-sequence trip can remain active while later trips finish. Keep
