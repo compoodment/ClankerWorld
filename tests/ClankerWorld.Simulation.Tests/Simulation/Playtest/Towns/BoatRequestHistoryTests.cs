@@ -281,7 +281,7 @@ public sealed partial class PortBoatRuntimeTests
         return policy;
     }
 
-    private static IReadOnlyList<BoatTripRequest> ReadArchivedBoatRequests(PrivateWorldStateFile file) =>
+    private static BoatTripRequest[] ReadArchivedBoatRequests(PrivateWorldStateFile file) =>
         Directory.GetFiles(file.Path + ".history", "*.json")
             .SelectMany(path => JsonSerializer.Deserialize<PrivateWorldHistorySegment>(File.ReadAllBytes(path))!.ClosedBoatRequests ?? [])
             .OrderBy(request => request.Sequence).ToArray();
