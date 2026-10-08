@@ -898,6 +898,8 @@ receipts distinguish accepted work from completed work. Visitors retain local
 response rights and children receive caregiver support. Counteroffers during
 renegotiation still replace the original unfinished agreement once everyone
 accepts; only the newly agreed remaining contributions can then be performed.
+Goods returns can use a later carried lot with enough goods when an earlier
+one is too small; a named source lot and reservations still limit the payment.
 Public-service goods
 keep four usable personal units across carried lots, including stock split by
 storage and collection. No fine, seizure, expulsion or forced work is available.
