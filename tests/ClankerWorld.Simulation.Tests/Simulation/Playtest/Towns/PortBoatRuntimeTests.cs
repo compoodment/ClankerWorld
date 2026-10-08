@@ -11,7 +11,7 @@ using Client = ClankerWorld.GodotClient.UI;
 
 namespace ClankerWorld.Simulation.Tests;
 
-public sealed class PortBoatRuntimeTests
+public sealed partial class PortBoatRuntimeTests
 {
     private static readonly Lazy<Task<byte[]>> PaidBoat = new(() => BuildPaidBoatAsync());
     private static readonly Lazy<Task<byte[]>> Underway = new(StartVoyageAsync);

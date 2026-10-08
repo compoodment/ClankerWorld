@@ -1,0 +1,1 @@
+- Orders to return borrowed water jugs now bring collected milk back to the owning House even when a Store could stock it. The jug and milk stay together, and reserved goods and committed deliveries remain protected.
