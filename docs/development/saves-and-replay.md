@@ -363,6 +363,15 @@ rollback includes these ledgers alongside the actual goods or work. Earlier
 alpha checkpoints are refused and preserved; no inferred case history or
 migration is added.
 
+Accepted remedies retain the nearest earlier agreement through their exact
+prior-offer chain, including successive counteroffers during renegotiation.
+The original agreement's own offer becomes superseded; intermediate countered
+offers keep their history. Strict loading rejects a missing or unrelated
+predecessor instead of reconstructing obligations or moving earlier physical
+receipts into the replacement. Previously written accepted renegotiations with
+a lost predecessor are refused and preserved. No saved fields or event shapes
+change, and current schema 100 is retained.
+
 Schema 97 adds `CarriedAvailableQuantityBefore` to native public-service
 receipts. It snapshots the usable personal stock of the donated kind before
 transfer, across eligible carried lots and excluding reservations. Source-lot
@@ -820,7 +829,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 98. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 100. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 a bounded model-attempt status and exact last accepted model choice per agent, plus
@@ -965,6 +974,8 @@ current alpha cutoff.
 | Schema 96 | Animals, held products and saddles, care trips, pregnancies, named permissions and exact animal/milk offers retain their physical custody. Current saves require the complete animal record; earlier alpha saves are refused and preserved without migration. |
 | Schema 97 | Native public-service receipts retain the usable personal carried quantity before donation separately from the actual source lot. The four-unit reserve may span carried lots; saved validation preserves source quantity, reservations and exact physical transfer evidence. Earlier alpha saves are refused and preserved without migration. |
 | Schema 98 | Existing inventory events retain exact physical storage additions/removals by building and item kind, with signed quantities. Event identities, trade receipts, rollback and bounded archival remain intact. Malformed changes and earlier alpha schemas are refused; no migration or history reconstruction is added. |
+| Schema 99 | Towns retain the latest abandonment tick independently of bounded events. Revival clears it; missing markers, future or pre-founding ticks, and markers on lived-in Towns are refused. Earlier alpha saves are refused and preserved without migration. |
+| Schema 100 | Actual observations refresh current personal map facts. The required bounded `EarlierFacts` ledger backs unchanged artifacts and writing snapshots; duplicate, orphaned, future and mismatched versions are refused. Native writing, copying, planting, cancellation and current-format continuation retain exact contents and paid materials. Earlier alpha saves are refused and preserved without migration. |
 
 ### Tool-making requests
 
@@ -1071,7 +1082,13 @@ alpha schemas, including 53, are refused visibly and preserved without migration
 ## Abandoned Towns and physical salvage
 
 Abandonment is derived from a founded Town's empty recorded living-resident
-roster; it adds no saved flag or schema field. Children, travelers and residents
+roster. Schema 99 requires a nullable `AbandonedSinceTick` on each Town: the
+latest empty-roster transition records its world tick, and revival clears it.
+It survives count-based event compaction, so building decay starts after a
+full season rather than when its event leaves hot history. An unknown age
+does not imply a full season. Loading refuses a future or pre-founding tick,
+or an abandonment tick on a lived-in Town; older alpha saves are refused and
+preserved without migration. Children, travelers and residents
 without a home still count. A last departure or death records `town_abandoned`;
 the first new resident records `town_revived`. The Town record, laws, civic
 history, buildings, land title, household use rights and infrastructure stay
@@ -1243,6 +1260,10 @@ person's Town. Positive personal recipients alone receive its final words.
 Inheritance changes ownership while retaining ground, House storage or a living
 carrier's custody; goods carried by the deceased are dropped at their last tile.
 Town shares use the Town's current Warehouse while it can accept them.
+Warehouse validation and estate refusal share the inventory food classifier:
+eggs, milk and their meals follow the household default, with vessels and
+contents kept together. Current-format checkpoints that place food in a
+Town Warehouse are invalid; refusal preserves the saved file without migration.
 Debts and Town-law conflicts remain separate work. Inheritance does not decide guardianship.
 
 A quantity-one physical map, field record or book retains its lot ID when inherited.
