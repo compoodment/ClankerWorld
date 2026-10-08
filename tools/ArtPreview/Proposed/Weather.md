@@ -1,5 +1,10 @@
 # Weather overlay
 
+**Chosen on October 8 ([#1325](https://github.com/compoodment/ClankerWorld/issues/1325)):**
+computment picked **B · Pixel streaks**, and does not want D's cloud shadows
+mixed in. B is the approved look for the map's weather overlay; A, C and D stay
+here only as the record of the review.
+
 The map's weather overlay goes through the art review like every other
 picture (agreed October 8, [#1254](https://github.com/compoodment/ClankerWorld/issues/1254)).
 This proposal draws today's overlay and three alternatives for rain, storm and
@@ -48,8 +53,8 @@ shadows with slanting streaks. Snow comes under a pale veil instead of a shadow.
 The shadows are wide, uneven shapes, never the large circles rejected on
 September 29.
 
-## Questions for the review
+## Answers from the review
 
-1. Which look should the map use: A, B, C or D?
-2. Should the chosen look mix in a part of another, such as C's ripples on water
-   or D's cloud shadows for storms only?
+1. Which look should the map use? **B.**
+2. Should the chosen look mix in a part of another? **No:** computment does not
+   like D's cloud shadows, and B is used on its own.
