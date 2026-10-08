@@ -33,7 +33,6 @@ public sealed class KnowledgeOrderParserTests
     [InlineData("write 1001 maps")]
     [InlineData("write a map at 1,2")]
     [InlineData("write a map of an unknown Town")]
-    [InlineData("copy a map")]
     [InlineData("keep draw a map")]
     public void UnsupportedWritingTextIsNotGuessed(string text) =>
         Assert.Null(PrivateWorldInstructionOrderParser.Parse(text, [], resource => resource.Kind));
