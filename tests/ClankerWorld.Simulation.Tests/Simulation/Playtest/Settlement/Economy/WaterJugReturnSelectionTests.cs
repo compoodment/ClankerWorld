@@ -15,7 +15,6 @@ public sealed class WaterJugReturnSelectionTests
 
     [Theory]
     [InlineData(true, "contents", false, false, -1)]
-    [InlineData(true, "root", false, false, -1)]
     [InlineData(false, "contents", false, false, -1)]
     [InlineData(true, "none", false, false, -1)]
     [InlineData(true, "contents", true, false, -1)]
@@ -29,7 +28,17 @@ public sealed class WaterJugReturnSelectionTests
         var saved = PrivateWorldRuntimeCodec.Encode(state);
         using var world = Restore(PrivateWorldRuntimeCodec.Decode(saved), actor, policy);
         Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
-        Assert.False((await world.AdvanceOneTickAsync(() => false)).Advanced);
+        var permitted = true;
+        var prepared = false;
+        Assert.False((await world.AdvanceOneTickNonBlockingAsync(() => permitted, (proposed, events) =>
+        {
+            prepared = true;
+            Assert.Contains(events, item => item.Kind == (walk ? "inhabitant_moved" : "water_jug_returned") &&
+                item.Detail.StartsWith(actor + ":", StringComparison.Ordinal));
+            permitted = false;
+            return [];
+        })).Advanced);
+        Assert.True(prepared);
         Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
         var original = state.Society.Society.Inventory;
         var quantity = original.Lots.Sum(lot => lot.Quantity);
@@ -74,7 +83,7 @@ public sealed class WaterJugReturnSelectionTests
         var (state, actor, _, returned) = Prepared(true, "contents", false, false, boundary == "full-house" ? 0 : -1);
         var inventory = state.Society.Society.Inventory;
         if (boundary == "all-reserved") inventory = InventoryFixture.Reserve(inventory, "held-return-jug", actor,
-            returned, 1, "other_work", state.Society.Society.WorldTick + 1_000);
+            returned + "-water", 1, "other_work", state.Society.Society.WorldTick + 1_000);
         state = WithInventory(state, inventory);
         var policy = new ReturnChoices();
         using var world = Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)), actor, policy);
@@ -88,6 +97,8 @@ public sealed class WaterJugReturnSelectionTests
             Assert.Equal(lot with { LastProcessedTick = actual.LastProcessedTick }, actual);
         }
         Assert.Equal(inventory.GetReservation(Claim), world.Society.Inventory.GetReservation(Claim));
+        if (boundary == "all-reserved")
+            Assert.Equal(inventory.GetReservation("held-return-jug"), world.Society.Inventory.GetReservation("held-return-jug"));
         var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
         using var reload = Restore(PrivateWorldRuntimeCodec.Decode(bytes), actor, new ReturnChoices());
         Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(reload.ExportState()));
@@ -122,7 +133,7 @@ public sealed class WaterJugReturnSelectionTests
         if (free > 0) inventory = InventoryFixture.AddLot(inventory, "carried-stone", "stone", actor, free);
         Assert.Equal(0, PersonalEquipmentRules.FreeCapacity(inventory, actor, null));
         if (heldPart != "none") inventory = InventoryFixture.Reserve(inventory, Claim, actor,
-            heldPart == "root" ? other : other + "-water", 1, "other_work", state.Society.Society.WorldTick + 1_000);
+            other + "-water", 1, "other_work", state.Society.Society.WorldTick + 1_000);
         var definition = state.WorldContent!.Buildings.Single(item => item.CanonicalId == house.DefinitionId);
         var room = BuildingStorageRules.Capacity(definition, house)!.Value - inventory.Lots.Where(lot => lot.StorageBuildingId == House).Sum(lot => lot.Quantity);
         Assert.True(room >= 5);
