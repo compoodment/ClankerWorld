@@ -37,7 +37,7 @@ test alone does not make it available in the game.
 | Create, select, save and load worlds | Available in the game | Small/Medium maps; larger playable worlds and a local Windows host are unfinished. Default Balanced Small/Medium previews try up to three candidates for the Normal forest and mountain targets. |
 | Wooded forests, patchy beaches and reduced wet weather | Available in newly created worlds | Forest grass has many trees, forest-floor tiles always have trees, and cacti stay on desert sand. Default rain, storm and snow weights are one quarter lower across climates. Density and Windows performance still need owner playtesting. |
 | Choose the first Town and place four founders before starting | Available in the game | On-map, guidance-only hints for nearby food, fertile ground, wood, stone and open space for Roads; exact factor tuning remains provisional. Player-chosen supplies are unfinished. |
-| Move around and inspect the map | Available in the game | Zoom, overview, wrapped east/west movement, tile facts, building cards with stored items as icons, and separate filters for Town title, household use, disputes, building property and Town borders. The disputes filter stays empty in normal play, because land requests cannot be filed yet. Building Details lists the workstation’s registered recipes with input/output quantities, and running work shows its recipe and the materials held for it. Details also lists recent recorded storage additions and removals. |
+| Move around and inspect the map | Available in the game | Zoom, overview, wrapped east/west movement, tile facts, building cards with stored items as icons, and separate filters for Town title, household use, disputes, building property and Town borders. The disputes filter shows contested tiles in pending household land requests. Building Details lists the workstation’s registered recipes with input/output quantities, and running work shows its recipe and the materials held for it. Details also lists recent recorded storage additions and removals. |
 | Approved art for playable content | Available in the game | Clinics and Restaurants have their approved exteriors. Medicinal herb patches and picked or depleted natural sites use their matching drawings on the map and tile cards. Potatoes, cultivated green seeds, medicinal herbs, diamond ornaments and simple meals use their approved item icons. Refined gold, gold ore, plain gold ornaments, iron fittings, saddles, cooked eggs, milk, berry and fruit porridge, rich meals and leather sacks have their own icons from the October 7 art review; crude wooden axes and pickaxes use the wooden tool icons. [Windows visual checks](../playtest/792-approved-playable-art.md) are still wanted. |
 | Pause, inspect agents, view family trees and read events | Available in the game | The Agents list keeps its browsing position through information refreshes; selecting another agent still brings that card into view. Deceased profiles retain recorded thoughts and memories, and show any final will and final words; old deaths without an archive cannot be reconstructed. |
 | Developer tools | Available in the game | **F12** opens them in a world without pausing it: the tile's coordinates and facts, frame time, how long the server takes per step of world time, the agent count, jumping to an agent and drawing their planned path, plus the aging override, lost-reply recovery, paused world editing and paired-device management. While paused, **Edit selected agent** sets fullness, warmth, illness or nutrition, gives/removes carried goods, adds/removes skills, and starts/ends partnerships; each accepted change is saved and marked **Developer edit** in the Event Log. There are no time tools such as stepping one tick. The Windows playtest is pending. |
@@ -111,8 +111,7 @@ not been checked by hand in the Windows game yet. Night
 adds no rules of its own: agents need no sleep or energy, and nothing limits
 their choices or travel at night; they only react to the cold. The night chill
 is a provisional amount for playtesting, and night has not been checked by hand
-in the Windows game yet. Night effects on weather and night length that changes
-with the seasons are not built.
+in the Windows game yet. Night effects on weather are not built.
 
 ## Agents and their models
 
@@ -1051,7 +1050,8 @@ to private stores or household membership. Leaving frees the stall and cancels
 unfinished exchanges. Its next borrower cannot sell the previous seller's
 leftovers; the recorded owner can return to collect them, including spoiled
 stock that still takes up stall space. An urgently hungry
-adult can retrieve their personally owned food; unrelated Market work still
+adult can retrieve their personally owned food during an unrelated active
+order, keeping the original task and its progress. Unrelated Market work still
 waits. Household goods a
 member carries to or from the Market can be brought back into the household's
 House. Housemates leave household stock on a stall while one of them borrows
@@ -1325,7 +1325,9 @@ after felling a tree, and you cannot yet tell an agent where to plant.
 Orchard fruit trees bear fruit only in autumn. They are growing (leaves only)
 the rest of the year and drop any fruit left when autumn ends. A picked tree
 fruits again after 3 days while autumn lasts, and each picking gives 4 fruit.
-Orchard trees cannot be planted yet. All tree numbers are provisional, to tune
+An adult with an orchard seed can plant a new orchard tree on open grass or
+forest ground outside the Town. Picking fruit also gives an orchard seed for
+replanting. All tree numbers are provisional, to tune
 in playtests ([#462](https://github.com/compoodment/ClankerWorld/issues/462)).
 A Windows check of the tree stages at different zooms is still to do.
 
@@ -1352,8 +1354,10 @@ keep the existing cart icon while the
 is pending.
 Agents face the way they last moved and show walking steps, and carrying,
 working, talking or hurt poses chosen from what the game already knows about
-them. A mountain range near the camera can show the earlier per-tile art for
-a moment while its relief is drawn. Picked, harvested and per-site depleted
+them. Mountain relief is drawn nearest the middle of the view first, and for
+the ring just outside it ahead of time, so panning rarely shows the earlier
+per-tile mountain art; where it does, as just after a world loads, the relief
+fades in over a fifth of a second. Picked, harvested and per-site depleted
 states are drawn but need the game to track them. The interface uses wooden
 frames and parchment panels, with pixel fonts:
 Fusion Pixel for body text and Timber capitals for headings. The Main Menu shows
