@@ -499,6 +499,12 @@ and survives saving or reconnecting; it covers the recent records still kept
 by the server. Goods changing owners in the same building do not count as a
 physical addition or removal.
 
+Grass and tree canopies follow the seasons: brighter in spring, their usual
+colours in summer, warmer in autumn and more muted in winter. Snow still
+appears only where the world records it. Panning, zooming and loading a world
+keep the same seasonal treatment, including the terrain and tree pictures in
+tile inspection.
+
 Every day has a night, with a short dusk and dawn. Nights are longest in winter
 and shortest in summer: from 19:12 to 04:48 on the clock in the top bar at the
 start of spring and autumn, about 2 min 24 s of a six-minute day; from 20:24
