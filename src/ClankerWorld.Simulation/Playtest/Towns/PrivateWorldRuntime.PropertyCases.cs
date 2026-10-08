@@ -63,6 +63,17 @@ public sealed partial class PrivateWorldRuntime
         catch (InvalidOperationException) { return false; }
     }
 
+    private bool PropertyMayReopen(TownRuntimeState town, TownLandCase item)
+    {
+        if (item.Property is not { Transfer: null } property) return true;
+        try
+        {
+            _ = CaptureProperty(town, property.Request, TownLandHearingRules.CurrentRevision(item).Number + 1);
+            return true;
+        }
+        catch (InvalidOperationException) { return false; }
+    }
+
     private bool PropertyCanTransfer(TownRuntimeState town, TownLandCase item)
     {
         if (!PropertyIsCurrent(town, item) || !TownPropertyRules.HasAllConsent(item, WorldTick)) return false;

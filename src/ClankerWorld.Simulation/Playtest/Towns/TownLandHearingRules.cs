@@ -267,7 +267,7 @@ public static class TownLandHearingRules
             throw new InvalidOperationException("An unrepresented household cannot lose its current or provisional permission.");
         var adjustmentIds = changesRights ? new[] { "land-adjustment:" + item.TownId + ":" + (state.Sequence + 1).ToString(CultureInfo.InvariantCulture) } : [];
         if (changesRights)
-            state = RecordAdjustment(state, new(adjustmentIds[0], "ruling", tick, prior.Select(Snapshot).ToArray(), result,
+            state = RecordAdjustment(state, new(adjustmentIds[0], transfersProperty ? "property_ruling" : "ruling", tick, prior.Select(Snapshot).ToArray(), result,
                 notice.Tiles, item.Id, rulingId));
         var ruling = new TownLandRuling(rulingId, revision, judge, tick, outcome, Ordered(evidenceIds), Ordered(lawIds), reasons, adjustmentIds)
         { Parties = currentParties.OrderBy(p => p.Id, StringComparer.Ordinal).ToArray() };
@@ -458,7 +458,7 @@ public static class TownLandHearingRules
         var knownFacts = item.Evidence.Where(e => e.SubmittedTick <= ruling.Tick).ToArray();
         var priorPermissions = item.Revisions.Single(r => r.Number == ruling.Revision).RightVersions;
         var cases = state?.Cases ?? [item];
-        var courtPermissions = state?.Adjustments.Where(a => a.Kind == "ruling").SelectMany(a => a.ResultRights).ToArray() ?? [];
+        var courtPermissions = state?.Adjustments.Where(a => a.Kind is "ruling" or "property_ruling").SelectMany(a => a.ResultRights).ToArray() ?? [];
         return request.EvidenceIds.Any(id => item.Evidence.Any(e => e.Id == id && ValidEvidence(e) &&
             e.Kind is "record" or "observation" && e.SubmittedTick > ruling.Tick && e.SubmittedTick <= request.Tick &&
             !knownFacts.Any(old => old.Kind == e.Kind && FactText(old.Text) == FactText(e.Text)) &&

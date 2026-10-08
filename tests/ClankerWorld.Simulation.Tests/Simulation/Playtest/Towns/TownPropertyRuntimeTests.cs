@@ -11,6 +11,7 @@ public sealed partial class TownLandHearingRuntimeTests
 {
     private const string PropertyFiler = "founder:00000000000000000000000000000002";
     private const string PropertyHouse = "first-town-house-b";
+    private static readonly JsonSerializerOptions PropertyJsonOptions = new(JsonSerializerDefaults.Web);
 
     // Only the already tested election and opening are shared: every test runs its own
     // actual personal choices, inventory changes and serialized world boundary.
@@ -104,7 +105,8 @@ public sealed partial class TownLandHearingRuntimeTests
         using var reloaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(final), _ => new PropertyProvider());
         Assert.Equal(final, PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
         AssertDamagedPropertyFilesRefused(world.ExportState());
-        var personal = Assert.Single(before.Society.Society.Inventory.Lots, lot => lot.OwnerId == Filer && lot.StorageBuildingId == PropertyHouse);
+        var personal = Assert.Single(before.Society.Society.Inventory.Lots, lot => lot.OwnerId == Filer &&
+            lot.StorageBuildingId == PropertyHouse && lot.Id.EndsWith("#transfer:personal-held", StringComparison.Ordinal));
         Assert.Equal(Filer, world.ExportState().Society.Society.Inventory.GetLot(personal.Id).OwnerId);
         using var collector = PrivateWorldRuntime.Restore(world.ExportState(), _ => new PropertyProvider { Collect = personal.Id });
         await PropertyUntil(collector, () => collector.ExportState().Society.Society.Inventory.GetLot(personal.Id).CarrierId == Filer, 16);
@@ -227,7 +229,7 @@ public sealed partial class TownLandHearingRuntimeTests
             });
             var document = JsonNode.Parse(PrivateWorldRuntimeCodec.Encode(state))!;
             document["state"]!["towns"]![0]!["landHearings"]!["cases"]![0]!["property"] =
-                damage is null ? null : JsonSerializer.SerializeToNode(damage, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+                damage is null ? null : JsonSerializer.SerializeToNode(damage, PropertyJsonOptions);
             Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Decode(System.Text.Encoding.UTF8.GetBytes(document.ToJsonString())));
         }
     }

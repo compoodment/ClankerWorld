@@ -129,7 +129,7 @@ public sealed partial class PrivateWorldRuntime
                                  read.ReopenRequestIds.Contains(request.Id, StringComparer.Ordinal))))
                 {
                     var established = request.Kind == "material_evidence" ? TownLandHearingRules.MaterialNewEvidence(item, request, hearings) : TownLandHearingRules.DemonstratedProceduralError(item, request);
-                    if (established && TownLandHearingRules.ReopeningPlotIsAvailable(hearings, item))
+                    if (established && TownLandHearingRules.ReopeningPlotIsAvailable(hearings, item) && PropertyMayReopen(town, item))
                         candidates.Add(new(CivicAction(town.Id, "hearing_assess_reopen", token, request.Id + ":accept"), "Accept independently established grounds and open a fresh hearing; current rights remain until a valid correction. Give reasons in civic_land_hearing.statement. Filed " + request.Kind + " claim: " + request.Reasons, 165));
                     candidates.Add(new(CivicAction(town.Id, "hearing_assess_reopen", token, request.Id + ":reject"), "Reject this reopening request with reasons in civic_land_hearing.statement; keep the old ruling and request in the case history. Filed " + request.Kind + " claim: " + request.Reasons, 166));
                 }
@@ -293,10 +293,24 @@ public sealed partial class PrivateWorldRuntime
                 var request = item.ReopenRequests.Single(request => request.Status == "pending" &&
                     (CivicAgentToken(request.Id + ":accept") == choice || CivicAgentToken(request.Id + ":reject") == choice));
                 var accept = CivicAgentToken(request.Id + ":accept") == choice;
+                var reopenedProperty = accept && item.Property is { Transfer: null } pendingProperty
+                    ? CaptureProperty(currentTown, pendingProperty.Request, revision.Number + 1) : null;
+                if (reopenedProperty is not null)
+                    parties = TownPropertyRules.Parties(parties, item.Property! with
+                    { Snapshots = item.Property.Snapshots.Append(reopenedProperty).ToArray() }, town.Id, society.Checkpoint.Inhabitants);
                 hearings = TownLandHearingRules.Reopen(hearings, item.Id, request.Id, item.Judge!, accept,
                     LandHearingText(hearingChoice?.Statement), householdLandUseRights, parties, WorldTick, CivicDay,
                     "notice:" + (council.Notices.Count + 1), item.Judge is { } reopeningJudge && LandHearingJudgeValid(currentTown, item, reopeningJudge));
-                if (accept) council = PostLandHearingNotice(council, hearings.Cases.Single(c => c.Id == item.Id));
+                if (accept)
+                {
+                    var reopened = hearings.Cases.Single(c => c.Id == item.Id);
+                    if (reopenedProperty is not null)
+                    {
+                        reopened = reopened with { Property = reopened.Property! with { Snapshots = reopened.Property.Snapshots.Append(reopenedProperty).ToArray() } };
+                        hearings = TownPropertyRules.Replace(hearings, reopened);
+                    }
+                    council = PostLandHearingNotice(council, reopened);
+                }
                 break;
             case "hearing_relay":
                 var recipient = ResolveCivicAgentToken(choice);

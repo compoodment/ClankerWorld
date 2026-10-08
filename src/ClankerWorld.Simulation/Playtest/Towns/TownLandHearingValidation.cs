@@ -53,13 +53,15 @@ public static class TownLandHearingValidation
             foreach (var right in adjustment.ResultRights) ValidateRight(map, adjustment.Tick, townId, TownLandHearingRules.Snapshot(right), titles, knownHouseholds);
             Check(adjustment.ResultRights.SelectMany(r => r.Tiles).Distinct().Count() == adjustment.ResultRights.Sum(r => r.Tiles.Count),
                 "A land adjustment cannot overlap its result permissions.");
-            if (adjustment.Kind == "ruling")
+            if (adjustment.Kind is "ruling" or "property_ruling")
             {
                 var item = state.Cases.SingleOrDefault(c => c.Id == adjustment.CaseId);
                 var ruling = item?.Rulings.SingleOrDefault(r => r.Id == adjustment.RulingId);
                 Check(item is not null && ruling is not null && ruling.Tick == adjustment.Tick && ruling.AdjustmentIds.Contains(adjustment.Id, StringComparer.Ordinal) &&
                     adjustment.BuildingId is null && adjustment.TargetHouseholdId is null && adjustment.TransferId is null, "A ruling adjustment needs its exact durable case and ruling.");
                 var revision = item.Revisions.Single(r => r.Number == ruling.Revision);
+                Check(adjustment.Kind == (ruling.Outcome.Kind is "reclaim" or "grant" ? "property_ruling" : "ruling"),
+                    "Physical property adjustments must retain their distinct noticed transfer authority.");
                 var prior = adjustment.PriorRights.Select(r => r.Right).ToArray();
                 // Free tiles a ruling granted are replayed as recorded; the request receipts prove each one was a heard request.
                 var granted = adjustment.ResultRights.SelectMany(r => r.Tiles).Where(t => !prior.Any(p => p.Tiles.Contains(t))).ToArray();

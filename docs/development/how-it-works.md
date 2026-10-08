@@ -1603,7 +1603,7 @@ members even after they join another household. `TownPropertyConsent` records
 each person's informed agreement or refusal separately from response waivers.
 New assets, quantities or claimants require a fresh notice and new consent.
 The independent judge cites the inspected snapshot before `reclaim` or `grant`.
-The ruling commits the bounded footprint adjustment, building owner and actual
+The ruling commits a distinct `property_ruling` footprint adjustment, building owner and actual
 inventory transfers together, retaining full before/after transfer receipts.
 Containers move with their contents; condition, freshness and physical location
 are preserved. Personal and carried goods are excluded. Active work, deliveries
