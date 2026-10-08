@@ -116,6 +116,7 @@ public partial class WorldTerrainLayer : Control
     public void SetWorld(WorldTerrainMap map)
     {
         world = map;
+        ResetResourceAppearanceInputs();
         ResetRelief();
         townSiteGuidanceTexture = null;
         currentTownSiteGuidance = null;
@@ -528,6 +529,8 @@ public partial class WorldTerrainLayer : Control
     public void SetTrees(IReadOnlyList<OwnerWorldResource> resources)
     {
         if (world is null) return;
+        ArgumentNullException.ThrowIfNull(resources);
+        if (TreeAppearanceMatches(resources)) return;
         var next = new byte[checked(world.Width * world.Height)];
         foreach (var resource in resources)
         {
@@ -537,9 +540,7 @@ public partial class WorldTerrainLayer : Control
             if (resource.TreeKind is not { } species) continue;
             // The host sends the stage it read from the saved growth state.
             // Older hosts sent it only for orchards, so derive the rest.
-            var stage = resource.TreeStage ?? (species == "orchard" ? "fruiting"
-                : resource.IsPlanted ? "sapling"
-                : resource.Quantity == 0 || resource.State != "available" ? "stump" : "mature");
+            var stage = VisibleTreeStage(resource);
             if (TreeArtManifest.For(species, stage) is not { Code: > 0 } art) continue;
             var index = y * world.Width + x;
             if (next[index] != 0)
@@ -547,6 +548,7 @@ public partial class WorldTerrainLayer : Control
             next[index] = art.Code;
         }
         trees = next;
+        treeAppearanceInputs = resources.Where(resource => resource.TreeKind is not null && ResourceInBounds(resource)).ToArray();
         QueueRedraw();
     }
 
@@ -624,25 +626,43 @@ public partial class WorldTerrainLayer : Control
     {
         if (world is null) return;
         ArgumentNullException.ThrowIfNull(resources);
-        var next = new byte[checked(world.Width * world.Height)];
-        var stages = new byte[next.Length];
-        foreach (var resource in resources)
+        var changed = !NaturalAppearanceMatches(resources);
+        if (changed)
         {
-            var kind = NatureSprites.NaturalObjectCode(resource.NaturalObjectKind);
-            if (kind == 0) continue;
-            var x = resource.Position.X;
-            var y = resource.Position.Y;
-            if (x < 0 || x >= world.Width || y < 0 || y >= world.Height) continue;
-            var index = y * world.Width + x;
-            if (trees[index] != 0 || next[index] != 0)
-                throw new InvalidDataException("Generated natural objects cannot overlap another tree or natural object.");
-            next[index] = kind;
-            stages[index] = resource.Quantity == 0 || resource.State != "available"
-                ? resource.IsRenewable ? (byte)2 : (byte)1
-                : (byte)0;
+            var next = new byte[checked(world.Width * world.Height)];
+            var stages = new byte[next.Length];
+            foreach (var resource in resources)
+            {
+                var kind = NatureSprites.NaturalObjectCode(resource.NaturalObjectKind);
+                if (kind == 0) continue;
+                var x = resource.Position.X;
+                var y = resource.Position.Y;
+                if (x < 0 || x >= world.Width || y < 0 || y >= world.Height) continue;
+                var index = y * world.Width + x;
+                if (trees[index] != 0 || next[index] != 0)
+                    throw new InvalidDataException("Generated natural objects cannot overlap another tree or natural object.");
+                next[index] = kind;
+                stages[index] = VisibleNaturalStage(resource);
+            }
+            naturalObjects = next;
+            naturalStages = stages;
+            naturalAppearanceInputs = resources.Where(resource => NatureSprites.NaturalObjectCode(resource.NaturalObjectKind) > 0 &&
+                ResourceInBounds(resource)).ToArray();
         }
-        naturalObjects = next;
-        naturalStages = stages;
+        else if (!ReferenceEquals(naturalAppearanceTrees, trees))
+        {
+            // A new tree must not hide a previously indexed natural site.
+            foreach (var resource in naturalAppearanceInputs!)
+                if (trees[resource.Position.Y * world.Width + resource.Position.X] != 0)
+                    throw new InvalidDataException("Generated natural objects cannot overlap another tree or natural object.");
+        }
+        naturalAppearanceTrees = trees;
+        if (ReferenceEquals(campAppearanceTrees, trees) && ReferenceEquals(campAppearanceNaturalObjects, naturalObjects) &&
+            CampAppearanceMatches(resources))
+        {
+            if (changed) QueueRedraw();
+            return;
+        }
         // Older camp resources carry only a resource kind; draw them with the
         // matching site's sprite where no generated site already stands.
         campResources.Clear();
@@ -655,9 +675,12 @@ public partial class WorldTerrainLayer : Control
             var y = resource.Position.Y;
             if (x < 0 || x >= world.Width || y < 0 || y >= world.Height) continue;
             var index = y * world.Width + x;
-            if (trees[index] != 0 || next[index] != 0) continue;
+            if (trees[index] != 0 || naturalObjects[index] != 0) continue;
             campResources[index] = sprite;
         }
+        campAppearanceInputs = resources.Where(resource => CampAppearance(resource) is not null && ResourceInBounds(resource)).ToArray();
+        campAppearanceTrees = trees;
+        campAppearanceNaturalObjects = naturalObjects;
         QueueRedraw();
     }
 
