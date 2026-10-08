@@ -1065,12 +1065,26 @@ anyone else's private stock. Two artifacts of the same kind can be exchanged
 when each records sites its recipient has not learned; the existing consent,
 ownership, reservation and delivery checks still apply.
 
+Scouting has no fixed eight-step turn-back. `explore` continues an outward
+outing; the separate `explore_return` choice starts a return to its origin.
+These choices use the existing 30-tick reconsideration cadence and ordinary
+guidance-triggered requests, not a new request for each movement step. An
+ongoing return can also continue through `explore`, preserving its waypoints.
+The starting warmth estimate keeps its eight-step trial budget and grows with
+the recorded return distance. If that budget no longer permits more outward
+travel, only the return choice remains; existing urgent survival rules still
+interrupt either leg.
+
 Outward scouting checks occupied destinations and both diagonal corner tiles
 before ranking neighboring exits. An attached cart also restricts exits to
 ordinary legal cart steps: cardinal movement without unroaded mountains.
 If no legal outward exit remains, the scout
 uses the existing return path instead of repeatedly targeting a blocked corner.
 Only completed movement adds a visited tile.
+An outward path never repeats a tile and is bounded by the map's tile count.
+The recent visited/discovery lists keep at most 256 entries; the existing
+personal knowledge limits are unchanged. Validation rejects looping or
+oversized saved paths and retains historical bridge checks for actual steps.
 
 If intervening legal movement interrupts outward scouting, a new outward path
 starts at the actual position without inventing missing steps. On the return

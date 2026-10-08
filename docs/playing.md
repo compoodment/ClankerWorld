@@ -173,6 +173,14 @@ centers the camera on them, and back (or **Escape**) returns from the Profile
 to the small card. Inspection does not pause time, and reading private thoughts
 does not tell other agents.
 
+Agents can keep scouting beyond a short local trip and choose when to return
+to where they started. They learn from the places they actually reach, and
+keep their discoveries when they return. You can Suggest that an agent scout
+farther or return; their own model still chooses whether to follow that
+suggestion. Urgent food or warmth needs may interrupt a trip. A return goes
+around other people where possible; if it stays blocked, the Event Log records
+that the trip ended without reaching its start.
+
 **Memories** shows what the agent remembers, believes and has mapped as cards,
 newest first, with a tab for each kind. A belief shows how sure they are and
 whether they saw it or heard it from someone; a map record shows each place
