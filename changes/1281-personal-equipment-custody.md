@@ -1,0 +1,1 @@
+- Prevent clothing or carrying aids left in an old House or on the ground from being equipped without collection after an agent leaves their household, keeping the world valid and saveable.
