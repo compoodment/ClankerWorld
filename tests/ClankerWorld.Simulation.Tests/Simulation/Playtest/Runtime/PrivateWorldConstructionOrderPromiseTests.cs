@@ -44,7 +44,9 @@ public sealed partial class PrivateWorldConstructionOrderTests
         await ReachWork(world, setup.Actor);
         using var replay = Reload(world);
         await FinishTogether(world, replay, receipt);
-        Assert.Equal(promised, world.Society.Inventory.GetLot(promised.Id));
+        var retained = world.Society.Inventory.GetLot(promised.Id);
+        Assert.Equal(world.Society.Inventory.WorldTick, retained.LastProcessedTick);
+        Assert.Equal(promised with { LastProcessedTick = retained.LastProcessedTick }, retained);
         Assert.DoesNotContain(world.Society.Inventory.Lots, lot => lot.Id == "z-unpromised-house-wood");
         Assert.DoesNotContain(world.Society.Inventory.Reservations, reservation => reservation.LotId == promised.Id);
         var proof = Assert.Single(world.WorldSimulation.ConstructionReceipts!);
@@ -54,6 +56,6 @@ public sealed partial class PrivateWorldConstructionOrderTests
         Assert.Equal(("z-unpromised-house-wood", 8, InventoryReservationState.Completed),
             (payment.LotId, payment.Quantity, payment.State));
         using var restored = Reload(world);
-        Assert.Equal(promised, restored.Society.Inventory.GetLot(promised.Id));
+        Assert.Equal(retained, restored.Society.Inventory.GetLot(promised.Id));
     }
 }
