@@ -71,9 +71,7 @@ edges (`snow.edge.before`). The `.16` version shows the 16 px atlas.
 - The tall cactus's shadow is longer than the standard south-east shadow,
   on purpose, so it reads as tall. Say if you would rather all cacti use the
   standard shadow.
-- The desert brush under the cacti is the approved round-1 desert brush tile.
-  That tile is not in the game yet, so the proposal takes it from the terrain
-  proposal for now.
-- The game has no cactus sprite yet, and its map still turns cactus cover
-  into plain desert brush. Placing cacti in the world, such as which sand
-  tiles carry one and how many, is game work for when the cacti are built.
+- The desert brush under the cacti is the approved round-1 desert brush tile,
+  which the game now draws too.
+- The game places cacti itself: about one in five of the tiles the world marks
+  as cactus cover, as described at the top of this note.

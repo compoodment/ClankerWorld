@@ -1,3 +1,4 @@
+using ClankerWorld.Simulation.Content;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Playtest;
@@ -620,6 +621,7 @@ public sealed partial class OwnerWorldObservationStore
                 field.Work?.WorkerId, field.Work?.RemainingTicks)).ToArray(),
             Handcarts = ProjectHandcarts(state),
             Animals = ProjectAnimals(state),
+            ConstructionSites = ProjectConstructionSites(state),
             Boats = ProjectBoats(state),
             BoatRequests = ProjectBoatRequests(state),
             GroundStocks = state.Society.Society.Inventory.Lots.Where(lot => lot.GroundPosition is not null && lot.Quantity > 0 &&
@@ -1769,6 +1771,45 @@ public sealed partial class OwnerWorldObservationStore
         var town = state.Towns?.FirstOrDefault(item => item.Id == townId);
         return town is { IsAbandoned: true, AbandonedSinceTick: { } abandoned } &&
             state.Society.Society.WorldTick - abandoned >= season;
+    }
+
+    /// <summary>
+    /// Every building under construction: each household building an adult is
+    /// working toward (its project names the building and the site) and each
+    /// approved Town project still being supplied or built. Boats built at a
+    /// Port have no site of their own and are left out.
+    /// </summary>
+    private static ViewerConstructionSite[] ProjectConstructionSites(PrivateWorldRuntimeState state)
+    {
+        if (state.WorldContent is not { } content) return [];
+        var sites = new List<ViewerConstructionSite>();
+        ViewerConstructionSite Site(string id, BuildingDefinition definition, GridPoint position, GridPoint? entrance,
+            int done, int required, string stage, string? town, string? household)
+        {
+            var tiles = WorldContentSimulationRules.Footprint(definition, position).ToArray();
+            var left = tiles.Min(tile => tile.X);
+            var top = tiles.Min(tile => tile.Y);
+            return new(id, definition.CanonicalId, definition.DisplayName, definition.Tags.ToArray(), new ViewerPosition(left, top),
+                tiles.Max(tile => tile.X) - left + 1, tiles.Max(tile => tile.Y) - top + 1,
+                entrance is { } door ? ToPosition(door) : null, done, required, stage, town, household);
+        }
+        foreach (var person in state.Inhabitants.OrderBy(item => item.InhabitantId, StringComparer.Ordinal))
+        {
+            if (person.Project is not { Stage: not ("completed" or "cancelled") } project ||
+                !TownConstructionCandidateIds.TryParse(project.CandidateId, out var selection) || !selection.IsBuilding ||
+                selection.SitePosition is not { } position ||
+                content.Buildings.FirstOrDefault(definition => definition.CanonicalId == selection.DefinitionId) is not { } planned)
+                continue;
+            var household = state.Society.Society.Inhabitants.FirstOrDefault(item => item.Id == person.InhabitantId)?.HouseholdId;
+            sites.Add(Site("household:" + person.InhabitantId, planned, position, null, project.WorkDone, 10, project.Stage, null, household));
+        }
+        foreach (var town in (state.Towns ?? []).OrderBy(item => item.Id, StringComparer.Ordinal))
+            foreach (var project in town.Projects.Where(item => item.Stage is "supplying" or "working" or "blocked" &&
+                         item.Plan.BoatPortId is null && item.RemovedTick is null))
+                if (TownProjectRules.DefinitionFor(project.Plan.DefinitionId) is { } definition)
+                    sites.Add(Site("town:" + project.Id, definition, project.Plan.Site, project.Plan.Entrance, project.WorkDone,
+                        TownProjectRules.RequiredWork(project.Plan), project.Stage, town.Id, null));
+        return sites.ToArray();
     }
 
     private static ViewerAnimal[] ProjectAnimals(PrivateWorldRuntimeState state)

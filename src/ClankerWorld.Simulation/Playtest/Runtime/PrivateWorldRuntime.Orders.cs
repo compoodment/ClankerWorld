@@ -28,6 +28,7 @@ public sealed partial class PrivateWorldRuntime
         if (order.TargetPosition is { } requestedPosition && !map.Contains(requestedPosition))
             return null;
         if (IsAnimalOrder(order.Action)) return AnimalOrderCandidate(instruction);
+        if (IsTreePlantingOrder(order.Action)) return TreePlantingOrderCandidate(instruction, person);
         if (order.Action == "write_knowledge") return KnowledgeOrderCandidateFor(instruction);
 
         if (IsShelterOrder(order.Action))
@@ -196,7 +197,8 @@ public sealed partial class PrivateWorldRuntime
     private bool IsFoodSurvivalCandidate(string actor, string candidateId) => candidateId is
         "consume_food" or "collect_shared_food" or "take_food_from_pot" or "make_room_for_food" or
         "harvest_food" or "seek_food" || candidateId.StartsWith(TownProjectReturnPrefix, StringComparison.Ordinal) ||
-        NeedsUrgentFood(inhabitants[actor]) && IsBusinessFoodCandidate(actor, candidateId);
+        NeedsUrgentFood(inhabitants[actor]) &&
+        (IsBusinessFoodCandidate(actor, candidateId) || IsMarketFoodCandidate(actor, candidateId));
 
     private bool IsSurvivalCandidate(string actor, string candidateId) =>
         IsFoodSurvivalCandidate(actor, candidateId) || candidateId is
@@ -224,6 +226,11 @@ public sealed partial class PrivateWorldRuntime
         if (IsAnimalOrder(order.Action))
         {
             ExecuteAnimalOrder(instruction);
+            return;
+        }
+        if (IsTreePlantingOrder(order.Action))
+        {
+            ExecuteTreePlantingOrder(instruction, person);
             return;
         }
         switch (candidate.Id)
@@ -416,6 +423,8 @@ public sealed partial class PrivateWorldRuntime
 
     private string OrderBlockedReason(OwnerQueuedInstruction instruction, PlaytestInhabitantState person)
     {
+        if (instruction.Order is { } treeOrder && IsTreePlantingOrder(treeOrder.Action))
+            return TreePlantingOrderBlockedReason(instruction, person);
         if (instruction.Order?.Action == "write_knowledge") return KnowledgeOrderBlockedReason(instruction);
         if (instruction.Order is { } animalOrder && IsAnimalOrder(animalOrder.Action))
             return AnimalOrderBlockedReason(instruction);

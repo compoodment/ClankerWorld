@@ -1,0 +1,2 @@
+- In a paired world, let an adult use a crude wooden pickaxe until it breaks, then return to their household’s Blacksmith with repair materials. Confirm routine work and a Repair crude wooden pickaxe order leave the broken tool and materials intact until a replacement is made. https://github.com/compoodment/ClankerWorld/issues/1173
+- With a worn pickaxe that still works, let the same adult repair it at their Blacksmith. Confirm it returns to full condition and spends its actual repair materials. https://github.com/compoodment/ClankerWorld/issues/1173

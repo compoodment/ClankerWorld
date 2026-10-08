@@ -919,6 +919,7 @@ public partial class Main
         {
             VerifyEventLogAgentNames();
             await VerifyNewcomerOfferAsync();
+            await VerifyAcknowledgedAgentPlacementAsync();
             VerifyOrnamentPresentation();
             await VerifyHandcartPresentationAsync();
             VerifyToolMakingPresentation();

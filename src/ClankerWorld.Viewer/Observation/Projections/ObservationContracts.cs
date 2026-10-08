@@ -35,6 +35,14 @@ public sealed record ViewerAnimal(string Id, string Name, string Species, string
     bool Saddled, IReadOnlyList<string> CarePermissions, IReadOnlyList<string> RidingPermissions,
     int? ProductProgressPercent = null);
 
+/// <summary>
+/// A building under construction: a household's planned building or an
+/// approved Town project, where it will stand and how far the work has got.
+/// </summary>
+public sealed record ViewerConstructionSite(string Id, string DefinitionId, string DisplayName, IReadOnlyList<string> Tags,
+    ViewerPosition Site, int Width, int Height, ViewerPosition? Entrance, int WorkDone, int WorkRequired, string Stage,
+    string? TownId, string? HouseholdId);
+
 public sealed record ViewerBoat(string Id, string TownId, string TownName, ViewerPosition Position,
     string? DockedPortId, string? PassengerId, string? PassengerName, string? DestinationPortId,
     string Status, ViewerPosition? ReservedDock, IReadOnlyList<ViewerInventoryEntry> Cargo);
@@ -634,6 +642,7 @@ public sealed record ViewerWorldSnapshot(
     public IReadOnlyList<ViewerGroundStock> GroundStocks { get; init; } = [];
     public IReadOnlyList<ViewerHandcart> Handcarts { get; init; } = [];
     public IReadOnlyList<ViewerAnimal> Animals { get; init; } = [];
+    public IReadOnlyList<ViewerConstructionSite> ConstructionSites { get; init; } = [];
     public IReadOnlyList<ViewerBoat> Boats { get; init; } = [];
     public IReadOnlyList<ViewerBoatTripRequest> BoatRequests { get; init; } = [];
     public IReadOnlyList<ViewerStockpile> Stockpiles { get; init; } = [];

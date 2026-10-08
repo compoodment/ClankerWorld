@@ -88,5 +88,6 @@ public partial class Main
         var description = WorldEventText.Describe(new(1, 1, "animal_cared", "rider:smoke-horse"), map);
         if (!description.Contains("Moss", StringComparison.Ordinal) || description.Contains("smoke-horse", StringComparison.Ordinal))
             throw new InvalidOperationException("Animal events must show the animal's name.");
+        VerifyYardAnimalInspection();
     }
 }
