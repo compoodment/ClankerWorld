@@ -306,6 +306,8 @@ public sealed partial class ViewerHttpTests
                 Assert.Equal(preview.PackedMapLayers, view.Baseline.Snapshot.PackedMapLayers);
                 Assert.Equal(preview.MapLayersDigest, view.Baseline.Snapshot.MapLayersDigest);
                 Assert.Equal(create.WrapEastWest, view.Baseline.Snapshot.WrapsEastWest);
+                Assert.Equal(new ViewerWorldGeneration(create.Seed, create.Size, create.ClimateMode,
+                    create.SelectedClimate, create.LatitudeCooling, create.WrapEastWest), view.Baseline.Snapshot.Generation);
                 Assert.True(view.Baseline.Snapshot.FounderSetup?.CanChooseTownSite == true);
                 Assert.True(view.Baseline.Snapshot.FounderSetup?.HasAcceptedTownSite == true);
                 Assert.Contains(view.Baseline.Snapshot.PlacedBuildings.Single(building =>
@@ -328,6 +330,7 @@ public sealed partial class ViewerHttpTests
                 var cachedView = (await observedAgain.Content.ReadFromJsonAsync<ViewerOwnerReconnect>())!;
                 Assert.Null(cachedView.Baseline.Snapshot.PackedTerrain);
                 Assert.Null(cachedView.Baseline.Snapshot.PackedMapLayers);
+                Assert.Equal(view.Baseline.Snapshot.Generation, cachedView.Baseline.Snapshot.Generation);
                 Assert.Empty(cachedView.Baseline.Snapshot.Tiles);
                 Assert.Equal(view.Baseline.Snapshot.MapManifestDigest,
                     cachedView.Baseline.Snapshot.MapManifestDigest);

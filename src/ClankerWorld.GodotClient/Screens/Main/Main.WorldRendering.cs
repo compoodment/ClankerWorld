@@ -90,6 +90,7 @@ public partial class Main
         wasObservedPaused = isPaused;
         observedCalendarPace = snapshot.CalendarPace;
         RenderRoutineHelperSettings(snapshot);
+        RenderGenerationSettings(snapshot);
         if (cameraWorldId is not null && cameraWorldId != snapshot.WorldId)
         {
             knownEvents.Clear();

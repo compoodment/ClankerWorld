@@ -609,6 +609,9 @@ public sealed record OwnerWorldActor(
     int FoodItems,
     int WoodItems);
 
+public sealed record OwnerWorldGeneration(string Seed, string Size, string ClimateMode,
+    string SelectedClimate, bool LatitudeCooling, bool WrapEastWest);
+
 public sealed record OwnerWorldSnapshot(
     string WorldId,
     long WorldTick,
@@ -623,6 +626,7 @@ public sealed record OwnerWorldSnapshot(
     public OwnerWorldPackedMapLayers? PackedMapLayers { get; init; }
     public string? MapLayersDigest { get; init; }
     public bool WrapsEastWest { get; init; }
+    public OwnerWorldGeneration? Generation { get; init; }
     public IReadOnlyList<OwnerWorldFarmField> Fields { get; init; } = [];
     public IReadOnlyList<OwnerWorldGroundStock> GroundStocks { get; init; } = [];
     public IReadOnlyList<OwnerWorldHandcart> Handcarts { get; init; } = [];

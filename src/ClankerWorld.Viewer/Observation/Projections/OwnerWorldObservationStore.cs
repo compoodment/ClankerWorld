@@ -632,6 +632,10 @@ public sealed partial class OwnerWorldObservationStore
                 .Select(group => new ViewerGroundStock(new(group.Key.Position.X, group.Key.Position.Y), group.Key.OwnerId,
                     group.Key.ItemKind, group.Sum(lot => lot.Quantity))).ToArray(),
             WrapsEastWest = state.Geography?.WrapEastWest == true,
+            Generation = state.Geography is { } geography
+                ? new ViewerWorldGeneration(geography.Seed, geography.Size.ToString(), geography.ClimateMode.ToString(),
+                    geography.SelectedClimate.ToString(), geography.LatitudeCooling, geography.WrapEastWest)
+                : null,
             LastTickMilliseconds = diagnostics.LastTickMilliseconds,
             Inhabitants = activeInhabitants
                 .Select(inhabitant => ToPlaytestInhabitant(state, inhabitant, physicalById[inhabitant.Id]) with
