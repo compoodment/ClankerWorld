@@ -2,7 +2,7 @@
 title: Playing the current game
 type: player-guide
 status: active
-updated: 2026-10-07
+updated: 2026-10-08
 ---
 
 # Playing the current game
@@ -196,6 +196,9 @@ incoming boats. **World Info → Towns** shows boats and active trip requests.
 Agents may propose paid Ports and boats through the Council, then request
 travel between completed Ports. Visitors need Council permission. A blocked
 arrival waits one world day before returning to a usable departure Port.
+Passengers can eat their carried food or drink fresh milk from a usable carried
+jug during travel and while waiting to land. Drinking uses one portion and
+leaves the jug intact.
 
 When agents talk, a chat bubble appears above each participant and nearby
 listeners. Click a bubble to see who spoke and whether the conversation is
@@ -299,6 +302,9 @@ When carrying several water jugs, agents can refill one with room even if
 another is full. They still need a reachable riverbank or lakeshore and enough
 carrying space for the water.
 
+When returning a jug, agents leave jugs needed for other work alone and choose
+one that fits in the House with all its contents.
+
 To return borrowed stock, use **Return two borrowed cloth**, **Return two
 borrowed bread** or **Return one borrowed water jug**. The agent carries the
 goods back to their owning
@@ -319,6 +325,18 @@ unused planting stock. Add **at (12, 4)** to keep the task on that field tile.
 Ordinary crop and seed hauling tries another permitted farm store when the
 preferred one cannot fit the load. For example, a filled pot goes to the
 Farmhouse if the Silo has too little room for the pot and its contents.
+
+To plant trees, try **Plant a conifer tree**, **Plant two broadleaf trees**,
+**Plant an orchard**, or **Keep planting trees**. Adults use real tree seeds
+from felling or orchard seeds from fruit picking. They can fetch their own
+stored seeds or permitted household or Warehouse stock before planting.
+Each completed sapling counts as one tree; collecting a seed and walking do
+not count. Without a species, wood trees follow the nearby forest.
+Add **at (12, 4)** for an exact tile outside Town borders. Occupied or
+unsuitable ground, missing seeds, carrying limits and blocked routes leave
+the task waiting with a reason. An exact tile never changes to another tile,
+so requesting several trees on one tile stops after the first sapling.
+Queue, cancel and save/reload work as for other tasks.
 
 To move supplies for a household or Town, name both the goods and the destination:
 
@@ -397,7 +415,9 @@ requests one building or one expansion stage. Repeating requests and larger
 counts are not understood. Progress reaches one only when the building work
 actually finishes. Queue, cancellation and save/reload preserve the task;
 cancelling leaves collected goods in place and releases unused expansion
-materials. Urgent survival pauses the work before it resumes.
+materials. Expansion leaves borrowed goods with the person carrying them;
+returning them to their owning House makes them available again. Urgent
+survival pauses the work before it resumes.
 
 Use **Seek shelter**, **Take cover** or **Shelter in my House** to reach
 permitted cover. Add **at (12, 4)** to require that location. A storm guest
@@ -437,6 +457,8 @@ A building's storage-space bar shows how much of its recorded limit is used,
 with exact used/limit numbers. It counts all stored goods, including materials
 held for work and goods belonging to someone else. It updates when goods move
 or an expansion increases the limit. Hover over the bar for the exact count.
+Making a personal handcart leaves this space available because the finished
+cart goes on the ground.
 
 **Details** also lists recent recorded storage changes: positive quantities
 were added, negative quantities were removed or used, with the date and time
@@ -479,6 +501,8 @@ starts an independent household. If household owners or Town borders overlap,
 choose another tile. The preview does not reserve the land: the server checks
 the current ownership and borders again when you place the adult, and asks you
 to choose again if they changed. Walking later does not change membership.
+Once placement succeeds, Add Agent closes. If model settings cannot refresh,
+the message still confirms the placement; reopen Game Settings to refresh them.
 
 **World Info** has two pages. **Towns** lists each Town with its residents'
 portraits, its council, its current and latest settled election, eight recent
@@ -624,11 +648,14 @@ carry surplus there and borrow a free stall. Buyers, including visitors who
 belong to no Town, bring personal payment, and the named seller chooses whether
 to accept when both have reached the stall. The buyer carries the purchase;
 payment becomes the seller's household stock there. Leaving frees the stall;
-leftover goods still belong to their
-recorded owner. Suggestions can guide these choices, but an Order cannot force
+leftover goods still belong to their recorded owner, who can carry them away
+even if they spoil. Other housemates can collect household stock once borrowing
+ends; the borrower may collect it while holding the stall.
+Suggestions can guide these choices, but an Order cannot force
 a sale or give away goods. An urgently hungry owner can still retrieve their
-available food from a stall and eat it. Other Market work waits until urgent
-hunger passes. The
+available food from a stall and eat it, including during an unrelated active
+Order. That survival interruption keeps the task and its progress. Other
+Market work waits until urgent hunger passes. The
 [Market hands-on checklist](../playtest/564-market-stalls.md) remains pending.
 
 Residents can also propose a **stone street lamp** or **hanging street lantern**
@@ -712,6 +739,7 @@ by itself, and loading an older save does not lower it. It is not a currency
 budget or provider invoice. When the count reaches 80% of the limit, the Event
 Log warns you once. Reaching the limit pauses time: raise or remove the limit,
 or choose **Allow 100 more calls**, then resume separately.
+After you allow more calls and resume, time keeps running under your new limit.
 
 Type a limit and choose **Set limit** to apply it; leave the field blank to
 remove the limit. Refreshing the count preserves an unfinished edit even
@@ -801,7 +829,8 @@ Households receive no starting animals. Look for wild chickens, sheep, cows or
 horses near wild greens and fresh water.
 
 Click an animal's tile for its name, age, household, care, ready product and
-permissions. Use its exact unique name or ID in a Must do order, for example
+permissions. If the animal is inside a building, open that building's **Details**
+to see the animals standing there. Use its exact unique name or ID in a Must do order, for example
 **Tame Moss**, **Lead home Moss**, **Care for Moss**, or **Collect from Moss**.
 **Repeat care for Moss** and **Repeat collect from Moss** keep the task active
 until cancelled. When the animal is elsewhere in the yard, the adult picks up
@@ -831,6 +860,9 @@ For a cared adult horse, use **Saddle Moss**, **Mount Moss** and **Dismount Moss
 A mount needs a real household saddle and gives twice walking speed plus eight
 cargo units. Dismounting puts excess unreserved cargo at the rider's actual
 position. Horses cannot accompany a boat or pull a handcart in this version.
+Collecting another animal's ready product first dismounts the rider, then
+requires room to carry the product on foot.
+Saddling another horse also dismounts the rider before approaching it.
 Household adults can care and ride; outsiders need separate named permissions
 agreed by an adult. Personal models may offer or accept a specific animal gift
 or sale when both adults meet and the receiving yard has space.

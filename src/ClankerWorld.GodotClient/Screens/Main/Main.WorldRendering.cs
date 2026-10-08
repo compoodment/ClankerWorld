@@ -220,6 +220,8 @@ public partial class Main
         terrainLayer.SetBuildings(snapshot.PlacedBuildings, snapshot.Objects, snapshot.Towns);
         nightLightsLayer.SetBuildings(BuildingLights(snapshot));
         nightLightsLayer.SetLanterns(StreetLanterns(snapshot), snapshot.WrapsEastWest);
+        terrainLayer.SetConstructionSites(snapshot.ConstructionSites);
+        nightLightsLayer.SetLanternSites(StreetLanternSites(snapshot));
         worldOverview.SetRoads([.. snapshot.RoadTiles, .. snapshot.Bridges.SelectMany(bridge => bridge.Span)]);
         ApplyMapFilters(snapshot);
         var mapWidth = terrainMap.Width;

@@ -1,0 +1,1 @@
+- Street lanterns in an abandoned Town now stay dark at night, and light again once someone resettles the Town.
